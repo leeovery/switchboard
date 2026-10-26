@@ -132,7 +132,8 @@ type RestartDue struct {
 }
 
 // RestartHeld is the restart due, for Reason, held, as the router's binary
-// refuses to start, saying why: Refusal.
+// refuses to start, saying why: Refusal. It tells of the refusal, and of a
+// restart falling due again while the refusal still holds it.
 type RestartHeld struct {
 	Reason  string
 	Refusal string

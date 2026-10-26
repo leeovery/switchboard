@@ -35,11 +35,12 @@ const checkTimeout = 10 * time.Second
 // file to make a valid config, which the router started again needs; and the
 // binary it restarts into is asked whether it could start, the restart held
 // while it refuses, as a newer version's rules can refuse a config the
-// running version's took. Only a supervised router, started again whenever
-// it exits, restarts: any other logs, once, that a restart is due. Either
-// tells of a restart as it falls due, and reports one due, which the status
-// document gives. A supervised router also restarts at once when asked to,
-// as service restart asks.
+// running version's took, and cleared while the config file and the binary
+// stand as they did when it didn't. Only a supervised router, started again
+// whenever it exits, restarts: any other logs, once, that a restart is due.
+// Either tells of a restart as it falls due, and reports one due, which the
+// status document gives. A supervised router also restarts at once when
+// asked to, as service restart asks.
 type restarts struct {
 	config     *configFile
 	binary     *ledFile
@@ -57,6 +58,10 @@ type restarts struct {
 	// held is the binary's refusal to start that holds the restart due: nil
 	// while nothing does.
 	held *binaryRefusal
+	// clearance is how the config file and the binary stood as the binary
+	// last answered without refusing to start, which clears a restart while
+	// they stand so: nil while nothing does.
+	clearance *checked
 	// restarted closes as the router restarts, reason then saying why.
 	restarted chan struct{}
 	beginning sync.Once
@@ -123,7 +128,7 @@ func (r *restarts) look() {
 	r.reconsider()
 	why := r.due()
 	if r.note(why) {
-		r.emit(RestartDue{Reason: why})
+		r.emit(r.fallen(why))
 	}
 	if why == "" || r.told {
 		return
@@ -134,6 +139,16 @@ func (r *restarts) look() {
 		return
 	}
 	logger.Info("restart due; run switchboard serve again to take it up", "reason", why)
+}
+
+// fallen is the event telling of a restart falling due for why: held, as the
+// binary's refusal to start still holds it, as when the config file has been
+// gone a while and comes back as it was, else due.
+func (r *restarts) fallen(why string) Event {
+	if r.held != nil {
+		return RestartHeld{Reason: why, Refusal: r.held.why}
+	}
+	return RestartDue{Reason: why}
 }
 
 // note notes why a restart is due, "" for none, for report to give: since it
@@ -202,26 +217,35 @@ func (r *restarts) ready() <-chan struct{} {
 }
 
 // restart restarts the router, once a look at what it was started from finds
-// a restart still due, its config file making a valid config, and its binary,
-// asked until ctx ends, not refusing to start, and reports whether it did:
-// the config file may have changed since it was last looked at, into a
-// config the router couldn't start again from.
+// a restart still due, its config file making a valid config, and its binary
+// clear to restart into, as clear says, and no request in flight, and reports
+// whether it did: the config file may have changed since it was last looked
+// at, into a config the router couldn't start again from.
 func (r *restarts) restart(ctx context.Context) bool {
 	r.look()
 	why := r.due()
-	if why == "" || r.config.missed || !r.cleared(ctx, why) {
+	if why == "" || r.config.missed || !r.clear(ctx, why) {
+		return false
+	}
+	// Asking the binary takes a while, in which a request can begin: the
+	// clearance carries the restart over to the next quiet moment.
+	if r.inFlight.requests() > 0 {
 		return false
 	}
 	r.begin(why)
 	return true
 }
 
-// cleared asks the binary whether it could start, as asked does, before the
-// router restarts into it for why, and reports whether the restart can go
-// ahead: it can unless the binary refuses, which holds it, or ctx ends
-// first.
-func (r *restarts) cleared(ctx context.Context, why string) bool {
+// clear reports whether the binary is clear for the router to restart into
+// for why: while the config file and the binary stand as they did when it
+// last answered without refusing to start, it is, unasked; otherwise it's
+// asked, as asked does, until ctx ends, and is unless it refuses, which holds
+// the restart, or ctx ends first.
+func (r *restarts) clear(ctx context.Context, why string) bool {
 	stood := r.files()
+	if r.clearance != nil && r.clearance.same(stood) {
+		return true
+	}
 	refusal, err := r.asked(ctx)
 	switch {
 	case err != nil:
@@ -230,6 +254,7 @@ func (r *restarts) cleared(ctx context.Context, why string) bool {
 		r.hold(stood, why, refusal)
 		return false
 	}
+	r.clearance = &stood
 	return true
 }
 
@@ -431,6 +456,12 @@ type checked struct {
 // fileState's movedTo says.
 func (s checked) movedTo(t checked) bool {
 	return s.config.movedTo(t.config) || s.binary.movedTo(t.binary)
+}
+
+// same reports whether s and t stand alike: each file the same, unchanged, or
+// not there in both.
+func (s checked) same(t checked) bool {
+	return s.config.same(t.config) && s.binary.same(t.binary)
 }
 
 // fileState is how a file stands, its links followed: which file it is, and

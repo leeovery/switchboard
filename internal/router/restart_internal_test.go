@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -640,43 +641,53 @@ func TestARestartHeldIsAskedAboutAgainOnceTheConfigFileOrTheBinaryChanges(t *tes
 func TestARestartHeldStaysHeldThroughAFileGoneForAMoment(t *testing.T) {
 	const refusal = "invalid config"
 	saving := func(s startedFrom) string { return s.kept + ".saving" }
+	heldOnce := []Event{RestartDue{Reason: "upgraded"}, RestartHeld{Reason: "upgraded", Refusal: refusal}}
 	tests := []struct {
 		name string
 		// gone takes a file the router was started from away, for looks
 		// looks, and back puts it back as it was.
 		gone, back func(t *testing.T, s startedFrom)
 		looks      int
+		// wantHeard are the events told of, from the restart first falling
+		// due on.
+		wantHeard []Event
 	}{
 		{
-			name:  "the binary's link, as an upgrade moves it on",
-			gone:  func(t *testing.T, s startedFrom) { remove(t, s.binary) },
-			back:  func(t *testing.T, s startedFrom) { link(t, s.version("1.1"), s.binary) },
-			looks: 1,
+			name:      "the binary's link, as an upgrade moves it on",
+			gone:      func(t *testing.T, s startedFrom) { remove(t, s.binary) },
+			back:      func(t *testing.T, s startedFrom) { link(t, s.version("1.1"), s.binary) },
+			looks:     1,
+			wantHeard: heldOnce,
 		},
 		{
-			name:  "the binary's link, for a while",
-			gone:  func(t *testing.T, s startedFrom) { remove(t, s.binary) },
-			back:  func(t *testing.T, s startedFrom) { link(t, s.version("1.1"), s.binary) },
-			looks: 3,
+			name:      "the binary's link, for a while",
+			gone:      func(t *testing.T, s startedFrom) { remove(t, s.binary) },
+			back:      func(t *testing.T, s startedFrom) { link(t, s.version("1.1"), s.binary) },
+			looks:     3,
+			wantHeard: heldOnce,
 		},
 		{
-			name:  "the config file, as an editor saves it",
-			gone:  func(t *testing.T, s startedFrom) { rename(t, s.kept, saving(s)) },
-			back:  func(t *testing.T, s startedFrom) { rename(t, saving(s), s.kept) },
-			looks: 1,
+			name:      "the config file, as an editor saves it",
+			gone:      func(t *testing.T, s startedFrom) { rename(t, s.kept, saving(s)) },
+			back:      func(t *testing.T, s startedFrom) { rename(t, saving(s), s.kept) },
+			looks:     1,
+			wantHeard: heldOnce,
 		},
 		{
-			name:  "the config file, long enough for its change to be refused",
+			name:  "the config file, long enough for its change to be refused, the restart falling due again held",
 			gone:  func(t *testing.T, s startedFrom) { rename(t, s.kept, saving(s)) },
 			back:  func(t *testing.T, s startedFrom) { rename(t, saving(s), s.kept) },
 			looks: 2,
+			wantHeard: append(slices.Clone(heldOnce),
+				RestartHeld{Reason: "config changed", Refusal: refusal}),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+			var heard []Event
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
 			asked := askedOf(r, binaryAnswer{refusal: refusal}, binaryAnswer{err: fs.ErrNotExist}, binaryAnswer{refusal: refusal})
 			relink(t, s.binary, s.version("1.1"))
 			r.look()
@@ -700,7 +711,111 @@ func TestARestartHeldStaysHeldThroughAFileGoneForAMoment(t *testing.T) {
 			if n := strings.Count(log.String(), `msg="restart held`); n != 1 {
 				t.Errorf("log reads\n%s\nwant the restart held said once, not %d times", log, n)
 			}
+			if !reflect.DeepEqual(heard, tt.wantHeard) {
+				t.Errorf("heard %+v, want %+v: the events saying what the status document does", heard, tt.wantHeard)
+			}
 		})
+	}
+}
+
+func TestARequestBegunAsTheBinaryIsAskedPutsTheRestartOffToTheNextQuietMoment(t *testing.T) {
+	s := newStartedFrom(t)
+	inFlight := newInFlight()
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight, at(start), unheeded)
+	asked := askedOf(r, binaryAnswer{})
+	ask := r.ask
+	r.ask = func(ctx context.Context) (string, error) {
+		if *asked == 0 {
+			inFlight.begin()
+		}
+		return ask(ctx)
+	}
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+
+	if r.restart(t.Context()) || r.restarting() {
+		t.Fatal("restart() = true, want the restart put off: a request began as the binary was asked")
+	}
+	if quiet(r.ready()) {
+		t.Fatal("ready() is closed with a request in flight, want it once there's none")
+	}
+	inFlight.end()
+	if !quiet(r.ready()) {
+		t.Fatal("ready() isn't closed with no request in flight, want the restart to go ahead")
+	}
+	if !r.restart(t.Context()) {
+		t.Error("restart() = false at the next quiet moment, want the router restarted: the binary's answer still clears it")
+	}
+	if *asked != 1 {
+		t.Errorf("the binary was asked %d times, want once: nothing moved on since it answered", *asked)
+	}
+}
+
+func TestARestartPutOffIsAskedAboutAgainOnceTheConfigFileOrTheBinaryChanges(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes what the router was started from, once the binary
+		// has answered that it could start, and a request has begun.
+		change func(t *testing.T, s startedFrom)
+		// again is how the binary answers, asked again.
+		again       binaryAnswer
+		wantRestart bool
+	}{
+		{
+			name:        "the config file edited",
+			change:      func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) },
+			wantRestart: true,
+		},
+		{
+			name: "the binary moved on to another version",
+			change: func(t *testing.T, s startedFrom) {
+				writeFile(t, s.version("1.2"), "switchboard 1.2")
+				relink(t, s.binary, s.version("1.2"))
+			},
+			wantRestart: true,
+		},
+		{
+			name: "the binary moved on to one that refuses to start",
+			change: func(t *testing.T, s startedFrom) {
+				writeFile(t, s.version("1.2"), "switchboard 1.2")
+				relink(t, s.binary, s.version("1.2"))
+			},
+			again: binaryAnswer{refusal: "invalid config"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newStartedFrom(t)
+			inFlight := newInFlight()
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight, at(start), unheeded)
+			asked := askedOf(r, binaryAnswer{}, tt.again)
+			relink(t, s.binary, s.version("1.1"))
+			r.look()
+			inFlight.begin()
+			r.restart(t.Context())
+
+			tt.change(t, s)
+			inFlight.end()
+			if got := r.restart(t.Context()); got != tt.wantRestart {
+				t.Errorf("restart() = %v at the next quiet moment, want %v, as the binary asked again answers", got, tt.wantRestart)
+			}
+			if *asked != 2 {
+				t.Errorf("the binary was asked %d times, want twice: again once changed", *asked)
+			}
+			if held := r.report().Held != ""; held == tt.wantRestart {
+				t.Errorf("report() = %+v, want it held: %v", r.report(), !tt.wantRestart)
+			}
+		})
+	}
+}
+
+// quiet reports whether ready is closed.
+func quiet(ready <-chan struct{}) bool {
+	select {
+	case <-ready:
+		return true
+	default:
+		return false
 	}
 }
 

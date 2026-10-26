@@ -6845,10 +6845,18 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     and would otherwise hold the router on its old version for good; one that isn't there for a
     moment, as `brew upgrade` moves the link on; one that crashes; and one that hasn't answered
     within 10 seconds. Each is logged at `info`.
+  - **An answer clears the files it was given for.** Asking takes a moment, up to 10 seconds, in
+    which a request can begin, so the router begins the restart only if none is in flight once the
+    binary has answered. Otherwise the answer clears the restart for the config file and the binary
+    as they stood when it was asked, and the next quiet moment begins it unasked while they stand
+    so. Where either differs by then, as after a config edit or another upgrade, the binary is
+    asked again. `service restart` still restarts at once, without waiting for a quiet moment.
   - **While it's held,** the router carries on as it is, and says why once: at `warn` in its log,
     in a `restart` event with `held` (see The router's events), and in the status document's
     `restart`, `held` (see The status document), which `status`, the status line, LATELY and the
-    Log word as held. It asks again only once the config file or the binary moves on, there and
+    Log word as held. A restart that falls due again while the refusal holds, as when the config
+    file has been gone a while and comes back as it was, is told of held too, with no second
+    warning. It asks again only once the config file or the binary moves on, there and
     another file or changed, never at a look, so a config put right is taken up, and a newer
     binary is too. A path that leads nowhere for a moment, as `brew` moves the binary's link on or
     an editor saves the config, hasn't moved on: lifting the hold then would ask a binary that

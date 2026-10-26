@@ -63,8 +63,8 @@ func Run(ctx context.Context, cfg Config) error {
 
 // Startable fails, saying why, where Run, given cfg, would fail before it
 // listens: where New can't build the router, or the control socket's path
-// can't be a unix socket's. It starts and writes nothing, reading only the
-// token files.
+// can't be a unix socket's. It starts no router and writes nothing of the
+// router's, reading only the token files.
 func Startable(cfg Config) error {
 	r, err := New(cfg)
 	if err != nil {
