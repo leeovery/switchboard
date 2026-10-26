@@ -59,3 +59,7 @@ label, plan, primary or reserve, replacing its token, adding one or taking one a
 editing the config by hand. `accounts add`, `accounts token` and `accounts remove` exist; nothing
 updates an account. Raised by the owner on 15 October 2026, who wants this, and `setup` asking
 for the plan, to follow milestone 7's release: "users wouldn't know to put that in".
+
+## The owner, 26 October 2026
+
+Next to discuss, after the cleanliness release: making switchboard work with Claude's OAuth logins, and the setup process. First to find out: whether Claude Code and switchboard refreshing one login lock each other out, as single-use refresh tokens would.

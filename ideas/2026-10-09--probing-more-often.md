@@ -21,3 +21,7 @@ To settle with the owner:
 - **The dashboard's refresh:** every interval, the dashboard has the router probe what it hasn't
   read in that time, its interval 5 minutes at the least. With the router reading every 5 minutes
   itself, whether that refresh still has a part, or goes, leaving `R` to ask for a read at once.
+
+## Settled
+
+Every 5 minutes: the owner's choice on 26 October 2026, for the release after v0.2.8. Whether the config sets the interval, and whether the dashboard's refresh keeps a part, are still to settle with the owner as it's built.
