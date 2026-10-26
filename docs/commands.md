@@ -5,7 +5,7 @@ This page describes every switchboard command: what it does, its flags, and what
 | Group | Command | What it does |
 |---|---|---|
 | [Everyday](#everyday) | [`usage`](#usage) | Prints every account's windows as they stand. |
-| | [`dashboard`](#dashboard) | Shows every account's usage full screen, on six tabs. |
+| | [`dashboard`](#dashboard) | Shows every account's usage full screen, on seven tabs. |
 | | [`pin`](#pin) | Tells the router where to send sessions. |
 | | [`claude`](#claude) | Starts the real Claude Code through the router. |
 | [Setting up](#setting-up) | [`setup`](#setup) | Walks you through setting switchboard up. |
@@ -156,7 +156,7 @@ switchboard usage -r               # have the router read every account it may f
 
 ### `dashboard`
 
-`dashboard` shows every account's usage full screen, on six tabs, until you press `q`. For its
+`dashboard` shows every account's usage full screen, on seven tabs, until you press `q`. For its
 flags, keys and tabs, see [Dashboard](dashboard.md).
 
 ### `pin`

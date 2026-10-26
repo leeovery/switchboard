@@ -26,7 +26,7 @@ func (f Frame) historyHelp() []helpPart {
 				said("On a screen shorter than it, the Year scrolls a row at a time, its last row saying how many rows are out " +
 					"of view above and below."),
 			},
-			glyphs: shadesHelp(f.yearDay),
+			glyphs: shadesHelp("a day", "days", f.yearDay),
 		},
 		{
 			heading: "BY MONTH",
@@ -125,19 +125,20 @@ func subTabHeading(v HistoryView) string {
 	return strings.ToUpper(historyViews[v])
 }
 
-// shadesHelp are the five shades a day is drawn in, each as day draws a day
-// at its level, and what it means.
-func shadesHelp(day func(level int) line) []glyph {
+// shadesHelp are the five shades what's shaded is drawn in, a day or an
+// hour, as one and many name it, each as drawn draws one at its level, and
+// what it means.
+func shadesHelp(one, many string, drawn func(level int) line) []glyph {
 	means := [shadeLevels]string{
-		"a day with nothing on it",
-		"the quietest quarter of the active days",
+		one + " with nothing on it",
+		"the quietest quarter of the active " + many,
 		"the second quarter",
 		"the third quarter",
 		"the busiest quarter",
 	}
 	glyphs := make([]glyph, 0, shadeLevels)
 	for level, m := range means {
-		glyphs = append(glyphs, glyph{drawn: day(level), means: m})
+		glyphs = append(glyphs, glyph{drawn: drawn(level), means: m})
 	}
 	return glyphs
 }

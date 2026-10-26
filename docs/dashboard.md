@@ -1,6 +1,6 @@
 # Dashboard
 
-The dashboard keeps every account's usage on screen, live. It has six tabs and a page for each
+The dashboard keeps every account's usage on screen, live. It has seven tabs and a page for each
 session, and shows the router's sessions and its record of every request. To open it, run
 `switchboard dashboard`.
 
@@ -10,6 +10,7 @@ session, and shows the router's sessions and its record of every request. To ope
 - [History](#history)
 - [Sessions](#sessions)
 - [Runway](#runway)
+- [Graphs](#graphs-1)
 - [The Log](#the-log)
 - [A session's page](#a-sessions-page)
 - [On a phone](#on-a-phone)
@@ -445,6 +446,124 @@ To look back:
 
 A step back is never kept.
 
+## Graphs
+
+**Graphs** draws every account's room at once, as charts. It's a page of sections you turn on and
+off: first a burn-down card for every account in each window, then whichever other charts you
+show.
+
+### Sections on Graphs
+
+Graphs has five sections, always in this order. Each key shows or hides its section, at any size,
+and the dashboard remembers which show.
+
+| Section | Key | At first | What it is |
+|---|---|---|---|
+| WEEK | `w` | shown | A burn-down card for each account, over its week |
+| 5-HOUR | `f` | shown | A burn-down card for each account, over its 5-hour window |
+| POOL | `o` | hidden | The pool's room over Runway's week, each account's stacked |
+| GLANCE | `g` | hidden | A row for each account and the pool: each window's room as a sparkline, with `usage`'s words |
+| WHEN YOU WORK | `h` | hidden | Requests by the hour of the day and the day of the week, over the last four weeks |
+
+The windows charted are the two every model shares, as on Runway: a model's own window has no
+card. With every section hidden, the page's first row says which keys bring them back.
+
+### The burn-down cards
+
+Each card charts one account's room over its own window, from the window's start to its reset, a
+column a cell. Each card keeps its own clock: a card's days or hours, and its now, fall where its
+own window puts them, not where the card beside it does. The cards follow the config's order, as
+many side by side as fit at 35 cells or more each, the rest on the rows under.
+
+Over the chart, a card has the account's number, name and marks, and its words: the room left,
+such as `66% left`, then what Runway says under the account's lane in that window, such as
+`at its cap 14:31  ·  back 17:10` or `runs out ~Sat 06:00 at its pace`. The words come from
+Runway's live view as Runway would draw it at the same width. So a hold shorter than one of
+Runway's columns can go unsaid on a card, as on Runway, and a wider terminal, or Runway's labels
+collapsed with `a`, can bring it out.
+
+The chart:
+
+- **The room left** is filled solid up to now, each column to the room the window had then.
+- **Where it's heading** is a dotted line from now to the reset. It's straight, as it holds the
+  rate the window has been used at lately, the pace Runway's words go by. It falls to where the
+  window runs out, then runs along the floor it meets, its cap or empty, to the reset; or it ends
+  at the room the window will have left at its reset.
+- **`✕`** marks where the window runs out. Where its cap or its limit already holds it, `✕` marks
+  the column the hold began in, where that's known.
+- **The reserve** is a faint dotted line at the room the account's cap leaves, where the reserve
+  holds. It's not drawn while a pin spends the reserve.
+- **Now** is a faint `│`.
+
+A window's colour is its state's, as Runway colours a lane: the ramp's first colour where its room
+lasts to its reset, the attention colour where it runs out at its pace or its cap holds it, and red
+where its limit holds it or its token is refused. Each window goes by its own state.
+
+An account not read yet has Runway's words for it and an empty chart but for now. An account the
+router doesn't have yet, just added to the config, has its label alone. A stale account is faded,
+and one out of the pool faint.
+
+Under the cards, `Σ pool` gives the pool's room in each window, such as
+`week 1.2 of 3 left   5-hour 1.5 of 3 left`. With one account there's no pool, and no line. At the
+foot, over the key line, a legend names the marks.
+
+### POOL
+
+POOL charts the pool's room over Runway's week view, from a day before now, for a week. Each
+account's room is stacked from the foot, in its own colour, so the stack's top edge is the pool's
+total. Before now, each account's room as it stood; from now, drawn faint, where it's heading at
+its recent rate: to where it runs out, along its floor to its reset, then full. Runway's axis runs
+under it, and a key names each account's colour. Without colour, the accounts can't be told apart,
+so POOL draws the pool's total alone.
+
+### GLANCE
+
+GLANCE lists every account and the pool in a few rows, as `usage` does. Each window, the week's
+then the 5-hour's, is a sparkline of 16 cells, its room from its start to its reset, faint from now
+where it's heading, with `✕` where it runs out. Then come the room left now, such as `66%`, and
+`usage`'s words for the window, such as `19%/day till Sun 21:00`. `Σ pool` gives the pool's
+sparklines and its room.
+
+GLANCE takes the width it needs and no more, 113 columns with the sample's names. Narrower, its
+words take their short forms, then its names narrow, and then its windows stack, the week's rows
+over the 5-hour's. While WHEN YOU WORK shows too, the two sit side by side wherever both fit whole
+with 10 cells between, from 175 columns with the sample's names; elsewhere WHEN YOU WORK comes
+under GLANCE.
+
+### WHEN YOU WORK
+
+WHEN YOU WORK shows when your requests come: a row for each weekday, from the first day of the
+week as [`week_starts`](configuration.md#top-level-keys) begins weeks, and the day's 24 hours across. Each hour is
+shaded by its requests, averaged over the four whole weeks before today. The heading says the weeks
+counted, such as `the 4 weeks to Wed 30 Sep`, or fewer, where the ledger holds fewer. With none,
+the heading says no weeks, and the section says `nothing recorded yet`.
+
+It counts the requests that spend quota and went upstream, each in the local hour it arrived in.
+The shades are History's: one for an hour with nothing on it, and four for the quarters of the
+active hours, their bounds in the key under the grid.
+
+### Room on Graphs
+
+The terminal's size never decides which sections show, only how much room each gets. At their
+least, each card's words share its label's row, and each chart is 5 rows. Spare rows go first to
+the cards' words, a row of their own, then to the charts, the cards' and POOL's, every one the same
+height, up to 19 rows. Where the sections don't fit even at their least, the page scrolls whole, a
+row at a time, and the row over the key line says what's out of view, such as
+`▲ 3 more above · ▼ 12 more below`. The legend stays at the foot. The layout changes only on a key,
+a resize or the config, never as the numbers move. The charts move on with the clock, a column at
+a time.
+
+So at 160 by 37, with three accounts, each card's words have a row of their own and the charts 7
+rows; at 108 by 44, the words share the label's row and the charts take 5. On a phone, the cards
+stack, one to a row, and with four accounts the page scrolls.
+
+### Keys on Graphs
+
+| Key | Does |
+|---|---|
+| `w` `f` `o` `g` `h` | Shows or hides a section: WEEK, 5-HOUR, POOL, GLANCE and WHEN YOU WORK. |
+| `j` `k`, `PgDn` `PgUp`, the wheel | Scrolls the page, where its sections don't fit. |
+
 ## The Log
 
 **The Log** shows the router's traffic, as it happens and back through the days. It has two
@@ -584,6 +703,8 @@ switches at one width: under 100 columns, it takes its phone form.
   wherever one row doesn't fit, under 83 columns with a name column of 16.
 - LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 93
   columns.
+- Graphs' cards stack, one to a row, each card's words beside its label where rows run short, and
+  GLANCE's windows stack where they don't fit side by side. See [Room on Graphs](#room-on-graphs).
 - Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has
   no `plan`, they add how many of the plans it's over, compact: `4.4× · 2/3`.
 - A session's page keeps each turn's number, start, length, requests, worth and accounts, as it
@@ -597,21 +718,22 @@ Every page is one frame. From top to bottom, it has:
 
 1. The title row, with the tabs and the clock.
 2. The status line.
-3. On every tab but the Overview, the tab's heading row: its name and a rule.
+3. On every tab but the Overview and Graphs, which head their own sections, the tab's heading row:
+   its name and a rule.
 4. The view.
 5. The key line. See [The key line](#the-key-line).
 
 When a tab reads a lot, as Sessions or the Log first showing a long ledger, its heading row says
 `loading…` until the read lands. On the Overview, which has no heading row, SESSIONS' heading says
-it. A quick read says nothing. Once the Log, Sessions' List or a session's page has read the
+it, and on Graphs, its first section's heading. A quick read says nothing. Once the Log, Sessions' List or a session's page has read the
 ledger, it keeps reading what the ledger gains while another tab shows, so it's up to date when you
 come back to it. The Log keeps only the days it shows: once today's lines fill it, it lets go of
 yesterday's, and scrolling back reads them in again.
 
 ### The tabs
 
-`tab` and `shift-tab` move between the six tabs, in the title row's order: the Overview, Accounts,
-History, Sessions, Runway and the Log. The order goes round, from the Log back to the Overview. The
+`tab` and `shift-tab` move between the seven tabs, in the title row's order: the Overview, Accounts,
+History, Sessions, Runway, Graphs and the Log. The order goes round, from the Log back to the Overview. The
 next dashboard opens on the tab last shown.
 
 ### The status line
@@ -690,12 +812,13 @@ router answers.
 
 These keys work on every page. Each page's own keys are under the page:
 [Overview](#keys-on-the-overview), [Accounts](#accounts), [History](#history),
-[Sessions](#keys-on-sessions), [Runway](#runway), [the Log](#keys-on-the-log) and
+[Sessions](#keys-on-sessions), [Runway](#runway), [Graphs](#keys-on-graphs),
+[the Log](#keys-on-the-log) and
 [a session's page](#a-sessions-page).
 
 | Key | Does |
 |---|---|
-| `tab` | Moves to the next tab, in the title row's order and round: the Overview, Accounts, History, Sessions, Runway and the Log. From a session's page, moves to the tab after the one the page was opened from. |
+| `tab` | Moves to the next tab, in the title row's order and round: the Overview, Accounts, History, Sessions, Runway, Graphs and the Log. From a session's page, moves to the tab after the one the page was opened from. |
 | `shift-tab` | Moves to the tab before. From a session's page, moves to the tab before the one the page was opened from. |
 | `[` `]` | On Accounts, History, Sessions and the Log, moves to the sub-tab before or after, round. |
 | `p` | Opens the routing card. See [The routing card](#the-routing-card). |
@@ -749,6 +872,7 @@ What scrolls on each page:
   past six accounts; and Tokens' periods.
 - **Sessions:** the List, and the Switchboard's accounts where they don't fit.
 - **Runway:** its lanes.
+- **Graphs:** the whole page, where its sections don't fit. `?` lists its scrolling keys always.
 - **The Log:** its table.
 - **A session's page:** its turns, or with a turn open, the turn's requests.
 
@@ -848,9 +972,12 @@ The Overview's key line lists its section toggles, each word faint while its sec
 Then come `b by: window`, `v chart: burn-up` while GRAPHS shows, and
 `↑↓ focus  p pin  ? help  q quit`.
 
+Graphs' key line lists its toggles the same way, `w week  f 5-hour  o pool  g glance  h when`,
+then `p pin  ? help  q quit`.
+
 On a phone, or wherever the line doesn't fit whole:
 
-- `? keys` and `q quit` end it. On the Overview, it's `? keys and toggles`.
+- `? keys` and `q quit` end it. On the Overview and Graphs, it's `? keys and toggles`.
 - `tab views` leads it, while it fits.
 
 ## Clicks
@@ -864,7 +991,7 @@ iTerm2 and Terminal.app, and Shift in most others.
 | `<` or `>` by a period or a window | Steps it. |
 | a key on the key line | Does what the key does. For a pair, such as `[ ]` or `< >`, it does what the second key does. A click doesn't act on `p pin` or `q quit`. |
 | a row that names an account, a session, a line or a turn, or a Compare column's head | Chooses it, as the arrows would. On the one already chosen, opens it, as `enter` does. |
-| a section's heading, on the Overview | Hides the section. |
+| a section's heading, on the Overview or Graphs | Hides the section. |
 | an account's row in USAGE or ROUTING, on the Overview | Moves the focus to the account. |
 | `▼ 214 new`, on the Log | Follows again. |
 | a tick in the Log's `f` panel | Ticks it. |
@@ -895,6 +1022,7 @@ It remembers:
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split
 - Sessions' view
 - Runway's window, and whether `a` collapsed its labels
+- Graphs' sections shown
 - the Log's columns.
 
 If the version or account the Year showed is no longer there to show, the Year shows all use again.
@@ -996,13 +1124,13 @@ the base tokens.
 
 | Token | Colours |
 |---|---|
-| `viz.ramp.1` to `viz.ramp.4` | a bar's fill, first cell to last |
+| `viz.ramp.1` to `viz.ramp.4` | a bar's fill, first cell to last; the first, a window that lasts to its reset, on Runway and Graphs |
 | `viz.track` | a bar's track |
 | `viz.pace` | the even-pace mark |
-| `viz.reserve` | the cap's mark |
+| `viz.reserve` | the cap's mark, and the reserve on Graphs' cards |
 | `viz.family.1` to `viz.family.4` | the model families: Opus, Sonnet, Fable and Haiku |
 | `viz.version.1` to `viz.version.6` | the model versions: a family's newest in its family's colour, and an older one fainter |
-| `viz.day.0` to `viz.day.4` | History's shades of a day, from one with nothing on it to the busiest |
+| `viz.day.0` to `viz.day.4` | History's shades of a day, and WHEN YOU WORK's of an hour, from one with nothing on it to the busiest |
 | `viz.account.1` to `viz.account.4` | the pool's accounts in Graphs' POOL, by place; a fifth on takes the colour four before it, fainter |
 
 A key switchboard doesn't know is passed over.

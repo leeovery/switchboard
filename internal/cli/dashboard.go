@@ -80,14 +80,15 @@ is. The rest are each page's, as its ? help lists them:
 
 ` + keysPlace + `
 
-The Overview's sections and b are kept for the next dashboard to open with,
-as is the view each tab shows, its period, window or columns, but a calendar
-year stepped back to. esc closes the routing card, help or the theme picker.
-A click on a tab shows it; on a key of the key line, does what the key does,
-but p and q; on History, on a view's name shows it, and on < or > by its
-period steps it; on Runway, on < or > by its window, moves between the views;
-and on the Overview, on a section's heading hides it, and on an account's row
-moves the focus there.
+The Overview's sections and b, and Graphs' sections, are kept for the next
+dashboard to open with, as is the view each tab shows, its period, window or
+columns, but a calendar year stepped back to. esc closes the routing card,
+help or the theme picker. A click on a tab shows it; on a key of the key
+line, does what the key does, but p and q; on History, on a view's name
+shows it, and on < or > by its period steps it; on Runway, on < or > by its
+window, moves between the views; on the Overview and Graphs, on a section's
+heading hides it; and on the Overview, on an account's row moves the focus
+there.
 
 While the router runs, it posts the desktop notifications, --probe or not;
 without it, the dashboard posts its own of an account with room again and a

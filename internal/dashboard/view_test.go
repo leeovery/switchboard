@@ -18,8 +18,7 @@ func TestTheSevenTabsInTheirOrder(t *testing.T) {
 
 // Graphs heads its own sections, as the Overview does: no heading row, its
 // view, its first section's heading, from the heading row's row, with
-// nothing over it; and till its sections are explained, help explains
-// nothing after its keys.
+// nothing over it.
 func TestGraphsHeadsItself(t *testing.T) {
 	for _, width := range []int{160, 52} {
 		f := frameOf(width, 37)
@@ -39,9 +38,6 @@ func TestGraphsHeadsItself(t *testing.T) {
 		}
 		if !strings.HasPrefix(rows[f.top()], "WEEK ") {
 			t.Errorf("at %d columns, the view's first row reads %q, want WEEK's heading", width, rows[f.top()])
-		}
-		if parts := f.helpParts(); parts != nil {
-			t.Errorf("at %d columns, help explains %v, want nothing", width, parts)
 		}
 	}
 }
