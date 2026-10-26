@@ -357,9 +357,9 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 // end that the router doesn't hold yet, or the last removed while the router
 // still holds it, none of which numbers an account past the count or out of
 // order. Anywhere else it counts them, at every scroll alike: with the first
-// or a middle one removed while the router holds it, with the config
-// reordered, though only past the columns shown, and with one removed and
-// another added.
+// or a middle one removed while the router holds it; with the config
+// reordered, 3, 4, 1, 2, or with its last two swapped, out of order only
+// past the first columns shown; and with one removed and another added.
 func TestComparesHeadingSaysWhichAccountsItShowsByTheirNumbers(t *testing.T) {
 	ten, four := usageWorld(tenCompared, extraOff), usageWorld(tenCompared, extraOff, heldFirst(4))
 	tests := []struct {

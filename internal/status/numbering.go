@@ -53,6 +53,19 @@ func (n Numbering) Configured(configured config.Accounts) []AccountNow {
 	return accounts
 }
 
+// InPlace reports whether every configured account given is numbered by its
+// place in the config, from 1 to their count: as where the config and the
+// router agree, or the config has gained accounts at its end the router
+// doesn't hold yet, or lost its last while the router holds it still.
+func (n Numbering) InPlace(configured config.Accounts) bool {
+	for i, a := range n.Configured(configured) {
+		if a.Place != i+1 {
+			return false
+		}
+	}
+	return true
+}
+
 // numbering is the numbering of the moment's document.
 func (m Moment) numbering() Numbering {
 	return m.doc.numbering()

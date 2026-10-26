@@ -15,7 +15,9 @@ import (
 // an account, setting the Place of an AccountNow, rather than read the number
 // status.Numbering gives it, without failing here. A view numbering accounts
 // by a loop's index, never setting a Place, is beyond what the source can
-// tell from any other count, so the tests of the numbers drawn hold that.
+// tell from any other count, so the tests of the numbers drawn hold that. An
+// unkeyed AccountNow literal, which would set a Place by its position, is
+// left to go vet's composites check, which the gates run.
 
 // numberedType and numberedField are where an account's number is set: its
 // type, by its name, and its field.

@@ -105,3 +105,43 @@ func TestNoMomentHeldNumbersTheConfigsOrder(t *testing.T) {
 		t.Errorf("no moment held holds %d accounts, want 0", held.Numbering().Held())
 	}
 }
+
+// The configured accounts are in place where each is numbered by its place
+// in the config: as the config and the router agree, the config has gained
+// one at its end, or lost its last while the router holds it; or with no
+// router. They're out of place where the router still holds one the config
+// lost before its end, the config is reordered, even only at its end, or it
+// has lost one and gained another.
+func TestTheConfiguredAccountsAreInPlaceWhereEachIsNumberedByItsPlace(t *testing.T) {
+	ten := []string{"work", "personal", "side", "client", "spare", "lab", "team", "extra", "ops", "studio"}
+	held := func(ids ...string) status.Numbering {
+		accounts := make([]status.Account, len(ids))
+		for i, id := range ids {
+			accounts[i] = readAt(id)
+		}
+		return routerDocOf(accounts...).HoldAt(built, policy).Numbering()
+	}
+	tests := []struct {
+		name string
+		n    status.Numbering
+		ids  []string
+		want bool
+	}{
+		{name: "the config and the router agreeing", n: held(ten...), ids: ten, want: true},
+		{name: "one added at the end", n: held(ten[:3]...), ids: ten[:4], want: true},
+		{name: "the last removed", n: held(ten...), ids: ten[:9], want: true},
+		{name: "no router", ids: ten, want: true},
+		{name: "the first removed", n: held(ten[:4]...), ids: ten[1:4]},
+		{name: "a middle one removed", n: held(ten...), ids: slices.Concat(ten[:4], ten[5:])},
+		{name: "reordered", n: held(ten[:4]...), ids: slices.Concat(ten[2:4], ten[:2])},
+		{name: "the last two swapped", n: held(ten...), ids: slices.Concat(ten[:8], ten[9:], ten[8:9])},
+		{name: "one removed and one added", n: held(ten[:3]...), ids: []string{"work", "side", "client"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.n.InPlace(configuredOf(tt.ids...)); got != tt.want {
+				t.Errorf("%v are in place %v, want %v", tt.ids, got, tt.want)
+			}
+		})
+	}
+}

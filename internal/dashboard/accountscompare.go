@@ -374,26 +374,24 @@ func (f Frame) compareState() []line {
 		return nil
 	}
 	moves := line{
-		{comparedShown(f.numbering().Configured(f.Accounts.Accounts), f.compareFirst(), shown), faintInk},
+		{comparedShown(f.numbering(), f.Accounts.Accounts, f.compareFirst(), shown), faintInk},
 		{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk},
 	}
 	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves}
 }
 
-// comparedShown says which of the configured accounts given Compare shows,
-// shown of them from the place among them first, from 0: by the first's
-// number and the last's, as "accounts 2–5 of 9", where every account's
-// number is its place in the config, as where the config and the router
-// agree; else how many, as "4 of 9 accounts", at every scroll alike, as the
-// numbers then neither run from 1 to the count nor tell what lies past them.
-func comparedShown(accounts []status.AccountNow, first, shown int) string {
-	n := len(accounts)
-	for i, a := range accounts {
-		if a.Place != i+1 {
-			return fmt.Sprintf("%d of %d accounts", shown, n)
-		}
+// comparedShown says which of the configured accounts given, numbered as n
+// numbers them, Compare shows, shown of them from the place among them first,
+// from 0: by the first's number and the last's, as "accounts 2–5 of 9",
+// where every account is numbered by its place in the config, as n's InPlace
+// has it; else how many, as "4 of 9 accounts", at every scroll alike, as the
+// numbers then don't each stand at their own place, and a range of them
+// wouldn't tell what lies past it.
+func comparedShown(n status.Numbering, configured config.Accounts, first, shown int) string {
+	if !n.InPlace(configured) {
+		return fmt.Sprintf("%d of %d accounts", shown, len(configured))
 	}
-	return fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, n)
+	return fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, len(configured))
 }
 
 // columns are Compare's columns: each account's shown, from the first, then

@@ -2192,7 +2192,7 @@ holds.
   `accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
   It names a range only where every account's number is its place in the config, as where the
   config and the router agree; otherwise it's a count, `6 of 9 accounts`, however far it's
-  scrolled, as the numbers then don't run from 1 to the count.
+  scrolled, as the numbers then don't each stand at their own place.
 - **The heads,** on the view's first two rows, wherever the heading's rows end, held however far
   the rest scrolls: an account's number, then its name and marks, bold, as `usage` draws a name
   (see `usage`, the printout); under them, its state in a word, as the Overview colours its
