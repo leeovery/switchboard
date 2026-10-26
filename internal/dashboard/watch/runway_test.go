@@ -23,7 +23,8 @@ import (
 // runwayed is a harness of Runway: its readings history, its ledger, and
 // how many times it built Runway's lanes, and what it built them from last;
 // and of Graphs, by the window, how many times it built Graphs' lanes, and
-// what it built them from last.
+// what it built them from last; and how many times it built POOL's stack,
+// from what and from which stack last, and the stack that built.
 type runwayed struct {
 	*harness
 	filed        *filedReadings
@@ -32,6 +33,10 @@ type runwayed struct {
 	from         views.LanesFrom
 	graphsBuilds map[views.RunwayWindow]int
 	graphsFrom   map[views.RunwayWindow]views.LanesFrom
+	poolBuilds   int
+	poolFrom     views.PoolStackFrom
+	poolGiven    views.PoolStack
+	poolBuilt    views.PoolStack
 }
 
 // runwayHarness is the router of three, on the tab given, 160 cells wide and
@@ -61,7 +66,7 @@ func runwayHarnessOf(t *testing.T, doc status.Document, view dashboard.View, set
 		setup(r, &cfg)
 	}
 	h.model = New(t.Context(), cfg)
-	h.model.runwayTab.look, h.model.graphsTab.look = r.counted, r.countedForGraphs
+	h.model.runwayTab.look, h.model.graphsTab.look, h.model.graphsTab.poolLook = r.counted, r.countedForGraphs, r.countedPool
 	h.start()
 	return r
 }
@@ -80,6 +85,16 @@ func (r *runwayed) countedForGraphs(l views.Lanes, from views.LanesFrom) views.L
 	r.graphsBuilds[from.Window]++
 	r.graphsFrom[from.Window] = from
 	return l.Look(from)
+}
+
+// countedPool builds POOL's stack as views.PoolStack.Look does, counting
+// each build, and holding what and which stack it was built from, and what
+// that built.
+func (r *runwayed) countedPool(p views.PoolStack, from views.PoolStackFrom) views.PoolStack {
+	r.poolBuilds++
+	r.poolFrom, r.poolGiven = from, p
+	r.poolBuilt = p.Look(from)
+	return r.poolBuilt
 }
 
 // weeksFrom has weeks start on the day given.

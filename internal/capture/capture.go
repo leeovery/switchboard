@@ -524,6 +524,8 @@ var pages = []page{
 	{name: "runway-phone-collapsed-52", size: phone(33), world: accountWorlds.auto, keys: toRunway("a")},
 	{name: "runway-138x15", size: watch.Size{Width: 138, Height: 15}, world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toRunway()},
+	{name: "graphs-sections-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toGraphs("w", "f", "o", "h")},
+	{name: "graphs-pool-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs("w", "f", "o")},
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's
@@ -574,6 +576,12 @@ func toSessions(text ...string) []tea.KeyPressMsg {
 // then the text given, a key a character.
 func toRunway(text ...string) []tea.KeyPressMsg {
 	return append(repeated(tabKey, 4), keysOf(text...)...)
+}
+
+// toGraphs are the keys that reach Graphs from the Overview, shift-tab twice,
+// back round the tabs past the Log, then the text given, a key a character.
+func toGraphs(text ...string) []tea.KeyPressMsg {
+	return append(repeated(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}, 2), keysOf(text...)...)
 }
 
 // toLog are the keys that reach the Log from the Overview, shift-tab, back

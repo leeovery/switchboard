@@ -167,3 +167,16 @@ func (g hoursGrid) keyItems(cuts []string) []line {
 func keyFlowed(items []line, width int) []line {
 	return wrapped(spaces(hoursKeyApart), width-hoursGridX, items)
 }
+
+// whenDrawn draws WHEN YOU WORK in the section placed, from its left, at the
+// width flex lays it at, as hoursLaid has it, of the page the watch built;
+// where it built none, as before the ledger's days are read, or with no
+// ledger, as a page with no day known, that nothing is recorded yet.
+func (f Frame) whenDrawn(c *canvas, laid graphsLaid, placed graphsPlaced) {
+	g := hoursGrid{look: f.Look}
+	if f.Graphs.Hours != nil {
+		g.page = *f.Graphs.Hours
+	}
+	body := placed.body(hoursLaid(laid.width))
+	g.draw(c.within(body), body.x, body.y, body.width)
+}

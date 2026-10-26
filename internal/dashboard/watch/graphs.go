@@ -26,7 +26,8 @@ func (m Model) graphsHours() *views.HoursPage {
 
 // graphsShown is what the Graphs tab shows: its sections shown; the
 // configured accounts, which lay its page out; and what graphsBuilt built
-// at the last look, its lanes and WHEN YOU WORK's page.
+// at the last look, its lanes, POOL's stack and WHEN YOU WORK's page.
 func (m Model) graphsShown() dashboard.GraphsShown {
-	return dashboard.GraphsShown{Sections: m.graphs, Accounts: m.cfg.Accounts, Lanes: m.graphsTab.shown, Hours: m.graphsTab.hours}
+	t := m.graphsTab
+	return dashboard.GraphsShown{Sections: m.graphs, Accounts: m.cfg.Accounts, Lanes: t.shown, Hours: t.hours, Pool: t.pool}
 }

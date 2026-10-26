@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+ Overview  Accounts  History  Sessions  Runway  Graphs  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+POOL  ───────────────────────────────────────────────────────────────── o
+
+          │                                       ▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆
+          │
+          │
+          │
+          │
+          │
+          │                                 ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
+          │
+▂         │
+ ▂        │
+        ▄ │
+▄        ▇│                          ▇▇▆▅▅▄▃
+  ▇▇▇▇▇▇▅▃│ ▅▃
+          │▆▄▃▇▄▂
+▃▂▂▂▂▂▂▂▁ │    ▇▆▇▄▁
+          │▆▅▅▄▃▃▂▁▁▇▅▄▂
+          │          ▇▇▆▅▇▅▃▃▂▁
+          │                      ▇▆▆▅▄▄▃▂▂▁
+          │
+         now
+    Thu       Fri       Sat        Sun       Mon        Tue       Wed
+────┬─────────┬─────────┬──────────┬─────────┬──────────┬─────────┬──────
+█ work    █ personal    █ side    █ faint: heading, at its recent rate
+│ now
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+tab views   ? keys and toggles   q quit
