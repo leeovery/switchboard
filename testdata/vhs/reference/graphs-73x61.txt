@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+ Overview  Accounts  History  Sessions  Runway  Graphs  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+WEEK  ───────────────────────────────────────────────────────────────── w
+
+1 work                       66% left  ·  at its cap 14:31  ·  back 17:10
+      ▇▆▄▄▃▃▃▃▃▃▃▂▁                    │
+                           ▇▆▆▅▅▅▅▅▅▄▄▃⢄⣀⣀⣀⡀
+                                       │   ⠈⠉⠉⠉⠒⠒⠒⠒⠤⠤⠤⢄⣀⣀⣀
+                                       │                  ⠉⠉⠉⠉⠒⠒⠒⠢⠤⠤⠤⢄⣀⣀⣀
+                                       │⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀
+ ╵Mon      ╵Tue       ╵Wed      ╵Thu       ╵Fri      ╵Sat      ╵Sun
+
+2 personal ◆                 34% left  ·  runs out ~Sat 06:00 at its pace
+              ▇▆▅▄▃▃▃▃▃▃▂                      │
+                          ▆▄▂▂▂▂▂▂▂            │
+                                    ▅▃▁        │
+                                              ▆⠒⠒⠤⠤⠤⣀⣀⡀
+                                               │      ⠈⠉⠉⠒⠒⠢⠤⠤⣀⣀✕⣀⣀⣀⣀⣀⣀⣀⣀
+         ╵Mon      ╵Tue       ╵Wed      ╵Thu       ╵Fri      ╵Sat
+
+3 side ▲  22% left  ·  runs out ~Fri 12:20 at its pace  ·  back Mon 10:00
+ ▆▅▄▃▃▃▃▃▃▂                      │
+            ▆▃▁▁▁▁▁▁▁            │
+                     ▇▄▁         │
+                        ▆▅▅▅▅▅▅▄▂⣀
+                                 │⠉⠉⠑⠒⠢⠤⢄⣀✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
+      ╵Tue      ╵Wed      ╵Thu       ╵Fri      ╵Sat       ╵Sun      ╵Mon
+
+5-HOUR  ─────────────────────────────────────────────────────────────── f
+
+1 work                        5% left  ·  at its cap 14:31  ·  back 17:10
+ ▇▆▆▄▃▂                              │
+         ▇▆▄▃▁▁                      │
+                ▇▅▄▃▃▁               │
+                       ▇▅▅▄▂▁        │
+                              ▆▆▅▄✕▂▂⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
+            ╵13:00        ╵14:00         ╵15:00        ╵16:00
+
+2 personal ◆                                    61% left  ·  room all day
+  ▇▇▇▆▆▆▆▅▅▄▄▄▄▃▃▂▂▂▂▁▁                        │
+                           ▇▇▆▆▆▆▅▅▄▄▄▄▃▃▂▂▂▂▁ ⣀
+                                               │⠉⠉⠉⠉⠉⠉⠑⠒⠒⠒⠒⠒⠢⠤⠤⠤⠤⠤⠤⣀⣀⣀⣀⣀⣀
+                                               │
+                                               │
+       ╵12:00        ╵13:00         ╵14:00         ╵15:00        ╵16:00
+
+3 side ▲                                        87% left  ·  room all day
+    ▇▇▇▇▇▇▇▆▄⠤⣀⣀⣀⣀
+             │    ⠉⠉⠉⠉⠒⠒⠒⠒⠤⠤⠤⠤⣀⣀⣀⡀
+             │                   ⠈⠉⠉⠉⠑⠒⠒⠒⠢⠤⠤⠤⢄⣀⣀⣀⡀
+             │                                   ⠈⠉⠉⠉⠒⠒⠒⠒⠤⠤⠤⠤⣀⣀⣀⣀
+             │                                                   ⠉⠉⠉⠉⠒⠒⠒⠢
+  ╵14:00         ╵15:00        ╵16:00         ╵17:00        ╵18:00
+
+Σ pool   week 1.2 of 3 left   5-hour 1.5 of 3 left
+▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve
+
+tab views   ? keys and toggles   q quit

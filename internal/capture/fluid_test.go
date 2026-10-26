@@ -29,7 +29,7 @@ var ownersSizes = []watch.Size{
 // longNamesViews are the world of long names on each view no fixture draws
 // it on, so a view's cut name shows at the owner's sizes: the Overview with
 // every section shown, Compare, Detail of work, History's four views,
-// Runway, the Log's events, and d28c's page.
+// Runway, Graphs, the Log's events, and d28c's page.
 var longNamesViews = []page{
 	{name: "long-names-overview", world: accountWorlds.longNames, keys: keysOf("g", "s")},
 	{name: "long-names-accounts-compare", world: accountWorlds.longNames, keys: toAccounts()},
@@ -39,6 +39,7 @@ var longNamesViews = []page{
 	{name: "long-names-history-days", world: accountWorlds.longNames, keys: toHistory("]", "]")},
 	{name: "long-names-history-tokens", world: accountWorlds.longNames, keys: toHistory("]", "]", "]")},
 	{name: "long-names-runway", world: accountWorlds.longNames, keys: toRunway()},
+	{name: "long-names-graphs", world: accountWorlds.longNames, keys: toGraphs()},
 	{name: "long-names-log-events", world: accountWorlds.longNames, keys: toLog("]")},
 	{name: "long-names-session", world: accountWorlds.longNames, keys: toSession("d28c"), scale: storyScale},
 }
@@ -564,15 +565,15 @@ var (
 )
 
 // drawsWhatItsFor reports whether the view named draws what it's for, of the
-// names given: Runway a lane, a session's page a turn, and the Overview an
-// account; any other view, whatever it draws.
+// names given: Runway a lane, a session's page a turn, and the Overview and
+// Graphs an account; any other view, whatever it draws.
 func (d fluidFrame) drawsWhatItsFor(view string, names []string) bool {
 	switch view {
 	case "Runway":
 		return slices.ContainsFunc(d.body(), laneShown.MatchString)
 	case sessionPage:
 		return slices.ContainsFunc(d.body(), turnShown.MatchString)
-	case "Overview":
+	case "Overview", "Graphs":
 		return slices.ContainsFunc(d.body(), func(row string) bool {
 			m := numbered.FindStringSubmatch(row)
 			return m != nil && slices.ContainsFunc(names, func(name string) bool { return leadsWith(m[1], name) })

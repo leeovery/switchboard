@@ -136,13 +136,17 @@ func (f Frame) graphsTab(c *canvas, doc status.Document, now time.Time, top int)
 }
 
 // graphsDrawn draws the sections of the moment m as laid out, whole, on c:
-// each heading, as headSection draws it, saying what graphsSays has it say;
-// and the pool's line, where there's one, as poolLine words it.
+// each heading, as headSection draws it, saying what graphsSays has it say,
+// and under a burn-down's, its cards, as burnCards draws them; and the
+// pool's line, where there's one, as poolLine words it.
 func (f Frame) graphsDrawn(c *canvas, m status.Moment, laid graphsLaid) {
 	for i, s := range laid.sections {
 		says := f.graphsSays(s.section, i == 0)
 		head := bounds{y: s.at, width: f.Width, rows: 1}
 		headSection(c, head, s.section.heading(), s.section.Key(), func(cells int) line { return says.fit(cells) })
+		if burnsDown(s.section) {
+			f.burnCards(c, m, laid, s)
+		}
 	}
 	if laid.poolLine >= 0 {
 		c.line(0, laid.poolLine, f.poolLine(m, f.Width))
