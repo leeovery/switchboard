@@ -141,10 +141,14 @@ func poolWords(room float64, accounts int, pinned bool) usageWords {
 		{" of " + strconv.Itoa(accounts) + " left", mutedInk},
 	}
 	if pinned {
-		l = append(l, span{" · pinned", mutedInk})
+		l = append(l, pinnedSaid)
 	}
 	return usageWords{full: l, short: l, leads: NumberRoom}
 }
+
+// pinnedSaid is what the pool's words say after its room where a pin holds
+// it.
+var pinnedSaid = span{" · pinned", mutedInk}
 
 // faint is the words in text.faint, whatever their colours, as the Overview
 // words a window of an account out of the pool.

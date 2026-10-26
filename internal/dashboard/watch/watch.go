@@ -929,7 +929,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		PlansAtMost:      m.plansAtMost,
 		Accounts:         m.accounts.shown,
 		Runway:           m.runwayTab.shown,
-		Graphs:           dashboard.GraphsShown{Sections: m.graphs, Lanes: m.graphsTab.shown},
+		Graphs:           dashboard.GraphsShown{Sections: m.graphs, Accounts: m.cfg.Accounts, Lanes: m.graphsTab.shown},
 		History:          m.past.page,
 		Session:          m.session.frame(),
 		Loading:          m.loading(now),

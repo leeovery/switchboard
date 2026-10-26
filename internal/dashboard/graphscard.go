@@ -7,7 +7,6 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -97,7 +96,7 @@ func windowInk(a status.AccountNow, w status.WindowNow) ink {
 	case w.Kind == status.WindowRunsOut || w.Kind == status.WindowCapped:
 		return warningInk
 	}
-	return ink{token: theme.VizRamp1}
+	return lastingInk
 }
 
 // faded is k as the card draws it: faded the card's fade more into the
