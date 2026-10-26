@@ -40,11 +40,12 @@ type graphsTab struct {
 // moment: of each window it reads, as graphsWindows has them, none where
 // neither a burn-down section nor GLANCE shows, over Runway's live view of
 // it, as graphsTimeline has it, as views.Lanes builds them from the last
-// look's, of the readings history's live tail and the readings the watch read itself, and the
-// ledger's days they're judged by, as Runway's are; POOL's stack, while it
-// shows, of the same readings, as graphsPool builds it; the pool's room over
-// each window's span, while GLANCE shows, of them too, as graphsSpans builds
-// it; and WHEN YOU WORK's page, as graphsHours has it.
+// look's, of the readings history's live tail and the readings the watch
+// read itself, and the ledger's days they're judged by, as Runway's are;
+// POOL's stack, while it shows, of the same readings, as graphsPool builds
+// it; the pool's room over each window's span, while GLANCE shows, of them
+// too, as graphsSpans builds it; and WHEN YOU WORK's page, as graphsHours
+// has it.
 func (m Model) graphsBuilt() Model {
 	t := m.graphsTab
 	if m.view != dashboard.Graphs || m.session != nil || t.builtAt != nil && t.builtAt == m.taking.moment {
