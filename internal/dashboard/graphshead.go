@@ -174,16 +174,22 @@ func fainted(parts []line) []line {
 }
 
 // roomLeft is the room the lane's use of its window leaves, as a card's
-// words lead with it, as "66% left": its figure in the ink figureInk gives its
-// use, as usage colours a use, numbered as the room left in the window;
-// then " left" in text.muted, or text.faint, where the pool leaves its
-// account out.
+// words lead with it, as "66% left": its figure as roomFigure has it; then
+// " left" in text.muted, or text.faint, where the pool leaves its account
+// out.
 func (ln laidLane) roomLeft() line {
 	u, out := ln.Use, ln.account.OutOfPool
-	figure := span{prose.PercentLeft(u.Used), figureInk(u.Used, out, u.Stale)}.numbered(Number{Kind: NumberRoom, Account: ln.ID, Of: u.Key})
 	left := span{" left", mutedInk}
 	if out {
 		left.ink = faintInk
 	}
-	return line{figure, left}
+	return line{roomFigure(Ref{Account: ln.ID, Window: u.Key}, u.Used, out, u.Stale), left}
+}
+
+// roomFigure is the room the use given leaves of the window ref names, as a
+// card's words and GLANCE say it, as "66%": in the ink figureInk gives the
+// use, as usage colours a use, of an account out of the pool, or stale, as
+// given, numbered as the room left in the window.
+func roomFigure(ref Ref, used float64, out, stale bool) span {
+	return span{prose.PercentLeft(used), figureInk(used, out, stale)}.numbered(Number{Kind: NumberRoom, Account: ref.Account, Of: ref.Window})
 }

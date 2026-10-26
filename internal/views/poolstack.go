@@ -73,21 +73,35 @@ type PoolStackFrom struct {
 func (p PoolStack) Look(from PoolStackFrom) PoolStack {
 	m := from.Moment
 	tl, key := LiveTimeline(RunwayWeek, m.Now, from.Columns), RunwayWeek.KeyIn(m.Policy())
-	pool := m.Pool()
-	if from.Columns < 1 || !slices.ContainsFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == key }) {
+	accounts, past, ok := p.past.stacked(pastFrom{moment: m, readings: from.Readings, through: from.ReadThrough, key: key}, tl, p.then.orRoomThen())
+	if !ok {
 		return PoolStack{then: p.then, past: p.past}
 	}
-	at := make([]time.Time, max(tl.NowColumn(), 0))
-	for c := range at {
-		at[c] = tl.Moment(c)
+	return PoolStack{Timeline: tl, Key: key, Accounts: accounts, then: p.then, past: past}
+}
+
+// stacked is the room of each of the pool's accounts in the window with the
+// key from gives in each of the timeline's columns, in the pool's order, as
+// PoolStackAccount has them, those before now's judged at their moments, as
+// Timeline.Moment has them, as judged judges them, held from h; and what
+// was judged, to hold for the next look. It reports false where the pool
+// has no such window, or the timeline has no columns, so nothing's judged.
+func (h heldRoom) stacked(from pastFrom, tl Timeline, then roomJudge) ([]PoolStackAccount, heldRoom, bool) {
+	m := from.moment
+	if tl.Columns < 1 || !slices.ContainsFunc(m.Pool().Windows, func(w status.PoolWindowNow) bool { return w.Key == from.key }) {
+		return nil, h, false
 	}
-	past := p.past.judged(pastFrom{moment: m, readings: from.Readings, through: from.ReadThrough, key: key, step: tl.Step(), at: at}, p.then.orRoomThen())
-	stack := PoolStack{Timeline: tl, Key: key, Accounts: make([]PoolStackAccount, len(past.accounts)), then: p.then, past: past}
+	from.step, from.at = tl.Step(), make([]time.Time, max(tl.NowColumn(), 0))
+	for c := range from.at {
+		from.at[c] = tl.Moment(c)
+	}
+	past := h.judged(from, then)
+	accounts := make([]PoolStackAccount, len(past.accounts))
 	for i, of := range past.accounts {
 		a, _ := m.Account(of.id)
-		stack.Accounts[i] = PoolStackAccount{ID: a.ID, Label: a.Label, Rooms: stackedRooms(a, key, tl, past.columns, i)}
+		accounts[i] = PoolStackAccount{ID: a.ID, Label: a.Label, Rooms: stackedRooms(a, from.key, tl, past.columns, i)}
 	}
-	return stack
+	return accounts, past, true
 }
 
 // stackedRooms are the room of account a, the ith of the pool's, in the

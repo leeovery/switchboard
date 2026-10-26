@@ -96,7 +96,7 @@ func (g graphsGiven) shape() graphsShape {
 	}
 	s.across = cardsAcross(len(g.accounts), g.width)
 	s.cardsDown = (s.accounts + len(s.across) - 1) / len(s.across)
-	s.glance, s.when = glanceRows(s.accounts, g.pooled()), whenRows(g.width, g.look)
+	s.glance, s.when = layGlance(g.accounts, g.width).rows(), whenRows(g.width, g.look)
 	if last >= 0 {
 		s.legend = burnLegend(g.width, g.reserved())
 		s.legend = s.legend[:min(len(s.legend), max(g.rows-1, 0))]
@@ -144,18 +144,6 @@ func poolKeyed(accounts config.Accounts, look Look) poolStacked {
 		}
 	}
 	return poolStacked{stack: stack, look: look}
-}
-
-// glanceRows are the rows GLANCE's body takes, of the accounts given, as the
-// design gives them, drawn wide: its head row and a blank row; a row an
-// account, a blank row between; usage's rule and the pool's row, where
-// there's a pool; and a blank row and its key.
-func glanceRows(accounts int, pool bool) int {
-	rows := 2 + max(2*accounts-1, 0) + 2
-	if pool {
-		rows += 2
-	}
-	return rows
 }
 
 // whenRows are the rows WHEN YOU WORK's body takes width cells wide, as its

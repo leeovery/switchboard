@@ -123,7 +123,7 @@ func (cd burnCard) draw(c *canvas, look Look, at bounds) {
 	}
 	p := plot{x: at.x, floor: at.y + h - 1, width: at.width, h: h, now: cd.window.nowColumn(at.width)}
 	if !cd.empty {
-		cd.fill(c, look, p)
+		cd.fill(c, look, p, cd.roomInk(roomFade))
 		cd.heading(p).draw(c, p)
 		cd.reserveDots(p).draw(c, p)
 	}
@@ -134,18 +134,58 @@ func (cd burnCard) draw(c *canvas, look Look, at bounds) {
 	cd.axis(c, at.x, at.y+h, at.width)
 }
 
+// spark draws the card's window as GLANCE's sparkline, width cells from x
+// along row y: a row of eighths, a column a cell over its span; before now's
+// column, the room left, as fill fills it, in the window's ink; from now's,
+// the room it has ahead, as aheadFill fills it, in that ink as aheadInk
+// fades it; and ✕, as cross draws it, over what it falls on. An empty card
+// draws nothing, nor one whose span isn't known.
+func (cd burnCard) spark(c *canvas, look Look, x, y, width int) {
+	if width < 1 || !cd.window.spanned || cd.empty {
+		return
+	}
+	p := plot{x: x, floor: y, width: width, h: 1, now: cd.window.nowColumn(width)}
+	room := cd.roomInk(0)
+	cd.fill(c, look, p, room)
+	cd.aheadFill(c, look, p, aheadInk(room))
+	cd.cross(c, p)
+}
+
+// roomInk is the ink the card's room is drawn in: its window's, faded as
+// far into the canvas as given, and further as the card is.
+func (cd burnCard) roomInk(fade float64) ink {
+	return cd.faded(ink{token: cd.ink.token, fade: fade})
+}
+
 // fill fills each column of p before now's to the room its middle had, as
-// the last reading by then left it, as roomEighths counts it, in the
-// window's ink, roomFade into the canvas: none where nothing was read by
-// then.
-func (cd burnCard) fill(c *canvas, look Look, p plot) {
-	k := cd.faded(ink{token: cd.ink.token, fade: roomFade})
+// the last reading by then left it, as roomEighths counts it, in k: none
+// where nothing was read by then.
+func (cd burnCard) fill(c *canvas, look Look, p plot, k ink) {
 	for col := range p.now {
 		used, ok := cd.window.usedAt(cd.window.readAt(col, p.width))
 		if eighths := roomEighths(1-used, p.h); ok && eighths > 0 {
 			fillUp(c, look, p.x+col, p.floor, eighths, func(int) ink { return k })
 		}
 	}
+}
+
+// aheadFill fills each column of p from now's to the room its middle has
+// ahead, as roomAhead has it, as roomEighths counts it, in k: none where
+// nothing ahead is known.
+func (cd burnCard) aheadFill(c *canvas, look Look, p plot, k ink) {
+	for col := p.now; col < p.width; col++ {
+		room, ok := cd.roomAhead((float64(col) + 0.5) / float64(p.width))
+		if eighths := roomEighths(room, p.h); ok && eighths > 0 {
+			fillUp(c, look, p.x+col, p.floor, eighths, func(int) ink { return k })
+		}
+	}
+}
+
+// roomAhead is the room the window has ahead a share of the way through its
+// span, as the card's ahead has it, now's where that has passed, reporting
+// false where nothing ahead is known.
+func (cd burnCard) roomAhead(share float64) (float64, bool) {
+	return cd.ahead(score.Later(cd.window.at(share), cd.window.now))
 }
 
 // roomEighths are the eighths of a column h rows tall that room, a share of
@@ -177,8 +217,7 @@ func (cd burnCard) heading(p plot) dots {
 	d := newDots(p.h)
 	k := cd.faded(cd.ink)
 	for px := 2 * p.now; px < 2*p.width; px++ {
-		at := score.Later(cd.window.at((float64(px)+0.5)/float64(2*p.width)), cd.window.now)
-		if room, ok := cd.ahead(at); ok {
+		if room, ok := cd.roomAhead((float64(px) + 0.5) / float64(2*p.width)); ok {
 			d.dot(px, d.footRow(room), k, 0)
 		}
 	}
