@@ -129,7 +129,7 @@ func (v laneView) phrasesOf(ln laidLane, against time.Time) []phrase {
 	var phrases []phrase
 	for _, s := range ln.Stretches {
 		if !s.Over {
-			phrases = append(phrases, phrase{parts: v.stretchParts(s, ln.account, against), col: s.Column, at: s.Start})
+			phrases = append(phrases, v.stretchPhrase(s, ln.account, against))
 		}
 	}
 	if v.window == views.RunwayWeek {
@@ -141,6 +141,13 @@ func (v laneView) phrasesOf(ln laidLane, against time.Time) []phrase {
 	}
 	slices.SortStableFunc(phrases, func(a, b phrase) int { return cmp.Compare(a.col, b.col) })
 	return phrases
+}
+
+// stretchPhrase is what's said of the stretch s without room of the account
+// a, times told against the time given, as stretchParts words it, from the
+// column its words start in.
+func (v laneView) stretchPhrase(s views.LaneStretch, a status.AccountNow, against time.Time) phrase {
+	return phrase{parts: v.stretchParts(s, a, against), col: s.Column, at: s.Start}
 }
 
 // stretchParts are what's said of the stretch s without room of the account

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -459,5 +460,65 @@ func TestGraphsCardBeforeItsLanesAreBuiltIsLabelledAlone(t *testing.T) {
 	}
 	if rows := chartOnly(c, work); !slices.ContainsFunc(rows, func(r string) bool { return strings.Contains(r, nowLine) }) {
 		t.Errorf("work's chart is\n%s\nwant it drawn", strings.Join(rows, "\n"))
+	}
+}
+
+// sideWeek is trio, side's week used as given, resetting 148 hours after
+// printNow, past the end of Runway's live week view, side keeping the
+// reserve given.
+func sideWeek(used, reserve float64) status.Document {
+	return trio(account("side", func(a *status.Account) {
+		a.Reserve = reserve
+		for i := range a.Windows {
+			if a.Windows[i].Key == "7d" {
+				a.Windows[i].Utilization, a.Windows[i].ResetsAt = used, printNow.Add(148*time.Hour).UTC()
+			}
+		}
+	}))
+}
+
+// A card's words say where its window runs out, or reaches its cap, at its
+// pace, at the time usage and GLANCE give, wherever that falls before the
+// window resets: past the end of Runway's live view of it, where Runway's
+// lane says nothing of it, as inside it; never that it has room all week,
+// over a chart that runs out. Runway's lane over its view says what it said
+// of the same moment: room all week, where the run-out is past its end.
+func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
+	moments := []struct {
+		name   string
+		doc    status.Document
+		says   string
+		runway string
+	}{
+		{name: "running out past the view's end", doc: sideWeek(0.12, 0), says: "runs out", runway: "room all week"},
+		{name: "reaching its cap past the view's end", doc: sideWeek(0.12, 0.01), says: "reaches its cap", runway: "room all week"},
+		{name: "running out inside the view", doc: sideWeek(0.3, 0), says: "runs out", runway: "runs out"},
+	}
+	sizes := []struct{ width, height int }{{160, 37}, {108, 44}, {73, 61}, {52, 63}}
+	for _, mo := range moments {
+		m := mo.doc.At(printNow, printPolicy)
+		side, _ := m.Account("side")
+		w, _ := side.Window("7d")
+		if !w.RunsOut {
+			t.Fatalf("%s: side's week doesn't run out", mo.name)
+		}
+		want := mo.says + " ~" + prose.Clock(printNow, w.Out.At)
+		for _, size := range sizes {
+			t.Run(fmt.Sprintf("%s at %d by %d", mo.name, size.width, size.height), func(t *testing.T) {
+				f := cardsPage(mo.doc, printNow, size.width, size.height, trioIDs...)
+				c, sections := pageCards(f, mo.doc, printNow)
+				card := sections[GraphsWeek][2]
+				words := regionOf(c, bounds{x: card.chart.x, y: card.words, width: card.chart.width, rows: 1})[0]
+				if !strings.Contains(words, want) || strings.Contains(words, "room all") {
+					t.Errorf("side's week card says %q, want it saying %q", words, want)
+				}
+				lanes := f.Graphs.Lanes[views.RunwayWeek]
+				l, _ := lanes.lane("side")
+				runway := wordsRead(lanes.view().wordsUnder(laneLaid(l, side, accountName{}), printNow))
+				if !strings.HasPrefix(strings.TrimSpace(runway), mo.runway) {
+					t.Errorf("Runway says %q under side's lane, want it saying %q", runway, mo.runway)
+				}
+			})
+		}
 	}
 }

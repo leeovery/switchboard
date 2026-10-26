@@ -147,6 +147,22 @@ func (o runOut) holdsAt(t time.Time) bool {
 	return !t.Before(o.at) && (o.resets.IsZero() || t.Before(o.resets))
 }
 
+// turns are the moments after from and before to at which how the account
+// stands may turn, as at has it, in order, each once: as a hold at now
+// lifts, and as a run-out begins and as its window resets.
+func (h ahead) turns(from, to time.Time) []time.Time {
+	var at []time.Time
+	for _, p := range h.holds {
+		at = append(at, p.until)
+	}
+	for _, o := range h.outs {
+		at = append(at, o.at, o.resets)
+	}
+	at = slices.DeleteFunc(at, func(t time.Time) bool { return !t.After(from) || !t.Before(to) })
+	slices.SortFunc(at, time.Time.Compare)
+	return slices.CompactFunc(at, time.Time.Equal)
+}
+
 // roomFrom is when the account next has room from t, as a hold lifts: once
 // no part of what holds it back, as partsAt has them, holds it then, each
 // holding on till it lifts; zero where one never does.

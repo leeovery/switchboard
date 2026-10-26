@@ -12,7 +12,8 @@ import (
 // graphsTab is what the watch holds of Graphs as a look builds it: its
 // lanes, which its cards say what Runway says of each account by, and WHEN
 // YOU WORK's page. Of the lanes: Runway's lanes over its live view of
-// each window a burn-down section shown charts, by the window, each holding
+// each window Graphs reads, as graphsWindows has them, a burn-down section's
+// shown each and GLANCE's, by the window, each holding
 // what it judged of the past till what that's judged from changes, as
 // Runway's do; what the frame shows of them, as the last look built them;
 // how a look builds them, as lanesLooking has it. WHEN YOU WORK's page, as
