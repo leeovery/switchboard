@@ -28,25 +28,31 @@ func TestHoldsSecret(t *testing.T) {
 	tests := []struct {
 		value string
 		want  bool
+		why   string
 	}{
-		{value: "sk-ant-oat01-fake_token-shaped", want: true},
-		{value: "https://sk-ant-oat01-fake_token-shaped.gateway.example.com", want: true},
-		{value: "https://user:secret@gateway.example.com", want: true},
-		{value: "https://user@gateway.example.com", want: true},
-		{value: "https://gateway.example.com/v1?key=abc", want: true},
-		{value: "https://gateway.example.com/v1"},
-		{value: "http://127.0.0.1:4747"},
-		{value: "https://gateway.example.com/v1?"},
-		{value: "https://user:pa%zz@gateway.example.com", want: true},
-		{value: "https://gateway.example.com/%zz?key=abc", want: true},
-		{value: "https://gateway.example.com/%zz"},
-		{value: "0"},
-		{value: ""},
-		{value: "\n"},
+		{value: "sk-ant-oat01-fake_token-shaped", want: true, why: "a token"},
+		{value: "https://sk-ant-oat01-fake_token-shaped.gateway.example.com", want: true, why: "a token within a URL"},
+		{value: "https://user:secret@gateway.example.com", want: true, why: "userinfo with a password"},
+		{value: "https://user@gateway.example.com", want: true, why: "userinfo"},
+		{value: "https://gateway.example.com/v1?key=abc", want: true, why: "a query"},
+		{value: "https://user:pa%zz@gateway.example.com", want: true, why: "userinfo with a bad escape"},
+		{value: "https://gateway.example.com/%zz?key=abc", want: true, why: "a query beside a bad escape"},
+		{value: "https:user:pass@gateway.example.com", want: true, why: "userinfo without slashes, which Node's URL reads"},
+		{value: `https:\\user:pass@gateway.example.com`, want: true, why: "userinfo after backslashes, which Node's URL reads"},
+		{value: "user:pass@gateway.example.com", want: true, why: "userinfo without a scheme"},
+		{value: "admin:pw@10.0.0.1:8080", want: true, why: "userinfo without a scheme, on an address and port"},
+		{value: "https://gateway.example.com/v1?", want: true, why: "a bare ?, the cost of reading every ? as a query's"},
+		{value: "https://gateway.example.com/a@b", want: true, why: "an @ in a path, the cost of reading every @ as userinfo's"},
+		{value: "https://gateway.example.com/v1", why: "a plain gateway URL"},
+		{value: "http://127.0.0.1:4747", why: "the router's address"},
+		{value: "https://gateway.example.com/%zz", why: "a bad escape alone"},
+		{value: "0", why: "the hint turned off"},
+		{value: "", why: "nothing"},
+		{value: "\n", why: "blank headers"},
 	}
 	for _, tt := range tests {
 		if got := redact.HoldsSecret(tt.value); got != tt.want {
-			t.Errorf("HoldsSecret(%q) = %v, want %v", tt.value, got, tt.want)
+			t.Errorf("HoldsSecret(%q) = %v, want %v: %s", tt.value, got, tt.want, tt.why)
 		}
 	}
 }
