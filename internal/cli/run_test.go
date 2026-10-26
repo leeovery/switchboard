@@ -202,7 +202,9 @@ func TestRunWithoutFindingTheRouter(t *testing.T) {
 			got := run(t, deps, "run", "--", "--resume")
 
 			if !d.wantGoesOn {
-				if want := (result{stderr: "switchboard: the router couldn't be found (" + unfound + ")" + d.wantSaid + notStarting, code: 1}); got != want {
+				said := "switchboard: the router couldn't be found (" + unfound + ")" + d.wantSaid +
+					" — not starting claude: go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude\n"
+				if want := (result{stderr: said, code: 1}); got != want {
 					t.Errorf("switchboard run = %+v, want %+v, said once", got, want)
 				}
 				if len(handed.made) != 0 {
@@ -213,8 +215,9 @@ func TestRunWithoutFindingTheRouter(t *testing.T) {
 			if want := (result{stderr: "switchboard: couldn't find the router (" + unfound + ") — starting claude without it\n"}); got != want {
 				t.Errorf("switchboard run = %+v, want %+v", got, want)
 			}
+			delete(env, "SWITCHBOARD_WHEN_ROUTER_DOWN")
 			if h := handed.only(t); !slices.Equal(h.argv, []string{"claude", "--resume"}) || !maps.Equal(h.env, env) {
-				t.Errorf("handed over as %q with %q, want claude --resume, its environment untouched", h.argv, h.env)
+				t.Errorf("handed over as %q with %q, want claude --resume, its environment untouched but for SWITCHBOARD_WHEN_ROUTER_DOWN", h.argv, h.env)
 			}
 		})
 	}

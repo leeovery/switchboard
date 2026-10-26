@@ -60,7 +60,8 @@ type Launcher struct {
 	// Exec replaces this process with the program at path, as Exec does.
 	Exec func(path string, argv, env []string) error
 	// Stderr hears why, when Claude Code starts without the router, or
-	// without switchboard.
+	// without switchboard, or doesn't start, the router down, and how to go
+	// on.
 	Stderr io.Writer
 }
 
@@ -95,8 +96,8 @@ type Route struct {
 // the first account's with a usable token, and with none, Unaided. A pin that
 // can't be kept, to an account not configured or without a usable token,
 // fails: it's the command line's mistake. It starts from the environment as
-// the user set it (see own), less whenDownEnv, and marks what it sets there
-// (see setEnv). Run returns only when Claude Code didn't start.
+// the user set it (see own), and marks what it sets there (see setEnv). Run
+// returns only when Claude Code didn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -116,7 +117,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	if err != nil {
 		return l.unaided(path, args, "no account has a usable token", err)
 	}
-	own := l.own().without(whenDownEnv)
+	own := l.own()
 	env := own
 	if state.healthy() {
 		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.toldDir(state)).hinting()
@@ -146,8 +147,8 @@ func (l Launcher) Direct(args []string) error {
 // subcommands, as claude.IsLocal says, in this process's place as if
 // switchboard weren't there: switchboard has no part in them. Its environment
 // goes as it is, a pin inherited from a session included, but for the mark
-// every claude switchboard starts carries (see startedEnv), and Stderr hears
-// nothing. It returns only when Claude Code couldn't start.
+// every claude switchboard starts carries (see startedEnv), and whenDownEnv,
+// which every launch takes off (see exec), and Stderr hears nothing. It returns only when Claude Code couldn't start.
 func (l Launcher) Local(args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -263,10 +264,12 @@ func firstLine(err error) string {
 }
 
 // exec starts Claude Code, at path, with args and env, marked as started by
-// this process, in this process's place. Its arguments are never logged: they
-// can hold a prompt.
+// this process, in this process's place, without whenDownEnv, which is the
+// launch's it was given to alone: every process the session starts would
+// carry it on. Its arguments are never logged: they can hold a prompt.
 func (l Launcher) exec(path string, args []string, env environ) error {
-	if err := l.Exec(path, append([]string{claude.Command}, args...), env.startingAt(l.PID, l.Now(), path)); err != nil {
+	env = env.without(whenDownEnv).startingAt(l.PID, l.Now(), path)
+	if err := l.Exec(path, append([]string{claude.Command}, args...), env); err != nil {
 		return fmt.Errorf("start claude at %s: %w", path, err)
 	}
 	return nil
@@ -318,7 +321,7 @@ const (
 
 // routerState is how the router answered its health check.
 type routerState struct {
-	// name is healthy, notRunning or unhealthy.
+	// name is healthy, notRunning, unhealthy or notFound.
 	name string
 	// reason says why the router is unhealthy.
 	reason string

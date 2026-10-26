@@ -267,8 +267,8 @@ How `claude` starts depends on the router and your environment:
   them, a router that isn't running is asked again, as it may be restarting.
 - **Direct.** With `when_router_down = "direct"` in the config, or
   `SWITCHBOARD_WHEN_ROUTER_DOWN=direct` for one launch, Claude Code connects straight to the API
-  instead. It uses the primary's token, or, while that isn't usable, the token of the first account
-  whose token is. A line on stderr says so:
+  instead. It uses `--account`'s token, else the primary's, or, while that isn't usable, the token
+  of the first account whose token is. A line on stderr says so:
   `switchboard: the router isn't running — connecting directly on work · Work`. A direct session
   isn't routed or recorded, and it can spend the primary's reserve.
   `SWITCHBOARD_WHEN_ROUTER_DOWN=stop` stops one launch whatever the config says; any other value

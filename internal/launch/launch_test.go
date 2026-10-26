@@ -480,11 +480,15 @@ func TestRouterUnfoundStopsUnlessToldToGoDirect(t *testing.T) {
 				if len(h.starts) != 0 {
 					t.Errorf("started %d programs, want none", len(h.starts))
 				}
-				if said, want := h.stderr.String(), "switchboard: the router couldn't be found ("+unfound+")"+d.wantSaid+stopHint; said != want {
+				want := "switchboard: the router couldn't be found (" + unfound + ")" + d.wantSaid + " — not starting claude: go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude\n"
+				if said := h.stderr.String(); said != want {
 					t.Errorf("said %q on stderr, want %q", said, want)
 				}
 				if want := []string{"level=WARN", `msg="not starting claude"`, "mode=stop", `router="not found"`, `reason="` + unfound + `"`}; !log.Has(want...) {
 					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+				}
+				if log.Has("asked=") {
+					t.Errorf("log reads\n%s\nwant no asked=, the router not asked", log)
 				}
 				return
 			}
@@ -494,8 +498,8 @@ func TestRouterUnfoundStopsUnlessToldToGoDirect(t *testing.T) {
 			if said, want := h.stderr.String(), "switchboard: couldn't find the router ("+unfound+") — starting claude without it\n"; said != want {
 				t.Errorf("said %q on stderr, want %q", said, want)
 			}
-			if got := h.only(t); !slices.Equal(got.argv, []string{"claude", "--resume"}) || !slices.Equal(got.env, d.environ()) {
-				t.Errorf("started as %q with %q, want claude --resume, its environment untouched", got.argv, got.env)
+			if got := h.only(t); !slices.Equal(got.argv, []string{"claude", "--resume"}) || !slices.Equal(got.env, []string{"HOME=/home/tester"}) {
+				t.Errorf("started as %q with %q, want claude --resume, its environment untouched but for SWITCHBOARD_WHEN_ROUTER_DOWN", got.argv, got.env)
 			}
 		})
 	}
@@ -1441,6 +1445,50 @@ var everyLaunch = []struct {
 	},
 	{name: "a local subcommand", launch: func(_ context.Context, l launch.Launcher) error { return l.Local([]string{"doctor"}) }},
 	{name: "stepping aside for a key", launch: func(_ context.Context, l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") }},
+	{
+		name: "the router not found, going direct",
+		launch: func(_ context.Context, l launch.Launcher) error {
+			return l.RouterUnfound(config.Direct, nil, errors.New("locate state directory: no home directory"))
+		},
+	},
+	{
+		name: "without a usable token",
+		launch: func(ctx context.Context, l launch.Launcher) error {
+			r := route(healthy(), "")
+			r.Token = tokenstest.Files{}.Read
+			return l.Run(ctx, r, nil)
+		},
+	},
+}
+
+func TestNoLaunchPassesOnWhatToDoWithTheRouterDown(t *testing.T) {
+	starts := []struct {
+		name    string
+		environ func(t *testing.T) []string
+	}{
+		{name: "afresh", environ: func(*testing.T) []string { return []string{"HOME=/home/tester"} }},
+		{
+			name: "within a routed session",
+			environ: func(t *testing.T) []string {
+				return routedSession(t, []string{"HOME=/home/tester"}, "")
+			},
+		},
+	}
+	for _, tt := range everyLaunch {
+		for _, start := range starts {
+			t.Run(tt.name+", "+start.name, func(t *testing.T) {
+				h := newHarness(t)
+				h.launcher.Environ = append(start.environ(t), "PATH="+filepath.Dir(h.claude), "SWITCHBOARD_WHEN_ROUTER_DOWN=direct")
+
+				if err := tt.launch(t.Context(), h.launcher); err != nil {
+					t.Fatalf("launch error = %v", err)
+				}
+				if value, set := h.environment(t)["SWITCHBOARD_WHEN_ROUTER_DOWN"]; set {
+					t.Errorf("started with SWITCHBOARD_WHEN_ROUTER_DOWN=%s, want it taken off", value)
+				}
+			})
+		}
+	}
 }
 
 func TestNoLaunchStartsSwitchboardsClaudeLink(t *testing.T) {

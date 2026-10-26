@@ -275,8 +275,9 @@ func serveOn(srv *http.Server, ln net.Listener) error {
 }
 
 // shutdown stops the servers taking requests. The control API goes at once,
-// so a launcher that checks the router's health finds it gone and connects
-// directly, and its listener's closing removes the socket. The proxy's
+// so a launcher that checks the router's health finds it gone, asks again
+// for 2 seconds, then stops unless told to go direct, and its listener's
+// closing removes the socket. The proxy's
 // requests in flight get their time to finish, as drain gives it.
 func (r *Router) shutdown(control *http.Server, proxy proxyServer) {
 	_ = control.Close()

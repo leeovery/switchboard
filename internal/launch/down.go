@@ -18,8 +18,19 @@ const whenDownEnv = "SWITCHBOARD_WHEN_ROUTER_DOWN"
 // router being down: Stderr has heard why, and how to go on.
 var ErrNotStarted = errors.New("claude not started: the router is down")
 
-// goingOn says, of a launch that started nothing, how to go on.
-const goingOn = "see to it with switchboard service status, or go direct this once with " + whenDownEnv + "=direct claude"
+// goDirectOnce says, of a launch that started nothing, how to go on without
+// the router, this once.
+const goDirectOnce = "go direct this once with " + whenDownEnv + "=direct claude"
+
+// goingOn says, of a launch that started nothing, the router as state says,
+// how to go on: seeing to the router where a command can, which none can
+// where its state directory couldn't be located, as that fails them too.
+func goingOn(state routerState) string {
+	if state.name == notFound {
+		return goDirectOnce
+	}
+	return "see to it with switchboard service status, or " + goDirectOnce
+}
 
 // whenDown is what this launch does with the router down: what whenDownEnv
 // says, where the environment sets it, else configured, else Stop. A value
@@ -43,13 +54,16 @@ func (l Launcher) goDirect(configured config.RouterDown, state routerState) erro
 	if down == config.Direct {
 		return nil
 	}
-	attrs := []any{"mode", "stop", "router", state.name, "reason", state.reason, "asked", state.asked}
+	attrs := []any{"mode", "stop", "router", state.name, "reason", state.reason}
+	if state.name != notFound {
+		attrs = append(attrs, "asked", state.asked)
+	}
 	why := "the router " + state.String()
 	if err != nil {
 		attrs = append(attrs, "error", err)
 		why += ", and " + err.Error()
 	}
 	logger.Warn("not starting claude", attrs...)
-	Notice(l.Stderr, why+" — not starting claude: "+goingOn)
+	Notice(l.Stderr, why+" — not starting claude: "+goingOn(state))
 	return ErrNotStarted
 }
