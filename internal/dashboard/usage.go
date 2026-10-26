@@ -270,11 +270,22 @@ type accountName struct {
 // right-aligned once there are ten, ▲ on the one new sessions go to, and
 // each out of the pool where it is.
 func namesOf(m status.Moment) []accountName {
-	digits := len(strconv.Itoa(len(m.Accounts)))
-	names := make([]accountName, len(m.Accounts))
-	for i, a := range m.Accounts {
+	places := make([]int, len(m.Accounts))
+	for i := range places {
+		places[i] = i + 1
+	}
+	return namesAt(m.Accounts, places)
+}
+
+// namesAt are the names of the accounts given, each numbered by its place
+// given, right-aligned to the widest, ▲ on the one new sessions go to, and
+// each out of the pool where it is.
+func namesAt(accounts []status.AccountNow, places []int) []accountName {
+	digits := len(strconv.Itoa(slices.Max(append([]int{0}, places...))))
+	names := make([]accountName, len(accounts))
+	for i, a := range accounts {
 		names[i] = accountName{
-			number: fmt.Sprintf("%*d", digits, i+1), label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool,
+			number: fmt.Sprintf("%*d", digits, places[i]), label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool,
 		}
 	}
 	return names

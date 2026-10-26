@@ -53,15 +53,30 @@ func (f Frame) laidLanes(m status.Moment, fit runwayFit) []laidLane {
 	var lanes []laidLane
 	for n, l := range f.Runway.Lanes.Accounts {
 		row, shown := fit.laneRow(n)
-		i := slices.IndexFunc(m.Accounts, func(a status.AccountNow) bool { return a.ID == l.ID })
-		if !shown || i < 0 {
-			continue
+		if ln, ok := laneOf(l, m, names); shown && ok {
+			ln.row = row
+			lanes = append(lanes, ln)
 		}
-		name := names[i]
-		name.faint = name.out
-		lanes = append(lanes, laidLane{Lane: l, account: m.Accounts[i], name: name, row: row})
 	}
 	return lanes
+}
+
+// laneOf is the lane l as laneLaid has it, of its account as the moment m has
+// it stand, named as names name m's accounts: reporting false where m has
+// no account of it.
+func laneOf(l views.Lane, m status.Moment, names []accountName) (laidLane, bool) {
+	i := slices.IndexFunc(m.Accounts, func(a status.AccountNow) bool { return a.ID == l.ID })
+	if i < 0 {
+		return laidLane{}, false
+	}
+	return laneLaid(l, m.Accounts[i], names[i]), true
+}
+
+// laneLaid is the lane l of the account a as laidLane has it, named as given,
+// faint where the pool leaves it out.
+func laneLaid(l views.Lane, a status.AccountNow, name accountName) laidLane {
+	name.faint = name.out
+	return laidLane{Lane: l, account: a, name: name}
 }
 
 // runwayLanes draws the lanes, as laid out, each on its row: its account's

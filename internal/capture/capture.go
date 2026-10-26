@@ -524,8 +524,13 @@ var pages = []page{
 	{name: "runway-phone-collapsed-52", size: phone(33), world: accountWorlds.auto, keys: toRunway("a")},
 	{name: "runway-138x15", size: watch.Size{Width: 138, Height: 15}, world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toRunway()},
-	{name: "graphs-sections-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toGraphs("w", "f", "o", "h")},
-	{name: "graphs-pool-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs("w", "f", "o")},
+	{name: "graphs-160x37", size: wide(37), world: accountWorlds.auto, keys: toGraphs()},
+	{name: "graphs-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toGraphs()},
+	{name: "graphs-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs()},
+	{name: "graphs-phone-52", size: phone(63), world: accountWorlds.auto, keys: toGraphs()},
+	{name: "graphs-four-73x61", size: watch.Size{Width: 73, Height: 61}, world: manyAccounts(4), keys: toGraphs()},
+	{name: "graphs-sections-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toGraphs("f", "o", "h")},
+	{name: "graphs-pool-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs("f", "o")},
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's

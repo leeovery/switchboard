@@ -169,6 +169,10 @@ func (v laneView) stretchParts(s views.LaneStretch, a status.AccountNow, against
 	return parts
 }
 
+// atItsPace is the tail of what's said first of a stretch projected at its
+// account's pace, as in "runs out ~16:05 at its pace".
+const atItsPace = " at its pace"
+
 // headOf is what's said first of the stretch s without room of the account
 // a, now's column now, times told against the time given, in its ink, and
 // whether its back is said to be as the view's window resets, where it is:
@@ -190,11 +194,11 @@ func headOf(s views.LaneStretch, a status.AccountNow, now int, against time.Time
 	}
 	switch {
 	case s.Cell == views.CellCapped && s.Projected:
-		return "reaches its cap" + when + " at its pace", alertInk, true
+		return "reaches its cap" + when + atItsPace, alertInk, true
 	case s.Cell == views.CellCapped:
 		return status.AtCap + when, alertInk, true
 	case s.Cell == views.CellLimited && s.Projected:
-		return "runs out" + when + " at its pace", alertInk, true
+		return "runs out" + when + atItsPace, alertInk, true
 	case s.Cell == views.CellLimited:
 		return status.AtLimit + when, exhaustedInk, false
 	case s.Cell == views.CellRefused:
