@@ -113,7 +113,7 @@ frames to `finalize.sh`, which makes the art:
 - **The frames, not a video.** vhs writes every frame it shows to `demo/out/<name>/`, as the
   terminal drew it. A video's compression shifts every pixel a little from frame to frame, which
   an animated WebP then stores whole; from the frames themselves it stores only what changed,
-  losslessly. The lead clip, about 27 seconds at 30 frames a second, is half a megabyte.
+  losslessly. The lead clip, about 29 seconds at 30 frames a second, is under three quarters of a megabyte.
 - **The art.** For a clip, an animated WebP, which GitHub shows inline, at the frames' 30 a
   second, and an H.264 MP4 of the same frames; for a still, a lossless WebP of the last frame.
   Each frame is set in a margin of its own canvas, as the theme picker changes it.
