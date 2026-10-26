@@ -52,8 +52,8 @@ type cardHead struct {
 // window, width cells wide, at now: its label, the account's number, name and
 // marks, as Runway's lanes label them; and its words, as cardWords has them.
 // Beside, its words are on the label's row, ending at the card's last
-// column, the label in a column of the account's name, as accountsColumn
-// has it, its gap clear of the label at the least, the parts laid out by
+// column, the label in a column of its own, as alone has it, drawn as
+// fitted cuts it, its gap clear of the label at the least, the parts laid out by
 // flex, giving way in the turns a head's do; where the words give way even
 // so, the label takes its row alone, as within cuts it. Else the label
 // takes the width, as within cuts it, and its words are on the row under

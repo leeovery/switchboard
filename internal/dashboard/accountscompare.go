@@ -399,15 +399,12 @@ func (cp compared) columns() []compareColumn {
 }
 
 // column is the column of the configured account at the place given among
-// them, from 0, wherever it's shown: as the moment has it, else as the
-// config names it, and its row of the period's page.
+// them, from 0, wherever it's shown: as configuredNow has it, and its row
+// of the period's page.
 func (cp compared) column(i int) compareColumn {
 	configured := cp.f.Accounts.Accounts[i]
 	col := compareColumn{id: configured.ID, place: i + 1}
-	col.account, col.known = cp.m.Account(configured.ID)
-	if !col.known {
-		col.account = status.AccountNow{ID: configured.ID, Label: configured.Label, Primary: configured.Primary}
-	}
+	col.account, col.known = configuredNow(cp.m, configured, i+1)
 	if cp.page != nil {
 		if j := slices.IndexFunc(cp.page.Rows, func(r views.AccountsRow) bool { return r.Totals.Account == configured.ID }); j >= 0 {
 			col.row = cp.page.Rows[j]

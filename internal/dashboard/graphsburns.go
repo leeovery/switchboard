@@ -9,21 +9,23 @@ import (
 )
 
 // burnCards draws the cards of the burn-down section placed, of the moment
-// m, as laid out: each configured account's, in the config's order, where
-// laid's cards places it, as burnCardDrawn draws it; none where the moment's
-// policy shares no window of the section's.
+// m, as laid out: each configured account's, as configuredNow has it, in the
+// config's order and numbered by its place in it, where laid's cards places
+// it, as burnCardDrawn draws it, so one the moment doesn't hold yet draws as
+// one not read yet; none where the moment's policy shares no window of the
+// section's.
 func (f Frame) burnCards(c *canvas, m status.Moment, laid graphsLaid, placed graphsPlaced) {
 	window := burnDowns[placed.section]
 	key := window.KeyIn(m.Policy())
 	if key == "" {
 		return
 	}
-	s, names := burnSection{key: key, lanes: f.Graphs.Lanes[window], beside: !laid.apart, now: m.Now}, namesOf(m)
+	s := burnSection{key: key, lanes: f.Graphs.Lanes[window], beside: !laid.apart, now: m.Now}
+	accounts := configuredNowEach(m, f.Graphs.Accounts)
+	names := namesOfEach(accounts)
 	for i, at := range laid.cards(placed) {
-		l, built := s.lanes.lane(f.Graphs.Accounts[i].ID)
-		if ln, ok := laneOf(l, m, names); ok {
-			f.burnCardDrawn(c, s, ln, built, at)
-		}
+		l, built := s.lanes.lane(accounts[i].ID)
+		f.burnCardDrawn(c, s, laneLaid(l, accounts[i], names[i]), built, at)
 	}
 }
 

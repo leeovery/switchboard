@@ -178,38 +178,61 @@ func emptyButNow(rows []string) bool {
 	return true
 }
 
-// A card whose account has nothing to draw, not read yet, or with no usable
-// token, has its chart empty but for now's line; its words as Runway's lane
-// has them.
+// A card whose account has nothing to draw, not read yet, whose first read
+// failed, or with no usable token, has its chart empty but for now's line;
+// its words as Runway's lane has them, not a stale one's.
 func TestGraphsCardWithNothingToDrawIsEmptyButForNowsLine(t *testing.T) {
 	tests := []struct {
 		name   string
 		change func(*status.Account)
+		words  string
 	}{
-		{name: "not read yet", change: func(a *status.Account) { a.FetchedAt = time.Time{} }},
-		{name: "without a usable token", change: func(a *status.Account) { a.TokenSet = false }},
+		{name: "not read yet", change: func(a *status.Account) { a.FetchedAt = time.Time{} }, words: "not read"},
+		{
+			name: "its first read failed", words: "can't read it: usage endpoint answered 500",
+			change: func(a *status.Account) {
+				a.FetchedAt, a.Windows, a.Error = time.Time{}, nil, "usage endpoint answered 500"
+			},
+		},
+		{name: "without a usable token", change: func(a *status.Account) { a.TokenSet = false }, words: "no token"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := trio(account("side", tt.change))
 			f := cardsPage(doc, printNow, 160, 37, trioIDs...)
 			c, sections := pageCards(f, doc, printNow)
-			m := doc.At(printNow, printPolicy)
 			for section, cards := range sections {
 				side := cards[2]
 				if rows := chartOnly(c, side); !emptyButNow(rows) {
 					t.Errorf("side's %s chart is\n%s\nwant it empty but for now's line", section.heading(), strings.Join(rows, "\n"))
 				}
-				lanes := f.Graphs.Lanes[burnDowns[section]]
-				l, _ := lanes.lane("side")
-				ln, _ := laneOf(l, m, namesOf(m))
-				said := slices.Concat(lanes.view().cardWords(ln, printNow)...)
 				words := regionOf(c, bounds{x: side.chart.x, y: side.words, width: side.chart.width, rows: 1})[0]
-				if want := strings.TrimRight(said.plain(), " "); words != want || want == "" {
-					t.Errorf("side's %s words read %q, want Runway's lane's, %q", section.heading(), words, want)
+				if words != tt.words {
+					t.Errorf("side's %s words read %q, want %q", section.heading(), words, tt.words)
 				}
 			}
 		})
+	}
+}
+
+// A configured account the moment doesn't hold yet, as just after it's
+// added, has its card in its place, numbered by it: its label, and its chart
+// empty but for now's line, as one not read yet.
+func TestGraphsCardOfAnAccountTheMomentLacksIsLabelledAndEmpty(t *testing.T) {
+	doc := trio()
+	f := cardsPage(doc, printNow, 160, 37, "work", "client", "personal", "side")
+	c, sections := pageCards(f, doc, printNow)
+	for section, cards := range sections {
+		client := cards[1]
+		if label := labelOf(c, client); label != "2 client" {
+			t.Errorf("%s's second card is labelled %q, want 2 client", section.heading(), label)
+		}
+		if rows := chartOnly(c, client); !emptyButNow(rows) {
+			t.Errorf("client's %s chart is\n%s\nwant it empty but for now's line", section.heading(), strings.Join(rows, "\n"))
+		}
+		if label := labelOf(c, cards[2]); !strings.HasPrefix(label, "3 personal") {
+			t.Errorf("%s's third card is labelled %q, want 3 personal, by its place in the config", section.heading(), label)
+		}
 	}
 }
 
