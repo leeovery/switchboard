@@ -737,10 +737,13 @@ func TestStepAsideStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 }
 
 // withoutSwitchboard starts claude each way a launcher can as if switchboard
-// weren't there, taking off what a session it's started within set.
+// weren't there, taking off what a session it's started within set, but
+// where it keepsRouting: unaided, within a session still sent to the router
+// run sent it to, which passes the session's environment on as it is.
 var withoutSwitchboard = []struct {
-	name   string
-	launch func(l launch.Launcher) error
+	name         string
+	launch       func(l launch.Launcher) error
+	keepsRouting bool
 }{
 	{name: "stepping aside for a key", launch: func(l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") }},
 	{
@@ -748,6 +751,7 @@ var withoutSwitchboard = []struct {
 		launch: func(l launch.Launcher) error {
 			return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
 		},
+		keepsRouting: true,
 	},
 }
 
@@ -799,7 +803,10 @@ func TestStartingWithoutSwitchboardTakesOffWhatRunSet(t *testing.T) {
 		account string
 		since   map[string]string
 		// want is what's started without switchboard, besides HOME, a key and
-		// the token run set, which isn't taken off.
+		// the token run set, which isn't taken off, wherever what the mark
+		// names is taken off: stepping aside always, and unaided only where
+		// the base URL has changed since, as otherwise the session's router
+		// still routes it, which is passed on as it is.
 		want map[string]string
 	}{
 		{name: "none of them set by the user, each goes", account: "side", want: map[string]string{}},
@@ -835,6 +842,13 @@ func TestStartingWithoutSwitchboardTakesOffWhatRunSet(t *testing.T) {
 			want:  map[string]string{baseURL: gateway},
 		},
 		{
+			name:    "a base URL set since, kept, beside the user's own custom headers, switchboard's gone",
+			own:     map[string]string{headers: "X-Trace: on"},
+			account: "side",
+			since:   map[string]string{baseURL: gateway},
+			want:    map[string]string{baseURL: gateway, headers: "X-Trace: on"},
+		},
+		{
 			name:  "hints turned off since, kept off",
 			since: map[string]string{hints: "0"},
 			want:  map[string]string{hints: "0"},
@@ -866,6 +880,12 @@ func TestStartingWithoutSwitchboardTakesOffWhatRunSet(t *testing.T) {
 
 				if err := start.launch(h.launcher); err != nil {
 					t.Fatalf("launch error = %v", err)
+				}
+				if _, pointedElsewhere := tt.since[baseURL]; start.keepsRouting && !pointedElsewhere {
+					if got := envMap(h.only(t).session()); !maps.Equal(got, session) {
+						t.Errorf("started with the environment\n%q\nwant the session's as it is, still routed\n%q", got, session)
+					}
+					return
 				}
 				want := map[string]string{"HOME": homeDir, "ANTHROPIC_API_KEY": "test-key", token: workToken}
 				maps.Copy(want, tt.want)
@@ -900,9 +920,16 @@ func TestASessionWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
 
 	for _, start := range withoutSwitchboard {
 		t.Run(start.name, func(t *testing.T) {
-			h := newHarness(t, append(inner.only(t).session(), "ANTHROPIC_API_KEY=test-key")...)
+			session := append(inner.only(t).session(), "ANTHROPIC_API_KEY=test-key")
+			h := newHarness(t, session...)
 			if err := start.launch(h.launcher); err != nil {
 				t.Fatalf("launch error = %v", err)
+			}
+			if start.keepsRouting {
+				if got, want := envMap(h.only(t).session()), envMap(session); !maps.Equal(got, want) {
+					t.Errorf("started with the environment\n%q\nwant the session's as it is, still routed\n%q", got, want)
+				}
+				return
 			}
 			want := map[string]string{
 				"HOME":                     homeDir,

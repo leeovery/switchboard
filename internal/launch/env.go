@@ -166,19 +166,42 @@ func (e environ) markedAgainst(own environ) environ {
 // own, stays as it is. Without a mark, as from a switchboard before marks, or
 // with one that can't be read, nothing else changes.
 func (e environ) unmarked() environ {
-	raw, marked := e.lookup(setEnv)
-	if !marked {
+	if _, marked := e.lookup(setEnv); !marked {
 		return e
 	}
 	env := e.without(setEnv)
-	mark, err := url.ParseQuery(raw)
-	if err != nil {
+	mark, ok := e.mark()
+	if !ok {
 		return env
 	}
 	for _, key := range markedVars {
 		env = env.restored(key, mark)
 	}
 	return env.withoutHeaderLines(mark[headerKey])
+}
+
+// routedByRun reports whether the environment still sends Claude Code to the
+// router run sent it to, as its mark says: false without a mark, or where the
+// base URL has been changed since, as by a script pointing claude at a gateway
+// of its own.
+func (e environ) routedByRun() bool {
+	mark, ok := e.mark()
+	if !ok || !mark.Has(setKey+claude.BaseURLEnv) {
+		return false
+	}
+	value, isSet := e.lookup(claude.BaseURLEnv)
+	return isSet && value == mark.Get(setKey+claude.BaseURLEnv)
+}
+
+// mark returns what run set in the environment, as its mark says (see
+// setEnv): false without a mark, or with one that can't be read.
+func (e environ) mark() (url.Values, bool) {
+	raw, marked := e.lookup(setEnv)
+	if !marked {
+		return nil, false
+	}
+	mark, err := url.ParseQuery(raw)
+	return mark, err == nil
 }
 
 // restored returns the environment with key back to the user's value, as

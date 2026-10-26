@@ -19,9 +19,12 @@ names, leaving what the user set. Small, and rare in use: nothing has yet been s
 
 Built in the cleanliness release, as the design's Launching says under "What `run` set". `run`
 marks what it set in `SWITCHBOARD_SET`: the value it gave the base URL and the hint setting, each
-with the user's value it replaced, and the lines it added to the custom headers. Every launch but a
-local subcommand's starts from the environment as the user set it, so stepping aside and starting
-unaided take off what the mark names, leaving what the user set and what a script changed since,
-and a session within a session marks only what it sets itself. The token isn't marked, as the
-user's own can't be written into the mark. A session from before the mark goes on as it did.
-`internal/launch` holds it (`env.go`'s `markedAgainst` and `unmarked`).
+with the user's value it replaced, and the lines it added to the custom headers. Stepping aside
+takes off what the mark names, leaving what the user set and what a script changed since, and a
+session within a session marks only what it sets itself. Starting unaided does the same only where
+the base URL has changed since, as a script pointing `claude` at another gateway does: within a
+session still sent to the router `run` sent it to, it passes the environment on as it is, mark and
+all, as that router still routes and records it, routing coming first. The token isn't marked, as
+the user's own can't be written into the mark. A session from before the mark goes on as it did.
+`internal/launch` holds it: `env.go`'s `markedAgainst`, `unmarked` and `routedByRun`, and
+`launch.go`'s `unaidedEnv`.

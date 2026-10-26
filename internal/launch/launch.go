@@ -185,9 +185,9 @@ func (l Launcher) StepAside(args []string, key string) error {
 }
 
 // Unaided starts Claude Code with args in this process's place as if
-// switchboard weren't there, its environment as the user set it (see own)
-// but for the mark every claude switchboard starts carries (see startedEnv),
-// for when switchboard can't take part: switchboard mustn't stand between
+// switchboard weren't there, in the environment unaidedEnv gives, but for the
+// mark every claude switchboard starts carries (see startedEnv), for when
+// switchboard can't take part: switchboard mustn't stand between
 // the user and claude. Stderr hears what switchboard couldn't do, and why, as
 // err's first line says. It returns only when Claude Code couldn't start.
 func (l Launcher) Unaided(args []string, couldnt string, err error) error {
@@ -201,13 +201,26 @@ func (l Launcher) Unaided(args []string, couldnt string, err error) error {
 func (l Launcher) unaided(path string, args []string, couldnt string, err error) error {
 	logger.Warn("starting claude without switchboard", "reason", couldnt, "error", err, "claude", path)
 	Warn(l.Stderr, couldnt, err, "starting claude without it")
-	return l.exec(path, args, l.own())
+	return l.exec(path, args, l.unaidedEnv())
+}
+
+// unaidedEnv returns the environment Claude Code starts in unaided. Within a
+// session that still goes through the router run sent it to, it's passed on
+// as it is, mark and all: that router still routes it, and records it, as it
+// does the session; only this launch couldn't take part. Otherwise, as within
+// a session pointed at a gateway of its own since, it's the user's own.
+func (l Launcher) unaidedEnv() environ {
+	env := environ(l.Environ)
+	if env.routedByRun() {
+		return env
+	}
+	return env.unmarked()
 }
 
 // own returns the environment Claude Code starts from as the user set it:
 // without what a run it's started within set there, as its mark says (see
 // setEnv), so what this launch sets is all switchboard sets, and a claude
-// started as if switchboard weren't there carries nothing of switchboard's.
+// stepped aside for carries nothing of switchboard's.
 func (l Launcher) own() environ {
 	return environ(l.Environ).unmarked()
 }
