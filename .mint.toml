@@ -30,4 +30,4 @@ diff_exclude = [
 pre_tag = ['scripts/gated']
 
 [release]
-diff_exclude = ["testdata/", "art/", "internal/views/viewstest/"]
+diff_exclude = ["testdata/", "art/", "internal/views/viewstest/", "demo/"]
