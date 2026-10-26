@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -630,7 +631,7 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 			name:         "refused, which says nothing of the token side goes out on now",
 			err:          errors.New("HTTP 401 · Invalid bearer token"),
 			wantWeek:     week.Utilization,
-			wantLogs:     [][]string{{"level=DEBUG", `msg="probe on the token before failed; its failure isn't kept"`, "account=side", `error="HTTP 401 · Invalid bearer token"`}},
+			wantLogs:     [][]string{{"level=DEBUG", `msg="probe on a token the account no longer holds failed; its failure isn't kept"`, "account=side", `error="HTTP 401 · Invalid bearer token"`}},
 			unwantedLogs: [][]string{{`msg="probe failed"`}},
 			wantDue:      true,
 		},
@@ -718,6 +719,68 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 				})
 			})
 		}
+	}
+}
+
+func TestAProbeThatEndsAfterItsAccountLostItsTokenLeavesNothing(t *testing.T) {
+	tests := []struct {
+		name string
+		// loseFirst has side lose its token before its probe is sent, rather
+		// than once it's out.
+		loseFirst bool
+	}{
+		{name: "sent before side lost its token"},
+		{name: "sent once side had lost it, as a choice made a moment before may", loseFirst: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				path := filepath.Join(t.TempDir(), "state.json")
+				files := &changingFiles{files: testTokens}
+				refused := errors.New("HTTP 401 · Invalid bearer token")
+				prober := &stubProber{gate: make(chan struct{}), errs: map[string]error{sideToken: refused}}
+				r := newTestRouterReading(t, at(start), prober, files.read)
+				r.file.load(path)
+				defer r.probes.stop()
+				lose := func() {
+					files.set(tokenstest.Files{"work": workToken})
+					r.upkeep.tokens.look()
+					r.upkeep.tokens.look()
+				}
+				// The probe goes out on side as the accounts stood before the
+				// loss, as a choice's or the rounds' do.
+				sendable := r.accounts.sendable()
+				if tt.loseFirst {
+					lose()
+				}
+				underway := r.probes.start(sendable.only([]string{"side"}), func(string, time.Time) bool { return true })
+				synctest.Wait()
+				if !tt.loseFirst {
+					lose()
+				}
+				// What the loss changed is saved before the probe ends.
+				r.file.save()
+				close(prober.gate)
+				<-underway[0].done
+
+				if got := probesOf(r, "side"); got != (probesWent{}) {
+					t.Errorf("side's probes went %+v, want nothing of the probe kept: side no longer holds the token it went out on", got)
+				}
+				if r.file.changes.unsaved.Load() {
+					t.Error("the probe's end is due to be saved, want nothing of it for the state file")
+				}
+				if !log.Has("level=DEBUG", `msg="probe on a token the account no longer holds failed; its failure isn't kept"`, "account=side") || log.Has(`msg="probe failed"`) {
+					t.Errorf("log reads\n%s\nwant side's probe's failure noted at debug alone", log)
+				}
+				r.file.save()
+				restarted := newTestFile(at(start.Add(time.Hour)), testAccounts())
+				restarted.load(path)
+				if u := restarted.state.usage["side"]; !u.probed.IsZero() || u.probeErr != "" || u.misses != 0 {
+					t.Errorf("side's probes loaded as ended %v, %q, %d in a row; want none: it has its token again", u.probed, u.probeErr, u.misses)
+				}
+			})
+		})
 	}
 }
 

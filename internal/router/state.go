@@ -63,6 +63,10 @@ type usage struct {
 	// of the request's token is the account's. It's kept in memory alone,
 	// as moments are.
 	afresh moment
+	// tokenless is set while the account has no usable token, from as it
+	// loses one until it gains one: a probe that ends meanwhile went out on
+	// a token it no longer holds, as one on the token before did.
+	tokenless bool
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
@@ -351,9 +355,11 @@ func (u *usage) liftedSince(id string, was []limit, now time.Time) []LimitLifted
 // prime or not, as from says: its usage, its extra usage among it, and which
 // models reported each window, and whether a request of it was answered with
 // success, or why it read nothing; and returns what it took in, as probeTaken
-// has it. It tells whether the probe went out on the token before, sent
-// before the account last went out on another, as tokenReplaced marks it: of
-// one of those, it takes in what it read alone, the subscription's usage,
+// has it. It tells whether the probe went out on a token the account no
+// longer holds: the token before, sent before the account last went out on
+// another, as tokenReplaced marks it, or one it has lost since, as tokenLost
+// has it, whatever the probe was sent on. Of one of those, it takes in what
+// it read alone, the subscription's usage,
 // which reads the same on either token, and when it ended, for a prime's
 // verdict, but not why it read nothing, what it couldn't read, or the backoff
 // its end would start. Its reading stamps the account read, and clears its
@@ -367,9 +373,9 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	taken := probeTaken{tokenBefore: sent < u.afresh}
+	taken := probeTaken{tokenGone: sent < u.afresh || u.tokenless}
 	if err != nil {
-		if !taken.tokenBefore {
+		if !taken.tokenGone {
 			u.probed, u.ended, u.probeErr = at, at, redact.Text(err.Error())
 			u.misses = min(u.misses+1, backingOff)
 			s.routine()
@@ -377,7 +383,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 		return taken
 	}
 	u.ended = at
-	if !taken.tokenBefore {
+	if !taken.tokenGone {
 		taken.warn = u.warnOf(probed.Failures, at)
 		u.probed, u.failures = at, slices.Clone(probed.Failures)
 	}
@@ -396,7 +402,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	switch {
 	case news:
 		s.changed()
-	case took || !taken.tokenBefore:
+	case took || !taken.tokenGone:
 		s.routine()
 	}
 	taken.lifted = u.liftedSince(id, was, at)
@@ -404,13 +410,13 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 }
 
 // probeTaken is what a probe's reading took in, as recordProbe has it:
-// whether the probe went out on the token before; the news of each limit of
+// whether the probe went out on a token the account no longer holds; the news of each limit of
 // the account's it showed lifted early; and the keys of the windows it
 // couldn't read to warn of, as warnOf has them.
 type probeTaken struct {
-	tokenBefore bool
-	lifted      []LimitLifted
-	warn        []string
+	tokenGone bool
+	lifted    []LimitLifted
+	warn      []string
 }
 
 // warnOf returns the keys of the windows of failures, which a probe of the
@@ -513,17 +519,23 @@ func (s *state) tokenReplaced(id string) (RefusalLifted, bool) {
 func (s *state) tokenGained(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].probesAfresh()
+	u := s.usage[id]
+	u.probesAfresh()
+	u.tokenless = false
 }
 
 // tokenLost notes that the account with the given id has no usable token:
 // its probes start afresh, as probesAfresh says, so the state file keeps
 // none of how they went on the token it lost, which a restart with that
-// token back would otherwise take up, as one the router never lost.
+// token back would otherwise take up, as one the router never lost; and
+// until it gains one, a probe that ends went out on a token it doesn't
+// hold, as recordProbe says, and leaves nothing of how it went.
 func (s *state) tokenLost(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].probesAfresh()
+	u := s.usage[id]
+	u.probesAfresh()
+	u.tokenless = true
 }
 
 // probesAfresh forgets how the account's probes went, as it goes out on a

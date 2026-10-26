@@ -73,16 +73,17 @@ type report func(a account, w went)
 
 // went is how a probe went: what it read, or why it read nothing, at, the
 // time it was sent, by the router's clock, how long it took, whether it went
-// out on the token before the one the account goes out on now, as
-// recordProbe judges it, which keeps nothing of how it went, and the keys of
+// out on a token the account no longer holds, the one before or one it has
+// lost, as recordProbe judges it, which keeps nothing of how it went, and
+// the keys of
 // the windows it couldn't read to warn of, as recordProbe has them.
 type went struct {
-	probed      quota.Probe
-	err         error
-	at          time.Time
-	took        time.Duration
-	tokenBefore bool
-	warn        []string
+	probed    quota.Probe
+	err       error
+	at        time.Time
+	took      time.Duration
+	tokenGone bool
+	warn      []string
 }
 
 // start probes each of the accounts that due says wants a probe, unless a
@@ -245,15 +246,16 @@ func (p *probes) probe(a account, r *run) {
 	for _, lifted := range taken.lifted {
 		p.emit(lifted)
 	}
-	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenBefore: taken.tokenBefore, warn: taken.warn})
+	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenGone: taken.tokenGone, warn: taken.warn})
 }
 
-// logProbe logs how a probe of an account went: one that failed on the token
-// before at debug alone, as its failure says nothing of the account.
+// logProbe logs how a probe of an account went: one that failed on a token
+// the account no longer holds at debug alone, as its failure says nothing of
+// the account.
 func logProbe(a account, w went) {
 	switch {
-	case w.err != nil && w.tokenBefore:
-		logger.Debug("probe on the token before failed; its failure isn't kept", "account", a.ID, "duration", w.took, "error", w.err)
+	case w.err != nil && w.tokenGone:
+		logger.Debug("probe on a token the account no longer holds failed; its failure isn't kept", "account", a.ID, "duration", w.took, "error", w.err)
 	case w.err != nil:
 		logger.Warn("probe failed", "account", a.ID, "duration", w.took, "error", w.err)
 	default:
@@ -304,7 +306,7 @@ func (p Primed) startedBy(sent time.Time) bool {
 
 // logUnread logs each window a probe of an account expected, and couldn't
 // read: at warn those it's to warn of, and the rest at debug, as those of a
-// probe on the token before, which the account keeps none of, are.
+// probe on a token the account no longer holds, which it keeps none of, are.
 func logUnread(a account, w went) {
 	for _, f := range w.probed.Failures {
 		note := logger.Debug

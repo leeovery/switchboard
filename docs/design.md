@@ -626,7 +626,9 @@ accounts:
   token probed every 5 minutes would only fill the log. One whose token is refused isn't probed on
   the rounds while it's so, nor one without a usable token. One that goes out on another token,
   loses its usable token, or has a usable one again, starts afresh: how its probes went on the
-  token before says nothing of this one, so neither their error nor their backoff holds.
+  token before says nothing of this one, so neither their error nor their backoff holds. A probe
+  that ends while its account has no usable token, sent before it lost it or after, as a choice
+  made a moment before may, leaves nothing of how it went, as one on the token before doesn't.
 - **Across a restart,** `state.json` keeps how each account's probes went, beside its reading: when
   one last ended, why the last read nothing, and how many in a row did, counted to the fifth, past
   which the wait stays the half hour. So the minute after a probe and the backoff hold across it,
@@ -6734,8 +6736,9 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   config change refused, as invalid at two looks in a row; a restart that couldn't replace the
   process, and exits instead; and listeners handed over that couldn't be taken up. At `debug`, a
   token file found holding no usable token at one look, which the account's token outlasts; a
-  config file found making no valid config at one look; of a probe on the token its account has
-  since replaced, its failure or a window it couldn't read, as neither is kept, though a prime's
+  config file found making no valid config at one look; of a probe on a token its account has
+  since replaced, or that ends while it has none usable, its failure or a window it couldn't read,
+  as neither is kept, though a prime's
   failure is warned of as any is; a window a probe couldn't read, which is warned of as a probe
   first finds it unread since it was last read, then once a half hour at most (`window unread`);
   and why the first request after a session's compaction leaves it where it is, and, where it's
