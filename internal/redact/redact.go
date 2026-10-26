@@ -29,13 +29,18 @@ func HoldsToken(text string) bool {
 // HoldsSecret reports whether value, such as a variable's, holds a secret:
 // anything shaped like a Claude token, or, read as a URL, credentials in its
 // userinfo, as https://user:secret@gateway.example.com, or a query, which can
-// carry a key, as ?key=….
+// carry a key, as ?key=…. A value that doesn't read as a URL, as one whose
+// password has a bad escape, holds one where it holds an @ or a ?, which
+// userinfo and a query need.
 func HoldsSecret(value string) bool {
 	if HoldsToken(value) {
 		return true
 	}
 	u, err := url.Parse(value)
-	return err == nil && (u.User != nil || u.RawQuery != "")
+	if err != nil {
+		return strings.ContainsAny(value, "@?")
+	}
+	return u.User != nil || u.RawQuery != ""
 }
 
 // Text returns text with each of secrets, and anything shaped like a Claude
