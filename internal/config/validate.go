@@ -320,6 +320,18 @@ func parseUsageBy(given *string) (Layout, error) {
 	return ByWindow, wrongValue("usage.by", *given, "must be window, the accounts compared a window at a time, or account, each account's windows together")
 }
 
+// parseRouterDown reads when_router_down: stop or direct. None given is
+// Stop.
+func parseRouterDown(given *string) (RouterDown, error) {
+	if given == nil {
+		return Stop, nil
+	}
+	if down, ok := ParseRouterDown(*given); ok {
+		return down, nil
+	}
+	return Stop, wrongValue("when_router_down", *given, "must be stop, claude starting nothing while the router is down, or direct, claude connecting directly on an account's token")
+}
+
 // MostDays is the most whole days a time.Duration holds, some 292 years: a
 // count of more, as ParseDays reads one, is longer than any duration.
 const MostDays = uint64(math.MaxInt64 / (24 * time.Hour))

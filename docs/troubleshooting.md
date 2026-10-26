@@ -41,6 +41,12 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   file damaged where its size hasn't changed isn't noticed by the router, and that day reads its
   lines at every day back: delete that day's `rows-<date>.gz`, and the router writes it again on its
   next round.
+- **`claude` won't start, the router down:** with the router not running, or not healthy, `claude`
+  starts nothing and says so. Run [`switchboard service status`](commands.md#service) to see
+  whether the LaunchAgent is installed and loaded and how the router answers, then
+  `switchboard service install` or `switchboard service restart`. To start Claude Code without the
+  router this once, unrouted and unrecorded, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`; to
+  have it do so always, set [`when_router_down = "direct"`](configuration.md#top-level-keys).
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.

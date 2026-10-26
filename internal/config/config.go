@@ -57,6 +57,9 @@ label = "Personal"
 type Config struct {
 	Listen   string
 	Upstream string
+	// WhenRouterDown is what claude does when the router isn't running, or
+	// isn't healthy: the config's, else Stop.
+	WhenRouterDown RouterDown
 	// WeekStarts is the day the dashboard's calendar weeks start on: the
 	// config's, else Monday.
 	WeekStarts time.Weekday
@@ -201,18 +204,43 @@ func ParseLayout(given string) (Layout, bool) {
 	return "", false
 }
 
+// RouterDown is what claude does when the router isn't running, or isn't
+// healthy, as when_router_down names it.
+type RouterDown string
+
+const (
+	// Stop starts nothing, saying why and how to go on.
+	Stop RouterDown = "stop"
+	// Direct starts Claude Code connected directly to the API, on an
+	// account's token.
+	Direct RouterDown = "direct"
+)
+
+// ParseRouterDown reads what claude does when the router is down by its name,
+// stop or direct, in any case, reporting false for any other text.
+func ParseRouterDown(given string) (RouterDown, bool) {
+	for _, down := range []RouterDown{Stop, Direct} {
+		if strings.EqualFold(given, string(down)) {
+			return down, true
+		}
+	}
+	return "", false
+}
+
 // file is the config file as it's written, before its defaults are filled in.
 type file struct {
-	Listen        string        `toml:"listen"`
-	Upstream      string        `toml:"upstream"`
-	WeekStarts    string        `toml:"week_starts"`
-	Accounts      []fileAccount `toml:"account"`
-	Prime         filePrime     `toml:"prime"`
-	Notifications Notifications `toml:"notifications"`
-	History       fileKeep      `toml:"history"`
-	Ledger        fileKeep      `toml:"ledger"`
-	Usage         fileUsage     `toml:"usage"`
-	Prices        Prices        `toml:"prices"`
+	Listen   string `toml:"listen"`
+	Upstream string `toml:"upstream"`
+	// WhenRouterDown is nil when the file doesn't give it.
+	WhenRouterDown *string       `toml:"when_router_down"`
+	WeekStarts     string        `toml:"week_starts"`
+	Accounts       []fileAccount `toml:"account"`
+	Prime          filePrime     `toml:"prime"`
+	Notifications  Notifications `toml:"notifications"`
+	History        fileKeep      `toml:"history"`
+	Ledger         fileKeep      `toml:"ledger"`
+	Usage          fileUsage     `toml:"usage"`
+	Prices         Prices        `toml:"prices"`
 }
 
 // fileAccount is an [[account]] table as it's written.
@@ -298,10 +326,12 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 	historyKeep, historyErr := parseKeep("history.keep", f.History.Keep, DefaultHistoryKeep)
 	ledgerKeep, ledgerErr := parseKeep("ledger.keep", f.Ledger.Keep, DefaultLedgerKeep)
 	by, byErr := parseUsageBy(f.Usage.By)
+	down, downErr := parseRouterDown(f.WhenRouterDown)
 	err := errors.Join(
 		checkKeys(undecoded),
 		checkListen(f.Listen),
 		checkUpstream(f.Upstream),
+		downErr,
 		weekErr,
 		checkAccounts(f.Accounts),
 		dayErr,
@@ -315,16 +345,17 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		return nil, err
 	}
 	return &Config{
-		Listen:        f.Listen,
-		Upstream:      f.Upstream,
-		WeekStarts:    weekStarts,
-		Accounts:      resolve(f.Accounts),
-		Prime:         Prime{Day: day},
-		Notifications: f.Notifications,
-		History:       History{Keep: historyKeep},
-		Ledger:        Ledger{Keep: ledgerKeep},
-		Usage:         Usage{By: by},
-		Prices:        f.Prices,
+		Listen:         f.Listen,
+		Upstream:       f.Upstream,
+		WhenRouterDown: down,
+		WeekStarts:     weekStarts,
+		Accounts:       resolve(f.Accounts),
+		Prime:          Prime{Day: day},
+		Notifications:  f.Notifications,
+		History:        History{Keep: historyKeep},
+		Ledger:         Ledger{Keep: ledgerKeep},
+		Usage:          Usage{By: by},
+		Prices:         f.Prices,
 	}, nil
 }
 
