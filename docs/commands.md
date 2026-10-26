@@ -272,6 +272,10 @@ How `claude` starts depends on the router and your environment:
   use that key rather than an account's token, and its requests would go unrouted, billed to the
   key. So `claude` starts as if switchboard weren't there, and says so:
   `switchboard: ANTHROPIC_API_KEY is set, so Claude Code uses it — starting claude without switchboard`.
+- **Within a session.** Either way, a `claude` started within a routed session, as by a script,
+  leaves out what switchboard set there: the router's address, switchboard's own custom headers and
+  the hint setting. What you set yourself stays, your own custom headers among them, and so does
+  what the script changed since, such as a gateway of its own.
 - **Local subcommands** go straight to Claude Code, untouched and without a word: `setup-token`,
   `update`, `upgrade`, `install`, `doctor`, `mcp`, `plugin`, `plugins`, `auth`, `import`,
   `project`, `auto-mode` and `gateway`. Only the first argument counts, so `claude -p doctor` is a

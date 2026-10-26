@@ -102,8 +102,9 @@ type Route struct {
 // primary's, and Stderr hears why. Either way, failing those, it starts on
 // the first account's with a usable token, and with none, Unaided. A pin that
 // can't be kept, to an account not configured or without a usable token,
-// fails: it's the command line's mistake. Run returns only when Claude Code
-// couldn't start.
+// fails: it's the command line's mistake. It starts from the environment as
+// the user set it (see own), and marks what it sets there (see setEnv). Run
+// returns only when Claude Code couldn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -118,7 +119,8 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	if err != nil {
 		return l.unaided(path, args, "no account has a usable token", err)
 	}
-	env := environ(l.Environ)
+	own := l.own()
+	env := own
 	if state.healthy() {
 		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.toldDir(state)).hinting()
 		logger.Info("starting claude", "mode", "routed", "router", state.name, "account", c.account.ID, "chosen", c.why, "pin", r.Account, "claude", path)
@@ -127,19 +129,20 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "account", c.account.ID, "chosen", c.why, "claude", path)
 		Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
 	}
-	return l.exec(path, args, env)
+	return l.exec(path, args, env.markedAgainst(own))
 }
 
 // Direct starts Claude Code with args in this process's place, on its own
 // login: without the router or an account's token, for what needs the login.
-// It returns only when Claude Code couldn't start.
+// It starts from the environment as the user set it (see own). It returns
+// only when Claude Code couldn't start.
 func (l Launcher) Direct(args []string) error {
 	path, err := l.find()
 	if err != nil {
 		return err
 	}
 	logger.Info("starting claude", "mode", "own login", "claude", path)
-	return l.exec(path, args, environ(l.Environ).without(claude.TokenEnv, claude.BaseURLEnv).pinnedTo("").workingIn(""))
+	return l.exec(path, args, l.own().without(claude.TokenEnv, claude.BaseURLEnv).pinnedTo("").workingIn(""))
 }
 
 // Local starts Claude Code with args, which run one of its local
@@ -165,12 +168,12 @@ func (l Launcher) KeyEnv() string {
 }
 
 // StepAside starts Claude Code with args in this process's place as if
-// switchboard weren't there, its environment as it is but for the mark every
-// claude switchboard starts carries (see startedEnv), for when that
-// environment sets key, a variable holding a key Claude Code may use in
-// place of an account's token: its requests would go unrouted, and be billed
-// to the key. Stderr hears why. It returns only when Claude Code couldn't
-// start.
+// switchboard weren't there, its environment as the user set it (see own)
+// but for the mark every claude switchboard starts carries (see startedEnv),
+// for when that environment sets key, a variable holding a key Claude Code
+// may use in place of an account's token: its requests would go unrouted,
+// and be billed to the key. Stderr hears why. It returns only when Claude
+// Code couldn't start.
 func (l Launcher) StepAside(args []string, key string) error {
 	path, err := l.find()
 	if err != nil {
@@ -178,15 +181,15 @@ func (l Launcher) StepAside(args []string, key string) error {
 	}
 	logger.Info("starting claude without switchboard", "reason", key+" is set", "claude", path)
 	Notice(l.Stderr, key+" is set, so Claude Code uses it — starting claude without switchboard")
-	return l.exec(path, args, l.Environ)
+	return l.exec(path, args, l.own())
 }
 
 // Unaided starts Claude Code with args in this process's place as if
-// switchboard weren't there, its environment as it is but for the mark every
-// claude switchboard starts carries (see startedEnv), for when switchboard
-// can't take part: switchboard mustn't stand between the user and claude.
-// Stderr hears what switchboard couldn't do, and why, as err's first line
-// says. It returns only when Claude Code couldn't start.
+// switchboard weren't there, its environment as the user set it (see own)
+// but for the mark every claude switchboard starts carries (see startedEnv),
+// for when switchboard can't take part: switchboard mustn't stand between
+// the user and claude. Stderr hears what switchboard couldn't do, and why, as
+// err's first line says. It returns only when Claude Code couldn't start.
 func (l Launcher) Unaided(args []string, couldnt string, err error) error {
 	path, findErr := l.find()
 	if findErr != nil {
@@ -198,7 +201,15 @@ func (l Launcher) Unaided(args []string, couldnt string, err error) error {
 func (l Launcher) unaided(path string, args []string, couldnt string, err error) error {
 	logger.Warn("starting claude without switchboard", "reason", couldnt, "error", err, "claude", path)
 	Warn(l.Stderr, couldnt, err, "starting claude without it")
-	return l.exec(path, args, l.Environ)
+	return l.exec(path, args, l.own())
+}
+
+// own returns the environment Claude Code starts from as the user set it:
+// without what a run it's started within set there, as its mark says (see
+// setEnv), so what this launch sets is all switchboard sets, and a claude
+// started as if switchboard weren't there carries nothing of switchboard's.
+func (l Launcher) own() environ {
+	return environ(l.Environ).unmarked()
 }
 
 // Warn tells w, in a line, what switchboard couldn't do, why, as err's first

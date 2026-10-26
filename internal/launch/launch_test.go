@@ -736,6 +736,282 @@ func TestStepAsideStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 	}
 }
 
+// withoutSwitchboard starts claude each way a launcher can as if switchboard
+// weren't there, taking off what a session it's started within set.
+var withoutSwitchboard = []struct {
+	name   string
+	launch func(l launch.Launcher) error
+}{
+	{name: "stepping aside for a key", launch: func(l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") }},
+	{
+		name: "unaided",
+		launch: func(l launch.Launcher) error {
+			return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+		},
+	},
+}
+
+// routedSession returns the environment of a session run routes from own,
+// pinned to account unless it's "", in project, as a claude started within it
+// inherits it.
+func routedSession(t *testing.T, own []string, account string) []string {
+	t.Helper()
+	h := newHarness(t, own...)
+	h.launcher.Dir = project
+	if err := h.launcher.Run(t.Context(), route(healthy(), account), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	return h.only(t).session()
+}
+
+// envMap returns env's variables by name, and environOf them as env.
+func envMap(env []string) map[string]string {
+	m := make(map[string]string)
+	for _, variable := range env {
+		name, value, _ := strings.Cut(variable, "=")
+		m[name] = value
+	}
+	return m
+}
+
+func environOf(m map[string]string) []string {
+	env := make([]string, 0, len(m))
+	for name, value := range m {
+		env = append(env, name+"="+value)
+	}
+	return env
+}
+
+func TestStartingWithoutSwitchboardTakesOffWhatRunSet(t *testing.T) {
+	const (
+		baseURL = "ANTHROPIC_BASE_URL"
+		headers = "ANTHROPIC_CUSTOM_HEADERS"
+		hints   = "CLAUDE_CODE_GATEWAY_HINT_HEADERS"
+		token   = "CLAUDE_CODE_OAUTH_TOKEN"
+		gateway = "https://gateway.example.com"
+	)
+	tests := []struct {
+		name string
+		// own is the environment the user started the session in, pinned to
+		// account unless it's "", and since are the variables set within the
+		// session since, as by a script.
+		own     map[string]string
+		account string
+		since   map[string]string
+		// want is what's started without switchboard, besides HOME, a key and
+		// the token run set, which isn't taken off.
+		want map[string]string
+	}{
+		{name: "none of them set by the user, each goes", account: "side", want: map[string]string{}},
+		{
+			name: "the base URL the user set, back to theirs",
+			own:  map[string]string{baseURL: gateway},
+			want: map[string]string{baseURL: gateway},
+		},
+		{
+			name: "hints turned off by the user, which run left, kept off",
+			own:  map[string]string{hints: "0"},
+			want: map[string]string{hints: "0"},
+		},
+		{
+			name: "hints turned on by the user, which run left, kept on",
+			own:  map[string]string{hints: "1"},
+			want: map[string]string{hints: "1"},
+		},
+		{
+			name: "hints set to nothing by the user, back to nothing",
+			own:  map[string]string{hints: ""},
+			want: map[string]string{hints: ""},
+		},
+		{
+			name:    "the user's own custom headers kept, switchboard's gone",
+			own:     map[string]string{headers: "X-Trace: on\r\nX-Team: core\n"},
+			account: "side",
+			want:    map[string]string{headers: "X-Trace: on\nX-Team: core"},
+		},
+		{
+			name:  "a base URL set since, as by a script for a gateway of its own, kept",
+			since: map[string]string{baseURL: gateway},
+			want:  map[string]string{baseURL: gateway},
+		},
+		{
+			name:  "hints turned off since, kept off",
+			since: map[string]string{hints: "0"},
+			want:  map[string]string{hints: "0"},
+		},
+		{
+			name:    "custom headers set since in place of the session's, kept",
+			account: "side",
+			since:   map[string]string{headers: "X-Gateway: on"},
+			want:    map[string]string{headers: "X-Gateway: on"},
+		},
+		{
+			name:    "a custom header added since to the session's, kept, switchboard's gone",
+			own:     map[string]string{headers: "X-Trace: on"},
+			account: "side",
+			since:   map[string]string{headers: "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Gateway: on"},
+			want:    map[string]string{headers: "X-Trace: on\nX-Gateway: on"},
+		},
+	}
+	for _, tt := range tests {
+		for _, start := range withoutSwitchboard {
+			t.Run(tt.name+", "+start.name, func(t *testing.T) {
+				own := []string{"HOME=" + homeDir, "ANTHROPIC_API_KEY=test-key"}
+				for name, value := range tt.own {
+					own = append(own, name+"="+value)
+				}
+				session := envMap(routedSession(t, own, tt.account))
+				maps.Copy(session, tt.since)
+				h := newHarness(t, environOf(session)...)
+
+				if err := start.launch(h.launcher); err != nil {
+					t.Fatalf("launch error = %v", err)
+				}
+				want := map[string]string{"HOME": homeDir, "ANTHROPIC_API_KEY": "test-key", token: workToken}
+				maps.Copy(want, tt.want)
+				if env := h.environment(t); !maps.Equal(env, want) {
+					t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
+				}
+				if sets := h.only(t).sets; len(sets) > 0 {
+					t.Errorf("started marked with what run set, %q, want no such mark", sets)
+				}
+			})
+		}
+	}
+}
+
+func TestASessionWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
+	own := []string{"HOME=" + homeDir, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on", "ANTHROPIC_BASE_URL=https://gateway.example.com"}
+	outer := routedSession(t, own, "side")
+
+	inner := newHarness(t, outer...)
+	inner.launcher.Dir = homeDir + "/Code/other"
+	if err := inner.launcher.Run(t.Context(), route(healthy(), "work"), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	fresh := newHarness(t, own...)
+	fresh.launcher.Dir = homeDir + "/Code/other"
+	if err := fresh.launcher.Run(t.Context(), route(healthy(), "work"), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got, want := envMap(inner.only(t).session()), envMap(fresh.only(t).session()); !maps.Equal(got, want) {
+		t.Errorf("routed within a session with the environment\n%q\nwant\n%q, as routed from the user's own", got, want)
+	}
+
+	for _, start := range withoutSwitchboard {
+		t.Run(start.name, func(t *testing.T) {
+			h := newHarness(t, append(inner.only(t).session(), "ANTHROPIC_API_KEY=test-key")...)
+			if err := start.launch(h.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			want := map[string]string{
+				"HOME":                     homeDir,
+				"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on",
+				"ANTHROPIC_BASE_URL":       "https://gateway.example.com",
+				"ANTHROPIC_API_KEY":        "test-key",
+				"CLAUDE_CODE_OAUTH_TOKEN":  workToken,
+			}
+			if env := h.environment(t); !maps.Equal(env, want) {
+				t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
+			}
+		})
+	}
+}
+
+func TestDirectWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
+	session := routedSession(t, []string{"HOME=" + homeDir, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on"}, "side")
+	tests := []struct {
+		name   string
+		launch func(ctx context.Context, l launch.Launcher) error
+		want   map[string]string
+	}{
+		{
+			name:   "connecting directly",
+			launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(notRunning(), ""), nil) },
+			want:   map[string]string{"HOME": homeDir, "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on", "CLAUDE_CODE_OAUTH_TOKEN": workToken},
+		},
+		{
+			name:   "on its own login",
+			launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(nil) },
+			want:   map[string]string{"HOME": homeDir, "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, session...)
+			if err := tt.launch(t.Context(), h.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			if env := h.environment(t); !maps.Equal(env, tt.want) {
+				t.Errorf("started with the environment\n%q\nwant\n%q", env, tt.want)
+			}
+			if sets := h.only(t).sets; len(sets) > 0 {
+				t.Errorf("started marked with what run set, %q, want no such mark, as it sets nothing it marks", sets)
+			}
+		})
+	}
+}
+
+func TestNothingTokenShapedIsWrittenIntoTheMarkOfWhatRunSet(t *testing.T) {
+	const shaped = "sk-ant-oat01-fake_token-shaped"
+	tests := []struct {
+		name string
+		// own is the environment the user started the session in, and dir the
+		// directory it started in.
+		own []string
+		dir string
+		// want is what's started stepping aside, besides HOME, a key and the
+		// token run set.
+		want map[string]string
+	}{
+		{
+			name: "a base URL of the user's holding one, which can't go back, goes",
+			own:  []string{"ANTHROPIC_BASE_URL=https://" + shaped + "@gateway.example.com"},
+			dir:  project,
+			want: map[string]string{},
+		},
+		{
+			name: "a directory holding one, its line unmarked, stays",
+			dir:  homeDir + "/Code/" + shaped,
+			want: map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/" + shaped},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session := newHarness(t, append([]string{"HOME=" + homeDir, "ANTHROPIC_API_KEY=test-key"}, tt.own...)...)
+			session.launcher.Dir = tt.dir
+			if err := session.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if sets := session.only(t).sets; len(sets) != 1 || strings.Contains(sets[0], "sk-ant-") {
+				t.Fatalf("marked with what run set as %q, want one mark, holding nothing token-shaped", sets)
+			}
+
+			h := newHarness(t, session.only(t).session()...)
+			if err := h.launcher.StepAside(nil, "ANTHROPIC_API_KEY"); err != nil {
+				t.Fatalf("StepAside() error = %v", err)
+			}
+			want := map[string]string{"HOME": homeDir, "ANTHROPIC_API_KEY": "test-key", "CLAUDE_CODE_OAUTH_TOKEN": workToken}
+			maps.Copy(want, tt.want)
+			if env := h.environment(t); !maps.Equal(env, want) {
+				t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
+			}
+		})
+	}
+}
+
+func TestAMarkOfWhatRunSetThatCantBeReadTakesOffNothingElse(t *testing.T) {
+	inherited := []string{"HOME=" + homeDir, "ANTHROPIC_BASE_URL=http://" + proxyAddr, "CLAUDE_CODE_GATEWAY_HINT_HEADERS=1"}
+	h := newHarness(t, append(slices.Clone(inherited), setEnv+"=set:ANTHROPIC_BASE_URL=%zz")...)
+
+	if err := h.launcher.StepAside(nil, "ANTHROPIC_API_KEY"); err != nil {
+		t.Fatalf("StepAside() error = %v", err)
+	}
+	if got := h.only(t); !slices.Equal(got.env, inherited) || len(got.sets) > 0 {
+		t.Errorf("started with %q marked %q, want %q, without the mark", got.env, got.sets, inherited)
+	}
+}
+
 func TestFindsClaude(t *testing.T) {
 	// This process's own PATH leads to a claude of its own, which none of
 	// these finds: the environment Claude Code starts with is the one that
@@ -1081,24 +1357,45 @@ type started struct {
 	path string
 	argv []string
 	// env is the environment it was to start in, but for switchboard's mark
-	// of the claude it starts, which marks gives every value of.
+	// of the claude it starts, which marks gives every value of, and its mark
+	// of what run set there, which sets gives every value of.
 	env   []string
 	marks []string
+	sets  []string
 }
 
-// markEnv is the variable switchboard marks the claude it starts with.
-const markEnv = "SWITCHBOARD_STARTED"
+// session returns the environment of the session s starts, as a claude
+// started within it inherits it: with the mark of what run set, but without
+// the mark of the claude, which names this launcher's own process id, and so
+// would read as one started again in that claude's place.
+func (s started) session() []string {
+	env := slices.Clone(s.env)
+	for _, set := range s.sets {
+		env = append(env, setEnv+"="+set)
+	}
+	return env
+}
 
-// unmarked splits env into the values of switchboard's mark, and the rest.
-func unmarked(env []string) (rest, marks []string) {
+// markEnv is the variable switchboard marks the claude it starts with, and
+// setEnv the one it marks what run set in its environment with.
+const (
+	markEnv = "SWITCHBOARD_STARTED"
+	setEnv  = "SWITCHBOARD_SET"
+)
+
+// unmarked splits env into the values of switchboard's two marks, and the
+// rest.
+func unmarked(env []string) (rest, marks, sets []string) {
 	for _, variable := range env {
 		if mark, ok := strings.CutPrefix(variable, markEnv+"="); ok {
 			marks = append(marks, mark)
+		} else if set, ok := strings.CutPrefix(variable, setEnv+"="); ok {
+			sets = append(sets, set)
 		} else {
 			rest = append(rest, variable)
 		}
 	}
-	return rest, marks
+	return rest, marks, sets
 }
 
 // harness is a launcher whose claude, a stand-in, is where its installer put
@@ -1131,8 +1428,8 @@ func newHarness(t *testing.T, environ ...string) *harness {
 		PID:          pid,
 		Now:          func() time.Time { return launched },
 		Exec: func(path string, argv, env []string) error {
-			env, marks := unmarked(env)
-			h.starts = append(h.starts, started{path: path, argv: argv, env: env, marks: marks})
+			rest, marks, sets := unmarked(env)
+			h.starts = append(h.starts, started{path: path, argv: argv, env: rest, marks: marks, sets: sets})
 			return nil
 		},
 		Stderr: &h.stderr,

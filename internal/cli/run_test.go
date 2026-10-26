@@ -340,8 +340,13 @@ func TestRunStartsClaudeCodesLocalSubcommandsAsIfSwitchboardWerentThere(t *testi
 				want["ANTHROPIC_CUSTOM_HEADERS"] = "X-Switchboard-Dir: ~/Code/project"
 				want["CLAUDE_CODE_GATEWAY_HINT_HEADERS"] = "1"
 			}
-			if !maps.Equal(got.env, want) {
-				t.Errorf("handed over with\n%q\nwant\n%q", got.env, want)
+			env := maps.Clone(got.env)
+			if _, marked := env[setEnv]; marked == tt.local {
+				t.Errorf("handed over marked with what run set: %v, want %v", marked, !tt.local)
+			}
+			delete(env, setEnv)
+			if !maps.Equal(env, want) {
+				t.Errorf("handed over with\n%q\nwant\n%q", env, want)
 			}
 		})
 	}
@@ -502,8 +507,12 @@ func (h handOff) only(names ...string) map[string]string {
 	return env
 }
 
-// markEnv is the variable switchboard marks the claude it starts with.
-const markEnv = "SWITCHBOARD_STARTED"
+// markEnv is the variable switchboard marks the claude it starts with, and
+// setEnv the one run marks what it set in a session's environment with.
+const (
+	markEnv = "SWITCHBOARD_STARTED"
+	setEnv  = "SWITCHBOARD_SET"
+)
 
 // handOffs are the hand-overs run makes, and claude, the stand-in it finds.
 type handOffs struct {
