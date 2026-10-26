@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -79,16 +80,81 @@ func (a *app) serve(ctx context.Context) error {
 		return err
 	}
 	configFile, binary, zone := router.Watch(path), router.Watch(a.binary()), router.Watch(a.ZoneFile)
-	cfg, stateDir, err := a.startingFrom(path)
+	cfg, files, err := a.startingFrom(path)
 	if err != nil {
 		return err
 	}
-	files := tokens.NewStore(stateDir, a.UID)
+	cfg.ConfigFile, cfg.Binary, cfg.Zone = configFile, binary, zone
 	tighten(files)
 	a.refreshSkill()
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return router.Run(ctx, router.Config{
+	return router.Run(ctx, cfg)
+}
+
+// check checks what serve would start the router from, as a router about to
+// restart into this binary asks with handover.CheckFlag, and answers as
+// handover.Ask reads the answer: nothing, when the router could start, else
+// why it couldn't, refusing.
+func (a *app) check(cmd *cobra.Command) error {
+	if err := a.startable(); err != nil {
+		return refuse(cmd, err)
+	}
+	return nil
+}
+
+// startable fails, saying why, where serve would fail before the router
+// listens: where its config file can't be found, or the router couldn't start
+// from what it's read from, as router.Startable says.
+func (a *app) startable() error {
+	path, err := a.configFile()
+	if err != nil {
+		return err
+	}
+	cfg, _, err := a.startingFrom(path)
+	if err != nil {
+		return err
+	}
+	return router.Startable(cfg)
+}
+
+// refuse answers a router asking with handover.CheckFlag that the router
+// couldn't start, err saying why: on standard output alone, and by exiting
+// handover.Refused, as Execute has a refusal exit.
+func refuse(cmd *cobra.Command, err error) error {
+	cmd.SilenceErrors, cmd.SilenceUsage = true, true
+	// The exit status refuses whether or not why is written.
+	_, _ = io.WriteString(cmd.OutOrStdout(), err.Error()+"\n")
+	// The router asking says why at warn, so the log of the check notes it
+	// only at debug.
+	return expected{refusal{err}}
+}
+
+// refusal is serve's check refusing, as refuse answers.
+type refusal struct {
+	error
+}
+
+func (r refusal) Unwrap() error {
+	return r.error
+}
+
+// startingFrom reads what serve starts the router from, given its config
+// file's path: the router's config, but for the files it watches, which serve
+// finds before it reads the config file, and the token files it reads. It
+// fails where the config file doesn't make a valid config, or the state
+// directory can't be found.
+func (a *app) startingFrom(path string) (router.Config, tokens.Store, error) {
+	cfg, err := a.loadConfigAt(path)
+	if err != nil {
+		return router.Config{}, tokens.Store{}, err
+	}
+	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return router.Config{}, tokens.Store{}, err
+	}
+	files := tokens.NewStore(stateDir, a.UID)
+	return router.Config{
 		Accounts:      cfg.Accounts,
 		Token:         files.Read,
 		Upstream:      cfg.Upstream,
@@ -105,9 +171,6 @@ func (a *app) serve(ctx context.Context) error {
 		Digester:      views.Digests{},
 		Listen:        cfg.Listen,
 		StateDir:      stateDir,
-		ConfigFile:    configFile,
-		Binary:        binary,
-		Zone:          zone,
 		Supervised:    a.Getenv(launchdJob) == service.Label,
 		Exec:          a.Exec,
 		Check:         a.Check,
@@ -115,57 +178,7 @@ func (a *app) serve(ctx context.Context) error {
 		Environ:       a.Environ(),
 		Handed:        a.Getenv(handover.Variable),
 		WatchEvery:    a.WatchEvery,
-	})
-}
-
-// check checks what serve would start the router from, as a router about to
-// restart into this binary asks with handover.CheckFlag, and answers as
-// handover.Ask reads the answer: nothing, when the router could start, else
-// why it couldn't, refusing.
-func (a *app) check(cmd *cobra.Command) error {
-	path, err := a.configFile()
-	if err == nil {
-		_, _, err = a.startingFrom(path)
-	}
-	if err != nil {
-		return refuse(cmd, err)
-	}
-	return nil
-}
-
-// refuse answers a router asking with handover.CheckFlag that the router
-// couldn't start, err saying why: on standard output alone, and by exiting
-// handover.Refused, as Execute has a refusal exit.
-func refuse(cmd *cobra.Command, err error) error {
-	cmd.SilenceErrors, cmd.SilenceUsage = true, true
-	// The exit status refuses whether or not why is written.
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(), err)
-	// The router asking says why at warn, so the log of the check notes it
-	// only at debug.
-	return expected{refusal{err}}
-}
-
-// refusal is serve's check refusing, as refuse answers.
-type refusal struct {
-	error
-}
-
-func (r refusal) Unwrap() error {
-	return r.error
-}
-
-// startingFrom reads what serve starts the router from, given its config
-// file's path: the config, and the state directory. It fails where the
-// router couldn't start from them, as from a config file that doesn't make a
-// valid config.
-func (a *app) startingFrom(path string) (cfg *config.Config, stateDir string, err error) {
-	if cfg, err = a.loadConfigAt(path); err != nil {
-		return nil, "", err
-	}
-	if stateDir, err = config.StateDir(a.Getenv, a.HomeDir); err != nil {
-		return nil, "", err
-	}
-	return cfg, stateDir, nil
+	}, files, nil
 }
 
 // launchdJob is the variable launchd sets to the label of the job it runs a

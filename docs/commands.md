@@ -473,7 +473,9 @@ can't replace itself, `…, then launchd starts it again`. Then it waits up to 5
 router to answer.
 
 When the router has a restart due, it waits for a moment with no request in flight. To have the
-restart now, run `switchboard service restart`, as `switchboard status` says.
+restart now, run `switchboard service restart`, as `switchboard status` says. When the restart is
+held, as the binary the router would become refuses to start, `status` gives the refusal instead:
+put the config right as it says.
 
 #### `service uninstall` and `service status`
 
@@ -865,7 +867,7 @@ The events cover:
 - sessions started and moved;
 - accounts under pressure, at their caps and limits, refused, primed, and open again;
 - pins set and cleared;
-- restarts falling due; and
+- restarts falling due, or held; and
 - the router's health.
 
 They're listed oldest first, under the day each happened on. Each event shows once, as it last

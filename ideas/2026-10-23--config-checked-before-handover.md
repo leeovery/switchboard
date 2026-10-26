@@ -53,6 +53,16 @@ design's The router looking after itself):
   and one that takes more than 10 seconds.
 - **While it's held,** the old router serves on, and says why once: at warn in its log, in a
   `restart` event with `held`, and in the status document's `restart.held`. It asks again only
-  once the config file or the binary changes; `service restart` meanwhile is refused with the
-  binary's reason.
-- **Left to settle:** how the Log, LATELY and `status`'s text word a held restart.
+  once the config file or the binary moves on, there and another file or changed: one gone for a
+  moment, as `brew` relinks the binary or an editor saves the config, hasn't. `service restart`
+  meanwhile is refused with the binary's reason.
+- **How it's worded,** as the owner chose on 26 October 2026: the Log's Events `held: <reason>`;
+  LATELY `restart held: <reason>`; `status`'s text `restart due since Mon 14:02 (upgraded), held:
+  <reason>`, with no `service restart` advice; and the dashboard's status line `restart held
+  (upgraded)`.
+- **Its event's card** in the Log follows those words: headed `restart held`, with a `held` item
+  giving the reason.
+- **Left:** the running router still judges a config edited after an upgrade, before the
+  handover, by its own rules. So it refuses an edit only the new version takes, and the restart
+  waits until the config suits the old rules again. A fix would let the new binary's answer decide
+  once the binary has moved on. Not built.

@@ -446,7 +446,7 @@ func TestServeChecksWhatItWouldStartFromWhenAsked(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, tt.config)
-			state := t.TempDir()
+			state := shortTempDir(t)
 			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "XDG_STATE_HOME": state}, t.TempDir())
 			deps.Args = append([]string{"/test/bin/switchboard"}, tt.args...)
 
@@ -457,6 +457,18 @@ func TestServeChecksWhatItWouldStartFromWhenAsked(t *testing.T) {
 				t.Errorf("the control socket: %v, want none: the check serves nothing", err)
 			}
 		})
+	}
+}
+
+func TestServesCheckRefusesWhatTheRouterWouldRefuseBeforeItListens(t *testing.T) {
+	state := filepath.Join(shortTempDir(t), strings.Repeat("d", 100))
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, "[[account]]\nid = \"work\"\n"), "XDG_STATE_HOME": state}, t.TempDir())
+	deps.Args = []string{"/test/bin/switchboard", "serve", "--check"}
+
+	got := run(t, deps, "serve", "--check")
+	if got.code != handover.Refused || !strings.Contains(got.stdout, router.SocketPath(filepath.Join(state, "switchboard"))) ||
+		!strings.HasSuffix(got.stdout, "set XDG_STATE_HOME to a shorter directory\n") {
+		t.Errorf("switchboard serve --check = %+v, want the control socket's path refused, exiting %d", got, handover.Refused)
 	}
 }
 
@@ -860,11 +872,7 @@ func relink(path, target string) error {
 // environment.
 func newServeSetup(t *testing.T, upstream string, env map[string]string) *serveSetup {
 	t.Helper()
-	stateHome, err := os.MkdirTemp("", "sb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(stateHome) })
+	stateHome := shortTempDir(t)
 	s := &serveSetup{
 		upstream: upstream,
 		listen:   freeAddress(t),
@@ -878,6 +886,19 @@ func newServeSetup(t *testing.T, upstream string, env map[string]string) *serveS
 	writeToken(t, s.deps, "work", "test-token-work")
 	writeToken(t, s.deps, "side", "test-token-side")
 	return s
+}
+
+// shortTempDir returns a directory of the test's own with a path short enough
+// to hold the control socket, as XDG_STATE_HOME: t.TempDir's can be too long
+// on macOS.
+func shortTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "sb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
 }
 
 // writeConfig writes the config file serve reads.

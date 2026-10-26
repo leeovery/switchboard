@@ -61,9 +61,22 @@ func Run(ctx context.Context, cfg Config) error {
 	return r.run(ctx)
 }
 
+// Startable fails, saying why, where Run, given cfg, would fail before it
+// listens: where New can't build the router, or the control socket's path
+// can't be a unix socket's. It starts and writes nothing, reading only the
+// token files.
+func Startable(cfg Config) error {
+	r, err := New(cfg)
+	if err != nil {
+		return err
+	}
+	_, err = r.socket()
+	return err
+}
+
 func (r *Router) run(ctx context.Context) error {
-	socket := SocketPath(r.cfg.StateDir)
-	if err := checkSocketPath(socket); err != nil {
+	socket, err := r.socket()
+	if err != nil {
 		return err
 	}
 	ls, err := r.listen(ctx, socket)
@@ -77,6 +90,13 @@ func (r *Router) run(ctx context.Context) error {
 	r.openHistory()
 	r.openLedger(ledger.Dir(r.cfg.StateDir))
 	return r.serve(ctx, ls)
+}
+
+// socket returns the path of the router's control socket, failing where it
+// can't be a unix socket's.
+func (r *Router) socket() (string, error) {
+	path := SocketPath(r.cfg.StateDir)
+	return path, checkSocketPath(path)
 }
 
 // openLedger keeps the request ledger in dir from now on, and the router's

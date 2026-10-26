@@ -297,9 +297,11 @@ sockets it listens on. A request made meanwhile waits a moment rather than being
 Before it restarts, the router asks the binary it's about to become whether it can start from your
 config, as a newer version's rules can be stricter than the running one's, such as the 100-character
 limit on labels. If the new version refuses, the router carries on as it is, and says why once: in
-its log, in its events, and as `restart.held` in `switchboard status --json`. It asks again once you
-change the config, or the binary changes again. A version from before this check can't answer, and
-the router restarts into it as it always has.
+its log, in its events, and as `restart.held` in `switchboard status --json`. `switchboard status`
+reads `restart due since Mon 14:02 (upgraded), held:` and the reason, and the dashboard's status
+line `restart held (upgraded)`. It asks again once you change the config, or the binary changes
+again. A version from before this check can't answer, and the router restarts into it as it always
+has.
 
 Restarting in place also means launchd isn't asked to start an upgraded binary afresh. macOS has
 been seen to refuse that, while it lets the router run the new binary in place, as the first such

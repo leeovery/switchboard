@@ -1125,7 +1125,8 @@ the mode is never out of sight. Its parts, each after `  ·  ` (two spaces, `·`
    states below.
 2. **A restart due,** while the router has one: `restart due (config changed)` in
    `accent.attention`, the reason as the status document's `restart` gives it (`config changed`,
-   `upgraded`, `time zone changed`) (settled in the plan).
+   `upgraded`, `time zone changed`) (settled in the plan); held, as the binary the router would
+   become refuses to start, `restart held (upgraded)` (the owner's call, 26 October 2026).
 3. **The mode:** `auto` in `text.secondary`; or with a global pin, `pinned to personal` in bold
    `accent.attention`, its accounts in the config's order (`pinned to personal and side`, `pinned to
    personal, side and work`).
@@ -1934,7 +1935,7 @@ at every width.
   | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset` |
   | `●` in `accent.key` | `pin` | `pin set by hand: new sessions go to personal` |
   | `↩` in `accent.key` | `auto` | `new sessions back to auto` |
-  | `!` in `accent.attention` | `restart` | `restart due: the config changed` |
+  | `!` in `accent.attention` | `restart` | `restart due: the config changed`; held, `restart held: <why the binary refuses>` |
   | `⊕` in `state.destructive`, or `state.positive` well again | `health` | `the router turned unhealthy: <why>`; `the router is healthy again` |
 
   A mark is one a kind, but for `■`, which a limit and a refusal share, their words telling them
@@ -4344,7 +4345,7 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 | `✓` `state.positive` | `open` | the account | `its 5-hour window reset` |
 | `●` `accent.key` | `pin` | the accounts it names | `new sessions go there, set from the command line`; with `--move`, `new and running sessions go there, …`; a session's own pin, `this session goes there, set from the dashboard` (settled in the plan) |
 | `↩` `accent.key` | `auto` | blank | `new sessions back from personal to the router's choice, set from the dashboard`; a session's own pin cleared, `this session back from side to the router's choice, …` (settled in the plan) |
-| `!` `accent.attention` | `restart` | blank | `due: the config changed`, `due: switchboard upgraded`, `due: the time zone changed` (settled in the plan) |
+| `!` `accent.attention` | `restart` | blank | `due: the config changed`, `due: switchboard upgraded`, `due: the time zone changed` (settled in the plan); held, as the binary the router would become refuses to start, `held: <why it refuses>` (the owner's call, 26 October 2026), its card headed `restart held`, with a `held` item |
 | `⊕` `state.destructive`, or `state.positive` well again | `health` | blank | `unhealthy: <its reason>`, or `healthy again` (settled in the plan) |
 
 - **The windows a limit or a cap began with:** its `what happened` names those alone, as LATELY's
@@ -6833,10 +6834,12 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   before each restart it makes, and each `service restart` asks for, the router runs the binary
   it's about to become, by the path it was started as, with the command line and the environment
   it would run it with, but for `SWITCHBOARD_LISTENERS`, and `--check` added: a hidden flag of
-  `serve`'s that loads what `serve` would start from, the config above all, and exits, 0 where it
-  could start, and 78 (`EX_CONFIG`) where it couldn't, saying why on its standard output. A flag
-  the router was started with that the binary no longer takes is a refusal too. The check logs as
-  a command does, in `cli.log`.
+  `serve`'s that loads what `serve` would start from, the config above all, checks it as `serve`
+  would before it listens, building the router as `serve` does and the control socket's path, and
+  exits, 0 where it could start, and 78 (`EX_CONFIG`) where it couldn't, saying why on its standard
+  output. A flag the router was started with that the binary no longer takes is a refusal too.
+  Listening itself isn't checked, as the router asking still holds its sockets. The check logs as a
+  command does, in `cli.log`.
   - **Held only on a refusal.** Any other answer is restarted into as before there was a check: a
     binary from before it, which exits 1 at the flag it doesn't know, as a rollback would bring,
     and would otherwise hold the router on its old version for good; one that isn't there for a
@@ -6844,9 +6847,13 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     within 10 seconds. Each is logged at `info`.
   - **While it's held,** the router carries on as it is, and says why once: at `warn` in its log,
     in a `restart` event with `held` (see The router's events), and in the status document's
-    `restart`, `held` (see The status document). It asks again only once the config file or the
-    binary changes, never at a look, so a config put right is taken up, and a newer binary is too.
-    `service restart` meanwhile is refused with the binary's reason.
+    `restart`, `held` (see The status document), which `status`, the status line, LATELY and the
+    Log word as held. It asks again only once the config file or the binary moves on, there and
+    another file or changed, never at a look, so a config put right is taken up, and a newer
+    binary is too. A path that leads nowhere for a moment, as `brew` moves the binary's link on or
+    an editor saves the config, hasn't moved on: lifting the hold then would ask a binary that
+    isn't there, which can't answer, and restart into the one that refused. `service restart`
+    meanwhile is refused with the binary's reason.
 - **In place.** The router then replaces itself. It stops taking requests, and finishes those in
   flight, as it does at a signal; then, the control API answering on, so a `claude` started
   meanwhile is routed, its requests waiting on the proxy's socket held open, it stops all it runs
@@ -6908,8 +6915,10 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   requests are in flight (see The status document). `status` says so under its router line:
   `restart due since Mon 14:02 (config changed), once no request is in flight (3 now): switchboard
   service restart restarts it now, cutting off requests still in flight after 30 seconds`, or, run
-  by hand, `…: run switchboard serve again to take it up`; and the dashboard's status line, `restart
-  due (config changed)` (see The page). `service restart` asks the router to restart now
+  by hand, `…: run switchboard serve again to take it up`, or, held, `restart due since Mon 14:02
+  (upgraded), held: <why the binary refuses>`, with no advice, as neither a quiet moment nor
+  `service restart` gets past it; and the dashboard's status line, `restart due (config changed)`,
+  or `restart held (upgraded)` (see The page). `service restart` asks the router to restart now
   (`POST /restart`): it gives its requests in flight up to 30 seconds, and those it cuts off then up
   to 5 more to unwind, answering on the control socket meanwhile, so a `claude` started then is
   routed, its requests waiting on the proxy's socket for the router it becomes, then replaces itself
@@ -8302,7 +8311,7 @@ why.
 | GRAPHS and ROUTING beside USAGE, and usage's words in full, judged by their parts rather than at 150 and 70 columns | open: to discuss with its owner; the Overview's GRAPHS was removed on 26 October 2026, so only ROUTING sits beside USAGE now | [beside-and-full-words-by-parts](../ideas/2026-10-23--beside-and-full-words-by-parts.md) |
 | A model's window nearing its limit stacking USAGE from 86 columns to 121 | open: to discuss with its owner | [model-window-stacks-usage](../ideas/2026-10-23--model-window-stacks-usage.md) |
 | The Overview saying less at some taller heights, as ROUTING's traces and USAGE's blank rows take rows back | open: to discuss with its owner | [overview-height-sawtooth](../ideas/2026-10-23--overview-height-sawtooth.md) |
-| A config checked under the new binary's rules before a handover, so a rule an upgrade tightens, as a label's 100 characters, can't leave the router stopped | built in the cleanliness release, 26 October 2026: the new binary asked with `serve --check`, the restart held only on its refusal (see The router looking after itself); how the views word a held restart still to settle | [config-checked-before-handover](../ideas/2026-10-23--config-checked-before-handover.md) |
+| A config checked under the new binary's rules before a handover, so a rule an upgrade tightens, as a label's 100 characters, can't leave the router stopped | built in the cleanliness release, 26 October 2026: the new binary asked with `serve --check`, the restart held only on its refusal (see The router looking after itself); a config edited after an upgrade, before the handover, still judged by the running version's rules, left | [config-checked-before-handover](../ideas/2026-10-23--config-checked-before-handover.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | OAuth logins in place of setup tokens, kept fresh | next to discuss, after the cleanliness release, with signing in and setup (the owner, 26 October 2026) | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |

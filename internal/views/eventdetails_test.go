@@ -188,6 +188,8 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 			headline: "0a1b back to the router's choice", happened: []string{"session: 0a1b", "from: side"}},
 		{name: "a restart falling due", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade},
 			headline: "restart due", happened: []string{"why: switchboard upgraded"}},
+		{name: "a restart held, its binary refusing to start", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
+			headline: "restart held", happened: []string{"why: switchboard upgraded", "held: invalid config /test/config.toml: account work: its label is longer than 100 characters"}},
 		{name: "the router unhealthy", event: status.Event{Kind: status.EventHealth, Reason: "most requests failing"},
 			headline: "the router turned unhealthy", happened: []string{"why: most requests failing"}},
 		{name: "the router well again", event: status.Event{Kind: status.EventHealth},

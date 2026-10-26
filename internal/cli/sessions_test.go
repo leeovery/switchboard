@@ -79,12 +79,7 @@ func sessionsDeps(t *testing.T) cli.Deps {
 // tests'.
 func sessionsDepsOf(t *testing.T, days map[string][]ledger.Line) cli.Deps {
 	t.Helper()
-	stateHome, err := os.MkdirTemp("", "sb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(stateHome) })
-	deps := testDeps(map[string]string{"XDG_STATE_HOME": stateHome}, t.TempDir())
+	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }
 	configure(t, deps)
 	dir := ledger.Dir(stateDir(t, deps))

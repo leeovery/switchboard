@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -633,6 +635,116 @@ func TestARestartHeldIsAskedAboutAgainOnceTheConfigFileOrTheBinaryChanges(t *tes
 			}
 		})
 	}
+}
+
+func TestARestartHeldStaysHeldThroughAFileGoneForAMoment(t *testing.T) {
+	const refusal = "invalid config"
+	saving := func(s startedFrom) string { return s.kept + ".saving" }
+	tests := []struct {
+		name string
+		// gone takes a file the router was started from away, for looks
+		// looks, and back puts it back as it was.
+		gone, back func(t *testing.T, s startedFrom)
+		looks      int
+	}{
+		{
+			name:  "the binary's link, as an upgrade moves it on",
+			gone:  func(t *testing.T, s startedFrom) { remove(t, s.binary) },
+			back:  func(t *testing.T, s startedFrom) { link(t, s.version("1.1"), s.binary) },
+			looks: 1,
+		},
+		{
+			name:  "the binary's link, for a while",
+			gone:  func(t *testing.T, s startedFrom) { remove(t, s.binary) },
+			back:  func(t *testing.T, s startedFrom) { link(t, s.version("1.1"), s.binary) },
+			looks: 3,
+		},
+		{
+			name:  "the config file, as an editor saves it",
+			gone:  func(t *testing.T, s startedFrom) { rename(t, s.kept, saving(s)) },
+			back:  func(t *testing.T, s startedFrom) { rename(t, saving(s), s.kept) },
+			looks: 1,
+		},
+		{
+			name:  "the config file, long enough for its change to be refused",
+			gone:  func(t *testing.T, s startedFrom) { rename(t, s.kept, saving(s)) },
+			back:  func(t *testing.T, s startedFrom) { rename(t, saving(s), s.kept) },
+			looks: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+			asked := askedOf(r, binaryAnswer{refusal: refusal}, binaryAnswer{err: fs.ErrNotExist}, binaryAnswer{refusal: refusal})
+			relink(t, s.binary, s.version("1.1"))
+			r.look()
+			r.restart(t.Context())
+
+			tt.gone(t, s)
+			for i := range tt.looks {
+				r.look()
+				if ready := r.ready(); r.held == nil || ready != nil {
+					t.Fatalf("at look %d with the file gone, held: %v, and ready() = %v, want the restart held still", i+1, r.held, ready)
+				}
+			}
+			tt.back(t, s)
+			r.look()
+			if got, ready := r.report(), r.ready(); got.Held != refusal || ready != nil {
+				t.Errorf("with the file back, report() = %+v, and ready() = %v, want the restart held still, saying why", got, ready)
+			}
+			if *asked != 1 {
+				t.Errorf("the binary was asked %d times, want once: nothing moved on since it refused", *asked)
+			}
+			if n := strings.Count(log.String(), `msg="restart held`); n != 1 {
+				t.Errorf("log reads\n%s\nwant the restart held said once, not %d times", log, n)
+			}
+		})
+	}
+}
+
+func TestABinaryThatHasntAnsweredInTimeIsRestartedInto(t *testing.T) {
+	tests := []struct {
+		name string
+		// restart restarts r as the router would, and reports whether it can.
+		restart func(t *testing.T, r *restarts) bool
+	}{
+		{name: "a restart due", restart: func(t *testing.T, r *restarts) bool { return r.restart(t.Context()) }},
+		{name: "a restart asked for", restart: func(t *testing.T, r *restarts) bool { return r.restartable(t.Context()) == nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				s := newStartedFrom(t)
+				r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+				r.ask = asking(Config{Check: unanswering, Binary: Watch(s.binary)})
+				relink(t, s.binary, s.version("1.1"))
+				r.look()
+
+				began := time.Now()
+				if !tt.restart(t, r) {
+					t.Error("the restart didn't go ahead, want it to once the binary hasn't answered in time")
+				}
+				if waited := time.Since(began); waited != checkTimeout {
+					t.Errorf("waited %v for the binary's answer, want %v", waited, checkTimeout)
+				}
+				if got := r.report(); r.held != nil || got.Held != "" {
+					t.Errorf("held: %v, and report() = %+v, want nothing held", r.held, got)
+				}
+				if !log.Has("level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="context deadline exceeded"`) {
+					t.Errorf("log reads\n%s\nwant the binary's silence logged", log)
+				}
+			})
+		})
+	}
+}
+
+// unanswering runs a program that never answers, until ctx ends.
+func unanswering(ctx context.Context, _ string, _, _ []string) ([]byte, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
 }
 
 func TestARouterToldToStopAsItAsksItsBinaryNeitherRestartsNorHolds(t *testing.T) {

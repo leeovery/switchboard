@@ -70,9 +70,9 @@ type Deps struct {
 	// Exec replaces this process with the program at path, as launch.Exec
 	// does. It returns only when it fails.
 	Exec func(path string, argv, env []string) error
-	// Check runs a program to its end, as handover.Run does: the router serve
-	// runs asks its binary so whether it could start, before it restarts
-	// into it.
+	// Check runs a program until it exits, returning what it wrote to its
+	// standard output, as handover.Run does. The router serve runs uses it to
+	// ask its binary whether it could start, before restarting into it.
 	Check handover.Runner
 	// Launchctl runs launchctl, as service.Launchctl does.
 	Launchctl service.Runner

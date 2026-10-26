@@ -3,6 +3,7 @@ package router_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net"
@@ -536,6 +537,49 @@ func TestRunRefusesAControlSocketPathTooLong(t *testing.T) {
 	}
 	if _, err := os.Stat(cfg.StateDir); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("state directory: %v, want none made", err)
+	}
+}
+
+func TestStartableFailsWhereRunWouldBeforeItListens(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes the config Run would start from.
+		change func(cfg *router.Config)
+		// wantErr is part of what Startable fails with, "" for nil.
+		wantErr string
+	}{
+		{name: "a config it can start from", change: func(*router.Config) {}},
+		{
+			name: "a control socket's path too long",
+			change: func(cfg *router.Config) {
+				cfg.StateDir = filepath.Join(filepath.Dir(cfg.StateDir), strings.Repeat("d", 100))
+			},
+			wantErr: "set XDG_STATE_HOME to a shorter directory",
+		},
+		{
+			name:    "an upstream that isn't a URL",
+			change:  func(cfg *router.Config) { cfg.Upstream = "http://[::1" },
+			wantErr: "upstream: ",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := runConfig(t, "http://127.0.0.1:1")
+			tt.change(&cfg)
+
+			err := router.Startable(cfg)
+			if (tt.wantErr == "" && err != nil) || (tt.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErr))) {
+				t.Errorf("Startable() = %v, want an error with %q, or nil for none", err, tt.wantErr)
+			}
+			if _, err := os.Stat(cfg.StateDir); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("state directory: %v, want none made: nothing started", err)
+			}
+			stopped, stop := context.WithCancel(t.Context())
+			stop()
+			if ran := router.Run(stopped, cfg); fmt.Sprint(ran) != fmt.Sprint(err) {
+				t.Errorf("Run() = %v, and Startable() = %v, want them alike", ran, err)
+			}
+		})
 	}
 }
 

@@ -54,10 +54,9 @@ type restarts struct {
 	ask func(ctx context.Context) (refusal string, err error)
 	// told is set once the log has said a restart is due.
 	told bool
-	// held is how the config file and the binary stood as the binary last
-	// refused to start, while that holds the restart due: nil while nothing
-	// does.
-	held *checked
+	// held is the binary's refusal to start that holds the restart due: nil
+	// while nothing does.
+	held *binaryRefusal
 	// restarted closes as the router restarts, reason then saying why.
 	restarted chan struct{}
 	beginning sync.Once
@@ -115,7 +114,7 @@ func Watch(path string) Watched {
 }
 
 // look looks at the config file, the binary and the time zone's file again,
-// lifts a hold either of the first two has changed since, tells of a restart
+// lifts a hold either of the first two has moved on from, tells of a restart
 // they've made due as it falls due, and logs it.
 func (r *restarts) look() {
 	r.config.look()
@@ -147,7 +146,7 @@ func (r *restarts) note(why string) (fell bool) {
 	case why == "":
 		r.pending = status.Restart{}
 	case !r.pending.Due():
-		r.pending = status.Restart{Reason: why, Since: r.now().UTC(), ByHand: !r.supervised}
+		r.pending = status.Restart{Reason: why, Since: r.now().UTC(), ByHand: !r.supervised, Held: r.held.reason()}
 		return true
 	default:
 		r.pending.Reason = why
@@ -193,7 +192,8 @@ func (r *restarts) configured() config.Accounts {
 // ready returns what's closed once a supervised router, with a restart due,
 // has no request in flight, or nil while it's not to restart, as while its
 // config file made no valid config at the last look, which the next settles,
-// or while its binary refuses to start, until a look finds either changed.
+// or while its binary refuses to start, until a look finds it or the config
+// file moved on.
 func (r *restarts) ready() <-chan struct{} {
 	if !r.supervised || r.due() == "" || r.config.missed || r.held != nil {
 		return nil
@@ -236,9 +236,9 @@ func (r *restarts) cleared(ctx context.Context, why string) bool {
 // hold holds the restart due for why, its binary refusing to start, saying
 // why, as the config file and the binary stood as it was asked: the log says
 // why at warn, an event tells of it, and the restart due reports it, until a
-// look finds either changed.
+// look finds either moved on.
 func (r *restarts) hold(stood checked, why, refusal string) {
-	r.held = &stood
+	r.held = &binaryRefusal{stood: stood, why: refusal}
 	r.mu.Lock()
 	r.pending.Held = refusal
 	r.mu.Unlock()
@@ -247,10 +247,10 @@ func (r *restarts) hold(stood checked, why, refusal string) {
 }
 
 // reconsider lifts the hold on the restart due once the config file or the
-// binary has changed since the binary refused to start, for it to be asked
-// again.
+// binary has moved on since the binary refused to start, as movedTo says, for
+// it to be asked again.
 func (r *restarts) reconsider() {
-	if r.held == nil || r.held.same(r.files()) {
+	if r.held == nil || !r.held.stood.movedTo(r.files()) {
 		return
 	}
 	r.held = nil
@@ -399,15 +399,26 @@ type ledFile struct {
 // running, it has moved, as after an upgrade. A path that leads nowhere, as
 // it may for a moment while an upgrade moves it on, hasn't.
 func (f *ledFile) look() {
-	if f.moved || !f.running.there() {
-		return
-	}
-	now := statFile(f.path)
-	if !now.there() || now.same(f.running) {
+	if f.moved || !f.running.there() || !f.running.movedTo(statFile(f.path)) {
 		return
 	}
 	f.moved = true
 	logger.Info(f.news, "path", f.path)
+}
+
+// binaryRefusal is the binary's refusal to start, which holds a restart: why,
+// and how the config file and the binary stood as it was asked.
+type binaryRefusal struct {
+	stood checked
+	why   string
+}
+
+// reason is why the binary refuses to start: "" for no hold at all.
+func (h *binaryRefusal) reason() string {
+	if h == nil {
+		return ""
+	}
+	return h.why
 }
 
 // checked is how the config file and the binary stand, as the binary is
@@ -416,9 +427,10 @@ type checked struct {
 	config, binary fileState
 }
 
-// same reports whether s and t stand alike: each file the same, unchanged.
-func (s checked) same(t checked) bool {
-	return s.config.same(t.config) && s.binary.same(t.binary)
+// movedTo reports whether either file has moved on from s to t, as
+// fileState's movedTo says.
+func (s checked) movedTo(t checked) bool {
+	return s.config.movedTo(t.config) || s.binary.movedTo(t.binary)
 }
 
 // fileState is how a file stands, its links followed: which file it is, and
@@ -439,6 +451,14 @@ func statFile(path string) fileState {
 // there reports whether the file is there.
 func (f fileState) there() bool {
 	return f.info != nil
+}
+
+// movedTo reports whether the path f was found at has moved on to g: g is
+// there, and another file than f, or f changed. A path that leads nowhere, as
+// it may for a moment while an upgrade moves a link on, or an editor saves a
+// file, hasn't.
+func (f fileState) movedTo(g fileState) bool {
+	return g.there() && !g.same(f)
 }
 
 // same reports whether f and g are the same file, unchanged, or both not

@@ -168,11 +168,12 @@ type Config struct {
 	// them there. It returns only when it fails, and the router then stops,
 	// as it does with none, for launchd to start it again.
 	Exec func(path string, argv, env []string) error
-	// Check runs a program to its end, as handover.Run does: a supervised
-	// router runs its binary so, by Binary's path, run as Args with Environ,
-	// to ask it, as handover.Ask asks, whether it could start, before it
-	// restarts into it, and holds the restart while it refuses. Nil asks
-	// nothing, as of a binary that can't answer.
+	// Check runs a program until it exits, returning what it wrote to its
+	// standard output, as handover.Run does. A supervised router uses it to
+	// ask its binary, by Binary's path, run as Args with Environ, whether it
+	// could start, as handover.Ask asks, before restarting into it, and holds
+	// the restart while it refuses. Nil asks nothing, as of a binary that
+	// can't answer.
 	Check handover.Runner
 	// Args and Environ are the command line and the environment the router
 	// was started with, as os.Args and os.Environ give them.

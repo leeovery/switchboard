@@ -281,15 +281,36 @@ func (d Document) Names(ids []string) string {
 // how it's to come: once no request is in flight, or now, with the service
 // restarted, as in "restart due since Mon 14:02 (config changed), once no
 // request is in flight (3 now): switchboard service restart restarts it now,
-// cutting off requests still in flight after 30 seconds"; or, the router run
-// by hand, once it's run again.
+// cutting off requests still in flight after 30 seconds"; the router run by
+// hand, once it's run again; or held, its binary refusing to start, why it
+// refuses, and nothing of how it's to come, as in "restart due since Mon
+// 14:02 (upgraded), held: invalid config".
 func (r Restart) Text(now time.Time) string {
 	due := "restart due since " + prose.Clock(now, r.Since) + " (" + prose.Clean(r.Reason) + ")"
-	if r.ByHand {
+	switch {
+	case r.held():
+		return due + ", held: " + prose.Clean(r.Held)
+	case r.ByHand:
 		return due + ": run switchboard serve again to take it up"
 	}
 	return fmt.Sprintf("%s, once no request is in flight (%d now): switchboard service restart restarts it now, "+
 		"cutting off requests still in flight after 30 seconds", due, r.InFlight)
+}
+
+// Label says the restart due in a few words, as the dashboard's status line
+// gives it: "restart due (config changed)", or held, its binary refusing to
+// start, "restart held (upgraded)".
+func (r Restart) Label() string {
+	state := "due"
+	if r.held() {
+		state = "held"
+	}
+	return "restart " + state + " (" + prose.Clean(r.Reason) + ")"
+}
+
+// held reports whether the restart is held, its binary refusing to start.
+func (r Restart) held() bool {
+	return prose.Clean(r.Held) != ""
 }
 
 // Text says how the upstream refused, and until when the refusal holds, such
