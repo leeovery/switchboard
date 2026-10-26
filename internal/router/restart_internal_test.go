@@ -809,6 +809,67 @@ func TestARestartPutOffIsAskedAboutAgainOnceTheConfigFileOrTheBinaryChanges(t *t
 	}
 }
 
+func TestAFileChangedAsTheBinaryIsAskedIsLookedAtAgainBeforeTheRestart(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes what the router was started from as the binary is
+		// asked whether it could start.
+		change func(t *testing.T, s startedFrom)
+		// wantRestart is whether the next quiet moment restarts the router,
+		// the binary asked wantAsked times in all: not where the config file
+		// makes no valid config, which the binary isn't asked about.
+		wantRestart bool
+		wantAsked   int
+	}{
+		{
+			name:      "the config file saved broken",
+			change:    func(t *testing.T, s startedFrom) { writeFile(t, s.kept, "this is not toml [[[") },
+			wantAsked: 1,
+		},
+		{
+			name:        "the config file saved valid",
+			change:      func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) },
+			wantRestart: true,
+			wantAsked:   2,
+		},
+		{
+			name: "the binary moved on to another version",
+			change: func(t *testing.T, s startedFrom) {
+				writeFile(t, s.version("1.2"), "switchboard 1.2")
+				relink(t, s.binary, s.version("1.2"))
+			},
+			wantRestart: true,
+			wantAsked:   2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+			asked := askedOf(r, binaryAnswer{})
+			ask := r.ask
+			r.ask = func(ctx context.Context) (string, error) {
+				if *asked == 0 {
+					tt.change(t, s)
+				}
+				return ask(ctx)
+			}
+			relink(t, s.binary, s.version("1.1"))
+			r.look()
+
+			if r.restart(t.Context()) || r.restarting() {
+				t.Fatal("restart() = true, want the router kept running: the binary answered for files that have changed since")
+			}
+			if got := r.restart(t.Context()); got != tt.wantRestart {
+				t.Errorf("at the next quiet moment, restart() = %v, want %v", got, tt.wantRestart)
+			}
+			if *asked != tt.wantAsked {
+				t.Errorf("the binary was asked %d times, want %d", *asked, tt.wantAsked)
+			}
+		})
+	}
+}
+
 // quiet reports whether ready is closed.
 func quiet(ready <-chan struct{}) bool {
 	select {

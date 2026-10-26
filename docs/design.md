@@ -6850,7 +6850,9 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     binary has answered. Otherwise the answer clears the restart for the config file and the binary
     as they stood when it was asked, and the next quiet moment begins it unasked while they stand
     so. Where either differs by then, as after a config edit or another upgrade, the binary is
-    asked again. `service restart` still restarts at once, without waiting for a quiet moment.
+    asked again. One that changes while the binary is being asked clears nothing: the next quiet
+    moment looks at it afresh, so a config saved meanwhile is never restarted into unchecked.
+    `service restart` still restarts at once, without waiting for a quiet moment.
   - **While it's held,** the router carries on as it is, and says why once: at `warn` in its log,
     in a `restart` event with `held` (see The router's events), and in the status document's
     `restart`, `held` (see The status document), which `status`, the status line, LATELY and the

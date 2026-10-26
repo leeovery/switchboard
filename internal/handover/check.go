@@ -1,7 +1,6 @@
 package handover
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"os/exec"
@@ -9,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 )
 
@@ -55,14 +55,26 @@ type exitError interface {
 // Ask asks the program at path, which a process is about to replace itself
 // with, run as argv with env, whether it could start: run by run as argv with
 // CheckFlag added, in env less Variable, as it takes up no listener. It
-// returns why the program refuses, anything in it shaped like a token hidden,
-// and fails when the program can't answer: it isn't there, it doesn't know
-// the flag, as one from before the check doesn't, it fails otherwise, as by
-// crashing, or ctx ends first.
+// returns why the program refuses, as reason gives it, and fails when the
+// program can't answer: it isn't there, it doesn't know the flag, as one from
+// before the check doesn't, it fails otherwise, as by crashing, or ctx ends
+// first.
 func Ask(ctx context.Context, run Runner, path string, argv, env []string) (refusal string, err error) {
 	out, err := run(ctx, path, append(slices.Clone(argv), "--"+CheckFlag), without(env))
 	if exit, ok := errors.AsType[exitError](err); ok && exit.ExitCode() == Refused {
-		return cmp.Or(redact.Text(strings.TrimSpace(string(out))), "it gave no reason"), nil
+		return reason(out), nil
 	}
 	return "", err
+}
+
+// reason is why a program refuses, as it said on out, anything in it shaped
+// like a token hidden: "it gave no reason" where nothing it said would read,
+// once cleaned as prose.Clean cleans what a terminal shows, so a refusal
+// always says something.
+func reason(out []byte) string {
+	why := redact.Text(strings.TrimSpace(string(out)))
+	if prose.Clean(why) == "" {
+		return "it gave no reason"
+	}
+	return why
 }

@@ -240,7 +240,8 @@ func (r *restarts) restart(ctx context.Context) bool {
 // for why: while the config file and the binary stand as they did when it
 // last answered without refusing to start, it is, unasked; otherwise it's
 // asked, as asked does, until ctx ends, and is unless it refuses, which holds
-// the restart, or ctx ends first.
+// the restart, ctx ends first, or either file changes as it's asked, which
+// leaves the next quiet moment to look again.
 func (r *restarts) clear(ctx context.Context, why string) bool {
 	stood := r.files()
 	if r.clearance != nil && r.clearance.same(stood) {
@@ -252,6 +253,8 @@ func (r *restarts) clear(ctx context.Context, why string) bool {
 		return false
 	case refusal != "":
 		r.hold(stood, why, refusal)
+		return false
+	case !r.files().same(stood):
 		return false
 	}
 	r.clearance = &stood

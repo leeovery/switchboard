@@ -60,6 +60,12 @@ func TestAskTellsARefusalApartFromAProgramThatCantAnswer(t *testing.T) {
 			wantRefusal: "it gave no reason",
 		},
 		{
+			name:        "refusing, saying nothing that reads",
+			out:         "\x00\x07\n",
+			err:         exited(handover.Refused),
+			wantRefusal: "it gave no reason",
+		},
+		{
 			name:        "refusing, quoting a token",
 			out:         "invalid config: account work: sk-ant-oat01-test-token-work isn't a label\n",
 			err:         exited(handover.Refused),
