@@ -98,7 +98,7 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 		{page: "every page", next: "Overview:", says: "Runway's lanes, Graphs' page, the Log's table"},
 		{page: "every page", next: "Overview:", says: "w, where it's listed as models, shows and hides each model's own window"},
 		{page: "Overview", next: "Accounts:", says: "b groups the windows by window or by account"},
-		{page: "Overview", next: "Accounts:", says: "↑↓ moves the focus between the accounts, which USAGE scrolls to"},
+		{page: "Overview", next: "Accounts:", says: "↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are"},
 		{page: "Accounts", next: "History:", says: "< and > step the period both views count over"},
 		{page: "History", next: "Sessions:", says: "< and > step the Year back through each calendar year the ledger holds"},
 		{page: "History", next: "Sessions:", says: "Tokens' periods between a day, a week and a month"},
@@ -120,13 +120,13 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 
 // GRAPHS is gone from the Overview, and its keys with it: the dashboard's
 // help names neither it, nor g, which showed it, nor v, which flipped its
-// charts, among the Overview's keys.
+// charts, nor the focus that served it, among the Overview's keys.
 func TestDashboardHelpNamesNoGRAPHSAmongTheOverviewsKeys(t *testing.T) {
 	got := run(t, testDeps(nil, t.TempDir()), "dashboard", "--help")
 	help := strings.Join(strings.Fields(got.stdout), " ")
 	from := strings.Index(help, " Overview: ")
 	overview, _, _ := strings.Cut(help[max(from, 0):], " Accounts:")
-	for _, gone := range []string{"GRAPHS", "g graphs", "v chart", "burn-"} {
+	for _, gone := range []string{"GRAPHS", "g graphs", "v chart", "burn-", "focus"} {
 		if from < 0 || strings.Contains(overview, gone) {
 			t.Errorf("switchboard dashboard --help reads, under the Overview's keys,\n%s\nwant no %q", overview, gone)
 		}

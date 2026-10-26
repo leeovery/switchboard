@@ -112,15 +112,6 @@ func sessionsCells() int {
 	return ansi.StringWidth(sessionsSpan(0).text)
 }
 
-// accountRows are the rows of ROUTING's body the account i of a takes, as
-// drawRouting lays them out: its one row, or its two.
-func (rc routingColumns) accountRows(i, a int, body bounds) []int {
-	if rc.oneRow && !routingSized(a, body) {
-		return []int{body.y + i}
-	}
-	return []int{body.y + 3*i, body.y + 3*i + 1}
-}
-
 // pinnedSpan marks an account the global pin names, in accent.key.
 var pinnedSpan = span{"● pinned", ink{token: theme.AccentKey}}
 
@@ -228,15 +219,6 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 		folded:      oneForm(func() line { return modeAlone(m) }),
 		draw: func(c *canvas, body bounds) {
 			f.drawRouting(c, t(), body)
-		},
-		targets: func(body bounds) []Target {
-			var targets []Target
-			for i, a := range m.Accounts {
-				for _, y := range columns.accountRows(i, len(m.Accounts), body) {
-					targets = append(targets, Target{Y: y, Width: f.Width, On: OnAccount, Account: a.ID})
-				}
-			}
-			return targets
 		},
 	}
 }

@@ -461,3 +461,12 @@ func TestTracesSumColumnByColumn(t *testing.T) {
 		t.Errorf("summed %v, want %v", got, want)
 	}
 }
+
+// accountRows are the rows of ROUTING's body the account i of a takes, as
+// drawRouting lays them out: its one row, or its two.
+func (rc routingColumns) accountRows(i, a int, body bounds) []int {
+	if rc.oneRow && !routingSized(a, body) {
+		return []int{body.y + i}
+	}
+	return []int{body.y + 3*i, body.y + 3*i + 1}
+}

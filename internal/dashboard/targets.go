@@ -53,8 +53,7 @@ const (
 	// OnSection is a section's heading on the Overview, or its key there,
 	// which hides it.
 	OnSection
-	// OnAccount is an account's row on the Overview, in USAGE or ROUTING,
-	// which moves the focus to it; or in Detail's list, which chooses it.
+	// OnAccount is an account's row in Detail's list, which chooses it.
 	OnAccount
 	// OnSession is a session's row, which opens its page; in Detail's
 	// SESSIONS, it selects it, and opens the one selected; and on Sessions,

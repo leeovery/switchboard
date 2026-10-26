@@ -29,8 +29,7 @@ func overviewHelp() []helpPart {
 					"of the pool is faint."),
 				said("`b` groups the windows by account instead, a block an account, ROUTING beside each. With more accounts than fit, " +
 					"USAGE scrolls within itself, whole, a row at a time, each window's heading kept on its first row while the window's " +
-					"rows scroll under it, and its last row says how many rows are out of view above and below. `↑` and `↓` move the " +
-					"focus through the accounts, in the config's order, and USAGE scrolls to the one focused."),
+					"rows scroll under it, and its last row says how many rows are out of view above and below."),
 				said("`w` shows each model's own window, as Fable's week, here and wherever windows are listed as they stand now: " +
 					"Accounts' Detail, Sessions' Switchboard and a session's page. Hidden, one shows all the same while it nears its limit " +
 					"on any account: held at it, at the cap, or running out or nearing where it would. switchboard usage, History and the " +

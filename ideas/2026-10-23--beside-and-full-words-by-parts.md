@@ -12,6 +12,7 @@ are arrangements rather than sizes:
 - **Beside USAGE, from 150 columns.** By account, GRAPHS' charts and ROUTING sit beside each
   account's block from 150 columns (`besideWidth`), with the bars at their 50 cells
   (`besideBar`). Under 150 they take sections of their own.
+  The Overview's GRAPHS was removed on 26 October 2026, so only ROUTING sits beside USAGE now.
 - **usage's words in full, from 70 columns.** Where USAGE's bars take rows of their own (Detail,
   the phone's stack, the Switchboard's lines, the Runway pool), the words beside a bar are said
   in full from 70 columns (`fullWords`), and short under it.

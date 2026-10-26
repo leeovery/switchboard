@@ -22,7 +22,7 @@ var keysSaid = map[string]string{
 		"each model's own window; one near its limit shows either way.",
 	"Overview": "u, r, s, c and l show and hide USAGE, ROUTING, SESSIONS, COMING UP and LATELY; " +
 		"b groups the windows by window or by account, as the config's [usage] by has them until b is pressed; " +
-		"and ↑↓ moves the focus between the accounts, which USAGE scrolls to.",
+		"and ↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are.",
 	"Accounts": "< and > step the period both views count over: today, this week, 30 days and 12 weeks. " +
 		"←→ moves along Compare's accounts, and enter opens one in Detail; there ↑↓ chooses an account, " +
 		"→ moves into its SESSIONS and ← back, and enter opens the session chosen.",

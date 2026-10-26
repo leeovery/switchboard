@@ -172,11 +172,9 @@ type section struct {
 	targets func(body bounds) []Target
 	// scrolling is how far the body scrolls in rows rows, scrolled offset
 	// down, a row at a time, as USAGE's does where its accounts are many:
-	// Most, the furthest, and Page, how many show at once from the offset;
-	// and revealing, how far it's scrolled from offset to show the account
-	// with the given id. Nil where it doesn't scroll.
+	// Most, the furthest, and Page, how many show at once from the offset.
+	// Nil where it doesn't scroll.
 	scrolling func(rows, offset int) Scrolling
-	revealing func(rows, offset int, id string) int
 	// scrollForm is the form its body's rows are laid out in, in rows rows,
 	// which an offset into them is read in, as USAGE's usageForm has it.
 	// Nil where it doesn't scroll.

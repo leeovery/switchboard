@@ -50,8 +50,7 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 // line, it presses it, as pressOf says; on what on the page stands for a
 // key, it presses that key alike, as the Log's ▼ N new presses end, and a
 // Graphs section's heading its key, which hides the section; on an
-// Overview's section's heading, it hides the section, as its key does; on an
-// account's row there, it moves the focus to it, as focusOn has it; on a
+// Overview's section's heading, it hides the section, as its key does; on a
 // session's row, it opens its page, as openSession has it; on a turn's row on
 // its page, it acts as clickTurn has it, and on a request's row of its turn
 // open, as clickRequest has it; and on a line of the Log's table, it chooses
@@ -85,8 +84,6 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 		}
 	case dashboard.OnSection:
 		return m.acting().toggle(t.Section), nil
-	case dashboard.OnAccount:
-		return m.acting().focusOn(t.Account), nil
 	case dashboard.OnSession:
 		return m.openSession(t.Session)
 	case dashboard.OnTurn:

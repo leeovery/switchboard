@@ -259,41 +259,6 @@ func (p rowsPaged) said(c *canvas, y, from, to, width int, forms ...outForm) {
 	}
 }
 
-// revealing is how far the rows, scrolled offset down, are scrolled to show
-// one of the spans given, in the order of their rows: where they are, while
-// any shows; else no further than it must go to, down till the first below
-// the page shows, or up till the last above it is the first the page shows,
-// under a heading kept where one is, whichever is nearer.
-func (p rowsPaged) revealing(offset int, spans []rowAt) int {
-	from, to := p.shown(offset)
-	top := p.top(from, to)
-	if slices.ContainsFunc(spans, func(s rowAt) bool { return s.y < to && s.y+s.rows > top }) {
-		return from
-	}
-	up, down := -1, -1
-	for _, s := range spans {
-		if s.y < top {
-			up = s.y
-		}
-	}
-	for row := up; up > 0 && !p.shows(up, row); {
-		up--
-	}
-	if i := slices.IndexFunc(spans, func(s rowAt) bool { return s.y >= to }); i >= 0 {
-		most := max(p.content-p.page(), 0)
-		for down = from; down < most && !p.shows(down, spans[i].y); {
-			down++
-		}
-	}
-	switch {
-	case up < 0 && down < 0:
-		return from
-	case up < 0 || down >= 0 && down-from <= from-up:
-		return down
-	}
-	return up
-}
-
 // ScrollsRows reports whether the view shown of doc at now scrolls a row at a
 // time, as the Overview's USAGE, History's Year, its Weeks and Days where
 // they scroll whole and Tokens where a period doesn't fit, Sessions' List and
@@ -310,19 +275,6 @@ func (f Frame) ScrollsRows(doc status.Document, now time.Time) bool {
 		return f.SessionsTab.Shown == SessionsList || f.sessionsForm(doc, now).byRows
 	}
 	return true
-}
-
-// Revealing is how far the Overview's USAGE of doc at now is scrolled to show
-// the account with the given id, as its revealing has it, in the rows it's
-// laid out in: none where it doesn't scroll, as on a frame too short for the
-// view.
-func (f Frame) Revealing(doc status.Document, now time.Time, id string) int {
-	f = f.At(doc, now)
-	usage := usageOf(f.laidOut(doc, now, f.top()))
-	if f.cramped() || usage.revealing == nil {
-		return 0
-	}
-	return usage.revealing(usage.body.rows, f.Scroll, id)
 }
 
 // revealing is how far what's scrolled at, and scrolls as s says, is

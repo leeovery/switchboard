@@ -1220,8 +1220,8 @@ Overview).
   the windows every model shares, as Runway does, takes `w` for its WEEK (see Graphs). It's never
   on the key line: `?` and the keys-and-toggles card list it, its word `models` faint while they're
   hidden. It's set once and remembered, so it doesn't earn the 10 cells it would cost every other
-  key: on the Overview's line, they'd have it fall to a phone's below 127 columns, where it fits
-  whole from 117 (the owner's call, 17 October 2026).
+  key: on the Overview's line, they'd have it fall to a phone's below 117 columns, where it fits
+  whole from 107 (the owner's call, 17 October 2026).
 - `[ ]`'s word is `view` everywhere; `enter`'s word says what it does on the page, as `enter its
   page` or `enter open`.
 - A key that can't act now is drawn in `text.faint`, its key not bold, as `p pin` is while the
@@ -1264,10 +1264,9 @@ Overview's SESSIONS):
 - on a key of the key line, it acts as that key does, but for `p pin` and `q quit`;
 - on a row that names an account, a session, a line or a turn, or a Compare column's head, it
   chooses it, as the arrows would, and on the one already chosen, opens it, as `enter` does; a row
-  of the Overview's SESSIONS opens its session's page at once, as the Overview's `↑↓` move the
-  account focus;
-- on the Overview and Graphs, on a section's heading or its key, it hides the section; on the
-  Overview, on an account's row in USAGE or ROUTING, it moves the focus there;
+  of the Overview's SESSIONS opens its session's page at once, as the Overview has nothing to
+  choose;
+- on the Overview and Graphs, on a section's heading or its key, it hides the section;
 - on the Log's `▼ 214 new`, it follows again, and on a tick in its `f` panel, it ticks it;
 - the wheel scrolls what's under the pointer, where that scrolls.
 
@@ -1661,10 +1660,9 @@ title row and the status line say what the header would. By window:
 
 Then, as only the Overview has them:
 
-- **The focused account,** moved by `↑` and `↓`, in the config's order, and by a click on its row,
-  is what USAGE scrolls to where it can't show every account (see Many accounts); nothing lights
-  it. Its name column was lit on `bg.selection` only while GRAPHS charted it, and went with GRAPHS
-  (see below).
+- **No account is focused.** The focus, which `↑` and `↓` and a click on an account's row moved,
+  served GRAPHS, which charted the focused account, its name column lit on `bg.selection` while it
+  did; the owner removed GRAPHS, and the focus went with it (26 October 2026; see below).
 - **An account out of the pool,** where the global pin names others, is faint wherever the page
   names it, rather than struck through, as not every terminal draws strikethrough: its number, name
   and marks in `text.faint`; in USAGE, its bars faded as a stale reading's are, keeping 35% of their
@@ -1703,10 +1701,10 @@ Then, as only the Overview has them:
   - **`j`/`k` scroll it a row, PgUp and PgDn a page, and the wheel three rows.** A page down
     starts at the first row the page didn't show, and a page up ends at the row over the first it
     showed, a row the heading kept covers counting as not shown, so paging either way passes over
-    no row, here as in every view paged a row at a time. `↑` and `↓` move the focus an account,
-    scrolling no further than shows a row of it, under the heading kept: with its accounts a row
-    apart, a row a press. A click on an account's row where it's drawn moves the focus there; the
-    heading kept on the first row is no account's.
+    no row, here as in every view paged a row at a time. `↑` and `↓` scroll it as `j` and `k` do,
+    a row a press, so each press shows a change, and only while it scrolls: where USAGE shows every
+    account, they do nothing. Like the other scrolling keys, `↑↓ scroll` is never on the key line,
+    and `?` lists it only while USAGE scrolls. A click on an account's row does nothing.
   - **The scroll holds** within one form, as reads change what USAGE shows and a resize keeps the
     form, going no further than USAGE then goes. The form is how the rows over its key line are
     laid out: grouped by window or by account, the step it takes, as a matrix or not, names on rows
@@ -1714,8 +1712,7 @@ Then, as only the Overview has them:
     that gives it a second row or takes one away moves nothing over it, and the scroll holds.
     Where the form changes, as `b` groups it the other way, a resize or a section's key takes
     another step, or a read changes the rows over the key line, an offset into rows laid out
-    otherwise means nothing, so USAGE scrolls to show the account the focus is on, as `↑` and `↓`
-    do; at its top, which is its top in any form, it stays.
+    otherwise means nothing, so USAGE goes back to its top, which is its top in any form.
   - **The accounts shown never fall as the rows grow:** each step shows its accounts from its top,
     so a row more shows as many or more, and the most any step shows never falls.
 
@@ -1724,7 +1721,8 @@ every account's and the pool's beside their blocks, `g` showing it and `v` flipp
 between the burn-up and the burn-down, was removed by the owner on 26 October 2026, for the Graphs
 page: "I don't like them. I don't think they're effective. … lean into having the graphs page for
 graphs, at least for now." Every account's room in each window is drawn on Graphs (see Graphs),
-and the pool's room then is judged there, as POOL says.
+and the pool's room then is judged there, as POOL says. The focus GRAPHS followed went with it:
+`↑` and `↓` scroll USAGE where it scrolls (see Many accounts).
 
 **ROUTING** says how each account stands with the router, and how busy it's been.
 
@@ -1875,8 +1873,8 @@ whose models go to two accounts on each:
 - **While what names them is read,** as the List's first read takes 150 ms or longer, the heading
   says `loading…` in `text.subtle` as its description, till it lands (settled in the plan; see The
   page).
-- **A click on a row opens its session's page** (see A session's page): `↑` and `↓` stay on the
-  account focus, so no key here opens one.
+- **A click on a row opens its session's page** (see A session's page): `↑` and `↓` scroll
+  USAGE, so no key here opens one.
 - **Where ROUTING takes two rows an account,** as on a phone, a session takes two rows: the
   account's number and name at column 1 on its first, its id at the name column and what it's doing
   right-aligned; under them, why it's there, from the name column. No trace (settled in the plan).
@@ -1985,8 +1983,9 @@ remembered").
 - **Wide:** `tab views`, five spaces; each toggle as its key and word, two spaces apart, `u usage  r
   routing  s sessions  c coming up  l lately`, a key in bold `accent.key` and its word in
   `text.muted` while its section shows, else `text.faint`; two spaces, `b by: window`, the state in
-  `text.secondary`; five spaces; then `↑↓ focus  p pin  ? help  q quit`. With one account, `↑↓ focus`
-  doesn't show (settled in the plan), nor `p pin`, unless a pin set from the command line stands.
+  `text.secondary`; five spaces; then `p pin  ? help  q quit`. With one account, `p pin` doesn't
+  show (settled in the plan), unless a pin set from the command line stands. `↑↓ scroll`, as the
+  other scrolling keys, is left to `?`.
 - **On a phone:** `tab views   ? keys and toggles   q quit`.
 
 **Room.** Each section has a least and a most:
@@ -2063,13 +2062,13 @@ ones:
 **Everything hidden,** row 4 says how to bring it back: `every section is hidden:` in `text.faint`,
 then the toggles as the key line words them (settled in the plan).
 
-**`?` help**, `HELP · OVERVIEW`, lists every key first, the toggles, `b`, `↑↓`, `p`, `t`, `R`
-and `j`/`k` among them, each where it works; then it explains each section, what it shows and why
-it's where it is; USAGE's marks, the levels' colours, the allowance and `out ~…`, the pool against
-`all accounts`, and how it scrolls, whole, a row at a time, each window's heading kept on its first
-row and its last row saying how many rows are out of view, and the focus `↑` and `↓` move,
-which it scrolls to; the modes and how each routes;
-ROUTING's states and the traces' scale; what a session is doing; and LATELY's marks.
+**`?` help**, `HELP · OVERVIEW`, lists every key first, the toggles, `b`, `p`, `t`, `R` and
+`j`/`k` among them, each where it works, and `↑↓ scroll` only while USAGE scrolls; then it
+explains each section, what it shows and why it's where it is; USAGE's marks, the levels' colours,
+the allowance and `out ~…`, the pool against `all accounts`, and how it scrolls, whole, a row at a
+time, each window's heading kept on its first row and its last row saying how many rows are out of
+view; the modes and how each routes; ROUTING's states and the traces' scale; what a session is
+doing; and LATELY's marks.
 
 ### Accounts
 
@@ -4532,8 +4531,7 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
 
 - **Opening it:** `enter` on a session's row opens its page, on Sessions, in either view (see
   Sessions), and in Accounts' Detail (see Accounts); `s` opens it from the Log (see The Log); and a
-  click opens it from a row of the Overview's SESSIONS, where `↑↓` moves the account focus (see The
-  Overview). `esc` goes back to where it was opened from, as it was left. The tab it was opened from
+  click opens it from a row of the Overview's SESSIONS (see The Overview). `esc` goes back to where it was opened from, as it was left. The tab it was opened from
   stays lit, and `tab` and `shift-tab` leave the page for the tab after or before it, as The page
   says (settled in the plan).
 - **While it loads:** its own days' lines are read off the screen, so `enter` answers at once.
@@ -5055,8 +5053,7 @@ Two things are routed by hand, and **the page decides which,** never what's focu
   session's page has no `p`. A session chosen in a list is routed from its own page: `enter`, then
   `p`.
 
-On the Overview, `↑↓ focus` moves the focus USAGE scrolls to, and `r` hides ROUTING: neither touches
-routing.
+On the Overview, `r` hides ROUTING, which touches no routing.
 
 **The card:**
 
@@ -5246,7 +5243,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `j` `k`, PgUp, PgDn, the wheel | Wherever something scrolls (settled in the plan) | Scroll |
 | `u` `r` `s` `c` `l` | Overview | Show or hide USAGE, ROUTING, SESSIONS, COMING UP, LATELY |
 | `b` | Overview | By window, or by account |
-| `↑` `↓` | Overview | Move the account focus, which USAGE scrolls to |
+| `↑` `↓` | Overview, where USAGE scrolls | Scroll USAGE a row, as `j` `k` do |
 | `[` `]` | Accounts, History, Sessions, the Log | The sub-tab before or after |
 | `<` `>` | Accounts, History | A shorter period, a longer one; on History's Year, the year before, the one after |
 | `<` `>` | Runway | The week's view, the 5-hour's |
@@ -8081,8 +8078,9 @@ the build left is gathered in [graphs-loose-ends](../ideas/2026-10-26--graphs-lo
 removed the Overview's GRAPHS, its charts under USAGE and beside each block by account, `g`, `v`
 and the burn-up, for the Graphs page: "I don't like them. I don't think they're effective. … lean
 into having the graphs page for graphs, at least for now." What only it used went with it; the
-Overview keeps its five other sections, its focus and By account with ROUTING beside, and a
-preferences file that kept GRAPHS reads without it.
+Overview keeps its five other sections and By account with ROUTING beside, and a preferences file
+that kept GRAPHS reads without it. The focus, which only GRAPHS showed, went with it: `↑` and `↓`
+scroll USAGE where it scrolls, and do nothing where it shows every account.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
@@ -8274,7 +8272,7 @@ why.
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |
 | Probing more often than every 30 minutes, every 5 say, so use from a phone and free resets are seen sooner | open: how often, and the dashboard's refresh, to settle with its owner | [probing-more-often](../ideas/2026-10-09--probing-more-often.md) |
 | Runway's holds shorter than a column, drawn or named whatever the width | open: to discuss with its owner | [runway-short-holds](../ideas/2026-10-21--runway-short-holds.md) |
-| GRAPHS and ROUTING beside USAGE, and usage's words in full, judged by their parts rather than at 150 and 70 columns | open: to discuss with its owner | [beside-and-full-words-by-parts](../ideas/2026-10-23--beside-and-full-words-by-parts.md) |
+| GRAPHS and ROUTING beside USAGE, and usage's words in full, judged by their parts rather than at 150 and 70 columns | open: to discuss with its owner; the Overview's GRAPHS was removed on 26 October 2026, so only ROUTING sits beside USAGE now | [beside-and-full-words-by-parts](../ideas/2026-10-23--beside-and-full-words-by-parts.md) |
 | A model's window nearing its limit stacking USAGE from 86 columns to 121 | open: to discuss with its owner | [model-window-stacks-usage](../ideas/2026-10-23--model-window-stacks-usage.md) |
 | The Overview saying less at some taller heights, as ROUTING's traces and USAGE's blank rows take rows back | open: to discuss with its owner | [overview-height-sawtooth](../ideas/2026-10-23--overview-height-sawtooth.md) |
 | A config checked under the new binary's rules before a handover, so a rule an upgrade tightens, as a label's 100 characters, can't leave the router stopped | open: to discuss with its owner | [config-checked-before-handover](../ideas/2026-10-23--config-checked-before-handover.md) |

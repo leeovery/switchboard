@@ -182,18 +182,7 @@ func shortUSAGE(t *testing.T) *harness {
 	return h
 }
 
-// accountsShown is how many of the ten accounts the screen names.
-func (h *harness) accountsShown() int {
-	shown := 0
-	for i := range 10 {
-		if strings.Contains(h.view(), "Account "+string(rune('A'+i))+" ") {
-			shown++
-		}
-	}
-	return shown
-}
-
-func TestUSAGEScrollsARowAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t *testing.T) {
+func TestUSAGEScrollsARowAtATimeAsTheKeysAndTheWheelOverItMoveIt(t *testing.T) {
 	h := shortUSAGE(t)
 	scrolled := func(step string, want int) {
 		t.Helper()
@@ -205,21 +194,14 @@ func TestUSAGEScrollsARowAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t *test
 		}
 	}
 
-	shown := h.accountsShown()
-	for range shown - 1 {
-		h.keys(downKey)
-	}
-	scrolled("↓ to the last account in view", 0)
-	// The heading kept on USAGE's first row takes the first account's, so
-	// a row down shows one more.
+	h.keys(upKey)
+	scrolled("↑ at its top", 0)
 	h.keys(downKey)
-	scrolled("↓ past it", 1)
+	scrolled("↓", 1)
 	h.keys(downKey)
 	scrolled("↓ again, a row", 2)
-	for range shown + 1 {
-		h.keys(upKey)
-	}
-	scrolled("↑ back to the first", 0)
+	h.keys(upKey, upKey)
+	scrolled("↑ twice, back to its top", 0)
 
 	h.keys(tea.KeyPressMsg{Code: 'j', Text: "j"})
 	scrolled("j", 1)
@@ -236,46 +218,57 @@ func TestUSAGEScrollsARowAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t *test
 	scrolled("a turn down over ROUTING's heading", 0)
 }
 
-// ↑ and ↓ move USAGE no more than a row a press, where its accounts are a
-// row apart: never two accounts' rows at once.
-func TestTheFocusMovesUSAGEARowAPressAtMost(t *testing.T) {
-	h := shortUSAGE(t)
-	for i := range 9 {
-		was := h.model.scroll
-		h.keys(downKey)
-		if moved := h.model.scroll - was; moved < 0 || moved > 1 {
-			t.Errorf("↓ to the account %d of 10 moved USAGE %d rows, want a row at most", i+2, moved)
-		}
-	}
-	for i := range 9 {
-		was := h.model.scroll
-		h.keys(upKey)
-		if moved := was - h.model.scroll; moved < 0 || moved > 1 {
-			t.Errorf("↑ to the account %d of 10 moved USAGE %d rows, want a row at most", 9-i, moved)
-		}
-	}
-	if h.model.scroll != 0 {
-		t.Errorf("↑ back to the first, USAGE is scrolled %d rows, want its top", h.model.scroll)
+// ↓ and ↑ scroll USAGE as j and k do, a row a press, each press showing a
+// change, as far as it goes and no further: from its top to its foot and
+// back.
+func TestUpAndDownScrollUSAGEAsJAndKDoEachPressShowingAChange(t *testing.T) {
+	most := shortUSAGE(t).model.scrolling().Most
+	for _, way := range []struct {
+		name     string
+		down, up tea.KeyPressMsg
+	}{
+		{name: "↓ and ↑", down: downKey, up: upKey},
+		{name: "j and k", down: tea.KeyPressMsg{Code: 'j', Text: "j"}, up: tea.KeyPressMsg{Code: 'k', Text: "k"}},
+	} {
+		t.Run(way.name, func(t *testing.T) {
+			h := shortUSAGE(t)
+			press := func(key tea.KeyPressMsg, want int) {
+				t.Helper()
+				was := h.view()
+				h.keys(key)
+				if h.model.scroll != want || h.view() == was {
+					t.Fatalf("%s scrolled USAGE to %d, the screen changed %t; want %d, the screen changed", key, h.model.scroll, h.view() != was, want)
+				}
+			}
+			for i := range most {
+				press(way.down, i+1)
+			}
+			h.keys(way.down)
+			if h.model.scroll != most {
+				t.Errorf("past its foot, USAGE is scrolled %d, want %d, as far as it goes", h.model.scroll, most)
+			}
+			for i := range most {
+				press(way.up, most-i-1)
+			}
+		})
 	}
 }
 
-// Scrolled, a click on an account's row where it's drawn moves the focus to
-// it, and a click on the windows' heading kept over USAGE's first row moves
-// nothing.
-func TestAClickOnUSAGEScrolledFollowsItsRows(t *testing.T) {
+// Scrolled, a click on an account's row moves nothing, the Overview having
+// no focus, GRAPHS gone, nor does a click on the windows' heading kept over
+// USAGE's first row.
+func TestAClickOnUSAGEScrolledMovesNothing(t *testing.T) {
 	h := shortUSAGE(t)
 	for range 3 {
 		h.press("j")
 	}
-	x, y := h.drawnAt("Account E")
-	h.click(x, y)
-	if h.model.focus != "e" || h.model.scroll != 3 {
-		t.Errorf("a click on Account E's row, scrolled 3, moved the focus to %q, USAGE scrolled %d; want e, as it was", h.model.focus, h.model.scroll)
-	}
-	x, y = h.drawnAt("5-HOUR")
-	h.click(x, y)
-	if h.model.focus != "e" {
-		t.Errorf("a click on the windows' heading kept moved the focus to %q, want it left on e", h.model.focus)
+	was := h.view()
+	for _, drawn := range []string{"Account E", "5-HOUR"} {
+		x, y := h.drawnAt(drawn)
+		h.click(x, y)
+		if h.model.scroll != 3 || h.view() != was {
+			t.Errorf("a click on %s, scrolled 3, left USAGE scrolled %d, the screen\n%s\nwant it as it was\n%s", drawn, h.model.scroll, h.view(), was)
+		}
 	}
 }
 
@@ -315,26 +308,20 @@ func (h *harness) tallerInForm() int {
 }
 
 // acrossAForm is a resize of the screen, at 160 columns or under, where
-// USAGE still scrolls, in another form, and shows the account with the
-// given id neither where it's scrolled now nor at its top, failing the test
-// where none does.
-func (h *harness) acrossAForm(id string) tea.WindowSizeMsg {
+// USAGE still scrolls, as far as it's scrolled now, in another form,
+// failing the test where none does.
+func (h *harness) acrossAForm() tea.WindowSizeMsg {
 	h.t.Helper()
 	form, held := h.scrollForm(), h.model.scroll
 	for _, width := range []int{160, 120, 100, 73, 52} {
 		for height := 14; height < 40; height++ {
 			g, at := h.resized(width, height)
-			if g.ScrollForm(h.model.doc, at) == form || g.Scrolling(h.model.doc, at).Most == 0 {
-				continue
-			}
-			top := g
-			g.Scroll, top.Scroll = held, 0
-			if g.Revealing(h.model.doc, at, id) != held && top.Revealing(h.model.doc, at, id) != 0 {
+			if g.ScrollForm(h.model.doc, at) != form && g.Scrolling(h.model.doc, at).Most >= held {
 				return tea.WindowSizeMsg{Width: width, Height: height}
 			}
 		}
 	}
-	h.t.Fatalf("no resize scrolls USAGE in another form, %s out of view both scrolled %d and at its top", id, held)
+	h.t.Fatalf("no resize scrolls USAGE %d rows in another form", held)
 	return tea.WindowSizeMsg{}
 }
 
@@ -406,37 +393,33 @@ func TestUSAGEsScrollHoldsAsAReadChangesItsKeyLine(t *testing.T) {
 }
 
 // Where USAGE's form changes, as b groups it the other way or a resize lays
-// it out otherwise, its scroll is read afresh: USAGE scrolled to show the
-// account the focus is on, as ↑ and ↓ scroll it, rather than left at an
-// offset into rows laid out otherwise. As USAGE scrolls only in the step
-// that gives its key way, the key showing wherever a step keeping it fits,
-// a resize changes the form it scrolls in by the width: its windows stacked
-// where the matrix doesn't fit.
-func TestWhereUSAGEsFormChangesItScrollsToTheFocusedAccount(t *testing.T) {
+// it out otherwise, an offset into rows laid out otherwise means nothing, so
+// USAGE goes back to its top. As USAGE scrolls only in the step that gives
+// its key way, the key showing wherever a step keeping it fits, a resize
+// changes the form it scrolls in by the width: its windows stacked where
+// the matrix doesn't fit.
+func TestWhereUSAGEsFormChangesItGoesBackToItsTop(t *testing.T) {
 	tests := []struct {
 		name    string
 		changed func(*harness)
 	}{
 		{name: "b", changed: func(h *harness) { h.press("b") }},
-		{name: "a resize to another form", changed: func(h *harness) { h.update(h.acrossAForm("h")) }},
+		{name: "a resize to another form", changed: func(h *harness) { h.update(h.acrossAForm()) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := shortUSAGE(t)
-			for range 7 {
-				h.keys(downKey)
-			}
-			if h.model.focus != "h" || h.model.scroll == 0 {
-				t.Fatalf("↓ seven times, the focus is on %q, USAGE scrolled %d; want Account H, USAGE scrolled", h.model.focus, h.model.scroll)
+			h.keys(downKey, downKey, downKey)
+			if h.model.scroll != 3 {
+				t.Fatalf("↓ three times, USAGE scrolled %d, want 3", h.model.scroll)
 			}
 			form := h.scrollForm()
 			tt.changed(h)
 			if h.scrollForm() == form {
 				t.Fatalf("USAGE is read in the form it was, want it changed")
 			}
-			f, at := h.model.onScreen()
-			if !strings.Contains(h.view(), "Account H ") || h.model.scroll != f.Revealing(h.model.doc, at, "h") {
-				t.Errorf("USAGE is scrolled %d rows, the screen\n%s\nwant Account H, the focus, in view, no further than shows it", h.model.scroll, h.view())
+			if h.model.scroll != 0 || rowsAbove.MatchString(h.view()) {
+				t.Errorf("USAGE is scrolled %d rows, the screen\n%s\nwant it at its top", h.model.scroll, h.view())
 			}
 		})
 	}

@@ -370,25 +370,14 @@ func TestTheOverviewScrollsARowAtATime(t *testing.T) {
 	}
 }
 
-// Scrolled, USAGE's targets are the rows of each account's shown, where
-// they're drawn; and ROUTING beside its blocks follows them, drawn on none of
+// Scrolled, ROUTING beside USAGE's blocks follows them, drawn on none of
 // the rows past those shown. By account from 150 columns, the blocks are
 // five rows, a blank row apart: scrolled 4 rows, work's last shows on the
 // page's first row, personal's from its third, and side's first on the
 // page's last, over the row saying what's out of view.
-func TestUSAGEScrolledTargetsAndHasROUTINGBesideTheRowsItShows(t *testing.T) {
+func TestUSAGEScrolledHasROUTINGBesideTheRowsItShows(t *testing.T) {
 	f := frameOf(160, 60)
 	f.By, f.Scroll = ByAccount, 4
-	usage := f.usageSection(usageWorld(), now)
-	body := bounds{y: 6, width: 160, rows: 10}
-	want := []Target{{Y: 6, Width: 160, On: OnAccount, Account: "work"}}
-	for y := 2; y < 7; y++ {
-		want = append(want, Target{Y: 6 + y, Width: 160, On: OnAccount, Account: "personal"})
-	}
-	want = append(want, Target{Y: 6 + 8, Width: 160, On: OnAccount, Account: "side"})
-	if got := usage.targets(body); !slices.Equal(got, want) {
-		t.Errorf("scrolled 4 rows, USAGE's targets are\n%+v\nwant\n%+v", got, want)
-	}
 	rows, _ := usageBody(f, usageWorld(), now, 10)
 	at := f.overviewBlock(usageWorld(), now).besideAt()
 	beside := func(y int) string { return strings.TrimSpace(rows[y][min(len(rows[y]), at):]) }
@@ -474,44 +463,11 @@ func TestUSAGEsFormKeptWithItsLayoutIsTheFormMadeAfresh(t *testing.T) {
 	}
 }
 
-// Scrolled, revealing an account scrolls nowhere while any of its rows
-// shows, under a heading kept; else no further than shows its nearest row,
-// below the page or above it. Stacked at 120 columns in 8 rows, seven show
-// at once over the row saying what's out of view: the week's heading on
-// row 0 and its accounts on 2, 4 and 6; the 5-hour's heading on 10, and its
-// accounts on 12, 14 and 16; Fable week's on 20, and 22, 24 and 26.
-func TestRevealingAnAccountInUSAGEScrollsNoFurtherThanShowsARowOfIt(t *testing.T) {
-	usage := frameOf(120, 60).usageSection(usageWorld(), now)
-	tests := []struct {
-		name   string
-		scroll int
-		id     string
-		want   int
-	}{
-		{name: "shown at the top: where it is", id: "work", want: 0},
-		{name: "below the page: till it's the page's last", scroll: 9, id: "side", want: 10},
-		{name: "a row of it the first under the heading kept: where it is", scroll: 11, id: "work", want: 11},
-		{name: "a row of it under the heading kept: up a row, till it shows under it", scroll: 12, id: "work", want: 11},
-		{name: "nearer below than above: down till it shows", scroll: 4, id: "work", want: 6},
-		{name: "nearer above than below: up till it shows under the heading kept", scroll: 13, id: "work", want: 11},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := usage.revealing(8, tt.scroll, tt.id); got != tt.want {
-				t.Errorf("scrolled %d down, revealing %s scrolls to %d, want %d", tt.scroll, tt.id, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestEachAccountsRowsInUSAGEMoveTheFocusThere(t *testing.T) {
-	rowsOf := func(id string, ys ...int) []Target {
-		var targets []Target
-		for _, y := range ys {
-			targets = append(targets, Target{Y: 6 + y, On: OnAccount, Account: id})
-		}
-		return targets
-	}
+// The accounts USAGE shows, which the planner counts, are those with a row
+// in view, in the block's order, but under a heading kept: in the matrix, a
+// row an account and none for the pool; stacked, an account in each window;
+// by account, a block an account; scrolled, those shown alone.
+func TestUSAGEShowsTheAccountsWithARowInView(t *testing.T) {
 	tests := []struct {
 		name   string
 		width  int
@@ -519,34 +475,19 @@ func TestEachAccountsRowsInUSAGEMoveTheFocusThere(t *testing.T) {
 		doc    status.Document
 		scroll int
 		rows   int
-		want   []Target
+		want   []string
 	}{
-		{
-			name: "the matrix: a row an account, none for the pool", width: 160, doc: threeRouted(), rows: 11,
-			want: slices.Concat(rowsOf("work", 2), rowsOf("personal", 4), rowsOf("side", 6)),
-		},
-		{
-			name: "stacked: a row an account in each window", width: 120, doc: threeRouted(), rows: 25,
-			want: slices.Concat(rowsOf("work", 2), rowsOf("personal", 4), rowsOf("side", 6), rowsOf("work", 12), rowsOf("personal", 14), rowsOf("side", 16)),
-		},
-		{
-			name: "by account: its block's rows, across ROUTING's beside them", width: 160, by: ByAccount, doc: threeRouted(), rows: 25,
-			want: slices.Concat(rowsOf("work", 0, 1, 2), rowsOf("personal", 4, 5, 6), rowsOf("side", 8, 9, 10)),
-		},
-		{
-			name: "scrolled: those shown alone, none under the heading kept", width: 160, doc: manyRead(10), scroll: 4, rows: 15,
-			want: slices.Concat(rowsOf("a3", 2), rowsOf("a4", 4), rowsOf("a5", 6), rowsOf("a6", 8), rowsOf("a7", 10), rowsOf("a8", 12)),
-		},
+		{name: "the matrix", width: 160, doc: threeRouted(), rows: 11, want: []string{"work", "personal", "side"}},
+		{name: "stacked", width: 120, doc: threeRouted(), rows: 25, want: []string{"work", "personal", "side", "work", "personal", "side"}},
+		{name: "by account", width: 160, by: ByAccount, doc: threeRouted(), rows: 25, want: []string{"work", "personal", "side"}},
+		{name: "scrolled", width: 160, doc: manyRead(10), scroll: 4, rows: 15, want: []string{"a3", "a4", "a5", "a6", "a7", "a8"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, 60)
-			f.By, f.Scroll = tt.by, tt.scroll
-			for i := range tt.want {
-				tt.want[i].Width = tt.width
-			}
-			if got := f.usageSection(tt.doc, now).targets(bounds{y: 6, width: tt.width, rows: tt.rows}); !slices.Equal(got, tt.want) {
-				t.Errorf("USAGE's targets are\n%+v\nwant\n%+v", got, tt.want)
+			f.By = tt.by
+			if got := f.overviewBlock(tt.doc, now).views().shown(tt.rows, tt.scroll).accounts(); !slices.Equal(got, tt.want) {
+				t.Errorf("USAGE shows %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -624,9 +565,9 @@ func TestUSAGEsBlocksAreABlankRowApart(t *testing.T) {
 }
 
 // USAGE picks out no account on bg.selection, in the matrix, its big bars
-// or by account, wherever the focus is: it lit the focused account for
-// GRAPHS alone, which charted it, and went with it.
-func TestUSAGEPicksOutNoAccountWhereverTheFocusIs(t *testing.T) {
+// or by account: it lit the focused account for GRAPHS alone, which charted
+// it, and the focus went with GRAPHS.
+func TestUSAGEPicksOutNoAccount(t *testing.T) {
 	tests := []struct {
 		name string
 		by   By

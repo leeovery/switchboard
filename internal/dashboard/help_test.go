@@ -19,7 +19,7 @@ func overviewKeys() []Key {
 		keys = append(keys, Key{Key: s.Key(), Does: s.Word()})
 	}
 	return append(keys,
-		Key{Key: "b", Does: "by"}, Key{Key: "↑↓", Does: "focus"},
+		Key{Key: "b", Does: "by"}, Key{Key: "↑↓", Does: "scroll"},
 		Key{Key: "j k", Does: "scroll"}, Key{Key: "PgUp PgDn", Does: "page"}, Key{Key: "wheel", Does: "scroll"},
 		pin, Key{Key: "t", Does: "themes"}, Key{Key: "R", Does: "refresh"}, helpQuit[0], helpQuit[1],
 	)
@@ -46,7 +46,7 @@ func TestHelpListsThePagesKeysThenItsParts(t *testing.T) {
 	f := helping(160, 400)
 	card := f.Card.card(f)
 	keys := []string{
-		"tab views   u usage   r routing   s sessions   c coming up   l lately   b by   ↑↓ focus   j k scroll   PgUp PgDn page",
+		"tab views   u usage   r routing   s sessions   c coming up   l lately   b by   ↑↓ scroll   j k scroll   PgUp PgDn page",
 		"wheel scroll   p pin   t themes   R refresh   ? help   q quit",
 	}
 	if got := plainLines(card.body[:len(keys)]); !slices.Equal(got, keys) {
@@ -97,7 +97,7 @@ func TestHelpsKeysWrapToTheCard(t *testing.T) {
 	keys := plainLines(card.body[:slices.IndexFunc(card.body, func(l line) bool { return len(l) == 0 })])
 	want := []string{
 		"tab views   u usage   r routing   s sessions",
-		"c coming up   l lately   b by   ↑↓ focus",
+		"c coming up   l lately   b by   ↑↓ scroll",
 		"j k scroll   PgUp PgDn page   wheel scroll   p pin",
 		"t themes   R refresh   ? help   q quit",
 	}
@@ -227,12 +227,14 @@ func TestOverviewHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
 }
 
 // GRAPHS is gone from the Overview, and its keys with it: its help names
-// neither it, nor g, which showed it, nor v, which flipped its charts.
+// neither it, nor g, which showed it, nor v, which flipped its charts, nor
+// the focus that served it; and ↑ and ↓, which scroll USAGE only where it
+// scrolls, are left to its list of keys, which names them only there.
 func TestOverviewHelpNamesNoGRAPHSNorItsKeys(t *testing.T) {
 	for _, part := range overviewHelp() {
 		for _, says := range part.says {
-			if strings.Contains(says.plain(), "GRAPHS") {
-				t.Errorf("%s's help reads %q, want no GRAPHS", part.heading, says.plain())
+			if plain := says.plain(); strings.Contains(plain, "GRAPHS") || strings.Contains(plain, "focus") || strings.ContainsAny(plain, "↑↓") {
+				t.Errorf("%s's help reads %q, want no GRAPHS, focus, ↑ or ↓", part.heading, plain)
 			}
 			for _, s := range says {
 				if s.ink == keyInk && (s.text == "g" || s.text == "v") {

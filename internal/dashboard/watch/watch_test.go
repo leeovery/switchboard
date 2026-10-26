@@ -437,7 +437,8 @@ func TestTheOverviewKeepsItsLayoutAsSessionsStartTillAKeyOrAResize(t *testing.T)
 			r, f+1, rows, first+1)
 	}
 
-	h.deliver(h.press("down")...)
+	h.deliver(h.press("b")...)
+	h.deliver(h.press("b")...)
 	if _, r := h.sessionsRows(); r != 5 {
 		t.Errorf("after a key, SESSIONS takes %d rows, want it laid out afresh, a row a session", r)
 	}
@@ -523,7 +524,8 @@ func TestTheScreenAKeyLeavesIsLaidOutAsTheKeyLaysItOut(t *testing.T) {
 		t.Fatalf("three sessions started, SESSIONS takes %d rows, want the 3 it was given kept", r)
 	}
 
-	h.deliver(h.press("down")...)
+	h.deliver(h.press("b")...)
+	h.deliver(h.press("b")...)
 	if _, r := h.sessionsRows(); r != 5 {
 		t.Errorf("after a key, SESSIONS is drawn on %d rows, want it as the key lays it out afresh, a row a session", r)
 	}
@@ -548,8 +550,8 @@ func TestAClickOrTheWheelLaysTheOverviewOutAsItsKeyDoes(t *testing.T) {
 		name       string
 		key, mouse func(*harness)
 	}{
-		{name: "↓, and a click on an account's row", key: key("down"), mouse: func(h *harness) {
-			h.clickWhere(func(t dashboard.Target) bool { return t.On == dashboard.OnAccount && t.Account == "personal" })
+		{name: "b, and a click on b by: window", key: key("b"), mouse: func(h *harness) {
+			h.clickWhere(func(t dashboard.Target) bool { return t.On == dashboard.OnKey && t.Key == "b" })
 		}},
 		{name: "a section's key, and a click on its heading", key: key("c"), mouse: func(h *harness) {
 			h.clickWhere(func(t dashboard.Target) bool {

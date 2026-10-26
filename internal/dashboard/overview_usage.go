@@ -32,8 +32,7 @@ const (
 // folds: given fewer rows than its form takes, it scrolls within them whole,
 // a row at a time, as shown shows it. By account from besideWidth columns,
 // ROUTING is drawn beside its blocks, from besideAt, as besideUsage has it,
-// and follows them as they scroll; a click along an
-// account's rows, its own or what's beside them, moves the focus to it.
+// and follows them as they scroll.
 func (f Frame) usageSection(doc status.Document, now time.Time) section {
 	views := f.overviewBlock(doc, now).views()
 	beside := f.besideUsage(doc, now)
@@ -53,8 +52,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 
 // usageIn is USAGE as s has it, its block drawn in the form of the views
 // given, what's beside its blocks drawn beside them: its heading's rows as
-// the form's headed has them, and its body, its targets and how it scrolls
-// the form's.
+// the form's headed has them, and its body and how it scrolls the form's.
 func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBeside)) section {
 	s.heads = form.block.headed()
 	s.draw = func(c *canvas, body bounds) {
@@ -64,10 +62,7 @@ func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBe
 			beside(c.within(shown.rowsIn(body)), shown.beside(s.aside, body))
 		}
 	}
-	s.targets = func(body bounds) []Target {
-		return form.shown(body.rows, f.Scroll).targets(body)
-	}
-	s.scrolling, s.revealing = form.scrolling, form.revealing
+	s.scrolling = form.scrolling
 	s.scrollForm = form.scrollForm
 	return s
 }
@@ -324,16 +319,13 @@ func (b usageBlock) headed() int {
 
 // accountsIn is how many accounts the block shows in rows rows, its
 // heading's among them, as headed has them, scrolled to its top: those with
-// a row among its targets.
+// a row shown, as accounts has them.
 func (v usageViews) accountsIn(rows int) int {
 	body := rows - v.block.headed()
 	if body <= 0 {
 		return 0
 	}
-	var ids []string
-	for _, t := range v.shown(body, 0).targets(bounds{rows: body}) {
-		ids = append(ids, t.Account)
-	}
+	ids := v.shown(body, 0).accounts()
 	slices.Sort(ids)
 	return len(slices.Compact(ids))
 }
@@ -428,23 +420,6 @@ func (v usageViews) scrolling(rows, offset int) Scrolling {
 	return v.paged(rows).scrolling(offset)
 }
 
-// revealing is how far the block, in rows rows, scrolled offset down, is
-// scrolled to show the account with the given id, as paged reveals one of
-// its rows: nowhere where it fits.
-func (v usageViews) revealing(rows, offset int, id string) int {
-	if v.all <= rows {
-		return 0
-	}
-	var spans []rowAt
-	l, _ := v.whole()
-	for _, p := range l.placed {
-		if p.id == id {
-			spans = append(spans, p)
-		}
-	}
-	return v.paged(rows).revealing(offset, spans)
-}
-
 // usageRowsOut is the form of the line saying how many of USAGE's rows are
 // out of view, where it scrolls: "▲ 3 more above · ▼ 9 more below", in
 // text.subtle.
@@ -490,19 +465,15 @@ func (s usageShown) beside(x int, body bounds) blocksBeside {
 	return at
 }
 
-// targets are the block's click targets as it's shown in body: each row of
-// an account's shown, across the body, which moves the focus to it, but a
-// row a heading kept takes.
-func (s usageShown) targets(body bounds) []Target {
-	var targets []Target
+// accounts are the ids of the accounts with a row shown, but a row a heading
+// kept takes, in the block's order.
+func (s usageShown) accounts() []string {
+	var ids []string
 	top := s.paged.top(s.from, s.to)
 	for _, p := range s.block.placed() {
-		if p.id == "" {
-			continue
-		}
-		for y := max(p.y, top); y < min(p.y+p.rows, s.to); y++ {
-			targets = append(targets, Target{X: body.x, Y: body.y + y - s.from, Width: body.width, On: OnAccount, Account: p.id})
+		if p.id != "" && max(p.y, top) < min(p.y+p.rows, s.to) {
+			ids = append(ids, p.id)
 		}
 	}
-	return targets
+	return ids
 }

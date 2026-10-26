@@ -41,4 +41,4 @@ COMING UP  ───────────────────────
 18:50       side's 5-hour resets        in 4h 08m       14:12  ▲ 7f3a started on work
 ~Fri 12:20  side's week runs out at…   in 21h 38m       13:50  ◇ side primed: its 5-hour window started
 
-tab views   ? keys and toggles   q quit
+tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

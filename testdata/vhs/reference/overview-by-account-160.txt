@@ -39,4 +39,4 @@ Mon 10:00   side's week resets                                 in 3d 19h        
 
 
 
-tab views     u usage  r routing  s sessions  c coming up  l lately  b by: account     ↑↓ focus  p pin  ? help  q quit
+tab views     u usage  r routing  s sessions  c coming up  l lately  b by: account     p pin  ? help  q quit

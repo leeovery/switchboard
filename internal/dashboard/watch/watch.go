@@ -321,10 +321,6 @@ type Model struct {
 	// was read in, as rescrolled noted it.
 	scroll int
 	readIn scrollRead
-	// focus is the account the Overview's focus is on, which USAGE scrolls
-	// to: the first, in the config's order, till ↑ and ↓ move it, and ""
-	// while the document has none.
-	focus string
 	// accounts is what the watch holds of Accounts: what it shows, and its
 	// page, built of the days past holds.
 	accounts accountsTab
@@ -577,10 +573,9 @@ type scrollRead struct {
 // rescrolled is m, and page, built at now, with the view's scroll read
 // afresh where the form it's read in has changed since the last message
 // noted it, as b, a section's key, a resize or a read can change it, so an
-// offset is never read in a form it wasn't taken in: on the Overview,
-// USAGE scrolled to show the account the focus is on, as ↑ and ↓ scroll it;
-// elsewhere, as where History's Weeks turn from accounts to rows, the view
-// back to its top; and its page built afresh. A session's page open over
+// offset is never read in a form it wasn't taken in: the view back to its
+// top, as where History's Weeks turn from accounts to rows, or the
+// Overview's USAGE is laid out afresh; and its page built afresh. A session's page open over
 // the tab scrolls its own, leaving the tab's as it is.
 func (m Model) rescrolled(page dashboard.Frame, now time.Time) (Model, dashboard.Frame) {
 	switch {
@@ -594,9 +589,6 @@ func (m Model) rescrolled(page dashboard.Frame, now time.Time) (Model, dashboard
 	form := laid.ScrollForm(m.doc, now)
 	if m.readIn.noted && form != m.readIn.form {
 		m.readIn, m.scroll = scrollRead{}, 0
-		if m.view == dashboard.Overview {
-			m.scroll = laid.Revealing(m.doc, now, m.focus)
-		}
 		return m, m.frame(now).Built(m.doc, now)
 	}
 	m.readIn = scrollRead{form: form, noted: true}
@@ -1070,9 +1062,8 @@ func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 // notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
 // again, or another router does, as one restarted, or probing, reads the
-// readings history's files with the first full read since probing began; keeps
-// the focus where its account still is, else puts it on the first; eases the
-// bars to it from where they stand; has Runway see it, as runwaySaw has it;
+// readings history's files with the first full read since probing began;
+// eases the bars to it from where they stand; has Runway see it, as runwaySaw has it;
 // and brightens each number on the page it changed.
 func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	doc, now, read := msg.doc, look.Now, originOf(look, msg.router)
@@ -1100,7 +1091,6 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	case !msg.router.Same(m.listedBy):
 		m.sessions = nil
 	}
-	m = m.stillThere(look)
 	m.trails = m.history.drawn(look)
 	m = m.lookedLog(look, msg.router).runwaySaw(look)
 	m.numbers = m.numbers.looked(was, m.numbersDrawn(now), read, now)

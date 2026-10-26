@@ -184,7 +184,7 @@ columns, its ROUTING beside it. The pool's block comes last.
 | `u` `r` `s` `c` `l` | Shows or hides a section: USAGE, ROUTING, SESSIONS, COMING UP and LATELY. |
 | `w` | Shows or hides each model's own window, such as Fable's week. They're hidden until you press `w`. `?` lists it; the key line leaves it out. |
 | `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md#usage-keys). |
-| `↑` `↓` | Moves the focus between the accounts, in the config's order. USAGE scrolls to the focused account where it can't show them all. |
+| `↑` `↓` | Scroll USAGE a row, as `j` and `k` do, where its accounts don't fit. Like the other scrolling keys, it's left to `?`, which lists it only then. |
 
 ## Accounts
 
@@ -834,7 +834,7 @@ What scrolls on each page:
 
 - **Overview:** USAGE, where its accounts don't fit. It scrolls whole, a row at a time, keeping
   each window's heading on its first row while that window's rows pass under it, and its last row
-  says how many rows are out of view above and below.
+  says how many rows are out of view above and below. `↑` and `↓` scroll it too.
 - **Accounts:** its view.
 - **History:** the Year, where the screen is shorter than it; Weeks' accounts; Days' BY ACCOUNT,
   past six accounts; and Tokens' periods.
@@ -858,9 +858,8 @@ time: a page down starts at the first account or period the page didn't show, an
 at the one just above the first it showed.
 
 When a resize or what's read turns a view from one kind of scrolling to the other, the view goes
-back to its top. Where `b` groups USAGE the other way, a resize changes how it's laid out, or a
-read changes its rows over the key line, as a model's window appearing does, it scrolls to show
-the focused account.
+back to its top. So does USAGE where `b` groups it the other way, a resize changes how it's laid
+out, or a read changes its rows over the key line, as a model's window appearing does.
 
 ## The routing card
 
@@ -937,7 +936,7 @@ place, for 4 seconds.
 `t`, `R` and the scrolling keys work everywhere, and are left to `?`.
 
 The Overview's key line lists its section toggles, each word faint while its section is hidden.
-Then come `b by: window` and `↑↓ focus  p pin  ? help  q quit`.
+Then come `b by: window` and `p pin  ? help  q quit`.
 
 Graphs' key line lists its toggles the same way, `w week  f 5-hour  o pool  g glance  h when`,
 then `p pin  ? help  q quit`.
@@ -959,7 +958,6 @@ iTerm2 and Terminal.app, and Shift in most others.
 | a key on the key line | Does what the key does. For a pair, such as `[ ]` or `< >`, it does what the second key does. A click doesn't act on `p pin` or `q quit`. |
 | a row that names an account, a session, a line or a turn, or a Compare column's head | Chooses it, as the arrows would. On the one already chosen, opens it, as `enter` does. |
 | a section's heading, on the Overview or Graphs | Hides the section. |
-| an account's row in USAGE or ROUTING, on the Overview | Moves the focus to the account. |
 | `▼ 214 new`, on the Log | Follows again. |
 | a tick in the Log's `f` panel | Ticks it. |
 

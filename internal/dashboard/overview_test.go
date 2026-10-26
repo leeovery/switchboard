@@ -963,42 +963,45 @@ func TestASectionsHeadingIsATargetThatHidesItWhileItsInTheViewsRows(t *testing.T
 }
 
 func TestTheBodyOfASectionNotFoldedHasItsTargetsWhereItsLaidOut(t *testing.T) {
-	account := func(id string) func(bounds) []Target {
-		return func(b bounds) []Target { return []Target{{X: b.x, Y: b.y, Width: b.width, On: OnAccount, Account: id}} }
+	session := func(id string) func(bounds) []Target {
+		return func(b bounds) []Target { return []Target{{X: b.x, Y: b.y, Width: b.width, On: OnSession, Session: id}} }
 	}
 	usage, routing := sized(SectionUsage, 13, 13), sized(SectionRouting, 6, 6)
-	usage.targets, routing.targets = account("work"), account("side")
+	usage.targets, routing.targets = session("c61b"), session("7f3a")
 	f := frameOf(160, 40)
 	laid := planOf(f, []section{usage, routing}, f.top(), 16)
 	var got []Target
 	for _, t := range f.targetsOf(laid) {
-		if t.On == OnAccount {
+		if t.On == OnSession {
 			got = append(got, t)
 		}
 	}
-	if want := []Target{{Y: 6, Width: 160, On: OnAccount, Account: "work"}}; !slices.Equal(got, want) {
+	if want := []Target{{Y: 6, Width: 160, On: OnSession, Session: "c61b"}}; !slices.Equal(got, want) {
 		t.Errorf("the bodies' targets are %+v, want USAGE's alone, where its body's laid out, as ROUTING folds", got)
 	}
 }
 
-// An account's row is a click's target, which moves the focus to it,
-// wherever USAGE draws it: by window, and by account, ROUTING beside its
-// blocks or not.
-func TestAnAccountsRowIsATargetWhereverUSAGEDrawsIt(t *testing.T) {
+// The Overview has no focus, GRAPHS gone, so no account's row is a click's
+// target, in USAGE or ROUTING, however USAGE groups its windows, scrolled
+// or not.
+func TestNoAccountsRowOnTheOverviewIsATarget(t *testing.T) {
 	tests := []struct {
-		name  string
-		by    By
-		width int
+		name   string
+		by     By
+		width  int
+		height int
 	}{
-		{name: "by account, ROUTING beside USAGE", by: ByAccount, width: 160},
-		{name: "by account under 150 columns", by: ByAccount, width: 149},
-		{name: "by window", by: ByWindow, width: 160},
+		{name: "by account, ROUTING beside USAGE", by: ByAccount, width: 160, height: 60},
+		{name: "by account under 150 columns", by: ByAccount, width: 149, height: 60},
+		{name: "by window", by: ByWindow, width: 160, height: 60},
+		{name: "by window, USAGE scrolling", by: ByWindow, width: 160, height: 16},
+		{name: "on a phone", by: ByWindow, width: 73, height: 61},
 	}
 	for _, tt := range tests {
-		f := frameOf(tt.width, 60)
-		f.By = tt.by
-		if !slices.ContainsFunc(f.Targets(usageWorld(), now), func(t Target) bool { return t.On == OnAccount }) {
-			t.Errorf("%s: no account's row is a target, want each", tt.name)
+		f := frameOf(tt.width, tt.height)
+		f.By, f.Sections = tt.by, SectionsNamed([]string{"usage", "routing", "sessions"})
+		if i := slices.IndexFunc(f.Targets(usageWorld(), now), func(t Target) bool { return t.On == OnAccount }); i >= 0 {
+			t.Errorf("%s: %+v is a target, want no account's row", tt.name, f.Targets(usageWorld(), now)[i])
 		}
 	}
 }

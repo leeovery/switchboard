@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 	"testing"
@@ -22,9 +23,9 @@ func TestKeysThePageNoLongerTakesDoNothing(t *testing.T) {
 			h.deliver(msgs...)
 			if quits(msgs) || len(h.source.orders) > 0 || len(h.source.asked) > asked || h.model.note != "" || h.model.open != nothingOpen ||
 				h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.view != dashboard.Overview ||
-				h.model.picker.open || h.model.focus != "work" {
-				t.Errorf("%s acted: orders %q, read %d times, note %q, open %v, sections %v, by %v, showing %q, picker open %v, focus on %q; want nothing",
-					key, h.source.orders, len(h.source.asked)-asked, h.model.note, h.model.open, h.model.sections.Names(), h.model.by, h.model.view, h.model.picker.open, h.model.focus)
+				h.model.picker.open || h.model.scroll != 0 {
+				t.Errorf("%s acted: orders %q, read %d times, note %q, open %v, sections %v, by %v, showing %q, picker open %v, scrolled %d; want nothing",
+					key, h.source.orders, len(h.source.asked)-asked, h.model.note, h.model.open, h.model.sections.Names(), h.model.by, h.model.view, h.model.picker.open, h.model.scroll)
 			}
 		})
 	}
@@ -40,7 +41,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 		wantPhone []string
 		wantHelp  string
 	}{
-		{view: dashboard.Overview, lead: 5, after: 5, want: [][]string{{"tab"}, {"u", "r", "s", "c", "l", "b"}, {"↑↓", "p", "?", "q"}}, wantHelp: "keys and toggles"},
+		{view: dashboard.Overview, lead: 5, after: 5, want: [][]string{{"tab"}, {"u", "r", "s", "c", "l", "b"}, {"p", "?", "q"}}, wantHelp: "keys and toggles"},
 		{view: dashboard.Accounts, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"< >"}, {"←→", "enter"}, {"p"}, {"?", "q"}}, wantPhone: []string{"[ ]"}, wantHelp: "keys"},
 		{view: dashboard.History, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"< >"}, {"v"}, {"p"}, {"?", "q"}}, wantPhone: []string{"[ ]"}, wantHelp: "keys"},
 		{
@@ -82,22 +83,23 @@ func TestTheOverviewsKeyLineIsTheDesigns(t *testing.T) {
 	toggles := "tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     "
 	phone := "tab views   ? keys and toggles   q quit"
 	tests := []struct {
-		name  string
-		doc   status.Document
-		width int
-		want  string
+		name          string
+		doc           status.Document
+		width, height int
+		want          string
 	}{
-		{name: "three accounts", doc: routerDocument(three()...), width: 160, want: toggles + "↑↓ focus  p pin  ? help  q quit"},
-		{name: "one account, with none other to focus or pin to", doc: routerDocument(three()[0]), width: 160, want: toggles + "? help  q quit"},
+		{name: "three accounts", doc: routerDocument(three()...), width: 160, want: toggles + "p pin  ? help  q quit"},
+		{name: "one account, with none other to pin to", doc: routerDocument(three()[0]), width: 160, want: toggles + "? help  q quit"},
 		{name: "one account, pinned from the command line", doc: pinned, width: 160, want: toggles + "p pin  ? help  q quit"},
-		{name: "just wide enough for the wide line whole", doc: routerDocument(three()...), width: 117, want: toggles + "↑↓ focus  p pin  ? help  q quit"},
-		{name: "too narrow for the wide line whole: a phone's", doc: routerDocument(three()...), width: 116, want: phone},
+		{name: "ten accounts, USAGE scrolling, ↑↓ left to help", doc: tenRouted(), width: 160, height: 18, want: toggles + "p pin  ? help  q quit"},
+		{name: "just wide enough for the wide line whole", doc: routerDocument(three()...), width: 107, want: toggles + "p pin  ? help  q quit"},
+		{name: "too narrow for the wide line whole: a phone's", doc: routerDocument(three()...), width: 106, want: phone},
 		{name: "a phone", doc: routerDocument(three()...), width: 52, want: phone},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := routedHarness(t, tt.doc)
-			h.update(tea.WindowSizeMsg{Width: tt.width, Height: 40})
+			h.update(tea.WindowSizeMsg{Width: tt.width, Height: cmp.Or(tt.height, 40)})
 			h.start()
 
 			rows := strings.Split(h.view(), "\n")

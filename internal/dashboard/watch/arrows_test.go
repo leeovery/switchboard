@@ -3,6 +3,7 @@ package watch
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -100,111 +101,91 @@ func TestAnotherRouterThatCantListTheSessionsShowsNone(t *testing.T) {
 	}
 }
 
-func TestTheFocusStartsOnTheFirstAccountInTheConfigsOrder(t *testing.T) {
-	h := gridHarness(t)
-	if h.model.focus != "work" {
-		t.Errorf("the first document read, the focus is on %q, want on work, the first account", h.model.focus)
-	}
-}
-
-func TestUpAndDownMoveTheFocusInTheConfigsOrderNoFurtherThanTheEnds(t *testing.T) {
-	h := gridHarness(t)
-	prefs := &fakePrefs{}
-	h.model.cfg.Prefs = prefs
-	for _, step := range []struct {
-		key  tea.KeyPressMsg
-		want string
-	}{
-		{key: downKey, want: "personal"},
-		{key: downKey, want: "side"},
-		{key: downKey, want: "client"},
-		{key: downKey, want: "client"},
-		{key: upKey, want: "side"},
-		{key: upKey, want: "personal"},
-		{key: upKey, want: "work"},
-		{key: upKey, want: "work"},
-	} {
-		h.keys(step.key)
-		if h.model.focus != step.want {
-			t.Errorf("after %s, the focus is on %q, want on %q", step.key, h.model.focus, step.want)
-		}
-	}
-	if prefs.updates > 0 {
-		t.Errorf("moving the focus kept the preferences %d times, want the focus never kept", prefs.updates)
-	}
-}
-
-// ↓ moves the focus, and the key line lists ↑↓ focus, however the windows
-// are grouped: by account, ROUTING beside USAGE or not, and by window.
-func TestTheFocusMovesHoweverTheWindowsAreGrouped(t *testing.T) {
+// The Overview has no focus, GRAPHS gone: where USAGE shows every account,
+// ↓ and ↑ change nothing, and neither the key line nor help names them,
+// however the windows are grouped, on a phone too.
+func TestUpAndDownDoNothingWhereUSAGEShowsEveryAccount(t *testing.T) {
 	tests := []struct {
-		name  string
-		width int
-		typed []string
+		name          string
+		width, height int
+		typed         []string
 	}{
-		{name: "by account, ROUTING beside USAGE", width: 160, typed: []string{"b"}},
-		{name: "by account under 150 columns", width: 149, typed: []string{"b"}},
-		{name: "by window", width: 160},
+		{name: "by window", width: 160, height: 40},
+		{name: "by account, ROUTING beside USAGE", width: 160, height: 40, typed: []string{"b"}},
+		{name: "by account under 150 columns", width: 149, height: 40, typed: []string{"b"}},
+		{name: "on a phone", width: 73, height: 61},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := gridHarness(t)
-			h.update(tea.WindowSizeMsg{Width: tt.width, Height: 40})
+			h.update(tea.WindowSizeMsg{Width: tt.width, Height: tt.height})
 			h.typed(tt.typed...)
-			h.keys(downKey)
-			if h.model.focus != "personal" {
-				t.Errorf("after ↓, the focus is on %q; want it moved to personal", h.model.focus)
+			if s := h.model.scrolling(); s.Most != 0 {
+				t.Fatalf("USAGE scrolls %+v, want every account shown", s)
 			}
-			if !strings.Contains(h.keyLine(), "↑↓ focus") {
-				t.Errorf("the key line reads %q; want ↑↓ focus listed", h.keyLine())
+			was, layout := h.view(), h.model.layout
+			h.keys(downKey, downKey, upKey)
+			if h.view() != was || h.model.scroll != 0 || !reflect.DeepEqual(h.model.layout, layout) {
+				t.Errorf("↓ and ↑ changed the screen to\n%s\nscrolled %d; want it as it was\n%s", h.view(), h.model.scroll, was)
+			}
+			if slices.Contains(h.listed(), "↑↓") || slices.Contains(listedKeys(helpOver(h.model)), "↑↓") {
+				t.Errorf("the key line lists %q, help %q; want ↑↓ in neither", h.listed(), listedKeys(helpOver(h.model)))
 			}
 		})
 	}
 }
 
-func TestTheFocusGoesToTheFirstAccountOnceItsAccountGoes(t *testing.T) {
-	h := gridHarness(t)
-	h.keys(downKey, downKey, downKey)
-	h.startRouter(routerDocument(three()[1:]...))
-	h.tickUntilAsked()
-
-	if h.model.focus != "personal" {
-		t.Errorf("once client and work went, the focus is on %q, want on personal, the first account left", h.model.focus)
+// Help names ↑↓ scroll exactly where USAGE scrolls, at every height from
+// where it shows none of its rows to where it shows them all, grouped
+// either way, wide and on a phone, and the key line never, leaving it to
+// help as it leaves j and k; and ↓ moves USAGE exactly there.
+func TestUpAndDownAreNamedAndScrollExactlyWhereUSAGEScrolls(t *testing.T) {
+	scroll := dashboard.Key{Key: "↑↓", Does: "scroll"}
+	found := map[bool]int{}
+	for _, width := range []int{73, 160} {
+		for _, typed := range [][]string{nil, {"b"}} {
+			for height := 12; height <= 40; height++ {
+				h := routedHarness(t, tenRouted())
+				h.update(tea.WindowSizeMsg{Width: width, Height: height})
+				h.start()
+				h.typed(typed...)
+				scrolls := h.model.scrolling().Most > 0
+				found[scrolls]++
+				named := slices.ContainsFunc(h.model.live(h.clock.now).KeyLine.Groups, func(g []dashboard.Key) bool { return slices.Contains(g, scroll) })
+				if helped := slices.Contains(helpOver(h.model), scroll); named || helped != scrolls {
+					t.Errorf("by %q at %d by %d, USAGE scrolls %t, the key line names ↑↓ scroll %t, help %t; want the key line never, help %t", typed, width, height, scrolls, named, helped, scrolls)
+				}
+				h.keys(downKey)
+				if moved := h.model.scroll == 1; moved != scrolls {
+					t.Errorf("by %q at %d by %d, USAGE scrolls %t, and ↓ scrolled it to %d", typed, width, height, scrolls, h.model.scroll)
+				}
+			}
+		}
+	}
+	if found[true] == 0 || found[false] == 0 {
+		t.Errorf("of the heights, %d scroll USAGE and %d don't, want some of each", found[true], found[false])
 	}
 }
 
-func TestTheFocusStaysOnItsAccountAsTheDocumentChanges(t *testing.T) {
-	h := gridHarness(t)
-	h.keys(downKey)
-	h.startRouter(routerDocument(three()...))
-	h.tickUntilAsked()
-
-	if h.model.focus != "personal" {
-		t.Errorf("once client went, the focus is on %q, want still on personal", h.model.focus)
-	}
-}
-
-func TestAClickOnAnAccountsRowMovesTheFocusThere(t *testing.T) {
-	h := gridHarness(t)
-	h.clickOn(dashboard.Target{On: dashboard.OnAccount, Account: "side"})
-	if h.model.focus != "side" {
-		t.Errorf("a click on side's row left the focus on %q, want on side", h.model.focus)
-	}
-	h.clickOn(dashboard.Target{On: dashboard.OnAccount, Account: "gone"})
-	if h.model.focus != "side" {
-		t.Errorf("a click on the row of an account the document doesn't have moved the focus to %q, want it left on side", h.model.focus)
+// ↓ and ↑ are the Overview's alone: on another tab, they don't scroll it.
+func TestUpAndDownDontScrollTheOverviewFromAnotherTab(t *testing.T) {
+	h := shortUSAGE(t)
+	h.press("tab")
+	h.keys(downKey, downKey)
+	h.press("shift+tab")
+	if h.model.view != dashboard.Overview || h.model.scroll != 0 {
+		t.Errorf("↓ twice on %q scrolled the Overview %d rows, want none", h.model.view, h.model.scroll)
 	}
 }
 
 func TestTheOverviewsKeysDoNothingOnAnotherTab(t *testing.T) {
 	h := gridHarness(t)
 	h.press("tab")
-	h.keys(downKey, upKey)
 	for _, key := range []string{"u", "r", "s", "c", "l", "b"} {
 		h.press(key)
 	}
-	if h.model.focus != "work" || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow {
-		t.Errorf("showing %q, the Overview's keys moved the focus to %q, showed %v, grouped by %v; want them doing nothing there",
-			h.model.view, h.model.focus, h.model.sections.Names(), h.model.by)
+	if h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow {
+		t.Errorf("showing %q, the Overview's keys showed %v, grouped by %v; want them doing nothing there",
+			h.model.view, h.model.sections.Names(), h.model.by)
 	}
 }
