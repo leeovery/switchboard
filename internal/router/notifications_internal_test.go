@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -258,6 +259,79 @@ func TestANewerLimitIsToldOfWithTheSessionsItMoved(t *testing.T) {
 			"2 · two hit its Fable week limit, back at Wed 00:00 — 1 session moved to 1 · one",
 		)
 	})
+}
+
+func TestALimitHeardOfLongAfterItsMovesIsToldOfWithoutThem(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		after time.Duration
+		want  string
+	}{
+		{name: "within gatherFor", after: gatherFor, want: "2 · two hit its 5-hour limit, back at Sat 03:00 — 1 session moved to 1 · one"},
+		{name: "past gatherFor", after: gatherFor + time.Nanosecond, want: "2 · two hit its 5-hour limit, back at Sat 03:00"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newNotifying(t, config.Notifications{Limits: true})
+				h.read("2", h.session(1, 3*time.Hour), h.week(0.5, 3*day))
+				h.start()
+
+				reached, _ := h.state.limit("2", []string{"5h"}, h.began.Add(3*time.Hour), h.state.mark())
+				h.hear(forcedBy(reached.Limit, "a", "2", "1"))
+				h.after(tt.after)
+				h.hear(reached)
+				h.after(gatherFor)
+				h.expect(tt.want)
+			})
+		})
+	}
+}
+
+func TestMovesWaitingOnALimitNeverHeardOfAreDroppedOnceTheyveWaitedGatherFor(t *testing.T) {
+	began := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		// then is what's heard after the move of limit 7, the account 2's,
+		// at the time given, and want the limits whose moves still wait.
+		then func(l *limitNotices, at time.Time)
+		at   time.Duration
+		want []int
+	}{
+		{
+			name: "its event dropped, waiting for gatherFor",
+			then: func(l *limitNotices, at time.Time) { l.moved(forcedBy(9, "b", "3", "1"), at) },
+			at:   gatherFor,
+			want: []int{7, 9},
+		},
+		{
+			name: "its event dropped, past gatherFor",
+			then: func(l *limitNotices, at time.Time) { l.moved(forcedBy(9, "b", "3", "1"), at) },
+			at:   gatherFor + time.Nanosecond,
+			want: []int{9},
+		},
+		{
+			name: "a newer limit of its account heard of first, past gatherFor",
+			then: func(l *limitNotices, at time.Time) { l.reached(LimitReached{Account: "2", Limit: 8}, at) },
+			at:   gatherFor + time.Nanosecond,
+			want: []int{},
+		},
+		{
+			name: "another account's limit heard of, past gatherFor",
+			then: func(l *limitNotices, at time.Time) { l.reached(LimitReached{Account: "3", Limit: 9}, at) },
+			at:   gatherFor + time.Nanosecond,
+			want: []int{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := newLimitNotices()
+			l.moved(forcedBy(7, "a", "2", "1"), began)
+			tt.then(l, began.Add(tt.at))
+			if got := slices.Sorted(maps.Keys(l.early)); !slices.Equal(got, tt.want) {
+				t.Errorf("the moves of limits %v wait, want those of %v", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestRoomAgain(t *testing.T) {

@@ -55,3 +55,27 @@ only when something rare happens.
   `s.entries()`, which groups and sorts the assignments of every session in the last hour, to
   report the one asked for, and statuslines ask for it often. A fix: gather that one session's
   entries alone, sorted by `byUse`, as `lastUsed` finds its newest.
+
+## Built in the cleanliness release, 26 October 2026
+
+The owner's choice on 26 October 2026; its PR to come. The control socket's gap is taken up beside
+them, on the router's restart path; `requests` decoding the day before its span, the flaky save
+test and `GET /sessions/{id}` stay open.
+
+- **launchd's log:** as the service starts the router, one past 10 MiB is cut in place to its newest
+  5 MiB, from the start of a line, and the router's output and errors moved to its new end, so
+  launchd's writes still land in it and a start that fails writes why after what's kept; a router
+  run by hand, its output elsewhere, leaves it alone (`logs.TrimOutput`, called by `serve`).
+- **Corrupt files set aside:** the newest 3 of each name are kept, the older removed as another is
+  set aside, by one rule the state file and the preferences use (`atomicfile.SetAside`).
+- **Moves waiting on a limit that never comes:** a limit's moves heard before it wait 5 seconds,
+  `gatherFor`, at most, which bounds both ways a limit is never heard of: its event dropped, and a
+  newer limit of its account heard first (`limitNotices.forget`).
+- **Compressing a day's file:** it streams the plain file into its gzip member, and checks the
+  compressed file's lines against it a member at a time, holding neither whole: some 1.4 MB,
+  whatever the day's size. It writes the bytes v0.2.8's did, as far as the tests show, and its files
+  read as they did. The crash mid-compress fell out of the same change: where a line was appended
+  after a compress stopped before it removed the plain file, the lines the compressed file's last
+  member gives, which the plain file starts with, aren't added again (`dayfile/compress.go`). A
+  read of the day in that window still gives those lines twice, until the next compress, within
+  the hour.

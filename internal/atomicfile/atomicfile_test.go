@@ -1,9 +1,12 @@
 package atomicfile_test
 
 import (
+	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -107,6 +110,59 @@ func TestWriteLeavesNothingBehindWhenItFails(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	if err != nil || len(entries) != 1 || entries[0].Name() != "file" || !entries[0].IsDir() {
 		t.Errorf("the directory holds %v (%v), want what was there alone", entries, err)
+	}
+}
+
+func TestWriteFrom(t *testing.T) {
+	failed := errors.New("the source failed")
+	tests := []struct {
+		name  string
+		write func(w io.Writer) error
+		// want is what the file holds after, and wantErr what WriteFrom
+		// fails with, if it does.
+		want    string
+		wantErr error
+	}{
+		{
+			name: "what's written, in several writes",
+			write: func(w io.Writer) error {
+				for _, part := range []string{"new", "\n", strings.Repeat("x", 100<<10)} {
+					if _, err := io.WriteString(w, part); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+			want: "new\n" + strings.Repeat("x", 100<<10),
+		},
+		{
+			name: "nothing, where writing fails partway",
+			write: func(w io.Writer) error {
+				if _, err := io.WriteString(w, strings.Repeat("x", 100<<10)); err != nil {
+					return err
+				}
+				return failed
+			},
+			want:    "old\n",
+			wantErr: failed,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "file")
+			write(t, path)
+
+			if err := atomicfile.WriteFrom(path, 0o600, tt.write); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("WriteFrom() error = %v, want %v", err, tt.wantErr)
+			}
+			if data, err := os.ReadFile(path); err != nil || string(data) != tt.want {
+				t.Errorf("the file holds %d bytes (%v), want %d", len(data), err, len(tt.want))
+			}
+			if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
+				t.Errorf("the directory holds %v (%v), want the file alone", entries, err)
+			}
+		})
 	}
 }
 

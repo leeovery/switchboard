@@ -156,7 +156,7 @@ func (n *notifications) take(e Event, accounts standings) {
 			n.limits.reached(e, time.Now())
 		}
 	case Moved:
-		if n.settings.Limits && n.limits.moved(e) {
+		if n.settings.Limits && n.limits.moved(e, time.Now()) {
 			return
 		}
 		if n.settings.Moves {
