@@ -21,13 +21,17 @@ import (
 )
 
 // runwayed is a harness of Runway: its readings history, its ledger, and
-// how many times it built Runway's lanes, and what it built them from last.
+// how many times it built Runway's lanes, and what it built them from last;
+// and of Graphs, by the window, how many times it built Graphs' lanes, and
+// what it built them from last.
 type runwayed struct {
 	*harness
-	filed  *filedReadings
-	ledger *daysLedger
-	builds int
-	from   views.LanesFrom
+	filed        *filedReadings
+	ledger       *daysLedger
+	builds       int
+	from         views.LanesFrom
+	graphsBuilds map[views.RunwayWindow]int
+	graphsFrom   map[views.RunwayWindow]views.LanesFrom
 }
 
 // runwayHarness is the router of three, on the tab given, 160 cells wide and
@@ -35,11 +39,20 @@ type runwayed struct {
 // holding the days from 2024 on, as historyHarness's does, each of no
 // requests but as the test puts them there, set up as setup has it, where
 // it's given, Runway kept on the 5-hour, which > steps on from to the week;
-// it counts Runway's lanes as they're built. It's started.
+// it counts Runway's lanes and Graphs' as they're built. It's started.
 func runwayHarness(t *testing.T, view dashboard.View, setup func(*runwayed, *Config), held ...readings.Reading) *runwayed {
 	t.Helper()
-	h := routedHarness(t, routerDocument(three()...))
-	r := &runwayed{harness: h, filed: &filedReadings{held: held}}
+	return runwayHarnessOf(t, routerDocument(three()...), view, setup, held...)
+}
+
+// runwayHarnessOf is runwayHarness of the router's document given.
+func runwayHarnessOf(t *testing.T, doc status.Document, view dashboard.View, setup func(*runwayed, *Config), held ...readings.Reading) *runwayed {
+	t.Helper()
+	h := routedHarness(t, doc)
+	r := &runwayed{
+		harness: h, filed: &filedReadings{held: held},
+		graphsBuilds: make(map[views.RunwayWindow]int), graphsFrom: make(map[views.RunwayWindow]views.LanesFrom),
+	}
 	r.ledger = &daysLedger{Empty: h.emptyLedger(), clock: h.clock, first: "2024-06-03", days: map[string]ledger.Summary{}}
 	cfg := h.config(Size{Width: 160, Height: 37})
 	cfg.Readings, cfg.Ledger, cfg.View = r.filed, r.ledger, view
@@ -48,7 +61,7 @@ func runwayHarness(t *testing.T, view dashboard.View, setup func(*runwayed, *Con
 		setup(r, &cfg)
 	}
 	h.model = New(t.Context(), cfg)
-	h.model.runwayTab.look = r.counted
+	h.model.runwayTab.look, h.model.graphsTab.look = r.counted, r.countedForGraphs
 	h.start()
 	return r
 }
@@ -58,6 +71,14 @@ func runwayHarness(t *testing.T, view dashboard.View, setup func(*runwayed, *Con
 func (r *runwayed) counted(l views.Lanes, from views.LanesFrom) views.Lanes {
 	r.builds++
 	r.from = from
+	return l.Look(from)
+}
+
+// countedForGraphs builds Graphs' lanes as views.Lanes.Look does, counting
+// each build of each window's, and holding what it was built from.
+func (r *runwayed) countedForGraphs(l views.Lanes, from views.LanesFrom) views.Lanes {
+	r.graphsBuilds[from.Window]++
+	r.graphsFrom[from.Window] = from
 	return l.Look(from)
 }
 

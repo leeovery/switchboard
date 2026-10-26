@@ -26,7 +26,7 @@ const collapsedGap = 1
 // runwayWindows are the windows Runway's views are named for, in the order
 // < and > step between them, and runwayNames what the heading calls each.
 var (
-	runwayWindows = []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}
+	runwayWindows = views.RunwayWindows()
 	runwayNames   = map[views.RunwayWindow]string{views.RunwayFiveHour: "5-hour", views.RunwayWeek: "week"}
 )
 
@@ -162,6 +162,13 @@ func (r RunwayShown) Windowed(by int) (RunwayShown, bool) {
 	return r, true
 }
 
+// LiveOf is Runway shown as r showing the live view of the window w, its
+// account column as it is, as Graphs reads Runway's lanes over each window.
+func (r RunwayShown) LiveOf(w views.RunwayWindow) RunwayShown {
+	r.Window, r.Back = w, time.Time{}
+	return r
+}
+
 // Stepped is Runway stepped back, by -1, as ← steps it, or on, by 1, as →
 // does, at now, weeks starting on the day given: in the 5-hour view, from
 // the live view to today, then a day at a time; in the week view, to this
@@ -269,16 +276,6 @@ func (f Frame) runwayFormed(doc status.Document, now time.Time, x int, fitted fu
 		},
 		scrolling: fitted(f.top()).scrolling,
 	}
-}
-
-// period is what Runway shown as r calls the span its view looks across, as
-// "room all day" and "the day's highest" say it: a day, of the 5-hour view,
-// live or stepped back, or a week.
-func (r RunwayShown) period() string {
-	if r.Window == views.RunwayWeek {
-		return "week"
-	}
-	return "day"
 }
 
 // runway draws Runway of doc at now from row top, as its form draws it.

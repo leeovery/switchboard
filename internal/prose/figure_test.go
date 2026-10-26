@@ -1,6 +1,8 @@
 package prose_test
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -26,6 +28,36 @@ func TestPercent(t *testing.T) {
 		}
 		if got := prose.Percent(tt.utilization); got != tt.want {
 			t.Errorf("Percent(%v) = %q, want %q", tt.utilization, got, tt.want)
+		}
+	}
+}
+
+// What a window has left is what its use, as said, leaves of 100%, so the two
+// sum to it within its limit, at a half-percent as anywhere; and past its
+// limit, none, never below.
+func TestAWindowsRoomLeftIsWhatItsUseAsSaidLeaves(t *testing.T) {
+	tests := []struct {
+		utilization float64
+		want        string
+	}{
+		{utilization: 0, want: "100%"},
+		{utilization: 0.34, want: "66%"},
+		{utilization: 0.685, want: "32%"},
+		{utilization: 0.125, want: "88%"},
+		{utilization: 0.995, want: "0%"},
+		{utilization: 1, want: "0%"},
+		{utilization: 1.02, want: "0%"},
+	}
+	for _, tt := range tests {
+		if got := prose.PercentLeft(tt.utilization); got != tt.want {
+			t.Errorf("PercentLeft(%v) = %q, want %q", tt.utilization, got, tt.want)
+		}
+	}
+	for thousandths := range 1051 {
+		used := float64(thousandths) / 1000
+		left, _ := strconv.Atoi(strings.TrimSuffix(prose.PercentLeft(used), "%"))
+		if sum := prose.WholePercent(used) + left; sum != max(100, prose.WholePercent(used)) {
+			t.Errorf("used %v is said %q, leaving %q, summing to %d%%, want 100%% within its limit", used, prose.Percent(used), prose.PercentLeft(used), sum)
 		}
 	}
 }

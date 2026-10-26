@@ -278,19 +278,19 @@ func writeDay(tb testing.TB, dir, name string, data []byte, compressed bool) {
 // newBusyWorld writes it, as its user meets it: enter on a session in
 // Accounts' Detail till its page shows its lines, of the session that ran
 // every day of the four weeks, and of one that ran the last three; the Log
-// shown the first time, till its first read lands; a look at
-// the router's document with that page open, and with the Log shown; a batch
-// of the request stream's events, an answer of the session's streaming on,
-// with the page open and on the Log, the stream having told of the hour's
-// requests before; a look with the Log's panel open; on the Overview by
-// account, GRAPHS charting each account and the pool beside USAGE, a look,
-// a look as the pool's 5-hour chart moves a column on, twelve minutes, its
-// readings history having gained a reading of each account before it, the
-// pool's charts judged in full, and a resize; Runway built afresh, and a
-// look at it, its readings history having gained a reading of each account
-// since the last; a request sent, with the Log shown; and the Events,
-// filled through every kind, refiltered to a kind none of the four weeks
-// holds.
+// shown the first time, till its first read lands; a look at the router's
+// document with that page open, and with the Log shown; a batch of the
+// request stream's events, an answer of the session's streaming on, with the
+// page open and on the Log, the stream having told of the hour's requests
+// before; a look with the Log's panel open; on the Overview by account,
+// GRAPHS charting each account and the pool beside USAGE, a look, a look as
+// the pool's 5-hour chart moves a column on, twelve minutes, its readings
+// history having gained a reading of each account before it, the pool's
+// charts judged in full, and a resize; Runway built afresh, and a look at
+// it, its readings history having gained a reading of each account since
+// the last; Graphs alike, its lanes of each window; a request sent, with the
+// Log shown; and the Events, filled through every kind, refiltered to a kind
+// none of the four weeks holds.
 func BenchmarkTheBusyDashboard(b *testing.B) {
 	w := newBusyWorld(b, start)
 	for _, s := range []struct{ name, id string }{{"of four weeks", w.longest()}, {"of three days", w.lately()}} {
@@ -394,6 +394,21 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 			h.look(w)
 		}
 	})
+	b.Run("Graphs built afresh", func(b *testing.B) {
+		h := w.onGraphs(b)
+		for b.Loop() {
+			h.model.graphsTab.lanes, h.model.graphsTab.builtAt = nil, nil
+			h.model = h.model.graphsBuilt()
+		}
+	})
+	b.Run("a look on Graphs, a reading gained", func(b *testing.B) {
+		h := w.onGraphs(b)
+		for b.Loop() {
+			h.clock.now = h.clock.now.Add(30 * time.Second)
+			w.gained(b, h.clock.now.Add(-10*time.Second))
+			h.look(w)
+		}
+	})
 	b.Run("a request sent on the Log", func(b *testing.B) {
 		n := 0
 		for b.Loop() {
@@ -449,12 +464,22 @@ func (w busyWorld) byAccount(tb testing.TB) *harness {
 	return h
 }
 
-// onRunway is the busy world's harness on Runway's live 5-hour view, its
-// first look taken.
+// onRunway is the busy world's harness on Runway's live week view, the view
+// it opens on, its first look taken.
 func (w busyWorld) onRunway(tb testing.TB) *harness {
 	tb.Helper()
 	h := w.harness(tb)
 	h.model.view = dashboard.Runway
+	h.look(w)
+	return h
+}
+
+// onGraphs is the busy world's harness on Graphs, its lanes over Runway's
+// live view of each window built, its first look taken.
+func (w busyWorld) onGraphs(tb testing.TB) *harness {
+	tb.Helper()
+	h := w.harness(tb)
+	h.model.view = dashboard.Graphs
 	h.look(w)
 	return h
 }

@@ -119,7 +119,9 @@ func TestASentencesNamesAreCutToTheMostThatFits(t *testing.T) {
 // A session's page names an account no longer configured, as a recorded
 // session ran on, by its id: with every configured name of 2 or 3 cells,
 // its stay row names old-account whole, as the stays keep a label's 8 cells
-// beside the configured names' marks; and so does a turn's row, its on 8
+// beside the configured names' marks, and old-accounts whole at exactly the
+// column's 12, as an id has no number or marks to keep room for; and so does
+// a turn's row, its on 8
 // cells and the move's arrow and second name's 6 after them, where a column
 // of the configured names' 3 would cut it.
 func TestASessionsPageNamesAnAccountNoLongerConfigured(t *testing.T) {
@@ -127,18 +129,21 @@ func TestASessionsPageNamesAnAccountNoLongerConfigured(t *testing.T) {
 		GeneratedAt: sessionNow.UTC(), Source: status.SourceRouter, Best: "ops", Router: status.Health{Healthy: true}, Sessions: 6,
 		Accounts: []status.Account{pageAccount("ab", 0.95, 0.34, 0.12), pageAccount("ops", 0.13, 0.78, 0.04)},
 	}.WorkedOut(claudeLike)
-	shown := moved()
-	gone := "old-account"
-	shown.Page.Accounts[0].Account = gone
-	shown.Page.Turns[0].Accounts = []string{gone}
-	d, _ := pageDrawn(pageFrame(t, shown, 160, 60), doc)
-	rows := drawnRows(d)
-	stay, turns := rows[d.l.accountsAt], strings.Join(rows[d.l.heads:], "\n")
-	if !strings.HasPrefix(stay, gone+" ") {
-		t.Errorf("the stay row reads %q, want it to start %q whole", stay, gone)
-	}
-	if !strings.Contains(turns, " "+gone+" ") {
-		t.Errorf("the turns read\n%s\nwant a turn naming %q whole", turns, gone)
+	for _, gone := range []string{"old-account", "old-accounts"} {
+		t.Run(gone, func(t *testing.T) {
+			shown := moved()
+			shown.Page.Accounts[0].Account = gone
+			shown.Page.Turns[0].Accounts = []string{gone}
+			d, _ := pageDrawn(pageFrame(t, shown, 160, 60), doc)
+			rows := drawnRows(d)
+			stay, turns := rows[d.l.accountsAt], strings.Join(rows[d.l.heads:], "\n")
+			if !strings.HasPrefix(stay, gone+" ") {
+				t.Errorf("the stay row reads %q, want it to start %q whole", stay, gone)
+			}
+			if !strings.Contains(turns, " "+gone+" ") {
+				t.Errorf("the turns read\n%s\nwant a turn naming %q whole", turns, gone)
+			}
+		})
 	}
 }
 

@@ -26,54 +26,88 @@ type placed struct {
 // lane as a whole: its parts, whole ones dropped from the end where they
 // don't fit; and the column it's said from, counted from the lanes' first,
 // or, where ends is set, the column it ends at, said only where that clears
-// the words before.
+// the words before; and when what it says of begins, a stretch its start and
+// a reset its time, zero where that's not known, as the lane as a whole.
 type phrase struct {
 	parts []line
 	col   int
 	ends  bool
+	at    time.Time
+}
+
+// laneView is a view of Runway's lanes, as what's said under each is said
+// of it: the window the view is named for, and the timeline its lanes are
+// drawn over. Runway's is the view it shows; a Graphs card's, Runway's live
+// view of the card's window.
+type laneView struct {
+	window   views.RunwayWindow
+	timeline views.Timeline
+}
+
+// view is the view of its lanes Runway shown as r shows.
+func (r RunwayShown) view() laneView {
+	return laneView{window: r.Window, timeline: r.Timeline}
 }
 
 // runwayWords draws the words under each lane, as laid out, on the row under
 // it, from the lanes' first column, as wordsUnder places them: cued while
 // its account newly stands so, as wordsCue has it.
 func (f Frame) runwayWords(c *canvas, laid runwayLaid) {
+	v := f.Runway.view()
 	for _, ln := range laid.lanes {
-		words := f.wordsUnder(ln, laid.m.Now)
+		words := v.wordsUnder(ln, laid.m.Now)
 		for _, w := range words {
 			c.line(laid.x+w.x, ln.row+1, w.said)
 		}
-		if fade, ok := f.wordsCue(ln); ok && len(words) > 0 {
+		if fade, ok := f.wordsCue(ln, v.timeline.NowColumn()); ok && len(words) > 0 {
 			first, last := words[0], words[len(words)-1]
 			cue(c, f.Look, laid.x+first.x, ln.row+1, last.x+last.said.width()-first.x, fade)
 		}
 	}
 }
 
-// wordsUnder are the words under the lane ln at now, each placed from a
-// column counted from the lanes' first: of an account whose first read
-// failed, where the view holds now, that it can't be read, and why, in
+// wordsUnder are the words under the lane ln at now, as said has them, each
+// placed from a column counted from the lanes' first, as placeAlong places
+// them: its phrases, or where none of them is placed, what's said instead.
+func (v laneView) wordsUnder(ln laidLane, now time.Time) []placed {
+	cols := v.timeline.Columns
+	says := v.said(ln, now)
+	if words := placeAlong(cols, says.phrases...); words != nil {
+		return words
+	}
+	return placeAlong(cols, says.instead...)
+}
+
+// laneSays is what's said under a lane: its phrases, in order; and what's
+// said where none of them is, none where nothing is.
+type laneSays struct {
+	phrases, instead []phrase
+}
+
+// said is what's said under the lane ln at now: of an account whose first
+// read failed, where the view holds now, that it can't be read, and why, in
 // text.subtle; on a day or week gone that read nothing of it, that, in
-// text.faint; else what phrasesOf says; and where that's nothing, of a lane
-// with room throughout, that it has, in text.subtle, from the cell after
+// text.faint; else what phrasesOf says, and where none of that is said, of a
+// lane with room throughout, that it has, in text.subtle, from the cell after
 // now's column, or stepped back, the first.
-func (f Frame) wordsUnder(ln laidLane, now time.Time) []placed {
-	tl := f.Runway.Timeline
-	cols, period := tl.Columns, f.Runway.period()
+func (v laneView) said(ln laidLane, now time.Time) laneSays {
+	tl := v.timeline
 	_, _, named := tl.Named()
 	switch {
 	case ln.account.Routing.Kind == status.RoutingUnreadable && tl.NowColumn() >= 0:
-		return placeAlong(cols, phrase{parts: []line{{{unreadable(ln.account.Routing), dimInk}}}})
+		return laneSays{phrases: []phrase{{parts: []line{{{unreadable(ln.account.Routing), dimInk}}}}}}
 	case named && tl.Now.IsZero() && !slices.ContainsFunc(ln.Cells, func(c views.Cell) bool { return c != views.CellUnknown }):
-		return placeAlong(cols, phrase{parts: []line{{{"nothing read that " + period, faintInk}}}})
+		return laneSays{phrases: []phrase{{parts: []line{{{"nothing read that " + v.period(), faintInk}}}}}}
 	}
-	if said := placeAlong(cols, f.phrasesOf(ln, f.Runway.datedAgainst(now))...); said != nil || !ln.Room {
-		return said
+	says := laneSays{phrases: v.phrasesOf(ln, v.datedAgainst(now))}
+	if ln.Room {
+		from := tl.NowColumn() + 1
+		if named {
+			from = 0
+		}
+		says.instead = []phrase{{parts: []line{{{"room all " + v.period(), dimInk}}}, col: from}}
 	}
-	from := tl.NowColumn() + 1
-	if named {
-		from = 0
-	}
-	return placeAlong(cols, phrase{parts: []line{{{"room all " + period, dimInk}}}, col: from})
+	return says
 }
 
 // unreadable is what's said of an account whose first read failed, as its
@@ -91,17 +125,17 @@ func unreadable(r status.Routing) string {
 // over, from the column its start falls in, as stretchParts words it; and in
 // the week view, each reset of the week no stretch ends at, as in "resets Sun
 // 21:00", muted, ending at its │.
-func (f Frame) phrasesOf(ln laidLane, against time.Time) []phrase {
+func (v laneView) phrasesOf(ln laidLane, against time.Time) []phrase {
 	var phrases []phrase
 	for _, s := range ln.Stretches {
 		if !s.Over {
-			phrases = append(phrases, phrase{parts: f.stretchParts(s, ln.account, against), col: s.Column})
+			phrases = append(phrases, phrase{parts: v.stretchParts(s, ln.account, against), col: s.Column, at: s.Start})
 		}
 	}
-	if f.Runway.Window == views.RunwayWeek {
+	if v.window == views.RunwayWeek {
 		for _, r := range ln.Resets {
 			if !r.Back {
-				phrases = append(phrases, phrase{parts: []line{{{"resets " + prose.Dated(against, r.At), mutedInk}}}, col: r.Column, ends: true})
+				phrases = append(phrases, phrase{parts: []line{{{"resets " + prose.Dated(against, r.At), mutedInk}}}, col: r.Column, ends: true, at: r.At})
 			}
 		}
 	}
@@ -117,8 +151,8 @@ func (f Frame) phrasesOf(ln laidLane, against time.Time) []phrase {
 // back, as "  ·  back 17:10"; and of a stretch whose head says so, where
 // that's as the view's window resets, that it is, as ", as its 5-hour
 // resets".
-func (f Frame) stretchParts(s views.LaneStretch, a status.AccountNow, against time.Time) []line {
-	head, k, resets := headOf(s, a, f.Runway.Timeline.NowColumn(), against)
+func (v laneView) stretchParts(s views.LaneStretch, a status.AccountNow, against time.Time) []line {
+	head, k, resets := headOf(s, a, v.timeline.NowColumn(), against)
 	parts := []line{{{head, k}}}
 	ends, lifts := s.Ends()
 	if ends.IsZero() {
@@ -130,7 +164,7 @@ func (f Frame) stretchParts(s views.LaneStretch, a status.AccountNow, against ti
 	}
 	parts = append(parts, line{{prose.Separator + said + prose.Dated(against, ends), mutedInk}})
 	if resets && s.AsItResets {
-		parts = append(parts, line{{", as its " + runwayNames[f.Runway.Window] + " resets", mutedInk}})
+		parts = append(parts, line{{", as its " + runwayNames[v.window] + " resets", mutedInk}})
 	}
 	return parts
 }
@@ -216,15 +250,15 @@ func wholeParts(parts []line, cells int) line {
 	return l
 }
 
-// wordsCue is how far the cue on the lane ln's words has faded, reporting
-// false where they're not cued: as its account newly stands at its cap or
-// its limit, or with its token refused, as the frame's Changed has its state
-// newly changed and its lane has it so at now; or as a window of it every
-// model shares newly runs out, as the frame's TurnedOut has it, where its
-// lane draws a run-out; the later cue, of both.
-func (f Frame) wordsCue(ln laidLane) (float64, bool) {
+// wordsCue is how far the cue on the lane ln's words has faded, now's column
+// now, reporting false where they're not cued: as its account newly stands
+// at its cap or its limit, or with its token refused, as the frame's Changed
+// has its state newly changed and its lane has it so at now; or as a window
+// of it every model shares newly runs out, as the frame's TurnedOut has it,
+// where its lane draws a run-out; the later cue, of both.
+func (f Frame) wordsCue(ln laidLane, now int) (float64, bool) {
 	fade, cued := 1.0, false
-	if c, ok := f.Changed[ln.ID]; ok && ln.heldAt(f.Runway.Timeline.NowColumn()) {
+	if c, ok := f.Changed[ln.ID]; ok && ln.heldAt(now) {
 		fade, cued = c, true
 	}
 	if !slices.ContainsFunc(ln.Stretches, func(s views.LaneStretch) bool { return s.Projected }) {
@@ -247,13 +281,23 @@ func (ln laidLane) heldAt(col int) bool {
 	return slices.Contains([]views.Cell{views.CellCapped, views.CellLimited, views.CellRefused}, ln.Cells[col])
 }
 
-// datedAgainst is the moment the times Runway shown as r says are dated
-// against, as prose.Dated dates them: on a day stepped back to, today too,
-// its start, so its own times read alone and the next day's with their
-// weekday; else now, as in the live views and a week stepped back to.
-func (r RunwayShown) datedAgainst(now time.Time) time.Time {
-	if first, last, ok := r.Timeline.Named(); ok && first.Equal(last) {
-		return r.Timeline.Start
+// datedAgainst is the moment the times said under the lanes of the view v
+// are dated against, as prose.Dated dates them: on a day stepped back to,
+// today too, its start, so its own times read alone and the next day's with
+// their weekday; else now, as in the live views and a week stepped back to.
+func (v laneView) datedAgainst(now time.Time) time.Time {
+	if first, last, ok := v.timeline.Named(); ok && first.Equal(last) {
+		return v.timeline.Start
 	}
 	return now
+}
+
+// period is what the view v calls the span it looks across, as "room all
+// day" and "the day's highest" say it: a day, of the 5-hour view, live or
+// stepped back, or a week.
+func (v laneView) period() string {
+	if v.window == views.RunwayWeek {
+		return "week"
+	}
+	return "day"
 }

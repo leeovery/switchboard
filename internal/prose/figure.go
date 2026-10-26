@@ -17,6 +17,15 @@ func PercentWhole() string {
 	return Percent(1)
 }
 
+// PercentLeft is the share of a window left where utilization of it is used,
+// as a whole percentage, such as "77%": what the whole percentage Percent
+// shows of the use leaves of 100, so the two, each as said, sum to 100%
+// within its limit; and past it, as of a window read at 102%, "0%", never
+// below.
+func PercentLeft(utilization float64) string {
+	return strconv.Itoa(max(100-WholePercent(utilization), 0)) + "%"
+}
+
 // WholePercent is a utilization as the whole percentage Percent shows, a half
 // rounded to the even one.
 func WholePercent(utilization float64) int {
