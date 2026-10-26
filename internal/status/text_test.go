@@ -300,14 +300,14 @@ probed directly: the router isn't running
 			doc: status.Document{
 				GeneratedAt: now.UTC(),
 				Source:      status.SourceProbe,
-				Fallback:    status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"},
+				Fallback:    status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 5s"},
 				Accounts:    []status.Account{personal},
 			},
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
 best next: personal · Personal
-probed directly: the router is unhealthy, no answer within 500ms
+probed directly: the router is unhealthy, no answer within 5s
 `,
 		},
 		{

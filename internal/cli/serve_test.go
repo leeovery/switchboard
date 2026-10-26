@@ -554,6 +554,88 @@ func TestServeMakesTheTokensDirectoryPrivate(t *testing.T) {
 	}
 }
 
+func TestServeTrimsLaunchdsLogAsTheServiceStartsIt(t *testing.T) {
+	// A log of some 11 MiB, past the 10 a log rolls over at, its lines
+	// numbered.
+	var before strings.Builder
+	for n := 0; before.Len() <= 11<<20; n++ {
+		fmt.Fprintf(&before, "line %07d of what an earlier router printed\n", n)
+	}
+	// trimmed is the log cut to its newest 5 MiB, from the first line to
+	// start in them.
+	trimmed := before.String()[before.Len()-(5<<20):]
+	trimmed = trimmed[strings.IndexByte(trimmed, '\n')+1:]
+	tests := []struct {
+		name string
+		// byService has the service run serve, its output and its errors
+		// launchd's log, held open to append, as launchd holds it; else its
+		// output is a terminal's, and the log is left as it was.
+		byService bool
+		// want is what serve's output holds before the error it fails with.
+		want string
+	}{
+		{name: "run by the service", byService: true, want: trimmed},
+		{name: "run by hand", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var env map[string]string
+			if tt.byService {
+				env = map[string]string{"XPC_SERVICE_NAME": service.Label}
+			}
+			srv := newServeSetup(t, fakeClaudeAPI(t), env)
+			// A config that won't load, so serve fails as it starts.
+			srv.extra = "\n[notifications\n"
+			srv.writeConfig(t)
+			path := filepath.Join(srv.state, "logs", "launchd.log")
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(before.String()), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			output := filepath.Join(t.TempDir(), "terminal")
+			if tt.byService {
+				output = path
+			}
+			held, err := os.OpenFile(output, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = held.Close() }()
+
+			root := cli.NewRootCommand(srv.deps)
+			root.SetArgs([]string{"serve"})
+			root.SetOut(held)
+			root.SetErr(held)
+			if code := cli.Execute(root); code != 1 {
+				t.Fatalf("switchboard serve exited %d, want 1, failing to start", code)
+			}
+			printed := fileText(t, output)
+			kept, failure, found := strings.Cut(printed, "Error: ")
+			if !found || !strings.HasPrefix(failure, "parse config "+srv.config+": toml: ") || strings.Count(failure, "\n") != 1 || !strings.HasSuffix(failure, "\n") {
+				t.Fatalf("serve's output ends %q, want it to end with the error serve failed to start with", printed[max(0, len(printed)-300):])
+			}
+			if kept != tt.want {
+				t.Errorf("serve's output holds %d bytes before the error, from %q, want %d, from %q", len(kept), kept[:min(len(kept), 50)], len(tt.want), tt.want[:min(len(tt.want), 50)])
+			}
+			if got := fileText(t, path); !tt.byService && got != before.String() {
+				t.Errorf("launchd's log holds %d bytes, from %q, want it as it was", len(got), got[:min(len(got), 50)])
+			}
+		})
+	}
+}
+
+// fileText returns what the file at path holds.
+func fileText(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
 func TestServeBringsTheSkillUpToDate(t *testing.T) {
 	version := strconv.Itoa(skill.Version())
 	tests := []struct {

@@ -22,6 +22,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -106,17 +107,18 @@ func TestStatusProbesWithoutTheRouter(t *testing.T) {
 
 func TestStatusProbesPastARouterThatDoesntAnswer(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.deps.Patience = launch.Patience{Answer: 100 * time.Millisecond}
 	serveSilently(t, srv.socket())
 
 	got := run(t, srv.deps, "status", "--pretty")
 	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
-probed directly: the router is unhealthy, no answer within 500ms
+probed directly: the router is unhealthy, no answer within 100ms
 `}
 	if got != want {
 		t.Errorf("switchboard status =\n%+v\nwant\n%+v", got, want)
 	}
 	doc := statusJSON(t, srv.deps)
-	if want := (status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"}); doc.Source != status.SourceProbe || doc.Fallback != want {
+	if want := (status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 100ms"}); doc.Source != status.SourceProbe || doc.Fallback != want {
 		t.Errorf("switchboard status --json printed source %q and fallback %+v, want probe, %+v", doc.Source, doc.Fallback, want)
 	}
 }

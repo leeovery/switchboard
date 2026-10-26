@@ -41,6 +41,12 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   file damaged where its size hasn't changed isn't noticed by the router, and that day reads its
   lines at every day back: delete that day's `rows-<date>.gz`, and the router writes it again on its
   next round.
+- **`claude` won't start, the router down:** with the router not running, or not healthy, `claude`
+  starts nothing and says so. Run [`switchboard service status`](commands.md#service) to see
+  whether the LaunchAgent is installed and loaded and how the router answers, then
+  `switchboard service install` or `switchboard service restart`. To start Claude Code without the
+  router this once, unrouted and unrecorded, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`; to
+  have it do so always, set [`when_router_down = "direct"`](configuration.md#top-level-keys).
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.
@@ -67,7 +73,8 @@ time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=42
   set. For the router, `serve --log-level` overrides it, and so does `service install --log-level`,
   which passes it on.
 - **Rotation:** `router.log` and `cli.log` roll over before they'd pass 10 MiB, and each keeps five
-  old files. Nothing rolls `launchd.log`, which launchd writes.
+  old files. `launchd.log`, which launchd writes, isn't rolled over: once it passes 10 MiB, it's
+  cut to its newest 5 MiB as the service starts the router.
 - **Redaction:** nothing logs a token or an account's label. Accounts appear by id, and anything
   shaped like a token is replaced with `[redacted]`.
 - **Never in the way:** no command logs to stdout or stderr, except `serve` at a terminal. So

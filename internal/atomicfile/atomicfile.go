@@ -1,11 +1,14 @@
 // Package atomicfile writes files whole or not at all: each is written beside
 // where it goes, synced, then renamed into place, so no reader finds half of
-// one, and a crash can't cost the one it replaces.
+// one, and a crash can't cost the one it replaces. One found corrupt is set
+// aside beside where it was, for someone to look at.
 package atomicfile
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -52,7 +55,17 @@ func Target(path string) (string, error) {
 
 // Write writes data to a file at path, with the permissions perm, in place of
 // any file there: whole, or not at all.
-func Write(path string, data []byte, perm fs.FileMode) (err error) {
+func Write(path string, data []byte, perm fs.FileMode) error {
+	return WriteFrom(path, perm, func(w io.Writer) error {
+		_, err := w.Write(data)
+		return err
+	})
+}
+
+// WriteFrom writes what write writes, to the writer it's given, to a file at
+// path, with the permissions perm, in place of any file there: whole, or not
+// at all, as Write does, and not at all where write fails.
+func WriteFrom(path string, perm fs.FileMode, write func(w io.Writer) error) (err error) {
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
 		return err
@@ -66,7 +79,11 @@ func Write(path string, data []byte, perm fs.FileMode) (err error) {
 	if err = tmp.Chmod(perm); err != nil {
 		return err
 	}
-	if _, err = tmp.Write(data); err != nil {
+	buffered := bufio.NewWriter(tmp)
+	if err = write(buffered); err != nil {
+		return err
+	}
+	if err = buffered.Flush(); err != nil {
 		return err
 	}
 	if err = tmp.Sync(); err != nil {
