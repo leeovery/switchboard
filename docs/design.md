@@ -8230,7 +8230,8 @@ compared with a constant outside the chrome:
 What the build settled where the design estimated: GLANCE's natural with the sample's names is 113
 columns, so it pairs with WHEN YOU WORK from 175; WHEN YOU WORK with no day known says `nothing
 recorded yet`; and a card for an account the router's document doesn't hold yet has its label
-alone, numbered as Runway will number it. `art/` is to be recorded again with Graphs in it. What
+alone, numbered as Runway will number it. The tour stops on Graphs, and its still joins the README's grid
+and the dashboard's guide (#170). What
 the build left is gathered in [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md).
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.

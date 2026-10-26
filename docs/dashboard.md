@@ -452,6 +452,10 @@ A step back is never kept.
 off: first a burn-down card for every account in each window, then whichever other charts you
 show.
 
+<div align="center">
+<img src="../art/graphs.webp" alt="Graphs: a burn-down card for each account, its room over the week and then over the 5 hours, work at its cap till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the pool's room under them" width="840">
+</div>
+
 ### Sections on Graphs
 
 Graphs has five sections, always in this order. Each key shows or hides its section, at any size,
