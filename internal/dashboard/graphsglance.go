@@ -287,13 +287,13 @@ func (g glance) poolLine(names []accountName) *glanceLine {
 	for i, w := range runwayWindows {
 		shown[i] = shownWindow{key: w.KeyIn(g.m.Policy()), name: runwayNames[w]}
 	}
-	pooled, ok := poolRow(g.m.Pool(), names, shown)
+	row, ok := poolRow(g.m.Pool(), names, shown)
 	if !ok {
 		return nil
 	}
-	pool := &glanceLine{name: pooled.name}
+	pool := &glanceLine{name: row.name}
 	for i, w := range runwayWindows {
-		pool.gauges = append(pool.gauges, glanceGauge{spark: poolSpark{span: g.pools[w]}, words: pooled.gauges[i]})
+		pool.gauges = append(pool.gauges, glanceGauge{spark: poolSpark{span: g.pools[w]}, words: row.gauges[i]})
 	}
 	return pool
 }

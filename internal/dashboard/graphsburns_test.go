@@ -216,13 +216,6 @@ func TestGraphsCardWithNothingToDrawIsEmptyButForNowsLine(t *testing.T) {
 	}
 }
 
-// A card is numbered as Runway's lane numbers its account, by the moment,
-// whatever the config's order, as while the router keeps a config the
-// dashboard's no longer has: so with personal removed, side is still 3. A
-// configured account the moment doesn't hold yet, as just after it's added
-// at the config's end, has its card in the config's order, numbered after
-// the moment's last place, its label alone over its chart, empty but for
-// now's line.
 // numbering is a config over a router's document, as Graphs numbers its
 // accounts: the document; the ids configured, in the config's order; and
 // the label each account the document lacks takes, by its id.
@@ -290,6 +283,13 @@ func labelledAs(drawn, want string) bool {
 	return ok && (rest == "" || strings.HasPrefix(rest, " "))
 }
 
+// A card is numbered as Runway's lane numbers its account, by the moment,
+// whatever the config's order, as while the router keeps a config the
+// dashboard's no longer has: so with personal removed, side is still 3. A
+// configured account the moment doesn't hold yet, as just after it's added
+// at the config's end, has its card in the config's order, numbered after
+// the moment's last place, its label alone over its chart, empty but for
+// now's line.
 func TestGraphsCardsAreNumberedAsRunwayNumbersTheirAccounts(t *testing.T) {
 	for _, tt := range numberings() {
 		t.Run(tt.name, func(t *testing.T) {
