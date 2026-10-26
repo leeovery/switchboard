@@ -90,7 +90,7 @@ func TestTheWatchOpensGraphsShowingTheSectionsThePreferencesKept(t *testing.T) {
 	if got := h.model.frame(h.clock.now).Graphs.Sections.Names(); !slices.Equal(got, []string{"glance"}) {
 		t.Errorf("the watch opens Graphs showing %q, want glance, as kept", got)
 	}
-	if shown := h.view(); !strings.Contains(shown, "GLANCE ") || strings.Contains(shown, "WEEK ") {
+	if shown := h.view(); !strings.Contains(shown, "\nGLANCE ") || strings.Contains(shown, "\nWEEK ") {
 		t.Errorf("the screen is\n%s\nwant GLANCE's heading alone", shown)
 	}
 }
@@ -240,13 +240,13 @@ func TestASessionsPageOverGraphsKeepsWForModels(t *testing.T) {
 	}
 }
 
-// whenHarness is historyHarness on Graphs, its sections those named, the
-// ledger holding work's requests on Monday 21 September 2026 at 09:00, a
-// week before the clock starts.
+// whenHarness is historyHarness on Graphs, its sections those named, every
+// one hidden where none is, the ledger holding work's requests on Monday 21
+// September 2026 at 09:00, a week before the clock starts.
 func whenHarness(t *testing.T, sections ...string) (*harness, *daysLedger) {
 	t.Helper()
 	h, l := historyHarness(t, dashboard.Graphs, dashboard.HistoryPage{})
-	h.model.graphs = dashboard.GraphsSectionsNamed(sections)
+	h.model.graphs = dashboard.GraphsSectionsNamed(append([]string{}, sections...))
 	l.days["2026-09-21"] = hourly("2026-09-21", 9, 8)
 	return h, l
 }
@@ -364,7 +364,7 @@ func TestGraphsSaysItsLoadingWhileWhenYouWorksReadTakesAWhile(t *testing.T) {
 		t.Errorf("the days read, the screen is\n%s\nwant nothing of loading, and WHEN YOU WORK's weeks", shown)
 	}
 
-	h, _ = whenHarness(t, "glance")
+	h, _ = whenHarness(t)
 	if unread := holdingBack[yearReadMsg](h, h.init()...); len(unread) != 0 {
 		t.Errorf("WHEN YOU WORK hidden, %d reads of the ledger's days were asked for, want none", len(unread))
 	}
@@ -391,7 +391,7 @@ func TestGraphsReadsNoDaysOffItsTab(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, l := whenHarness(t, "glance")
+			h, l := whenHarness(t)
 			h.start()
 			tt.away(h)
 			h.model.graphs = dashboard.GraphsSectionsNamed([]string{"when"})

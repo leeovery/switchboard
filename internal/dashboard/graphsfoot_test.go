@@ -136,7 +136,7 @@ func TestGraphsLegendIsTheViewsLastRowsWhileABurnDownShows(t *testing.T) {
 		if got := text[foot-len(tt.legend) : foot]; !slices.Equal(got, tt.legend) || text[foot] != "" {
 			t.Errorf("%s: the view's last rows read %q and the state row %q, want the legend %q over a blank row", tt.name, got, text[foot], tt.legend)
 		}
-		if drawn, want := strings.Contains(strings.Join(text, "\n"), "room left"), len(tt.legend) > 0; drawn != want {
+		if drawn, want := strings.Contains(strings.Join(text, "\n"), "where it's heading"), len(tt.legend) > 0; drawn != want {
 			t.Errorf("%s: the legend is drawn %t, want %t", tt.name, drawn, want)
 		}
 		spare := text[f.top()+f.graphsLaid().rows : foot-len(tt.legend)]

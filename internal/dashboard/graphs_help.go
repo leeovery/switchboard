@@ -106,7 +106,7 @@ func glanceHelp() helpPart {
 				"start to their latest reset, and its room, as 1.2 of 3 left."),
 			said("GLANCE takes the width it needs whole, and no more. Narrower, its words take switchboard usage's short forms, " +
 				"then its names narrow; narrower still, its windows stack, the week's rows over the 5-hour's. It sits beside " +
-				"WHEN YOU WORK wherever both fit whole."),
+				"WHEN YOU WORK where both show and both fit whole, 10 cells apart; elsewhere WHEN YOU WORK comes under it."),
 		},
 	}
 }

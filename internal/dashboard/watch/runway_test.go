@@ -23,8 +23,10 @@ import (
 // runwayed is a harness of Runway: its readings history, its ledger, and
 // how many times it built Runway's lanes, and what it built them from last;
 // and of Graphs, by the window, how many times it built Graphs' lanes, and
-// what it built them from last; and how many times it built POOL's stack,
-// from what and from which stack last, and the stack that built.
+// what it built them from last; how many times it built POOL's stack,
+// from what and from which stack last, and the stack that built; and, by
+// the window's key, how many times it built the pool's room over GLANCE's
+// spans, from what and from which last, and what that built.
 type runwayed struct {
 	*harness
 	filed        *filedReadings
@@ -37,6 +39,10 @@ type runwayed struct {
 	poolFrom     views.PoolStackFrom
 	poolGiven    views.PoolStack
 	poolBuilt    views.PoolStack
+	spanBuilds   map[string]int
+	spanFrom     map[string]views.PoolRoomFrom
+	spanGiven    map[string]views.PoolSpan
+	spanBuilt    map[string]views.PoolSpan
 }
 
 // runwayHarness is the router of three, on the tab given, 160 cells wide and
@@ -57,6 +63,8 @@ func runwayHarnessOf(t *testing.T, doc status.Document, view dashboard.View, set
 	r := &runwayed{
 		harness: h, filed: &filedReadings{held: held},
 		graphsBuilds: make(map[views.RunwayWindow]int), graphsFrom: make(map[views.RunwayWindow]views.LanesFrom),
+		spanBuilds: make(map[string]int), spanFrom: make(map[string]views.PoolRoomFrom),
+		spanGiven: make(map[string]views.PoolSpan), spanBuilt: make(map[string]views.PoolSpan),
 	}
 	r.ledger = &daysLedger{Empty: h.emptyLedger(), clock: h.clock, first: "2024-06-03", days: map[string]ledger.Summary{}}
 	cfg := h.config(Size{Width: 160, Height: 37})
@@ -67,6 +75,7 @@ func runwayHarnessOf(t *testing.T, doc status.Document, view dashboard.View, set
 	}
 	h.model = New(t.Context(), cfg)
 	h.model.runwayTab.look, h.model.graphsTab.look, h.model.graphsTab.poolLook = r.counted, r.countedForGraphs, r.countedPool
+	h.model.graphsTab.spanLook = r.countedSpan
 	h.start()
 	return r
 }
@@ -95,6 +104,16 @@ func (r *runwayed) countedPool(p views.PoolStack, from views.PoolStackFrom) view
 	r.poolFrom, r.poolGiven = from, p
 	r.poolBuilt = p.Look(from)
 	return r.poolBuilt
+}
+
+// countedSpan builds the pool's room over a window's span as
+// views.PoolSpan.Look does, counting each build of each window's, and holding
+// what and which span it was built from, and what that built.
+func (r *runwayed) countedSpan(p views.PoolSpan, from views.PoolRoomFrom) views.PoolSpan {
+	r.spanBuilds[from.Key]++
+	r.spanFrom[from.Key], r.spanGiven[from.Key] = from, p
+	r.spanBuilt[from.Key] = p.Look(from)
+	return r.spanBuilt[from.Key]
 }
 
 // weeksFrom has weeks start on the day given.

@@ -490,7 +490,7 @@ func TestGlanceTakesTheRowsThePlannerCountsAtEveryWidth(t *testing.T) {
 	four := append(trioConfigured(), config.Account{ID: "lab", Label: "research-lab-and-consult"})
 	for _, accounts := range []config.Accounts{trioConfigured(), trioConfigured()[:1], four} {
 		for width := 28; width <= 220; width++ {
-			counted := graphsGiven{width: width, rows: 200, shown: GraphsSectionsNamed([]string{"glance"}), accounts: accounts}.shape().glance
+			counted := graphsGiven{width: width, rows: 200, shown: GraphsSectionsNamed([]string{"glance"}), accounts: accounts}.shape().glance.rows()
 			c, l := glanceIn(glanceOf(trio(), Look{}), accounts, width, 3)
 			rows := glanceRows(c)
 			key := rows[counted-len(l.key) : counted]

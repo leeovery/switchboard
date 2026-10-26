@@ -83,8 +83,8 @@ func TestGraphsBuildsPoolsStackOnceAMessageWhileItShows(t *testing.T) {
 }
 
 // POOL alone shown, Graphs has the readings history's live tail read as it
-// opens and again at each look, as the lanes have it read; with neither
-// POOL nor a burn-down section shown, nothing reads it.
+// opens and again at each look, as the lanes have it read; with WHEN YOU
+// WORK alone shown, nothing reads it.
 func TestGraphsReadsTheReadingsHistoryForPoolAlone(t *testing.T) {
 	read := filedOn("work", "7d", start.Add(-2*time.Hour), 0.3)
 	r := runwayHarness(t, dashboard.Graphs, graphsShowing("pool"), read)
@@ -97,10 +97,10 @@ func TestGraphsReadsTheReadingsHistoryForPoolAlone(t *testing.T) {
 		t.Errorf("at a look, the live tail was read %d more times, want once", r.filed.tails-tails)
 	}
 
-	none := runwayHarness(t, dashboard.Graphs, graphsShowing("glance"), read)
+	none := runwayHarness(t, dashboard.Graphs, graphsShowing("when"), read)
 	none.lookAt(start.Add(interval))
 	if none.filed.tails != 0 || none.poolBuilds != 0 {
-		t.Errorf("with GLANCE alone shown, the live tail was read %d times, POOL's stack built %d; want neither", none.filed.tails, none.poolBuilds)
+		t.Errorf("with WHEN YOU WORK alone shown, the live tail was read %d times, POOL's stack built %d; want neither", none.filed.tails, none.poolBuilds)
 	}
 }
 

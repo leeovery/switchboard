@@ -3970,9 +3970,10 @@ the pages that list windows as they stand it shows the models' own (see Keys).
 - **A blank row separates two sections,** and follows the pool's line where a section comes after
   it.
 - **GLANCE and WHEN YOU WORK sit side by side** where both show and both fit at their naturals with
-  10 cells between, GLANCE from column 0: from 175 columns with the sample's names, a figure
-  its parts give, never one the code compares the width with. Elsewhere WHEN YOU WORK comes under
-  GLANCE. Every other section takes the width.
+  10 cells between, GLANCE from column 0 and WHEN YOU WORK after it to the width's end: from 175
+  columns with the sample's names, a figure its parts give, never one the code compares the width
+  with. Each heading is across its own columns, and the pair takes the rows of the taller.
+  Elsewhere WHEN YOU WORK comes under GLANCE. Every other section takes the width.
 
 **The burn-down cards,** WEEK's and 5-HOUR's: each account's room over its own window, from its start
 to its reset, as v0.1.6's cards drew it (`git show v0.1.6:testdata/vhs/reference/accounts-3-week.txt`),
@@ -8218,9 +8219,9 @@ compared with a constant outside the chrome:
   line, the legend and the whole-page scroll (#160); the cards' chart and axis (#155), their words,
   Runway's own, from Runway's lanes built at its live view while Graphs shows (#161), drawn on the
   page (#163); POOL's hues, stack, axis and key (#156, #159, #164); WHEN YOU WORK's grid (#162,
-  #164); GLANCE (#165), and GLANCE placed beside WHEN YOU WORK where both fit whole.
+  #164); GLANCE (#165), placed beside WHEN YOU WORK where both fit at their naturals (#167).
 - **Help and docs:** `HELP · GRAPHS` in full, its scroll keys listed always, as the page can scroll
-  at any size; the dashboard's guide, its Graphs section and every list Graphs joins.
+  at any size; the dashboard's guide, its Graphs section and every list Graphs joins (#166).
 
 What the build settled where the design estimated: GLANCE's natural with the sample's names is 113
 columns, so it pairs with WHEN YOU WORK from 175; WHEN YOU WORK with no day known says `nothing

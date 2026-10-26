@@ -36,10 +36,10 @@ type pageLoadingMsg struct {
 // SESSIONS, listing a session, as followed held them for the message, on
 // the List held, as the Overview's SESSIONS and Sessions do, which names
 // their sessions, till its first read lands, as listAwaited has it; Runway
-// on the readings history; Graphs on its live tail, while it reads lanes or
-// POOL of it, as graphsReadsHistory has it, never on a span Runway stepped
-// back to, and
-// on the ledger's days while WHEN YOU WORK shows; and the Log on its lines
+// on the readings history; Graphs on its live tail, while it reads lanes,
+// POOL or GLANCE's pool's room of it, as graphsReadsHistory has it, never on
+// a span Runway stepped back to, and on the ledger's days while WHEN YOU
+// WORK shows; and the Log on its lines
 // and events, from as it first shows till its first read lands, whether or
 // not that read has begun, as it waits for another read of the ledger to
 // land first. A session's page says its own, as pageLoading has it.

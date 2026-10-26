@@ -172,7 +172,7 @@ func TestGraphsHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"GLANCE's words", "then switchboard usage's words for the window"},
 		{"GLANCE's pool", "from its accounts' earliest start to their latest reset"},
 		{"GLANCE narrowing", "its words take switchboard usage's short forms, then its names narrow"},
-		{"GLANCE beside", "It sits beside WHEN YOU WORK wherever both fit whole"},
+		{"GLANCE beside", "It sits beside WHEN YOU WORK where both show and both fit whole, 10 cells apart; elsewhere WHEN YOU WORK comes under it"},
 		{"WHEN YOU WORK's rows", "a row a weekday, from the first day of the week, as week_starts begins weeks"},
 		{"the weeks it counts", "summed over the four whole weeks before today and divided by the days of that weekday known"},
 		{"fewer weeks", "or fewer where fewer are known; with none, the heading says no weeks, and the section nothing recorded yet"},
