@@ -1349,25 +1349,27 @@ func (u *usage) windowsReadAt() map[string]time.Time {
 // recall takes in what the state file kept of the accounts' usage, as the
 // router starts, as each usage's recall has it, holding reporting whether an
 // account holds the token it held then; but for what it kept of accounts no
-// longer configured, and reports whether it left any out.
-func (s *state) recall(saved savedUsage, holding func(id string) bool) (dropped bool) {
+// longer configured. It reports whether what it took in differs from what
+// the file holds, as where it left anything out, so the file is written
+// again without it.
+func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed bool) {
 	now := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for id, reading := range saved.Readings {
 		u, configured := s.usage[id]
 		if !configured {
-			dropped = true
+			changed = true
 			continue
 		}
-		u.recall(reading, holding(id), now)
+		changed = u.recall(reading, holding(id), now) || changed
 	}
 	for key, families := range saved.WindowFamilies {
 		for _, family := range families {
 			s.seeFamily(key, family)
 		}
 	}
-	return dropped
+	return changed
 }
 
 // recall takes in what the state file kept of the account, at now: its
@@ -1378,8 +1380,9 @@ func (s *state) recall(saved savedUsage, holding func(id string) bool) (dropped 
 // hand can hold is taken as the router would have kept it: a probe kept as
 // ending after now, as before the clock was set back, ended now; a count of
 // misses runs from none to backingOff; and an error has nothing shaped like
-// a token in it.
-func (u *usage) recall(kept savedReading, held bool, now time.Time) {
+// a token in it. It reports whether it took the probes otherwise than they
+// were kept, or left them out.
+func (u *usage) recall(kept savedReading, held bool, now time.Time) (changed bool) {
 	for _, w := range kept.Windows {
 		u.windows[w.Key] = w
 		u.readAt[w.Key] = kept.WindowsReadAt[w.Key].UTC()
@@ -1389,4 +1392,5 @@ func (u *usage) recall(kept savedReading, held bool, now time.Time) {
 		u.probed, u.misses = score.Earlier(kept.Probed.UTC(), now), min(max(kept.Misses, 0), backingOff)
 		u.probeErr = redact.Text(kept.ProbeError)
 	}
+	return !u.probed.Equal(kept.Probed) || u.misses != kept.Misses || u.probeErr != kept.ProbeError
 }

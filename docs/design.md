@@ -636,11 +636,12 @@ accounts:
   its last probe said. An account that lost its token before it was saved has none of its probes
   kept, and one without a usable token as the router starts has none restored, as though the
   router had seen it lose its token, so a restart with the token back starts it afresh, as running
-  on would have. A probe kept
-  as ending later than the router starts, as before a clock set back, ended as it starts; a count
-  below none is none; and an error has anything shaped like a token redacted, as a file edited by
-  hand may hold either. An account that went out on another token meanwhile, its file holding one
-  other than the token `state.json` kept the hash of, starts afresh, as above.
+  on would have. A probe kept as ending later than the router starts, as before a clock set back,
+  ended as it starts; a count below none is none; and an error has anything shaped like a token
+  redacted, as a file edited by hand may hold either. An account that went out on another token
+  meanwhile, its file holding one other than the token `state.json` kept the hash of, starts
+  afresh, as above. Whatever of the probes the router leaves out, or takes otherwise than kept,
+  has the file written again as it took them.
 - **Asleep:** the router looks at least once a minute, as a timer's clock stops while the Mac
   sleeps, so a probe missed while it slept goes out within a minute of its waking; one due before a
   week's reset that has passed meanwhile is lost with it, and the rounds' next probe reads the

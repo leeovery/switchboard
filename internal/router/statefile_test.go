@@ -279,6 +279,9 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 	if !log.Has("level=INFO", `msg="loaded state"`, "readings=1") {
 		t.Errorf("log reads\n%s\nwant the state loaded with one reading, work's: side's probes alone are kept", log)
 	}
+	if loaded.changes.unsaved.Load() {
+		t.Error("loading the file left it due to be saved, want it as it was: it took the probes as they were kept")
+	}
 	for id, u := range saved.state.usage {
 		got := loaded.state.usage[id]
 		if !got.probed.Equal(u.probed) || got.probeErr != u.probeErr || got.misses != u.misses {
@@ -365,6 +368,9 @@ func TestAProbeKeptAsEndingLaterThanTheRouterStartsEndedAsItStarts(t *testing.T)
 	f.load(path)
 	if got := f.state.usage["work"].probed; !got.Equal(start) {
 		t.Errorf("work's last probe loaded as ended at %v, want %v, as the router starts", got, start)
+	}
+	if !f.changes.unsaved.Load() {
+		t.Error("work's probe kept as ending later is still in the state file, want it due to be saved as it was taken")
 	}
 	rounding := f.state.rounding(func(string, time.Time) bool { return true })
 	if !rounding("work", start.Add(5*time.Minute)) {
@@ -467,7 +473,9 @@ func TestAnAccountWithoutItsTokenAsTheRouterStartsStartsAfreshOnceItsBack(t *tes
 		t.Errorf("side, without its token, loaded its probes as ended %v, %q, %d in a row, tokenless %v; want none, tokenless, as on a loss",
 			u.probed, u.probeErr, u.misses, u.tokenless)
 	}
-	tokenless.changes.note()
+	if !tokenless.changes.unsaved.Load() {
+		t.Error("side's probes are still in the state file, want it due to be saved without them")
+	}
 	tokenless.save()
 
 	back := newTestFile(at(start.Add(2*time.Hour)), testAccounts())
@@ -481,18 +489,25 @@ func TestAnAccountWithoutItsTokenAsTheRouterStartsStartsAfreshOnceItsBack(t *tes
 }
 
 func TestAStateFileEditedByHandLoadsAsTheRouterWouldHaveKeptIt(t *testing.T) {
-	const tokenShaped = "sk-ant-oat01-fake_token-shaped"
+	const (
+		clean       = "HTTP 401 · invalid x-api-key"
+		tokenShaped = clean + " sk-ant-oat01-fake_token-shaped"
+		redacted    = clean + " [redacted]"
+	)
 	tests := []struct {
-		name   string
-		misses int
-		// wantMisses is the count work loads with, and wantWait how long
-		// after its last probe its rounds wait.
+		name     string
+		misses   int
+		probeErr string
+		// wantMisses is the count work loads with, wantWait how long after
+		// its last probe its rounds wait, and wantErr the error it reads.
 		wantMisses int
 		wantWait   time.Duration
+		wantErr    string
 	}{
-		{name: "misses below none", misses: -1, wantWait: reprobeAfter},
-		{name: "misses the least an int holds", misses: math.MinInt, wantWait: reprobeAfter},
-		{name: "misses the most an int holds", misses: math.MaxInt, wantMisses: backingOff, wantWait: retryMost},
+		{name: "misses below none", misses: -1, probeErr: clean, wantWait: reprobeAfter, wantErr: clean},
+		{name: "misses the least an int holds", misses: math.MinInt, probeErr: clean, wantWait: reprobeAfter, wantErr: clean},
+		{name: "misses the most an int holds", misses: math.MaxInt, probeErr: clean, wantMisses: backingOff, wantWait: retryMost, wantErr: clean},
+		{name: "an error holding a token's shape", misses: 2, probeErr: tokenShaped, wantMisses: 2, wantWait: 2 * firstRetry, wantErr: redacted},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -502,7 +517,7 @@ func TestAStateFileEditedByHandLoadsAsTheRouterWouldHaveKeptIt(t *testing.T) {
 				Tokens:  map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
 				Readings: map[string]savedReading{"work": {
 					ReadAt: start.Add(-time.Hour), Windows: []quota.Window{session, week},
-					Probed: start, ProbeError: "HTTP 401 · invalid x-api-key " + tokenShaped, Misses: tt.misses,
+					Probed: start, ProbeError: tt.probeErr, Misses: tt.misses,
 				}},
 			})
 			f := newTestFile(at(start), testAccounts())
@@ -511,12 +526,15 @@ func TestAStateFileEditedByHandLoadsAsTheRouterWouldHaveKeptIt(t *testing.T) {
 			if got := f.state.usage["work"].misses; got != tt.wantMisses {
 				t.Errorf("work loaded with %d misses in a row, want %d", got, tt.wantMisses)
 			}
+			if !f.changes.unsaved.Load() {
+				t.Error("what the hand edit held is still in the state file, want it due to be saved as it was taken")
+			}
 			rounding := f.state.rounding(func(string, time.Time) bool { return true })
 			if rounding("work", start.Add(tt.wantWait-time.Second)) || !rounding("work", start.Add(tt.wantWait)) {
 				t.Errorf("work due on the rounds other than %v after its last probe, want then", tt.wantWait)
 			}
-			if got := f.state.usage["work"].probeErr; got != "HTTP 401 · invalid x-api-key [redacted]" {
-				t.Errorf("work's probe error loaded as %q, want the token's shape redacted", got)
+			if got := f.state.usage["work"].probeErr; got != tt.wantErr {
+				t.Errorf("work's probe error loaded as %q, want %q, anything shaped like a token redacted", got, tt.wantErr)
 			}
 		})
 	}
