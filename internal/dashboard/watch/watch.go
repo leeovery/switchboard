@@ -80,10 +80,11 @@ type Source interface {
 	Stream(ctx context.Context) (<-chan router.StreamEvent, error)
 }
 
-// full reports whether the read brings every account up to date: the router
-// refreshes those it hasn't read lately, or every account is probed.
+// full reports whether the read is a full one, as a plan asks for once an
+// interval and R asks for: it probes every account when the router doesn't
+// answer, and reads the router's history with its document when it does.
 func full(r status.Read) bool {
-	return r.Probe && r.Refresh > 0
+	return r.Probe
 }
 
 // Notifier posts a desktop notification.
@@ -116,7 +117,8 @@ type Config struct {
 	// events in turn.
 	Await func(wait tea.Cmd) tea.Cmd
 	// Interval is the longest the dashboard goes between full reads: ones
-	// that probe, or have the router refresh what it hasn't read lately.
+	// that probe every account when the router doesn't answer, and read the
+	// router's history when it does.
 	Interval time.Duration
 	// Policy is the provider's say in which windows leave an account without
 	// room.
@@ -1044,7 +1046,7 @@ func logRead(msg fetchedMsg, look status.Moment, next time.Time) {
 		}
 	}
 	level := slog.LevelInfo
-	if look.Routed && msg.read.Refresh == 0 {
+	if look.Routed && msg.read == (status.Read{}) {
 		level = slog.LevelDebug
 	}
 	logger.Log(context.Background(), level, "usage read", "source", sourceOf(look),

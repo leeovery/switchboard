@@ -213,7 +213,7 @@ For example, say two accounts have a weekly reset banked on claude.ai and a thir
 two, let them run out, and reset them by hand. The router sees a reset the next time it reads the
 account, which happens:
 
-- on its own rounds, within half an hour;
+- on its own rounds, within 5 minutes;
 - before a choice it makes afresh, once its reading is 15 minutes old; or
 - at once, with `switchboard usage -r` or `R` on the dashboard. These probe an account that can
   take no request however lately the router read it, unless the router probed the account in the

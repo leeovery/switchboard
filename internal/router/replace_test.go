@@ -22,7 +22,9 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestARestartingRouterReplacesItselfInPlace(t *testing.T) {
@@ -161,6 +163,49 @@ func TestARouterRestartingInPlaceKeepsWhatItsControlAPIChangesAsItStops(t *testi
 	if lines, err := os.ReadFile(filed[0]); err != nil || !strings.Contains(string(lines), `"kind":"pin","account":"side"`) {
 		t.Errorf("the events filed read\n%s\n(%v), want the pin to side, set as it stopped, among them", lines, err)
 	}
+}
+
+func TestARouterRestartingInPlaceHandsOverHowItsProbesWent(t *testing.T) {
+	s := newSelfWatching(t, true)
+	prober := &fakeProber{}
+	prober.answer(workToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, week}}})
+	prober.answer(sideToken, probeResult{err: errors.New("HTTP 529 · Overloaded")})
+	s.cfg.Prober = prober
+	execs := replacing(&s.cfg)
+	r := startRouter(t, s.cfg)
+	socket := router.SocketPath(s.cfg.StateDir)
+	waitForStatus(t, socket, func(doc status.Document) bool {
+		side, _ := doc.Account("side")
+		return side.Error != ""
+	})
+
+	if _, err := router.NewClient(socket).Restart(t.Context()); err != nil {
+		t.Fatalf("Restart() error = %v", err)
+	}
+	r.waitForExit(t)
+	want := keptProbes{Probed: now.UTC(), ProbeError: "HTTP 529 · Overloaded", Misses: 1}
+	if got := probesIn([]byte(execs.only(t).saved))["side"]; got != want {
+		t.Errorf("as it replaced itself, the state file held side's probes as %+v, want %+v, for the router it hands over to", got, want)
+	}
+}
+
+// keptProbes is how an account's probes went, as the state file keeps it.
+type keptProbes struct {
+	Probed     time.Time `json:"probed"`
+	ProbeError string    `json:"probe_error"`
+	Misses     int       `json:"misses"`
+}
+
+// probesIn returns how each account's probes went, by the account's id, as a
+// state file's content, data, holds it: none where it doesn't read as one.
+func probesIn(data []byte) map[string]keptProbes {
+	var saved struct {
+		Readings map[string]keptProbes `json:"readings"`
+	}
+	if json.Unmarshal(data, &saved) != nil {
+		return nil
+	}
+	return saved.Readings
 }
 
 // pinIn returns the accounts of the global pin a state file's content, data,

@@ -530,12 +530,13 @@ func (s *sessions) saved() savedSessions {
 // without a usable token stands, as its token file may only have been caught
 // as it's rewritten: while the account has none, choices pass it over. It
 // reports whether it left anything out.
-func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time) (dropped bool) {
+func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	dropped = s.recallAssignments(saved.Sessions, accounts, now)
-	dropped = s.recallOwnPins(saved.SessionPins, accounts) || dropped
-	return s.recallPin(saved.Pin, accounts) || dropped
+	assignments := s.recallAssignments(saved.Sessions, accounts, now)
+	ownPins := s.recallOwnPins(saved.SessionPins, accounts)
+	pin := s.recallPin(saved.Pin, accounts)
+	return assignments || ownPins || pin
 }
 
 // recallAssignments takes in the assignments saved, but those gone unused for

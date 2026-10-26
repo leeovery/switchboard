@@ -106,9 +106,10 @@ func TestTokenFilesAreTakenUpAsTheyChange(t *testing.T) {
 		// wantKept is whether the state file hears of the change, and
 		// wantReplanned whether the priming schedule is worked out again.
 		wantKept, wantReplanned bool
-		// wantReplaced are the accounts heard to go out on another token, and
-		// wantGained those heard to have a usable token again.
-		wantReplaced, wantGained []string
+		// wantReplaced are the accounts heard to go out on another token,
+		// wantGained those heard to have a usable token again, and wantLost
+		// those heard to have none.
+		wantReplaced, wantGained, wantLost []string
 	}{
 		{
 			name:           "none changed",
@@ -159,6 +160,7 @@ func TestTokenFilesAreTakenUpAsTheyChange(t *testing.T) {
 				`error="` + tokenstest.Missing("work").Error() + `"`},
 			wantKept:      true,
 			wantReplanned: true,
+			wantLost:      []string{"work"},
 		},
 		{
 			name:         "work's holding more than a token",
@@ -169,6 +171,7 @@ func TestTokenFilesAreTakenUpAsTheyChange(t *testing.T) {
 				`error="` + tokens.ErrNotAToken.Error() + `"`},
 			wantKept:      true,
 			wantReplanned: true,
+			wantLost:      []string{"work"},
 		},
 	}
 	for _, tt := range tests {
@@ -205,6 +208,9 @@ func TestTokenFilesAreTakenUpAsTheyChange(t *testing.T) {
 			}
 			if !slices.Equal(f.regained, tt.wantGained) {
 				t.Errorf("heard %q have a usable token again, want %q", f.regained, tt.wantGained)
+			}
+			if !slices.Equal(f.forgone, tt.wantLost) {
+				t.Errorf("heard %q have no usable token, want %q", f.forgone, tt.wantLost)
 			}
 			checkNoToken(t, log)
 		})
@@ -376,8 +382,9 @@ type testTokenFiles struct {
 	files           *changingFiles
 	kept, replanned int
 	// renewed are the accounts heard to go out on another token, in turn,
-	// and regained those heard to have a usable token again.
-	renewed, regained []string
+	// regained those heard to have a usable token again, and forgone those
+	// heard to have none.
+	renewed, regained, forgone []string
 }
 
 // newTestTokenFiles returns what takes up testConfigured's token files, as
@@ -393,6 +400,7 @@ func newTestTokenFiles(before, after tokenstest.Files) *testTokenFiles {
 		sendable: func() { f.replanned++ },
 		replaced: func(id string) { f.renewed = append(f.renewed, id) },
 		gained:   func(id string) { f.regained = append(f.regained, id) },
+		lost:     func(id string) { f.forgone = append(f.forgone, id) },
 	}
 	return f
 }
