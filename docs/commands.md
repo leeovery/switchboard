@@ -470,7 +470,7 @@ on the router:
 | Run by hand | The router refuses, and `restart` says why. |
 | Answering, with a config that isn't valid | The router refuses, as it couldn't start again from that config, and `restart` says why. |
 | Answering, with a binary that refuses to start | The router asks the binary it would become first. Where that refuses, as a newer version can refuse a config the running one takes, the router refuses too, and `restart` says why, in the binary's words. |
-| Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the binary is asked, the router refuses, and `restart` says to try again. |
+| Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the router checks whether it could restart, the router refuses, and `restart` names what changed and says to try again. |
 | From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
 | Not answering | launchd starts the service afresh at once. |
 

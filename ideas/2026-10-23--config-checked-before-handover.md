@@ -72,3 +72,6 @@ design's The router looking after itself):
   handover, by its own rules. So it refuses an edit only the new version takes, and the restart
   waits until the config suits the old rules again. A fix would let the new binary's answer decide
   once the binary has moved on. Not built.
+- **Left:** while the binary isn't there, the status document shows the restart due with nothing
+  saying it waits for the binary: a moment mid-upgrade, but for good after a `brew uninstall`
+  with the service still running. The words for it are the owner's to choose.

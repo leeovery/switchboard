@@ -15,6 +15,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -1035,43 +1036,96 @@ func TestARestartAskedForIsRefusedWhileItsBinaryRefusesToStart(t *testing.T) {
 	}
 }
 
-func TestARestartAskedForIsRefusedWhenAFileChangesAsTheBinaryIsAsked(t *testing.T) {
+func TestARestartAskedForIsRefusedWhenAFileChangesAsItsChecked(t *testing.T) {
+	saved := func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) }
+	upgraded := func(t *testing.T, s startedFrom) {
+		writeFile(t, s.version("1.2"), "switchboard 1.2")
+		relink(t, s.binary, s.version("1.2"))
+	}
+	configFile := func(s startedFrom) string { return "config file, " + s.config + "," }
+	binary := func(s startedFrom) string { return "binary, " + s.binary + "," }
 	tests := []struct {
 		name string
 		// change changes what the router was started from as the binary is
-		// asked whether it could start.
+		// asked whether it could start, answering as answer says; or, with
+		// asRead, as the config file is read, the router given no binary to
+		// ask.
 		change func(t *testing.T, s startedFrom)
-		// answer is how the binary answers.
 		answer binaryAnswer
+		asRead bool
+		// named names what changed, as the refusal does.
+		named func(s startedFrom) string
 	}{
-		{name: "the config file saved", change: func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) }},
+		{name: "the config file saved as the binary is asked", change: saved, named: configFile},
 		{
-			name:   "the config file saved, the binary refusing",
-			change: func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) },
+			name:   "the config file saved as the binary is asked, the binary refusing",
+			change: saved,
 			answer: binaryAnswer{refusal: "invalid config"},
+			named:  configFile,
+		},
+		{name: "the binary moved on to another version as it's asked", change: upgraded, named: binary},
+		{
+			name:   "both as the binary is asked",
+			change: func(t *testing.T, s startedFrom) { saved(t, s); upgraded(t, s) },
+			named:  func(s startedFrom) string { return configFile(s) + " and its " + binary(s) },
 		},
 		{
-			name: "the binary moved on to another version",
-			change: func(t *testing.T, s startedFrom) {
-				writeFile(t, s.version("1.2"), "switchboard 1.2")
-				relink(t, s.binary, s.version("1.2"))
-			},
+			name:   "the binary's link gone as it's asked, which can't answer",
+			change: func(t *testing.T, s startedFrom) { remove(t, s.binary) },
+			answer: binaryAnswer{err: fs.ErrNotExist},
+			named:  binary,
 		},
+		{name: "the config file saved as it's read, with no binary to ask", change: saved, asRead: true, named: configFile},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
 			s := newStartedFrom(t)
 			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 			r.ask = func(context.Context) (string, error) {
 				tt.change(t, s)
 				return tt.answer.refusal, tt.answer.err
 			}
+			if tt.asRead {
+				r.ask = nil
+				r.load = func(path string) (*config.Config, error) {
+					tt.change(t, s)
+					return config.Load(path)
+				}
+			}
 
-			want := "the router's config file or its binary changed as the binary was asked whether it could start: try again"
+			want := "the router's " + tt.named(s) + " changed as it checked whether it could restart: try again"
 			if err := r.restartable(t.Context()); err == nil || err.Error() != want {
-				t.Errorf("restartable() = %v, want %q: the binary answered for files no longer there", err, want)
+				t.Errorf("restartable() = %v, want %q: the check was of files no longer there", err, want)
+			}
+			if log.Has(`msg="its binary couldn't answer whether it could start; restarting all the same"`) {
+				t.Errorf("log reads\n%s\nwant nothing said of restarting, as it doesn't", log)
 			}
 		})
+	}
+}
+
+func TestABinaryUnableToAnswerIsLoggedOnlyAsItsRestartedInto(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newStartedFrom(t)
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+	asked := askedOf(r, binaryAnswer{err: errors.New("exit status 1")})
+	ask := r.ask
+	r.ask = func(ctx context.Context) (string, error) {
+		if *asked == 0 {
+			writeFile(t, s.kept, twoAccounts)
+		}
+		return ask(ctx)
+	}
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+
+	said := `msg="its binary couldn't answer whether it could start; restarting all the same"`
+	if r.restart(t.Context()) || log.Has(said) {
+		t.Fatalf("restart() = true, or the log reads\n%s\nwant neither: the binary's silence was of files that changed since", log)
+	}
+	if !r.restart(t.Context()) || strings.Count(log.String(), said) != 1 {
+		t.Errorf("the log reads\n%s\nwant the router restarted, its binary's silence said once", log)
 	}
 }
 
