@@ -292,8 +292,9 @@ func asItResets(stretches []LaneStretch, resets []time.Time) {
 // the view's window resets: each beginning after its last column's moment and
 // before then, as h turns, gathered as the lane's columns gather them, each
 // turn as a column of its own, and back as backWithRoom has it, said from the
-// column after the last. None in a view stepped back to, nor of an account
-// without the window, or whose reset isn't known.
+// column after the last. None in a view that doesn't hold now, as a day or
+// week gone, nor of an account without the window, or whose reset isn't
+// known; a week stepped back to this week, holding now, has them.
 func (from LanesFrom) beyond(a status.AccountNow, h ahead) []LaneStretch {
 	tl := from.Timeline
 	w, ok := a.Window(from.viewKey())

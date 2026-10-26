@@ -56,7 +56,7 @@ func TestALaneHasWhatItWouldPastItsViewsEndBeforeItsWindowResets(t *testing.T) {
 	}{
 		{name: "running out past the view's end", doc: beyondDoc(0, week("7d", 0.12, 148)), key: "7d", want: views.CellLimited, resets: true},
 		{name: "running out in the last column, after its moment", doc: beyondDoc(0, week("7d", 0.1221, 148)), key: "7d", want: views.CellLimited, resets: true},
-		{name: "a week stepped back to", doc: beyondDoc(0, week("7d", 0.12, 148)), day: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)},
+		{name: "a week gone, stepped back to", doc: beyondDoc(0, week("7d", 0.12, 148)), day: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)},
 		{name: "reaching its cap past the view's end", doc: beyondDoc(0.01, week("7d", 0.12, 148)), key: "7d", want: views.CellCapped, resets: true},
 		{name: "another week running out past the view's end", doc: beyondDoc(0, week("7d", 0.1, 160), week("7d_x", 0.12, 148)), key: "7d_x", want: views.CellLimited},
 		{name: "running out inside the view", doc: beyondDoc(0, week("7d", 0.3, 148))},

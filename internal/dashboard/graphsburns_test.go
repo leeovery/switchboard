@@ -522,3 +522,39 @@ func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
 		}
 	}
 }
+
+// A card whose window newly runs out cues its words, as the frame's
+// TurnedOut has it, where the run-out falls past the end of Runway's live
+// view as where it falls inside it. Runway cues its own words of the same
+// lane as it did: where its lane draws the run-out, and not where it says
+// room all week.
+func TestGraphsCardsCueARunOutPastRunwaysView(t *testing.T) {
+	tests := []struct {
+		name   string
+		used   float64
+		runway bool
+	}{
+		{name: "running out past the view's end", used: 0.12},
+		{name: "running out inside the view", used: 0.3, runway: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := sideWeek(tt.used, 0)
+			f := cardsPage(doc, printNow, 160, 37, trioIDs...)
+			f.TurnedOut = map[Ref]float64{{Account: "side", Window: "7d"}: 0.25}
+			side, _ := doc.At(printNow, printPolicy).Account("side")
+			lanes := f.Graphs.Lanes[views.RunwayWeek]
+			l, _ := lanes.lane("side")
+			ln := laneLaid(l, side, accountName{number: "3", label: "side"})
+			h := f.cardHeadOf(lanes.view(), ln, 50, false, printNow)
+			c := newCanvas(50, 2)
+			h.draw(c, Look{coloured: true}, 0, 0)
+			if picked := c.at(h.words.x, h.row).ink.on.token == theme.BgAttention; !h.cued || !picked {
+				t.Errorf("side's card's words are cued %t, picked out %t, want both", h.cued, picked)
+			}
+			if _, cued := f.wordsCue(ln, lanes.Timeline.NowColumn()); cued != tt.runway {
+				t.Errorf("Runway cues side's words %t, want %t", cued, tt.runway)
+			}
+		})
+	}
+}

@@ -59,7 +59,8 @@ type cardHead struct {
 // takes the width, as within cuts it, and its words are on the row under
 // it, from its first column, whole parts left off their end where they don't
 // fit, as partsIn has them. They're cued as Runway cues the words under the
-// lane, as wordsCue has it.
+// lane, as wordsCue has it, of the lane as its words reach, as reaching has
+// it.
 func (f Frame) cardHeadOf(v laneView, ln laidLane, width int, beside bool, now time.Time) cardHead {
 	words := v.cardWords(ln, now)
 	h := cardHead{label: ln.name.within(width), words: placed{said: partsIn(words, width)}, row: 1}
@@ -74,8 +75,16 @@ func (f Frame) cardHeadOf(v laneView, ln laidLane, width int, beside bool, now t
 		}
 		h.words, h.row = placed{x: width - said.width(), said: said}, 0
 	}
-	h.cue, h.cued = f.wordsCue(ln, v.timeline.NowColumn())
+	h.cue, h.cued = f.wordsCue(ln.reaching(), v.timeline.NowColumn())
 	return h
+}
+
+// reaching is the lane ln as its card's words reach: its stretches, then
+// those past its view's end, as its Beyond has them, so a card cues its
+// words of a run-out past the view as Runway cues one inside it.
+func (ln laidLane) reaching() laidLane {
+	ln.Stretches = slices.Concat(ln.Stretches, ln.Beyond)
+	return ln
 }
 
 // alone is the column the name takes beside a card's words, nameGap after
