@@ -16,6 +16,11 @@ import (
 // Overview, and Sessions' Switchboard, with cords or in lanes.
 const noSessionsRunning = "no sessions running"
 
+// nothingRecorded is what the dashboard says where it draws what the ledger
+// recorded and it holds nothing of it: History's Days and Tokens, and
+// Graphs' WHEN YOU WORK.
+const nothingRecorded = "nothing recorded yet"
+
 // name is what the dashboard calls an account: its label, which is its id
 // unless the config gives another, cleaned.
 func name(a status.AccountNow) string {

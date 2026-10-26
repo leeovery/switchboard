@@ -96,7 +96,7 @@ func (g graphsGiven) shape() graphsShape {
 	}
 	s.across = cardsAcross(len(g.accounts), g.width)
 	s.cardsDown = (s.accounts + len(s.across) - 1) / len(s.across)
-	s.glance, s.when = glanceRows(s.accounts, g.pooled()), whenRows()
+	s.glance, s.when = glanceRows(s.accounts, g.pooled()), whenRows(g.width, g.look)
 	if last >= 0 {
 		s.legend = burnLegend(g.width, g.reserved())
 		s.legend = s.legend[:min(len(s.legend), max(g.rows-1, 0))]
@@ -158,11 +158,10 @@ func glanceRows(accounts int, pool bool) int {
 	return rows
 }
 
-// whenRows are the rows WHEN YOU WORK's body takes, as the design gives
-// them, its key on a row: the hours over the grid; a row a weekday; and a
-// blank row and its key.
-func whenRows() int {
-	return 1 + 7 + 2
+// whenRows are the rows WHEN YOU WORK's body takes width cells wide, as its
+// grid counts them at the width it's laid at, as hoursLaid lays it.
+func whenRows(width int, look Look) int {
+	return hoursGrid{look: look}.rows(hoursLaid(width))
 }
 
 // rowsOf are the rows the section takes at the step, its heading's and the

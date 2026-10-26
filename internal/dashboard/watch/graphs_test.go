@@ -1,16 +1,21 @@
 package watch
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // graphsHarness is a harness of the router of three on Graphs, at the size
@@ -232,5 +237,169 @@ func TestASessionsPageOverGraphsKeepsWForModels(t *testing.T) {
 	h.typed("w")
 	if !h.model.models || h.model.graphs != (dashboard.GraphsSections{}) {
 		t.Errorf("w on a session's page over Graphs left models shown %t, Graphs showing %q; want models shown, Graphs as it was", h.model.models, h.model.graphs.Names())
+	}
+}
+
+// whenHarness is historyHarness on Graphs, its sections those named, the
+// ledger holding work's requests on Monday 21 September 2026 at 09:00, a
+// week before the clock starts.
+func whenHarness(t *testing.T, sections ...string) (*harness, *daysLedger) {
+	t.Helper()
+	h, l := historyHarness(t, dashboard.Graphs, dashboard.HistoryPage{})
+	h.model.graphs = dashboard.GraphsSectionsNamed(sections)
+	l.days["2026-09-21"] = hourly("2026-09-21", 9, 8)
+	return h, l
+}
+
+// hourly is a day of n requests of Opus 5.5 on work, in one session, every
+// one at the hour given.
+func hourly(date string, hour, n int) ledger.Summary {
+	d := requested(date, n)
+	var hours [24]int
+	hours[hour] = n
+	d.Accounts[0].Models[0].Hours = &hours
+	return d
+}
+
+// Graphs reads the ledger's days while WHEN YOU WORK shows, and not
+// otherwise: the last 12 months, once, as History reads them, as h shows it,
+// then today alone at each look; its page of them, the 4 weeks before today,
+// Monday's 9 o'clock its 8 requests over the four Mondays; and hidden again,
+// none at a look, and no page.
+func TestGraphsReadsTheLedgersDaysWhileWhenYouWorkShows(t *testing.T) {
+	h, l := whenHarness(t, "week", "5-hour")
+	h.start()
+	h.tickUntilAsked()
+	if len(l.reads) != 0 || h.model.frame(h.clock.now).Graphs.Hours != nil {
+		t.Fatalf("WHEN YOU WORK hidden, the ledger was read from %v, want it unread, and no page", l.reads)
+	}
+
+	h.typed("h")
+	hours := h.model.frame(h.clock.now).Graphs.Hours
+	if !slices.EqualFunc(l.reads, []time.Time{yearFrom}, time.Time.Equal) || hours == nil {
+		t.Fatalf("h shown, the ledger was read from %v, its page %v; want the last 12 months read, from %s, and a page", l.reads, hours, yearFrom)
+	}
+	if mon := hours.Days[0]; hours.Description != "the 4 weeks to Sun 27 Sep" || mon.Name != "Mon" || mon.Hours[9].Requests != 2 || mon.Hours[9].Level == 0 {
+		t.Errorf("the page says %q, Monday %+v; want the 4 weeks to Sun 27 Sep, Monday's 09:00 at 2 requests, shaded", hours.Description, mon)
+	}
+	if !strings.Contains(h.view(), "WHEN YOU WORK   the 4 weeks to Sun 27 Sep") {
+		t.Errorf("the screen is\n%s\nwant WHEN YOU WORK's heading saying its weeks", h.view())
+	}
+	h.tickUntilAsked()
+	if want := []time.Time{yearFrom, todayStart}; !slices.EqualFunc(l.reads, want, time.Time.Equal) {
+		t.Errorf("at a look, the ledger was read from %v, want %v: today alone", l.reads, want)
+	}
+
+	h.typed("h")
+	h.tickUntilAsked()
+	if len(l.reads) != 2 || h.model.frame(h.clock.now).Graphs.Hours != nil {
+		t.Errorf("h hidden again, at a look the ledger was read from %v, want no more reads, and no page", l.reads)
+	}
+}
+
+// WHEN YOU WORK's page is of the last 12 months' days, never of a calendar
+// year History stepped back to, the page built afresh at a message with
+// both held.
+func TestWhenYouWorksPageIsOfTheLast12MonthsNeverACalendarYear(t *testing.T) {
+	h, l := whenHarness(t, "when")
+	h.start()
+	back := h.model.past.last
+	back.past = views.NewPast(views.HistoryInput{From: yearFrom, Now: h.clock.now, WeekStarts: time.Monday}, l.Days(yearFrom)[:1])
+	h.model.past.back = back
+	h.redraw()
+	got, want := h.model.frame(h.clock.now).Graphs.Hours, h.model.past.last.past.Hours()
+	if got == nil || !reflect.DeepEqual(*got, want) || reflect.DeepEqual(want, back.past.Hours()) {
+		t.Errorf("WHEN YOU WORK's page is %+v, want the last 12 months' %+v, unlike the year back's", got, want)
+	}
+}
+
+// WHEN YOU WORK's four weeks move on at midnight with the first message
+// after it, before a look's read of the day lands: the heading says the day
+// just ended, and the grid counts it, as the days held have it; then the
+// look's read brings what came later that day, and the page is built afresh
+// of it.
+func TestWhenYouWorksWeeksMoveOnAtMidnightBeforeTheLook(t *testing.T) {
+	h, l := whenHarness(t, "when")
+	l.days["2026-09-28"] = hourly("2026-09-28", 10, 4)
+	h.start()
+	hours := func() *views.HoursPage { return h.model.frame(h.clock.now).Graphs.Hours }
+	if got := hours(); got == nil || got.Description != "the 4 weeks to Sun 27 Sep" {
+		t.Fatalf("on 28 September, the page is %+v, want the 4 weeks to Sun 27 Sep", got)
+	}
+	reads := len(l.reads)
+
+	midnight := dayfile.DayStart(start.Local(), 1)
+	h.clock.now = midnight.Add(time.Minute)
+	h.redraw()
+	// Of the four Mondays from 7 September, 28 September's 4 requests at
+	// 10:00, held as read before midnight; 21 September's 8 at 09:00.
+	if got := hours(); len(l.reads) != reads || got == nil || got.Description != "the 4 weeks to Mon 28 Sep" || got.Days[0].Hours[10].Requests != 1 || got.Days[0].Hours[9].Requests != 2 {
+		t.Fatalf("a message after midnight, the ledger read %d more times, the page %+v; want none, the 4 weeks to Mon 28 Sep, Monday's 10:00 at 1 and 09:00 at 2",
+			len(l.reads)-reads, got)
+	}
+
+	l.days["2026-09-28"] = hourly("2026-09-28", 10, 8)
+	h.lookAt(midnight.Add(2 * time.Minute))
+	if got := hours(); len(l.reads) == reads || got == nil || got.Description != "the 4 weeks to Mon 28 Sep" || got.Days[0].Hours[10].Requests != 2 {
+		t.Errorf("the look's read landed, the ledger read %d more times, the page %+v; want a read, the 4 weeks to Mon 28 Sep, Monday's 10:00 at 2", len(l.reads)-reads, got)
+	}
+}
+
+// While the read of the ledger's days takes LoadingAfter or longer, the
+// first heading says loading…, as WHEN YOU WORK waits on it, till it lands;
+// with WHEN YOU WORK hidden, nothing waits on it, and nothing says so.
+func TestGraphsSaysItsLoadingWhileWhenYouWorksReadTakesAWhile(t *testing.T) {
+	h, _ := whenHarness(t, "pool", "when")
+	unread := holdingBack[yearReadMsg](h, h.init()...)
+	loading, ok := h.pending(loadingMsg{})
+	if len(unread) == 0 || !ok {
+		t.Fatalf("the ledger's read held back %d, its loading armed %t; want the read held, its loading armed", len(unread), ok)
+	}
+	h.fire(loading)
+	if !strings.Contains(h.view(), "POOL   "+loadingSaid) {
+		t.Errorf("%s on, the days unread, the screen is\n%s\nwant POOL's heading saying loading…", LoadingAfter, h.view())
+	}
+	h.deliver(unread...)
+	if shown := h.view(); strings.Contains(shown, loadingSaid) || !strings.Contains(shown, "WHEN YOU WORK   the 4 weeks to Sun 27 Sep") {
+		t.Errorf("the days read, the screen is\n%s\nwant nothing of loading, and WHEN YOU WORK's weeks", shown)
+	}
+
+	h, _ = whenHarness(t, "pool", "glance")
+	if unread := holdingBack[yearReadMsg](h, h.init()...); len(unread) != 0 {
+		t.Errorf("WHEN YOU WORK hidden, %d reads of the ledger's days were asked for, want none", len(unread))
+	}
+	if _, ok := h.pending(loadingMsg{}); ok {
+		t.Error("WHEN YOU WORK hidden, loading was armed, want nothing waiting")
+	}
+}
+
+// WHEN YOU WORK kept shown, Graphs wants the ledger's days only while it's
+// the page shown: on the Overview, or under a session's page opened over
+// Graphs, nothing reads them, nothing waits on them, and no page is built,
+// as none was before it left the tab.
+func TestGraphsReadsNoDaysOffItsTab(t *testing.T) {
+	tests := []struct {
+		name string
+		away func(h *harness)
+	}{
+		{name: "on the Overview", away: func(h *harness) { h.model.view = dashboard.Overview }},
+		{name: "under a session's page over Graphs", away: func(h *harness) {
+			h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
+			h.tickUntilAsked()
+			h.openPage(idD28C)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := whenHarness(t, "glance")
+			h.start()
+			tt.away(h)
+			h.model.graphs = dashboard.GraphsSectionsNamed([]string{"when"})
+			h.tickUntilAsked()
+			if _, loading := h.pending(loadingMsg{}); len(l.reads) != 0 || loading || h.model.past.reading || h.model.frame(h.clock.now).Graphs.Hours != nil {
+				t.Errorf("WHEN YOU WORK kept shown, the ledger was read from %v, loading armed %t, a page %v; want no read, nothing loading, no page",
+					l.reads, loading, h.model.frame(h.clock.now).Graphs.Hours)
+			}
+		})
 	}
 }

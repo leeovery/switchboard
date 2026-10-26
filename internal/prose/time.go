@@ -46,6 +46,12 @@ func HourOfDay(now, t time.Time) string {
 	return t.In(now.Location()).Format(hourLayout)
 }
 
+// HourNamed shows an hour of the day, from 0 to 23, as an axis of hours
+// names it, such as "03" or "21".
+func HourNamed(hour int) string {
+	return time.Date(0, time.January, 1, hour, 0, 0, 0, time.UTC).Format(hourLayout)
+}
+
 // ToTheSecond shows t as its 24-hour time to the second in now's time zone,
 // as the title row's clock and the Log's lines give it, such as "14:40:26".
 func ToTheSecond(now, t time.Time) string {

@@ -103,14 +103,16 @@ func GraphsWindows(sections GraphsSections) []views.RunwayWindow {
 // and h show and hide them; the configured accounts, in the config's order,
 // which alone, with the frame's size, its look, which words POOL's key, and
 // the sections shown, lay the page out, as layGraphs has it; WHEN YOU WORK's
-// page, whose weeks its heading says; and Runway's lanes over its live view
-// of each window a burn-down section shown charts, as GraphsWindows has
-// them, by the window, as the watch built them at the look, which its cards
-// say what Runway says of each account by, none till it's built them.
+// page, whose weeks its heading says, as the watch built it at the last look
+// on Graphs, nil where the ledger's days weren't read then, or WHEN YOU WORK
+// was hidden; and Runway's lanes over its live view of each
+// window a burn-down section shown charts, as GraphsWindows has them, by the
+// window, as the watch built them at the look, which its cards say what
+// Runway says of each account by, none till it's built them.
 type GraphsShown struct {
 	Sections GraphsSections
 	Accounts config.Accounts
-	Hours    views.HoursPage
+	Hours    *views.HoursPage
 	Lanes    map[views.RunwayWindow]WindowLanes
 }
 
@@ -161,7 +163,7 @@ func (f Frame) graphsSays(s GraphsSection, first bool) line {
 	switch {
 	case first && f.Loading:
 		return line{{loadingWord, dimInk}}
-	case s == GraphsWhen && f.Graphs.Hours.Description != "":
+	case s == GraphsWhen && f.Graphs.Hours != nil && f.Graphs.Hours.Description != "":
 		return line{{f.Graphs.Hours.Description, faintInk}}
 	}
 	return nil
