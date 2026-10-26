@@ -264,8 +264,8 @@ How `claude` starts depends on the router and your environment:
   API. It uses the primary's token, or, while that isn't usable, the token of the first account
   whose token is. A line on stderr says so:
   `switchboard: the router isn't running — connecting directly on work · Work`. A slow router is
-  waited for, 5 seconds at most, and one that isn't running is asked again for 2 seconds first, as
-  it may be restarting.
+  waited for, at most 5 seconds in all from the first ask; through the first 2 of them, a router
+  that isn't running is asked again, as it may be restarting.
 - **Without switchboard.** When switchboard can't take part at all, such as when it can't read its
   config or no account has a usable token, `claude` starts as if switchboard weren't there. A line
   on stderr says why:

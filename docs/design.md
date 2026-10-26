@@ -7524,21 +7524,21 @@ verbs).
   `status` ask it alike (see Live updates). The log's `starting claude` line says how long asking
   took, routed or direct, as `asked=312ms`.
 - **Routed:** when the router answers `ok`, `run` starts Claude Code with `ANTHROPIC_BASE_URL`
-  pointing at the proxy, where the router says it listens, not where the config says, which may have changed since,
-  `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever account the conversation goes to,
-  or, while the primary's isn't usable, `--account`'s, else the first account's with a usable token,
-  and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set. The
-  directory header is added too, naming the directory `run` started in, which Claude Code starts in
-  as well, the home directory at its start shown as `~`, as `~/Code/api`, unless `run` can't read
-  it, as when it's been removed since, or the router's health doesn't say `strips_own_headers`: a
-  router from before, which took the pin off alone and would send the directory on to the API,
-  serves on after an upgrade until it restarts in place, at a moment with no request in flight,
-  and one run by hand with `serve` until it's run again (see Proxy rules). It sets
-  `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a base URL the headers it
-  sends the API directly, the prompt each request serves and its class among them, which the
-  router records (see The request ledger); but where the environment sets it already, as to `0`,
-  which turns them off, it's left as it is, though not where it's set empty, which Claude Code
-  reads as unset (settled in the plan).
+  pointing at the proxy, where the router says it listens, not where the config says, which may
+  have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever account the
+  conversation goes to, or, while the primary's isn't usable, `--account`'s, else the first
+  account's with a usable token, and with `--account`, the pin header added to any
+  `ANTHROPIC_CUSTOM_HEADERS` already set. The directory header is added too, naming the directory
+  `run` started in, which Claude Code starts in as well, the home directory at its start shown as
+  `~`, as `~/Code/api`, unless `run` can't read it, as when it's been removed since, or the router's
+  health doesn't say `strips_own_headers`: a router from before, which took the pin off alone and
+  would send the directory on to the API, serves on after an upgrade until it restarts in place, at
+  a moment with no request in flight, and one run by hand with `serve` until it's run again (see
+  Proxy rules). It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a
+  base URL the headers it sends the API directly, the prompt each request serves and its class
+  among them, which the router records (see The request ledger); but where the environment sets it
+  already, as to `0`, which turns them off, it's left as it is, though not where it's set empty,
+  which Claude Code reads as unset (settled in the plan).
 - **Direct:** otherwise it connects directly, on `--account`'s token, else the primary's, else the
   first account's with a usable token, without the base URL, the pin or the directory, and says why
   in a line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.

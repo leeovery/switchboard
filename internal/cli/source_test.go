@@ -123,28 +123,6 @@ probed directly: the router is unhealthy, no answer within 100ms
 	}
 }
 
-func TestStatusAsksARouterComingBackAgain(t *testing.T) {
-	srv := newServeSetup(t, "http://127.0.0.1:1", nil)
-	srv.deps.Patience = launch.Patience{Answer: launch.AskTimeout, Back: launch.AskTimeout, Again: 10 * time.Millisecond}
-	stop, exited := launchWith(t, srv.deps, []string{"status", "--json"})
-	// A head start, so status's first ask finds no router: a status slower to
-	// start than that finds it at once, and the test passes without proving
-	// anything, never failing for it.
-	time.Sleep(50 * time.Millisecond)
-	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
-		"GET /status": func(w http.ResponseWriter, _ *http.Request) {
-			_ = json.NewEncoder(w).Encode(status.Document{Source: status.SourceRouter, Router: status.Health{Healthy: true}})
-		},
-	})
-
-	<-exited
-	got := stop()
-	var doc status.Document
-	if got.code != 0 || json.Unmarshal([]byte(got.stdout), &doc) != nil || doc.Source != status.SourceRouter {
-		t.Errorf("switchboard status --json, the router coming back as it's asked, = %+v, want the router's document", got)
-	}
-}
-
 func TestStatusProbesAsAsked(t *testing.T) {
 	srv := routingSetup(t)
 
