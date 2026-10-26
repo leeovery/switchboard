@@ -126,6 +126,18 @@ type savedUsage struct {
 	WindowFamilies map[string][]string `json:"window_families,omitempty"`
 }
 
+// read counts the accounts whose usage has been read, but those whose
+// probes alone are kept.
+func (s savedUsage) read() int {
+	read := 0
+	for _, r := range s.Readings {
+		if len(r.Windows) > 0 || r.Extra.Given() {
+			read++
+		}
+	}
+	return read
+}
+
 // savedReading is an account's windows as last read, and when, and when each
 // window was, by its key, and its extra usage; and how its probes went: when
 // one last ended, why the last read nothing, and how many in a row did. A
@@ -155,7 +167,7 @@ func (f *stateFile) load(path string) {
 		f.changes.note()
 	}
 	held := f.snapshot()
-	logger.Info("loaded state", "path", path, "assignments", len(held.Sessions), "pin", strings.Join(held.Pin.Accounts, ","), "readings", len(held.Readings))
+	logger.Info("loaded state", "path", path, "assignments", len(held.Sessions), "pin", strings.Join(held.Pin.Accounts, ","), "readings", held.read())
 }
 
 // read returns what the state file holds. A file that isn't there holds

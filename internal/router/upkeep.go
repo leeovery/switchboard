@@ -54,6 +54,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 				}
 			},
 			gained: state.tokenGained,
+			lost:   state.tokenLost,
 		},
 		restarts: restarts,
 		wakes:    wakes,

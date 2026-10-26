@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -77,6 +79,8 @@ func TestTheRoundsBackOffWhileAnAccountCantBeRead(t *testing.T) {
 		misses int
 		want   time.Duration
 	}{
+		{misses: math.MinInt, want: time.Minute},
+		{misses: -1, want: time.Minute},
 		{misses: 0, want: time.Minute},
 		{misses: 1, want: 2 * time.Minute},
 		{misses: 2, want: 4 * time.Minute},
@@ -84,6 +88,7 @@ func TestTheRoundsBackOffWhileAnAccountCantBeRead(t *testing.T) {
 		{misses: 4, want: 16 * time.Minute},
 		{misses: 5, want: 30 * time.Minute},
 		{misses: 100, want: 30 * time.Minute},
+		{misses: math.MaxInt, want: 30 * time.Minute},
 	}
 	for _, tt := range tests {
 		if got := retryAfter(tt.misses); got != tt.want {
@@ -117,6 +122,76 @@ func TestTheRoundsBackOffToTheHalfHourAsAnAccountsProbesKeepReadingNothing(t *te
 	})
 }
 
+func TestAWindowAProbeCantReadIsWarnedOfEveryHalfHourAtMost(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 10, 0))
+		running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.2, ResetsAt: onDay(1, 15, 0).UTC()}
+		// Side's probes read it, but never its Fable week.
+		prober := &stubProber{readings: map[string]quota.Probe{sideToken: partlyProbed(running, week)}}
+		r := newPrimingRouter(t, clock.read, prober, config.Prime{})
+		r.state.record("side", []quota.Window{running, week}, r.state.mark())
+		r.state.record("work", []quota.Window{running, week}, r.state.mark())
+		stop := startRounds(r)
+		defer stop()
+
+		time.Sleep(3*time.Hour + 30*time.Second)
+		synctest.Wait()
+		// Probed every five minutes from 10:05, side's Fable week is warned of
+		// at 10:05, 10:35, 11:05, 11:35, 12:05 and 12:35.
+		if n := prober.counts()[sideToken]; n != 36 {
+			t.Fatalf("side probed %d times, want 36, every five minutes", n)
+		}
+		lines := strings.Split(log.String(), "\n")
+		count := func(level string) int {
+			return len(slices.DeleteFunc(slices.Clone(lines), func(line string) bool {
+				return !strings.Contains(line, "level="+level) || !strings.Contains(line, `msg="window unread"`) || !strings.Contains(line, "account=side")
+			}))
+		}
+		if warned, noted := count("WARN"), count("DEBUG"); warned != 6 || noted != 30 {
+			t.Errorf("side's Fable week warned of %d times and noted at debug %d, want 6 and 30: at the first probe that couldn't read it, then every half hour", warned, noted)
+		}
+	})
+}
+
+func TestAWindowAProbeCantReadIsWarnedOfAgainOnceItWasReadSince(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	fails := func(after time.Duration) []string {
+		clock.now = start.Add(after)
+		return s.recordProbe("side", partlyProbed(session, week), nil, s.mark(), readings.FromProbe).warn
+	}
+	steps := []struct {
+		name  string
+		after time.Duration
+		// read has an answer read side's Fable week first.
+		read bool
+		want []string
+	}{
+		{name: "the first probe that can't read it", want: []string{"7d_oi"}},
+		{name: "five minutes on", after: 5 * time.Minute},
+		{name: "read by an answer, then unread ten minutes on", after: 10 * time.Minute, read: true, want: []string{"7d_oi"}},
+		{name: "29 minutes after it was warned of", after: 39 * time.Minute},
+		{name: "half an hour after it was warned of", after: 40 * time.Minute, want: []string{"7d_oi"}},
+	}
+	for _, step := range steps {
+		if step.read {
+			clock.now = start.Add(step.after)
+			s.record("side", []quota.Window{fableWeek}, s.mark())
+		}
+		if got := fails(step.after); !slices.Equal(got, step.want) {
+			t.Errorf("%s, warned of %q, want %q", step.name, got, step.want)
+		}
+	}
+}
+
+// partlyProbed is a probe that read windows, but not the Fable week.
+func partlyProbed(windows ...quota.Window) quota.Probe {
+	reading := probed(nil, windows...)
+	reading.Failures = []quota.Failure{{Label: "Fable", Window: fableWeek.Key, Error: errUnreadable.Error()}}
+	return reading
+}
+
 func TestTheRoundsProbeALapsedAccountOnlyWhereTheWindowItStartsResetsBeforeItsPrime(t *testing.T) {
 	far := onDay(4, 0, 0)
 	spentWeek := week
@@ -131,9 +206,11 @@ func TestTheRoundsProbeALapsedAccountOnlyWhereTheWindowItStartsResetsBeforeItsPr
 		prime   config.Prime
 		at      time.Time
 		running bool
-		// holdBack holds side back from 00:20 on.
-		holdBack func(s *state)
-		want     bool
+		// holdBack holds side back from 00:20 on, and readAgain, unless it's
+		// zero, has an answer read side's windows again then, as they were.
+		holdBack  func(s *state)
+		readAgain time.Time
+		want      bool
 	}{
 		{name: "more than five hours before its slot", prime: daytime, at: onDay(1, 1, 30), want: true},
 		{name: "within five hours of its slot", prime: daytime, at: onDay(1, 2, 0)},
@@ -150,6 +227,8 @@ func TestTheRoundsProbeALapsedAccountOnlyWhereTheWindowItStartsResetsBeforeItsPr
 			want:     true,
 		},
 		{name: "a limit on its Fable week alone, within five hours of its slot", prime: daytime, at: onDay(1, 2, 0), holdBack: limited("7d_oi")},
+		{name: "five minutes unread, within five hours of its slot", prime: daytime, readAgain: onDay(1, 1, 55), at: onDay(1, 2, 0)},
+		{name: "five minutes unread, without priming", readAgain: onDay(1, 1, 55), at: onDay(1, 2, 0), want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -162,6 +241,10 @@ func TestTheRoundsProbeALapsedAccountOnlyWhereTheWindowItStartsResetsBeforeItsPr
 			r.state.record("side", []quota.Window{sideSession, week}, r.state.mark())
 			if tt.holdBack != nil {
 				tt.holdBack(r.state)
+			}
+			if !tt.readAgain.IsZero() {
+				clock.now = tt.readAgain
+				r.state.record("side", []quota.Window{sideSession, week}, r.state.mark())
 			}
 			clock.now = tt.at
 
@@ -528,8 +611,7 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 	higher := week
 	higher.Utilization = 0.97
 	// partly read side's session and week, not its Fable week.
-	partly := probed(nil, session, higher)
-	partly.Failures = []quota.Failure{{Label: "Fable", Window: fableWeek.Key, Error: errUnreadable.Error()}}
+	partly := partlyProbed(session, higher)
 	outcomes := []struct {
 		name string
 		// reading and err are what the probe on the token before finds.
@@ -821,9 +903,7 @@ func probedSide(ago time.Duration, from readings.Source) step {
 func partlyRead(ago time.Duration) step {
 	return func(r *Router, clock *testClock) {
 		clock.now = start.Add(-ago)
-		reading := probed(nil, session, week)
-		reading.Failures = []quota.Failure{{Label: "Fable", Window: fableWeek.Key, Error: errUnreadable.Error()}}
-		r.state.recordProbe("side", reading, nil, r.state.mark(), readings.FromProbe)
+		r.state.recordProbe("side", partlyProbed(session, week), nil, r.state.mark(), readings.FromProbe)
 	}
 }
 

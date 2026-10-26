@@ -546,6 +546,16 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 	}
 }
 
+func TestProbesThatReadNothingAreCountedToTheBackoffsEnd(t *testing.T) {
+	s := newTestState(&testClock{now: start})
+	for range backingOff + 2 {
+		s.recordProbe("work", quota.Probe{}, errUnreadable, s.mark(), readings.FromProbe)
+	}
+	if got := s.usage["work"].misses; got != backingOff {
+		t.Errorf("after %d probes in a row that read nothing, counted %d, want %d: more change nothing", backingOff+2, got, backingOff)
+	}
+}
+
 func TestTheStartupProbeIsDueOfAnAccountNothingHasReadThatCanBeProbed(t *testing.T) {
 	failed := func(s *state) {
 		s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), readings.FromProbe)
@@ -817,21 +827,25 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 		name string
 		// change changes s, whose reading of work was taken in after earlier.
 		change func(s *state, earlier moment)
-		// want counts the changes told of, and wantReadOff the readings off
-		// the answers to requests.
-		want, wantReadOff changeCount
+		// want counts the changes told of, and wantRoutine the routine ones:
+		// readings off the answers to requests, readings as before, and how
+		// probes went.
+		want, wantRoutine changeCount
 	}{
-		{name: "a reading off an answer", change: func(s *state, _ moment) { s.record("side", []quota.Window{session}, s.mark()) }, wantReadOff: 1},
+		{name: "a reading off an answer", change: func(s *state, _ moment) { s.record("side", []quota.Window{session}, s.mark()) }, wantRoutine: 1},
 		{name: "a stale reading, which changes nothing", change: func(s *state, earlier moment) { s.record("work", []quota.Window{lastWeek}, earlier) }},
 		{name: "a probe that read", change: func(s *state, _ moment) {
 			s.recordProbe("side", probed(nil, session), nil, s.mark(), readings.FromProbe)
 		}, want: 1},
-		{name: "a probe that failed, which the state file keeps the end of", change: func(s *state, _ moment) {
+		{name: "a probe that read the windows as they were", change: func(s *state, _ moment) {
+			s.recordProbe("work", probed(nil, session, week), nil, s.mark(), readings.FromProbe)
+		}, wantRoutine: 1},
+		{name: "a probe that failed", change: func(s *state, _ moment) {
 			s.recordProbe("side", quota.Probe{}, overloaded, s.mark(), readings.FromProbe)
-		}, want: 1},
-		{name: "a probe that read stale windows, which the state file keeps the end of", change: func(s *state, earlier moment) {
+		}, wantRoutine: 1},
+		{name: "a probe that read stale windows", change: func(s *state, earlier moment) {
 			s.recordProbe("work", probed(nil, lastWeek), nil, earlier, readings.FromProbe)
-		}, want: 1},
+		}, wantRoutine: 1},
 		{name: "a probe on the token before that failed", change: func(s *state, earlier moment) {
 			s.tokenReplaced("side")
 			s.recordProbe("side", quota.Probe{}, overloaded, earlier, readings.FromProbe)
@@ -842,16 +856,16 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var changes, readOff changeCount
-			s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, readOff.hear)
+			var changes, routine changeCount
+			s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
 			earlier := s.mark()
 			s.record("work", []quota.Window{session, week}, s.mark())
 			s.learn(opus, []quota.Window{session, week})
-			changes, readOff = 0, 0
+			changes, routine = 0, 0
 
 			tt.change(s, earlier)
-			if changes != tt.want || readOff != tt.wantReadOff {
-				t.Errorf("told of %d changes and %d readings, want %d and %d", changes, readOff, tt.want, tt.wantReadOff)
+			if changes != tt.want || routine != tt.wantRoutine {
+				t.Errorf("told of %d changes and %d routine ones, want %d and %d", changes, routine, tt.want, tt.wantRoutine)
 			}
 		})
 	}

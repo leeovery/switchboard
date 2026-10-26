@@ -17,6 +17,10 @@ const (
 	// a probe of it has read nothing, the wait doubling with each such probe
 	// in a row, to retryMost.
 	firstRetry = 2 * time.Minute
+	// backingOff is how many probes in a row that read nothing take the
+	// rounds' wait to retryMost: more change nothing, so none is counted past
+	// it.
+	backingOff = 5
 	// retryMost is the longest the router's rounds wait to probe again an
 	// account whose probes keep reading nothing, as one whose token is
 	// refused: probed every unreadFor, it would only fill the log.
@@ -82,11 +86,12 @@ func (r *rounds) look(ctx context.Context) {
 // retryAfter is how long the router's rounds wait after a probe of an
 // account ended before they probe it again: reprobeAfter, as every probe
 // does; or, after misses probes in a row that read nothing, firstRetry,
-// doubled for each but the first, to retryMost: four doublings take it past
-// that, so none goes further.
+// doubled for each but the first, to retryMost, which the backingOff-th
+// reaches, so none counts further. A count of none, or less, as a state file
+// edited by hand can hold, is none.
 func retryAfter(misses int) time.Duration {
-	if misses == 0 {
+	if misses <= 0 {
 		return reprobeAfter
 	}
-	return min(firstRetry<<min(misses-1, 4), retryMost)
+	return min(firstRetry<<(min(misses, backingOff)-1), retryMost)
 }

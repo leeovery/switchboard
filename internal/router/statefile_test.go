@@ -2,9 +2,11 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -265,16 +267,18 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 			t.Errorf("state file holds\n%s\nwant work's probes kept, %s among them", data, want)
 		}
 	}
-	if held := readState(t, path); held.Version != stateVersion {
-		t.Errorf("state file's version is %d, want %d: a router from before reads it, passing over what it doesn't know", held.Version, stateVersion)
-	}
 	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, Misses: 1}
 	if got := readState(t, path).Readings["side"]; !reflect.DeepEqual(got, wantSide) {
-		t.Errorf("state file holds side as %+v, want %+v: never read, as a router from before reads it, its probes beside", got, wantSide)
+		t.Errorf("state file holds side as %+v, want %+v: never read, its probes alone kept", got, wantSide)
 	}
+	checkAsARouterFromBeforeReadsIt(t, data, saved.state)
 
+	log := logstest.Capture(t)
 	loaded := newTestFile(at(start), testAccounts())
 	loaded.load(path)
+	if !log.Has("level=INFO", `msg="loaded state"`, "readings=1") {
+		t.Errorf("log reads\n%s\nwant the state loaded with one reading, work's: side's probes alone are kept", log)
+	}
 	for id, u := range saved.state.usage {
 		got := loaded.state.usage[id]
 		if !got.probed.Equal(u.probed) || got.probeErr != u.probeErr || got.misses != u.misses {
@@ -304,6 +308,47 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 				t.Errorf("%s due at %v = %v, want %v", tt.account, tt.at, got, tt.want)
 			}
 		})
+	}
+}
+
+// olderState is the state file as a router from before it kept how probes
+// went reads it, as v0.2.8's parseState does: its version, and of each
+// account, the reading it knew.
+type olderState struct {
+	Version  int `json:"version"`
+	Readings map[string]struct {
+		ReadAt        time.Time            `json:"read_at"`
+		Windows       []quota.Window       `json:"windows"`
+		WindowsReadAt map[string]time.Time `json:"windows_read_at,omitempty"`
+		Extra         quota.ExtraUsage     `json:"extra_usage,omitzero"`
+	} `json:"readings,omitempty"`
+}
+
+// checkAsARouterFromBeforeReadsIt checks that a router from before the state
+// file kept how probes went reads data, a file written of saved: its version
+// is the one it knows, it takes each account's reading as saved has it, and
+// it takes in what it reads as today's router does, without the probes, so
+// an account whose probes alone were kept is unread, probed as it starts.
+func checkAsARouterFromBeforeReadsIt(t *testing.T, data []byte, saved *state) {
+	t.Helper()
+	var older olderState
+	if err := json.Unmarshal(data, &older); err != nil || older.Version != 1 {
+		t.Fatalf("a router from before reads the state file as version %d (%v), want version 1, which it knows", older.Version, err)
+	}
+	kept := savedUsage{Readings: make(map[string]savedReading)}
+	for id, r := range older.Readings {
+		kept.Readings[id] = savedReading{ReadAt: r.ReadAt, Windows: r.Windows, WindowsReadAt: r.WindowsReadAt, Extra: r.Extra}
+	}
+	before := newTestState(&testClock{now: start})
+	before.recall(kept, func(string) bool { return false })
+	for id, u := range saved.usage {
+		got := before.usage[id]
+		if !got.updated.Equal(u.updated) || !maps.Equal(got.windows, u.windows) {
+			t.Errorf("a router from before reads %s as read at %v, %+v; want %v, %+v", id, got.updated, got.windows, u.updated, u.windows)
+		}
+		if want := u.updated.IsZero(); before.startDue(id, start) != want {
+			t.Errorf("a router from before has %s due the startup probe: %v, want %v, as it has a reading of it or not", id, !want, want)
+		}
 	}
 }
 
@@ -377,6 +422,73 @@ func TestAnAccountOnATokenTakenUpWhileTheRouterWasAwayIsProbedAfresh(t *testing.
 	}
 	if u := restarted.state.usage["side"]; !u.probed.Equal(start) || u.probeErr != errUnreadable.Error() || u.misses != 1 {
 		t.Errorf("side's probes loaded as ended %v, %q, %d in a row; want as they went, its token the same", u.probed, u.probeErr, u.misses)
+	}
+}
+
+func TestAnAccountThatLostItsTokenStartsAfreshThoughTheRouterRestartsWithItBack(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	files := &changingFiles{files: testTokens}
+	r := newTestRouterReading(t, at(start), &stubProber{}, files.read)
+	r.file.load(path)
+	for range 2 {
+		r.state.recordProbe("side", quota.Probe{}, errUnreadable, r.state.mark(), readings.FromProbe)
+	}
+	// Side's file holds no token two looks in a row, and the state file is
+	// saved; the router restarts with the token back.
+	files.set(tokenstest.Files{"work": workToken})
+	r.upkeep.tokens.look()
+	r.upkeep.tokens.look()
+	if got := probesOf(r, "side"); got != (probesWent{}) {
+		t.Errorf("side's probes went %+v once it lost its token, want as they start afresh", got)
+	}
+	r.file.save()
+
+	restarted := newTestFile(at(start.Add(time.Hour)), testAccounts())
+	restarted.load(path)
+	if u := restarted.state.usage["side"]; !u.probed.IsZero() || u.probeErr != "" || u.misses != 0 {
+		t.Errorf("side's probes loaded as ended %v, %q, %d in a row; want none: it has its token again", u.probed, u.probeErr, u.misses)
+	}
+}
+
+func TestAStateFileEditedByHandLoadsAsTheRouterWouldHaveKeptIt(t *testing.T) {
+	const tokenShaped = "sk-ant-oat01-fake_token-shaped"
+	tests := []struct {
+		name   string
+		misses int
+		// wantMisses is the count work loads with, and wantWait how long
+		// after its last probe its rounds wait.
+		wantMisses int
+		wantWait   time.Duration
+	}{
+		{name: "misses below none", misses: -1, wantWait: reprobeAfter},
+		{name: "misses the least an int holds", misses: math.MinInt, wantWait: reprobeAfter},
+		{name: "misses the most an int holds", misses: math.MaxInt, wantMisses: backingOff, wantWait: retryMost},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			putState(t, path, savedState{
+				Version: stateVersion,
+				Tokens:  map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
+				Readings: map[string]savedReading{"work": {
+					ReadAt: start.Add(-time.Hour), Windows: []quota.Window{session, week},
+					Probed: start, ProbeError: "HTTP 401 · invalid x-api-key " + tokenShaped, Misses: tt.misses,
+				}},
+			})
+			f := newTestFile(at(start), testAccounts())
+
+			f.load(path)
+			if got := f.state.usage["work"].misses; got != tt.wantMisses {
+				t.Errorf("work loaded with %d misses in a row, want %d", got, tt.wantMisses)
+			}
+			rounding := f.state.rounding(func(string, time.Time) bool { return true })
+			if rounding("work", start.Add(tt.wantWait-time.Second)) || !rounding("work", start.Add(tt.wantWait)) {
+				t.Errorf("work due on the rounds other than %v after its last probe, want then", tt.wantWait)
+			}
+			if got := f.state.usage["work"].probeErr; got != "HTTP 401 · invalid x-api-key [redacted]" {
+				t.Errorf("work's probe error loaded as %q, want the token's shape redacted", got)
+			}
+		})
 	}
 }
 

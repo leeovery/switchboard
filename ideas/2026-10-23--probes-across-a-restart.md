@@ -49,7 +49,11 @@ design's The router's rounds, under Priming, and Files):
   said. A `probed` later than the router starts, as after a clock set back, is taken as its start.
 - **Another token:** an account whose token file holds a token other than the one `state.json`
   kept the hash of, taken up while the router was away, starts afresh, as one replaced while the
-  router runs does.
+  router runs does. One that loses its usable token starts afresh then, as one that gains one
+  does, so nothing of its probes before is kept for a restart with the token back to take up.
+- **A file edited by hand:** a count of misses is taken from none to the fifth, past which the
+  wait stays the half hour, so one below none can't stop the router from starting; and a kept
+  error has anything shaped like a token redacted.
 - **Its error** is kept with anything shaped like a token redacted (`internal/redact`), as the
   Claude prober's errors already are.
 - **Older and newer:** the version stays 1. A router from before ignores the fields, and takes an

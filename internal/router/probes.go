@@ -19,6 +19,11 @@ const (
 	// has ended, as one that failed; an account without room also waits that
 	// long after its usage was last read.
 	reprobeAfter = time.Minute
+	// rewarnAfter is how soon a window a probe still can't read is warned of
+	// again: as often as the rounds probed an idle account before they did
+	// so every unreadFor, so a window that can never be read, as a model's
+	// week a plan lacks, doesn't warn at every probe.
+	rewarnAfter = 30 * time.Minute
 )
 
 // probes reads accounts' usage by probing them: never one account twice at
@@ -67,15 +72,17 @@ type probing struct {
 type report func(a account, w went)
 
 // went is how a probe went: what it read, or why it read nothing, at, the
-// time it was sent, by the router's clock, how long it took, and whether it
-// went out on the token before the one the account goes out on now, as
-// recordProbe judges it, which keeps nothing of how it went.
+// time it was sent, by the router's clock, how long it took, whether it went
+// out on the token before the one the account goes out on now, as
+// recordProbe judges it, which keeps nothing of how it went, and the keys of
+// the windows it couldn't read to warn of, as recordProbe has them.
 type went struct {
 	probed      quota.Probe
 	err         error
 	at          time.Time
 	took        time.Duration
 	tokenBefore bool
+	warn        []string
 }
 
 // start probes each of the accounts that due says wants a probe, unless a
@@ -238,7 +245,7 @@ func (p *probes) probe(a account, r *run) {
 	for _, lifted := range taken.lifted {
 		p.emit(lifted)
 	}
-	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenBefore: taken.tokenBefore})
+	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenBefore: taken.tokenBefore, warn: taken.warn})
 }
 
 // logProbe logs how a probe of an account went: one that failed on the token
@@ -296,14 +303,14 @@ func (p Primed) startedBy(sent time.Time) bool {
 }
 
 // logUnread logs each window a probe of an account expected, and couldn't
-// read: at debug alone of a probe on the token before, as the account keeps
-// none of them.
+// read: at warn those it's to warn of, and the rest at debug, as those of a
+// probe on the token before, which the account keeps none of, are.
 func logUnread(a account, w went) {
-	note := logger.Warn
-	if w.tokenBefore {
-		note = logger.Debug
-	}
 	for _, f := range w.probed.Failures {
+		note := logger.Debug
+		if slices.Contains(w.warn, f.Window) {
+			note = logger.Warn
+		}
 		note("window unread", "account", a.ID, "window", f.Window, "error", f.Error)
 	}
 }

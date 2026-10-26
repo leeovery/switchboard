@@ -624,16 +624,19 @@ accounts:
   minute for the next. One whose probe read nothing is probed again on the rounds 2 minutes on,
   then 4, doubling to the half hour, and every half hour after, while it can't be read: a refused
   token probed every 5 minutes would only fill the log. One whose token is refused isn't probed on
-  the rounds while it's so, nor one without a usable token. One that goes out on another token, or
-  has a usable one again, starts afresh: how its probes went on the token before says nothing of
-  this one, so neither their error nor their backoff holds.
+  the rounds while it's so, nor one without a usable token. One that goes out on another token,
+  loses its usable token, or has a usable one again, starts afresh: how its probes went on the
+  token before says nothing of this one, so neither their error nor their backoff holds.
 - **Across a restart,** `state.json` keeps how each account's probes went, beside its reading: when
-  one last ended, why the last read nothing, and how many in a row did. So the minute after a probe
-  and the backoff hold across it, as they would had the router run on, however long it was away,
-  and the account's error reads as its last probe said. A probe kept as ending later than the router
-  starts, as before a clock set back, ended as it starts. An account that went out on another token
-  meanwhile, its file holding one other than the token `state.json` kept the hash of, starts afresh,
-  as above.
+  one last ended, why the last read nothing, and how many in a row did, counted to the fifth, past
+  which the wait stays the half hour. So the minute after a probe and the backoff hold across it,
+  as they would had the router run on, however long it was away, and the account's error reads as
+  its last probe said. An account that lost its token before it was saved has none of its probes
+  kept, so a restart with the token back starts it afresh, as running on would have. A probe kept
+  as ending later than the router starts, as before a clock set back, ended as it starts; a count
+  below none is none; and an error has anything shaped like a token redacted, as a file edited by
+  hand may hold either. An account that went out on another token meanwhile, its file holding one
+  other than the token `state.json` kept the hash of, starts afresh, as above.
 - **Asleep:** the router looks at least once a minute, as a timer's clock stops while the Mac
   sleeps, so a probe missed while it slept goes out within a minute of its waking; one due before a
   week's reset that has passed meanwhile is lost with it, and the rounds' next probe reads the
@@ -6733,9 +6736,11 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   token file found holding no usable token at one look, which the account's token outlasts; a
   config file found making no valid config at one look; of a probe on the token its account has
   since replaced, its failure or a window it couldn't read, as neither is kept, though a prime's
-  failure is warned of as any is; and why the first request after a session's compaction leaves
-  it where it is, and, where it's known, what the account judged would have left of its week
-  (`stays after compaction`, see Choosing an account). Of the readings
+  failure is warned of as any is; a window a probe couldn't read, which is warned of as a probe
+  first finds it unread since it was last read, then once a half hour at most (`window unread`);
+  and why the first request after a session's compaction leaves it where it is, and, where it's
+  known, what the account judged would have left of its week (`stays after compaction`, see
+  Choosing an account). Of the readings
   history (see Files): at `info`, how many readings the router took up from it as it started
   (`took up the readings history`), and that it's written again after failing (`writing the
   readings history again`); at `warn`, that its directory can't be made private (`can't make the
@@ -7099,8 +7104,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   all for, a reading that holds nothing else as none, and a pin that names its account
   alone, as pins did before they named several, as a pin to that one. It's rewritten whole (written
   beside it, synced, and renamed over it) a second after a change and on the way out, but once a
-  minute at most while its only changes are those every request makes: its session's assignment used
-  again, and the reading off its answer; and drops assignments unused for 7 days, with the pins of
+  minute at most while its only changes are routine: those every request makes, its session's
+  assignment used again and the reading off its answer, and those every probe makes, how it went
+  and a reading as before; and drops assignments unused for 7 days, with the pins of
   the sessions it forgets, and the hashes of tokens replaced 7 days before, at start and then
   hourly. At start it also drops the assignments and the sessions' own pins of accounts no longer
   configured, those accounts from the global pin, which goes with the last of them, and their

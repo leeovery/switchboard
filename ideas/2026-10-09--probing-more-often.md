@@ -46,8 +46,8 @@ In the cleanliness release (see the design's The router's rounds, under Priming,
   history keeps a reading only where a window reads otherwise, so use from elsewhere comes in at
   most six lines a half hour where it came in one, the ledger holds no probe, and a
   probe is an event only where it shows a limit lifted. A probe that reads nothing still backs off
-  to the half hour. The log, at its default level, notes a probe that read only at debug. Two
-  things grow with the probes: `state.json` is written once after each, as it was, so six times as
-  often for an idle account, a file of a few kilobytes; and a probe that reads the account but not
-  a model's own week warns `window unread` each time, so an account whose Fable week can never be
-  read warns every 5 minutes rather than every 30.
+  to the half hour. The log, at its default level, notes a probe that read only at debug, and a
+  window a probe can't read, as a Fable week a plan lacks, is warned of as it's first found unread,
+  then once a half hour at most (`rewarnAfter`), as often as before, the probes between at debug.
+  `state.json` keeps how each probe went as a routine change, written once a minute at most, as
+  the readings off answers are, and a reading that reads otherwise as news, a second on, as before.
