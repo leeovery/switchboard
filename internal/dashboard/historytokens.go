@@ -219,7 +219,7 @@ func (r tokensRow) number(column string) Number {
 func (f Frame) historyTokens(c *canvas, top int) {
 	page := f.History.Tokens
 	if page == nil || len(page.Periods) == 0 {
-		c.line(0, top, line{{"nothing recorded yet", dimInk}}.fit(f.Width))
+		c.line(0, top, line{{nothingRecorded, dimInk}}.fit(f.Width))
 		return
 	}
 	cols := f.tokensColumns()

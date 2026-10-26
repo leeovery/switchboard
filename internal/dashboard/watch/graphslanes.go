@@ -8,17 +8,21 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// graphsTab is what the watch holds of Graphs' lanes, which its cards say
-// what Runway says of each account by: Runway's lanes over its live view of
+// graphsTab is what the watch holds of Graphs as a look builds it: its
+// lanes, which its cards say what Runway says of each account by, and WHEN
+// YOU WORK's page. Of the lanes: Runway's lanes over its live view of
 // each window a burn-down section shown charts, by the window, each holding
 // what it judged of the past till what that's judged from changes, as
 // Runway's do; what the frame shows of them, as the last look built them;
-// how a look builds them, as lanesLooking has it; and the moment of the
-// message they were built at, as each is built once.
+// how a look builds them, as lanesLooking has it. WHEN YOU WORK's page, as
+// the last look on Graphs built it, held off the tab, where nothing draws
+// it. And the moment of the message both were built at, as each is built
+// once.
 type graphsTab struct {
 	lanes   map[views.RunwayWindow]views.Lanes
 	shown   map[views.RunwayWindow]dashboard.WindowLanes
 	look    func(views.Lanes, views.LanesFrom) views.Lanes
+	hours   *views.HoursPage
 	builtAt *status.HeldMoment
 }
 
@@ -28,7 +32,8 @@ type graphsTab struct {
 // burn-down section shows, over Runway's live view of it, as graphsTimeline
 // has it, as views.Lanes builds them from the last look's, of the readings
 // history's live tail and the readings the watch read itself, and the
-// ledger's days they're judged by, as Runway's are.
+// ledger's days they're judged by, as Runway's are; and WHEN YOU WORK's
+// page, as graphsHours has it.
 func (m Model) graphsBuilt() Model {
 	t := m.graphsTab
 	if m.view != dashboard.Graphs || m.session != nil || t.builtAt != nil && t.builtAt == m.taking.moment {
@@ -46,7 +51,7 @@ func (m Model) graphsBuilt() Model {
 		})
 		lanes[w], shown[w] = built, dashboard.WindowLanes{Window: w, Timeline: tl, Lanes: &built}
 	}
-	t.lanes, t.shown, t.builtAt = lanes, shown, m.taking.moment
+	t.lanes, t.shown, t.hours, t.builtAt = lanes, shown, m.graphsHours(), m.taking.moment
 	m.graphsTab = t
 	return m
 }

@@ -15,7 +15,8 @@ import (
 
 // historyTab is what the watch holds of History: the page its tab draws, the
 // sub-tab shown built of the days held; the days of the last 12 months, read
-// once a run, as History or Accounts is first shown, and of the earliest
+// once a run, as History or Accounts is first shown, Runway's lanes first
+// want them or Graphs first shows WHEN YOU WORK, and of the earliest
 // calendar year the Year steps back to that they don't reach, each brought
 // up to today at each look since; the day the ledger began, where it tells
 // it, and whether that's today's as it holds no day yet, beganNone, and
@@ -94,18 +95,19 @@ type beginning struct {
 }
 
 // readHistory has the watch read the ledger's days for History and
-// Accounts while either is shown, and for Runway or Graphs while its lanes
-// want them, as runwayYearWanted says, as they want them, one read at a
-// time, what's wanted meanwhile waiting for it to land, all sharing every
-// read and the days it holds: the last 12 months, once a run, as any is
-// first shown; while History shows, a calendar year the Year steps back to
-// that the days held don't reach, and while Runway or Graphs does, the one
-// its lanes want; and the days since those held were read to, once a look
-// since the last asks.
+// Accounts while either is shown, for Runway or Graphs while its lanes want
+// them, as runwayYearWanted says, and for Graphs while WHEN YOU WORK shows,
+// as graphsHoursWanted says, as they want them, one read at a time, what's
+// wanted meanwhile waiting for it to land, all sharing every read and the
+// days it holds: the last 12 months, once a run, as any is first shown;
+// while History shows, a calendar year the Year steps back to that the days
+// held don't reach, and while Runway or Graphs does, the one its lanes want;
+// and the days since those held were read to, once a look since the last
+// asks.
 func (m Model) readHistory() (Model, tea.Cmd) {
 	history := m.view == dashboard.History
 	runwayYear, runway := m.runwayYearWanted()
-	shown := history || m.view == dashboard.Accounts || runway
+	shown := history || m.view == dashboard.Accounts || runway || m.graphsHoursWanted()
 	if !shown || m.past.reading || m.cfg.Ledger == nil {
 		return m, nil
 	}

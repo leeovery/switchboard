@@ -87,7 +87,7 @@ func TestGraphsHoldsEachSectionToItsOwnRows(t *testing.T) {
 			case GraphsGlance:
 				own = glanceRows(len(tt.accounts), len(tt.accounts) > 1)
 			case GraphsWhen:
-				own = whenRows()
+				own = whenRows(l.width, f.Look)
 			default:
 				cards := l.cards(s)
 				last := cards[len(cards)-1].chart

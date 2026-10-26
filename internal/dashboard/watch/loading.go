@@ -37,11 +37,11 @@ type pageLoadingMsg struct {
 // the List held, as the Overview's SESSIONS and Sessions do, which names
 // their sessions, till its first read lands, as listAwaited has it; Runway
 // on the readings history; Graphs on its live tail, while it reads lanes of
-// it, as graphsWindows has them, never on a span Runway stepped back to; and
-// the Log on its lines and events, from as it first shows till its first
-// read lands, whether or not that read has begun, as it waits for another
-// read of the ledger to land first. A session's page says its own, as
-// pageLoading has it.
+// it, as graphsWindows has them, never on a span Runway stepped back to, and
+// on the ledger's days while WHEN YOU WORK shows; and the Log on its lines
+// and events, from as it first shows till its first read lands, whether or
+// not that read has begun, as it waits for another read of the ledger to
+// land first. A session's page says its own, as pageLoading has it.
 func (m Model) awaiting() bool {
 	switch m.shownView() {
 	case dashboard.Overview:
@@ -55,7 +55,8 @@ func (m Model) awaiting() bool {
 	case dashboard.Runway:
 		return m.runwayTab.reading
 	case dashboard.Graphs:
-		return len(m.graphsWindows()) > 0 && m.runwayTab.reading && m.runwayTab.readingLive
+		return len(m.graphsWindows()) > 0 && m.runwayTab.reading && m.runwayTab.readingLive ||
+			m.graphsHoursWanted() && m.past.reading
 	case dashboard.Log:
 		return m.log.reading || m.cfg.Ledger != nil && !m.log.opened
 	}
