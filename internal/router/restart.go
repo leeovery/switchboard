@@ -197,7 +197,7 @@ func (r *restarts) report() status.Restart {
 // makes no valid config by the running version's rules, none is but an
 // upgrade's, where the binary it restarts into is asked whether it could
 // start: that binary's rules, which may take what the running version's
-// refuse, decide.
+// refuse, decide, where it answers (see clear).
 func (r *restarts) due() string {
 	switch {
 	case r.config.valid && r.config.changed:
@@ -212,7 +212,8 @@ func (r *restarts) due() string {
 
 // newBinaryDecides reports whether the binary, standing as binary, has moved
 // on from the one running, as after an upgrade, and is asked whether it
-// could start: its rules, not the running version's, then judge the config.
+// could start: its rules, not the running version's, then judge the config,
+// where it answers.
 func (r *restarts) newBinaryDecides(binary fileState) bool {
 	return r.ask != nil && r.binary.running.there() && r.binary.running.movedTo(binary)
 }
@@ -262,7 +263,9 @@ func (r *restarts) restart(ctx context.Context) bool {
 // there, it isn't; otherwise it's asked, as asked does, until ctx ends, and
 // is unless ctx ends first, either file changes as it's asked, which drops
 // its answer for the next quiet moment to ask again, or it refuses, which
-// holds the restart.
+// holds the restart. A binary that can't answer leaves the running version's
+// rules to decide: while they refuse the config, as they can only for an
+// upgrade, that holds the restart, with their reason.
 func (r *restarts) clear(ctx context.Context, why string) bool {
 	stood := r.files()
 	switch {
@@ -276,7 +279,13 @@ func (r *restarts) clear(ctx context.Context, why string) bool {
 	case err != nil, !r.files().same(stood):
 		return false
 	case refusal != "":
+		logger.Warn("restart held, as its binary refuses to start; carrying on as it is", "reason", why, "path", r.binary.path, "refusal", refusal)
 		r.hold(stood, why, refusal)
+		return false
+	case silent != nil && !r.config.valid:
+		logger.Warn("restart held, as its binary can't answer whether it could start, and this version refuses the config; carrying on as it is",
+			"reason", why, "path", r.binary.path, "refusal", r.config.refusal, "error", silent)
+		r.hold(stood, why, r.config.refusal)
 		return false
 	}
 	r.clearance = &binaryClearance{stood: stood, silent: silent}
@@ -290,16 +299,15 @@ func (r *restarts) missing(binary fileState) bool {
 	return r.binary.path != "" && !binary.there()
 }
 
-// hold holds the restart due for why, its binary refusing to start, saying
-// why, as the config file and the binary stood as it was asked: the log says
-// why at warn, an event tells of it, and the restart due reports it, until a
-// look finds either moved on.
+// hold holds the restart due for why, the router started again unable to
+// start, as refusal says, as the config file and the binary stood as it was
+// asked: an event tells of it, and the restart due reports it, until a look
+// finds either moved on. Its caller has the log say why, at warn.
 func (r *restarts) hold(stood checked, why, refusal string) {
 	r.held = &binaryRefusal{stood: stood, why: refusal}
 	r.mu.Lock()
 	r.pending.Held = refusal
 	r.mu.Unlock()
-	logger.Warn("restart held, as its binary refuses to start; carrying on as it is", "reason", why, "path", r.binary.path, "refusal", refusal)
 	r.emit(RestartHeld{Reason: why, Refusal: refusal})
 }
 
@@ -327,10 +335,11 @@ func (r *restarts) files() checked {
 // can't: it isn't supervised, so nothing would start it again; its binary
 // isn't there; its config file doesn't make a valid config, which the router
 // started again couldn't start from, by the running version's rules but
-// where a new binary decides, as newBinaryDecides says; its binary, asked
-// until ctx ends, refuses to start; or either changes as the config file is
-// read or the binary asked. A router restarting already can, cleared by
-// nothing. It reads the config file afresh, and is safe for concurrent use.
+// where a new binary decides, as newBinaryDecides says, and answers; its
+// binary, asked until ctx ends, refuses to start; or either changes as the
+// config file is read or the binary asked. A router restarting already can,
+// cleared by nothing. It reads the config file afresh, and is safe for
+// concurrent use.
 func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if !r.supervised {
 		return nil, errors.New("the router was run by hand, with switchboard serve, so nothing would start it again: stop it, and run it again")
@@ -345,10 +354,9 @@ func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if r.missing(stood.binary) {
 		return nil, fmt.Errorf("the router's binary, %s, isn't there, as for a moment while an upgrade moves it on: try again once it is", r.binary.path)
 	}
-	if r.config.path != "" && !r.newBinaryDecides(stood.binary) {
-		if _, err := r.load(r.config.path); err != nil {
-			return nil, fmt.Errorf("the router's config file doesn't make a valid config, which it couldn't start again from: %w", err)
-		}
+	refused := r.refusesConfig()
+	if refused != nil && !r.newBinaryDecides(stood.binary) {
+		return nil, refused
 	}
 	refusal, silent, err := r.asked(ctx)
 	now := r.files()
@@ -359,8 +367,22 @@ func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 		return nil, fmt.Errorf("the router's %s changed as it checked whether it could restart: try again", r.changed(stood, now))
 	case refusal != "":
 		return nil, fmt.Errorf("the router's binary refuses to start, so the router started again would stop: %s", refusal)
+	case silent != nil && refused != nil:
+		return nil, refused
 	}
 	return &binaryClearance{stood: stood, silent: silent}, nil
+}
+
+// refusesConfig fails, saying why, where the config file, read afresh,
+// doesn't make a valid config by the running version's rules.
+func (r *restarts) refusesConfig() error {
+	if r.config.path == "" {
+		return nil
+	}
+	if _, err := r.load(r.config.path); err != nil {
+		return fmt.Errorf("the router's config file doesn't make a valid config, which it couldn't start again from: %w", err)
+	}
+	return nil
 }
 
 // changed names what changed from stood to now, by its path: "config file,
@@ -432,6 +454,9 @@ type configFile struct {
 	// doesn't, as a file caught while it's saved, is missed, and changes
 	// nothing until the next finds it so too.
 	valid, missed bool
+	// refusal is why the file makes no valid config, while valid isn't set,
+	// as the running version reads it.
+	refusal string
 	// changed is set once the file has made another valid config since the
 	// router started, and accounts are those the last it made configures.
 	changed  bool
@@ -456,7 +481,7 @@ func (c *configFile) look() {
 		logger.Debug("config file makes no valid config; looking again before refusing it", "path", c.path, "error", err)
 		return
 	case err != nil:
-		c.seen, c.valid, c.missed = now, false, false
+		c.seen, c.valid, c.missed, c.refusal = now, false, false, err.Error()
 		logger.Warn("config change refused; carrying on with the config as it was", "path", c.path, "error", err)
 		return
 	}
@@ -490,8 +515,9 @@ func (f *ledFile) look() {
 	logger.Info(f.news, "path", f.path)
 }
 
-// binaryRefusal is the binary's refusal to start, which holds a restart: why,
-// and how the config file and the binary stood as it was asked.
+// binaryRefusal is the binary's refusal to start, or, where it couldn't
+// answer, the running version's refusal of the config, which holds a
+// restart: why, and how the config file and the binary stood as it was asked.
 type binaryRefusal struct {
 	stood checked
 	why   string

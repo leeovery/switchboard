@@ -6870,8 +6870,15 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   a config file it refuses holds them off until it's put right; for an upgrade, the new binary,
   asked first (see The binary asked first), as its rules can take a config the running version's
   refuse, such as one using a key only the new version knows, so an upgrade is due whatever the
-  running version makes of the config, and only the new binary's refusal holds it. A router not
-  given a binary to ask judges an upgrade by its own rules. A connection upgraded, such as a
+  running version makes of the config, and the new binary decides where it answers: able to
+  start, it's restarted into, and refusing, it holds the restart with its reason. Where it can't
+  answer, as one from before the check, one that crashes or one that takes too long, the running
+  version's rules decide, as before the new binary judged: a config they take is restarted into,
+  and one they refuse holds the restart with their own reason, the config's error as the running
+  version reads it, worded as any hold is, and asked about again only once the config file or the
+  binary changes; `service restart` is judged the same way (the owner's call, 26 October 2026). A
+  router not given a binary to ask judges an upgrade by its own rules. A connection upgraded, such
+  as a
   WebSocket, isn't a request in flight, as it can stay open for as long as its session runs.
 - **The binary asked first.** A config the running version takes can be one a newer version's
   rules refuse, as the label's 100 characters (#142) were the first to, and a router started from
@@ -6888,7 +6895,9 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   - **Held only on a refusal.** Any other answer is restarted into as before there was a check: a
     binary from before it, which exits 1 at the flag it doesn't know, as a rollback would bring,
     and would otherwise hold the router on its old version for good; one that crashes; and one
-    that hasn't answered within 10 seconds. Each is logged at `info`.
+    that hasn't answered within 10 seconds. Each is logged at `info`. But for an upgrade whose
+    config the running version refuses, the running version's refusal then holds it, as the
+    paragraph above says.
   - **Not while the binary isn't there.** While its path leads nowhere, as for a moment while
     `brew upgrade` moves the link on, the binary isn't asked, and nothing restarts: the restart
     waits for a look that finds it there, and `service restart` meanwhile is refused, saying so.
@@ -7661,7 +7670,9 @@ verbs).
   every 200ms for the first 2 seconds, as launchd may be bringing it back, or it may be restarting.
   So is one that closes the connection before it begins to answer, at its end or by a reset, as a
   router stopping does with an ask it hasn't answered in time (see The router looking after
-  itself): it isn't running at that moment (the owner's call, 26 October 2026). One that connects
+  itself): it isn't running at that moment, and where the asks run out on such a close, `run`
+  takes the router as not running, in its words and as `when_router_down` says (the owner's call,
+  26 October 2026). One that connects
   is asked once, and given what's left of the 5 seconds, as asking again would add work to a
   machine already behind, and an answer cut off once it has begun is taken as it is. Any other
   answer is taken at once. `dashboard`, `usage` and

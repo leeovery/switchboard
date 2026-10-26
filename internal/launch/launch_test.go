@@ -410,6 +410,11 @@ func TestRunWithTheRouterDownStopsUnlessToldToGoDirect(t *testing.T) {
 	}{
 		{name: "not running", r: notRunning(), state: "the router isn't running", log: []string{`router="not running"`}},
 		{
+			name:  "closing the connection before answering, at the last ask",
+			r:     &fakeRouter{healthErr: fmt.Errorf(`%w: Get "http://switchboard/health": EOF`, router.ErrUnanswered)},
+			state: "the router isn't running", log: []string{`router="not running"`},
+		},
+		{
 			name: "unhealthy", r: &fakeRouter{health: router.Health{Reason: unhealthy}},
 			state: "the router is unhealthy (" + unhealthy + ")", log: []string{"router=unhealthy", `reason="` + unhealthy + `"`},
 		},

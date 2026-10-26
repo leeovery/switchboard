@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -267,40 +268,62 @@ func TestARestartIsHeldBackWhileTheConfigFileIsInvalid(t *testing.T) {
 
 func TestAnUpgradesBinaryJudgesTheConfigInPlaceOfTheRunningVersion(t *testing.T) {
 	const refusal = "invalid config /test/config.toml:\nunknown key \"account.colour\""
+	silent := binaryAnswer{err: errors.New("exit status 1")}
 	tests := []struct {
 		name string
 		// upgraded says whether the binary moves on, and answer is how the
-		// one it moves on to answers whether it could start.
-		upgraded    bool
-		answer      binaryAnswer
-		wantDue     string
-		wantRestart bool
-		wantAsked   int
-		wantHeld    string
+		// one it moves on to answers whether it could start; refused says
+		// whether the running version refuses the config.
+		upgraded, refused bool
+		answer            binaryAnswer
+		wantDue           string
+		wantRestart       bool
+		wantAsked         int
+		// wantHeld is why the restart is held, or wantHeldAsRunning set
+		// where it's for the running version's refusal of the config.
+		wantHeld          string
+		wantHeldAsRunning bool
 	}{
 		{
 			name:     "upgraded, to a version that takes the config the running one refuses",
-			upgraded: true, wantDue: "upgraded", wantRestart: true, wantAsked: 1,
+			upgraded: true, refused: true, wantDue: "upgraded", wantRestart: true, wantAsked: 1,
 		},
 		{
 			name:     "upgraded, to a version that refuses it too",
-			upgraded: true, answer: binaryAnswer{refusal: refusal}, wantDue: "upgraded", wantAsked: 1, wantHeld: refusal,
+			upgraded: true, refused: true, answer: binaryAnswer{refusal: refusal}, wantDue: "upgraded", wantAsked: 1, wantHeld: refusal,
 		},
-		{name: "not upgraded"},
+		{
+			name:     "upgraded, to a version that can't answer, the running one refusing the config",
+			upgraded: true, refused: true, answer: silent, wantDue: "upgraded", wantAsked: 1, wantHeldAsRunning: true,
+		},
+		{
+			name:     "upgraded, to a version that can't answer, the running one taking the config",
+			upgraded: true, answer: silent, wantDue: "upgraded", wantRestart: true, wantAsked: 1,
+		},
+		{name: "not upgraded", refused: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logstest.Capture(t)
+			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+			var heard []Event
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
 			asked := askedOf(r, tt.answer)
-			writeFile(t, s.kept, notAConfig)
+			if tt.refused {
+				writeFile(t, s.kept, notAConfig)
+			}
 			if tt.upgraded {
 				relink(t, s.binary, s.version("1.1"))
 			}
-			// The running version refuses the config at two looks in a row.
+			// The running version refuses the config, if it does, at two looks
+			// in a row.
 			r.look()
 			r.look()
+			wantHeld := tt.wantHeld
+			if tt.wantHeldAsRunning {
+				_, err := config.Load(s.config)
+				wantHeld = err.Error()
+			}
 
 			if got := r.due(); got != tt.wantDue {
 				t.Errorf("due() = %q, want %q", got, tt.wantDue)
@@ -308,11 +331,29 @@ func TestAnUpgradesBinaryJudgesTheConfigInPlaceOfTheRunningVersion(t *testing.T)
 			if got := r.restart(t.Context()); got != tt.wantRestart {
 				t.Errorf("restart() = %v, want %v", got, tt.wantRestart)
 			}
-			if *asked != tt.wantAsked {
-				t.Errorf("the binary was asked %d times, want %d", *asked, tt.wantAsked)
+			if got := r.report().Held; got != wantHeld {
+				t.Errorf("report().Held = %q, want %q", got, wantHeld)
 			}
-			if got := r.report().Held; got != tt.wantHeld {
-				t.Errorf("report().Held = %q, want %q", got, tt.wantHeld)
+			if wantHeld == "" {
+				if *asked != tt.wantAsked {
+					t.Errorf("the binary was asked %d times, want %d", *asked, tt.wantAsked)
+				}
+				return
+			}
+			for range 3 {
+				r.look()
+				if ready := r.ready(); ready != nil {
+					t.Fatalf("ready() = %v while the restart is held, with nothing changed, want none", ready)
+				}
+			}
+			if *asked != tt.wantAsked {
+				t.Errorf("the binary was asked %d times, want %d: nothing changed since the restart was held", *asked, tt.wantAsked)
+			}
+			if want := (RestartHeld{Reason: "upgraded", Refusal: wantHeld}); !slices.Contains(heard, Event(want)) {
+				t.Errorf("heard %+v, want %+v among them", heard, want)
+			}
+			if n := strings.Count(log.String(), `msg="restart held`); n != 1 {
+				t.Errorf("log reads\n%s\nwant the restart held said once, not %d times", log, n)
 			}
 		})
 	}
@@ -320,21 +361,29 @@ func TestAnUpgradesBinaryJudgesTheConfigInPlaceOfTheRunningVersion(t *testing.T)
 
 func TestARestartAskedForAfterAnUpgradeIsJudgedByItsBinary(t *testing.T) {
 	const refusal = "invalid config /test/config.toml:\nunknown key \"account.colour\""
+	const refusedByRunning = "the router's config file doesn't make a valid config, which it couldn't start again from: invalid config "
+	silent := binaryAnswer{err: errors.New("exit status 1")}
 	tests := []struct {
 		name string
 		// upgraded says whether the binary has moved on, and answer is how
-		// the one it leads to answers whether it could start.
-		upgraded bool
-		answer   binaryAnswer
-		wantErr  string
+		// the one it leads to answers whether it could start; refused says
+		// whether the running version refuses the config.
+		upgraded, refused bool
+		answer            binaryAnswer
+		wantErr           string
 	}{
-		{name: "upgraded, to a version that takes the config the running one refuses", upgraded: true},
+		{name: "upgraded, to a version that takes the config the running one refuses", upgraded: true, refused: true},
 		{
 			name:     "upgraded, to a version that refuses it too",
-			upgraded: true, answer: binaryAnswer{refusal: refusal},
+			upgraded: true, refused: true, answer: binaryAnswer{refusal: refusal},
 			wantErr: "the router's binary refuses to start, so the router started again would stop: " + refusal,
 		},
-		{name: "not upgraded", wantErr: "the router's config file doesn't make a valid config, which it couldn't start again from: invalid config "},
+		{
+			name:     "upgraded, to a version that can't answer, the running one refusing the config",
+			upgraded: true, refused: true, answer: silent, wantErr: refusedByRunning,
+		},
+		{name: "upgraded, to a version that can't answer, the running one taking the config", upgraded: true, answer: silent},
+		{name: "not upgraded", refused: true, wantErr: refusedByRunning},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -342,7 +391,9 @@ func TestARestartAskedForAfterAnUpgradeIsJudgedByItsBinary(t *testing.T) {
 			s := newStartedFrom(t)
 			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 			askedOf(r, tt.answer)
-			writeFile(t, s.kept, notAConfig)
+			if tt.refused {
+				writeFile(t, s.kept, notAConfig)
+			}
 			if tt.upgraded {
 				relink(t, s.binary, s.version("1.1"))
 			}

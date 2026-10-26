@@ -70,9 +70,12 @@ design's The router looking after itself):
   giving the reason.
 - **The new binary decides an upgrade,** built in the cleanliness release's fixes, 26 October
   2026: once the binary has moved on, an upgrade is due whatever the running router makes of the
-  config, and the new binary's check decides, a refusal holding it as before, so a config edited
-  after an upgrade, before the handover, to what only the new version takes no longer holds the
-  upgrade off. `service restart` after an upgrade is judged so too. A config change or a new time
+  config, and the new binary's check decides where it answers, a refusal holding it as before, so
+  a config edited after an upgrade, before the handover, to what only the new version takes no
+  longer holds the upgrade off. Where the new binary can't answer, as one from before the check,
+  the running version's rules decide as they did: a config they refuse holds the restart with
+  their own reason, as any hold is worded, until the config file or the binary changes (the
+  owner's call). `service restart` after an upgrade is judged so too. A config change or a new time
   zone with no new binary is still judged by the running version's rules, as the router it
   restarts into is the same version (`restarts.due` and `restartable`, `internal/router/restart.go`).
 - **Left:** while the binary isn't there, the status document shows the restart due with nothing

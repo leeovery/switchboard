@@ -306,8 +306,10 @@ without switchboard until you put the config right. The router asks again once y
 config, or the binary changes again. A version from before this check can't answer, and the router
 restarts into it as it always has.
 
-Only the new version judges your config for an upgrade: an edit to the config that only it takes,
-such as a key it brings, doesn't hold the upgrade off.
+The new version judges your config for an upgrade: an edit to the config that only it takes, such
+as a key it brings, doesn't hold the upgrade off. A version too old to answer can't judge it, so
+the running version does: where it refuses your config, the restart is held with its reason
+until you change the config or the binary.
 
 Restarting in place also means launchd isn't asked to start an upgraded binary afresh. macOS has
 been seen to refuse that, while it lets the router run the new binary in place, as the first such
