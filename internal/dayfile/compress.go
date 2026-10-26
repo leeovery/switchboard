@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -68,17 +69,19 @@ func (f *Files) addPlain(date string) error {
 
 // compressedDay is a day's compressed file, open to read, and what's known
 // of the lines it gives, its members' one after another: how long they run
-// to, where those the last member adds start, and whether they end in a line
-// cut short. Its file is nil where it isn't there, which gives none.
+// to, where those each member adds start, and whether they end in a line cut
+// short. Its file is nil where it isn't there, which gives none.
 type compressedDay struct {
 	file *os.File
 	// size is how long the file runs to, as it's written.
 	size int64
-	// length is how long its lines run to, and last where those the last
-	// member adds start: after the line ending it begins with, where that's
-	// the one adding put after the lines before it, cut short.
-	length, last int64
-	cutShort     bool
+	// length is how long its lines run to.
+	length int64
+	// starts are where the lines each member adds start, in order: after
+	// the line ending a member begins with, where that's the one adding put
+	// after the lines before it, cut short.
+	starts   []int64
+	cutShort bool
 }
 
 // openCompressed opens the compressed file at path, and reads its members
@@ -112,17 +115,19 @@ func (c *compressedDay) measure() error {
 	if err != nil {
 		return err
 	}
-	members.Multistream(false)
 	var lines span
 	for {
+		// Reset turns reading the members as one stream back on.
+		members.Multistream(false)
 		var member span
 		if _, err := io.Copy(&member, members); err != nil {
 			return err
 		}
-		c.last = lines.n
+		start := lines.n
 		if lines.cutShort() && member.first == '\n' {
-			c.last++
+			start++
 		}
+		c.starts = append(c.starts, start)
 		lines.add(member)
 		switch err := members.Reset(src); {
 		case errors.Is(err, io.EOF):
@@ -135,20 +140,13 @@ func (c *compressedDay) measure() error {
 }
 
 // holds returns how much of the plain file's lines, in bytes from its start,
-// the compressed file's lines hold already: all of them, where its lines end
-// with them, as when a compress stopped once it had written the compressed
-// file, before it removed the plain one; those the last member adds, where
-// the plain file's start with them, as when a line was appended to the plain
-// file after that; and none otherwise.
+// the compressed file's lines hold already, from the first of the places
+// heldFrom gives where its lines run on to their end as the plain file's
+// start: all of them, or those of its last members; and none where it finds
+// no such place.
 func (c compressedDay) holds(plain *io.SectionReader) (int64, error) {
-	if c.file == nil {
-		return 0, nil
-	}
-	for _, from := range []int64{c.length - plain.Size(), c.last} {
+	for _, from := range c.heldFrom(plain.Size()) {
 		n := c.length - from
-		if from < 0 || n == 0 || n > plain.Size() {
-			continue
-		}
 		same, err := c.endsWith(from, io.NewSectionReader(plain, 0, n))
 		if err != nil {
 			return 0, err
@@ -158,6 +156,34 @@ func (c compressedDay) holds(plain *io.SectionReader) (int64, error) {
 		}
 	}
 	return 0, nil
+}
+
+// heldFrom returns the places in the file's lines from which they may run on
+// to their end as the plain file's lines, size long, start, in the order
+// holds looks at them: where they'd end with the whole plain file, as when a
+// compress stopped once it had written the compressed file, before it
+// removed the plain one; then the start of each member's lines, the last
+// first, from which they'd give less than the whole, as when a line was
+// appended to the plain file after that, once or more, each time after
+// another compress stopped so.
+func (c compressedDay) heldFrom(size int64) []int64 {
+	if c.file == nil || size == 0 {
+		return nil
+	}
+	var from []int64
+	if size <= c.length {
+		from = append(from, c.length-size)
+	}
+	for _, start := range slices.Backward(c.starts) {
+		n := c.length - start
+		if n >= size {
+			break
+		}
+		if n > 0 {
+			from = append(from, start)
+		}
+	}
+	return from
 }
 
 // holdsAll reports whether a day's compressed file's lines, compressed, hold

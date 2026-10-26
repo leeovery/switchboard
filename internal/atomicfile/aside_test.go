@@ -40,6 +40,11 @@ func TestSetAsideKeepsTheNewestThreeOfAName(t *testing.T) {
 			want:   []string{aside(4), aside(5), aside(now.Unix())},
 		},
 		{
+			name:   "the fourth, keeping it, where a clock once set ahead named the three before it after now",
+			before: []string{aside(now.Unix() + 100), aside(now.Unix() + 300), aside(now.Unix() + 200)},
+			want:   []string{aside(now.Unix() + 200), aside(now.Unix() + 300), aside(now.Unix())},
+		},
+		{
 			name: "leaving alone what isn't one of the file's set aside",
 			before: []string{
 				aside(1), aside(2), aside(3),

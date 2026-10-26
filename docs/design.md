@@ -7093,9 +7093,10 @@ hiding it behind the provider would take a wider interface than it's worth:
   member of their own, after the members there, written beside the file and renamed into place,
   holding neither file whole. Lines the compressed file holds already aren't added again: all of
   them, where its lines end with them, as when the router stopped between writing it and removing
-  the plain file; or those its last member gives, where the plain file's start with them, as when
-  a line was appended to the day after that. The router reads either form back, as it starts
-  and for `GET /history`, which the dashboard's charts draw from (see Control API), and so do the
+  the plain file; or those its last members give, from the latest member on that the plain file
+  starts with, as when a line was appended to the day after that, once or more, the router
+  stopping so after each. The router reads either form back, as it starts and for `GET /history`,
+  which the dashboard's charts draw from (see Control API), and so do the
   request ledger's readers, as they summarise a day (see The request ledger). A day's plain file
   is opened before its compressed file, and what the two hold is told from the files opened:
   compressing a day writes its compressed file before it removes the plain one, so a day another

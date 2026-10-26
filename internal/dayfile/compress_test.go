@@ -39,8 +39,8 @@ func TestACompressedFileAnEarlierBuildWroteReadsAsItDid(t *testing.T) {
 	earlier := earlierFile(t)
 	f := requestLedger(t.TempDir())
 	put(t, f.path(compressedFile(earlierDate)), earlier)
-	if got := heldIn(t, f, compressedFile(earlierDate)); got != earlierLines {
-		t.Fatalf("the earlier build's file gives %q, want %q", got, earlierLines)
+	if got := heldIn(t, f, compressedFile(earlierDate)); got != earlierLines || membersIn(t, earlier) != 3 {
+		t.Fatalf("the earlier build's file gives %q in %d members, want %q in 3", got, membersIn(t, earlier), earlierLines)
 	}
 	if read, unread := readJSON(f, earlierDate); !slices.Equal(read, []string{`{"n":1}`, `{"n":2}`, `{"n":3}`, `{"n":5}`}) || unread != 1 {
 		t.Errorf("read %q, %d unread; want the lines it was given, but the one cut short", read, unread)
@@ -141,6 +141,40 @@ func TestACompressStoppedPartwayIsFinishedByTheNextOnce(t *testing.T) {
 			appended: linesOf(`{"n":3}`),
 			want:     linesOf(`{"n":2}`, `{"n":3}`),
 		},
+		{
+			name:     "after members of their own, once it had written the compressed file, and a line appended after",
+			members:  []string{older, linesOf(`{"n":2}`)},
+			plain:    linesOf(`{"n":3}`),
+			stopped:  addingPlain,
+			appended: linesOf(`{"n":4}`),
+			want:     older + linesOf(`{"n":2}`, `{"n":3}`, `{"n":4}`),
+		},
+		{
+			name:    "after members of their own, stopped twice, a line appended after each time",
+			members: []string{older, linesOf(`{"n":2}`)},
+			plain:   linesOf(`{"n":3}`),
+			stopped: func(t *testing.T, f *Files) {
+				addingPlain(t, f)
+				appendingPlain(t, f, linesOf(`{"n":4}`))
+				addingPlain(t, f)
+			},
+			appended: linesOf(`{"n":5}`),
+			want:     older + linesOf(`{"n":2}`, `{"n":3}`, `{"n":4}`, `{"n":5}`),
+		},
+		{
+			name:    "stopped three times, a line appended after each time",
+			members: []string{older},
+			plain:   linesOf(`{"n":2}`),
+			stopped: func(t *testing.T, f *Files) {
+				for _, line := range []string{`{"n":3}`, `{"n":4}`} {
+					addingPlain(t, f)
+					appendingPlain(t, f, linesOf(line))
+				}
+				addingPlain(t, f)
+			},
+			appended: linesOf(`{"n":5}`),
+			want:     older + linesOf(`{"n":2}`, `{"n":3}`, `{"n":4}`, `{"n":5}`),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -150,11 +184,7 @@ func TestACompressStoppedPartwayIsFinishedByTheNextOnce(t *testing.T) {
 			}
 			writeDay(t, f, plainFile(earlierDate), tt.plain)
 			tt.stopped(t, f)
-			if tt.appended != "" {
-				if err := appendLines(f.path(plainFile(earlierDate)), []byte(tt.appended)); err != nil {
-					t.Fatal(err)
-				}
-			}
+			appendingPlain(t, f, tt.appended)
 
 			if err := f.compress(earlierDate); err != nil {
 				t.Fatalf("compress() = %v", err)
@@ -174,6 +204,18 @@ func TestACompressStoppedPartwayIsFinishedByTheNextOnce(t *testing.T) {
 func addingPlain(t *testing.T, f *Files) {
 	t.Helper()
 	if err := f.addPlain(earlierDate); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// appendingPlain appends lines, where there are any, to the plain file of
+// earlierDate, as Append does.
+func appendingPlain(t *testing.T, f *Files, lines string) {
+	t.Helper()
+	if lines == "" {
+		return
+	}
+	if err := appendLines(f.path(plainFile(earlierDate)), []byte(lines)); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -290,8 +332,8 @@ func membersIn(t *testing.T, data []byte) int {
 	if err != nil {
 		t.Fatal(err)
 	}
-	members.Multistream(false)
 	for n := 1; ; n++ {
+		members.Multistream(false)
 		if _, err := io.Copy(io.Discard, members); err != nil {
 			t.Fatal(err)
 		}
