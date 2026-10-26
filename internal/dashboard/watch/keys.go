@@ -11,14 +11,13 @@ import (
 
 // pageKey acts on a key of the page, as pressed hands it on: j, k, PgDn and
 // PgUp scroll the view where it doesn't fit, as scrollView has it, and on
-// the Overview ↓ and ↑ as j and k, as overviewScroll has it; and the
-// rest each as acting has the page act: w shows and hides each model's own
+// the Overview ↓ and ↑ as j and k, as overviewScroll has it; and the rest
+// each as acting has the page act: w shows and hides each model's own
 // window, where the page lists windows, as listsModels says, as
 // toggleModels has it; on the Overview, u, r, s, c and l show and hide its
 // sections and b switches how its windows are grouped, as overviewKey says;
-// on
-// Graphs, w, f, o, g and h show and hide its sections, as graphsKey says; on
-// Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
+// on Graphs, w, f, o, g and h show and hide its sections, as graphsKey says;
+// on Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
 // ← → act as historyKey says; on Sessions, its keys act as sessionsKey says;
 // on Runway, < > and ← → act as runwayKey says; on the Log, [ ], ↑ ↓, end,
 // esc, enter, s, f and / act as logKey says; tab and shift-tab show the next

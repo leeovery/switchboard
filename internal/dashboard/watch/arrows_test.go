@@ -167,14 +167,19 @@ func TestUpAndDownAreNamedAndScrollExactlyWhereUSAGEScrolls(t *testing.T) {
 	}
 }
 
-// ↓ and ↑ are the Overview's alone: on another tab, they don't scroll it.
-func TestUpAndDownDontScrollTheOverviewFromAnotherTab(t *testing.T) {
+// ↓ and ↑ scroll the Overview alone: on another tab, they do that tab's own
+// thing, as on Accounts' Detail, where ↓ chooses the next account, and
+// scroll nothing.
+func TestUpAndDownScrollOnlyOnTheOverview(t *testing.T) {
 	h := shortUSAGE(t)
 	h.press("tab")
-	h.keys(downKey, downKey)
-	h.press("shift+tab")
-	if h.model.view != dashboard.Overview || h.model.scroll != 0 {
-		t.Errorf("↓ twice on %q scrolled the Overview %d rows, want none", h.model.view, h.model.scroll)
+	h.model.accounts.shown = dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail}
+	if h.model.view != dashboard.Accounts || h.model.scroll != 0 {
+		t.Fatalf("on %q, scrolled %d; want Accounts, unscrolled", h.model.view, h.model.scroll)
+	}
+	h.keys(downKey)
+	if chosen := h.model.accounts.shown.Chosen; chosen != "work" || h.model.scroll != 0 {
+		t.Errorf("↓ on Accounts' Detail chose %q and scrolled %d; want work chosen, as Detail's ↓ does, nothing scrolled", chosen, h.model.scroll)
 	}
 }
 

@@ -27,7 +27,8 @@ func overviewHelp() []helpPart {
 				said("Σ pool is the room new sessions can go to now, in accounts' worth: every account's on auto, the pinned accounts' alone " +
 					"when pinned, each to its cap; all accounts, on Accounts and History, counts every account, to its limit. An account out " +
 					"of the pool is faint."),
-				said("`b` groups the windows by account instead, a block an account, ROUTING beside each. With more accounts than fit, " +
+				said("`b` groups the windows by account instead, a block an account, ROUTING beside each where both fit; elsewhere " +
+					"ROUTING keeps a section of its own. With more accounts than fit, " +
 					"USAGE scrolls within itself, whole, a row at a time, each window's heading kept on its first row while the window's " +
 					"rows scroll under it, and its last row says how many rows are out of view above and below."),
 				said("`w` shows each model's own window, as Fable's week, here and wherever windows are listed as they stand now: " +
