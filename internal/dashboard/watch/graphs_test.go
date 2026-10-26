@@ -364,7 +364,7 @@ func TestGraphsSaysItsLoadingWhileWhenYouWorksReadTakesAWhile(t *testing.T) {
 		t.Errorf("the days read, the screen is\n%s\nwant nothing of loading, and WHEN YOU WORK's weeks", shown)
 	}
 
-	h, _ = whenHarness(t, "pool", "glance")
+	h, _ = whenHarness(t, "glance")
 	if unread := holdingBack[yearReadMsg](h, h.init()...); len(unread) != 0 {
 		t.Errorf("WHEN YOU WORK hidden, %d reads of the ledger's days were asked for, want none", len(unread))
 	}

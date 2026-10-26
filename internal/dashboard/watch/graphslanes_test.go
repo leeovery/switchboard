@@ -237,20 +237,24 @@ func TestGraphsLanesAreJudgedByTheReadingsHistoryAndTheLedgersDaysAsRunways(t *t
 }
 
 // Graphs, waiting on a read of the readings history LoadingAfter or longer,
-// says loading… on its first section's heading till the read lands; a read
-// landing sooner says nothing of it.
+// as its burn-downs or POOL read it, says loading… on its first section's
+// heading till the read lands; a read landing sooner says nothing of it.
 func TestGraphsSaysItsLoadingWhileItsReadOfTheReadingsHistoryTakesAWhile(t *testing.T) {
 	tests := []struct {
-		name string
-		late bool
+		name  string
+		shown dashboard.GraphsSections
+		first string
+		late  bool
 	}{
-		{name: "its read landing late", late: true},
-		{name: "its read landing soon"},
+		{name: "its read landing late", first: "WEEK", late: true},
+		{name: "its read landing soon", first: "WEEK"},
+		{name: "POOL alone, its read landing late", shown: dashboard.GraphsSectionsNamed([]string{"pool"}), first: "POOL", late: true},
+		{name: "POOL alone, its read landing soon", shown: dashboard.GraphsSectionsNamed([]string{"pool"}), first: "POOL"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := routedHarness(t, routerDocument(three()...))
-			h.model.view = dashboard.Graphs
+			h.model.view, h.model.graphs = dashboard.Graphs, tt.shown
 			unread := holdingBack[runwayReadMsg](h, h.init()...)
 			loading, ok := h.pending(loadingMsg{})
 			if len(unread) == 0 || !ok {
@@ -263,8 +267,8 @@ func TestGraphsSaysItsLoadingWhileItsReadOfTheReadingsHistoryTakesAWhile(t *test
 				h.deliver(unread...)
 			}
 			h.fire(loading)
-			if got, want := h.row(4), tt.late; strings.HasPrefix(got, "WEEK   "+loadingSaid) != want {
-				t.Errorf("%s on, the heading reads %q; want it saying loading… after WEEK %t", LoadingAfter, got, want)
+			if got, want := h.row(4), tt.late; strings.HasPrefix(got, tt.first+"   "+loadingSaid) != want {
+				t.Errorf("%s on, the heading reads %q; want it saying loading… after %s %t", LoadingAfter, got, tt.first, want)
 			}
 			h.deliver(unread...)
 			if got := h.row(4); strings.Contains(got, loadingSaid) {
@@ -274,8 +278,8 @@ func TestGraphsSaysItsLoadingWhileItsReadOfTheReadingsHistoryTakesAWhile(t *test
 	}
 }
 
-// Graphs with both burn-down sections hidden waits on no read of the
-// readings history, so its first heading, POOL's here, says nothing of
+// Graphs with both burn-down sections and POOL hidden waits on no read of
+// the readings history, so its first heading, GLANCE's here, says nothing of
 // loading while a read of the live tail asked before they were hidden is
 // under way, however long it takes.
 func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
@@ -285,7 +289,7 @@ func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
 	if len(unread) == 0 || !h.model.runwayTab.readingLive {
 		t.Fatalf("the live tail's read held back %d, of the live tail %t; want it held", len(unread), h.model.runwayTab.readingLive)
 	}
-	for _, key := range []string{"w", "f", "o"} {
+	for _, key := range []string{"w", "f", "g"} {
 		unread = append(unread, holdingBack[runwayReadMsg](h, h.update(tea.KeyPressMsg{Code: rune(key[0]), Text: key})...)...)
 	}
 	h.clock.now = h.clock.now.Add(2 * LoadingAfter)
@@ -296,8 +300,8 @@ func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
 	if tab := h.model.runwayTab; !tab.reading || !tab.readingLive {
 		t.Fatalf("the heading read with the live tail's read under way %t, of the live tail %t; want it under way", tab.reading, tab.readingLive)
 	}
-	if got := h.row(4); !strings.HasPrefix(got, "POOL") || strings.Contains(got, loadingSaid) {
-		t.Errorf("WEEK and 5-HOUR hidden, the live tail's read under way, the heading reads %q, want POOL's, saying nothing of loading", got)
+	if got := h.row(4); !strings.HasPrefix(got, "GLANCE") || strings.Contains(got, loadingSaid) {
+		t.Errorf("WEEK, 5-HOUR and POOL hidden, the live tail's read under way, the heading reads %q, want GLANCE's, saying nothing of loading", got)
 	}
 	h.deliver(unread...)
 }

@@ -288,7 +288,8 @@ func writeDay(tb testing.TB, dir, name string, data []byte, compressed bool) {
 // history having gained a reading of each account before it, the pool's
 // charts judged in full, and a resize; Runway built afresh, and a look at
 // it, its readings history having gained a reading of each account since
-// the last; Graphs alike, its lanes of each window; a request sent, with the
+// the last; Graphs alike, its lanes of each window, and with POOL shown
+// too, and its stack built afresh; a request sent, with the
 // Log shown; and the Events, filled through every kind, refiltered to a kind
 // none of the four weeks holds.
 func BenchmarkTheBusyDashboard(b *testing.B) {
@@ -401,12 +402,24 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 			h.model = h.model.graphsBuilt()
 		}
 	})
-	b.Run("a look on Graphs, a reading gained", func(b *testing.B) {
-		h := w.onGraphs(b)
+	for _, on := range []struct {
+		name  string
+		shown []string
+	}{{"a look on Graphs, a reading gained", nil}, {"a look on Graphs with POOL, a reading gained", []string{"week", "5-hour", "pool"}}} {
+		b.Run(on.name, func(b *testing.B) {
+			h := w.onGraphs(b, on.shown...)
+			for b.Loop() {
+				h.clock.now = h.clock.now.Add(30 * time.Second)
+				w.gained(b, h.clock.now.Add(-10*time.Second))
+				h.look(w)
+			}
+		})
+	}
+	b.Run("POOL's stack built afresh", func(b *testing.B) {
+		h := w.onGraphs(b, "pool")
 		for b.Loop() {
-			h.clock.now = h.clock.now.Add(30 * time.Second)
-			w.gained(b, h.clock.now.Add(-10*time.Second))
-			h.look(w)
+			h.model.graphsTab.pool, h.model.graphsTab.builtAt = views.PoolStack{}, nil
+			h.model = h.model.graphsBuilt()
 		}
 	})
 	b.Run("a request sent on the Log", func(b *testing.B) {
@@ -474,12 +487,17 @@ func (w busyWorld) onRunway(tb testing.TB) *harness {
 	return h
 }
 
-// onGraphs is the busy world's harness on Graphs, its lanes over Runway's
-// live view of each window built, its first look taken.
-func (w busyWorld) onGraphs(tb testing.TB) *harness {
+// onGraphs is the busy world's harness on Graphs, showing the sections
+// named, where any are, else those it shows at first, what they draw built,
+// its lanes over Runway's live view of each window among them, its first
+// look taken.
+func (w busyWorld) onGraphs(tb testing.TB, shown ...string) *harness {
 	tb.Helper()
 	h := w.harness(tb)
 	h.model.view = dashboard.Graphs
+	if len(shown) > 0 {
+		h.model.graphs = dashboard.GraphsSectionsNamed(shown)
+	}
 	h.look(w)
 	return h
 }

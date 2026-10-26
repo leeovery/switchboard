@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -16,14 +17,18 @@ import (
 // Runway's do; what the frame shows of them, as the last look built them;
 // how a look builds them, as lanesLooking has it. WHEN YOU WORK's page, as
 // the last look on Graphs built it, held off the tab, where nothing draws
-// it. And the moment of the message both were built at, as each is built
-// once.
+// it. POOL's stack, held look to look, as it holds what it judged of the
+// past till what that's judged from changes, and while POOL hides, for when
+// it shows again; and how a look builds it, as poolLooking has it. And the
+// moment of the message they were built at, as each is built once.
 type graphsTab struct {
-	lanes   map[views.RunwayWindow]views.Lanes
-	shown   map[views.RunwayWindow]dashboard.WindowLanes
-	look    func(views.Lanes, views.LanesFrom) views.Lanes
-	hours   *views.HoursPage
-	builtAt *status.HeldMoment
+	lanes    map[views.RunwayWindow]views.Lanes
+	shown    map[views.RunwayWindow]dashboard.WindowLanes
+	look     func(views.Lanes, views.LanesFrom) views.Lanes
+	hours    *views.HoursPage
+	pool     views.PoolStack
+	poolLook func(views.PoolStack, views.PoolStackFrom) views.PoolStack
+	builtAt  *status.HeldMoment
 }
 
 // graphsBuilt is m with Graphs' lanes built afresh at the moment of the
@@ -32,7 +37,8 @@ type graphsTab struct {
 // burn-down section shows, over Runway's live view of it, as graphsTimeline
 // has it, as views.Lanes builds them from the last look's, of the readings
 // history's live tail and the readings the watch read itself, and the
-// ledger's days they're judged by, as Runway's are; and WHEN YOU WORK's
+// ledger's days they're judged by, as Runway's are; POOL's stack, while it
+// shows, of the same readings, as graphsPool builds it; and WHEN YOU WORK's
 // page, as graphsHours has it.
 func (m Model) graphsBuilt() Model {
 	t := m.graphsTab
@@ -51,9 +57,35 @@ func (m Model) graphsBuilt() Model {
 		})
 		lanes[w], shown[w] = built, dashboard.WindowLanes{Window: w, Timeline: tl, Lanes: &built}
 	}
+	if m.graphs.Has(dashboard.GraphsPool) {
+		t.pool = m.graphsPool(t, mo, read)
+	}
 	t.lanes, t.shown, t.hours, t.builtAt = lanes, shown, m.graphsHours(), m.taking.moment
 	m.graphsTab = t
 	return m
+}
+
+// graphsPool is POOL's stack at the moment mo, built from t's last, as its
+// poolLooking builds it, of the readings given, the live tail's and those the
+// watch read itself, read through when the live tail's last read was asked,
+// across the columns POOL takes on the terminal, as
+// dashboard.GraphsPoolColumns has them.
+func (m Model) graphsPool(t graphsTab, mo status.Moment, read []readings.Reading) views.PoolStack {
+	return poolLooking(t.poolLook)(t.pool, views.PoolStackFrom{
+		Moment: mo, Readings: read, ReadThrough: m.runwayTab.live.through, Columns: dashboard.GraphsPoolColumns(m.size.Width),
+	})
+}
+
+// graphsPoolShown reports whether Graphs shows POOL, with no session's page
+// over it.
+func (m Model) graphsPoolShown() bool {
+	return m.view == dashboard.Graphs && m.session == nil && m.graphs.Has(dashboard.GraphsPool)
+}
+
+// graphsReadsHistory reports whether Graphs draws of the readings history's
+// live tail as it shows: its lanes, as graphsWindows has them, or POOL.
+func (m Model) graphsReadsHistory() bool {
+	return len(m.graphsWindows()) > 0 || m.graphsPoolShown()
 }
 
 // graphsTimeline is the timeline of Runway's live view of the window w at
@@ -81,11 +113,12 @@ func (m Model) lanesBuilt() Model {
 	return m.runwayBuilt().graphsBuilt()
 }
 
-// lanesShown reports whether the tab shown draws of lanes judged by the
-// readings history, with no session's page over it: Runway, or Graphs with
-// a burn-down section shown, as graphsWindows has them.
+// lanesShown reports whether the tab shown draws of what's judged by the
+// readings history as lanes are, with no session's page over it: Runway, or
+// Graphs with a burn-down section or POOL shown, as graphsReadsHistory has
+// it.
 func (m Model) lanesShown() bool {
-	return m.view == dashboard.Runway && m.session == nil || len(m.graphsWindows()) > 0
+	return m.view == dashboard.Runway && m.session == nil || m.graphsReadsHistory()
 }
 
 // lanesTimelines are the timelines of the lanes the tab shown builds at now,
@@ -110,6 +143,16 @@ func (m Model) lanesTimelines(now time.Time) []views.Timeline {
 func lanesLooking(look func(views.Lanes, views.LanesFrom) views.Lanes) func(views.Lanes, views.LanesFrom) views.Lanes {
 	if look == nil {
 		return views.Lanes.Look
+	}
+	return look
+}
+
+// poolLooking is how POOL's stack is built at a look: by look, where it's
+// given, as a test counts the builds through it; else as views.PoolStack.Look
+// builds it.
+func poolLooking(look func(views.PoolStack, views.PoolStackFrom) views.PoolStack) func(views.PoolStack, views.PoolStackFrom) views.PoolStack {
+	if look == nil {
+		return views.PoolStack.Look
 	}
 	return look
 }

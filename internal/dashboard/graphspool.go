@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"time"
+
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -217,4 +219,36 @@ func (p poolStacked) keyItems() []line {
 		items = append(items, line{{poolMark, accountHue(n - 1).fadedBy(aheadFade).ink()}, {poolHeadingMeans, mutedInk}})
 	}
 	return append(items, now)
+}
+
+// poolDrawn draws POOL in the section placed, as laid out at now: the stack
+// the watch built, as poolStacked draws it, across the columns
+// GraphsPoolColumns gives it, its chart as tall as the step has every chart;
+// where that has nothing to stack, as with no week window in the policy,
+// nothing in the pool yet or before the watch built it, the configured
+// accounts' stack with nothing known, as unstacked has it, so now's line, the
+// axis and the key hold. Nothing is drawn past the section's rows, so a key
+// of the pool's members, as a pin narrows them, never takes more than the
+// configured accounts' the page counts.
+func (f Frame) poolDrawn(c *canvas, now time.Time, laid graphsLaid, placed graphsPlaced) {
+	columns := GraphsPoolColumns(laid.width)
+	p := poolStacked{stack: f.Graphs.Pool, look: f.Look}
+	if len(p.stack.Accounts) == 0 || p.stack.Timeline.Columns != columns {
+		p = laid.pool.unstacked(now, columns)
+	}
+	body := placed.body(columns)
+	p.draw(c.within(body), body.x, body.y, body.width, laid.chart)
+}
+
+// unstacked is p with nothing stacked: each of its accounts' room not known
+// in any column of Runway's week's live timeline at now, columns across.
+func (p poolStacked) unstacked(now time.Time, columns int) poolStacked {
+	p.stack.Timeline = views.LiveTimeline(views.RunwayWeek, now, columns)
+	accounts := make([]views.PoolStackAccount, len(p.stack.Accounts))
+	for i, a := range p.stack.Accounts {
+		a.Rooms = make([]views.AccountRoom, columns)
+		accounts[i] = a
+	}
+	p.stack.Accounts = accounts
+	return p
 }

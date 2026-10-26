@@ -184,6 +184,19 @@ type graphsPlaced struct {
 	at, rows int
 }
 
+// body is the section's body width cells wide, from its left: its rows
+// under its heading and the blank row under that.
+func (p graphsPlaced) body(width int) bounds {
+	return bounds{y: p.at + sectionHead, width: width, rows: max(p.rows-sectionHead, 0)}
+}
+
+// GraphsPoolColumns are the columns POOL's chart is across on a terminal
+// width cells wide, as layGraphs lays it out: the width, as POOL takes it
+// whole.
+func GraphsPoolColumns(width int) int {
+	return max(width, 0)
+}
+
 // laidAt lays the shape's sections out at the step, by flex, down the rows
 // over the legend: each the rows it takes, the pool's line a row of its own
 // after the last burn-down, a blank row between each two.
