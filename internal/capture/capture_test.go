@@ -299,6 +299,25 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{name: "overview-pool-burn-down-160", want: []string{"1.2 of 3 left             WEEK ┄", "24 Sep 14:42          now  09:42                 now", "v chart: burn-down"}},
 		{name: "overview-pool-220x50", want: []string{"1.2 of 3 left             WEEK ┄", "24 Sep 14:42                     now  09:42                            now  24 Sep 14:42                     now", "v chart: burn-up"}},
 		{name: "overview-phone-burn-down-52", want: []string{"GRAPHS   work     ⠢ heading", "5-HOUR ┄", "FABLE WEEK ┄"}},
+		{
+			name: "graphs-108x44",
+			want: []string{
+				"1 work  66% left  ·  at its cap 14:31  ·  back 17:10    2 personal ◆        34% left  ·  runs out ~Sat 06:00",
+				"3 side ▲            22% left  ·  runs out ~Fri 12:20",
+			},
+			wantNoneOf: []string{"~Sat 06:00 at its pace", "~Fri 12:20 at its pace"},
+		},
+		{
+			name: "graphs-73x61",
+			want: []string{
+				"1 work  66% left  ·  at its cap 14:31  ·  back 17:10  ·  resets Sun 21:00", "2 personal ◆                 34% left  ·  runs out ~Sat 06:00 at its pace",
+				"1 work  5% left  ·  at its cap 14:31  ·  back 17:10, as its 5-hour resets",
+			},
+		},
+		{
+			name: "graphs-phone-52", want: []string{"1 work  66% left  ·  at its cap 14:31  ·  back 17:10", "2 personal ◆        34% left  ·  runs out ~Sat 06:00"},
+			wantNoneOf: []string{"~Sat 06:00 at its pace"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
