@@ -61,15 +61,17 @@ func (s graphsStep) cardRows() int {
 // graphsShape is what of Graphs' layout no step of room changes: the
 // sections shown, in the page's order; the columns of a row of cards, and
 // how many rows of them a burn-down section has, of how many accounts; the
-// rows POOL's key takes, and GLANCE's and WHEN YOU WORK's bodies; the place
-// of the pool's line among the sections, -1 where there's none; the legend's
-// lines; and the rows the sections show in, over the legend.
+// width; POOL as its key words it, as poolKeyed has it; the rows GLANCE's
+// and WHEN YOU WORK's bodies take; the place of the pool's line among the
+// sections, -1 where there's none; the legend's lines; and the rows the
+// sections show in, over the legend.
 type graphsShape struct {
 	shown        []GraphsSection
 	across       []flex.Span
 	accounts     int
 	cardsDown    int
-	poolKey      int
+	width        int
+	pool         poolStacked
 	glance, when int
 	poolPart     int
 	legend       []line
@@ -81,7 +83,7 @@ type graphsShape struct {
 // burn-down section shows, as burnLegend flows it, keeping the sections a row
 // over it at the least.
 func (g graphsGiven) shape() graphsShape {
-	s := graphsShape{accounts: len(g.accounts), poolPart: -1}
+	s := graphsShape{accounts: len(g.accounts), width: g.width, pool: poolKeyed(g.accounts, g.look), poolPart: -1}
 	last := -1
 	for _, section := range EveryGraphsSection() {
 		if !g.shown.Has(section) {
@@ -94,7 +96,6 @@ func (g graphsGiven) shape() graphsShape {
 	}
 	s.across = cardsAcross(len(g.accounts), g.width)
 	s.cardsDown = (s.accounts + len(s.across) - 1) / len(s.across)
-	s.poolKey = poolKeyed(g.accounts, g.look).keyRows(g.width)
 	s.glance, s.when = glanceRows(s.accounts, g.pooled()), whenRows()
 	if last >= 0 {
 		s.legend = burnLegend(g.width, g.reserved())
@@ -171,7 +172,7 @@ func whenRows() int {
 func (s graphsShape) rowsOf(section GraphsSection, step graphsStep) int {
 	switch section {
 	case GraphsPool:
-		return sectionHead + step.chart + runwayAxisRows + s.poolKey
+		return sectionHead + s.pool.rows(s.width, step.chart)
 	case GraphsGlance:
 		return sectionHead + s.glance
 	case GraphsWhen:

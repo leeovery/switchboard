@@ -59,6 +59,47 @@ func TestGraphsLaysTheDesignsWorkedSizesOut(t *testing.T) {
 	}
 }
 
+// Each section takes its heading's rows and its own, as what draws it
+// counts them: a burn-down's to the foot of its last card's axis; POOL's as
+// its stack takes them; GLANCE's and WHEN YOU WORK's as their bodies count
+// them, of the configured accounts and whether they're a pool. So at the
+// design's sections frame, 173 by 53, with WEEK, POOL, GLANCE and WHEN YOU
+// WORK shown, and on a phone, of one account and of three.
+func TestGraphsHoldsEachSectionToItsOwnRows(t *testing.T) {
+	shown := GraphsSectionsNamed([]string{"week", "pool", "glance", "when"})
+	tests := []struct {
+		width, height int
+		accounts      []string
+	}{
+		{width: 173, height: 53, accounts: []string{"work", "personal", "side"}},
+		{width: 73, height: 61, accounts: []string{"work", "personal", "side"}},
+		{width: 73, height: 61, accounts: []string{"work"}},
+	}
+	for _, tt := range tests {
+		f := graphsFrame(tt.width, tt.height, shown)
+		f.Graphs.Accounts = configured(tt.accounts...)
+		l := f.graphsLaid()
+		for _, s := range l.sections {
+			var own int
+			switch s.section {
+			case GraphsPool:
+				own = l.pool.rows(l.width, l.chart)
+			case GraphsGlance:
+				own = glanceRows(len(tt.accounts), len(tt.accounts) > 1)
+			case GraphsWhen:
+				own = whenRows()
+			default:
+				cards := l.cards(s)
+				last := cards[len(cards)-1].chart
+				own = last.y + last.rows - s.at - sectionHead
+			}
+			if s.rows != sectionHead+own {
+				t.Errorf("at %dx%d, of %d accounts, %s takes %d rows, want %d, its heading's and its own %d", tt.width, tt.height, len(tt.accounts), s.section.heading(), s.rows, sectionHead+own, own)
+			}
+		}
+	}
+}
+
 // stepIndex is the step's place among graphsSteps.
 func stepIndex(t *testing.T, s graphsStep) int {
 	t.Helper()
@@ -94,8 +135,14 @@ func TestGraphsRowsToSpareGoToTheWordsThenToEveryChartARowAtATime(t *testing.T) 
 				t.Errorf("%s at %d rows: step %+v taken where the next fits", name, height, l.graphsStep)
 			}
 			for _, s := range l.sections {
-				if got := chartRowsOf(l, s); got != l.chart {
-					t.Errorf("%s at %d rows: %s's chart is %d rows, want every one %d", name, height, s.section.heading(), got, l.chart)
+				if s.section == GraphsPool && s.rows != sectionHead+l.pool.rows(l.width, l.chart) {
+					t.Errorf("%s at %d rows: POOL takes %d rows, want its heading's and its own with its chart %d rows", name, height, s.rows, l.chart)
+				}
+				if !burnsDown(s.section) {
+					continue
+				}
+				if got := cardChartRows(l, s); got != l.chart {
+					t.Errorf("%s at %d rows: %s's charts are %d rows, want every one %d", name, height, s.section.heading(), got, l.chart)
 				}
 			}
 		}
@@ -105,13 +152,9 @@ func TestGraphsRowsToSpareGoToTheWordsThenToEveryChartARowAtATime(t *testing.T) 
 	}
 }
 
-// chartRowsOf is how tall the section's charts are, as laid out: a burn-down's
-// cards', each alike; POOL's, its rows but its heading's, its axis's and its
-// key's.
-func chartRowsOf(l graphsLaid, s graphsPlaced) int {
-	if s.section == GraphsPool {
-		return s.rows - sectionHead - runwayAxisRows - l.poolKey
-	}
+// cardChartRows is how tall the burn-down section's cards' charts are, as
+// laid out: -1 where they differ.
+func cardChartRows(l graphsLaid, s graphsPlaced) int {
 	cards := l.cards(s)
 	h := cards[0].chart.rows - 1
 	for _, c := range cards {
@@ -259,21 +302,30 @@ func changedRouted() status.Document {
 }
 
 // The layout changes only on a key, a resize or the config, never as the
-// data does: a read that changes every word leaves every heading, the pool's
-// line and the legend on their rows.
+// data does: a read that changes every word, and pins the pool to two of its
+// three accounts, leaves every heading, the pool's line and the legend on
+// their rows; at 75 columns too, where POOL's key of the two pinned would
+// take a row fewer than of the three configured.
 func TestGraphsLayoutHoldsStillAsTheDataChanges(t *testing.T) {
-	f := graphsFrame(160, 60, everyGraphsSection())
+	look := Screen(builtin(t, "nord"))
 	marks := []string{"WEEK ", "5-HOUR ", "POOL ", "GLANCE ", "WHEN YOU WORK ", "Σ pool", "▆▆ room left"}
-	rowsOf := func(doc status.Document) []int {
-		text := textOf(f.Draw(doc, now))
-		var rows []int
-		for _, mark := range marks {
-			rows = append(rows, slices.IndexFunc(text, func(row string) bool { return strings.HasPrefix(row, mark) }))
+	for _, width := range []int{160, 75} {
+		f := graphsFrame(width, 120, everyGraphsSection())
+		f.Look = look
+		if width == 75 && poolKeyed(configured("personal", "side"), look).keyRows(width) == poolKeyed(f.Graphs.Accounts, look).keyRows(width) {
+			t.Fatalf("at %d columns, POOL's key of two accounts takes the rows it does of three; want a width they differ at", width)
 		}
-		return rows
-	}
-	before, after := rowsOf(threeRouted()), rowsOf(changedRouted())
-	if !slices.Equal(before, after) || slices.Contains(before, -1) {
-		t.Errorf("the headings, the pool's line and the legend are on rows %v, then after a read on %v; want them on the same rows, each drawn", before, after)
+		rowsOf := func(doc status.Document) []int {
+			text := textOf(f.Draw(doc, now))
+			var rows []int
+			for _, mark := range marks {
+				rows = append(rows, slices.IndexFunc(text, func(row string) bool { return strings.HasPrefix(row, mark) }))
+			}
+			return rows
+		}
+		before, after := rowsOf(threeRouted()), rowsOf(changedRouted())
+		if !slices.Equal(before, after) || slices.Contains(before, -1) {
+			t.Errorf("at %d columns, the headings, the pool's line and the legend are on rows %v, then after a read on %v; want them on the same rows, each drawn", width, before, after)
+		}
 	}
 }

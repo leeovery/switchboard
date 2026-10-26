@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -33,6 +34,24 @@ func TestGraphsPoolsLineSaysBothWindowsRoomDroppingWholePartsFromTheEnd(t *testi
 		}
 		if got := f.poolLine(f.Moment(doc, now), tt.width).plain(); got != tt.want {
 			t.Errorf("%s, %d cells: the pool's line reads %q, want %q", tt.name, tt.width, got, tt.want)
+		}
+	}
+}
+
+// Where no window's room is said, as before the first read lands, or with
+// one account in the document, the pool's line keeps its row, laid out by
+// the config, but draws nothing on it, as Runway's pool lane and usage's
+// pool row draw nothing then.
+func TestGraphsPoolsLineSaysNothingWhereNoWindowsRoomIsSaid(t *testing.T) {
+	docs := map[string]status.Document{
+		"nothing read yet": {},
+		"one account":      routerDoc("work", 1, pressedAccount("work")),
+	}
+	for name, doc := range docs {
+		f := graphsFrame(160, 37, GraphsSections{})
+		text, row := textOf(f.Draw(doc, now)), f.top()+f.graphsLaid().poolLine
+		if row < f.top() || text[row] != "" || text[row+2] != "▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out" {
+			t.Errorf("%s: the pool's line's row reads %q, and the legend two under it %q; want the row kept, blank, over the legend", name, text[row], text[row+2])
 		}
 	}
 }
@@ -113,6 +132,10 @@ func TestGraphsLegendIsTheViewsLastRowsWhileABurnDownShows(t *testing.T) {
 		}
 		if drawn, want := strings.Contains(strings.Join(text, "\n"), "room left"), len(tt.legend) > 0; drawn != want {
 			t.Errorf("%s: the legend is drawn %t, want %t", tt.name, drawn, want)
+		}
+		spare := text[f.top()+f.graphsLaid().rows : foot-len(tt.legend)]
+		if len(spare) == 0 || slices.ContainsFunc(spare, func(row string) bool { return row != "" }) {
+			t.Errorf("%s: the rows between the sections and the legend read %q, want them blank", tt.name, spare)
 		}
 	}
 }

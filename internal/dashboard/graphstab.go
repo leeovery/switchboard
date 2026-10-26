@@ -84,9 +84,9 @@ func GraphsSectionsNamed(names []string) GraphsSections {
 
 // GraphsShown is what the Graphs tab shows: its sections shown, as w, f, o, g
 // and h show and hide them; the configured accounts, in the config's order,
-// which alone, with the frame's size and the sections shown, lay the page
-// out, as layGraphs has it; and WHEN YOU WORK's page, whose weeks its
-// heading says.
+// which alone, with the frame's size, its look, which words POOL's key, and
+// the sections shown, lay the page out, as layGraphs has it; and WHEN YOU
+// WORK's page, whose weeks its heading says.
 type GraphsShown struct {
 	Sections GraphsSections
 	Accounts config.Accounts
