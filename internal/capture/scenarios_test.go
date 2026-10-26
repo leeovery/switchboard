@@ -17,17 +17,18 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // looksEvery is how often the watch looks at the router's document, as
 // its lookEvery has it: what the document carries shows by the look after.
 const looksEvery = 5 * time.Second
 
-// A demo's tape plays its scenario at its size, pressing its keys at its
-// times, as demo/README.md's table and each tape's sleeps have them; and
-// what it shows, what each scenario's cues are timed for, shows as each
-// key and look comes. The keys and times are the tapes': retimed, the two
-// change together.
+// A demo's tape plays its scenario at its size, in its theme, pressing its
+// keys at its times, as demo/README.md's table and each tape's sleeps have
+// them; and what it shows, what each scenario's cues are timed for, shows as
+// each key and look comes. The keys and times are the tapes': retimed, the
+// two change together.
 func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 	type press struct {
 		at   float64
@@ -40,36 +41,40 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		not []string
 		// tab is the tab the title row shows by then, where it's checked.
 		tab string
+		// theme is the theme it's drawn in by then, where it's checked.
+		theme string
 	}
 	shiftTab := []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}
+	up, down := []tea.KeyPressMsg{upKey}, []tea.KeyPressMsg{downKey}
 	tests := []struct {
-		tape, scenario string
-		size           watch.Size
-		keys           []press
-		shows          []shows
+		tape, scenario, theme string
+		size                  watch.Size
+		keys                  []press
+		shows                 []shows
 	}{
 		{
-			tape: "tour", scenario: "routing", size: wide(37),
+			tape: "tour", scenario: "routing", theme: "tokyo-night", size: wide(37),
 			keys: []press{
-				{4.5, shiftTab}, {7.4, []tea.KeyPressMsg{upKey}}, {8.1, keysOf("s")},
-				{11.6, shiftTab}, {11.9, shiftTab}, {14.9, shiftTab}, {18.9, shiftTab},
-				{21.9, shiftTab}, {24.9, shiftTab},
+				{4.5, shiftTab}, {7.4, up}, {8.1, keysOf("s")},
+				{11.6, shiftTab}, {14.6, shiftTab}, {17.6, shiftTab},
+				{21.6, shiftTab}, {24.6, shiftTab}, {27.6, shiftTab},
 			},
 			shows: []shows{
 				{at: 0, says: []string{"auto  ·  6 sessions  ·  new sessions → ▲ side", "ROUTING   auto"}},
 				{at: 7.3, says: []string{"Requests", "● following"}},
 				{at: 8.5, says: []string{"SESSION   ", "esc back"}},
 				{at: 11.5, says: []string{"SESSION   ", "esc back"}},
-				{at: 11.8, not: []string{"SESSION   ", "Requests", "RUNWAY"}, tab: "Graphs"},
-				{at: 14.8, says: []string{"RUNWAY", "< week >"}},
-				{at: 18.8, says: []string{"SESSIONS    Switchboard"}},
-				{at: 21.8, says: []string{"HISTORY    Year"}},
-				{at: 24.8, says: []string{"ACCOUNTS    Compare"}},
-				{at: 27.3, says: []string{"7 sessions", "ROUTING   auto", "▲ b3e9 started on side"}},
+				{at: 11.7, says: []string{"WEEK"}, not: []string{"SESSION   ", "Requests", "RUNWAY"}, tab: "Graphs"},
+				{at: 14.5, says: []string{"WEEK"}, not: []string{"RUNWAY"}, tab: "Graphs"},
+				{at: 17.5, says: []string{"RUNWAY", "< week >"}},
+				{at: 21.5, says: []string{"SESSIONS    Switchboard"}},
+				{at: 24.5, says: []string{"HISTORY    Year"}},
+				{at: 27.5, says: []string{"ACCOUNTS    Compare"}},
+				{at: 30, says: []string{"7 sessions", "ROUTING   auto", "▲ b3e9 started on side"}},
 			},
 		},
 		{
-			tape: "routing", scenario: "routing", size: wide(37),
+			tape: "routing", scenario: "routing", theme: "tokyo-night", size: wide(37),
 			keys: []press{{9, keysOf("p")}, {10.5, keysOf("3")}, {12, keysOf("m")}, {14.5, []tea.KeyPressMsg{enterKey}}},
 			shows: []shows{
 				{at: 0, says: []string{"auto  ·  6 sessions  ·  new sessions → ▲ side", "ROUTING   auto"}},
@@ -84,16 +89,17 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			},
 		},
 		{
-			tape: "dashboard", scenario: "dashboard", size: wide(37),
-			keys: []press{{6, keysOf("g")}, {11, repeated(tabKey, 1)}, {11.3, repeated(tabKey, 1)}, {11.6, repeated(tabKey, 1)}, {11.9, repeated(tabKey, 1)}, {12.2, keysOf(">")}},
+			tape: "dashboard", scenario: "dashboard", theme: "tokyo-night", size: wide(37),
+			keys: []press{{6, shiftTab}, {6.3, shiftTab}, {11.3, shiftTab}, {11.6, keysOf(">")}},
 			shows: []shows{
 				{at: 0, says: []string{"5 sessions  ·  new sessions → ▲ work", "~16:05     work reaches its cap", "◔ work came under pressure"}},
-				{at: 7, says: []string{"COMING UP", "LATELY"}, not: []string{"GRAPHS"}},
-				{at: 15.5, says: []string{"RUNWAY", "< 5-hour >", "1 work ◆ ▲", "5-hour 59%"}, not: []string{"Σ pool", "GRAPHS"}},
+				{at: 6.2, says: []string{"Requests"}, tab: "Log"},
+				{at: 11.2, says: []string{"WEEK", "5-HOUR", "1 work"}, not: []string{"RUNWAY"}, tab: "Graphs"},
+				{at: 15.5, says: []string{"RUNWAY", "< 5-hour >", "1 work ◆ ▲", "5-hour 59%"}, not: []string{"Σ pool"}},
 			},
 		},
 		{
-			tape: "repatch", scenario: "repatch", size: wide(37),
+			tape: "repatch", scenario: "repatch", theme: "tokyo-night", size: wide(37),
 			keys: []press{{0, repeated(tabKey, 3)}},
 			shows: []shows{
 				{at: 2, says: []string{"SESSIONS    Switchboard", "2 personal ◆    ● under pressure"}},
@@ -103,33 +109,39 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			},
 		},
 		{
-			tape: "themes", scenario: "routing", size: wide(37),
+			tape: "themes", scenario: "routing", theme: "tokyo-night", size: wide(37),
 			keys: []press{
-				{1.2, keysOf("t")}, {2.2, []tea.KeyPressMsg{downKey}}, {2.7, []tea.KeyPressMsg{downKey}}, {4, []tea.KeyPressMsg{downKey}},
-				{5.4, []tea.KeyPressMsg{upKey}}, {5.65, []tea.KeyPressMsg{upKey}}, {5.9, []tea.KeyPressMsg{upKey}}, {6.15, []tea.KeyPressMsg{upKey}},
-				{7.45, []tea.KeyPressMsg{upKey}}, {8.85, []tea.KeyPressMsg{{Code: tea.KeyEscape}}},
+				{1.2, keysOf("t")}, {2.2, down},
+				{3.6, up}, {3.85, up}, {4.35, up}, {5.65, up}, {6.95, up},
+				{8.35, []tea.KeyPressMsg{{Code: tea.KeyEscape}}},
 			},
 			shows: []shows{
-				{at: 1.5, says: []string{"tokyo-night-day"}},
-				{at: 9.5, says: []string{"ROUTING   auto"}, not: []string{"tokyo-night-day"}},
+				{at: 1.1, says: []string{"ROUTING   auto"}, theme: "tokyo-night"},
+				{at: 3.5, says: []string{"▌ tokyo-night-day"}, theme: "tokyo-night-day"},
+				{at: 3.7, says: []string{"▌ tokyo-night "}, theme: "tokyo-night"},
+				{at: 4.3, says: []string{"▌ terminal"}},
+				{at: 5.6, says: []string{"▌ nord"}, theme: "nord"},
+				{at: 6.9, says: []string{"▌ exchange"}, theme: "exchange"},
+				{at: 8.3, says: []string{"▌ amber"}, theme: "amber"},
+				{at: 9.3, says: []string{"ROUTING   auto"}, not: []string{"tokyo-night-day"}, theme: "tokyo-night"},
 			},
 		},
 		{
-			tape: "theme-picker", scenario: "routing", size: wide(37),
-			keys:  []press{{3, keysOf("t")}, {3.3, repeated(downKey, 3)}},
-			shows: []shows{{at: 5, says: []string{"│ ▌ tokyo-night-day", "│   nord                     ●", "ROUTING   auto"}}},
+			tape: "theme-picker", scenario: "routing", theme: "tokyo-night", size: wide(37),
+			keys:  []press{{3, keysOf("t")}, {3.3, down}},
+			shows: []shows{{at: 5, says: []string{"│ ▌ tokyo-night-day", "│   tokyo-night              ●", "ROUTING   auto"}, theme: "tokyo-night-day"}},
 		},
 		{
-			tape: "runway-week", scenario: "routing", size: wide(37),
+			tape: "runway-week", scenario: "routing", theme: "tokyo-night", size: wide(37),
 			keys:  []press{{2, repeated(tabKey, 4)}},
 			shows: []shows{{at: 5, says: []string{"RUNWAY", "< week >", "1 work", "2 personal ◆", "3 side ▲"}}},
 		},
 		{
-			tape: "phone", scenario: "routing", size: watch.Size{Width: 52, Height: 36},
+			tape: "phone", scenario: "routing", theme: "tokyo-night", size: watch.Size{Width: 52, Height: 36},
 			shows: []shows{{at: 6, says: []string{"7 sessions"}}},
 		},
 		{
-			tape: "help", scenario: "routing", size: wide(37),
+			tape: "help", scenario: "routing", theme: "tokyo-night", size: wide(37),
 			keys:  []press{{3, keysOf("?")}},
 			shows: []shows{{at: 4.7, says: []string{"HELP · OVERVIEW"}}},
 		},
@@ -140,8 +152,15 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			th, ok := theme.Builtin(tt.theme)
+			if !ok {
+				t.Fatalf("the tape's theme, %q, is no built-in", tt.theme)
+			}
 			s.Size = tt.size
-			p := played(t, s)
+			p := played(t, s.InTheme(th))
+			if shown := p.themeShown(); shown != tt.theme {
+				t.Errorf("it starts drawn in %q, want the tape's %q", shown, tt.theme)
+			}
 			keys := slices.Clone(tt.keys)
 			for _, want := range tt.shows {
 				for len(keys) > 0 && keys[0].at <= want.at {
@@ -160,11 +179,13 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 						t.Errorf("%vs in, it shows\n%s\nwant no %q", want.at, screen, not)
 					}
 				}
-				if want.tab == "" {
-					continue
+				if want.tab != "" {
+					if shown := p.tabShown(); shown != want.tab {
+						t.Errorf("%vs in, the title row shows %q, want %q", want.at, shown, want.tab)
+					}
 				}
-				if shown := p.tabShown(); shown != want.tab {
-					t.Errorf("%vs in, the title row shows %q, want %q", want.at, shown, want.tab)
+				if shown := p.themeShown(); want.theme != "" && shown != want.theme {
+					t.Errorf("%vs in, it's drawn in %q, want %q", want.at, shown, want.theme)
 				}
 			}
 		})

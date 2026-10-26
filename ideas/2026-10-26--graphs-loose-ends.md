@@ -40,6 +40,10 @@ phrase past its view's end, or the design could say why it doesn't.
 - Capture's fluid sweep exempts whole views only, so GLANCE alone at 173 columns or wider, which
   doesn't grow by design, would fail its wasted third; no fixture draws it. A per-section exemption
   in the sweep, never a loosening.
+- The agreement test held a view's pool figure to USAGE's `Σ pool` through the Overview's pool
+  charts, which went with GRAPHS (#171); Graphs' POOL at now could take their place.
+- `routingColumns.accountRows`, now in `traces_test.go` alone, copies how ROUTING lays out an
+  account's rows; the tests could read the rows from what's drawn.
 
 ## Tidy-ups
 
@@ -48,6 +52,8 @@ phrase past its view's end, or the design could say why it doesn't.
 - `besideCells` counted in more than one place (`compared.named`, `turnedName`), and a constant and
   a method sharing its name.
 - The glyph fallback, `terminal`'s and `NO_COLOR`'s, written three times.
+- Milestone 5's retired prefs keys, `view` and `chart`, are still kept as a newer build's unknown
+  keys; they could join `retiredKeys` with GRAPHS' (#171).
 - `poolStacked.rows` counts the chart, axis and key where `draw` draws nothing of the stack; with
   nothing to stack POOL now draws `│`, its axis and its key in those rows.
 

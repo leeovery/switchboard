@@ -8,6 +8,9 @@ scenarios through the real dashboard, or drawing the fixtures named after its si
 network, or reads or writes the real config, themes, state, prefs or tokens, so nothing needs a
 container, and it's safe to record beside a live router.
 
+Every tape draws the dashboard in `tokyo-night`, capturetool's `--theme`, in a terminal of Tokyo
+Night's own colours, its `Set Theme`; the themes clip and the theme stills draw the others.
+
 ```bash
 demo/record.sh                # every tape: record it, then make its art
 demo/record.sh routing help   # the tapes named
@@ -19,8 +22,8 @@ demo/record.sh routing help   # the tapes named
 |---|---|---|---|
 | `tour` | `routing` | 160 × 37 | `art/tour.webp`, `.mp4`: the README's lead: a tour of the dashboard's pages |
 | `routing` | `routing` | 160 × 37 | `art/routing.webp`, `.mp4`: the routing card in `docs/dashboard.md`, the Overview, then the card pinning new and running sessions to side |
-| `dashboard` | `dashboard` | 160 × 37 | `art/dashboard.webp`, `.mp4`: one account's Overview, its GRAPHS, then Runway |
-| `themes` | `routing` | 160 × 37 | `art/themes.webp`, `.mp4`: the theme picker, previewing the built-ins over the Overview |
+| `dashboard` | `dashboard` | 160 × 37 | `art/dashboard.webp`, `.mp4`: one account's Overview, its cards on Graphs, then Runway's 5-hour |
+| `themes` | `routing` | 160 × 37 | `art/themes.webp`, `.mp4`: the theme picker, previewing the built-ins over the Overview, from tokyo-night |
 | `repatch` | `repatch` | 160 × 37 | `art/repatch.webp`, `.mp4`: Sessions as personal reaches its limit |
 | `runway-week` | `routing` | 160 × 37 | `art/runway-week.webp`, a still: Runway over the week |
 | `graphs` | fixture `graphs-160x37` | 160 × 37 | `art/graphs.webp`, a still: Graphs' burn-down cards, the week's and the 5-hour's |
@@ -33,6 +36,12 @@ demo/record.sh routing help   # the tapes named
 | `overview` | fixture `overview-default-160` | 160 × 37 | `art/overview.webp`, a still: the Overview |
 | `sessions` | fixture `sessions-switchboard-160` | 160 × 37 | `art/sessions.webp`, a still: Sessions' Switchboard |
 | `theme-picker` | `routing` | 160 × 37 | `art/theme-picker.webp`, a still: the theme picker over the Overview, previewing tokyo-night-day |
+| `theme-tokyo-night` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night.webp`, a still: the Overview in `tokyo-night` |
+| `theme-tokyo-night-day` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night-day.webp`, a still: the Overview in `tokyo-night-day` |
+| `theme-nord` | fixture `overview-default-160` | 160 × 37 | `art/theme-nord.webp`, a still: the Overview in `nord` |
+| `theme-terminal` | fixture `overview-default-160` | 160 × 37 | `art/theme-terminal.webp`, a still: the Overview in `terminal` |
+| `theme-amber` | fixture `overview-default-160` | 160 × 37 | `art/theme-amber.webp`, a still: the Overview in `amber` |
+| `theme-exchange` | fixture `overview-default-160` | 160 × 37 | `art/theme-exchange.webp`, a still: the Overview in `exchange` |
 
 ## The scenarios
 
@@ -104,7 +113,7 @@ frames to `finalize.sh`, which makes the art:
 - **The frames, not a video.** vhs writes every frame it shows to `demo/out/<name>/`, as the
   terminal drew it. A video's compression shifts every pixel a little from frame to frame, which
   an animated WebP then stores whole; from the frames themselves it stores only what changed,
-  losslessly. The lead clip, about 27 seconds at 30 frames a second, is half a megabyte.
+  losslessly. The lead clip, about 29 seconds at 30 frames a second, is under three quarters of a megabyte.
 - **The art.** For a clip, an animated WebP, which GitHub shows inline, at the frames' 30 a
   second, and an H.264 MP4 of the same frames; for a still, a lossless WebP of the last frame.
   Each frame is set in a margin of its own canvas, as the theme picker changes it.
