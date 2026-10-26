@@ -552,7 +552,7 @@ func TestTheStartupProbeIsDueOfAnAccountNothingHasReadThatCanBeProbed(t *testing
 	}
 	kept := func(windows ...quota.Window) func(s *state) {
 		return func(s *state) {
-			s.recall(savedUsage{Readings: map[string]savedReading{"work": {Windows: windows}}})
+			s.recall(savedUsage{Readings: map[string]savedReading{"work": {Windows: windows}}}, stillHeld)
 		}
 	}
 	lapsed, spentWeek := session, week
@@ -826,8 +826,15 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 		{name: "a probe that read", change: func(s *state, _ moment) {
 			s.recordProbe("side", probed(nil, session), nil, s.mark(), readings.FromProbe)
 		}, want: 1},
-		{name: "a probe that failed", change: func(s *state, _ moment) {
+		{name: "a probe that failed, which the state file keeps the end of", change: func(s *state, _ moment) {
 			s.recordProbe("side", quota.Probe{}, overloaded, s.mark(), readings.FromProbe)
+		}, want: 1},
+		{name: "a probe that read stale windows, which the state file keeps the end of", change: func(s *state, earlier moment) {
+			s.recordProbe("work", probed(nil, lastWeek), nil, earlier, readings.FromProbe)
+		}, want: 1},
+		{name: "a probe on the token before that failed", change: func(s *state, earlier moment) {
+			s.tokenReplaced("side")
+			s.recordProbe("side", quota.Probe{}, overloaded, earlier, readings.FromProbe)
 		}},
 		{name: "a window seen on a family anew", change: func(s *state, _ moment) { s.learn(fable, []quota.Window{week}) }, want: 1},
 		{name: "a window seen on its family before", change: func(s *state, _ moment) { s.learn(opus, []quota.Window{week}) }},

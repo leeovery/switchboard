@@ -34,3 +34,23 @@ and across a restart the router keeps neither.
 
 Whether it's worth three fields in the state file, and, if it is, whether a stopped router's probes
 should still count when it starts again hours later. Nothing's been seen to need it.
+
+## Built, 26 October 2026
+
+The first way, approved by its owner on 26 October 2026, built in the cleanliness release (see the
+design's The router's rounds, under Priming, and Files):
+
+- **Kept:** `state.json` keeps each account's `probed`, `probe_error` and `misses` beside its
+  reading, an account never read but probed in vain with an entry of its own; and `state.recall`
+  restores them as it restores the reading (`internal/router/state.go`, `statefile.go`).
+- **A stopped router's probes still count** when it starts again, however much later, the open
+  question settled: `probed` is a time, so the minute after it has long passed, and a backoff
+  restored from `misses` is already due. The error restored is the last thing that account's probe
+  said. A `probed` later than the router starts, as after a clock set back, is taken as its start.
+- **Another token:** an account whose token file holds a token other than the one `state.json`
+  kept the hash of, taken up while the router was away, starts afresh, as one replaced while the
+  router runs does.
+- **Its error** is kept with anything shaped like a token redacted (`internal/redact`), as the
+  Claude prober's errors already are.
+- **Older and newer:** the version stays 1. A router from before ignores the fields, and takes an
+  entry with nothing else as no reading. A file from before loads as no probe ended.

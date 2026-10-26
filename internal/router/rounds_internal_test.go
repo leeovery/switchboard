@@ -22,7 +22,7 @@ import (
 // errUnreadable is why a test's probe read nothing.
 var errUnreadable = errors.New("HTTP 529 · Overloaded")
 
-func TestTheRoundsProbeAnAccountNothingHasReadInHalfAnHour(t *testing.T) {
+func TestTheRoundsProbeAnAccountNothingHasReadInFiveMinutes(t *testing.T) {
 	tests := []struct {
 		name string
 		// before readies side's state, on the clock the test then moves to
@@ -31,10 +31,10 @@ func TestTheRoundsProbeAnAccountNothingHasReadInHalfAnHour(t *testing.T) {
 		want   bool
 	}{
 		{name: "never read", want: true},
-		{name: "read by an answer half an hour ago", before: []step{answered(30 * time.Minute)}, want: true},
-		{name: "read by an answer 29 minutes ago, as one in use always is", before: []step{answered(29 * time.Minute)}},
-		{name: "read by a probe 29 minutes ago", before: []step{probedSide(29*time.Minute, readings.FromProbe)}},
-		{name: "read by a prime 29 minutes ago", before: []step{probedSide(29*time.Minute, readings.FromPrime)}},
+		{name: "read by an answer five minutes ago", before: []step{answered(5 * time.Minute)}, want: true},
+		{name: "read by an answer four minutes ago, as one in use always is", before: []step{answered(4 * time.Minute)}},
+		{name: "read by a probe four minutes ago", before: []step{probedSide(4*time.Minute, readings.FromProbe)}},
+		{name: "read by a prime four minutes ago", before: []step{probedSide(4*time.Minute, readings.FromPrime)}},
 		{name: "its token refused", before: []step{answered(40 * time.Minute), refusedSide(time.Minute)}},
 		{name: "a probe that read nothing a minute ago", before: []step{answered(40 * time.Minute), unread(time.Minute)}},
 		{name: "a probe that read nothing two minutes ago", before: []step{answered(40 * time.Minute), unread(2 * time.Minute)}, want: true},
@@ -80,6 +80,7 @@ func TestTheRoundsBackOffWhileAnAccountCantBeRead(t *testing.T) {
 		{misses: 0, want: time.Minute},
 		{misses: 1, want: 2 * time.Minute},
 		{misses: 2, want: 4 * time.Minute},
+		{misses: 3, want: 8 * time.Minute},
 		{misses: 4, want: 16 * time.Minute},
 		{misses: 5, want: 30 * time.Minute},
 		{misses: 100, want: 30 * time.Minute},
@@ -89,6 +90,31 @@ func TestTheRoundsBackOffWhileAnAccountCantBeRead(t *testing.T) {
 			t.Errorf("after %d probes in a row that read nothing, the rounds wait %v, want %v", tt.misses, got, tt.want)
 		}
 	}
+}
+
+func TestTheRoundsBackOffToTheHalfHourAsAnAccountsProbesKeepReadingNothing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clock := newBubbleClock(onDay(1, 10, 0))
+		upstream := newWindowsUpstream(clock)
+		r := newPrimingRouter(t, clock.read, upstream, config.Prime{})
+		running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.2, ResetsAt: onDay(1, 15, 0).UTC()}
+		r.state.record("side", []quota.Window{running, week}, r.state.mark())
+		upstream.refuse(sideToken)
+		stop := startRounds(r)
+		defer stop()
+
+		time.Sleep(2*time.Hour + 5*time.Minute + 30*time.Second)
+		synctest.Wait()
+		// Unread since 10:00, side is first probed at 10:05, then 2, 4, 8 and
+		// 16 minutes on, then every half hour.
+		want := []time.Time{
+			onDay(1, 10, 5), onDay(1, 10, 7), onDay(1, 10, 11), onDay(1, 10, 19), onDay(1, 10, 35),
+			onDay(1, 11, 5), onDay(1, 11, 35), onDay(1, 12, 5),
+		}
+		if got := upstream.probes()[sideToken]; !reflect.DeepEqual(got, want) {
+			t.Errorf("side probed at %v, want %v", got, want)
+		}
+	})
 }
 
 func TestTheRoundsProbeALapsedAccountOnlyWhereTheWindowItStartsResetsBeforeItsPrime(t *testing.T) {
@@ -220,8 +246,9 @@ func TestTheRoundsProbeAnAccountFiveMinutesBeforeEachWeekOfItsResets(t *testing.
 			at:      onDay(1, 4, 58),
 		},
 		{
-			name:    "five minutes before its session resets, a window of no more than a day",
+			name:    "five minutes before its session resets, a window of no more than a day, read four minutes ago",
 			windows: []quota.Window{endingAtFive(lapsed), week, fableWeek},
+			before:  []step{sideReadAt(onDay(1, 4, 51), endingAtFive(lapsed), week, fableWeek)},
 			at:      onDay(1, 4, 55),
 		},
 	}
@@ -242,7 +269,7 @@ func TestTheRoundsProbeAnAccountFiveMinutesBeforeEachWeekOfItsResets(t *testing.
 	}
 }
 
-func TestTheRoundsProbeAnIdleAccountEveryHalfHourAndOneInUseNever(t *testing.T) {
+func TestTheRoundsProbeAnIdleAccountEveryFiveMinutesAndOneInUseNever(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		clock := newBubbleClock(onDay(1, 10, 0))
 		upstream := newWindowsUpstream(clock)
@@ -254,20 +281,24 @@ func TestTheRoundsProbeAnIdleAccountEveryHalfHourAndOneInUseNever(t *testing.T) 
 		}
 		var answering sync.WaitGroup
 		answering.Go(func() {
-			// Work's sessions read it every five minutes, by their answers.
-			for range 24 {
-				time.Sleep(5 * time.Minute)
+			// Work's sessions read it every four minutes, by their answers.
+			for range 15 {
+				time.Sleep(4 * time.Minute)
 				r.state.record("work", []quota.Window{running, week}, r.state.mark())
 			}
 		})
 		stop := startRounds(r)
 		defer stop()
 
-		time.Sleep(2*time.Hour + 30*time.Second)
+		time.Sleep(time.Hour + 30*time.Second)
 		synctest.Wait()
-		want := map[string][]time.Time{sideToken: {onDay(1, 10, 30), onDay(1, 11, 0), onDay(1, 11, 30), onDay(1, 12, 0)}}
+		var sides []time.Time
+		for at := onDay(1, 10, 5); !at.After(onDay(1, 11, 0)); at = at.Add(5 * time.Minute) {
+			sides = append(sides, at)
+		}
+		want := map[string][]time.Time{sideToken: sides}
 		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
-			t.Errorf("probed at %v, want %v: side every half hour unread, work, in use, never", got, want)
+			t.Errorf("probed at %v, want %v: side every five minutes unread, work, in use, never", got, want)
 		}
 		answering.Wait()
 	})
@@ -286,13 +317,13 @@ func TestAProbeMissedOnTheRoundsWhileTheMacSleptGoesOutAsItWakes(t *testing.T) {
 		stop := startRounds(r)
 		defer stop()
 
-		// The Mac sleeps from 10:10:30 till 12:10:30, past side's probe due
-		// at 10:30.
-		time.Sleep(10*time.Minute + 30*time.Second)
+		// The Mac sleeps from 10:03:30 till 12:03:30, past their probes due
+		// at 10:05.
+		time.Sleep(3*time.Minute + 30*time.Second)
 		clock.sleep(2 * time.Hour)
 		time.Sleep(time.Minute)
 		synctest.Wait()
-		woken := onDay(1, 12, 11)
+		woken := onDay(1, 12, 4)
 		want := map[string][]time.Time{workToken: {woken}, sideToken: {woken}}
 		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
 			t.Errorf("a minute after waking, probed at %v, want %v: once each, within a minute of waking", got, want)
@@ -327,19 +358,19 @@ func TestOneProbeOnTheRoundsServesEveryReasonDueAtOnce(t *testing.T) {
 		upstream := newWindowsUpstream(clock)
 		r := newPrimingRouter(t, clock.read, upstream, config.Prime{})
 		running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.2, ResetsAt: onDay(1, 15, 0).UTC()}
-		// Side's week resets at 10:35, so it falls due five minutes before,
-		// as it's half an hour unread.
+		// Side's week resets at 10:10, so it falls due five minutes before,
+		// as it's five minutes unread.
 		weekEnding := week
-		weekEnding.ResetsAt = onDay(1, 10, 35).UTC()
+		weekEnding.ResetsAt = onDay(1, 10, 10).UTC()
 		upstream.startElsewhere(sideToken, running.ResetsAt)
 		upstream.readWeek(weekEnding)
 		r.state.record("side", []quota.Window{running, weekEnding}, r.state.mark())
 		stop := startRounds(r)
 		defer stop()
 
-		time.Sleep(50 * time.Minute)
+		time.Sleep(9 * time.Minute)
 		synctest.Wait()
-		if got, want := upstream.probes()[sideToken], []time.Time{onDay(1, 10, 30)}; !reflect.DeepEqual(got, want) {
+		if got, want := upstream.probes()[sideToken], []time.Time{onDay(1, 10, 5)}; !reflect.DeepEqual(got, want) {
 			t.Errorf("side probed at %v, want %v: one probe for both reasons", got, want)
 		}
 	})
@@ -370,8 +401,10 @@ func TestAProbeBeforeAWeekResetsThatStartsALapsedWindowShiftsItsSlot(t *testing.
 
 		time.Sleep(80 * time.Minute)
 		synctest.Wait()
-		if got, want := upstream.probes()[workToken], []time.Time{onDay(1, 4, 0)}; !reflect.DeepEqual(got, want) {
-			t.Errorf("work probed at %v, want %v: five minutes before its week resets, its session lapsed, and not primed at its slot, its session running", got, want)
+		want := []time.Time{onDay(1, 4, 0), onDay(1, 4, 5), onDay(1, 4, 10), onDay(1, 4, 15), onDay(1, 4, 20)}
+		if got := upstream.probes()[workToken]; !reflect.DeepEqual(got, want) {
+			t.Errorf("work probed at %v, want %v: five minutes before its week resets, its session lapsed, then on its rounds, "+
+				"its session running, and not primed at its slot", got, want)
 		}
 		if got, want := r.Status().Prime.Slots[0].Next, afterResets(onDay(1, 9, 0), 1).UTC(); !got.Equal(want) {
 			t.Errorf("work next primed at %v, want %v: as the session that probe started resets", got, want)
@@ -388,7 +421,7 @@ func TestTheRoundsAskAfterThePrimeOnlyWhereItMatters(t *testing.T) {
 		read, at time.Time
 		want     bool
 	}{
-		{name: "read lately", windows: []quota.Window{lapsedAtOne, week}, read: onDay(1, 1, 50), at: onDay(1, 2, 0)},
+		{name: "read lately", windows: []quota.Window{lapsedAtOne, week}, read: onDay(1, 1, 56), at: onDay(1, 2, 0)},
 		{name: "idle, its session running", windows: []quota.Window{running, week}, read: onDay(1, 1, 0), at: onDay(1, 2, 0)},
 		{name: "idle, its week about to reset", windows: []quota.Window{lapsedAtOne, endingAtFive(week)}, read: onDay(1, 1, 0), at: onDay(1, 4, 56)},
 		{name: "idle, its session lapsed", windows: []quota.Window{lapsedAtOne, week}, read: onDay(1, 1, 0), at: onDay(1, 2, 0), want: true},
@@ -705,7 +738,7 @@ func TestAWeekTheLastAnswerDidntCarryIsProbedBeforeItResetsAfterARestart(t *test
 			// The router restarts at 04:57, the week resetting at 05:00.
 			clock.now = onDay(1, 4, 57)
 			after := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
-			after.state.recall(kept)
+			after.state.recall(kept, stillHeld)
 			if due := after.state.rounding(after.rounds.clears)("side", clock.now); due != tt.want {
 				t.Errorf("side due on the router's rounds after the restart = %v, want %v", due, tt.want)
 			}

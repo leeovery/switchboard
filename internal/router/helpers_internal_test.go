@@ -79,6 +79,10 @@ func newTestFile(now func() time.Time, as accounts) *stateFile {
 	return newStateFile(now, changes, newSessions(now, changes.note, changes.routine), as, usage)
 }
 
+// stillHeld reports of every account that it holds the token the state file
+// kept it holding.
+func stillHeld(string) bool { return true }
+
 // unkept hears of a change for the state file, and keeps nothing of it.
 func unkept() {}
 

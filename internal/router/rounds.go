@@ -8,16 +8,19 @@ import (
 const (
 	// unreadFor is how long nothing may have read an account, by an answer, a
 	// probe or a prime, before the router's rounds probe it.
-	unreadFor = 30 * time.Minute
+	unreadFor = 5 * time.Minute
 	// beforeWeekReset is how long before each of an account's windows longer
 	// than a day resets that the router's rounds probe it, so the window's
 	// last use is read before it goes.
 	beforeWeekReset = 5 * time.Minute
 	// firstRetry is how soon the router's rounds probe an account again once
 	// a probe of it has read nothing, the wait doubling with each such probe
-	// in a row, to unreadFor, as the dashboard backs off while an account
-	// can't be read.
+	// in a row, to retryMost.
 	firstRetry = 2 * time.Minute
+	// retryMost is the longest the router's rounds wait to probe again an
+	// account whose probes keep reading nothing, as one whose token is
+	// refused: probed every unreadFor, it would only fill the log.
+	retryMost = 30 * time.Minute
 	// roundEvery is the longest the router goes between looks at whether an
 	// account is due a probe on its rounds. A timer's clock stops while a Mac
 	// sleeps, so one set for longer would fire that much late: a probe due
@@ -79,11 +82,11 @@ func (r *rounds) look(ctx context.Context) {
 // retryAfter is how long the router's rounds wait after a probe of an
 // account ended before they probe it again: reprobeAfter, as every probe
 // does; or, after misses probes in a row that read nothing, firstRetry,
-// doubled for each but the first, to unreadFor: four doublings take it past
+// doubled for each but the first, to retryMost: four doublings take it past
 // that, so none goes further.
 func retryAfter(misses int) time.Duration {
 	if misses == 0 {
 		return reprobeAfter
 	}
-	return min(firstRetry<<min(misses-1, 4), unreadFor)
+	return min(firstRetry<<min(misses-1, 4), retryMost)
 }

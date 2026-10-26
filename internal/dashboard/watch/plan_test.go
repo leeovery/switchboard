@@ -9,7 +9,7 @@ import (
 
 func TestPlanAt(t *testing.T) {
 	p := plan{interval: interval, due: at(13, 42, 0), next: at(13, 12, 5), reset: at(13, 21, 0), asked: at(13, 12, 0)}
-	full := status.Read{Refresh: interval, Probe: true}
+	full := status.Read{Probe: true}
 	tests := []struct {
 		name   string
 		now    time.Time
@@ -20,9 +20,9 @@ func TestPlanAt(t *testing.T) {
 		{name: "reading the router, before the next look", now: at(13, 12, 4), routed: true},
 		{name: "reading the router, a look once it's due, which never probes", now: at(13, 12, 5), routed: true, want: status.Read{}, wantOK: true},
 		{name: "reading the router, a look having it refresh once a window on screen has reset", now: at(13, 21, 0), routed: true, want: status.Read{Refresh: status.FreshFor}, wantOK: true},
-		{name: "reading the router, a refresh once it's due", now: at(13, 42, 0), routed: true, want: full, wantOK: true},
+		{name: "reading the router, a full read once it's due, which has it probe nothing", now: at(13, 42, 0), routed: true, want: full, wantOK: true},
 		{name: "probing, in the minute the router was last asked after", now: at(13, 12, 59), routed: false},
-		{name: "probing, a question after the router in the next minute", now: at(13, 13, 0), routed: false, want: status.Read{Refresh: interval}, wantOK: true},
+		{name: "probing, a question after the router in the next minute, which has it probe nothing", now: at(13, 13, 0), routed: false, want: status.Read{}, wantOK: true},
 		{name: "probing, a probe once it's due", now: at(13, 42, 0), routed: false, want: full, wantOK: true},
 	}
 	for _, tt := range tests {
@@ -64,22 +64,28 @@ func TestPlanLanded(t *testing.T) {
 			want: plan{interval: interval, due: at(13, 42, 0), next: now.Add(lookEvery), reset: start.Add(-time.Hour + resetGrace).UTC(), asked: now, failures: 1},
 		},
 		{
-			name: "the router refreshing",
-			read: status.Read{Refresh: interval, Probe: true},
+			name: "a look having the router refresh what it hasn't read in the last minute, once a window on screen has reset",
+			read: status.Read{Refresh: status.FreshFor},
+			doc:  routerDocument(account("work", "Work", session(0.25, -time.Hour), week(0.5))),
+			want: plan{interval: interval, due: at(13, 42, 0), next: now.Add(lookEvery), reset: start.Add(3*day + resetGrace).UTC(), fresh: now, asked: now, failures: 1},
+		},
+		{
+			name: "a full read of the router",
+			read: status.Read{Probe: true},
 			doc:  routerDocument(three()...),
 			want: plan{interval: interval, due: now.Add(interval), next: now.Add(lookEvery), reset: threeReset, asked: now},
 		},
 		{
-			name: "the router refreshing what it hasn't read in the last minute",
-			read: status.Read{Refresh: status.FreshFor, Probe: true},
+			name: "R, having the router refresh what it hasn't read in the last minute",
+			read: status.Fresh(),
 			doc:  routerDocument(account("work", "Work", session(0.25, -time.Hour), week(0.5))),
 			want: plan{interval: interval, due: now.Add(interval), next: now.Add(lookEvery), reset: start.Add(3*day + resetGrace).UTC(), fresh: now, asked: now},
 		},
 		{
-			name: "the router refreshing, and failing to read an account",
-			read: status.Read{Refresh: interval},
+			name: "a full read of the router, which can't read an account, its rounds' to read again",
+			read: status.Read{Probe: true},
 			doc:  unread,
-			want: plan{interval: interval, due: now.Add(2 * retryReadAfter), next: now.Add(lookEvery), reset: start.Add(3*time.Hour + resetGrace).UTC(), asked: now, failures: 2},
+			want: plan{interval: interval, due: now.Add(interval), next: now.Add(lookEvery), reset: start.Add(3*time.Hour + resetGrace).UTC(), asked: now},
 		},
 		{
 			name: "probing",

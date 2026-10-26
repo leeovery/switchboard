@@ -68,7 +68,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   earlier reset is ignored.
 - The router probes every account it has no reading for as it starts; its readings outlast a
   restart. After that, an account with no recent traffic is probed on the router's own rounds, once
-  nothing has read it in 30 minutes and 5 minutes before each of its weeks resets, and when a
+  nothing has read it in 5 minutes and 5 minutes before each of its weeks resets, and when a
   decision needs fresh numbers, a dashboard asks for them, or it's due a prime. None is probed once
   its 5-hour window has lapsed, as the probe would start the window off the schedule, but on the
   rounds, where the window it starts resets before the account's prime, and before a week resets
@@ -171,7 +171,7 @@ lost (see Choosing an account).
    0, over the last 30 minutes when the baseline was read again after they began, its use holding
    there till then; else over the time since the baseline was last read: an account is read only
    on its own traffic, its primes, a probe before a choice once 15 minutes stale, and the router's
-   own rounds, as a rule once nothing has read it in 30 minutes (see Priming), so use outside the
+   own rounds, as a rule once nothing has read it in 5 minutes (see Priming), so use outside the
    router, as in the Claude apps, arrives as one rise across a gap, which came at no telling when
    within it, and 20% read two hours on reads 10% an hour, not 40% for half an hour.
    A window with a baseline and no level since has been quiet, and reads 0, so a burst holds its
@@ -577,12 +577,13 @@ with room lifting the limit. A limit reached in one model's week alone is no exc
 account takes other models' requests, nor is a refused token or model. Readings persist in
 `state.json`, with the model families each window has been seen to count, so a restart needs no
 probe but its rounds' (see The router's rounds). An account never read has no window known to have
-lapsed: it's probed as the router starts, unless a probe of it, by a choice or `POST /refresh` made
-meanwhile, ended in the last minute. Should that probe fail, or the account first gain a token
-while the router runs, it's probed on its rounds, or sooner where a choice made afresh or
-`POST /refresh` needs it, at any hour, which may start its window off the schedule, once. Probing
-without the router, and with `--probe`, is unchanged: it's asked for; so is the probe that checks a
-token `accounts add`, `accounts token` or `setup` is given.
+lapsed: it's probed as the router starts, unless a probe of it ended in the last minute, by a choice
+or `POST /refresh` made meanwhile, or by the router before, as `state.json` keeps it (see The
+router's rounds). Should that probe fail, or the account first gain a token while the router runs,
+it's probed on its rounds, or sooner where a choice made afresh or `POST /refresh` needs it, at any
+hour, which may start its window off the schedule, once. Probing without the router, and with
+`--probe`, is unchanged: it's asked for; so is the probe that checks a token `accounts add`,
+`accounts token` or `setup` is given.
 
 **The router's rounds.** Every answer the router relays carries its account's whole usage, wherever
 it was used: the Claude apps on a phone, claude.ai, Claude Code run directly. So an account in use
@@ -590,17 +591,19 @@ through the router is always current, and one it isn't using is read only when s
 which the router sees to itself, on rounds of its own, around the clock, whatever else reads the
 accounts:
 
-- **Every 30 minutes:** it probes each account nothing has read in the last 30 minutes, by an
-  answer, a probe or a prime. An account in use is read by its own answers, so its rounds never
-  probe it. A probe on its rounds is as any other, a request per model family, each capped at one
-  output token, its readings into the readings history as `probe`'s, under the probe rules above,
+- **Every 5 minutes:** it probes each account nothing has read in the last 5 minutes, by an
+  answer, a probe or a prime, fixed, with no config setting, as its owner chose on 26 October 2026,
+  so use from elsewhere, and a reset made by hand, are seen within minutes. An account in use is
+  read by its own answers, so its rounds never probe it. A probe on its rounds is as any other, a
+  request per model family, each capped at one output token, its readings into the readings
+  history as `probe`'s, under the probe rules above,
   which change only for an account whose 5-hour window has lapsed and that can take a request: it's
   probed, starting its window, unless its slot, on the local clock as the schedule keeps it, comes
   within the next 5 hours, as a window started then would still be running when its prime is due.
   While its day of priming runs, its prime is due at once, and reads it. Without priming, no slot
   is due, so it's probed, and its windows run back to back. An account that can take no request
   anyway is probed at any hour, its window lapsed or not, as the rules above allow, so a reset made
-  by hand that lifts its limit is seen within the half hour, though the window that probe starts may
+  by hand that lifts its limit is seen within 5 minutes, though the window that probe starts may
   still be running at its prime once the limit lifts: reading it comes before priming.
 - **Before a week resets:** each account is probed 5 minutes before each of its windows longer than
   a day resets, the week every model shares and a model's own week, whatever the priming schedule,
@@ -619,13 +622,21 @@ accounts:
 - **One probe serves every reason due at once,** and the rounds share the probes choices and
   `POST /refresh` make, as those share theirs: an account whose probe ended, read or not, waits a
   minute for the next. One whose probe read nothing is probed again on the rounds 2 minutes on,
-  then 4, doubling to the half hour, while it can't be read, as the dashboard backs off. One whose
-  token is refused isn't probed on the rounds while it's so, nor one without a usable token. One
-  that goes out on another token, or has a usable one again, starts afresh: how its probes went on
-  the token before says nothing of this one, so neither their error nor their backoff holds.
+  then 4, doubling to the half hour, and every half hour after, while it can't be read: a refused
+  token probed every 5 minutes would only fill the log. One whose token is refused isn't probed on
+  the rounds while it's so, nor one without a usable token. One that goes out on another token, or
+  has a usable one again, starts afresh: how its probes went on the token before says nothing of
+  this one, so neither their error nor their backoff holds.
+- **Across a restart,** `state.json` keeps how each account's probes went, beside its reading: when
+  one last ended, why the last read nothing, and how many in a row did. So the minute after a probe
+  and the backoff hold across it, as they would had the router run on, however long it was away,
+  and the account's error reads as its last probe said. A probe kept as ending later than the router
+  starts, as before a clock set back, ended as it starts. An account that went out on another token
+  meanwhile, its file holding one other than the token `state.json` kept the hash of, starts afresh,
+  as above.
 - **Asleep:** the router looks at least once a minute, as a timer's clock stops while the Mac
   sleeps, so a probe missed while it slept goes out within a minute of its waking; one due before a
-  week's reset that has passed meanwhile is lost with it, and the half hour's probe reads the
+  week's reset that has passed meanwhile is lost with it, and the rounds' next probe reads the
   account where its window allows.
 
 ## Accounts and tokens
@@ -760,7 +771,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `setup` | Walk through setting up, or what's left of it: see Setup |
 | `status [--session <id>] [--json \| --pretty] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
-| `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, and every interval has the router read the accounts it hasn't read in that time (see Live updates): 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. Without the router, or with `--probe`, it probes every account instead, each interval. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
+| `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
 | `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"prices_as_of": "2026-10-07", "days": [{"version": 6, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
@@ -5451,18 +5462,19 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   look back, read the ledger's, the readings history's and the events' files where they lie, the
   router there or not (see The data verbs).
 - **The dashboard's reads** (`dashboard [interval]`). Reading the router, it looks at the router's
-  document every 5 seconds, which costs nothing upstream. The router reads idle accounts itself,
-  every 30 minutes, on its rounds, dashboard or not (see Priming), and the dashboard's interval
-  refresh still asks for what it shows: every interval, it has the router `POST /refresh` with the
-  interval as `max_age`, so idle accounts are probed no more often than the dashboard asks: sooner,
-  backing off from 2 minutes to the interval, while an account can't be read. A minute after a
-  window on screen resets, the next look has the router refresh first with a `max_age` of a minute,
-  once a reset, so an idle account's window doesn't read `resets now` until the next interval; but
-  not for the windows of an account whose 5-hour window has lapsed, as a refresh probes it only
-  while it can take no request (see Priming): that window reads empty instead, and the account's
-  others as read. Probing, it reads every interval, a minute after a window on screen resets, and
-  sooner after a failure, backing off from 2 minutes to the interval. A look never probes: when the
-  router stops answering one, the router's last document stays on screen, the status line saying
+  document every 5 seconds, which costs nothing upstream, and never has the router probe on an
+  interval: the router reads idle accounts itself, every 5 minutes, on its rounds, dashboard or not
+  (see Priming), and `R` asks for a read at once (settled by its owner on 26 October 2026). Every
+  interval, it reads in full: the document as a look does, with the router's history (below). A
+  minute after a window on screen resets, the next look has the router refresh first with a
+  `max_age` of a minute, once a reset, so an idle account's window doesn't read `resets now` until
+  the router's rounds next read it; but not for the windows of an account whose 5-hour window has
+  lapsed, as a refresh probes it only while it can take no request (see Priming): that window reads
+  empty instead, and the account's others as read. The interval is how often the dashboard probes
+  every account when it probes for itself, without the router or with `--probe`: it reads every
+  interval, a minute after a window on screen resets, and sooner after a failure, backing off from
+  2 minutes to the interval. A look never probes: when the router stops answering one, the
+  router's last document stays on screen, the status line saying
   since when the router hasn't answered (see The page), and the looks go on every 5 seconds,
   reading the router again as soon as it answers. A router away for a moment, as when it restarts
   or is slow on waking, so has no account probed directly, which would start every lapsed 5-hour
@@ -7075,13 +7087,16 @@ hiding it behind the provider would take a wider interface than it's worth:
   (the global pin, session assignments and the pins sessions were given while they ran, and each
   account's last readings, with the model families each window has been seen to count, when each
   window was last read, and when a window started again, as its reading's `restarted_at`, so a
-  restart doesn't scatter sessions or need a probe, and the hashes of every configured account's
+  restart doesn't scatter sessions or need a probe, and beside them how its probes went, `probed`,
+  `probe_error` and `misses` (see The router's rounds), and the hashes of every configured account's
   tokens, with a usable token or not: see Accounts and tokens), `control.sock`, `tokens/`, `logs/`,
   `history/` and `ledger/`. `state.json` is versioned, the version changing only when a router
   couldn't read what another wrote: an older file, without readings, loads as having none, one
   whose readings lack `restarted_at` as windows that run a whole length before their resets, which
   a router from before, ignoring the field, takes them all for, one whose readings lack when each
-  window was read as windows unread (see The router's rounds), and a pin that names its account
+  window was read as windows unread (see The router's rounds), one without the probes as accounts
+  none of whose probes has ended, which a router from before them, ignoring the fields, takes them
+  all for, a reading that holds nothing else as none, and a pin that names its account
   alone, as pins did before they named several, as a pin to that one. It's rewritten whole (written
   beside it, synced, and renamed over it) a second after a change and on the way out, but once a
   minute at most while its only changes are those every request makes: its session's assignment used
@@ -7377,7 +7392,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
 | `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, closes it at once, as stopping does |
-| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks every interval, and a minute after a window on screen resets |
+| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, and where either file changed as the binary was asked, to be tried again (see The router looking after itself). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
@@ -8302,7 +8317,7 @@ why.
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after OAuth and setup: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | next: the cleanliness release, the owner's choice on 26 October 2026 (launchd's log, the files set aside, the waiting moves, the control socket's gap, the compress); the control socket's gap built in it | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
-| How an account's probes went, forgotten across a restart: a failed probe sent again by the startup probe, and the rounds' backoff started again | next: the cleanliness release, the owner's choice on 26 October 2026, the state file keeping them | [probes-across-a-restart](../ideas/2026-10-23--probes-across-a-restart.md) |
+| How an account's probes went, forgotten across a restart: a failed probe sent again by the startup probe, and the rounds' backoff started again | built in the cleanliness release, 26 October 2026: `state.json` keeps each account's `probed`, `probe_error` and `misses`, and a restart restores them, a stopped router's probes still counting (see The router's rounds) | [probes-across-a-restart](../ideas/2026-10-23--probes-across-a-restart.md) |
 | Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time; the headline settled by its owner on 12 October 2026; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
 | Milestone 7's loose ends: the edge cases and costs its reviews left | open: any time | [milestone-7-loose-ends](../ideas/2026-10-14--milestone-7-loose-ends.md) |
@@ -8320,7 +8335,7 @@ why.
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | next: the cleanliness release, the owner's choice on 26 October 2026 | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |
-| Probing more often than every 30 minutes, every 5 say, so use from a phone and free resets are seen sooner | next: every 5 minutes, the owner's choice on 26 October 2026, in the cleanliness release; whether the config sets it, and the dashboard's refresh, still to settle | [probing-more-often](../ideas/2026-10-09--probing-more-often.md) |
+| Probing more often than every 30 minutes, every 5 say, so use from a phone and free resets are seen sooner | built in the cleanliness release, 26 October 2026: the router's rounds probe what nothing has read in 5 minutes, set by no config, the backoff still capped at the half hour, and the dashboard's interval refresh gone, `R` kept (see The router's rounds, Live updates) | [probing-more-often](../ideas/2026-10-09--probing-more-often.md) |
 | Runway's holds shorter than a column, drawn or named whatever the width | open: to discuss with its owner | [runway-short-holds](../ideas/2026-10-21--runway-short-holds.md) |
 | GRAPHS and ROUTING beside USAGE, and usage's words in full, judged by their parts rather than at 150 and 70 columns | open: to discuss with its owner; the Overview's GRAPHS was removed on 26 October 2026, so only ROUTING sits beside USAGE now | [beside-and-full-words-by-parts](../ideas/2026-10-23--beside-and-full-words-by-parts.md) |
 | A model's window nearing its limit stacking USAGE from 86 columns to 121 | open: to discuss with its owner | [model-window-stacks-usage](../ideas/2026-10-23--model-window-stacks-usage.md) |

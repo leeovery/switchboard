@@ -118,6 +118,14 @@ func (s *secret) take(tokens []formerToken, now time.Time) bool {
 	return took
 }
 
+// holds reports whether sum is the hash of the token the account holds, or
+// held last, while it holds none usable.
+func (s *secret) holds(sum string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return sum != "" && sum == s.held
+}
+
 // knows reports whether sum is the hash of the token the account holds, or
 // of one it had before. s.mu must be held.
 func (s *secret) knows(sum string) bool {
@@ -231,6 +239,19 @@ func (as accounts) kept() map[string]savedTokens {
 		}
 	}
 	return kept
+}
+
+// holding returns what reports whether the account with the given id holds
+// the token saved has it holding, as the state file kept it: one it has
+// taken up since, while the router was away, goes out afresh, as what the
+// file kept of how its probes went says nothing of it. Of an account without
+// a usable token now, it reports on the token it held last, as recall has
+// it, which the one it comes to have is compared with as it's taken up.
+func (as accounts) holding(saved map[string]savedTokens) func(id string) bool {
+	return func(id string) bool {
+		a, ok := as.byID(id)
+		return ok && a.secret.holds(saved[id].SHA256)
+	}
 }
 
 // recall takes in what the state file kept of the accounts' tokens, as the

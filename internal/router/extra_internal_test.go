@@ -73,10 +73,12 @@ func TestTheStateTellsOfExtraUsageTaken(t *testing.T) {
 		{name: "off an answer", change: func(s *state, _ moment) { s.recordExtra("work", extraWarned, s.mark()) }, wantReadOff: 1},
 		{name: "none given", change: func(s *state, _ moment) { s.recordExtra("work", quota.ExtraUsage{}, s.mark()) }},
 		{name: "off a late answer, outweighed", change: func(s *state, earlier moment) { s.recordExtra("side", extraWarned, earlier) }},
-		{name: "off a probe whose windows are stale", change: func(s *state, earlier moment) {
+		{name: "off a probe whose windows are stale, on the token before", change: func(s *state, earlier moment) {
+			s.tokenReplaced("work")
 			s.recordProbe("work", stale(extraWarned), nil, earlier, readings.FromProbe)
 		}, want: 1},
-		{name: "none off a probe whose windows are stale", change: func(s *state, earlier moment) {
+		{name: "none off a probe whose windows are stale, on the token before", change: func(s *state, earlier moment) {
+			s.tokenReplaced("work")
 			s.recordProbe("work", stale(quota.ExtraUsage{}), nil, earlier, readings.FromProbe)
 		}},
 	}

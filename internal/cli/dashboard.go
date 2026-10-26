@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	// defaultInterval is how often the dashboard reads usage in full unless
-	// told otherwise.
+	// defaultInterval is how often the dashboard probes every account, while
+	// it probes for itself, unless told otherwise.
 	defaultInterval = 30 * time.Minute
 	// minInterval is the shortest interval the dashboard takes: a full read
 	// can probe every account, once for each model family.
@@ -66,14 +66,17 @@ while it answers, with its sessions and pin, else read by probing each
 account, as --probe does whether the router runs or not. It needs a
 terminal, and refuses without one.
 
-It reads the router's usage every few seconds, and every interval has the
-router probe the accounts it hasn't read in that time: 30m unless given, and
-5m at the least. Give it as a duration, such as 15m or 1h, or as a number of
-minutes. Should the router stop answering, its last document stays on screen
-until it answers again, or the next full read, or R, probes the accounts
-instead. Without the router it probes every account every interval, sooner
-for a window that resets or an account that couldn't be read, and reads the
-router again once it's back.
+It reads the router's usage every few seconds, which the router keeps
+current itself, reading every account nothing has read in the last 5
+minutes; R has it read them at once. Should the router stop answering, its
+last document stays on screen until it answers again, or the next full read,
+or R, probes the accounts instead.
+
+The interval is how often it probes every account when it probes for itself,
+without the router or with --probe: 30m unless given, and 5m at the least.
+Give it as a duration, such as 15m or 1h, or as a number of minutes. It
+probes sooner for a window that resets or an account that couldn't be read,
+and reads the router again once it's back.
 
 Keys: tab and shift-tab move between its tabs, and ctrl-c quits wherever it
 is. The rest are each page's, as its ? help lists them:

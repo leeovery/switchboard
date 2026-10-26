@@ -41,7 +41,9 @@ const (
 // a restart doesn't scatter sessions and cost their caches; what it knows of
 // the accounts' tokens, so a token replaced before a restart still counts as
 // its account's after; and each account's last readings, so a restart needs
-// no probe, which, being a request, could start a window.
+// no probe, which, being a request, could start a window, and how its probes
+// went, so a restart neither probes it sooner than they allow nor forgets why
+// it can't be read.
 type stateFile struct {
 	// path is where the file is: "" until it's loaded, and nothing is kept.
 	path string
@@ -125,12 +127,17 @@ type savedUsage struct {
 }
 
 // savedReading is an account's windows as last read, and when, and when each
-// window was, by its key, and its extra usage.
+// window was, by its key, and its extra usage; and how its probes went: when
+// one last ended, why the last read nothing, and how many in a row did. A
+// file from before kept none of the probes, which reads as none ended.
 type savedReading struct {
-	ReadAt        time.Time            `json:"read_at"`
-	Windows       []quota.Window       `json:"windows"`
+	ReadAt        time.Time            `json:"read_at,omitzero"`
+	Windows       []quota.Window       `json:"windows,omitempty"`
 	WindowsReadAt map[string]time.Time `json:"windows_read_at,omitempty"`
 	Extra         quota.ExtraUsage     `json:"extra_usage,omitzero"`
+	Probed        time.Time            `json:"probed,omitzero"`
+	ProbeError    string               `json:"probe_error,omitempty"`
+	Misses        int                  `json:"misses,omitempty"`
 }
 
 // load takes in the state file at path, as the router starts, and keeps in it
@@ -143,7 +150,7 @@ func (f *stateFile) load(path string) {
 	saved := f.read(now)
 	changed := f.accounts.recall(saved.Tokens, now)
 	changed = f.sessions.recall(saved.savedSessions, f.accounts, now) || changed
-	changed = f.state.recall(saved.savedUsage) || changed
+	changed = f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens)) || changed
 	if changed {
 		f.changes.note()
 	}

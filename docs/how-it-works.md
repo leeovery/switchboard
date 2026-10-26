@@ -84,7 +84,7 @@ each capped at one output token. Switchboard probes an account only in these cas
 - A dashboard asks.
 - The account is due a [prime](#priming).
 - The router's own [rounds](#the-routers-rounds) call for it: once nothing has read the account in
-  half an hour, and 5 minutes before each of the account's weeks resets.
+  5 minutes, and 5 minutes before each of the account's weeks resets.
 
 ### Choosing an account
 
@@ -451,13 +451,13 @@ used: your phone, claude.ai, or Claude Code run directly. So an account in use t
 always current.
 
 The router reads the other accounts itself, around the clock, whether a dashboard is open or not.
-On its rounds, it reads each account that nothing has read in the last half hour, by an answer, a
+On its rounds, it reads each account that nothing has read in the last 5 minutes, by an answer, a
 probe or a prime. Two kinds of account are handled differently:
 
 | The account | What the round does |
 |---|---|
 | Its 5-hour window has lapsed, and it can take a request | Probes it, starting its window, only where its slot is more than 5 hours off, so that window resets before its prime is due. Without priming, probes it. |
-| It can take no request anyway | Probes it at any hour, so a reset you make by hand is seen within the half hour. |
+| It can take no request anyway | Probes it at any hour, so a reset you make by hand is seen within 5 minutes. |
 
 The router also probes each account once in the 5 minutes before each of its weeks resets, whatever
 the schedule. It skips the probe if something read that week in those 5 minutes. So a week's last
@@ -470,6 +470,11 @@ priming.
 A probe that reads nothing is tried again 2 minutes later. The wait doubles each time, up to the
 half hour. This goes on until the probe reads the account, or the account goes out on another
 token. A probe due while your Mac slept goes out within a minute of its waking.
+
+How each account's probes went outlasts a restart, kept in `state.json` beside its readings: when
+one last ended, why the last read nothing, and how many in a row did. So a restarted router waits
+out the backoff as though it had run on, and an account's error still reads as its last probe said.
+An account given another token while the router was stopped starts afresh.
 
 ### Seeing the schedule
 

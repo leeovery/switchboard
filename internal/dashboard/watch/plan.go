@@ -12,24 +12,26 @@ const lookEvery = 5 * time.Second
 
 // plan is when the dashboard next reads its source, and what it asks for. The
 // source's document says how often to read it. The router's costs nothing to
-// read, so the dashboard looks at it every lookEvery, and once an interval has
-// the router refresh the accounts it hasn't read for that long; and a look
-// once a window on screen has reset has the router refresh first the accounts
-// it hasn't read in the last minute, as an idle account's window would read
-// "resets now" until the next full read. The windows of an account with one
-// that has lapsed ask no refresh, as the router probes such an account only
-// while it can take no request. A look never probes when the router doesn't
-// answer, as a router away for a moment, restarting or slow on waking, would
-// have every account probed at once, starting their lapsed windows off the
-// priming schedule: only a full read does, once it's due. A document built by
-// probing is read again once an interval, sooner after a read that failed or
-// once a window on screen resets, and the router is asked after once a minute
-// in between, so the dashboard reads it again soon after it comes back, but
-// never goes back and forth faster than that.
+// read, so the dashboard looks at it every lookEvery, and never has the router
+// probe on an interval, as the router reads idle accounts itself, on its
+// rounds; but a look once a window on screen has reset has the router refresh
+// first the accounts it hasn't read in the last minute, as an idle account's
+// window would read "resets now" until its rounds next read it. The windows
+// of an account with one that has lapsed ask no refresh, as the router probes
+// such an account only while it can take no request. A full read, once an
+// interval, reads the router's document as a look does, and its history with
+// it. A look never probes when the router doesn't answer, as a router away for
+// a moment, restarting or slow on waking, would have every account probed at
+// once, starting their lapsed windows off the priming schedule: only a full
+// read does, once it's due. A document built by probing is read again once an
+// interval, sooner after a read that failed or once a window on screen
+// resets, and the router is asked after once a minute in between, so the
+// dashboard reads it again soon after it comes back, but never goes back and
+// forth faster than that.
 type plan struct {
 	interval time.Duration
-	// due is when the next full read is due: one that has the router
-	// refresh, or probes every account when the router doesn't answer.
+	// due is when the next full read is due: one that probes every account
+	// when the router doesn't answer.
 	due time.Time
 	// next is when the next look at the router's document is due, while the
 	// dashboard reads the router.
@@ -50,14 +52,14 @@ type plan struct {
 
 // full is the read of every account a plan asks for once an interval.
 func (p plan) full() status.Read {
-	return status.Read{Refresh: p.interval, Probe: true}
+	return status.Read{Probe: true}
 }
 
 // at returns the read due at now, reading the router when routed, and
 // reports false when none is: a full read once it's due; else, reading the
 // router, a look at its document, which probes nothing when it doesn't
-// answer; else, once a minute, a question after the router, which has it
-// refresh when it answers, and probes nothing when it doesn't.
+// answer; else, once a minute, a question after the router, which reads its
+// document when it answers, and probes nothing when it doesn't.
 func (p plan) at(now time.Time, routed bool) (status.Read, bool) {
 	switch {
 	case !now.Before(p.due):
@@ -65,7 +67,7 @@ func (p plan) at(now time.Time, routed bool) (status.Read, bool) {
 	case routed && !now.Before(p.next):
 		return p.look(now), true
 	case !routed && now.Truncate(time.Minute).After(p.asked):
-		return status.Read{Refresh: p.interval}, true
+		return status.Read{}, true
 	default:
 		return status.Read{}, false
 	}
@@ -83,23 +85,22 @@ func (p plan) look(now time.Time) status.Read {
 
 // landed notes a read that asked for r landing at now with doc, the router's
 // where routed says. After the router's, the next look is lookEvery on, and
-// after it refreshed, the next full read is an interval on, sooner after a
-// read that failed in part. After one built by probing, the next is an
-// interval on, sooner after a read that failed in part or for a window that
-// resets before then.
+// after a full read, the next is an interval on: what the router can't read
+// is its rounds' to read again, not the dashboard's. After one built by
+// probing, the next is an interval on, sooner after a read that failed in
+// part or for a window that resets before then.
 func (p plan) landed(r status.Read, doc status.Document, routed bool, now time.Time) plan {
 	p.asked = now
-	var wait time.Duration
 	if !routed {
+		var wait time.Duration
 		p.failures, wait = backoff(p.failures, doc.IncompleteAsRead(), p.interval)
 		p.due = doc.NextFetchAsRead(now, wait)
 		return p
 	}
-	if r.Refresh > 0 {
-		p.failures, wait = backoff(p.failures, doc.IncompleteAsRead(), p.interval)
-		p.due = now.Add(wait)
+	if full(r) {
+		p.failures, p.due = 0, now.Add(p.interval)
 	}
-	if r.Refresh > 0 && r.Refresh <= status.FreshFor {
+	if r.Refresh > 0 {
 		p.fresh = now
 	}
 	p.next = now.Add(lookEvery)
