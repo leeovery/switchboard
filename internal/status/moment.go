@@ -42,8 +42,8 @@ type Moment struct {
 	// Next is the id of the account new sessions go to, which ▲ marks, as
 	// read, as next has it.
 	Next string
-	// Accounts are its accounts, in the config's order, each as it stands at
-	// Now.
+	// Accounts are its accounts, in the document's order, each as it stands
+	// at Now.
 	Accounts []AccountNow
 	// Shown are the windows of the accounts worth showing at Now, in
 	// quota's order: those every model shares, always, and any other an

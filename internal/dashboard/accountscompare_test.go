@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"maps"
 	"regexp"
 	"slices"
@@ -347,6 +348,51 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 		if got := ansi.Cut(rows[tt.row], tt.column, tt.column+ansi.StringWidth(tt.want)); got != tt.want {
 			t.Errorf("row %d from column %d reads %q, want %q", tt.row, tt.column, got, tt.want)
 		}
+	}
+}
+
+// The heading says which accounts Compare shows by their numbers, the
+// first's and the last's, where those run on one by one: where the config
+// and the router agree, as their places in the config; where the router
+// still holds the first of ten the config no longer has, from 2. Where the
+// numbers shown skip one, as side's 3 after work's 1 with personal removed
+// and client added, it counts them instead.
+func TestComparesHeadingSaysWhichAccountsItShowsByTheirNumbers(t *testing.T) {
+	ten := usageWorld(tenCompared, extraOff)
+	tests := []struct {
+		name       string
+		configured config.Accounts
+		doc        status.Document
+		width      int
+		first      int
+		want       func(shown int) string
+	}{
+		{
+			name: "the config and the router agree", configured: tenFramed, doc: ten, width: 160, first: 4,
+			want: func(shown int) string { return fmt.Sprintf("accounts 5–%d of 10", 4+shown) },
+		},
+		{
+			name: "the first removed, still the router's", configured: tenFramed[1:], doc: ten, width: 160,
+			want: func(shown int) string { return fmt.Sprintf("accounts 2–%d of 9", 1+shown) },
+		},
+		{
+			name: "one removed and one added", configured: configured("work", "side", "client"), doc: usageWorld(extraOff), width: 90,
+			want: func(shown int) string { return fmt.Sprintf("%d of 3 accounts", shown) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 37)
+			f.View, f.WeekWindow, f.Accounts = Accounts, "7d", AccountsShown{Accounts: tt.configured, First: tt.first}
+			held := f.At(tt.doc, routedAt)
+			shown := held.compareShows()
+			if shown < 2 || shown >= len(tt.configured) {
+				t.Fatalf("Compare shows %d of %d accounts at %d columns; want some, not all, for its heading to say which", shown, len(tt.configured), tt.width)
+			}
+			if want := tt.want(shown); rowWith(textOf(f.Draw(tt.doc, routedAt)), want) < 0 {
+				t.Errorf("no row says %q", want)
+			}
+		})
 	}
 }
 

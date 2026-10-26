@@ -144,9 +144,10 @@ func (g graphsGiven) paired() []flex.Span {
 
 // glanceBesideWhen lays GLANCE and WHEN YOU WORK side by side width cells
 // wide, of the configured accounts given, numbered as n numbers them,
-// reporting whether both fit at their naturals with glanceWhenGap between: GLANCE from column 0 at its
-// natural, as glancePart has it; WHEN YOU WORK after it, from its natural,
-// as hoursPart has it, to the width's end, as every section takes the width.
+// reporting whether both fit at their naturals with glanceWhenGap between:
+// GLANCE from column 0 at its natural, as glancePart has it; WHEN YOU WORK
+// after it, from its natural, as hoursPart has it, to the width's end, as
+// every section takes the width.
 func glanceBesideWhen(n status.Numbering, accounts config.Accounts, width int) ([]flex.Span, bool) {
 	glance, when := atNatural(glancePart(n, accounts)), atNatural(hoursPart())
 	when.Most, when.Gap = 0, glanceWhenGap

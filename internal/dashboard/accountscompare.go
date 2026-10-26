@@ -125,8 +125,8 @@ func (f Frame) compareParts() []flex.Part {
 // an account: where its parts, as compareParts has them, fit at their
 // leasts; else it's turned, a row an account. With fewer than two accounts
 // there's nothing to compare, and it's never wide. Its form, its focus, help
-// and the watch all choose by it. Its parts are the config's alone, so it
-// never changes as the data does.
+// and the watch all choose by it. Its parts are the configured accounts', as
+// the frame's numbering numbers them, so it never changes as the reads do.
 func (f Frame) CompareWide() bool {
 	if len(f.Accounts.Accounts) < comparedAlways {
 		return false
@@ -364,7 +364,7 @@ func (f Frame) CompareFirst(id string) int {
 }
 
 // compareState is what Compare's heading says after [ ] where it shows fewer
-// accounts than there are: which it shows, as "accounts 1–6 of 10", that ←→
+// accounts than there are: which it shows, as comparedShown says it, that ←→
 // moves along them, and that all accounts stays put; and, a clause shorter,
 // for less room, without the last. It says nothing where Compare is turned,
 // as CompareWide has it, showing every account a row.
@@ -375,10 +375,24 @@ func (f Frame) compareState() []line {
 	}
 	first := f.compareFirst()
 	moves := line{
-		{fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, n), faintInk},
+		{comparedShown(f.numbering().Configured(f.Accounts.Accounts)[first:first+shown], n), faintInk},
 		{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk},
 	}
 	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves}
+}
+
+// comparedShown says which of n accounts Compare shows, those given: by the
+// first's number and the last's, as "accounts 2–5 of 9", where their numbers
+// run on one by one; else, as one the config no longer has leaves a gap
+// among them, how many, as "2 of 3 accounts".
+func comparedShown(shown []status.AccountNow, n int) string {
+	first, last := shown[0].Place, shown[len(shown)-1].Place
+	for i, a := range shown {
+		if a.Place != first+i {
+			return fmt.Sprintf("%d of %d accounts", len(shown), n)
+		}
+	}
+	return fmt.Sprintf("accounts %d–%d of %d", first, last, n)
 }
 
 // columns are Compare's columns: each account's shown, from the first, then

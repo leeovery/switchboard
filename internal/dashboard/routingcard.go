@@ -263,7 +263,7 @@ type RoutingRow struct {
 	// Account is the account's id: "" on auto's row.
 	Account string
 	// Key is the number key that picks the row, "0" on auto's, an account's
-	// place in the config: "" for an account past the ninth.
+	// number: "" for an account numbered past 9.
 	Key string
 	// Name is the account's name.
 	Name string

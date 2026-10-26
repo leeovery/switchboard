@@ -2190,6 +2190,8 @@ holds.
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
   `accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
+  The range is the first and last shown's numbers; where the config and the router disagree and
+  the numbers shown skip one, it's a count instead, `2 of 3 accounts`.
 - **The heads,** on the view's first two rows, wherever the heading's rows end, held however far
   the rest scrolls: an account's number, then its name and marks, bold, as `usage` draws a name
   (see `usage`, the printout); under them, its state in a word, as the Overview colours its
