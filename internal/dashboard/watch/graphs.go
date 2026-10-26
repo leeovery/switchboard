@@ -12,14 +12,16 @@ func (m Model) graphsHoursWanted() bool {
 	return m.shownView() == dashboard.Graphs && m.graphs.Has(dashboard.GraphsWhen)
 }
 
-// graphsHours is WHEN YOU WORK's page, of the last 12 months' days History's
-// reads hold, never a calendar year stepped back to: nil where Graphs
-// doesn't want them, as graphsHoursWanted says, or they aren't read yet.
+// graphsHours is WHEN YOU WORK's page at now, of the last 12 months' days
+// History's reads hold, never a calendar year stepped back to, so its four
+// weeks move on at midnight before a look's read lands, as Accounts' do:
+// nil where Graphs doesn't want them, as graphsHoursWanted says, or they
+// aren't read yet.
 func (m Model) graphsHours() *views.HoursPage {
 	if !m.graphsHoursWanted() || !m.past.last.held() {
 		return nil
 	}
-	return new(m.past.last.past.Hours())
+	return new(m.past.last.past.Since(nil, m.now()).Hours())
 }
 
 // graphsShown is what the Graphs tab shows: its sections shown; the

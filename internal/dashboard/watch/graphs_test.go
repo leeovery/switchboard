@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -297,16 +298,50 @@ func TestGraphsReadsTheLedgersDaysWhileWhenYouWorkShows(t *testing.T) {
 }
 
 // WHEN YOU WORK's page is of the last 12 months' days, never of a calendar
-// year History stepped back to.
+// year History stepped back to, the page built afresh at a message with
+// both held.
 func TestWhenYouWorksPageIsOfTheLast12MonthsNeverACalendarYear(t *testing.T) {
 	h, l := whenHarness(t, "when")
 	h.start()
 	back := h.model.past.last
 	back.past = views.NewPast(views.HistoryInput{From: yearFrom, Now: h.clock.now, WeekStarts: time.Monday}, l.Days(yearFrom)[:1])
 	h.model.past.back = back
+	h.redraw()
 	got, want := h.model.frame(h.clock.now).Graphs.Hours, h.model.past.last.past.Hours()
 	if got == nil || !reflect.DeepEqual(*got, want) || reflect.DeepEqual(want, back.past.Hours()) {
 		t.Errorf("WHEN YOU WORK's page is %+v, want the last 12 months' %+v, unlike the year back's", got, want)
+	}
+}
+
+// WHEN YOU WORK's four weeks move on at midnight with the first message
+// after it, before a look's read of the day lands: the heading says the day
+// just ended, and the grid counts it, as the days held have it; then the
+// look's read brings what came later that day, and the page is built afresh
+// of it.
+func TestWhenYouWorksWeeksMoveOnAtMidnightBeforeTheLook(t *testing.T) {
+	h, l := whenHarness(t, "when")
+	l.days["2026-09-28"] = hourly("2026-09-28", 10, 4)
+	h.start()
+	hours := func() *views.HoursPage { return h.model.frame(h.clock.now).Graphs.Hours }
+	if got := hours(); got == nil || got.Description != "the 4 weeks to Sun 27 Sep" {
+		t.Fatalf("on 28 September, the page is %+v, want the 4 weeks to Sun 27 Sep", got)
+	}
+	reads := len(l.reads)
+
+	midnight := dayfile.DayStart(start.Local(), 1)
+	h.clock.now = midnight.Add(time.Minute)
+	h.redraw()
+	// Of the four Mondays from 7 September, 28 September's 4 requests at
+	// 10:00, held as read before midnight; 21 September's 8 at 09:00.
+	if got := hours(); len(l.reads) != reads || got == nil || got.Description != "the 4 weeks to Mon 28 Sep" || got.Days[0].Hours[10].Requests != 1 || got.Days[0].Hours[9].Requests != 2 {
+		t.Fatalf("a message after midnight, the ledger read %d more times, the page %+v; want none, the 4 weeks to Mon 28 Sep, Monday's 10:00 at 1 and 09:00 at 2",
+			len(l.reads)-reads, got)
+	}
+
+	l.days["2026-09-28"] = hourly("2026-09-28", 10, 8)
+	h.lookAt(midnight.Add(2 * time.Minute))
+	if got := hours(); len(l.reads) == reads || got == nil || got.Description != "the 4 weeks to Mon 28 Sep" || got.Days[0].Hours[10].Requests != 2 {
+		t.Errorf("the look's read landed, the ledger read %d more times, the page %+v; want a read, the 4 weeks to Mon 28 Sep, Monday's 10:00 at 2", len(l.reads)-reads, got)
 	}
 }
 
@@ -340,7 +375,8 @@ func TestGraphsSaysItsLoadingWhileWhenYouWorksReadTakesAWhile(t *testing.T) {
 
 // WHEN YOU WORK kept shown, Graphs wants the ledger's days only while it's
 // the page shown: on the Overview, or under a session's page opened over
-// Graphs, nothing reads them, nothing waits on them, and there's no page.
+// Graphs, nothing reads them, nothing waits on them, and no page is built,
+// as none was before it left the tab.
 func TestGraphsReadsNoDaysOffItsTab(t *testing.T) {
 	tests := []struct {
 		name string

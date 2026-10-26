@@ -8,14 +8,16 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// graphsTab is what the watch holds of Graphs' lanes, which its cards say
-// what Runway says of each account by: Runway's lanes over its live view of
+// graphsTab is what the watch holds of Graphs as a look builds it: its
+// lanes, which its cards say what Runway says of each account by, and WHEN
+// YOU WORK's page. Of the lanes: Runway's lanes over its live view of
 // each window a burn-down section shown charts, by the window, each holding
 // what it judged of the past till what that's judged from changes, as
 // Runway's do; what the frame shows of them, as the last look built them;
-// how a look builds them, as lanesLooking has it; WHEN YOU WORK's page, as
-// the last look built it; and the moment of the message they were built at,
-// as each is built once.
+// how a look builds them, as lanesLooking has it. WHEN YOU WORK's page, as
+// the last look on Graphs built it, held off the tab, where nothing draws
+// it. And the moment of the message both were built at, as each is built
+// once.
 type graphsTab struct {
 	lanes   map[views.RunwayWindow]views.Lanes
 	shown   map[views.RunwayWindow]dashboard.WindowLanes

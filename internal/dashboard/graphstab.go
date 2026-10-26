@@ -103,8 +103,9 @@ func GraphsWindows(sections GraphsSections) []views.RunwayWindow {
 // and h show and hide them; the configured accounts, in the config's order,
 // which alone, with the frame's size, its look, which words POOL's key, and
 // the sections shown, lay the page out, as layGraphs has it; WHEN YOU WORK's
-// page, whose weeks its heading says, nil while the ledger's days aren't
-// read, or it doesn't show; and Runway's lanes over its live view of each
+// page, whose weeks its heading says, as the watch built it at the last look
+// on Graphs, nil where the ledger's days weren't read then, or WHEN YOU WORK
+// was hidden; and Runway's lanes over its live view of each
 // window a burn-down section shown charts, as GraphsWindows has them, by the
 // window, as the watch built them at the look, which its cards say what
 // Runway says of each account by, none till it's built them.

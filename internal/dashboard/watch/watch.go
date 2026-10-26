@@ -506,8 +506,7 @@ func (m Model) Init() tea.Cmd {
 // as closing says, then has the watch read the router's request stream
 // while it wants it, and the ledger's days for History, Accounts, Runway,
 // Graphs, a session's page, the Log and its find, and Sessions, as they want
-// them,
-// History's and Accounts' pages built of them as historyBuilt and
+// them, History's and Accounts' pages built of them as historyBuilt and
 // accountsBuilt have it, Detail's selection following its sessions, as
 // followed has it, Sessions, Runway and Graphs built at the look, as
 // sessionsLooked and runwayLooked have it, the ledger's tail followed
