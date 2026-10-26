@@ -17,9 +17,9 @@ var keysSaid = map[string]string{
 		"unless a pin set from the command line stands, nor with --probe. p opens the routing card, which picks " +
 		"the accounts new sessions go to and changes nothing until enter. j, k, PgDn, PgUp and the wheel scroll " +
 		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, History's Year, Weeks' accounts, " +
-		"Days' BY ACCOUNT and Tokens' periods, Sessions' List and lanes, Runway's lanes, the Log's table, and " +
-		"a session's turns, or an open turn's requests. w, where it's listed, shows and hides each model's own " +
-		"window; one near its limit shows either way.",
+		"Days' BY ACCOUNT and Tokens' periods, Sessions' List and lanes, Runway's lanes, Graphs' page, the Log's " +
+		"table, and a session's turns, or an open turn's requests. w, where it's listed as models, shows and hides " +
+		"each model's own window; one near its limit shows either way.",
 	"Overview": "u, g, r, s, c and l show and hide USAGE, GRAPHS, ROUTING, SESSIONS, COMING UP and LATELY; " +
 		"b groups the windows by window or by account, as the config's [usage] by has them until b is pressed; " +
 		"v, while GRAPHS shows, flips its charts between the burn-up and the burn-down; and ↑↓ moves the focus " +

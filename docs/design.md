@@ -13,8 +13,8 @@ redesigned it, in three views, with themes, and with the router's history, event
 to draw them from. Milestone 6 added the request ledger, a line for each request the router routes
 and a summary of each day, with `requests` and `history` to read them back. Milestone 7 redesigned
 the dashboard again, on what the ledger records: `usage` becomes a printout, `dashboard` the live
-page, in six tabs, and the data verbs give an agent everything either shows. The Dashboard section
-and The data verbs describe it.
+page, in six tabs, a seventh, Graphs, added after it, and the data verbs give an agent everything
+either shows. The Dashboard section and The data verbs describe it.
 
 ## What it is
 
@@ -3938,6 +3938,8 @@ section holds:
 - **Under 60 columns** the tabs take two rows, and three under 31 (see The page); no frame is drawn
   there.
 - **The title row** draws no `tab ⇥` (see The page); the frames at 160 and 173 do.
+- **GLANCE and WHEN YOU WORK** pair from 175 columns, GLANCE's natural with the sample's names being
+  113; the frame at 173 draws them side by side, where at 173 WHEN YOU WORK comes under GLANCE.
 
 **Its sections,** every one a toggle, at every size, remembered, as the Overview's are: size decides
 how much room each section shown gets, never whether it shows. From row 4 (a phone's row 5, a row lower
@@ -3968,7 +3970,7 @@ the pages that list windows as they stand it shows the models' own (see Keys).
 - **A blank row separates two sections,** and follows the pool's line where a section comes after
   it.
 - **GLANCE and WHEN YOU WORK sit side by side** where both show and both fit at their naturals with
-  10 cells between, GLANCE from column 0: from about 172 columns with the sample's names, a figure
+  10 cells between, GLANCE from column 0: from 175 columns with the sample's names, a figure
   its parts give, never one the code compares the width with. Elsewhere WHEN YOU WORK comes under
   GLANCE. Every other section takes the width.
 
@@ -4035,6 +4037,9 @@ so one look compares every account (the owner's call, 24 October 2026):
   Runway's lane has them and its chart empty but for now's `│`; one without a usable token has no
   room all along; a stale one is faded, as a stale reading is everywhere (see What moves); one out of
   the pool is faint, as the Overview draws it.
+- **An account the router's document doesn't hold yet,** as one just added to the config, has its
+  label alone and its chart empty but for now's `│`, numbered after the document's last, in the
+  config's order among those it lacks, as Runway will number it once the router has it.
 
 **The pool's line** follows the last burn-down section shown, after its blank row: `Σ ` in
 `text.subtle`, `pool` in `text.secondary`, three spaces, then each window's room as Runway's pool
@@ -4093,8 +4098,9 @@ burn-down a row high:
   left`.
 - **Its key,** a blank row under: `▆ room left, start to reset`, `▆ heading` in its faint ink,
   `✕ runs out` and `66% room left now`, four spaces apart.
-- **Its width** is its natural, what it takes whole, about 110 columns with the sample's names, the
-  words padded to their bound, and it doesn't grow. Narrowing, its words take `usage`'s short forms
+- **Its width** is its natural, what it takes whole, 113 columns with the sample's names, its name
+  column of 16 cells and a gap of 3 as the matrix's, the words padded to their bound, and it doesn't
+  grow. Narrowing, its words take `usage`'s short forms
   first, then its names narrow toward their least, as `usage`'s parts give way. Where that doesn't fit, its windows stack, the week's rows and then the 5-hour's,
   each under its window's name, the words cut as `usage`'s are at that width.
 
@@ -4106,6 +4112,8 @@ burn-down a row high:
   weekday known, a day the ledger keeps no hours of left out, and the description saying `the 2
   weeks to Wed 30 Sep` where fewer than four are known; over the grid,
   every third hour, `00`, `03`, to `21`, in `text.faint`.
+- **Where no day of the four weeks is known,** as before the ledger has recorded any hours, it has
+  no grid: its first row says `nothing recorded yet` in `text.subtle`, and its heading no weeks.
 - **Its shades** are History's (see History, Five shades): `viz.day.0` for an hour with nothing on
   it; the active hours split into quarters for `viz.day.1` to `viz.day.4`, on one scale for the
   grid. Its key under it, as the Year's: each shade's tile and its bounds, each cut rounded on its
@@ -8193,8 +8201,31 @@ Runway and the Log, its sections WEEK and 5-HOUR shown at first, and POOL, GLANC
 of round 1's charts, for now (see Graphs). Beside the tab, it changes the title row, a seventh tab,
 taking two rows under 60 columns and three under 31, so every reference drawn narrower, a phone's at 52, moves a row
 down; adds `viz.account.1` to `viz.account.4` to the themes; and needs a day's requests by the hour,
-for WHEN YOU WORK. The owner signed it off on 25 October 2026; the plan, its stages and what each
-delivers, comes next.
+for WHEN YOU WORK. The owner signed it off on 25 October 2026, and the plan cut it into ten stages.
+
+**The Graphs tab — built.** In ten stages, each a PR, from 25 to 26 October 2026, every part laid by
+flex, with a least, a natural and a most, as the fluid pass laid the other views, and no width
+compared with a constant outside the chrome:
+- **The chrome:** the title row laid by flex, its `tab ⇥` gone, a phone's tabs on as many rows as
+  their names need (#152); the tab between Runway and the Log, heading itself, every frame a row
+  lower at 52 (#153).
+- **The facts:** the room a window has at a time ahead, by its projection, owned by the status
+  moment and held to agree with its run-out (#150); each day's requests by the local hour, in its
+  summary, version 6, the days before it summarised again once from the lines kept (#151); POOL's
+  stack, each account's room a column, past and ahead (#156); WHEN YOU WORK's grid over the four
+  weeks before today (#154); and the pool's room over a window's span, for GLANCE (#165).
+- **The page:** its sections as toggles, kept, keyed and headed (#158); the room planner, the pool's
+  line, the legend and the whole-page scroll (#160); the cards' chart and axis (#155), their words,
+  Runway's own, from Runway's lanes built at its live view while Graphs shows (#161), drawn on the
+  page (#163); POOL's hues, stack, axis and key (#156, #159, #164); WHEN YOU WORK's grid (#162,
+  #164); GLANCE (#165), and GLANCE placed beside WHEN YOU WORK where both fit whole.
+- **Help and docs:** `HELP · GRAPHS` in full, its scroll keys listed always, as the page can scroll
+  at any size; the dashboard's guide, its Graphs section and every list Graphs joins.
+
+What the build settled where the design estimated: GLANCE's natural with the sample's names is 113
+columns, so it pairs with WHEN YOU WORK from 175; WHEN YOU WORK with no day known says `nothing
+recorded yet`; and a card for an account the router's document doesn't hold yet has its label
+alone, numbered as Runway will number it. `art/` is to be recorded again with Graphs in it.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 

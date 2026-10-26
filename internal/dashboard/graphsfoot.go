@@ -19,12 +19,12 @@ const footApart = 3
 // has a reserve, the reserve's ⠠ ⠠.
 func burnLegend(width int, reserved bool) []line {
 	items := []line{
-		{{"▆▆", ink{token: lastingInk.token, fade: roomFade}}, {" room left", mutedInk}},
-		{{"⠂⠄⡀", lastingInk}, {" where it's heading", mutedInk}},
+		{roomIn(lastingInk), {" room left", mutedInk}},
+		{headingMark, {" where it's heading", mutedInk}},
 		{{outMark, outInk}, {" runs out", mutedInk}},
 	}
 	if reserved {
-		items = append(items, line{{"⠠ ⠠", capDotInk}, {" reserve", mutedInk}})
+		items = append(items, line{reserveMark, {" reserve", mutedInk}})
 	}
 	return wrapped(spaces(footApart), width, items)
 }
@@ -58,6 +58,19 @@ func (f Frame) poolLine(m status.Moment, width int) line {
 		}
 	}
 	return wholeParts(parts, width)
+}
+
+// headingMark and reserveMark are where a window's heading and its
+// account's reserve, as v0.1's legend and help draw them.
+var (
+	headingMark = span{"⠂⠄⡀", lastingInk}
+	reserveMark = span{"⠠ ⠠", capDotInk}
+)
+
+// roomIn is the room left, as v0.1's legend and help draw it, in the ink a
+// window's state gives it, k, faded as a card fills it.
+func roomIn(k ink) span {
+	return span{"▆▆", ink{token: k.token, fade: roomFade}}
 }
 
 // lastingInk is the ink of a window whose room lasts to its reset, the
