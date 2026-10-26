@@ -1349,9 +1349,9 @@ func (u *usage) windowsReadAt() map[string]time.Time {
 // recall takes in what the state file kept of the accounts' usage, as the
 // router starts, as each usage's recall has it, holding reporting whether an
 // account holds the token it held then; but for what it kept of accounts no
-// longer configured. It reports whether what it took in differs from what
-// the file holds, as where it left anything out, so the file is written
-// again without it.
+// longer configured. It reports whether it left out the reading of an account
+// no longer configured, or took an account's probes otherwise than they were
+// kept, so the file is written again as it took them.
 func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed bool) {
 	now := s.now().UTC()
 	s.mu.Lock()
@@ -1362,7 +1362,9 @@ func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed 
 			changed = true
 			continue
 		}
-		changed = u.recall(reading, holding(id), now) || changed
+		if u.recall(reading, holding(id), now) {
+			changed = true
+		}
 	}
 	for key, families := range saved.WindowFamilies {
 		for _, family := range families {

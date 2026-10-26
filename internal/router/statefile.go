@@ -160,10 +160,10 @@ func (f *stateFile) load(path string) {
 	f.path = path
 	now := f.now()
 	saved := f.read(now)
-	changed := f.accounts.recall(saved.Tokens, now)
-	changed = f.sessions.recall(saved.savedSessions, f.accounts, now) || changed
-	changed = f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens)) || changed
-	if changed {
+	tokens := f.accounts.recall(saved.Tokens, now)
+	sessions := f.sessions.recall(saved.savedSessions, f.accounts, now)
+	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
+	if tokens || sessions || usage {
 		f.changes.note()
 	}
 	held := f.snapshot()
