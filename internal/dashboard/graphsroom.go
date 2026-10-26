@@ -96,12 +96,12 @@ func (g graphsGiven) shape() graphsShape {
 	}
 	s.across = cardsAcross(len(g.accounts), g.width)
 	s.cardsDown = (s.accounts + len(s.across) - 1) / len(s.across)
-	s.glance, s.when = glanceRows(s.accounts, g.pooled()), whenRows(g.width, g.look)
+	s.glance, s.when = layGlance(g.accounts, g.width).rows(), whenRows(g.width, g.look)
 	if last >= 0 {
 		s.legend = burnLegend(g.width, g.reserved())
 		s.legend = s.legend[:min(len(s.legend), max(g.rows-1, 0))]
 	}
-	if last >= 0 && g.pooled() {
+	if last >= 0 && pooled(g.accounts) {
 		s.poolPart = last + 1
 	}
 	s.room = max(g.rows-len(s.legend), 0)
@@ -111,11 +111,6 @@ func (g graphsGiven) shape() graphsShape {
 // reserved reports whether any of the accounts given has a reserve.
 func (g graphsGiven) reserved() bool {
 	return slices.ContainsFunc(g.accounts, func(a config.Account) bool { return a.Reserve > 0 })
-}
-
-// pooled reports whether the accounts given are a pool: two or more.
-func (g graphsGiven) pooled() bool {
-	return len(g.accounts) > 1
 }
 
 // burnsDown reports whether the section is a burn-down's, WEEK or 5-HOUR.
@@ -135,27 +130,16 @@ func cardsAcross(k, width int) []flex.Span {
 }
 
 // poolKeyed is POOL's stack as its key words it of the configured accounts,
-// whatever a pin makes the pool's: none where they're no pool.
+// whatever a pin makes the pool's: none where they're no pool, as pooled
+// has it.
 func poolKeyed(accounts config.Accounts, look Look) poolStacked {
 	var stack views.PoolStack
-	if len(accounts) > 1 {
+	if pooled(accounts) {
 		for _, a := range accounts {
 			stack.Accounts = append(stack.Accounts, views.PoolStackAccount{ID: a.ID, Label: a.Label})
 		}
 	}
 	return poolStacked{stack: stack, look: look}
-}
-
-// glanceRows are the rows GLANCE's body takes, of the accounts given, as the
-// design gives them, drawn wide: its head row and a blank row; a row an
-// account, a blank row between; usage's rule and the pool's row, where
-// there's a pool; and a blank row and its key.
-func glanceRows(accounts int, pool bool) int {
-	rows := 2 + max(2*accounts-1, 0) + 2
-	if pool {
-		rows += 2
-	}
-	return rows
 }
 
 // whenRows are the rows WHEN YOU WORK's body takes width cells wide, as its

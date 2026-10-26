@@ -117,6 +117,13 @@ func NotingPoolStack(at *[]time.Time) PoolStack {
 	return PoolStack{then: NotingPoolRoom(at).then}
 }
 
+// CountingPoolSpan is the pool's room over a window's span not yet looked at
+// that counts in judged each time a look judges the room an account had left
+// in a window at a moment gone, as RoomThen judges it.
+func CountingPoolSpan(judged *int) PoolSpan {
+	return PoolSpan{then: CountingPoolRoom(judged).then}
+}
+
 // RowOfTold is the row of the request t, as the stream told of it, at now.
 func RowOfTold(t Told, now time.Time) RequestRow {
 	return toldRow(t, now)

@@ -274,14 +274,16 @@ func namesOf(m status.Moment) []accountName {
 	for i := range places {
 		places[i] = i + 1
 	}
-	return namesAt(m.Accounts, places)
+	return namesAt(m.Accounts, places, len(m.Accounts))
 }
 
 // namesAt are the names of the accounts given, each numbered by its place
-// given, right-aligned to the widest, ▲ on the one new sessions go to, and
-// each out of the pool where it is.
-func namesAt(accounts []status.AccountNow, places []int) []accountName {
-	digits := len(strconv.Itoa(slices.Max(append([]int{0}, places...))))
+// given, right-aligned to the widest of those places and of, ▲ on the one
+// new sessions go to, and each out of the pool where it is. So names given
+// of the moment's accounts' count are aligned as namesOf aligns the
+// moment's, whichever of them are given.
+func namesAt(accounts []status.AccountNow, places []int, of int) []accountName {
+	digits := len(strconv.Itoa(slices.Max(append([]int{of}, places...))))
 	names := make([]accountName, len(accounts))
 	for i, a := range accounts {
 		names[i] = accountName{

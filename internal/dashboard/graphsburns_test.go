@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -215,6 +216,73 @@ func TestGraphsCardWithNothingToDrawIsEmptyButForNowsLine(t *testing.T) {
 	}
 }
 
+// numbering is a config over a router's document, as Graphs numbers its
+// accounts: the document; the ids configured, in the config's order; and
+// the label each account the document lacks takes, by its id.
+type numbering struct {
+	name   string
+	doc    status.Document
+	ids    []string
+	lacked map[string]string
+}
+
+// numberings are configs over documents that tell numbering by the moment's
+// places from numbering by the config's: an account added, last and among
+// the rest; one removed and one added; two added; one removed, still the
+// router's; and ten the router holds, configured in another order.
+func numberings() []numbering {
+	return []numbering{
+		{name: "an account added, not yet the router's", doc: trio(), ids: []string{"work", "personal", "side", "client"}, lacked: map[string]string{"client": "4 client"}},
+		{name: "an account added among the rest", doc: trio(), ids: []string{"work", "client", "personal", "side"}, lacked: map[string]string{"client": "4 client"}},
+		{name: "one removed and one added", doc: trio(), ids: []string{"work", "side", "client"}, lacked: map[string]string{"client": "4 client"}},
+		{name: "two added", doc: trio(), ids: []string{"work", "client", "personal", "spare", "side"}, lacked: map[string]string{"client": "4 client", "spare": "5 spare"}},
+		{name: "an account removed, still the router's", doc: trio(), ids: []string{"work", "side"}},
+		{name: "ten the router's, in another order", doc: tenHeld(), ids: slices.Concat(tenIDs[5:], tenIDs[:5])},
+	}
+}
+
+// config is the numbering's config, as the document marks its primary.
+func (n numbering) config() config.Accounts {
+	accounts := configured(n.ids...)
+	for i := range accounts {
+		accounts[i].Primary = slices.ContainsFunc(n.doc.Accounts, func(a status.Account) bool { return a.ID == accounts[i].ID && a.Primary })
+	}
+	return accounts
+}
+
+// tenIDs are the ids of tenHeld's accounts, in its order.
+var tenIDs = []string{"work", "personal", "side", "client", "lab", "team", "ops", "studio", "spare", "research"}
+
+// tenHeld is the router's document of ten accounts, read as trio's are.
+func tenHeld() status.Document {
+	doc := trio()
+	doc.Accounts = nil
+	for _, id := range tenIDs {
+		doc.Accounts = append(doc.Accounts, printAccount(id, 0.3, 0.4, 0))
+	}
+	return doc
+}
+
+// want is the label the account with the given id takes, as n numbers it:
+// as Runway's lanes label it, byte for byte, where the document holds it;
+// else its number after the document's last.
+func (n numbering) want(id string) (label string, lacked bool) {
+	if label, ok := n.lacked[id]; ok {
+		return label, true
+	}
+	m := n.doc.At(printNow, printPolicy)
+	i := slices.IndexFunc(m.Accounts, func(a status.AccountNow) bool { return a.ID == id })
+	named := namesOf(m)[i]
+	return named.number + " " + named.label, false
+}
+
+// labelledAs reports whether a label drawn is the one wanted: whole, or
+// followed by what comes after it on its row.
+func labelledAs(drawn, want string) bool {
+	rest, ok := strings.CutPrefix(drawn, want)
+	return ok && (rest == "" || strings.HasPrefix(rest, " "))
+}
+
 // A card is numbered as Runway's lane numbers its account, by the moment,
 // whatever the config's order, as while the router keeps a config the
 // dashboard's no longer has: so with personal removed, side is still 3. A
@@ -223,32 +291,15 @@ func TestGraphsCardWithNothingToDrawIsEmptyButForNowsLine(t *testing.T) {
 // the moment's last place, its label alone over its chart, empty but for
 // now's line.
 func TestGraphsCardsAreNumberedAsRunwayNumbersTheirAccounts(t *testing.T) {
-	tests := []struct {
-		name   string
-		ids    []string
-		lacked map[string]string
-	}{
-		{name: "an account added, not yet the router's", ids: []string{"work", "personal", "side", "client"}, lacked: map[string]string{"client": "4 client"}},
-		{name: "an account removed, still the router's", ids: []string{"work", "side"}},
-	}
-	doc := trio()
-	m := doc.At(printNow, printPolicy)
-	runway := make(map[string]string)
-	for i, n := range namesOf(m) {
-		runway[m.Accounts[i].ID] = n.number + " " + n.label
-	}
-	for _, tt := range tests {
+	for _, tt := range numberings() {
 		t.Run(tt.name, func(t *testing.T) {
-			f := cardsPage(doc, printNow, 160, 37, tt.ids...)
-			c, sections := pageCards(f, doc, printNow)
+			f := cardsPage(tt.doc, printNow, 160, 37, tt.ids...)
+			c, sections := pageCards(f, tt.doc, printNow)
 			for section, cards := range sections {
 				for i, card := range cards {
 					id, label := tt.ids[i], labelOf(c, card)
-					want, lacked := tt.lacked[id]
-					if !lacked {
-						want = runway[id]
-					}
-					if !strings.HasPrefix(label, want) || lacked && label != want {
+					want, lacked := tt.want(id)
+					if !labelledAs(label, want) || lacked && label != want {
 						t.Errorf("%s's %s card is labelled %q, want %q", section.heading(), id, label, want)
 					}
 					if rows := chartOnly(c, card); lacked && !emptyButNow(rows) {
@@ -260,16 +311,43 @@ func TestGraphsCardsAreNumberedAsRunwayNumbersTheirAccounts(t *testing.T) {
 	}
 }
 
-// Numbers are right-aligned to the widest place given, as a card numbered
-// after the moment's ninth adds a digit.
-func TestCardNumbersAreAlignedToTheWidestPlace(t *testing.T) {
-	accounts := []status.AccountNow{{ID: "work"}, {ID: "client"}}
-	var numbers []string
-	for _, n := range namesAt(accounts, []int{1, 10}) {
-		numbers = append(numbers, n.number)
+// The router holding ten accounts, one of them removed from the config,
+// Graphs numbers the nine the config keeps as Runway numbers them, aligned
+// to the router's ten.
+func TestGraphsNumbersAreAlignedAsRunwaysOfAllTheRoutersAccounts(t *testing.T) {
+	m := tenHeld().At(printNow, printPolicy)
+	_, names := numberedAsRunway(m, configured(tenIDs[:9]...))
+	runway := namesOf(m)
+	for i, n := range names {
+		if n.number != runway[i].number || n.label != runway[i].label {
+			t.Errorf("%s is numbered %q, want %q, as Runway numbers it", tenIDs[i], n.number, runway[i].number)
+		}
 	}
-	if want := []string{" 1", "10"}; !slices.Equal(numbers, want) {
-		t.Errorf("the numbers are %q, want %q", numbers, want)
+}
+
+// Numbers are right-aligned to the widest of the places given and the
+// moment's count, as Runway aligns them: a card numbered after the moment's
+// ninth adds a digit, and so does the moment's tenth, though no card is
+// numbered past 9.
+func TestCardNumbersAreAlignedToTheWidestPlaceOrTheMomentsCount(t *testing.T) {
+	accounts := []status.AccountNow{{ID: "work"}, {ID: "client"}}
+	tests := []struct {
+		places []int
+		of     int
+		want   []string
+	}{
+		{places: []int{1, 10}, of: 9, want: []string{" 1", "10"}},
+		{places: []int{1, 2}, of: 10, want: []string{" 1", " 2"}},
+		{places: []int{1, 2}, of: 3, want: []string{"1", "2"}},
+	}
+	for _, tt := range tests {
+		var numbers []string
+		for _, n := range namesAt(accounts, tt.places, tt.of) {
+			numbers = append(numbers, n.number)
+		}
+		if !slices.Equal(numbers, tt.want) {
+			t.Errorf("places %v of %d are numbered %q, want %q", tt.places, tt.of, numbers, tt.want)
+		}
 	}
 }
 

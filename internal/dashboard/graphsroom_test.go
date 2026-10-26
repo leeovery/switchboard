@@ -85,7 +85,7 @@ func TestGraphsHoldsEachSectionToItsOwnRows(t *testing.T) {
 			case GraphsPool:
 				own = l.pool.rows(l.width, l.chart)
 			case GraphsGlance:
-				own = glanceRows(len(tt.accounts), len(tt.accounts) > 1)
+				own = layGlance(f.Graphs.Accounts, l.width).rows()
 			case GraphsWhen:
 				own = whenRows(l.width, f.Look)
 			default:
