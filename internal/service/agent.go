@@ -128,7 +128,9 @@ func binaryOf(plist []byte) string {
 
 // plist is the agent's plist, which launchd loads it from: it runs the
 // program at load, which is at every login too, and again whenever it
-// stops, and gives it ExitTimeOut to stop when it's asked to.
+// stops, and gives it ExitTimeOut to stop when it's asked to. It runs it as
+// an interactive job, as launchd would otherwise throttle the CPU and I/O of
+// a router every Claude Code request waits on.
 func (a agent) plist() ([]byte, error) {
 	var b bytes.Buffer
 	if err := plistTemplate.Execute(&b, a); err != nil {
@@ -166,6 +168,8 @@ var plistTemplate = template.Must(template.New("plist").Funcs(template.FuncMap{"
 	<true/>
 	<key>ExitTimeOut</key>
 	<integer>{{.ExitTimeOut}}</integer>
+	<key>ProcessType</key>
+	<string>Interactive</string>
 	<key>StandardOutPath</key>
 	<string>{{xml .Log}}</string>
 	<key>StandardErrorPath</key>

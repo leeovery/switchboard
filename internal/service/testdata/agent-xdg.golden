@@ -32,6 +32,8 @@
 	<true/>
 	<key>ExitTimeOut</key>
 	<integer>45</integer>
+	<key>ProcessType</key>
+	<string>Interactive</string>
 	<key>StandardOutPath</key>
 	<string>/Users/tester/.local/state/switchboard/logs/launchd.log</string>
 	<key>StandardErrorPath</key>

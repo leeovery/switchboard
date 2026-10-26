@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"encoding/xml"
 	"flag"
 	"os"
 	"path/filepath"
@@ -90,6 +91,42 @@ func TestLaunchdRunsSwitchboardItself(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLaunchdRunsTheRouterUnthrottled(t *testing.T) {
+	svc := newService(t, service.Config{Home: "/Users/tester", StateDir: "/Users/tester/.local/state/switchboard", Getenv: func(string) string { return "" }})
+
+	plist, err := svc.PlistOf(service.InstallOptions{Executable: "/opt/homebrew/bin/switchboard"})
+	if err != nil {
+		t.Fatalf("PlistOf() error = %v", err)
+	}
+	if got := stringOf(t, plist, "ProcessType"); got != "Interactive" {
+		t.Errorf("ProcessType = %q, want %q: left unset, launchd throttles the CPU and I/O of the router every request waits on", got, "Interactive")
+	}
+}
+
+// stringOf returns the string a plist's top dictionary holds under key, ""
+// when it holds none.
+func stringOf(t *testing.T, plist []byte, key string) string {
+	t.Helper()
+	var doc struct {
+		Dict struct {
+			Entries []struct {
+				XMLName xml.Name
+				Text    string `xml:",chardata"`
+			} `xml:",any"`
+		} `xml:"dict"`
+	}
+	if err := xml.Unmarshal(plist, &doc); err != nil {
+		t.Fatalf("plist isn't XML: %v", err)
+	}
+	entries := doc.Dict.Entries
+	for i := 1; i < len(entries); i++ {
+		if entries[i-1].XMLName.Local == "key" && entries[i-1].Text == key && entries[i].XMLName.Local == "string" {
+			return entries[i].Text
+		}
+	}
+	return ""
 }
 
 // newService returns the service as cfg configures it, on macOS, with
