@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -454,7 +455,9 @@ const testPID = 5150
 // testDeps gives commands env as their whole environment, home as their home
 // directory, its Code/project as their working directory, a stopped clock, a
 // fixed Claude Code version and a notifier that posts nothing, so no test
-// reads the real ones, runs the real claude or posts a notification. The
+// reads the real ones, runs the real claude or posts a notification. A
+// router that isn't running is asked after once, so every test that meets
+// one isn't held up waiting for it to come back. The
 // switchboard binary can't be found, so nor can claude, which is found past
 // it, and starting a program or running launchctl fails, unless a test says
 // otherwise; the system is macOS, for the user the test runs as, who owns the
@@ -491,6 +494,7 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		UID:        os.Getuid(),
 		PID:        testPID,
 		Pause:      func(time.Duration) {},
+		Patience:   launch.Patience{Answer: launch.AskTimeout},
 	}
 }
 
