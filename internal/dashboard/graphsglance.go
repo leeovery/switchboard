@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"slices"
 	"strings"
 	"time"
 
@@ -65,10 +64,12 @@ func glancePart(accounts config.Accounts) flex.Part {
 }
 
 // configuredNames are the configured accounts' names, as the config names
-// and marks them, in its order, as a row of GLANCE heads each, whatever the
-// reads say: ▲'s cells kept on every one, as accountName's cells keeps them.
+// and marks them, in its order, numbered by it, as a row of GLANCE heads
+// each, whatever the reads say: ▲'s cells kept on every one, as
+// accountName's cells keeps them.
 func configuredNames(accounts config.Accounts) []accountName {
-	return namesOfEach(configuredNowEach(status.Moment{}, accounts))
+	_, names := numberedAsRunway(status.Moment{}, accounts)
+	return names
 }
 
 // glanceRow is a row of GLANCE, windows windows across, as flex lays it: its
@@ -137,18 +138,13 @@ func (l glanceLaid) windowsDrawn() [][]int {
 	return parts
 }
 
-// pooled reports whether GLANCE's accounts are a pool, so it keeps a row for
-// it: two or more.
-func (l glanceLaid) pooled() bool {
-	return len(l.accounts) > 1
-}
-
 // partRows are the rows a part of GLANCE takes: its head row; a row an
 // account, the first under a blank row, a blank row before each after it;
-// and usage's rule and the pool's row, where its accounts are a pool.
+// and usage's rule and the pool's row, where its accounts are a pool, as
+// pooled has it.
 func (l glanceLaid) partRows() int {
 	rows := 1 + 2*len(l.accounts)
-	if l.pooled() {
+	if pooled(l.accounts) {
 		rows += 2
 	}
 	return rows
@@ -230,7 +226,7 @@ func (g glance) part(c *canvas, l glanceLaid, x, y int, windows []int, accounts 
 		row += 2
 		g.row(c, l, x, row, windows, a)
 	}
-	if l.pooled() {
+	if pooled(l.accounts) {
 		if pool != nil {
 			c.line(x, row+1, line{{rule(l.width), borderInk}})
 			g.row(c, l, x, row+2, windows, *pool)
@@ -262,13 +258,13 @@ func (g glance) row(c *canvas, l glanceLaid, x, y int, windows []int, r glanceLi
 }
 
 // lines are GLANCE's rows of the moment, as l lays them out: each configured
-// account's, in the config's order, each as configuredNow has it, so one the
-// moment doesn't hold yet is one not read yet, named as namesOfEach names
-// them, faint where it's out of the pool, as the Overview names it, and each
-// window as accountGauge has it; and the pool's, as poolLine has it.
+// account's, in the config's order, as numberedAsRunway has it, so one the
+// moment doesn't hold yet is one not read yet, numbered and named as Runway
+// numbers and names it, faint where it's out of the pool, as the Overview
+// names it, and each window as accountGauge has it; and the pool's, as
+// poolLine has it.
 func (g glance) lines(l glanceLaid) ([]glanceLine, *glanceLine) {
-	accounts := configuredNowEach(g.m, l.accounts)
-	names := namesOfEach(accounts)
+	accounts, names := numberedAsRunway(g.m, l.accounts)
 	lines := make([]glanceLine, len(accounts))
 	for i, a := range accounts {
 		names[i].faint = names[i].out
@@ -332,13 +328,8 @@ func (g glance) accountGauge(a status.AccountNow, known bool, w views.RunwayWind
 // that view tells, where the frame has the lanes built, else as the moment's
 // events tell, as Lane.HeldSince has it.
 func (g glance) heldSince(w views.RunwayWindow, a status.AccountNow, key string) time.Time {
-	lanes, lane := g.lanes[w], views.Lane{ID: a.ID}
-	if lanes.Lanes != nil {
-		if i := slices.IndexFunc(lanes.Lanes.Accounts, func(l views.Lane) bool { return l.ID == a.ID }); i >= 0 {
-			lane = lanes.Lanes.Accounts[i]
-		}
-	}
-	return lane.HeldSince(a, key, lanes.Timeline)
+	l, _ := g.lanes[w].lane(a.ID)
+	return l.HeldSince(a, key, g.lanes[w].Timeline)
 }
 
 // poolSpark is the pool's room over a window's span, as GLANCE's sparkline

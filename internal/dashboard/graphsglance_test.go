@@ -214,6 +214,23 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 	}
 }
 
+// GLANCE numbers its accounts as Runway's lanes do, as the cards do: by the
+// moment's place where the moment holds the account, else after the
+// moment's last, in the config's order among those it lacks.
+func TestGlanceNumbersItsAccountsAsRunwayDoes(t *testing.T) {
+	for _, tt := range numberings() {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := glanceIn(glanceOf(tt.doc, Look{}), tt.config(), 113, 0)
+			for i, id := range tt.ids {
+				row := rowOf(c, 2+2*i)
+				if want, _ := tt.want(id); !labelledAs(row, want) {
+					t.Errorf("%s's row is %q, want it to start %q", id, row, want)
+				}
+			}
+		})
+	}
+}
+
 // Once its words are short, GLANCE's names narrow toward their least, a
 // label cut short with an ellipsis, its number and marks kept.
 func TestGlancesNamesNarrowOnceItsWordsAreShort(t *testing.T) {

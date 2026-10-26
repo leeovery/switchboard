@@ -66,8 +66,8 @@ var labelWorlds = []struct {
 // labelledViews are the views that name an account, each named for what it
 // shows: the Overview with every section, the routing card open, Compare,
 // Detail of work and of all, History's four views, the Switchboard and the
-// List, Runway, the Log's requests and events, d28c's page, and its turn
-// opened.
+// List, Runway, Graphs, the Log's requests and events, d28c's page, and its
+// turn opened.
 var labelledViews = []page{
 	{name: "overview", keys: keysOf("g", "s")},
 	{name: "routing", keys: keysOf("p")},
@@ -81,6 +81,7 @@ var labelledViews = []page{
 	{name: "sessions", keys: toSessions()},
 	{name: "sessions-list", keys: toSessions("]")},
 	{name: "runway", keys: toRunway()},
+	{name: "graphs", keys: toGraphs()},
 	{name: "log-requests", keys: toLog()},
 	{name: "log-events", keys: toLog("]")},
 	{name: "session", keys: toSession("d28c"), scale: storyScale},

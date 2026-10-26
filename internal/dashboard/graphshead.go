@@ -3,8 +3,10 @@ package dashboard
 import (
 	"cmp"
 	"slices"
+	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
@@ -50,8 +52,8 @@ type cardHead struct {
 // window, width cells wide, at now: its label, the account's number, name and
 // marks, as Runway's lanes label them; and its words, as cardWords has them.
 // Beside, its words are on the label's row, ending at the card's last
-// column, the label in a column of the account's name, as accountsColumn
-// has it, its gap clear of the label at the least, the parts laid out by
+// column, the label in a column of its own, as alone has it, drawn as
+// fitted cuts it, its gap clear of the label at the least, the parts laid out by
 // flex, giving way in the turns a head's do; where the words give way even
 // so, the label takes its row alone, as within cuts it. Else the label
 // takes the width, as within cuts it, and its words are on the row under
@@ -62,18 +64,27 @@ func (f Frame) cardHeadOf(v laneView, ln laidLane, width int, beside bool, now t
 	words := v.cardWords(ln, now)
 	h := cardHead{label: ln.name.within(width), words: placed{said: partsIn(words, width)}, row: 1}
 	if beside && len(words) > 0 {
-		label := accountsColumn(nameGap, []accountName{ln.name})
+		label := ln.name.alone()
 		label.Narrows = headLabelTurn
 		said := slices.Concat(words...)
 		spans, _ := flex.Lay(width, label, flex.Part{Least: words[0].width(), Natural: said.width(), Narrows: headWordsTurn, Leaves: headWordsLeave})
 		said = wholeParts(words, spans[1].Size)
 		if len(said) > 0 {
-			h.label = ln.name.line(min(spans[0].Size, width))
+			h.label = ln.name.fitted(min(spans[0].Size, width))
 		}
 		h.words, h.row = placed{x: width - said.width(), said: said}, 0
 	}
 	h.cue, h.cued = f.wordsCue(ln, v.timeline.NowColumn())
 	return h
+}
+
+// alone is the column the name takes beside a card's words, nameGap after
+// it, as namesColumn lays it out: its number and its own marks beside its
+// label, as besideCells counts them, keeping no cells for a ▲ it hasn't, as
+// a card stands alone, where Runway's column keeps them so its lanes hold
+// still as ▲ moves.
+func (n accountName) alone() flex.Part {
+	return namesColumn(nameGap, columnName{label: ansi.StringWidth(n.label), beside: n.besideCells()})
 }
 
 // within is the name in the cells given, its label cut short to keep its
@@ -156,12 +167,28 @@ func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 	}
 	var phrases [][]line
 	for _, p := range said {
-		phrases = append(phrases, p.parts)
+		phrases = append(phrases, paceApart(p.parts))
 	}
 	if len(phrases) == 0 && !ln.Use.Read {
 		phrases = append(phrases, []line{ln.useWords(runwayNames[v.window], now).short})
 	}
 	return phrases
+}
+
+// paceApart are a phrase's parts given with the tail its head ends in where
+// it's projected at its pace, atItsPace, a part of its own after it, in its
+// ink, so a card leaves it off before what it follows, as "runs out ~Sat
+// 06:00" before " at its pace".
+func paceApart(parts []line) []line {
+	if len(parts) == 0 || len(parts[0]) != 1 {
+		return parts
+	}
+	head := parts[0][0]
+	said, paced := strings.CutSuffix(head.text, atItsPace)
+	if !paced || said == "" {
+		return parts
+	}
+	return slices.Concat([]line{{{said, head.ink}}, {{atItsPace, head.ink}}}, parts[1:])
 }
 
 // fainted are the parts given, each in text.faint, as inFaint has it.

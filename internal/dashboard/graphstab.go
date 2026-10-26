@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -116,6 +117,36 @@ type GraphsShown struct {
 	Lanes    map[views.RunwayWindow]WindowLanes
 }
 
+// numberedAsRunway are the configured accounts given, in the config's
+// order, each as configuredNow has it, and named as Graphs names them,
+// numbered as Runway's lanes number them: by the moment's place, where the
+// moment holds it, so the config and the router's document disagreeing
+// never numbers it otherwise; else after the moment's last, in the config's
+// order among those it lacks, the place the router gives it once it has it,
+// as accounts are added at the config's end. The numbers are aligned as
+// namesAt aligns those of the moment's count.
+func numberedAsRunway(m status.Moment, configured config.Accounts) ([]status.AccountNow, []accountName) {
+	accounts, places := make([]status.AccountNow, len(configured)), make([]int, len(configured))
+	next := len(m.Accounts)
+	for i, a := range configured {
+		place := slices.IndexFunc(m.Accounts, func(held status.AccountNow) bool { return held.ID == a.ID }) + 1
+		if place == 0 {
+			next++
+			place = next
+		}
+		accounts[i], _ = configuredNow(m, a, place)
+		places[i] = place
+	}
+	return accounts, namesAt(accounts, places, len(m.Accounts))
+}
+
+// pooled reports whether the configured accounts given make a pool: two or
+// more, as Graphs lays out what it keeps for the pool, whatever a pin makes
+// the pool's.
+func pooled(accounts config.Accounts) bool {
+	return len(accounts) > 1
+}
+
 // graphsTab draws Graphs of doc at now in the view's rows, from row top:
 // where every section is hidden, how to bring them back, as everythingHidden
 // has it; else the sections shown laid out whole, as graphsLaid lays them,
@@ -138,13 +169,17 @@ func (f Frame) graphsTab(c *canvas, doc status.Document, now time.Time, top int)
 }
 
 // graphsDrawn draws the sections of the moment m as laid out, whole, on c:
-// each heading, as headSection draws it, saying what graphsSays has it say;
-// and the pool's line, where there's one, as poolLine words it.
+// each heading, as headSection draws it, saying what graphsSays has it say,
+// and under a burn-down's, its cards, as burnCards draws them; and the
+// pool's line, where there's one, as poolLine words it.
 func (f Frame) graphsDrawn(c *canvas, m status.Moment, laid graphsLaid) {
 	for i, s := range laid.sections {
 		says := f.graphsSays(s.section, i == 0)
 		head := bounds{y: s.at, width: f.Width, rows: 1}
 		headSection(c, head, s.section.heading(), s.section.Key(), func(cells int) line { return says.fit(cells) })
+		if burnsDown(s.section) {
+			f.burnCards(c, m, laid, s)
+		}
 	}
 	if laid.poolLine >= 0 {
 		c.line(0, laid.poolLine, f.poolLine(m, f.Width))

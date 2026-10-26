@@ -101,7 +101,7 @@ func (g graphsGiven) shape() graphsShape {
 		s.legend = burnLegend(g.width, g.reserved())
 		s.legend = s.legend[:min(len(s.legend), max(g.rows-1, 0))]
 	}
-	if last >= 0 && g.pooled() {
+	if last >= 0 && pooled(g.accounts) {
 		s.poolPart = last + 1
 	}
 	s.room = max(g.rows-len(s.legend), 0)
@@ -111,11 +111,6 @@ func (g graphsGiven) shape() graphsShape {
 // reserved reports whether any of the accounts given has a reserve.
 func (g graphsGiven) reserved() bool {
 	return slices.ContainsFunc(g.accounts, func(a config.Account) bool { return a.Reserve > 0 })
-}
-
-// pooled reports whether the accounts given are a pool: two or more.
-func (g graphsGiven) pooled() bool {
-	return len(g.accounts) > 1
 }
 
 // burnsDown reports whether the section is a burn-down's, WEEK or 5-HOUR.
@@ -135,10 +130,11 @@ func cardsAcross(k, width int) []flex.Span {
 }
 
 // poolKeyed is POOL's stack as its key words it of the configured accounts,
-// whatever a pin makes the pool's: none where they're no pool.
+// whatever a pin makes the pool's: none where they're no pool, as pooled
+// has it.
 func poolKeyed(accounts config.Accounts, look Look) poolStacked {
 	var stack views.PoolStack
-	if len(accounts) > 1 {
+	if pooled(accounts) {
 		for _, a := range accounts {
 			stack.Accounts = append(stack.Accounts, views.PoolStackAccount{ID: a.ID, Label: a.Label})
 		}
