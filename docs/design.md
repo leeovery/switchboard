@@ -7614,43 +7614,45 @@ verbs).
   LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`, and an `ExitTimeOut` of 45
   seconds: the 30 the router gives requests in flight as it stops, 5 for those it cuts off to
   unwind, 3 for its last notifications to post, and 7 to save its state, and a `ProcessType` of
-  `Interactive`, as launchd throttles the CPU and I/O of a job that sets none, and every Claude
-  Code request waits on the router) to run this binary by the
-  path it was run by, so a Homebrew link stays the link an upgrade moves on, with `serve`, any
-  `--config` given, made absolute, and any `--log-level`. It refuses a temporary build, such as `go
-  run`'s, judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`,
-  `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`, those two made absolute, and `SWITCHBOARD_LOG_LEVEL`
-  when they're set, so the service finds what the CLI does, and brings the skill up to date where
-  `setup` wrote it. It runs switchboard directly: the tokens are files, so it needs nothing else of
-  the user's environment. `install` warns when no account has a usable token; the router starts all
-  the same, and routes once one has. Whether launchd has the service loaded is `launchctl print`'s
-  to say, which exits 113 for one it hasn't: `install` boots out a loaded copy, bootstraps the new
-  one into `gui/<uid>`, and waits up to 5 seconds for a router other than any running before to
-  answer. launchd finishes booting a service out after `bootout` returns, and refuses to load it
-  until then (`5: Input/output error`), so `install` tries bootstrapping 5 times, half a second
-  apart, before it fails as the last try did. `uninstall` boots it out when loaded and removes the
-  plist. `restart`, with a router answering, asks it to restart (`POST /restart`): it finishes its
-  requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, then
-  replaces itself in place, keeping its process, or, as it says when it can't, exits for launchd
-  to start it again (see The router looking after itself). `restart` says which first, `the
-  router is finishing its requests in flight, then it restarts in place`, or `…, then launchd
-  starts it again`, then waits up to 50 seconds, the 45 launchd would give the router to stop and
-  5 to start, for a router other than the one that took the request, as it answered it, to
-  answer: one that restarted in place, keeping its process id, is told from the one before by
-  when it started, and a router that restarted by itself just before it was asked is the one
-  waited on to restart again, not taken for the one after. A router that refuses, as one run by
-  hand, or whose config file doesn't make a valid config, which it couldn't start again from,
-  fails `restart`, saying why. One that can't be asked, as one from before routers restarted when
-  asked, which answers `POST /restart` 404, or one that doesn't answer it, has launchd send it
-  SIGTERM (`launchctl kill`): it stops as at any signal, finishing its requests in flight, and
-  launchd, keeping the service alive, starts it again, `restart` saying `…, then launchd starts it
-  again`, and waiting as long. With none answering, there's nothing to finish, and `restart` is
-  `launchctl kickstart -k`, waiting up to 5 seconds. Without the service loaded, `restart` is an
-  error saying so. `status` reports the plist, whether launchd has it loaded, and the router's
-  health. When no router answers in time, `install` and `restart` fail, the LaunchAgent in place,
-  pointing to `switchboard logs router` and `launchd.log` for why. Each run of `launchctl` is cut
-  off after 10 seconds, but a bootout, which waits for the router to stop, after 55: the 45 and 10
-  more. Any other failure of `launchctl` is an error that quotes it.
+  `Interactive`, as launchd throttles the CPU and I/O of a job that sets none, and every Claude Code
+  request waits on the router) to run this binary by the path it was run by, so a Homebrew link
+  stays the link an upgrade moves on, with `serve`, any `--config` given, made absolute, and any
+  `--log-level`. It refuses a temporary build, such as `go run`'s, judged by where the binary's
+  links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG` and
+  `CLAUDE_CONFIG_DIR`, those two made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're set, so the
+  service finds what the CLI does, and brings the skill up to date where `setup` wrote it. It runs
+  switchboard directly: the tokens are files, so it needs nothing else of the user's environment.
+  `install` warns when no account has a usable token; the router starts all the same, and routes
+  once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
+  113 for one it hasn't: `install` boots out a loaded copy, bootstraps the new one into `gui/<uid>`,
+  and waits up to 5 seconds for a router other than any running before to answer. launchd finishes
+  booting a service out after `bootout` returns, and refuses to load it until then (`5: Input/output
+  error`), so `install` tries bootstrapping 5 times, half a second apart, before it fails as the
+  last try did. launchd reads the plist only as it loads the service, so an upgrade or a restart, in
+  place or by launchd, keeps what it said: a key a newer switchboard writes, as `ProcessType` was,
+  reaches an install only through `install`, restarting the router; `setup` reinstalls only for
+  another binary. `uninstall` boots it out when loaded and removes the plist. `restart`, with a
+  router answering, asks it to restart (`POST /restart`): it finishes its requests in flight, within
+  30 seconds, those it cuts off then given 5 more to unwind, then replaces itself in place, keeping
+  its process, or, as it says when it can't, exits for launchd to start it again (see The router
+  looking after itself). `restart` says which first, `the router is finishing its requests in
+  flight, then it restarts in place`, or `…, then launchd starts it again`, then waits up to 50
+  seconds, the 45 launchd would give the router to stop and 5 to start, for a router other than the
+  one that took the request, as it answered it, to answer: one that restarted in place, keeping its
+  process id, is told from the one before by when it started, and a router that restarted by itself
+  just before it was asked is the one waited on to restart again, not taken for the one after. A
+  router that refuses, as one run by hand, or whose config file doesn't make a valid config, which
+  it couldn't start again from, fails `restart`, saying why. One that can't be asked, as one from
+  before routers restarted when asked, which answers `POST /restart` 404, or one that doesn't answer
+  it, has launchd send it SIGTERM (`launchctl kill`): it stops as at any signal, finishing its
+  requests in flight, and launchd, keeping the service alive, starts it again, `restart` saying `…,
+  then launchd starts it again`, and waiting as long. With none answering, there's nothing to
+  finish, and `restart` is `launchctl kickstart -k`, waiting up to 5 seconds. Without the service
+  loaded, `restart` is an error saying so. `status` reports the plist, whether launchd has it
+  loaded, and the router's health. When no router answers in time, `install` and `restart` fail, the
+  LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why. Each run of
+  `launchctl` is cut off after 10 seconds, but a bootout, which waits for the router to stop, after
+  55: the 45 and 10 more. Any other failure of `launchctl` is an error that quotes it.
 
 ## Milestones
 
