@@ -17,11 +17,7 @@
 package dayfile
 
 import (
-	"bytes"
-	"compress/gzip"
 	"errors"
-	"fmt"
-	"io"
 	"io/fs"
 	"log/slog"
 	"math"
@@ -30,8 +26,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
 const (
@@ -459,103 +453,4 @@ func oldestKeptIn(now time.Time, keep time.Duration, loc *time.Location) (time.T
 		return time.Time{}, false
 	}
 	return DayStart(now.In(loc), -keptDays(keep)), true
-}
-
-// compress moves the lines of the plain file of the local day with the given
-// date into the day's compressed file: it writes that afresh, whole, as the
-// one there, if any, followed by the lines as adding gives them, a gzip member
-// of their own, and then removes the plain file. Lines compressed already, as
-// plainCompressed says, aren't added again. One that fails leaves the plain
-// file.
-func (f *Files) compress(date string) error {
-	held, err := f.readDay(date)
-	if err != nil {
-		return err
-	}
-	if !held.plainCompressed() {
-		member, err := gzipped(held.adding())
-		if err != nil {
-			return err
-		}
-		if err := atomicfile.Write(f.path(compressedFile(date)), append(held.written, member...), 0o600); err != nil {
-			return err
-		}
-	}
-	return os.Remove(f.path(plainFile(date)))
-}
-
-// dayHeld is what the two files of a local day hold.
-type dayHeld struct {
-	// plain is the plain file's lines.
-	plain []byte
-	// written is the compressed file as it's written, and compressed the lines
-	// it gives, its members' one after another.
-	written, compressed []byte
-}
-
-// readDay returns what the files of the local day with the given date hold:
-// nothing of a file that isn't there.
-func (f *Files) readDay(date string) (dayHeld, error) {
-	plain, err := os.ReadFile(f.path(plainFile(date)))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return dayHeld{}, err
-	}
-	written, compressed, err := readCompressed(f.path(compressedFile(date)))
-	if err != nil {
-		return dayHeld{}, err
-	}
-	return dayHeld{plain: plain, written: written, compressed: compressed}, nil
-}
-
-// plainCompressed reports whether the day's compressed file ends with its
-// plain file's lines: they've been compressed, and the plain file holds none
-// of its own, as when the writer stopped once it had written the compressed
-// file, before it removed the plain one.
-func (d dayHeld) plainCompressed() bool {
-	return bytes.HasSuffix(d.compressed, d.plain)
-}
-
-// adding returns the lines compressing the day adds to its compressed file:
-// the plain file's, after a line ending where the compressed file's lines end
-// in one cut short, so the first of them starts a line of its own. The
-// compressed file's lines still end with the plain file's then, as
-// plainCompressed looks for.
-func (d dayHeld) adding() []byte {
-	if cutShort(d.compressed) {
-		return append([]byte{'\n'}, d.plain...)
-	}
-	return d.plain
-}
-
-// readCompressed returns what the compressed file at path holds, as it's
-// written and as the lines it gives, its members' one after another: nothing
-// when it isn't there.
-func readCompressed(path string) (written, lines []byte, err error) {
-	written, err = os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil, nil
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-	members, err := gzip.NewReader(bytes.NewReader(written))
-	if err != nil {
-		return nil, nil, fmt.Errorf("read %s: %w", path, err)
-	}
-	lines, err = io.ReadAll(members)
-	if err != nil {
-		return nil, nil, fmt.Errorf("read %s: %w", path, err)
-	}
-	return written, lines, nil
-}
-
-// gzipped returns data compressed, as a gzip member of its own.
-func gzipped(data []byte) ([]byte, error) {
-	var member bytes.Buffer
-	w := gzip.NewWriter(&member)
-	_, err := w.Write(data)
-	if err = errors.Join(err, w.Close()); err != nil {
-		return nil, err
-	}
-	return member.Bytes(), nil
 }

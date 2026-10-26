@@ -5413,7 +5413,7 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   one's that this build no longer keeps, are kept as they are; a value it doesn't know, as a page
   an older build kept, reads as the default. One that can't be read is set aside as
   `prefs.json.corrupt-<unix time>`, or, where it's a link, where it leads, the link kept, and the
-  defaults stand.
+  defaults stand; the newest 3 set aside are kept, as the state file's are.
 - **The background:** the dashboard owns it: it paints `canvas` on every cell and sets the
   terminal's background to it, having asked for the old one first (OSC 11), and puts it back on
   every exit it can catch: quitting, an interrupt, a terminate signal, or a panic it recovers from;
@@ -5856,8 +5856,9 @@ it posts: see Config.
   requests reach it: one reached again while it holds is the same limit, but another limit reached
   meanwhile, in windows the holding one doesn't name, has a notification of its own, with its own
   moves (see Choosing an account, step 6). The moves are gathered by the limit's identity, in
-  whatever order the news comes: a move told of before its limit waits for it. They're gathered
-  only while `limits` is on.
+  whatever order the news comes: a move told of before its limit waits for it, 5 seconds at most,
+  as a limit whose news was dropped, or came after a newer limit of its account, never comes.
+  They're gathered only while `limits` is on.
 - **Room again:** an account whose quota for a request of any model ran out, under a limit, with
   a shared window spent, or at its reserve, and has come back: `work · Work has room again`. A
   refusal isn't quota, so one lifting is no news, or a revoked token would be announced every ten
@@ -6691,7 +6692,11 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 - **Rotation:** before a record would take a log past 10 MiB, it rolls over to `.1`, shifting
   older files up to `.5` and dropping the oldest. Processes sharing `cli.log` roll it over one
   at a time, under a lock on the directory, and a process whose file was rolled over moves on to
-  the new one. The directory is 0700, the files 0600.
+  the new one. The directory is 0700, the files 0600. `launchd.log`, which launchd holds open for
+  the service's output, isn't rolled over: as the service starts the router, one past 10 MiB is cut
+  in place to its newest 5 MiB, from the start of a line, so launchd's writes still land in it, and
+  the router's output and errors move to its new end, so a start that fails writes why after what's
+  kept. A router run by hand, its output elsewhere, leaves it alone.
 - **Levels:** `SWITCHBOARD_LOG_LEVEL` is `debug`, `info`, `warn` or `error`, in any case; `info`
   when unset, and `info` with a warning naming the value when it's anything else. A
   `--log-level` given to `serve`, or to `service install`, which passes it on, overrides it.
@@ -6954,7 +6959,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; the days' digests, built on a goroutine of their own through the `Digester` seam it declares, each day's builder handed every line its read reads, and their parts files, a gzip member a session pointed at by offset, length and CRC; each day's head, built after the digests, newest first, of exactly the lines `Day` gives the day by the one read both share, its side the views'; when a digest or a head stands, and a session as of a day, on the newest state a digest holds that stands for it, or, for a page, the newest whose chain of parts reads, and the raw lines after, one lookup the writer and the readers share; a line's usage decoded once into what its request spent, which the price table prices as it prices the line, and what a page's requests spent, summed by model and where they were served, priced alike once as the page is built; a window's climb, and its stored form; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
 | `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read |
 | `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept as long, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
-| `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
+| `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced; and setting a corrupt file aside, keeping the newest 3 of its name |
 | `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's, the readings history's and the router's events' files are read back and an answer's stream of events is counted |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, and a line's limits kept small, as the views hold them, with their stored form, as a day's digest keeps the windows a page's points hold, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, the headers that name the prompt a request serves, its class and its agent, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
@@ -6974,7 +6979,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/service` | The LaunchAgent: its plist, and driving `launchctl` |
 | `internal/notify` | Posting desktop notifications, and the wording and warning threshold the router's and the dashboard's share |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
-| `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
+| `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]`, and telling text that holds one |
 | `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, and text cut short |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin directory and token files, and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
@@ -7046,7 +7051,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   configured again takes back (see Accounts and tokens);
   those of a configured account whose token file can't be read are kept, as the file may only have
   been caught while it's rewritten, and choices pass the account over until it has a token. A
-  corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
+  corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it;
+  the newest 3 set aside are kept, and older ones removed as another is set aside.
 - **Readings history:** `<state dir>/history/readings-<local date>.jsonl`, a file a day, 0600 in a
   0700 directory, for looking back at how the accounts were used. The router appends a line, as
   the file is opened to append, for each reading that changes how a window of an account reads,
@@ -7083,10 +7089,24 @@ hiding it behind the provider would take a wider interface than it's worth:
   configured, and those of a window that has reset since, as `state.json` has it. A reading that
   can't be put as a line, as one whose use isn't a number, goes unwritten, logged once. A day's file
   is compressed, as `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a year of
-  them would otherwise run to hundreds of megabytes; the router reads either form back, as it starts
-  and for `GET /history`, which the dashboard's charts draw from (see Control API), and so do the
-  request ledger's readers, as they summarise a day (see The request ledger). A day's plain file
-  is opened before its compressed file, and what the two hold is told from the files opened:
+  them would otherwise run to hundreds of megabytes: the plain file's lines streamed into a gzip
+  member of their own, after the members there, written beside the file and renamed into place,
+  holding neither file whole. Lines the compressed file holds already aren't added again: all of
+  them, where its lines end with them, as when the router stopped between writing it and removing
+  the plain file; or those its last members give, from the earliest member on whose lines, to the
+  file's end, the plain file starts with, as when a line was appended to the day after that, once
+  or more, the router stopping so after each: the earliest, as a later member can start the plain
+  file too where its lines are a line cut short to a bare start of one, such as `{"n":`, which a
+  crash or a full disk leaves, and which starts every line. A fresh plain file for a day compressed
+  before, as after the clock was set back, whose first lines are byte for byte those of the last
+  members, is taken as a stopped compress's, and those lines are counted once: the files can't
+  tell the two apart, and no line repeats another but for a line cut short, as each holds its time
+  and what sets it apart, a request's id beside its millisecond in the ledger, an account and
+  window beside the time the clock gave it in the readings history, and the router's run and a
+  rising id in the events. The router reads either form back, as it
+  starts and for `GET /history`, which the dashboard's charts draw from (see Control API), and so
+  do the request ledger's readers, as they summarise a day (see The request ledger). A day's plain
+  file is opened before its compressed file, and what the two hold is told from the files opened:
   compressing a day writes its compressed file before it removes the plain one, so a day another
   process compresses as they're opened is read whole, each line once. A day whose compressed file
   already ends with its plain file's lines, as when the router compressed the day between the two
@@ -7125,7 +7145,7 @@ hiding it behind the provider would take a wider interface than it's worth:
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
   Logging), and `launchd.log`, where the service's raw stdout and stderr, such as crash output,
-  go.
+  go, cut to its newest 5 MiB as the service starts the router, once past 10 (see Logging).
 - **Service:** `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`, the LaunchAgent's
   plist, 0644, named after its label.
 - **The `claude` link:** a link named `claude` to switchboard, by the path it was run by, alone in
@@ -8279,7 +8299,7 @@ why.
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after OAuth and setup: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
-| Three things the router keeps that grow without bound, each only when something rare happens | next: the cleanliness release, the owner's choice on 26 October 2026 (launchd's log, the files set aside, the waiting moves, the control socket's gap, the compress) | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
+| Three things the router keeps that grow without bound, each only when something rare happens | in the cleanliness release, the owner's choice on 26 October 2026: launchd's log, the files set aside, the waiting moves and the compress built (PR to come); the control socket's gap next; the rest open | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
 | How an account's probes went, forgotten across a restart: a failed probe sent again by the startup probe, and the rounds' backoff started again | next: the cleanliness release, the owner's choice on 26 October 2026, the state file keeping them | [probes-across-a-restart](../ideas/2026-10-23--probes-across-a-restart.md) |
 | Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time; the headline settled by its owner on 12 October 2026; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |

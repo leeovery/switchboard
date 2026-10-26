@@ -1109,7 +1109,7 @@ A key switchboard doesn't know is passed over.
 
 The dashboard keeps your choice in `prefs.json` in the state directory. The dashboard writes this
 file, and you never need to. If the file can't be read, it's set aside as
-`prefs.json.corrupt-<unix time>`, and the defaults stand.
+`prefs.json.corrupt-<unix time>`, and the defaults stand. The newest three set aside are kept.
 
 ### The background
 

@@ -122,7 +122,13 @@ func (s *Service) Plist() string {
 // Log is where launchd writes what the router prints itself, such as a
 // crash's output.
 func (s *Service) Log() string {
-	return filepath.Join(logs.Dir(s.cfg.StateDir), "launchd.log")
+	return LogIn(s.cfg.StateDir)
+}
+
+// LogIn is where launchd writes what the router prints itself, as Log says,
+// for the state directory given.
+func LogIn(stateDir string) string {
+	return filepath.Join(logs.Dir(stateDir), "launchd.log")
 }
 
 // InstallOptions say how the service runs the router.
