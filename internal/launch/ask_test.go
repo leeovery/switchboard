@@ -63,7 +63,15 @@ func TestAskWaitsForASlowRouterAndAsksOneComingBackAgain(t *testing.T) {
 			wantAsks:       asksTo(2 * time.Second),
 		},
 		{
-			name:           "not running, slow to say so, asked a beat after each answer, never past 2s",
+			name:           "not running, saying so in 100ms, asked again 200ms after each answer",
+			router:         &timedRouter{upAt: never, failsIn: 100 * time.Millisecond},
+			wantErr:        "the router isn't running: dial unix control.sock: connect: no such file or directory",
+			wantNotRunning: true,
+			wantTook:       1900 * time.Millisecond,
+			wantAsks:       []time.Duration{0, 300 * time.Millisecond, 600 * time.Millisecond, 900 * time.Millisecond, 1200 * time.Millisecond, 1500 * time.Millisecond, 1800 * time.Millisecond},
+		},
+		{
+			name:           "not running, saying so in 500ms, never asked past 2s",
 			router:         &timedRouter{upAt: never, failsIn: 500 * time.Millisecond},
 			wantErr:        "the router isn't running: dial unix control.sock: connect: no such file or directory",
 			wantNotRunning: true,
@@ -150,21 +158,37 @@ func TestAskSaysWhichDeadlineRanOut(t *testing.T) {
 	tests := []struct {
 		name   string
 		router *timedRouter
-		// deadline is the caller's, from the first ask, none where it's zero.
-		deadline time.Duration
-		want     router.Health
-		wantErr  string
-		wantTook time.Duration
+		// deadline is the caller's, none where it's zero, and late how long
+		// after it's set the first ask comes.
+		deadline, late time.Duration
+		want           router.Health
+		wantErr        string
+		wantTook       time.Duration
 	}{
 		{name: "its own", router: &timedRouter{answersIn: never}, deadline: 8 * time.Second, wantErr: "no answer within 5s", wantTook: 5 * time.Second},
 		{name: "the caller's, first", router: &timedRouter{answersIn: never}, deadline: 1500 * time.Millisecond, wantErr: "no answer within 1.5s", wantTook: 1500 * time.Millisecond},
+		{
+			name:     "the caller's, first, to the millisecond",
+			router:   &timedRouter{answersIn: never},
+			deadline: 1500 * time.Millisecond,
+			late:     400 * time.Microsecond,
+			wantErr:  "no answer within 1.5s",
+			wantTook: 1500*time.Millisecond - 400*time.Microsecond,
+		},
 		{name: "the caller's, already past", router: &timedRouter{answersIn: never}, deadline: -time.Second, wantErr: "no answer within 0s"},
 		{
-			name:     "the caller's, first, while waiting to ask one not running again: not running, as it said",
+			name:     "the caller's, first, before the next ask of one not running: not running, as it said",
 			router:   &timedRouter{upAt: never},
 			deadline: 1500 * time.Millisecond,
 			wantErr:  "the router isn't running: dial unix control.sock: connect: no such file or directory",
-			wantTook: 1500 * time.Millisecond,
+			wantTook: 1400 * time.Millisecond,
+		},
+		{
+			name:     "the caller's, first, on the next ask of one not running: not running, as it said",
+			router:   &timedRouter{upAt: never},
+			deadline: 1600 * time.Millisecond,
+			wantErr:  "the router isn't running: dial unix control.sock: connect: no such file or directory",
+			wantTook: 1400 * time.Millisecond,
 		},
 		{
 			name:     "the caller's, first, cutting off a dial",
@@ -198,6 +222,7 @@ func TestAskSaysWhichDeadlineRanOut(t *testing.T) {
 					ctx, cancel = context.WithTimeout(ctx, tt.deadline)
 					defer cancel()
 				}
+				time.Sleep(tt.late)
 				tt.router.began = time.Now()
 
 				got, err := launch.Patience{}.Ask(ctx, tt.router)

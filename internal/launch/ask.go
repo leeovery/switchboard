@@ -31,9 +31,12 @@ type Patience struct {
 	// Answer is how long the router is given to answer, AskTimeout where it's
 	// zero.
 	Answer time.Duration
-	// Back is how long a router that isn't running is asked again, every
-	// Again, 200ms where it's zero; where Back is zero, it's asked once.
-	Back, Again time.Duration
+	// Back is how long a router that isn't running is asked again: where
+	// Back is zero, it's asked once.
+	Back time.Duration
+	// Again is how long after each ask a router that isn't running ends is
+	// asked again, 200ms where Again is zero.
+	Again time.Duration
 }
 
 var patient = Patience{Answer: AskTimeout, Back: comingBack, Again: askAgain}
@@ -57,11 +60,10 @@ func (p Patience) orDefault() Patience {
 //     context's, is taken as it is, at once, even one that lands as the
 //     deadline passes.
 //   - A router that isn't running, as router.ErrNotRunning says, may be
-//     coming back, and is asked again Again on from the last ask, but never
-//     sooner than Again from now, as after an ask slow to fail, and never
-//     past Back: then Ask stops with the last answer, which it does too when
-//     the deadline passes first. A router that connects is asked once, as
-//     asking again would add work to a router already behind.
+//     coming back, and is asked again Again after the last ask ended, but
+//     never past Back, nor at or past the deadline: where the next ask
+//     would be, Ask stops with the last answer. A router that connects is
+//     asked once, as asking again would add work to a router already behind.
 //   - An ask cut off, its dial or its request alike, as a context's error
 //     says, fails, once the deadline has passed, saying how long the router
 //     had, as "no answer within 5s", whatever the asks before it said;
@@ -77,7 +79,7 @@ func (p Patience) Ask(ctx context.Context, r Router) (router.Health, error) {
 	}
 	asking, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
-	for next := began; ; {
+	for {
 		h, err := r.Health(asking)
 		switch {
 		case isContextErr(err):
@@ -85,15 +87,13 @@ func (p Patience) Ask(ctx context.Context, r Router) (router.Health, error) {
 		case !errors.Is(err, router.ErrNotRunning):
 			return h, err
 		}
-		next = after(next, p.Again)
-		if next.After(began.Add(p.Back)) {
+		next := time.Now().Add(p.Again)
+		if next.After(began.Add(p.Back)) || !next.Before(deadline) {
 			return h, err
 		}
+		// The pause ends before the deadline, so only the caller can cut it off.
 		if paused := pause(asking, time.Until(next)); paused != nil {
-			if cancelled(ctx) {
-				return router.Health{}, paused
-			}
-			return h, err
+			return router.Health{}, paused
 		}
 	}
 }
@@ -119,16 +119,6 @@ func isContextErr(err error) bool {
 
 func cancelled(ctx context.Context) bool {
 	return errors.Is(ctx.Err(), context.Canceled)
-}
-
-// after returns when the ask after one due at last comes: a beat on from it,
-// but never sooner than a beat from now, as after an ask slow to fail.
-func after(last time.Time, beat time.Duration) time.Time {
-	next := last.Add(beat)
-	if now := time.Now(); !next.After(now) {
-		return now.Add(beat)
-	}
-	return next
 }
 
 // pause waits for d, unless ctx ends first, failing then.
