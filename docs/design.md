@@ -5832,9 +5832,10 @@ it has failed 5 of them at least, and half at least: `GET /health` then answers 
 turn back, at warn and info. Its health is judged whenever it's asked for, and at the router's look
 at the accounts every 15 seconds too, so the turn back is told of as the failures leave the 5
 minutes, though no request comes. `status` and the dashboard show trouble loudly: they read an
-unhealthy router's document all the same, `status`'s router line reading `from the router:
-unhealthy, <reason>  ·  <sessions>  ·  <routing>`, the dashboard's status line `● unhealthy`, in red
-(see The page), and the Log's Events the reason, in the router's `health` event (see The Log).
+unhealthy router's document all the same, `status`'s router line reading
+`from the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>`, the dashboard's status line
+`● unhealthy`, in red (see The page), and the Log's Events the reason, in the router's `health`
+event (see The Log).
 
 Sessions don't fall back to going direct automatically. A running Claude Code can't change where
 it sends its requests mid-session; the failures that count against the router, an upstream it
@@ -6761,9 +6762,9 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   `[redacted]`. What the standard library's `log` package is given goes through it too, to the
   log rather than stderr: under `GODEBUG=http2debug=1`, Go's HTTP/2 client prints every header it
   sends, the token's included.
-- **Never in the way:** commands never log to stdout or stderr, so `--json` and the dashboard
-  stay clean, and a command never fails because it couldn't log: its records go nowhere
-  instead. `serve` also writes each record to its terminal, when it runs in one.
+- **Never in the way:** commands never log to stdout or stderr, so `--json` and the dashboard stay
+  clean, and a command never fails because it couldn't log: its records go nowhere instead. `serve`
+  also writes each record to its terminal, when it runs in one.
 - **Reading:** `switchboard logs` prints the router's log once there is one, else the CLI's, or
   the one named. `-n` sets how many lines (50), reaching into `.1` when the log is shorter; `-f`
   follows it across rotations; `--path` prints where it is.
@@ -6873,9 +6874,8 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   and asks again, as for any router not running (see Asking the router). It exits for good once
   those requests are done. It looks for a signal again as late as it can, just before the `exec`:
   one taken after that is this process's alone, and never reaches the router it becomes, so launchd,
-  booting the service out then, waits its 45
-  seconds and kills it. That moment is the width of the `exec` itself, and of the signal's way to
-  the router's own context, a hand-off between goroutines.
+  booting the service out then, waits its 45 seconds and kills it. That moment is the width of the
+  `exec` itself, and of the signal's way to the router's own context, a hand-off between goroutines.
 - Only the LaunchAgent's router restarts itself: launchd sets `XPC_SERVICE_NAME` to the label of
   the job it runs, which the router checks against the service's. Run by hand with `serve`, the
   router logs, once, that a restart is due instead of restarting.
@@ -7593,15 +7593,15 @@ verbs).
   switchboard weren't there, but for a state directory it can't locate with the config read, which
   is the router not found: the setting decides, as for a router not running, `couldn't find the
   router` starting it unaided only where it goes direct, and `the router couldn't be found (…)`
-  stopping it otherwise, naming no command to see to it, as each would fail as `run` did. Unaided,
-  `claude` starts in its environment as the user set it, or a session's still routed as it is (see
-  What `run` set), and its arguments untouched, but for the mark every `claude` it starts carries
-  (see Finding the real `claude`) and `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a
-  pin or directory inherited from a session before the mark included, saying why in one line on
-  stderr: `switchboard: couldn't read the config (…) — starting claude without it`. `run` fails
-  only when the router is down and it stops, when `claude` can't be found or can't start, or on a
-  misused command line, such as `--account` naming an account that isn't configured, or has no
-  usable token.
+  stopping it otherwise, naming no command to see to it, as each would fail as `run` did, and
+  logging no `asked`, as nothing was asked. Unaided, `claude` starts in its environment as the user
+  set it, or a session's still routed as it is (see What `run` set), and its arguments untouched,
+  but for the mark every `claude` it starts carries (see Finding the real `claude`) and
+  `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a pin or directory inherited from a
+  session before the mark included, saying why in one line on stderr: `switchboard: couldn't read
+  the config (…) — starting claude without it`. `run` fails only when the router is down and it
+  stops, when `claude` can't be found or can't start, or on a misused command line, such as
+  `--account` naming an account that isn't configured, or has no usable token.
 - **An API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the
   key in place of the token `run` gives it, and its requests would go unrouted, billed to the key.
   So `run`, and with it `claude`, starts Claude Code as if switchboard weren't there, its
@@ -7615,11 +7615,11 @@ verbs).
   Claude Code on this machine, or set up its login, and switchboard has no part in them. When the
   first of Claude Code's arguments names one, `run` starts `claude` as if switchboard weren't there,
   environment and arguments untouched but for that mark and `SWITCHBOARD_WHEN_ROUTER_DOWN`, an
-  inherited pin or directory included, and says nothing; the log notes it at debug. `--direct`
-  still starts it on Claude Code's own login. Only the first argument counts: `claude -p doctor`
-  is a prompt. Everything else goes
-  through `run` as any session does, background sessions (`claude --bg`), `agents`, `attach`,
-  `respawn` and `ultrareview` among them. `internal/claude` keeps the list.
+  inherited pin or directory included, and says nothing; the log notes it at debug. `--direct` still
+  starts it on Claude Code's own login. Only the first argument counts: `claude -p doctor` is a
+  prompt. Everything else goes through `run` as any session does, background sessions (`claude
+  --bg`), `agents`, `attach`, `respawn` and `ultrareview` among them. `internal/claude` keeps the
+  list.
 - **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it
   (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), for a file that can
   be run, passing over any `claude` that's switchboard, which would start it again: one that

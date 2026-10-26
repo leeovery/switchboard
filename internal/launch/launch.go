@@ -147,8 +147,8 @@ func (l Launcher) Direct(args []string) error {
 // subcommands, as claude.IsLocal says, in this process's place as if
 // switchboard weren't there: switchboard has no part in them. Its environment
 // goes as it is, a pin inherited from a session included, but for the mark
-// every claude switchboard starts carries (see startedEnv), and whenDownEnv,
-// which every launch takes off (see exec), and Stderr hears nothing. It returns only when Claude Code couldn't start.
+// every claude switchboard starts carries (see startedEnv), and Stderr hears
+// nothing. It returns only when Claude Code couldn't start.
 func (l Launcher) Local(args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -323,7 +323,7 @@ const (
 type routerState struct {
 	// name is healthy, notRunning, unhealthy or notFound.
 	name string
-	// reason says why the router is unhealthy.
+	// reason says why the router is unhealthy, or wasn't found.
 	reason string
 	// listen is where a healthy router's proxy listens, and strips whether it
 	// takes every header of switchboard's own off what it sends upstream.
