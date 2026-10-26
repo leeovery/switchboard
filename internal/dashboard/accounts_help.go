@@ -33,7 +33,7 @@ func (f Frame) compareHelp() helpPart {
 	return helpPart{
 		heading: accountsHeading(AccountsCompare),
 		says: []line{
-			said("A column an account, numbered by its place in the config, the routing picker's key, and all accounts last; " +
+			said("A column an account, numbered as every tab numbers it, the routing picker's key, and all accounts last; " +
 				"under each name, how the account stands with the router, in a word." + focus),
 			said("WEEK USED is each account's week window as switchboard usage draws it, its cap and even pace marked, and " +
 				"always as it stands now, whatever the period. BY MODEL is each account's share of use over the period, a " +

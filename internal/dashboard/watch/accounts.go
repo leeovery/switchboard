@@ -220,12 +220,15 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 
 // comparing reports whether Accounts shows Compare with a focus for ← and →
 // to move, enter to open and esc to end: only where the frame's CompareWide
-// has it drawn wide, never turned, drawing none, nor with fewer than two
-// accounts.
+// has it drawn wide, its accounts numbered as the document numbers them,
+// never turned, drawing none, nor with fewer than two accounts.
 func (m Model) comparing() bool {
 	s := m.accounts.shown
+	// The numbering is the document's alone, whatever the time, so the time
+	// taken, zero outside Update and on the key line, serves; and this runs
+	// on a bare model too, as the help lists every page's keys.
 	return m.shownView() == dashboard.Accounts && s.View() == dashboard.AccountsCompare &&
-		dashboard.Frame{Width: m.size.Width, Accounts: s}.CompareWide()
+		dashboard.Frame{Width: m.size.Width, Accounts: s}.At(m.doc, m.taking.at).CompareWide()
 }
 
 // focusKeys are Compare's focus keys: those that move its focus, open the

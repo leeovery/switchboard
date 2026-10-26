@@ -13,6 +13,14 @@ agree but where the config and the router disagree, as after `switchboard accoun
 the router waits to restart, which can be hours. One owner of the number, read by every view, ends
 it. Graphs follows Runway, as the design says a card's label is Runway's.
 
+**Built** in the cleanliness release: `status.Numbering` owns the number, Runway's rule, the
+router's place, else after its last in the config's order among those it lacks. A moment's
+accounts carry it as their `Place`, and `Moment.Configured` gives the configured accounts numbered
+by it. Every tab, the routing card's keys and the `usage` printout read it, and the layouts that
+fit names to a column, GLANCE's, Detail's list and Compare's least, number them by the moment the
+frame holds. A test holds every tab and the card's keys to the one number with the config and the
+router apart.
+
 ## Runway's week past its view
 
 Runway's live week runs from a day before now for a week, so it ends about six days ahead; a week
@@ -25,7 +33,7 @@ phrase past its view's end, or the design could say why it doesn't.
 
 - **GLANCE's name column** is laid from the config alone, so it's a cell short where a number
   reaches 10 while the config has nine or fewer (ten accounts or more, with the config and the
-  router apart).
+  router apart). **Built** with the number's owner: it's laid from the numbers it draws.
 - **A hold then a run-out past the view:** a cap or limit held at now, lifting past Runway's view,
   with a run-out under it after that, would have a card say `back …` where Runway drawn on would say
   `lifts …`, as the stretches inside the view and past it are given their back apart. It needs a

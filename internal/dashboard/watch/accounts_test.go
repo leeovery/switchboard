@@ -615,11 +615,15 @@ func TestAResizeKeepsComparesFocusInView(t *testing.T) {
 	}
 }
 
-// tenAccounts are ten accounts, acct-1 to acct-10, in the config's order.
+// tenAccounts are ten accounts, in the config's order: the router's three,
+// as threeConfigured has them, then acct-4 to acct-10, added since, which the
+// router doesn't hold yet. So each is numbered by its place in the config,
+// acct-7 as 7, as every account is while the config and the router agree
+// but for accounts added at its end.
 func tenAccounts() config.Accounts {
-	ten := make(config.Accounts, 10)
-	for i := range ten {
-		ten[i] = config.Account{ID: "acct-" + strconv.Itoa(i+1)}
+	ten := slices.Clone(threeConfigured)
+	for i := len(ten); i < 10; i++ {
+		ten = append(ten, config.Account{ID: "acct-" + strconv.Itoa(i+1)})
 	}
 	return ten
 }

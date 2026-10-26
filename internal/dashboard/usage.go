@@ -246,8 +246,8 @@ func (b usageBlock) capsOf(drawn func(usageRow) bool) line {
 }
 
 // accountName is an account's name as a row of the block heads it: its
-// number, its place in the config, right-aligned, faint where it's out of the
-// pool; its label; and its marks, ◆ on the primary and ▲ on the account new
+// number, as status.Numbering numbers it, right-aligned, faint where it's out
+// of the pool; its label; and its marks, ◆ on the primary and ▲ on the account new
 // sessions go to. A faint one, as the Overview names an account out of the
 // pool, has its label and marks faint too. An unrouted one is named where
 // nothing is routed, as on Accounts, so it never carries ▲.
@@ -261,31 +261,37 @@ type accountName struct {
 	unrouted bool
 }
 
-// namesOf are the names of m's accounts, in the config's order, numbered
+// namesOf are the names of m's accounts, in the document's order, numbered
 // right-aligned once there are ten, ▲ on the one new sessions go to, and
 // each out of the pool where it is.
 func namesOf(m status.Moment) []accountName {
-	places := make([]int, len(m.Accounts))
-	for i := range places {
-		places[i] = i + 1
-	}
-	return namesAt(m.Accounts, places, len(m.Accounts))
+	return namesAt(m.Accounts, len(m.Accounts))
 }
 
-// namesAt are the names of the accounts given, each numbered by its place
-// given, right-aligned to the widest of those places and of, ▲ on the one
-// new sessions go to, and each out of the pool where it is. So names given
-// of the moment's accounts' count are aligned as namesOf aligns the
-// moment's, whichever of them are given.
-func namesAt(accounts []status.AccountNow, places []int, of int) []accountName {
-	digits := len(strconv.Itoa(slices.Max(append([]int{of}, places...))))
+// namesAt are the names of the accounts given, each numbered by its Place,
+// as status.Numbering numbers it, right-aligned to the widest of those places
+// and of, ▲ on the one new sessions go to, and each out of the pool where it
+// is. So names given of the moment's accounts' count are aligned as namesOf
+// aligns the moment's, whichever of them are given.
+func namesAt(accounts []status.AccountNow, of int) []accountName {
+	digits := numberDigits(accounts, of)
 	names := make([]accountName, len(accounts))
 	for i, a := range accounts {
 		names[i] = accountName{
-			number: fmt.Sprintf("%*d", digits, places[i]), label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool,
+			number: fmt.Sprintf("%*d", digits, a.Place), label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool,
 		}
 	}
 	return names
+}
+
+// numberDigits are the digits the numbers of the accounts given are
+// right-aligned in: the widest of their places' and of's.
+func numberDigits(accounts []status.AccountNow, of int) int {
+	widest := of
+	for _, a := range accounts {
+		widest = max(widest, a.Place)
+	}
+	return len(strconv.Itoa(widest))
 }
 
 // cells are the cells the name takes in the name column, its label whole:
