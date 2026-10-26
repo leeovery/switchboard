@@ -8070,9 +8070,10 @@ compared with a constant outside the chrome:
 What the build settled where the design estimated: GLANCE's natural with the sample's names is 113
 columns, so it pairs with WHEN YOU WORK from 175; WHEN YOU WORK with no day known says `nothing
 recorded yet`; and a card for an account the router's document doesn't hold yet has its label
-alone, numbered as Runway will number it. The tour stops on Graphs, and its still joins the README's grid
-and the dashboard's guide (#170). What
-the build left is gathered in [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md).
+alone, numbered as Runway will number it. The tour stops on Graphs, and its still joins the README's
+grid and the dashboard's guide (#170). Every image in the README and the guide is recorded again in
+Tokyo Night, with a still of each built-in theme in the guide's Themes, Tokyo Night first, as the
+owner asked (#172). What the build left is gathered in [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md).
 
 **The Overview's GRAPHS — removed.** On 26 October 2026, for the release with Graphs, the owner
 removed the Overview's GRAPHS, its charts under USAGE and beside each block by account, `g`, `v`
@@ -8080,7 +8081,7 @@ and the burn-up, for the Graphs page: "I don't like them. I don't think they're 
 into having the graphs page for graphs, at least for now." What only it used went with it; the
 Overview keeps its five other sections and By account with ROUTING beside, and a preferences file
 that kept GRAPHS reads without it. The focus, which only GRAPHS showed, went with it: `↑` and `↓`
-scroll USAGE where it scrolls, and do nothing where it shows every account.
+scroll USAGE where it scrolls, and do nothing where it shows every account (#171).
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 

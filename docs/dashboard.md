@@ -475,6 +475,14 @@ Under the cards, `Σ pool` gives the pool's room in each window, such as
 `week 1.2 of 3 left   5-hour 1.5 of 3 left`. With one account there's no pool, and no line. At the
 foot, over the key line, a legend names the marks.
 
+<div align="center">
+<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week and 5-hour cards on Graphs, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
+</div>
+
+The animation shows one account, `work`, alone: the Overview, with its usage, its routing trace
+and LATELY; then Graphs, its week and 5-hour cards; then Runway's 5-hour, where its lane runs out
+at its pace to its cap, and is back at 17:10.
+
 ### POOL
 
 POOL charts the pool's room over Runway's week view, from a day before now, for a week. Each
