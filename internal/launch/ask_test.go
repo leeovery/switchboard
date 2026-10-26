@@ -63,12 +63,12 @@ func TestAskWaitsForASlowRouterAndAsksOneComingBackAgain(t *testing.T) {
 			wantAsks:       asksTo(2 * time.Second),
 		},
 		{
-			name:           "not running, slow to say so, asked a beat after each answer",
+			name:           "not running, slow to say so, asked a beat after each answer, never past 2s",
 			router:         &timedRouter{upAt: never, failsIn: 500 * time.Millisecond},
 			wantErr:        "the router isn't running: dial unix control.sock: connect: no such file or directory",
 			wantNotRunning: true,
-			wantTook:       2600 * time.Millisecond,
-			wantAsks:       []time.Duration{0, 700 * time.Millisecond, 1400 * time.Millisecond, 2100 * time.Millisecond},
+			wantTook:       1900 * time.Millisecond,
+			wantAsks:       []time.Duration{0, 700 * time.Millisecond, 1400 * time.Millisecond},
 		},
 		{
 			name:     "not running, then connecting at 1s and stuck",
@@ -144,17 +144,21 @@ func TestAskStopsWhenItsCallerGivesUp(t *testing.T) {
 }
 
 func TestAskSaysWhichDeadlineRanOut(t *testing.T) {
+	answer := router.Health{OK: true, Listen: proxyAddr, PID: 4242}
 	inside := fmt.Errorf("ask the router: %w", context.DeadlineExceeded)
+	refused := errors.New("the router answered GET /health with 404 Not Found")
 	tests := []struct {
 		name   string
 		router *timedRouter
 		// deadline is the caller's, from the first ask, none where it's zero.
 		deadline time.Duration
+		want     router.Health
 		wantErr  string
 		wantTook time.Duration
 	}{
 		{name: "its own", router: &timedRouter{answersIn: never}, deadline: 8 * time.Second, wantErr: "no answer within 5s", wantTook: 5 * time.Second},
 		{name: "the caller's, first", router: &timedRouter{answersIn: never}, deadline: 1500 * time.Millisecond, wantErr: "no answer within 1.5s", wantTook: 1500 * time.Millisecond},
+		{name: "the caller's, already past", router: &timedRouter{answersIn: never}, deadline: -time.Second, wantErr: "no answer within 0s"},
 		{
 			name:     "the caller's, first, while waiting to ask one not running again: not running, as it said",
 			router:   &timedRouter{upAt: never},
@@ -163,35 +167,43 @@ func TestAskSaysWhichDeadlineRanOut(t *testing.T) {
 			wantTook: 1500 * time.Millisecond,
 		},
 		{
-			name:     "the caller's, first, cutting off a dial: not running",
+			name:     "the caller's, first, cutting off a dial",
 			router:   &timedRouter{upAt: never, failsIn: 500 * time.Millisecond},
 			deadline: 1500 * time.Millisecond,
-			wantErr:  "the router isn't running: dial unix control.sock: context deadline exceeded",
+			wantErr:  "no answer within 1.5s",
 			wantTook: 1500 * time.Millisecond,
 		},
+		{name: "its own, cutting off a dial", router: &timedRouter{upAt: never, failsIn: never}, wantErr: "no answer within 5s", wantTook: 5 * time.Second},
+		{name: "the client's own, as it says", router: &timedRouter{answersIn: time.Second, err: inside}, wantErr: inside.Error(), wantTook: time.Second},
 		{
-			name:     "its own, cutting off a dial: not running",
-			router:   &timedRouter{upAt: never, failsIn: never},
-			wantErr:  "the router isn't running: dial unix control.sock: context deadline exceeded",
+			name:     "none, an error landing as its own passes, as it is",
+			router:   &timedRouter{answersIn: 5 * time.Second, deaf: true, err: refused},
+			wantErr:  refused.Error(),
 			wantTook: 5 * time.Second,
 		},
-		{name: "the client's own, as it says", router: &timedRouter{answersIn: time.Second, err: inside}, wantErr: inside.Error(), wantTook: time.Second},
+		{
+			name:     "none, an answer landing as the caller's passes, as it is",
+			router:   &timedRouter{answersIn: 1500 * time.Millisecond, deaf: true, health: answer},
+			deadline: 1500 * time.Millisecond,
+			want:     answer,
+			wantTook: 1500 * time.Millisecond,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				ctx := t.Context()
-				if tt.deadline > 0 {
+				if tt.deadline != 0 {
 					var cancel context.CancelFunc
 					ctx, cancel = context.WithTimeout(ctx, tt.deadline)
 					defer cancel()
 				}
 				tt.router.began = time.Now()
 
-				_, err := launch.Patience{}.Ask(ctx, tt.router)
+				got, err := launch.Patience{}.Ask(ctx, tt.router)
 
-				if took := time.Since(tt.router.began); errText(err) != tt.wantErr || took != tt.wantTook {
-					t.Errorf("Ask() error = %v after %v, want %q after %v", err, took, tt.wantErr, tt.wantTook)
+				if took := time.Since(tt.router.began); got != tt.want || errText(err) != tt.wantErr || took != tt.wantTook {
+					t.Errorf("Ask() = %+v, %v after %v; want %+v, %q after %v", got, err, took, tt.want, tt.wantErr, tt.wantTook)
 				}
 			})
 		})
@@ -202,21 +214,52 @@ func TestAskTakesItsPatience(t *testing.T) {
 	tests := []struct {
 		name     string
 		patience launch.Patience
+		router   *timedRouter
+		wantErr  string
 		wantTook time.Duration
 		wantAsks []time.Duration
 	}{
-		{name: "asking once", patience: launch.Patience{Answer: time.Second}, wantAsks: asksTo(0)},
-		{name: "asking again, every 200ms where it doesn't say", patience: launch.Patience{Answer: time.Second, Back: 600 * time.Millisecond}, wantTook: 600 * time.Millisecond, wantAsks: asksTo(600 * time.Millisecond)},
+		{
+			name:     "asking one not running once",
+			patience: launch.Patience{Answer: time.Second},
+			router:   &timedRouter{upAt: never},
+			wantErr:  "the router isn't running: dial unix control.sock: connect: no such file or directory",
+			wantAsks: asksTo(0),
+		},
+		{
+			name:     "asking one not running again, every 200ms where it doesn't say",
+			patience: launch.Patience{Answer: time.Second, Back: 600 * time.Millisecond},
+			router:   &timedRouter{upAt: never},
+			wantErr:  "the router isn't running: dial unix control.sock: connect: no such file or directory",
+			wantTook: 600 * time.Millisecond,
+			wantAsks: asksTo(600 * time.Millisecond),
+		},
+		{
+			name:     "giving one stuck its time",
+			patience: launch.Patience{Answer: time.Second},
+			router:   &timedRouter{answersIn: never},
+			wantErr:  "no answer within 1s",
+			wantTook: time.Second,
+			wantAsks: asksTo(0),
+		},
+		{
+			name:     "giving one stuck 5s where it doesn't say",
+			patience: launch.Patience{Back: 600 * time.Millisecond},
+			router:   &timedRouter{answersIn: never},
+			wantErr:  "no answer within 5s",
+			wantTook: 5 * time.Second,
+			wantAsks: asksTo(0),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				r := &timedRouter{upAt: never, began: time.Now()}
+				tt.router.began = time.Now()
 
-				_, err := tt.patience.Ask(t.Context(), r)
+				_, err := tt.patience.Ask(t.Context(), tt.router)
 
-				if took := time.Since(r.began); !errors.Is(err, router.ErrNotRunning) || took != tt.wantTook || !slices.Equal(r.asks, tt.wantAsks) {
-					t.Errorf("Ask() error = %v after %v, asking at %v; want the router not running after %v, asked at %v", err, took, r.asks, tt.wantTook, tt.wantAsks)
+				if took := time.Since(tt.router.began); errText(err) != tt.wantErr || took != tt.wantTook || !slices.Equal(tt.router.asks, tt.wantAsks) {
+					t.Errorf("Ask() error = %v after %v, asking at %v; want %q after %v, asked at %v", err, took, tt.router.asks, tt.wantErr, tt.wantTook, tt.wantAsks)
 				}
 			})
 		})
@@ -242,12 +285,15 @@ func errText(err error) string {
 
 // timedRouter answers as a router does over time, from began: not running
 // until upAt, saying so failsIn after each ask, then answering health, or
-// err, answersIn after each ask.
+// err, answersIn after each ask. An ask its caller gives up on fails as
+// router.Client fails one, a dial or a request alike, unless it's deaf,
+// answering all the same.
 type timedRouter struct {
 	began     time.Time
 	upAt      time.Duration
 	failsIn   time.Duration
 	answersIn time.Duration
+	deaf      bool
 	health    router.Health
 	err       error
 	// asks are when it was asked, from began.
@@ -258,30 +304,24 @@ func (r *timedRouter) Health(ctx context.Context) (router.Health, error) {
 	at := time.Since(r.began)
 	r.asks = append(r.asks, at)
 	if at < r.upAt {
-		return within(ctx, r.failsIn, router.Health{}, dialFailed(errors.New("connect: no such file or directory")), dialFailed)
+		return r.within(ctx, r.failsIn, router.Health{}, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning))
 	}
-	return within(ctx, r.answersIn, r.health, r.err, askFailed)
+	return r.within(ctx, r.answersIn, r.health, r.err)
 }
 
-// within answers h and err in d, unless ctx ends first, failing then as cut
-// says, as a router's client does.
-func within(ctx context.Context, d time.Duration, h router.Health, err error, cut func(error) error) (router.Health, error) {
+// within answers h and err in d, unless ctx ends first and the router hears
+// it.
+func (r *timedRouter) within(ctx context.Context, d time.Duration, h router.Health, err error) (router.Health, error) {
 	answering := time.NewTimer(d)
 	defer answering.Stop()
+	gaveUp := ctx.Done()
+	if r.deaf {
+		gaveUp = nil
+	}
 	select {
 	case <-answering.C:
 		return h, err
-	case <-ctx.Done():
-		return router.Health{}, cut(ctx.Err())
+	case <-gaveUp:
+		return router.Health{}, fmt.Errorf(`ask the router: Get "http://switchboard/health": %w`, ctx.Err())
 	}
-}
-
-// dialFailed is how a router's client fails when its dial does, as when
-// nothing listens, and askFailed when a request it sent goes unanswered.
-func dialFailed(err error) error {
-	return fmt.Errorf("%w: dial unix control.sock: %w", router.ErrNotRunning, err)
-}
-
-func askFailed(err error) error {
-	return fmt.Errorf("ask the router: %w", err)
 }
