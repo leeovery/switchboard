@@ -50,13 +50,19 @@ func TestEachRowOfTheLogsTableInViewIsATarget(t *testing.T) {
 	}
 }
 
+// pausedOneNew is a page of Requests paused on its first two lines, a third
+// come since, so its state line says ▼ 1 new.
+func pausedOneNew() LogPage {
+	src := views.LogSources{From: logDay, Now: logDayNoon}
+	lines := []ledger.Line{asked("1", logDay), asked("2", logDay.Add(time.Minute))}
+	return requestsOf(src, append(lines, asked("3", logDay.Add(2*time.Minute)))).withStands(requestsOf(src, lines).Chose(-1, 10))
+}
+
 // While the state line counts lines come since a pause, "▼ 1 new" is a
 // target over the cells it's drawn on, as end, which follows again; not
 // while the find's line takes the state line's place, nor following.
 func TestTheLinesComeSinceAreATargetThatFollows(t *testing.T) {
-	src := views.LogSources{From: logDay, Now: logDayNoon}
-	lines := []ledger.Line{asked("1", logDay), asked("2", logDay.Add(time.Minute))}
-	paused := requestsOf(src, append(lines, asked("3", logDay.Add(2*time.Minute)))).withStands(requestsOf(src, lines).Chose(-1, 10))
+	paused := pausedOneNew()
 	finding := paused
 	finding.Finding = LogFinding{Open: true}
 	got := logTargetsOf(paused, OnPress)
@@ -73,7 +79,7 @@ func TestTheLinesComeSinceAreATargetThatFollows(t *testing.T) {
 	}
 	for name, p := range map[string]LogPage{"finding": finding, "following": paused.Followed()} {
 		if slices.ContainsFunc(logTargetsOf(p, OnPress), func(t Target) bool { return t.Y == 22 }) {
-			t.Errorf("%s, the state line's row has a target", name)
+			t.Errorf("%s, the state line's row has a target a click on which presses a key", name)
 		}
 	}
 }

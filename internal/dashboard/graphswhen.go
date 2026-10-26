@@ -53,6 +53,13 @@ func hoursPart() flex.Part {
 	return flex.Part{Least: hoursWidth(1), Natural: hoursWidth(hourNaturalCells), Most: hoursWidth(hourMostCells), Grows: true}
 }
 
+// hoursLaid is the width WHEN YOU WORK takes of room cells, as flex lays
+// hoursPart in them: its least where they're fewer.
+func hoursLaid(room int) int {
+	spans, _ := flex.Lay(room, hoursPart())
+	return spans[0].Size
+}
+
 // hoursWidth is the width of the grid hourCells cells an hour.
 func hoursWidth(hourCells int) int {
 	return hoursGridX + hoursADay*hourCells

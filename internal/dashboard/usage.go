@@ -320,9 +320,16 @@ func (n accountName) said(cells int) line {
 }
 
 // labelRoom are the cells the name's label has of the cells given: those
-// past nameGap, its number and the space after it, and its marks.
+// past nameGap and the cells beside its label, as besideCells counts them.
 func (n accountName) labelRoom(cells int) int {
-	return cells - nameGap - len(n.number) - 1 - n.marks().width()
+	return cells - nameGap - n.besideCells()
+}
+
+// besideCells are the cells the name takes beside its label, as labelled
+// draws it: its number and the space after it, where it has one, and its
+// marks.
+func (n accountName) besideCells() int {
+	return n.labelled("").width()
 }
 
 // labelIn is the name, its label cut to the cells given as labelledIn cuts

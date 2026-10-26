@@ -359,9 +359,11 @@ type Model struct {
 	plansAtMost []views.PlanCost
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
-	// judged by; and pool what it holds of the pool's charts GRAPHS draws
-	// beside Σ pool by account, judged by that tail too.
+	// judged by; graphsTab what it holds of Graphs' lanes, judged by that
+	// tail too; and pool what it holds of the pool's charts GRAPHS draws
+	// beside Σ pool by account, judged by it as well.
 	runwayTab runwayTab
+	graphsTab graphsTab
 	pool      poolTab
 	// session is the session's page open, drawn in place of the view, or
 	// loading, as pageLoading has it: nil while none is. opening counts the
@@ -507,23 +509,23 @@ func (m Model) Init() tea.Cmd {
 // them,
 // History's and Accounts' pages built of them as historyBuilt and
 // accountsBuilt have it, Detail's selection following its sessions, as
-// followed has it, Sessions and Runway built at the look, as sessionsLooked
-// and runwayLooked have it, the ledger's tail followed whatever shows, as
-// followTail has it, and the Log's page built of what it holds, and only
-// then, price the moves the routing card would make while it wants them.
-// Then, of the page as it stands at that moment, the one frame a look
-// builds, it builds the pool's charts at the look, as poolLooked has it, has
-// the readings history's tail read for Runway and the pool's charts, as
-// readRunway has it, and notes the tab shown waiting on a read, as waited
-// has it, the page loading as that leaves it. Of that page, its Overview's
-// sections built once for each to share, it keeps the Overview's layout,
-// and takes the view back to its top where what its scroll counts changed,
-// as rescrolled has it, but for a frame, which takes nothing in to lay it
-// out afresh by, nor changes what it counts; brightens the numbers what the
-// stream told changed, as compared has it; and only then, so the screen and
-// its frames see the layout the page will draw and the numbers it
-// brightens, shows the page, drawing frames while anything on it moves. The
-// view is drawn again after each, which is all a note's lapsing asks.
+// followed has it, Sessions, Runway and Graphs built at the look, as
+// sessionsLooked and runwayLooked have it, the ledger's tail followed
+// whatever shows, as followTail has it, and the Log's page built of what it
+// holds, and only then, price the moves the routing card would make while it
+// wants them. Then, of the page as it stands at that moment, the one frame a
+// look builds, it builds the pool's charts at the look, as poolLooked has
+// it, has the readings history's tail read for Runway, Graphs and the pool's
+// charts, as readRunway has it, and notes the tab shown waiting on a read,
+// as waited has it, the page loading as that leaves it. Of that page, its
+// Overview's sections built once for each to share, it keeps the Overview's
+// layout, and takes the view back to its top where what its scroll counts
+// changed, as rescrolled has it, but for a frame, which takes nothing in to
+// lay it out afresh by, nor changes what it counts; brightens the numbers
+// what the stream told changed, as compared has it; and only then, so the
+// screen and its frames see the layout the page will draw and the numbers
+// it brightens, shows the page, drawing frames while anything on it moves.
+// The view is drawn again after each, which is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}

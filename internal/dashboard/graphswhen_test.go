@@ -81,6 +81,11 @@ func TestWhenYouWorksWidthsAreItsHoursFromATileAloneToFourCells(t *testing.T) {
 		{width: 100, cells: 4, tile: 3},
 		{width: 173, cells: 4, tile: 3},
 	}
+	for room, want := range map[int]int{20: 28, 28: 28, 52: 52, 73: 73, 100: 100, 173: 100} {
+		if got := hoursLaid(room); got != want {
+			t.Errorf("of %d cells, WHEN YOU WORK is laid %d wide, want %d", room, got, want)
+		}
+	}
 	for _, tt := range tests {
 		if got := hourCells(tt.width); got != tt.cells {
 			t.Errorf("%d cells wide, an hour takes %d cells, want ⌊(%d − 4) / 24⌋ held from 1 to 4, %d", tt.width, got, tt.width, tt.cells)
@@ -303,6 +308,18 @@ func TestWhenYouWorkWithNothingActiveHasNoKeyAndWithNothingKnownSaysSo(t *testin
 		}
 		if got := 1 + hoursWeekdays + 1 + len(hoursGrid{page: hoursSample("20", "50", "90"), look: nord}.key(width)); got > keyed {
 			t.Errorf("%d wide, the grid and its key take %d rows, more than the %d reckoned", width, got, keyed)
+		}
+	}
+}
+
+// Graphs' planner gives WHEN YOU WORK the rows its grid counts at the width
+// it's laid at: 10 at its most, the key a row; 11 on a phone of 73, the key
+// two.
+func TestGraphsPlannerGivesWhenYouWorkItsGridsRows(t *testing.T) {
+	nord := Screen(builtin(t, "nord"))
+	for width, want := range map[int]int{173: 10, 100: 10, 73: 11, 52: 11} {
+		if got := whenRows(width, nord); got != want {
+			t.Errorf("%d wide, the planner gives WHEN YOU WORK %d rows, want %d", width, got, want)
 		}
 	}
 }

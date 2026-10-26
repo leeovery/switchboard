@@ -288,23 +288,33 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	case Runway:
 		f.runway(c, doc, now, top)
 	case Graphs:
-		f.graphsTab(c, top)
+		f.graphsTab(c, doc, now, top)
 	case Log:
 		f.log(c, doc, now, top)
 	}
 }
 
 // stateLine draws the view's state line, over the key line, as told at now:
-// the Log's, once its first read lands, where the page has room for the
-// view, as cramped says; and while its find is open, read or not, the
+// Graphs', where the page has room for the view, as cramped says, as
+// graphsState has it; the Log's, once its first read lands, where the page
+// has room for the view; and while its find is open, read or not, the
 // find's line in its place, cramped or not, where LogFinds says it has the
 // row, as what's typed into it is drawn nowhere else; but none under a
 // session's page, drawn in the view's place. Accounts and Sessions draw
 // their own lines there.
 func (f Frame) stateLine(c *canvas, now time.Time) {
-	if f.Shown() != Log {
-		return
+	switch f.Shown() {
+	case Graphs:
+		if !f.cramped() {
+			f.graphsState(c)
+		}
+	case Log:
+		f.logState(c, now)
 	}
+}
+
+// logState draws the Log's state line, as stateLine has it.
+func (f Frame) logState(c *canvas, now time.Time) {
 	y := f.stateRow()
 	if found, ok := f.Log.findLine(f.Width); ok && f.LogFinds() {
 		c.line(0, y, found)
@@ -413,7 +423,8 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // overviewScrolls has it; on Accounts, as accountsScrolls has it; on
 // History, what of its sub-tab shown does, as historyScrolls has it, across
 // the frame; on Sessions, as sessionsScrolls has it; on Runway, as
-// runwayScrolls has it; on the Log, its table's lines, under its heads;
+// runwayScrolls has it; on Graphs, the view's rows over its legend, as
+// graphsLaid lays them out; on the Log, its table's lines, under its heads;
 // elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
 	switch f.Shown() {
@@ -431,6 +442,8 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 		return f.sessionsScrolls(doc, now)
 	case Runway:
 		return f.runwayScrolls(doc, now)
+	case Graphs:
+		return 0, f.top(), f.Width, f.graphsLaid().room
 	case Log:
 		return 0, f.top() + 1, f.Width, f.LogRows()
 	}

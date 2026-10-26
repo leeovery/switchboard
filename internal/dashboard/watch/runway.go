@@ -24,26 +24,28 @@ import (
 // which hold what they judged of the past till what that's judged from
 // changes, and the moment of the message they were built at, as each is
 // built once; the readings history's live tail, read for what it gained as
-// readRunway has it, which the pool's charts are judged by too, and the
-// readings of each span stepped back to before it, read once and held for
-// the run; the readings the watch read of the documents it read itself,
-// which join them; the start of the first day the history holds, as the live
-// tail last asked it, zero where it holds none, or failed to say; whether a
-// look since asks what the live tail gained; whether a read of the history
-// is under way, one at a time; and whether a failure to say where the
-// history begins has been logged, the once.
+// readRunway has it, which Graphs' lanes and the pool's charts are judged
+// by too, and the readings of each span stepped back to before it, read once
+// and held for the run; the readings the watch read of the documents it read
+// itself, which join them; the start of the first day the history holds, as
+// the live tail last asked it, zero where it holds none, or failed to say;
+// whether a look since asks what the live tail gained; whether a read of the
+// history is under way, one at a time, and whether that's the live tail's;
+// and whether a failure to say where the history begins has been logged, the
+// once.
 type runwayTab struct {
-	shown   dashboard.RunwayShown
-	lanes   views.Lanes
-	look    func(views.Lanes, views.LanesFrom) views.Lanes
-	builtAt *status.HeldMoment
-	live    readingsTail
-	back    []heldSpan
-	seen    seenReadings
-	kept    time.Time
-	due     bool
-	reading bool
-	warned  bool
+	shown       dashboard.RunwayShown
+	lanes       views.Lanes
+	look        func(views.Lanes, views.LanesFrom) views.Lanes
+	builtAt     *status.HeldMoment
+	live        readingsTail
+	back        []heldSpan
+	seen        seenReadings
+	kept        time.Time
+	due         bool
+	reading     bool
+	readingLive bool
+	warned      bool
 }
 
 // readingsTail is a read of the readings history over a span, as
@@ -145,16 +147,6 @@ func (t runwayTab) readingsOf(s, live readingsSpan) []readings.Reading {
 	return views.RunwayReadings(filed, t.seen.readings())
 }
 
-// looking is how the tab builds Runway's lanes at a look: its look, where
-// it's given, as a test counts the builds through it; else as
-// views.Lanes.Look builds them.
-func (t runwayTab) looking() func(views.Lanes, views.LanesFrom) views.Lanes {
-	if t.look == nil {
-		return views.Lanes.Look
-	}
-	return t.look
-}
-
 // seenReadings are the readings the watch read of the documents it read
 // itself, which the readings history holds none of: each account's windows,
 // as each look read them, in the order the looks joined them; and when each
@@ -222,24 +214,24 @@ func (m Model) runwayTimeline(now time.Time) views.Timeline {
 	return m.runwayTab.shown.TimelineAt(now, m.cfg.WeekStarts, m.size.Width)
 }
 
-// runwayLooked is m with Runway built at the look msg takes, as runwayBuilt
-// builds it, where nothing built it at its moment already, as a read landing
-// a document does for the numbers its look compares. A frame takes nothing
-// in, so builds nothing.
+// runwayLooked is m with the lanes of the tab shown built at the look msg
+// takes, Runway's or Graphs', as lanesBuilt builds them, where nothing built
+// them at its moment already, as a read landing a document does for the
+// numbers its look compares. A frame takes nothing in, so builds nothing.
 func (m Model) runwayLooked(msg tea.Msg) Model {
 	if _, frame := msg.(frameMsg); frame {
 		return m
 	}
-	return m.runwayBuilt()
+	return m.lanesBuilt()
 }
 
 // runwaySaw is m once the document look is a moment of lands: its accounts'
-// readings joined, as saw joins them; and Runway built at it, as runwayBuilt
-// builds it, so the numbers the look compares are drawn of the lanes of the
-// document each is read of.
+// readings joined, as saw joins them; and the lanes of the tab shown built
+// at it, Runway's or Graphs', as lanesBuilt builds them, so the numbers the
+// look compares are drawn of the lanes of the document each is read of.
 func (m Model) runwaySaw(look status.Moment) Model {
 	m.runwayTab.seen = m.runwayTab.seen.saw(look)
-	return m.runwayBuilt()
+	return m.lanesBuilt()
 }
 
 // runwayBuilt is m with Runway built afresh at the moment of the message
@@ -257,7 +249,7 @@ func (m Model) runwayBuilt() Model {
 	mo := m.moment(now)
 	m.runwayTab.shown = m.runwayTab.shown.Labelled(mo)
 	t, tl, live := m.runwayTab, m.runwayTimeline(now), liveSpan(now)
-	t.lanes = t.looking()(t.lanes, views.LanesFrom{
+	t.lanes = lanesLooking(t.look)(t.lanes, views.LanesFrom{
 		Moment: mo, Readings: t.readingsOf(spanOf(tl, live), live), Days: m.runwayDays(tl, now), Kept: t.kept, Seen: t.seen.from(), Timeline: tl, Window: t.shown.Window,
 	})
 	lanes := t.lanes
@@ -302,17 +294,21 @@ func runwayYear(first, now time.Time, starts time.Weekday) int {
 	return 0
 }
 
-// runwayYearWanted is the year of the ledger's days Runway's lanes want, as
-// runwayYear has it, reporting false where they want none, as runwayWants
-// says, or Runway doesn't show: History's reads read it, and Runway shares
-// what they hold, as Accounts does.
+// runwayYearWanted is the year of the ledger's days the lanes of the tab
+// shown want, Runway's or Graphs', as lanesTimelines has them, those
+// reaching back furthest, as runwayYear has it, reporting false where they
+// want none, as runwayWants says, or neither shows: History's reads read
+// it, and the lanes share what they hold, as Accounts does.
 func (m Model) runwayYearWanted() (int, bool) {
-	if m.view != dashboard.Runway || m.session != nil {
-		return 0, false
-	}
 	now := m.now()
-	first, _, ok := m.runwayWants(m.runwayTimeline(now))
-	return runwayYear(first, now, m.cfg.WeekStarts), ok
+	var first time.Time
+	wanted := false
+	for _, tl := range m.lanesTimelines(now) {
+		if from, _, ok := m.runwayWants(tl); ok && (!wanted || from.Before(first)) {
+			first, wanted = from, true
+		}
+	}
+	return runwayYear(first, now, m.cfg.WeekStarts), wanted
 }
 
 // runwayDays are the summaries of the days the lanes over the timeline tl at
@@ -330,28 +326,28 @@ func (m Model) runwayDays(tl views.Timeline, now time.Time) []ledger.Summary {
 	return past.Summaries(first, last)
 }
 
-// readRunway has the watch read the readings history for Runway's lanes
-// while it shows, or for the pool's charts while they do, as a command, once
-// no read of it is under way, as readingsRead reads it: a span of Runway's
-// stepped back to before the live one, of a day or a week gone, once, its
-// readings held for the run; else the live tail, made afresh as its span
-// moves, as the day turns, and read at once, then at each look since, as due
-// says, for what it gained: for the pool's charts alone, only once their
-// past is judged through a moment after the last read was asked, as
-// poolBehind says, as what it gains till then is judged at none of their
-// columns. A read of the live tail asks where the history begins as its span
-// moves, and at a look while that's unknown, as on a fresh install, or after
-// a failure to say. Without a reader, nothing.
+// readRunway has the watch read the readings history for the lanes of the
+// tab shown, Runway's or Graphs', as lanesShown has it, or for the pool's
+// charts while they show, as a command, once no read of it is under way, as
+// readingsRead reads it: a span of Runway's stepped back to before the live
+// one, of a day or a week gone, once, its readings held for the run; else
+// the live tail, made afresh as its span moves, as the day turns, and read
+// at once, then at each look since, as due says, for what it gained: for the
+// pool's charts alone, only once their past is judged through a moment after
+// the last read was asked, as poolBehind says, as what it gains till then is
+// judged at none of their columns. A read of the live tail asks where the
+// history begins as its span moves, and at a look while that's unknown, as
+// on a fresh install, or after a failure to say. Without a reader, nothing.
 func (m Model) readRunway() (Model, tea.Cmd) {
 	t := m.runwayTab
-	runway := m.view == dashboard.Runway && m.session == nil
-	if !runway && len(m.pool.charts) == 0 || m.cfg.Readings == nil || t.reading {
+	lanes := m.lanesShown()
+	if !lanes && len(m.pool.charts) == 0 || m.cfg.Readings == nil || t.reading {
 		return m, nil
 	}
 	now := m.now()
 	live := liveSpan(now)
 	read := historyRead{span: live}
-	if runway {
+	if lanes && m.view == dashboard.Runway {
 		read.span = spanOf(m.runwayTimeline(now), live)
 	}
 	switch _, held := t.holds(read.span); {
@@ -363,7 +359,7 @@ func (m Model) readRunway() (Model, tea.Cmd) {
 		t.live = readingsTail{span: live, read: m.cfg.Readings.Tail(live.from, live.start, live.end), held: t.live.held, through: t.live.through}
 		t.seen = t.seen.since(live.from)
 		read.tail, read.kept = t.live.read, m.cfg.Readings
-	case t.due && (runway || m.poolBehind(t.live.through, now)):
+	case t.due && (lanes || m.poolBehind(t.live.through, now)):
 		read.tail, t.due = t.live.read, false
 		if t.kept.IsZero() {
 			read.kept = m.cfg.Readings
@@ -372,7 +368,7 @@ func (m Model) readRunway() (Model, tea.Cmd) {
 		return m, nil
 	}
 	read.began = m.past.beganAsked(m.cfg.Ledger)
-	t.reading = true
+	t.reading, t.readingLive = true, read.span.is(live)
 	m.runwayTab = t
 	return m, read.cmd(now)
 }

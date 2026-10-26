@@ -72,7 +72,7 @@ type PoolStackFrom struct {
 // no such window, it holds what p judged, for a look once it has again.
 func (p PoolStack) Look(from PoolStackFrom) PoolStack {
 	m := from.Moment
-	tl, key := LiveTimeline(RunwayWeek, m.Now, from.Columns), viewKeyOf(m.Policy(), RunwayWeek)
+	tl, key := LiveTimeline(RunwayWeek, m.Now, from.Columns), RunwayWeek.KeyIn(m.Policy())
 	pool := m.Pool()
 	if from.Columns < 1 || !slices.ContainsFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == key }) {
 		return PoolStack{then: p.then, past: p.past}

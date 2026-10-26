@@ -7,7 +7,6 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -18,14 +17,13 @@ const roomFade = 0.45
 // burnCard is a window of an account as a Graphs burn-down card charts it at
 // now, worked out once, as burnCardOf has it: the window's span, its
 // readings and now, as GRAPHS charts them; the ink its state gives it; the
-// room it has now; the room ahead, by the projection the moment goes by;
-// when it runs out; whether its cap or its limit holds it, and since when;
-// its account's reserve; whether it has nothing to draw; and how far it
-// fades.
+// room ahead, from the room it has now, by the projection the moment goes
+// by; when it runs out; whether its cap or its limit holds it, and since
+// when; its account's reserve; whether it has nothing to draw; and how far
+// it fades.
 type burnCard struct {
 	window chart
 	ink    ink
-	room   float64
 	ahead  func(time.Time) (float64, bool)
 	// out is when the window runs out at its pace, before its reset: zero
 	// where it doesn't.
@@ -51,10 +49,10 @@ type burnCard struct {
 
 // burnCardOf is account a's window with the given key as its burn-down card
 // charts it at now, from its trail: over its span, as GRAPHS charts it, as
-// chartOf has it; in the ink its state gives it, as windowInk has it; its
-// room now, 1 − Used; the room ahead at a time as the moment's RoomAhead has
-// it, never worked out again; its run-out, where its Kind runs out, at Out;
-// its reserve; and its fade, as accountFade has it. A window the moment
+// chartOf has it; in the ink its state gives it, as windowInk has it; the
+// room ahead at a time as the moment's RoomAhead has it, from the room it
+// has now, never worked out again; its run-out, where its Kind runs out, at
+// Out; its reserve; and its fade, as accountFade has it. A window the moment
 // gives no span is charted over its length, as its key gives it, from now,
 // empty, as spanFromNow has it. When a hold began is the caller's to fill.
 func burnCardOf(a status.AccountNow, key string, trail Trail, now time.Time) burnCard {
@@ -62,7 +60,6 @@ func burnCardOf(a status.AccountNow, key string, trail Trail, now time.Time) bur
 	cd := burnCard{
 		window: chartOf(a, shownWindow{key: key}, trail, now, BurnDown),
 		ink:    windowInk(a, w),
-		room:   1 - w.Used,
 		ahead: func(t time.Time) (float64, bool) {
 			return a.RoomAhead(key, t)
 		},
@@ -99,7 +96,7 @@ func windowInk(a status.AccountNow, w status.WindowNow) ink {
 	case w.Kind == status.WindowRunsOut || w.Kind == status.WindowCapped:
 		return warningInk
 	}
-	return ink{token: theme.VizRamp1}
+	return lastingInk
 }
 
 // faded is k as the card draws it: faded the card's fade more into the

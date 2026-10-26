@@ -162,6 +162,43 @@ func (s LaneStretch) Ends() (at time.Time, lifts bool) {
 	return s.Back, false
 }
 
+// HeldSince is when the hold on the account a's window with the given key
+// began, where its cap or its limit holds the window at the moment, the lane
+// being a's over the timeline tl, of the view of that window, as a Graphs
+// card places its ✕: as the lane's stretch through now's column tells it,
+// held alike, by the router's event of it or the first reading that shows
+// it; else, as a lane can start after the hold did, as Runway's live 5-hour
+// view starts an hour before now, as the moment knows it by the router's
+// events, the window's Since of a limit and the account's CapSince of a cap;
+// zero where neither tells, or neither holds the window.
+func (l Lane) HeldSince(a status.AccountNow, key string, tl Timeline) time.Time {
+	w, _ := a.Window(key)
+	var held Cell
+	var told time.Time
+	switch w.Kind {
+	case status.WindowLimited:
+		held, told = CellLimited, w.Since
+	case status.WindowCapped:
+		held, told = CellCapped, a.CapSince
+	default:
+		return time.Time{}
+	}
+	if s, ok := l.stretchAt(tl.NowColumn()); ok && s.Cell == held && !s.Projected && !s.Start.IsZero() {
+		return s.Start
+	}
+	return told
+}
+
+// stretchAt is the lane's stretch through the column col, reporting false
+// where none is.
+func (l Lane) stretchAt(col int) (LaneStretch, bool) {
+	i := slices.IndexFunc(l.Stretches, func(s LaneStretch) bool { return s.First <= col && col <= s.Last })
+	if i < 0 {
+		return LaneStretch{}, false
+	}
+	return l.Stretches[i], true
+}
+
 // Use is an account's use of the view's window, as the label under its name
 // says it.
 type Use struct {
@@ -341,17 +378,17 @@ func (s LaneStretch) holdsOn(st stood, c int, at time.Time) bool {
 	return s.Last == c-1 && s.Cell == st.cell && (s.Back.IsZero() || s.Back.After(at))
 }
 
-// viewKey is the key of the window the view is named for, as viewKeyOf has
+// viewKey is the key of the window the view is named for, as KeyIn has
 // it, in the moment's policy.
 func (from LanesFrom) viewKey() string {
-	return viewKeyOf(from.Moment.Policy(), from.Window)
+	return from.Window.KeyIn(from.Moment.Policy())
 }
 
-// viewKeyOf is the key of the window Runway's view of w is named for, of
-// those every model shares, in the policy's order: the first lasting a day
-// or less of the 5-hour view, the first lasting longer of the week's; ""
-// where none does.
-func viewKeyOf(policy score.Policy, w RunwayWindow) string {
+// KeyIn is the key of the window Runway's view of w is named for, of those
+// every model shares, in the policy's order: the first lasting a day or less
+// of the 5-hour view, the first lasting longer of the week's; "" where none
+// does.
+func (w RunwayWindow) KeyIn(policy score.Policy) string {
 	for _, key := range policy.Shared {
 		if quota.MultiDay(key) == (w == RunwayWeek) {
 			return key

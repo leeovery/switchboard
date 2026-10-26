@@ -159,3 +159,52 @@ func TestAStretchEndsAsItLiftsOfARunElseAsItsBack(t *testing.T) {
 		})
 	}
 }
+
+// A window its cap or its limit holds began to be held as its lane's stretch
+// through now's column says, where that's of the same hold and dated; else,
+// as the lane starts after the hold did, as the moment's events tell it, the
+// window's Since of a limit, the account's CapSince of a cap; else never, as
+// of a window nothing holds.
+func TestAHeldWindowWasHeldSinceItsLanesStretchSaysElseItsEvent(t *testing.T) {
+	now := time.Date(2026, 10, 1, 14, 42, 0, 0, time.UTC)
+	tl := views.LiveTimeline(views.RunwayFiveHour, now, 136)
+	at := tl.NowColumn()
+	read, told := now.Add(-40*time.Minute), now.Add(-3*time.Hour)
+	through := func(c views.Cell, start time.Time) []views.LaneStretch {
+		return []views.LaneStretch{{Cell: c, Start: start, First: 0, Last: at + 10}}
+	}
+	held := func(kind status.WindowKind, since time.Time) status.AccountNow {
+		return status.AccountNow{ID: "work", CapSince: told, Windows: []status.WindowNow{{Key: "5h", Kind: kind, Since: since}}}
+	}
+	tests := []struct {
+		name    string
+		account status.AccountNow
+		lane    []views.LaneStretch
+		want    time.Time
+	}{
+		{name: "a limit its stretch dates", account: held(status.WindowLimited, told), lane: through(views.CellLimited, read), want: read},
+		{name: "a cap its stretch dates", account: held(status.WindowCapped, time.Time{}), lane: through(views.CellCapped, read), want: read},
+		{name: "a limit from before the lane", account: held(status.WindowLimited, told), lane: through(views.CellLimited, time.Time{}), want: told},
+		{name: "a cap from before the lane", account: held(status.WindowCapped, time.Time{}), lane: through(views.CellCapped, time.Time{}), want: told},
+		{name: "a cap the lane holds as a limit at now", account: held(status.WindowCapped, time.Time{}), lane: through(views.CellLimited, read), want: told},
+		{
+			name: "a limit the lane only projects", account: held(status.WindowLimited, told),
+			lane: []views.LaneStretch{{Cell: views.CellLimited, Start: read, Projected: true, First: at, Last: at + 10}}, want: told,
+		},
+		{
+			name: "a limit the lane holds only before now", account: held(status.WindowLimited, told),
+			lane: []views.LaneStretch{{Cell: views.CellLimited, Start: read, First: 0, Last: at - 1}}, want: told,
+		},
+		{name: "a limit nothing dates", account: held(status.WindowLimited, time.Time{}), lane: through(views.CellLimited, time.Time{})},
+		{name: "a window with room", account: held(status.WindowOpen, time.Time{}), lane: through(views.CellCapped, read)},
+		{name: "a window running out", account: held(status.WindowRunsOut, time.Time{}), lane: through(views.CellCapped, read)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lane := views.Lane{ID: "work", Stretches: tt.lane}
+			if got := lane.HeldSince(tt.account, "5h", tl); !got.Equal(tt.want) {
+				t.Errorf("it was held since %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
