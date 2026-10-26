@@ -7596,26 +7596,28 @@ verbs).
   stopping it otherwise, naming no command to see to it, as each would fail as `run` did. Unaided,
   `claude` starts in its environment as the user set it, or a session's still routed as it is (see
   What `run` set), and its arguments untouched, but for the mark every `claude` it starts carries
-  (see Finding the real `claude`), a pin or directory inherited from a session before the mark
-  included, saying why in one line on stderr: `switchboard: couldn't read the config (…) — starting
-  claude without it`. `run` fails only when the router is down and it stops, when `claude` can't be
-  found or can't start, or on a misused command line, such as `--account` naming an account that
-  isn't configured, or has no usable token.
+  (see Finding the real `claude`) and `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a
+  pin or directory inherited from a session before the mark included, saying why in one line on
+  stderr: `switchboard: couldn't read the config (…) — starting claude without it`. `run` fails
+  only when the router is down and it stops, when `claude` can't be found or can't start, or on a
+  misused command line, such as `--account` naming an account that isn't configured, or has no
+  usable token.
 - **An API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the
   key in place of the token `run` gives it, and its requests would go unrouted, billed to the key.
   So `run`, and with it `claude`, starts Claude Code as if switchboard weren't there, its
-  environment as the user set it and its arguments untouched, but for that mark, without reading
-  the config, and says so on stderr,
-  naming the variable: `switchboard: ANTHROPIC_API_KEY is set, so Claude Code uses it — starting
-  claude without switchboard`. The log notes it at info, naming the variable, never the key.
+  environment as the user set it and its arguments untouched, but for that mark and
+  `SWITCHBOARD_WHEN_ROUTER_DOWN`, without reading the config, and says so on stderr, naming the
+  variable: `switchboard: ANTHROPIC_API_KEY is set, so Claude Code uses it — starting claude
+  without switchboard`. The log notes it at info, naming the variable, never the key.
   `--direct` and Claude Code's local subcommands aren't affected.
 - **Claude Code's local subcommands:** `setup-token`, `update`, `upgrade`, `install`, `doctor`,
   `mcp`, `plugin`, `plugins`, `auth`, `import`, `project`, `auto-mode` and `gateway` look after
   Claude Code on this machine, or set up its login, and switchboard has no part in them. When the
   first of Claude Code's arguments names one, `run` starts `claude` as if switchboard weren't there,
-  environment and arguments untouched but for that mark, an inherited pin or directory included,
-  and says nothing; the log notes it at debug. `--direct` still starts it on Claude Code's own
-  login. Only the first argument counts: `claude -p doctor` is a prompt. Everything else goes
+  environment and arguments untouched but for that mark and `SWITCHBOARD_WHEN_ROUTER_DOWN`, an
+  inherited pin or directory included, and says nothing; the log notes it at debug. `--direct`
+  still starts it on Claude Code's own login. Only the first argument counts: `claude -p doctor`
+  is a prompt. Everything else goes
   through `run` as any session does, background sessions (`claude --bg`), `agents`, `attach`,
   `respawn` and `ultrareview` among them. `internal/claude` keeps the list.
 - **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it
