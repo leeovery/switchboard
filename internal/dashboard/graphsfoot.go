@@ -35,11 +35,16 @@ func burnLegend(width int, reserved bool) []line {
 // lane words it, the view's name in text.subtle before it, footApart
 // apart; and where a pin holds the pool, " · pinned" after the first, as
 // usage has it. As many of those parts as fit, whole, from the first, so the
-// 5-hour's goes first, then the pin. It says nothing where no window's room
-// is said, as before the first read lands, or where the moment has no pool.
+// 5-hour's goes first, then the pin. It says nothing where the moment has no
+// pool, as usage's pool row says none, before the document holds two
+// accounts; a pool of accounts not read yet is Σ pool alone, as Runway's.
 func (f Frame) poolLine(m status.Moment, width int) line {
+	pool := m.Pool()
+	if len(pool.Accounts) == 0 {
+		return nil
+	}
 	parts := []line{{{"Σ ", dimInk}, {"pool", noteInk}}}
-	pinned := m.Pool().Pinned
+	pinned := pool.Pinned
 	for _, w := range runwayWindows {
 		key := w.KeyIn(m.Policy())
 		r, ok := runwayRoom(m, key)
@@ -51,9 +56,6 @@ func (f Frame) poolLine(m status.Moment, width int) line {
 		if pinned {
 			parts, pinned = append(parts, line{pinnedSaid}), false
 		}
-	}
-	if len(parts) == 1 {
-		return nil
 	}
 	return wholeParts(parts, width)
 }

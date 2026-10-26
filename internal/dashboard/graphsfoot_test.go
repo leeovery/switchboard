@@ -38,20 +38,26 @@ func TestGraphsPoolsLineSaysBothWindowsRoomDroppingWholePartsFromTheEnd(t *testi
 	}
 }
 
-// Where no window's room is said, as before the first read lands, or with
-// one account in the document, the pool's line keeps its row, laid out by
-// the config, but draws nothing on it, as Runway's pool lane and usage's
-// pool row draw nothing then.
-func TestGraphsPoolsLineSaysNothingWhereNoWindowsRoomIsSaid(t *testing.T) {
-	docs := map[string]status.Document{
-		"nothing read yet": {},
-		"one account":      routerDoc("work", 1, pressedAccount("work")),
+// The pool's line keeps its row, laid out by the config, whatever the
+// document holds: blank where it has no pool, as with no account in it yet,
+// or one, as usage's pool row says none then; and Σ pool alone where its
+// accounts are none of them read yet, as Runway's pool lane has it.
+func TestGraphsPoolsLineIsBlankWithoutAPoolAndBareOfUnreadAccounts(t *testing.T) {
+	unread := func(id string) status.Account { return status.Account{ID: id, Label: id, TokenSet: true} }
+	tests := []struct {
+		name string
+		doc  status.Document
+		want string
+	}{
+		{name: "nothing read yet", doc: status.Document{}},
+		{name: "one account", doc: routerDoc("work", 1, pressedAccount("work"))},
+		{name: "three accounts, none read", doc: routerDoc("work", 0, unread("work"), unread("personal"), unread("side")), want: "Σ pool"},
 	}
-	for name, doc := range docs {
+	for _, tt := range tests {
 		f := graphsFrame(160, 37, GraphsSections{})
-		text, row := textOf(f.Draw(doc, now)), f.top()+f.graphsLaid().poolLine
-		if row < f.top() || text[row] != "" || text[row+2] != "▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out" {
-			t.Errorf("%s: the pool's line's row reads %q, and the legend two under it %q; want the row kept, blank, over the legend", name, text[row], text[row+2])
+		text, row := textOf(f.Draw(tt.doc, now)), f.top()+f.graphsLaid().poolLine
+		if row < f.top() || text[row] != tt.want || text[row+2] != "▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out" {
+			t.Errorf("%s: the pool's line's row reads %q, and the legend two under it %q; want the row kept, reading %q, over the legend", tt.name, text[row], text[row+2], tt.want)
 		}
 	}
 }
