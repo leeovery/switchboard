@@ -88,14 +88,15 @@ type Route struct {
 // account the conversation goes to: what isn't the conversation goes out on
 // Claude Code's own token, and so lands on the primary. Claude Code tells the
 // router too what it tells the API of each request, such as the prompt it
-// serves, unless the environment says already whether to. Otherwise it sends
-// them straight to the API, on the pinned account's token, else the
-// primary's, and Stderr hears why. Either way, failing those, it starts on
+// serves, unless the environment says already whether to. Otherwise, as
+// whenDown says, it starts nothing, failing with ErrNotStarted, or sends them
+// straight to the API, on the pinned account's token, else the primary's;
+// either way, Stderr hears why. Routed or direct, failing those, it starts on
 // the first account's with a usable token, and with none, Unaided. A pin that
 // can't be kept, to an account not configured or without a usable token,
 // fails: it's the command line's mistake. It starts from the environment as
-// the user set it (see own), and marks what it sets there (see setEnv). Run
-// returns only when Claude Code couldn't start.
+// the user set it (see own), less whenDownEnv, and marks what it sets there
+// (see setEnv). Run returns only when Claude Code didn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -106,11 +107,16 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 		return err
 	}
 	state := r.health(ctx)
+	if !state.healthy() {
+		if err := l.goDirect(r.Config.WhenRouterDown, state); err != nil {
+			return err
+		}
+	}
 	c, err := r.choose(pin, state.healthy())
 	if err != nil {
 		return l.unaided(path, args, "no account has a usable token", err)
 	}
-	own := l.own()
+	own := l.own().without(whenDownEnv)
 	env := own
 	if state.healthy() {
 		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.toldDir(state)).hinting()
@@ -187,6 +193,22 @@ func (l Launcher) Unaided(args []string, couldnt string, err error) error {
 		return findErr
 	}
 	return l.unaided(path, args, couldnt, err)
+}
+
+// RouterUnfound starts Claude Code with args in this process's place as
+// Unaided does, or starts nothing, failing with ErrNotStarted, as whenDown
+// says of down, for when the config was read but the router couldn't be
+// found, as err's first line says why: as for a router not running. It
+// returns only when Claude Code didn't start.
+func (l Launcher) RouterUnfound(down config.RouterDown, args []string, err error) error {
+	path, findErr := l.find()
+	if findErr != nil {
+		return findErr
+	}
+	if stopped := l.goDirect(down, routerState{name: notFound, reason: firstLine(err)}); stopped != nil {
+		return stopped
+	}
+	return l.unaided(path, args, "couldn't find the router", err)
 }
 
 func (l Launcher) unaided(path string, args []string, couldnt string, err error) error {
@@ -285,11 +307,13 @@ func (l Launcher) shownDir() string {
 	return l.Dir
 }
 
-// How the router can answer its health check, as the log names it.
+// How the router can answer its health check, as the log names it, or
+// notFound, where it couldn't be asked.
 const (
 	healthy    = "healthy"
 	notRunning = "not running"
 	unhealthy  = "unhealthy"
+	notFound   = "not found"
 )
 
 // routerState is how the router answered its health check.
@@ -310,12 +334,14 @@ func (s routerState) healthy() bool {
 	return s.name == healthy
 }
 
-// String says what's wrong with the router, as "isn't running" or "is
-// unhealthy (…)".
+// String says what's wrong with the router, as "isn't running", "couldn't be
+// found (…)" or "is unhealthy (…)".
 func (s routerState) String() string {
 	switch {
 	case s.name == notRunning:
 		return "isn't running"
+	case s.name == notFound:
+		return "couldn't be found (" + s.reason + ")"
 	case s.reason != "":
 		return "is " + s.name + " (" + s.reason + ")"
 	default:

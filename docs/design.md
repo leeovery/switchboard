@@ -486,8 +486,8 @@ Any account can keep a reserve, which `reserve` in its table sets (see Config).
   primary, where that use can take it past the reserve, as intended, and one without is used right
   up to its limits.
 - Readings come off responses, so one large turn can take an account a point or two past its
-  reserve before the router sees it. A launch that goes direct, without the router, can spend the
-  reserve of the account it goes out on.
+  reserve before the router sees it. A launch that goes direct, without the router, as `run` does
+  only when told to (see Launching), can spend the reserve of the account it goes out on.
 - The dashboard marks where each reserve starts on its bars, and `status` and the dashboard say
   when a reserve holds its account back, or, on an account the global pin names, that the pin is
   spending it; a session's own pin spending it reads as the reserve holding the account back.
@@ -5820,7 +5820,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 ## Health
 
 The launcher routes a new session only when the router answers its health check `ok`, saying where
-its proxy listens; otherwise the session connects directly. The harder case is a router that is
+its proxy listens; otherwise it starts nothing, unless told to go direct (see Launching).
+The harder case is a router that is
 running but failing requests: sessions already routed through it fail until they restart. The router
 tracks the requests it has routed over the last 5 minutes, and those it failed itself: a 502 for an
 upstream it couldn't reach, or for a refusal with no account left to fail over to. The upstream's
@@ -5840,7 +5841,7 @@ event (see The Log).
 Sessions don't fall back to going direct automatically. A running Claude Code can't change where
 it sends its requests mid-session; the failures that count against the router, an upstream it
 can't reach and refusals with no account left, would meet a direct connection too; and a new
-launch already goes direct while the router is down or unhealthy.
+launch, while the router is down or unhealthy, stops, or goes direct where it's told to.
 
 ## Notifications
 
@@ -6871,7 +6872,7 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   for a router that won't come, and the control socket is removed before the control API closes,
   as macOS can leave a connection made to a unix socket as it closes hanging, neither answered nor
   closed (proven by experiment). So a launcher that finds the router gone finds nothing listening,
-  and connects directly. It exits for good once those requests are done. It looks for a signal
+  and asks again, as for any router not running (see Asking the router). It exits for good once those requests are done. It looks for a signal
   again as late as it can, just before the `exec`: one taken after that is this process's alone,
   and never reaches the router it becomes, so launchd, booting the service out then, waits its 45
   seconds and kills it. That moment is the width of the `exec` itself, and of the signal's way to
@@ -7167,9 +7168,10 @@ hiding it behind the provider would take a wider interface than it's worth:
 ### Config
 
 ```toml
-listen      = "127.0.0.1:4747"             # optional: the proxy's address
-upstream    = "https://api.anthropic.com"  # optional: the API's base URL; overridden in tests
-week_starts = "monday"                     # optional: the day the dashboard's weeks start on
+listen           = "127.0.0.1:4747"             # optional: the proxy's address
+upstream         = "https://api.anthropic.com"  # optional: the API's base URL; overridden in tests
+week_starts      = "monday"                     # optional: the day the dashboard's weeks start on
+when_router_down = "stop"                       # optional: stop or direct; what claude does without the router
 
 [[account]]
 id      = "work"       # permanent name: letters, digits, '-' and '_'; its token is tokens/work
@@ -7251,6 +7253,9 @@ fails as it is; one that parses has every problem reported at once:
   and its days, and the weeks Runway steps back to. Runway's live week runs from a day before now,
   so isn't one of them (see History, Accounts and Runway). A window's own week, which resets when
   Anthropic resets it, is never moved by it.
+- **`when_router_down`** is `stop` or `direct`, in any case; `stop` unless given. It's what `run`
+  does when the router isn't running, isn't healthy or can't be found: start nothing, or start
+  Claude Code directly; `SWITCHBOARD_WHEN_ROUTER_DOWN` overrides it for one launch (see Launching).
 - **`plan`,** on an account, is `pro`, `max5x` or `max20x`: the subscription it's on, which
   switchboard can't read from Anthropic. It prices the account against its worth, and sizes it for
   History's replay of a week (see The request ledger). Without it, the account's plan is unknown:
@@ -7268,7 +7273,7 @@ fails as it is; one that parses has every problem reported at once:
   are given, its web searches at the table's price and US-only inference unpriced. A plan's name, or
   a kind of token, the table doesn't know is an error, as unknown keys are.
 - **No error quotes a token:** one that quotes a value, of `listen`, `upstream`, `prime.day`,
-  `week_starts`, a `plan`, `[usage]`'s `by` or a price in `[prices]`, an unknown key's name, or the
+  `week_starts`, `when_router_down`, a `plan`, `[usage]`'s `by` or a price in `[prices]`, an unknown key's name, or the
   key a file that isn't TOML fails at, such as one without a value or given twice, shows anything in
   it shaped like a token as `[redacted]`, and an unknown key's value is never quoted.
 
@@ -7539,7 +7544,18 @@ verbs).
   among them, which the router records (see The request ledger); but where the environment sets it
   already, as to `0`, which turns them off, it's left as it is, though not where it's set empty,
   which Claude Code reads as unset (settled in the plan).
-- **Direct:** otherwise it connects directly, on `--account`'s token, else the primary's, else the
+- **Stopped:** otherwise, the router not running or not healthy, `run` starts nothing: a session
+  without the router goes unrouted and unrecorded, and spends the primary without its reserve,
+  which only the router honours. It says why in one line on stderr, and how to go on:
+  `switchboard: the router isn't running — not starting claude: see to it with switchboard service
+  status, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`, and fails, with
+  no second line, logging `not starting claude` at warn with `mode=stop`, the router's state, its
+  reason and `asked` (decided 26 October 2026).
+- **Direct:** the config's top-level `when_router_down`, `stop` or `direct`, unset `stop`, says
+  which; `SWITCHBOARD_WHEN_ROUTER_DOWN`, `stop` or `direct`, says it for the launch it's given to,
+  and is taken off the environment Claude Code starts in, so it goes no further. Any other value of
+  it stops, saying it takes `stop` or `direct`; a healthy router routes whatever it says. Going
+  direct, `run` connects directly, on `--account`'s token, else the primary's, else the
   first account's with a usable token, without the base URL, the pin or the directory, and says why
   in a line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.
   Either way, and with `--direct`, a pin or a directory inherited from the environment, as from a
@@ -7571,14 +7587,19 @@ verbs).
   so its variable is marked as set where the user had none, and goes. A session started before
   the mark has none, and its environment goes on as it is, but for the pin and directory a routed
   or direct launch takes off (built in the cleanliness release, 26 October 2026).
-- **Never in the way:** switchboard never stands between the user and `claude`. When it can't take
-  part at all, as when it can't read its config, can't locate its state directory, or no account has
-  a usable token, `run` starts `claude` as if switchboard weren't there, its environment as the user
+- **Never in the way:** switchboard never stands between the user and `claude` but for the router
+  being down, as Stopped says. When it can't take part at all, as when it can't read its config,
+  can't locate its state directory, or no account has a usable token, `run` starts `claude` as if
+  switchboard weren't there, but for a state directory it can't locate with the config read,
+  which is the router not found: the setting decides, as for a router not running, `couldn't find
+  the router` starting it unaided only where it goes direct, and `the router couldn't be found (…)`
+  stopping it otherwise. Unaided, `claude` starts in its environment as the user
   set it, or a session's still routed as it is (see What `run` set), and its arguments untouched,
   but for the mark every `claude` it starts carries (see Finding the real `claude`), a pin or
   directory inherited from a session before the mark included, saying why in one line on stderr:
   `switchboard: couldn't read the config (…) — starting claude without it`. `run` fails only when
-  `claude` can't be found or can't start, or on a misused command line, such as `--account` naming
+  the router is down and it stops, when `claude` can't be found or can't start, or on a misused
+  command line, such as `--account` naming
   an account that isn't configured, or has no usable token.
 - **An API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the
   key in place of the token `run` gives it, and its requests would go unrouted, billed to the key.

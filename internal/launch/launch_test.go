@@ -64,10 +64,12 @@ var testTokens = tokenstest.Files{"work": workToken, "side": sideToken}
 
 // route is a launch through r, pinned to account unless it's "". It asks a
 // router that isn't running once, so a test meets that at once: those that
-// wait as switchboard does give a patience of their own.
+// wait as switchboard does give a patience of their own. With the router
+// down, it goes direct, which most tests of a router down are about: those
+// of stopping say so.
 func route(r launch.Router, account string) launch.Route {
 	return launch.Route{
-		Config:   &config.Config{Listen: "127.0.0.1:4747", Accounts: accounts},
+		Config:   &config.Config{Listen: "127.0.0.1:4747", WhenRouterDown: config.Direct, Accounts: accounts},
 		Token:    testTokens.Read,
 		Pause:    func(time.Duration) {},
 		Router:   r,
@@ -335,6 +337,189 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 			}
 			if argv := h.only(t).argv; !slices.Equal(argv, []string{"claude", "--resume"}) {
 				t.Errorf("started claude as %q, want %q", argv, []string{"claude", "--resume"})
+			}
+		})
+	}
+}
+
+// stopHint is how a launch that started nothing says to go on.
+const stopHint = " — not starting claude: see to it with switchboard service status, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude\n"
+
+// downSetting is what the config and SWITCHBOARD_WHEN_ROUTER_DOWN say a
+// launch does with the router down, and whether it goes direct for them.
+type downSetting struct {
+	name       string
+	configured config.RouterDown
+	// variable is SWITCHBOARD_WHEN_ROUTER_DOWN, as whenDown sets it, or ""
+	// where it's unset.
+	variable   string
+	wantDirect bool
+	// wantSaid is what stderr hears of a variable it doesn't take, after the
+	// router's state.
+	wantSaid string
+}
+
+var downSettings = []downSetting{
+	{name: "the key unset"},
+	{name: "the key stop", configured: config.Stop},
+	{name: "the key direct", configured: config.Direct, wantDirect: true},
+	{name: "the key unset, the variable direct", variable: whenDown("direct"), wantDirect: true},
+	{name: "the key stop, the variable direct", configured: config.Stop, variable: whenDown("direct"), wantDirect: true},
+	{name: "the key direct, the variable direct", configured: config.Direct, variable: whenDown("direct"), wantDirect: true},
+	{name: "the key unset, the variable stop", variable: whenDown("stop")},
+	{name: "the key stop, the variable stop", configured: config.Stop, variable: whenDown("stop")},
+	{name: "the key direct, the variable stop", configured: config.Direct, variable: whenDown("stop")},
+	{name: "the key unset, the variable empty", variable: whenDown("")},
+	{name: "the key direct, the variable empty", configured: config.Direct, variable: whenDown(""), wantDirect: true},
+	{name: "the key unset, the variable in capitals", variable: whenDown("DIRECT"), wantDirect: true},
+	{
+		name: "the key unset, a bad variable", variable: whenDown("always"),
+		wantSaid: `, and SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not "always"`,
+	},
+	{
+		name: "the key direct, a bad variable", configured: config.Direct, variable: whenDown("always"),
+		wantSaid: `, and SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not "always"`,
+	},
+	{
+		name: "the key unset, a token for the variable", variable: whenDown("sk-ant-oat01-fake_token-shaped"),
+		wantSaid: `, and SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not "[redacted]"`,
+	},
+}
+
+// whenDown sets SWITCHBOARD_WHEN_ROUTER_DOWN to value.
+func whenDown(value string) string {
+	return "SWITCHBOARD_WHEN_ROUTER_DOWN=" + value
+}
+
+// environ is the environment a launch with the setting starts from.
+func (d downSetting) environ() []string {
+	if d.variable == "" {
+		return []string{"HOME=/home/tester"}
+	}
+	return []string{"HOME=/home/tester", d.variable}
+}
+
+func TestRunWithTheRouterDownStopsUnlessToldToGoDirect(t *testing.T) {
+	routers := []struct {
+		name string
+		r    *fakeRouter
+		// state is how the router is, as the notice says it, and log what the
+		// log says of it.
+		state string
+		log   []string
+	}{
+		{name: "not running", r: notRunning(), state: "the router isn't running", log: []string{`router="not running"`}},
+		{
+			name: "unhealthy", r: &fakeRouter{health: router.Health{Reason: unhealthy}},
+			state: "the router is unhealthy (" + unhealthy + ")", log: []string{"router=unhealthy", `reason="` + unhealthy + `"`},
+		},
+	}
+	for _, rt := range routers {
+		for _, d := range downSettings {
+			t.Run(rt.name+", "+d.name, func(t *testing.T) {
+				log := logstest.Capture(t)
+				h := newHarness(t, d.environ()...)
+				r := route(rt.r, "")
+				r.Config.WhenRouterDown = d.configured
+
+				err := h.launcher.Run(t.Context(), r, []string{"--resume"})
+
+				if !d.wantDirect {
+					if !errors.Is(err, launch.ErrNotStarted) {
+						t.Errorf("Run() error = %v, want %v", err, launch.ErrNotStarted)
+					}
+					if len(h.starts) != 0 {
+						t.Errorf("started %d programs, want none", len(h.starts))
+					}
+					if said, want := h.stderr.String(), "switchboard: "+rt.state+d.wantSaid+stopHint; said != want {
+						t.Errorf("said %q on stderr, want %q", said, want)
+					}
+					want := append([]string{"level=WARN", `msg="not starting claude" component=launch`, "mode=stop", "asked="}, rt.log...)
+					if d.wantSaid != "" {
+						want = append(want, `error="SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not \"`)
+					}
+					if !log.Has(want...) {
+						t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+					}
+					if strings.Contains(log.String(), "fake_token") {
+						t.Errorf("log reads\n%s\nwant it without the token", log)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("Run() error = %v", err)
+				}
+				if said, want := h.stderr.String(), "switchboard: "+rt.state+" — connecting directly on work · Work\n"; said != want {
+					t.Errorf("said %q on stderr, want %q", said, want)
+				}
+				want := map[string]string{"HOME": "/home/tester", "CLAUDE_CODE_OAUTH_TOKEN": workToken}
+				if env := h.environment(t); !maps.Equal(env, want) {
+					t.Errorf("started with the environment\n%q\nwant\n%q, direct and without SWITCHBOARD_WHEN_ROUTER_DOWN", env, want)
+				}
+				if want := append([]string{"level=WARN", `msg="starting claude"`, "mode=direct", "asked="}, rt.log...); !log.Has(want...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+				}
+			})
+		}
+	}
+}
+
+func TestRouterUnfoundStopsUnlessToldToGoDirect(t *testing.T) {
+	const unfound = "locate state directory: no home directory"
+	for _, d := range downSettings {
+		t.Run(d.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			h := newHarness(t, d.environ()...)
+
+			err := h.launcher.RouterUnfound(d.configured, []string{"--resume"}, errors.New(unfound+"\nmore"))
+
+			if !d.wantDirect {
+				if !errors.Is(err, launch.ErrNotStarted) {
+					t.Errorf("RouterUnfound() error = %v, want %v", err, launch.ErrNotStarted)
+				}
+				if len(h.starts) != 0 {
+					t.Errorf("started %d programs, want none", len(h.starts))
+				}
+				if said, want := h.stderr.String(), "switchboard: the router couldn't be found ("+unfound+")"+d.wantSaid+stopHint; said != want {
+					t.Errorf("said %q on stderr, want %q", said, want)
+				}
+				if want := []string{"level=WARN", `msg="not starting claude"`, "mode=stop", `router="not found"`, `reason="` + unfound + `"`}; !log.Has(want...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("RouterUnfound() error = %v", err)
+			}
+			if said, want := h.stderr.String(), "switchboard: couldn't find the router ("+unfound+") — starting claude without it\n"; said != want {
+				t.Errorf("said %q on stderr, want %q", said, want)
+			}
+			if got := h.only(t); !slices.Equal(got.argv, []string{"claude", "--resume"}) || !slices.Equal(got.env, d.environ()) {
+				t.Errorf("started as %q with %q, want claude --resume, its environment untouched", got.argv, got.env)
+			}
+		})
+	}
+}
+
+func TestAHealthyRouterRoutesWhateverTheRouterDownSettingSays(t *testing.T) {
+	for _, d := range downSettings {
+		t.Run(d.name, func(t *testing.T) {
+			h := newHarness(t, d.environ()...)
+			r := route(healthy(), "")
+			r.Config.WhenRouterDown = d.configured
+
+			if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			env := h.environment(t)
+			if env["ANTHROPIC_BASE_URL"] != "http://"+proxyAddr {
+				t.Errorf("started with ANTHROPIC_BASE_URL %q, want the router's", env["ANTHROPIC_BASE_URL"])
+			}
+			if value, set := env["SWITCHBOARD_WHEN_ROUTER_DOWN"]; set {
+				t.Errorf("started with SWITCHBOARD_WHEN_ROUTER_DOWN=%s, want it taken off", value)
+			}
+			if said := h.stderr.String(); said != "" {
+				t.Errorf("said %q on stderr, want nothing", said)
 			}
 		})
 	}
