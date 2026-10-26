@@ -164,6 +164,18 @@ func TestACompressStoppedPartwayIsFinishedByTheNextOnce(t *testing.T) {
 			want:     older + linesOf(`{"n":2}`, `{"n":3}`, `{"n":4}`, `{"n":5}`),
 		},
 		{
+			name:    "stopped twice, the line appended after the first cut short to a bare start of a line",
+			members: []string{linesOf(`{"n":1}`)},
+			plain:   linesOf(`{"n":2}`),
+			stopped: func(t *testing.T, f *Files) {
+				addingPlain(t, f)
+				appendingPlain(t, f, `{"n":`)
+				addingPlain(t, f)
+			},
+			appended: linesOf(`{"n":3}`),
+			want:     linesOf(`{"n":1}`, `{"n":2}`, `{"n":`, `{"n":3}`),
+		},
+		{
 			name:    "stopped twice, the line appended after the first the plain file's first again",
 			members: []string{linesOf(`{"n":0}`)},
 			plain:   linesOf(`{"n":1}`),
@@ -228,9 +240,17 @@ func TestACompressStoppedAnywhereGivesWhatOneNeverStoppedDoes(t *testing.T) {
 	rng := rand.New(rand.NewPCG(26, 10))
 	for i := range sequences {
 		steps := someSteps(rng)
-		got, want := playedOut(t, steps, true), playedOut(t, steps, false)
-		if got != want {
-			t.Fatalf("sequence %d, %v: the day's compressed file gives %q, want %q, as when no compress stopped", i, steps, got, want)
+		got, unread := playedOut(t, steps, true)
+		want, most := playedOut(t, steps, false)
+		// A line cut short to a bare start of one, the last of a compressed
+		// file's members, can be taken as the start of the first line of a
+		// plain file written for the day after, as the files can't tell it from
+		// a stopped compress's: that line reads whole, and the one cut short
+		// unread no more. The twin, of one member, never has it at a member's
+		// start.
+		if !slices.Equal(got, want) || unread > most {
+			t.Fatalf("sequence %d, %v: the day reads %q, %d unread; want %q, no more than %d unread, as when no compress stopped",
+				i, steps, got, unread, want, most)
 		}
 	}
 }
@@ -244,7 +264,9 @@ type step struct {
 }
 
 // someSteps returns a few steps, the first lines appended, each line
-// appended different from every other, and some of them cut short.
+// appended different from every other, and some of them cut short anywhere,
+// as a crash or a full disk leaves one: to a bare start of a line, such as
+// {"n":, which starts every line, as likely as not.
 func someSteps(rng *rand.Rand) []step {
 	n := 0
 	appended := func() step {
@@ -254,8 +276,13 @@ func someSteps(rng *rand.Rand) []step {
 			fmt.Fprintf(&lines, `{"n":%d}`+"\n", n)
 		}
 		text := lines.String()
-		if rng.IntN(5) == 0 {
-			text = strings.TrimSuffix(text, "}\n")
+		if rng.IntN(4) == 0 {
+			last := strings.LastIndexByte(text[:len(text)-1], '\n') + 1
+			cut := len(`{"n":`)
+			if rng.IntN(2) == 0 {
+				cut = 1 + rng.IntN(len(text)-1-last)
+			}
+			text = text[:last+cut]
 		}
 		return step{kind: "append", lines: text}
 	}
@@ -275,8 +302,9 @@ func someSteps(rng *rand.Rand) []step {
 
 // playedOut plays steps out on a day's files, its stopped compresses
 // stopping where stopping is set, and doing nothing where it isn't, then
-// compresses the day, and returns the lines its compressed file gives.
-func playedOut(t *testing.T, steps []step, stopping bool) string {
+// compresses the day, and returns the lines a read of it gives, and how many
+// it couldn't read.
+func playedOut(t *testing.T, steps []step, stopping bool) (read []string, unread int) {
 	t.Helper()
 	f := requestLedger(t.TempDir())
 	plain := false
@@ -295,7 +323,7 @@ func playedOut(t *testing.T, steps []step, stopping bool) string {
 	if plain {
 		compressingDay(t, f)
 	}
-	return heldIn(t, f, compressedFile(earlierDate))
+	return readJSON(f, earlierDate)
 }
 
 // compressingDay compresses the day of earlierDate.

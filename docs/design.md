@@ -7095,13 +7095,15 @@ hiding it behind the provider would take a wider interface than it's worth:
   them, where its lines end with them, as when the router stopped between writing it and removing
   the plain file; or those its last members give, from the earliest member on whose lines, to the
   file's end, the plain file starts with, as when a line was appended to the day after that, once
-  or more, the router stopping so after each: the earliest, as a line repeated can start the plain
-  file from a later one too. A fresh plain file for a day compressed before, as after the clock was
-  set back, whose first lines are byte for byte those of the last members, is taken as a stopped
-  compress's, and those lines are counted once: the files can't tell the two apart, and no line
-  repeats another, as each holds its time and what sets it apart, a request's id beside its
-  millisecond in the ledger, an account and window beside its nanosecond in the readings history,
-  and the router's run and a rising id in the events. The router reads either form back, as it
+  or more, the router stopping so after each: the earliest, as a later member can start the plain
+  file too where its lines are a line cut short to a bare start of one, such as `{"n":`, which a
+  crash or a full disk leaves, and which starts every line. A fresh plain file for a day compressed
+  before, as after the clock was set back, whose first lines are byte for byte those of the last
+  members, is taken as a stopped compress's, and those lines are counted once: the files can't
+  tell the two apart, and no line repeats another but for a line cut short, as each holds its time
+  and what sets it apart, a request's id beside its millisecond in the ledger, an account and
+  window beside the time the clock gave it in the readings history, and the router's run and a
+  rising id in the events. The router reads either form back, as it
   starts and for `GET /history`, which the dashboard's charts draw from (see Control API), and so
   do the request ledger's readers, as they summarise a day (see The request ledger). A day's plain
   file is opened before its compressed file, and what the two hold is told from the files opened:

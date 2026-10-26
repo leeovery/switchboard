@@ -78,10 +78,19 @@ test and `GET /sessions/{id}` stay open.
   after a compress stopped before it removed the plain file, the lines the compressed file's last
   members give, from the earliest member on whose lines the plain file starts with, aren't added
   again, however many times that happened in a row (`dayfile/compress.go`); the earliest, as a
-  line repeated can start it from a later one too. A read of the day in that window still gives
+  later member can start it too where its lines are a line cut short to a bare start of one, such
+  as `{"n":`, which a crash or a full disk leaves. A read of the day in that window still gives
   those lines twice, until the next compress, within the hour. Accepted: a fresh plain file for a
   day compressed before, as after the clock was set back, whose first lines are byte for byte the
   last members', is taken as a stopped compress's, and those lines are counted once. The files
-  can't tell the two apart, and no line repeats another: every writer of a day's file, the
-  ledger, the readings history and the events, puts its time in each line, beside a request's id,
-  an account and window, or the run and a rising id.
+  can't tell the two apart, and no line repeats another but for a line cut short: every writer of
+  a day's file, the ledger, the readings history and the events, puts its time in each line, as
+  the clock gives it, or to the millisecond in the ledger, beside a request's id, an account and
+  window, or the run and a rising id.
+
+Left, as rare as it is harmless: a member of a line cut short alone, to a bare start of one such as
+`{"n":`, last in a day's compressed file, as a crash mid-write after a compress stopped can leave
+(the compress tests' sequences found one), and then a fresh plain file for that day, from a late
+write or a clock set back, has the line cut short taken as the start of the new file's first line.
+A read gives that line whole, and the line cut short drops out of the count of those unread: no line
+that reads is lost. It needs both a crash mid-write and a past day written to again.
