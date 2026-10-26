@@ -1105,6 +1105,54 @@ func TestARestartAskedForIsRefusedWhenAFileChangesAsItsChecked(t *testing.T) {
 	}
 }
 
+func TestABinarysSilenceIsLoggedOnceAsTheRestartItClearedBegins(t *testing.T) {
+	said := `msg="its binary couldn't answer whether it could start; restarting all the same"`
+	tests := []struct {
+		name string
+		// meanwhile happens before the next quiet moment, once a request has
+		// put the restart off.
+		meanwhile func(t *testing.T, s startedFrom)
+		// again is how the binary answers, asked again.
+		again       binaryAnswer
+		wantRestart bool
+		wantSaid    int
+	}{
+		{name: "nothing", meanwhile: func(*testing.T, startedFrom) {}, wantRestart: true, wantSaid: 1},
+		{
+			name: "the binary moved on to one that refuses to start",
+			meanwhile: func(t *testing.T, s startedFrom) {
+				writeFile(t, s.version("1.2"), "switchboard 1.2")
+				relink(t, s.binary, s.version("1.2"))
+			},
+			again: binaryAnswer{refusal: "invalid config"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newStartedFrom(t)
+			inFlight := newInFlight()
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight, at(start), unheeded)
+			askedOf(r, binaryAnswer{err: errors.New("exit status 1")}, tt.again)
+			relink(t, s.binary, s.version("1.1"))
+			r.look()
+			inFlight.begin()
+
+			if r.restart(t.Context()) || log.Has(said) {
+				t.Fatalf("restart() = true, or the log reads\n%s\nwant neither: a request put the restart off", log)
+			}
+			tt.meanwhile(t, s)
+			inFlight.end()
+			if got := r.restart(t.Context()); got != tt.wantRestart {
+				t.Errorf("at the next quiet moment, restart() = %v, want %v", got, tt.wantRestart)
+			}
+			if n := strings.Count(log.String(), said); n != tt.wantSaid {
+				t.Errorf("the log reads\n%s\nwant the binary's silence said %d times, not %d: once a restart it cleared, as it begins", log, tt.wantSaid, n)
+			}
+		})
+	}
+}
+
 func TestABinaryUnableToAnswerIsLoggedOnlyAsItsRestartedInto(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStartedFrom(t)

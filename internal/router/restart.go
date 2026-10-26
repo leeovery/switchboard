@@ -62,10 +62,10 @@ type restarts struct {
 	// held is the binary's refusal to start that holds the restart due: nil
 	// while nothing does.
 	held *binaryRefusal
-	// clearance is how the config file and the binary stood as the binary
-	// last answered without refusing to start, which clears a restart while
-	// they stand so: nil while nothing does.
-	clearance *checked
+	// clearance is the binary's last answer that didn't refuse to start,
+	// which clears a restart while the files stand as they did: nil while
+	// nothing does.
+	clearance *binaryClearance
 	// gone is set while the binary wasn't there at the last look, as missing
 	// says.
 	gone bool
@@ -242,6 +242,7 @@ func (r *restarts) restart(ctx context.Context) bool {
 	if r.inFlight.requests() > 0 {
 		return false
 	}
+	r.taken(r.clearance.silent)
 	r.begin(why)
 	return true
 }
@@ -256,7 +257,7 @@ func (r *restarts) restart(ctx context.Context) bool {
 func (r *restarts) clear(ctx context.Context, why string) bool {
 	stood := r.files()
 	switch {
-	case r.clearance != nil && r.clearance.same(stood):
+	case r.clearance != nil && r.clearance.stood.same(stood):
 		return true
 	case r.missing(stood.binary):
 		return false
@@ -269,8 +270,7 @@ func (r *restarts) clear(ctx context.Context, why string) bool {
 		r.hold(stood, why, refusal)
 		return false
 	}
-	r.taken(silent)
-	r.clearance = &stood
+	r.clearance = &binaryClearance{stood: stood, silent: silent}
 	return true
 }
 
@@ -383,8 +383,8 @@ func (r *restarts) asked(ctx context.Context) (refusal string, silent, err error
 	return refusal, silent, nil
 }
 
-// taken logs that the binary couldn't answer, silent saying why, once its
-// silence is taken, the restart going ahead: nothing where it answered.
+// taken logs that the binary couldn't answer, silent saying why, as the
+// restart its silence cleared begins: nothing where it answered.
 func (r *restarts) taken(silent error) {
 	if silent != nil {
 		logger.Info("its binary couldn't answer whether it could start; restarting all the same", "path", r.binary.path, "error", silent)
@@ -498,6 +498,15 @@ func (h *binaryRefusal) reason() string {
 		return ""
 	}
 	return h.why
+}
+
+// binaryClearance is the binary's answer that didn't refuse to start, which
+// clears a restart: how the config file and the binary stood as it was asked,
+// and why it couldn't answer, where it couldn't, for the restart to log as it
+// begins.
+type binaryClearance struct {
+	stood  checked
+	silent error
 }
 
 // checked is how the config file and the binary stand, as the binary is
