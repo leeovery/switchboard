@@ -427,8 +427,9 @@ switchboard accounts remove side
 ### `service`
 
 `service` manages the LaunchAgent that keeps the router running. launchd starts
-`switchboard serve` now, at every login, and again whenever it stops, and never throttles it as
-it would a background job, as every Claude Code request waits on it. `setup` installs it.
+`switchboard serve` now, at every login, and again whenever it stops, without the light throttling
+it gives a job that doesn't say what kind it is, as every Claude Code request waits on it. `setup`
+installs it.
 
 ```bash
 switchboard service install [--log-level <level>]
