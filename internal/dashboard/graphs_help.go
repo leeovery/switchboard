@@ -79,7 +79,7 @@ func (f Frame) poolStackHelp() helpPart {
 			said("The pool's room over Runway's week view, from a day before now for a week, its columns as Runway's lanes " +
 				"have them at this width, under Runway's axis. Each of the pool's accounts' room is stacked from the foot, in " +
 				"the config's order, each in its own colour, as the key names them, so the stack's top edge is the pool's " +
-				"room, full being every account's. The first " + strconv.Itoa(accountHues) + " accounts each have a colour " +
+				"room, full being every account's. The pool's first " + strconv.Itoa(accountHues) + " accounts each have a colour " +
 				"of their own; a fifth on takes the colour four before it, fainter."),
 			said("Before now, each account's room as it stood, judged as the Overview's pool charts judge it; from now, faint, " +
 				"where it's heading at its recent rate: falling to where it runs out, along its floor to its reset, then full, " +
@@ -122,7 +122,8 @@ func (f Frame) whenHelp() helpPart {
 			said("When the requests come: a row a weekday, from the first day of the week, as week_starts begins weeks, and " +
 				"its 24 hours across, each shaded by its requests, summed over the four whole weeks before today and divided " +
 				"by the days of that weekday known. A day the ledger keeps no hours of is left out, and the heading says the " +
-				"weeks counted, as the 4 weeks to Wed 30 Sep, or fewer where fewer are known; with none, " + nothingRecorded + "."),
+				"weeks counted, as the 4 weeks to Wed 30 Sep, or fewer where fewer are known; with none, the heading says no " +
+				"weeks, and the section " + nothingRecorded + "."),
 			said("The requests counted are those that spent quota and went upstream, each in the local hour it arrived in: an " +
 				"hour the clocks skip has none that day, and one they repeat counts both."),
 			said("The shades are History's: an hour with nothing on it has its own, and the active hours are split into " +
@@ -145,7 +146,8 @@ func graphsRoomHelp() helpPart {
 				"shows."),
 			said("Rows to spare go first to each card's words, a row of their own, then to the charts, the cards' and POOL's, " +
 				"every one the same height, up to " + strconv.Itoa(mostChart) + " rows. Short of room, the page scrolls whole, a row at a time, with `j` " +
-				"and `k`, a page with PgUp and PgDn, the row over the key line saying what's out of view; the legend stays at " +
+				"and `k`, a page with PgUp and PgDn, three rows with the wheel, the row over the key line saying what's out of " +
+				"view; the legend stays at " +
 				"the foot. The layout changes only on a key, a resize or the config, never as the data does."),
 			said("The charts move on with the clock: now's column, the room to it and where it's heading, a column at a time " +
 				"as each column's moment passes."),

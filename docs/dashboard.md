@@ -10,7 +10,7 @@ session, and shows the router's sessions and its record of every request. To ope
 - [History](#history)
 - [Sessions](#sessions)
 - [Runway](#runway)
-- [Graphs](#graphs)
+- [Graphs](#graphs-1)
 - [The Log](#the-log)
 - [A session's page](#a-sessions-page)
 - [On a phone](#on-a-phone)
@@ -536,7 +536,7 @@ WHEN YOU WORK shows when your requests come: a row for each weekday, from the fi
 week as [`week_starts`](configuration.md#top-level-keys) begins weeks, and the day's 24 hours across. Each hour is
 shaded by its requests, averaged over the four whole weeks before today. The heading says the weeks
 counted, such as `the 4 weeks to Wed 30 Sep`, or fewer, where the ledger holds fewer. With none,
-it says `nothing recorded yet`.
+the heading says no weeks, and the section says `nothing recorded yet`.
 
 It counts the requests that spend quota and went upstream, each in the local hour it arrived in.
 The shades are History's: one for an hour with nothing on it, and four for the quarters of the
