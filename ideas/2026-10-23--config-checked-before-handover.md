@@ -49,11 +49,14 @@ design's The router looking after itself):
   service passes that the new binary no longer takes is a refusal too. The protocol is
   `internal/handover`'s (`Ask`, `CheckFlag`, `Refused`), as the listeners' variable is.
 - **Held only on a refusal:** any other answer is restarted into as before: a binary from before
-  the check, which exits 1 at the flag it doesn't know, one that isn't there, one that crashes,
-  and one that takes more than 10 seconds.
+  the check, which exits 1 at the flag it doesn't know, one that crashes, and one that takes more
+  than 10 seconds. A binary that isn't there, as for a moment mid-upgrade, isn't asked: the
+  restart waits until it's back, and `service restart` meanwhile is refused.
 - **An answer clears the restart** for the config file and the binary as they stood when it was
   asked: a request begun while the binary answers puts the restart off to the next quiet moment,
-  which asks again only where either file differs by then.
+  which asks again only where either file differs by then. An answer given while either file
+  changed, refusing or not, clears and holds nothing, and `service restart` is refused then, to be
+  tried again.
 - **While it's held,** the old router serves on, and says why once: at warn in its log, in a
   `restart` event with `held`, and in the status document's `restart.held`. It asks again only
   once the config file or the binary moves on, there and another file or changed: one gone for a

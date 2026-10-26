@@ -2,7 +2,6 @@ package router_test
 
 import (
 	"context"
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -146,9 +145,9 @@ func TestARestartingRouterAsksItsBinaryWhetherItCouldStartFirst(t *testing.T) {
 			wantLog: []string{"level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="exit status 1"`},
 		},
 		{
-			name:    "not there for a moment, as an upgrade moves its link on",
-			answer:  checkAnswer{err: fs.ErrNotExist},
-			wantLog: []string{"level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="file does not exist"`},
+			name:    "unable to answer, crashing",
+			answer:  checkAnswer{err: exited(2)},
+			wantLog: []string{"level=INFO", `msg="its binary couldn't answer whether it could start; restarting all the same"`, `error="exit status 2"`},
 		},
 	}
 	for _, tt := range tests {

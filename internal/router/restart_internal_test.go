@@ -810,27 +810,34 @@ func TestARestartPutOffIsAskedAboutAgainOnceTheConfigFileOrTheBinaryChanges(t *t
 }
 
 func TestAFileChangedAsTheBinaryIsAskedIsLookedAtAgainBeforeTheRestart(t *testing.T) {
+	const refusal = "invalid config"
+	due := RestartDue{Reason: "upgraded"}
 	tests := []struct {
 		name string
 		// change changes what the router was started from as the binary is
-		// asked whether it could start.
+		// asked whether it could start, and answer is how it answers.
 		change func(t *testing.T, s startedFrom)
+		answer binaryAnswer
 		// wantRestart is whether the next quiet moment restarts the router,
 		// the binary asked wantAsked times in all: not where the config file
 		// makes no valid config, which the binary isn't asked about.
 		wantRestart bool
 		wantAsked   int
+		// wantHeard are the events told of, from the restart falling due.
+		wantHeard []Event
 	}{
 		{
 			name:      "the config file saved broken",
 			change:    func(t *testing.T, s startedFrom) { writeFile(t, s.kept, "this is not toml [[[") },
 			wantAsked: 1,
+			wantHeard: []Event{due},
 		},
 		{
 			name:        "the config file saved valid",
 			change:      func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) },
 			wantRestart: true,
 			wantAsked:   2,
+			wantHeard:   []Event{due},
 		},
 		{
 			name: "the binary moved on to another version",
@@ -840,13 +847,22 @@ func TestAFileChangedAsTheBinaryIsAskedIsLookedAtAgainBeforeTheRestart(t *testin
 			},
 			wantRestart: true,
 			wantAsked:   2,
+			wantHeard:   []Event{due},
+		},
+		{
+			name:      "the config file saved valid, the binary refusing to start before and after",
+			change:    func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) },
+			answer:    binaryAnswer{refusal: refusal},
+			wantAsked: 2,
+			wantHeard: []Event{due, RestartHeld{Reason: "config changed", Refusal: refusal}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
-			asked := askedOf(r, binaryAnswer{})
+			var heard []Event
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
+			asked := askedOf(r, tt.answer)
 			ask := r.ask
 			r.ask = func(ctx context.Context) (string, error) {
 				if *asked == 0 {
@@ -857,8 +873,8 @@ func TestAFileChangedAsTheBinaryIsAskedIsLookedAtAgainBeforeTheRestart(t *testin
 			relink(t, s.binary, s.version("1.1"))
 			r.look()
 
-			if r.restart(t.Context()) || r.restarting() {
-				t.Fatal("restart() = true, want the router kept running: the binary answered for files that have changed since")
+			if r.restart(t.Context()) || r.restarting() || r.held != nil {
+				t.Fatalf("restart() = true, or held: %v, want neither: the binary answered for files that have changed since", r.held)
 			}
 			if got := r.restart(t.Context()); got != tt.wantRestart {
 				t.Errorf("at the next quiet moment, restart() = %v, want %v", got, tt.wantRestart)
@@ -866,7 +882,44 @@ func TestAFileChangedAsTheBinaryIsAskedIsLookedAtAgainBeforeTheRestart(t *testin
 			if *asked != tt.wantAsked {
 				t.Errorf("the binary was asked %d times, want %d", *asked, tt.wantAsked)
 			}
+			if !reflect.DeepEqual(heard, tt.wantHeard) {
+				t.Errorf("heard %+v, want %+v: a refusal told of once, of the files it was given", heard, tt.wantHeard)
+			}
 		})
+	}
+}
+
+func TestABinaryNotThereIsntRestartedIntoTillItsBack(t *testing.T) {
+	s := newStartedFrom(t)
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+	asked := askedOf(r, binaryAnswer{})
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+
+	remove(t, s.binary)
+	if r.restart(t.Context()) || r.restarting() {
+		t.Fatal("restart() = true, want the router kept running: its binary isn't there")
+	}
+	if ready := r.ready(); ready != nil {
+		t.Errorf("ready() = %v with the binary not there at the last look, want none, for the router not to look again and again", ready)
+	}
+	if err := r.restartable(t.Context()); err == nil || !strings.Contains(err.Error(), "isn't there") {
+		t.Errorf("restartable() = %v, want it refused, the binary not there", err)
+	}
+	if *asked != 0 {
+		t.Errorf("the binary was asked %d times while it wasn't there, want none", *asked)
+	}
+
+	link(t, s.version("1.1"), s.binary)
+	r.look()
+	if !quiet(r.ready()) {
+		t.Fatal("ready() isn't closed with the binary back, want the restart to go ahead")
+	}
+	if !r.restart(t.Context()) {
+		t.Error("restart() = false with the binary back, want the router restarted")
+	}
+	if *asked != 1 {
+		t.Errorf("the binary was asked %d times, want once, back", *asked)
 	}
 }
 
@@ -977,6 +1030,46 @@ func TestARestartAskedForIsRefusedWhileItsBinaryRefusesToStart(t *testing.T) {
 			}
 			if *asked != 1 {
 				t.Errorf("the binary was asked %d times, want once", *asked)
+			}
+		})
+	}
+}
+
+func TestARestartAskedForIsRefusedWhenAFileChangesAsTheBinaryIsAsked(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes what the router was started from as the binary is
+		// asked whether it could start.
+		change func(t *testing.T, s startedFrom)
+		// answer is how the binary answers.
+		answer binaryAnswer
+	}{
+		{name: "the config file saved", change: func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) }},
+		{
+			name:   "the config file saved, the binary refusing",
+			change: func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) },
+			answer: binaryAnswer{refusal: "invalid config"},
+		},
+		{
+			name: "the binary moved on to another version",
+			change: func(t *testing.T, s startedFrom) {
+				writeFile(t, s.version("1.2"), "switchboard 1.2")
+				relink(t, s.binary, s.version("1.2"))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+			r.ask = func(context.Context) (string, error) {
+				tt.change(t, s)
+				return tt.answer.refusal, tt.answer.err
+			}
+
+			want := "the router's config file or its binary changed as the binary was asked whether it could start: try again"
+			if err := r.restartable(t.Context()); err == nil || err.Error() != want {
+				t.Errorf("restartable() = %v, want %q: the binary answered for files no longer there", err, want)
 			}
 		})
 	}
