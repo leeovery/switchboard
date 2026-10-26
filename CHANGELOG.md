@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2026-10-26
+
+A new Graphs tab shows every account's burn-down at a glance, in place of the Overview's GRAPHS section.
+
+💥 Breaking
+- The Overview's GRAPHS section and its `g` and `v` keys are gone, as is the account focus on ↑↓ — use the new Graphs tab; ↑↓ now scroll USAGE.
+
+✨ Added
+- Graphs tab with a burn-down card per account for the week and the 5-hour window — shows room left, where each window is heading and where it runs out, with a Σ pool line and legend underneath.
+- POOL section stacks each account's room across the week, showing the pool's total and where it is heading.
+- GLANCE section gives every account and the pool a sparkline per window, with room left and usage's words.
+- WHEN YOU WORK section shades requests by hour and weekday over the last four weeks — the ledger now records hours for each day from here on.
+- Graphs sections toggle with `w`, `f`, `o`, `g` and `h`, are kept for next time, and hide on a click of their heading.
+- Tabs on a phone-width terminal now wrap over as many rows as they need.
+
+🔧 Changed
+- Days' key now scrolls with the strips when the view is too short to hold it.
+- Tokens' view drops the blank row under its heads when space is short.
+- Sessions' List drops its ended rule and trims the today line when space is short.
+- The title row drops the clock's date, then its time, when the row is too narrow.
+- ROUTING now sits beside USAGE's blocks by account on wide terminals, whether or not other sections show.
+- Old saved preferences for the Overview's GRAPHS section are dropped on the next write.
+
+🐛 Fixed
+- The ledger no longer re-summarises a day under a new summary version before its first round has written it.
+
 ## [0.2.7] - 2026-10-24
 
 ✨ Added
