@@ -8222,14 +8222,16 @@ compared with a constant outside the chrome:
   line, the legend and the whole-page scroll (#160); the cards' chart and axis (#155), their words,
   Runway's own, from Runway's lanes built at its live view while Graphs shows (#161), drawn on the
   page (#163); POOL's hues, stack, axis and key (#156, #159, #164); WHEN YOU WORK's grid (#162,
-  #164); GLANCE (#165), placed beside WHEN YOU WORK where both fit at their naturals (#167).
+  #164); GLANCE (#165), placed beside WHEN YOU WORK where both fit at their naturals (#167); a
+  card's words of a run-out past Runway's view, which the release review found missing (#168).
 - **Help and docs:** `HELP · GRAPHS` in full, its scroll keys listed always, as the page can scroll
   at any size; the dashboard's guide, its Graphs section and every list Graphs joins (#166).
 
 What the build settled where the design estimated: GLANCE's natural with the sample's names is 113
 columns, so it pairs with WHEN YOU WORK from 175; WHEN YOU WORK with no day known says `nothing
 recorded yet`; and a card for an account the router's document doesn't hold yet has its label
-alone, numbered as Runway will number it. `art/` is to be recorded again with Graphs in it.
+alone, numbered as Runway will number it. `art/` is to be recorded again with Graphs in it. What
+the build left is gathered in [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md).
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
@@ -8393,7 +8395,8 @@ why.
 
 | Idea | Status | File |
 |---|---|---|
-| The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | designed as the Graphs tab (see Graphs), signed off by its owner on 25 October 2026: the build next; the Overview's GRAPHS and round 1's other charts still to settle | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
+| The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | built as the Graphs tab (see Graphs), signed off by its owner on 25 October 2026, merged by 26 October (#150–#168); the Overview's GRAPHS and round 1's other charts still to settle | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
+| The Graphs build's loose ends: one owner of an account's number, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | open: the number's owner first, after the release; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | A reserve spent as a last resort, when no account has room outside one | not wanted: the owner, 24 October 2026, as a reserve is kept for the Claude apps and is honoured | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
