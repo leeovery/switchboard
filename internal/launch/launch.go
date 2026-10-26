@@ -187,9 +187,9 @@ func (l Launcher) StepAside(args []string, key string) error {
 // Unaided starts Claude Code with args in this process's place as if
 // switchboard weren't there, in the environment unaidedEnv gives, but for the
 // mark every claude switchboard starts carries (see startedEnv), for when
-// switchboard can't take part: switchboard mustn't stand between
-// the user and claude. Stderr hears what switchboard couldn't do, and why, as
-// err's first line says. It returns only when Claude Code couldn't start.
+// switchboard can't take part: switchboard mustn't stand between the user and
+// claude. Stderr hears what switchboard couldn't do, and why, as err's first
+// line says. It returns only when Claude Code couldn't start.
 func (l Launcher) Unaided(args []string, couldnt string, err error) error {
 	path, findErr := l.find()
 	if findErr != nil {

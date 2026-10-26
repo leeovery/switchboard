@@ -39,7 +39,8 @@ const startedFor = 30 * time.Second
 // unmarked). It holds, query-encoded, the value run gave each of markedVars
 // it set, under "set:" and the variable's name, and the user's value it
 // replaced, under "had:", and each line it added to Claude Code's custom
-// headers, under "header".
+// headers, under "header", with the user's headers under "had:" where they
+// were set to nothing but blank lines.
 const setEnv = "SWITCHBOARD_SET"
 
 // The keys of setEnv's mark.
@@ -129,16 +130,20 @@ func (e environ) startedAt(pid int, now time.Time) string {
 // markedAgainst returns the environment marked with what it sets that own,
 // the environment run started from, doesn't (see setEnv), in place of any
 // mark it held: each of markedVars it gives a value own didn't, with own's
-// value where own had one, and each custom header line own didn't hold. A
-// value holding anything token-shaped is never written: a variable set to one
-// goes unmarked, and one replacing such a value of own's is marked as set
-// where the user had none.
+// value where own had one, and each custom header line own didn't hold, with
+// own's custom headers where they were set to nothing but blank lines. The
+// base URL is marked even where own held the same value, as its mark is what
+// says the environment is still routed (see routedByRun); restoring it then
+// changes nothing. A value holding anything token-shaped is never written: a
+// variable set to one goes unmarked, and one replacing such a value of own's
+// is marked as set where the user had none.
 func (e environ) markedAgainst(own environ) environ {
 	mark := url.Values{}
 	for _, key := range markedVars {
 		set, isSet := e.lookup(key)
 		had, hadIt := own.lookup(key)
-		if !isSet || (hadIt && had == set) || redact.HoldsToken(set) {
+		unchanged := hadIt && had == set && key != claude.BaseURLEnv
+		if !isSet || unchanged || redact.HoldsToken(set) {
 			continue
 		}
 		mark.Set(setKey+key, set)
@@ -152,6 +157,9 @@ func (e environ) markedAgainst(own environ) environ {
 			mark.Add(headerKey, line)
 		}
 	}
+	if blank, isSet := own.lookup(claude.CustomHeadersEnv); isSet && len(ownLines) == 0 && mark.Has(headerKey) {
+		mark.Set(hadKey+claude.CustomHeadersEnv, blank)
+	}
 	if len(mark) == 0 {
 		return e.without(setEnv)
 	}
@@ -161,7 +169,8 @@ func (e environ) markedAgainst(own environ) environ {
 // unmarked returns the environment without what run set in it, as its mark
 // says (see setEnv), and without the mark: each of markedVars still holding
 // the value run gave it back to the user's, or unset where the user had none,
-// and each custom header line run added taken off, every other staying. A
+// and each custom header line run added taken off, every other staying (see
+// restoredHeaders). A
 // variable changed since, as by a script pointing claude at a gateway of its
 // own, stays as it is. Without a mark, as from a switchboard before marks, or
 // with one that can't be read, nothing else changes.
@@ -177,7 +186,21 @@ func (e environ) unmarked() environ {
 	for _, key := range markedVars {
 		env = env.restored(key, mark)
 	}
-	return env.withoutHeaderLines(mark[headerKey])
+	return env.restoredHeaders(mark)
+}
+
+// restoredHeaders returns the environment with Claude Code's custom headers
+// without the lines run added, as mark has them, every other staying. Where
+// taking them off leaves none, and the user's were set to nothing but blank
+// lines, they go back to that, rather than unset.
+func (e environ) restoredHeaders(mark url.Values) environ {
+	env := e.withoutHeaderLines(mark[headerKey])
+	_, held := e.lookup(claude.CustomHeadersEnv)
+	_, holds := env.lookup(claude.CustomHeadersEnv)
+	if held && !holds && mark.Has(hadKey+claude.CustomHeadersEnv) {
+		return env.with(claude.CustomHeadersEnv, mark.Get(hadKey+claude.CustomHeadersEnv))
+	}
+	return env
 }
 
 // routedByRun reports whether the environment still sends Claude Code to the

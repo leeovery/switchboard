@@ -7541,35 +7541,36 @@ verbs).
   its own login.
 - **What `run` set:** a routed session's environment carries what `run` set there to every process
   the session starts, so `run` marks it, in `SWITCHBOARD_SET`: the value it gave
-  `ANTHROPIC_BASE_URL`, and `CLAUDE_CODE_GATEWAY_HINT_HEADERS` where it set it, each with the
-  user's value it replaced, and each line it added to `ANTHROPIC_CUSTOM_HEADERS`. Every launch but
-  a local subcommand's, and an unaided one's within a session still sent to `run`'s router, starts
-  from the environment as the user set it: each variable the mark names that still holds the value
-  `run` gave it goes back to the user's, or goes where the user had none, and the header lines
-  `run` added go, the user's own staying. A variable changed since, as by a script pointing
-  `claude` at a gateway of its own, stays as it is. So a `claude` started within a session that
-  switchboard steps aside for, which a key must never send through the router, carries nothing of
-  switchboard's, and a session started within a session marks only what it sets itself. One
-  started unaided within a session whose base URL is still the one `run` gave it gets the
-  session's environment as it is, mark and all, so the session's router, which still runs, routes
-  and records it as before: only that launch couldn't take part. Where the base URL has changed
-  since, it starts from the user's environment, as stepping aside does, the changed base URL
-  staying, so nothing of switchboard's reaches another gateway. The token isn't marked: the user's own, which `run` replaced, can't be written into
-  the mark, and without the value `run` gave it, a token set since couldn't be told from `run`'s.
-  Nor is any value holding anything token-shaped: a variable set to one goes unmarked, and stays,
-  and one that replaced such a value of the user's is marked as set where the user had none, and
-  goes. A session started before the mark has none, and its environment goes on as it is, but for
-  the pin and directory a routed or direct launch takes off (built in the cleanliness release, 26
-  October 2026).
+  `ANTHROPIC_BASE_URL`, even where the user's was the same, and
+  `CLAUDE_CODE_GATEWAY_HINT_HEADERS` where it set it, each with the user's value it replaced, and
+  each line it added to `ANTHROPIC_CUSTOM_HEADERS`, with the user's headers where they were set to
+  nothing. Every launch but a local subcommand's, and an unaided one's within a session still sent
+  to `run`'s router, starts from the environment as the user set it: each variable the mark names
+  that still holds the value `run` gave it goes back to the user's, or goes where the user had
+  none, and the header lines `run` added go, the user's own staying. A variable changed since, as
+  by a script pointing `claude` at a gateway of its own, stays as it is. So a `claude` started
+  within a session that switchboard steps aside for, which a key must never send through the
+  router, carries nothing of switchboard's, and a session started within a session marks only what
+  it sets itself. One started unaided within a session whose base URL is still the one `run` gave
+  it gets the session's environment as it is, mark and all, so the session's router, which still
+  runs, routes and records it as before: only that launch couldn't take part. Where the base URL
+  has changed since, it starts from the user's environment, as stepping aside does, the changed
+  base URL staying, so nothing of switchboard's reaches another gateway. The token isn't marked:
+  the user's own, which `run` replaced, can't be written into the mark, and without the value
+  `run` gave it, a token set since couldn't be told from `run`'s. Nor is any value holding
+  anything token-shaped: a variable set to one goes unmarked, and stays, and one that replaced
+  such a value of the user's is marked as set where the user had none, and goes. A session started
+  before the mark has none, and its environment goes on as it is, but for the pin and directory a
+  routed or direct launch takes off (built in the cleanliness release, 26 October 2026).
 - **Never in the way:** switchboard never stands between the user and `claude`. When it can't take
   part at all, as when it can't read its config, can't locate its state directory, or no account has
   a usable token, `run` starts `claude` as if switchboard weren't there, its environment as the user
-  set it, or a session's still routed as it is (see What `run` set), and its arguments untouched, but for the mark every `claude` it starts
-  carries (see Finding the real `claude`), a pin or directory inherited from a session before the
-  mark included, saying why in one line on stderr: `switchboard: couldn't read the config (…) —
-  starting claude without it`. `run` fails only when `claude` can't be found
-  or can't start, or on a misused command line, such as `--account` naming an account that isn't
-  configured, or has no usable token.
+  set it, or a session's still routed as it is (see What `run` set), and its arguments untouched,
+  but for the mark every `claude` it starts carries (see Finding the real `claude`), a pin or
+  directory inherited from a session before the mark included, saying why in one line on stderr:
+  `switchboard: couldn't read the config (…) — starting claude without it`. `run` fails only when
+  `claude` can't be found or can't start, or on a misused command line, such as `--account` naming
+  an account that isn't configured, or has no usable token.
 - **An API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the
   key in place of the token `run` gives it, and its requests would go unrouted, billed to the key.
   So `run`, and with it `claude`, starts Claude Code as if switchboard weren't there, its

@@ -831,6 +831,12 @@ func TestStartingWithoutSwitchboardTakesOffWhatRunSet(t *testing.T) {
 			want: map[string]string{hints: ""},
 		},
 		{
+			name:    "custom headers set to nothing by the user, back to nothing",
+			own:     map[string]string{headers: ""},
+			account: "side",
+			want:    map[string]string{headers: ""},
+		},
+		{
 			name:    "the user's own custom headers kept, switchboard's gone",
 			own:     map[string]string{headers: "X-Trace: on\r\nX-Team: core\n"},
 			account: "side",
@@ -894,6 +900,57 @@ func TestStartingWithoutSwitchboardTakesOffWhatRunSet(t *testing.T) {
 				}
 				if sets := h.only(t).sets; len(sets) > 0 {
 					t.Errorf("started marked with what run set, %q, want no such mark", sets)
+				}
+			})
+		}
+	}
+}
+
+func TestASessionWhoseBaseURLWasTheRoutersAlreadyStillReadsAsRouted(t *testing.T) {
+	router := "http://" + proxyAddr
+	tests := []struct {
+		name string
+		// own is the environment run routes the session from, pinned to side
+		// in project.
+		own []string
+		// wantAside is what's started stepping aside within the session,
+		// besides HOME, a key and the token run set.
+		wantAside map[string]string
+	}{
+		{
+			name:      "the user's own base URL the router's",
+			own:       []string{"ANTHROPIC_BASE_URL=" + router, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on"},
+			wantAside: map[string]string{"ANTHROPIC_BASE_URL": router, "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"},
+		},
+		{
+			name: "within a session from before the mark",
+			own: []string{
+				"ANTHROPIC_BASE_URL=" + router,
+				"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
+				"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: work\nX-Switchboard-Dir: ~/Code/elsewhere",
+				"CLAUDE_CODE_GATEWAY_HINT_HEADERS=1",
+			},
+			wantAside: map[string]string{"ANTHROPIC_BASE_URL": router, "CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1"},
+		},
+	}
+	for _, tt := range tests {
+		session := routedSession(t, append([]string{"HOME=" + homeDir, "ANTHROPIC_API_KEY=test-key"}, tt.own...), "side")
+		for _, start := range withoutSwitchboard {
+			t.Run(tt.name+", "+start.name, func(t *testing.T) {
+				h := newHarness(t, session...)
+				if err := start.launch(h.launcher); err != nil {
+					t.Fatalf("launch error = %v", err)
+				}
+				if start.keepsRouting {
+					if got, want := envMap(h.only(t).session()), envMap(session); !maps.Equal(got, want) {
+						t.Errorf("started with the environment\n%q\nwant the session's as it is, its pin, directory and hints kept\n%q", got, want)
+					}
+					return
+				}
+				want := map[string]string{"HOME": homeDir, "ANTHROPIC_API_KEY": "test-key", "CLAUDE_CODE_OAUTH_TOKEN": workToken}
+				maps.Copy(want, tt.wantAside)
+				if env := h.environment(t); !maps.Equal(env, want) {
+					t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
 				}
 			})
 		}
