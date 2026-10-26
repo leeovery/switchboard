@@ -634,7 +634,9 @@ accounts:
   which the wait stays the half hour. So the minute after a probe and the backoff hold across it,
   as they would had the router run on, however long it was away, and the account's error reads as
   its last probe said. An account that lost its token before it was saved has none of its probes
-  kept, so a restart with the token back starts it afresh, as running on would have. A probe kept
+  kept, and one without a usable token as the router starts has none restored, as though the
+  router had seen it lose its token, so a restart with the token back starts it afresh, as running
+  on would have. A probe kept
   as ending later than the router starts, as before a clock set back, ended as it starts; a count
   below none is none; and an error has anything shaped like a token redacted, as a file edited by
   hand may hold either. An account that went out on another token meanwhile, its file holding one
@@ -6740,7 +6742,8 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   since replaced, or that ends while it has none usable, its failure or a window it couldn't read,
   as neither is kept, though a prime's
   failure is warned of as any is; a window a probe couldn't read, which is warned of as a probe
-  first finds it unread since it was last read, then once a half hour at most (`window unread`);
+  first finds it unread since it was last read, then once a half hour at most, until it's read or
+  its account starts afresh (`window unread`);
   and why the first request after a session's compaction leaves it where it is, and, where it's
   known, what the account judged would have left of its week (`stays after compaction`, see
   Choosing an account). Of the readings
@@ -7109,7 +7112,7 @@ hiding it behind the provider would take a wider interface than it's worth:
   beside it, synced, and renamed over it) a second after a change and on the way out, but once a
   minute at most while its only changes are routine: those every request makes, its session's
   assignment used again and the reading off its answer, and those every probe makes, how it went
-  and a reading as before; and drops assignments unused for 7 days, with the pins of
+  and a reading, extra usage among it, as before; and drops assignments unused for 7 days, with the pins of
   the sessions it forgets, and the hashes of tokens replaced 7 days before, at start and then
   hourly. At start it also drops the assignments and the sessions' own pins of accounts no longer
   configured, those accounts from the global pin, which goes with the last of them, and their

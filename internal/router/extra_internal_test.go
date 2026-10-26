@@ -97,6 +97,50 @@ func TestTheStateTellsOfExtraUsageTaken(t *testing.T) {
 	}
 }
 
+func TestAProbeReadingExtraUsageAsBeforeIsRoutine(t *testing.T) {
+	var changes, routine changeCount
+	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
+	// As the API answers with extra usage off.
+	off := probed(nil, session)
+	off.Extra = quota.ExtraUsage{Status: quota.StatusRejected}
+	s.recordProbe("work", off, nil, s.mark(), readings.FromProbe)
+	changes, routine = 0, 0
+
+	s.recordProbe("work", off, nil, s.mark(), readings.FromProbe)
+	if changes != 0 || routine != 1 {
+		t.Errorf("the same probe again told of %d changes and %d routine ones, want 0 and 1", changes, routine)
+	}
+}
+
+func TestExtraUsageReadsOtherwise(t *testing.T) {
+	half, half2, none := 0.5, 0.5, 0.0
+	on := quota.ExtraUsage{Status: quota.StatusAllowed, Utilization: &half, ResetsAt: start}
+	with := func(change func(e *quota.ExtraUsage)) quota.ExtraUsage {
+		e := on
+		change(&e)
+		return e
+	}
+	tests := []struct {
+		name string
+		e    quota.ExtraUsage
+		want bool
+	}{
+		{name: "the same, its use given apart", e: with(func(e *quota.ExtraUsage) { e.Utilization = &half2 })},
+		{name: "its reset the same instant elsewhere", e: with(func(e *quota.ExtraUsage) { e.ResetsAt = start.In(local) })},
+		{name: "another status", e: with(func(e *quota.ExtraUsage) { e.Status = quota.StatusRejected }), want: true},
+		{name: "another reset", e: with(func(e *quota.ExtraUsage) { e.ResetsAt = start.Add(time.Hour) }), want: true},
+		{name: "another use", e: with(func(e *quota.ExtraUsage) { e.Utilization = &none }), want: true},
+		{name: "its use not given", e: with(func(e *quota.ExtraUsage) { e.Utilization = nil }), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := extraOtherwise(on, tt.e); got != tt.want {
+				t.Errorf("extraOtherwise() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheStateFileKeepsEachAccountsExtraUsage(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	saved := newTestFile(at(start), testAccounts())

@@ -64,8 +64,9 @@ type usage struct {
 	// as moments are.
 	afresh moment
 	// tokenless is set while the account has no usable token, from as it
-	// loses one until it gains one: a probe that ends meanwhile went out on
-	// a token it no longer holds, as one on the token before did.
+	// loses one, or as the router starts without one, until it gains one: a
+	// probe that ends meanwhile went out on a token it no longer holds, as
+	// one on the token before did.
 	tokenless bool
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
@@ -272,6 +273,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 			forbidden: make(map[string]refusals),
 			trails:    make(trails),
 			resetBy:   make(map[string]moment),
+			tokenless: !a.hasToken(),
 		}
 	}
 	return s
@@ -307,20 +309,33 @@ func (s *state) record(id string, windows []quota.Window, sent moment) []LimitLi
 func (s *state) recordExtra(id string, extra quota.ExtraUsage, sent moment) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.usage[id].takeExtra(extra, sent) {
+	if took, _ := s.usage[id].takeExtra(extra, sent); took {
 		s.routine()
 	}
 }
 
 // takeExtra takes in extra usage off the answer to a request, or a probe,
-// sent at sent, and reports whether it did: it does where any of it was
+// sent at sent, and reports whether it did, took, and whether what it took
+// reads otherwise than before, changed: it takes it where any of it was
 // given, and no request sent later has given it already.
-func (u *usage) takeExtra(extra quota.ExtraUsage, sent moment) bool {
+func (u *usage) takeExtra(extra quota.ExtraUsage, sent moment) (took, changed bool) {
 	if !extra.Given() || sent < u.extraSent {
-		return false
+		return false, false
 	}
+	changed = extraOtherwise(u.extra, extra)
 	u.extra, u.extraSent = extra, sent
-	return true
+	return true, changed
+}
+
+// extraOtherwise reports whether extra usage e reads otherwise than held.
+func extraOtherwise(held, e quota.ExtraUsage) bool {
+	switch {
+	case held.Status != e.Status || !held.ResetsAt.Equal(e.ResetsAt):
+		return true
+	case held.Utilization == nil || e.Utilization == nil:
+		return held.Utilization != e.Utilization
+	}
+	return *held.Utilization != *e.Utilization
 }
 
 // admitted notes that the upstream answered a request on the account, sent
@@ -392,7 +407,9 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 		u.admitted(sent)
 	}
 	changed, took := u.take(probed.Windows, at, sent, s.mark())
-	news := u.takeExtra(probed.Extra, sent) || len(changed) > 0
+	tookExtra, newExtra := u.takeExtra(probed.Extra, sent)
+	news := newExtra || len(changed) > 0
+	took = took || tookExtra
 	s.history(readings.Of(id, changed, at, from))
 	for key, models := range probed.Models {
 		for _, model := range models {
@@ -410,9 +427,9 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 }
 
 // probeTaken is what a probe's reading took in, as recordProbe has it:
-// whether the probe went out on a token the account no longer holds; the news of each limit of
-// the account's it showed lifted early; and the keys of the windows it
-// couldn't read to warn of, as warnOf has them.
+// whether the probe went out on a token the account no longer holds; the
+// news of each limit of the account's it showed lifted early; and the keys of
+// the windows it couldn't read to warn of, as warnOf has them.
 type probeTaken struct {
 	tokenGone bool
 	lifted    []LimitLifted
@@ -422,18 +439,22 @@ type probeTaken struct {
 // warnOf returns the keys of the windows of failures, which a probe of the
 // account at now couldn't read, to warn of: each it couldn't read for the
 // first time since it was last read, and each last warned of rewarnAfter
-// ago or more. It notes when each was last warned of, and forgets the rest.
+// ago or more. It notes when each was warned of, which holds until the
+// window is read, as take has it, or the account starts afresh: a probe
+// that neither reads a window nor fails to, as one whose family answers
+// without it, forgets nothing.
 func (u *usage) warnOf(failures []quota.Failure, now time.Time) []string {
-	warned := make(map[string]time.Time, len(failures))
 	var warn []string
 	for _, f := range failures {
-		at, ok := u.warned[f.Window]
-		if !ok || now.Sub(at) >= rewarnAfter {
-			warn, at = append(warn, f.Window), now
+		if at, ok := u.warned[f.Window]; ok && now.Sub(at) < rewarnAfter {
+			continue
 		}
-		warned[f.Window] = at
+		if u.warned == nil {
+			u.warned = make(map[string]time.Time)
+		}
+		u.warned[f.Window] = now
+		warn = append(warn, f.Window)
 	}
-	u.warned = warned
 	return warn
 }
 

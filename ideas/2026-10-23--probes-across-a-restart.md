@@ -50,7 +50,8 @@ design's The router's rounds, under Priming, and Files):
 - **Another token:** an account whose token file holds a token other than the one `state.json`
   kept the hash of, taken up while the router was away, starts afresh, as one replaced while the
   router runs does. One that loses its usable token starts afresh then, as one that gains one
-  does, so nothing of its probes before is kept for a restart with the token back to take up; and
+  does, so nothing of its probes before is kept for a restart with the token back to take up, and
+  one without a usable token as the router starts has nothing of them restored; and
   a probe that ends while it has none, sent before the loss or after, leaves nothing either, as one
   on the token before doesn't.
 - **A file edited by hand:** a count of misses is taken from none to the fifth, past which the

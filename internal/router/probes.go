@@ -75,8 +75,8 @@ type report func(a account, w went)
 // time it was sent, by the router's clock, how long it took, whether it went
 // out on a token the account no longer holds, the one before or one it has
 // lost, as recordProbe judges it, which keeps nothing of how it went, and
-// the keys of
-// the windows it couldn't read to warn of, as recordProbe has them.
+// the keys of the windows it couldn't read to warn of, as recordProbe has
+// them.
 type went struct {
 	probed    quota.Probe
 	err       error

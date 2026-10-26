@@ -155,32 +155,36 @@ func TestAWindowAProbeCantReadIsWarnedOfEveryHalfHourAtMost(t *testing.T) {
 	})
 }
 
-func TestAWindowAProbeCantReadIsWarnedOfAgainOnceItWasReadSince(t *testing.T) {
+func TestAWindowAProbeCantReadIsWarnedOfAgainOnlyOnceItWasReadSince(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
-	fails := func(after time.Duration) []string {
-		clock.now = start.Add(after)
-		return s.recordProbe("side", partlyProbed(session, week), nil, s.mark(), readings.FromProbe).warn
-	}
 	steps := []struct {
 		name  string
 		after time.Duration
-		// read has an answer read side's Fable week first.
-		read bool
-		want []string
+		// read has an answer read side's Fable week first, and passedOver
+		// has the probe neither read it nor fail to, as one whose family
+		// answers without it.
+		read, passedOver bool
+		want             []string
 	}{
 		{name: "the first probe that can't read it", want: []string{"7d_oi"}},
 		{name: "five minutes on", after: 5 * time.Minute},
 		{name: "read by an answer, then unread ten minutes on", after: 10 * time.Minute, read: true, want: []string{"7d_oi"}},
 		{name: "29 minutes after it was warned of", after: 39 * time.Minute},
 		{name: "half an hour after it was warned of", after: 40 * time.Minute, want: []string{"7d_oi"}},
+		{name: "passed over by a probe five minutes on", after: 45 * time.Minute, passedOver: true},
+		{name: "unread ten minutes after it was warned of, passed over since", after: 50 * time.Minute},
 	}
 	for _, step := range steps {
+		clock.now = start.Add(step.after)
 		if step.read {
-			clock.now = start.Add(step.after)
 			s.record("side", []quota.Window{fableWeek}, s.mark())
 		}
-		if got := fails(step.after); !slices.Equal(got, step.want) {
+		probe := partlyProbed(session, week)
+		if step.passedOver {
+			probe = probed(nil, session, week)
+		}
+		if got := s.recordProbe("side", probe, nil, s.mark(), readings.FromProbe).warn; !slices.Equal(got, step.want) {
 			t.Errorf("%s, warned of %q, want %q", step.name, got, step.want)
 		}
 	}

@@ -846,6 +846,11 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 		{name: "a probe that read stale windows", change: func(s *state, earlier moment) {
 			s.recordProbe("work", probed(nil, lastWeek), nil, earlier, readings.FromProbe)
 		}, wantRoutine: 1},
+		{name: "a probe on the token before that read the windows as they were", change: func(s *state, _ moment) {
+			sent := s.mark()
+			s.tokenReplaced("work")
+			s.recordProbe("work", probed(nil, session, week), nil, sent, readings.FromProbe)
+		}, wantRoutine: 1},
 		{name: "a probe on the token before that failed", change: func(s *state, earlier moment) {
 			s.tokenReplaced("side")
 			s.recordProbe("side", quota.Probe{}, overloaded, earlier, readings.FromProbe)

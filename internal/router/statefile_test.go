@@ -450,6 +450,36 @@ func TestAnAccountThatLostItsTokenStartsAfreshThoughTheRouterRestartsWithItBack(
 	}
 }
 
+func TestAnAccountWithoutItsTokenAsTheRouterStartsStartsAfreshOnceItsBack(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	first := newTestFile(at(start), testAccounts())
+	first.load(path)
+	for range 4 {
+		first.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token"), first.state.mark(), readings.FromProbe)
+	}
+	first.save()
+
+	// Side's token file is gone as the router starts again, and the state
+	// file is saved; then the router starts once more with the token back.
+	tokenless := newTestFile(at(start.Add(time.Hour)), resolve(testConfigured, tokenstest.Files{"work": workToken}.Read))
+	tokenless.load(path)
+	if u := tokenless.state.usage["side"]; !u.probed.IsZero() || u.probeErr != "" || u.misses != 0 || !u.tokenless {
+		t.Errorf("side, without its token, loaded its probes as ended %v, %q, %d in a row, tokenless %v; want none, tokenless, as on a loss",
+			u.probed, u.probeErr, u.misses, u.tokenless)
+	}
+	tokenless.changes.note()
+	tokenless.save()
+
+	back := newTestFile(at(start.Add(2*time.Hour)), testAccounts())
+	back.load(path)
+	if u := back.state.usage["side"]; !u.probed.IsZero() || u.probeErr != "" || u.misses != 0 {
+		t.Errorf("side's probes loaded as ended %v, %q, %d in a row; want none: it has its token again", u.probed, u.probeErr, u.misses)
+	}
+	if side, _ := back.accounts.byID("side"); side.secret.was(sideHash, start.Add(2*time.Hour)) {
+		t.Error("side's token, back unchanged, counts as one it had before, want it its own still")
+	}
+}
+
 func TestAStateFileEditedByHandLoadsAsTheRouterWouldHaveKeptIt(t *testing.T) {
 	const tokenShaped = "sk-ant-oat01-fake_token-shaped"
 	tests := []struct {
