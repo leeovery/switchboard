@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -59,42 +60,61 @@ func TestGraphsLaysTheDesignsWorkedSizesOut(t *testing.T) {
 	}
 }
 
+// rowsToLastDrawn are the rows from c's first to its last that isn't blank.
+func rowsToLastDrawn(c *canvas) int {
+	rows := 0
+	for y := range c.height() {
+		if rowOf(c, y) != "" {
+			rows = y + 1
+		}
+	}
+	return rows
+}
+
 // Each section takes its heading's rows and its own, as what draws it
 // counts them: a burn-down's to the foot of its last card's axis; POOL's as
-// its stack takes them; GLANCE's and WHEN YOU WORK's as their bodies count
-// them, of the configured accounts and whether they're a pool. So at the
-// design's sections frame, 173 by 53, with WEEK, POOL, GLANCE and WHEN YOU
-// WORK shown, and on a phone, of one account and of three.
+// its stack takes them; GLANCE's to the last row it draws across its
+// columns, of the configured accounts and whether they're a pool; WHEN YOU
+// WORK's as its grid counts them across its columns; and GLANCE and WHEN
+// YOU WORK side by side, each the taller's. So at the design's sections
+// frame, 173 by 53, with WEEK, POOL, GLANCE and WHEN YOU WORK shown, at 180
+// by 53, where they pair, and on a phone, of one account and of three.
 func TestGraphsHoldsEachSectionToItsOwnRows(t *testing.T) {
 	shown := GraphsSectionsNamed([]string{"week", "pool", "glance", "when"})
 	tests := []struct {
 		width, height int
-		accounts      []string
+		accounts      config.Accounts
 	}{
-		{width: 173, height: 53, accounts: []string{"work", "personal", "side"}},
-		{width: 73, height: 61, accounts: []string{"work", "personal", "side"}},
-		{width: 73, height: 61, accounts: []string{"work"}},
+		{width: 173, height: 53, accounts: trioConfigured()},
+		{width: 180, height: 53, accounts: trioConfigured()},
+		{width: 73, height: 61, accounts: trioConfigured()},
+		{width: 73, height: 61, accounts: trioConfigured()[:1]},
 	}
 	for _, tt := range tests {
 		f := graphsFrame(tt.width, tt.height, shown)
-		f.Graphs.Accounts = configured(tt.accounts...)
+		f.Graphs.Accounts = tt.accounts
 		l := f.graphsLaid()
-		for _, s := range l.sections {
-			var own int
+		owns, tallest := make([]int, len(l.sections)), map[int]int{}
+		for i, s := range l.sections {
 			switch s.section {
 			case GraphsPool:
-				own = l.pool.rows(l.width, l.chart)
+				owns[i] = l.pool.rows(l.width, l.chart)
 			case GraphsGlance:
-				own = layGlance(f.Graphs.Accounts, l.width).rows()
+				c, _ := glanceIn(glanceOf(trio(), Look{}), tt.accounts, s.across.Size, 5)
+				owns[i] = rowsToLastDrawn(c)
 			case GraphsWhen:
-				own = whenRows(l.width, f.Look)
+				owns[i] = whenRows(s.across.Size, f.Look)
 			default:
 				cards := l.cards(s)
 				last := cards[len(cards)-1].chart
-				own = last.y + last.rows - s.at - sectionHead
+				owns[i] = last.y + last.rows - s.at - sectionHead
 			}
-			if s.rows != sectionHead+own {
-				t.Errorf("at %dx%d, of %d accounts, %s takes %d rows, want %d, its heading's and its own %d", tt.width, tt.height, len(tt.accounts), s.section.heading(), s.rows, sectionHead+own, own)
+			tallest[s.at] = max(tallest[s.at], owns[i])
+		}
+		for i, s := range l.sections {
+			if s.rows != sectionHead+tallest[s.at] {
+				t.Errorf("at %dx%d, of %d accounts, %s takes %d rows, want %d, its heading's and the tallest's at its row, %d; its own %d",
+					tt.width, tt.height, len(tt.accounts), s.section.heading(), s.rows, sectionHead+tallest[s.at], tallest[s.at], owns[i])
 			}
 		}
 	}

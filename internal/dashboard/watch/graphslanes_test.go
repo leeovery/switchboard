@@ -129,24 +129,28 @@ func TestGraphsLanesAreOverRunwaysOwnLiveViewOfEachWindow(t *testing.T) {
 }
 
 // Graphs builds the lanes of the windows its burn-down sections shown chart
-// alone, WEEK's the week's and 5-HOUR's the 5-hour's, and reads the readings
-// history only while one shows: with neither, nothing is built or read, at
-// a look as at the start.
+// alone, WEEK's the week's and 5-HOUR's the 5-hour's, and GLANCE's every
+// one, which place its ✕ as a card's, and reads the readings history only
+// while one shows: with none, nothing is built or read, at a look as at the
+// start.
 func TestGraphsBuildsAndReadsTheLanesOfTheBurnDownSectionsShownAlone(t *testing.T) {
+	week, fiveHour, glance := dashboard.GraphsWeek, dashboard.GraphsFiveHour, dashboard.GraphsGlance
 	tests := []struct {
-		name   string
-		hidden []dashboard.GraphsSection
-		want   []views.RunwayWindow
+		name    string
+		toggled []dashboard.GraphsSection
+		want    []views.RunwayWindow
 	}{
 		{name: "both shown", want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}},
-		{name: "WEEK hidden", hidden: []dashboard.GraphsSection{dashboard.GraphsWeek}, want: []views.RunwayWindow{views.RunwayFiveHour}},
-		{name: "5-HOUR hidden", hidden: []dashboard.GraphsSection{dashboard.GraphsFiveHour}, want: []views.RunwayWindow{views.RunwayWeek}},
-		{name: "both hidden", hidden: []dashboard.GraphsSection{dashboard.GraphsWeek, dashboard.GraphsFiveHour}},
+		{name: "WEEK hidden", toggled: []dashboard.GraphsSection{week}, want: []views.RunwayWindow{views.RunwayFiveHour}},
+		{name: "5-HOUR hidden", toggled: []dashboard.GraphsSection{fiveHour}, want: []views.RunwayWindow{views.RunwayWeek}},
+		{name: "both hidden", toggled: []dashboard.GraphsSection{week, fiveHour}},
+		{name: "GLANCE alone", toggled: []dashboard.GraphsSection{week, fiveHour, glance}, want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}},
+		{name: "5-HOUR and GLANCE", toggled: []dashboard.GraphsSection{week, glance}, want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := runwayHarness(t, dashboard.Graphs, func(_ *runwayed, cfg *Config) {
-				for _, s := range tt.hidden {
+				for _, s := range tt.toggled {
 					cfg.Graphs = cfg.Graphs.Toggled(s)
 				}
 			}, filedOn("work", "five_hour", start.Add(-time.Hour), 0.3))
@@ -237,7 +241,7 @@ func TestGraphsLanesAreJudgedByTheReadingsHistoryAndTheLedgersDaysAsRunways(t *t
 }
 
 // Graphs, waiting on a read of the readings history LoadingAfter or longer,
-// as its burn-downs or POOL read it, says loading… on its first section's
+// as its burn-downs, POOL or GLANCE read it, says loading… on its first section's
 // heading till the read lands; a read landing sooner says nothing of it.
 func TestGraphsSaysItsLoadingWhileItsReadOfTheReadingsHistoryTakesAWhile(t *testing.T) {
 	tests := []struct {
@@ -250,6 +254,8 @@ func TestGraphsSaysItsLoadingWhileItsReadOfTheReadingsHistoryTakesAWhile(t *test
 		{name: "its read landing soon", first: "WEEK"},
 		{name: "POOL alone, its read landing late", shown: dashboard.GraphsSectionsNamed([]string{"pool"}), first: "POOL", late: true},
 		{name: "POOL alone, its read landing soon", shown: dashboard.GraphsSectionsNamed([]string{"pool"}), first: "POOL"},
+		{name: "GLANCE alone, its read landing late", shown: dashboard.GraphsSectionsNamed([]string{"glance"}), first: "GLANCE", late: true},
+		{name: "GLANCE alone, its read landing soon", shown: dashboard.GraphsSectionsNamed([]string{"glance"}), first: "GLANCE"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -278,10 +284,10 @@ func TestGraphsSaysItsLoadingWhileItsReadOfTheReadingsHistoryTakesAWhile(t *test
 	}
 }
 
-// Graphs with both burn-down sections and POOL hidden waits on no read of
-// the readings history, so its first heading, GLANCE's here, says nothing of
-// loading while a read of the live tail asked before they were hidden is
-// under way, however long it takes.
+// Graphs with both burn-down sections, POOL and GLANCE hidden waits on no
+// read of the readings history, so its first heading, WHEN YOU WORK's here,
+// says nothing of loading while a read of the live tail asked before they
+// were hidden is under way, however long it takes.
 func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.model.view = dashboard.Graphs
@@ -289,7 +295,7 @@ func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
 	if len(unread) == 0 || !h.model.runwayTab.readingLive {
 		t.Fatalf("the live tail's read held back %d, of the live tail %t; want it held", len(unread), h.model.runwayTab.readingLive)
 	}
-	for _, key := range []string{"w", "f", "g"} {
+	for _, key := range []string{"w", "f", "h"} {
 		unread = append(unread, holdingBack[runwayReadMsg](h, h.update(tea.KeyPressMsg{Code: rune(key[0]), Text: key})...)...)
 	}
 	h.clock.now = h.clock.now.Add(2 * LoadingAfter)
@@ -300,8 +306,8 @@ func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
 	if tab := h.model.runwayTab; !tab.reading || !tab.readingLive {
 		t.Fatalf("the heading read with the live tail's read under way %t, of the live tail %t; want it under way", tab.reading, tab.readingLive)
 	}
-	if got := h.row(4); !strings.HasPrefix(got, "GLANCE") || strings.Contains(got, loadingSaid) {
-		t.Errorf("WEEK, 5-HOUR and POOL hidden, the live tail's read under way, the heading reads %q, want GLANCE's, saying nothing of loading", got)
+	if got := h.row(4); !strings.HasPrefix(got, "WHEN YOU WORK") || strings.Contains(got, loadingSaid) {
+		t.Errorf("WEEK, 5-HOUR, POOL and GLANCE hidden, the live tail's read under way, the heading reads %q, want WHEN YOU WORK's, saying nothing of loading", got)
 	}
 	h.deliver(unread...)
 }

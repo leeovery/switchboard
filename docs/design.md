@@ -3934,7 +3934,9 @@ section holds:
 - **v0.1's legend** is the view's last row, over the blank row every page keeps before its key line;
   the frames draw it on that row, so their charts at 160 by 37 are a row taller than this section's.
 - **GLANCE** lists the week first, as every list of windows does (see The dashboard's snags, in
-  Milestones); its frame lists the 5-hour first.
+  Milestones); its frame lists the 5-hour first. Its words padded to their bound, it pairs with WHEN
+  YOU WORK from 175 columns, so at 173 by 53 WHEN YOU WORK comes under it, where the frame draws
+  them side by side.
 - **Under 60 columns** the tabs take two rows, and three under 31 (see The page); no frame is drawn
   there.
 - **The title row** draws no `tab ⇥` (see The page); the frames at 160 and 173 do.
@@ -3968,9 +3970,10 @@ the pages that list windows as they stand it shows the models' own (see Keys).
 - **A blank row separates two sections,** and follows the pool's line where a section comes after
   it.
 - **GLANCE and WHEN YOU WORK sit side by side** where both show and both fit at their naturals with
-  10 cells between, GLANCE from column 0: from about 172 columns with the sample's names, a figure
-  its parts give, never one the code compares the width with. Elsewhere WHEN YOU WORK comes under
-  GLANCE. Every other section takes the width.
+  10 cells between, GLANCE from column 0 and WHEN YOU WORK after it to the width's end: from 175
+  columns with the sample's names, a figure its parts give, never one the code compares the width
+  with. Each heading is across its own columns, and the pair takes the rows of the taller.
+  Elsewhere WHEN YOU WORK comes under GLANCE. Every other section takes the width.
 
 **The burn-down cards,** WEEK's and 5-HOUR's: each account's room over its own window, from its start
 to its reset, as v0.1.6's cards drew it (`git show v0.1.6:testdata/vhs/reference/accounts-3-week.txt`),
@@ -4093,7 +4096,7 @@ burn-down a row high:
   left`.
 - **Its key,** a blank row under: `▆ room left, start to reset`, `▆ heading` in its faint ink,
   `✕ runs out` and `66% room left now`, four spaces apart.
-- **Its width** is its natural, what it takes whole, about 110 columns with the sample's names, the
+- **Its width** is its natural, what it takes whole, 113 columns with the sample's names, the
   words padded to their bound, and it doesn't grow. Narrowing, its words take `usage`'s short forms
   first, then its names narrow toward their least, as `usage`'s parts give way. Where that doesn't fit, its windows stack, the week's rows and then the 5-hour's,
   each under its window's name, the words cut as `usage`'s are at that width.

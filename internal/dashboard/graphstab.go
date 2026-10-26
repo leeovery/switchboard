@@ -88,17 +88,39 @@ func GraphsSectionsNamed(names []string) GraphsSections {
 var burnDowns = map[GraphsSection]views.RunwayWindow{GraphsWeek: views.RunwayWeek, GraphsFiveHour: views.RunwayFiveHour}
 
 // GraphsWindows are the windows whose lanes Graphs reads with the sections
-// given shown, a burn-down section's each, in the order the page draws them:
-// none where neither burn-down section shows.
+// given shown, in the order the page first draws them: a burn-down
+// section's each, and GLANCE's every one, as its ✕ is placed as a card's;
+// none where neither a burn-down section nor GLANCE shows.
 func GraphsWindows(sections GraphsSections) []views.RunwayWindow {
 	var windows []views.RunwayWindow
 	for _, s := range EveryGraphsSection() {
-		if w, ok := burnDowns[s]; ok && sections.Has(s) {
-			windows = append(windows, w)
+		if !sections.Has(s) {
+			continue
+		}
+		for _, w := range sectionWindows(s) {
+			if !slices.Contains(windows, w) {
+				windows = append(windows, w)
+			}
 		}
 	}
 	return windows
 }
+
+// sectionWindows are the windows of Runway's live view the section draws of
+// lanes: a burn-down's, its window; GLANCE's, each it draws; none else.
+func sectionWindows(s GraphsSection) []views.RunwayWindow {
+	if w, ok := burnDowns[s]; ok {
+		return []views.RunwayWindow{w}
+	}
+	if s == GraphsGlance {
+		return runwayWindows
+	}
+	return nil
+}
+
+// GraphsGlanceColumns are the columns GLANCE's pool's sparklines take, as
+// the watch builds the pool's room over each window's span across them.
+const GraphsGlanceColumns = sparkCells
 
 // GraphsShown is what the Graphs tab shows: its sections shown, as w, f, o, g
 // and h show and hide them; the configured accounts, in the config's order,
@@ -109,15 +131,19 @@ func GraphsWindows(sections GraphsSections) []views.RunwayWindow {
 // was hidden; and Runway's lanes over its live view of each
 // window a burn-down section shown charts, as GraphsWindows has them, by the
 // window, as the watch built them at the look, which its cards say what
-// Runway says of each account by, none till it's built them; and POOL's
-// stack, as the watch built it at the last look on Graphs with POOL shown,
-// held while it hides, none stacked till it's built it.
+// Runway says of each account by, and GLANCE places its ✕ by, none till it's
+// built them; POOL's stack, as the watch built it at the last look on Graphs
+// with POOL shown, held while it hides, none stacked till it's built it; and
+// the pool's room over each window's span, by the window, as GLANCE draws it
+// beside Σ pool, as the watch built it at the last look on Graphs with
+// GLANCE shown, held while it hides, none till it's built it.
 type GraphsShown struct {
 	Sections GraphsSections
 	Accounts config.Accounts
 	Hours    *views.HoursPage
 	Lanes    map[views.RunwayWindow]WindowLanes
 	Pool     views.PoolStack
+	Spans    map[views.RunwayWindow]views.PoolSpan
 }
 
 // numberedAsRunway are the configured accounts given, in the config's
@@ -172,22 +198,24 @@ func (f Frame) graphsTab(c *canvas, doc status.Document, now time.Time, top int)
 }
 
 // graphsDrawn draws the sections of the moment m as laid out, whole, on c:
-// each heading, as headSection draws it, saying what graphsSays has it say,
-// under a burn-down's, its cards, as burnCards draws them, and under POOL's
-// and WHEN YOU WORK's, their bodies, as poolDrawn and whenDrawn draw them;
-// and the pool's line, where there's one, as poolLine words it.
+// each heading across its columns, as headSection draws it, saying what
+// graphsSays has it say, under a burn-down's, its cards, as burnCards draws
+// them, and under POOL's, GLANCE's and WHEN YOU WORK's, their bodies, as
+// poolDrawn, glanceDrawn and whenDrawn draw them; and the pool's line, where
+// there's one, as poolLine words it.
 func (f Frame) graphsDrawn(c *canvas, m status.Moment, laid graphsLaid) {
 	for i, s := range laid.sections {
 		says := f.graphsSays(s.section, i == 0)
-		head := bounds{y: s.at, width: f.Width, rows: 1}
-		headSection(c, head, s.section.heading(), s.section.Key(), func(cells int) line { return says.fit(cells) })
+		headSection(c, s.head(), s.section.heading(), s.section.Key(), func(cells int) line { return says.fit(cells) })
 		switch {
 		case burnsDown(s.section):
 			f.burnCards(c, m, laid, s)
 		case s.section == GraphsPool:
 			f.poolDrawn(c, m.Now, laid, s)
+		case s.section == GraphsGlance:
+			f.glanceDrawn(c, m, laid, s)
 		case s.section == GraphsWhen:
-			f.whenDrawn(c, laid, s)
+			f.whenDrawn(c, s)
 		}
 	}
 	if laid.poolLine >= 0 {
@@ -237,8 +265,8 @@ func (f Frame) graphsScrolling() func(offset int) Scrolling {
 }
 
 // graphsTargets are Graphs' click targets: each section's heading the page
-// shows, scrolled as the frame has it, a click on which is a press of its
-// key, which hides it.
+// shows, across its columns, scrolled as the frame has it, a click on which
+// is a press of its key, which hides it.
 func (f Frame) graphsTargets() []Target {
 	if f.Graphs.Sections.none() {
 		return nil
@@ -249,7 +277,8 @@ func (f Frame) graphsTargets() []Target {
 	var targets []Target
 	for _, s := range laid.sections {
 		if paged.shows(f.Scroll, s.at) {
-			targets = append(targets, Target{Y: f.top() + s.at - from, Width: f.Width, On: OnPress, Key: s.section.Key()})
+			head := s.head()
+			targets = append(targets, Target{X: head.x, Y: f.top() + head.y - from, Width: head.width, On: OnPress, Key: s.section.Key()})
 		}
 	}
 	return targets

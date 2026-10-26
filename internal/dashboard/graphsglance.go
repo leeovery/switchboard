@@ -156,6 +156,16 @@ func (l glanceLaid) rows() int {
 	return len(l.windowsDrawn())*(l.partRows()+1) + len(l.key)
 }
 
+// heads are the rows of each part's head row, from GLANCE's first, as draw
+// draws them, each over a blank row and its first account's.
+func (l glanceLaid) heads() []int {
+	heads := make([]int, len(l.windowsDrawn()))
+	for i := range heads {
+		heads[i] = i * (l.partRows() + 1)
+	}
+	return heads
+}
+
 // group are the cells from a window's sparkline to the next's: the
 // sparkline, the cells beside it, its words and groupGap.
 func (l glanceLaid) group() int {
@@ -354,6 +364,16 @@ func (p poolSpark) spark(c *canvas, look Look, x, y, width int) {
 			fillUp(c, look, x+col, y, eighths, func(int) ink { return k })
 		}
 	}
+}
+
+// glanceDrawn draws GLANCE of the moment m in the section placed, from its
+// left, as laid lays it out across the section's columns: each account's
+// sparklines of its trails, as the cards read them, each held window's ✕
+// placed by the lanes the watch built, as a card's is; and the pool's of its
+// room over each window's span, as the watch built it.
+func (f Frame) glanceDrawn(c *canvas, m status.Moment, laid graphsLaid, placed graphsPlaced) {
+	body := placed.body(laid.glance.width)
+	glance{m: m, trails: f.Trails, lanes: f.Graphs.Lanes, pools: f.Graphs.Spans, look: f.Look}.draw(c, laid.glance, body.x, body.y)
 }
 
 // aheadInk is k as a sparkline draws where its window's heading: faded
