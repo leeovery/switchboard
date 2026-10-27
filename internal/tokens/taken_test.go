@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,10 +17,7 @@ import (
 )
 
 // workSum is the SHA-256 hash of workToken, in hex, as a record holds it.
-var workSum = func() string {
-	s := sha256.Sum256([]byte(workToken))
-	return hex.EncodeToString(s[:])
-}()
+var workSum = sumOf(workToken)
 
 // workRecord is the record of workToken, taken at taken, as its file holds it.
 var workRecord = "taken 2026-10-27T09:30:00Z\nsha256 " + workSum + "\n"
@@ -56,16 +54,105 @@ func TestWriteRecordsWhenTheTokenWasTaken(t *testing.T) {
 	}
 }
 
-func TestATokenWrittenAgainKeepsItsDate(t *testing.T) {
+// given is a token given at a time, as Write is given it.
+type given struct {
+	secret string
+	at     time.Time
+}
+
+func TestATokensDateNeverMoves(t *testing.T) {
+	day := func(n int) time.Time { return taken.Add(time.Duration(n) * 24 * time.Hour) }
+	tests := []struct {
+		name  string
+		given []given
+		// want is when each token was taken, as the record says once they're
+		// given, by the token: zero where it says nothing of one.
+		want map[string]time.Time
+	}{
+		{
+			name:  "the same token again, which keeps the date it was first taken",
+			given: []given{{workToken, day(0)}, {workToken, day(2)}},
+			want:  map[string]time.Time{workToken: day(0)},
+		},
+		{
+			name:  "another token, taken when it's given",
+			given: []given{{workToken, day(0)}, {"test-token-renewed", day(2)}},
+			want:  map[string]time.Time{workToken: day(0), "test-token-renewed": day(2)},
+		},
+		{
+			name:  "a token back after another, as after one given by mistake",
+			given: []given{{workToken, day(0)}, {"test-token-side", day(2)}, {workToken, day(3)}},
+			want:  map[string]time.Time{workToken: day(0), "test-token-side": day(2)},
+		},
+		{
+			name:  "the same token given at an earlier time, as after a clock set wrong",
+			given: []given{{workToken, day(5)}, {workToken, day(1)}},
+			want:  map[string]time.Time{workToken: day(1)},
+		},
+		{
+			name: "more tokens than a record keeps, the one given longest ago forgotten",
+			given: []given{
+				{"test-token-1", day(1)}, {"test-token-2", day(2)}, {"test-token-3", day(3)}, {"test-token-4", day(4)}, {"test-token-5", day(5)},
+				{"test-token-6", day(6)}, {"test-token-7", day(7)}, {"test-token-8", day(8)}, {"test-token-9", day(9)},
+			},
+			want: map[string]time.Time{
+				"test-token-1": {}, "test-token-2": day(2), "test-token-3": day(3), "test-token-4": day(4), "test-token-5": day(5),
+				"test-token-6": day(6), "test-token-7": day(7), "test-token-8": day(8), "test-token-9": day(9),
+			},
+		},
+		{
+			name: "a token given again kept, as the latest given, while others are forgotten",
+			given: []given{
+				{"test-token-1", day(1)}, {"test-token-2", day(2)}, {"test-token-3", day(3)}, {"test-token-4", day(4)}, {"test-token-5", day(5)},
+				{"test-token-6", day(6)}, {"test-token-7", day(7)}, {"test-token-8", day(8)}, {"test-token-1", day(9)}, {"test-token-9", day(10)},
+			},
+			want: map[string]time.Time{"test-token-1": day(1), "test-token-2": {}, "test-token-3": day(3), "test-token-9": day(10)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+
+			for _, g := range tt.given {
+				if err := store.Write("work", parse(t, g.secret), g.at); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for secret, want := range tt.want {
+				at, err := store.Taken("work", parse(t, secret))
+				if !at.Equal(want) || (err == nil) == want.IsZero() {
+					t.Errorf("Taken() of %s = %v, %v; want %v", secret, at, err, want)
+				}
+			}
+		})
+	}
+}
+
+func TestARecordHoldsTheLatestTokenFirst(t *testing.T) {
+	store := tokens.NewStore(t.TempDir(), os.Getuid())
+	later := taken.Add(48 * time.Hour)
+	for _, g := range []given{{workToken, taken}, {"test-token-side", later}, {workToken, later.Add(time.Hour)}} {
+		if err := store.Write("work", parse(t, g.secret), g.at); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	want := workRecord + "taken 2026-10-29T09:30:00Z\nsha256 " + sumOf("test-token-side") + "\n"
+	if data, err := os.ReadFile(store.Path("work") + ".taken"); err != nil || string(data) != want {
+		t.Errorf("the record holds %q (%v), want %q", data, err, want)
+	}
+}
+
+func TestARecordRestoredReadableByOthersKeepsItsDates(t *testing.T) {
 	later := taken.Add(48 * time.Hour)
 	tests := []struct {
 		name string
-		// again is the token written again, later.
-		again string
-		want  time.Time
+		mode fs.FileMode
+		// want is the token's date once it's given again, later.
+		want time.Time
 	}{
-		{name: "the same token, which keeps the date it was first taken", again: workToken, want: taken},
-		{name: "another token, taken later", again: "test-token-renewed", want: later},
+		{name: "readable by others, made private", mode: 0o644, want: taken},
+		{name: "writable by others, which can't be gone by", mode: 0o666, want: later},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -73,33 +160,80 @@ func TestATokenWrittenAgainKeepsItsDate(t *testing.T) {
 			if err := store.Write("work", parse(t, workToken), taken); err != nil {
 				t.Fatal(err)
 			}
-
-			if err := store.Write("work", parse(t, tt.again), later); err != nil {
+			if err := os.Chmod(store.Path("work")+".taken", tt.mode); err != nil {
 				t.Fatal(err)
 			}
-			if at, err := store.Taken("work", parse(t, tt.again)); err != nil || !at.Equal(tt.want) {
+
+			if err := store.Write("work", parse(t, workToken), later); err != nil {
+				t.Fatal(err)
+			}
+			if at, err := store.Taken("work", parse(t, workToken)); err != nil || !at.Equal(tt.want) {
 				t.Errorf("Taken() = %v, %v; want %v", at, err, tt.want)
 			}
+			checkMode(t, store.Path("work")+".taken", 0o600)
 		})
 	}
 }
 
-func TestATokenWrittenAgainOverAnUnusableRecordIsTakenAfresh(t *testing.T) {
-	later := taken.Add(48 * time.Hour)
-	store := tokens.NewStore(t.TempDir(), os.Getuid())
-	if err := store.Write("work", parse(t, workToken), taken); err != nil {
-		t.Fatal(err)
+func TestTightenMakesTheRecordsPrivate(t *testing.T) {
+	tests := []struct {
+		name string
+		// put puts the record at path, which want is its mode after.
+		put  func(t *testing.T, path string)
+		want fs.FileMode
+	}{
+		{name: "a private record", put: recordFile(0o600), want: 0o600},
+		{name: "a record others can read, made private", put: recordFile(0o644), want: 0o600},
+		{name: "a record its group can read, made private", put: recordFile(0o640), want: 0o600},
+		{name: "a record others can write, left as it is", put: recordFile(0o664), want: 0o664},
 	}
-	if err := os.Chmod(store.Path("work")+".taken", 0o644); err != nil {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			store := tokens.NewStore(state, os.Getuid())
+			mkdirPrivate(t, store.Dir())
+			path := store.Path("work") + ".taken"
+			tt.put(t, path)
+			// Another account's, alike.
+			tt.put(t, store.Path("side")+".taken")
+
+			if _, _, err := store.Tighten(); err != nil {
+				t.Fatal(err)
+			}
+			checkMode(t, path, tt.want)
+			checkMode(t, store.Path("side")+".taken", tt.want)
+		})
+	}
+}
+
+func TestTightenLeavesWhereARecordsLinkLeads(t *testing.T) {
+	store := tokens.NewStore(t.TempDir(), os.Getuid())
+	path := store.Path("work") + ".taken"
+	mkdirPrivate(t, filepath.Dir(path))
+	linkToRecord(0o644)(t, path)
+	target, err := os.Readlink(path)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := store.Write("work", parse(t, workToken), later); err != nil {
+	if _, _, err := store.Tighten(); err != nil {
 		t.Fatal(err)
 	}
-	if at, err := store.Taken("work", parse(t, workToken)); err != nil || !at.Equal(later) {
-		t.Errorf("Taken() = %v, %v; want %v: a record others could change isn't gone by", at, err, later)
+	checkMode(t, target, 0o644)
+}
+
+// recordFile puts a file holding workRecord at path, with mode.
+func recordFile(mode fs.FileMode) func(t *testing.T, path string) {
+	return func(t *testing.T, path string) {
+		t.Helper()
+		writeFile(t, path, workRecord, mode)
 	}
+}
+
+// sumOf is the SHA-256 hash of secret, in hex.
+func sumOf(secret string) string {
+	s := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(s[:])
 }
 
 func TestTakenIsntKnownOfAnotherToken(t *testing.T) {
@@ -139,7 +273,7 @@ func TestTakenIsntKnownOfAnotherToken(t *testing.T) {
 
 func TestTakenIsntKnownFromAnUnusableRecord(t *testing.T) {
 	const (
-		notARecord = "the record %s isn't one of when a token was taken"
+		notARecord = "the record %s isn't one of when tokens were taken"
 		unrecorded = "no record of when the token was taken"
 	)
 	tests := []struct {
@@ -170,11 +304,20 @@ func TestTakenIsntKnownFromAnUnusableRecord(t *testing.T) {
 		{name: "a time that isn't one", content: recordTaken("last tuesday"), mode: 0o600, wantErr: notARecord},
 		{name: "a time without its zone", content: recordTaken("2026-10-27T09:30:00"), mode: 0o600, wantErr: notARecord},
 		{name: "the zero time", content: recordTaken("0001-01-01T00:00:00Z"), mode: 0o600, wantErr: notARecord},
+		{name: "a time before the first year there is, in UTC", content: recordTaken("0000-01-01T00:00:00+01:00"), mode: 0o600, wantErr: notARecord},
+		{name: "a time in the first year there is", content: recordTaken("0001-01-01T00:00:01Z"), mode: 0o600},
+		{name: "a hash in uppercase", content: "taken 2026-10-27T09:30:00Z\nsha256 " + strings.ToUpper(workSum) + "\n", mode: 0o600, wantErr: notARecord},
+		{name: "the token's date after another's", content: "taken 2026-11-01T00:00:00Z\nsha256 " + sumOf("test-token-side") + "\n" + workRecord, mode: 0o600},
+		{name: "a pair cut short", content: workRecord + "taken 2026-11-01T00:00:00Z\n", mode: 0o600, wantErr: notARecord},
+		{name: "a pair after the token's that isn't one", content: workRecord + "taken soon\nsha256 " + strings.Repeat("0", 64) + "\n", mode: 0o600, wantErr: notARecord},
+		{name: "a token's hash twice", content: workRecord + workRecord, mode: 0o600, wantErr: notARecord},
+		{name: "more pairs than a record keeps", content: manyPairs(9), mode: 0o600, wantErr: notARecord},
+		{name: "as many pairs as a record keeps", content: manyPairs(7) + workRecord, mode: 0o600},
 		{name: "a time in the last year there is", content: recordTaken("9999-01-01T00:00:00Z"), mode: 0o600, wantErr: notARecord},
 		{name: "a time in it, in UTC, given in another zone", content: recordTaken("9998-12-31T23:00:00-05:00"), mode: 0o600, wantErr: notARecord},
 		{name: "a hash too short to be one", content: "taken 2026-10-27T09:30:00Z\nsha256 " + workSum[:63] + "\n", mode: 0o600, wantErr: notARecord},
 		{name: "the token in place of its hash", content: "taken 2026-10-27T09:30:00Z\nsha256 " + workToken + "\n", mode: 0o600, wantErr: notARecord},
-		{name: "the hash of another token", content: "taken 2026-10-27T09:30:00Z\nsha256 " + strings.Repeat("0", 64) + "\n", mode: 0o600, wantErr: "the record %s is of another token"},
+		{name: "the hash of another token", content: "taken 2026-10-27T09:30:00Z\nsha256 " + strings.Repeat("0", 64) + "\n", mode: 0o600, wantErr: "the record %s is of other tokens"},
 		{name: "readable by others", content: workRecord, mode: 0o644, wantErr: "other users can read the record %s (mode 0644)"},
 		{name: "writable by others", content: workRecord, mode: 0o602, wantErr: "other users can write the record %s (mode 0602)"},
 		{name: "another user's", content: workRecord, mode: 0o600, otherUser: true, wantErr: "the record %s is another user's"},
@@ -335,6 +478,26 @@ func TestRemoveKeepsTheRecordOfATokenItCantRemove(t *testing.T) {
 	}
 }
 
+func TestRemoveLeavesTheFileATokensLinkLedToAtTheRecordsPath(t *testing.T) {
+	store := tokens.NewStore(t.TempDir(), os.Getuid())
+	record := store.Path("work") + ".taken"
+	writeFile(t, record, workToken+"\n", 0o600)
+	if err := os.Symlink(record, store.Path("work")); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := store.Remove("work")
+	if want := (tokens.Removed{File: true, LinkedTo: record}); err != nil || removed != want {
+		t.Errorf("Remove() = %+v, %v; want %+v", removed, err, want)
+	}
+	if _, err := os.Lstat(store.Path("work")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("once removed, the token file: %v, want it gone", err)
+	}
+	if data, err := os.ReadFile(record); err != nil || string(data) != workToken+"\n" {
+		t.Errorf("where the token file led holds %q (%v), want it as it was", data, err)
+	}
+}
+
 // linkToRecord puts a link at path to a file elsewhere, holding workRecord,
 // with mode.
 func linkToRecord(mode fs.FileMode) func(t *testing.T, path string) {
@@ -346,4 +509,13 @@ func linkToRecord(mode fs.FileMode) func(t *testing.T, path string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+// manyPairs is a record of n tokens, none of them workToken.
+func manyPairs(n int) string {
+	var b strings.Builder
+	for i := range n {
+		b.WriteString("taken 2026-11-01T00:00:00Z\nsha256 " + sumOf(fmt.Sprintf("test-token-%d", i)) + "\n")
+	}
+	return b.String()
 }

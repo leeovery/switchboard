@@ -257,21 +257,28 @@ asking for a token.
 ### When each token was taken
 
 A setup token is good for a year from when it's made. When switchboard writes a token, it also
-writes when it took it, in `tokens/<id>.taken` beside the token file:
+writes when it took it, in `tokens/<id>.taken` beside the token file. The record holds a pair of
+lines for each of the account's latest 8 tokens, the latest first:
 
 ```text
 taken 2026-10-27T09:30:00Z
-sha256 <the token's SHA-256 hash, in hex>
+sha256 <the token's SHA-256 hash, in lowercase hex>
+taken 2026-03-02T14:05:00Z
+sha256 <an earlier token's hash>
 ```
 
 A token's year counts from when switchboard took it. Nothing says when a pasted token was made, so
-its year counts from the day you gave it. Giving the same token again keeps the date it was first
-taken.
+its year counts from the day you gave it. A token's date never moves: giving a token again, even
+after another, keeps the date it was first taken.
 
-The hash ties the record to that token, never holding the token itself. A token written by
-anything else has no known date, unless it's the same token the record was written for, as when
-you restore both files together. A missing or damaged record only leaves the date unknown: the
-token works as before. `accounts remove` deletes the record with the token file. `status --json`
+The hash ties each date to its token, never holding the token itself. A token written by anything
+else has no known date, unless the record has a date for that same token, as when you restore both
+files together. A missing or damaged record only leaves the date unknown: the token works as
+before.
+
+The record must be yours, and no one else can read or write it, as with the token file. A record
+restored readable by others, but not writable, is made private as the router starts, and when
+switchboard next writes a token beside it. `accounts remove` deletes the record with the token file. `status --json`
 gives each token's `token_taken`, and its `token_good_until`, 365 days on.
 
 ### When switchboard reads token files

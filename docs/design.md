@@ -660,21 +660,27 @@ accounts:
 - A setup token is good for a year from when it's made, 365 days, and is never refreshed, so
   switchboard keeps when it took each token: whenever it writes one, it writes beside it
   `<state dir>/tokens/<id>.taken`, as it writes the token, whole, 0600, and through a link where
-  there's one. It holds two lines, the time taken, RFC 3339 in UTC, and the token's SHA-256 hash in
-  hex, never the token: `taken 2026-10-27T09:30:00Z` then `sha256 <hash>`. The hash keeps the record
-  to the token it was written for, so a token file replaced by anything else has no known date
-  rather than a wrong one. A token's year counts from when switchboard took it, a pasted token's
-  from the day it was given, as nothing says when it was made; the same token given again keeps
-  the date it was first taken, as one setup-token makes each. A record that's missing leaves the
-  date unknown, saying nothing; one that isn't the user's alone, isn't those two lines exactly,
-  holds a time that's zero or past 9998, so its year's end has a year RFC 3339 can write, or is
-  of another token leaves it unknown too, logged at debug, by the router once until why changes.
-  Neither ever makes the token unusable. A token switchboard keeps rather than takes, as
+  there's one. It holds a pair of lines for each of the account's latest 8 tokens, the latest
+  given first: the time taken, RFC 3339 in UTC, then the token's SHA-256 hash in lowercase hex,
+  never the token, as `taken 2026-10-27T09:30:00Z` then `sha256 <hash>`. A token's date is the one
+  its hash has there, so a token file replaced by anything else has no known date rather than a
+  wrong one. A token's year counts from when switchboard took it, a pasted token's from the day it
+  was given, as nothing says when it was made, and never moves, as one setup-token makes each: a
+  token given again, even after others, as one given by mistake, keeps its date, moving to the
+  front, and of two dates for one token, as after a clock set wrong, the earlier stands. A record
+  that's missing leaves the date unknown, saying nothing; one that isn't the user's alone, isn't
+  whole pairs of those lines, from 1 to 8, each well formed, no hash twice, holds a time that's
+  zero or outside the years 1 to 9998 in UTC, so its year's end has a year RFC 3339 can write, or
+  has no date of the token leaves it unknown too, logged at debug, by the router once until why
+  changes. Neither ever makes the token unusable. A record restored readable by others, though
+  no one else can write it, is made the user's alone, as the tokens directory is: as the router
+  starts, and as a token is written beside it. A token switchboard keeps rather than takes, as
   `accounts add` keeps a usable one, keeps whatever record it has, as one restored with it. The
   record is never written where it would land on the token file, as through a link from one to
   the other. A failure to write it is logged as a warning, the token saved all the same.
   `accounts remove` deletes the token file, then the record, a link alone where it's one; a token
-  file it can't remove keeps its record. The status document gives each account's `token_taken`, and
+  file it can't remove keeps its record, and one that was a link to the record's own path leaves
+  the record, the file it led to. The status document gives each account's `token_taken`, and
   `token_good_until`, 365 days on, the router's as probing's: the router reads the record whenever
   it reads the token, as it starts, at every look and on a 401, never per request, and holds the
   date beside the token it was of, so a record that lands a moment after its token counts from the
@@ -7290,9 +7296,10 @@ hiding it behind the provider would take a wider interface than it's worth:
 - **Themes:** `<slug>.theme` files in `SWITCHBOARD_THEMES_DIR`, else
   `$XDG_CONFIG_HOME/switchboard/themes/`, else `~/.config/switchboard/themes/` (see Themes).
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory, and beside
-  each token switchboard wrote, `<id>.taken`, 0600: two lines, `taken <RFC 3339 time, UTC>` and
-  `sha256 <the token's hash, hex>`, saying when it took that token. An account id holds no `.`, so
-  no token file is named so. See Accounts and tokens.
+  each token switchboard wrote, `<id>.taken`, 0600: a pair of lines for each of the account's latest
+  8 tokens, the latest first, `taken <RFC 3339 time, UTC>` then `sha256 <the token's hash, lowercase
+  hex>`, saying when it first took each. An account id holds no `.`, so no token file is named so.
+  See Accounts and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
   Logging), and `launchd.log`, where the service's raw stdout and stderr, such as crash output,
   go, cut to its newest 5 MiB as the service starts the router, once past 10 (see Logging).

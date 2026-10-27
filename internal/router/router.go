@@ -100,9 +100,9 @@ type Config struct {
 	// since.
 	Token func(id string) (tokens.Token, error)
 	// Taken reads when switchboard took an account's token, by the account's
-	// id, as the record beside its token file says, reporting false where
-	// that isn't known: whenever the router reads a token, it reads its
-	// record too. Nil knows of none.
+	// id, as the record beside its token file says, failing where that isn't
+	// known, with tokens.ErrUnrecorded where there's no record: whenever the
+	// router reads a token, it reads its record too. Nil knows of none.
 	Taken TakenFunc
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string

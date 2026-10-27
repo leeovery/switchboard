@@ -114,8 +114,8 @@ func TestWhyARecordCantBeGoneByIsLoggedOnceUntilItChanges(t *testing.T) {
 	failing := func(err error) TakenFunc {
 		return func(string, tokens.Token) (time.Time, error) { return time.Time{}, err }
 	}
-	another := errors.New("the record tokens/work.taken is of another token")
-	notOne := errors.New("the record tokens/work.taken isn't one of when a token was taken")
+	another := errors.New("the record tokens/work.taken is of other tokens")
+	notOne := errors.New("the record tokens/work.taken isn't one of when tokens were taken")
 
 	for _, err := range []error{another, another, another, tokens.ErrUnrecorded, notOne, notOne, another} {
 		work.noteTaken(token, failing(err))
@@ -126,8 +126,8 @@ func TestWhyARecordCantBeGoneByIsLoggedOnceUntilItChanges(t *testing.T) {
 			logged = append(logged, line)
 		}
 	}
-	if len(logged) != 3 || !strings.Contains(logged[0], "another token") || !strings.Contains(logged[1], "isn't one") || !strings.Contains(logged[2], "another token") {
-		t.Errorf("logged\n%s\nwant why at each change alone: of another token, not one, of another token", strings.Join(logged, "\n"))
+	if len(logged) != 3 || !strings.Contains(logged[0], "other tokens") || !strings.Contains(logged[1], "isn't one") || !strings.Contains(logged[2], "other tokens") {
+		t.Errorf("logged\n%s\nwant why at each change alone: of other tokens, not one, of other tokens", strings.Join(logged, "\n"))
 	}
 	checkNoToken(t, log)
 }

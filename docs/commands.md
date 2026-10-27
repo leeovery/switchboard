@@ -432,7 +432,7 @@ that subscription.
 - An interrupt while they wait for the token saves nothing.
 
 A saved token's year counts from when it's saved, as nothing says when a pasted token was made.
-Saving the same token again keeps the date it was first saved.
+Saving a token again, even after another, keeps the date it was first saved.
 
 **The config** is edited as text, keeping its comments and layout. A config that's a link is
 written through, to where it leads. The router takes the change up itself: the service's router

@@ -42,7 +42,7 @@ The state directory holds these files:
 | `control.sock` | The router's control API, which the commands and the dashboard talk to. |
 | `prefs.json` | What the dashboard remembers. See [`dashboard`](dashboard.md) and [Themes](dashboard.md#themes). |
 | `tokens/<id>` | Each account's token. See [Tokens](configuration.md#tokens). |
-| `tokens/<id>.taken` | When switchboard took the account's token, with the token's SHA-256 hash. See [When each token was taken](configuration.md#when-each-token-was-taken). |
+| `tokens/<id>.taken` | When switchboard took each of the account's latest tokens, with each token's SHA-256 hash. See [When each token was taken](configuration.md#when-each-token-was-taken). |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting.md#the-logs). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |

@@ -1,12 +1,14 @@
 package tokens
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,35 +18,41 @@ import (
 
 var logger = logs.For("tokens")
 
-// takenExt names an account's record of when its token was taken, beside its
-// token file: <id>.taken. An account's id can't hold a '.', so no token file
-// is named so.
+// takenExt names an account's record of when its tokens were taken, beside
+// its token file: <id>.taken. An account's id can't hold a '.', so no token
+// file is named so.
 const takenExt = ".taken"
 
-// lastYear is the last year a record's time may fall in. Its token's year
-// runs on past it, and RFC 3339, which the status document gives times in,
-// has four-digit years alone.
-const lastYear = 9998
+// The years a record's time may fall in, in UTC. Its token's year runs on
+// past the last, and RFC 3339, which the status document gives times in, has
+// four-digit years alone.
+const (
+	firstYear = 1
+	lastYear  = 9998
+)
+
+// mostTaken is how many tokens' dates a record keeps.
+const mostTaken = 8
 
 // ErrUnrecorded is what Taken fails with where there's no record of when the
-// token was taken.
+// account's tokens were taken.
 var ErrUnrecorded = errors.New("no record of when the token was taken")
 
-// record is when switchboard took a token, and the token's SHA-256 hash, in
-// hex, never the token, so the record counts for that token alone. Its file
-// holds two lines, the last ending in a newline or not:
-//
-//	taken 2026-10-27T09:30:00Z
-//	sha256 <the token's hash>
-type record struct {
+// taking is when switchboard first took a token, and the token's SHA-256
+// hash, in hex, never the token.
+type taking struct {
 	taken time.Time
 	sum   string
 }
 
-// recordOf is the record of token, taken at taken, in UTC.
-func recordOf(token Token, taken time.Time) record {
-	return record{taken: taken.UTC(), sum: sum(token)}
-}
+// record is when switchboard took each of an account's latest tokens, the
+// latest given first, so a token given again, as after another by mistake,
+// keeps its date. Its file holds two lines a token, the last ending in a
+// newline or not:
+//
+//	taken 2026-10-27T09:30:00Z
+//	sha256 <the token's hash>
+type record []taking
 
 // sum is the SHA-256 hash of token, in hex.
 func sum(token Token) string {
@@ -52,55 +60,104 @@ func sum(token Token) string {
 	return hex.EncodeToString(s[:])
 }
 
+// of returns when the token whose hash is sum was taken, reporting false
+// where the record doesn't say.
+func (r record) of(sum string) (time.Time, bool) {
+	i := slices.IndexFunc(r, func(t taking) bool { return t.sum == sum })
+	if i < 0 {
+		return time.Time{}, false
+	}
+	return r[i].taken, true
+}
+
+// with is the record once the token whose hash is sum is given at taken:
+// first, dated the earlier of taken and any date it has already, which a
+// clock set wrong when it was first taken can't have moved on; the rest
+// after it, as they were, up to mostTaken in all.
+func (r record) with(sum string, taken time.Time) record {
+	if had, ok := r.of(sum); ok && had.Before(taken) {
+		taken = had
+	}
+	others := slices.DeleteFunc(slices.Clone(r), func(t taking) bool { return t.sum == sum })
+	next := append(record{{taken: taken.UTC(), sum: sum}}, others...)
+	return next[:min(len(next), mostTaken)]
+}
+
 // bytes is the record as its file holds it.
 func (r record) bytes() []byte {
-	return fmt.Appendf(nil, "taken %s\nsha256 %s\n", r.taken.Format(time.RFC3339), r.sum)
+	var b []byte
+	for _, t := range r {
+		b = fmt.Appendf(b, "taken %s\nsha256 %s\n", t.taken.Format(time.RFC3339), t.sum)
+	}
+	return b
 }
 
 // parseRecord returns the record a record's file holds, reporting false for
-// anything else: a time that's zero, or past lastYear, among it.
+// anything else: whole pairs of lines, from one to mostTaken of them, each a
+// time in the years a record's may be and a hash in lowercase hex, no hash
+// twice.
 func parseRecord(data []byte) (record, bool) {
 	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
-	if len(lines) != 2 {
-		return record{}, false
+	if len(lines)%2 != 0 || len(lines) > 2*mostTaken {
+		return nil, false
 	}
-	at, isTaken := strings.CutPrefix(lines[0], "taken ")
-	s, isSum := strings.CutPrefix(lines[1], "sha256 ")
-	taken, err := time.Parse(time.RFC3339, at)
-	if !isTaken || !isSum || err != nil || taken.IsZero() || taken.UTC().Year() > lastYear || !isSum256(s) {
-		return record{}, false
+	var r record
+	for i := 0; i < len(lines); i += 2 {
+		t, ok := parseTaking(lines[i], lines[i+1])
+		if _, twice := r.of(t.sum); !ok || twice {
+			return nil, false
+		}
+		r = append(r, t)
 	}
-	return record{taken: taken.UTC(), sum: s}, true
+	return r, true
 }
 
-// isSum256 reports whether s is a SHA-256 hash, in hex.
+// parseTaking returns the taking a record's pair of lines, taken and hashed,
+// give, reporting false where they don't.
+func parseTaking(taken, hashed string) (taking, bool) {
+	at, isTaken := strings.CutPrefix(taken, "taken ")
+	s, isSum := strings.CutPrefix(hashed, "sha256 ")
+	t, err := time.Parse(time.RFC3339, at)
+	if !isTaken || !isSum || err != nil || t.IsZero() || !isSum256(s) {
+		return taking{}, false
+	}
+	if year := t.UTC().Year(); year < firstYear || year > lastYear {
+		return taking{}, false
+	}
+	return taking{taken: t.UTC(), sum: s}, true
+}
+
+// isSum256 reports whether s is a SHA-256 hash, in lowercase hex.
 func isSum256(s string) bool {
-	b, err := hex.DecodeString(s)
-	return err == nil && len(b) == sha256.Size
+	return len(s) == 2*sha256.Size && !strings.ContainsFunc(s, func(r rune) bool {
+		return (r < '0' || r > '9') && (r < 'a' || r > 'f')
+	})
 }
 
-// takenPath is where the record of when the account's token was taken is.
+// takenPath is where the record of when the account's tokens were taken is.
 func (s Store) takenPath(id string) string {
 	return s.Path(id) + takenExt
 }
 
-// Taken returns when switchboard took token as the account's, as the record
-// it wrote beside the token file says. It fails with ErrUnrecorded where
-// there's no record, and saying why, never quoting the record, where it isn't
-// the user's alone, isn't one, or is of another token, as of a token file
-// replaced by something else. Not knowing never makes the token unusable.
+// Taken returns when switchboard first took token as the account's, as the
+// record it keeps beside the token file says. It fails with ErrUnrecorded
+// where there's no record, and saying why, never quoting the record, where it
+// isn't the user's alone, isn't one, or has no date of token, as of a token
+// file replaced by something else. Not knowing never makes the token
+// unusable.
 func (s Store) Taken(id string, token Token) (time.Time, error) {
 	r, err := s.readTaken(id)
 	if err != nil {
 		return time.Time{}, err
 	}
-	if r.sum != sum(token) {
-		return time.Time{}, fmt.Errorf("the record %s is of another token", s.takenPath(id))
+	taken, ok := r.of(sum(token))
+	if !ok {
+		return time.Time{}, fmt.Errorf("the record %s is of other tokens", s.takenPath(id))
 	}
-	return r.taken, nil
+	return taken, nil
 }
 
-// readTaken returns the record of when the account's token was taken, once
+// readTaken returns the record of when the account's tokens were taken, once
 // it's shown to be a file of the user's that no one else can read or write,
 // failing with ErrUnrecorded where there's none.
 func (s Store) readTaken(id string) (record, error) {
@@ -108,13 +165,13 @@ func (s Store) readTaken(id string) (record, error) {
 	data, err := readChecked(path, "the record of when the token was taken", s.checkRecord(path))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return record{}, ErrUnrecorded
+		return nil, ErrUnrecorded
 	case err != nil:
-		return record{}, err
+		return nil, err
 	}
 	r, ok := parseRecord(data)
 	if !ok {
-		return record{}, fmt.Errorf("the record %s isn't one of when a token was taken", path)
+		return nil, fmt.Errorf("the record %s isn't one of when tokens were taken", path)
 	}
 	return r, nil
 }
@@ -136,22 +193,28 @@ func (s Store) checkRecord(path string) func(fs.FileInfo) error {
 	}
 }
 
-// writeTaken writes the record of token, taken at taken, as the account's, as
-// Write writes its token: through a link, whole or not at all, and private.
-// A record of token there already stands, keeping its date. It never writes
-// where the token file, written at tokenTarget, is, as through a link.
+// writeTaken records token, taken at taken, as the account's, as Write writes
+// its token: through a link, whole or not at all, and private. It keeps the
+// dates of the tokens the record has already, as with says, and writes
+// nothing where that changes nothing. A record it can't go by is replaced. It
+// never writes where the token file, written at tokenTarget, is, as through
+// a link.
 func (s Store) writeTaken(id string, token Token, taken time.Time, tokenTarget string) error {
-	if r, err := s.readTaken(id); err == nil && r.sum == sum(token) {
+	path := s.takenPath(id)
+	s.tightenRecord(path)
+	was, _ := s.readTaken(id)
+	next := was.with(sum(token), taken)
+	if bytes.Equal(next.bytes(), was.bytes()) {
 		return nil
 	}
-	target, err := atomicfile.Target(s.takenPath(id))
+	target, err := atomicfile.Target(path)
 	if err != nil {
 		return err
 	}
 	if sameFile(target, tokenTarget) {
-		return fmt.Errorf("the record %s leads to the token file, which it would replace", s.takenPath(id))
+		return fmt.Errorf("the record %s leads to the token file, which it would replace", path)
 	}
-	return atomicfile.Write(target, recordOf(token, taken).bytes(), 0o600)
+	return atomicfile.Write(target, next.bytes(), 0o600)
 }
 
 // sameFile reports whether the files at a and b are one: false where either
@@ -165,9 +228,44 @@ func sameFile(a, b string) bool {
 	return err == nil && os.SameFile(ai, bi)
 }
 
-// forgetTaken removes the record of when the account's token was taken, if
+// tightenRecords makes each record in the tokens directory private, as
+// tightenRecord does.
+func (s Store) tightenRecords() {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		logger.Debug("couldn't look for records of when tokens were taken", "error", err)
+		return
+	}
+	for _, e := range entries {
+		if id, ok := strings.CutSuffix(e.Name(), takenExt); ok {
+			s.tightenRecord(s.takenPath(id))
+		}
+	}
+}
+
+// tightenRecord makes the record at path the user's alone, as one restored
+// from a copy is often left readable by others: a file of the user's, not a
+// link, that others can read but not write, which nothing but the user can
+// have changed. One others can write stays as it is, and counts for nothing.
+func (s Store) tightenRecord(path string) {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || !s.owns(info) {
+		return
+	}
+	perm := info.Mode().Perm()
+	if perm&shared == 0 || perm&0o022 != 0 {
+		return
+	}
+	if err := os.Chmod(path, perm&^shared); err != nil {
+		logger.Debug("couldn't make the record of when the token was taken private", "path", path, "error", err)
+		return
+	}
+	logger.Info("made the record of when the token was taken private", "path", path, "was", fmt.Sprintf("%04o", perm))
+}
+
+// forgetTaken removes the record of when the account's tokens were taken, if
 // it has one: of one that's a link, the link alone. One left behind counts
-// for nothing but the token it's of, so failing to remove it is only logged.
+// for nothing but the tokens it's of, so failing to remove it is only logged.
 func (s Store) forgetTaken(id string) {
 	if err := os.Remove(s.takenPath(id)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		logger.Debug("couldn't remove the record of when the token was taken", "account", id, "error", err)

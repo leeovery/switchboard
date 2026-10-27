@@ -196,7 +196,8 @@ func (s Store) Dir() string {
 
 // Tighten makes the tokens directory the user's alone, as Write keeps it,
 // when it's there: it never makes one. It returns the permissions the
-// directory had, and reports whether it changed them.
+// directory had, and reports whether it changed them. It makes the records
+// in it of when each token was taken private too, as tightenRecord does.
 func (s Store) Tighten() (was fs.FileMode, tightened bool, err error) {
 	info, err := os.Stat(s.dir)
 	switch {
@@ -208,13 +209,14 @@ func (s Store) Tighten() (was fs.FileMode, tightened bool, err error) {
 		return 0, false, fmt.Errorf("the tokens directory %s isn't a directory: remove it, and write the tokens again", s.dir)
 	}
 	was = info.Mode().Perm()
-	if was == private {
-		return was, false, nil
+	tightened = was != private
+	if tightened {
+		if err := os.Chmod(s.dir, private); err != nil {
+			return was, false, fmt.Errorf("make the tokens directory private: %w", err)
+		}
 	}
-	if err := os.Chmod(s.dir, private); err != nil {
-		return was, false, fmt.Errorf("make the tokens directory private: %w", err)
-	}
-	return was, true, nil
+	s.tightenRecords()
+	return was, tightened, nil
 }
 
 // Removed is what removing an account's token file removed.
@@ -230,13 +232,17 @@ type Removed struct {
 // when its token was taken, and says what it removed of the token file. A
 // token file it can't remove keeps its record. A link in either's place goes,
 // but not the file it leads to, which is kept elsewhere, as by a dotfiles
-// step, and isn't switchboard's to delete.
+// step, and isn't switchboard's to delete: a token file that led to the
+// record's own path leaves the record too.
 func (s Store) Remove(id string) (Removed, error) {
+	ledToRecord := sameFile(s.Path(id), s.takenPath(id))
 	removed, err := s.removeToken(id)
 	if err != nil {
 		return Removed{}, err
 	}
-	s.forgetTaken(id)
+	if !ledToRecord {
+		s.forgetTaken(id)
+	}
 	return removed, nil
 }
 

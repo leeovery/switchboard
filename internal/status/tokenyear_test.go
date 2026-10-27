@@ -45,7 +45,7 @@ func TestCollectGivesNoDateItCantGoBy(t *testing.T) {
 	}{
 		{name: "with no record", taken: tokenstest.Taken{}.Read},
 		{name: "with a record it can't go by", taken: func(string, tokens.Token) (time.Time, error) {
-			return time.Date(2026, 3, 2, 9, 30, 0, 0, time.UTC), errors.New("the record tokens/work.taken is of another token")
+			return time.Date(2026, 3, 2, 9, 30, 0, 0, time.UTC), errors.New("the record tokens/work.taken is of other tokens")
 		}},
 		{name: "knowing of no record, as a collector without Taken"},
 	}
