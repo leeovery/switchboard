@@ -363,19 +363,25 @@ The steps are:
    router answers, saying so; otherwise it's installed afresh from `setup`'s own options and your
    shell's environment, once the router could start from them. A plist that isn't XML, as the
    binary one `defaults write` leaves, is read back through `plutil`. A plist that sets `HOME`
-   empty, where the router's state or config is found under it, is left as it is while a router
-   answers, and otherwise `setup` fails, naming `switchboard service install`.
+   empty, where the router's state directory or config file is found under it, is left as it is
+   while a router answers, and otherwise `setup` fails, naming `switchboard service install`; a
+   `--config` given to `setup` stands in for the config file. Where only Claude Code's config
+   directory is under it, `setup` says the router won't keep the skill up to date, and carries
+   on.
 
    `setup` watches the router where the service's plist keeps its state, and the one where your
    shell does, and asks launchd whether it runs the router. It leaves the service as it is, saying
-   why: where there's no plist but a router answers, saying to stop a router run by hand and run
-   `setup` again, or to run `switchboard service install` to write the plist again; where launchd
+   why: where there's no plist but a router answers, failing, as nothing would bring it back
+   after a restart, saying to run `switchboard service install` to write the plist again where
+   launchd still runs it, or to stop a router run some other way and run `setup` again; where launchd
    hasn't loaded it but a router run some other way answers, as another would clash with it;
    where only the one at your shell's answers, so it can't tell which the service runs; and where
    launchd runs a router that answers at neither within 5 seconds, which may be starting,
    stopping, or keeping its state where `setup` doesn't look, and `switchboard service status`
    shows launchd's pid for. Where it leaves the service with no router answering, the step fails:
-   run `setup` again once the router answers. Run `switchboard service install` from the shell
+   run `setup` again once the router answers, or, for a plist it can't read,
+   `switchboard service install`. It says where the router finds things apart from `setup` only
+   once a router answers. Run `switchboard service install` from the shell
    the router should use to line them up. It restarts the router only when none answers and none
    runs, once it has checked the router could start, and fails where it couldn't, saying how to
    install it. A router started so is judged where it answers, once it does: where that's where
@@ -558,8 +564,9 @@ put the config right as it says.
   runs, and the health of the router where the LaunchAgent keeps its state, else of the one where
   your shell does, saying so. Where it can't read the LaunchAgent's plist back, or work out from
   it where the router keeps its state, `status` and `restart` say so, and look for the router
-  where your shell keeps its state. Where only the one at your shell's answers and can't be asked
-  to restart, `restart` fails rather than signal launchd's, which may not be it.
+  where your shell keeps its state. Where only the one at your shell's answers, or the plist
+  couldn't be read or placed, and the router can't be asked to restart, `restart` fails rather
+  than signal launchd's, which may not be it.
 
 When the router doesn't answer in time, `install` and `restart` fail, with the LaunchAgent left in
 place. They point to `switchboard logs router` and `launchd.log` for why.
