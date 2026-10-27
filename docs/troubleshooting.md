@@ -51,13 +51,13 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   config is put right, each `claude` you start says it couldn't read the config and starts without
   switchboard: unrouted, but within a session still routed. Put the config right as it says, and
   the router restarts at its next quiet moment. See [Restarts](how-it-works.md#restarts).
-- **`claude` won't start, the router down:** with the router not running, or not answering, `claude`
-  starts nothing and says so. An unhealthy router doesn't stop it: `claude` goes through it, saying
-  so. Run [`switchboard service status`](commands.md#service) to see whether the LaunchAgent is
-  installed and loaded and how the router answers, then `switchboard service install` or
-  `switchboard service restart`. To start Claude Code without the router this once, unrouted and
-  unrecorded, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`; to have it do so always, set
-  [`when_router_down = "direct"`](configuration.md#top-level-keys).
+- **`claude` won't start, the router down:** with the router not running, not answering, or not
+  saying where it listens, `claude` starts nothing and says so. An unhealthy router doesn't stop it:
+  `claude` goes through it, saying so. Run [`switchboard service status`](commands.md#service) to
+  see whether the LaunchAgent is installed and loaded and how the router answers, then `switchboard
+  service install` or `switchboard service restart`. To start Claude Code without the router this
+  once, unrouted and unrecorded, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`; to have it do so
+  always, set [`when_router_down = "direct"`](configuration.md#top-level-keys).
 - **A pin that may or may not have been made:** a router stopping or restarting as `pin`, or a pin
   on the dashboard, asks it closes without answering, though it may have made the pin first. Run
   `switchboard status` to see whether it did, and pin again if not.

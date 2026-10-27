@@ -94,7 +94,7 @@ cache_write_1h = 6.4
 | `listen` | `127.0.0.1:4747` | The proxy's address, as `host:port`. |
 | `upstream` | `https://api.anthropic.com` | The API's base URL. |
 | `week_starts` | `monday` | The day calendar weeks start on, as [`history`](commands.md#history) counts them. |
-| `when_router_down` | `stop` | What `claude` does when the router isn't running or isn't answering: `stop` or `direct`. |
+| `when_router_down` | `stop` | What `claude` does when the router can't be routed through, as when it isn't running: `stop` or `direct`. |
 
 - **`listen`:** The host must be a loopback IP address: `127.0.0.1`, or `::1` written as
   `[::1]:4747`. It can never be a name, such as `localhost`.

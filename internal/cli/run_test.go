@@ -202,8 +202,9 @@ func TestRunThroughAnUnhealthyRouter(t *testing.T) {
 			}
 			srv := newServeSetup(t, gone.URL, vars)
 			srv.start(t)
-			// The key, written into the config the router started on, which
-			// run reads too.
+			// The key, written into the config after the router started: run
+			// reads it, and the router, not run by the service, only logs that a
+			// restart is due.
 			if d.key != "" {
 				config := fmt.Sprintf("when_router_down = %q\nlisten = %q\nupstream = %q\n", d.key, srv.listen, gone.URL) + threeAccounts
 				if err := os.WriteFile(srv.config, []byte(config), 0o600); err != nil {

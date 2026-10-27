@@ -5874,9 +5874,9 @@ sends its requests mid-session, and the failures that count against the router, 
 reach and refusals with no account left, would meet a direct connection too. So a new launch goes
 through an unhealthy router all the same, saying so on stderr: its trouble is upstream, which a
 direct connection wouldn't escape, and it turns healthy again only as its failures leave the 5
-minutes, so stopping the launch would block work for nothing (the owner's call, 27 October 2026).
-Only a router that can't be routed through, down or not saying where it listens, stops a launch, or
-has it go direct where it's told to.
+minutes or requests that succeed outnumber them, so stopping the launch would block work for nothing
+(the owner's call, 27 October 2026). Only a router that can't be routed through, down or not saying
+where it listens, stops a launch, or has it go direct where it's told to.
 
 ## Notifications
 
