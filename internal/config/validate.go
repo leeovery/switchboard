@@ -213,6 +213,19 @@ func checkID(account, id string) error {
 // mostLabelCharacters is the longest a label may be, in runes.
 const mostLabelCharacters = 100
 
+// checkGivenLabel is checkLabel of a label given to put in the file, which it
+// refuses too when it isn't UTF-8, as TOML's text must be, or when it would
+// show as nothing but isn't "", which shows the account by its id.
+func checkGivenLabel(account, label string) error {
+	switch {
+	case !utf8.ValidString(label):
+		return fmt.Errorf("%s: label isn't UTF-8 text, as a config's text must be", account)
+	case label != "" && prose.Clean(label) == "":
+		return fmt.Errorf(`%s: label is blank: give one that shows, or "" to show the account by its id`, account)
+	}
+	return checkLabel(account, label)
+}
+
 // checkLabel keeps anything that looks like a token out of a label, and keeps
 // a label to mostLabelCharacters. It never quotes the label, which could be
 // anything.
@@ -241,18 +254,23 @@ func reserveFits(reserve float64) bool {
 	return reserve >= 0 && reserve < 1
 }
 
-// ParseReserve reads a reserve written as a percentage, such as 5% or 2.5%,
-// as the share of every window it is, 0.05 or 0.025: 0, or 0%, for none. A
-// number other than 0 without its % is refused, as 5 or 0.05 could mean
-// either.
+// percentage is the number of a percentage as a reserve is written: digits,
+// to two decimal places at most, so what's shown of it is what's saved.
+var percentage = regexp.MustCompile(`^[+-]?[0-9]+(?:\.[0-9]{1,2})?$`)
+
+// ParseReserve reads a reserve written as a percentage, to two decimal places
+// at most, such as 5% or 2.5%, as the share of every window it is, 0.05 or
+// 0.025: 0, or 0%, for none. A number other than 0 without its % is refused,
+// as 5 or 0.05 could mean either.
 func ParseReserve(given string) (float64, error) {
 	number, percent := strings.CutSuffix(strings.TrimSpace(given), "%")
+	number = strings.TrimSpace(number)
 	// Moving the point in the text reads 2.3% as 0.023 reads, where dividing
-	// 2.3 by 100 needn't. It refuses an exponent, infinity and NaN too.
-	share, err := strconv.ParseFloat(strings.TrimSpace(number)+"e-2", 64)
+	// 2.3 by 100 needn't.
+	share, err := strconv.ParseFloat(number+"e-2", 64)
 	switch {
-	case err != nil:
-		return 0, wrongValue("reserve", given, "must be a percentage, such as 5%, or 0 for none")
+	case err != nil || !percentage.MatchString(number):
+		return 0, wrongValue("reserve", given, "must be a percentage, to two decimal places at most, such as 5% or 2.5%, or 0 for none")
 	case !percent && share != 0:
 		return 0, wrongValue("reserve", given, "must be written as a percentage, such as 5%, as a number alone could be a share or a percentage")
 	case !reserveFits(share):

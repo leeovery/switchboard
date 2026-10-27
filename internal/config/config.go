@@ -253,6 +253,11 @@ type fileAccount struct {
 	Plan    string  `toml:"plan"`
 }
 
+// shownAs is the label the account is shown by: its own, else its id.
+func (a fileAccount) shownAs() string {
+	return cmp.Or(a.Label, a.ID)
+}
+
 // filePrime is the [prime] table as it's written.
 type filePrime struct {
 	Day string `toml:"day"`
@@ -365,7 +370,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 func resolve(written []fileAccount) Accounts {
 	accounts := make(Accounts, len(written))
 	for i, w := range written {
-		accounts[i] = Account{ID: w.ID, Label: cmp.Or(w.Label, w.ID), Primary: w.Primary, Reserve: w.Reserve, Plan: w.Plan}
+		accounts[i] = Account{ID: w.ID, Label: w.shownAs(), Primary: w.Primary, Reserve: w.Reserve, Plan: w.Plan}
 	}
 	accounts[accounts.primary()].Primary = true
 	return accounts

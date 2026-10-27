@@ -43,27 +43,45 @@ var (
 type document struct {
 	lines []string
 	kinds []kind
+	// bom is the byte order mark the text starts with, when it does, which
+	// the lines go without, so the first reads as what it is.
+	bom string
+	// eol ends each line: "\r\n" where every line of the text ends so, so
+	// lines put in end as the rest do; else "\n", any "\r" kept in its line.
+	eol string
 }
+
+// byteOrderMark is the mark of UTF-8 a text may start with.
+const byteOrderMark = "\uFEFF"
 
 // newDocument reads text as a document.
 func newDocument(text string) document {
+	d := document{eol: "\n"}
+	if rest, ok := strings.CutPrefix(text, byteOrderMark); ok {
+		d.bom, text = byteOrderMark, rest
+	}
+	if crlf := strings.Count(text, "\r\n"); crlf > 0 && crlf == strings.Count(text, "\n") {
+		d.eol, text = "\r\n", strings.ReplaceAll(text, "\r\n", "\n")
+	}
 	lines := strings.Split(text, "\n")
 	if lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
-	return documentOf(lines)
+	return d.of(lines)
 }
 
-func documentOf(lines []string) document {
-	return document{lines: lines, kinds: scan(lines)}
+// of returns lines as a document whose text starts and ends its lines as d's
+// does.
+func (d document) of(lines []string) document {
+	return document{lines: lines, kinds: scan(lines), bom: d.bom, eol: d.eol}
 }
 
-// text is the document's text, each line ending in a newline.
+// text is the document's text, each line ending as eol has it.
 func (d document) text() string {
 	if len(d.lines) == 0 {
-		return ""
+		return d.bom
 	}
-	return strings.Join(d.lines, "\n") + "\n"
+	return d.bom + strings.Join(d.lines, d.eol) + d.eol
 }
 
 // scan says what each of lines is. A line within a string that goes on over
@@ -119,21 +137,27 @@ func opens(text string) string {
 }
 
 // closes reports whether text holds the quotes that close a string opened
-// with quote: the same three again, which a backslash escapes in a basic
-// string but not in a literal one.
+// with quote, as closing finds them.
 func closes(quote, text string) bool {
-	if quote == `'''` {
-		return strings.Contains(text, quote)
+	return closing(text, quote) >= 0
+}
+
+// closing returns where in text the quotes that close a string opened with
+// quote start, the same quotes again, which a backslash escapes in a basic
+// string but not in a literal one: -1 when text doesn't hold them.
+func closing(text, quote string) int {
+	if quote[0] == '\'' {
+		return strings.Index(text, quote)
 	}
 	for i := 0; i < len(text); i++ {
 		switch {
 		case text[i] == '\\':
 			i++
 		case strings.HasPrefix(text[i:], quote):
-			return true
+			return i
 		}
 	}
-	return false
+	return -1
 }
 
 // span is the lines of a document from start up to end.
@@ -233,19 +257,19 @@ func (d document) insert(at int, lines []string) document {
 	if at < len(d.kinds) && d.kinds[at] != blank {
 		inserted = append(inserted, "")
 	}
-	return documentOf(slices.Concat(d.lines[:at], inserted, d.lines[at:]))
+	return d.of(slices.Concat(d.lines[:at], inserted, d.lines[at:]))
 }
 
 // put returns the document with lines put in at line at, as they are.
 func (d document) put(at int, lines ...string) document {
-	return documentOf(slices.Concat(d.lines[:at], lines, d.lines[at:]))
+	return d.of(slices.Concat(d.lines[:at], lines, d.lines[at:]))
 }
 
 // replaced returns the document with line i replaced by line.
 func (d document) replaced(i int, line string) document {
 	lines := slices.Clone(d.lines)
 	lines[i] = line
-	return documentOf(lines)
+	return d.of(lines)
 }
 
 // withPrimeDay returns the document with [prime]'s day set to day: in place
@@ -277,7 +301,24 @@ func (d document) withKey(s span, key, value string) document {
 	case value == "":
 		return d
 	}
-	return d.put(d.keysEnd(s), key+" = "+value)
+	return d.putKey(s, key+" = "+value)
+}
+
+// putKey returns the document with line, a key and its value, put below the
+// last key of the table within s, indented as the table's first key is.
+func (d document) putKey(s span, line string) document {
+	return d.put(d.keysEnd(s), d.keyIndent(s)+line)
+}
+
+// keyIndent returns the whitespace the first key of the table within s is
+// indented by.
+func (d document) keyIndent(s span) string {
+	for i := s.start; i < s.end; i++ {
+		if d.kinds[i] == content || d.kinds[i] == primaryKey {
+			return d.lines[i][:len(d.lines[i])-len(strings.TrimLeft(d.lines[i], " \t"))]
+		}
+	}
+	return ""
 }
 
 // keyAt returns the line within s that sets key, bare or quoted, or -1 when
@@ -317,33 +358,30 @@ func valueEnd(text string) int {
 	case strings.HasPrefix(text, "["), strings.HasPrefix(text, "{"):
 		return -1
 	}
-	if end := strings.IndexAny(text, " \t#"); end >= 0 {
+	if end := strings.IndexAny(text, " \t\r#"); end >= 0 {
 		return end
 	}
 	return len(text)
 }
 
 // stringEnd returns the length of the string text starts with, its quotes
-// included, when it's a basic or a literal string on the one line, else -1.
+// included, when it's a basic or a literal string that ends on the one line,
+// in one quote or three, else -1. One or two quotes directly before the three
+// that close it are the string's own, as TOML reads them.
 func stringEnd(text string) int {
-	switch {
-	case strings.HasPrefix(text, `"""`), strings.HasPrefix(text, `'''`):
-		return -1
-	case strings.HasPrefix(text, `'`):
-		if end := strings.Index(text[1:], `'`); end >= 0 {
-			return end + 2
-		}
-	case strings.HasPrefix(text, `"`):
-		for i := 1; i < len(text); i++ {
-			switch text[i] {
-			case '\\':
-				i++
-			case '"':
-				return i + 1
-			}
-		}
+	quote := text[:1]
+	if triple := strings.Repeat(quote, 3); strings.HasPrefix(text, triple) {
+		quote = triple
 	}
-	return -1
+	at := closing(text[len(quote):], quote)
+	if at < 0 {
+		return -1
+	}
+	end := 2*len(quote) + at
+	for own := 0; len(quote) == 3 && own < 2 && end < len(text) && text[end] == quote[0]; own++ {
+		end++
+	}
+	return end
 }
 
 // header returns the line of the first table header that pattern matches,
@@ -365,7 +403,7 @@ func (d document) without(drop []int) document {
 			kept = append(kept, line)
 		}
 	}
-	return documentOf(kept)
+	return d.of(kept)
 }
 
 // cut returns the document without the lines in s, which are whole tables,
@@ -373,7 +411,7 @@ func (d document) without(drop []int) document {
 // apart: those left leading or trailing the document, and those after where
 // s was when there are some before it too.
 func (d document) cut(s span) document {
-	left := documentOf(slices.Concat(d.lines[:s.start], d.lines[s.end:]))
+	left := d.of(slices.Concat(d.lines[:s.start], d.lines[s.end:]))
 	before, after := s.start, s.start
 	for before > 0 && left.kinds[before-1] == blank {
 		before--
@@ -383,11 +421,11 @@ func (d document) cut(s span) document {
 	}
 	switch {
 	case after == len(left.lines):
-		return documentOf(left.lines[:before])
+		return d.of(left.lines[:before])
 	case before == 0:
-		return documentOf(left.lines[after:])
+		return d.of(left.lines[after:])
 	case before < s.start:
-		return documentOf(slices.Delete(left.lines, s.start, after))
+		return d.of(slices.Delete(left.lines, s.start, after))
 	}
 	return left
 }

@@ -47,7 +47,7 @@ type NewAccount struct {
 // account can have.
 func (a NewAccount) check() error {
 	name := accountNamed(a.ID)
-	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label))
+	return errors.Join(checkID(name, a.ID), checkGivenLabel(name, a.Label))
 }
 
 // Draft is the config file's text, edited as text: its comments and layout
@@ -157,9 +157,10 @@ func (d *Draft) MarksPrimary() bool {
 }
 
 // SetPrimary makes the account with the given id the primary: it marks it so
-// below the last key of its [[account]] table, in place of any primary it
-// set, and takes primary off every other account. It fails, matching
-// ErrNotConfigured, when no account has the id.
+// in place of the value any primary it sets gives, keeping a comment beside
+// it, else below the last key of its [[account]] table, and takes primary off
+// every other account. It fails, matching ErrNotConfigured, when no account
+// has the id.
 func (d *Draft) SetPrimary(id string) error {
 	i := d.index(id)
 	switch {
@@ -177,13 +178,17 @@ func (d *Draft) SetPrimary(id string) error {
 	want.Accounts = slices.Clone(d.file.Accounts)
 	var marks []int
 	for j := range want.Accounts {
-		if want.Accounts[j].Primary || j == i {
+		if want.Accounts[j].Primary {
 			marks = append(marks, d.doc.linesOf(primaryKey, tables[j])...)
 		}
 		want.Accounts[j].Primary = j == i
 	}
+	if own := d.doc.linesOf(primaryKey, tables[i]); len(own) > 0 {
+		doc := d.doc.replaced(own[0], withValue(d.doc.lines[own[0]], "true"))
+		return d.take(doc.without(marks), want, change)
+	}
 	doc := d.doc.without(marks)
-	doc = doc.put(doc.keysEnd(doc.accounts()[i]), "primary = true")
+	doc = doc.putKey(doc.accounts()[i], "primary = true")
 	return d.take(doc, want, change)
 }
 
@@ -200,12 +205,17 @@ func (d *Draft) SetPrimeDay(day string) error {
 }
 
 // SetLabel sets the label of the account with the given id, as setAccountKey
-// sets a key: "" takes it out, showing the account by its id. It fails,
-// matching ErrNotConfigured, when no account has the id, and as AddAccount
-// does for a label no account can have.
+// sets a key: "" takes it out, showing the account by its id. An account
+// shown by the label already is left as it is, whatever its table writes. It
+// fails, matching ErrNotConfigured, when no account has the id, and as
+// AddAccount does for a label no account can have.
 func (d *Draft) SetLabel(id, label string) error {
-	if err := checkLabel(accountNamed(id), label); err != nil {
+	if err := checkGivenLabel(accountNamed(id), label); err != nil {
 		return err
+	}
+	shown := fileAccount{ID: id, Label: label}.shownAs()
+	if i := d.index(id); i >= 0 && d.file.Accounts[i].shownAs() == shown {
+		return nil
 	}
 	return d.setAccountKey(id, "label", written(label), func(a *fileAccount) { a.Label = label })
 }

@@ -56,6 +56,55 @@ func TestSetLabel(t *testing.T) {
 			label:  "Work",
 			want:   commented,
 		},
+		{
+			name:   "its id, for an account shown by its id already, left as it is",
+			config: workThenSide,
+			id:     "work",
+			label:  "work",
+			want:   workThenSide,
+		},
+		{
+			name:   "none, for an account labelled with its id, left as it is",
+			config: "[[account]]\nid    = \"work\"\nlabel = \"work\"\n",
+			id:     "work",
+			label:  "",
+			want:   "[[account]]\nid    = \"work\"\nlabel = \"work\"\n",
+		},
+		{
+			name:   "in place of a label in triple quotes on the one line, keeping the comment beside it",
+			config: "[[account]]\nid    = \"work\"\nlabel = \"\"\"Work\"\"\"  # keep me\n",
+			id:     "work",
+			label:  "Day job",
+			want:   "[[account]]\nid    = \"work\"\nlabel = \"Day job\"  # keep me\n",
+		},
+		{
+			name:   "in place of a label in triple quotes holding quotes of its own",
+			config: "[[account]]\nid    = \"work\"\nlabel = \"\"\"the \"work\" one\"\"\"\"\"  # keep me\n",
+			id:     "work",
+			label:  "Day job",
+			want:   "[[account]]\nid    = \"work\"\nlabel = \"Day job\"  # keep me\n",
+		},
+		{
+			name:   "below the last key, indented as the table's keys are",
+			config: "[[account]]\n    id = \"work\"\n    # reserve = 0.1\n",
+			id:     "work",
+			label:  "Work",
+			want:   "[[account]]\n    id = \"work\"\n    label = \"Work\"\n    # reserve = 0.1\n",
+		},
+		{
+			name:   "in a file whose lines end in CRLF, in place, and the key put in ending so too",
+			config: "[[account]]\r\nid = \"work\"\r\n\r\n[[account]]\r\nid    = \"side\"\r\nlabel = \"Side\"\r\n",
+			id:     "work",
+			label:  "Work",
+			want:   "[[account]]\r\nid = \"work\"\r\nlabel = \"Work\"\r\n\r\n[[account]]\r\nid    = \"side\"\r\nlabel = \"Side\"\r\n",
+		},
+		{
+			name:   "in a file that starts with a byte order mark, which it keeps",
+			config: "\uFEFF[[account]]\nid    = \"work\"\nlabel = \"Work\"\n",
+			id:     "work",
+			label:  "Day job",
+			want:   "\uFEFF[[account]]\nid    = \"work\"\nlabel = \"Day job\"\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,6 +143,13 @@ func TestSetPlan(t *testing.T) {
 			id:     "work",
 			plan:   "max20x",
 			want:   "[[account]]\nid   = \"work\"\nplan = \"max20x\"   # for now\n",
+		},
+		{
+			name:   "in place of a plan in triple literal quotes on the one line, keeping the comment beside it",
+			config: "[[account]]\nid   = \"work\"\nplan = '''pro''' # c\n",
+			id:     "work",
+			plan:   "max5x",
+			want:   "[[account]]\nid   = \"work\"\nplan = \"max5x\" # c\n",
 		},
 		{
 			name:   "none, taking its plan out",
@@ -146,6 +202,20 @@ func TestSetReserve(t *testing.T) {
 			id:      "personal",
 			reserve: 0.023,
 			want:    replaced(t, commented, "label = \"Personal\"\n", "label = \"Personal\"\nreserve = 0.023\n"),
+		},
+		{
+			name:    "in place of a bare value in a file whose lines end in CRLF, keeping the ending",
+			config:  "[[account]]\r\nid      = \"work\"\r\nreserve = 0.1\r\n",
+			id:      "work",
+			reserve: 0.05,
+			want:    "[[account]]\r\nid      = \"work\"\r\nreserve = 0.05\r\n",
+		},
+		{
+			name:    "in place of a bare value ending in CR in a file of mixed endings, keeping it",
+			config:  "[[account]]\nid      = \"work\"\r\nreserve = 0.1\r\n",
+			id:      "work",
+			reserve: 0.05,
+			want:    "[[account]]\nid      = \"work\"\r\nreserve = 0.05\r\n",
 		},
 		{
 			name:    "none, taking its reserve out",
@@ -208,6 +278,27 @@ func TestSetLabelRefuses(t *testing.T) {
 			id:      "work",
 			label:   tokenShaped,
 			wantErr: `account "work": label looks like a token, which a label mustn't, as it shows wherever the account does`,
+		},
+		{
+			name:    "a label of spaces alone",
+			config:  commented,
+			id:      "work",
+			label:   "   ",
+			wantErr: `account "work": label is blank: give one that shows, or "" to show the account by its id`,
+		},
+		{
+			name:    "a label of control characters alone, which show as nothing",
+			config:  commented,
+			id:      "work",
+			label:   "\t\a",
+			wantErr: `account "work": label is blank: give one that shows, or "" to show the account by its id`,
+		},
+		{
+			name:    "a label that isn't UTF-8",
+			config:  commented,
+			id:      "work",
+			label:   "a\xffb",
+			wantErr: `account "work": label isn't UTF-8 text, as a config's text must be`,
 		},
 		{
 			name:    "accounts listed inline",
@@ -331,6 +422,25 @@ func TestSetReserveRefuses(t *testing.T) {
 	}
 }
 
+func TestAddingAndRemovingKeepAByteOrderMark(t *testing.T) {
+	const (
+		work     = "\uFEFF[[account]]\nid = \"work\"\n"
+		withSide = work + "\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"
+	)
+	path := writeConfig(t, work)
+	draft := edit(t, path)
+
+	if err := draft.AddAccount(config.NewAccount{ID: "side", Label: "Side"}); err != nil {
+		t.Fatalf("AddAccount() error = %v", err)
+	}
+	checkSaved(t, path, draft, "side", withSide)
+	draft = edit(t, path)
+	if err := draft.RemoveAccount("side"); err != nil {
+		t.Fatalf("RemoveAccount() error = %v", err)
+	}
+	checkSaved(t, path, draft, "work", work)
+}
+
 // replaced returns text with old replaced by with, once, failing the test
 // unless text holds old.
 func replaced(t *testing.T, text, old, with string) string {
@@ -389,6 +499,7 @@ func TestParseReserve(t *testing.T) {
 		{given: "2.5%", want: 0.025},
 		{given: "2.3%", want: 0.023},
 		{given: "99.9%", want: 0.999},
+		{given: "99.99%", want: 0.9999},
 		{given: " 10 % ", want: 0.1},
 		{given: "0%", want: 0},
 		{given: "0", want: 0},
@@ -405,7 +516,7 @@ func TestParseReserve(t *testing.T) {
 
 func TestParseReserveRefuses(t *testing.T) {
 	const (
-		notAPercentage = "must be a percentage, such as 5%, or 0 for none"
+		notAPercentage = "must be a percentage, to two decimal places at most, such as 5% or 2.5%, or 0 for none"
 		bare           = "must be written as a percentage, such as 5%, as a number alone could be a share or a percentage"
 		outOfBounds    = "must be at least 0% and less than 100%, the share of every window the router leaves unused"
 	)
@@ -424,6 +535,9 @@ func TestParseReserveRefuses(t *testing.T) {
 		{name: "an exponent", given: "1e1%", why: notAPercentage},
 		{name: "infinity", given: "inf%", why: notAPercentage},
 		{name: "not a number", given: "NaN%", why: notAPercentage},
+		{name: "past two decimal places", given: "99.999%", why: notAPercentage},
+		{name: "a sliver past two decimal places", given: "0.001%", why: notAPercentage},
+		{name: "digits set apart by underscores", given: "1_0%", why: notAPercentage},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

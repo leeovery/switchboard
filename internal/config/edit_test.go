@@ -654,10 +654,16 @@ primary = true
 `,
 		},
 		{
-			name:   "in place of its own primary = false, leaving another's",
-			config: "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nprimary = false\nlabel = \"Side\"\n",
+			name:   "in place of its own primary = false, keeping the comment beside it, and leaving another's",
+			config: "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nprimary = false  # not yet\nlabel = \"Side\"\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nlabel = \"Side\"\nprimary = true\n",
+			want:   "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nprimary = true  # not yet\nlabel = \"Side\"\n",
+		},
+		{
+			name:   "indented as the table's keys are",
+			config: "[[account]]\n  id = \"work\"\n\n[[account]]\n  id = \"side\"\n",
+			id:     "side",
+			want:   "[[account]]\n  id = \"work\"\n\n[[account]]\n  id = \"side\"\n  primary = true\n",
 		},
 		{
 			name:   "below a label that goes on over lines",
