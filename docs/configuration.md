@@ -286,15 +286,16 @@ to anything else, such as nothing at all, another account's token file or a file
 record, is left as it is, with what it leads to, and a warning in the log: the date stays unknown,
 and the token works as before. So is a record that's another account's token file, or its record,
 however it's reached, as a link from one account's file to another's leaves it, and so is a record's
-path where another account's token file is a link leading there.
+path where another account's token file or record is a link leading there.
 
 `accounts remove` deletes the record with the token file, a link alone where either is one. Where
 the token file is a link to the record's own path, the file there is the token, and it's left; while
 it's so, a token written is written there, and no record over it, with a warning in the log. Once
 the account's removed, that file still holds the token, and switchboard never writes a record over a
 file holding anything shaped like a token, whatever its permissions or owner, nor over one it can't
-read: a token written for an account of that id later leaves it, with a warning, and its date stays
-unknown until you move the file. `status --json` gives each token's `token_taken`, and its
+read or one over 1 MiB: a token written for an account of that id later leaves it, with a warning,
+and its date stays unknown until you move the file. `accounts remove` leaves such a file too, with a
+warning, rather than deleting it. `status --json` gives each token's `token_taken`, and its
 `token_good_until`, 365 days on.
 
 ### When switchboard reads token files
