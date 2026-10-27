@@ -1524,6 +1524,19 @@ func TestASessionWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
 	}
 }
 
+func TestOwnLoginIsASessionsEnvironmentAsTheUserSetIt(t *testing.T) {
+	config := "SWITCHBOARD_CONFIG=/home/tester/switchboard.toml"
+	session := routedSession(t, []string{"HOME=" + homeDir, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on", config}, "side")
+	marks := []string{markEnv + "=4242:1790000000:/opt/claude", "SWITCHBOARD_WHEN_ROUTER_DOWN=direct"}
+
+	got := envMap(launch.OwnLogin(slices.Concat(session, marks)))
+
+	want := map[string]string{"HOME": homeDir, "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on", "SWITCHBOARD_CONFIG": "/home/tester/switchboard.toml"}
+	if !maps.Equal(got, want) {
+		t.Errorf("OwnLogin() = %q, want %q: the user's own, every mark and header of switchboard's gone", got, want)
+	}
+}
+
 func TestDirectWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
 	session := routedSession(t, []string{"HOME=" + homeDir, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on"}, "side")
 	tests := []struct {

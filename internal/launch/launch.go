@@ -154,7 +154,15 @@ func (l Launcher) Direct(args []string) error {
 		return err
 	}
 	logger.Info("starting claude", "mode", "own login", "claude", path)
-	return l.exec(path, args, l.own().without(claude.TokenEnv, claude.BaseURLEnv).pinnedTo("").workingIn(""))
+	return l.exec(path, args, environ(OwnLogin(l.Environ)))
+}
+
+// OwnLogin returns env, an environment as os.Environ gives it, as Claude Code
+// starts on its own login, as Direct starts it: as the user set it (see own),
+// without the token, the base URL, a pin or the directory told the router,
+// nor any mark of switchboard's.
+func OwnLogin(env []string) []string {
+	return environ(env).unmarked().without(claude.TokenEnv, claude.BaseURLEnv, startedEnv, whenDownEnv).pinnedTo("").workingIn("")
 }
 
 // Local starts Claude Code with args, which run one of its local
