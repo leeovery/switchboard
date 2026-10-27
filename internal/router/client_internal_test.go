@@ -27,6 +27,7 @@ func TestARequestClosedUnansweredIsToldApart(t *testing.T) {
 		{name: "closed as the request was written", err: asked(&net.OpError{Op: "write", Net: "unix", Err: syscall.EPIPE}), want: true},
 		{name: "disconnected as the request was written", err: asked(&net.OpError{Op: "write", Net: "unix", Err: os.NewSyscallError("write", syscall.ENOTCONN)}), want: true},
 		{name: "closed by the transport as it read", err: asked(&net.OpError{Op: "read", Net: "unix", Err: net.ErrClosed}), want: true},
+		{name: "closed by the transport as it wrote", err: asked(&net.OpError{Op: "write", Net: "unix", Err: net.ErrClosed}), want: true},
 		{name: "closed before the request was read", err: asked(errors.New(serverClosedIdle)), want: true},
 		{name: "cut off by its deadline", err: asked(context.DeadlineExceeded)},
 		{name: "answered with what isn't HTTP", err: asked(errors.New(`net/http: HTTP/1.x transport connection broken: malformed HTTP status code "2"`))},
@@ -75,12 +76,14 @@ func TestARouterClosingEachConnectionAsItAcceptsItIsNotRunningToItsClient(t *tes
 		}
 	}()
 
-	// The close races the request's write and the transport's read, so it
-	// fails as each of them, by turns: net/http's own words for a close
-	// before the request was read come in about one ask in six to nine with
-	// several processors, but about one in 1,500 with one; a disconnected
-	// write only with several. So it asks at least atLeast times, then on
-	// until those words have come, within atMost asks or the time it's given.
+	// The close races the request's write and the transport's read, so it fails
+	// as each of them, by turns: net/http's own words for a close before the
+	// request was read come in about one ask in six to nine with several
+	// processors, but about one in 1,500 with one; a disconnected write, or a
+	// connection the transport has closed on its own side, only with several,
+	// the latter about one in 20,000. So it asks at least atLeast times, then
+	// on until those words have come, within atMost asks or the time it's
+	// given.
 	const atLeast, atMost, given = 300, 20_000, 10 * time.Second
 	client := NewClient(path)
 	closedIdle := false
