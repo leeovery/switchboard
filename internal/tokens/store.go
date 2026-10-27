@@ -247,14 +247,29 @@ func (s Store) Remove(id string) (Removed, error) {
 }
 
 // linksToRecord reports whether the account's token file is a link that
-// leads to the file at its record's own path, which isn't a link.
+// leads to its record's own path: by its path, as a second name of the file
+// it leads to isn't the record.
 func (s Store) linksToRecord(id string) bool {
 	token, err := os.Lstat(s.Path(id))
 	if err != nil || token.Mode()&fs.ModeSymlink == 0 {
 		return false
 	}
-	record, err := os.Lstat(s.takenPath(id))
-	return err == nil && record.Mode().IsRegular() && sameFile(s.Path(id), s.takenPath(id))
+	target, err := atomicfile.Target(s.Path(id))
+	return err == nil && samePath(target, s.takenPath(id))
+}
+
+// samePath reports whether paths a and b name one directory entry: the same
+// name in the same directory, whatever links lead to that directory.
+func samePath(a, b string) bool {
+	if filepath.Base(a) != filepath.Base(b) {
+		return false
+	}
+	ad, err := filepath.EvalSymlinks(filepath.Dir(a))
+	if err != nil {
+		return false
+	}
+	bd, err := filepath.EvalSymlinks(filepath.Dir(b))
+	return err == nil && ad == bd
 }
 
 // removeToken deletes the account's token file, if it has one, as Remove

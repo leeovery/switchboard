@@ -174,43 +174,80 @@ func (s Store) Taken(id string, token Token) (time.Time, error) {
 // it's shown to be a file of the user's that no one else can read or write,
 // failing with ErrUnrecorded where there's none.
 func (s Store) readTaken(id string) (record, error) {
+	r, _, err := s.readRecord(id, false)
+	return r, err
+}
+
+// readRecord returns the record of when the account's tokens were taken, as
+// readTaken does, but with readable, one others can read, though not write,
+// too, which it reports exposed, as a copy restored by a dotfiles step, or by
+// a second name, is often left. Where it can't open the record, one that
+// isn't the user's, or isn't a file, is replaceable.
+func (s Store) readRecord(id string, readable bool) (r record, exposed bool, err error) {
 	path := s.takenPath(id)
-	data, err := readChecked(path, "the record of when the token was taken", s.checkRecord(path))
+	var perm fs.FileMode
+	data, err := readChecked(path, "the record of when the token was taken", func(info fs.FileInfo) error {
+		perm = info.Mode().Perm()
+		return s.checkRecord(path, info, readable)
+	})
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return nil, ErrUnrecorded
+		return nil, false, ErrUnrecorded
 	case err != nil:
-		return nil, err
+		return nil, false, s.unopened(path, err)
 	}
 	r, ok := parseRecord(data)
 	if !ok {
-		return nil, replaceable{fmt.Errorf("the record %s isn't one of when tokens were taken", path)}
+		return nil, false, replaceable{fmt.Errorf("the record %s isn't one of when tokens were taken", path)}
 	}
-	return r, nil
+	return r, perm&shared != 0, nil
 }
 
-// checkRecord checks the record at path, which the info it's given
-// describes, is a file, the user's, that no one else can read or write.
-func (s Store) checkRecord(path string) func(fs.FileInfo) error {
-	return func(info fs.FileInfo) error {
-		mode := info.Mode()
-		switch {
-		case !mode.IsRegular():
-			return replaceable{fmt.Errorf("the record %s isn't a file", path)}
-		case !s.owns(info):
-			return replaceable{fmt.Errorf("the record %s is another user's", path)}
-		case mode.Perm()&shared != 0:
-			return replaceable{fmt.Errorf("other users can %s the record %s (mode %04o)", access(mode.Perm()&shared), path, mode.Perm())}
-		}
-		return nil
+// checkRecord checks the record at path, which info describes, is a file,
+// the user's, that no one else can write, nor, but where it's readable, read.
+func (s Store) checkRecord(path string, info fs.FileInfo, readable bool) error {
+	mode := info.Mode()
+	exposed := mode.Perm() & shared
+	if readable {
+		exposed &= 0o022
 	}
+	switch {
+	case !mode.IsRegular():
+		return replaceable{fmt.Errorf("the record %s isn't a file", path)}
+	case !s.owns(info):
+		return replaceable{fmt.Errorf("the record %s is another user's", path)}
+	case exposed != 0:
+		return replaceable{fmt.Errorf("other users can %s the record %s (mode %04o)", access(mode.Perm()&shared), path, mode.Perm())}
+	}
+	return nil
+}
+
+// unopened is why the record at path couldn't be read, as err says: where
+// that's as it isn't the user's, as one root wrote can't be opened, or isn't
+// a file, as what the path leads to says, it's replaceable. The user's own
+// that can't be read is left as it is.
+func (s Store) unopened(path string, err error) error {
+	if _, ok := errors.AsType[replaceable](err); ok {
+		return err
+	}
+	info, statErr := os.Stat(path)
+	switch {
+	case statErr != nil:
+		return err
+	case !info.Mode().IsRegular():
+		return replaceable{fmt.Errorf("the record %s isn't a file", path)}
+	case !s.owns(info):
+		return replaceable{fmt.Errorf("the record %s is another user's", path)}
+	}
+	return err
 }
 
 // writeTaken records token, taken at taken, as the account's, as Write writes
 // its token: through a link, whole or not at all, and private. It keeps the
-// dates of the tokens the record has already, as with says, and writes
-// nothing where that changes nothing. A record it can't go by, having looked
-// at it, is replaced; one it couldn't read, or a time a record can't hold, as
+// dates of the tokens the record has already, as with says, those of one
+// others can read but not write among them, which it writes afresh, private,
+// and writes nothing where that changes nothing. A record it can't go by,
+// having looked at it, is replaced; one it couldn't read, or a time a record can't hold, as
 // of a clock gone wrong, leaves the record as it is. It never writes where
 // the token file, written at tokenTarget, is, as through a link. One record's
 // reading and writing waits for another's, as of two writes of a token at
@@ -222,12 +259,12 @@ func (s Store) writeTaken(id string, token Token, taken time.Time, tokenTarget s
 	defer lockDir(s.dir)()
 	path := s.takenPath(id)
 	s.tightenRecord(path)
-	was, err := s.readTaken(id)
+	was, exposed, err := s.readRecord(id, true)
 	if _, ok := errors.AsType[replaceable](err); err != nil && !ok && !errors.Is(err, ErrUnrecorded) {
 		return fmt.Errorf("the record couldn't be read, so it's left as it is: %w", err)
 	}
 	next := was.with(sum(token), taken)
-	if bytes.Equal(next.bytes(), was.bytes()) {
+	if !exposed && bytes.Equal(next.bytes(), was.bytes()) {
 		return nil
 	}
 	target, err := atomicfile.Target(path)

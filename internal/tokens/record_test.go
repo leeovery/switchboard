@@ -41,6 +41,22 @@ func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
 			symlink(t, elsewhere, record)
 			return elsewhere
 		}},
+		{name: "the token file a link to a file elsewhere the record is a second name of", put: func(t *testing.T, token, record string) string {
+			elsewhere := filepath.Join(t.TempDir(), "secrets", "work")
+			writeFile(t, elsewhere, workToken+"\n", 0o600)
+			symlink(t, elsewhere, token)
+			if err := os.Link(elsewhere, record); err != nil {
+				t.Fatal(err)
+			}
+			return elsewhere
+		}},
+		{name: "the token file a link to a link to the record", wantRecord: true, put: func(t *testing.T, token, record string) string {
+			writeFile(t, record, workToken+"\n", 0o600)
+			between := filepath.Join(t.TempDir(), "work")
+			symlink(t, record, between)
+			symlink(t, between, token)
+			return ""
+		}},
 		{name: "both names of one file", put: func(t *testing.T, token, record string) string {
 			writeFile(t, token, workToken+"\n", 0o600)
 			if err := os.Link(token, record); err != nil {
@@ -97,7 +113,7 @@ func TestTightenTouchesNothingButTheAccountsRecords(t *testing.T) {
 	for _, path := range outside {
 		writeFile(t, path, workRecord, 0o644)
 	}
-	// A record by a second name of a file elsewhere, and one another user's.
+	// A record by a second name of a file elsewhere.
 	elsewhere := filepath.Join(t.TempDir(), "kept")
 	writeFile(t, elsewhere, workRecord, 0o644)
 	if err := os.Link(elsewhere, store.Path("side")+".taken"); err != nil {
@@ -230,6 +246,62 @@ func TestWritesAtOnceKeepEachTokensDate(t *testing.T) {
 	}
 	if data, err := os.ReadFile(store.Path("work") + ".taken"); err != nil || strings.Count(string(data), "\n") != 16 {
 		t.Errorf("the record holds %q (%v), want 8 pairs of lines", data, err)
+	}
+}
+
+func TestARecordByALinkReadableByOthersKeepsItsDates(t *testing.T) {
+	sideAt := taken.Add(24 * time.Hour)
+	restored := "taken 2026-10-28T09:30:00Z\nsha256 " + sumOf("test-token-side") + "\n" + workRecord
+	tests := []struct {
+		name string
+		// link names the file elsewhere at path, as its record.
+		link func(t *testing.T, elsewhere, path string)
+	}{
+		{name: "a link to a copy", link: func(t *testing.T, elsewhere, path string) { symlink(t, elsewhere, path) }},
+		{name: "a second name of a copy", link: func(t *testing.T, elsewhere, path string) {
+			if err := os.Link(elsewhere, path); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			path := store.Path("work") + ".taken"
+			mkdirPrivate(t, store.Dir())
+			// Restored as a dotfiles checkout leaves it, readable by others.
+			elsewhere := filepath.Join(t.TempDir(), "dotfiles", "work.taken")
+			writeFile(t, elsewhere, restored, 0o644)
+			tt.link(t, elsewhere, path)
+
+			if err := store.Write("work", parse(t, workToken), taken.Add(30*24*time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			for secret, want := range map[string]time.Time{workToken: taken, "test-token-side": sideAt} {
+				if at, err := store.Taken("work", parse(t, secret)); err != nil || !at.Equal(want) {
+					t.Errorf("Taken() of %s = %v, %v; want %v, as the copy had it", secret, at, err, want)
+				}
+			}
+			checkMode(t, path, 0o600)
+		})
+	}
+}
+
+func TestWriteReplacesARecordOfAnotherUsersItCantOpen(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads any file")
+	}
+	// The store's user is another than the one the record is made by, as of
+	// one root wrote, which the user can't open.
+	store := tokens.NewStore(t.TempDir(), os.Getuid()+1)
+	writeFile(t, store.Path("work")+".taken", workRecord, 0o200)
+
+	if err := store.Write("work", parse(t, "test-token-renewed"), taken); err != nil {
+		t.Fatal(err)
+	}
+	want := "taken 2026-10-27T09:30:00Z\nsha256 " + sumOf("test-token-renewed") + "\n"
+	if data, err := os.ReadFile(store.Path("work") + ".taken"); err != nil || string(data) != want {
+		t.Errorf("the record holds %q (%v), want it written afresh, %q", data, err, want)
 	}
 }
 

@@ -3,6 +3,7 @@
 package tokens
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"syscall"
@@ -43,9 +44,20 @@ func lockDir(dir string) (unlock func()) {
 	if err != nil {
 		return func() {}
 	}
-	if err := syscall.Flock(int(d.Fd()), syscall.LOCK_EX); err != nil {
+	if err := flock(d); err != nil {
 		_ = d.Close()
 		return func() {}
 	}
 	return func() { _ = d.Close() }
+}
+
+// flock takes an exclusive lock on f, waiting while another holds it, and
+// trying again when a signal cuts the wait short.
+func flock(f *os.File) error {
+	for {
+		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
+		if !errors.Is(err, syscall.EINTR) {
+			return err
+		}
+	}
 }
