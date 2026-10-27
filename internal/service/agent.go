@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -63,8 +64,9 @@ type variable struct {
 }
 
 // agent describes the LaunchAgent that serves as opts says, with the
-// switchboard binary as prepare finds it, and the config file and the log
-// level given, when they are. launchd runs switchboard itself: the router
+// switchboard binary as prepare finds it, the config file and the log level
+// given, when they are, and the variables carried and the log, where Options
+// read them back. launchd runs switchboard itself: the router
 // reads the tokens from their files, so it needs nothing of the user's
 // environment but the variables carried.
 func (s *Service) agent(opts InstallOptions) (agent, error) {
@@ -79,19 +81,23 @@ func (s *Service) agent(opts InstallOptions) (agent, error) {
 	if opts.LogLevel != "" {
 		program = append(program, logLevelFlag, opts.LogLevel)
 	}
-	environment, err := s.environment()
+	getenv := s.cfg.Getenv
+	if opts.environment != nil {
+		getenv = func(name string) string { return opts.environment[name] }
+	}
+	environment, err := carry(getenv)
 	if err != nil {
 		return agent{}, err
 	}
-	return agent{Label: Label, Program: program, Environment: environment, Log: s.Log(), ExitTimeOut: int(exitTimeout / time.Second)}, nil
+	return agent{Label: Label, Program: program, Environment: environment, Log: cmp.Or(opts.log, s.Log()), ExitTimeOut: int(exitTimeout / time.Second)}, nil
 }
 
-// environment is the variables carried that are set where the service is
-// installed, those naming a file or a directory made absolute.
-func (s *Service) environment() ([]variable, error) {
+// carry is the variables carried that getenv says are set, those naming a
+// file or a directory made absolute.
+func carry(getenv func(string) string) ([]variable, error) {
 	var environment []variable
 	for _, name := range carried {
-		value := s.cfg.Getenv(name)
+		value := getenv(name)
 		if value == "" {
 			continue
 		}

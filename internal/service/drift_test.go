@@ -2,11 +2,12 @@ package service_test
 
 import (
 	"os"
-	"reflect"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 )
 
@@ -80,10 +81,13 @@ func TestDrift(t *testing.T) {
 			want:      []string{"no --config in its ProgramArguments", "an extra --log-level in its ProgramArguments"},
 		},
 		{
-			name:         "a variable no longer carried, and another one's value",
+			// The variables carried differ as the shells installing from do.
+			name:         "a variable no longer carried, another one's value, and one switchboard doesn't carry: never counted",
 			installedEnv: carried,
-			env:          map[string]string{"XDG_CONFIG_HOME": "/Users/tester/elsewhere"},
-			want:         []string{"another XDG_CONFIG_HOME in its EnvironmentVariables", "an extra XDG_STATE_HOME in its EnvironmentVariables"},
+			edit: func(plist string) string {
+				return strings.Replace(plist, "<key>EnvironmentVariables</key>\n\t<dict>", "<key>EnvironmentVariables</key>\n\t<dict>\n\t\t<key>PATH</key>\n\t\t<string>/usr/bin</string>", 1)
+			},
+			env: map[string]string{"XDG_CONFIG_HOME": "/Users/tester/elsewhere"},
 		},
 		{
 			name: "another program",
@@ -143,10 +147,91 @@ func TestOptions(t *testing.T) {
 			s.putPlist(t, string(written))
 
 			got, err := s.svc.Options()
-			if err != nil || !reflect.DeepEqual(got, tt.opts) {
+			if err != nil || got.Executable != tt.opts.Executable || got.Config != tt.opts.Config || got.LogLevel != tt.opts.LogLevel {
 				t.Errorf("Options() = %+v, %v; want %+v", got, err, tt.opts)
 			}
 		})
+	}
+}
+
+func TestInstallKeepsTheEnvironmentAndTheLogOptionsReadBack(t *testing.T) {
+	carried := map[string]string{"XDG_CONFIG_HOME": "/Users/tester/.config", "XDG_STATE_HOME": "/Users/tester/.local/state", "SWITCHBOARD_LOG_LEVEL": "warn"}
+	s := newSetup(t, carried, func(asked int) (router.Health, error) { return up(4242 + asked) })
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary, LogLevel: "debug"}); err != nil {
+		t.Fatal(err)
+	}
+	installed, err := os.ReadFile(s.plist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Installing from another shell, its state elsewhere.
+	cfg := s.cfg
+	cfg.StateDir = filepath.Join(s.root, "elsewhere", "switchboard")
+	cfg.Getenv = func(key string) string {
+		return map[string]string{"TMPDIR": s.tmp, "XDG_STATE_HOME": filepath.Join(s.root, "elsewhere")}[key]
+	}
+	svc := newService(t, cfg)
+
+	opts, err := svc.Options()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Install(t.Context(), opts); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if got, err := os.ReadFile(s.plist); err != nil || string(got) != string(installed) {
+		t.Errorf("the plist reads\n%s(%v)\nwant it as it was installed, its variables and its log kept\n%s", got, err, installed)
+	}
+}
+
+func TestOtherEnvironment(t *testing.T) {
+	carried := map[string]string{"XDG_CONFIG_HOME": "/Users/tester/.config", "XDG_STATE_HOME": "/Users/tester/.local/state"}
+	tests := []struct {
+		name string
+		// installedEnv is the environment the plist in place was installed
+		// from, and env the one OtherEnvironment is asked in.
+		installedEnv, env map[string]string
+		want              []string
+	}{
+		{name: "none set either side"},
+		{name: "the same", installedEnv: carried, env: carried},
+		{
+			name:         "one set otherwise, one unset here, and one set here alone",
+			installedEnv: carried,
+			env:          map[string]string{"XDG_STATE_HOME": "/Users/tester/elsewhere", "CLAUDE_CONFIG_DIR": "/Users/tester/.claude"},
+			want:         []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", "CLAUDE_CONFIG_DIR"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, tt.installedEnv, nil)
+			written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.putPlist(t, string(written))
+			cfg := s.cfg
+			cfg.Getenv = func(key string) string { return tt.env[key] }
+			svc := newService(t, cfg)
+			opts, err := svc.Options()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			other, err := svc.OtherEnvironment(opts)
+			if err != nil || !slices.Equal(other, tt.want) {
+				t.Errorf("OtherEnvironment() = %q, %v; want %q", other, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestOtherEnvironmentOfOptionsNotReadBackIsNone(t *testing.T) {
+	s := newSetup(t, map[string]string{"XDG_STATE_HOME": "/Users/tester/.local/state"}, nil)
+
+	other, err := s.svc.OtherEnvironment(service.InstallOptions{Executable: s.binary})
+	if err != nil || other != nil {
+		t.Errorf("OtherEnvironment() = %q, %v; want none: Install writes these options with the environment it's run in", other, err)
 	}
 }
 

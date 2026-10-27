@@ -3,33 +3,39 @@ package setup
 import (
 	"cmp"
 	"context"
-	"fmt"
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 )
 
-// service installs the LaunchAgent, which starts the router, when launchd
-// hasn't loaded it; installs it afresh, keeping the options it was installed
-// with, when it runs another switchboard than this one, or its plist differs
-// from the one this switchboard writes; restarts the router when it doesn't
-// answer; and otherwise says it's up, and, when setup has changed the config
-// or a token, that the router takes the change up on its own.
+// service installs the LaunchAgent, which starts the router, when it isn't
+// installed; installs it again, keeping the options it was installed with,
+// when launchd hasn't loaded it, it runs another switchboard than this one,
+// or its plist differs from the one this switchboard writes; restarts the
+// router when it doesn't answer; and otherwise says it's up, and, when setup
+// has changed the config or a token, that the router takes the change up on
+// its own.
 func (r *run) service(ctx context.Context) error {
 	st, err := r.Service.Status(ctx)
 	if err != nil {
 		return err
 	}
-	if !st.Installed || !st.Loaded {
+	if !st.Installed {
 		return r.install(ctx, r.Install)
 	}
-	why, opts, err := r.stale()
+	opts, read, err := r.installed()
 	switch {
 	case err != nil:
 		return err
-	case why != "":
-		r.Terminal.sayf("%s, so it's installed afresh.", why)
+	case !read || !st.Loaded:
+		return r.install(ctx, opts)
+	}
+	stale, err := r.stale(opts)
+	switch {
+	case err != nil:
+		return err
+	case stale:
 		return r.install(ctx, opts)
 	case st.Router == nil:
 		return r.restart(ctx)
@@ -42,25 +48,42 @@ func (r *run) service(ctx context.Context) error {
 	return nil
 }
 
-// stale says why the service installed is to be installed afresh, "" when
-// it isn't, with the options to install it with: those it was installed
-// with, read back from its plist, but for setup's config file where setup is
-// given one; and setup's own for a plist it can't read.
-func (r *run) stale() (string, service.InstallOptions, error) {
-	installed, err := r.Service.Options()
+// installed returns the options the service was installed with, read back
+// from its plist, but for setup's config file where setup is given one, and
+// says when the variables carried are set otherwise here than the service's,
+// which a reinstall keeps. For a plist it can't read, it says so, and returns
+// setup's own options, and false.
+func (r *run) installed() (service.InstallOptions, bool, error) {
+	opts, err := r.Service.Options()
 	if err != nil {
-		return fmt.Sprintf("The service's plist can't be read (%v)", err), r.Install, nil
+		r.Terminal.sayf("The service's plist can't be read (%v), so it's installed afresh.", err)
+		return r.Install, false, nil
 	}
-	opts := installed
-	opts.Config = cmp.Or(r.Install.Config, installed.Config)
-	if installed.Executable != r.switchboard {
-		return fmt.Sprintf("The service runs %s, not this switchboard, %s", cmp.Or(installed.Executable, "a program its plist doesn't name"), r.switchboard), opts, nil
+	opts.Config = cmp.Or(r.Install.Config, opts.Config)
+	other, err := r.Service.OtherEnvironment(opts)
+	if err != nil {
+		return opts, false, err
+	}
+	if len(other) > 0 {
+		r.Terminal.sayf("The service runs with another %s than this shell's, so setup and the router may read different files: switchboard service install, run from the shell the router should use, changes it.", prose.List(other))
+	}
+	return opts, true, nil
+}
+
+// stale reports whether the service, installed with opts, is to be
+// installed afresh, saying why: it runs another switchboard than this one,
+// or its plist differs from the one this switchboard writes.
+func (r *run) stale(opts service.InstallOptions) (bool, error) {
+	if opts.Executable != r.switchboard {
+		r.Terminal.sayf("The service runs %s, not this switchboard, %s, so it's installed afresh.", cmp.Or(opts.Executable, "a program its plist doesn't name"), r.switchboard)
+		return true, nil
 	}
 	drift, err := r.Service.Drift(opts)
 	if err != nil || len(drift) == 0 {
-		return "", opts, err
+		return false, err
 	}
-	return "The service's plist differs from the one this switchboard writes, with " + prose.List(drift), opts, nil
+	r.Terminal.sayf("The service's plist differs from the one this switchboard writes, with %s, so it's installed afresh.", prose.List(drift))
+	return true, nil
 }
 
 // install installs the LaunchAgent as opts says, to run this switchboard,

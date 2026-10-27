@@ -347,11 +347,15 @@ The steps are:
    With more than one and none marked, it asks which is the primary.
 2. **Priming.** With no day set, asks for one, as `HH:MM-HH:MM`, and writes it to `[prime]`.
    Pressing Enter leaves priming off.
-3. **The service.** Installs the LaunchAgent when it isn't installed or loaded. Installs it again
-   when it runs another switchboard than the one `setup` runs as, or when its plist differs from
-   the one `switchboard service install` would write now, as after an upgrade that adds a key, and
-   says what differed. Installing it again keeps the `--log-level` and `--config` it was installed
-   with. Restarts the router only when it doesn't answer. The router takes up `setup`'s changes to the config and the tokens itself.
+3. **The service.** Installs the LaunchAgent when it isn't installed. Installs it again when
+   launchd hasn't loaded it, when it runs another switchboard than the one `setup` runs as, or when
+   its plist differs from the one `switchboard service install` would write now, as after an
+   upgrade that adds a key, and says what differed. Installing it again keeps the `--log-level`,
+   `--config` and environment it was installed with, as the environment decides where the router
+   keeps its state. When your shell's `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`,
+   `SWITCHBOARD_LOG_LEVEL` or `CLAUDE_CONFIG_DIR` differs from the service's, `setup` names it and
+   leaves it: run `switchboard service install` from the shell the router should use to change it.
+   Restarts the router only when it doesn't answer. The router takes up `setup`'s changes to the config and the tokens itself.
 4. **The `claude` link.** Makes `claude` in switchboard's bin directory, leading to the switchboard
    `setup` was run by. The bin directory is `$XDG_DATA_HOME/switchboard/bin`, else
    `~/.local/share/switchboard/bin`. Then `setup` checks the directory is on `PATH` ahead of the

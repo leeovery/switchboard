@@ -9,24 +9,64 @@ import (
 	"strings"
 )
 
+// environmentKey is the plist's key for the variables carried.
+const environmentKey = "EnvironmentVariables"
+
 // Options reads back the options the plist in place was installed with: the
-// binary it runs, and the config file and the log level it gives the router.
-// It fails for a plist it can't read, or that isn't XML, as a binary one
-// isn't.
+// binary it runs, the config file and the log level it gives the router, and
+// the variables carried and the log launchd writes, which Install keeps in
+// place of those where it's installed. It fails for a plist it can't read, or
+// that isn't XML, as a binary one isn't.
 func (s *Service) Options() (InstallOptions, error) {
 	installed, err := s.readPlist()
 	if err != nil {
 		return InstallOptions{}, err
 	}
 	program, _ := lookup(installed, "ProgramArguments")
-	return optionsOf(program.strings()), nil
+	opts := optionsOf(program.strings())
+	opts.environment = map[string]string{}
+	variables, _ := lookup(installed, environmentKey)
+	for _, v := range variables.entries() {
+		if slices.Contains(carried, v.key) {
+			opts.environment[v.key] = v.value.Text
+		}
+	}
+	log, _ := lookup(installed, "StandardOutPath")
+	opts.log = log.Text
+	return opts, nil
+}
+
+// OtherEnvironment names the variables carried that are set otherwise where
+// the service is asked about than in the environment opts keep, as Options
+// read it back: none for opts that keep none.
+func (s *Service) OtherEnvironment(opts InstallOptions) ([]string, error) {
+	if opts.environment == nil {
+		return nil, nil
+	}
+	here, err := carry(s.cfg.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	var other []string
+	for _, name := range carried {
+		value := ""
+		if i := slices.IndexFunc(here, func(v variable) bool { return v.Name == name }); i >= 0 {
+			value = here[i].Value
+		}
+		if value != opts.environment[name] {
+			other = append(other, name)
+		}
+	}
+	return other, nil
 }
 
 // Drift says how the plist in place differs from the one Install would write
 // for opts, a difference a phrase, such as "no ProcessType", naming the keys
 // and the arguments that differ but never their values: none when launchd
 // would read the two alike, whatever their order of keys or their
-// whitespace. It fails as Options does.
+// whitespace. The variables carried never count: they differ as the shells
+// installing from differ, never as switchboards do, and OtherEnvironment
+// says how. It fails as Options does.
 func (s *Service) Drift(opts InstallOptions) ([]string, error) {
 	installed, err := s.readPlist()
 	if err != nil {
@@ -44,7 +84,12 @@ func (s *Service) Drift(opts InstallOptions) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read back the service's plist as written: %w", err)
 	}
-	return differences(want, installed, ""), nil
+	return differences(withoutEnvironment(want), withoutEnvironment(installed), ""), nil
+}
+
+// withoutEnvironment is entries without the variables carried.
+func withoutEnvironment(entries []entry) []entry {
+	return slices.DeleteFunc(entries, func(e entry) bool { return e.key == environmentKey })
 }
 
 // readPlist reads the plist in place, its top dictionary's entries.

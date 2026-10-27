@@ -147,6 +147,14 @@ type InstallOptions struct {
 	// Accounts are the config's accounts, whose tokens the router serves
 	// with.
 	Accounts config.Accounts
+	// environment is the variables carried as the service was installed
+	// with them, and log where launchd wrote what the router printed, as
+	// Options reads them back: for nil and "", those of where the service is
+	// installed. They're Options' alone to give, as the variables decide
+	// where the router keeps its state, its tokens with it, which only
+	// installing from the shell the router should use may change.
+	environment map[string]string
+	log         string
 }
 
 // Installed is what installing the service did.

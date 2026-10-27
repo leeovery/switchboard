@@ -284,6 +284,91 @@ func TestTheServiceStepKeepsTheOptionsTheServiceWasInstalledWith(t *testing.T) {
 	}
 }
 
+func TestTheServiceStepKeepsTheServicesEnvironment(t *testing.T) {
+	const (
+		installed = "Installed <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist: " +
+			"launchd starts the router now, at every login, and whenever it stops.\n"
+		otherEnvironment = "The service runs with another XDG_STATE_HOME and CLAUDE_CONFIG_DIR than this shell's, " +
+			"so setup and the router may read different files: switchboard service install, run from the shell the router should use, changes it.\n"
+	)
+	serviceEnv := map[string]string{"XDG_STATE_HOME": "/elsewhere/state", "CLAUDE_CONFIG_DIR": "/elsewhere/claude"}
+	shellEnv := map[string]string{"XDG_STATE_HOME": "/another/state"}
+	tests := []struct {
+		name string
+		// install installs the service in the world, done but for the
+		// service, from serviceEnv.
+		install func(t *testing.T, w *world)
+		// want is what the plist setup leaves reads, given the one install
+		// wrote, and wantShown what the service step shows.
+		want      func(w *world, plist string) string
+		wantShown string
+		wantRan   []string
+	}{
+		{
+			name: "installed from before ProcessType: installed afresh, keeping it",
+			install: func(t *testing.T, w *world) {
+				w.installService(t, w.switchboard)
+			},
+			want:      func(_ *world, plist string) string { return plist },
+			wantShown: otherEnvironment + "The service's plist differs from the one this switchboard writes, with no ProcessType, so it's installed afresh.\n" + installed + "The router is up: healthy, pid 4244.\n",
+			wantRan:   []string{"print", "print", "bootout", "print", "bootstrap"},
+		},
+		{
+			name: "installed from another switchboard: installed afresh, keeping it",
+			install: func(t *testing.T, w *world) {
+				w.installService(t, w.goInstalled(t))
+			},
+			want: func(w *world, plist string) string {
+				return strings.Replace(plist, filepath.Join(w.root, "go", "bin", "switchboard"), w.switchboard, 1)
+			},
+			wantShown: otherEnvironment + "The service runs <root>/go/bin/switchboard, not this switchboard, <root>/brew/bin/switchboard, so it's installed afresh.\n" + installed + "The router is up: healthy, pid 4244.\n",
+			wantRan:   []string{"print", "print", "bootout", "print", "bootstrap"},
+		},
+		{
+			name: "installed and up: left as it is, saying the environments differ",
+			install: func(t *testing.T, w *world) {
+				w.installService(t, w.switchboard)
+			},
+			want:      func(_ *world, plist string) string { return plist },
+			wantShown: otherEnvironment + "The service is installed, and the router is up: healthy, pid 4243.\n",
+			wantRan:   untouched,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			w.env = serviceEnv
+			tt.install(t, w)
+			written, err := os.ReadFile(w.plist())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(tt.name, "ProcessType") {
+				w.editPlist(t, withoutProcessType)
+			}
+			w.env = shellEnv
+
+			shown := section(t, w.runs(t, ""), "3. The service")
+			if shown != tt.wantShown {
+				t.Errorf("the service step showed\n%s\nwant\n%s", shown, tt.wantShown)
+			}
+			for _, value := range []string{"/elsewhere", "/another"} {
+				if strings.Contains(shown, value) {
+					t.Errorf("the service step showed\n%s\nwant the variables named, never their values, such as %s", shown, value)
+				}
+			}
+			if ran := w.launchd.ran(); !slices.Equal(ran, tt.wantRan) {
+				t.Errorf("ran launchctl %q, want %q", ran, tt.wantRan)
+			}
+			want := tt.want(w, string(written))
+			if got, err := os.ReadFile(w.plist()); err != nil || string(got) != want {
+				t.Errorf("the plist reads\n%s(%v)\nwant the service's environment kept\n%s", got, err, want)
+			}
+		})
+	}
+}
+
 func TestSetupStopsWhenTheRouterDoesntAnswer(t *testing.T) {
 	w := newWorld(t)
 	w.done(t)

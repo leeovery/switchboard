@@ -67,8 +67,10 @@ type world struct {
 	// configFlag is the config file setup is given, as --config gives it,
 	// "" for none.
 	configFlag string
-	launchd    *fakeLaunchd
-	api        *fakeAPI
+	// env is the environment setup is run in, beyond TMPDIR.
+	env     map[string]string
+	launchd *fakeLaunchd
+	api     *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -114,6 +116,7 @@ func (w *world) putBinOnPath() {
 func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 	t.Helper()
 	env := map[string]string{"TMPDIR": w.tmp}
+	maps.Copy(env, w.env)
 	svc, err := service.New(service.Config{
 		GOOS:      "darwin",
 		UID:       os.Getuid(),
