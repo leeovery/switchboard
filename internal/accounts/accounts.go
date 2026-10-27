@@ -67,7 +67,8 @@ type Registry struct {
 	// config's.
 	Prober func(upstream string) Prober
 	Input  Input
-	// Now reads the clock, which says when a token the user gives is taken.
+	// Now reads the clock, which says when a token the user gives is taken:
+	// nil reads the system's.
 	Now func() time.Time
 }
 
@@ -169,11 +170,19 @@ func (r Registry) take(ctx context.Context, id, upstream string) (Taken, error) 
 	if err != nil {
 		return Taken{}, err
 	}
-	if err := r.Tokens.Write(id, token, r.Now()); err != nil {
+	if err := r.Tokens.Write(id, token, r.now()); err != nil {
 		return Taken{}, err
 	}
 	logger.Info("saved a token", "account", id, "checked", taken.Unchecked == nil)
 	return taken, nil
+}
+
+// now reads the registry's clock, else the system's.
+func (r Registry) now() time.Time {
+	if r.Now == nil {
+		return time.Now()
+	}
+	return r.Now()
 }
 
 // check asks the API at upstream whether it takes the account's token, by

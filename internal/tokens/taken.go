@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
 )
 
@@ -118,14 +120,25 @@ func parseTaking(taken, hashed string) (taking, bool) {
 	at, isTaken := strings.CutPrefix(taken, "taken ")
 	s, isSum := strings.CutPrefix(hashed, "sha256 ")
 	t, err := time.Parse(time.RFC3339, at)
-	if !isTaken || !isSum || err != nil || t.IsZero() || !isSum256(s) {
-		return taking{}, false
-	}
-	if year := t.UTC().Year(); year < firstYear || year > lastYear {
+	if !isTaken || !isSum || err != nil || !takeable(t) || !isSum256(s) {
 		return taking{}, false
 	}
 	return taking{taken: t.UTC(), sum: s}, true
 }
+
+// takeable reports whether a record can say a token was taken at t: it isn't
+// the zero time, and falls in the years a record's may, in UTC.
+func takeable(t time.Time) bool {
+	year := t.UTC().Year()
+	return !t.IsZero() && year >= firstYear && year <= lastYear
+}
+
+// replaceable is why a record can't be gone by, having been looked at, which
+// writing the account's token again replaces: it isn't a record, or isn't the
+// user's alone. A record that couldn't be read at all is left as it is.
+type replaceable struct{ error }
+
+func (r replaceable) Unwrap() error { return r.error }
 
 // isSum256 reports whether s is a SHA-256 hash, in lowercase hex.
 func isSum256(s string) bool {
@@ -171,7 +184,7 @@ func (s Store) readTaken(id string) (record, error) {
 	}
 	r, ok := parseRecord(data)
 	if !ok {
-		return nil, fmt.Errorf("the record %s isn't one of when tokens were taken", path)
+		return nil, replaceable{fmt.Errorf("the record %s isn't one of when tokens were taken", path)}
 	}
 	return r, nil
 }
@@ -183,11 +196,11 @@ func (s Store) checkRecord(path string) func(fs.FileInfo) error {
 		mode := info.Mode()
 		switch {
 		case !mode.IsRegular():
-			return fmt.Errorf("the record %s isn't a file", path)
+			return replaceable{fmt.Errorf("the record %s isn't a file", path)}
 		case !s.owns(info):
-			return fmt.Errorf("the record %s is another user's", path)
+			return replaceable{fmt.Errorf("the record %s is another user's", path)}
 		case mode.Perm()&shared != 0:
-			return fmt.Errorf("other users can %s the record %s (mode %04o)", access(mode.Perm()&shared), path, mode.Perm())
+			return replaceable{fmt.Errorf("other users can %s the record %s (mode %04o)", access(mode.Perm()&shared), path, mode.Perm())}
 		}
 		return nil
 	}
@@ -196,13 +209,23 @@ func (s Store) checkRecord(path string) func(fs.FileInfo) error {
 // writeTaken records token, taken at taken, as the account's, as Write writes
 // its token: through a link, whole or not at all, and private. It keeps the
 // dates of the tokens the record has already, as with says, and writes
-// nothing where that changes nothing. A record it can't go by is replaced. It
-// never writes where the token file, written at tokenTarget, is, as through
-// a link.
+// nothing where that changes nothing. A record it can't go by, having looked
+// at it, is replaced; one it couldn't read, or a time a record can't hold, as
+// of a clock gone wrong, leaves the record as it is. It never writes where
+// the token file, written at tokenTarget, is, as through a link. One record's
+// reading and writing waits for another's, as of two writes of a token at
+// once, so neither loses the other's.
 func (s Store) writeTaken(id string, token Token, taken time.Time, tokenTarget string) error {
+	if !takeable(taken) {
+		return fmt.Errorf("a record can't say a token was taken at %s, so it's left as it is", taken.UTC().Format(time.RFC3339))
+	}
+	defer lockDir(s.dir)()
 	path := s.takenPath(id)
 	s.tightenRecord(path)
-	was, _ := s.readTaken(id)
+	was, err := s.readTaken(id)
+	if _, ok := errors.AsType[replaceable](err); err != nil && !ok && !errors.Is(err, ErrUnrecorded) {
+		return fmt.Errorf("the record couldn't be read, so it's left as it is: %w", err)
+	}
 	next := was.with(sum(token), taken)
 	if bytes.Equal(next.bytes(), was.bytes()) {
 		return nil
@@ -229,7 +252,7 @@ func sameFile(a, b string) bool {
 }
 
 // tightenRecords makes each record in the tokens directory private, as
-// tightenRecord does.
+// tightenRecord does: each named for an account, by an id config allows.
 func (s Store) tightenRecords() {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
@@ -237,26 +260,33 @@ func (s Store) tightenRecords() {
 		return
 	}
 	for _, e := range entries {
-		if id, ok := strings.CutSuffix(e.Name(), takenExt); ok {
-			s.tightenRecord(s.takenPath(id))
+		if id, ok := strings.CutSuffix(e.Name(), takenExt); ok && config.CheckID(id) == nil {
+			s.tightenRecord(filepath.Join(s.dir, e.Name()))
 		}
 	}
 }
 
 // tightenRecord makes the record at path the user's alone, as one restored
-// from a copy is often left readable by others: a file of the user's, not a
-// link, that others can read but not write, which nothing but the user can
-// have changed. One others can write stays as it is, and counts for nothing.
+// from a copy is often left readable by others: a file of the user's, by
+// that one name, not a link, that others can read but not write, which
+// nothing but the user can have changed. One others can write stays as it
+// is, and counts for nothing. What it checks and changes is the file it has
+// open, whatever takes its place at path meanwhile.
 func (s Store) tightenRecord(path string) {
-	info, err := os.Lstat(path)
+	f, err := os.OpenFile(path, tightenFlags, 0)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() || !s.owns(info) {
 		return
 	}
 	perm := info.Mode().Perm()
-	if perm&shared == 0 || perm&0o022 != 0 {
+	if n, ok := links(info); !ok || n != 1 || perm&shared == 0 || perm&0o022 != 0 {
 		return
 	}
-	if err := os.Chmod(path, perm&^shared); err != nil {
+	if err := f.Chmod(perm &^ shared); err != nil {
 		logger.Debug("couldn't make the record of when the token was taken private", "path", path, "error", err)
 		return
 	}

@@ -155,11 +155,11 @@ func parse(data []byte) (Token, error) {
 // the user can read or write, having made the tokens directory, or made it
 // theirs alone: through a link, where it leads, rather than in its place. The
 // file is written whole or not at all, and synced, as a token lost to a crash
-// takes a new setup token to replace. Beside it goes the record that it was
-// taken at taken, which Taken reads, but where the record there is of this
-// token already, which keeps its date, as a token's year runs from when it
-// was first taken. Failing to write that leaves the token's date unknown,
-// and is logged, never failing the write.
+// takes a new setup token to replace. Beside it, the record of when each of
+// the account's latest tokens was taken, which Taken reads, gains token,
+// taken at taken, as writeTaken writes it: a token it has a date of already
+// keeps the earlier of the two. Failing to write that leaves the token's date
+// unknown, and is logged, never failing the write.
 func (s Store) Write(id string, token Token, taken time.Time) error {
 	if err := s.keepPrivate(); err != nil {
 		return err
@@ -232,10 +232,10 @@ type Removed struct {
 // when its token was taken, and says what it removed of the token file. A
 // token file it can't remove keeps its record. A link in either's place goes,
 // but not the file it leads to, which is kept elsewhere, as by a dotfiles
-// step, and isn't switchboard's to delete: a token file that led to the
-// record's own path leaves the record too.
+// step, and isn't switchboard's to delete: a token file that's a link to the
+// record's own path, a file, leaves the record too.
 func (s Store) Remove(id string) (Removed, error) {
-	ledToRecord := sameFile(s.Path(id), s.takenPath(id))
+	ledToRecord := s.linksToRecord(id)
 	removed, err := s.removeToken(id)
 	if err != nil {
 		return Removed{}, err
@@ -244,6 +244,17 @@ func (s Store) Remove(id string) (Removed, error) {
 		s.forgetTaken(id)
 	}
 	return removed, nil
+}
+
+// linksToRecord reports whether the account's token file is a link that
+// leads to the file at its record's own path, which isn't a link.
+func (s Store) linksToRecord(id string) bool {
+	token, err := os.Lstat(s.Path(id))
+	if err != nil || token.Mode()&fs.ModeSymlink == 0 {
+		return false
+	}
+	record, err := os.Lstat(s.takenPath(id))
+	return err == nil && record.Mode().IsRegular() && sameFile(s.Path(id), s.takenPath(id))
 }
 
 // removeToken deletes the account's token file, if it has one, as Remove

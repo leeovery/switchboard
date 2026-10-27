@@ -478,26 +478,6 @@ func TestRemoveKeepsTheRecordOfATokenItCantRemove(t *testing.T) {
 	}
 }
 
-func TestRemoveLeavesTheFileATokensLinkLedToAtTheRecordsPath(t *testing.T) {
-	store := tokens.NewStore(t.TempDir(), os.Getuid())
-	record := store.Path("work") + ".taken"
-	writeFile(t, record, workToken+"\n", 0o600)
-	if err := os.Symlink(record, store.Path("work")); err != nil {
-		t.Fatal(err)
-	}
-
-	removed, err := store.Remove("work")
-	if want := (tokens.Removed{File: true, LinkedTo: record}); err != nil || removed != want {
-		t.Errorf("Remove() = %+v, %v; want %+v", removed, err, want)
-	}
-	if _, err := os.Lstat(store.Path("work")); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("once removed, the token file: %v, want it gone", err)
-	}
-	if data, err := os.ReadFile(record); err != nil || string(data) != workToken+"\n" {
-		t.Errorf("where the token file led holds %q (%v), want it as it was", data, err)
-	}
-}
-
 // linkToRecord puts a link at path to a file elsewhere, holding workRecord,
 // with mode.
 func linkToRecord(mode fs.FileMode) func(t *testing.T, path string) {

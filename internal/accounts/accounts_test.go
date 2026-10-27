@@ -75,6 +75,21 @@ func TestAddTakesTheTokenTheUserGives(t *testing.T) {
 	}
 }
 
+func TestARegistryWithoutAClockTakesTheTokenAtTheSystemsTime(t *testing.T) {
+	w := newWorld(t, twoAccounts)
+	registry := w.registry(&user{gives: sideToken}, &fakeAPI{})
+	registry.Now = nil
+	before := time.Now().Truncate(time.Second)
+
+	if _, err := registry.Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"}); err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+	at, err := w.tokens().Taken("side", tokenOf(t, sideToken))
+	if err != nil || at.Before(before) || at.After(time.Now()) {
+		t.Errorf("side's token was taken at %v (%v), want the system's time, from %v", at, err, before)
+	}
+}
+
 func TestAddMakesTheFirstConfig(t *testing.T) {
 	w := newWorld(t, "")
 	w.config = filepath.Join(filepath.Dir(w.config), "config", "switchboard", "config.toml")
@@ -539,13 +554,19 @@ func (w *world) checkToken(t *testing.T, id, want string) {
 // at want: that it says nothing of it where want is zero.
 func (w *world) checkTaken(t *testing.T, id, secret string, want time.Time) {
 	t.Helper()
+	if at, err := w.tokens().Taken(id, tokenOf(t, secret)); !at.Equal(want) || (err == nil) == want.IsZero() {
+		t.Errorf("%s's token was taken at %v (%v), want %v", id, at, err, want)
+	}
+}
+
+// tokenOf is the token secret is.
+func tokenOf(t *testing.T, secret string) tokens.Token {
+	t.Helper()
 	token, err := tokens.Parse(secret)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if at, err := w.tokens().Taken(id, token); !at.Equal(want) || (err == nil) == want.IsZero() {
-		t.Errorf("%s's token was taken at %v (%v), want %v", id, at, err, want)
-	}
+	return token
 }
 
 func (w *world) checkNoToken(t *testing.T, id string) {
