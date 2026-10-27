@@ -284,10 +284,12 @@ of a file, or a link to one, keeps its dates when switchboard next writes a toke
 writes them afresh, private, but only where the file is yours and no one else can write it. A link
 to anything else, such as nothing at all, another account's token file or a file that isn't a
 record, is left as it is, with what it leads to, and a warning in the log: the date stays unknown,
-and the token works as before.
+and the token works as before. So is a record that's another account's token file, or its record,
+however it's reached, as a link from one account's file to another's leaves it.
 
 `accounts remove` deletes the record with the token file, a link alone where either is one. Where
-the token file is a link to the record's own path, the file there is the token, and it's left.
+the token file is a link to the record's own path, the file there is the token, and it's left; while
+it's so, a token written is written there, and no record over it, with a warning in the log.
 `status --json` gives each token's `token_taken`, and its `token_good_until`, 365 days on.
 
 ### When switchboard reads token files

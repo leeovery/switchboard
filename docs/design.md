@@ -685,22 +685,29 @@ accounts:
   a link leading nowhere, or to another account's token file, a file that isn't a record, one
   another user's or others can write, or what isn't a file. A token switchboard keeps rather than
   takes, as `accounts add` keeps a usable one, keeps whatever record it has, as one restored with
-  it. Writing a token reads and rewrites its record under a lock on the tokens directory, so two
-  writes at once both keep their dates, and writes nothing where nothing changes. At its own path,
-  not a link, a record that's missing, or was read and can't be gone by, is replaced, and so is one
-  that can't be opened, where it isn't the user's, as one written under sudo, or isn't a file; the
-  user's own that couldn't be read is left as it is, and so is the record where the time given is
-  one it can't hold, as of a clock gone wrong. It's never written where it would land on the token
-  file. A failure to write it is logged as a warning, the token saved all the same.
+  it. Writing a token, and reading and rewriting its record, and removing an account's, hold a lock
+  on the tokens directory, so two writes at once both keep their dates, and a write beside a removal
+  can't leave a removed account's record; a write changes nothing of a record where nothing would
+  change. At its own path, not a link, a record that's missing, or was read and can't be gone by, is
+  replaced, and so is one that can't be opened, where it isn't the user's, as one written under
+  sudo, or isn't a file, but for a directory, which a file can't be renamed over, so it's left, with
+  a warning; the user's own that couldn't be read is left as it is, and so is the record where the
+  time given is one it can't hold, as of a clock gone wrong. Nor is it ever written over a file
+  that's any account's token or another account's record, judged by the file, however it's reached:
+  at its own path, through a link or as a second name, as where a token file is a link to the
+  record's own path, or the record a link to another account's. That's left as it is, with a
+  warning. A failure to write it is logged as a warning, the token saved all the same.
   `accounts remove` deletes the token file, then the record, a link alone where it's one; a token
   file it can't remove keeps its record, and a token file that's a link leading to the file at the
   record's own path, by that one name, leaves that file, the one it led to, however the link spells
-  its path. A record that's a link, to the token file or to a file elsewhere, goes as a link, and
-  one that's a second name of the token file, or of the file it leads to, goes with it. The status
-  document gives each account's `token_taken`, and `token_good_until`, 365 days on, the router's as
-  probing's: the router reads the record whenever it reads the token, as it starts, at every look
-  and on a 401, never per request, and holds the date beside the token it was of, so a record that
-  lands a moment after its token counts from the next look.
+  its path; while the token file leads there, a token written is written there, and no record over
+  it, with a warning. A record that's a link, to the token file or to a file elsewhere, goes as a
+  link, and one that's a second name of the token file, or of the file it leads to, goes with it; a
+  directory in the record's place, empty or not, is left. The status document gives each account's
+  `token_taken`, and `token_good_until`, 365 days on, the router's as probing's: the router reads
+  the record whenever it reads the token, as it starts, at every look and on a 401, never per
+  request, and holds the date beside the token it was of, so a record that lands a moment after its
+  token counts from the next look.
 - Anything can write the files, such as a password manager's file export or a dotfiles secrets step.
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
