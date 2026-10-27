@@ -830,9 +830,13 @@ func TestBootingTheServiceOutWaitsForTheRouterToStop(t *testing.T) {
 				s.launchctl.loaded = true
 				s.launchctl.takes = map[string]time.Duration{"bootout": tt.takes}
 				s.launchctl.lingers = tt.lingers
+				began := time.Now()
 
 				if err := tt.bootOut(t.Context(), s); err != nil {
 					t.Errorf("error = %v, want none: booting out given as long as launchd gives the router to stop", err)
+				}
+				if waited := time.Since(began); waited < 45*time.Second {
+					t.Errorf("returned after %v, want it to wait the 45s launchd keeps the service", waited)
 				}
 			})
 		})
@@ -1174,12 +1178,11 @@ func writeBinary(t *testing.T, path string) string {
 // run. Printing the service succeeds while it's loaded, and exits 113 when
 // it isn't, as launchctl does; bootstrapping loads it, failing while it's
 // loaded, and booting it out unloads it, lingers later. A subcommand takes
-// as long as takes gives it, killed as
-// exec.CommandContext kills it when its context ends first, and exits with
-// the status exits gives it, saying why as launchctl does: its first runs
-// alone, as many as fails gives, when fails gives it any. cantRun fails
-// every run, as when there's no launchctl to run, and refuse fails the test
-// on any.
+// as long as takes gives it, killed as exec.CommandContext kills it when its
+// context ends first, and exits with the status exits gives it, saying why
+// as launchctl does: its first runs alone, as many as fails gives, when
+// fails gives it any. cantRun fails every run, as when there's no launchctl
+// to run, and refuse fails the test on any.
 type fakeLaunchctl struct {
 	t       *testing.T
 	refuse  bool

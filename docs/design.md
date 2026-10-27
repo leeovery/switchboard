@@ -7849,9 +7849,9 @@ verbs).
   writes, as `ProcessType` was, reaches an install only through `install`, restarting the router;
   `setup` reinstalls only for another binary. `uninstall` boots it out when loaded, waits for
   launchd to let it go, and removes the plist. `restart`, with a router answering, asks it to
-  restart (`POST /restart`): it finishes its requests in flight, within
-  30 seconds, those it cuts off then given 5 more to unwind, then replaces itself in place, keeping
-  its process, or, as it says when it can't, exits for launchd to start it again (see The router
+  restart (`POST /restart`): it finishes its requests in flight, within 30 seconds, those it cuts
+  off then given 5 more to unwind, then replaces itself in place, keeping its process, or, as it
+  says when it can't, exits for launchd to start it again (see The router
   looking after itself). `restart` says which first, `the router is finishing its requests in
   flight, then it restarts in place`, or `…, then launchd starts it again`, then waits up to 50
   seconds, the 45 launchd would give the router to stop and 5 to start, for a router other than the
