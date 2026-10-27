@@ -409,30 +409,39 @@ The subcommands do the following:
     `_`.
   - When the account's token file holds no usable token, `add` takes one, and writes it over
     whatever the file held.
-  - A `--label` is taken as it shows: its surrounding whitespace trimmed, and each run of
-    whitespace within it one space.
+  - A `--label` is taken as it shows: each run of whitespace within it one space, and the
+    whitespace and unseen characters at its edges, such as zero-width spaces and direction
+    marks, trimmed. Joiners within it, as emoji sequences need, are kept. One that's the id is
+    no label, as it shows the same.
   - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
     the token, and so is a `--label` over 100 characters as it shows, one that holds a control
-    character, such as a newline or a tab, one that would show as nothing, such as spaces or
-    zero-width characters alone, and one that isn't UTF-8 text.
+    character, such as a newline or a tab, or a bidirectional embedding, override or isolate,
+    which could reorder the row it's shown in, one that would show as nothing, such as spaces or
+    zero-width characters alone, and one that isn't UTF-8 text. Private-use glyphs, such as Nerd
+    Font icons, show.
 - **`edit`** changes an account's label, plan, primary or reserve, in its table in the config.
   - It takes one or more of `--label`, `--plan`, `--primary` and `--reserve`, and leaves what it
     isn't given as it is.
   - It says what it changed, each value as it is now and as it was, labels in quotes, and a label
     of none as none, the account shown by its id. When every value given is what the account has
     already, it says so, and writes nothing.
-  - Made the primary, an account takes it from the one that had it. The sessions already running
-    keep the token they started on as Claude Code's own until they restart: the former primary's,
-    or, where it had no usable token, the first account's with one. So what they send outside the
-    conversation, such as artifacts and uploads, still goes out on that account. `edit` says so,
-    and warns on stderr when the new primary has no usable token, as new sessions then start on
-    another account's.
+  - Made the primary, an account takes it from the one that had it. The sessions already running,
+    unless pinned, keep the token they started on as Claude Code's own until they restart: the
+    former primary's, or, where it had no usable token, the first account's with one, as the
+    tokens stand now. So what they send outside the conversation, such as artifacts and uploads,
+    still goes out on that account. `edit` says so, and warns on stderr when the new primary has
+    no usable token, as new sessions then start on another account's.
   - A reserve written as a number alone, such as `5` or `0.05`, is refused, as either could mean
     the other: write it as a percentage. So is one past two decimal places.
-  - A `--label` is taken and refused as `add` takes and refuses one; `--label ""` shows the account
-    by its id.
+  - A `--label` is taken and refused as `add` takes and refuses one; `--label ""`, or the id,
+    shows the account by its id, and takes the label out. A label written untidily in the config
+    and given tidily is saved tidily, and `edit` says it was written untidily.
+  - `--primary=false` is refused: to move the primary, give `--primary` to another account.
+  - An id no account has is said before anything wrong with a flag.
   - A value it replaces keeps the comment beside it; a key it takes out goes with its comment, as
     the primary's mark does when another account is made the primary.
+  - A label the config writes over several lines, as a multi-line string, can't be edited as text:
+    a label or plan edit of that account is refused, to be made by hand, and nothing is written.
 - **`token`** replaces an account's token.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file.
