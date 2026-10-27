@@ -175,21 +175,25 @@ func TestWaitOnTakesAnExitOf0AsItIsThoughItsContextEndsAsItExits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _, _ = master.Close(), tty.Close() }()
+	defer func() { _ = master.Close() }()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	cmd, err := start(ctx, "/bin/sh", []string{"sh", "-c", "/bin/sleep 60 & echo exiting"}, []string{}, tty)
+	_ = tty.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = killGroup(cmd.Process.Pid) }()
-	// All of it, as a program's exit waits on what it drew being read.
-	if _, err := io.ReadFull(master, make([]byte, len("exiting\r\n"))); err != nil {
-		t.Fatal(err)
+	kill, cancelled := cmd.Cancel, make(chan struct{})
+	cmd.Cancel = func() error {
+		defer close(cancelled)
+		return kill()
 	}
-	// Long enough for it to have exited, unreaped till waitOn.
-	time.Sleep(200 * time.Millisecond)
+	// The terminal's drawing ends as the program, which leads its session,
+	// exits, though what it left running holds it open.
+	_, _ = io.Copy(io.Discard, master)
 	cancel()
+	<-cancelled
 
 	if err := waitOn(cmd); err != nil {
 		t.Errorf("waitOn() = %v, want nothing: it exited 0", err)
