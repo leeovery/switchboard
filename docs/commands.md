@@ -413,7 +413,7 @@ The subcommands do the following:
   and deletes its token file, then the record of when its token was taken (see
   [When each token was taken](configuration.md#when-each-token-was-taken)).
   - Of a token file or a record that's a link, it deletes the link alone, and leaves the file it
-    leads to.
+    leads to, even where that's at the record's own path.
   - The only account can't be removed.
   - Removing the primary says which account is the primary now: the one marked
     `primary = true`, else the first.
