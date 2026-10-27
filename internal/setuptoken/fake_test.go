@@ -48,6 +48,8 @@ import (
 //	big          forty lines between the line saying the token's made and
 //	             the token, a frame larger than the terminal holds unread,
 //	             drawn a line at a time
+//	held         the token drawn only once FAKE_DIR/go is written, after the
+//	             line saying it's made
 const fakeSetupToken = `#!/bin/sh
 d=$FAKE_DIR
 note() { printf '%s\n' "$2" > "$d/$1.tmp" && /bin/mv "$d/$1.tmp" "$d/$1"; }
@@ -126,6 +128,11 @@ big)
 	done
 	printf '%b' " \\033[33m$FAKE_TOKEN\\033[39m$after"
 	;;
+held)
+	printf '%b' "$made"
+	while [ ! -e "$d/go" ]; do /bin/sleep 0.05; done
+	printf '%b' " \\033[33m$FAKE_TOKEN\\033[39m$after"
+	;;
 *) frame "$made \\033[33m$FAKE_TOKEN\\033[39m$after" ;;
 esac
 note drawn yes
@@ -201,7 +208,19 @@ func with(env []string, vars ...string) []string {
 // approve approves the sign-in, as the browser's callback does.
 func (f fake) approve(t *testing.T) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(f.dir, "approved"), nil, 0o600); err != nil {
+	f.mark(t, "approved")
+}
+
+// release has a held fake setup-token draw the token.
+func (f fake) release(t *testing.T) {
+	t.Helper()
+	f.mark(t, "go")
+}
+
+// mark writes name, a file the fake waits on.
+func (f fake) mark(t *testing.T, name string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(f.dir, name), nil, 0o600); err != nil {
 		t.Error(err)
 	}
 }
