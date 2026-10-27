@@ -287,8 +287,8 @@ The service's router restarts itself, once no request is in flight, when any of 
 - `brew upgrade` replaces it.
 - Your Mac's time zone changes.
 
-So `accounts add`, `accounts edit`, `accounts remove`, an edit by hand, an upgrade and a new time zone all take effect without a
-command. A router you started by hand with `serve` logs that a restart is due instead.
+So `accounts add`, `accounts edit`, `accounts remove`, an edit by hand, an upgrade and a new time
+zone all take effect without a command. A router you started by hand with `serve` logs that a restart is due instead.
 
 The router restarts in place. It runs its new binary in the same process and hands that binary the
 sockets it listens on. A request made meanwhile waits a moment rather than being refused, and a

@@ -703,12 +703,13 @@ accounts:
   `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
   npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
   which holds the system's directories alone.
-- `accounts add <id>` registers an account. It refuses an id, or a `--label`, holding anything
-  shaped like a token, or a `--label` over 100 characters, one that would show as nothing (spaces,
-  control or format characters alone, such as a zero-width space) or one that isn't UTF-8, its
-  surrounding whitespace trimmed, before it asks for the token, saving
-  nothing, and shows the id as
-  `[redacted]`. When the account's token file holds no usable token, it asks for the token, hidden,
+- `accounts add <id>` registers an account. It takes a `--label` as it shows, its surrounding
+  whitespace trimmed and each run of whitespace within it one space, and saves it so. It refuses
+  an id, or a `--label`, holding anything shaped like a token, or a `--label` over 100 characters
+  as it shows, holding a control character, such as a newline or a tab, drawing as nothing
+  (spaces, format characters such as a zero-width space, marks on their own, Hangul fillers or
+  blank braille alone) or that isn't UTF-8, before it asks for the token, saving nothing, and
+  shows the id as `[redacted]`. A label written in the config by hand is read as it is. When the account's token file holds no usable token, it asks for the token, hidden,
   pointing to `claude setup-token` run while signed in to that subscription, or reads it from stdin
   when stdin isn't a terminal, and writes it in place of whatever the file held. An interrupt while
   it waits puts the terminal back as it was, showing what's typed again, and the command exits 130,
@@ -721,15 +722,16 @@ accounts:
   had it) or reserve (`--reserve`), given one or more, and leaves the rest as they are. A reserve
   is written as a percentage to two decimal places at most, `5%`, so what's shown is what's saved,
   and stored as the share, `0.05`; `0` or `0%` clears it, and a number alone is refused, as `5`
-  and `0.05` could each mean the other. A label that would show as nothing, or isn't UTF-8, is
-  refused. It writes only what changes the account as the config reads it, and says what it
-  changed, each value now and as it was, labels quoted, or, when every value given is the
-  account's already, that nothing changed, writing nothing. Moving the primary, it says the
-  sessions already running keep the former primary's token as Claude Code's own until they
-  restart, and warns when the new primary has no usable token. Edits keep the file's line
-  endings, byte order mark and indentation; a replaced value keeps the comment beside it, and a
-  key taken out, such as the former primary's mark, goes with its comment. The flags are read into the values its action,
-  `accounts.Registry.Edit`, takes, so a form can give it the same.
+  and `0.05` could each mean the other. An id no account has is said before anything of the
+  label. It writes only what changes the account as the config reads it, and says what it
+  changed, each value now and as it was, labels quoted and none said so, or, when every value
+  given is the account's already, that nothing changed, writing nothing. Moving the primary, it
+  says the sessions already running keep the token they took as Claude Code's own, the account
+  launch chose before the move, until they restart, and warns on stderr when the new primary has
+  no usable token. Edits keep the file's line endings, byte order mark and indentation, a line
+  put in ending as the line it follows; a replaced value keeps the comment beside it, and a key
+  taken out, such as the former primary's mark, goes with its comment. The flags are read into
+  the values its action, `accounts.Registry.Edit`, takes, so a form can give it the same.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file: of one that's a link, the link
   alone, saying where it led, as the file there isn't switchboard's. Of the primary, it says which
