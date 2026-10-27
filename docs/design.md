@@ -657,6 +657,19 @@ accounts:
   neither readable nor writable by anyone else; otherwise the account counts as having no token,
   and `accounts` and `status` say why and how to fix it. Switchboard reads no token from the
   environment.
+- A setup token is good for a year from when it's made, 365 days, and is never refreshed, so
+  switchboard keeps when it took each token: whenever it writes one, it writes beside it
+  `<state dir>/tokens/<id>.taken`, as it writes the token, whole, 0600, and through a link where
+  there's one. It holds two lines, the time taken, RFC 3339 in UTC, and the token's SHA-256 hash in
+  hex, never the token: `taken 2026-10-27T09:30:00Z` then `sha256 <hash>`. The hash keeps the record
+  to the token it was written for, so a token file replaced by anything else has no known date
+  rather than a wrong one. A record that's missing, isn't the user's alone, isn't two such lines,
+  or is of another token leaves the date unknown, logged at debug, and never makes the token
+  unusable. A token switchboard keeps rather than takes, as `accounts add` keeps a usable one,
+  keeps whatever record it has, as one restored with it. A failure to write the record is logged
+  as a warning, the token saved all the same. `accounts remove` deletes the record with the token
+  file, a link alone where it's one. The status document gives each account's `token_taken`, and
+  `token_good_until`, 365 days on.
 - Anything can write the files, such as a password manager's file export or a dotfiles secrets step.
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
@@ -7075,7 +7088,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text (`--print`) or in colour (`--ansi`), at its frame's size or one given (`--size`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot; plays a scenario of `internal/capture`'s in real time, for the README's demos (`--scenario`); and writes the frames in `testdata/vhs/reference/` from their fixtures, every one it keeps or those named (`--frames`). Capture's tests hold each fixture to its frame's text and ANSI, cell for cell (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print; a data verb in its form for a person on a terminal, else its JSON (see The data verbs) |
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
-| `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
+| `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, with the record of when each was taken, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/dayfile` | Files a day of JSON lines, as the readings history, the request ledger and the router's events keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included, or a day's file on from where a read of it last ended, as a tail reads it; the days themselves, each from its first instant, and the times of a day, each as the clocks first read it, where they go forward over it, or back over it, too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too, at every round or just before each prune |
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; the days' digests, built on a goroutine of their own through the `Digester` seam it declares, each day's builder handed every line its read reads, and their parts files, a gzip member a session pointed at by offset, length and CRC; each day's head, built after the digests, newest first, of exactly the lines `Day` gives the day by the one read both share, its side the views'; when a digest or a head stands, and a session as of a day, on the newest state a digest holds that stands for it, or, for a page, the newest whose chain of parts reads, and the raw lines after, one lookup the writer and the readers share; a line's usage decoded once into what its request spent, which the price table prices as it prices the line, and what a page's requests spent, summed by model and where they were served, priced alike once as the page is built; a window's climb, and its stored form; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
@@ -7267,8 +7280,10 @@ hiding it behind the provider would take a wider interface than it's worth:
   (see Themes).
 - **Themes:** `<slug>.theme` files in `SWITCHBOARD_THEMES_DIR`, else
   `$XDG_CONFIG_HOME/switchboard/themes/`, else `~/.config/switchboard/themes/` (see Themes).
-- **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
-  and tokens.
+- **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory, and beside
+  each token switchboard wrote, `<id>.taken`, 0600: two lines, `taken <RFC 3339 time, UTC>` and
+  `sha256 <the token's hash, hex>`, saying when it took that token. An account id holds no `.`, so
+  no token file is named so. See Accounts and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
   Logging), and `launchd.log`, where the service's raw stdout and stderr, such as crash output,
   go, cut to its newest 5 MiB as the service starts the router, once past 10 (see Logging).
@@ -7521,6 +7536,8 @@ Each account:
 | `primary` | `true` on the primary; left out otherwise |
 | `reserve` | Its reserve; left out at 0 |
 | `token_set` | Whether its token file is present and usable |
+| `token_taken` | When switchboard took its token, as the record it wrote beside the token says (see Accounts and tokens); left out when that isn't known, as of a token written by anything else |
+| `token_good_until` | When its token's year is up: `token_taken` and 365 days, a setup token's lifetime; left out with `token_taken` |
 | `fetched_at` | When its usage was last read; left out when it never was |
 | `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status, restarted_at, pace, allowance}`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given: a 5-hour window that has lapsed reads 0, with neither. `restarted_at` is *router*: when the window started again, as a reset made by hand that keeps its reset starts it, which its pace and projection measure from until its next reset; left out otherwise, when it runs a whole length before its reset. `pace` is its even pace: the share of its length that has passed since it started, its reset less its length, or its `restarted_at`, so where even use would have put its utilization now, as `usage` marks it; left out where it isn't running, as a 5-hour window that has lapsed, which `usage` says hasn't started, or where its reset isn't known. `allowance` is what can be spent of it and still last to its reset: `{share, per}`, the room left below its cap, where its reserve holds it back, else its limit, as a fraction of the window, divided by the time to its reset: `per` `hour` for a window of a day or less, as the 5-hour, and `day` for a longer one, as a week; and where its reset comes within one `per`, the room itself, `per` left out. Left out where it has no room left, isn't running, or its reset isn't known. A window whose reset has passed since it was read counts from empty, its pace from that reset and its next reset a length after it. Left out when none has been read |
 | `lapsed` | The keys of its windows that have lapsed: the 5-hour window, once its reset has passed with nothing read since, which isn't running, and reads empty, until a request starts it (see Priming). Left out when none has |

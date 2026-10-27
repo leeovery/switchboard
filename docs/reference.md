@@ -42,6 +42,7 @@ The state directory holds these files:
 | `control.sock` | The router's control API, which the commands and the dashboard talk to. |
 | `prefs.json` | What the dashboard remembers. See [`dashboard`](dashboard.md) and [Themes](dashboard.md#themes). |
 | `tokens/<id>` | Each account's token. See [Tokens](configuration.md#tokens). |
+| `tokens/<id>.taken` | When switchboard took the account's token, with the token's SHA-256 hash. See [When each token was taken](configuration.md#when-each-token-was-taken). |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting.md#the-logs). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |
@@ -301,6 +302,8 @@ Each entry in `accounts` holds these:
 
 - The account's `id` and `label`, whether it's the `primary`, and its `reserve`.
 - Whether its token is set, and when it was read.
+- `token_taken` and `token_good_until`: when switchboard took its token, and when the token's year
+  is up, each left out where that isn't known.
 - Its `windows`, each with its use, reset and status, its even pace (`pace`) and its `allowance`.
 - `lapsed` and `at_reserve`: the windows that have lapsed, and those at the reserve.
 - Its `extra_usage`.
