@@ -433,7 +433,8 @@ that subscription.
 
 A saved token's year counts from when it's saved, as nothing says when a pasted token was made.
 Saving a token again, even after another, keeps the earlier of its two dates, unless 8 others
-were saved since, when it counts afresh.
+were saved since, when it counts afresh. A record restored readable by others, but not writable,
+keeps its dates too, written afresh, private.
 
 **The config** is edited as text, keeping its comments and layout. A config that's a link is
 written through, to where it leads. The router takes the change up itself: the service's router

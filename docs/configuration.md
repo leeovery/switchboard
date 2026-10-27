@@ -278,8 +278,10 @@ files together. A missing or damaged record only leaves the date unknown: the to
 before.
 
 The record must be yours, and no one else can read or write it, as with the token file. A record
-restored readable by others, but not writable, is made private as the router starts, and when
-switchboard next writes a token beside it.
+restored readable by others, but not writable, as a dotfiles checkout often leaves it, counts
+again once it's private. A plain file is made private as the router starts. Any record, a link or
+a second name of a file among them, keeps its dates when switchboard next writes a token beside it,
+which writes them afresh, private.
 
 `accounts remove` deletes the record with the token file. `status --json` gives each token's
 `token_taken`, and its `token_good_until`, 365 days on.
