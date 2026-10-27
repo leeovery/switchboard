@@ -89,11 +89,13 @@ type Signing struct {
 //
 // Where setup-token gives no token Make can read, it fails with a
 // *ScreenError, whose Screen is what setup-token last drew, for the person to
-// see, and to copy a token from. So it does where setup-token shows an error
-// it would wait to retry at, where Make stops it, and where it doesn't hand
-// its sign-in address over within handOverWithin. When ctx ends, setup-token
-// is stopped. Before the token's made, Make fails with ctx's cause. Once it's
-// made, it lasts a year on the account, so Make returns it all the same where
+// see, or, where it said it made a token, the fullest drawing that said so,
+// to copy the token from. So it does where setup-token shows an error it
+// would wait to retry at, where Make stops it, and where it doesn't hand its
+// sign-in address over within handOverWithin. When ctx ends, setup-token is
+// stopped. Before the token's made, Make fails with ctx's cause, where that's
+// what stopped setup-token, and not its own failure first. Once it's made, it
+// lasts a year on the account, so Make returns it all the same where
 // setup-token showed it whole, and otherwise fails with a *ScreenError, which
 // is ctx's cause too where that's what stopped setup-token. Whichever way
 // Make returns, setup-token is gone, all it started on its terminal with it.

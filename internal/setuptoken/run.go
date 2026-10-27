@@ -1,6 +1,7 @@
 package setuptoken
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"os/exec"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -18,7 +21,8 @@ const (
 	// address it's handed.
 	lookEvery = 50 * time.Millisecond
 	// drainFor bounds the reading of what setup-token drew last, once it has
-	// exited: anything it left running can hold its terminal open.
+	// exited, and the wait on its exit once ctx has ended: anything it left
+	// running can hold its terminal open.
 	drainFor = 2 * time.Second
 	// readSize is how much of what setup-token draws is read at a time.
 	readSize = 32 << 10
@@ -44,24 +48,28 @@ type run struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
-	// ended is the end of Make's context, waited on until the token's made
-	// (see cancel), then nil.
+	// ended is the end of Make's context, waited on until it comes (see
+	// cancel), then nil.
 	ended <-chan struct{}
 	// The timers Make waits on, each nil until it's started, or once it's no
 	// longer waited on: looking, for the shim's directory to be looked at;
 	// handOver, for setup-token to have handed its address over; graceOver,
 	// for it to have exited once it has made the token; drained, for its
-	// drawing to have been read once it has exited.
+	// drawing to have been read once it has exited, or for its exit once ctx
+	// has ended.
 	looking, handOver, graceOver, drained <-chan time.Time
 	waits                                 waits
 
 	// made says setup-token has said it made the token, and shown that it
-	// has shown it whole since, as token. exit is how it exited, once it has,
-	// and stopped says Make stopped it, its grace to exit over, before ctx
-	// ended.
+	// has shown it whole since, as token. madeScreen is the fullest drawing
+	// that said it's made (see drawnSinceMade), madeDrawn as full.
 	made, shown bool
-	exit        error
-	stopped     bool
+	madeScreen  string
+	madeDrawn   int
+	// exit is how setup-token exited, once it has: nil where it exited 0.
+	// stopped says Make stopped it, its grace to exit over, before ctx ended.
+	exit    error
+	stopped bool
 
 	// over says Make has its answer: the token, or why there's none.
 	over  bool
@@ -110,20 +118,31 @@ func (r *run) start(ctx context.Context, path string, env environ) error {
 	exited := make(chan error, 1)
 	r.output, r.exited = output, exited
 	r.wg.Go(func() { r.read(output) })
-	r.wg.Go(func() { exited <- cmd.Wait() })
+	r.wg.Go(func() { exited <- waitOn(cmd) })
 	return nil
+}
+
+// waitOn waits on cmd's exit, and returns how it exited: nil where it exited
+// 0, though Wait has that the end of its context, or the Cancel that followed
+// it failing, where that came as it exited by itself.
+func waitOn(cmd *exec.Cmd) error {
+	err := cmd.Wait()
+	if state := cmd.ProcessState; state != nil && state.Success() {
+		return nil
+	}
+	return err
 }
 
 // read sends output what setup-token draws, a read at a time, and closes it
 // once the terminal is closed, at either end, or Make stops it.
 func (r *run) read(output chan<- []byte) {
 	defer close(output)
+	buf := make([]byte, readSize)
 	for {
-		buf := make([]byte, readSize)
 		n, err := r.master.Read(buf)
 		if n > 0 {
 			select {
-			case output <- buf[:n]:
+			case output <- bytes.Clone(buf[:n]):
 			case <-r.done:
 				return
 			}
@@ -168,26 +187,16 @@ func (r *run) wait(ctx context.Context, w waits) (tokens.Token, error) {
 		r.next(ctx)
 	}
 	if !r.made && r.stoppedByCancel(ctx) {
-		// The end of ctx stops setup-token, so its exit, and the end of its
-		// drawing, can come to Make first, as when it's busy as ctx ends:
-		// what happened is the cancel all the same.
 		return tokens.Token{}, cancelled(ctx)
 	}
 	return r.token, r.err
-}
-
-// stoppedByCancel reports whether the end of ctx is what stopped setup-token:
-// ctx has ended, and setup-token was killed, but not by Make.
-func (r *run) stoppedByCancel(ctx context.Context) bool {
-	exit, ok := errors.AsType[*exec.ExitError](r.exit)
-	return ctx.Err() != nil && !r.stopped && ok && !exit.Exited()
 }
 
 // next takes the next thing to happen.
 func (r *run) next(ctx context.Context) {
 	select {
 	case <-r.ended:
-		r.cancel(ctx)
+		r.cancel()
 	case drawn, ok := <-r.output:
 		r.draw(ctx, drawn, ok)
 	case err := <-r.exited:
@@ -204,26 +213,20 @@ func (r *run) next(ctx context.Context) {
 	}
 }
 
-// cancel follows the end of ctx, which stops setup-token. Before the token's
-// made, Make fails with its cause, once it has drawn what setup-token drew
-// that's ready to be read, as that can say the token's made, drawn as ctx
-// ended. Once it's made, Make reads it from
-// what setup-token drew all the same, as when setup-token exits by itself: it
-// lasts a year on the account, and nobody could see it were Make to drop it.
-func (r *run) cancel(ctx context.Context) {
-	if !r.made {
-		select {
-		case drawn, ok := <-r.output:
-			r.draw(ctx, drawn, ok)
-		default:
-		}
+// cancel follows the end of ctx, which stops setup-token. Make reads what it
+// drew to its end all the same, and takes the token where it's made, and
+// shown whole: it lasts a year on the account, and nobody could see it were
+// Make to drop it. Before the token's made, Make waits on setup-token's exit
+// too, drainFor at most, to tell whether the cancel stopped it, or it failed
+// by itself first.
+func (r *run) cancel() {
+	r.ended = nil
+	if r.made {
+		return
 	}
-	switch {
-	case r.over:
-	case !r.made:
-		r.fail(cancelled(ctx))
-	default:
-		r.ended = nil
+	r.looking, r.handOver = nil, nil
+	if r.drained == nil {
+		r.drained = time.After(drainFor)
 	}
 }
 
@@ -232,12 +235,10 @@ func cancelled(ctx context.Context) error {
 	return fmt.Errorf("make a setup token: %w", context.Cause(ctx))
 }
 
-// draw draws what setup-token drew, and follows what it says: that it has made
-// the token, which it's then given grace to exit after, whether it handed its
-// address over or not, and the token, kept the first time it's shown whole,
-// as a frame drawn after can take it off the screen; or an error it waits to
-// retry at, where Make stops. Its drawing over, ok false, and setup-token
-// gone, Make concludes.
+// draw draws what setup-token drew, and follows what its screen says before
+// each control sequence in it, and after it all, until the token's shown
+// whole: a frame and what erases it can come in one read. Its drawing over,
+// ok false, and setup-token gone, Make concludes.
 func (r *run) draw(ctx context.Context, drawn []byte, ok bool) {
 	if !ok {
 		r.output = nil
@@ -246,41 +247,64 @@ func (r *run) draw(ctx context.Context, drawn []byte, ok bool) {
 		}
 		return
 	}
-	r.screen.write(drawn)
-	if r.shown {
-		return
+	for len(drawn) > 0 && !r.shown && !r.over {
+		piece := len(drawn)
+		if at := bytes.IndexByte(drawn[1:], ansi.ESC); at >= 0 {
+			piece = at + 1
+		}
+		r.screen.write(drawn[:piece])
+		drawn = drawn[piece:]
+		r.follow()
 	}
+	r.screen.write(drawn)
+}
+
+// follow follows what setup-token's screen says: that it has made the token,
+// which it's then given grace to exit after, whether it handed its address
+// over or not; and the token, kept the first time it's shown whole, and the
+// fullest drawing that said it's made, for a failure to show; or an error it
+// waits to retry at, where Make stops.
+func (r *run) follow() {
 	d := r.screen.drawing()
 	if !r.made && d.made() {
 		r.made = true
 		r.looking, r.handOver, r.graceOver = nil, nil, time.After(r.waits.grace)
 		r.report(Event{Step: StepMade})
 	}
-	if r.made {
-		r.token, r.shown = d.token()
+	if !r.made {
+		if message, failed := d.failed(); failed {
+			r.fail(failedAt(d.text(), message))
+		}
 		return
 	}
-	if message, failed := d.failed(); failed {
-		r.fail(failedAt(d.text(), message))
+	if drawn := d.drawnSinceMade(); drawn >= r.madeDrawn {
+		r.madeScreen, r.madeDrawn = d.text(), drawn
 	}
+	r.token, r.shown = d.token(false)
 }
 
 // exitedWith notes setup-token's exit, as err says, and concludes once its
 // drawing is over, or drainFor after at most.
 func (r *run) exitedWith(ctx context.Context, err error) {
 	r.exited, r.exit = nil, err
-	r.looking, r.handOver = nil, nil
+	r.looking, r.handOver, r.graceOver = nil, nil, nil
 	if r.output == nil {
 		r.conclude(ctx)
 		return
 	}
-	r.drained = time.After(drainFor)
+	if r.drained == nil {
+		r.drained = time.After(drainFor)
+	}
 }
 
 // lookForAddress looks for the sign-in address setup-token handed the shim,
-// and opens it with the Opener, reporting it, and the wait on its approval
-// that follows. Something handed over that isn't an address fails.
+// while ctx lasts, and opens it with the Opener, reporting it, and the wait
+// on its approval that follows. Something handed over that isn't an address
+// fails.
 func (r *run) lookForAddress(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
 	raw, ok := r.shim.address()
 	if !ok {
 		return
@@ -299,28 +323,55 @@ func (r *run) lookForAddress(ctx context.Context) {
 	r.report(Event{Step: StepWaiting})
 }
 
-// conclude takes the token setup-token showed whole, or fails with what it
-// drew last, saying why there's none: for a token made but never shown whole,
-// the end of ctx, where that's what stopped setup-token drawing it.
+// conclude takes the token setup-token showed whole, or, where it exited 0 by
+// itself, the token its screen shows last, as nothing's left to draw; or
+// fails, saying why there's none: for a token made, with the fullest drawing
+// that said so, and what stopped setup-token (see stoppedBy); otherwise, with
+// what it drew last.
 func (r *run) conclude(ctx context.Context) {
-	if r.shown {
-		r.over = true
-		return
+	if r.made && !r.shown && r.exited == nil && r.exit == nil {
+		r.token, r.shown = r.screen.drawing().token(true)
 	}
 	d := r.screen.drawing()
-	if r.made {
-		var cause error
-		if r.stoppedByCancel(ctx) {
-			cause = context.Cause(ctx)
-		}
-		r.fail(unreadable(d.text(), cause))
-		return
-	}
-	if message, failed := d.failed(); failed {
+	message, failed := d.failed()
+	switch {
+	case r.shown:
+		r.over = true
+	case r.made:
+		r.fail(unreadable(r.madeScreen, r.stoppedBy(ctx)))
+	case failed:
 		r.fail(failedAt(d.text(), message))
-		return
+	case r.exited != nil:
+		// Still running drainFor after ctx ended, which kills it.
+		r.fail(cancelled(ctx))
+	default:
+		r.fail(exitedWithout(d.text(), r.exit))
 	}
-	r.fail(exitedWithout(d.text(), r.exit))
+}
+
+// stoppedBy returns what stopped setup-token, for a failure to carry: the
+// end of ctx, where that killed it, or it's still running after it; nothing,
+// where Make killed it; or how it exited by itself, nil for 0.
+func (r *run) stoppedBy(ctx context.Context) error {
+	switch {
+	case r.stoppedByCancel(ctx), ctx.Err() != nil && r.exited != nil:
+		return context.Cause(ctx)
+	case r.stopped && killed(r.exit):
+		return nil
+	}
+	return r.exit
+}
+
+// stoppedByCancel reports whether the end of ctx is what stopped setup-token:
+// ctx has ended, and setup-token was killed, but not by Make.
+func (r *run) stoppedByCancel(ctx context.Context) bool {
+	return ctx.Err() != nil && !r.stopped && killed(r.exit)
+}
+
+// killed reports whether exit, how setup-token exited, is its being killed.
+func killed(exit error) bool {
+	status, ok := errors.AsType[*exec.ExitError](exit)
+	return ok && !status.Exited()
 }
 
 func (r *run) fail(err error) {

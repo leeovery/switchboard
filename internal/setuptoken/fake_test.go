@@ -28,11 +28,14 @@ import (
 // address it would have the person paste, as a link, and waits for the test
 // to approve the sign-in, as the browser's callback does, by writing
 // FAKE_DIR/approved. Then it draws the token, FAKE_TOKEN, and exits
-// FAKE_EXIT_AFTER seconds later. It redraws each frame over the last, as Ink
-// does. FAKE_MODE has it do otherwise:
+// FAKE_EXIT_AFTER seconds later, with FAKE_STATUS, 0 where it's unset. It
+// redraws each frame over the last, as Ink does. FAKE_MODE has it do
+// otherwise:
 //
 //	stall        nothing at all, waiting
 //	on-hold      exit 1 at once, saying the account's on hold
+//	refused      exit 1 once it has run $BROWSER, and FAKE_DIR/opened is
+//	             written, saying the account's on hold
 //	no-browser   no running of $BROWSER, waiting
 //	oauth-error  an OAuth error where the token would be, waiting at it
 //	broken       the token broken across two rows
@@ -40,8 +43,8 @@ import (
 //	in-place     the token's frame drawn over the last in place, as a
 //	             renderer drawing what's changed does, cut short in the token,
 //	             waiting
-//	clears       the token's frame erased FAKE_PAUSE seconds after it's drawn,
-//	             before the exit
+//	clears       the token's frame and what erases it drawn in one write
+//	last         the token drawn last, nothing after it
 const fakeSetupToken = `#!/bin/sh
 d=$FAKE_DIR
 note() { printf '%s\n' "$2" > "$d/$1.tmp" && /bin/mv "$d/$1.tmp" "$d/$1"; }
@@ -73,6 +76,11 @@ if [ "$FAKE_MODE" = on-hold ]; then
 fi
 [ "$FAKE_MODE" = no-browser ] && exec /bin/sleep 60
 "$BROWSER" "$FAKE_ADDRESS"
+if [ "$FAKE_MODE" = refused ]; then
+	while [ ! -e "$d/opened" ]; do /bin/sleep 0.05; done
+	frame ' \033[31mThis account is on hold.\033[39m\n'
+	exit 1
+fi
 frame ' Opening browser to sign in…\n\n \033[2mBrowser didn'"'"'t open? Use the url below to sign in\033[22m\n\n \033]8;;'"$FAKE_MANUAL"'\a\033[2m'"$FAKE_MANUAL"'\033[22m\033]8;;\a\n\n Paste code here if prompted > \n'
 while [ ! -e "$d/approved" ]; do /bin/sleep 0.05; done
 
@@ -96,13 +104,20 @@ in-place)
 	over "$made \\033[33m$first"
 	exec /bin/sleep 60
 	;;
+clears)
+	drawn="$made \\033[33m$FAKE_TOKEN\\033[39m$after"
+	{
+		printf '\033[%dA\033[J' "$shown"
+		printf '%b' "$drawn"
+		printf '\033[%dA\033[J' $(( $(printf '%b' "$drawn" | /usr/bin/wc -l) ))
+	} > "$d/frame"
+	/bin/cat "$d/frame"
+	;;
+last) frame "$made \\033[33m$FAKE_TOKEN\\033[39m\n" ;;
 *) frame "$made \\033[33m$FAKE_TOKEN\\033[39m$after" ;;
 esac
-if [ "$FAKE_MODE" = clears ]; then
-	/bin/sleep "$FAKE_PAUSE"
-	frame ''
-fi
-exec /bin/sleep "${FAKE_EXIT_AFTER:-0.5}"
+/bin/sleep "${FAKE_EXIT_AFTER:-0.5}"
+exit "${FAKE_STATUS:-0}"
 `
 
 // The sign-in addresses the fake hands $BROWSER and shows, and the token it

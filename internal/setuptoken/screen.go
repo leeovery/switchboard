@@ -3,7 +3,6 @@ package setuptoken
 import (
 	"cmp"
 	"slices"
-	"strings"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -15,19 +14,17 @@ const maxRows = 1000
 
 // screen is what a terminal shows of what's drawn to it, as far as reading
 // setup-token's drawing needs: its text, a row each, as the cursor moves,
-// erases, inserts, deletes, scrolls and wraps it, and when each row was last
-// written to. Colours, links and modes are passed over, and each character
-// takes a column.
+// erases, inserts, deletes, scrolls and wraps it, and when each character was
+// written. Colours, links and modes are passed over, and each character takes
+// a column.
 type screen struct {
 	width, height int
 	// rows holds the rows scrolled off the top, then the visible ones from
-	// rows[top], each as long as what's been drawn on it; written holds when
-	// each was last written to, as a count of the characters drawn, 0 for
-	// never; writes is that count.
-	rows    [][]rune
-	written []int
-	writes  int
-	top     int
+	// rows[top], each as long as what's been drawn on it. writes counts the
+	// characters drawn, which is when each cell was written.
+	rows   [][]cell
+	writes int
+	top    int
 	// margins are the first and last of the visible rows that scroll, from
 	// 0.
 	margins [2]int
@@ -41,6 +38,16 @@ type screen struct {
 	saved [2]int
 	ansi  *ansi.Parser
 }
+
+// cell is a character on the screen, and when it was written, as the screen
+// counts the characters drawn.
+type cell struct {
+	r       rune
+	written int
+}
+
+// blankCell is a cell nothing has written to, or something has erased.
+var blankCell = cell{r: ' '}
 
 // newScreen returns an empty screen, width columns wide and height rows high.
 func newScreen(width, height int) *screen {
@@ -62,13 +69,18 @@ func (s *screen) write(drawn []byte) {
 }
 
 // drawing returns the screen's lines, scrollback first, a line a row, without
-// the spaces that end each, nor the blank rows that begin and end it.
+// the blanks that end each, nor the blank rows that begin and end it. Its
+// lines are the screen's own, until it's next written to.
 func (s *screen) drawing() drawing {
 	lines := make(drawing, len(s.rows))
 	for i, row := range s.rows {
-		lines[i] = line{text: strings.TrimRight(string(row), " "), written: s.written[i]}
+		end := len(row)
+		for end > 0 && row[end-1].r == ' ' {
+			end--
+		}
+		lines[i] = line(row[:end])
 	}
-	blank := func(l line) bool { return l.text == "" }
+	blank := func(l line) bool { return len(l) == 0 }
 	for len(lines) > 0 && blank(lines[len(lines)-1]) {
 		lines = lines[:len(lines)-1]
 	}
@@ -109,23 +121,27 @@ func (s *screen) execute(b byte) {
 // csi follows a control sequence, with n its first parameter as the moves,
 // insertions, deletions and scrolls take it: 1 where it's missing or 0.
 func (s *screen) csi(cmd ansi.Cmd, params ansi.Params) {
+	if cmd.Prefix() == 0 && cmd.Intermediate() == '!' && cmd.Final() == 'p' {
+		s.softReset()
+		return
+	}
 	if cmd.Prefix() != 0 || cmd.Intermediate() != 0 {
 		return
 	}
 	n := count(params, 0)
 	switch cmd.Final() {
 	case 'A':
-		s.moveTo(s.row-n, s.col)
+		s.moveTo(s.up(n), s.col)
 	case 'B', 'e':
-		s.moveTo(s.row+n, s.col)
+		s.moveTo(s.down(n), s.col)
 	case 'C', 'a':
 		s.moveTo(s.row, s.col+n)
 	case 'D':
 		s.moveTo(s.row, s.col-n)
 	case 'E':
-		s.moveTo(s.row+n, 0)
+		s.moveTo(s.down(n), 0)
 	case 'F':
-		s.moveTo(s.row-n, 0)
+		s.moveTo(s.up(n), 0)
 	case 'G', '`':
 		s.moveTo(s.row, n-1)
 	case 'd':
@@ -200,6 +216,33 @@ func (s *screen) reset() {
 	*s = screen{width: s.width, height: s.height, margins: [2]int{0, s.height - 1}, ansi: s.ansi}
 }
 
+// softReset sets the margins to the whole screen, and the cursor saved to its
+// home, as a terminal's soft reset does, leaving what's drawn, and the cursor,
+// where they are.
+func (s *screen) softReset() {
+	s.margins, s.saved = [2]int{0, s.height - 1}, [2]int{}
+}
+
+// up returns the row n rows above the cursor's, stopping at the top margin
+// where the cursor's at or below it, or the screen's top.
+func (s *screen) up(n int) int {
+	top := s.top
+	if s.row >= s.top+s.margins[0] {
+		top += s.margins[0]
+	}
+	return max(s.row-n, top)
+}
+
+// down returns the row n rows below the cursor's, stopping at the bottom
+// margin where the cursor's at or above it, or the screen's bottom.
+func (s *screen) down(n int) int {
+	bottom := s.top + s.height - 1
+	if s.row <= s.top+s.margins[1] {
+		bottom = s.top + s.margins[1]
+	}
+	return min(s.row+n, bottom)
+}
+
 // lineFeed moves the cursor down a row, scrolling the rows between the
 // margins up a row at the bottom one.
 func (s *screen) lineFeed() {
@@ -223,16 +266,20 @@ func (s *screen) reverseLineFeed() {
 }
 
 // scrollUp scrolls the rows between the margins up n, the cursor where it
-// is: where they're the whole screen, those at the top go into the
-// scrollback; otherwise they're gone.
+// is. Where the top margin is the screen's top, those scrolled off it go into
+// the scrollback, as xterm has them, those below the bottom margin staying
+// where they are; otherwise they're gone.
 func (s *screen) scrollUp(n int) {
-	if s.margins == [2]int{0, s.height - 1} {
-		n = min(n, s.height)
-		s.top += n
-		s.row += n
+	if s.margins[0] != 0 {
+		s.shiftUp(s.top+s.margins[0], s.top+s.margins[1], n)
 		return
 	}
-	s.shiftUp(s.top+s.margins[0], s.top+s.margins[1], n)
+	n = min(n, s.margins[1]+1)
+	if below := s.top + s.margins[1] + 1; below < len(s.rows) {
+		s.rows = slices.Insert(s.rows, below, make([][]cell, n)...)
+	}
+	s.top += n
+	s.row += n
 }
 
 // scrollDown scrolls the rows between the margins down n, the cursor where
@@ -282,7 +329,6 @@ func (s *screen) shiftUp(first, last, n int) {
 	s.ensure(last)
 	n = min(n, last-first+1)
 	copy(s.rows[first:last+1], s.rows[first+n:last+1])
-	copy(s.written[first:last+1], s.written[first+n:last+1])
 	s.blank(last-n+1, last)
 }
 
@@ -292,14 +338,13 @@ func (s *screen) shiftDown(first, last, n int) {
 	s.ensure(last)
 	n = min(n, last-first+1)
 	copy(s.rows[first+n:last+1], s.rows[first:last+1-n])
-	copy(s.written[first+n:last+1], s.written[first:last+1-n])
 	s.blank(first, first+n-1)
 }
 
-// blank makes the rows from first to last blank, never written.
+// blank makes the rows from first to last blank.
 func (s *screen) blank(first, last int) {
 	for row := first; row <= last; row++ {
-		s.rows[row], s.written[row] = nil, 0
+		s.rows[row] = nil
 	}
 }
 
@@ -310,7 +355,7 @@ func (s *screen) insertChars(n int) {
 	if s.row >= len(s.rows) || s.col >= len(s.rows[s.row]) {
 		return
 	}
-	row := slices.Insert(s.rows[s.row], s.col, slices.Repeat([]rune{' '}, min(n, s.width))...)
+	row := slices.Insert(s.rows[s.row], s.col, slices.Repeat([]cell{blankCell}, min(n, s.width))...)
 	s.rows[s.row] = row[:min(len(row), s.width)]
 }
 
@@ -355,7 +400,6 @@ func (s *screen) restore() {
 func (s *screen) ensure(row int) {
 	for len(s.rows) <= row {
 		s.rows = append(s.rows, nil)
-		s.written = append(s.written, 0)
 	}
 }
 
@@ -365,12 +409,11 @@ func (s *screen) put(r rune) {
 	s.trim()
 	row := s.rows[s.row]
 	for len(row) <= s.col {
-		row = append(row, ' ')
+		row = append(row, blankCell)
 	}
-	row[s.col] = r
-	s.rows[s.row] = row
 	s.writes++
-	s.written[s.row] = s.writes
+	row[s.col] = cell{r: r, written: s.writes}
+	s.rows[s.row] = row
 }
 
 // eraseDisplay erases, by mode, the visible screen from the cursor to its end
@@ -423,7 +466,7 @@ func (s *screen) erase(row, first, end int) {
 		return
 	}
 	for col := first; col < end; col++ {
-		cells[col] = ' '
+		cells[col] = blankCell
 	}
 }
 
@@ -441,5 +484,4 @@ func (s *screen) trim() {
 // drop drops the first n rows.
 func (s *screen) drop(n int) {
 	s.rows = slices.Delete(s.rows, 0, n)
-	s.written = slices.Delete(s.written, 0, n)
 }

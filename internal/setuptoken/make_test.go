@@ -436,7 +436,7 @@ func TestMakeTakesNoTokenCutShortInAFrameDrawnOverTheLastInPlace(t *testing.T) {
 }
 
 func TestMakeTakesTheTokenShownThoughSetupTokenErasesItBeforeItExits(t *testing.T) {
-	f := newFake(t, "clears", "FAKE_PAUSE=1")
+	f := newFake(t, "clears")
 	leaks := watchLeaks(t)
 	var events []setuptoken.Event
 
@@ -476,7 +476,92 @@ func TestMakeNamesTheCancelOnlyWhereItStoppedSetupToken(t *testing.T) {
 	leaks.check(t, f)
 }
 
-func TestMakeFailsWithTheCancelWhenItsContextEndsAsSetupTokenStarts(t *testing.T) {
+func TestMakeTakesATokenDrawnLastOnceSetupTokenHasExitedByItself(t *testing.T) {
+	f := newFake(t, "last")
+	leaks := watchLeaks(t)
+	var events []setuptoken.Event
+
+	token, err := f.maker.Make(t.Context(), setuptoken.Signing{Opener: &opener{}, Report: approving(t, f, &events)})
+
+	if err != nil || token.Reveal() != fakeToken {
+		t.Errorf("Make() = %q, %v; want the token, all setup-token drew before it exited", token.Reveal(), err)
+	}
+	leaks.check(t, f)
+}
+
+func TestMakeCarriesSetupTokensOwnExitOnceItHasMadeTheToken(t *testing.T) {
+	f := newFake(t, "broken", "FAKE_STATUS=3")
+	var events []setuptoken.Event
+
+	_, err := f.maker.Make(t.Context(), setuptoken.Signing{Opener: &opener{}, Report: approving(t, f, &events)})
+
+	if want := "setup-token said it made a token, but its screen didn't show one (exit status 3)"; err == nil || err.Error() != want {
+		t.Errorf("Make() = %v, want %q", err, want)
+	}
+	if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 3 {
+		t.Errorf("Make() = %v, want it carrying setup-token's exit status, 3", err)
+	}
+}
+
+// The Opener holds Make up until setup-token has failed by itself, then ends
+// ctx, so its exit, the end of its drawing and the end of ctx are all ready
+// as Make looks.
+func TestMakeFailsWithSetupTokensOwnExitThoughItsContextEndsAsItExits(t *testing.T) {
+	f := newFake(t, "refused")
+	leaks := watchLeaks(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	_, err := f.maker.Make(ctx, setuptoken.Signing{Opener: exitedFirst{f: f, t: t, cancel: cancel}})
+
+	if want := "setup-token exited without making a token (exit status 1)"; err == nil || err.Error() != want || errors.Is(err, context.Canceled) {
+		t.Errorf("Make() = %v, want %q, not the cancel, which came once setup-token had exited", err, want)
+	}
+	leaks.check(t, f)
+}
+
+// exitedFirst is an Opener that opens nothing, but says it has to the fake
+// setup-token, waiting for it to have exited by itself, then cancelling.
+type exitedFirst struct {
+	f      fake
+	t      *testing.T
+	cancel context.CancelFunc
+}
+
+func (o exitedFirst) Open(context.Context, setuptoken.Address) (setuptoken.Opened, error) {
+	if err := os.WriteFile(filepath.Join(o.f.dir, "opened"), nil, 0o600); err != nil {
+		o.t.Error(err)
+	}
+	if pid, err := strconv.Atoi(o.f.noted(o.t, "pid")); err != nil || !gone(pid) {
+		o.t.Errorf("the fake setup-token, %d, never exited by itself (%v)", pid, err)
+	}
+	o.cancel()
+	return setuptoken.NotOpened, nil
+}
+
+// Each attempt ends ctx a while later than the last, from before setup-token
+// starts to after it has, so the cancel lands as it's started, wherever that
+// is.
+func TestMakeFailsWithTheCancelWhereverItLandsAsSetupTokenStarts(t *testing.T) {
+	cause := errors.New("the person stopped it")
+	for attempt := range 24 {
+		f := newFake(t, "")
+		leaks := watchLeaks(t)
+		ctx, cancel := context.WithCancelCause(t.Context())
+		timer := time.AfterFunc(time.Duration(attempt)*500*time.Microsecond, func() { cancel(cause) })
+
+		_, err := f.maker.Make(ctx, setuptoken.Signing{Opener: &opener{}})
+
+		timer.Stop()
+		cancel(nil)
+		if !errors.Is(err, cause) {
+			t.Fatalf("attempt %d: Make() = %v, want it failing with the cancel's cause", attempt, err)
+		}
+		leaks.check(t, f)
+	}
+}
+
+func TestMakeFailsWithTheCancelWhenItsContextEndsBeforeSetupTokenStarts(t *testing.T) {
 	f := newFake(t, "")
 	leaks := watchLeaks(t)
 	ctx, cancel := context.WithCancelCause(t.Context())
