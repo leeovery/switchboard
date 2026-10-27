@@ -268,8 +268,9 @@ sha256 <an earlier token's hash>
 ```
 
 A token's year counts from when switchboard took it. Nothing says when a pasted token was made, so
-its year counts from the day you gave it. A token's date never moves: giving a token again, even
-after another, keeps the date it was first taken.
+its year counts from the day you gave it. Giving a token again, even after another, keeps the
+earlier of its two dates. The record keeps the latest 8 tokens alone, so a token given again after
+8 others counts afresh.
 
 The hash ties each date to its token, never holding the token itself. A token written by anything
 else has no known date, unless the record has a date for that same token, as when you restore both
@@ -278,8 +279,10 @@ before.
 
 The record must be yours, and no one else can read or write it, as with the token file. A record
 restored readable by others, but not writable, is made private as the router starts, and when
-switchboard next writes a token beside it. `accounts remove` deletes the record with the token file. `status --json`
-gives each token's `token_taken`, and its `token_good_until`, 365 days on.
+switchboard next writes a token beside it.
+
+`accounts remove` deletes the record with the token file. `status --json` gives each token's
+`token_taken`, and its `token_good_until`, 365 days on.
 
 ### When switchboard reads token files
 
