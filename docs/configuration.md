@@ -264,6 +264,10 @@ taken 2026-10-27T09:30:00Z
 sha256 <the token's SHA-256 hash, in hex>
 ```
 
+A token's year counts from when switchboard took it. Nothing says when a pasted token was made, so
+its year counts from the day you gave it. Giving the same token again keeps the date it was first
+taken.
+
 The hash ties the record to that token, never holding the token itself. A token written by
 anything else has no known date, unless it's the same token the record was written for, as when
 you restore both files together. A missing or damaged record only leaves the date unknown: the

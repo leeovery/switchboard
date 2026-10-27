@@ -663,12 +663,18 @@ accounts:
   there's one. It holds two lines, the time taken, RFC 3339 in UTC, and the token's SHA-256 hash in
   hex, never the token: `taken 2026-10-27T09:30:00Z` then `sha256 <hash>`. The hash keeps the record
   to the token it was written for, so a token file replaced by anything else has no known date
-  rather than a wrong one. A record that's missing, isn't the user's alone, isn't two such lines,
-  or is of another token leaves the date unknown, logged at debug, and never makes the token
-  unusable. A token switchboard keeps rather than takes, as `accounts add` keeps a usable one,
-  keeps whatever record it has, as one restored with it. A failure to write the record is logged
-  as a warning, the token saved all the same. `accounts remove` deletes the record with the token
-  file, a link alone where it's one. The status document gives each account's `token_taken`, and
+  rather than a wrong one. A token's year counts from when switchboard took it, a pasted token's
+  from the day it was given, as nothing says when it was made; the same token given again keeps
+  the date it was first taken, as one setup-token makes each. A record that's missing leaves the
+  date unknown, saying nothing; one that isn't the user's alone, isn't those two lines exactly,
+  holds a time that's zero or past 9998, so its year's end has a year RFC 3339 can write, or is
+  of another token leaves it unknown too, logged at debug, by the router once until why changes.
+  Neither ever makes the token unusable. A token switchboard keeps rather than takes, as
+  `accounts add` keeps a usable one, keeps whatever record it has, as one restored with it. The
+  record is never written where it would land on the token file, as through a link from one to
+  the other. A failure to write it is logged as a warning, the token saved all the same.
+  `accounts remove` deletes the token file, then the record, a link alone where it's one; a token
+  file it can't remove keeps its record. The status document gives each account's `token_taken`, and
   `token_good_until`, 365 days on, the router's as probing's: the router reads the record whenever
   it reads the token, as it starts, at every look and on a 401, never per request, and holds the
   date beside the token it was of, so a record that lands a moment after its token counts from the

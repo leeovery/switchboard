@@ -302,8 +302,8 @@ Each entry in `accounts` holds these:
 
 - The account's `id` and `label`, whether it's the `primary`, and its `reserve`.
 - Whether its token is set, and when it was read.
-- `token_taken` and `token_good_until`: when switchboard took its token, and when the token's year
-  is up, each left out where that isn't known.
+- `token_taken` and `token_good_until`: when switchboard took its token, and when the token's year,
+  counted from then, is up, 365 days on, each left out where that isn't known.
 - Its `windows`, each with its use, reset and status, its even pace (`pace`) and its `allowance`.
 - `lapsed` and `at_reserve`: the windows that have lapsed, and those at the reserve.
 - Its `extra_usage`.
