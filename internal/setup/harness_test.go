@@ -19,6 +19,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
@@ -67,10 +68,17 @@ type world struct {
 	// configFlag is the config file setup is given, as --config gives it,
 	// "" for none.
 	configFlag string
-	// env is the environment setup is run in, beyond TMPDIR.
-	env     map[string]string
-	launchd *fakeLaunchd
-	api     *fakeAPI
+	// env is the environment setup is run in, over the world's own: TMPDIR,
+	// and XDG_CONFIG_HOME and XDG_STATE_HOME, finding config and state; a
+	// variable set to "" is unset.
+	env map[string]string
+	// unstartable is why a router couldn't start, nil when it could, and
+	// checked what setup checked one would start from, each the state
+	// directory's XDG_STATE_HOME and the config file.
+	unstartable error
+	checked     []string
+	launchd     *fakeLaunchd
+	api         *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -88,7 +96,7 @@ func newWorld(t *testing.T) *world {
 		tmp:     at("tmp"),
 		skill:   at("claude", "skills", "switchboard", "SKILL.md"),
 		bin:     at("home", ".local", "share", "switchboard", "bin"),
-		launchd: &fakeLaunchd{},
+		launchd: &fakeLaunchd{home: at("home")},
 		api:     &fakeAPI{},
 	}
 	mkdir(t, w.tmp)
@@ -106,6 +114,14 @@ func (w *world) goInstalled(t *testing.T) string {
 	return claudetest.Program(t, filepath.Join(w.root, "go", "bin", "switchboard"))
 }
 
+// startable checks a router could start in the environment getenv reads,
+// serving the config file at path, as unstartable says, noting what it
+// checked.
+func (w *world) startable(getenv func(string) string, path string) error {
+	w.checked = append(w.checked, getenv("XDG_STATE_HOME")+" "+path)
+	return w.unstartable
+}
+
 // putBinOnPath puts switchboard's bin directory first on PATH, as the line
 // setup says to add does.
 func (w *world) putBinOnPath() {
@@ -115,16 +131,23 @@ func (w *world) putBinOnPath() {
 // setup is setup in the world, at the terminal the user is at.
 func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 	t.Helper()
-	env := map[string]string{"TMPDIR": w.tmp}
+	env := map[string]string{"TMPDIR": w.tmp, "XDG_CONFIG_HOME": filepath.Join(w.root, "config"), "XDG_STATE_HOME": filepath.Join(w.root, "state")}
 	maps.Copy(env, w.env)
+	getenv := func(key string) string { return env[key] }
+	// The CLI's state directory, as it finds it.
+	stateDir, err := config.StateDir(getenv, func() (string, error) { return w.home, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
 	svc, err := service.New(service.Config{
 		GOOS:      "darwin",
 		UID:       os.Getuid(),
 		Home:      w.home,
-		Getenv:    func(key string) string { return env[key] },
-		StateDir:  w.state,
+		Getenv:    getenv,
+		StateDir:  stateDir,
 		Launchctl: w.launchd.run,
-		Router:    w.launchd,
+		Router:    w.launchd.at(stateDir),
+		RouterAt:  func(dir string) service.Router { return w.launchd.at(dir) },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -134,6 +157,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt},
 		Service:      svc,
 		Install:      service.InstallOptions{Executable: w.switchboard, Config: w.configFlag},
+		Startable:    w.startable,
 		Path:         strings.Join(w.path, string(filepath.ListSeparator)),
 		InstallPaths: w.installPaths,
 		Bin:          w.bin,
@@ -433,9 +457,12 @@ func (u *user) typeUnseen() ([]byte, error) {
 // pid, unless old is set, when it can't be asked, as one from before routers
 // restarted when asked can't.
 type fakeLaunchd struct {
-	loaded bool
-	dead   bool
-	old    bool
+	// home is the user's, and stateDir the state directory of the router
+	// the plist launchd loaded runs, as its XDG_STATE_HOME finds it.
+	home, stateDir string
+	loaded         bool
+	dead           bool
+	old            bool
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
 	pid        int
@@ -450,6 +477,7 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 	switch {
 	case args[0] == "bootstrap":
 		f.loaded = true
+		f.stateDir = f.stateDirOf(args[2])
 		f.start()
 	case !f.loaded:
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
@@ -467,6 +495,50 @@ func (f *fakeLaunchd) start() {
 		f.pid = 4242 + f.started
 		f.started++
 	}
+}
+
+// stateHome is how a plist names its router's XDG_STATE_HOME.
+var stateHome = regexp.MustCompile(`<key>XDG_STATE_HOME</key>\s*<string>([^<]*)</string>`)
+
+// stateDirOf is the state directory of the router the plist at path runs.
+func (f *fakeLaunchd) stateDirOf(path string) string {
+	plist, _ := os.ReadFile(path)
+	var value string
+	if m := stateHome.FindSubmatch(plist); m != nil {
+		value = string(m[1])
+	}
+	dir, _ := config.StateDir(func(string) string { return value }, func() (string, error) { return f.home, nil })
+	return dir
+}
+
+// at is the router a client of the control socket in dir reaches:
+// launchd's, when its router's state is there, else none.
+func (f *fakeLaunchd) at(dir string) service.Router {
+	return routerAt{f, dir}
+}
+
+// routerAt is the router a client of the control socket in dir reaches.
+type routerAt struct {
+	launchd *fakeLaunchd
+	dir     string
+}
+
+// errNoRouterThere is how a client fails with no router's socket where it
+// dials.
+var errNoRouterThere = fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning)
+
+func (r routerAt) Health(ctx context.Context) (router.Health, error) {
+	if r.dir != r.launchd.stateDir {
+		return router.Health{}, errNoRouterThere
+	}
+	return r.launchd.Health(ctx)
+}
+
+func (r routerAt) Restart(ctx context.Context) (router.Restart, error) {
+	if r.dir != r.launchd.stateDir {
+		return router.Restart{}, errNoRouterThere
+	}
+	return r.launchd.Restart(ctx)
 }
 
 // ran returns the launchctl subcommands run, in turn.

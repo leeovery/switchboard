@@ -744,20 +744,36 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    into, and marks it.
 2. **Priming:** with no day set, asks for one, `HH:MM-HH:MM`, and writes it to `[prime]`; Enter
    leaves priming off.
-3. **Service:** installs the LaunchAgent when its plist isn't there. It installs it again when
-   launchd hasn't loaded it; when the plist runs another program than the switchboard setup runs
-   as, saying which it ran; when the plist differs from the one `service install` would write now,
-   saying what differed by its keys and arguments, never their values; and when the plist can't be
-   read, saying so. Installing again keeps what the service was installed with, read back from the
-   plist: `--log-level`; `--config`, unless setup is given its own; and the variables carried with
-   the log launchd writes, as they decide where the router keeps its state, its tokens with it. Key
-   order and whitespace don't count as a difference, nor do the variables carried, which differ as
-   the shells installing from do, never as switchboards do. Where this shell sets them otherwise
-   than the service, setup names them, never their values, and leaves them: `service install`,
-   run from the shell the router should use, changes them. Nothing asks first, and `service
-   install` stays the way to force a reinstall. Otherwise setup restarts the router when it doesn't
-   answer, and says it's up. It never restarts the router for setup's changes to the config or a
-   token: the router takes them up itself (see The router looking after itself), and setup says so.
+3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
+   `service install` does, that the router could start; it fails, saying why, where it couldn't.
+   Installed, the service is seen as the router it runs sees it: in the environment read back from
+   the plist, over the shell's, so its state directory, and with it the router setup asks, its
+   launchd log and the token files it serves with, are the ones that environment decides. Setup
+   installs it again when launchd hasn't loaded it; when the plist runs another program than the
+   switchboard setup runs as, saying which it ran; and when the plist differs from the one `service
+   install` would write now, saying what differed by its keys and arguments, never their values. A
+   flag given after `=` reads as one given before its value, as `serve` parses them, and one given
+   twice reads as its last, and counts as a difference. Installing again keeps what the service
+   was installed with, read back from the plist: `--log-level`; `--config`, unless setup is given
+   its own; the whole of its `EnvironmentVariables`, the variables carried and any added by hand;
+   and the log launchd writes. Key order and whitespace don't count as a difference, nor do the
+   `EnvironmentVariables`, which differ as the shells installing from do, never as switchboards
+   do. Before it boots anything out, setup checks the router could start from what it keeps, its
+   config file and its environment; where it couldn't, the service is left as it is, and setup
+   says why, and that `service install`, run from the shell the router should use, installs it
+   afresh. A plist that can't be read, isn't XML, or names no program has nothing to read back:
+   setup says so, and installs it as it would a first time, with its own options and the shell's
+   environment, once the router could start from them. Nothing asks first, and `service install`
+   stays the way to force a reinstall, writing the shell's variables.
+   Setup says where the service and setup see apart, never with a value: the variables carried
+   that this shell sets to decide otherwise, as the directory or the file they find decides, so one
+   set to what its absence decides is the same, naming what they decide, such as the state
+   directory, and that `service install` from the shell the router should use changes them; and a
+   config file the router serves other than the one setup edits, and that `setup --config` naming
+   the router's, or `service install`, lines them up. Otherwise setup restarts the router when it
+   doesn't answer, and says it's up. It never restarts the router for setup's changes to the config
+   or a token: the router takes them up itself (see The router looking after itself), and setup
+   says so, where the router reads the config file and the token files setup wrote.
 4. **The `claude` link:** setup writes into no directory but its own. It makes the `claude` link
    in switchboard's bin directory (see Files), leading to switchboard by the path it was run by,
    as the LaunchAgent names it, so an upgrade moves the link on; a link there leading anywhere
@@ -7857,8 +7873,9 @@ verbs).
   upgrade or a restart, in place or by launchd, keeps what it said: a key a newer switchboard
   writes, as `ProcessType` was, reaches an install through `install`, restarting the router, or
   through `setup`, which reinstalls where the plist differs from the one `install` would write,
-  keeping the options and the variables it was installed with (see Setup). `uninstall` boots it
-  out when loaded, waits for launchd to let it go, and removes the plist. `restart`, with a router answering, asks it to
+  keeping the options and the variables it was installed with, once it has checked the router
+  could start from them (see Setup). `uninstall` boots it out when loaded, waits for launchd to
+  let it go, and removes the plist. `restart`, with a router answering, asks it to
   restart (`POST /restart`): it finishes its requests in flight, within 30 seconds, those it cuts
   off then given 5 more to unwind, then replaces itself in place, keeping its process, or, as it
   says when it can't, exits for launchd to start it again (see The router

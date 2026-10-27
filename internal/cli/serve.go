@@ -81,7 +81,7 @@ func (a *app) serve(ctx context.Context) error {
 		return err
 	}
 	configFile, binary, zone := router.Watch(path), router.Watch(a.binary()), router.Watch(a.ZoneFile)
-	cfg, files, err := a.startingFrom(path)
+	cfg, files, err := a.startingFrom(a.Getenv, path)
 	if err != nil {
 		return err
 	}
@@ -113,11 +113,22 @@ func (a *app) startable() (router.Config, error) {
 	if err != nil {
 		return router.Config{}, err
 	}
-	cfg, _, err := a.startingFrom(path)
+	cfg, _, err := a.startingFrom(a.Getenv, path)
 	if err != nil {
 		return router.Config{}, err
 	}
 	return cfg, router.Startable(cfg)
+}
+
+// startableIn fails, saying why, as startable does, for a router serving the
+// config file at path in the environment getenv reads, as the service would
+// run it.
+func (a *app) startableIn(getenv func(string) string, path string) error {
+	cfg, _, err := a.startingFrom(getenv, path)
+	if err != nil {
+		return err
+	}
+	return router.Startable(cfg)
 }
 
 // refuse answers a router asking with handover.CheckFlag that the router
@@ -142,16 +153,16 @@ func (r refusal) Unwrap() error {
 }
 
 // startingFrom reads what serve starts the router from, given its config
-// file's path: the router's config, but for the files it watches, which serve
+// file's path, in the environment getenv reads: the router's config, but for the files it watches, which serve
 // finds before it reads the config file, and the token files it reads. It
 // fails where the config file doesn't make a valid config, or the state
 // directory can't be found.
-func (a *app) startingFrom(path string) (router.Config, tokens.Store, error) {
+func (a *app) startingFrom(getenv func(string) string, path string) (router.Config, tokens.Store, error) {
 	cfg, err := a.loadConfigAt(path)
 	if err != nil {
 		return router.Config{}, tokens.Store{}, err
 	}
-	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
+	stateDir, err := config.StateDir(getenv, a.HomeDir)
 	if err != nil {
 		return router.Config{}, tokens.Store{}, err
 	}

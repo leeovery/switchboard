@@ -118,6 +118,9 @@ func (a *app) service() (*service.Service, error) {
 		StateDir:  stateDir,
 		Launchctl: a.Launchctl,
 		Router:    router.NewClient(router.SocketPath(stateDir)),
+		RouterAt: func(dir string) service.Router {
+			return router.NewClient(router.SocketPath(dir))
+		},
 	})
 }
 

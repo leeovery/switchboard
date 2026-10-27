@@ -351,11 +351,22 @@ The steps are:
    launchd hasn't loaded it, when it runs another switchboard than the one `setup` runs as, or when
    its plist differs from the one `switchboard service install` would write now, as after an
    upgrade that adds a key, and says what differed. Installing it again keeps the `--log-level`,
-   `--config` and environment it was installed with, as the environment decides where the router
-   keeps its state. When your shell's `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`,
-   `SWITCHBOARD_LOG_LEVEL` or `CLAUDE_CONFIG_DIR` differs from the service's, `setup` names it and
-   leaves it: run `switchboard service install` from the shell the router should use to change it.
-   Restarts the router only when it doesn't answer. The router takes up `setup`'s changes to the config and the tokens itself.
+   `--config` and environment it was installed with, every variable in it, as the environment
+   decides where the router keeps its state, tokens included. A `--config` given to `setup` takes
+   the place of the kept one. Before it touches a running service, `setup` checks the router
+   could start from what it keeps, and where it couldn't, leaves the service as it is and says
+   why. A plist `setup` can't read back, or one that names no program, is installed afresh as a
+   first install would be, from `setup`'s own options and your shell's environment.
+
+   `setup` watches the router where the service keeps its state. When your shell's
+   `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`, `SWITCHBOARD_LOG_LEVEL` or
+   `CLAUDE_CONFIG_DIR` finds something other than the service's, `setup` names the variable and
+   what it decides, never its value, and leaves it: run `switchboard service install` from the
+   shell the router should use to change it. When the router serves another config file than the
+   one `setup` edits, `setup` says so: run `switchboard setup --config` naming the router's, or
+   `switchboard service install`, to line them up. Restarts the router only when it doesn't
+   answer. Where the router reads the config and the tokens `setup` writes, it takes up their
+   changes itself.
 4. **The `claude` link.** Makes `claude` in switchboard's bin directory, leading to the switchboard
    `setup` was run by. The bin directory is `$XDG_DATA_HOME/switchboard/bin`, else
    `~/.local/share/switchboard/bin`. Then `setup` checks the directory is on `PATH` ahead of the

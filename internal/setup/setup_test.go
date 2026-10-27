@@ -39,7 +39,7 @@ func TestAFirstRunSetsEverythingUp(t *testing.T) {
 	if want := []string{"test-token-work", "test-token-side"}; !slices.Equal(w.api.asked, want) {
 		t.Errorf("the API was asked about %q, want %q, each token checked before it's saved", w.api.asked, want)
 	}
-	if ran, want := w.launchd.ran(), []string{"print", "print", "bootstrap"}; !slices.Equal(ran, want) {
+	if ran, want := w.launchd.ran(), []string{"print", "bootstrap"}; !slices.Equal(ran, want) {
 		t.Errorf("ran launchctl %q, want %q: the service installed", ran, want)
 	}
 	if plist, err := os.ReadFile(w.plist()); err != nil || !strings.Contains(string(plist), "<string>"+w.switchboard+"</string>\n\t\t<string>serve</string>") {
