@@ -117,6 +117,10 @@ type Service struct {
 	// emptyHome is whether the environment the service is seen in sets
 	// HOME empty, as launchd passes it.
 	emptyHome bool
+	// unplaced is whether the service is seen without its plist, which
+	// couldn't be read back or placed, so the router that answers may not be
+	// the one launchd runs.
+	unplaced bool
 	// also are the routers the service may run besides cfg.Router's, as one
 	// seen in another environment keeps the one at the state directory it's
 	// asked from, and base the service as it's asked about.
@@ -295,7 +299,7 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 		return s.startAfresh(ctx)
 	}
 	rt := s.routers()[i]
-	how, before, err := s.restart(ctx, answering, rt, i > 0)
+	how, before, err := s.restart(ctx, answering, rt, i > 0 || s.unplaced)
 	if err != nil {
 		return nil, err
 	}
@@ -309,9 +313,9 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 // may have restarted since it answered as answering, or, one that can't be
 // asked, answering, which launchd starts again once SIGTERM stops it.
 //
-// Where rt isn't the router at the service's state directory, but the one at
-// the state directory it's asked from, which may not be the one launchd
-// runs, it fails rather than signal launchd's.
+// Where rt, elsewhere says, isn't known to be the one launchd runs, as it
+// answers at the state directory the service is asked from rather than its
+// own, or the service is Unplaced, it fails rather than signal launchd's.
 func (s *Service) restart(ctx context.Context, answering router.Health, rt Router, elsewhere bool) (Restarting, router.Health, error) {
 	asked, err := rt.Restart(ctx)
 	switch {
@@ -324,7 +328,7 @@ func (s *Service) restart(ctx context.Context, answering router.Health, rt Route
 	case !errors.Is(err, router.ErrNoRestart):
 		return 0, router.Health{}, err
 	case elsewhere:
-		return 0, router.Health{}, fmt.Errorf("%w, and it answers where this shell keeps its state, not where the service's plist does, so it may not be the one launchd runs, which is left alone", err)
+		return 0, router.Health{}, fmt.Errorf("%w, and it isn't known to be the one launchd runs, as it answers where this shell keeps its state, not where the service's plist does, or the plist couldn't say: launchd's job is left alone", err)
 	}
 	if killed := s.launchctl(ctx, "kill", "SIGTERM", s.target()); killed != nil {
 		return 0, router.Health{}, killed

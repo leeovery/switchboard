@@ -553,6 +553,29 @@ func TestRestartLeavesLaunchdsJobWhereTheRouterAnsweringIsntThePlists(t *testing
 	}
 }
 
+func TestRestartLeavesLaunchdsJobForAnUnplacedService(t *testing.T) {
+	// A router from before routers restarted when asked answers where the
+	// shell keeps its state; the plist couldn't say it's launchd's.
+	s := newSetup(t, nil, func(int) (router.Health, error) { return up(4242) })
+	s.launchctl.loaded = true
+
+	h, err := s.svc.Unplaced().Restart(t.Context(), func(service.Restarting) { t.Error("told the router restarts, want it left") })
+	if err == nil || h != nil || !strings.Contains(err.Error(), "left alone") {
+		t.Errorf("Restart() = %+v, %v; want it refused, launchd's job left alone", h, err)
+	}
+	if want := [][]string{{"print", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
+		t.Errorf("ran launchctl %q, want %q: launchd's job never signalled", s.launchctl.calls, want)
+	}
+}
+
+func TestApartPassesOverAPlaceNotFound(t *testing.T) {
+	router := service.Places{Tokens: "/state/tokens", ConfigFile: "/config.toml"}
+	setups := service.Places{Tokens: "/state/tokens", ConfigFile: "/config.toml", ClaudeDir: "/claude"}
+	if apart := router.Apart(setups); len(apart) != 0 {
+		t.Errorf("Apart() = %q, want nothing, the router finding no Claude Code config directory", apart)
+	}
+}
+
 func TestDriftReadsAnUncleanConfigAsLaunchdDoes(t *testing.T) {
 	s := newSetup(t, nil, nil)
 	written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary, Config: "/b.toml"})

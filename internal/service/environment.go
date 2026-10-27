@@ -97,6 +97,15 @@ func (s *Service) seenAt(i int) *Service {
 	return &seen
 }
 
+// Unplaced is the service as it's seen without its plist, which couldn't be
+// read back or placed: the router that answers isn't taken for the one
+// launchd runs.
+func (s *Service) Unplaced() *Service {
+	unplaced := *s
+	unplaced.unplaced = true
+	return &unplaced
+}
+
 // Found is the service as the router answering now sees it, as seenAt says,
 // and whether that router answers at the state directory the service is
 // asked from, rather than the one its plist keeps: itself where none
@@ -132,18 +141,23 @@ func (s *Service) ConfigFile(opts InstallOptions) (string, error) {
 type Places struct {
 	// Tokens is the directory of the token files, in the state directory;
 	// ConfigFile the config file it serves or edits; and ClaudeDir Claude
-	// Code's config directory, where the skill goes.
+	// Code's config directory, where the skill goes, "" for none found.
 	Tokens, ConfigFile, ClaudeDir string
 }
 
-// Places are the router's, installed with opts, as the service is seen.
+// Places are the router's, installed with opts, as the service is seen. A
+// Claude Code config directory under a HOME the plist sets empty is none:
+// the router serves all the same, but keeps no skill up to date.
 func (s *Service) Places(opts InstallOptions) (Places, error) {
 	file, err := s.ConfigFile(opts)
 	if err != nil {
 		return Places{}, err
 	}
 	claude, err := skill.ConfigDir(s.cfg.Getenv, s.homeDir)
-	if err != nil {
+	switch {
+	case errors.Is(err, errEmptyHome):
+		return Places{Tokens: tokens.NewStore(s.cfg.StateDir, s.cfg.UID).Dir(), ConfigFile: file}, nil
+	case err != nil:
 		return Places{}, err
 	}
 	if claude, err = absolute(claude); err != nil {
@@ -154,7 +168,7 @@ func (s *Service) Places(opts InstallOptions) (Places, error) {
 
 // Apart names what p finds elsewhere than q, as SameFile judges: "state
 // directory", "config file" and "Claude Code config directory", in that
-// order.
+// order. One p finds none of isn't named.
 func (p Places) Apart(q Places) []string {
 	var apart []string
 	for _, place := range []struct{ name, a, b string }{
@@ -162,7 +176,7 @@ func (p Places) Apart(q Places) []string {
 		{"config file", p.ConfigFile, q.ConfigFile},
 		{"Claude Code config directory", p.ClaudeDir, q.ClaudeDir},
 	} {
-		if !SameFile(place.a, place.b) {
+		if place.a != "" && !SameFile(place.a, place.b) {
 			apart = append(apart, place.name)
 		}
 	}

@@ -262,3 +262,24 @@ func TestServiceStatusSaysWhenThePlistsPlacesCantBeWorkedOut(t *testing.T) {
 		t.Errorf("switchboard service status printed on stderr\n%s\nwant it to hold\n%s", got.stderr, want)
 	}
 }
+
+func TestServiceRestartLeavesLaunchdsJobWhereThePlistCantBeRead(t *testing.T) {
+	s := newServiceSetup(t)
+	s.launchd.loaded = true
+	s.putUnreadablePlist(t)
+	// A router from before routers restarted when asked, where this shell
+	// keeps its state.
+	var pid atomic.Int64
+	pid.Store(100)
+	serveRouter(t, s.srv.socket(), &pid, nil)
+
+	got := run(t, s.srv.deps, "service", "restart")
+	if got.code == 0 || !strings.Contains(got.stderr, "launchd's job is left alone") {
+		t.Errorf("switchboard service restart = %+v, want it refused, launchd's job left alone", got)
+	}
+	for _, call := range s.launchd.calls {
+		if call[0] != "print" {
+			t.Errorf("ran launchctl %q, want launchd's job never signalled", s.launchd.calls)
+		}
+	}
+}

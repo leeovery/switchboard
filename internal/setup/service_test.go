@@ -15,11 +15,6 @@ import (
 // unreadBinary is why a binary plist plutil can't read can't be read back.
 const unreadBinary = "read the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist, through plutil: plutil: not a binary plist the world knows"
 
-// plistGone is what the service step says of a router answering with no
-// plist in place.
-const plistGone = "The service's plist is gone, but a router answers, so setup leaves it as it is: stop a router run by hand and run setup again, " +
-	"or switchboard service install writes the plist again.\n"
-
 // leftRunning is what the service step says of launchd running a router,
 // pid 4242, that doesn't answer.
 const leftRunning = "Launchd runs the service's router, pid 4242, but it doesn't answer here: it may be starting, or stopping, which can take over half a minute after a bootout, " +
@@ -176,29 +171,6 @@ func TestTheServiceStep(t *testing.T) {
 			answers: []string{""},
 			want:    "The service is installed, and the router is up: healthy, pid 4242.\n",
 			wantRan: []string{"print", "print"},
-		},
-		{
-			name: "no plist, a router run by hand answering: left as it is",
-			lay: func(t *testing.T, w *world) {
-				if err := os.Remove(w.plist()); err != nil {
-					t.Fatal(err)
-				}
-				w.launchd.loaded = false
-			},
-			answers: []string{""},
-			want:    plistGone,
-			wantRan: untouched,
-		},
-		{
-			name: "no plist, launchd's router answering: left as it is",
-			lay: func(t *testing.T, w *world) {
-				if err := os.Remove(w.plist()); err != nil {
-					t.Fatal(err)
-				}
-			},
-			answers: []string{""},
-			want:    plistGone,
-			wantRan: untouched,
 		},
 		{
 			name:    "not loaded, a router run otherwise answering: left as it is",
@@ -813,12 +785,13 @@ func TestTheServiceStepLeavesARouterLaunchdRunsOutOfReach(t *testing.T) {
 	}
 }
 
-func TestTheServiceStepLeavesUnansweredFails(t *testing.T) {
+func TestTheServiceStepFailsWhatItLeavesUndone(t *testing.T) {
 	tests := []struct {
 		name string
 		// lay changes the world, which is done, before setup runs.
-		lay  func(t *testing.T, w *world)
-		want string
+		lay     func(t *testing.T, w *world)
+		want    string
+		wantErr string
 	}{
 		{
 			name: "a plist it can't read, loaded, no router running",
@@ -828,16 +801,33 @@ func TestTheServiceStepLeavesUnansweredFails(t *testing.T) {
 			},
 			want: "The service's plist can't be read back (the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist, names no program), " +
 				"but launchd has it loaded, so the service is left as it is: switchboard service install, run from the shell the router should use, installs it afresh.\n",
+			wantErr: "the service's plist can't be read back, and no router answers: run switchboard service install",
 		},
 		{
 			name: "no plist, launchd running a router that doesn't answer",
 			lay: func(t *testing.T, w *world) {
-				if err := os.Remove(w.plist()); err != nil {
-					t.Fatal(err)
-				}
+				removePlist(t, w)
 				w.launchd.stateDir = filepath.Join(w.root, "third", "switchboard")
 			},
-			want: leftRunning,
+			want:    "The service's plist is gone. " + leftRunning,
+			wantErr: errLeft,
+		},
+		{
+			name: "no plist, launchd's router answering",
+			lay:  removePlist,
+			want: "The service's plist is gone, though launchd still runs its router, which answers: " +
+				"setup leaves it as it is, and switchboard service install writes the plist again.\n",
+			wantErr: "the service's plist is gone: run switchboard service install to write it again",
+		},
+		{
+			name: "never installed, a router run by hand answering",
+			lay: func(t *testing.T, w *world) {
+				removePlist(t, w)
+				w.launchd.loaded = false
+			},
+			want: "No service is installed, and a router run some other way answers: another would clash with it, so setup leaves it; " +
+				"stop it, then run setup again to install the service.\n",
+			wantErr: "no service is installed, so nothing brings the router back after a restart: stop the router run by hand, then run switchboard setup again",
 		},
 	}
 	for _, tt := range tests {
@@ -849,8 +839,8 @@ func TestTheServiceStepLeavesUnansweredFails(t *testing.T) {
 
 			synctest.Test(t, func(t *testing.T) {
 				shown, err := w.run(t, "")
-				if err == nil || err.Error() != errLeft {
-					t.Errorf("Run() error = %v, want %q", err, errLeft)
+				if err == nil || err.Error() != tt.wantErr {
+					t.Errorf("Run() error = %v, want %q", err, tt.wantErr)
 				}
 				if got := section(t, shown, "3. The service"); got != tt.want {
 					t.Errorf("the service step showed\n%s\nwant\n%s", got, tt.want)
@@ -863,35 +853,54 @@ func TestTheServiceStepLeavesUnansweredFails(t *testing.T) {
 	}
 }
 
+// removePlist removes the service's plist, which launchd keeps loaded.
+func removePlist(t *testing.T, w *world) {
+	t.Helper()
+	if err := os.Remove(w.plist()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// setsHomeEmpty has the service's plist set HOME empty in place of the
+// variable key, which held the directory dir under the world's root, so the
+// place it named is under HOME; or beside it, for "".
+func setsHomeEmpty(t *testing.T, w *world, key, dir string) {
+	t.Helper()
+	w.editPlist(t, func(plist string) string {
+		empty := "\t\t<key>HOME</key>\n\t\t<string></string>\n"
+		if key == "" {
+			return strings.Replace(plist, "\t<dict>\n\t\t<key>", "\t<dict>\n"+empty+"\t\t<key>", 1)
+		}
+		return strings.Replace(plist, "\t\t<key>"+key+"</key>\n\t\t<string>"+filepath.Join(w.root, dir)+"</string>\n", empty, 1)
+	})
+	if plist, err := os.ReadFile(w.plist()); err != nil || !strings.Contains(string(plist), "<key>HOME</key>") {
+		t.Fatalf("the plist reads\n%s(%v)\nwant HOME set empty", plist, err)
+	}
+}
+
 func TestTheServiceStepCantWorkOutThePlacesOfAnEmptyHome(t *testing.T) {
 	const why = "Where the service's router finds its state or its config can't be worked out from its plist ("
 	tests := []struct {
 		name string
-		// place is the variable the plist sets HOME empty in place of, so
-		// the place it named is under HOME.
-		place, dir string
-		running    bool
-		want       string
-		wantErr    bool
+		// key and dir are the variable the plist sets HOME empty in place
+		// of, and the directory it held.
+		key, dir string
+		running  bool
+		want     string
+		wantErr  bool
 	}{
-		{name: "the state directory, a router answering: left as it is", place: "XDG_STATE_HOME", dir: "state", running: true,
+		{name: "the state directory, a router answering: left as it is", key: "XDG_STATE_HOME", dir: "state", running: true,
 			want: ", but a router answers, so the service is left as it is: switchboard service install, run from the shell the router should use, installs it afresh.\n"},
-		{name: "the state directory, none answering: failing", place: "XDG_STATE_HOME", dir: "state", wantErr: true,
+		{name: "the state directory, none answering: failing", key: "XDG_STATE_HOME", dir: "state", wantErr: true,
 			want: ", and no router answers: switchboard service install, run from the shell the router should use, installs it afresh.\n"},
-		{name: "Claude Code's config directory, none answering: failing", place: "CLAUDE_CONFIG_DIR", dir: "claude", wantErr: true,
+		{name: "the config file, none answering: failing", key: "XDG_CONFIG_HOME", dir: "config", wantErr: true,
 			want: ", and no router answers: switchboard service install, run from the shell the router should use, installs it afresh.\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t)
 			w.done(t)
-			w.editPlist(t, func(plist string) string {
-				plist = strings.Replace(plist, "\t\t<key>"+tt.place+"</key>\n\t\t<string>"+filepath.Join(w.root, tt.dir)+"</string>\n", "\t\t<key>HOME</key>\n\t\t<string></string>\n", 1)
-				if !strings.Contains(plist, "<key>HOME</key>") {
-					t.Fatalf("the plist reads\n%s\nwant HOME set empty in place of %s", plist, tt.place)
-				}
-				return plist
-			})
+			setsHomeEmpty(t, w, tt.key, tt.dir)
 			if !tt.running {
 				w.launchd.pid = 0
 			}
@@ -905,8 +914,85 @@ func TestTheServiceStepCantWorkOutThePlacesOfAnEmptyHome(t *testing.T) {
 			if !strings.HasPrefix(got, why) || !strings.Contains(got, "HOME empty") || !strings.HasSuffix(got, tt.want) {
 				t.Errorf("the service step showed\n%s\nwant it to start\n%s\nsay HOME is empty, and end\n%s", got, why, tt.want)
 			}
-			if ran := w.launchd.ran(); len(ran) != 0 {
+			if ran := w.launchd.ran(); len(ran) != 0 && !slices.Equal(ran, untouched) {
 				t.Errorf("ran launchctl %q, want the service left alone", ran)
+			}
+		})
+	}
+}
+
+func TestTheServiceStepAsksTheRouterAtThePlistsStateDirectoryWhereItsConfigCantBeWorkedOut(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	// The plist keeps its state elsewhere, where launchd's router answers;
+	// its config file is under the HOME it sets empty.
+	w.installedFrom(t, map[string]string{"XDG_STATE_HOME": filepath.Join(w.root, "custom")}, service.InstallOptions{Executable: w.switchboard})
+	setsHomeEmpty(t, w, "XDG_CONFIG_HOME", "config")
+	w.launchd.calls = nil
+
+	shown, err := w.run(t, "")
+	if err != nil {
+		t.Errorf("Run() error = %v, want none, the router answering", err)
+	}
+	if got := section(t, shown, "3. The service"); !strings.Contains(got, "but a router answers, so the service is left as it is") {
+		t.Errorf("the service step showed\n%s\nwant the service left, its router answering where the plist keeps its state", got)
+	}
+}
+
+func TestTheServiceStepTakesTheConfigGivenForOneUnderAnEmptyHome(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	setsHomeEmpty(t, w, "XDG_CONFIG_HOME", "config")
+	w.configFlag = w.config
+	w.launchd.calls = nil
+
+	shown := section(t, w.runs(t, ""), "3. The service")
+	if !strings.HasPrefix(shown, "Setup is given another config file than the one the router serves, so it's installed afresh.\n") {
+		t.Errorf("the service step showed\n%s\nwant the service installed afresh with the config given", shown)
+	}
+	if plist, err := os.ReadFile(w.plist()); err != nil || !strings.Contains(string(plist), "<string>--config</string>\n\t\t<string>"+w.config+"</string>") {
+		t.Errorf("the plist reads\n%s(%v)\nwant --config %s", plist, err, w.config)
+	}
+}
+
+func TestTheServiceStepCarriesOnWithoutClaudeCodesConfigUnderAnEmptyHome(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	setsHomeEmpty(t, w, "CLAUDE_CONFIG_DIR", "claude")
+	w.launchd.calls = nil
+
+	shown := section(t, w.runs(t, ""), "3. The service")
+	want := "The router finds no Claude Code config directory, as its plist sets HOME empty, so it won't keep the skill up to date: " +
+		"switchboard service install, run from the shell the router should use, lines that up.\n" +
+		"The service is installed, and the router is up: healthy, pid 4242.\n"
+	if shown != want {
+		t.Errorf("the service step showed\n%s\nwant\n%s", shown, want)
+	}
+	if ran := w.launchd.ran(); !slices.Equal(ran, untouched) {
+		t.Errorf("ran launchctl %q, want %q", ran, untouched)
+	}
+}
+
+func TestTheServiceStepSaysNothingOfPlacesWithNoRouterAnswering(t *testing.T) {
+	for name, drifted := range map[string]bool{"restarted": false, "installed afresh": true} {
+		t.Run(name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			// The plist keeps its state apart from setup's; no router runs,
+			// and none could start.
+			w.installedFrom(t, map[string]string{"XDG_STATE_HOME": filepath.Join(w.root, "custom")}, service.InstallOptions{Executable: w.switchboard})
+			if drifted {
+				w.editPlist(t, withoutProcessType)
+			}
+			w.launchd.pid = 0
+			w.unstartable = errors.New("the config names no account")
+
+			shown, err := w.run(t, "")
+			if err == nil {
+				t.Errorf("Run() error = nil, want the router said unable to start")
+			}
+			if got := section(t, shown, "3. The service"); strings.Contains(got, "uses another") {
+				t.Errorf("the service step showed\n%s\nwant nothing said of where a router finds things, with none answering", got)
 			}
 		})
 	}
