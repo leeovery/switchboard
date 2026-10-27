@@ -66,6 +66,13 @@ func TestEdit(t *testing.T) {
 			wantEdited: accounts.Edited{Was: personal, Now: with(personal, func(a *config.Account) { a.Plan = "max20x" })},
 		},
 		{
+			name:       "its id as its label, shown by it already, with a plan: the plan alone written",
+			id:         "personal",
+			change:     accounts.Change{Label: new("personal"), Plan: new("max20x")},
+			want:       strings.Replace(laidOut, `plan = "pro"`, `plan = "max20x"`, 1),
+			wantEdited: accounts.Edited{Was: personal, Now: with(personal, func(a *config.Account) { a.Plan = "max20x" })},
+		},
+		{
 			name:       "no plan",
 			id:         "personal",
 			change:     accounts.Change{Plan: new("")},
