@@ -746,6 +746,11 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    leaves priming off.
 3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
    `service install` does, that the router could start; it fails, saying why, where it couldn't.
+   With no plist but a router answering, run by hand or by launchd all the same, it leaves it as
+   it is, saying the plist is gone: stop a router run by hand and run setup again, or `service
+   install` writes the plist again. Wherever setup leaves the service as it is with no router
+   answering, the step fails, saying what it left and why, and to run setup again once the router
+   answers.
    - **The service as its router sees it:** one owner, in `internal/service`, works it out, and
      setup, its startable check, `service install`'s wait and token warning, `service restart` and
      `service status` all take it from there. It's the environment read back from the plist, over
@@ -753,8 +758,12 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      as under `/`, where launchd runs the router; that decides the state directory, and with it the
      router asked, the token files and launchd's log, which switchboard keeps in the state
      directory, never where a plist says. The plist alone decides it, never a router that
-     answers. A `HOME` the plist sets empty, as launchd passes it, is one the router can't start
-     in. A relative `--config` reads as under `/` too, so it never counts as a difference. A plist
+     answers. A `HOME` the plist sets empty, as launchd passes it, leaves the places found under
+     it unworked out: where the state directory or the config file is one, setup leaves the
+     service as it is while a router answers, and otherwise fails, naming `service install`;
+     `serve` needs no home where the plist sets `XDG_STATE_HOME`, the config file and
+     `CLAUDE_CONFIG_DIR` absolutely, so nothing refuses it then. A relative or unclean `--config`
+     reads as launchd's router finds it, clean and under `/`, so it never counts as a difference. A plist
      that isn't XML, as in Apple's binary form, as `defaults write` leaves one,
      is read through `/usr/bin/plutil`; switchboard writes XML.
    - **Which router answers:** setup asks the router at the plist's state directory and the one
@@ -766,9 +775,13 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      as when `launchctl setenv` gave launchd another directory than the plist's, setup can't tell
      which the service runs: it leaves the service as it is, and says so in one line, naming
      `service install`, run from the shell the router should use, as what lines them up. Where
-     none answers but launchd runs a router, as at a third directory `launchctl setenv` gave it,
-     or a plist edited since launchd loaded it, setup can't reach it: it leaves it as it is, and
-     says so, pointing to `service status`. Where none answers and none runs, setup goes on as
+     none answers but launchd runs a router, setup asks again for as long as the launcher waits
+     for one, 5 seconds, as a router starting, or handing over in the same process, answers within
+     that. One that still doesn't may be starting, stopping, which after a bootout can take over
+     half a minute, or keeping its state where setup doesn't look, as at a third directory
+     `launchctl setenv` gave it or in a plist edited since launchd loaded it: setup leaves it as it
+     is, says so, pointing to `service status`, which shows launchd's pid, and fails. Where none
+     answers and none runs, setup goes on as
      below, checking the router could start before it restarts it, and failing, naming `service
      install`, where it couldn't. Once setup has started the router afresh, with none answering
      before, the first that answers at either directory is launchd's, and setup judges where it
@@ -777,7 +790,8 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      not where the plist keeps its state, naming `service install`; launchd's log stays where the
      plist names it, as moving it would take a second reinstall. Neither setup nor `service
      restart` kickstarts the service while any router answers: `service restart` asks the one
-     answering to restart itself. Setup installs the service again while a router answers only
+     answering to restart itself, and where that one, answering at the shell's state directory
+     only, can't be asked, it fails rather than signal launchd's job, which may not be it. Setup installs the service again while a router answers only
      where it answers at the plist's state directory, launchd having the service loaded.
    - **What it's installed with:** read back from the plist, `--log-level`, and `--config`, which
      a `--config` given to setup replaces only where it names another file than the one the
@@ -804,11 +818,13 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    - **A plist it can't read back:** one that can't be read, isn't a plist, names no program, or
      that `plutil` fails on or doesn't finish reading in time. While launchd has the service
      loaded, or a router answers, either of which may run as the plist says, setup leaves the
-     service as it is, saying so, why redacted, and that `service install` installs it afresh.
+     service as it is, saying so, why redacted, and that `service install` installs it afresh,
+     failing where no router answers.
      Otherwise setup says so, and installs the service afresh from its own options and the
      shell's environment, once the router could start from them, and fails where it couldn't, as
      above. `service restart` and `service status` say they couldn't read it, and look for the
-     router where the shell keeps its state; `status` says when the router answering is the
+     router where the shell keeps its state, as they do, saying so, where its places can't be
+     worked out from it; `status` shows launchd's pid, and says when the router answering is the
      shell's, not the plist's.
    - **Where they see apart:** setup sets the router's places, as the service is seen, beside its
      own, the token files and the config file of its accounts and the directory it writes the
@@ -866,7 +882,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `pin <id> --session <session>`, `pin auto --session <session>` | Set or clear one running session's own pin, `<session>` being its id or as much of it as is unique. It needs the router |
 | `run [--account <id>] [--direct] [-- <claude args>]` | Start Claude Code connected to the router, its conversation pinned to `--account`'s account if given. `--direct` skips the router and the token, so Claude Code uses its own login. See Launching |
 | `service install [--log-level <level>]` | Install the LaunchAgent, which starts the router: see Launching |
-| `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent; restart the router in place, letting it finish its requests in flight; report the plist, whether launchd has it loaded, and the router's health. `restart` and `status` see the service through its plist, asking the router where its environment keeps its state, and the one at the shell's too, and `restart` starts the service afresh only when neither answers: see Launching |
+| `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent; restart the router in place, letting it finish its requests in flight; report the plist, whether launchd has it loaded and the pid of the router it runs, and the router's health. `restart` and `status` see the service through its plist, asking the router where its environment keeps its state, and the one at the shell's too, and `restart` starts the service afresh only when neither answers: see Launching |
 | `version` | Print the version, as `--version` does |
 | `help [command]` | List the commands, or print a command's help, as `-h` does |
 
