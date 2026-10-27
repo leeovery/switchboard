@@ -167,6 +167,7 @@ func TestDrawingTakesNoTokenItCantReadWhole(t *testing.T) {
 		{name: "one with a line below it written before it", drawing: append(made[:5:5], writtenAt(" Paste code here if prompted >", 1))},
 		{name: "one with a line below it written in part before it", drawing: append(made[:5:5], append(writtenAt(" 0123456789", 1000), writtenAt(" here if prompted >", 1)...))},
 		{name: "one with a line below it written in part before it, beginning as the line setup-token draws there", drawing: append(made[:5:5], append(writtenAt(" Store this", 1000), writtenAt(" token", 1)...))},
+		{name: "one cut short, the line setup-token draws below it written before it", drawing: append(madeScreen(" " + madeToken[:40])[:5:5], nil, writtenAt(" Store this token securely. You won't be able to see it again.", 1))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -234,6 +235,25 @@ func TestDrawingReadsATokenOnlyOnceItsFrameIsDrawnPastIt(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// Each renderer draws the token into the made frame drawn before it, without
+// one, the line below it on the screen already, and the drawing's read after
+// every byte.
+func TestDrawingTakesNoTokenCutShortAboveTheLineSetupTokenDrewBeforeIt(t *testing.T) {
+	for name, render := range renderers {
+		t.Run(name, func(t *testing.T) {
+			was := madeRows("")
+			s := newScreen(columns, rows)
+			s.write([]byte(frame(was)))
+			for _, b := range []byte(render(was, madeRows(" "+madeToken))) {
+				s.write([]byte{b})
+				if got, ok := s.drawing().token(false); ok && got.Reveal() != madeToken {
+					t.Fatalf("token(false) = %q from %q, want none but the token whole", got.Reveal(), s.drawing().text())
+				}
+			}
+		})
 	}
 }
 

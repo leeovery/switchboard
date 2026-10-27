@@ -100,12 +100,13 @@ func (d drawing) drawnSinceMade() int {
 // setup-token was stopped drawing it, or broken across two rows, the rest on
 // the next, is shaped as a token too, and a frame drawn over the last in
 // place can leave the last's characters below the start. The line below is
-// drawn after it where every character of it but blanks is, or where it
-// reads as the line setup-token draws there: a renderer that writes only the
-// characters that changed leaves one the same in both frames as it was. Once
-// setup-token has finished drawing, by exiting by itself, what it drew is all
-// there is, so where final, it's whole where nothing below it is the rest of
-// it.
+// drawn after it where every character of it but blanks is, or where it reads
+// as the line setup-token draws there, and some of it was written after it: a
+// renderer that writes only the characters that changed leaves those the same
+// in both frames as they were, but draws its rows in order, so it writes to
+// the line below only once it's done with the token's. Once setup-token has
+// finished drawing, by exiting by itself, what it drew is all there is, so
+// where final, it's whole where nothing below it is the rest of it.
 func (d drawing) token(final bool) (tokens.Token, bool) {
 	at := d.madeAt()
 	if at < 0 {
@@ -129,9 +130,13 @@ func (d drawing) token(final bool) (tokens.Token, bool) {
 // token says.
 func (d drawing) endsAt(at int, final bool) bool {
 	for _, l := range d[at+1:] {
-		if text := strings.TrimSpace(l.text()); text != "" {
-			drawnAfter := final || l.first() > d[at].last() || strings.HasPrefix(text, claude.SetupTokenBelow)
-			return drawnAfter && !claude.IsSetupTokenPart(text)
+		text := strings.TrimSpace(l.text())
+		switch {
+		case text == "":
+		case strings.HasPrefix(text, claude.SetupTokenBelow):
+			return final || l.last() > d[at].last()
+		default:
+			return (final || l.first() > d[at].last()) && !claude.IsSetupTokenPart(text)
 		}
 	}
 	return final
