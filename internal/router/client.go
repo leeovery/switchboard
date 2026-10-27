@@ -382,6 +382,14 @@ func isDial(err error) bool {
 	return ok && op.Op == "dial"
 }
 
+// IsNotRunning reports whether err, a Client's call's, found the router not
+// running at that moment: nothing listening on its socket, as ErrNotRunning
+// says, or the connection closed before any answer, as ErrUnanswered says,
+// as a router stopping closes it.
+func IsNotRunning(err error) bool {
+	return errors.Is(err, ErrNotRunning) || errors.Is(err, ErrUnanswered)
+}
+
 // closedUnanswered reports whether err, a request's that got no answer, is the
 // connection closing under it, at its end or by a reset, as it was read or
 // the request written, rather than its context ending or an answer that

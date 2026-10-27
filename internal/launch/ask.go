@@ -86,7 +86,7 @@ func (p Patience) Ask(ctx context.Context, r Router) (router.Health, error) {
 		switch {
 		case isContextErr(err):
 			return router.Health{}, cutOff(ctx, asking, deadline.Sub(began), err)
-		case !foundNotRunning(err):
+		case !router.IsNotRunning(err):
 			return h, err
 		}
 		next := time.Now().Add(p.Again)
@@ -113,13 +113,6 @@ func cutOff(ctx, asking context.Context, had time.Duration, err error) error {
 	default:
 		return err
 	}
-}
-
-// foundNotRunning reports whether err is an ask's that found the router not
-// running at that moment: nothing listening, or the connection closed before
-// any answer.
-func foundNotRunning(err error) bool {
-	return errors.Is(err, router.ErrNotRunning) || errors.Is(err, router.ErrUnanswered)
 }
 
 func isContextErr(err error) bool {

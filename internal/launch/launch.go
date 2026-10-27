@@ -379,7 +379,7 @@ func (r Route) health(ctx context.Context) routerState {
 // requests.
 func stateOf(h router.Health, err error) routerState {
 	switch {
-	case foundNotRunning(err):
+	case router.IsNotRunning(err):
 		return routerState{name: notRunning}
 	case err != nil:
 		return routerState{name: unhealthy, reason: err.Error()}

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -142,13 +141,14 @@ func (s usageSource) document(ctx context.Context, refresh time.Duration) (statu
 }
 
 // fallbackFrom says why the router's document couldn't be read, from what
-// asking the router failed with: nothing answers on its socket, or what does
-// doesn't answer as a router does. It's zero for no failure.
+// asking the router failed with: it isn't running, as router.IsNotRunning
+// says, or what answers on its socket doesn't answer as a router does. It's
+// zero for no failure.
 func fallbackFrom(err error) status.Fallback {
 	switch {
 	case err == nil:
 		return status.Fallback{}
-	case errors.Is(err, router.ErrNotRunning):
+	case router.IsNotRunning(err):
 		return status.Fallback{Router: status.RouterNotRunning}
 	default:
 		return status.Fallback{Router: status.RouterUnhealthy, Reason: err.Error()}
