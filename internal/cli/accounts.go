@@ -208,7 +208,7 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount) error {
 		return fmt.Errorf("%w: replace its token with switchboard accounts token %s", err, account.ID)
 	}
 	if err != nil {
-		return err
+		return labelRemedy(err, "leave --label out")
 	}
 	warnUnchecked(cmd.ErrOrStderr(), taken)
 	said := "added " + account.ID
@@ -235,18 +235,34 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 	}
 	taken, err := registry.SetToken(cmd.Context(), cfg, id)
 	if err != nil {
-		return pointToAdding(err, id)
+		return a.notConfigured(err, id)
 	}
 	warnUnchecked(cmd.ErrOrStderr(), taken)
 	_, err = io.WriteString(cmd.OutOrStdout(), "saved "+id+"'s token\n")
 	return err
 }
 
-// pointToAdding points an error of acting on the account with the given id,
-// which no account has, to adding it.
-func pointToAdding(err error, id string) error {
-	if errors.Is(err, config.ErrNotConfigured) {
-		return fmt.Errorf("%w: add it with switchboard accounts add %s", err, redact.Text(id))
+// notConfigured points an error of acting on the account with the given id,
+// which no account has, to the account whose id it is in another case, when
+// the config has one, else to adding it.
+func (a *app) notConfigured(err error, id string) error {
+	if !errors.Is(err, config.ErrNotConfigured) {
+		return err
+	}
+	if cfg, loadErr := a.loadConfig(); loadErr == nil {
+		if other, ok := cfg.Accounts.InAnotherCase(id); ok {
+			return fmt.Errorf("%w: %s is; give an id in its own case", err, other.ID)
+		}
+	}
+	return fmt.Errorf("%w: add it with switchboard accounts add %s", err, redact.Text(id))
+}
+
+// labelRemedy points an error of a label that would show as nothing to
+// giving one, or to none, which none says how to give, to show the account
+// by its id.
+func labelRemedy(err error, none string) error {
+	if errors.Is(err, config.ErrBlankLabel) {
+		return fmt.Errorf("%w: give one that shows, or %s to show the account by its id", err, none)
 	}
 	return err
 }
@@ -259,22 +275,29 @@ func (a *app) editAccount(cmd *cobra.Command, id string, change accounts.Change)
 	}
 	edited, err := registry.Edit(id, change)
 	if err != nil {
-		return pointToAdding(err, id)
+		return a.notConfigured(labelRemedy(err, `--label ""`), id)
 	}
 	said := editedSays(edited)
 	if edited.FormerPrimary != "" {
-		said += "\n" + primaryMoved(edited.FormerPrimary)
+		said += "\n" + primaryMoved(edited.FormerPrimary, id, registry.Tokens.Read)
 	}
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
 }
 
 // primaryMoved says what becomes of the sessions already running once the
-// primary, formerly the account with the given id, is another: they hold its
-// token as Claude Code's own until they restart.
-func primaryMoved(former string) string {
-	return "sessions already running keep " + former + "'s token as Claude Code's own until they restart, " +
+// account with the given id is the primary in place of former: they hold
+// former's token as Claude Code's own until they restart. And when the new
+// primary has no usable token, as readToken finds it, it says new sessions
+// take another account's until it has one.
+func primaryMoved(former, primary string, readToken func(id string) (tokens.Token, error)) string {
+	said := "sessions already running keep " + former + "'s token as Claude Code's own until they restart, " +
 		"so what they send outside the conversation, such as artifacts and uploads, still goes out on " + former
+	if _, err := readToken(primary); err != nil {
+		said += "\n" + primary + " has no usable token: new sessions take another account's as Claude Code's own " +
+			"until it has one (switchboard accounts token " + primary + ")"
+	}
+	return said
 }
 
 // editedSays says what an edit changed of the account, each value as it is

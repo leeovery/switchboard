@@ -254,6 +254,35 @@ func TestAccountsAddRefusesATokenAsTheIDOrTheLabel(t *testing.T) {
 	}
 }
 
+func TestAccountsAddRefusesABlankLabel(t *testing.T) {
+	const blank = `account "work": label is blank, showing nothing: give one that shows, or leave --label out to show the account by its id`
+	tests := []struct {
+		name    string
+		label   string
+		wantErr string
+	}{
+		{name: "spaces alone", label: "   ", wantErr: blank},
+		{name: "a zero-width joiner alone", label: "\u2060", wantErr: blank},
+		{name: "text that isn't UTF-8", label: "a\xffb", wantErr: `account "work": label isn't UTF-8 text, as a config's text must be`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := newClaudeAPI(t)
+			deps, path := accountsDeps(t, api.URL, personalAndSide)
+			before := readFile(t, path)
+
+			got := runWithInput(t, deps, "test-token-work\n", "accounts", "add", "work", "--label", tt.label)
+			if want := (result{stderr: "Error: " + tt.wantErr + "\n", code: 1}); got != want {
+				t.Errorf("switchboard accounts add = %+v, want %+v", got, want)
+			}
+			if readFile(t, path) != before || len(api.questions()) > 0 {
+				t.Errorf("the config reads\n%s\nand the API was asked %q, want the config as it was, and the API asked nothing", readFile(t, path), api.questions())
+			}
+			checkNoTokenFile(t, deps, "work")
+		})
+	}
+}
+
 func TestAccountsAddAnAccountConfiguredAlready(t *testing.T) {
 	api := newClaudeAPI(t)
 	deps, path := accountsDeps(t, api.URL, personalAndSide)
@@ -359,6 +388,16 @@ func TestAccountsTokenRefuses(t *testing.T) {
 			checkTokenFile(t, deps, "side", "test-token-stale\n")
 		})
 	}
+}
+
+func TestAccountsTokenNamesAnIDConfiguredInAnotherCase(t *testing.T) {
+	deps, _ := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+
+	got := runWithInput(t, deps, "test-token-side\n", "accounts", "token", "Side")
+	if want := (result{stderr: "Error: account \"Side\" is not configured: side is; give an id in its own case\n", code: 1}); got != want {
+		t.Errorf("switchboard accounts token Side = %+v, want %+v", got, want)
+	}
+	checkNoTokenFile(t, deps, "side")
 }
 
 func TestAccountsTokenWithoutConfig(t *testing.T) {
@@ -587,10 +626,33 @@ func TestAccountsEdit(t *testing.T) {
 			old:     "reserve = 0.1     # the app's share\n",
 			new:     "",
 		},
+		{
+			name:    "a reserve in place of one written by hand past two decimal places, which shows as it was",
+			config:  personalAndSide + "reserve = 0.99999\n",
+			args:    []string{"--reserve", "5%"},
+			wantOut: "edited side: reserve 5% (was 99.999%)\n",
+			old:     "reserve = 0.99999\n",
+			new:     "reserve = 0.05\n",
+		},
+		{
+			name:    "no reserve, in place of a sliver written by hand",
+			config:  personalAndSide + "reserve = 0.00001\n",
+			args:    []string{"--reserve", "0"},
+			wantOut: "edited side: reserve none (was 0.001%)\n",
+			old:     "reserve = 0.00001\n",
+			new:     "",
+		},
+		{
+			name:    "the label it has but for surrounding whitespace, which changes nothing",
+			config:  personalAndSide,
+			args:    []string{"--label", "Side "},
+			wantOut: "side has every value given already, so nothing changed\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deps, path := accountsDeps(t, newClaudeAPI(t).URL, tt.config)
+			writeToken(t, deps, "side", "test-token-side")
 			before := readFile(t, path)
 			args := append([]string{"accounts", "edit", "side"}, tt.args...)
 
@@ -602,6 +664,21 @@ func TestAccountsEdit(t *testing.T) {
 				t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
 			}
 		})
+	}
+}
+
+func TestAccountsEditWarnsOfAPrimaryWithoutAUsableToken(t *testing.T) {
+	deps, path := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+	writeToken(t, deps, "personal", "test-token-personal")
+
+	got := run(t, deps, "accounts", "edit", "side", "--primary")
+	want := result{stdout: "edited side: the primary in place of personal\n" + primaryFromPersonal +
+		"side has no usable token: new sessions take another account's as Claude Code's own until it has one (switchboard accounts token side)\n"}
+	if got != want {
+		t.Errorf("switchboard accounts edit side --primary = %+v, want %+v", got, want)
+	}
+	if !strings.HasSuffix(readFile(t, path), "label = \"Side\"\nprimary = true\n") {
+		t.Errorf("the config reads\n%s\nwant side marked the primary", readFile(t, path))
 	}
 }
 
@@ -665,7 +742,17 @@ func TestAccountsEditRefuses(t *testing.T) {
 		{
 			name:    "a blank label",
 			args:    []string{"side", "--label", "  ", "--plan", "pro"},
-			wantErr: `account "side": label is blank: give one that shows, or "" to show the account by its id`,
+			wantErr: `account "side": label is blank, showing nothing: give one that shows, or --label "" to show the account by its id`,
+		},
+		{
+			name:    "a label of a zero-width space alone",
+			args:    []string{"side", "--label", "\u200b"},
+			wantErr: `account "side": label is blank, showing nothing: give one that shows, or --label "" to show the account by its id`,
+		},
+		{
+			name:    "an id configured in another case",
+			args:    []string{"Side", "--plan", "pro"},
+			wantErr: `account "Side" is not configured: side is; give an id in its own case`,
 		},
 		{
 			name:    "a label shaped like a token, never shown",
