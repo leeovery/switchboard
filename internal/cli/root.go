@@ -301,6 +301,17 @@ func (a *app) readToken(id string) (tokens.Token, error) {
 	return files.Read(id)
 }
 
+// tokenTaken reads when switchboard took token as the account's with the
+// given id, as its token file's record says, reporting false where that isn't
+// known, as where the state directory can't be found.
+func (a *app) tokenTaken(id string, token tokens.Token) (time.Time, bool) {
+	files, err := a.tokens()
+	if err != nil {
+		return time.Time{}, false
+	}
+	return files.Taken(id, token)
+}
+
 // errRouterDown is what a command that needs the router fails with when the
 // router isn't running, saying how to start it.
 var errRouterDown = fmt.Errorf("%w: start it with switchboard service install (or switchboard serve)", router.ErrNotRunning)
@@ -412,7 +423,7 @@ func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read) (do
 // the same way.
 func (a *app) source(cfg *config.Config, probe bool) usageSource {
 	source := a.routerSource()
-	source.probe = probeSource{deps: a.Deps, readToken: a.readToken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
+	source.probe = probeSource{deps: a.Deps, readToken: a.readToken, tokenTaken: a.tokenTaken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
 	source.ask = !probe
 	return source
 }

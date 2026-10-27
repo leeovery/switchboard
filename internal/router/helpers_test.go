@@ -118,7 +118,7 @@ func writeToken(t *testing.T, store tokens.Store, id, secret string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Write(id, token); err != nil {
+	if err := store.Write(id, token, now); err != nil {
 		t.Fatal(err)
 	}
 }

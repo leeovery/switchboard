@@ -333,6 +333,12 @@ type Account struct {
 	Reserve float64 `json:"reserve,omitempty"`
 	// TokenSet is whether the account's token file is there, and usable.
 	TokenSet bool `json:"token_set"`
+	// TokenTaken is when switchboard took the account's token, as it
+	// recorded it, and TokenGoodUntil when the token's year is up, a setup
+	// token's lifetime later: each zero where it isn't known, as of a token
+	// switchboard didn't write.
+	TokenTaken     time.Time `json:"token_taken,omitzero"`
+	TokenGoodUntil time.Time `json:"token_good_until,omitzero"`
 	// FetchedAt is when Usage was read; zero when it wasn't.
 	FetchedAt time.Time `json:"fetched_at,omitzero"`
 	quota.Usage
@@ -476,12 +482,16 @@ type Collector struct {
 	Prime config.Prime
 	// Token reads an account's token, by the account's id, from its file.
 	Token func(id string) (tokens.Token, error)
+	// Taken reads when switchboard took an account's token, by the account's
+	// id, reporting false where that isn't known.
+	Taken func(id string, token tokens.Token) (time.Time, bool)
 	// Now reads the clock. Concurrent probes call it.
 	Now func() time.Time
 }
 
 // Collect probes every account that has a usable token, all at once, and
-// reports them in the order given, as they stand once read, along with the
+// reports them in the order given, as they stand once read, with when each
+// token was taken where that's known, along with the
 // best of them, the priming schedule over them, and what's worked out of
 // them, as WorkedOut says. An account without one isn't probed: its status
 // says why, and what would put it right.
@@ -498,6 +508,9 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 			continue
 		}
 		statuses[i].TokenSet = true
+		if taken, ok := c.Taken(acct.ID, token); ok {
+			statuses[i] = statuses[i].WithTokenTaken(taken)
+		}
 		usable = append(usable, acct.ID)
 		wg.Go(func() { c.probe(ctx, &statuses[i], token) })
 	}
