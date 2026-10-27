@@ -192,32 +192,41 @@ func (s Store) readTaken(id string) (record, error) {
 // readRecord returns the record of when the account's tokens were taken, as
 // readTaken does, but with readable, one others can read, though not write,
 // too, which it reports exposed, as a copy restored by a dotfiles step, or by
-// a second name, is often left. Where it can't open the record, one that
-// isn't the user's, or isn't a file, is replaceable.
+// a second name, is often left. A file, whoever's it is and whoever can write
+// it, is read for what it holds, as one that holds a token, which it reports
+// as holdsToken, is never replaced. One that isn't a record, isn't the
+// user's alone, or isn't a file, is replaceable; one that can't be read is
+// left.
 func (s Store) readRecord(id string, readable bool) (r record, exposed bool, err error) {
 	path := s.takenPath(id)
-	var perm fs.FileMode
-	data, err := readChecked(path, "the record of when the token was taken", func(info fs.FileInfo) error {
-		perm = info.Mode().Perm()
-		return s.checkRecord(path, info, readable)
+	var info fs.FileInfo
+	data, err := readChecked(path, "the record of when the token was taken", func(i fs.FileInfo) error {
+		info = i
+		if !i.Mode().IsRegular() {
+			return replaceable{fmt.Errorf("the record %s isn't a file", path)}
+		}
+		return nil
 	})
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return nil, false, ErrUnrecorded
 	case err != nil:
-		return nil, false, s.unopened(path, err)
+		return nil, false, unopened(path, err)
 	}
 	r, ok := parseRecord(data)
-	switch {
-	case !ok && redact.HoldsToken(string(data)):
+	if !ok && redact.HoldsToken(string(data)) {
 		return nil, false, holdsToken{path}
-	case !ok:
+	}
+	if err := s.checkRecord(path, info, readable); err != nil {
+		return nil, false, err
+	}
+	if !ok {
 		return nil, false, replaceable{fmt.Errorf("the record %s isn't one of when tokens were taken", path)}
 	}
-	return r, perm&shared != 0, nil
+	return r, info.Mode().Perm()&shared != 0, nil
 }
 
-// checkRecord checks the record at path, which info describes, is a file,
+// checkRecord checks the record at path, a file, which info describes, is
 // the user's, that no one else can write, nor, but where it's readable, read.
 func (s Store) checkRecord(path string, info fs.FileInfo, readable bool) error {
 	mode := info.Mode()
@@ -226,8 +235,6 @@ func (s Store) checkRecord(path string, info fs.FileInfo, readable bool) error {
 		exposed &= 0o022
 	}
 	switch {
-	case !mode.IsRegular():
-		return replaceable{fmt.Errorf("the record %s isn't a file", path)}
 	case !s.owns(info):
 		return replaceable{fmt.Errorf("the record %s is another user's", path)}
 	case exposed != 0:
@@ -237,21 +244,15 @@ func (s Store) checkRecord(path string, info fs.FileInfo, readable bool) error {
 }
 
 // unopened is why the record at path couldn't be read, as err says: where
-// that's as it isn't the user's, as one root wrote can't be opened, or isn't
-// a file, as what the path leads to says, it's replaceable. The user's own
-// that can't be read is left as it is.
-func (s Store) unopened(path string, err error) error {
+// it isn't a file, as what the path leads to says, it's replaceable. A file
+// that can't be read, whoever's it is, as one root wrote, is left as it is,
+// as it may hold a token.
+func unopened(path string, err error) error {
 	if _, ok := errors.AsType[replaceable](err); ok {
 		return err
 	}
-	info, statErr := os.Stat(path)
-	switch {
-	case statErr != nil:
-		return err
-	case !info.Mode().IsRegular():
+	if info, statErr := os.Stat(path); statErr == nil && !info.Mode().IsRegular() {
 		return replaceable{fmt.Errorf("the record %s isn't a file", path)}
-	case !s.owns(info):
-		return replaceable{fmt.Errorf("the record %s is another user's", path)}
 	}
 	return err
 }
@@ -290,7 +291,7 @@ func (s Store) writeTaken(id string, token Token, taken time.Time) error {
 	if !exposed && bytes.Equal(next.bytes(), was.bytes()) {
 		return nil
 	}
-	if err := s.kept(id, path, target); err != nil {
+	if err := s.kept(path, target); err != nil {
 		return err
 	}
 	return atomicfile.Write(target, next.bytes(), 0o600)
@@ -300,34 +301,75 @@ func (s Store) writeTaken(id string, token Token, taken time.Time) error {
 // or nil where it's written. It's left where the file at target, however
 // it's reached, is any account's token file or another account's record,
 // which writing would replace: as where a token file is a link to the
-// record's own path, or the record a link to another's.
-func (s Store) kept(id, path, target string) error {
+// record's own path, or the record a link to another's. Where nothing's at
+// target yet, it's left where another's link leads there, as one leading
+// nowhere, to where the record would go, would then lead to the record. The
+// account's own record is told by the file at path, whatever its name's
+// case, as on a file system that doesn't tell them apart.
+func (s Store) kept(path, target string) error {
 	info, err := os.Stat(target)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return nil
-	case err != nil:
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("the record %s couldn't be looked at, so it's left as it is: %w", path, err)
 	}
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return fmt.Errorf("the tokens directory couldn't be read, so the record %s is left as it is: %w", path, err)
 	}
+	own, _ := os.Lstat(path)
 	for _, e := range entries {
 		other, record := strings.CutSuffix(e.Name(), takenExt)
-		if config.CheckID(other) != nil || record && other == id {
+		at := filepath.Join(s.dir, e.Name())
+		if config.CheckID(other) != nil || record && isFile(at, own) || !leadsTo(at, target, info) {
 			continue
 		}
-		o, err := os.Stat(filepath.Join(s.dir, e.Name()))
-		if err != nil || !os.SameFile(info, o) {
-			continue
-		}
+		what := other + "'s token file"
 		if record {
-			return fmt.Errorf("the record %s is %s's record too, so it's left as it is", path, other)
+			what = other + "'s record"
 		}
-		return fmt.Errorf("the record %s is %s's token file, so it's left as it is", path, other)
+		if info == nil {
+			return fmt.Errorf("the record %s is where %s leads, so it's left as it is", path, what)
+		}
+		return fmt.Errorf("the record %s is %s too, so it's left as it is", path, what)
 	}
 	return nil
+}
+
+// isFile reports whether what's at path, not followed where it's a link, is
+// the one own describes: false where own is nil.
+func isFile(path string, own fs.FileInfo) bool {
+	info, err := os.Lstat(path)
+	return own != nil && err == nil && os.SameFile(info, own)
+}
+
+// leadsTo reports whether at is, or leads to, the file at target, which info
+// describes; or, where info is nil, as nothing's at target, whether at is a
+// link that leads to target, by the file's name in its directory.
+func leadsTo(at, target string, info fs.FileInfo) bool {
+	if info != nil {
+		o, err := os.Stat(at)
+		return err == nil && os.SameFile(info, o)
+	}
+	l, err := os.Lstat(at)
+	if err != nil || l.Mode()&fs.ModeSymlink == 0 {
+		return false
+	}
+	to, err := atomicfile.Target(at)
+	return err == nil && sameName(to, target)
+}
+
+// sameName reports whether paths a and b name one entry of one directory,
+// their directories one by the file, their names alike but for case, as a
+// file system may not tell them apart.
+func sameName(a, b string) bool {
+	if !strings.EqualFold(filepath.Base(a), filepath.Base(b)) {
+		return false
+	}
+	ad, err := os.Stat(filepath.Dir(a))
+	if err != nil {
+		return false
+	}
+	bd, err := os.Stat(filepath.Dir(b))
+	return err == nil && os.SameFile(ad, bd)
 }
 
 // recordTarget returns where the record at path is written: path itself,

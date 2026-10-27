@@ -508,50 +508,78 @@ func TestWriteNeverWritesARecordOverAnotherAccountsFile(t *testing.T) {
 
 func TestWriteLeavesARecordHoldingATokenAtItsOwnPath(t *testing.T) {
 	const shaped = "sk-ant-oat01-fake_token-shaped"
+	// removed puts a token at path, which a token file led to, and has the
+	// account removed, which leaves it.
+	removed := func(t *testing.T, store tokens.Store, path string) string {
+		writeFile(t, path, shaped+"\n", 0o600)
+		symlink(t, path, store.Path("work"))
+		if _, err := store.Remove("work"); err != nil {
+			t.Fatal(err)
+		}
+		return shaped + "\n"
+	}
 	tests := []struct {
 		name string
 		// put puts what's at the record's own path, given the store, and
-		// returns what it holds.
-		put func(t *testing.T, store tokens.Store) string
+		// returns what it holds; mode is the mode it's given then, and
+		// wantMode its mode after.
+		put            func(t *testing.T, store tokens.Store, path string) string
+		mode, wantMode fs.FileMode
+		// another is set where the store's user is another than the one
+		// whose file it is.
+		another bool
 		// wantLeft is whether it's left as it was, else replaced by the
 		// record of the token written.
 		wantLeft bool
 	}{
-		{name: "a token a removed account's token file led to", wantLeft: true, put: func(t *testing.T, store tokens.Store) string {
-			writeFile(t, store.Path("work")+".taken", shaped+"\n", 0o600)
-			symlink(t, store.Path("work")+".taken", store.Path("work"))
-			if _, err := store.Remove("work"); err != nil {
-				t.Fatal(err)
-			}
+		{name: "a token a removed account's token file led to", put: removed, mode: 0o600, wantMode: 0o600, wantLeft: true},
+		{name: "the same, readable by others, made private", put: removed, mode: 0o644, wantMode: 0o600, wantLeft: true},
+		{name: "the same, its group and others can write", put: removed, mode: 0o664, wantMode: 0o664, wantLeft: true},
+		{name: "the same, anyone can write", put: removed, mode: 0o666, wantMode: 0o666, wantLeft: true},
+		{name: "the same, its group can write", put: removed, mode: 0o620, wantMode: 0o620, wantLeft: true},
+		{name: "a token in another user's file", another: true, mode: 0o644, wantMode: 0o644, wantLeft: true, put: func(t *testing.T, _ tokens.Store, path string) string {
+			writeFile(t, path, shaped+"\n", 0o644)
 			return shaped + "\n"
 		}},
-		{name: "a token among other words", wantLeft: true, put: func(t *testing.T, store tokens.Store) string {
-			writeFile(t, store.Path("work")+".taken", "token "+shaped+"\n", 0o600)
+		{name: "a token among other words", mode: 0o600, wantMode: 0o600, wantLeft: true, put: func(t *testing.T, _ tokens.Store, path string) string {
+			writeFile(t, path, "token "+shaped+"\n", 0o600)
 			return "token " + shaped + "\n"
 		}},
-		{name: "a damaged record of one word, replaced", put: func(t *testing.T, store tokens.Store) string {
-			writeFile(t, store.Path("work")+".taken", "taken\n", 0o600)
+		{name: "a damaged record of one word, replaced", mode: 0o600, wantMode: 0o600, put: func(t *testing.T, _ tokens.Store, path string) string {
+			writeFile(t, path, "taken\n", 0o600)
+			return "taken\n"
+		}},
+		{name: "a damaged record anyone can write, replaced", mode: 0o666, wantMode: 0o600, put: func(t *testing.T, _ tokens.Store, path string) string {
+			writeFile(t, path, "taken\n", 0o600)
 			return "taken\n"
 		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			uid := os.Getuid()
+			if tt.another {
+				uid++
+			}
+			store := tokens.NewStore(t.TempDir(), uid)
 			mkdirPrivate(t, store.Dir())
-			holds := tt.put(t, store)
+			path := store.Path("work") + ".taken"
+			holds := tt.put(t, store, path)
+			if err := os.Chmod(path, tt.mode); err != nil {
+				t.Fatal(err)
+			}
 
 			if err := store.Write("work", parse(t, workToken), taken); err != nil {
 				t.Fatalf("Write() error = %v, want the token written all the same", err)
 			}
-			if token, err := store.Read("work"); err != nil || token.Reveal() != workToken {
-				t.Errorf("Read() = %q, %v, want the token written", token.Reveal(), err)
+			if data, err := os.ReadFile(store.Path("work")); err != nil || string(data) != workToken+"\n" {
+				t.Errorf("the token file holds %q (%v), want the token written", data, err)
 			}
 			want := workRecord
 			if tt.wantLeft {
 				want = holds
 			}
-			checkFile(t, store.Path("work")+".taken", want, 0o600)
+			checkFile(t, path, want, tt.wantMode)
 			warned := log.Has("level=WARN", `msg="couldn't record when the token was taken"`, "account=work", "holds a token")
 			if warned != tt.wantLeft {
 				t.Errorf("the log reads\n%s\nwant a warning that the record holds a token: %v", log, tt.wantLeft)
@@ -562,6 +590,63 @@ func TestWriteLeavesARecordHoldingATokenAtItsOwnPath(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestWriteLeavesWhereTheRecordGoesWhenAnotherLeadsThere(t *testing.T) {
+	log := logstest.Capture(t)
+	store := tokens.NewStore(t.TempDir(), os.Getuid())
+	mkdirPrivate(t, store.Dir())
+	record := store.Path("work") + ".taken"
+	// Personal's token file a link to where work's record would go, before
+	// its token's written there.
+	symlink(t, record, store.Path("personal"))
+
+	if err := store.Write("work", parse(t, workToken), taken); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(record); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("where work's record would go: %v, want nothing there still", err)
+	}
+	checkLink(t, store.Path("personal"), record)
+	if !log.Has("level=WARN", `msg="couldn't record when the token was taken"`, "account=work", "personal's token file") {
+		t.Errorf("the log reads\n%s\nwant why the record wasn't written, naming personal", log)
+	}
+}
+
+func TestWriteRecordsBesideARecordWhoseNamesCaseChanged(t *testing.T) {
+	store := tokens.NewStore(t.TempDir(), os.Getuid())
+	mkdirPrivate(t, store.Dir())
+	// Written as Work's, before the id became work.
+	upper := store.Path("Work") + ".taken"
+	writeFile(t, upper, workRecord, 0o600)
+	if _, err := os.Stat(store.Path("work") + ".taken"); err != nil {
+		t.Skipf("names here are told apart by case: %v", err)
+	}
+	log := logstest.Capture(t)
+
+	if err := store.Write("work", parse(t, "test-token-renewed"), taken.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if at, err := store.Taken("work", parse(t, "test-token-renewed")); err != nil || !at.Equal(taken.Add(time.Hour)) {
+		t.Errorf("Taken() = %v, %v; want %v", at, err, taken.Add(time.Hour))
+	}
+	if log.Has("level=WARN") {
+		t.Errorf("the log reads\n%s\nwant no warning", log)
+	}
+}
+
+func TestWriteLeavesATokenWhoseLinkGoesBackOutOfADirectoryThatIsntThere(t *testing.T) {
+	store := tokens.NewStore(t.TempDir(), os.Getuid())
+	writeFile(t, store.Path("personal"), "test-token-personal\n", 0o600)
+	sep := string(filepath.Separator)
+	symlink(t, "gone"+sep+".."+sep+"personal", store.Path("work"))
+
+	if err := store.Write("work", parse(t, workToken), taken); err == nil {
+		t.Error("Write() succeeded, want it to fail, as where the link leads can't be known")
+	}
+	if token, err := store.Read("personal"); err != nil || token.Reveal() != "test-token-personal" {
+		t.Errorf("Read() of personal = %q, %v, want its token as it was", token.Reveal(), err)
 	}
 }
 
@@ -586,21 +671,27 @@ func TestRemoveLeavesADirectoryWhereTheRecordGoes(t *testing.T) {
 	}
 }
 
-func TestWriteReplacesARecordOfAnotherUsersItCantOpen(t *testing.T) {
+func TestWriteLeavesARecordOfAnotherUsersItCantOpen(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("root reads any file")
 	}
+	log := logstest.Capture(t)
 	// The store's user is another than the one the record is made by, as of
-	// one root wrote, which the user can't open.
+	// one root wrote, which the user can't open, and which may hold a token.
 	store := tokens.NewStore(t.TempDir(), os.Getuid()+1)
 	writeFile(t, store.Path("work")+".taken", workRecord, 0o200)
 
 	if err := store.Write("work", parse(t, "test-token-renewed"), taken); err != nil {
 		t.Fatal(err)
 	}
-	want := "taken 2026-10-27T09:30:00Z\nsha256 " + sumOf("test-token-renewed") + "\n"
-	if data, err := os.ReadFile(store.Path("work") + ".taken"); err != nil || string(data) != want {
-		t.Errorf("the record holds %q (%v), want it written afresh, %q", data, err, want)
+	if err := os.Chmod(store.Path("work")+".taken", 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(store.Path("work") + ".taken"); err != nil || string(data) != workRecord {
+		t.Errorf("the record holds %q (%v), want it as it was", data, err)
+	}
+	if !log.Has("level=WARN", `msg="couldn't record when the token was taken"`, "account=work") {
+		t.Errorf("the log reads\n%s\nwant why the record wasn't written", log)
 	}
 }
 
