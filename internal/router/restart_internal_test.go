@@ -266,6 +266,149 @@ func TestARestartIsHeldBackWhileTheConfigFileIsInvalid(t *testing.T) {
 	}
 }
 
+func TestAnUpgradesBinaryJudgesTheConfigInPlaceOfTheRunningVersion(t *testing.T) {
+	const refusal = "invalid config /test/config.toml:\nunknown key \"account.colour\""
+	silent := binaryAnswer{err: errors.New("exit status 1")}
+	tests := []struct {
+		name string
+		// upgraded says whether the binary moves on, and answer is how the
+		// one it moves on to answers whether it could start; refused says
+		// whether the running version refuses the config.
+		upgraded, refused bool
+		answer            binaryAnswer
+		wantDue           string
+		wantRestart       bool
+		wantAsked         int
+		// wantHeld is why the restart is held, or wantHeldAsRunning set
+		// where it's for the running version's refusal of the config.
+		wantHeld          string
+		wantHeldAsRunning bool
+	}{
+		{
+			name:     "upgraded, to a version that takes the config the running one refuses",
+			upgraded: true, refused: true, wantDue: "upgraded", wantRestart: true, wantAsked: 1,
+		},
+		{
+			name:     "upgraded, to a version that refuses it too",
+			upgraded: true, refused: true, answer: binaryAnswer{refusal: refusal}, wantDue: "upgraded", wantAsked: 1, wantHeld: refusal,
+		},
+		{
+			name:     "upgraded, to a version that can't answer, the running one refusing the config",
+			upgraded: true, refused: true, answer: silent, wantDue: "upgraded", wantAsked: 1, wantHeldAsRunning: true,
+		},
+		{
+			name:     "upgraded, to a version that can't answer, the running one taking the config",
+			upgraded: true, answer: silent, wantDue: "upgraded", wantRestart: true, wantAsked: 1,
+		},
+		{name: "not upgraded", refused: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newStartedFrom(t)
+			var heard []Event
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
+			asked := askedOf(r, tt.answer)
+			if tt.refused {
+				writeFile(t, s.kept, notAConfig)
+			}
+			if tt.upgraded {
+				relink(t, s.binary, s.version("1.1"))
+			}
+			// The running version refuses the config, if it does, at two looks
+			// in a row.
+			r.look()
+			r.look()
+			wantHeld := tt.wantHeld
+			if tt.wantHeldAsRunning {
+				_, err := config.Load(s.config)
+				wantHeld = err.Error()
+			}
+
+			if got := r.due(); got != tt.wantDue {
+				t.Errorf("due() = %q, want %q", got, tt.wantDue)
+			}
+			if got := r.restart(t.Context()); got != tt.wantRestart {
+				t.Errorf("restart() = %v, want %v", got, tt.wantRestart)
+			}
+			if got := r.report().Held; got != wantHeld {
+				t.Errorf("report().Held = %q, want %q", got, wantHeld)
+			}
+			if wantHeld == "" {
+				if *asked != tt.wantAsked {
+					t.Errorf("the binary was asked %d times, want %d", *asked, tt.wantAsked)
+				}
+				return
+			}
+			for range 3 {
+				r.look()
+				if ready := r.ready(); ready != nil {
+					t.Fatalf("ready() = %v while the restart is held, with nothing changed, want none", ready)
+				}
+			}
+			if *asked != tt.wantAsked {
+				t.Errorf("the binary was asked %d times, want %d: nothing changed since the restart was held", *asked, tt.wantAsked)
+			}
+			if want := (RestartHeld{Reason: "upgraded", Refusal: wantHeld}); !slices.Contains(heard, Event(want)) {
+				t.Errorf("heard %+v, want %+v among them", heard, want)
+			}
+			if n := strings.Count(log.String(), `msg="restart held`); n != 1 {
+				t.Errorf("log reads\n%s\nwant the restart held said once, not %d times", log, n)
+			}
+		})
+	}
+}
+
+func TestARestartAskedForAfterAnUpgradeIsJudgedByItsBinary(t *testing.T) {
+	const refusal = "invalid config /test/config.toml:\nunknown key \"account.colour\""
+	const refusedByRunning = "the router's config file doesn't make a valid config, which it couldn't start again from: invalid config "
+	silent := binaryAnswer{err: errors.New("exit status 1")}
+	tests := []struct {
+		name string
+		// upgraded says whether the binary has moved on, and answer is how
+		// the one it leads to answers whether it could start; refused says
+		// whether the running version refuses the config.
+		upgraded, refused bool
+		answer            binaryAnswer
+		wantErr           string
+	}{
+		{name: "upgraded, to a version that takes the config the running one refuses", upgraded: true, refused: true},
+		{
+			name:     "upgraded, to a version that refuses it too",
+			upgraded: true, refused: true, answer: binaryAnswer{refusal: refusal},
+			wantErr: "the router's binary refuses to start, so the router started again would stop: " + refusal,
+		},
+		{
+			name:     "upgraded, to a version that can't answer, the running one refusing the config",
+			upgraded: true, refused: true, answer: silent, wantErr: refusedByRunning,
+		},
+		{name: "upgraded, to a version that can't answer, the running one taking the config", upgraded: true, answer: silent},
+		{name: "not upgraded", refused: true, wantErr: refusedByRunning},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+			askedOf(r, tt.answer)
+			if tt.refused {
+				writeFile(t, s.kept, notAConfig)
+			}
+			if tt.upgraded {
+				relink(t, s.binary, s.version("1.1"))
+			}
+
+			err := askedFor(t, r)
+			switch {
+			case tt.wantErr == "" && err != nil:
+				t.Errorf("restartable() = %v, want nil", err)
+			case tt.wantErr != "" && (err == nil || !strings.HasPrefix(err.Error(), tt.wantErr)):
+				t.Errorf("restartable() = %v, want one starting %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestARestartDueIsSaidOnceByHand(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStartedFrom(t)
@@ -646,8 +789,11 @@ func TestARestartHeldStaysHeldThroughAFileGoneForAMoment(t *testing.T) {
 	const refusal = "invalid config"
 	saving := func(s startedFrom) string { return s.kept + ".saving" }
 	heldOnce := []Event{RestartDue{Reason: "upgraded"}, RestartHeld{Reason: "upgraded", Refusal: refusal}}
+	upgrade := func(t *testing.T, s startedFrom) { relink(t, s.binary, s.version("1.1")) }
 	tests := []struct {
 		name string
+		// due makes a restart due, an upgrade where it's nil.
+		due func(t *testing.T, s startedFrom)
 		// gone takes a file the router was started from away, for looks
 		// looks, and back puts it back as it was.
 		gone, back func(t *testing.T, s startedFrom)
@@ -678,12 +824,22 @@ func TestARestartHeldStaysHeldThroughAFileGoneForAMoment(t *testing.T) {
 			wantHeard: heldOnce,
 		},
 		{
-			name:  "the config file, long enough for its change to be refused, the restart falling due again held",
+			name:      "the config file, long enough for its change to be refused, an upgrade staying due, its binary deciding",
+			gone:      func(t *testing.T, s startedFrom) { rename(t, s.kept, saving(s)) },
+			back:      func(t *testing.T, s startedFrom) { rename(t, saving(s), s.kept) },
+			looks:     2,
+			wantHeard: heldOnce,
+		},
+		{
+			name:  "the config file, long enough for its change to be refused, a config change's restart falling due again held",
+			due:   func(t *testing.T, s startedFrom) { writeFile(t, s.kept, twoAccounts) },
 			gone:  func(t *testing.T, s startedFrom) { rename(t, s.kept, saving(s)) },
 			back:  func(t *testing.T, s startedFrom) { rename(t, saving(s), s.kept) },
 			looks: 2,
-			wantHeard: append(slices.Clone(heldOnce),
-				RestartHeld{Reason: "config changed", Refusal: refusal}),
+			wantHeard: []Event{
+				RestartDue{Reason: "config changed"}, RestartHeld{Reason: "config changed", Refusal: refusal},
+				RestartHeld{Reason: "config changed", Refusal: refusal},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -693,7 +849,11 @@ func TestARestartHeldStaysHeldThroughAFileGoneForAMoment(t *testing.T) {
 			var heard []Event
 			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
 			asked := askedOf(r, binaryAnswer{refusal: refusal}, binaryAnswer{err: fs.ErrNotExist}, binaryAnswer{refusal: refusal})
-			relink(t, s.binary, s.version("1.1"))
+			due := tt.due
+			if due == nil {
+				due = upgrade
+			}
+			due(t, s)
 			r.look()
 			r.restart(t.Context())
 

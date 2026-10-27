@@ -11,6 +11,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/redact"
@@ -21,6 +23,10 @@ var (
 	// ErrNotRunning is what a Client's calls fail with, wrapped, when no
 	// router listens on its socket.
 	ErrNotRunning = errors.New("the router isn't running")
+	// ErrUnanswered is what a Client's calls fail with, wrapped, when the
+	// router closes the connection before it begins to answer, as one
+	// stopping does with what it hasn't answered in time.
+	ErrUnanswered = errors.New("the router closed the connection without answering")
 	// ErrUnknownSession is what Session fails with, followed by the session's
 	// id, when the router hasn't seen the session.
 	ErrUnknownSession = errors.New("the router hasn't seen session")
@@ -320,10 +326,13 @@ func (c *Client) send(ctx context.Context, method, path string, body any) (*http
 		return nil, err
 	}
 	resp, err := c.http.Do(req)
-	if err != nil {
-		if isDial(err) {
-			return nil, fmt.Errorf("%w: %w", ErrNotRunning, err)
-		}
+	switch {
+	case err == nil:
+	case isDial(err):
+		return nil, fmt.Errorf("%w: %w", ErrNotRunning, err)
+	case closedUnanswered(err):
+		return nil, fmt.Errorf("%w: %w", ErrUnanswered, err)
+	default:
 		return nil, fmt.Errorf("ask the router: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -373,3 +382,29 @@ func isDial(err error) bool {
 	op, ok := errors.AsType[*net.OpError](err)
 	return ok && op.Op == "dial"
 }
+
+// IsNotRunning reports whether err, a Client's call's, found the router not
+// running at that moment: nothing listening on its socket, as ErrNotRunning
+// says, or the connection closed before any answer, as ErrUnanswered says,
+// as a router stopping closes it.
+func IsNotRunning(err error) bool {
+	return errors.Is(err, ErrNotRunning) || errors.Is(err, ErrUnanswered)
+}
+
+// closedUnanswered reports whether err, a request's that got no answer, is the
+// connection closing under it, rather than its context ending or an answer
+// that isn't HTTP: at its end or by a reset as it was read; as the request
+// was written, broken or, on macOS, already disconnected; or before the
+// request was read at all, as the transport words it.
+func closedUnanswered(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ENOTCONN) || strings.Contains(err.Error(), serverClosedIdle)
+}
+
+// serverClosedIdle is how net/http's transport fails a request whose
+// connection the server closed before reading it, as a router from before
+// stopped its control API, cutting the connections it had accepted: the
+// error is unexported, wrapping neither EOF nor a reset, so only its text
+// tells it (found as one in six such closes, in a reproduction of 200). It
+// comes only where nothing was answered.
+const serverClosedIdle = "http: server closed idle connection"

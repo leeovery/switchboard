@@ -51,7 +51,7 @@ func TestARouterToldToStopAsItComesToExecDoesntReplaceItself(t *testing.T) {
 func TestARouterToldToStopAsItRestartsLeavesNothingToConnectToAsItsControlAPIGoes(t *testing.T) {
 	logstest.Capture(t)
 	h := newHolding(t)
-	proxySrv, controlSrv := newProxyServer(http.NotFoundHandler()), newServer(h.r.Control())
+	proxySrv, controlSrv := newProxyServer(http.NotFoundHandler()), newControlServer(h.r.Control())
 	// The control API, as it goes, finds whether the proxy's address takes a
 	// connection, and whether its own socket is there to connect to; the
 	// proxy's listener is slow to close, as on a loaded machine, until the
@@ -109,7 +109,7 @@ func TestARouterRestartingInPlaceAnswersOnItsControlSocketWhileTheRequestsItCutO
 	h.r.cfg.DrainFor = 50 * time.Millisecond
 	upstream := &unwinding{sent: make(chan struct{}), cutOff: make(chan struct{}), release: make(chan struct{})}
 	h.r.proxy.transport = upstream
-	proxySrv, controlSrv := newProxyServer(h.r.Proxy()), newServer(h.r.Control())
+	proxySrv, controlSrv := newProxyServer(h.r.Proxy()), newControlServer(h.r.Control())
 	var serving sync.WaitGroup
 	serving.Go(func() { _ = proxySrv.Serve(h.proxy) })
 	serving.Go(func() { _ = controlSrv.Serve(h.control) })
@@ -141,7 +141,7 @@ func TestARouterRestartingInPlaceAnswersOnItsControlSocketWhileTheRequestsItCutO
 func TestARouterRestartingInPlaceStopsWhatItRunsBesideItsServersBeforeItsControlAPICloses(t *testing.T) {
 	logstest.Capture(t)
 	h := newHolding(t)
-	proxySrv, controlSrv := newProxyServer(http.NotFoundHandler()), newServer(h.r.Control())
+	proxySrv, controlSrv := newProxyServer(http.NotFoundHandler()), newControlServer(h.r.Control())
 	var stopped atomic.Bool
 	// stoppedFirst is whether the background had stopped as the control API
 	// closed.

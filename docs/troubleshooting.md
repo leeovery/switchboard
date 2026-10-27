@@ -43,16 +43,23 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   next round.
 - **A restart held after an upgrade:** when the new version refuses your config, as it can where
   its rules are stricter, the router keeps running the old version rather than restart into one
-  that would stop. `switchboard status` gives the restart as held, with the refusal, and the
-  dashboard's status line reads `restart held (upgraded)`; `switchboard status --json` gives the
-  refusal as `restart.held`, and the router's log has it at warn. Put the config right as it says,
-  and the router restarts at its next quiet moment. See [Restarts](how-it-works.md#restarts).
+  that would stop. The `switchboard` you run is the new version too, so it can't read the config
+  either. `switchboard status` shows the router's document all the same, the restart given as
+  held with the refusal (`restart.held` with `--json`), then fails with the config's error;
+  `usage` and a dashboard you open now fail on the config, while one already open shows
+  `restart held (upgraded)` on its status line; and the router's log has it at warn. Until the
+  config is put right, each `claude` you start says it couldn't read the config and starts without
+  switchboard: unrouted, but within a session still routed. Put the config right as it says, and
+  the router restarts at its next quiet moment. See [Restarts](how-it-works.md#restarts).
 - **`claude` won't start, the router down:** with the router not running, or not healthy, `claude`
   starts nothing and says so. Run [`switchboard service status`](commands.md#service) to see
   whether the LaunchAgent is installed and loaded and how the router answers, then
   `switchboard service install` or `switchboard service restart`. To start Claude Code without the
   router this once, unrouted and unrecorded, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`; to
   have it do so always, set [`when_router_down = "direct"`](configuration.md#top-level-keys).
+- **A pin that may or may not have been made:** a router stopping or restarting as `pin`, or a pin
+  on the dashboard, asks it closes without answering, though it may have made the pin first. Run
+  `switchboard status` to see whether it did, and pin again if not.
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.

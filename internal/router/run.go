@@ -36,6 +36,15 @@ const (
 	// readHeaderTimeout bounds how long a client takes to send a request's
 	// headers. Nothing bounds a response: it streams for as long as it takes.
 	readHeaderTimeout = 10 * time.Second
+	// controlCloseWait is how long the control API, as it closes, gives the
+	// requests it has accepted to be answered. A launcher's health check takes
+	// milliseconds, so one accepted as it closes is answered rather than cut
+	// off, while a request that waits on more, as a refresh waits on its
+	// probes, holds the stop up no longer. Restarting in place, every
+	// request waits at the proxy's socket meanwhile, so it's short; and a
+	// health check cut off at it is asked again, as one a router stopping
+	// closed unanswered.
+	controlCloseWait = time.Second
 )
 
 // errCutOff is the cause a request's context ends with as the router cuts it
@@ -197,11 +206,11 @@ func listen(addr string) (net.Listener, error) {
 // the control API closes, so a launcher is answered meanwhile, and saves
 // what that changes once it has.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
-	proxySrv, controlSrv := newProxyServer(r.Proxy()), newServer(r.Control())
+	proxySrv, controlSrv := newProxyServer(r.Proxy()), newControlServer(r.Control())
 	var serving sync.WaitGroup
 	failed := make(chan error, 2)
 	serving.Go(func() { failed <- serveOn(proxySrv.Server, ls.proxy) })
-	serving.Go(func() { failed <- serveOn(controlSrv, ls.control) })
+	serving.Go(func() { failed <- serveOn(controlSrv.Server, ls.control) })
 	r.logStart(ls.proxy.Addr(), ls.control.Addr())
 	r.probes.start(r.accounts.sendable(), r.state.startDue)
 	looking, stopLooking := context.WithCancel(ctx)
@@ -294,6 +303,79 @@ func (s proxyServer) cutOff() {
 	_ = s.Close()
 }
 
+// controlServer is the server the control API's requests come in on, each
+// request's context derived from one cut ends, and each counted by handling
+// while its handler runs.
+type controlServer struct {
+	*http.Server
+	cut      context.CancelFunc
+	handling *handling
+}
+
+// newControlServer returns the server the control API, h, takes its requests
+// on.
+func newControlServer(h http.Handler) controlServer {
+	requests, cut := context.WithCancel(context.Background())
+	handling := &handling{}
+	srv := newServer(handling.count(h))
+	srv.BaseContext = func(net.Listener) context.Context { return requests }
+	return controlServer{Server: srv, cut: cut, handling: handling}
+}
+
+// close closes the control API, answering what it has accepted: it takes no
+// more requests, gives those it has, a launcher's health check among them,
+// within to be answered, then cuts off any still going, their contexts ending
+// before their connections close, and waits for their handlers to be done.
+// So what a request it accepted changes, such as a pin, is changed before the
+// router saves its state and files its events, never after.
+func (s controlServer) close(within time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), within)
+	defer cancel()
+	_ = s.Shutdown(ctx)
+	s.cut()
+	_ = s.Close()
+	s.handling.end()
+}
+
+// handling counts the requests whose handlers run, until it's ended: one that
+// comes after, as a connection caught as the server closes can bring, is cut
+// off unanswered, as closing the connection would have cut it off.
+type handling struct {
+	mu      sync.Mutex
+	ended   bool
+	running sync.WaitGroup
+}
+
+// count returns next, counting each request while it handles it.
+func (h *handling) count(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !h.begin() {
+			panic(http.ErrAbortHandler)
+		}
+		defer h.running.Done()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// begin counts a request, reporting false once handling has ended.
+func (h *handling) begin() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.ended {
+		return false
+	}
+	h.running.Add(1)
+	return true
+}
+
+// end ends handling, and waits for the requests counted to be done.
+func (h *handling) end() {
+	h.mu.Lock()
+	h.ended = true
+	h.mu.Unlock()
+	h.running.Wait()
+}
+
 // serveOn serves srv on ln until it's shut down, which isn't a failure.
 func serveOn(srv *http.Server, ln net.Listener) error {
 	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
@@ -302,15 +384,27 @@ func serveOn(srv *http.Server, ln net.Listener) error {
 	return nil
 }
 
-// shutdown stops the servers taking requests. The control API goes at once,
-// so a launcher that checks the router's health finds it gone, and asks
-// again for 2 seconds, routing through a router back within them, else
+// shutdown stops the servers taking requests. The control API takes none from
+// the start, so a launcher that checks the router's health finds it gone, and
+// asks again for 2 seconds, routing through a router back within them, else
 // stopping unless told to go direct; its listener's closing removes the
-// socket. The proxy's requests in flight get their time to finish, as drain
-// gives it.
-func (r *Router) shutdown(control *http.Server, proxy proxyServer) {
-	_ = control.Close()
+// socket. It answers those it has accepted, as closeControl does, while the
+// proxy's requests in flight get their time to finish, as drain gives it.
+func (r *Router) shutdown(control controlServer, proxy proxyServer) {
+	var closing sync.WaitGroup
+	closing.Go(func() { r.closeControl(control) })
 	r.drain(proxy)
+	closing.Wait()
+}
+
+// closeControl ends the request stream, where a restart in place hasn't
+// already, without waiting for its readers, then closes the control API,
+// answering what it has accepted, as close does, within controlCloseWait:
+// the readers write what they've been told of meanwhile, as requests it
+// accepted, and so hold the stop up no longer than that.
+func (r *Router) closeControl(control controlServer) {
+	r.stream.end(0)
+	control.close(controlCloseWait)
 }
 
 // refuse stops the proxy taking requests, as drain does first, without

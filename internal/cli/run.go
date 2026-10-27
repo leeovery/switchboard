@@ -31,8 +31,9 @@ it; the token stays the primary's.
 
 A slow router is waited for, 5 seconds at most, and one that isn't running is
 asked again for the first 2, as it may be restarting. When the router isn't
-running, or isn't healthy, run starts nothing, and says why and how to go on: a session without the router would go unrouted and
-unrecorded, and spend the primary past its reserve. The config's
+running, or isn't healthy, run starts nothing, and says why and how to go on:
+a session without the router would go unrouted and unrecorded, and spend the
+primary past its reserve. The config's
 when_router_down = "direct" has Claude Code connect directly instead, on
 --account's token, else the primary's, else the first account's with a usable
 token, and run says so; SWITCHBOARD_WHEN_ROUTER_DOWN, stop or direct, says
@@ -44,9 +45,10 @@ any account's usable token, Claude Code starts as if switchboard weren't
 there, and run says why. --direct starts Claude Code on its own login, without
 the router or a token, for what needs the login.
 
-Claude Code's local subcommands, such as doctor, mcp and setup-token, start
-as if switchboard weren't there, saying nothing: switchboard has no part in
-them. Only the first of Claude Code's arguments names one, so -p doctor is a
+Claude Code's local subcommands, such as doctor, mcp and setup-token, and
+its --version and --help, start as if switchboard weren't there, saying
+nothing, whether the router runs or not: switchboard has no part in them.
+Only the first of Claude Code's arguments names one, so -p doctor is a
 prompt.
 
 When ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN is set, Claude Code may use

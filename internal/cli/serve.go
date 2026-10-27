@@ -98,25 +98,26 @@ func (a *app) serve(ctx context.Context) error {
 // handover.Ask reads the answer: nothing, when the router could start, else
 // why it couldn't, refusing.
 func (a *app) check(cmd *cobra.Command) error {
-	if err := a.startable(); err != nil {
+	if _, err := a.startable(); err != nil {
 		return refuse(cmd, err)
 	}
 	return nil
 }
 
-// startable fails, saying why, where serve would fail before the router
-// listens: where its config file can't be found, or the router couldn't start
-// from what it's read from, as router.Startable says.
-func (a *app) startable() error {
+// startable returns what serve would start the router from, failing, saying
+// why, where serve would fail before the router listens: where its config
+// file can't be found, or the router couldn't start from what it's read from,
+// as router.Startable says.
+func (a *app) startable() (router.Config, error) {
 	path, err := a.configFile()
 	if err != nil {
-		return err
+		return router.Config{}, err
 	}
 	cfg, _, err := a.startingFrom(path)
 	if err != nil {
-		return err
+		return router.Config{}, err
 	}
-	return router.Startable(cfg)
+	return cfg, router.Startable(cfg)
 }
 
 // refuse answers a router asking with handover.CheckFlag that the router

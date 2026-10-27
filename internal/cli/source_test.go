@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -355,6 +356,28 @@ func TestDashboardReadsTheRouterWhileItRuns(t *testing.T) {
 	}
 }
 
+func TestDashboardsChangesTheRouterClosesOnMayHaveBeenMade(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	closeUnanswered(t, srv.socket())
+	cfg := recordWatch(t, &srv.deps)
+	run(t, srv.deps, "dashboard")
+
+	changes := []struct {
+		name   string
+		change func() error
+	}{
+		{name: "Pin", change: func() error { return cfg.Source.Pin(t.Context(), []string{"side"}, false) }},
+		{name: "Unpin", change: func() error { return cfg.Source.Unpin(t.Context()) }},
+		{name: "PinSession", change: func() error { return cfg.Source.PinSession(t.Context(), sessionOne, "side") }},
+		{name: "UnpinSession", change: func() error { return cfg.Source.UnpinSession(t.Context(), sessionOne) }},
+	}
+	for _, c := range changes {
+		if err := c.change(); err == nil || err.Error() != changeUnanswered {
+			t.Errorf("%s() error = %v, want %q", c.name, err, changeUnanswered)
+		}
+	}
+}
+
 func TestDashboardPinsOneSessionAsPinSessionDoes(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)
@@ -613,6 +636,48 @@ func statusJSON(t *testing.T, deps cli.Deps, args ...string) status.Document {
 		t.Fatalf("switchboard status --json = %+v, want exit status 0 and a document", got)
 	}
 	return doc
+}
+
+// routerStates are the states a router can be found in that read as not
+// running: nothing listening on its socket, and one closing the connection
+// before it answers, as a router stopping does. Each readies the socket at
+// path as it says.
+var routerStates = []struct {
+	name  string
+	ready func(t *testing.T, path string)
+}{
+	{name: "nothing listening", ready: func(*testing.T, string) {}},
+	{name: "closing the connection before it answers, as one stopping does", ready: closeUnanswered},
+}
+
+func closeUnanswered(t *testing.T, path string) { closesUnanswered(t, path) }
+
+// closesUnanswered listens on the socket at path until the test ends, and
+// closes each connection once it has read the request, answering nothing. It
+// counts the requests it closed so.
+func closesUnanswered(t *testing.T, path string) *atomic.Int64 {
+	t.Helper()
+	var closed atomic.Int64
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = http.ReadRequest(bufio.NewReader(conn))
+			closed.Add(1)
+			_ = conn.Close()
+		}
+	}()
+	return &closed
 }
 
 // serveSilently listens on the socket at path until the test ends, and

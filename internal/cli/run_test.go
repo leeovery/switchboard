@@ -415,6 +415,10 @@ func TestRunStartsClaudeCodesLocalSubcommandsAsIfSwitchboardWerentThere(t *testi
 		{name: "project", args: []string{"project"}, local: true},
 		{name: "auto-mode", args: []string{"auto-mode"}, local: true},
 		{name: "gateway", args: []string{"gateway"}, local: true},
+		{name: "its version", args: []string{"--version"}, local: true},
+		{name: "its version, short", args: []string{"-v"}, local: true},
+		{name: "its help", args: []string{"--help"}, local: true},
+		{name: "its help, short", args: []string{"-h"}, local: true},
 		{name: "a prompt that's a subcommand's name", args: []string{"-p", "doctor"}},
 		{name: "a subcommand after an option", args: []string{"--debug", "mcp", "list"}},
 		{name: "a background session", args: []string{"--bg", "fix the tests"}},
@@ -467,6 +471,26 @@ func TestRunStartsLocalSubcommandsWithoutAConfig(t *testing.T) {
 	}
 }
 
+func TestTheClaudeLinkStartsWhatNeedsNoRouterWithTheRouterDown(t *testing.T) {
+	// The router isn't running, and the config says nothing of going direct.
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	inherited := environMap(srv.deps.Environ())
+	for _, args := range [][]string{{"doctor"}, {"--version"}, {"-v"}, {"--help"}, {"-h"}} {
+		t.Run(args[0], func(t *testing.T) {
+			deps := srv.deps
+			handed := recordHandOffs(t, &deps)
+
+			if got := run(t, deps, cli.Args(append([]string{"/Users/tester/bin/claude"}, args...))...); got != (result{}) {
+				t.Errorf("claude %s = %+v, want exit status 0 and no output, switchboard having no part in it", args[0], got)
+			}
+			got := handed.only(t)
+			if want := append([]string{"claude"}, args...); !slices.Equal(got.argv, want) || !maps.Equal(got.env, inherited) {
+				t.Errorf("handed over as %q with %q, want %q, its environment untouched", got.argv, got.env, want)
+			}
+		})
+	}
+}
+
 func TestArgs(t *testing.T) {
 	tests := []struct {
 		name string
@@ -499,14 +523,18 @@ func TestArgs(t *testing.T) {
 func TestRunByTheNameClaude(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	srv.start(t)
+	inherited := environMap(srv.deps.Environ())
 	tests := []struct {
 		name string
-		// args are claude's, after its name.
-		args []string
+		// args are claude's, after its name, and local says whether they
+		// start it as if switchboard weren't there, rather than through the
+		// router.
+		args  []string
+		local bool
 	}{
 		{name: "alone"},
-		{name: "Claude Code's help", args: []string{"--help"}},
-		{name: "Claude Code's version", args: []string{"-v"}},
+		{name: "Claude Code's help", args: []string{"--help"}, local: true},
+		{name: "Claude Code's version", args: []string{"-v"}, local: true},
 		{name: "switchboard's flags, Claude Code's own", args: []string{"--config", "other.toml", "--account", "side", "--direct", "--version", "-h"}},
 		{name: "switchboard's commands, Claude Code's words", args: []string{"status", "--json"}},
 		{name: "after --", args: []string{"--", "--help"}},
@@ -523,6 +551,12 @@ func TestRunByTheNameClaude(t *testing.T) {
 			got := handed.only(t)
 			if want := append([]string{"claude"}, tt.args...); got.path != handed.claude || !slices.Equal(got.argv, want) {
 				t.Errorf("handed over to %s as %q, want %s as %q", got.path, got.argv, handed.claude, want)
+			}
+			if tt.local {
+				if !maps.Equal(got.env, inherited) {
+					t.Errorf("handed over with\n%q\nwant its environment untouched\n%q", got.env, inherited)
+				}
+				return
 			}
 			want := map[string]string{
 				"ANTHROPIC_BASE_URL":       "http://" + srv.listen,

@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"bufio"
 	"bytes"
 	"cmp"
 	"context"
@@ -918,6 +919,51 @@ func TestClientOfASocketThatIsntARouters(t *testing.T) {
 	if err == nil || errors.Is(err, router.ErrNotRunning) || !strings.Contains(err.Error(), "404") {
 		t.Errorf("Health() error = %v, want one saying what answered, and not ErrNotRunning", err)
 	}
+}
+
+func TestClientOfARouterClosingTheConnection(t *testing.T) {
+	tests := []struct {
+		name string
+		// answer is what the router writes before it closes the connection.
+		answer         string
+		wantUnanswered bool
+	}{
+		{name: "before it begins to answer, as one stopping does", wantUnanswered: true},
+		{name: "once it has begun to answer", answer: "HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{\"ok\": tr"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(shortTempDir(t), "control.sock")
+			closeOn(t, path, tt.answer)
+
+			_, err := router.NewClient(path).Health(t.Context())
+			if err == nil || errors.Is(err, router.ErrUnanswered) != tt.wantUnanswered || errors.Is(err, router.ErrNotRunning) {
+				t.Errorf("Health() error = %v, want one that's ErrUnanswered: %v, and never ErrNotRunning", err, tt.wantUnanswered)
+			}
+		})
+	}
+}
+
+// closeOn listens on a unix socket at path until the test ends, and has each
+// connection it accepts read the request, then answer, then close.
+func closeOn(t *testing.T, path, answer string) {
+	t.Helper()
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = http.ReadRequest(bufio.NewReader(conn))
+			_, _ = io.WriteString(conn, answer)
+			_ = conn.Close()
+		}
+	}()
 }
 
 // serveControl serves the router's control API on a socket in a directory of

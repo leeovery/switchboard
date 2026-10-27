@@ -100,7 +100,7 @@ func (a *app) pin(ctx context.Context, out io.Writer, accounts []string, opts pi
 	}
 	said, err := a.pinning(ctx, client, accounts, opts)
 	if err != nil {
-		return fromRouter(err)
+		return fromRouterChange(err)
 	}
 	_, err = fmt.Fprintln(out, said)
 	return err
@@ -131,7 +131,8 @@ func (a *app) pinning(ctx context.Context, client *router.Client, accounts []str
 func (a *app) pinSession(ctx context.Context, client *router.Client, given, account string) (string, error) {
 	id, err := a.findSession(ctx, client, given)
 	if err != nil {
-		return "", err
+		// Only a read was asked yet, so a router closing reads as not running.
+		return "", fromRouter(err)
 	}
 	session := "session " + status.ShortID(prose.Clean(id))
 	if isAuto(account) {

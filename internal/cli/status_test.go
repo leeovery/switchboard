@@ -11,10 +11,15 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestStatus(t *testing.T) {
@@ -301,6 +306,82 @@ func TestStatusWithInvalidConfig(t *testing.T) {
 	wantErr := "Error: invalid config " + path + ":\n" + `unknown key "account.token_env": tokens now live in files`
 	if got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, wantErr) {
 		t.Errorf("switchboard status = %+v, want exit status 1 and an error starting %q", got, wantErr)
+	}
+}
+
+func TestStatusWithAConfigItCantReadAsksTheRouterOnce(t *testing.T) {
+	path := writeConfig(t, invalidConfig)
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	deps.Patience = launch.Patience{Answer: launch.AskTimeout, Back: 2 * time.Second}
+	asks := closesUnanswered(t, router.SocketPath(stateDir(t, deps)))
+
+	got := run(t, deps, "status")
+	wantErr := "Error: invalid config " + path + ":\n"
+	if got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, wantErr) {
+		t.Errorf("switchboard status = %+v, want exit status 1 and an error starting %q", got, wantErr)
+	}
+	if n := asks.Load(); n != 1 {
+		t.Errorf("switchboard status asked a router that isn't running %d times, want once", n)
+	}
+}
+
+func TestStatusWithAConfigItCantReadShowsTheRoutersDocument(t *testing.T) {
+	const refusal = "invalid config: unknown key \"account.when_quiet\""
+	built := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	// The router routes on, holding its restart, as the binary it's to become
+	// refuses the config, as this one does.
+	held := status.Document{
+		GeneratedAt: built, Source: status.SourceRouter, Router: status.Health{Healthy: true},
+		Restart:  status.Restart{Reason: status.RestartForUpgrade, Since: built, Held: refusal},
+		Accounts: []status.Account{{ID: "work", Label: "Work", TokenSet: true, FetchedAt: built}},
+	}
+	heldShown := "the router's document, its restart held"
+	tests := []struct {
+		name string
+		args []string
+		// shows reports whether stdout shows what want says.
+		shows func(stdout string) bool
+		want  string
+	}{
+		{
+			name:  "as text",
+			args:  []string{"status", "--pretty"},
+			shows: func(stdout string) bool { return strings.Contains(stdout, "(upgraded), held: "+refusal) },
+			want:  heldShown,
+		},
+		{
+			name: "as JSON",
+			args: []string{"status", "--json"},
+			shows: func(stdout string) bool {
+				var doc status.Document
+				return json.Unmarshal([]byte(stdout), &doc) == nil && doc.Restart.Held == refusal
+			},
+			want: heldShown,
+		},
+		{
+			name:  "probing alone, which the config is needed for",
+			args:  []string{"status", "--probe"},
+			shows: func(stdout string) bool { return stdout == "" },
+			want:  "nothing",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, invalidConfig)
+			srv := newServeSetup(t, "http://127.0.0.1:1", map[string]string{"SWITCHBOARD_CONFIG": path})
+			serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+				"GET /status": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(held) },
+			})
+
+			got := run(t, srv.deps, tt.args...)
+			if !tt.shows(got.stdout) {
+				t.Errorf("switchboard %s printed\n%s\nwant %s", strings.Join(tt.args, " "), got.stdout, tt.want)
+			}
+			wantErr := "Error: invalid config " + path + ":\n" + `unknown key "account.token_env": tokens now live in files`
+			if got.code != 1 || !strings.HasPrefix(got.stderr, wantErr) {
+				t.Errorf("switchboard %s = %+v, want exit status 1 and an error starting %q, the config's", strings.Join(tt.args, " "), got, wantErr)
+			}
+		})
 	}
 }
 
