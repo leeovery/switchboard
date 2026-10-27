@@ -137,7 +137,7 @@ func TestInstallOverALoadedService(t *testing.T) {
 	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
-	if want := [][]string{{"print", target}, {"bootout", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchctl.calls, want) {
+	if want := [][]string{{"print", target}, {"bootout", target}, {"print", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchctl.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
 	}
 }
@@ -232,7 +232,7 @@ func TestInstallTriesBootstrappingAgain(t *testing.T) {
 				if err != nil || installed.Router == nil {
 					t.Fatalf("Install() = %+v, %v; want it installed, the router answering", installed, err)
 				}
-				want := [][]string{{"print", target}, {"bootout", target}}
+				want := [][]string{{"print", target}, {"bootout", target}, {"print", target}}
 				for range tt.wantTries {
 					want = append(want, []string{"bootstrap", "gui/501", s.plist})
 				}
@@ -485,7 +485,6 @@ func TestInstallWaitsForTheRouter(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	loadedRuns := [][]string{{"print", target}, {"bootout", target}}
 	tests := []struct {
 		name string
 		// installed puts the plist in place first.
@@ -496,7 +495,7 @@ func TestUninstall(t *testing.T) {
 		wantErr     string
 		wantRuns    [][]string
 	}{
-		{name: "installed and loaded", installed: true, loaded: true, wantRemoved: true, wantRuns: loadedRuns},
+		{name: "installed and loaded", installed: true, loaded: true, wantRemoved: true, wantRuns: [][]string{{"print", target}, {"bootout", target}, {"print", target}}},
 		{name: "installed, not loaded", installed: true, wantRemoved: true, wantRuns: [][]string{{"print", target}}},
 		{name: "not installed", wantRuns: [][]string{{"print", target}}},
 		{
@@ -505,7 +504,7 @@ func TestUninstall(t *testing.T) {
 			loaded:    true,
 			exits:     map[string]int{"bootout": 5},
 			wantErr:   "launchctl bootout " + target + ": bootout failed: 5: Input/output error (exit status 5)",
-			wantRuns:  loadedRuns,
+			wantRuns:  [][]string{{"print", target}, {"bootout", target}},
 		},
 	}
 	for _, tt := range tests {
@@ -800,41 +799,64 @@ func TestRestartFails(t *testing.T) {
 }
 
 func TestBootingTheServiceOutWaitsForTheRouterToStop(t *testing.T) {
+	install := func(ctx context.Context, s *setup) error {
+		_, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
+		return err
+	}
+	uninstall := func(ctx context.Context, s *setup) error {
+		_, err := s.svc.Uninstall(ctx)
+		return err
+	}
+	// The router takes up to its ExitTimeOut, 45 seconds, to stop, which
+	// launchd gives it: launchctl bootout waits for it, or returns at once,
+	// as on macOS 26, and launchd keeps the service as long.
 	tests := []struct {
 		name string
 		// bootOut boots the loaded service out, as the method named does.
 		bootOut func(ctx context.Context, s *setup) error
+		// takes is how long launchctl bootout takes, and lingers how long
+		// launchd keeps the service once it returns.
+		takes, lingers time.Duration
 	}{
-		{
-			name: "Install, over a loaded service",
-			bootOut: func(ctx context.Context, s *setup) error {
-				_, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
-				return err
-			},
-		},
-		{
-			name: "Uninstall",
-			bootOut: func(ctx context.Context, s *setup) error {
-				_, err := s.svc.Uninstall(ctx)
-				return err
-			},
-		},
+		{name: "Install, bootout waiting for the router", bootOut: install, takes: 45 * time.Second},
+		{name: "Install, launchd keeping the service once bootout returns", bootOut: install, lingers: 45 * time.Second},
+		{name: "Uninstall, bootout waiting for the router", bootOut: uninstall, takes: 45 * time.Second},
+		{name: "Uninstall, launchd keeping the service once bootout returns", bootOut: uninstall, lingers: 45 * time.Second},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				s := newSetup(t, nil, upOnceStarted(4242))
 				s.launchctl.loaded = true
-				// Booting out waits for the router to stop, which launchd gives
-				// it its ExitTimeOut, 45 seconds, to do.
-				s.launchctl.takes = map[string]time.Duration{"bootout": 45 * time.Second}
+				s.launchctl.takes = map[string]time.Duration{"bootout": tt.takes}
+				s.launchctl.lingers = tt.lingers
 
 				if err := tt.bootOut(t.Context(), s); err != nil {
-					t.Errorf("error = %v, want none: bootout given as long as launchd gives the router to stop", err)
+					t.Errorf("error = %v, want none: booting out given as long as launchd gives the router to stop", err)
 				}
 			})
 		})
 	}
+}
+
+func TestInstallGivesUpWhenLaunchdKeepsTheServiceTooLong(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSetup(t, nil, upOnceStarted(4242))
+		s.launchctl.loaded = true
+		s.launchctl.lingers = time.Minute
+		began := time.Now()
+
+		_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+		if want := "launchd didn't let the service go within 55s of booting it out"; err == nil || err.Error() != want {
+			t.Errorf("Install() error = %v, want %q", err, want)
+		}
+		if waited := time.Since(began); waited != 55*time.Second {
+			t.Errorf("gave up after %v, want 55s, the 45 launchd gives the router to stop and 10 more", waited)
+		}
+		if slices.ContainsFunc(s.launchctl.calls, func(call []string) bool { return call[0] == "bootstrap" }) {
+			t.Errorf("ran launchctl %q, want no bootstrap while launchd has the service", s.launchctl.calls)
+		}
+	})
 }
 
 func TestStatus(t *testing.T) {
@@ -1150,8 +1172,9 @@ func writeBinary(t *testing.T, path string) string {
 
 // fakeLaunchctl stands in for launchctl, and launchd behind it, noting each
 // run. Printing the service succeeds while it's loaded, and exits 113 when
-// it isn't, as launchctl does; bootstrapping loads it, and booting it out
-// unloads it. A subcommand takes as long as takes gives it, killed as
+// it isn't, as launchctl does; bootstrapping loads it, failing while it's
+// loaded, and booting it out unloads it, lingers later. A subcommand takes
+// as long as takes gives it, killed as
 // exec.CommandContext kills it when its context ends first, and exits with
 // the status exits gives it, saying why as launchctl does: its first runs
 // alone, as many as fails gives, when fails gives it any. cantRun fails
@@ -1161,6 +1184,9 @@ type fakeLaunchctl struct {
 	t       *testing.T
 	refuse  bool
 	loaded  bool
+	lingers time.Duration
+	// gone is when launchd lets the service go, once it's booted out.
+	gone    time.Time
 	takes   map[string]time.Duration
 	exits   map[string]int
 	fails   map[string]int
@@ -1203,15 +1229,23 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 	}
 	switch args[0] {
 	case "print":
-		if !f.loaded {
+		if !f.has() {
 			return []byte("Bad request.\nCould not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
 		}
 	case "bootstrap":
-		f.loaded = true
+		if f.has() {
+			return []byte("Bootstrap failed: 5: Input/output error\n"), exitStatus(5)
+		}
+		f.loaded, f.gone = true, time.Time{}
 	case "bootout":
-		f.loaded = false
+		f.gone = time.Now().Add(f.lingers)
 	}
 	return nil, nil
+}
+
+// has reports whether launchd has the service loaded now.
+func (f *fakeLaunchctl) has() bool {
+	return f.loaded && (f.gone.IsZero() || time.Now().Before(f.gone))
 }
 
 // exitStatus is a program's exit with a status other than 0, as

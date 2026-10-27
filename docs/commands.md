@@ -466,8 +466,8 @@ switchboard service status
 #### `service install`
 
 `install` writes `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`. It has launchd load
-the file in place of any copy launchd had loaded, and waits up to 5 seconds for the router to
-answer.
+the file in place of any copy launchd had loaded, once that copy's router has finished its requests
+in flight, and waits up to 5 seconds for the router to answer.
 
 - **The config.** `install` first checks what the router would start from, as the router itself
   checks a new version before restarting into it: the config above all, and the state directory
@@ -511,7 +511,8 @@ put the config right as it says.
 
 #### `service uninstall` and `service status`
 
-- **`uninstall`** stops the router, and removes the LaunchAgent.
+- **`uninstall`** stops the router, once it has finished its requests in flight, and removes the
+  LaunchAgent.
 - **`status`** shows whether the LaunchAgent is installed and loaded, and the router's health.
 
 When the router doesn't answer in time, `install` and `restart` fail, with the LaunchAgent left in
