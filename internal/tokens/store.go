@@ -229,6 +229,10 @@ type Removed struct {
 	// LinkedTo is where the token file led, when it was a link: "" when it
 	// wasn't.
 	LinkedTo string
+	// LinkedToGone is set where the name the token file led to, the
+	// record's own path, a second name of the token's file, went with it:
+	// the file's kept under its other name.
+	LinkedToGone bool
 }
 
 // Remove deletes the account's token file, if it has one, then the record of
@@ -251,7 +255,8 @@ func (s Store) Remove(id string) (Removed, error) {
 	switch {
 	case only:
 	case same:
-		s.removeRecord(id)
+		gone := s.removeRecord(id)
+		removed.LinkedToGone = gone && removed.LinkedTo != "" && sameName(removed.LinkedTo, s.takenPath(id))
 	default:
 		s.forgetTaken(id)
 	}
@@ -261,7 +266,8 @@ func (s Store) Remove(id string) (Removed, error) {
 // tokenAtRecord reports whether the file at the account's record's own path,
 // by that name, not followed where it's a link, is the token file's, or the
 // one the token file leads to, by the file, however a path to it is spelled;
-// and whether that's its only name, as where it can't tell.
+// and whether that's its only name. Where it can't tell how many names the
+// file has, it reports neither, so the record goes as forgetTaken says.
 func (s Store) tokenAtRecord(id string) (same, only bool) {
 	record, err := os.Lstat(s.takenPath(id))
 	if err != nil || !record.Mode().IsRegular() {
@@ -272,7 +278,10 @@ func (s Store) tokenAtRecord(id string) (same, only bool) {
 		return false, false
 	}
 	n, ok := links(record)
-	return true, !ok || n == 1
+	if !ok {
+		return false, false
+	}
+	return true, n == 1
 }
 
 // removeToken deletes the account's token file, if it has one, as Remove

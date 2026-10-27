@@ -146,7 +146,7 @@ func (r Registry) Remove(id string) (Removed, error) {
 	if before.Accounts.Primary().ID == id {
 		removed.Primary = draft.Config().Accounts.Primary().ID
 	}
-	logger.Info("removed an account", "account", id, "token_file", file.File, "linked_to", file.LinkedTo, "primary_now", removed.Primary)
+	logger.Info("removed an account", "account", id, "token_file", file.File, "linked_to", file.LinkedTo, "linked_to_gone", file.LinkedToGone, "primary_now", removed.Primary)
 	return removed, nil
 }
 

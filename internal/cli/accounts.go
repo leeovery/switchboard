@@ -185,6 +185,8 @@ func (a *app) removeAccount(cmd *cobra.Command, id string) error {
 	}
 	said := "removed " + id
 	switch {
+	case removed.LinkedToGone:
+		said += ", and its token file, a link, with the name it led to, " + removed.LinkedTo + ": the file's kept under its other name"
 	case removed.LinkedTo != "":
 		said += ", and its token file, a link: the file it led to, " + removed.LinkedTo + ", is left as it is"
 	case removed.File:

@@ -17,7 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
-func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
+func TestRemoveTakesTheRecordUnlessItsATokensOnlyCopy(t *testing.T) {
 	// held is what the token's file holds: shaped like a token, as a token
 	// at the record's path, but for the token being removed, is left.
 	const held = "sk-ant-oat01-fake_token-shaped\n"
@@ -26,8 +26,10 @@ func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
 		// put puts the token file at token and the record at record, beside
 		// it, and returns the file elsewhere either leads to, if any.
 		put func(t *testing.T, token, record string) string
-		// wantRecord is whether the record's path is there still.
-		wantRecord bool
+		// wantRecord is whether the record's path is there still, wantWarned
+		// whether a warning says why, and wantGone whether Remove says the
+		// name the token file led to went with it.
+		wantRecord, wantWarned, wantGone bool
 	}{
 		{name: "the token file a link to the record", wantRecord: true, put: func(t *testing.T, token, record string) string {
 			writeFile(t, record, held, 0o600)
@@ -83,10 +85,19 @@ func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
 			symlink(t, filepath.Join(dir, filepath.Base(record)), token)
 			return ""
 		}},
-		{name: "a token at the record's path that isn't the token file's", wantRecord: true, put: func(t *testing.T, token, record string) string {
+		{name: "a token at the record's path that isn't the token file's", wantRecord: true, wantWarned: true, put: func(t *testing.T, token, record string) string {
 			writeFile(t, token, workToken+"\n", 0o600)
 			writeFile(t, record, held, 0o600)
 			return ""
+		}},
+		{name: "the token file a link to the record, a second name of a file elsewhere", wantGone: true, put: func(t *testing.T, token, record string) string {
+			elsewhere := filepath.Join(t.TempDir(), "secrets", "work")
+			writeFile(t, elsewhere, held, 0o600)
+			if err := os.Link(elsewhere, record); err != nil {
+				t.Fatal(err)
+			}
+			symlink(t, record, token)
+			return elsewhere
 		}},
 		{name: "both names of one file", put: func(t *testing.T, token, record string) string {
 			writeFile(t, token, held, 0o600)
@@ -104,11 +115,18 @@ func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
 			elsewhere := tt.put(t, store.Path("work"), record)
 			log := logstest.Capture(t)
 
-			if _, err := store.Remove("work"); err != nil {
+			removed, err := store.Remove("work")
+			if err != nil {
 				t.Fatal(err)
+			}
+			if removed.LinkedToGone != tt.wantGone {
+				t.Errorf("Remove() says the name the token file led to went: %v, want %v", removed.LinkedToGone, tt.wantGone)
 			}
 			if strings.Contains(log.String(), strings.TrimSpace(held)) {
 				t.Error("the log shows the token")
+			}
+			if log.Has("level=WARN", "account=work") != tt.wantWarned {
+				t.Errorf("the log reads\n%s\nwant a warning why the record's left: %v", log, tt.wantWarned)
 			}
 			if _, err := os.Lstat(record); errors.Is(err, fs.ErrNotExist) == tt.wantRecord {
 				t.Errorf("once removed, the record: %v, want it there: %v", err, tt.wantRecord)
