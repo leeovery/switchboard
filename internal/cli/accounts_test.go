@@ -534,14 +534,23 @@ const sideOnAPlan = personalAndSide + "plan    = \"pro\"   # for now\nreserve = 
 
 // primaryFromPersonal is what accounts edit says of the sessions already
 // running once it's made another account the primary in place of personal.
-var primaryFromPersonal = runningOn("personal")
+var primaryFromPersonal = keepingTheFormer("personal")
 
-// runningOn is what accounts edit says of the sessions already running, once
-// it's made another account the primary, where they started on the token of
-// the account with the given id.
-func runningOn(id string) string {
-	return "sessions already running, unless pinned, keep the token they started on as Claude Code's own until they restart: " +
-		id + "'s, as the tokens stand now, so what they send outside the conversation, such as artifacts and uploads, still goes out on it\n"
+// keepingTheFormer is what accounts edit says of the sessions already
+// running, once it's made another account the primary in place of the one
+// with the given id, which has a usable token.
+func keepingTheFormer(former string) string {
+	return "sessions already running keep " + former + "'s token as Claude Code's own until they restart, " +
+		"so what they send outside the conversation, such as artifacts and uploads, still goes out on " + former + "\n"
+}
+
+// onTheFirst is what accounts edit says of the sessions already running,
+// once it's made another account the primary in place of former, which has
+// no usable token, where first is the first account with one.
+func onTheFirst(former, first string) string {
+	return former + " has no usable token, so sessions already running started on " + first +
+		"'s, the first account with one, or, pinned, on their pinned account's, as Claude Code's own, " +
+		"and keep it until they restart, so what they send outside the conversation, such as artifacts and uploads, still goes out there\n"
 }
 
 func TestAccountsEdit(t *testing.T) {
@@ -600,6 +609,22 @@ func TestAccountsEdit(t *testing.T) {
 			wantOut: "edited side: label \"Side\" (was \"side\")\n",
 			old:     `label = "side"`,
 			new:     `label = "Side"`,
+		},
+		{
+			name:    "a label with an emoji sequence's joiner and a private-use glyph, said as it shows",
+			config:  personalAndSide,
+			args:    []string{"--label", "\ue0a0 Team \U0001f469\u200d\U0001f4bb"},
+			wantOut: "edited side: label \"\ue0a0 Team \U0001f469\u200d\U0001f4bb\" (was \"Side\")\n",
+			old:     `label = "Side"`,
+			new:     "label = \"\ue0a0 Team \U0001f469\u200d\U0001f4bb\"",
+		},
+		{
+			name:    "a label without the characters that play no part in how it shows",
+			config:  personalAndSide,
+			args:    []string{"--label", "Work \u200b Team"},
+			wantOut: "edited side: label \"Work Team\" (was \"Side\")\n",
+			old:     `label = "Side"`,
+			new:     `label = "Work Team"`,
 		},
 		{
 			name:    "a label as it shows, its inner whitespace one space",
@@ -751,12 +776,12 @@ func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
 		{
 			name:    "the former primary's, which it has",
 			tokens:  []string{"work", "personal", "side"},
-			wantOut: "edited side: the primary in place of work\n" + runningOn("work"),
+			wantOut: "edited side: the primary in place of work\n" + keepingTheFormer("work"),
 		},
 		{
 			name:    "the first with a usable token, the former primary without one",
 			tokens:  []string{"personal", "side"},
-			wantOut: "edited side: the primary in place of work\n" + runningOn("personal"),
+			wantOut: "edited side: the primary in place of work\n" + onTheFirst("work", "personal"),
 		},
 		{
 			name:    "nothing, where they took the new primary's",
