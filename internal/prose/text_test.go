@@ -224,3 +224,24 @@ func TestClean(t *testing.T) {
 		}
 	}
 }
+
+func TestQuoted(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want string
+	}{
+		{name: "a label", text: "Day job", want: `"Day job"`},
+		{name: "words that read as more of the line", text: "a, plan b (was c)", want: `"a, plan b (was c)"`},
+		{name: "quotes and backslashes escaped", text: `the "side" one\`, want: `"the \"side\" one\\"`},
+		{name: "cleaned", text: "Work\x1b[31m team", want: `"Work [31m team"`},
+		{name: "text beyond ASCII as it is", text: "Café", want: `"Café"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Quoted(tt.text); got != tt.want {
+				t.Errorf("Quoted(%q) = %q, want %q", tt.text, got, tt.want)
+			}
+		})
+	}
+}

@@ -1,6 +1,7 @@
 package prose
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -24,6 +25,13 @@ func Clean(text string) string {
 		return r
 	}, text)
 	return strings.Join(strings.Fields(text), " ")
+}
+
+// Quoted shows text the user gave, such as a label, in double quotes, set
+// apart from the words around it: as Clean makes it, its quotes and
+// backslashes escaped as Go escapes them.
+func Quoted(text string) string {
+	return strconv.Quote(Clean(text))
 }
 
 // The words that join a list's last item to the rest: And, as List runs
