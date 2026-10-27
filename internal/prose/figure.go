@@ -1,6 +1,7 @@
 package prose
 
 import (
+	"cmp"
 	"math"
 	"strconv"
 	"strings"
@@ -11,11 +12,19 @@ func Percent(utilization float64) string {
 	return strconv.Itoa(WholePercent(utilization)) + "%"
 }
 
-// PercentSet shows a share set, such as a reserve, as a percentage to a
-// hundredth of a point at most, as GroupedTo writes it, so a share between
-// whole percentages shows as it was set: "5%", "2.5%".
+// PercentSet shows a share set, such as a reserve, as the percentage it is,
+// to every place it has, so it shows as it was set, never rounded: "5%",
+// "2.5%", "99.999%". The point is moved in the share's shortest decimal
+// text, as multiplying by 100 could leave a sliver, as 0.07 does.
 func PercentSet(share float64) string {
-	return GroupedTo(share*100, 2) + "%"
+	whole, places, _ := strings.Cut(strconv.FormatFloat(share, 'f', -1, 64), ".")
+	places += "00"[min(len(places), 2):]
+	whole = strings.TrimLeft(whole+places[:2], "0")
+	places = strings.TrimRight(places[2:], "0")
+	if places != "" {
+		places = "." + places
+	}
+	return cmp.Or(whole, "0") + places + "%"
 }
 
 // PercentWhole is Percent of a window used whole, "100%": the widest of its

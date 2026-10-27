@@ -43,6 +43,11 @@ func TestPercentSet(t *testing.T) {
 		{share: 0.025, want: "2.5%"},
 		{share: 0.1234, want: "12.34%"},
 		{share: 0.99, want: "99%"},
+		{share: 0.9999, want: "99.99%"},
+		{share: 0.99999, want: "99.999%"},
+		{share: 0.00001, want: "0.001%"},
+		{share: 0.5, want: "50%"},
+		{share: 0.1, want: "10%"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
