@@ -562,7 +562,7 @@ func newTelling(t *testing.T) *telling {
 	clock := &testClock{now: start}
 	reserving := slices.Clone(testConfigured)
 	reserving[0].Reserve = 0.1
-	s := newState(resolve(reserving, testTokens.Read), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+	s := newState(resolve(reserving, testTokens.Read, unrecorded), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 	k := &telling{t: t, clock: clock, r: newRecent(s, newSessions(clock.read, unkept, unkept), clock.read)}
 	k.files = fileEvents(t, k.r)
 	t.Cleanup(func() {

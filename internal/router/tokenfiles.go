@@ -18,6 +18,7 @@ import (
 type tokenFiles struct {
 	accounts accounts
 	read     func(id string) (tokens.Token, error)
+	taken    TakenFunc
 	now      func() time.Time
 	// kept hears that what the state file keeps of the accounts' tokens has
 	// changed, and sendable that the accounts requests can go out on have.
@@ -36,6 +37,9 @@ func (f *tokenFiles) look() {
 	for _, a := range f.accounts {
 		token, err := f.read(a.ID)
 		r := a.secret.reload(token, err, now)
+		if err == nil {
+			a.noteTaken(token, f.taken)
+		}
 		r.log(a.ID, err)
 		if r.replaced {
 			f.replaced(a.ID)

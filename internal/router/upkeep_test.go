@@ -298,8 +298,13 @@ func TestTheRouterTakesUpTokenFilesAsTheyChange(t *testing.T) {
 		return bearers[len(bearers)-1]
 	}
 
-	writeToken(t, store, "work", renewed)
+	renewedAt := now.Add(time.Minute)
+	writeTokenTaken(t, store, "work", renewed, renewedAt)
 	waitForLine(t, log, "level=INFO", `msg="token replaced; the one before still counts as the account's"`, "account=work")
+	waitForStatus(t, router.SocketPath(cfg.StateDir), func(doc status.Document) bool {
+		work, _ := doc.Account("work")
+		return work.TokenTaken.Equal(renewedAt)
+	})
 	if got := ask(workToken, "before"); got != renewed {
 		t.Errorf("a session started on work's token before it was replaced went out on %q, want work's new one", got)
 	}

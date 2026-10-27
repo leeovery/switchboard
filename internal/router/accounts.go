@@ -53,6 +53,53 @@ type secret struct {
 	// keeps them as the primary's, and none of the account's own, until the
 	// config configures it again.
 	retired bool
+	// taken is when the token whose hash is takenOf was taken, as its record
+	// said as the token was last read from its file: zero where it didn't.
+	// It counts only while that's the token held, and is read again with
+	// every read of the token, so a token read a moment before its record
+	// lands has its date by the next read.
+	taken   time.Time
+	takenOf string
+}
+
+// TakenFunc reads when switchboard took token as the account's with the
+// given id, as tokens.Store's Taken does, reporting false where that isn't
+// known.
+type TakenFunc func(id string, token tokens.Token) (time.Time, bool)
+
+// unrecorded knows of no token's taking.
+func unrecorded(string, tokens.Token) (time.Time, bool) {
+	return time.Time{}, false
+}
+
+// noteTaken holds, beside token, just read from the account's file, when it
+// was taken, as taken reads it: read before the account's lock is taken, as
+// it reads a file.
+func (a account) noteTaken(token tokens.Token, taken TakenFunc) {
+	at, ok := taken(a.ID, token)
+	if !ok {
+		at = time.Time{}
+	}
+	a.secret.tookAt(hash(token.Reveal()), at)
+}
+
+// tookAt notes that the token whose hash is sum was taken at at, zero where
+// that isn't known.
+func (s *secret) tookAt(sum string, at time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.takenOf, s.taken = sum, at
+}
+
+// tokenTaken returns when the token the account holds was taken, reporting
+// false where that isn't known, as where it was noted of another.
+func (s *secret) tokenTaken() (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.taken.IsZero() || s.takenOf != s.held {
+		return time.Time{}, false
+	}
+	return s.taken, true
 }
 
 func (s *secret) get() tokens.Token {
@@ -107,17 +154,19 @@ func (a account) token() tokens.Token {
 // accounts are the configured accounts, in the order they're shown.
 type accounts []account
 
-// resolve reads each configured account's token, as read reads it, noting why
-// for each account without a usable one.
-func resolve(configured []config.Account, read func(id string) (tokens.Token, error)) accounts {
+// resolve reads each configured account's token, as read reads it, and when
+// it was taken, as taken reads that, noting why for each account without a
+// usable one.
+func resolve(configured []config.Account, read func(id string) (tokens.Token, error), taken TakenFunc) accounts {
 	resolved := make(accounts, len(configured))
 	for i, c := range configured {
 		token, err := read(c.ID)
 		s := &secret{token: token, unusable: err}
+		resolved[i] = account{Account: c, secret: s}
 		if err == nil {
 			s.held = hash(token.Reveal())
+			resolved[i].noteTaken(token, taken)
 		}
-		resolved[i] = account{Account: c, secret: s}
 	}
 	return resolved
 }

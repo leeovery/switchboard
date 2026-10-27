@@ -45,6 +45,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 		tokens: &tokenFiles{
 			accounts: as,
 			read:     cfg.Token,
+			taken:    cfg.Taken,
 			now:      cfg.Now,
 			kept:     changes.note,
 			sendable: replan,

@@ -239,6 +239,9 @@ func (rp *replay) renewed() bool {
 		}
 		rp.p.tokensReplaced()
 	}
+	if err == nil {
+		a.noteTaken(token, rp.p.tokenTaken)
+	}
 	attrs := []any{"id", rp.ex.id, "account", a.ID, "changed", changed}
 	if err != nil {
 		attrs = append(attrs, "error", err)
