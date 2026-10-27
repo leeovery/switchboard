@@ -549,17 +549,17 @@ func keepingTheFormer(former string) string {
 // which has no usable token, where first is the first account with one.
 func onTheFirst(former, first string) string {
 	return former + " has no usable token, so sessions running through the router started on " + first +
-		"'s, the first account with one, or, pinned, on their pinned account's, as Claude Code's own, " +
+		"'s, the first account with one, or, pinned, on their pinned account's token, as Claude Code's own, " +
 		"and keep it until they restart, so what they send outside the conversation, such as artifacts and uploads, still goes out there\n"
 }
 
 // onTheirPins is what accounts edit says of the sessions running through the
 // router, once it's made the first account with a usable token the primary
-// in place of former, which has none: only the pinned ones started on another
-// account's.
+// in place of former, which has none, while another account has one: only
+// the pinned ones started on another account's.
 func onTheirPins(former string) string {
 	return former + " has no usable token, so sessions running through the router pinned to another account " +
-		"started on its token as Claude Code's own, and keep it until they restart, " +
+		"started on their pinned account's token as Claude Code's own, and keep it until they restart, " +
 		"so what they send outside the conversation, such as artifacts and uploads, still goes out there\n"
 }
 
@@ -801,7 +801,7 @@ func TestAccountsEditWarnsOfAPrimaryWithoutAUsableToken(t *testing.T) {
 }
 
 func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
-	const threeAccounts = "\n[[account]]\nid      = \"work\"\nprimary = true\n\n[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"side\"\n"
+	const threeAccounts = "\n[[account]]\nid      = \"work\"\nprimary = true\n\n[[account]]\nid = \"side\"\n\n[[account]]\nid = \"personal\"\n"
 	tests := []struct {
 		name    string
 		tokens  []string
@@ -814,13 +814,18 @@ func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
 		},
 		{
 			name:    "the first with a usable token, the former primary without one",
-			tokens:  []string{"personal", "side"},
+			tokens:  []string{"personal"},
 			wantOut: "edited side: the primary in place of work\n" + onTheFirst("work", "personal"),
 		},
 		{
 			name:    "a pinned account's, where the rest took the new primary's",
-			tokens:  []string{"side"},
+			tokens:  []string{"side", "personal"},
 			wantOut: "edited side: the primary in place of work\n" + onTheirPins("work"),
+		},
+		{
+			name:    "nothing, where the new primary alone has a usable token, so none is pinned elsewhere",
+			tokens:  []string{"side"},
+			wantOut: "edited side: the primary in place of work\n",
 		},
 		{
 			name:    "nothing, where no account has a usable token",
@@ -839,6 +844,18 @@ func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
 				t.Errorf("switchboard accounts edit side --primary = %+v, want stdout %q", got, tt.wantOut)
 			}
 		})
+	}
+}
+
+func TestAccountsEditTakesItsIDWithAStrayVariationSelectorAsNoLabel(t *testing.T) {
+	deps, path := accountsDeps(t, newClaudeAPI(t).URL, "\n[[account]]\nid    = \"work\"\nlabel = \"Work\"\n")
+
+	got := run(t, deps, "accounts", "edit", "work", "--label", "work\ufe0f")
+	if want := (result{stdout: "edited work: label none, shown by its id (was \"Work\")\n"}); got != want {
+		t.Errorf("switchboard accounts edit work --label = %+v, want %+v", got, want)
+	}
+	if got := readFile(t, path); !strings.HasSuffix(got, "\n[[account]]\nid    = \"work\"\n") || strings.Contains(got, "label") {
+		t.Errorf("the config reads\n%s\nwant work's label taken out", got)
 	}
 }
 
