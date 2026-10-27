@@ -18,6 +18,9 @@ import (
 )
 
 func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
+	// held is what the token's file holds: shaped like a token, as a token
+	// at the record's path, but for the token being removed, is left.
+	const held = "sk-ant-oat01-fake_token-shaped\n"
 	tests := []struct {
 		name string
 		// put puts the token file at token and the record at record, beside
@@ -27,25 +30,25 @@ func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
 		wantRecord bool
 	}{
 		{name: "the token file a link to the record", wantRecord: true, put: func(t *testing.T, token, record string) string {
-			writeFile(t, record, workToken+"\n", 0o600)
+			writeFile(t, record, held, 0o600)
 			symlink(t, record, token)
 			return ""
 		}},
 		{name: "the record a link to the token file", put: func(t *testing.T, token, record string) string {
-			writeFile(t, token, workToken+"\n", 0o600)
+			writeFile(t, token, held, 0o600)
 			symlink(t, token, record)
 			return ""
 		}},
 		{name: "both links to one file elsewhere", put: func(t *testing.T, token, record string) string {
 			elsewhere := filepath.Join(t.TempDir(), "secrets", "work")
-			writeFile(t, elsewhere, workToken+"\n", 0o600)
+			writeFile(t, elsewhere, held, 0o600)
 			symlink(t, elsewhere, token)
 			symlink(t, elsewhere, record)
 			return elsewhere
 		}},
 		{name: "the token file a link to a file elsewhere the record is a second name of", put: func(t *testing.T, token, record string) string {
 			elsewhere := filepath.Join(t.TempDir(), "secrets", "work")
-			writeFile(t, elsewhere, workToken+"\n", 0o600)
+			writeFile(t, elsewhere, held, 0o600)
 			symlink(t, elsewhere, token)
 			if err := os.Link(elsewhere, record); err != nil {
 				t.Fatal(err)
@@ -53,14 +56,14 @@ func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
 			return elsewhere
 		}},
 		{name: "the token file a link to a link to the record", wantRecord: true, put: func(t *testing.T, token, record string) string {
-			writeFile(t, record, workToken+"\n", 0o600)
+			writeFile(t, record, held, 0o600)
 			between := filepath.Join(t.TempDir(), "work")
 			symlink(t, record, between)
 			symlink(t, between, token)
 			return ""
 		}},
 		{name: "the token file a link to the record, by a name spelled in other cases", wantRecord: true, put: func(t *testing.T, token, record string) string {
-			writeFile(t, record, workToken+"\n", 0o600)
+			writeFile(t, record, held, 0o600)
 			upper := filepath.Join(filepath.Dir(record), strings.ToUpper(filepath.Base(record)))
 			if _, err := os.Stat(upper); err != nil {
 				t.Skipf("names here are told apart by case: %v", err)
@@ -69,19 +72,24 @@ func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
 			return ""
 		}},
 		{name: "the token file a relative link to the record", wantRecord: true, put: func(t *testing.T, token, record string) string {
-			writeFile(t, record, workToken+"\n", 0o600)
+			writeFile(t, record, held, 0o600)
 			symlink(t, filepath.Base(record), token)
 			return ""
 		}},
 		{name: "the token file a link to the record through a link to its directory", wantRecord: true, put: func(t *testing.T, token, record string) string {
-			writeFile(t, record, workToken+"\n", 0o600)
+			writeFile(t, record, held, 0o600)
 			dir := filepath.Join(t.TempDir(), "tokens")
 			symlink(t, filepath.Dir(record), dir)
 			symlink(t, filepath.Join(dir, filepath.Base(record)), token)
 			return ""
 		}},
-		{name: "both names of one file", put: func(t *testing.T, token, record string) string {
+		{name: "a token at the record's path that isn't the token file's", wantRecord: true, put: func(t *testing.T, token, record string) string {
 			writeFile(t, token, workToken+"\n", 0o600)
+			writeFile(t, record, held, 0o600)
+			return ""
+		}},
+		{name: "both names of one file", put: func(t *testing.T, token, record string) string {
+			writeFile(t, token, held, 0o600)
 			if err := os.Link(token, record); err != nil {
 				t.Fatal(err)
 			}
@@ -94,29 +102,33 @@ func TestRemoveLeavesTheRecordOnlyWhereTheTokenFileLinksToIt(t *testing.T) {
 			record := store.Path("work") + ".taken"
 			mkdirPrivate(t, store.Dir())
 			elsewhere := tt.put(t, store.Path("work"), record)
+			log := logstest.Capture(t)
 
 			if _, err := store.Remove("work"); err != nil {
 				t.Fatal(err)
+			}
+			if strings.Contains(log.String(), strings.TrimSpace(held)) {
+				t.Error("the log shows the token")
 			}
 			if _, err := os.Lstat(record); errors.Is(err, fs.ErrNotExist) == tt.wantRecord {
 				t.Errorf("once removed, the record: %v, want it there: %v", err, tt.wantRecord)
 			}
 			if tt.wantRecord {
-				if data, err := os.ReadFile(record); err != nil || string(data) != workToken+"\n" {
-					t.Errorf("where the token file led holds %q (%v), want it as it was", data, err)
+				if data, err := os.ReadFile(record); err != nil || string(data) != held {
+					t.Errorf("where the token file led holds %d bytes (%v), want it as it was", len(data), err)
 				}
 			}
 			if elsewhere == "" {
 				return
 			}
-			if data, err := os.ReadFile(elsewhere); err != nil || string(data) != workToken+"\n" {
-				t.Errorf("the file elsewhere holds %q (%v), want it as it was", data, err)
+			if data, err := os.ReadFile(elsewhere); err != nil || string(data) != held {
+				t.Errorf("the file elsewhere holds %d bytes (%v), want it as it was", len(data), err)
 			}
 			if err := store.Write("work", parse(t, workToken), taken); err != nil {
 				t.Fatal(err)
 			}
-			if data, err := os.ReadFile(elsewhere); err != nil || string(data) != workToken+"\n" {
-				t.Errorf("once the token's written again, the file elsewhere holds %q (%v), want it as it was", data, err)
+			if data, err := os.ReadFile(elsewhere); err != nil || string(data) != held {
+				t.Errorf("once the token's written again, the file elsewhere holds %d bytes (%v), want it as it was", len(data), err)
 			}
 		})
 	}

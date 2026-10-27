@@ -235,37 +235,44 @@ type Removed struct {
 // when its token was taken, and says what it removed of the token file. A
 // token file it can't remove keeps its record. A link in either's place goes,
 // but not the file it leads to, which is kept elsewhere, as by a dotfiles
-// step, and isn't switchboard's to delete: a token file that leads to the
-// record's own path, a file, leaves the record too, as linksToRecord says.
-// It holds the tokens directory's lock, as Write does.
+// step, and isn't switchboard's to delete. As tokenAtRecord judges it before
+// the token file goes: a record that's the token's file, the one it leads to,
+// by that one name, is the token's only copy, and is left; one that's a
+// second name of it is the token being removed, and its name goes with it.
+// Anything else at the record's path goes as forgetTaken says. It holds the
+// tokens directory's lock, as Write does.
 func (s Store) Remove(id string) (Removed, error) {
 	defer lockDir(s.dir)()
-	ledToRecord := s.linksToRecord(id)
+	same, only := s.tokenAtRecord(id)
 	removed, err := s.removeToken(id)
 	if err != nil {
 		return Removed{}, err
 	}
-	if !ledToRecord {
+	switch {
+	case only:
+	case same:
+		s.removeRecord(id)
+	default:
 		s.forgetTaken(id)
 	}
 	return removed, nil
 }
 
-// linksToRecord reports whether the account's token file leads to the file
-// at its record's own path: a file, by that one name, which is the file the
-// token file leads to. It's decided by the file, not by how a path to it is
-// spelled; a record that's a second name of the token's file isn't the
-// token's only copy, and goes.
-func (s Store) linksToRecord(id string) bool {
+// tokenAtRecord reports whether the file at the account's record's own path,
+// by that name, not followed where it's a link, is the token file's, or the
+// one the token file leads to, by the file, however a path to it is spelled;
+// and whether that's its only name, as where it can't tell.
+func (s Store) tokenAtRecord(id string) (same, only bool) {
 	record, err := os.Lstat(s.takenPath(id))
 	if err != nil || !record.Mode().IsRegular() {
-		return false
-	}
-	if n, ok := links(record); !ok || n != 1 {
-		return false
+		return false, false
 	}
 	token, err := os.Stat(s.Path(id))
-	return err == nil && os.SameFile(record, token)
+	if err != nil || !os.SameFile(record, token) {
+		return false, false
+	}
+	n, ok := links(record)
+	return true, !ok || n == 1
 }
 
 // removeToken deletes the account's token file, if it has one, as Remove
