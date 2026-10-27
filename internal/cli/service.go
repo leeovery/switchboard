@@ -124,6 +124,22 @@ func (a *app) service() (*service.Service, error) {
 	})
 }
 
+// installedService returns the LaunchAgent as the router it runs sees it,
+// in the environment its plist keeps, where its state directory, and its
+// router, may be other than this shell's; or, where the plist can't be read
+// back, as service sees it.
+func (a *app) installedService() (*service.Service, error) {
+	svc, err := a.service()
+	if err != nil {
+		return nil, err
+	}
+	opts, err := svc.Options()
+	if err != nil {
+		return svc, nil
+	}
+	return svc.For(opts)
+}
+
 // installService installs the LaunchAgent to run this switchboard binary as
 // opts says, serving the config the CLI finds, once it has checked what the
 // router would start from, as serve's check does, so a router that couldn't
@@ -176,7 +192,7 @@ func (a *app) uninstallService(ctx context.Context, out io.Writer) error {
 // restartService restarts the router, saying how while a router finishes its
 // requests in flight first, and says how the one it becomes answers.
 func (a *app) restartService(ctx context.Context, out io.Writer) error {
-	svc, err := a.service()
+	svc, err := a.installedService()
 	if err != nil {
 		return err
 	}
@@ -198,7 +214,7 @@ func (a *app) restartService(ctx context.Context, out io.Writer) error {
 // serviceStatus prints whether the LaunchAgent is installed and loaded, and
 // how the router answers.
 func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
-	svc, err := a.service()
+	svc, err := a.installedService()
 	if err != nil {
 		return err
 	}

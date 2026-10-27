@@ -250,8 +250,8 @@ func TestFor(t *testing.T) {
 	if want := []string{"/Users/tester/custom/switchboard"}; !slices.Equal(asked, want) {
 		t.Errorf("asked for the routers at %q, want %q", asked, want)
 	}
-	if got, want := svc.Log(), "/Users/tester/custom/switchboard/logs/launchd.log"; got != want {
-		t.Errorf("Log() = %s, want %s", got, want)
+	if got, want := svc.Log(), s.svc.Log(); got != want {
+		t.Errorf("Log() = %s, want %s, where the plist has launchd write", got, want)
 	}
 	for key, want := range map[string]string{"XDG_STATE_HOME": "/Users/tester/custom", "SWITCHBOARD_CONFIG": "", "TMPDIR": s.tmp} {
 		if got := svc.Getenv(key); got != want {
@@ -342,72 +342,6 @@ func TestInstallKeepsTheEnvironmentAndTheLogOptionsReadBack(t *testing.T) {
 	}
 	if got, err := os.ReadFile(s.plist); err != nil || string(got) != installed || !strings.Contains(installed, "HTTPS_PROXY") {
 		t.Errorf("the plist reads\n%s(%v)\nwant it as it was installed, its variables, all of them, and its log kept\n%s", got, err, installed)
-	}
-}
-
-func TestOtherEnvironment(t *testing.T) {
-	carried := map[string]string{"XDG_CONFIG_HOME": "/Users/tester/.config", "XDG_STATE_HOME": "/Users/tester/.local/state"}
-	tests := []struct {
-		name string
-		// installedEnv is the environment the plist in place was installed
-		// from, and env the one OtherEnvironment is asked in.
-		installedEnv, env map[string]string
-		want              []string
-	}{
-		{name: "none set either side"},
-		{name: "the same", installedEnv: carried, env: carried},
-		{
-			name:         "set to what each decides unset, and unset",
-			installedEnv: map[string]string{"XDG_STATE_HOME": "<home>/.local/state", "XDG_CONFIG_HOME": "<home>/.config", "CLAUDE_CONFIG_DIR": "<home>/.claude", "SWITCHBOARD_CONFIG": "<home>/.config/switchboard/config.toml"},
-		},
-		{
-			name:         "a relative XDG directory, which switchboard ignores, and unset",
-			installedEnv: map[string]string{"XDG_STATE_HOME": "state"},
-		},
-		{
-			name:         "another log level",
-			installedEnv: map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"},
-			env:          map[string]string{"SWITCHBOARD_LOG_LEVEL": "warn"},
-			want:         []string{"SWITCHBOARD_LOG_LEVEL"},
-		},
-		{
-			name:         "one set otherwise, one unset here, and one set here alone",
-			installedEnv: carried,
-			env:          map[string]string{"XDG_STATE_HOME": "/Users/tester/elsewhere", "CLAUDE_CONFIG_DIR": "/Users/tester/.claude"},
-			want:         []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", "CLAUDE_CONFIG_DIR"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := newSetup(t, nil, nil)
-			cfg := s.cfg
-			cfg.Getenv = func(key string) string { return strings.ReplaceAll(tt.installedEnv[key], "<home>", s.cfg.Home) }
-			written, err := newService(t, cfg).PlistOf(service.InstallOptions{Executable: s.binary})
-			if err != nil {
-				t.Fatal(err)
-			}
-			s.putPlist(t, string(written))
-			cfg.Getenv = func(key string) string { return tt.env[key] }
-			svc := newService(t, cfg)
-			opts, err := svc.Options()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			other, err := svc.OtherEnvironment(opts)
-			if err != nil || !slices.Equal(other, tt.want) {
-				t.Errorf("OtherEnvironment() = %q, %v; want %q", other, err, tt.want)
-			}
-		})
-	}
-}
-
-func TestOtherEnvironmentOfOptionsNotReadBackIsNone(t *testing.T) {
-	s := newSetup(t, map[string]string{"XDG_STATE_HOME": "/Users/tester/.local/state"}, nil)
-
-	other, err := s.svc.OtherEnvironment(service.InstallOptions{Executable: s.binary})
-	if err != nil || other != nil {
-		t.Errorf("OtherEnvironment() = %q, %v; want none: Install writes these options with the environment it's run in", other, err)
 	}
 }
 

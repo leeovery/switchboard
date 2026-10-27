@@ -121,9 +121,14 @@ func (a *app) startable() (router.Config, error) {
 }
 
 // startableIn fails, saying why, as startable does, for a router serving the
-// config file at path in the environment getenv reads, as the service would
-// run it.
-func (a *app) startableIn(getenv func(string) string, path string) error {
+// config file at path, logging at level, in the environment getenv reads, as
+// the service would run it: where serve couldn't parse its flags, too.
+func (a *app) startableIn(getenv func(string) string, path, level string) error {
+	if level != "" {
+		if _, err := logs.ParseLevel(level); err != nil {
+			return fmt.Errorf("--log-level: %w", err)
+		}
+	}
 	cfg, _, err := a.startingFrom(getenv, path)
 	if err != nil {
 		return err

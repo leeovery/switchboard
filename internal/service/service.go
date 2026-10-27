@@ -110,6 +110,13 @@ type Config struct {
 // Service is the LaunchAgent.
 type Service struct {
 	cfg Config
+	// home is the home directory the router runs in, where it isn't the
+	// user's, and log where launchd writes what it prints, where it isn't in
+	// the state directory, as For finds them in the plist.
+	home, log string
+	// also are the routers the service may run besides cfg.Router's, as For
+	// keeps the one at the state directory it's asked from.
+	also []Router
 }
 
 // New returns the LaunchAgent, failing with ErrUnsupported on a system other
@@ -129,7 +136,7 @@ func (s *Service) Plist() string {
 // Log is where launchd writes what the router prints itself, such as a
 // crash's output.
 func (s *Service) Log() string {
-	return LogIn(s.cfg.StateDir)
+	return cmp.Or(s.log, LogIn(s.cfg.StateDir))
 }
 
 // LogIn is where launchd writes what the router prints itself, as Log says,
@@ -198,6 +205,13 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 // that runs it, with what's worth the user's attention: the router having no
 // token to serve with.
 func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
+	if opts.environment == nil {
+		environment, err := s.installing()
+		if err != nil {
+			return agent{}, nil, err
+		}
+		opts.environment = environment
+	}
 	a, err := s.describe(opts)
 	if err != nil {
 		return agent{}, nil, err
@@ -271,11 +285,11 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 	case !loaded:
 		return nil, ErrNotLoaded
 	}
-	answering := s.current(ctx)
-	if answering.PID == 0 {
+	answering, rt, _ := s.answering(ctx)
+	if rt == nil {
 		return s.startAfresh(ctx)
 	}
-	how, before, err := s.restart(ctx, answering)
+	how, before, err := s.restart(ctx, answering, rt)
 	if err != nil {
 		return nil, err
 	}
@@ -283,12 +297,12 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 	return s.waitForRouter(ctx, before, exitTimeout+StartWait), nil
 }
 
-// restart has the router answering restart, and returns how, with the router
-// whose replacement to wait for: the one that took the request, which may
-// have restarted since it answered as answering, or, one that can't be
+// restart has the router rt, answering, restart, and returns how, with the
+// router whose replacement to wait for: the one that took the request, which
+// may have restarted since it answered as answering, or, one that can't be
 // asked, answering, which launchd starts again once SIGTERM stops it.
-func (s *Service) restart(ctx context.Context, answering router.Health) (Restarting, router.Health, error) {
-	asked, err := s.cfg.Router.Restart(ctx)
+func (s *Service) restart(ctx context.Context, answering router.Health, rt Router) (Restarting, router.Health, error) {
+	asked, err := rt.Restart(ctx)
 	switch {
 	case err == nil && asked.InPlace:
 		logger.Info("restarting the router in place", "pid", asked.PID)
@@ -339,7 +353,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	if st.Loaded, err = s.loaded(ctx); err != nil {
 		return Status{}, err
 	}
-	if h, err := s.cfg.Router.Health(ctx); err == nil {
+	if h, rt, err := s.answering(ctx); rt != nil {
 		st.Router = &h
 	} else {
 		st.RouterErr = err
@@ -501,14 +515,42 @@ func (s *Service) unload(ctx context.Context) error {
 	}
 }
 
+// Answering is the answer of the router the service runs, if one answers,
+// else nil.
+func (s *Service) Answering(ctx context.Context) *router.Health {
+	if h, rt, _ := s.answering(ctx); rt != nil {
+		return &h
+	}
+	return nil
+}
+
 // current is the answer of the router answering now, or the zero Health when
 // none is.
 func (s *Service) current(ctx context.Context) router.Health {
-	h, err := s.cfg.Router.Health(ctx)
-	if err != nil {
-		return router.Health{}
-	}
+	h, _, _ := s.answering(ctx)
 	return h
+}
+
+// answering is the answer of the first of the routers the service may run
+// that answers, with it, or, when none does, nil, and why the first didn't.
+func (s *Service) answering(ctx context.Context) (router.Health, Router, error) {
+	var first error
+	for i, rt := range s.routers() {
+		h, err := rt.Health(ctx)
+		if err == nil {
+			return h, rt, nil
+		}
+		if i == 0 {
+			first = err
+		}
+	}
+	return router.Health{}, nil, first
+}
+
+// routers are those the service may run: the one at its state directory,
+// then those For keeps.
+func (s *Service) routers() []Router {
+	return append([]Router{s.cfg.Router}, s.also...)
 }
 
 // waitForRouter waits up to wait for a router to answer other than before,
@@ -518,7 +560,7 @@ func (s *Service) waitForRouter(ctx context.Context, before router.Health, wait 
 	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	for {
-		if h, err := s.cfg.Router.Health(ctx); err == nil && !h.Same(before) {
+		if h, rt, _ := s.answering(ctx); rt != nil && !h.Same(before) {
 			logger.Info("the router answered", "pid", h.PID, "ok", h.OK)
 			return &h
 		}

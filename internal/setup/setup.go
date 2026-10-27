@@ -47,10 +47,11 @@ type Setup struct {
 	Service *service.Service
 	Install service.InstallOptions
 	// Startable fails, saying why, where a router serving the config file at
-	// path, in the environment getenv reads, couldn't start, as serve's check
-	// says: setup checks it before it installs the service, so a router that
-	// couldn't start never replaces one that runs.
-	Startable func(getenv func(string) string, path string) error
+	// path, logging at level, "" for the one its environment names, in the
+	// environment getenv reads, couldn't start, as serve's check says: setup
+	// checks it before it installs the service, so a router that couldn't
+	// start never replaces one that runs.
+	Startable func(getenv func(string) string, path, level string) error
 	// Path is PATH, which claude is found on, and InstallPaths where Claude
 	// Code's installers put claude.
 	Path         string

@@ -74,7 +74,7 @@ type world struct {
 	env map[string]string
 	// unstartable is why a router couldn't start, nil when it could, and
 	// checked what setup checked one would start from, each the state
-	// directory's XDG_STATE_HOME and the config file.
+	// directory's XDG_STATE_HOME, the config file and any log level.
 	unstartable error
 	checked     []string
 	launchd     *fakeLaunchd
@@ -115,10 +115,10 @@ func (w *world) goInstalled(t *testing.T) string {
 }
 
 // startable checks a router could start in the environment getenv reads,
-// serving the config file at path, as unstartable says, noting what it
-// checked.
-func (w *world) startable(getenv func(string) string, path string) error {
-	w.checked = append(w.checked, getenv("XDG_STATE_HOME")+" "+path)
+// serving the config file at path, logging at level, as unstartable says,
+// noting what it checked.
+func (w *world) startable(getenv func(string) string, path, level string) error {
+	w.checked = append(w.checked, strings.TrimSpace(getenv("XDG_STATE_HOME")+" "+path+" "+level))
 	return w.unstartable
 }
 

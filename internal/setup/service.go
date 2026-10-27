@@ -15,24 +15,27 @@ import (
 )
 
 // service installs the LaunchAgent, which starts the router, when it isn't
-// installed. Installed, it's seen as the router it runs sees it, in the
-// environment it was installed with: setup says where that, or the config
-// file it serves, differs from setup's own, and installs it again, keeping
-// what it was installed with, when launchd hasn't loaded it, it runs another
-// switchboard than this one, or its plist differs from the one this
-// switchboard writes. It restarts the router when it doesn't answer, and
+// installed. Installed, it's seen as the router it runs sees it, through its
+// plist: setup says where that router finds its state, its config or Claude
+// Code's config elsewhere than setup, and installs the service again,
+// keeping what it was installed with, when launchd hasn't loaded it, it runs
+// another switchboard than this one, or its plist differs from the one this
+// switchboard writes. It restarts the router when none answers, and
 // otherwise says it's up, and, when setup has changed the config or a token
 // the router reads, that the router takes the change up on its own.
 func (r *run) service(ctx context.Context) error {
-	opts, err := r.Service.Options()
+	installed, err := r.Service.Options()
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return r.installFirst(ctx)
 	case err != nil:
 		return r.reinstall(ctx, r.Service, r.Install, fmt.Sprintf("The service's plist can't be read back (%v)", err))
 	}
-	opts.Config = cmp.Or(r.Install.Config, opts.Config)
-	svc, err := r.Service.For(opts)
+	svc, err := r.Service.For(installed)
+	if err != nil {
+		return err
+	}
+	opts, err := r.configured(svc, installed)
 	if err != nil {
 		return err
 	}
@@ -73,17 +76,31 @@ func (r *run) installFirst(ctx context.Context) error {
 
 // reinstall installs svc again, as opts say, first saying why, unless why is
 // "", as when launchd hasn't loaded it. Where the router couldn't start so,
-// it leaves the service as it is, saying why, and how to install it afresh.
+// it leaves the service as it is while a router answers, saying why, and
+// fails, saying why, while none does.
 func (r *run) reinstall(ctx context.Context, svc *service.Service, opts service.InstallOptions, why string) error {
 	if err := r.startable(svc, opts); err != nil {
-		r.Terminal.sayf("%s, but the router couldn't start installed afresh (%v), so the service is left as it is: switchboard service install, run from the shell the router should use, installs it afresh.",
-			cmp.Or(why, "launchd hasn't loaded the service"), err)
-		return nil
+		return r.unstartable(ctx, svc, why, err)
 	}
 	if why != "" {
 		r.Terminal.sayf("%s, so it's installed afresh.", why)
 	}
 	return r.install(ctx, svc, opts)
+}
+
+// unstartable says, why it was to be, that the service isn't installed
+// afresh, as the router couldn't start so, err saying why, and leaves it as
+// it is while its router answers, or fails while none does.
+func (r *run) unstartable(ctx context.Context, svc *service.Service, why string, err error) error {
+	why = cmp.Or(why, "Launchd hasn't loaded the service")
+	if svc.Answering(ctx) == nil {
+		r.Terminal.sayf("%s, but the router couldn't start installed afresh, and none is running.", why)
+		return fmt.Errorf("the router couldn't start: %w", err)
+	}
+	r.Terminal.sayf("%s, but the router couldn't start installed afresh, so the service is left as it is, its router running: "+
+		"switchboard service install, run from the shell the router should use, installs it afresh once what stops it is put right. It couldn't start as:", why)
+	r.Terminal.sayf("%v", err)
+	return nil
 }
 
 // startable fails, saying why, where the router svc runs couldn't start,
@@ -93,46 +110,54 @@ func (r *run) startable(svc *service.Service, opts service.InstallOptions) error
 	if err != nil {
 		return err
 	}
-	return r.Startable(svc.Getenv, file)
+	return r.Startable(svc.Getenv, file, opts.LogLevel)
 }
 
-// apart says where the service, installed with opts, and seen as svc,
-// decides otherwise than setup: the variables carried this shell sets
-// otherwise, and the config file it serves, when it isn't setup's. It
-// reports whether the router reads the config file and the token files
-// setup writes.
+// configured is the options the service, installed with installed, and
+// seen as svc, is to be installed with: those, but for setup's config file
+// where setup is given one other than the one the router serves.
+func (r *run) configured(svc *service.Service, installed service.InstallOptions) (service.InstallOptions, error) {
+	if r.Install.Config == "" {
+		return installed, nil
+	}
+	served, err := svc.ConfigFile(installed)
+	if err != nil {
+		return service.InstallOptions{}, err
+	}
+	given, err := filepath.Abs(r.Install.Config)
+	if err != nil {
+		return service.InstallOptions{}, fmt.Errorf("find the config file: %w", err)
+	}
+	if service.SameFile(given, served) {
+		return installed, nil
+	}
+	opts := installed
+	opts.Config = given
+	return opts, nil
+}
+
+// apart says where the router the service, installed with opts, and seen as
+// svc, runs, finds its state, its config or Claude Code's config elsewhere
+// than setup does, and reports whether it finds setup's state directory,
+// with the token files, and setup's config file.
 func (r *run) apart(svc *service.Service, opts service.InstallOptions) (bool, error) {
-	other, err := r.Service.OtherEnvironment(opts)
+	routers, err := svc.Places(opts)
 	if err != nil {
 		return false, err
 	}
-	if len(other) > 0 {
-		var decides []string
-		for _, name := range other {
-			if d := service.Decides(name); !slices.Contains(decides, d) {
-				decides = append(decides, d)
-			}
-		}
-		verb := "differs"
-		if len(other) > 1 {
-			verb = "differ"
-		}
-		r.Terminal.sayf("The service's %s %s from this shell's, so the router uses another %s than setup: switchboard service install, run from the shell the router should use, changes the service's.",
-			prose.List(other), verb, prose.List(decides))
-	}
-	served, err := svc.ConfigFile(opts)
+	setups, err := r.Service.Places(r.Install)
 	if err != nil {
 		return false, err
 	}
-	mine, err := filepath.Abs(r.Accounts.ConfigPath)
-	if err != nil {
-		return false, fmt.Errorf("find setup's config file: %w", err)
+	apart := routers.Apart(setups)
+	if len(apart) > 0 {
+		advice := "switchboard service install, run from the shell the router should use, lines them up."
+		if slices.Contains(apart, "config file") {
+			advice += " For the config file, switchboard setup --config, naming the router's, does too."
+		}
+		r.Terminal.sayf("The router uses another %s than setup: %s", prose.List(apart), advice)
 	}
-	if served != mine {
-		r.Terminal.sayf("The router serves another config file than the one setup edits, so setup's changes don't reach it: switchboard setup --config, naming the router's, or switchboard service install, run from the shell the router should use, lines them up.")
-	}
-	// The token files are in the state directory.
-	return served == mine && !slices.Contains(other, "XDG_STATE_HOME"), nil
+	return routers.Shared(setups), nil
 }
 
 // stale says why the service, installed with opts, and seen as svc, is to
@@ -154,9 +179,22 @@ func (r *run) stale(svc *service.Service, opts service.InstallOptions, st servic
 }
 
 // install installs svc's LaunchAgent as opts says, to run this switchboard,
-// and says how the router it starts answers.
+// and says how the router it starts answers. It warns of the accounts
+// without a usable token only where the router serves setup's config file,
+// whose accounts setup has.
 func (r *run) install(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
-	opts.Executable, opts.Accounts = r.switchboard, r.cfg.Accounts
+	opts.Executable = r.switchboard
+	served, err := svc.ConfigFile(opts)
+	if err != nil {
+		return err
+	}
+	setups, err := r.Service.ConfigFile(r.Install)
+	if err != nil {
+		return err
+	}
+	if service.SameFile(served, setups) {
+		opts.Accounts = r.cfg.Accounts
+	}
 	installed, err := svc.Install(ctx, opts)
 	if err != nil {
 		return err
