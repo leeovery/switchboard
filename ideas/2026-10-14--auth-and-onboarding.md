@@ -89,7 +89,45 @@ wanted):
   one approval in setup gets someone with one account to the same place, and the router keeps one
   kind of account.
 
-Next: setup's flow, step by step, to settle with the owner before it's built.
+### Setup's flow
+
+The owner agreed it on 27 October 2026, step by step. Setup's other steps stay as they are, but for
+the service's, below.
+
+- **A new account:** its id and label, as now. Then its token, which setup makes: it runs `claude
+  setup-token` on a pseudo-terminal wide enough that the token is drawn whole, with `BROWSER` set
+  to switchboard for that run, so switchboard is handed the sign-in address. The first account's
+  opens in the browser as it is; each after opens in a private window, which setup opens itself
+  where the default browser allows (the Chrome family, Firefox), and otherwise prints the address
+  to paste into one (Safari). Over SSH it opens nothing: it prints the address setup-token shows for
+  pasting, to open on any device, and asks for the code that page gives, which it passes to
+  setup-token. It takes the token from setup-token's screen once it says it's made, checks it with
+  the API as `accounts add` does, and saves it, saying it's good until a year from then. `p` pastes
+  a token instead, and where reading the screen fails, setup shows setup-token's own and pasting
+  goes on as before. Then its plan: Pro, Max 5x or Max 20x, saying History prices its use against
+  it; Enter leaves it unset.
+- **After the accounts:** the primary, as now, then its reserve: the share of its windows the router
+  leaves for the Claude apps, as a percentage; Enter for none. Other accounts' reserves are set with
+  `accounts edit`.
+- **Run again, as on a Mac restored with its config and tokens in place,** setup reviews each
+  account, a line each: its token and how long it's good for, its plan or that it has none, whether
+  it's the primary, its reserve. Enter keeps it; `e` edits it, `t` makes a new token, `r` removes it,
+  asking first. Each token is checked with the API as it's reviewed, so one refused shows here rather
+  than at the first request; one the API doesn't answer for is kept, saying so. Nothing is asked of
+  an account already set up, as its plan: its line says what's missing, and `e` sets it. Then "Add
+  another account?", then the other steps. Enter all the way through changes nothing.
+- **The service:** setup also reinstalls it where the plist differs from what `service install`
+  would write now, keeping the options it was installed with, such as `--log-level`, and says what
+  differed. Nothing asks whether to reinstall: `service install` stays the way to force one.
+- **A token's year:** switchboard keeps when it took each token, beside the token, so a restore
+  brings it back too. A pasted token's year counts from the day it was given, as nothing says when
+  it was made. Accounts shows a line once a token has under 30 days left, a notification goes out
+  at 30 days and at 7, and `usage` and `status --json` carry the date.
+- **`accounts edit <id>`** asks each of label, plan, primary and reserve in turn, showing what it is,
+  or takes them as flags. **`accounts token <id>`** makes a new token as setup does, or takes one
+  pasted or on stdin.
+
+Next: the build, in small slices.
 
 ### What other tools do (27 October 2026)
 
