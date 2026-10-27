@@ -29,12 +29,21 @@ import (
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/skill"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
 func TestServe(t *testing.T) {
 	api := newClaudeAPI(t)
 	srv := newServeSetup(t, api.URL, nil)
+	// Work's token as switchboard saves it, recording when it took it.
+	token, err := tokens.Parse("test-token-work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tokens.NewStore(stateDir(t, srv.deps), os.Getuid()).Write("work", token, testNow); err != nil {
+		t.Fatal(err)
+	}
 	// Probed from the same state directory, and so the same token files, which
 	// the document names.
 	var probed status.Document
@@ -51,6 +60,9 @@ func TestServe(t *testing.T) {
 	})
 	if doc.Source != "router" || doc.Router != (status.Health{Healthy: true}) {
 		t.Errorf("source = %q, router = %+v, want router, healthy, having routed nothing", doc.Source, doc.Router)
+	}
+	if work, _ := doc.Account("work"); !work.TokenTaken.Equal(testNow) {
+		t.Errorf("the router gives work's token as taken at %v, want %v, as its record says", work.TokenTaken, testNow)
 	}
 	doc.Source, doc.Router = probed.Source, probed.Router
 	if !reflect.DeepEqual(doc, probed) {
