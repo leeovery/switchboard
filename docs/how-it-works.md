@@ -326,10 +326,11 @@ One account is the primary: the one your browser and the Claude apps are signed 
 
 - **Choosing it:** to mark an account as the primary, run
   `switchboard accounts edit <id> --primary`, or set `primary = true` on it. Without it, the first
-  account is the primary. The sessions already running keep the token they started on as Claude
-  Code's own until they restart: the former primary's, pinned or not, or, where it had no usable
-  token, the first account's with one, or a pinned session's pinned account's. So what they send
-  outside the conversation still goes out on that account, as the edit says.
+  account is the primary. The sessions running through the router keep the token they started on
+  as Claude Code's own until they restart: the former primary's, pinned or not, or, where it had
+  no usable token, the first account's with one, or a pinned session's pinned account's. So what
+  they send outside the conversation still goes out on that account, as the edit says. Sessions
+  started directly, while the router was down, are untouched by the move.
 - **Removing it:** when you remove the primary, the account marked `primary = true`, or else the
   first account, is the primary from then on, as `accounts remove` says. The sessions already
   running hold the removed account's token. They stay routed while the new primary has a usable

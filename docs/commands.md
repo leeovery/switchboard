@@ -409,12 +409,15 @@ The subcommands do the following:
     `_`.
   - When the account's token file holds no usable token, `add` takes one, and writes it over
     whatever the file held.
-  - A `--label` is taken as it shows: without the characters that play no part in how it shows
-    (zero-width spaces, word joiners, byte order marks and soft hyphens), each run of whitespace
-    within it one space, and the whitespace, joiners and direction marks at its edges trimmed.
-    Joiners and direction marks within it, as emoji sequences and right-to-left text need, are
-    kept, and so is every other character, such as the tags of a subdivision's flag. One that's
-    the id is no label, as it shows the same.
+  - A `--label` is taken as it shows: without the characters Unicode draws as nothing (its
+    default ignorables, such as zero-width spaces, word joiners, byte order marks, soft hyphens
+    and invisible separators) but for those playing their part in a sequence, each run of
+    whitespace within it one space, and the whitespace and direction marks at its edges trimmed.
+    A joiner is kept between the characters it joins, as emoji sequences and some scripts need,
+    a variation selector after the character it shapes, as in ❤️, and a subdivision flag's tags
+    after its black flag; one standing alone, as a joiner between spaces, is dropped. Direction
+    marks within it are kept, and so is every other character, such as an Arabic number sign.
+    One that's the id is no label, as it shows the same.
   - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
     the token, and so is a `--label` over 100 characters as it shows, one that holds a control
     character, such as a newline or a tab, or a bidirectional embedding, override or isolate,
@@ -427,17 +430,22 @@ The subcommands do the following:
   - It says what it changed, each value as it is now and as it was, labels in quotes, and a label
     of none as none, the account shown by its id. When every value given is what the account has
     already, it says so, and writes nothing.
-  - Made the primary, an account takes it from the one that had it. The sessions already running
-    keep the token they started on as Claude Code's own until they restart: the former primary's,
-    pinned or not, or, where it has no usable token, the first account's with one, or a pinned
-    session's pinned account's, as the tokens stand now. So what they send outside the conversation, such as artifacts and uploads,
-    still goes out on that account. `edit` says so, and warns on stderr when the new primary has
-    no usable token, as new sessions then start on another account's.
+  - Made the primary, an account takes it from the one that had it. The sessions running through
+    the router keep the token they started on as Claude Code's own until they restart: the former
+    primary's, pinned or not, or, where it has no usable token, the first account's with one, or a
+    pinned session's pinned account's, as the tokens stand now. So what they send outside the
+    conversation, such as artifacts and uploads, still goes out on that account. `edit` says so:
+    where the first account with a usable token is the new primary, it says the pinned sessions
+    keep their pinned account's, and where no account has one, it says nothing. Sessions started
+    directly, while the router was down, are untouched by the move. It warns on stderr when the
+    new primary has no usable token, as new sessions then start on another account's.
   - A reserve written as a number alone, such as `5` or `0.05`, is refused, as either could mean
     the other: write it as a percentage. So is one past two decimal places.
   - A `--label` is taken and refused as `add` takes and refuses one; `--label ""`, or the id,
     shows the account by its id, and takes the label out. A label written untidily in the config
-    and given tidily is saved tidily, and `edit` says it was written untidily.
+    and given tidily is saved tidily, and `edit` says it was written untidily. A label written by
+    hand is said as it holds: a character drawn as nothing outside a sequence, or a
+    bidirectional control, shows as its escape, such as `\u200B`.
   - `--primary=false` is refused: to move the primary, give `--primary` to another account.
   - An id no account has is said before anything wrong with a flag's value. Errors in the flags
     themselves, such as a flag without its value or an unknown flag, come first.
@@ -445,7 +453,8 @@ The subcommands do the following:
     the primary's mark does when another account is made the primary.
   - A label the config writes over several lines, as a multi-line string, can't be edited as text:
     a label edit of that account is refused, to be made by hand, and nothing is written. A plan,
-    reserve or primary edit is made, below the line that closes the label.
+    reserve or primary edit is made: a key the account has is replaced where it stands, and one
+    it hasn't is put below the line that closes the label, whatever the label holds.
 - **`token`** replaces an account's token.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file.
