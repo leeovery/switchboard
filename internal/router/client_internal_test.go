@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestARequestClosedUnansweredIsToldApart(t *testing.T) {
@@ -75,22 +76,23 @@ func TestARouterClosingEachConnectionAsItAcceptsItIsNotRunningToItsClient(t *tes
 
 	// The close races the request's write and the transport's read, so it
 	// fails as each of them, by turns: net/http's own words for a close
-	// before the request was read come in about one ask in six, a
-	// disconnected write in about one in 150.
-	const asks = 300
+	// before the request was read come in about one ask in six to nine with
+	// several processors, but about one in 1,500 with one; a disconnected
+	// write only with several. So it asks at least atLeast times, then on
+	// until those words have come, within atMost asks or the time it's given.
+	const atLeast, atMost, given = 300, 20_000, 10 * time.Second
 	client := NewClient(path)
-	closedIdle := 0
-	for range asks {
+	closedIdle := false
+	asked := 0
+	for start := time.Now(); asked < atMost && time.Since(start) < given && (asked < atLeast || !closedIdle); asked++ {
 		_, err := client.Health(t.Context())
 		if !IsNotRunning(err) {
 			t.Fatalf("Health() error = %v, want the router not running at that moment", err)
 		}
-		if strings.Contains(err.Error(), serverClosedIdle) {
-			closedIdle++
-		}
+		closedIdle = closedIdle || strings.Contains(err.Error(), serverClosedIdle)
 	}
-	if closedIdle == 0 {
-		t.Errorf("no ask in %d failed with %q, the words net/http's transport gives a close before the request was read", asks, serverClosedIdle)
+	if !closedIdle {
+		t.Errorf("no ask in %d failed with %q, the words net/http's transport gives a close before the request was read", asked, serverClosedIdle)
 	}
 }
 

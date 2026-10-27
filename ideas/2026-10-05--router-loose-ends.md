@@ -98,3 +98,11 @@ Left, as rare as it is harmless: a member of a line cut short alone, to a bare s
 write or a clock set back, has the line cut short taken as the start of the new file's first line.
 A read gives that line whole, and the line cut short drops out of the count of those unread: no line
 that reads is lost. It needs both a crash mid-write and a past day written to again.
+
+## Found in the cleanliness release's review, 27 October 2026
+
+- **`service restart` reads a restart the router closed on as one it couldn't ask.**
+  `Client.Restart` folds a close before any answer (`ErrUnanswered`) into `ErrNoRestart`, so
+  `service restart` sends launchd's SIGTERM though the router may have begun the restart as it
+  closed. It restarts either way, but the close could be told apart, as a change asked of the
+  router is (`fromRouterChange`).

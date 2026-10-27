@@ -204,6 +204,8 @@ Pins follow these rules:
   failing.
 - A pin spends the reserves of the accounts it names, and no other account's. See
   [Reserves](how-it-works.md#reserves).
+- A router that closes as it's asked, as one stopping does, may have made the pin first, so `pin`
+  says just that rather than that it isn't running. `switchboard status` shows which.
 
 **Pinning several accounts** sets an order to use them up in. With `pin work side`, `work` and
 `side` take the new sessions, the better of the two first, until both are out. Only then does

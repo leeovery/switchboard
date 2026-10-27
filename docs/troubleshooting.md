@@ -57,6 +57,9 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `switchboard service install` or `switchboard service restart`. To start Claude Code without the
   router this once, unrouted and unrecorded, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`; to
   have it do so always, set [`when_router_down = "direct"`](configuration.md#top-level-keys).
+- **A pin that may or may not have been made:** a router stopping or restarting as `pin`, or a pin
+  on the dashboard, asks it closes without answering, though it may have made the pin first. Run
+  `switchboard status` to see whether it did, and pin again if not.
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.
