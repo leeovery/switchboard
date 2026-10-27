@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -139,4 +140,30 @@ func TestSetupChecksTheRouterCouldStartFromWhatThePlistKeeps(t *testing.T) {
 	if want := [][]string{{"print", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
 		t.Errorf("ran launchctl %q, want %q: the router at the state directory kept found running, and left alone", s.launchd.calls, want)
 	}
+}
+
+func TestServiceInstallTakesHomeFromTheShell(t *testing.T) {
+	s := newServiceSetup(t)
+	if err := os.MkdirAll(filepath.Dir(s.plist), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plist := `<plist><dict><key>ProgramArguments</key><array><string>` + s.binary + `</string><string>serve</string></array>` +
+		`<key>EnvironmentVariables</key><dict><key>HOME</key><string>` + shortTempDir(t) + `</string>` +
+		`<key>HTTPS_PROXY</key><string>http://proxy.example:8080</string></dict></dict></plist>`
+	if err := os.WriteFile(s.plist, []byte(plist), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := run(t, s.srv.deps, "service", "install")
+	want := result{stdout: "installed " + s.plist + "\nthe router is up: healthy, pid " + strconv.Itoa(os.Getpid()) + "\n"}
+	if got != want {
+		t.Errorf("switchboard service install = %+v, want %+v", got, want)
+	}
+	if written := readFile(t, s.plist); strings.Contains(written, "<key>HOME</key>") {
+		t.Errorf("the plist reads\n%s\nwant the HOME it set dropped, as launchd sets the user's", written)
+	}
+	s.checkPlist(t,
+		"<key>XDG_STATE_HOME</key>\n\t\t<string>"+filepath.Dir(s.srv.state)+"</string>",
+		"<key>HTTPS_PROXY</key>\n\t\t<string>http://proxy.example:8080</string>",
+	)
 }

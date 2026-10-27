@@ -14,9 +14,8 @@ import (
 // environment.
 const environmentKey = "EnvironmentVariables"
 
-// binaryPlist is how a plist in Apple's binary form starts, as defaults
-// writes one.
-var binaryPlist = []byte("bplist00")
+// byteOrderMark is what a UTF-8 file may start with before its text.
+var byteOrderMark = []byte("\xef\xbb\xbf")
 
 // errNoPlutil is what reading a binary plist fails with without plutil to
 // read it back as XML.
@@ -44,7 +43,7 @@ func (s *Service) Options(ctx context.Context) (InstallOptions, error) {
 	variables, _ := lookup(installed, environmentKey)
 	for _, v := range variables.entries() {
 		value := v.value.Text
-		if slices.Contains(madeAbsolute, v.key) {
+		if slices.Contains(madeAbsolute, v.key) || v.key == "HOME" {
 			value = asLaunchdRuns(value)
 		}
 		opts.environment[v.key] = value
@@ -93,16 +92,18 @@ func withoutEnvironment(entries []entry) []entry {
 	return slices.DeleteFunc(entries, func(e entry) bool { return e.key == environmentKey })
 }
 
-// readPlist reads the plist in place, its top dictionary's entries: one in
-// Apple's binary form, as defaults writes one, through plutil.
+// readPlist reads the plist in place, its top dictionary's entries: one
+// that isn't XML, as in Apple's binary form, as defaults writes one, through
+// plutil. It fails as fs.ErrNotExist only where there's no plist.
 func (s *Service) readPlist(ctx context.Context) ([]entry, error) {
 	data, err := os.ReadFile(s.Plist())
 	if err != nil {
 		return nil, fmt.Errorf("read the service's plist: %w", err)
 	}
-	if bytes.HasPrefix(data, binaryPlist) {
+	if !isXML(data) {
+		// Not wrapped: plutil not there is no plist not there.
 		if data, err = s.asXML(ctx); err != nil {
-			return nil, fmt.Errorf("read the service's plist, %s: %w", s.Plist(), err)
+			return nil, fmt.Errorf("read the service's plist, %s, through plutil: %v", s.Plist(), err)
 		}
 	}
 	entries, err := parsePlist(data)
@@ -112,7 +113,13 @@ func (s *Service) readPlist(ctx context.Context) ([]entry, error) {
 	return entries, nil
 }
 
-// asXML is the plist in place, binary, read back as XML by plutil.
+// isXML reports whether data reads as XML: its first character, past any
+// byte order mark and whitespace, opens a tag.
+func isXML(data []byte) bool {
+	return bytes.HasPrefix(bytes.TrimLeft(bytes.TrimPrefix(data, byteOrderMark), " \t\r\n"), []byte("<"))
+}
+
+// asXML is the plist in place, read back as XML by plutil.
 func (s *Service) asXML(ctx context.Context) ([]byte, error) {
 	if s.cfg.Plutil == nil {
 		return nil, errNoPlutil

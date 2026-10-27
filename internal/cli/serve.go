@@ -121,20 +121,19 @@ func (a *app) startable() (router.Config, error) {
 	if err != nil {
 		return router.Config{}, err
 	}
-	return a.startableAt(stateDir, path, "")
+	return a.startableAt(service.Start{StateDir: stateDir, ConfigFile: path})
 }
 
-// startableAt returns what serve would start a router from, with its state
-// in stateDir, serving the config file at path, logging at level, as the
-// service would run it, failing, saying why, as startable does, and where
-// serve couldn't parse its flags.
-func (a *app) startableAt(stateDir, path, level string) (router.Config, error) {
-	if level != "" {
-		if _, err := logs.ParseLevel(level); err != nil {
+// startableAt returns what serve would start a router from, as start says,
+// as the service would run it, failing, saying why, as startable does, and
+// where serve couldn't parse its flags.
+func (a *app) startableAt(start service.Start) (router.Config, error) {
+	if start.LogLevel != "" {
+		if _, err := logs.ParseLevel(start.LogLevel); err != nil {
 			return router.Config{}, fmt.Errorf("--log-level: %w", err)
 		}
 	}
-	cfg, _, err := a.startingFrom(stateDir, path)
+	cfg, _, err := a.startingFrom(start.StateDir, start.ConfigFile)
 	if err != nil {
 		return router.Config{}, err
 	}
@@ -142,8 +141,8 @@ func (a *app) startableAt(stateDir, path, level string) (router.Config, error) {
 }
 
 // startableIn fails, saying why, as startableAt does.
-func (a *app) startableIn(stateDir, path, level string) error {
-	_, err := a.startableAt(stateDir, path, level)
+func (a *app) startableIn(start service.Start) error {
+	_, err := a.startableAt(start)
 	return err
 }
 

@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/skill"
@@ -38,7 +39,7 @@ func (r *run) service(ctx context.Context) error {
 	case err != nil:
 		return r.reinstallUnread(ctx, err)
 	}
-	svc, err := r.Service.For(ctx, installed)
+	svc, err := r.Service.For(installed)
 	if err != nil {
 		return err
 	}
@@ -47,8 +48,12 @@ func (r *run) service(ctx context.Context) error {
 		return err
 	}
 	st, err := svc.Status(ctx)
-	if err != nil {
+	switch {
+	case err != nil:
 		return err
+	case st.Elsewhere:
+		r.Terminal.sayf("No router answers where the service's plist keeps its state, but one answers where this shell keeps it, so which the service runs can't be told, and setup leaves it as it is: %s, lines them up.", installAdvice)
+		return nil
 	}
 	why, stale, err := r.stale(ctx, svc, opts, given, st)
 	if err != nil {
@@ -101,9 +106,14 @@ func (r *run) installFirst(ctx context.Context) error {
 
 // reinstallUnread installs the LaunchAgent afresh, as setup's options say,
 // in the environment setup runs in, its plist being one setup couldn't read
-// back, as err says, once it has checked the router could start so.
+// back, as err says, once it has checked the router could start so; but
+// leaves it as it is while a router answers, which may be the one it runs.
 func (r *run) reinstallUnread(ctx context.Context, unread error) error {
 	why := fmt.Sprintf("The service's plist can't be read back (%v)", unread)
+	if r.Service.Answering(ctx) != nil {
+		r.Terminal.sayf("%s, but a router answers, so the service is left as it is: %s, installs it afresh.", why, installAdvice)
+		return nil
+	}
 	svc, opts, err := r.Service.Planned(ctx, r.Install)
 	if err != nil {
 		return err
@@ -127,18 +137,18 @@ func (r *run) unstartable(ctx context.Context, svc *service.Service, why string,
 	}
 	r.Terminal.sayf("%s, but the router couldn't start installed afresh, so the service is left as it is, its router running: "+
 		"%s, installs it afresh once what stops it is put right. It couldn't start as:", why, installAdvice)
-	r.Terminal.sayf("%v", err)
+	r.Terminal.sayf("%s", redact.Text(err.Error()))
 	return nil
 }
 
 // startable fails, saying why, where the router svc runs couldn't start,
 // installed as opts say.
 func (r *run) startable(svc *service.Service, opts service.InstallOptions) error {
-	file, err := svc.ConfigFile(opts)
+	start, err := svc.StartsFrom(opts)
 	if err != nil {
 		return err
 	}
-	return r.Startable(svc.StateDir(), file, opts.LogLevel)
+	return r.Startable(start)
 }
 
 // configured is the options the service, installed with installed, and

@@ -46,12 +46,10 @@ type Setup struct {
 	// file given, if one was.
 	Service *service.Service
 	Install service.InstallOptions
-	// Startable fails, saying why, where a router with its state in
-	// stateDir, serving the config file at path, logging at level, "" for
-	// the one its environment names, couldn't start, as serve's check says:
-	// setup checks it before it installs the service, so a router that
-	// couldn't start never replaces one that runs.
-	Startable func(stateDir, path, level string) error
+	// Startable fails, saying why, where a router couldn't start from
+	// start, as serve's check says: setup checks it before it installs the
+	// service, so a router that couldn't start never replaces one that runs.
+	Startable func(start service.Start) error
 	// Path is PATH, which claude is found on, and InstallPaths where Claude
 	// Code's installers put claude.
 	Path         string

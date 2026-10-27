@@ -166,6 +166,10 @@ type InstallOptions struct {
 	// the variables decide where the router keeps its state, its tokens with
 	// it.
 	environment map[string]string
+	// unread is why Planned couldn't read back the plist in place, whose
+	// variables added by hand are then gone, nil where it could or there's
+	// none.
+	unread error
 }
 
 // Installed is what installing the service did.
@@ -202,7 +206,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	logger.Info("installed the service", "plist", s.Plist(), "program", strings.Join(a.Program, " "))
-	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, before, StartWait)}, nil
+	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, s.cfg.Router, before, StartWait)}, nil
 }
 
 // prepare checks what the service is to run, and describes the LaunchAgent
@@ -214,6 +218,9 @@ func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
 		return agent{}, nil, err
 	}
 	var warnings []string
+	if opts.unread != nil {
+		warnings = append(warnings, fmt.Sprintf("the plist in place couldn't be read back, so any variable added to it by hand is gone (%v)", opts.unread))
+	}
 	if s.tokenless(opts.Accounts) {
 		warnings = append(warnings, "no account has a usable token, so the router will have nothing to route to: switchboard accounts says why")
 		logger.Warn("no account has a usable token")
@@ -291,7 +298,7 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 		return nil, err
 	}
 	draining(how)
-	return s.waitForRouter(ctx, before, exitTimeout+StartWait), nil
+	return s.waitForRouter(ctx, rt, before, exitTimeout+StartWait), nil
 }
 
 // restart has the router rt, answering, restart, and returns how, with the
@@ -325,7 +332,7 @@ func (s *Service) startAfresh(ctx context.Context) (*router.Health, error) {
 		return nil, err
 	}
 	logger.Info("started the service afresh")
-	return s.waitForRouter(ctx, router.Health{}, StartWait), nil
+	return s.waitForRouter(ctx, s.cfg.Router, router.Health{}, StartWait), nil
 }
 
 // Status is how the service stands.
@@ -333,10 +340,14 @@ type Status struct {
 	// Installed is whether its plist is in place, and Loaded whether launchd
 	// has loaded it.
 	Installed, Loaded bool
-	// Router is the router's answer to its health check, or nil when it
-	// didn't answer, and RouterErr then says why.
+	// Router is the answer of the first router to answer its health check,
+	// or nil when none did, and RouterErr then says why the one at its state
+	// directory didn't. Elsewhere is whether the one that answered isn't
+	// that one, but the one at the state directory the service is asked
+	// from, so that which the service runs can't be told.
 	Router    *router.Health
 	RouterErr error
+	Elsewhere bool
 }
 
 // Status reports whether the service is installed, whether launchd has
@@ -348,7 +359,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	if h, rt, err := s.answering(ctx); rt != nil {
-		st.Router = &h
+		st.Router, st.Elsewhere = &h, rt != s.cfg.Router
 	} else {
 		st.RouterErr = err
 	}
@@ -511,10 +522,13 @@ func (s *Service) Answering(ctx context.Context) *router.Health {
 	return nil
 }
 
-// current is the answer of the router answering now, or the zero Health when
-// none is.
+// current is the answer of the router at the service's state directory, or
+// the zero Health when it doesn't answer.
 func (s *Service) current(ctx context.Context) router.Health {
-	h, _, _ := s.answering(ctx)
+	h, err := s.cfg.Router.Health(ctx)
+	if err != nil {
+		return router.Health{}
+	}
 	return h
 }
 
@@ -540,14 +554,14 @@ func (s *Service) routers() []Router {
 	return append([]Router{s.cfg.Router}, s.also...)
 }
 
-// waitForRouter waits up to wait for a router to answer other than before,
-// which may not have stopped yet, and returns its answer, or nil when none
-// does.
-func (s *Service) waitForRouter(ctx context.Context, before router.Health, wait time.Duration) *router.Health {
+// waitForRouter waits up to wait for rt to answer as another router than
+// before, which may not have stopped yet, and returns its answer, or nil when
+// it doesn't: no other router stands in for it.
+func (s *Service) waitForRouter(ctx context.Context, rt Router, before router.Health, wait time.Duration) *router.Health {
 	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	for {
-		if h, rt, _ := s.answering(ctx); rt != nil && !h.Same(before) {
+		if h, err := rt.Health(ctx); err == nil && !h.Same(before) {
 			logger.Info("the router answered", "pid", h.PID, "ok", h.OK)
 			return &h
 		}

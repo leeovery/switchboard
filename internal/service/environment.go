@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,29 +20,13 @@ import (
 var errNoRouterAt = errors.New("the service keeps its state in another directory, and there's no asking the router there")
 
 // For returns the service as the router it runs sees it, installed with
-// opts, as Options read them back: as the environment they keep has it, as
-// seenIn says, but where the router at the state directory that decides
-// doesn't answer, and the one at the state directory the service is asked
-// from does, as when launchd was given a variable the plist doesn't set,
-// with that state directory, as launchd gives it to a router it starts
-// again too. For opts that keep no environment, it's the service itself.
-func (s *Service) For(ctx context.Context, opts InstallOptions) (*Service, error) {
+// opts, as Options read them back: in the environment they keep, as seenIn
+// says. For opts that keep no environment, it's the service itself.
+func (s *Service) For(opts InstallOptions) (*Service, error) {
 	if opts.environment == nil {
 		return s, nil
 	}
-	seen, err := s.seenIn(opts.environment)
-	if err != nil || len(seen.also) == 0 {
-		return seen, err
-	}
-	if _, err := seen.cfg.Router.Health(ctx); err == nil {
-		return seen, nil
-	}
-	here := seen.also[0]
-	if _, err := here.Health(ctx); err != nil {
-		return seen, nil
-	}
-	seen.cfg.StateDir, seen.cfg.Router, seen.also = s.root().cfg.StateDir, here, []Router{seen.cfg.Router}
-	return seen, nil
+	return s.seenIn(opts.environment)
 }
 
 // Planned returns the service as Install, given opts, installs it, with
@@ -52,11 +37,11 @@ func (s *Service) For(ctx context.Context, opts InstallOptions) (*Service, error
 func (s *Service) Planned(ctx context.Context, opts InstallOptions) (*Service, InstallOptions, error) {
 	switch {
 	case opts.environment == nil:
-		environment, err := s.installing(ctx)
+		environment, unread, err := s.installing(ctx)
 		if err != nil {
 			return nil, InstallOptions{}, err
 		}
-		opts.environment = environment
+		opts.environment, opts.unread = environment, unread
 	case s.base != nil:
 		return s, opts, nil
 	}
@@ -69,7 +54,8 @@ func (s *Service) Planned(ctx context.Context, opts InstallOptions) (*Service, I
 // that env doesn't set unset, in the home env names, if it names one. Its
 // state directory, and with it its router, its log and the token files it
 // serves with, are those env decides; the router at the state directory the
-// service is asked from is asked too, should that be the one running.
+// service is asked from is asked too, so Status can say when it alone
+// answers, and which router the service runs can't be told.
 func (s *Service) seenIn(env map[string]string) (*Service, error) {
 	root := s.root()
 	cfg := root.cfg
@@ -221,25 +207,49 @@ func nearest(path string) (there, rest string) {
 
 // installing is the environment Install writes where it keeps none: the
 // variables carried, as they're set where it's installed, and those besides
-// that a plist in place sets, as one added by hand, such as HTTPS_PROXY.
-func (s *Service) installing(ctx context.Context) (map[string]string, error) {
-	environment := map[string]string{}
-	if installed, err := s.readPlist(ctx); err == nil {
+// that a plist in place sets, as one added by hand, such as HTTPS_PROXY,
+// with why the plist couldn't be read back, where it's there but couldn't
+// be. A HOME the plist sets isn't kept: launchd gives the router the user's,
+// as it gives this shell, so the router finds what the shell does.
+func (s *Service) installing(ctx context.Context) (environment map[string]string, unread, err error) {
+	environment = map[string]string{}
+	installed, err := s.readPlist(ctx)
+	switch {
+	case err == nil:
 		variables, _ := lookup(installed, environmentKey)
 		for _, v := range variables.entries() {
-			if !slices.Contains(carried, v.key) {
+			if !slices.Contains(carried, v.key) && v.key != "HOME" {
 				environment[v.key] = v.value.Text
 			}
 		}
+	case !errors.Is(err, fs.ErrNotExist):
+		unread = err
 	}
 	here, err := carry(s.cfg.Getenv)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, v := range here {
 		environment[v.Name] = v.Value
 	}
-	return environment, nil
+	return environment, unread, nil
+}
+
+// Start is what a router starts from, as serve's check takes it: its state
+// directory, its config file, and the level it logs at, "" for the one its
+// environment names.
+type Start struct {
+	StateDir, ConfigFile, LogLevel string
+}
+
+// StartsFrom is what the router, installed with opts, starts from, as the
+// service is seen.
+func (s *Service) StartsFrom(opts InstallOptions) (Start, error) {
+	file, err := s.ConfigFile(opts)
+	if err != nil {
+		return Start{}, err
+	}
+	return Start{StateDir: s.cfg.StateDir, ConfigFile: file, LogLevel: opts.LogLevel}, nil
 }
 
 // homeDir is the home directory the router runs in, as config's paths ask

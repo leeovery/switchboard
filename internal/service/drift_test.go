@@ -252,7 +252,7 @@ func TestFor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc, err := newService(t, cfg).For(t.Context(), opts)
+	svc, err := newService(t, cfg).For(opts)
 	if err != nil {
 		t.Fatalf("For() error = %v", err)
 	}
@@ -292,10 +292,10 @@ func TestForWithoutARouterAtFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := svc.For(t.Context(), opts); err == nil {
+	if _, err := svc.For(opts); err == nil {
 		t.Error("For() succeeded, want it failing, with no router to ask at the state directory installed")
 	}
-	if same, err := svc.For(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil || same != svc {
+	if same, err := svc.For(service.InstallOptions{Executable: s.binary}); err != nil || same != svc {
 		t.Errorf("For() = %p, %v; want the service itself for options not read back", same, err)
 	}
 }
@@ -346,7 +346,7 @@ func TestInstallKeepsTheEnvironmentAndTheLogOptionsReadBack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc, err := shell.For(t.Context(), opts)
+	svc, err := shell.For(opts)
 	if err != nil {
 		t.Fatal(err)
 	}

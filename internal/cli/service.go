@@ -138,7 +138,7 @@ func (a *app) installedService(ctx context.Context) (*service.Service, error) {
 	if err != nil {
 		return svc, nil
 	}
-	return svc.For(ctx, opts)
+	return svc.For(opts)
 }
 
 // installService installs the LaunchAgent to run this switchboard binary as
@@ -158,11 +158,11 @@ func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts se
 	if err != nil {
 		return err
 	}
-	file, err := svc.ConfigFile(opts)
+	start, err := svc.StartsFrom(opts)
 	if err != nil {
 		return err
 	}
-	cfg, err := a.startableAt(svc.StateDir(), file, opts.LogLevel)
+	cfg, err := a.startableAt(start)
 	if err != nil {
 		return err
 	}

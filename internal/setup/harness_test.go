@@ -118,11 +118,10 @@ func (w *world) goInstalled(t *testing.T) string {
 	return claudetest.Program(t, filepath.Join(w.root, "go", "bin", "switchboard"))
 }
 
-// startable checks a router could start with its state in stateDir,
-// serving the config file at path, logging at level, as unstartable says,
+// startable checks a router could start from start, as unstartable says,
 // noting what it checked.
-func (w *world) startable(stateDir, path, level string) error {
-	w.checked = append(w.checked, strings.TrimSpace(stateDir+" "+path+" "+level))
+func (w *world) startable(start service.Start) error {
+	w.checked = append(w.checked, strings.TrimSpace(start.StateDir+" "+start.ConfigFile+" "+start.LogLevel))
 	return w.unstartable
 }
 
