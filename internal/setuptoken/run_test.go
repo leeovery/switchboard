@@ -339,6 +339,32 @@ func TestRunDrawsWhatsWaitingBeforeItConcludesOnItsDrain(t *testing.T) {
 	}
 }
 
+func TestRunReportsEachStepOnceInOrder(t *testing.T) {
+	r := newTestRun(t, func() {}, waitsLong)
+	reported := make(chan struct{})
+
+	go func() {
+		defer close(reported)
+		for _, step := range []Step{StepAddress, StepAddress, StepWaiting, StepMade, StepWaiting, StepMade} {
+			r.report(Event{Step: step})
+		}
+	}()
+
+	select {
+	case <-reported:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Make is held up reporting, want each step reported once, never more than reports holds")
+	}
+	close(r.reports)
+	var got []Step
+	for e := range r.reports {
+		got = append(got, e.Step)
+	}
+	if want := []Step{StepAddress, StepWaiting, StepMade}; !slices.Equal(got, want) {
+		t.Errorf("Make reported %v, want %v", got, want)
+	}
+}
+
 func TestRunNamesWhatStoppedSetupToken(t *testing.T) {
 	killed := exitAs(t, true, "/bin/sleep", "60")
 	failed := exitAs(t, false, "/bin/sh", "-c", "exit 1")

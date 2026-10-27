@@ -27,7 +27,7 @@ const (
 	// readSize is how much of what setup-token draws is read at a time.
 	readSize = 32 << 10
 	// reportsHeld is how many events Make can report before the Signing's
-	// Report hears the first: Make reports each step once.
+	// Report hears the first: Make reports each step once (see report).
 	reportsHeld = int(StepMade)
 )
 
@@ -49,9 +49,11 @@ type run struct {
 	exited <-chan error
 	// done tells the reading of output to stop.
 	done chan struct{}
-	// reports carries what Make reports to the Signing's Report.
-	reports chan Event
-	wg      sync.WaitGroup
+	// reports carries what Make reports to the Signing's Report; reported is
+	// the last step it carried.
+	reports  chan Event
+	reported Step
+	wg       sync.WaitGroup
 
 	// ended is the end of Make's context, waited on until it comes (see
 	// cancel), then nil.
@@ -451,6 +453,12 @@ func (r *run) fail(err error) {
 
 // report has the Signing's Report hear e, off Make's goroutine, so a Report
 // that takes its time never holds up the reading of what setup-token draws.
+// Each step is reported once, and in order: one reported already, or coming
+// before one that was, isn't, so reports never holds more than reportsHeld.
 func (r *run) report(e Event) {
+	if e.Step <= r.reported {
+		return
+	}
+	r.reported = e.Step
 	r.reports <- e
 }

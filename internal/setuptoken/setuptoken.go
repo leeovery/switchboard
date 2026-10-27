@@ -79,7 +79,9 @@ type Signing struct {
 	Opener Opener
 	// Report hears each step, in order, on a goroutine of its own, so it
 	// never holds up Make's reading of what setup-token draws, and all of
-	// them before Make returns: nil hears nothing.
+	// them before Make returns: nil hears nothing. It must return without
+	// waiting on Make to return, as Make waits on it, and a panic in it
+	// isn't recovered.
 	Report func(Event)
 }
 
