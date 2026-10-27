@@ -21,7 +21,7 @@ func openTerminal(columns, rows uint16) (master, tty *os.File, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	tty, err = openItsTerminal(master)
+	tty, err = openItsTerminal(master, unlock)
 	if err == nil {
 		// Darwin sizes a pseudo-terminal by its terminal alone: its master
 		// refuses the request.
@@ -37,17 +37,15 @@ func openTerminal(columns, rows uint16) (master, tty *os.File, err error) {
 	return master, tty, nil
 }
 
-// openItsTerminal grants and unlocks master's terminal, as grantpt and
-// unlockpt do, and opens it, its owner's alone. Darwin names it by the minor
-// number the two share, as ptsname does, by a request that only a direct
-// system call can make: the terminal opened is checked to be a character
-// device of that minor number.
-func openItsTerminal(master *os.File) (*os.File, error) {
-	minor, err := deviceMinor(master)
+// openItsTerminal grants master's terminal, as grantpt does, makes it its
+// owner's alone, has unlock unlock it, and opens it. The terminal opened is
+// checked to be a character device of the minor number terminalName names it
+// by.
+func openItsTerminal(master *os.File, unlock func(master *os.File) error) (*os.File, error) {
+	name, minor, err := terminalName(master)
 	if err != nil {
 		return nil, err
 	}
-	name := fmt.Sprintf("/dev/ttys%03d", minor)
 	if err := request(master, unix.TIOCPTYGRANT); err != nil {
 		return nil, err
 	}
@@ -57,7 +55,7 @@ func openItsTerminal(master *os.File) (*os.File, error) {
 	if err := os.Chmod(name, 0o600); err != nil {
 		return nil, err
 	}
-	if err := request(master, unix.TIOCPTYUNLK); err != nil {
+	if err := unlock(master); err != nil {
 		return nil, err
 	}
 	tty, err := os.OpenFile(name, os.O_RDWR|syscall.O_NOCTTY, 0)
@@ -69,6 +67,22 @@ func openItsTerminal(master *os.File) (*os.File, error) {
 		return nil, errors.Join(fmt.Errorf("%s isn't the pseudo-terminal opened", name), err)
 	}
 	return tty, nil
+}
+
+// terminalName returns the name of master's terminal, and the minor number
+// the two share, which darwin names it by: ptsname asks for the name by a
+// request only a direct system call can make.
+func terminalName(master *os.File) (string, uint32, error) {
+	minor, err := deviceMinor(master)
+	if err != nil {
+		return "", 0, err
+	}
+	return fmt.Sprintf("/dev/ttys%03d", minor), minor, nil
+}
+
+// unlock unlocks master's terminal, as unlockpt does.
+func unlock(master *os.File) error {
+	return request(master, unix.TIOCPTYUNLK)
 }
 
 // request makes a request of master's that takes no argument.
