@@ -57,8 +57,9 @@ label = "Personal"
 type Config struct {
 	Listen   string
 	Upstream string
-	// WhenRouterDown is what claude does when the router isn't running, isn't
-	// healthy, or can't be found: the config's, else Stop.
+	// WhenRouterDown is what claude does when the router isn't running, can't
+	// be routed through, or can't be found: the config's, else Stop. A router
+	// that answers unhealthy is routed through all the same.
 	WhenRouterDown RouterDown
 	// WeekStarts is the day the dashboard's calendar weeks start on: the
 	// config's, else Monday.

@@ -94,7 +94,7 @@ cache_write_1h = 6.4
 | `listen` | `127.0.0.1:4747` | The proxy's address, as `host:port`. |
 | `upstream` | `https://api.anthropic.com` | The API's base URL. |
 | `week_starts` | `monday` | The day calendar weeks start on, as [`history`](commands.md#history) counts them. |
-| `when_router_down` | `stop` | What `claude` does when the router isn't running, or isn't healthy: `stop` or `direct`. |
+| `when_router_down` | `stop` | What `claude` does when the router isn't running or isn't answering: `stop` or `direct`. |
 
 - **`listen`:** The host must be a loopback IP address: `127.0.0.1`, or `::1` written as
   `[::1]:4747`. It can never be a name, such as `localhost`.
@@ -103,11 +103,12 @@ cache_write_1h = 6.4
   or `Sunday`. An account's own week resets when Anthropic resets it, and never moves with
   `week_starts`.
 - **`when_router_down`:** With `stop`, `claude` starts nothing while the router is down, and says
-  why and how to go on. With `direct`, Claude Code connects straight to the API on an account's
-  token, unrouted and unrecorded, and it can spend the primary's reserve, which only the router
-  honours. `SWITCHBOARD_WHEN_ROUTER_DOWN=direct` or `=stop` overrides the key for the one launch
-  it's given to, as in `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. See
-  [`claude`](commands.md#claude).
+  why and how to go on. A router that answers but isn't healthy isn't down: `claude` goes through it
+  all the same, and says so, as its failures are upstream, where a direct connection would meet them
+  too. With `direct`, Claude Code connects straight to the API on an account's token, unrouted and
+  unrecorded, and it can spend the primary's reserve, which only the router honours.
+  `SWITCHBOARD_WHEN_ROUTER_DOWN=direct` or `=stop` overrides the key for the one launch it's given
+  to, as in `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. See [`claude`](commands.md#claude).
 
 ## `[[account]]` keys
 

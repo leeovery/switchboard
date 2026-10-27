@@ -1,5 +1,6 @@
 // Package launch starts Claude Code through switchboard: run, which hands
-// this process over to Claude Code, pointed at the router while it's healthy.
+// this process over to Claude Code, pointed at the router while it can be
+// routed through.
 package launch
 
 import (
@@ -61,7 +62,7 @@ type Launcher struct {
 	Exec func(path string, argv, env []string) error
 	// Stderr hears why, when Claude Code starts without the router, or
 	// without switchboard, or doesn't start, the router down, and how to go
-	// on.
+	// on; and when it starts through a router that isn't healthy.
 	Stderr io.Writer
 }
 
@@ -82,22 +83,23 @@ type Route struct {
 }
 
 // Run starts Claude Code with args in this process's place. While the router
-// is healthy, Claude Code sends its requests there, to the address the router
-// says its proxy listens on, whatever the config says, telling it the
-// directory Claude Code starts in, where it keeps that from the API, its
+// answers saying where its proxy listens, healthy or not, Claude Code sends
+// its requests there, to that address, whatever the config says, telling it
+// the directory Claude Code starts in, where it keeps that from the API, its
 // conversation pinned when an account is, on the primary's token, whichever
 // account the conversation goes to: what isn't the conversation goes out on
 // Claude Code's own token, and so lands on the primary. Claude Code tells the
 // router too what it tells the API of each request, such as the prompt it
-// serves, unless the environment says already whether to. Otherwise, as
-// whenDown says, it starts nothing, failing with ErrNotStarted, or sends them
-// straight to the API, on the pinned account's token, else the primary's;
-// either way, Stderr hears why. Routed or direct, failing those, it starts on
-// the first account's with a usable token, and with none, Unaided. A pin that
-// can't be kept, to an account not configured or without a usable token,
-// fails: it's the command line's mistake. It starts from the environment as
-// the user set it (see own), and marks what it sets there (see setEnv). Run
-// returns only when Claude Code didn't start.
+// serves, unless the environment says already whether to. Stderr hears of a
+// router that isn't healthy, whose failures a direct connection would meet
+// all the same. Otherwise, as whenDown says, it starts nothing, failing with
+// ErrNotStarted, or sends them straight to the API, on the pinned account's
+// token, else the primary's; either way, Stderr hears why. Routed or direct,
+// failing those, it starts on the first account's with a usable token, and
+// with none, Unaided. A pin that can't be kept, to an account not configured
+// or without a usable token, fails: it's the command line's mistake. It
+// starts from the environment as the user set it (see own), and marks what it
+// sets there (see setEnv). Run returns only when Claude Code didn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -108,26 +110,38 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 		return err
 	}
 	state := r.health(ctx)
-	if !state.healthy() {
+	if !state.routable() {
 		if err := l.goDirect(r.Config.WhenRouterDown, state); err != nil {
 			return err
 		}
 	}
-	c, err := r.choose(pin, state.healthy())
+	c, err := r.choose(pin, state.routable())
 	if err != nil {
-		return l.unaided(path, args, "no account has a usable token", err, !state.healthy())
+		return l.unaided(path, args, "no account has a usable token", err, !state.routable())
 	}
 	own := l.own()
 	env := own
-	if state.healthy() {
+	if state.routable() {
 		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.toldDir(state)).hinting()
-		logger.Info("starting claude", "mode", "routed", "router", state.name, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", r.Account, "claude", path)
+		l.routedThrough(state, c, r.Account, path)
 	} else {
 		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("")
 		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "claude", path)
 		Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
 	}
 	return l.exec(path, args, env.markedAgainst(own))
+}
+
+// routedThrough logs Claude Code starting at path through the router in
+// state, on c's token, pinned to pin unless it's "": at warn, and Stderr
+// hearing so, where the router isn't healthy.
+func (l Launcher) routedThrough(state routerState, c choice, pin, path string) {
+	if state.healthy() {
+		logger.Info("starting claude", "mode", "routed", "router", state.name, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", pin, "claude", path)
+		return
+	}
+	logger.Warn("starting claude", "mode", "routed", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", pin, "claude", path)
+	Notice(l.Stderr, "the router "+state.String()+" — starting claude through it all the same")
 }
 
 // Direct starts Claude Code with args in this process's place, on its own
@@ -216,7 +230,7 @@ func (l Launcher) RouterUnfound(down config.RouterDown, args []string, err error
 // unaidedEnv gives, saying what switchboard couldn't do, and why, and where
 // Claude Code goes instead: through the router of the session it's started
 // within, or without switchboard. foundDown says this launch found the router
-// down.
+// couldn't be routed through.
 func (l Launcher) unaided(path string, args []string, couldnt string, err error, foundDown bool) error {
 	env := l.unaidedEnv(foundDown)
 	routed := env.routedByRun()
@@ -233,9 +247,9 @@ func (l Launcher) unaided(path string, args []string, couldnt string, err error,
 // session that still goes through the router run sent it to, it's passed on
 // as it is, mark and all: that router still routes it, and records it, as it
 // does the session; only this launch couldn't take part. But where this
-// launch, foundDown, found that router down, and as within a session pointed
-// at a gateway of its own since, it's the user's own, so Claude Code isn't
-// sent to a router that isn't there.
+// launch, foundDown, found that router couldn't be routed through, and as
+// within a session pointed at a gateway of its own since, it's the user's
+// own, so Claude Code isn't sent to a router that can't take it.
 func (l Launcher) unaidedEnv(foundDown bool) environ {
 	env := environ(l.Environ)
 	if env.routedByRun() && !foundDown {
@@ -324,22 +338,36 @@ func (l Launcher) shownDir() string {
 }
 
 // How the router can answer its health check, as the log names it, or
-// notFound, where it couldn't be asked.
+// notFound, where it couldn't be asked. Healthy and unhealthy alone can be
+// routed through; a launch stops, or goes direct, for each of the others,
+// so none of them reads "unhealthy".
 const (
-	healthy    = "healthy"
-	notRunning = "not running"
-	unhealthy  = "unhealthy"
-	notFound   = "not found"
+	healthy      = "healthy"
+	unhealthy    = "unhealthy"
+	notRunning   = "not running"
+	notFound     = "not found"
+	notAnswering = "not answering"
+	unusable     = "unusable"
 )
+
+// said is how String says the router is, by its state's name, where that
+// isn't "is" and the name.
+var said = map[string]string{
+	notRunning:   "isn't running",
+	notFound:     "couldn't be found",
+	notAnswering: "isn't answering",
+	unusable:     "can't be used",
+}
 
 // routerState is how the router answered its health check.
 type routerState struct {
-	// name is healthy, notRunning, unhealthy or notFound.
+	// name is one of the states above.
 	name string
-	// reason says why the router is unhealthy, or wasn't found.
+	// reason says why the router is as name says, "" where nothing does.
 	reason string
-	// listen is where a healthy router's proxy listens, and strips whether it
-	// takes every header of switchboard's own off what it sends upstream.
+	// listen is where the router's proxy listens, "" where it can't be routed
+	// through, and strips whether it takes every header of switchboard's own
+	// off what it sends upstream.
 	listen string
 	strips bool
 	// asked is how long asking took, to the millisecond.
@@ -350,19 +378,22 @@ func (s routerState) healthy() bool {
 	return s.name == healthy
 }
 
-// String says what's wrong with the router, as "isn't running", "couldn't be
-// found (…)" or "is unhealthy (…)".
+// routable is whether Claude Code can be sent to the router, healthy or not.
+func (s routerState) routable() bool {
+	return s.listen != ""
+}
+
+// String says how the router is, as "isn't running", "isn't answering (…)"
+// or "is unhealthy (…)", its reason in brackets where it has one.
 func (s routerState) String() string {
-	switch {
-	case s.name == notRunning:
-		return "isn't running"
-	case s.name == notFound:
-		return "couldn't be found (" + s.reason + ")"
-	case s.reason != "":
-		return "is " + s.name + " (" + s.reason + ")"
-	default:
-		return "is " + s.name
+	text, ok := said[s.name]
+	if !ok {
+		text = "is " + s.name
 	}
+	if s.reason == "" {
+		return text
+	}
+	return text + " (" + s.reason + ")"
 }
 
 // health asks the router how it is, and where its proxy listens, as patiently
@@ -376,19 +407,21 @@ func (r Route) health(ctx context.Context) routerState {
 
 // stateOf is how the router is, as its health check answered h, or failed
 // with err: one that doesn't say where its proxy listens can't be sent
-// requests.
+// requests, healthy or not.
 func stateOf(h router.Health, err error) routerState {
 	switch {
 	case router.IsNotRunning(err):
 		return routerState{name: notRunning}
 	case err != nil:
-		return routerState{name: unhealthy, reason: err.Error()}
-	case !h.OK:
-		return routerState{name: unhealthy, reason: h.Reason}
+		return routerState{name: notAnswering, reason: err.Error()}
 	case h.Listen == "":
-		return routerState{name: unhealthy, reason: "it doesn't say where it listens"}
+		return routerState{name: unusable, reason: "it doesn't say where it listens"}
 	}
-	return routerState{name: healthy, listen: h.Listen, strips: h.StripsOwnHeaders}
+	state := routerState{name: healthy, listen: h.Listen, strips: h.StripsOwnHeaders}
+	if !h.OK {
+		state.name, state.reason = unhealthy, h.Reason
+	}
+	return state
 }
 
 // choice is the account whose token Claude Code starts on, and why it was
