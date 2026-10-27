@@ -1,6 +1,7 @@
 package setuptoken
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -51,7 +52,17 @@ func runCommand(ctx context.Context, env []string, p program, args ...string) ([
 	}
 	cmd := exec.CommandContext(ctx, string(p), args...)
 	cmd.Env = env
-	return cmd.Output()
+	return output(cmd)
+}
+
+// output runs cmd, and returns what it printed, and how it exited, without
+// what it printed as errors, which for open name the address it couldn't
+// open.
+func output(cmd *exec.Cmd) ([]byte, error) {
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	return out.Bytes(), err
 }
 
 // Browser opens an address in the default browser as it is: signed in to

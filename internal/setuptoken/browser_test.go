@@ -3,6 +3,8 @@ package setuptoken
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os/exec"
 	"slices"
 	"strings"
 	"testing"
@@ -148,6 +150,26 @@ func TestProgramsRunNothingButOpenAndOsascript(t *testing.T) {
 
 	if err == nil || len(out) > 0 {
 		t.Errorf("running /bin/sh = %q, %v; want it refused, as no Opener runs it", out, err)
+	}
+}
+
+// open names the address it couldn't open on its standard error, and an
+// *exec.ExitError keeps what it's given of that, for errors.As and %#v to find.
+func TestOutputKeepsNothingOfWhatAProgramPrintsAsErrors(t *testing.T) {
+	signIn := "https://claude.example/oauth/authorize?state=test-state-work"
+	cmd := exec.Command("/bin/sh", "-c", `echo printed; echo "couldn't open $0" >&2; exit 3`, signIn)
+
+	out, err := output(cmd)
+
+	exit, ok := errors.AsType[*exec.ExitError](err)
+	if !ok || exit.ExitCode() != 3 {
+		t.Fatalf("output() = %v, want how the program exited, 3", err)
+	}
+	if string(out) != "printed\n" {
+		t.Errorf("output() printed %q, want what the program printed", out)
+	}
+	if len(exit.Stderr) > 0 || strings.Contains(fmt.Sprintf("%#v %+v", exit, exit), "claude.example") {
+		t.Errorf("output() = %#v, want nothing of what the program printed as errors", exit)
 	}
 }
 
