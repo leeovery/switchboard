@@ -6,7 +6,7 @@ import "slices"
 // in: they look after Claude Code on this machine, or set up its login, and
 // hold no conversation for the router to route.
 var localSubcommands = []string{
-	"setup-token", "update", "upgrade", "install", "doctor", "mcp", "plugin", "plugins",
+	SetupTokenCommand, "update", "upgrade", "install", "doctor", "mcp", "plugin", "plugins",
 	"auth", "import", "project", "auto-mode", "gateway",
 }
 
