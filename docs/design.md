@@ -706,18 +706,16 @@ accounts:
 - `accounts add <id>` registers an account. It takes a `--label` as it shows, and saves it so,
   by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
   default ignorables, the format characters and the variation selectors, but for whitespace and
-  the prepended concatenation marks, such as the Arabic number signs, which draw) dropped
-  wherever they are, but for those playing their part in a sequence (`prose.MapUnseen`): a ZWJ or
-  ZWNJ between a character it can follow and one that's seen, a variation selector after a
-  character it can follow, as in ❤️, and a tag after U+1F3F4 and the tags before it, as a
-  subdivision's flag has; direction marks are kept within it. Then each run of whitespace within
-  it is one space, and the whitespace and direction marks at its edges trimmed. A lone tag, a
-  joiner between spaces or at an edge, and a variation selector at the start go. One that's the
-  id is no label. It refuses an id, or a `--label`, holding anything shaped like a token, or a
-  `--label` over 100 characters as it shows, holding a control character, such as a newline or a
-  tab, or a bidirectional embedding, override or isolate, drawing as nothing (spaces, characters
-  drawn as nothing, marks on their own or blank braille alone; a private-use glyph shows) or that
-  isn't UTF-8, before it asks for the token, saving nothing, and shows the id as `[redacted]`. A
+  the prepended concatenation marks, such as the Arabic number signs, which draw) kept only
+  where one makes an emoji, a symbol's or ideograph's variant, a flag, or shapes a joining
+  script (`prose.MapUnseen`, judged left to right on what's kept), and dropped everywhere else;
+  direction marks are kept within it. Then each run of whitespace within it is one space, and
+  the whitespace and direction marks at its edges trimmed. One that's the id is no label. It
+  refuses an id, or a `--label`, holding anything shaped like a token, or a `--label` over 100
+  characters as it shows, holding a control character, such as a newline or a tab, or a
+  bidirectional embedding, override or isolate, drawing as nothing (spaces, characters drawn as
+  nothing, marks on their own or blank braille alone; a private-use glyph shows) or that isn't
+  UTF-8, before it asks for the token, saving nothing, and shows the id as `[redacted]`. A
   label written in the config by hand is read as it is. When the account's token file holds no
   usable token, it asks for the token, hidden,
   pointing to `claude setup-token` run while signed in to that subscription, or reads it from stdin
@@ -741,17 +739,18 @@ accounts:
   config writes no label, said so, and a label written untidily and tidied said so; or, when
   every value given is the account's already, that nothing changed, writing nothing. A label
   written by hand can't go through `add`'s rules, so `prose.Quoted` shows what it holds: a
-  character drawn as nothing that plays no part in a sequence, a bidirectional control among
-  them, as its `\u` escape, so it can't reorder the line, while a joiner within an emoji's
-  sequence, a variation selector, a flag's tags and private use show as they are. Moving the
-  primary, it says what the sessions running through the router keep as Claude Code's own until
-  they restart, as launch chose it from the config the edit read, the tokens as they stand now:
-  the former primary's token, pinned or not; or, where it has no usable token, the first
-  account's with one, or a pinned session's pinned account's, and, where the first is the new
-  primary, that the pinned sessions keep their pinned account's; and nothing where no account has
-  a usable token. Sessions started directly, while the router was down, are untouched by the
-  move. It warns on stderr when the new primary has no usable token. A label the config writes
-  over several lines, as a multi-line string, can't be edited as text: a label edit of that
+  character drawn as nothing that `add` would drop, a bidirectional control among them, as its
+  `\u` escape, so it can't reorder the line, while one `add` keeps, and private use, show as
+  they are. Moving the primary, it says what the sessions running through the router keep as
+  Claude Code's own until they restart, as launch chose it from the config the edit read, the
+  tokens as they stand now: the former primary's token, pinned or not; or, where it has no
+  usable token, the first account's with one, or a pinned session's pinned account's token, and,
+  where the first is the new primary, that the pinned sessions keep their pinned account's
+  token, said only where another account has a usable token, as otherwise none can be pinned
+  elsewhere; and nothing where no account has a usable token. Sessions started directly, while
+  the router was down, are untouched by the move. It warns on stderr when the new primary has no
+  usable token. A label the config writes over several lines, as a multi-line string, can't be
+  edited as text: a label edit of that
   account is refused, to be made by hand, writing nothing, while a plan, reserve or primary edit
   is made, a key the account has replaced where it stands, and one it hasn't put below the line
   that closes the label; a line within the string reads as part of it, whatever it looks like.

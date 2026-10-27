@@ -410,14 +410,13 @@ The subcommands do the following:
   - When the account's token file holds no usable token, `add` takes one, and writes it over
     whatever the file held.
   - A `--label` is taken as it shows: without the characters Unicode draws as nothing (its
-    default ignorables, such as zero-width spaces, word joiners, byte order marks, soft hyphens
-    and invisible separators) but for those playing their part in a sequence, each run of
-    whitespace within it one space, and the whitespace and direction marks at its edges trimmed.
-    A joiner is kept between the characters it joins, as emoji sequences and some scripts need,
-    a variation selector after the character it shapes, as in ❤️, and a subdivision flag's tags
-    after its black flag; one standing alone, as a joiner between spaces, is dropped. Direction
-    marks within it are kept, and so is every other character, such as an Arabic number sign.
-    One that's the id is no label, as it shows the same.
+    default ignorables, such as zero-width spaces and joiners, variation selectors and tags),
+    each run of whitespace within it one space, and the whitespace and direction marks at its
+    edges trimmed. Such a character is kept only where it makes an emoji, a symbol's or
+    ideograph's variant, as in ❤️, or a flag, or shapes a joining script, such as Persian or
+    Devanagari; it's dropped everywhere else. Direction marks within it are kept, and so is every
+    other character, such as an Arabic number sign. One that's the id is no label, as it shows
+    the same.
   - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
     the token, and so is a `--label` over 100 characters as it shows, one that holds a control
     character, such as a newline or a tab, or a bidirectional embedding, override or isolate,
@@ -436,7 +435,8 @@ The subcommands do the following:
     pinned session's pinned account's, as the tokens stand now. So what they send outside the
     conversation, such as artifacts and uploads, still goes out on that account. `edit` says so:
     where the first account with a usable token is the new primary, it says the pinned sessions
-    keep their pinned account's, and where no account has one, it says nothing. Sessions started
+    keep their pinned account's token, but only where another account has one, as otherwise none
+    can be pinned elsewhere; and where no account has one, it says nothing. Sessions started
     directly, while the router was down, are untouched by the move. It warns on stderr when the
     new primary has no usable token, as new sessions then start on another account's.
   - A reserve written as a number alone, such as `5` or `0.05`, is refused, as either could mean
@@ -444,7 +444,7 @@ The subcommands do the following:
   - A `--label` is taken and refused as `add` takes and refuses one; `--label ""`, or the id,
     shows the account by its id, and takes the label out. A label written untidily in the config
     and given tidily is saved tidily, and `edit` says it was written untidily. A label written by
-    hand is said as it holds: a character drawn as nothing outside a sequence, or a
+    hand is said as it holds: a character drawn as nothing that `add` would drop, or a
     bidirectional control, shows as its escape, such as `\u200B`.
   - `--primary=false` is refused: to move the primary, give `--primary` to another account.
   - An id no account has is said before anything wrong with a flag's value. Errors in the flags
