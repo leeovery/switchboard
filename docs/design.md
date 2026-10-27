@@ -704,7 +704,9 @@ accounts:
   npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
   which holds the system's directories alone.
 - `accounts add <id>` registers an account. It refuses an id, or a `--label`, holding anything
-  shaped like a token, or a `--label` over 100 characters, before it asks for the token, saving
+  shaped like a token, or a `--label` over 100 characters, one that would show as nothing (spaces,
+  control or format characters alone, such as a zero-width space) or one that isn't UTF-8, its
+  surrounding whitespace trimmed, before it asks for the token, saving
   nothing, and shows the id as
   `[redacted]`. When the account's token file holds no usable token, it asks for the token, hidden,
   pointing to `claude setup-token` run while signed in to that subscription, or reads it from stdin
@@ -724,8 +726,9 @@ accounts:
   changed, each value now and as it was, labels quoted, or, when every value given is the
   account's already, that nothing changed, writing nothing. Moving the primary, it says the
   sessions already running keep the former primary's token as Claude Code's own until they
-  restart. Edits keep the file's line endings, byte order mark, comments beside a value and
-  indentation. The flags are read into the values its action,
+  restart, and warns when the new primary has no usable token. Edits keep the file's line
+  endings, byte order mark and indentation; a replaced value keeps the comment beside it, and a
+  key taken out, such as the former primary's mark, goes with its comment. The flags are read into the values its action,
   `accounts.Registry.Edit`, takes, so a form can give it the same.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file: of one that's a link, the link

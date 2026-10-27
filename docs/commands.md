@@ -410,7 +410,9 @@ The subcommands do the following:
   - When the account's token file holds no usable token, `add` takes one, and writes it over
     whatever the file held.
   - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
-    the token, and so is a `--label` over 100 characters.
+    the token, and so is a `--label` over 100 characters, one that would show as nothing, such as
+    spaces or zero-width characters alone, and one that isn't UTF-8 text. A label's surrounding
+    whitespace is trimmed.
 - **`edit`** changes an account's label, plan, primary or reserve, in its table in the config.
   - It takes one or more of `--label`, `--plan`, `--primary` and `--reserve`, and leaves what it
     isn't given as it is.
@@ -418,11 +420,15 @@ The subcommands do the following:
     value given is what the account has already, it says so, and writes nothing.
   - Made the primary, an account takes it from the one that had it. The sessions already running
     keep that account's token as Claude Code's own until they restart, so what they send outside
-    the conversation, such as artifacts and uploads, still goes out on it. `edit` says so.
+    the conversation, such as artifacts and uploads, still goes out on it. `edit` says so, and
+    warns when the new primary has no usable token, as new sessions then start on another
+    account's.
   - A reserve written as a number alone, such as `5` or `0.05`, is refused, as either could mean
     the other: write it as a percentage. So is one past two decimal places.
-  - A `--label` is refused as `add` refuses one, and so is one that would show as nothing; `""`
-    shows the account by its id.
+  - A `--label` is taken and refused as `add` takes and refuses one; `--label ""` shows the account
+    by its id.
+  - A value it replaces keeps the comment beside it; a key it takes out goes with its comment, as
+    the primary's mark does when another account is made the primary.
 - **`token`** replaces an account's token.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file.
