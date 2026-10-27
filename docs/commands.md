@@ -373,7 +373,8 @@ The steps are:
    shell does, and asks launchd whether it runs the router. It leaves the service as it is, saying
    why: where there's no plist but a router answers, failing, as nothing would bring it back
    after a restart, saying to run `switchboard service install` to write the plist again where
-   launchd still runs it, or to stop a router run some other way and run `setup` again; where launchd
+   launchd runs the router that answers, or to stop a router run some other way and run `setup`
+   again; where launchd
    hasn't loaded it but a router run some other way answers, as another would clash with it;
    where only the one at your shell's answers, so it can't tell which the service runs; and where
    launchd runs a router that answers at neither within 5 seconds, which may be starting,
@@ -564,8 +565,8 @@ put the config right as it says.
   runs, and the health of the router where the LaunchAgent keeps its state, else of the one where
   your shell does, saying so. Where it can't read the LaunchAgent's plist back, or work out from
   it where the router keeps its state, `status` and `restart` say so, and look for the router
-  where your shell keeps its state. Where only the one at your shell's answers, or the plist
-  couldn't be read or placed, and the router can't be asked to restart, `restart` fails rather
+  where your shell keeps its state. Where only the one at your shell's answers, or there's no
+  plist, or it couldn't be read or placed, and the router can't be asked to restart, `restart` fails rather
   than signal launchd's, which may not be it.
 
 When the router doesn't answer in time, `install` and `restart` fail, with the LaunchAgent left in

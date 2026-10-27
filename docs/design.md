@@ -747,9 +747,10 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
 3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
    `service install` does, that the router could start; it fails, saying why, where it couldn't.
    With no plist but a router answering, it leaves it as it is and fails, as nothing would bring
-   the router back after a restart: where launchd still runs it, saying the plist is gone and
-   `service install` writes it again; where it runs some other way, saying no service is
-   installed, and to stop that router and run setup again. Wherever setup leaves the service as
+   the router back after a restart: where launchd runs it, as `launchctl print` names a pid, the
+   one the router answers with where it says one, saying the plist is gone and `service install`
+   writes it again; otherwise, as it runs some other way, saying no service is installed, and to
+   stop that router and run setup again. Wherever setup leaves the service as
    it is with no router answering, the step fails too, saying what it left and why, and what
    helps: setup again once the router answers, or, for a plist it can't read, `service install`.
    Setup says where the router finds things apart from setup only of a router that answers.
@@ -795,7 +796,8 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      plist names it, as moving it would take a second reinstall. Neither setup nor `service
      restart` kickstarts the service while any router answers: `service restart` asks the one
      answering to restart itself, and where that one, answering at the shell's state directory
-     only, or where the plist couldn't be read or placed, can't be asked, it fails rather than
+     only, or where there's no plist, or it couldn't be read or placed, can't be asked, it fails
+     rather than
      signal launchd's job, which may not be it. Setup installs the service again while a router
      answers only
      where it answers at the plist's state directory, launchd having the service loaded.
@@ -817,15 +819,15 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    - **A router that couldn't start:** before it boots anything out, setup checks the router could
      start from what it keeps: its state directory, its config file, and the flags `serve`
      parses, such as `--log-level`. Where it couldn't, and a router answers, the service is left
-     as it is, and setup judges where the router and setup see apart by what stays served; it says
-     why, the reason on lines of its own, and that `service install`, run from the shell the
+     as it is, before any places are judged; setup says why, the reason on lines of its own, and that `service install`, run from the shell the
      router should use, installs it afresh once that's put right. Where none answers, setup says
      the same and fails, saying why.
    - **A plist it can't read back:** one that can't be read, isn't a plist, names no program, or
      that `plutil` fails on or doesn't finish reading in time. While launchd has the service
      loaded, or a router answers, either of which may run as the plist says, setup leaves the
      service as it is, saying so, why redacted, and that `service install` installs it afresh,
-     failing where no router answers.
+     failing where no router answers: where launchd runs one that doesn't, naming its pid, as
+     above, else naming `service install`.
      Otherwise setup says so, and installs the service afresh from its own options and the
      shell's environment, once the router could start from them, and fails where it couldn't, as
      above. `service restart` and `service status` say they couldn't read it, and look for the
