@@ -99,9 +99,7 @@ the service's, below.
   to switchboard for that run, so switchboard is handed the sign-in address. The first account's
   opens in the browser as it is; each after opens in a private window, which setup opens itself
   where the default browser allows (the Chrome family, Firefox), and otherwise prints the address
-  to paste into one (Safari). Over SSH it opens nothing: it prints the address setup-token shows for
-  pasting, to open on any device, and asks for the code that page gives, which it passes to
-  setup-token. It takes the token from setup-token's screen once it says it's made, checks it with
+  to paste into one (Safari). It takes the token from setup-token's screen once it says it's made, checks it with
   the API as `accounts add` does, and saves it, saying it's good until a year from then. `p` pastes
   a token instead, and where reading the screen fails, setup shows setup-token's own and pasting
   goes on as before. Then its plan: Pro, Max 5x or Max 20x, saying History prices its use against
