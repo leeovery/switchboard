@@ -2,10 +2,13 @@ package setup_test
 
 import (
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
+
+	"github.com/leeovery/switchboard/internal/service"
 )
 
 // restarted are the launchctl subcommands a run of setup runs that restarts
@@ -77,6 +80,35 @@ func TestTheServiceStep(t *testing.T) {
 			lay:     func(t *testing.T, w *world) { writeFile(t, w.plist(), "<plist/>\n", 0o644) },
 			answers: []string{""},
 			want: "The service runs a program its plist doesn't name, not this switchboard, <root>/brew/bin/switchboard, so it's installed afresh.\n" +
+				installed + "The router is up: healthy, pid 4243.\n",
+			wantRan: []string{"print", "print", "bootout", "print", "bootstrap"},
+		},
+		{
+			name:    "installed from before ProcessType: installed afresh",
+			lay:     func(t *testing.T, w *world) { w.editPlist(t, withoutProcessType) },
+			answers: []string{""},
+			want: "The service's plist differs from the one this switchboard writes, with no ProcessType, so it's installed afresh.\n" +
+				installed + "The router is up: healthy, pid 4243.\n",
+			wantRan: []string{"print", "print", "bootout", "print", "bootstrap"},
+		},
+		{
+			name: "installed, its plist's keys in another order and with other whitespace: left as it is",
+			lay: func(t *testing.T, w *world) {
+				w.editPlist(t, func(plist string) string {
+					plist = withoutProcessType(plist)
+					plist = strings.Replace(plist, "<dict>\n", "<dict>\n"+processType, 1)
+					return strings.NewReplacer("\t", "  ", "</key>\n", "</key> ").Replace(plist)
+				})
+			},
+			answers: []string{""},
+			want:    "The service is installed, and the router is up: healthy, pid 4242.\n",
+			wantRan: untouched,
+		},
+		{
+			name:    "installed with a plist that isn't XML, as a binary one isn't: installed afresh",
+			lay:     func(t *testing.T, w *world) { writeFile(t, w.plist(), "bplist00\xd1\x01\x02", 0o644) },
+			answers: []string{""},
+			want: "The service's plist can't be read (parse the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist: XML syntax error on line 1: invalid UTF-8), so it's installed afresh.\n" +
 				installed + "The router is up: healthy, pid 4243.\n",
 			wantRan: []string{"print", "print", "bootout", "print", "bootstrap"},
 		},
@@ -170,6 +202,83 @@ func TestTheServiceStepInstallsTheServiceToRunThisSwitchboard(t *testing.T) {
 			plist, err := os.ReadFile(w.plist())
 			if err != nil || !strings.Contains(string(plist), "<array>\n\t\t<string>"+w.switchboard+"</string>\n\t\t<string>serve</string>\n\t</array>") {
 				t.Errorf("the plist reads\n%s(%v)\nwant it to run switchboard serve by the path switchboard was run by, %s", plist, err, w.switchboard)
+			}
+		})
+	}
+}
+
+// processType is the ProcessType key, with its value, as install writes it.
+const processType = "\t<key>ProcessType</key>\n\t<string>Interactive</string>\n"
+
+// withoutProcessType is a plist as switchboards from before ProcessType
+// wrote it.
+func withoutProcessType(plist string) string {
+	return strings.Replace(plist, processType, "", 1)
+}
+
+func TestTheServiceStepKeepsTheOptionsTheServiceWasInstalledWith(t *testing.T) {
+	tests := []struct {
+		name string
+		// install installs the service in the world, which is done but for
+		// the service.
+		install func(t *testing.T, w *world)
+		// configFlag is the config file setup is given, "" for none.
+		configFlag func(w *world) string
+		// want are what the plist setup leaves holds, the world's root
+		// written <root>.
+		want []string
+	}{
+		{
+			name: "a log level, installed from before ProcessType",
+			install: func(t *testing.T, w *world) {
+				w.installServiceWith(t, service.InstallOptions{Executable: w.switchboard, LogLevel: "debug"})
+				w.editPlist(t, withoutProcessType)
+			},
+			want: []string{"<string>serve</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t</array>"},
+		},
+		{
+			name: "a config file, installed from before ProcessType",
+			install: func(t *testing.T, w *world) {
+				w.installServiceWith(t, service.InstallOptions{Executable: w.switchboard, Config: w.config})
+				w.editPlist(t, withoutProcessType)
+			},
+			want: []string{"<string>serve</string>\n\t\t<string>--config</string>\n\t\t<string><root>/config/switchboard/config.toml</string>\n\t</array>"},
+		},
+		{
+			name: "a log level, installed from another switchboard",
+			install: func(t *testing.T, w *world) {
+				w.installServiceWith(t, service.InstallOptions{Executable: w.goInstalled(t), LogLevel: "warn"})
+			},
+			want: []string{"<string><root>/brew/bin/switchboard</string>\n\t\t<string>serve</string>\n\t\t<string>--log-level</string>\n\t\t<string>warn</string>\n\t</array>"},
+		},
+		{
+			name: "a log level, but another config file than the one setup is given",
+			install: func(t *testing.T, w *world) {
+				w.installServiceWith(t, service.InstallOptions{Executable: w.switchboard, Config: filepath.Join(w.root, "elsewhere.toml"), LogLevel: "debug"})
+			},
+			configFlag: func(w *world) string { return w.config },
+			want:       []string{"<string>--config</string>\n\t\t<string><root>/config/switchboard/config.toml</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t</array>"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			tt.install(t, w)
+			if tt.configFlag != nil {
+				w.configFlag = tt.configFlag(w)
+			}
+
+			shown := w.runs(t, "")
+			if !strings.Contains(section(t, shown, "3. The service"), "so it's installed afresh.") {
+				t.Errorf("the terminal showed\n%s\nwant the service installed afresh", shown)
+			}
+			plist, err := os.ReadFile(w.plist())
+			got := strings.ReplaceAll(string(plist), w.root, "<root>")
+			for _, want := range append(tt.want, processType) {
+				if err != nil || !strings.Contains(got, want) {
+					t.Errorf("the plist reads\n%s(%v)\nwant it to hold\n%s", got, err, want)
+				}
 			}
 		})
 	}

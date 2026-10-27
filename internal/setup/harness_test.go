@@ -64,8 +64,11 @@ type world struct {
 	bin, realClaude string
 	path            []string
 	installPaths    []string
-	launchd         *fakeLaunchd
-	api             *fakeAPI
+	// configFlag is the config file setup is given, as --config gives it,
+	// "" for none.
+	configFlag string
+	launchd    *fakeLaunchd
+	api        *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -127,7 +130,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Terminal:     u.terminal(),
 		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt},
 		Service:      svc,
-		Install:      service.InstallOptions{Executable: w.switchboard},
+		Install:      service.InstallOptions{Executable: w.switchboard, Config: w.configFlag},
 		Path:         strings.Join(w.path, string(filepath.ListSeparator)),
 		InstallPaths: w.installPaths,
 		Bin:          w.bin,
@@ -186,10 +189,27 @@ func (w *world) done(t *testing.T) {
 // forgets the launchctl runs it took.
 func (w *world) installService(t *testing.T, binary string) {
 	t.Helper()
-	if _, err := w.setup(t, &user{}).Service.Install(t.Context(), service.InstallOptions{Executable: binary}); err != nil {
+	w.installServiceWith(t, service.InstallOptions{Executable: binary})
+}
+
+// installServiceWith installs the LaunchAgent as installService does, as
+// opts says.
+func (w *world) installServiceWith(t *testing.T, opts service.InstallOptions) {
+	t.Helper()
+	if _, err := w.setup(t, &user{}).Service.Install(t.Context(), opts); err != nil {
 		t.Fatal(err)
 	}
 	w.launchd.calls = nil
+}
+
+// editPlist rewrites the LaunchAgent's plist in place as edit says.
+func (w *world) editPlist(t *testing.T, edit func(plist string) string) {
+	t.Helper()
+	plist, err := os.ReadFile(w.plist())
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, w.plist(), edit(string(plist)), 0o644)
 }
 
 func (w *world) plist() string {
