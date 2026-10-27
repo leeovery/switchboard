@@ -90,6 +90,30 @@ func TestDrift(t *testing.T) {
 			env: map[string]string{"XDG_CONFIG_HOME": "/Users/tester/elsewhere"},
 		},
 		{
+			name:      "a flag's value given after =",
+			installed: service.InstallOptions{LogLevel: "debug"},
+			edit: func(plist string) string {
+				return strings.Replace(plist, "<string>--log-level</string>\n\t\t<string>debug</string>", "<string>--log-level=debug</string>", 1)
+			},
+			opts: service.InstallOptions{LogLevel: "debug"},
+		},
+		{
+			name: "an extra flag, its value given after =, named alone",
+			edit: func(plist string) string {
+				return strings.Replace(plist, "<string>serve</string>", "<string>serve</string>\n\t\t<string>--listen=127.0.0.1:9999</string>", 1)
+			},
+			want: []string{"an extra --listen in its ProgramArguments"},
+		},
+		{
+			name:      "a flag given twice",
+			installed: service.InstallOptions{LogLevel: "debug"},
+			edit: func(plist string) string {
+				return strings.Replace(plist, "<string>debug</string>", "<string>debug</string>\n\t\t<string>--log-level=debug</string>", 1)
+			},
+			opts: service.InstallOptions{LogLevel: "debug"},
+			want: []string{"a repeated --log-level in its ProgramArguments"},
+		},
+		{
 			name: "another program",
 			edit: func(plist string) string {
 				return strings.Replace(plist, "<string>serve</string>", "<string>serve</string>\n\t\t<string>now</string>", 1)
@@ -154,16 +178,153 @@ func TestOptions(t *testing.T) {
 	}
 }
 
+func TestOptionsReadsFlagsAsServeParsesThem(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.putPlist(t, strings.Replace(string(written), "<string>serve</string>",
+		"<string>serve</string>\n\t\t<string>--config=/Users/tester/work.toml</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t\t<string>--log-level</string>\n\t\t<string>warn</string>", 1))
+
+	got, err := s.svc.Options()
+	if err != nil || got.Config != "/Users/tester/work.toml" || got.LogLevel != "warn" {
+		t.Errorf("Options() = %+v, %v; want the config given after =, and the log level given last", got, err)
+	}
+}
+
+func TestOptionsFailsForAPlistNamingNoProgram(t *testing.T) {
+	for _, plist := range []string{
+		"<plist/>\n",
+		"<plist><dict/></plist>\n",
+		"<plist><dict><key>EnvironmentVariables</key><dict><key>XDG_STATE_HOME</key><string>/Users/tester/state</string></dict></dict></plist>\n",
+		"<plist><dict><key>ProgramArguments</key><array/></dict></plist>\n",
+	} {
+		t.Run(plist, func(t *testing.T) {
+			s := newSetup(t, nil, nil)
+			s.putPlist(t, plist)
+
+			if opts, err := s.svc.Options(); err == nil || !strings.HasSuffix(err.Error(), "names no program") {
+				t.Errorf("Options() = %+v, %v; want it failing, as there's no program to keep the options of", opts, err)
+			}
+		})
+	}
+}
+
+func TestDifferencesSetNestedDictionariesApartKeyByKey(t *testing.T) {
+	const want = `<plist><dict><key>SoftResourceLimits</key><dict><key>NumberOfFiles</key><integer>4096</integer><key>Core</key><integer>0</integer></dict></dict></plist>`
+	const have = `<plist><dict><key>SoftResourceLimits</key><dict><key>NumberOfFiles</key><integer>256</integer><key>Stack</key><integer>1</integer></dict></dict></plist>`
+
+	got, err := service.Differences([]byte(want), []byte(have))
+	if wantGot := []string{"another NumberOfFiles in its SoftResourceLimits", "no Core in its SoftResourceLimits", "an extra Stack in its SoftResourceLimits"}; err != nil || !slices.Equal(got, wantGot) {
+		t.Errorf("Differences() = %q, %v; want %q", got, err, wantGot)
+	}
+}
+
+func TestFor(t *testing.T) {
+	s := newSetup(t, map[string]string{"XDG_STATE_HOME": "/Users/tester/custom"}, nil)
+	written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.putPlist(t, string(written))
+	// Asked from a shell setting another config, and no state home.
+	cfg := s.cfg
+	cfg.Getenv = func(key string) string {
+		return map[string]string{"TMPDIR": s.tmp, "SWITCHBOARD_CONFIG": "/Users/tester/other.toml"}[key]
+	}
+	var asked []string
+	cfg.RouterAt = func(dir string) service.Router {
+		asked = append(asked, dir)
+		return &fakeRouter{t: t, answer: func(int) (router.Health, error) { return up(4300) }}
+	}
+	opts, err := newService(t, cfg).Options()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc, err := newService(t, cfg).For(opts)
+	if err != nil {
+		t.Fatalf("For() error = %v", err)
+	}
+	if want := []string{"/Users/tester/custom/switchboard"}; !slices.Equal(asked, want) {
+		t.Errorf("asked for the routers at %q, want %q", asked, want)
+	}
+	if got, want := svc.Log(), "/Users/tester/custom/switchboard/logs/launchd.log"; got != want {
+		t.Errorf("Log() = %s, want %s", got, want)
+	}
+	for key, want := range map[string]string{"XDG_STATE_HOME": "/Users/tester/custom", "SWITCHBOARD_CONFIG": "", "TMPDIR": s.tmp} {
+		if got := svc.Getenv(key); got != want {
+			t.Errorf("Getenv(%s) = %q, want %q: the variables carried as installed, the rest as asked", key, got, want)
+		}
+	}
+	if file, err := svc.ConfigFile(opts); err != nil || file != filepath.Join(s.root, "home", ".config", "switchboard", "config.toml") {
+		t.Errorf("ConfigFile() = %s, %v; want the one the environment installed finds", file, err)
+	}
+	st, err := svc.Status(t.Context())
+	if err != nil || st.Router == nil || st.Router.PID != 4300 {
+		t.Errorf("Status() = %+v, %v; want the router at the state directory installed answering", st, err)
+	}
+}
+
+func TestForWithoutARouterAtFails(t *testing.T) {
+	s := newSetup(t, map[string]string{"XDG_STATE_HOME": "/Users/tester/custom"}, nil)
+	written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.putPlist(t, string(written))
+	cfg := s.cfg
+	cfg.Getenv = func(key string) string { return map[string]string{"TMPDIR": s.tmp}[key] }
+	svc := newService(t, cfg)
+	opts, err := svc.Options()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.For(opts); err == nil {
+		t.Error("For() succeeded, want it failing, with no router to ask at the state directory installed")
+	}
+	if same, err := svc.For(service.InstallOptions{Executable: s.binary}); err != nil || same != svc {
+		t.Errorf("For() = %p, %v; want the service itself for options not read back", same, err)
+	}
+}
+
+func TestConfigFile(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		opts service.InstallOptions
+		want string
+	}{
+		{name: "given", env: map[string]string{"SWITCHBOARD_CONFIG": "/Users/tester/other.toml"}, opts: service.InstallOptions{Config: "/Users/tester/work.toml"}, want: "/Users/tester/work.toml"},
+		{name: "named by SWITCHBOARD_CONFIG", env: map[string]string{"SWITCHBOARD_CONFIG": "/Users/tester/other.toml"}, want: "/Users/tester/other.toml"},
+		{name: "under XDG_CONFIG_HOME", env: map[string]string{"XDG_CONFIG_HOME": "/Users/tester/config"}, want: "/Users/tester/config/switchboard/config.toml"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, tt.env, nil)
+
+			if got, err := s.svc.ConfigFile(tt.opts); err != nil || got != tt.want {
+				t.Errorf("ConfigFile() = %s, %v; want %s", got, err, tt.want)
+			}
+		})
+	}
+}
+
 func TestInstallKeepsTheEnvironmentAndTheLogOptionsReadBack(t *testing.T) {
 	carried := map[string]string{"XDG_CONFIG_HOME": "/Users/tester/.config", "XDG_STATE_HOME": "/Users/tester/.local/state", "SWITCHBOARD_LOG_LEVEL": "warn"}
 	s := newSetup(t, carried, func(asked int) (router.Health, error) { return up(4242 + asked) })
 	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary, LogLevel: "debug"}); err != nil {
 		t.Fatal(err)
 	}
-	installed, err := os.ReadFile(s.plist)
+	written, err := os.ReadFile(s.plist)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A variable added by hand, which switchboard doesn't carry.
+	installed := strings.Replace(string(written), "\t</dict>\n\t<key>RunAtLoad</key>", "\t\t<key>HTTPS_PROXY</key>\n\t\t<string>http://proxy.example:8080</string>\n\t</dict>\n\t<key>RunAtLoad</key>", 1)
+	s.putPlist(t, installed)
 	// Installing from another shell, its state elsewhere.
 	cfg := s.cfg
 	cfg.StateDir = filepath.Join(s.root, "elsewhere", "switchboard")
@@ -179,8 +340,8 @@ func TestInstallKeepsTheEnvironmentAndTheLogOptionsReadBack(t *testing.T) {
 	if _, err := svc.Install(t.Context(), opts); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
-	if got, err := os.ReadFile(s.plist); err != nil || string(got) != string(installed) {
-		t.Errorf("the plist reads\n%s(%v)\nwant it as it was installed, its variables and its log kept\n%s", got, err, installed)
+	if got, err := os.ReadFile(s.plist); err != nil || string(got) != installed || !strings.Contains(installed, "HTTPS_PROXY") {
+		t.Errorf("the plist reads\n%s(%v)\nwant it as it was installed, its variables, all of them, and its log kept\n%s", got, err, installed)
 	}
 }
 
@@ -196,6 +357,20 @@ func TestOtherEnvironment(t *testing.T) {
 		{name: "none set either side"},
 		{name: "the same", installedEnv: carried, env: carried},
 		{
+			name:         "set to what each decides unset, and unset",
+			installedEnv: map[string]string{"XDG_STATE_HOME": "<home>/.local/state", "XDG_CONFIG_HOME": "<home>/.config", "CLAUDE_CONFIG_DIR": "<home>/.claude", "SWITCHBOARD_CONFIG": "<home>/.config/switchboard/config.toml"},
+		},
+		{
+			name:         "a relative XDG directory, which switchboard ignores, and unset",
+			installedEnv: map[string]string{"XDG_STATE_HOME": "state"},
+		},
+		{
+			name:         "another log level",
+			installedEnv: map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"},
+			env:          map[string]string{"SWITCHBOARD_LOG_LEVEL": "warn"},
+			want:         []string{"SWITCHBOARD_LOG_LEVEL"},
+		},
+		{
 			name:         "one set otherwise, one unset here, and one set here alone",
 			installedEnv: carried,
 			env:          map[string]string{"XDG_STATE_HOME": "/Users/tester/elsewhere", "CLAUDE_CONFIG_DIR": "/Users/tester/.claude"},
@@ -204,13 +379,14 @@ func TestOtherEnvironment(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newSetup(t, tt.installedEnv, nil)
-			written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+			s := newSetup(t, nil, nil)
+			cfg := s.cfg
+			cfg.Getenv = func(key string) string { return strings.ReplaceAll(tt.installedEnv[key], "<home>", s.cfg.Home) }
+			written, err := newService(t, cfg).PlistOf(service.InstallOptions{Executable: s.binary})
 			if err != nil {
 				t.Fatal(err)
 			}
 			s.putPlist(t, string(written))
-			cfg := s.cfg
 			cfg.Getenv = func(key string) string { return tt.env[key] }
 			svc := newService(t, cfg)
 			opts, err := svc.Options()

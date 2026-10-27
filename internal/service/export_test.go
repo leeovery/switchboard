@@ -15,3 +15,17 @@ func (s *Service) ProgramOf(opts InstallOptions) ([]string, error) {
 	a, err := s.agent(opts)
 	return a.Program, err
 }
+
+// Differences says how the plist have differs from the plist want, as Drift
+// sets them apart.
+func Differences(want, have []byte) ([]string, error) {
+	w, err := parsePlist(want)
+	if err != nil {
+		return nil, err
+	}
+	h, err := parsePlist(have)
+	if err != nil {
+		return nil, err
+	}
+	return differences(w, h, ""), nil
+}

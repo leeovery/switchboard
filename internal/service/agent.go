@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"text/template"
@@ -29,6 +30,10 @@ const (
 	configFlag   = "--config"
 	logLevelFlag = "--log-level"
 )
+
+// valueFlags are serve's flags that take a value: given without one after
+// =, the argument after the flag is its value, whatever it reads.
+var valueFlags = []string{configFlag, logLevelFlag}
 
 // carried are the variables the service is given as they're set where it's
 // installed, so it finds its config and its state where the CLI does, and
@@ -81,15 +86,36 @@ func (s *Service) agent(opts InstallOptions) (agent, error) {
 	if opts.LogLevel != "" {
 		program = append(program, logLevelFlag, opts.LogLevel)
 	}
-	getenv := s.cfg.Getenv
-	if opts.environment != nil {
-		getenv = func(name string) string { return opts.environment[name] }
-	}
-	environment, err := carry(getenv)
+	environment, err := s.variables(opts)
 	if err != nil {
 		return agent{}, err
 	}
 	return agent{Label: Label, Program: program, Environment: environment, Log: cmp.Or(opts.log, s.Log()), ExitTimeOut: int(exitTimeout / time.Second)}, nil
+}
+
+// variables are what launchd is to set in the router's environment: those
+// opts keep, whole, as Options read them back, the variables carried first;
+// else the variables carried, as they're set where the service is installed.
+func (s *Service) variables(opts InstallOptions) ([]variable, error) {
+	if opts.environment == nil {
+		return carry(s.cfg.Getenv)
+	}
+	names := slices.Sorted(maps.Keys(opts.environment))
+	slices.SortStableFunc(names, func(a, b string) int { return cmp.Compare(carriedRank(a), carriedRank(b)) })
+	environment := make([]variable, len(names))
+	for i, name := range names {
+		environment[i] = variable{Name: name, Value: opts.environment[name]}
+	}
+	return environment, nil
+}
+
+// carriedRank is where name comes among the variables carried, those that
+// aren't after them all.
+func carriedRank(name string) int {
+	if i := slices.Index(carried, name); i >= 0 {
+		return i
+	}
+	return len(carried)
 }
 
 // carry is the variables carried that getenv says are set, those naming a

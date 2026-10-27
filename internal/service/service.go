@@ -99,8 +99,12 @@ type Config struct {
 	StateDir string
 	// Launchctl runs launchctl.
 	Launchctl Runner
-	// Router asks the router the service runs whether it's alive.
+	// Router asks the router the service runs whether it's alive: the one
+	// whose state is in StateDir.
 	Router Router
+	// RouterAt returns the router whose state is in the directory given, for
+	// For to ask the one an environment kept puts elsewhere.
+	RouterAt func(stateDir string) Router
 }
 
 // Service is the LaunchAgent.
