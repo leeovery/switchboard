@@ -11,6 +11,13 @@ func Percent(utilization float64) string {
 	return strconv.Itoa(WholePercent(utilization)) + "%"
 }
 
+// PercentSet shows a share set, such as a reserve, as a percentage to a
+// hundredth of a point at most, as GroupedTo writes it, so a share between
+// whole percentages shows as it was set: "5%", "2.5%".
+func PercentSet(share float64) string {
+	return GroupedTo(share*100, 2) + "%"
+}
+
 // PercentWhole is Percent of a window used whole, "100%": the widest of its
 // use to its limit, as a window's figure is held to.
 func PercentWhole() string {

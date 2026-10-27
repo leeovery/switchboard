@@ -32,6 +32,27 @@ func TestPercent(t *testing.T) {
 	}
 }
 
+func TestPercentSet(t *testing.T) {
+	tests := []struct {
+		share float64
+		want  string
+	}{
+		{share: 0, want: "0%"},
+		{share: 0.05, want: "5%"},
+		{share: 0.07, want: "7%"},
+		{share: 0.025, want: "2.5%"},
+		{share: 0.1234, want: "12.34%"},
+		{share: 0.99, want: "99%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			if got := prose.PercentSet(tt.share); got != tt.want {
+				t.Errorf("PercentSet(%v) = %q, want %q", tt.share, got, tt.want)
+			}
+		})
+	}
+}
+
 // What a window has left is what its use, as said, leaves of 100%, so the two
 // sum to it within its limit, at a half-percent as anywhere; and past its
 // limit, none, never below.
