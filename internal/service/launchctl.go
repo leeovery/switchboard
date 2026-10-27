@@ -27,9 +27,10 @@ const (
 // on macOS itself, and the one exit status the service relies on.
 const unknownService = 113
 
-// Runner runs launchctl with args to its end, as Launchctl does, returning
-// what it printed. It fails, with an error that has an ExitCode method, as
-// *exec.ExitError does, when launchctl exits with a status other than 0.
+// Runner runs a program, launchctl as Launchctl does, or plutil as Plutil
+// does, with args to its end, returning what it printed. It fails, with an
+// error that has an ExitCode method, as *exec.ExitError does, when the
+// program exits with a status other than 0.
 type Runner func(ctx context.Context, args ...string) ([]byte, error)
 
 // Launchctl runs launchctl with args, by name, so the one on PATH runs, and

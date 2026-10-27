@@ -38,6 +38,9 @@ var processStarters = []string{
 	// launchctl, by name, for the service: main passes it to the CLI, and
 	// tests pass a fake that notes each call.
 	"internal/service/launchctl.go:Launchctl",
+	// /usr/bin/plutil, by its path, converting a binary plist the service
+	// reads back to XML: main passes it to the CLI, and tests pass a fake.
+	"internal/service/plutil.go:Plutil",
 }
 
 const (

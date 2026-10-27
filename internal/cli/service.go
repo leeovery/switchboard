@@ -117,6 +117,7 @@ func (a *app) service() (*service.Service, error) {
 		Getenv:    a.Getenv,
 		StateDir:  stateDir,
 		Launchctl: a.Launchctl,
+		Plutil:    a.Plutil,
 		Router:    router.NewClient(router.SocketPath(stateDir)),
 		RouterAt: func(dir string) service.Router {
 			return router.NewClient(router.SocketPath(dir))
@@ -128,36 +129,47 @@ func (a *app) service() (*service.Service, error) {
 // in the environment its plist keeps, where its state directory, and its
 // router, may be other than this shell's; or, where the plist can't be read
 // back, as service sees it.
-func (a *app) installedService() (*service.Service, error) {
+func (a *app) installedService(ctx context.Context) (*service.Service, error) {
 	svc, err := a.service()
 	if err != nil {
 		return nil, err
 	}
-	opts, err := svc.Options()
+	opts, err := svc.Options(ctx)
 	if err != nil {
 		return svc, nil
 	}
-	return svc.For(opts)
+	return svc.For(ctx, opts)
 }
 
 // installService installs the LaunchAgent to run this switchboard binary as
-// opts says, serving the config the CLI finds, once it has checked what the
-// router would start from, as serve's check does, so a router that couldn't
-// start never replaces one that runs, and says how the router it starts
-// answers.
+// opts says, serving the config given, else the one its router finds, once
+// it has checked what the router would start from, as serve's check does, so
+// a router that couldn't start never replaces one that runs, and says how
+// the router it starts answers. It's seen as the router it installs sees it,
+// in the environment it writes, which keeps the variables added to the plist
+// in place by hand.
 func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts service.InstallOptions) error {
 	svc, err := a.service()
 	if err != nil {
 		return err
 	}
-	cfg, err := a.startable()
+	opts.Config = a.configPath
+	svc, opts, err = svc.Planned(ctx, opts)
+	if err != nil {
+		return err
+	}
+	file, err := svc.ConfigFile(opts)
+	if err != nil {
+		return err
+	}
+	cfg, err := a.startableAt(svc.StateDir(), file, opts.LogLevel)
 	if err != nil {
 		return err
 	}
 	if opts.Executable, err = a.Executable(); err != nil {
 		return fmt.Errorf("find this switchboard binary: %w", err)
 	}
-	opts.Config, opts.Accounts = a.configPath, cfg.Accounts
+	opts.Accounts = cfg.Accounts
 	installed, err := svc.Install(ctx, opts)
 	if err != nil {
 		return err
@@ -192,7 +204,7 @@ func (a *app) uninstallService(ctx context.Context, out io.Writer) error {
 // restartService restarts the router, saying how while a router finishes its
 // requests in flight first, and says how the one it becomes answers.
 func (a *app) restartService(ctx context.Context, out io.Writer) error {
-	svc, err := a.installedService()
+	svc, err := a.installedService(ctx)
 	if err != nil {
 		return err
 	}
@@ -214,7 +226,7 @@ func (a *app) restartService(ctx context.Context, out io.Writer) error {
 // serviceStatus prints whether the LaunchAgent is installed and loaded, and
 // how the router answers.
 func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
-	svc, err := a.installedService()
+	svc, err := a.installedService(ctx)
 	if err != nil {
 		return err
 	}

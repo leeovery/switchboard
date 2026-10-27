@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -401,7 +400,7 @@ func TestInstallCarriesTheVariablesNamingAFileOrADirectoryAbsolute(t *testing.T)
 }
 
 func TestInstallServesTheConfigGiven(t *testing.T) {
-	env := map[string]string{"XDG_CONFIG_HOME": "/elsewhere/config", "XDG_STATE_HOME": "/elsewhere/state"}
+	env := map[string]string{"XDG_CONFIG_HOME": "<root>/elsewhere/config", "XDG_STATE_HOME": "<root>/elsewhere/state"}
 	s := newSetup(t, env, upOnceStarted(4242))
 	t.Chdir(s.root)
 
@@ -906,38 +905,18 @@ func TestStatus(t *testing.T) {
 	}
 }
 
-func TestStatusNamesTheBinaryThePlistRuns(t *testing.T) {
+func TestOptionsReadsTheBinaryThePlistRunsAsItNamesIt(t *testing.T) {
 	// A path holding what XML escapes.
 	const binary = "/Users/tester/it's <mine> & co/bin/switchboard"
-	written, err := newService(t, service.Config{Home: "/Users/tester", StateDir: "/Users/tester/.local/state/switchboard", Getenv: func(string) string { return "" }}).
-		PlistOf(service.InstallOptions{Executable: binary, Config: "/Users/tester/work.toml", LogLevel: "debug"})
+	s := newSetup(t, nil, nil)
+	written, err := s.svc.PlistOf(service.InstallOptions{Executable: binary, Config: "/Users/tester/work.toml", LogLevel: "debug"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	tests := []struct {
-		name string
-		// plist is what's in the plist's place, "" for nothing.
-		plist string
-		want  string
-	}{
-		{name: "one as install writes it", plist: string(written), want: binary},
-		{name: "none"},
-		{name: "one naming no program", plist: "<plist/>\n"},
-		{name: "one whose program has no arguments", plist: "<plist><dict><key>ProgramArguments</key><array/></dict></plist>\n"},
-		{name: "one that isn't XML, as a binary one isn't", plist: "bplist00\xd1\x01\x02"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := newSetup(t, nil, func(int) (router.Health, error) { return up(4242) })
-			if tt.plist != "" {
-				s.putPlist(t, tt.plist)
-			}
+	s.putPlist(t, string(written))
 
-			st, err := s.svc.Status(t.Context())
-			if err != nil || st.Binary != tt.want {
-				t.Errorf("Status() = %+v, %v; want the binary %q", st, err, tt.want)
-			}
-		})
+	if opts, err := s.svc.Options(t.Context()); err != nil || opts.Executable != binary {
+		t.Errorf("Options() = %+v, %v; want the binary %q", opts, err, binary)
 	}
 }
 
@@ -1109,15 +1088,24 @@ func newSetup(t *testing.T, env map[string]string, answer func(asked int) (route
 	}
 	s.binary = writeBinary(t, filepath.Join(root, "bin", "switchboard"))
 	vars := map[string]string{"TMPDIR": s.tmp}
-	maps.Copy(vars, env)
+	for key, value := range env {
+		vars[key] = strings.ReplaceAll(value, "<root>", root)
+	}
 	home := filepath.Join(root, "home")
+	getenv := func(key string) string { return vars[key] }
+	// The state directory the CLI finds.
+	stateDir, err := config.StateDir(getenv, func() (string, error) { return home, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
 	s.cfg = service.Config{
 		UID:       501,
 		Home:      home,
-		StateDir:  filepath.Join(home, ".local", "state", "switchboard"),
-		Getenv:    func(key string) string { return vars[key] },
+		StateDir:  stateDir,
+		Getenv:    getenv,
 		Launchctl: s.launchctl.run,
 		Router:    s.router,
+		RouterAt:  func(string) service.Router { return s.router },
 	}
 	s.svc = newService(t, s.cfg)
 	s.plist = filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")

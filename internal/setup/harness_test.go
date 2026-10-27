@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -77,8 +78,11 @@ type world struct {
 	// directory's XDG_STATE_HOME, the config file and any log level.
 	unstartable error
 	checked     []string
-	launchd     *fakeLaunchd
-	api         *fakeAPI
+	// binary is the XML a binary plist in the service's place reads as,
+	// through plutil, "" for none.
+	binary  string
+	launchd *fakeLaunchd
+	api     *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -114,12 +118,20 @@ func (w *world) goInstalled(t *testing.T) string {
 	return claudetest.Program(t, filepath.Join(w.root, "go", "bin", "switchboard"))
 }
 
-// startable checks a router could start in the environment getenv reads,
+// startable checks a router could start with its state in stateDir,
 // serving the config file at path, logging at level, as unstartable says,
 // noting what it checked.
-func (w *world) startable(getenv func(string) string, path, level string) error {
-	w.checked = append(w.checked, strings.TrimSpace(getenv("XDG_STATE_HOME")+" "+path+" "+level))
+func (w *world) startable(stateDir, path, level string) error {
+	w.checked = append(w.checked, strings.TrimSpace(stateDir+" "+path+" "+level))
 	return w.unstartable
+}
+
+// plutil reads the binary plist in the service's place as binary has it.
+func (w *world) plutil(_ context.Context, args ...string) ([]byte, error) {
+	if w.binary == "" || args[len(args)-1] != w.plist() {
+		return nil, errors.New("plutil: not a binary plist the world knows")
+	}
+	return []byte(w.binary), nil
 }
 
 // putBinOnPath puts switchboard's bin directory first on PATH, as the line
@@ -131,7 +143,12 @@ func (w *world) putBinOnPath() {
 // setup is setup in the world, at the terminal the user is at.
 func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 	t.Helper()
-	env := map[string]string{"TMPDIR": w.tmp, "XDG_CONFIG_HOME": filepath.Join(w.root, "config"), "XDG_STATE_HOME": filepath.Join(w.root, "state")}
+	env := map[string]string{
+		"TMPDIR":            w.tmp,
+		"XDG_CONFIG_HOME":   filepath.Join(w.root, "config"),
+		"XDG_STATE_HOME":    filepath.Join(w.root, "state"),
+		"CLAUDE_CONFIG_DIR": filepath.Join(w.root, "claude"),
+	}
 	maps.Copy(env, w.env)
 	getenv := func(key string) string { return env[key] }
 	// The CLI's state directory, as it finds it.
@@ -146,6 +163,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Getenv:    getenv,
 		StateDir:  stateDir,
 		Launchctl: w.launchd.run,
+		Plutil:    w.plutil,
 		Router:    w.launchd.at(stateDir),
 		RouterAt:  func(dir string) service.Router { return w.launchd.at(dir) },
 	})
@@ -458,8 +476,10 @@ func (u *user) typeUnseen() ([]byte, error) {
 // restarted when asked can't.
 type fakeLaunchd struct {
 	// home is the user's, and stateDir the state directory of the router
-	// the plist launchd loaded runs, as its XDG_STATE_HOME finds it.
+	// the plist launchd loaded runs, as its XDG_STATE_HOME and its HOME find
+	// it, else as setenv's do, as launchctl setenv gives launchd them.
 	home, stateDir string
+	setenv         map[string]string
 	loaded         bool
 	dead           bool
 	old            bool
@@ -500,14 +520,20 @@ func (f *fakeLaunchd) start() {
 // stateHome is how a plist names its router's XDG_STATE_HOME.
 var stateHome = regexp.MustCompile(`<key>XDG_STATE_HOME</key>\s*<string>([^<]*)</string>`)
 
+// homeOf is how a plist names its router's HOME, where it names one.
+var homeOf = regexp.MustCompile(`<key>HOME</key>\s*<string>([^<]*)</string>`)
+
 // stateDirOf is the state directory of the router the plist at path runs.
 func (f *fakeLaunchd) stateDirOf(path string) string {
 	plist, _ := os.ReadFile(path)
-	var value string
+	value, home := f.setenv["XDG_STATE_HOME"], cmp.Or(f.setenv["HOME"], f.home)
 	if m := stateHome.FindSubmatch(plist); m != nil {
 		value = string(m[1])
 	}
-	dir, _ := config.StateDir(func(string) string { return value }, func() (string, error) { return f.home, nil })
+	if m := homeOf.FindSubmatch(plist); m != nil {
+		home = string(m[1])
+	}
+	dir, _ := config.StateDir(func(string) string { return value }, func() (string, error) { return home, nil })
 	return dir
 }
 

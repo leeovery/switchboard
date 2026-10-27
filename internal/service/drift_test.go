@@ -114,6 +114,14 @@ func TestDrift(t *testing.T) {
 			want: []string{"a repeated --log-level in its ProgramArguments"},
 		},
 		{
+			// switchboard owns the log's path, in the state directory.
+			name: "launchd's log elsewhere",
+			edit: func(plist string) string {
+				return strings.Replace(plist, "/logs/launchd.log</string>", "/logs/other.log</string>", 1)
+			},
+			want: []string{"another StandardOutPath"},
+		},
+		{
 			name: "another program",
 			edit: func(plist string) string {
 				return strings.Replace(plist, "<string>serve</string>", "<string>serve</string>\n\t\t<string>now</string>", 1)
@@ -142,7 +150,7 @@ func TestDrift(t *testing.T) {
 				return tt.env[key]
 			}
 
-			drift, err := newService(t, cfg).Drift(tt.opts)
+			drift, err := newService(t, cfg).Drift(t.Context(), tt.opts)
 			if err != nil || !slices.Equal(drift, tt.want) {
 				t.Errorf("Drift() = %q, %v; want %q, for the plist\n%s", drift, err, tt.want, plist)
 			}
@@ -170,7 +178,7 @@ func TestOptions(t *testing.T) {
 			}
 			s.putPlist(t, string(written))
 
-			got, err := s.svc.Options()
+			got, err := s.svc.Options(t.Context())
 			if err != nil || got.Executable != tt.opts.Executable || got.Config != tt.opts.Config || got.LogLevel != tt.opts.LogLevel {
 				t.Errorf("Options() = %+v, %v; want %+v", got, err, tt.opts)
 			}
@@ -187,7 +195,7 @@ func TestOptionsReadsFlagsAsServeParsesThem(t *testing.T) {
 	s.putPlist(t, strings.Replace(string(written), "<string>serve</string>",
 		"<string>serve</string>\n\t\t<string>--config=/Users/tester/work.toml</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t\t<string>--log-level</string>\n\t\t<string>warn</string>", 1))
 
-	got, err := s.svc.Options()
+	got, err := s.svc.Options(t.Context())
 	if err != nil || got.Config != "/Users/tester/work.toml" || got.LogLevel != "warn" {
 		t.Errorf("Options() = %+v, %v; want the config given after =, and the log level given last", got, err)
 	}
@@ -204,7 +212,7 @@ func TestOptionsFailsForAPlistNamingNoProgram(t *testing.T) {
 			s := newSetup(t, nil, nil)
 			s.putPlist(t, plist)
 
-			if opts, err := s.svc.Options(); err == nil || !strings.HasSuffix(err.Error(), "names no program") {
+			if opts, err := s.svc.Options(t.Context()); err == nil || !strings.HasSuffix(err.Error(), "names no program") {
 				t.Errorf("Options() = %+v, %v; want it failing, as there's no program to keep the options of", opts, err)
 			}
 		})
@@ -230,6 +238,7 @@ func TestFor(t *testing.T) {
 	s.putPlist(t, string(written))
 	// Asked from a shell setting another config, and no state home.
 	cfg := s.cfg
+	cfg.StateDir = filepath.Join(s.root, "home", ".local", "state", "switchboard")
 	cfg.Getenv = func(key string) string {
 		return map[string]string{"TMPDIR": s.tmp, "SWITCHBOARD_CONFIG": "/Users/tester/other.toml"}[key]
 	}
@@ -238,20 +247,20 @@ func TestFor(t *testing.T) {
 		asked = append(asked, dir)
 		return &fakeRouter{t: t, answer: func(int) (router.Health, error) { return up(4300) }}
 	}
-	opts, err := newService(t, cfg).Options()
+	opts, err := newService(t, cfg).Options(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	svc, err := newService(t, cfg).For(opts)
+	svc, err := newService(t, cfg).For(t.Context(), opts)
 	if err != nil {
 		t.Fatalf("For() error = %v", err)
 	}
 	if want := []string{"/Users/tester/custom/switchboard"}; !slices.Equal(asked, want) {
 		t.Errorf("asked for the routers at %q, want %q", asked, want)
 	}
-	if got, want := svc.Log(), s.svc.Log(); got != want {
-		t.Errorf("Log() = %s, want %s, where the plist has launchd write", got, want)
+	if got, want := svc.Log(), "/Users/tester/custom/switchboard/logs/launchd.log"; got != want {
+		t.Errorf("Log() = %s, want %s, in the state directory the plist keeps", got, want)
 	}
 	for key, want := range map[string]string{"XDG_STATE_HOME": "/Users/tester/custom", "SWITCHBOARD_CONFIG": "", "TMPDIR": s.tmp} {
 		if got := svc.Getenv(key); got != want {
@@ -275,17 +284,18 @@ func TestForWithoutARouterAtFails(t *testing.T) {
 	}
 	s.putPlist(t, string(written))
 	cfg := s.cfg
+	cfg.StateDir, cfg.RouterAt = filepath.Join(s.root, "home", ".local", "state", "switchboard"), nil
 	cfg.Getenv = func(key string) string { return map[string]string{"TMPDIR": s.tmp}[key] }
 	svc := newService(t, cfg)
-	opts, err := svc.Options()
+	opts, err := svc.Options(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := svc.For(opts); err == nil {
+	if _, err := svc.For(t.Context(), opts); err == nil {
 		t.Error("For() succeeded, want it failing, with no router to ask at the state directory installed")
 	}
-	if same, err := svc.For(service.InstallOptions{Executable: s.binary}); err != nil || same != svc {
+	if same, err := svc.For(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil || same != svc {
 		t.Errorf("For() = %p, %v; want the service itself for options not read back", same, err)
 	}
 }
@@ -313,7 +323,7 @@ func TestConfigFile(t *testing.T) {
 }
 
 func TestInstallKeepsTheEnvironmentAndTheLogOptionsReadBack(t *testing.T) {
-	carried := map[string]string{"XDG_CONFIG_HOME": "/Users/tester/.config", "XDG_STATE_HOME": "/Users/tester/.local/state", "SWITCHBOARD_LOG_LEVEL": "warn"}
+	carried := map[string]string{"XDG_CONFIG_HOME": "/Users/tester/.config", "XDG_STATE_HOME": "<root>/state", "SWITCHBOARD_LOG_LEVEL": "warn"}
 	s := newSetup(t, carried, func(asked int) (router.Health, error) { return up(4242 + asked) })
 	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary, LogLevel: "debug"}); err != nil {
 		t.Fatal(err)
@@ -331,12 +341,16 @@ func TestInstallKeepsTheEnvironmentAndTheLogOptionsReadBack(t *testing.T) {
 	cfg.Getenv = func(key string) string {
 		return map[string]string{"TMPDIR": s.tmp, "XDG_STATE_HOME": filepath.Join(s.root, "elsewhere")}[key]
 	}
-	svc := newService(t, cfg)
-
-	opts, err := svc.Options()
+	shell := newService(t, cfg)
+	opts, err := shell.Options(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
+	svc, err := shell.For(t.Context(), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := svc.Install(t.Context(), opts); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
@@ -361,10 +375,10 @@ func TestDriftAndOptionsFailForAPlistTheyCantRead(t *testing.T) {
 				s.putPlist(t, tt.plist)
 			}
 
-			if opts, err := s.svc.Options(); err == nil || !strings.Contains(err.Error(), "the service's plist") {
+			if opts, err := s.svc.Options(t.Context()); err == nil || !strings.Contains(err.Error(), "the service's plist") {
 				t.Errorf("Options() = %+v, %v; want it failing to read the plist", opts, err)
 			}
-			if drift, err := s.svc.Drift(service.InstallOptions{Executable: s.binary}); err == nil || !strings.Contains(err.Error(), "the service's plist") {
+			if drift, err := s.svc.Drift(t.Context(), service.InstallOptions{Executable: s.binary}); err == nil || !strings.Contains(err.Error(), "the service's plist") {
 				t.Errorf("Drift() = %q, %v; want it failing to read the plist", drift, err)
 			}
 			if tt.plist != "" {

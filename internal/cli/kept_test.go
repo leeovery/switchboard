@@ -81,6 +81,31 @@ func TestServiceStatusAsksTheRouterWhereThePlistKeepsItsState(t *testing.T) {
 	}
 }
 
+func TestServiceRestartReadsABinaryPlistBack(t *testing.T) {
+	s := newServiceSetup(t)
+	s.launchd.loaded = true
+	s.putKeptPlist(t, s.keptRouter(t))
+	xml := readFile(t, s.plist)
+	// As defaults writes it.
+	if err := os.WriteFile(s.plist, []byte("bplist00\xd1\x01\x02"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var ran [][]string
+	s.srv.deps.Plutil = func(_ context.Context, args ...string) ([]byte, error) {
+		ran = append(ran, args)
+		return []byte(xml), nil
+	}
+
+	got := run(t, s.srv.deps, "service", "restart")
+	want := result{stdout: "the router is finishing its requests in flight, then launchd starts it again\nrestarted\nthe router is up: healthy, pid 4242\n"}
+	if got != want {
+		t.Errorf("switchboard service restart = %+v, want %+v", got, want)
+	}
+	if want := [][]string{{"-convert", "xml1", "-o", "-", s.plist}}; !reflect.DeepEqual(ran, want) {
+		t.Errorf("ran plutil %q, want %q", ran, want)
+	}
+}
+
 func TestSetupChecksTheRouterCouldStartFromWhatThePlistKeeps(t *testing.T) {
 	s := newServiceSetup(t)
 	s.launchd.loaded = true

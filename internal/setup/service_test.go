@@ -106,10 +106,10 @@ func TestTheServiceStep(t *testing.T) {
 			wantRan: untouched,
 		},
 		{
-			name:    "installed with a plist that isn't XML, as a binary one isn't: installed afresh",
+			name:    "installed with a binary plist plutil can't read: installed afresh",
 			lay:     func(t *testing.T, w *world) { writeFile(t, w.plist(), "bplist00\xd1\x01\x02", 0o644) },
 			answers: []string{""},
-			want: "The service's plist can't be read back (parse the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist: XML syntax error on line 1: invalid UTF-8), so it's installed afresh.\n" +
+			want: "The service's plist can't be read back (read the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist: plutil: not a binary plist the world knows), so it's installed afresh.\n" +
 				installed + "The router is up: healthy, pid 4243.\n",
 			wantRan: []string{"print", "bootout", "print", "bootstrap"},
 		},
@@ -347,15 +347,6 @@ func TestTheServiceStepKeepsTheServicesEnvironment(t *testing.T) {
 			wantShown: apart + installedAt + tokenless + "The router is up: healthy, pid 4244.\n",
 			wantRan:   []string{"print", "print", "bootstrap"},
 		},
-		{
-			// As when launchctl setenv gave launchd another XDG_STATE_HOME.
-			name: "its router running at the shell's state directory, not the plist's: left as it is, never restarted",
-			lay: func(_ *testing.T, w *world) {
-				w.launchd.stateDir = filepath.Join(w.home, ".local", "state", "switchboard")
-			},
-			wantShown: apart + "The service is installed, and the router is up: healthy, pid 4243.\n",
-			wantRan:   untouched,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -422,8 +413,8 @@ func TestTheServiceStepSaysNothingOfWhatFindsTheSame(t *testing.T) {
 			shellEnv:   map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"},
 		},
 		{
-			name:       "CLAUDE_CONFIG_DIR set to the one its absence finds",
-			serviceEnv: map[string]string{"CLAUDE_CONFIG_DIR": "<root>/home/.claude"},
+			name:       "CLAUDE_CONFIG_DIR naming setup's by another path",
+			serviceEnv: map[string]string{"CLAUDE_CONFIG_DIR": "<root>/config/../claude"},
 		},
 	}
 	for _, tt := range tests {
@@ -514,10 +505,14 @@ func TestTheServiceStepLeavesAServiceWhoseRouterCouldntStartInstalledAfresh(t *t
 	if got, err := os.ReadFile(w.plist()); err != nil || string(got) != string(written) {
 		t.Errorf("the plist reads\n%s(%v)\nwant it left as it was\n%s", got, err, written)
 	}
-	if checked := []string{filepath.Join(w.root, "custom") + " " + w.config + " debug"}; !slices.Equal(w.checked, checked) {
+	if checked := []string{filepath.Join(w.root, "custom", "switchboard") + " " + w.config + " debug"}; !slices.Equal(w.checked, checked) {
 		t.Errorf("checked the router could start from %q, want %q: the service's state directory, config file and log level", w.checked, checked)
 	}
 }
+
+// installAdvice is how the service step says to install the service once
+// the router could start.
+const installAdvice = "switchboard service install, run from the shell the router should use, installs it once what stops it is put right.\n"
 
 func TestTheServiceStepFailsWhereTheRouterCouldntStartAndNoneRuns(t *testing.T) {
 	tests := []struct {
@@ -538,7 +533,7 @@ func TestTheServiceStepFailsWhereTheRouterCouldntStartAndNoneRuns(t *testing.T) 
 		{
 			name: "not loaded",
 			lay:  func(_ *testing.T, w *world) { w.launchd.loaded, w.launchd.pid = false, 0 },
-			want: "Launchd hasn't loaded the service, but the router couldn't start installed afresh, and none is running.\n",
+			want: "Launchd hasn't loaded the service, but the router couldn't start installed afresh, and none is running: " + installAdvice,
 		},
 		{
 			name: "drifted, its router down",
@@ -546,7 +541,7 @@ func TestTheServiceStepFailsWhereTheRouterCouldntStartAndNoneRuns(t *testing.T) 
 				w.editPlist(t, withoutProcessType)
 				w.launchd.pid = 0
 			},
-			want: "The service's plist differs from the one this switchboard writes, with no ProcessType, but the router couldn't start installed afresh, and none is running.\n",
+			want: "The service's plist differs from the one this switchboard writes, with no ProcessType, but the router couldn't start installed afresh, and none is running: " + installAdvice,
 		},
 		{
 			name: "a plist it can't read, its router down",
@@ -554,7 +549,7 @@ func TestTheServiceStepFailsWhereTheRouterCouldntStartAndNoneRuns(t *testing.T) 
 				writeFile(t, w.plist(), "<plist/>\n", 0o644)
 				w.launchd.pid = 0
 			},
-			want: "The service's plist can't be read back (the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist, names no program), but the router couldn't start installed afresh, and none is running.\n",
+			want: "The service's plist can't be read back (the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist, names no program), but the router couldn't start installed afresh, and none is running: " + installAdvice,
 		},
 	}
 	for _, tt := range tests {
@@ -597,20 +592,134 @@ func TestTheServiceStepSaysWhenTheRouterServesAnotherConfigFile(t *testing.T) {
 	}
 }
 
-func TestTheServiceStepNamesTheLogThePlistHasLaunchdWrite(t *testing.T) {
+func TestTheServiceStepPutsLaunchdsLogBackInTheStateDirectory(t *testing.T) {
 	w := newWorld(t)
 	w.done(t)
-	log := filepath.Join(w.root, "logs", "router.out")
+	log := filepath.Join(w.state, "logs", "launchd.log")
 	w.editPlist(t, func(plist string) string {
-		return strings.ReplaceAll(withoutProcessType(plist), filepath.Join(w.state, "logs", "launchd.log"), log)
+		return strings.ReplaceAll(plist, log, filepath.Join(w.root, "elsewhere", "router.out"))
 	})
-	w.launchd.dead = true
-	synctest.Test(t, func(t *testing.T) {
-		_, err := w.run(t, "")
-		if err == nil || !strings.HasSuffix(err.Error(), "and in "+log) {
-			t.Errorf("Run() error = %v, want it naming %s, where the plist has launchd write", err, log)
+
+	shown := section(t, w.runs(t, ""), "3. The service")
+	want := "The service's plist differs from the one this switchboard writes, with another StandardOutPath and another StandardErrorPath, so it's installed afresh.\n" +
+		installedAt + "The router is up: healthy, pid 4243.\n"
+	if shown != want {
+		t.Errorf("the service step showed\n%s\nwant\n%s", shown, want)
+	}
+	if plist, err := os.ReadFile(w.plist()); err != nil || strings.Count(string(plist), "<string>"+log+"</string>") != 2 {
+		t.Errorf("the plist reads\n%s(%v)\nwant launchd's log back at %s", plist, err, log)
+	}
+}
+
+func TestTheServiceStepTakesTheStateDirectoryOfTheRouterThatAnswers(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	// launchctl setenv gave launchd the shell's XDG_STATE_HOME, which the
+	// plist doesn't set.
+	w.launchd.setenv = map[string]string{"XDG_STATE_HOME": filepath.Join(w.root, "state")}
+	w.editPlist(t, func(plist string) string {
+		plist = strings.Replace(withoutProcessType(plist), "\t\t<key>XDG_STATE_HOME</key>\n\t\t<string>"+filepath.Join(w.root, "state")+"</string>\n", "", 1)
+		if strings.Contains(plist, "XDG_STATE_HOME") {
+			t.Fatalf("the plist reads\n%s\nwant no XDG_STATE_HOME", plist)
 		}
+		return plist
 	})
+
+	shown := section(t, w.runs(t, ""), "3. The service")
+	// No other state directory said, and no warning of tokens, which are
+	// there; the router launchd starts again found there too.
+	want := "The service's plist differs from the one this switchboard writes, with no ProcessType, so it's installed afresh.\n" +
+		installedAt + "The router is up: healthy, pid 4243.\n"
+	if shown != want {
+		t.Errorf("the service step showed\n%s\nwant\n%s", shown, want)
+	}
+	if checked := []string{filepath.Join(w.root, "state", "switchboard") + " " + w.config}; !slices.Equal(w.checked, checked) {
+		t.Errorf("checked the router could start from %q, want %q: the answering router's state directory", w.checked, checked)
+	}
+
+	// And again, as it now stands, the config changed: the router, which
+	// reads setup's config and token files, takes it up.
+	w.launchd.calls = nil
+	w.writeConfig(t, strings.TrimSuffix(doneConfig, "\n[prime]\nday = \"08:00-23:00\"\n"))
+	shown = section(t, w.runs(t, "", "07:00-22:00"), "3. The service")
+	if want := "The service is installed, and the router is up: healthy, pid 4243. It takes up setup's changes on its own.\n"; shown != want {
+		t.Errorf("run again, the service step showed\n%s\nwant\n%s", shown, want)
+	}
+	if ran := w.launchd.ran(); !slices.Equal(ran, untouched) {
+		t.Errorf("run again, ran launchctl %q, want %q", ran, untouched)
+	}
+}
+
+func TestTheServiceStepReadsABinaryPlistBack(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	serviceEnv := map[string]string{"XDG_STATE_HOME": filepath.Join(w.root, "custom")}
+	written := w.installedFrom(t, serviceEnv, service.InstallOptions{Executable: w.switchboard, LogLevel: "debug"})
+	// As defaults writes it, adding a variable.
+	w.binary = strings.Replace(written, "\t</dict>\n\t<key>RunAtLoad</key>", "\t\t<key>HTTPS_PROXY</key>\n\t\t<string>http://proxy.example:8080</string>\n\t</dict>\n\t<key>RunAtLoad</key>", 1)
+	writeFile(t, w.plist(), "bplist00\xd1\x01\x02", 0o644)
+
+	shown := section(t, w.runs(t, ""), "3. The service")
+	// Its keys as plutil gives them, launchd's log among them, as written.
+	want := "The router uses another state directory than setup: switchboard service install, run from the shell the router should use, lines them up.\n" +
+		"The service is installed, and the router is up: healthy, pid 4243.\n"
+	if shown != want {
+		t.Errorf("the service step showed\n%s\nwant\n%s", shown, want)
+	}
+	if ran := w.launchd.ran(); !slices.Equal(ran, untouched) {
+		t.Errorf("ran launchctl %q, want %q: the service read back, and left as it is", ran, untouched)
+	}
+}
+
+func TestTheServiceStepSeesTheRouterInTheHomeThePlistSets(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	home := filepath.Join(w.root, "other")
+	// The state home unset, and a HOME added by hand, the token files there.
+	w.installedFrom(t, map[string]string{"XDG_STATE_HOME": ""}, service.InstallOptions{Executable: w.switchboard})
+	w.editPlist(t, func(plist string) string {
+		return strings.Replace(withoutProcessType(plist), "\t\t<key>CLAUDE_CONFIG_DIR</key>", "\t\t<key>HOME</key>\n\t\t<string>"+home+"</string>\n\t\t<key>CLAUDE_CONFIG_DIR</key>", 1)
+	})
+	w.launchd.stateDir = filepath.Join(home, ".local", "state", "switchboard")
+
+	shown := section(t, w.runs(t, ""), "3. The service")
+	want := "The router uses another state directory than setup: switchboard service install, run from the shell the router should use, lines them up.\n" +
+		"The service's plist differs from the one this switchboard writes, with no ProcessType, another StandardOutPath and another StandardErrorPath, so it's installed afresh.\n" +
+		installedAt + tokenless + "The router is up: healthy, pid 4244.\n"
+	if shown != want {
+		t.Errorf("the service step showed\n%s\nwant\n%s", shown, want)
+	}
+	if checked := []string{filepath.Join(home, ".local", "state", "switchboard") + " " + w.config}; !slices.Equal(w.checked, checked) {
+		t.Errorf("checked the router could start from %q, want %q: the state directory the home decides", w.checked, checked)
+	}
+}
+
+func TestTheServiceStepSaysSetupIsGivenAnotherConfigFile(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	other := filepath.Join(w.root, "other.toml")
+	w.installedFrom(t, nil, service.InstallOptions{Executable: w.switchboard, Config: other})
+	w.configFlag = w.config
+	w.unstartable = errors.New("the config names no account")
+
+	shown := section(t, w.runs(t, ""), "3. The service")
+	// Refused, the router serves the other still.
+	want := "The router uses another config file than setup: switchboard service install, run from the shell the router should use, lines them up. " +
+		"For the config file, switchboard setup --config, naming the router's, does too.\n" +
+		"Setup is given another config file than the one the router serves, but the router couldn't start installed afresh, so the service is left as it is, its router running: " +
+		"switchboard service install, run from the shell the router should use, installs it afresh once what stops it is put right. It couldn't start as:\n" +
+		"the config names no account\n"
+	if shown != want {
+		t.Errorf("the service step showed\n%s\nwant\n%s", shown, want)
+	}
+
+	w.unstartable = nil
+	w.launchd.calls = nil
+	shown = section(t, w.runs(t, ""), "3. The service")
+	want = "Setup is given another config file than the one the router serves, so it's installed afresh.\n" + installedAt + "The router is up: healthy, pid 4244.\n"
+	if shown != want {
+		t.Errorf("once it could start, the service step showed\n%s\nwant\n%s", shown, want)
+	}
 }
 
 // rooted is env with every value's <root> the world's root.

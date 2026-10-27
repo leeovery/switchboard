@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
@@ -55,7 +56,16 @@ func Path(getenv func(string) string, homeDir func() (string, error)) (string, e
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "skills", "switchboard", "SKILL.md"), nil
+	return filepath.Join(dir, skillFile), nil
+}
+
+// skillFile is where the skill is in Claude Code's config directory.
+var skillFile = filepath.Join("skills", "switchboard", "SKILL.md")
+
+// ConfigDirOf returns the Claude Code config directory that path, where
+// Claude Code reads the skill as Path gives it, is in.
+func ConfigDirOf(path string) string {
+	return strings.TrimSuffix(filepath.Clean(path), string(filepath.Separator)+skillFile)
 }
 
 // ConfigDir returns Claude Code's config directory: $CLAUDE_CONFIG_DIR, else

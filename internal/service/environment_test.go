@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -38,32 +39,36 @@ func (s *setup) installedFrom(t *testing.T, env map[string]string, opts service.
 	return newService(t, cfg)
 }
 
-// down is a router that doesn't answer, and fails the test if asked to
-// restart.
+// down is a router that doesn't answer.
 func down(t *testing.T) service.Router {
-	return &fakeRouter{t: t, answer: func(int) (router.Health, error) { return router.Health{}, errNotRunning }}
+	return &fakeRouter{t: t, answer: notRunning}
+}
+
+// notRunning answers as no router does.
+func notRunning(int) (router.Health, error) {
+	return router.Health{}, errNotRunning
 }
 
 func TestForTakesTheHomeThePlistSets(t *testing.T) {
-	s := newSetup(t, nil, nil)
+	s := newSetup(t, nil, notRunning)
 	shell := s.installedFrom(t, map[string]string{"HOME": "<root>/elsewhere"}, service.InstallOptions{}, nil, func(string) service.Router { return down(t) })
 	// A HOME launchd sets isn't one switchboard carries: it's there only
 	// where it was added by hand.
 	editPlist(t, s.plist, func(plist string) string {
 		return strings.Replace(plist, "\t<key>RunAtLoad</key>", "\t<key>EnvironmentVariables</key>\n\t<dict>\n\t\t<key>HOME</key>\n\t\t<string>"+s.root+"/elsewhere</string>\n\t</dict>\n\t<key>RunAtLoad</key>", 1)
 	})
-	opts, err := shell.Options()
+	opts, err := shell.Options(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	svc, err := shell.For(opts)
+	svc, err := shell.For(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	places, err := svc.Places(opts)
 	want := service.Places{
-		StateDir:   filepath.Join(s.root, "elsewhere", ".local", "state", "switchboard"),
+		Tokens:     filepath.Join(s.root, "elsewhere", ".local", "state", "switchboard", "tokens"),
 		ConfigFile: filepath.Join(s.root, "elsewhere", ".config", "switchboard", "config.toml"),
 		ClaudeDir:  filepath.Join(s.root, "elsewhere", ".claude"),
 	}
@@ -81,11 +86,11 @@ func TestForAsksTheRouterAtTheStateDirectoryAskedFromToo(t *testing.T) {
 	// The plist names another state home, but launchd runs the router at
 	// the one asked from, as when launchctl setenv set it.
 	shell := s.installedFrom(t, map[string]string{"XDG_STATE_HOME": "<root>/custom"}, service.InstallOptions{}, nil, func(string) service.Router { return down(t) })
-	opts, err := shell.Options()
+	opts, err := shell.Options(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc, err := shell.For(opts)
+	svc, err := shell.For(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,11 +114,11 @@ func TestRestartNeverKickstartsWhileARouterAnswers(t *testing.T) {
 	s.router.restart = tookRestart(healthOf(up(4242)), true)
 	s.launchctl.loaded = true
 	shell := s.installedFrom(t, map[string]string{"XDG_STATE_HOME": "<root>/custom"}, service.InstallOptions{}, nil, func(string) service.Router { return down(t) })
-	opts, err := shell.Options()
+	opts, err := shell.Options(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc, err := shell.For(opts)
+	svc, err := shell.For(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +183,7 @@ func TestPlacesApart(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newSetup(t, nil, nil)
+			s := newSetup(t, nil, notRunning)
 			writeFile(t, filepath.Join(s.root, "work.toml"))
 			if err := os.Symlink(filepath.Join(s.root, "work.toml"), filepath.Join(s.root, "linked.toml")); err != nil {
 				t.Fatal(err)
@@ -186,11 +191,11 @@ func TestPlacesApart(t *testing.T) {
 			tt.installed.Config = strings.ReplaceAll(tt.installed.Config, "<root>", s.root)
 			tt.setup.Config = strings.ReplaceAll(tt.setup.Config, "<root>", s.root)
 			shell := s.installedFrom(t, tt.installedEnv, tt.installed, tt.here, func(string) service.Router { return down(t) })
-			opts, err := shell.Options()
+			opts, err := shell.Options(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
-			svc, err := shell.For(opts)
+			svc, err := shell.For(t.Context(), opts)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -214,7 +219,7 @@ func TestPlacesApart(t *testing.T) {
 }
 
 func TestInstallKeepsTheVariablesAddedByHand(t *testing.T) {
-	s := newSetup(t, map[string]string{"XDG_STATE_HOME": "/Users/tester/now"}, upOnceStarted(4242))
+	s := newSetup(t, map[string]string{"XDG_STATE_HOME": "<root>/now"}, upOnceStarted(4242))
 	s.putPlist(t, `<plist><dict><key>ProgramArguments</key><array><string>/elsewhere/switchboard</string><string>serve</string></array>`+
 		`<key>EnvironmentVariables</key><dict><key>XDG_STATE_HOME</key><string>/Users/tester/then</string><key>XDG_CONFIG_HOME</key><string>/Users/tester/config</string>`+
 		`<key>HTTPS_PROXY</key><string>http://proxy.example:8080</string></dict></dict></plist>`)
@@ -226,7 +231,7 @@ func TestInstallKeepsTheVariablesAddedByHand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "\t<dict>\n\t\t<key>XDG_STATE_HOME</key>\n\t\t<string>/Users/tester/now</string>\n\t\t<key>HTTPS_PROXY</key>\n\t\t<string>http://proxy.example:8080</string>\n\t</dict>"
+	want := "\t<dict>\n\t\t<key>XDG_STATE_HOME</key>\n\t\t<string>" + s.root + "/now</string>\n\t\t<key>HTTPS_PROXY</key>\n\t\t<string>http://proxy.example:8080</string>\n\t</dict>"
 	if !strings.Contains(string(plist), want) {
 		t.Errorf("the plist reads\n%s\nwant the variables carried as they're set here, those added by hand kept:\n%s", plist, want)
 	}
@@ -249,5 +254,144 @@ func writeFile(t *testing.T, path string) {
 	t.Helper()
 	if err := os.WriteFile(path, nil, 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestOptionsReadsABinaryPlistThroughPlutil(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary, LogLevel: "debug"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// As defaults writes it, a variable added.
+	s.putPlist(t, "bplist00\xd1\x01\x02")
+	var ran [][]string
+	cfg := s.cfg
+	cfg.Plutil = func(_ context.Context, args ...string) ([]byte, error) {
+		ran = append(ran, args)
+		return []byte(strings.Replace(string(written), "\t<key>RunAtLoad</key>",
+			"\t<key>EnvironmentVariables</key>\n\t<dict>\n\t\t<key>HTTPS_PROXY</key>\n\t\t<string>http://proxy.example:8080</string>\n\t</dict>\n\t<key>RunAtLoad</key>", 1)), nil
+	}
+
+	opts, err := newService(t, cfg).Options(t.Context())
+	if err != nil || opts.Executable != s.binary || opts.LogLevel != "debug" {
+		t.Errorf("Options() = %+v, %v; want the options the binary plist holds", opts, err)
+	}
+	if want := [][]string{{"-convert", "xml1", "-o", "-", s.plist}}; !reflect.DeepEqual(ran, want) {
+		t.Errorf("ran plutil %q, want %q", ran, want)
+	}
+	if _, err := newService(t, s.cfg).Options(t.Context()); err == nil || !strings.Contains(err.Error(), "plutil") {
+		t.Errorf("Options() without plutil error = %v, want it saying there's no plutil to read a binary plist", err)
+	}
+}
+
+func TestInstallKeepsTheVariablesABinaryPlistSets(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	s.putPlist(t, "bplist00\xd1\x01\x02")
+	cfg := s.cfg
+	cfg.Plutil = func(context.Context, ...string) ([]byte, error) {
+		return []byte(`<plist><dict><key>ProgramArguments</key><array><string>/elsewhere/switchboard</string><string>serve</string></array>` +
+			`<key>EnvironmentVariables</key><dict><key>HTTPS_PROXY</key><string>http://proxy.example:8080</string></dict></dict></plist>`), nil
+	}
+
+	if _, err := newService(t, cfg).Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if plist, err := os.ReadFile(s.plist); err != nil || !strings.Contains(string(plist), "<key>HTTPS_PROXY</key>") {
+		t.Errorf("the plist reads\n%s(%v)\nwant the variable the binary plist set kept", plist, err)
+	}
+}
+
+func TestForTakesTheStateDirectoryOfTheRouterThatAnswers(t *testing.T) {
+	s := newSetup(t, nil, func(int) (router.Health, error) { return up(4242) })
+	shell := s.installedFrom(t, map[string]string{"XDG_STATE_HOME": "<root>/custom"}, service.InstallOptions{}, nil, func(string) service.Router { return down(t) })
+	opts, err := shell.Options(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc, err := shell.For(t.Context(), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := s.cfg.StateDir; svc.StateDir() != want || svc.Log() != service.LogIn(want) {
+		t.Errorf("StateDir() = %s, Log() = %s; want %s, the answering router's, and its log", svc.StateDir(), svc.Log(), want)
+	}
+	places, err := svc.Places(opts)
+	if want := filepath.Join(s.cfg.StateDir, "tokens"); err != nil || places.Tokens != want {
+		t.Errorf("Places() = %+v, %v; want the token files at %s", places, err, want)
+	}
+}
+
+func TestInstallSeesTheRouterInTheHomeThePlistSets(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	var asked []string
+	s.cfg.RouterAt = func(dir string) service.Router {
+		asked = append(asked, dir)
+		return &fakeRouter{t: t, answer: func(asked int) (router.Health, error) { return upAfter(asked, 1, 4242) }}
+	}
+	s.svc = newService(t, s.cfg)
+	s.putPlist(t, `<plist><dict><key>ProgramArguments</key><array><string>`+s.binary+`</string><string>serve</string></array>`+
+		`<key>EnvironmentVariables</key><dict><key>HOME</key><string>`+s.root+`/other</string></dict></dict></plist>`)
+	s.router.answer, s.router.refuse = notRunning, false
+
+	installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+	if err != nil || installed.Router == nil {
+		t.Fatalf("Install() = %+v, %v; want the router at the state directory the home decides answering", installed, err)
+	}
+	stateDir := filepath.Join(s.root, "other", ".local", "state", "switchboard")
+	if !slices.Contains(asked, stateDir) {
+		t.Errorf("asked for the routers at %q, want the one at %s", asked, stateDir)
+	}
+	if plist, err := os.ReadFile(s.plist); err != nil || !strings.Contains(string(plist), "<string>"+service.LogIn(stateDir)+"</string>") {
+		t.Errorf("the plist reads\n%s(%v)\nwant launchd's log in %s", plist, err, stateDir)
+	}
+}
+
+func TestOptionsReadsARelativePathAsLaunchdDoes(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	s.putPlist(t, `<plist><dict><key>ProgramArguments</key><array><string>`+s.binary+`</string><string>serve</string><string>--config</string><string>work.toml</string></array>`+
+		`<key>EnvironmentVariables</key><dict><key>SWITCHBOARD_CONFIG</key><string>config/other.toml</string><key>CLAUDE_CONFIG_DIR</key><string>claude</string></dict></dict></plist>`)
+	t.Chdir(s.root)
+
+	opts, err := s.svc.Options(t.Context())
+	if err != nil || opts.Config != "/work.toml" {
+		t.Fatalf("Options() = %+v, %v; want the config at /work.toml, as launchd runs the router in /", opts, err)
+	}
+	svc, err := s.svc.For(t.Context(), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{"SWITCHBOARD_CONFIG": "/config/other.toml", "CLAUDE_CONFIG_DIR": "/claude"} {
+		if got := svc.Getenv(key); got != want {
+			t.Errorf("Getenv(%s) = %q, want %q, as launchd runs the router in /", key, got, want)
+		}
+	}
+}
+
+func TestSameFileJudgesAPathNotThereByWhereItWouldBe(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "real"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "real"), filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		{a: "real/claude", b: "link/claude", want: true},
+		{a: "real/claude", b: "link/other", want: false},
+		{a: "real/claude/skills", b: "link/claude/skills", want: true},
+		{a: "real/claude", b: "elsewhere/claude", want: false},
+	}
+	for _, tt := range tests {
+		if got := service.SameFile(filepath.Join(root, tt.a), filepath.Join(root, tt.b)); got != tt.want {
+			t.Errorf("SameFile(%s, %s) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
 	}
 }

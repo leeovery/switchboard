@@ -1,8 +1,12 @@
 package service
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 )
 
@@ -10,15 +14,23 @@ import (
 // environment.
 const environmentKey = "EnvironmentVariables"
 
+// binaryPlist is how a plist in Apple's binary form starts, as defaults
+// writes one.
+var binaryPlist = []byte("bplist00")
+
+// errNoPlutil is what reading a binary plist fails with without plutil to
+// read it back as XML.
+var errNoPlutil = errors.New("it's a binary plist, and there's no plutil to read it")
+
 // Options reads back the options the plist in place was installed with: the
 // binary it runs, the config file and the log level it gives the router, and
-// the variables launchd sets for it, all of them, and the log launchd
-// writes, which Install keeps in place of those where it's installed. It
-// fails for a plist it can't read, that isn't XML, as a binary one isn't, or
-// that names no program, as then it names nothing to keep: one that isn't
-// there fails as fs.ErrNotExist.
-func (s *Service) Options() (InstallOptions, error) {
-	installed, err := s.readPlist()
+// the variables launchd sets for it, all of them, which Install keeps in
+// place of those where it's installed. A path the plist names relatively is
+// one under /, as launchd runs the router there. It fails for a plist it
+// can't read, that isn't a plist, or that names no program, as then it names
+// nothing to keep: one that isn't there fails as fs.ErrNotExist.
+func (s *Service) Options(ctx context.Context) (InstallOptions, error) {
+	installed, err := s.readPlist(ctx)
 	if err != nil {
 		return InstallOptions{}, err
 	}
@@ -27,14 +39,26 @@ func (s *Service) Options() (InstallOptions, error) {
 	if opts.Executable == "" {
 		return InstallOptions{}, fmt.Errorf("the service's plist, %s, names no program", s.Plist())
 	}
+	opts.Config = asLaunchdRuns(opts.Config)
 	opts.environment = map[string]string{}
 	variables, _ := lookup(installed, environmentKey)
 	for _, v := range variables.entries() {
-		opts.environment[v.key] = v.value.Text
+		value := v.value.Text
+		if slices.Contains(madeAbsolute, v.key) {
+			value = asLaunchdRuns(value)
+		}
+		opts.environment[v.key] = value
 	}
-	log, _ := lookup(installed, "StandardOutPath")
-	opts.log = log.Text
 	return opts, nil
+}
+
+// asLaunchdRuns is path as the router launchd runs finds it, in /: a
+// relative one is under /.
+func asLaunchdRuns(path string) string {
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join("/", path)
 }
 
 // Drift says how the plist in place differs from the one Install would write
@@ -43,10 +67,9 @@ func (s *Service) Options() (InstallOptions, error) {
 // would read the two alike, whatever their order of keys or their
 // whitespace, or the form a flag's value is given in. The variables launchd
 // sets never count: they differ as the shells installing from differ, never
-// as switchboards do, and OtherEnvironment says how. It fails as reading the
-// plist does.
-func (s *Service) Drift(opts InstallOptions) ([]string, error) {
-	installed, err := s.readPlist()
+// as switchboards do. It fails as reading the plist does.
+func (s *Service) Drift(ctx context.Context, opts InstallOptions) ([]string, error) {
+	installed, err := s.readPlist(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -70,17 +93,33 @@ func withoutEnvironment(entries []entry) []entry {
 	return slices.DeleteFunc(entries, func(e entry) bool { return e.key == environmentKey })
 }
 
-// readPlist reads the plist in place, its top dictionary's entries.
-func (s *Service) readPlist() ([]entry, error) {
+// readPlist reads the plist in place, its top dictionary's entries: one in
+// Apple's binary form, as defaults writes one, through plutil.
+func (s *Service) readPlist(ctx context.Context) ([]entry, error) {
 	data, err := os.ReadFile(s.Plist())
 	if err != nil {
 		return nil, fmt.Errorf("read the service's plist: %w", err)
+	}
+	if bytes.HasPrefix(data, binaryPlist) {
+		if data, err = s.asXML(ctx); err != nil {
+			return nil, fmt.Errorf("read the service's plist, %s: %w", s.Plist(), err)
+		}
 	}
 	entries, err := parsePlist(data)
 	if err != nil {
 		return nil, fmt.Errorf("parse the service's plist, %s: %w", s.Plist(), err)
 	}
 	return entries, nil
+}
+
+// asXML is the plist in place, binary, read back as XML by plutil.
+func (s *Service) asXML(ctx context.Context) ([]byte, error) {
+	if s.cfg.Plutil == nil {
+		return nil, errNoPlutil
+	}
+	ctx, cancel := context.WithTimeout(ctx, launchctlTimeout)
+	defer cancel()
+	return s.cfg.Plutil(ctx, "-convert", "xml1", "-o", "-", s.Plist())
 }
 
 // optionsOf reads back the options a program, as agent writes it, was

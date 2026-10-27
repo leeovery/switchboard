@@ -97,8 +97,9 @@ type Config struct {
 	// StateDir is switchboard's state directory, where launchd's log goes,
 	// and the router reads the accounts' tokens.
 	StateDir string
-	// Launchctl runs launchctl.
-	Launchctl Runner
+	// Launchctl runs launchctl, and Plutil plutil, which reads a binary
+	// plist back as XML.
+	Launchctl, Plutil Runner
 	// Router asks the router the service runs whether it's alive: the one
 	// whose state is in StateDir.
 	Router Router
@@ -110,13 +111,14 @@ type Config struct {
 // Service is the LaunchAgent.
 type Service struct {
 	cfg Config
-	// home is the home directory the router runs in, where it isn't the
-	// user's, and log where launchd writes what it prints, where it isn't in
-	// the state directory, as For finds them in the plist.
-	home, log string
-	// also are the routers the service may run besides cfg.Router's, as For
-	// keeps the one at the state directory it's asked from.
+	// home is the home directory the router runs in, where the environment
+	// the service is seen in names one other than the user's.
+	home string
+	// also are the routers the service may run besides cfg.Router's, as one
+	// seen in another environment keeps the one at the state directory it's
+	// asked from, and base the service as it's asked about.
 	also []Router
+	base *Service
 }
 
 // New returns the LaunchAgent, failing with ErrUnsupported on a system other
@@ -136,7 +138,7 @@ func (s *Service) Plist() string {
 // Log is where launchd writes what the router prints itself, such as a
 // crash's output.
 func (s *Service) Log() string {
-	return cmp.Or(s.log, LogIn(s.cfg.StateDir))
+	return LogIn(s.cfg.StateDir)
 }
 
 // LogIn is where launchd writes what the router prints itself, as Log says,
@@ -158,14 +160,12 @@ type InstallOptions struct {
 	// Accounts are the config's accounts, whose tokens the router serves
 	// with.
 	Accounts config.Accounts
-	// environment is the variables carried as the service was installed
-	// with them, and log where launchd wrote what the router printed, as
-	// Options reads them back: for nil and "", those of where the service is
-	// installed. They're Options' alone to give, as the variables decide
-	// where the router keeps its state, its tokens with it, which only
-	// installing from the shell the router should use may change.
+	// environment is what launchd is to set in the router's environment, as
+	// Options reads it back from the plist in place, or Planned works it out:
+	// nil for Install to work it out as Planned does. It's theirs to give, as
+	// the variables decide where the router keeps its state, its tokens with
+	// it.
 	environment map[string]string
-	log         string
 }
 
 // Installed is what installing the service did.
@@ -183,6 +183,10 @@ type Installed struct {
 // the router to answer. It refuses a switchboard binary that won't last,
 // such as go run's.
 func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, error) {
+	s, opts, err := s.Planned(ctx, opts)
+	if err != nil {
+		return Installed{}, err
+	}
 	a, warnings, err := s.prepare(opts)
 	if err != nil {
 		return Installed{}, err
@@ -205,13 +209,6 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 // that runs it, with what's worth the user's attention: the router having no
 // token to serve with.
 func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
-	if opts.environment == nil {
-		environment, err := s.installing()
-		if err != nil {
-			return agent{}, nil, err
-		}
-		opts.environment = environment
-	}
 	a, err := s.describe(opts)
 	if err != nil {
 		return agent{}, nil, err
@@ -336,20 +333,17 @@ type Status struct {
 	// Installed is whether its plist is in place, and Loaded whether launchd
 	// has loaded it.
 	Installed, Loaded bool
-	// Binary is the switchboard binary its plist has launchd run, as the
-	// plist names it: "" when there's no plist, or it names none.
-	Binary string
 	// Router is the router's answer to its health check, or nil when it
 	// didn't answer, and RouterErr then says why.
 	Router    *router.Health
 	RouterErr error
 }
 
-// Status reports whether the service is installed, which switchboard binary
-// it runs, whether launchd has loaded it, and how the router answers.
+// Status reports whether the service is installed, whether launchd has
+// loaded it, and how the router answers.
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	_, err := os.Stat(s.Plist())
-	st := Status{Installed: err == nil, Binary: s.installedBinary()}
+	st := Status{Installed: err == nil}
 	if st.Loaded, err = s.loaded(ctx); err != nil {
 		return Status{}, err
 	}
@@ -359,13 +353,6 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		st.RouterErr = err
 	}
 	return st, nil
-}
-
-// installedBinary is the switchboard binary the plist in place has launchd
-// run, as it names it: "" when there's no plist to read, or it names none.
-func (s *Service) installedBinary() string {
-	opts, _ := s.Options()
-	return opts.Executable
 }
 
 // Answered fails, saying where to find out why, when the router launchd
