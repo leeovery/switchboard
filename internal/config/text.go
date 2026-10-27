@@ -24,9 +24,12 @@ const (
 	header
 	// primaryKey sets primary.
 	primaryKey
-	// content is any other line: a key and its value, or part of a string
-	// that goes on over lines.
+	// content is any other line: a key and its value, the first line of one
+	// whose string goes on over lines among them.
 	content
+	// inString is a line within a string that goes on over lines, past the
+	// line that opens it, whatever it looks like.
+	inString
 )
 
 var (
@@ -92,7 +95,7 @@ func (d document) text() string {
 }
 
 // scan says what each of lines is. A line within a string that goes on over
-// lines is content, whatever it looks like.
+// lines is inString, whatever it looks like.
 func scan(lines []string) []kind {
 	kinds := make([]kind, len(lines))
 	// open is the quotes that opened a string that goes on past the lines
@@ -101,7 +104,7 @@ func scan(lines []string) []kind {
 	for i, line := range lines {
 		text := strings.TrimSpace(line)
 		if open != "" {
-			kinds[i] = content
+			kinds[i] = inString
 			if closes(open, text) {
 				open = ""
 			}
