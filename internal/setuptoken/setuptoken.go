@@ -27,8 +27,8 @@ const (
 
 const (
 	// exitGrace is how long setup-token is given, once it says it has made
-	// the token, to exit by itself, as it does half a second later, before
-	// it's stopped.
+	// the token, from the last it draws, to exit by itself, as it does half
+	// a second later, before it's stopped.
 	exitGrace = 5 * time.Second
 	// handOverWithin bounds the wait for setup-token to hand its sign-in
 	// address over, which it does as it starts, a moment after it's run,
@@ -37,15 +37,16 @@ const (
 )
 
 // waits are how long Make waits on setup-token: grace to exit once it says it
-// has made the token, and handOver to hand its sign-in address over.
+// has made the token, handOver to hand its sign-in address over, and drain to
+// exit once it's stopped, and to finish drawing once it has exited.
 type waits struct {
-	grace, handOver time.Duration
+	grace, handOver, drain time.Duration
 }
 
-// orDefaults returns the waits, exitGrace and handOverWithin for those that
-// are 0.
+// orDefaults returns the waits, exitGrace, handOverWithin and drainFor for
+// those that are 0.
 func (w waits) orDefaults() waits {
-	return waits{grace: cmp.Or(w.grace, exitGrace), handOver: cmp.Or(w.handOver, handOverWithin)}
+	return waits{grace: cmp.Or(w.grace, exitGrace), handOver: cmp.Or(w.handOver, handOverWithin), drain: cmp.Or(w.drain, drainFor)}
 }
 
 // What Make fails with, given no way to tell switchboard's own claude link
@@ -76,8 +77,9 @@ type Signing struct {
 	// Opener opens the sign-in address: in the browser as it is, or in a
 	// private window.
 	Opener Opener
-	// Report hears each step as it's taken, on Make's goroutine: nil hears
-	// nothing.
+	// Report hears each step, in order, on a goroutine of its own, so it
+	// never holds up Make's reading of what setup-token draws, and all of
+	// them before Make returns: nil hears nothing.
 	Report func(Event)
 }
 
@@ -92,13 +94,13 @@ type Signing struct {
 // see, or, where it said it made a token, the fullest drawing that said so,
 // to copy the token from. So it does where setup-token shows an error it
 // would wait to retry at, where Make stops it, and where it doesn't hand its
-// sign-in address over within handOverWithin. When ctx ends, setup-token is
-// stopped. Before the token's made, Make fails with ctx's cause, where that's
-// what stopped setup-token, and not its own failure first. Once it's made, it
-// lasts a year on the account, so Make returns it all the same where
-// setup-token showed it whole, and otherwise fails with a *ScreenError, which
-// is ctx's cause too where that's what stopped setup-token. Whichever way
-// Make returns, setup-token is gone, all it started on its terminal with it.
+// sign-in address over within handOverWithin. When ctx ends before the
+// token's made, setup-token is stopped, and Make fails with ctx's cause,
+// where that's what stopped it, and not its own exit first. Once it's made,
+// it lasts a year on the account, so Make reads on till setup-token shows it
+// whole, then stops it and returns it, or till its grace is over, and then
+// fails with a *ScreenError, which is ctx's cause too. Whichever way Make
+// returns, setup-token is gone, all it started on its terminal with it.
 func (m Maker) Make(ctx context.Context, s Signing) (tokens.Token, error) {
 	switch {
 	case ctx.Err() != nil:

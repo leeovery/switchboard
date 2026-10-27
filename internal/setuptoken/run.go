@@ -20,12 +20,15 @@ const (
 	// lookEvery is how often the shim's directory is looked at for the
 	// address it's handed.
 	lookEvery = 50 * time.Millisecond
-	// drainFor bounds the reading of what setup-token drew last, once it has
-	// exited, and the wait on its exit once ctx has ended: anything it left
-	// running can hold its terminal open.
+	// drainFor bounds the wait on setup-token's exit once Make stops it, and
+	// on the end of its drawing once it has exited: anything it left running
+	// can hold its terminal open.
 	drainFor = 2 * time.Second
 	// readSize is how much of what setup-token draws is read at a time.
 	readSize = 32 << 10
+	// reportsHeld is how many events Make can report before the Signing's
+	// Report hears the first: Make reports each step once.
+	reportsHeld = int(StepMade)
 )
 
 // run is one run of setup-token, and what Make has seen of it.
@@ -46,7 +49,9 @@ type run struct {
 	exited <-chan error
 	// done tells the reading of output to stop.
 	done chan struct{}
-	wg   sync.WaitGroup
+	// reports carries what Make reports to the Signing's Report.
+	reports chan Event
+	wg      sync.WaitGroup
 
 	// ended is the end of Make's context, waited on until it comes (see
 	// cancel), then nil.
@@ -54,9 +59,9 @@ type run struct {
 	// The timers Make waits on, each nil until it's started, or once it's no
 	// longer waited on: looking, for the shim's directory to be looked at;
 	// handOver, for setup-token to have handed its address over; graceOver,
-	// for it to have exited once it has made the token; drained, for its
-	// drawing to have been read once it has exited, or for its exit once ctx
-	// has ended.
+	// for it to have exited once it has made the token; drained, for it to
+	// have exited, and its drawing to have been read, once Make has stopped
+	// it, or it has exited.
 	looking, handOver, graceOver, drained <-chan time.Time
 	waits                                 waits
 
@@ -67,7 +72,7 @@ type run struct {
 	madeScreen  string
 	madeDrawn   int
 	// exit is how setup-token exited, once it has: nil where it exited 0.
-	// stopped says Make stopped it, its grace to exit over, before ctx ended.
+	// stopped says Make stopped it, its grace over, before ctx ended.
 	exit    error
 	stopped bool
 
@@ -84,7 +89,8 @@ func begin(ctx context.Context, path string, env environ, s Signing) (*run, erro
 	if err != nil {
 		return nil, fmt.Errorf("make setup-token's browser: %w", err)
 	}
-	r := &run{signing: s, shim: sh, screen: newScreen(columns, rows), done: make(chan struct{})}
+	r := &run{signing: s, shim: sh, screen: newScreen(columns, rows), done: make(chan struct{}), reports: make(chan Event, reportsHeld)}
+	r.wg.Go(r.tell)
 	if err := r.start(ctx, path, env); err != nil {
 		r.close()
 		return nil, err
@@ -92,24 +98,25 @@ func begin(ctx context.Context, path string, env environ, s Signing) (*run, erro
 	return r, nil
 }
 
-// start starts setup-token, and the reading of what it draws, and the wait
-// for it to exit.
+// start starts setup-token, while ctx lasts, and the reading of what it
+// draws, and the wait for it to exit. The end of ctx doesn't kill it by
+// itself: Make stops it, as cancel says.
 func (r *run) start(ctx context.Context, path string, env environ) error {
+	if ctx.Err() != nil {
+		return cancelled(ctx)
+	}
 	master, tty, err := openTerminal(columns, rows)
 	if err != nil {
 		return fmt.Errorf("open a pseudo-terminal for setup-token: %w", err)
 	}
 	r.master = master
-	runs, stop := context.WithCancel(ctx)
+	runs, stop := context.WithCancel(context.WithoutCancel(ctx))
 	r.stop = stop
 	cmd, err := start(runs, path, []string{claude.Command, claude.SetupTokenCommand}, env.forSetupToken(path, r.shim.browser()), tty)
 	// From here setup-token alone holds its terminal open, so what it draws
 	// ends once it, and all it started there, are gone.
 	_ = tty.Close()
-	switch {
-	case err != nil && ctx.Err() != nil:
-		return cancelled(ctx)
-	case err != nil:
+	if err != nil {
 		return fmt.Errorf("start claude %s at %s: %w", claude.SetupTokenCommand, path, err)
 	}
 	r.group = cmd.Process.Pid
@@ -153,9 +160,19 @@ func (r *run) read(output chan<- []byte) {
 	}
 }
 
+// tell has the Signing's Report hear each event Make reports, in order.
+func (r *run) tell() {
+	for e := range r.reports {
+		if r.signing.Report != nil {
+			r.signing.Report(e)
+		}
+	}
+}
+
 // close stops setup-token, should it still be running, all it started on its
-// terminal with it, closes its terminal, waits for the reading of it and for
-// setup-token's exit, and removes the shim.
+// terminal with it, closes its terminal, waits for the reading of it, for
+// setup-token's exit, and for the Signing's Report to have heard all Make
+// reported, and removes the shim.
 func (r *run) close() {
 	if r.stop != nil {
 		r.stop()
@@ -171,6 +188,7 @@ func (r *run) close() {
 		_ = killGroup(r.group)
 	}
 	close(r.done)
+	close(r.reports)
 	if r.master != nil {
 		_ = r.master.Close()
 	}
@@ -204,29 +222,35 @@ func (r *run) next(ctx context.Context) {
 	case <-r.looking:
 		r.lookForAddress(ctx)
 	case <-r.handOver:
-		r.fail(notHandedOver(r.screen.drawing().text()))
+		r.judge(ctx, notHandedOver(r.screen.drawing().text()))
 	case <-r.graceOver:
-		r.graceOver, r.stopped = nil, ctx.Err() == nil
-		r.stop()
+		r.stopped = ctx.Err() == nil
+		r.halt()
 	case <-r.drained:
 		r.conclude(ctx)
 	}
 }
 
-// cancel follows the end of ctx, which stops setup-token. Make reads what it
-// drew to its end all the same, and takes the token where it's made, and
-// shown whole: it lasts a year on the account, and nobody could see it were
-// Make to drop it. Before the token's made, Make waits on setup-token's exit
-// too, drainFor at most, to tell whether the cancel stopped it, or it failed
-// by itself first.
+// cancel follows the end of ctx. Before the token's made, Make stops
+// setup-token, and waits on its exit, to tell whether the cancel stopped it,
+// or it failed by itself first. Once it's made, it lasts a year on the
+// account, and nobody could see it were Make to drop it, so Make reads on
+// till it's shown whole, and only then stops setup-token, or till its grace
+// is over, which no longer runs on from what it draws (see draw).
 func (r *run) cancel() {
 	r.ended = nil
-	if r.made {
-		return
+	if !r.made || r.shown {
+		r.halt()
 	}
-	r.looking, r.handOver = nil, nil
+}
+
+// halt stops setup-token, and waits on its exit, and the end of its drawing,
+// as long as the waits' drain at most.
+func (r *run) halt() {
+	r.stop()
+	r.looking, r.handOver, r.graceOver = nil, nil, nil
 	if r.drained == nil {
-		r.drained = time.After(drainFor)
+		r.drained = time.After(r.waits.drain)
 	}
 }
 
@@ -237,8 +261,10 @@ func cancelled(ctx context.Context) error {
 
 // draw draws what setup-token drew, and follows what its screen says before
 // each control sequence in it, and after it all, until the token's shown
-// whole: a frame and what erases it can come in one read. Its drawing over,
-// ok false, and setup-token gone, Make concludes.
+// whole: a frame and what erases it can come in one read. Once the token's
+// made, setup-token's grace runs from the last it draws while ctx lasts, and
+// once ctx has ended, it's stopped as soon as it has shown the token. Its
+// drawing over, ok false, and setup-token gone, Make concludes.
 func (r *run) draw(ctx context.Context, drawn []byte, ok bool) {
 	if !ok {
 		r.output = nil
@@ -254,26 +280,35 @@ func (r *run) draw(ctx context.Context, drawn []byte, ok bool) {
 		}
 		r.screen.write(drawn[:piece])
 		drawn = drawn[piece:]
-		r.follow()
+		r.follow(ctx)
 	}
 	r.screen.write(drawn)
+	switch {
+	case !r.made || r.over || r.drained != nil:
+	case ctx.Err() == nil:
+		r.graceOver = time.After(r.waits.grace)
+	case r.shown:
+		r.halt()
+	}
 }
 
 // follow follows what setup-token's screen says: that it has made the token,
-// which it's then given grace to exit after, whether it handed its address
-// over or not; and the token, kept the first time it's shown whole, and the
-// fullest drawing that said it's made, for a failure to show; or an error it
-// waits to retry at, where Make stops.
-func (r *run) follow() {
+// whether it handed its address over or not; and the token, kept the first
+// time it's shown whole, and the fullest drawing that said it's made, for a
+// failure to show; or an error it waits to retry at, where Make stops.
+func (r *run) follow(ctx context.Context) {
 	d := r.screen.drawing()
 	if !r.made && d.made() {
 		r.made = true
-		r.looking, r.handOver, r.graceOver = nil, nil, time.After(r.waits.grace)
+		r.looking, r.handOver = nil, nil
+		if r.drained == nil {
+			r.graceOver = time.After(r.waits.grace)
+		}
 		r.report(Event{Step: StepMade})
 	}
 	if !r.made {
 		if d.failed() {
-			r.fail(failedAt(d.text()))
+			r.judge(ctx, failedAt(d.text()))
 		}
 		return
 	}
@@ -284,7 +319,7 @@ func (r *run) follow() {
 }
 
 // exitedWith notes setup-token's exit, as err says, and concludes once its
-// drawing is over, or drainFor after at most.
+// drawing is over, or the waits' drain after at most.
 func (r *run) exitedWith(ctx context.Context, err error) {
 	r.exited, r.exit = nil, err
 	r.looking, r.handOver, r.graceOver = nil, nil, nil
@@ -293,7 +328,7 @@ func (r *run) exitedWith(ctx context.Context, err error) {
 		return
 	}
 	if r.drained == nil {
-		r.drained = time.After(drainFor)
+		r.drained = time.After(r.waits.drain)
 	}
 }
 
@@ -312,7 +347,7 @@ func (r *run) lookForAddress(ctx context.Context) {
 	r.looking, r.handOver = nil, nil
 	address, ok := newAddress(raw)
 	if !ok {
-		r.fail(notAnAddress(r.screen.drawing().text()))
+		r.judge(ctx, notAnAddress(r.screen.drawing().text()))
 		return
 	}
 	opened, err := r.signing.Opener.Open(ctx, address)
@@ -339,13 +374,23 @@ func (r *run) conclude(ctx context.Context) {
 	case r.made:
 		r.fail(unreadable(r.madeScreen, r.stoppedBy(ctx)))
 	case d.failed():
-		r.fail(failedAt(d.text()))
+		r.judge(ctx, failedAt(d.text()))
 	case r.exited != nil:
-		// Still running drainFor after ctx ended, which kills it.
+		// Still running the waits' drain after ctx ended, which stops it.
 		r.fail(cancelled(ctx))
 	default:
 		r.fail(exitedWithout(d.text(), r.exit))
 	}
+}
+
+// judge fails with err, a failure Make judged from what setup-token drew or
+// how long it took, or with the cancel, where ctx has ended by then: the two
+// can come at once, and the end of ctx stops setup-token either way.
+func (r *run) judge(ctx context.Context, err error) {
+	if ctx.Err() != nil {
+		err = cancelled(ctx)
+	}
+	r.fail(err)
 }
 
 // stoppedBy returns what stopped setup-token, for a failure to carry: the
@@ -362,7 +407,7 @@ func (r *run) stoppedBy(ctx context.Context) error {
 }
 
 // stoppedByCancel reports whether the end of ctx is what stopped setup-token:
-// ctx has ended, and setup-token was killed, but not by Make.
+// ctx has ended, and setup-token was killed, but not by Make, its grace over.
 func (r *run) stoppedByCancel(ctx context.Context) bool {
 	return ctx.Err() != nil && !r.stopped && killed(r.exit)
 }
@@ -377,8 +422,8 @@ func (r *run) fail(err error) {
 	r.over, r.err = true, err
 }
 
+// report has the Signing's Report hear e, off Make's goroutine, so a Report
+// that takes its time never holds up the reading of what setup-token draws.
 func (r *run) report(e Event) {
-	if r.signing.Report != nil {
-		r.signing.Report(e)
-	}
+	r.reports <- e
 }

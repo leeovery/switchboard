@@ -27,8 +27,8 @@ import (
 // browser to sign in…", runs $BROWSER with FAKE_ADDRESS, draws the manual
 // address it would have the person paste, as a link, and waits for the test
 // to approve the sign-in, as the browser's callback does, by writing
-// FAKE_DIR/approved. Then it draws the token, FAKE_TOKEN, and exits
-// FAKE_EXIT_AFTER seconds later, with FAKE_STATUS, 0 where it's unset. It
+// FAKE_DIR/approved. Then it draws the token, FAKE_TOKEN, notes it has, and
+// exits FAKE_EXIT_AFTER seconds later, with FAKE_STATUS, 0 where it's unset. It
 // redraws each frame over the last, as Ink does. FAKE_MODE has it do
 // otherwise:
 //
@@ -45,6 +45,9 @@ import (
 //	             waiting
 //	clears       the token's frame and what erases it drawn in one write
 //	last         the token drawn last, nothing after it
+//	big          forty lines between the line saying the token's made and
+//	             the token, a frame larger than the terminal holds unread,
+//	             drawn a line at a time
 const fakeSetupToken = `#!/bin/sh
 d=$FAKE_DIR
 note() { printf '%s\n' "$2" > "$d/$1.tmp" && /bin/mv "$d/$1.tmp" "$d/$1"; }
@@ -114,8 +117,18 @@ clears)
 	/bin/cat "$d/frame"
 	;;
 last) frame "$made \\033[33m$FAKE_TOKEN\\033[39m\n" ;;
+big)
+	printf '%b' "$made"
+	i=0
+	while [ "$i" -lt 40 ]; do
+		printf ' %s\n' 'A line of a frame larger than its terminal holds unread, drawn a line at a time.'
+		i=$((i + 1))
+	done
+	printf '%b' " \\033[33m$FAKE_TOKEN\\033[39m$after"
+	;;
 *) frame "$made \\033[33m$FAKE_TOKEN\\033[39m$after" ;;
 esac
+note drawn yes
 /bin/sleep "${FAKE_EXIT_AFTER:-0.5}"
 exit "${FAKE_STATUS:-0}"
 `

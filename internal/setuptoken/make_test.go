@@ -374,13 +374,15 @@ func TestMakeReturnsTheTokenMadeThoughItsContextEndsBeforeSetupTokenExits(t *tes
 	}
 }
 
+// Setup-token is given its grace once its context ends, but no more.
 func TestMakeFailsWithTheCancelAndTheScreenWhenItsContextEndsBeforeTheTokenMadeIsShownWhole(t *testing.T) {
 	for attempt := range 6 {
 		f := newFake(t, "slow", "FAKE_PAUSE=60", "FAKE_EXIT_AFTER=60")
+		maker := setuptoken.Waiting(f.maker, time.Second, time.Minute)
 		leaks := watchLeaks(t)
 		ctx, cancel := context.WithCancel(t.Context())
 
-		token, err := f.maker.Make(ctx, setuptoken.Signing{Opener: &opener{}, Report: cancellingOnceMade(t, f, cancel)})
+		token, err := maker.Make(ctx, setuptoken.Signing{Opener: &opener{}, Report: cancellingOnceMade(t, f, cancel)})
 
 		cancel()
 		screen, ok := errors.AsType[*setuptoken.ScreenError](err)
@@ -448,30 +450,48 @@ func TestMakeTakesTheTokenShownThoughSetupTokenErasesItBeforeItExits(t *testing.
 	leaks.check(t, f)
 }
 
-func TestMakeNamesTheCancelOnlyWhereItStoppedSetupToken(t *testing.T) {
-	f := newFake(t, "broken")
+// The cancel comes as setup-token says it has made the token, more than its
+// terminal holds unread before the token.
+func TestMakeReadsOnToTheTokenThoughItsContextEndsAsItsMade(t *testing.T) {
+	for attempt := range 4 {
+		f := newFake(t, "big", "FAKE_EXIT_AFTER=60")
+		leaks := watchLeaks(t)
+		ctx, cancel := context.WithCancel(t.Context())
+
+		token, err := f.maker.Make(ctx, setuptoken.Signing{Opener: &opener{}, Report: cancellingOnceMade(t, f, cancel)})
+
+		cancel()
+		if err != nil || token.Reveal() != fakeToken {
+			t.Fatalf("attempt %d: Make() = %q, %v; want the token made", attempt, token.Reveal(), err)
+		}
+		leaks.check(t, f)
+	}
+}
+
+// Report hears the token's made, then waits for setup-token to draw it, more
+// than its terminal holds unread, which it can only while Make reads on, then
+// takes longer than setup-token's grace.
+func TestMakeReadsOnToTheTokenThoughReportTakesLongerThanTheGrace(t *testing.T) {
+	f := newFake(t, "big")
+	maker := setuptoken.Waiting(f.maker, 500*time.Millisecond, time.Minute)
 	leaks := watchLeaks(t)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
 	var events []setuptoken.Event
 	approve := approving(t, f, &events)
-	// Report holds Make up, so the cancel comes before Make concludes, once
-	// setup-token has exited by itself.
 	report := func(e setuptoken.Event) {
 		approve(e)
-		if e.Step != setuptoken.StepMade {
-			return
+		if e.Step == setuptoken.StepMade {
+			f.noted(t, "drawn")
+			time.Sleep(2 * time.Second)
 		}
-		if pid, err := strconv.Atoi(f.noted(t, "pid")); err != nil || !gone(pid) {
-			t.Errorf("the fake setup-token, %d, never exited by itself (%v)", pid, err)
-		}
-		cancel()
 	}
 
-	_, err := f.maker.Make(ctx, setuptoken.Signing{Opener: &opener{}, Report: report})
+	token, err := maker.Make(t.Context(), setuptoken.Signing{Opener: &opener{}, Report: report})
 
-	if want := "setup-token said it made a token, but its screen didn't show one"; err == nil || err.Error() != want || errors.Is(err, context.Canceled) {
-		t.Errorf("Make() = %v, want %q, without the cancel, which came once setup-token had exited", err, want)
+	if err != nil || token.Reveal() != fakeToken {
+		t.Errorf("Make() = %q, %v; want the token made", token.Reveal(), err)
+	}
+	if got := steps(events); !slices.Contains(got, setuptoken.StepMade) {
+		t.Errorf("Make reported %v before it returned, want the token made among them", got)
 	}
 	leaks.check(t, f)
 }
