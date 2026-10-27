@@ -295,7 +295,8 @@ the account's removed, that file still holds the token, and switchboard never wr
 file holding anything shaped like a token, whatever its permissions or owner, nor over one it can't
 read or one over 1 MiB: a token written for an account of that id later leaves it, with a warning,
 and its date stays unknown until you move the file. `accounts remove` leaves such a file too, with a
-warning, rather than deleting it. `status --json` gives each token's `token_taken`, and its
+warning, rather than deleting it, unless it's a second name of the very token file it removes, as a
+hard link of it, which goes with it. `status --json` gives each token's `token_taken`, and its
 `token_good_until`, 365 days on.
 
 ### When switchboard reads token files
