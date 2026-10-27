@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.9] - 2026-10-27
+
+💥 Breaking
+- `claude` now starts nothing when the router isn't running or can't be routed through, instead of connecting directly — set `when_router_down = "direct"` in the config, or `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude` for one launch, to keep the old behaviour.
+
+✨ Added
+- `when_router_down` config setting (`stop` or `direct`) and a per-launch `SWITCHBOARD_WHEN_ROUTER_DOWN` override — `claude` says why it didn't start and how to go on.
+- The router asks its new binary whether it could start before restarting into it, and holds the restart if it refuses — `service restart`, `service install`, `status` and the dashboard say why, so a newer version rejecting your config no longer takes the router down.
+- `status` shows the router's document while it still answers when the config can't be read, then reports the config error.
+
+🔧 Changed
+- `claude` waits up to 5 seconds for a slow router and keeps asking for the first 2 seconds if it isn't running, as it may be restarting — it used to give up after half a second.
+- A router that answers but reports unhealthy is routed through anyway, with a warning, instead of falling back to a direct connection.
+- A `claude` started inside a routed session restores your own environment, and falls back to that session's router when switchboard can't take part.
+- `claude --version` and `--help` go straight to Claude Code without touching the router.
+- The router reads idle accounts itself every 5 minutes (was 30), and the dashboard no longer has it probe on an interval — R still reads them at once.
+- Accounts whose probes keep failing back off up to 30 minutes, and the router remembers that across restarts.
+- Only the newest three corrupt state or preferences files set aside are kept.
+- The launchd log is trimmed when the router starts, and the service runs as an interactive job so launchd doesn't throttle it.
+- Stopping the router answers the health checks it has already accepted, so a launcher doesn't mistake it for gone.
+
+🐛 Fixed
+- Accounts keep the same number on every dashboard tab and in the routing picker while the config and the router disagree, such as after removing an account before a restart.
+- A pin or unpin that the router closed on without answering now says it may or may not have taken effect, instead of reporting the router as not running.
+- A window the router can never read no longer logs a warning at every probe.
+
 ## [0.2.8] - 2026-10-26
 
 A new Graphs tab shows every account's burn-down at a glance, in place of the Overview's GRAPHS section.
