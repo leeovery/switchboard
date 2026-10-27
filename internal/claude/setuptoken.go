@@ -21,6 +21,9 @@ const (
 	SetupTokenMade = "Long-lived authentication token created successfully!"
 	// SetupTokenError begins the line setup-token shows a sign-in's error on.
 	SetupTokenError = "OAuth error:"
+	// SetupTokenBelow begins the line setup-token shows next below the token
+	// it made, past a blank one.
+	SetupTokenBelow = "Store this token securely."
 	// SetupTokenRetry is what setup-token shows below an error it can retry,
 	// and waits at.
 	SetupTokenRetry = "Press Enter to retry"

@@ -57,7 +57,9 @@ func madeScreen(token string) drawing {
 	return drawn(madeRows(token)...)
 }
 
-// waitingRows are the rows of setup-token's frame as it waits on the sign-in.
+// waitingRows are the rows of setup-token's frame as it waits on the sign-in:
+// text on each row the token's frame draws the token, and the line below it,
+// on, the last of which shares characters, in place, with the line below.
 var waitingRows = []string{
 	" Opening browser to sign in…",
 	"",
@@ -65,7 +67,7 @@ var waitingRows = []string{
 	"",
 	" https://claude.example/oauth/authorize?code=true",
 	" Paste code here if prompted >",
-	"",
+	" Signing in…",
 	" Waiting for the sign-in…",
 }
 
@@ -164,6 +166,7 @@ func TestDrawingTakesNoTokenItCantReadWhole(t *testing.T) {
 		{name: "one with nothing drawn below it but blank rows", drawing: append(made[:5:5], nil, nil)},
 		{name: "one with a line below it written before it", drawing: append(made[:5:5], writtenAt(" Paste code here if prompted >", 1))},
 		{name: "one with a line below it written in part before it", drawing: append(made[:5:5], append(writtenAt(" 0123456789", 1000), writtenAt(" here if prompted >", 1)...))},
+		{name: "one with a line below it written in part before it, beginning as the line setup-token draws there", drawing: append(made[:5:5], append(writtenAt(" Store this", 1000), writtenAt(" token", 1)...))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -174,6 +177,17 @@ func TestDrawingTakesNoTokenItCantReadWhole(t *testing.T) {
 				t.Errorf("token(true) = %q, want none from %q", got.Reveal(), tt.drawing.text())
 			}
 		})
+	}
+}
+
+// A renderer that writes only the characters that changed leaves the S of
+// the line before in place.
+func TestDrawingTakesTheTokenWithTheLineSetupTokenDrawsBelowIt(t *testing.T) {
+	below := append(writtenAt(" S", 1), writtenAt("tore this token securely. You won't be able to see it again.", 1000)...)
+	d := append(madeScreen(" " + madeToken)[:5:5], nil, below)
+
+	if got, ok := d.token(false); !ok || got.Reveal() != madeToken {
+		t.Errorf("token(false) = %q, %v; want the token from %q", got.Reveal(), ok, d.text())
 	}
 }
 
