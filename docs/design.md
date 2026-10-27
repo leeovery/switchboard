@@ -669,7 +669,10 @@ accounts:
   keeps whatever record it has, as one restored with it. A failure to write the record is logged
   as a warning, the token saved all the same. `accounts remove` deletes the record with the token
   file, a link alone where it's one. The status document gives each account's `token_taken`, and
-  `token_good_until`, 365 days on.
+  `token_good_until`, 365 days on, the router's as probing's: the router reads the record whenever
+  it reads the token, as it starts, at every look and on a 401, never per request, and holds the
+  date beside the token it was of, so a record that lands a moment after its token counts from the
+  next look.
 - Anything can write the files, such as a password manager's file export or a dotfiles secrets step.
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
