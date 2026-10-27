@@ -38,19 +38,28 @@ func openTerminal(columns, rows uint16) (master, tty *os.File, err error) {
 }
 
 // openItsTerminal grants and unlocks master's terminal, as grantpt and
-// unlockpt do, and opens it. Darwin names it by the minor number the two
-// share, as ptsname does, by a request that only a direct system call can
-// make: the terminal opened is checked to be a character device of that
-// minor number.
+// unlockpt do, and opens it, its owner's alone. Darwin names it by the minor
+// number the two share, as ptsname does, by a request that only a direct
+// system call can make: the terminal opened is checked to be a character
+// device of that minor number.
 func openItsTerminal(master *os.File) (*os.File, error) {
 	minor, err := deviceMinor(master)
 	if err != nil {
 		return nil, err
 	}
-	if err := unlock(master); err != nil {
+	name := fmt.Sprintf("/dev/ttys%03d", minor)
+	if err := request(master, unix.TIOCPTYGRANT); err != nil {
 		return nil, err
 	}
-	name := fmt.Sprintf("/dev/ttys%03d", minor)
+	// Granting leaves the terminal writable by group tty, which write(1) runs
+	// as, so anyone could draw a token on it: it's made its owner's alone
+	// while it's still locked, so nothing can have opened it first.
+	if err := os.Chmod(name, 0o600); err != nil {
+		return nil, err
+	}
+	if err := request(master, unix.TIOCPTYUNLK); err != nil {
+		return nil, err
+	}
 	tty, err := os.OpenFile(name, os.O_RDWR|syscall.O_NOCTTY, 0)
 	if err != nil {
 		return nil, err
@@ -62,20 +71,15 @@ func openItsTerminal(master *os.File) (*os.File, error) {
 	return tty, nil
 }
 
-// unlock grants and unlocks master's terminal, as grantpt and unlockpt do.
-func unlock(master *os.File) error {
+// request makes a request of master's that takes no argument.
+func request(master *os.File, req uint) error {
 	conn, err := master.SyscallConn()
 	if err != nil {
 		return err
 	}
-	var ioctlErr error
-	err = conn.Control(func(fd uintptr) {
-		ioctlErr = unix.IoctlSetInt(int(fd), unix.TIOCPTYGRANT, 0)
-		if ioctlErr == nil {
-			ioctlErr = unix.IoctlSetInt(int(fd), unix.TIOCPTYUNLK, 0)
-		}
-	})
-	return errors.Join(err, ioctlErr)
+	var reqErr error
+	err = conn.Control(func(fd uintptr) { reqErr = unix.IoctlSetInt(int(fd), req, 0) })
+	return errors.Join(err, reqErr)
 }
 
 // deviceMinor returns the minor number of the device f is.

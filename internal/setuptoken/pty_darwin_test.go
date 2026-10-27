@@ -4,6 +4,7 @@ package setuptoken
 
 import (
 	"io"
+	"os"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -26,5 +27,21 @@ func TestOpenTerminalOpensAPseudoTerminalOfTheSizeAsked(t *testing.T) {
 	got := make([]byte, len("drawn"))
 	if _, err := io.ReadFull(master, got); err != nil || string(got) != "drawn" {
 		t.Errorf("the master read %q (%v), want what was drawn on its terminal", got, err)
+	}
+}
+
+func TestOpenTerminalOpensATerminalNobodyElseCanDrawOn(t *testing.T) {
+	master, tty, err := openTerminal(1000, 50)
+	if err != nil {
+		t.Fatalf("openTerminal() failed: %v", err)
+	}
+	defer func() { _, _ = master.Close(), tty.Close() }()
+
+	info, err := tty.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("the terminal's mode is %v, want %v: its owner's alone", got, os.FileMode(0o600))
 	}
 }
