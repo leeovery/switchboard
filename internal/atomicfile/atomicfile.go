@@ -23,23 +23,24 @@ const maxLinks = 40
 // Target returns where writing to path leads: path itself, or where the links
 // it names lead, which needn't be there yet. Write renames a file into place,
 // which would replace a link at path, so a file kept elsewhere, and linked to,
-// is written at its target. It fails where the way there goes back, by "..",
-// out of a directory that isn't there, which the system can't follow, so
-// where it leads can't be known.
+// is written at its target, cleaned as the system follows the way there,
+// whatever links it goes through. It fails where the way there goes back, by
+// "..", out of a directory that isn't there, which the system can't follow,
+// so where it leads can't be known.
 func Target(path string) (string, error) {
 	named := path
-	// relative is set once a relative link is followed, which leaves path
-	// uncleaned, to clean once it's followed to its end.
-	relative := false
+	// followed is set once a link is followed, which leaves path uncleaned,
+	// to clean once it's followed to its end.
+	followed := false
 	for range maxLinks {
 		info, err := os.Lstat(path)
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
-			return reached(named, path, relative)
+			return reached(named, path, followed)
 		case err != nil:
 			return "", err
 		case info.Mode()&fs.ModeSymlink == 0:
-			return reached(named, path, relative)
+			return reached(named, path, followed)
 		}
 		dest, err := os.Readlink(path)
 		if err != nil {
@@ -52,22 +53,20 @@ func Target(path string) (string, error) {
 			// it, where the system goes back from where that link leads.
 			dir, _ := split(path)
 			dest = dir + string(filepath.Separator) + dest
-			relative = true
 		}
-		path = dest
+		path, followed = dest, true
 	}
 	return "", fmt.Errorf("%s: too many links", named)
 }
 
 // reached is path, reached from named: cleaned, as resolved cleans it, once
-// a relative link has been followed, else as it is. It fails where path goes
-// back, by "..", out of a directory that isn't there.
-func reached(named, path string, relative bool) (string, error) {
-	clean, missing := resolved(path)
+// a link has been followed, else as it is. It fails where resolved does.
+func reached(named, path string, followed bool) (string, error) {
+	clean, err := resolved(path)
 	switch {
-	case missing != "":
-		return "", fmt.Errorf("%s: leads back out of %s, which isn't there", named, missing)
-	case relative:
+	case err != nil:
+		return "", fmt.Errorf("%s: %w", named, err)
+	case followed:
 		return clean, nil
 	}
 	return path, nil
@@ -76,22 +75,27 @@ func reached(named, path string, relative bool) (string, error) {
 // resolved is path with the links in its directory followed as the system
 // follows them, a ".." after one going back from where it leads, and cleaned:
 // of a directory that isn't there yet, the longest part of it that is, and
-// the rest after it. It's path as it is where no part can be followed. Where
-// a ".." comes after a directory that isn't there, it returns that directory,
-// as missing, as the system would go no further.
-func resolved(path string) (clean, missing string) {
+// the rest after it. It's path as it is where no part can be followed. It
+// fails where a ".." comes after a directory that isn't there, as the system
+// would go no further, and where a directory can't be followed for another
+// reason, as one that can't be searched.
+func resolved(path string) (string, error) {
 	dir, rest := split(path)
 	for {
-		if followed, err := filepath.EvalSymlinks(dir); err == nil {
+		followed, err := filepath.EvalSymlinks(dir)
+		if err == nil {
 			parts := strings.Split(rest, string(filepath.Separator))
 			if slices.Contains(parts[1:], "..") {
-				return "", filepath.Join(followed, parts[0])
+				return "", fmt.Errorf("leads back out of %s, which isn't there", filepath.Join(followed, parts[0]))
 			}
-			return filepath.Join(followed, rest), ""
+			return filepath.Join(followed, rest), nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
 		}
 		parent, name := split(dir)
 		if parent == dir {
-			return path, ""
+			return path, nil
 		}
 		dir, rest = parent, name+string(filepath.Separator)+rest
 	}
