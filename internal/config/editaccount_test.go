@@ -198,6 +198,19 @@ func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
 		{name: "joiners at its edges dropped", given: "\u200dDay job\u200c", want: "Day job"},
 		{name: "a joiner standing alone between spaces dropped, one space left", given: "a \u200d b", want: "a b"},
 		{name: "its id once an invisible separator is dropped", given: "side\u2063", want: ""},
+		{name: "its id once a variation selector after a Latin letter is dropped", given: "side\ufe0f", want: ""},
+		{name: "variation selectors after a space dropped", given: "x \ufe0f\ufe0f", want: "x"},
+		{name: "variation selectors at the start dropped", given: "\ufe0f\ufe0fHome", want: "Home"},
+		{name: "a joiner after a dropped selector dropped", given: "\ufe0f\u200dwork", want: "work"},
+		{name: "a selector and joiner after a direction mark dropped", given: "\u200e\ufe0f\u200dwork", want: "work"},
+		{name: "a selector after a dropped lone tag dropped", given: "work \U000e0067\ufe0f", want: "work"},
+		{name: "a joiner after a dropped lone tag dropped", given: "work\U000e0067\u200db", want: "workb"},
+		{name: "selectors after one another dropped", given: "work\ufe0f\ufe0f\ufe0f", want: "work"},
+		{name: "a joiner between Latin letters dropped", given: "wo\u200drk", want: "work"},
+		{name: "a selector after a Latin letter dropped", given: "work\ufe0f", want: "work"},
+		{name: "an unfinished flag's tags dropped", given: "\U0001f3f4\U000e0067\U000e0062", want: "\U0001f3f4"},
+		{name: "a flag's nine tags dropped whole", given: "\U0001f3f4" + strings.Repeat("\U000e0067", 9) + "\U000e007f", want: "\U0001f3f4"},
+		{name: "a cancel tag alone dropped", given: "work\U000e007f", want: "work"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -215,6 +228,21 @@ func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
 			if shown := cmp.Or(tt.want, "side"); got.Label != shown || draft.Labelled("side") != (tt.want != "") {
 				t.Errorf("the label loads as %q, labelled: %v; want %q, labelled: %v", got.Label, draft.Labelled("side"), shown, tt.want != "")
 			}
+		})
+	}
+}
+
+func TestSetLabelKeepsTheUnseenCharactersThatShow(t *testing.T) {
+	const side = "[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"
+	for name, label := range config.ShownSequences {
+		t.Run(name, func(t *testing.T) {
+			path := writeConfig(t, side)
+			draft := edit(t, path)
+
+			if err := draft.SetLabel("side", "Team "+label); err != nil {
+				t.Fatalf("SetLabel(%q) error = %v", label, err)
+			}
+			checkSaved(t, path, draft, "side", "[[account]]\nid    = \"side\"\nlabel = \"Team "+label+"\"\n")
 		})
 	}
 }

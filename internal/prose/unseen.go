@@ -6,15 +6,32 @@ import (
 	"unicode"
 )
 
-// The characters that shape what's beside them, and those of a flag's
-// sequence, by their code points.
+// The characters that make the sequences an unseen character can be kept
+// in, by their code points.
 const (
 	zeroWidthNonJoiner = '\u200c'
 	zeroWidthJoiner    = '\u200d'
+	emojiPresentation  = '\ufe0f'
+	keycap             = '\u20e3'
 	blackFlag          = '\U0001f3f4'
 	firstTag           = '\U000e0020'
+	lastTag            = '\U000e007e'
 	cancelTag          = '\U000e007f'
+	firstModifier      = '\U0001f3fb'
+	lastModifier       = '\U0001f3ff'
+	// mostFlagTags is the most tags a subdivision's flag names it by.
+	mostFlagTags = 8
 )
+
+// unjoined are the scripts that never shape with joiners: a joiner between
+// two of their letters does nothing that shows.
+var unjoined = []*unicode.RangeTable{
+	unicode.Latin, unicode.Greek, unicode.Cyrillic, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul,
+}
+
+// unselected are the scripts whose letters have no variants a variation
+// selector picks.
+var unselected = []*unicode.RangeTable{unicode.Latin, unicode.Greek, unicode.Cyrillic}
 
 // Unseen reports whether r is drawn as nothing: Unicode's default ignorable
 // code points, the format characters, the variation selectors and the others
@@ -39,52 +56,132 @@ func DirectionMark(r rune) bool {
 	return r == '\u200e' || r == '\u200f' || r == '\u061c'
 }
 
-// MapUnseen returns text with each unseen character that plays no part in a
-// sequence, as inSequence has it, replaced by what replace makes of it: ""
-// to drop it. Every other character is kept as it is.
+// MapUnseen returns text with each unseen character that does nothing to
+// show, as a sequence owns one, replaced by what replace makes of it: ""
+// to drop it, or the character itself to keep it. Every other character is
+// kept as it is.
+//
+// An unseen character is kept only where it does something that shows,
+// judged left to right on what's kept, so the character before one is the
+// last kept, never one dropped:
+//   - a zero-width joiner between two pictographs, after a symbol, an emoji
+//     modifier or an emoji presentation selector kept after one, and before
+//     a symbol; and, as a non-joiner is, between two letters or marks of a
+//     script that shapes with joiners;
+//   - a variation selector after a symbol, punctuation beyond ASCII, a
+//     letter of a script with variants, such as an ideograph, or a keycap's
+//     #, * or digit, as the keycap follows;
+//   - a subdivision flag's tags: a black flag, one to eight tags and the tag
+//     that cancels them, whole.
 func MapUnseen(text string, replace func(r rune) string) string {
 	runes := []rune(text)
+	flagged := flagTags(runes)
 	var b strings.Builder
+	var kept recent
 	for i, r := range runes {
-		if Unseen(r) && !inSequence(runes, i) {
-			b.WriteString(replace(r))
+		if !Unseen(r) || flagged[i] || kept.owns(r, after(runes, i)) {
+			b.WriteRune(r)
+			kept.add(r)
 			continue
 		}
-		b.WriteRune(r)
+		s := replace(r)
+		b.WriteString(s)
+		if s == string(r) {
+			kept.add(r)
+		}
 	}
 	return b.String()
 }
 
-// inSequence reports whether the character at i of runes plays its part in
-// a sequence with what's beside it: a joiner, zero-width or not, between a
-// character it can follow and one that's seen; a variation selector after a
-// character it can follow; and a tag of a flag's sequence, after a black
-// flag and the tags before it, up to the one that cancels them.
-func inSequence(runes []rune, i int) bool {
-	r := runes[i]
+// recent is the last two characters kept, last first, 0 where none was.
+type recent struct {
+	last, before rune
+}
+
+// add has r kept last.
+func (k *recent) add(r rune) {
+	k.last, k.before = r, k.last
+}
+
+// owns reports whether the unseen r, kept after k's characters and before
+// next, does something that shows.
+func (k recent) owns(r, next rune) bool {
 	switch {
-	case r == zeroWidthJoiner || r == zeroWidthNonJoiner:
-		return i > 0 && i+1 < len(runes) && follows(runes[i-1]) && !unicode.IsSpace(runes[i+1]) && !Unseen(runes[i+1])
-	case unicode.Is(unicode.Variation_Selector, r):
-		return i > 0 && follows(runes[i-1])
-	case r >= firstTag && r <= cancelTag:
-		j := i - 1
-		for j >= 0 && runes[j] >= firstTag && runes[j] < cancelTag {
-			j--
-		}
-		return j >= 0 && runes[j] == blackFlag
+	case r == zeroWidthJoiner:
+		return k.afterPictograph() && unicode.IsSymbol(next) || joins(k.last) && joins(next)
+	case r == zeroWidthNonJoiner:
+		return joins(k.last) && joins(next)
+	case selector(r):
+		return selects(k.last, next)
 	}
 	return false
 }
 
-// follows reports whether a joiner or a variation selector can follow r:
-// a character that's seen and isn't a space, or a variation selector or a
-// tag, which end what they're part of.
-func follows(r rune) bool {
-	if unicode.IsSpace(r) {
-		return false
+// afterPictograph reports whether k's last kept ends a pictograph: a symbol
+// or an emoji modifier, or an emoji presentation selector kept after one.
+func (k recent) afterPictograph() bool {
+	pictograph := func(r rune) bool {
+		return unicode.IsSymbol(r) || (r >= firstModifier && r <= lastModifier)
 	}
-	return !Unseen(r) || unicode.Is(unicode.Variation_Selector, r) || (r >= firstTag && r <= cancelTag)
+	return pictograph(k.last) || k.last == emojiPresentation && pictograph(k.before)
+}
+
+// joins reports whether r is a letter or a mark of a script that shapes
+// with joiners.
+func joins(r rune) bool {
+	return (unicode.IsLetter(r) || unicode.IsMark(r)) && !Unseen(r) && !unicode.In(r, unjoined...)
+}
+
+// selector reports whether r is a variation selector, U+FE00 to U+FE0F or
+// U+E0100 to U+E01EF.
+func selector(r rune) bool {
+	return (r >= '\ufe00' && r <= '\ufe0f') || (r >= '\U000e0100' && r <= '\U000e01ef')
+}
+
+// selects reports whether a variation selector after last, and before next,
+// picks a variant of last: a symbol, punctuation beyond ASCII, a letter of a
+// script with variants, or a keycap's #, * or digit, the keycap next.
+func selects(last, next rune) bool {
+	switch {
+	case unicode.IsSymbol(last):
+		return true
+	case unicode.IsPunct(last):
+		return last > unicode.MaxASCII || (last == '#' || last == '*') && next == keycap
+	case unicode.IsLetter(last):
+		return !unicode.In(last, unselected...)
+	}
+	return last >= '0' && last <= '9' && next == keycap
+}
+
+// flagTags marks the tags of runes, and the tags that cancel them, that
+// make a subdivision's flag: after a black flag, one to mostFlagTags tags,
+// then the cancel tag.
+func flagTags(runes []rune) []bool {
+	flagged := make([]bool, len(runes))
+	for i, r := range runes {
+		if r != blackFlag {
+			continue
+		}
+		end := i + 1
+		for end < len(runes) && runes[end] >= firstTag && runes[end] <= lastTag {
+			end++
+		}
+		if tags := end - i - 1; tags < 1 || tags > mostFlagTags || end == len(runes) || runes[end] != cancelTag {
+			continue
+		}
+		for j := i + 1; j <= end; j++ {
+			flagged[j] = true
+		}
+	}
+	return flagged
+}
+
+// after is the character after the one at i of runes, 0 at the end.
+func after(runes []rune, i int) rune {
+	if i+1 < len(runes) {
+		return runes[i+1]
+	}
+	return 0
 }
 
 // escaped is r as an escape, as \u200B, so it shows as what it is.

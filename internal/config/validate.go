@@ -220,10 +220,9 @@ var ErrBlankLabel = errors.New("label is blank, showing nothing")
 
 // takeLabel returns a label given to put in the file as it shows, so what's
 // saved is what's shown: without the characters drawn as nothing, as
-// prose.Unseen has them, but for those playing their part in a sequence, as
-// a joiner within an emoji's, a variation selector after the character it
-// shapes or the tags of a subdivision's flag do, and the direction marks
-// within it; each run of whitespace within it one space; and the whitespace
+// prose.Unseen has them, but for those prose.MapUnseen keeps, as they make
+// an emoji, a symbol's or an ideograph's variant or a flag, or shape a
+// joining script, and the direction marks within it; each run of whitespace within it one space; and the whitespace
 // and direction marks at its edges trimmed. Every other character is kept,
 // such as the Arabic number signs, which draw. It's checked as it shows, and
 // refused, as a label in the file isn't: when it isn't UTF-8, as TOML's text
@@ -253,7 +252,7 @@ func takeLabel(account, given string) (string, error) {
 }
 
 // keptIfAMark is what prose.MapUnseen makes of an unseen character of a label
-// playing no part in a sequence: a direction mark is kept, as it orders
+// that does nothing that shows: a direction mark is kept, as it orders
 // what's around it, and anything else dropped.
 func keptIfAMark(r rune) string {
 	if prose.DirectionMark(r) {
