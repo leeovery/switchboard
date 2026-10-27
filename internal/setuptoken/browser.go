@@ -20,24 +20,36 @@ type Opener interface {
 	Open(ctx context.Context, address Address) (Opened, error)
 }
 
-// Runner runs the program named, as PATH finds it, with args, to its end, and
-// returns what it printed.
-type Runner func(ctx context.Context, name string, args ...string) ([]byte, error)
+// program is a program an Opener runs: macOS's own, by its path, so nothing
+// on PATH can stand in for it.
+type program string
+
+// The programs Openers run, the only ones there are.
+const (
+	openProgram      program = "/usr/bin/open"
+	osascriptProgram program = "/usr/bin/osascript"
+)
+
+// Runner runs p with args, to its end, and returns what it printed.
+type Runner func(ctx context.Context, p program, args ...string) ([]byte, error)
 
 // Programs returns the Runner that runs programs for real, in no more of the
 // environment getenv gives than they need, which can hold a token, as a
 // Claude Code session's does.
 func Programs(getenv func(string) string) Runner {
 	env := childenv.Minimal(getenv)
-	return func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		return runCommand(ctx, env, name, args...)
+	return func(ctx context.Context, p program, args ...string) ([]byte, error) {
+		return runCommand(ctx, env, p, args...)
 	}
 }
 
-// runCommand runs the program named with args and env, and returns what it
-// printed.
-func runCommand(ctx context.Context, env []string, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+// runCommand runs p with args and env, and returns what it printed. It runs
+// the programs Openers run alone.
+func runCommand(ctx context.Context, env []string, p program, args ...string) ([]byte, error) {
+	if p != openProgram && p != osascriptProgram {
+		return nil, fmt.Errorf("%s isn't a program an Opener runs", p)
+	}
+	cmd := exec.CommandContext(ctx, string(p), args...)
 	cmd.Env = env
 	return cmd.Output()
 }
@@ -53,7 +65,7 @@ type Browser struct {
 func (b Browser) Open(ctx context.Context, address Address) (Opened, error) {
 	ctx, cancel := context.WithTimeout(ctx, openFor)
 	defer cancel()
-	if _, err := b.Run(ctx, "open", address.Reveal()); err != nil {
+	if _, err := b.Run(ctx, openProgram, address.Reveal()); err != nil {
 		return NotOpened, fmt.Errorf("open the sign-in address: %w", err)
 	}
 	return OpenedInBrowser, nil
@@ -119,7 +131,7 @@ func (p PrivateWindow) Open(ctx context.Context, address Address) (Opened, error
 	if !ok {
 		return NotOpened, &NoPrivateWindowError{Browser: name}
 	}
-	if _, err := p.Run(ctx, "open", "-na", app, "--args", flag, address.Reveal()); err != nil {
+	if _, err := p.Run(ctx, openProgram, "-na", app, "--args", flag, address.Reveal()); err != nil {
 		return NotOpened, fmt.Errorf("open the sign-in address in a private window of %s: %w", name, err)
 	}
 	return OpenedPrivately, nil
@@ -127,7 +139,7 @@ func (p PrivateWindow) Open(ctx context.Context, address Address) (Opened, error
 
 // defaultBrowser returns the path of the default browser's application.
 func (p PrivateWindow) defaultBrowser(ctx context.Context) (string, error) {
-	out, err := p.Run(ctx, "osascript", "-l", "JavaScript", "-e", findDefaultBrowser)
+	out, err := p.Run(ctx, osascriptProgram, "-l", "JavaScript", "-e", findDefaultBrowser)
 	if err != nil {
 		return "", fmt.Errorf("find the default browser: %w", err)
 	}

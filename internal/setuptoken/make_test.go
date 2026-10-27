@@ -106,6 +106,9 @@ func TestMakeStartsSetupTokenInTheUsersEnvironmentWithoutWhatWouldSendItElsewher
 		"ANTHROPIC_AUTH_TOKEN=test-token-personal",
 		"BROWSER=/usr/bin/false",
 		"EDITOR=vi",
+		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: work\nX-Trace: on",
+		"SWITCHBOARD_STARTED=4242:1790000000:/opt/claude",
+		"SWITCHBOARD_WHEN_ROUTER_DOWN=direct",
 	)
 	var events []setuptoken.Event
 
@@ -114,13 +117,15 @@ func TestMakeStartsSetupTokenInTheUsersEnvironmentWithoutWhatWouldSendItElsewher
 	}
 
 	env := strings.Split(f.noted(t, "env"), "\n")
-	for _, name := range []string{"ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"} {
+	for _, name := range []string{"ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "SWITCHBOARD_STARTED", "SWITCHBOARD_WHEN_ROUTER_DOWN"} {
 		if slices.ContainsFunc(env, func(v string) bool { return strings.HasPrefix(v, name+"=") }) {
 			t.Errorf("setup-token started with %s set, want it unset", name)
 		}
 	}
-	if !slices.Contains(env, "EDITOR=vi") {
-		t.Errorf("setup-token started without the user's EDITOR, want the rest of their environment")
+	for _, want := range []string{"EDITOR=vi", "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on"} {
+		if !slices.Contains(env, want) {
+			t.Errorf("setup-token started without %s, want the user's own environment, switchboard's headers gone", want)
+		}
 	}
 	browsers := slices.DeleteFunc(slices.Clone(env), func(v string) bool { return !strings.HasPrefix(v, "BROWSER=") })
 	if len(browsers) != 1 || browsers[0] == "BROWSER=/usr/bin/false" || !strings.HasPrefix(browsers[0], "BROWSER="+f.shims) {
@@ -143,6 +148,47 @@ func TestMakeRunsTheRealClaudeNotSwitchboardsLink(t *testing.T) {
 
 	if err != nil || token.Reveal() != fakeToken {
 		t.Errorf("Make() = %q, %v; want the token from the claude past switchboard's link", token.Reveal(), err)
+	}
+}
+
+func TestMakeTakesAVariableSetTwiceAtTheValueExecGivesIt(t *testing.T) {
+	f := newFake(t, "")
+	f.maker.Environ = append([]string{"PATH=/nowhere"}, f.maker.Environ...)
+	var events []setuptoken.Event
+
+	token, err := f.maker.Make(t.Context(), setuptoken.Signing{Opener: &opener{}, Report: approving(t, f, &events)})
+
+	if err != nil || token.Reveal() != fakeToken {
+		t.Fatalf("Make() = %q, %v; want the token from the claude on the last PATH", token.Reveal(), err)
+	}
+	env := strings.Split(f.noted(t, "env"), "\n")
+	paths := slices.DeleteFunc(env, func(v string) bool { return !strings.HasPrefix(v, "PATH=") })
+	if len(paths) != 1 || strings.Contains(paths[0], "/nowhere") {
+		t.Errorf("setup-token started with %q, want the last PATH alone", paths)
+	}
+}
+
+func TestMakeFailsWithoutAWayToFindClaudeOrOpenTheAddress(t *testing.T) {
+	f := newFake(t, "")
+	noExecutable := f.maker
+	noExecutable.Executable = nil
+	tests := []struct {
+		name    string
+		maker   setuptoken.Maker
+		signing setuptoken.Signing
+	}{
+		{name: "no Executable", maker: noExecutable, signing: setuptoken.Signing{Opener: &opener{}}},
+		{name: "no Opener", maker: f.maker},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.maker.Make(t.Context(), tt.signing); err == nil {
+				t.Error("Make() succeeded, want it failing")
+			}
+			if f.ran() {
+				t.Error("setup-token ran, want it never started")
+			}
+		})
 	}
 }
 
@@ -295,24 +341,71 @@ func TestMakeStopsSetupTokenWhenItsContextEndsWaitingOnTheApproval(t *testing.T)
 	leaks.check(t, f)
 }
 
-func TestMakeStopsSetupTokenWhenItsContextEndsOnceTheTokensMade(t *testing.T) {
-	f := newFake(t, "", "FAKE_EXIT_AFTER=60")
-	leaks := watchLeaks(t)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+// cancellingOnceMade returns a Report that approves the sign-in, as
+// approving's does, and cancels once the token's made.
+func cancellingOnceMade(t *testing.T, f fake, cancel context.CancelFunc) func(setuptoken.Event) {
 	var events []setuptoken.Event
 	approve := approving(t, f, &events)
-	report := func(e setuptoken.Event) {
+	return func(e setuptoken.Event) {
 		approve(e)
 		if e.Step == setuptoken.StepMade {
 			cancel()
 		}
 	}
+}
 
-	_, err := f.maker.Make(ctx, setuptoken.Signing{Opener: &opener{}, Report: report})
+// Setup-token has made a token on the account that lasts a year by then, which
+// nobody could see were it dropped.
+func TestMakeReturnsTheTokenMadeThoughItsContextEndsBeforeSetupTokenExits(t *testing.T) {
+	for attempt := range 6 {
+		f := newFake(t, "", "FAKE_EXIT_AFTER=60")
+		leaks := watchLeaks(t)
+		ctx, cancel := context.WithCancel(t.Context())
 
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Make() = %v, want it cancelled", err)
+		token, err := f.maker.Make(ctx, setuptoken.Signing{Opener: &opener{}, Report: cancellingOnceMade(t, f, cancel)})
+
+		cancel()
+		if err != nil || token.Reveal() != fakeToken {
+			t.Fatalf("attempt %d: Make() = %q, %v; want the token made", attempt, token.Reveal(), err)
+		}
+		leaks.check(t, f)
+	}
+}
+
+func TestMakeFailsWithTheCancelAndTheScreenWhenItsContextEndsBeforeTheTokenMadeIsShownWhole(t *testing.T) {
+	for attempt := range 6 {
+		f := newFake(t, "slow", "FAKE_PAUSE=60", "FAKE_EXIT_AFTER=60")
+		leaks := watchLeaks(t)
+		ctx, cancel := context.WithCancel(t.Context())
+
+		token, err := f.maker.Make(ctx, setuptoken.Signing{Opener: &opener{}, Report: cancellingOnceMade(t, f, cancel)})
+
+		cancel()
+		screen, ok := errors.AsType[*setuptoken.ScreenError](err)
+		if !errors.Is(err, context.Canceled) || !ok || token.Reveal() != "" {
+			t.Fatalf("attempt %d: Make() = %q, %v; want it cancelled, with the screen", attempt, token.Reveal(), err)
+		}
+		if !strings.Contains(screen.Screen(), fakeToken[:40]) {
+			t.Errorf("attempt %d: the error's Screen() = %q, want the token as far as it was drawn", attempt, screen.Screen())
+		}
+		leaks.check(t, f)
+	}
+}
+
+func TestMakeTakesNoTokenCutShortWhereSetupTokenIsStoppedDrawingIt(t *testing.T) {
+	f := newFake(t, "slow", "FAKE_PAUSE=60", "FAKE_EXIT_AFTER=60")
+	maker := setuptoken.Waiting(f.maker, 100*time.Millisecond, time.Minute)
+	leaks := watchLeaks(t)
+	var events []setuptoken.Event
+
+	token, err := maker.Make(t.Context(), setuptoken.Signing{Opener: &opener{}, Report: approving(t, f, &events)})
+
+	screen, ok := errors.AsType[*setuptoken.ScreenError](err)
+	if !ok || token.Reveal() != "" {
+		t.Fatalf("Make() = %q, %v; want a *ScreenError, and no token", token.Reveal(), err)
+	}
+	if !strings.Contains(screen.Screen(), fakeToken[:40]) {
+		t.Errorf("the error's Screen() = %q, want the token as far as it was drawn", screen.Screen())
 	}
 	leaks.check(t, f)
 }
@@ -337,22 +430,27 @@ func TestMakeStopsSetupTokenWhenItsContextEndsBeforeItHandsItsAddressOver(t *tes
 	leaks.check(t, f)
 }
 
-func TestMakeStopsSetupTokenWhenItsContextEndsWhileTheAddressOpens(t *testing.T) {
-	f := newFake(t, "")
-	leaks := watchLeaks(t)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	var events []setuptoken.Event
+// The cancel stops setup-token too, so by the time Make looks, its exit and
+// the end of its drawing are ready as well: each attempt is a draw among them.
+func TestMakeFailsWithTheCancelWhenItsContextEndsBeforeTheTokensMade(t *testing.T) {
+	for attempt := range 12 {
+		f := newFake(t, "")
+		leaks := watchLeaks(t)
+		ctx, cancel := context.WithCancel(t.Context())
+		var events []setuptoken.Event
 
-	_, err := f.maker.Make(ctx, setuptoken.Signing{Opener: cancelling{cancel}, Report: approving(t, f, &events)})
+		token, err := f.maker.Make(ctx, setuptoken.Signing{Opener: cancelling{cancel}, Report: approving(t, f, &events)})
 
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Make() = %v, want it cancelled", err)
+		cancel()
+		_, screened := errors.AsType[*setuptoken.ScreenError](err)
+		if !errors.Is(err, context.Canceled) || screened || token.Reveal() != "" {
+			t.Fatalf("attempt %d: Make() = %q, %v; want it cancelled, and nothing else", attempt, token.Reveal(), err)
+		}
+		if len(events) > 0 {
+			t.Errorf("attempt %d: Make reported %v, want nothing once cancelled", attempt, steps(events))
+		}
+		leaks.check(t, f)
 	}
-	if len(events) > 0 {
-		t.Errorf("Make reported %v, want nothing once cancelled", steps(events))
-	}
-	leaks.check(t, f)
 }
 
 func TestMakeStartsNothingWhenItsContextHasEnded(t *testing.T) {
@@ -374,11 +472,13 @@ func TestMakeStartsNothingWhenItsContextHasEnded(t *testing.T) {
 }
 
 // cancelling is an Opener that cancels the context Make was given as it's
-// asked to open the address.
+// asked to open the address, then takes long enough over it that setup-token,
+// which the cancel stops, is gone before it returns.
 type cancelling struct{ cancel context.CancelFunc }
 
 func (c cancelling) Open(ctx context.Context, _ setuptoken.Address) (setuptoken.Opened, error) {
 	c.cancel()
+	time.Sleep(300 * time.Millisecond)
 	return setuptoken.NotOpened, ctx.Err()
 }
 

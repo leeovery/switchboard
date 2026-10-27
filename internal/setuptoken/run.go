@@ -42,6 +42,9 @@ type run struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
+	// ended is the end of Make's context, waited on until the token's made
+	// (see cancel), then nil.
+	ended <-chan struct{}
 	// The timers Make waits on, each nil until it's started, or once it's no
 	// longer waited on: looking, for the shim's directory to be looked at;
 	// handOver, for setup-token to have handed its address over; graceOver,
@@ -129,19 +132,21 @@ func (r *run) close() {
 	if r.stop != nil {
 		r.stop()
 	}
+	if r.group != 0 {
+		// What setup-token left running goes too, before Make waits on
+		// anything, as what's deaf to the hang-up setup-token's exit sent
+		// could hold its terminal open. Killing a group whose leader may be
+		// gone looks unsafe, but no new process takes the group's id while
+		// anything's left in it, and with nothing left there's nothing to
+		// kill: the id comes round again only once the system has handed out
+		// every other.
+		_ = killGroup(r.group)
+	}
 	close(r.done)
 	if r.master != nil {
 		_ = r.master.Close()
 	}
 	r.wg.Wait()
-	if r.group != 0 {
-		// What setup-token left running, deaf to the hang-up its exit sent,
-		// goes too. Killing a group whose leader is gone looks unsafe, but
-		// no new process takes the group's id while anything's left in it,
-		// and with nothing left there's nothing to kill: the id comes round
-		// again only once the system has handed out every other.
-		_ = killGroup(r.group)
-	}
 	r.shim.remove()
 }
 
@@ -149,9 +154,15 @@ func (r *run) close() {
 func (r *run) wait(ctx context.Context, w waits) (tokens.Token, error) {
 	look := time.NewTicker(lookEvery)
 	defer look.Stop()
-	r.looking, r.handOver, r.waits = look.C, time.After(w.handOver), w
+	r.ended, r.looking, r.handOver, r.waits = ctx.Done(), look.C, time.After(w.handOver), w
 	for !r.over {
 		r.next(ctx)
+	}
+	if !r.made && ctx.Err() != nil {
+		// The end of ctx stops setup-token, so its exit, and the end of its
+		// drawing, can come to Make first, as when it's busy as ctx ends:
+		// what happened is the cancel all the same.
+		return tokens.Token{}, cancelled(ctx)
 	}
 	return r.token, r.err
 }
@@ -159,12 +170,12 @@ func (r *run) wait(ctx context.Context, w waits) (tokens.Token, error) {
 // next takes the next thing to happen.
 func (r *run) next(ctx context.Context) {
 	select {
-	case <-ctx.Done():
-		r.fail(fmt.Errorf("make a setup token: %w", context.Cause(ctx)))
+	case <-r.ended:
+		r.cancel(ctx)
 	case drawn, ok := <-r.output:
-		r.draw(drawn, ok)
+		r.draw(ctx, drawn, ok)
 	case err := <-r.exited:
-		r.exitedWith(err)
+		r.exitedWith(ctx, err)
 	case <-r.looking:
 		r.lookForAddress(ctx)
 	case <-r.handOver:
@@ -173,19 +184,36 @@ func (r *run) next(ctx context.Context) {
 		r.graceOver = nil
 		r.stop()
 	case <-r.drained:
-		r.conclude()
+		r.conclude(ctx)
 	}
+}
+
+// cancel follows the end of ctx, which stops setup-token. Before the token's
+// made, Make fails with its cause. Once it's made, Make reads it from what
+// setup-token drew all the same, as when setup-token exits by itself: it
+// lasts a year on the account, and nobody could see it were Make to drop it.
+func (r *run) cancel(ctx context.Context) {
+	if !r.made {
+		r.fail(cancelled(ctx))
+		return
+	}
+	r.ended = nil
+}
+
+// cancelled is Make failing as ctx ends.
+func cancelled(ctx context.Context) error {
+	return fmt.Errorf("make a setup token: %w", context.Cause(ctx))
 }
 
 // draw draws what setup-token drew, and follows what it says: that it has made
 // the token, which it's then given grace to exit after, whether it handed its
 // address over or not, or an error it waits to retry at, where Make stops. Its
 // drawing over, ok false, and setup-token gone, Make reads the token from it.
-func (r *run) draw(drawn []byte, ok bool) {
+func (r *run) draw(ctx context.Context, drawn []byte, ok bool) {
 	if !ok {
 		r.output = nil
 		if r.exited == nil {
-			r.conclude()
+			r.conclude(ctx)
 		}
 		return
 	}
@@ -207,12 +235,11 @@ func (r *run) draw(drawn []byte, ok bool) {
 
 // exitedWith notes setup-token's exit, as err says, and reads the token from
 // its drawing, once that's over, or drainFor at most.
-func (r *run) exitedWith(err error) {
+func (r *run) exitedWith(ctx context.Context, err error) {
 	r.exited, r.exit = nil, err
 	r.looking, r.handOver = nil, nil
-	logger.Debug("setup-token exited", "status", err)
 	if r.output == nil {
-		r.conclude()
+		r.conclude(ctx)
 		return
 	}
 	r.drained = time.After(drainFor)
@@ -220,8 +247,7 @@ func (r *run) exitedWith(err error) {
 
 // lookForAddress looks for the sign-in address setup-token handed the shim,
 // and opens it with the Opener, reporting it, and the wait on its approval
-// that follows. One that isn't an address fails, as setup-token not handing
-// one over does.
+// that follows. Something handed over that isn't an address fails.
 func (r *run) lookForAddress(ctx context.Context) {
 	raw, ok := r.shim.address()
 	if !ok {
@@ -230,7 +256,7 @@ func (r *run) lookForAddress(ctx context.Context) {
 	r.looking, r.handOver = nil, nil
 	address, ok := newAddress(raw)
 	if !ok {
-		r.fail(notHandedOver(r.screen.drawing().text()))
+		r.fail(notAnAddress(r.screen.drawing().text()))
 		return
 	}
 	opened, err := r.signing.Opener.Open(ctx, address)
@@ -242,15 +268,16 @@ func (r *run) lookForAddress(ctx context.Context) {
 }
 
 // conclude takes the token from what setup-token drew last, or fails with
-// what it drew, saying why there's none.
-func (r *run) conclude() {
+// what it drew, saying why there's none: for a token made but not shown whole,
+// the end of ctx, where that's what stopped setup-token drawing it.
+func (r *run) conclude(ctx context.Context) {
 	d := r.screen.drawing()
 	if token, ok := d.token(); ok {
 		r.over, r.token = true, token
 		return
 	}
 	if d.made() {
-		r.fail(unreadable(d.text()))
+		r.fail(unreadable(d.text(), context.Cause(ctx)))
 		return
 	}
 	if message, failed := d.failed(); failed {

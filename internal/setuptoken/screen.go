@@ -93,13 +93,13 @@ func (s *screen) execute(b byte) {
 	}
 }
 
-// csi follows a control sequence, with n its first parameter: 1 where it has
-// none, as the moves take it.
+// csi follows a control sequence, with n its first parameter as the moves
+// and erasures of characters take it: 1 where it's missing or 0.
 func (s *screen) csi(cmd ansi.Cmd, params ansi.Params) {
 	if cmd.Prefix() != 0 || cmd.Intermediate() != 0 {
 		return
 	}
-	n, _, _ := params.Param(0, 1)
+	n := count(params, 0)
 	switch cmd.Final() {
 	case 'A':
 		s.moveTo(s.row-n, s.col)
@@ -118,8 +118,7 @@ func (s *screen) csi(cmd ansi.Cmd, params ansi.Params) {
 	case 'd':
 		s.moveTo(s.top+n-1, s.col)
 	case 'H', 'f':
-		col, _, _ := params.Param(1, 1)
-		s.moveTo(s.top+n-1, col-1)
+		s.moveTo(s.top+n-1, count(params, 1)-1)
 	case 'J':
 		mode, _, _ := params.Param(0, 0)
 		s.eraseDisplay(mode)
@@ -133,6 +132,13 @@ func (s *screen) csi(cmd ansi.Cmd, params ansi.Params) {
 	case 'u':
 		s.restore()
 	}
+}
+
+// count returns the parameter at i as a count, a row or a column: 1 where
+// it's missing or 0, as a terminal takes it.
+func count(params ansi.Params, i int) int {
+	n, _, _ := params.Param(i, 1)
+	return max(n, 1)
 }
 
 func (s *screen) esc(cmd ansi.Cmd) {

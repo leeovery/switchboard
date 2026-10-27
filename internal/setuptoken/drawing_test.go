@@ -41,6 +41,8 @@ func TestDrawingTakesNoTokenItCantReadWhole(t *testing.T) {
 		{name: "one shown before the line saying it's made", drawing: append(drawing{" " + madeToken}, madeScreen(" <token>")...)},
 		{name: "one broken across two rows", drawing: madeScreen(" " + madeToken[:40] + "\n " + madeToken[40:])},
 		{name: "one cut short", drawing: madeScreen(" sk-ant-oat01-test-token")},
+		{name: "one drawn last, where setup-token was stopped drawing it", drawing: madeScreen(" " + madeToken)[:5]},
+		{name: "one with nothing drawn below it but blank rows", drawing: append(madeScreen(" " + madeToken)[:5], "", "")},
 		{name: "one on a line with more", drawing: madeScreen(" token: " + madeToken)},
 		{name: "none shown", drawing: madeScreen("")},
 	}

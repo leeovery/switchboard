@@ -41,8 +41,9 @@ var processStarters = []string{
 	// claude setup-token, the claude claude.Find finds, on a pseudo-terminal,
 	// for a setup token: tests put a stand-in of their own where it's found.
 	"internal/setuptoken/pty_darwin.go:start",
-	// osascript and open, by name, for the browser a sign-in opens in, as the
-	// Runner setuptoken.Programs gives: tests pass a fake that notes each call.
+	// /usr/bin/osascript and /usr/bin/open, by path, and nothing else, for the
+	// browser a sign-in opens in, as the Runner setuptoken.Programs gives:
+	// tests pass a fake that notes each call.
 	"internal/setuptoken/browser.go:runCommand",
 }
 

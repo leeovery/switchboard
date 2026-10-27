@@ -40,7 +40,8 @@ func openTerminal(columns, rows uint16) (master, tty *os.File, err error) {
 // openItsTerminal grants and unlocks master's terminal, as grantpt and
 // unlockpt do, and opens it. Darwin names it by the minor number the two
 // share, as ptsname does, by a request that only a direct system call can
-// make; the terminal opened is checked to be that one, never another.
+// make: the terminal opened is checked to be a character device of that
+// minor number.
 func openItsTerminal(master *os.File) (*os.File, error) {
 	minor, err := deviceMinor(master)
 	if err != nil {

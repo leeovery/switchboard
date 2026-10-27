@@ -28,8 +28,11 @@ func (d drawing) madeAt() int {
 }
 
 // token returns the token shown below the line saying it's made: the first
-// line after it that's a setup token whole, and not the start of one broken
-// across two rows, the rest on the next, which isn't taken for one.
+// line after it that's a setup token whole. It's whole only once something
+// else is drawn below it, as setup-token draws the line after it in the same
+// frame: the start of a token, cut short where setup-token was stopped
+// drawing it, or broken across two rows, the rest on the next, is shaped as a
+// token too.
 func (d drawing) token() (tokens.Token, bool) {
 	at := d.madeAt()
 	if at < 0 {
@@ -40,13 +43,25 @@ func (d drawing) token() (tokens.Token, bool) {
 		if !claude.IsSetupToken(text) {
 			continue
 		}
-		if i+1 < len(d) && claude.IsSetupTokenPart(strings.TrimSpace(d[i+1])) {
+		if !d.endsAbove(i + 1) {
 			return tokens.Token{}, false
 		}
 		token, err := tokens.Parse(text)
 		return token, err == nil
 	}
 	return tokens.Token{}, false
+}
+
+// endsAbove reports whether a token is drawn whole above the line at index
+// from: the first line drawn from there on is there, and isn't the rest of
+// the token.
+func (d drawing) endsAbove(from int) bool {
+	for _, line := range d[from:] {
+		if text := strings.TrimSpace(line); text != "" {
+			return !claude.IsSetupTokenPart(text)
+		}
+	}
+	return false
 }
 
 // failed returns the error setup-token shows, which it waits to retry at:

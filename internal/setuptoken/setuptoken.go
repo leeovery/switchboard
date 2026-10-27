@@ -8,7 +8,7 @@ package setuptoken
 import (
 	"cmp"
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -48,6 +48,13 @@ func (w waits) orDefaults() waits {
 	return waits{grace: cmp.Or(w.grace, exitGrace), handOver: cmp.Or(w.handOver, handOverWithin)}
 }
 
+// What Make fails with, given no way to tell switchboard's own claude link
+// from the real claude, or to open the sign-in address.
+var (
+	errNoExecutable = errors.New("make a setup token: the Maker has no Executable")
+	errNoOpener     = errors.New("make a setup token: the Signing has no Opener")
+)
+
 // Maker makes setup tokens with the real claude: the one claude.Find finds,
 // never switchboard's own claude link.
 type Maker struct {
@@ -74,7 +81,8 @@ type Signing struct {
 	Report func(Event)
 }
 
-// Make runs claude setup-token, and returns the token it makes. It opens the
+// Make runs claude setup-token, in the user's own environment, as Claude Code
+// starts on its own login, and returns the token it makes. It opens the
 // sign-in address with s's Opener, reports it, opened or for the caller to
 // show, then waits on the sign-in's approval in the browser, then reports the
 // token made, and returns it once setup-token exits, as it does by itself.
@@ -84,13 +92,21 @@ type Signing struct {
 // see, and to copy a token from. So it does where setup-token shows an error
 // it would wait to retry at, where Make stops it, and where it doesn't hand
 // its sign-in address over within handOverWithin. When ctx ends, setup-token
-// is stopped, and Make fails with ctx's cause. Whichever way Make returns,
-// setup-token is gone, all it started on its terminal with it.
+// is stopped. Before the token's made, Make fails with ctx's cause. Once it's
+// made, it lasts a year on the account, so Make returns it all the same where
+// setup-token showed it whole, and otherwise fails with a *ScreenError that
+// is ctx's cause too. Whichever way Make returns, setup-token is gone, all it
+// started on its terminal with it.
 func (m Maker) Make(ctx context.Context, s Signing) (tokens.Token, error) {
-	if err := context.Cause(ctx); err != nil {
-		return tokens.Token{}, fmt.Errorf("make a setup token: %w", err)
+	switch {
+	case ctx.Err() != nil:
+		return tokens.Token{}, cancelled(ctx)
+	case m.Executable == nil:
+		return tokens.Token{}, errNoExecutable
+	case s.Opener == nil:
+		return tokens.Token{}, errNoOpener
 	}
-	env := environ(m.Environ)
+	env := ownEnviron(m.Environ)
 	path, err := claude.Find(env.get("PATH"), m.InstallPaths, m.Executable)
 	if err != nil {
 		return tokens.Token{}, err

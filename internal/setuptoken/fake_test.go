@@ -36,7 +36,7 @@ import (
 //	no-browser   no running of $BROWSER, waiting
 //	oauth-error  an OAuth error where the token would be, waiting at it
 //	broken       the token broken across two rows
-//	slow         the token drawn in two pieces, a moment apart
+//	slow         the token drawn in two pieces, FAKE_PAUSE seconds apart
 const fakeSetupToken = `#!/bin/sh
 d=$FAKE_DIR
 note() { printf '%s\n' "$2" > "$d/$1.tmp" && /bin/mv "$d/$1.tmp" "$d/$1"; }
@@ -80,7 +80,7 @@ case $FAKE_MODE in
 broken) frame "$made \\033[33m$first\n $rest\\033[39m$after" ;;
 slow)
 	printf '%b' "$made \\033[33m$first"
-	/bin/sleep 0.3
+	/bin/sleep "$FAKE_PAUSE"
 	printf '%b' "$rest\\033[39m$after"
 	;;
 *) frame "$made \\033[33m$FAKE_TOKEN\\033[39m$after" ;;
@@ -134,6 +134,7 @@ func newFake(t *testing.T, mode string, env ...string) fake {
 			"FAKE_MANUAL=" + fakeManual,
 			"FAKE_TOKEN=" + fakeToken,
 			"FAKE_EXIT_AFTER=0",
+			"FAKE_PAUSE=0.3",
 		}, env...),
 		Executable: func() (string, error) { return switchboard, nil },
 	}

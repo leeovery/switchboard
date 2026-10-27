@@ -9,17 +9,17 @@ import (
 )
 
 // runner is a Runner that runs nothing, noting each run, a line each as
-// "name args…", and answering each program as it's set to: what it printed,
+// "path args…", and answering each program as it's set to: what it printed,
 // or that it failed.
 type runner struct {
-	printed map[string]string
-	failed  map[string]error
+	printed map[program]string
+	failed  map[program]error
 	ran     []string
 }
 
-func (r *runner) run(_ context.Context, name string, args ...string) ([]byte, error) {
-	r.ran = append(r.ran, strings.Join(append([]string{name}, args...), " "))
-	return []byte(r.printed[name]), r.failed[name]
+func (r *runner) run(_ context.Context, p program, args ...string) ([]byte, error) {
+	r.ran = append(r.ran, strings.Join(append([]string{string(p)}, args...), " "))
+	return []byte(r.printed[p]), r.failed[p]
 }
 
 // address is the sign-in address the openers are given.
@@ -40,14 +40,14 @@ func TestBrowserOpensTheAddressAsItIs(t *testing.T) {
 	if opened != OpenedInBrowser || err != nil {
 		t.Errorf("Open() = %v, %v; want it opened in the browser", opened, err)
 	}
-	if want := []string{"open " + signIn}; !slices.Equal(r.ran, want) {
+	if want := []string{"/usr/bin/open " + signIn}; !slices.Equal(r.ran, want) {
 		t.Errorf("Open() ran %q, want %q", r.ran, want)
 	}
 }
 
 func TestBrowserSaysWhereOpenFails(t *testing.T) {
 	failed := errors.New("exit status 1")
-	r := &runner{failed: map[string]error{"open": failed}}
+	r := &runner{failed: map[program]error{openProgram: failed}}
 
 	opened, err := Browser{Run: r.run}.Open(t.Context(), address(t))
 
@@ -73,14 +73,14 @@ func TestPrivateWindowOpensTheDefaultBrowsersPrivateWindow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &runner{printed: map[string]string{"osascript": tt.app + "\n"}}
+			r := &runner{printed: map[program]string{osascriptProgram: tt.app + "\n"}}
 
 			opened, err := PrivateWindow{Run: r.run}.Open(t.Context(), address(t))
 
 			if opened != OpenedPrivately || err != nil {
 				t.Errorf("Open() = %v, %v; want it opened privately", opened, err)
 			}
-			want := []string{"osascript -l JavaScript -e " + findDefaultBrowser, "open -na " + tt.app + " --args " + tt.flag + " " + signIn}
+			want := []string{"/usr/bin/osascript -l JavaScript -e " + findDefaultBrowser, "/usr/bin/open -na " + tt.app + " --args " + tt.flag + " " + signIn}
 			if !slices.Equal(r.ran, want) {
 				t.Errorf("Open() ran %q, want %q", r.ran, want)
 			}
@@ -101,7 +101,7 @@ func TestPrivateWindowOpensNothingOfABrowserItCantOpenOneOf(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &runner{printed: map[string]string{"osascript": tt.app + "\n"}}
+			r := &runner{printed: map[program]string{osascriptProgram: tt.app + "\n"}}
 
 			opened, err := PrivateWindow{Run: r.run}.Open(t.Context(), address(t))
 
@@ -123,9 +123,9 @@ func TestPrivateWindowSaysWhereItCantOpenOne(t *testing.T) {
 		runner *runner
 		want   error
 	}{
-		{name: "osascript failing", runner: &runner{failed: map[string]error{"osascript": failed}}, want: failed},
-		{name: "no default browser", runner: &runner{printed: map[string]string{"osascript": "\n"}}, want: errNoDefaultBrowser},
-		{name: "open failing", runner: &runner{printed: map[string]string{"osascript": "/Applications/Firefox.app"}, failed: map[string]error{"open": failed}}, want: failed},
+		{name: "osascript failing", runner: &runner{failed: map[program]error{osascriptProgram: failed}}, want: failed},
+		{name: "no default browser", runner: &runner{printed: map[program]string{osascriptProgram: "\n"}}, want: errNoDefaultBrowser},
+		{name: "open failing", runner: &runner{printed: map[program]string{osascriptProgram: "/Applications/Firefox.app"}, failed: map[program]error{openProgram: failed}}, want: failed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -141,12 +141,22 @@ func TestPrivateWindowSaysWhereItCantOpenOne(t *testing.T) {
 	}
 }
 
+func TestProgramsRunNothingButOpenAndOsascript(t *testing.T) {
+	run := Programs(func(string) string { return "" })
+
+	out, err := run(t.Context(), program("/bin/sh"), "-c", "echo ran")
+
+	if err == nil || len(out) > 0 {
+		t.Errorf("running /bin/sh = %q, %v; want it refused, as no Opener runs it", out, err)
+	}
+}
+
 func TestOpenersBoundWhatTheyRun(t *testing.T) {
 	var deadlines []bool
-	run := func(ctx context.Context, name string, _ ...string) ([]byte, error) {
+	run := func(ctx context.Context, p program, _ ...string) ([]byte, error) {
 		_, ok := ctx.Deadline()
 		deadlines = append(deadlines, ok)
-		if name == "osascript" {
+		if p == osascriptProgram {
 			return []byte("/Applications/Firefox.app"), nil
 		}
 		return nil, nil
