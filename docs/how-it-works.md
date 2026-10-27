@@ -502,7 +502,8 @@ Claude Code's own token is the primary's, so what isn't routed lands on the prim
 - **Account-bound features:** features such as remote sessions and file uploads pass through
   untouched, on the primary.
 - **Programs whose `PATH` lacks the link's directory:** programs such as launchd jobs and some GUI
-  apps find the real `claude`, and aren't routed.
+  apps find the real `claude`, and aren't routed. The session hook says so as each such session
+  starts: see [A session that isn't going through switchboard](#a-session-that-isnt-going-through-switchboard).
 - **Extra usage:** an account with extra usage turned on may serve, and bill, the request that
   crosses its limit, rather than refuse it. The router moves sessions off once the headers show the
   window spent.
@@ -512,6 +513,28 @@ Claude Code's own token is the primary's, so what isn't routed lands on the prim
 - **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude
   Code may use the key rather than an account's token. So `claude` starts without switchboard, and
   its requests go out on the key. See [`claude`](commands.md#claude).
+
+### A session that isn't going through switchboard
+
+`setup` installs a hook in Claude Code's `settings.json` that every session runs as it starts,
+however it was started: by switchboard's `claude`, by the real `claude` found ahead of it or run by
+its path, or by an editor. Every `claude` switchboard starts carries a mark in its environment,
+which the session's hooks inherit. A session without it, as it starts or is resumed, shows:
+
+```
+This session isn't going through switchboard, as the claude that started it isn't switchboard's: run switchboard setup.
+```
+
+and Claude is told the same: its requests go straight to Anthropic on Claude Code's own login, not
+spread across your accounts. So whatever puts the real `claude` ahead again, a startup file
+changed, a line declined or a Mac restored, the first session after it says so. Run
+`switchboard setup`, and start the session again in a new terminal. A session started by
+`switchboard run --direct` is switchboard's, and says nothing.
+
+The hook routes nothing and changes nothing. It asks nothing of the router or the config, answers
+at once, and always succeeds, so it never holds a session up. It runs switchboard by the path
+`setup` was run by, and does nothing once switchboard is gone. Only `setup` writes it, leaving your
+other settings and hooks as they are.
 
 The full design, including the cache facts it rests on, is in [the design document](design.md).
 

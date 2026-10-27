@@ -14,6 +14,17 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `status -r`, or press `R` on the dashboard.
 - **Not routed:** some of what Claude Code sends never reaches the router. See
   [What doesn't go through the router](how-it-works.md#what-doesnt-go-through-the-router).
+- **"This session isn't going through switchboard":** the session was started by a `claude` that
+  isn't switchboard's, so its requests go straight to Anthropic on Claude Code's own login,
+  unrouted and unrecorded. Usually something has put the real `claude` ahead of switchboard's on
+  `PATH`: a startup file changed, or a program whose `PATH` lacks switchboard's bin directory, such
+  as an editor. Run `switchboard setup`, which puts switchboard's `claude` first, then start the
+  session again in a new terminal. To see which `claude` your shell runs, run `command -v claude`.
+  See [A session that isn't going through switchboard](how-it-works.md#a-session-that-isnt-going-through-switchboard).
+- **`setup` says the session hook isn't installed:** Claude Code's `settings.json` isn't the JSON
+  object Claude Code reads, or its `hooks` isn't an object, or `hooks.SessionStart` isn't an array.
+  `setup` leaves the file as it is, says what's wrong, and carries on. Put the file right, then run
+  `setup` again.
 - **The ledger's digests:** the `ledger/digest-<date>.json.gz`, `ledger/parts-<date>.gz`,
   `ledger/logday-<date>.json.gz` and `ledger/rows-<date>.gz` files are safe to delete. They're
   worked out from the day's lines, and the router writes them again on its next round, or when it

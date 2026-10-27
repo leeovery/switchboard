@@ -491,14 +491,15 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		Launchctl: func(context.Context, ...string) ([]byte, error) {
 			return nil, errors.New("no test runs launchctl")
 		},
-		Hidden:     cli.HiddenInput,
-		Terminal:   cli.IsTerminal,
-		Background: cli.TerminalBackground,
-		GOOS:       "darwin",
-		UID:        os.Getuid(),
-		PID:        testPID,
-		Pause:      func(time.Duration) {},
-		Patience:   launch.Patience{Answer: launch.AskTimeout},
+		Hidden:        cli.HiddenInput,
+		Terminal:      cli.IsTerminal,
+		TerminalInput: cli.IsTerminalInput,
+		Background:    cli.TerminalBackground,
+		GOOS:          "darwin",
+		UID:           os.Getuid(),
+		PID:           testPID,
+		Pause:         func(time.Duration) {},
+		Patience:      launch.Patience{Answer: launch.AskTimeout},
 	}
 }
 

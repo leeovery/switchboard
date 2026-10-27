@@ -37,6 +37,7 @@ func main() {
 		Launchctl:     service.Launchctl,
 		Hidden:        cli.HiddenInput,
 		Terminal:      cli.IsTerminal,
+		TerminalInput: cli.IsTerminalInput,
 		Background:    cli.TerminalBackground,
 		GOOS:          runtime.GOOS,
 		UID:           os.Getuid(),

@@ -805,6 +805,9 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `version` | Print the version, as `--version` does |
 | `help [command]` | List the commands, or print a command's help, as `-h` does |
 
+`hook session-start`, which the help leaves out, as only Claude Code runs it, is the session hook
+(see The session hook).
+
 The plain text `requests`, `history`, `sessions` and `events` print on a terminal is a first cut,
 to be designed with their owner, as `status`'s text is (see Backlog); agents read their JSON, which
 each prints wherever its output isn't a terminal (see The data verbs).
@@ -7068,12 +7071,36 @@ first session after it says so.
 
 - **It runs `switchboard hook session-start`** by the path setup was run by, as the `claude` link
   does, and does nothing when that path leads nowhere, so switchboard removed leaves no hook
-  failing.
-- **It never holds up or fails a session:** it answers at once, and always succeeds.
+  failing. Its command is `[ -x '<path>' ] && '<path>' hook session-start || true`, the path
+  quoted for `sh`, a quote in it written `'\''`, with a `timeout` of 5 seconds, far more than it
+  takes. `hook` is a hidden command group: only Claude Code runs it.
+- **It never holds up or fails a session:** it answers at once, and always succeeds. It asks
+  nothing of the router, reads no config and touches no network. It reads Claude Code's hook
+  input, a JSON object on stdin, up to 64 KiB, for its `source`, and reads nothing when stdin is a
+  terminal, so run by hand it doesn't wait for typing. Whatever goes wrong, input it can't read
+  or output it can't write, is logged in `cli.log`, and it exits 0.
+- **What it says:** nothing in a session with the mark, whatever it was started as. Without it,
+  as the session starts or is resumed, or where the source is missing or can't be read, it prints
+  one JSON object, as Claude Code reads a `SessionStart` hook's: a `systemMessage` the user sees,
+  `This session isn't going through switchboard, as the claude that started it isn't
+  switchboard's: run switchboard setup.`, and `hookSpecificOutput.additionalContext`, which
+  Claude reads: that the session's requests go straight to Anthropic on Claude Code's own login,
+  not spread across the user's accounts; that it wasn't started by switchboard's `claude`; and
+  that `switchboard setup` puts switchboard's `claude` first on `PATH`. A session cleared or
+  compacted says nothing, as it said so as it started.
 - **Switchboard's own entry:** it lives in `settings.json` in Claude Code's config directory,
-  `$CLAUDE_CONFIG_DIR`, else `~/.claude`. Setup adds it, or puts it right, and leaves every other
-  setting and hook as it is; only setup writes it. Taking it away is the uninstall's
-  (`ideas/2026-10-27--uninstall.md`).
+  `$CLAUDE_CONFIG_DIR`, else `~/.claude`, as `{"type": "command", "command": "…", "timeout": 5}`
+  in a group of its own under `hooks.SessionStart`, with no matcher. It's known by its command's
+  shape, by any path: a hook of the user's that merely mentions switchboard isn't it. Setup adds it
+  where there's none, making `hooks` and `SessionStart` as needed; corrects one with another path,
+  type or timeout in place, keeping its other keys; and of several, keeps the first, corrected,
+  removing the rest and any group they leave empty. Already right, it writes nothing. It leaves
+  every other setting and hook as it is, in its order, and writes the file whole, indented by two
+  spaces as Claude Code writes it, keeping its mode, and through a link to it, as dotfiles keep
+  it, to the file the link leads to. A missing file, or one of only spaces, is `{}`; one that
+  isn't a JSON object, or whose `hooks` isn't an object or `SessionStart` an array, it leaves as
+  it is, saying what's wrong, and setup carries on. Only setup writes it. Taking it away is the
+  uninstall's (`ideas/2026-10-27--uninstall.md`).
 
 ## What doesn't go through the router
 
@@ -7128,7 +7155,8 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets; and asking the binary first whether it could start (`--check`), telling its refusal apart from a binary that can't answer |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
 | `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, and the line that puts that directory on `PATH` |
-| `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy |
+| `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy; and where Claude Code's config directory is |
+| `internal/sessionhook` | The session hook: what `hook session-start` tells a session that didn't start through switchboard, and switchboard's entry in Claude Code's `settings.json`, installed or put right, the rest of the file left as it is |
 | `internal/service` | The LaunchAgent: its plist, and driving `launchctl` |
 | `internal/notify` | Posting desktop notifications, and the wording and warning threshold the router's and the dashboard's share |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
@@ -7311,6 +7339,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   real `claude`'s directory.
 - **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.
+- **The session hook:** an entry under `hooks.SessionStart` in `settings.json` in Claude Code's
+  config directory, `$CLAUDE_CONFIG_DIR`, else `~/.claude`, which `setup` adds or puts right,
+  leaving the rest of the file as it is (see The session hook).
 - **The capture harness,** in the repository: `testdata/vhs/`, where the dashboard is checked
   against its frames. `reference/` keeps them, 82 of them, named by their
   stems: `usage-*` (9), `overview-*` (15), `accounts-*` (11), `history-*` (10), `routing-*` (5),

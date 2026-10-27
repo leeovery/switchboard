@@ -22,6 +22,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/sessionhook"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/skill"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -57,6 +58,8 @@ type world struct {
 	home   string
 	tmp    string
 	skill  string
+	// settings is Claude Code's settings file, where the session hook goes.
+	settings string
 	// switchboard is the path switchboard is run by, a link to its version.
 	switchboard string
 	// bin is switchboard's own directory for PATH, and realClaude is Claude
@@ -76,15 +79,16 @@ func newWorld(t *testing.T) *world {
 	}
 	at := func(parts ...string) string { return filepath.Join(append([]string{root}, parts...)...) }
 	w := &world{
-		root:    root,
-		config:  at("config", "switchboard", "config.toml"),
-		state:   at("state", "switchboard"),
-		home:    at("home"),
-		tmp:     at("tmp"),
-		skill:   at("claude", "skills", "switchboard", "SKILL.md"),
-		bin:     at("home", ".local", "share", "switchboard", "bin"),
-		launchd: &fakeLaunchd{},
-		api:     &fakeAPI{},
+		root:     root,
+		config:   at("config", "switchboard", "config.toml"),
+		state:    at("state", "switchboard"),
+		home:     at("home"),
+		tmp:      at("tmp"),
+		skill:    at("claude", "skills", "switchboard", "SKILL.md"),
+		settings: at("claude", "settings.json"),
+		bin:      at("home", ".local", "share", "switchboard", "bin"),
+		launchd:  &fakeLaunchd{},
+		api:      &fakeAPI{},
 	}
 	mkdir(t, w.tmp)
 	version := claudetest.Program(t, at("Cellar", "switchboard", "1.2.3", "bin", "switchboard"))
@@ -133,6 +137,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Bin:          w.bin,
 		Home:         w.home,
 		Skill:        w.skill,
+		Settings:     w.settings,
 		Usage: func(_ context.Context, out io.Writer) error {
 			_, err := io.WriteString(out, "(every account's usage)\n")
 			return err
@@ -167,7 +172,7 @@ func (w *world) runs(t *testing.T, answers ...string) string {
 // done lays the world out as the first run of setup leaves it, once the user
 // has put switchboard's bin directory on PATH as it says: doneConfig, with
 // both accounts' tokens; the service installed, and its router up;
-// switchboard's claude link; and the skill installed.
+// switchboard's claude link, and the session hook; and the skill installed.
 func (w *world) done(t *testing.T) {
 	t.Helper()
 	w.writeConfig(t, doneConfig)
@@ -176,6 +181,9 @@ func (w *world) done(t *testing.T) {
 	w.installService(t, w.switchboard)
 	claudetest.Link(t, w.switchboard, filepath.Join(w.bin, "claude"))
 	w.putBinOnPath()
+	if _, err := sessionhook.Install(w.settings, w.switchboard); err != nil {
+		t.Fatal(err)
+	}
 	if err := skill.Install(w.skill); err != nil {
 		t.Fatal(err)
 	}

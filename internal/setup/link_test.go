@@ -151,8 +151,10 @@ func TestTheClaudeLinkStep(t *testing.T) {
 			before := w.snapshot(t)
 
 			shown := w.runs(t, "")
-			if got := section(t, shown, "4. The claude link"); got != tt.want {
-				t.Errorf("the claude link step showed\n%s\nwant\n%s", got, tt.want)
+			// The session hook comes last, whatever the link step found.
+			want := tt.want + "The session hook is in place: <root>/claude/settings.json\n"
+			if got := section(t, shown, "4. The claude link"); got != want {
+				t.Errorf("the claude link step showed\n%s\nwant\n%s", got, want)
 			}
 			if tt.wantLinked {
 				checkLinked(t, w)

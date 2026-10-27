@@ -33,6 +33,33 @@ directly, agents included. Each format is described field by field.
 | The `claude` link | `$XDG_DATA_HOME/switchboard/bin/claude`, else `~/.local/share/switchboard/bin/claude` |
 | The LaunchAgent | `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist` |
 | The skill | `skills/switchboard/SKILL.md` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |
+| The session hook | An entry under `hooks.SessionStart` in `settings.json` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |
+
+The session hook's entry is a group of its own, with no matcher:
+
+```json
+{
+  "hooks": [
+    {
+      "type": "command",
+      "command": "[ -x '/opt/homebrew/bin/switchboard' ] && '/opt/homebrew/bin/switchboard' hook session-start || true",
+      "timeout": 5
+    }
+  ]
+}
+```
+
+The path is the one `setup` was run by. `setup` knows the entry by its command's shape, whatever
+the path, and puts it right where it differs. Without the mark switchboard gives every `claude` it
+starts, as the session starts or is resumed, `switchboard hook session-start` prints one JSON
+object, which Claude Code shows the user and tells Claude:
+
+```json
+{"systemMessage": "This session isn't going through switchboard, …", "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "This session isn't going through switchboard: …"}}
+```
+
+Otherwise it prints nothing. See
+[A session that isn't going through switchboard](how-it-works.md#a-session-that-isnt-going-through-switchboard).
 
 The state directory holds these files:
 
