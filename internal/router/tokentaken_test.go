@@ -9,6 +9,9 @@ import (
 func TestTheRoutersDocumentGivesWhenEachTokenWasTaken(t *testing.T) {
 	taken := now.Add(-90 * 24 * time.Hour)
 	store, files := withTokenFiles(t)
+	if _, err := store.Remove("work"); err != nil {
+		t.Fatal(err)
+	}
 	writeTokenTaken(t, store, "work", workToken, taken)
 	// Side's file replaced by something else, its record of the token before,
 	// and personal's written by hand, with no record.

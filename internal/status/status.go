@@ -483,9 +483,10 @@ type Collector struct {
 	// Token reads an account's token, by the account's id, from its file.
 	Token func(id string) (tokens.Token, error)
 	// Taken reads when switchboard took the token given as the account's, by
-	// the account's id, from the record beside its file, reporting false
-	// where that isn't known.
-	Taken func(id string, token tokens.Token) (time.Time, bool)
+	// the account's id, from the record beside its file, failing where that
+	// isn't known, with tokens.ErrUnrecorded where there's no record. Nil
+	// knows of none.
+	Taken func(id string, token tokens.Token) (time.Time, error)
 	// Now reads the clock. Concurrent probes call it.
 	Now func() time.Time
 }
@@ -509,9 +510,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 			continue
 		}
 		statuses[i].TokenSet = true
-		if taken, ok := c.Taken(acct.ID, token); ok {
-			statuses[i] = statuses[i].WithTokenTaken(taken)
-		}
+		statuses[i] = c.withTokenTaken(statuses[i], token)
 		usable = append(usable, acct.ID)
 		wg.Go(func() { c.probe(ctx, &statuses[i], token) })
 	}

@@ -75,24 +75,33 @@ func (s Store) Read(id string) (Token, error) {
 // read or write. What it checks is the file it has open, whatever takes its
 // place at path meanwhile.
 func (s Store) readPrivate(path string) ([]byte, error) {
-	f, err := os.OpenFile(path, openFlags, 0)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
+	data, err := readChecked(path, "the token file", func(info fs.FileInfo) error { return s.checkPrivate(path, info) })
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%w: write it to %s", ErrMissing, path)
-	case err != nil:
-		return nil, fmt.Errorf("read the token file: %w", err)
+	}
+	return data, err
+}
+
+// readChecked returns what the file at path holds, up to a byte more than
+// maxFile, once check passes it, as the file it has open: whatever takes its
+// place at path meanwhile. It fails with check's error, else saying it
+// couldn't read what, wrapping fs.ErrNotExist where there's nothing at path.
+func readChecked(path, what string, check func(fs.FileInfo) error) ([]byte, error) {
+	f, err := os.OpenFile(path, openFlags, 0)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", what, err)
 	}
 	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("read the token file: %w", err)
+		return nil, fmt.Errorf("read %s: %w", what, err)
 	}
-	if err := s.checkPrivate(path, info); err != nil {
+	if err := check(info); err != nil {
 		return nil, err
 	}
 	data, err := io.ReadAll(io.LimitReader(f, maxFile+1))
 	if err != nil {
-		return nil, fmt.Errorf("read the token file: %w", err)
+		return nil, fmt.Errorf("read %s: %w", what, err)
 	}
 	return data, nil
 }
@@ -105,13 +114,19 @@ func (s Store) checkPrivate(path string, info fs.FileInfo) error {
 	if !mode.IsRegular() {
 		return fmt.Errorf("the token file %s isn't a file: replace it with one holding the token", path)
 	}
-	if uid, ok := owner(info); !ok || uid != s.uid {
+	if !s.owns(info) {
 		return fmt.Errorf("the token file %s is another user's: replace it with one of your own", path)
 	}
 	if exposed := mode.Perm() & shared; exposed != 0 {
 		return fmt.Errorf("other users can %s the token file (mode %04o): chmod 600 %s", access(exposed), mode.Perm(), path)
 	}
 	return nil
+}
+
+// owns reports whether the file info describes is the user's.
+func (s Store) owns(info fs.FileInfo) bool {
+	uid, ok := owner(info)
+	return ok && uid == s.uid
 }
 
 // access says what the permission bits exposed let others do with a file.
@@ -141,8 +156,10 @@ func parse(data []byte) (Token, error) {
 // theirs alone: through a link, where it leads, rather than in its place. The
 // file is written whole or not at all, and synced, as a token lost to a crash
 // takes a new setup token to replace. Beside it goes the record that it was
-// taken at taken, which Taken reads; failing to write that leaves the token's
-// date unknown, and is logged, never failing the write.
+// taken at taken, which Taken reads, but where the record there is of this
+// token already, which keeps its date, as a token's year runs from when it
+// was first taken. Failing to write that leaves the token's date unknown,
+// and is logged, never failing the write.
 func (s Store) Write(id string, token Token, taken time.Time) error {
 	if err := s.keepPrivate(); err != nil {
 		return err
@@ -154,7 +171,7 @@ func (s Store) Write(id string, token Token, taken time.Time) error {
 	if err := atomicfile.Write(target, []byte(token.Reveal()+"\n"), 0o600); err != nil {
 		return fmt.Errorf("write the token file: %w", err)
 	}
-	if err := s.writeTaken(id, token, taken); err != nil {
+	if err := s.writeTaken(id, token, taken, target); err != nil {
 		logger.Warn("couldn't record when the token was taken", "account", id, "error", err)
 	}
 	return nil
@@ -209,12 +226,23 @@ type Removed struct {
 	LinkedTo string
 }
 
-// Remove deletes the account's token file, if it has one, and the record of
+// Remove deletes the account's token file, if it has one, then the record of
 // when its token was taken, and says what it removed of the token file. A
-// link in its place goes, but not the file it leads to, which is kept
-// elsewhere, as by a dotfiles step, and isn't switchboard's to delete.
+// token file it can't remove keeps its record. A link in either's place goes,
+// but not the file it leads to, which is kept elsewhere, as by a dotfiles
+// step, and isn't switchboard's to delete.
 func (s Store) Remove(id string) (Removed, error) {
+	removed, err := s.removeToken(id)
+	if err != nil {
+		return Removed{}, err
+	}
 	s.forgetTaken(id)
+	return removed, nil
+}
+
+// removeToken deletes the account's token file, if it has one, as Remove
+// does, and says what it removed.
+func (s Store) removeToken(id string) (Removed, error) {
 	path := s.Path(id)
 	info, err := os.Lstat(path)
 	switch {

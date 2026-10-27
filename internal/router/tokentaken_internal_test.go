@@ -1,9 +1,12 @@
 package router
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
@@ -79,16 +82,64 @@ func TestATokensDateIsReadAgainWithTheToken(t *testing.T) {
 
 func TestAnAccountsDateIsReadWithItsTokenAsTheRouterStarts(t *testing.T) {
 	taken := start.Add(-90 * 24 * time.Hour)
-	records := func(_ string, token tokens.Token) (time.Time, bool) {
-		at, ok := map[string]time.Time{workToken: taken}[token.Reveal()]
-		return at, ok
-	}
-
-	as := resolve(testConfigured, testTokens.Read, records)
+	as := resolve(testConfigured, testTokens.Read, recordsOf(map[string]time.Time{workToken: taken}))
 	for _, a := range as {
 		want := map[string]time.Time{"work": taken}[a.ID]
 		if got, ok := a.secret.tokenTaken(); !got.Equal(want) || ok == want.IsZero() {
 			t.Errorf("%s's token was taken at %v (%v), want %v", a.ID, got, ok, want)
 		}
+	}
+}
+
+func TestATokensDateCountsOnlyForTheTokenItWasReadWith(t *testing.T) {
+	as := resolve(testConfigured, testTokens.Read, recordsOf(map[string]time.Time{workToken: start}))
+	work, _ := as.byID("work")
+	renewed, err := tokens.Parse(renewedToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Replaced, as a 401 or a look replaces it, before its record is read.
+	work.secret.replace(renewed, start)
+	if at, ok := work.secret.tokenTaken(); ok {
+		t.Errorf("work's new token was taken at %v, want it not known: the date was its old token's", at)
+	}
+}
+
+func TestWhyARecordCantBeGoneByIsLoggedOnceUntilItChanges(t *testing.T) {
+	log := logstest.Capture(t)
+	as := resolve(testConfigured, testTokens.Read, unrecorded)
+	work, _ := as.byID("work")
+	token := work.token()
+	failing := func(err error) TakenFunc {
+		return func(string, tokens.Token) (time.Time, error) { return time.Time{}, err }
+	}
+	another := errors.New("the record tokens/work.taken is of another token")
+	notOne := errors.New("the record tokens/work.taken isn't one of when a token was taken")
+
+	for _, err := range []error{another, another, another, tokens.ErrUnrecorded, notOne, notOne, another} {
+		work.noteTaken(token, failing(err))
+	}
+	var logged []string
+	for _, line := range log.Lines() {
+		if strings.Contains(line, `msg="not going by the record of when the token was taken"`) {
+			logged = append(logged, line)
+		}
+	}
+	if len(logged) != 3 || !strings.Contains(logged[0], "another token") || !strings.Contains(logged[1], "isn't one") || !strings.Contains(logged[2], "another token") {
+		t.Errorf("logged\n%s\nwant why at each change alone: of another token, not one, of another token", strings.Join(logged, "\n"))
+	}
+	checkNoToken(t, log)
+}
+
+// recordsOf reads when each token was taken, by the token, as records has
+// it, failing with tokens.ErrUnrecorded of a token it hasn't.
+func recordsOf(records map[string]time.Time) TakenFunc {
+	return func(_ string, token tokens.Token) (time.Time, error) {
+		taken, ok := records[token.Reveal()]
+		if !ok {
+			return time.Time{}, tokens.ErrUnrecorded
+		}
+		return taken, nil
 	}
 }

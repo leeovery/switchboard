@@ -543,8 +543,8 @@ func (w *world) checkTaken(t *testing.T, id, secret string, want time.Time) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if at, ok := w.tokens().Taken(id, token); !at.Equal(want) || ok == want.IsZero() {
-		t.Errorf("%s's token was taken at %v (%v), want %v", id, at, ok, want)
+	if at, err := w.tokens().Taken(id, token); !at.Equal(want) || (err == nil) == want.IsZero() {
+		t.Errorf("%s's token was taken at %v (%v), want %v", id, at, err, want)
 	}
 }
 

@@ -202,7 +202,7 @@ type probeSource struct {
 	readToken func(id string) (tokens.Token, error)
 	// tokenTaken reads when an account's token was taken, by its id and the
 	// token.
-	tokenTaken func(id string, token tokens.Token) (time.Time, bool)
+	tokenTaken func(id string, token tokens.Token) (time.Time, error)
 	upstream   string
 	accounts   []config.Account
 	prime      config.Prime

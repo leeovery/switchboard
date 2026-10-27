@@ -398,9 +398,8 @@ func newTestTokenFiles(before, after tokenstest.Files) *testTokenFiles {
 	f.tokenFiles = &tokenFiles{
 		accounts: resolve(testConfigured, before.Read, unrecorded),
 		read:     f.files.read,
-		taken: func(_ string, token tokens.Token) (time.Time, bool) {
-			taken, ok := f.records[token.Reveal()]
-			return taken, ok
+		taken: func(id string, token tokens.Token) (time.Time, error) {
+			return recordsOf(f.records)(id, token)
 		},
 		now:      at(start),
 		kept:     func() { f.kept++ },

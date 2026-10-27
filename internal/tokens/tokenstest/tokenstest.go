@@ -36,11 +36,14 @@ func (f Files) Read(id string) (tokens.Token, error) {
 type Taken map[string]time.Time
 
 // Read returns when the account with the given id took its token, as
-// tokens.Store's Taken does, reporting false where Taken has no time for it,
-// whatever the token.
-func (t Taken) Read(id string, _ tokens.Token) (time.Time, bool) {
+// tokens.Store's Taken does, failing with tokens.ErrUnrecorded where Taken
+// has no time for it, whatever the token.
+func (t Taken) Read(id string, _ tokens.Token) (time.Time, error) {
 	at, ok := t[id]
-	return at, ok
+	if !ok {
+		return time.Time{}, tokens.ErrUnrecorded
+	}
+	return at, nil
 }
 
 // Missing is the error Read fails with for the account with the given id,

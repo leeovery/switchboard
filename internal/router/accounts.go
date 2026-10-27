@@ -2,6 +2,7 @@ package router
 
 import (
 	"crypto/subtle"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -57,38 +58,50 @@ type secret struct {
 	// said as the token was last read from its file: zero where it didn't.
 	// It counts only while that's the token held, and is read again with
 	// every read of the token, so a token read a moment before its record
-	// lands has its date by the next read.
+	// lands has its date by the next read. untaken is why the record didn't
+	// say, where there was one, as last logged.
 	taken   time.Time
 	takenOf string
+	untaken string
 }
 
 // TakenFunc reads when switchboard took token as the account's with the
-// given id, as tokens.Store's Taken does, reporting false where that isn't
-// known.
-type TakenFunc func(id string, token tokens.Token) (time.Time, bool)
+// given id, as tokens.Store's Taken does, failing where that isn't known,
+// with tokens.ErrUnrecorded where there's no record.
+type TakenFunc func(id string, token tokens.Token) (time.Time, error)
 
 // unrecorded knows of no token's taking.
-func unrecorded(string, tokens.Token) (time.Time, bool) {
-	return time.Time{}, false
+func unrecorded(string, tokens.Token) (time.Time, error) {
+	return time.Time{}, tokens.ErrUnrecorded
 }
 
 // noteTaken holds, beside token, just read from the account's file, when it
 // was taken, as taken reads it: read before the account's lock is taken, as
-// it reads a file.
+// it reads a file. Why a record there can't be gone by is logged at debug
+// once, until it changes, as the files are read every few seconds.
 func (a account) noteTaken(token tokens.Token, taken TakenFunc) {
-	at, ok := taken(a.ID, token)
-	if !ok {
+	at, err := taken(a.ID, token)
+	why := ""
+	if err != nil && !errors.Is(err, tokens.ErrUnrecorded) {
+		why = err.Error()
+	}
+	if err != nil {
 		at = time.Time{}
 	}
-	a.secret.tookAt(hash(token.Reveal()), at)
+	if a.secret.tookAt(hash(token.Reveal()), at, why) {
+		logger.Debug("not going by the record of when the token was taken", "account", a.ID, "error", err)
+	}
 }
 
 // tookAt notes that the token whose hash is sum was taken at at, zero where
-// that isn't known.
-func (s *secret) tookAt(sum string, at time.Time) {
+// that isn't known, why saying why where there's a record it can't go by. It
+// reports whether that's a reason it didn't have before.
+func (s *secret) tookAt(sum string, at time.Time, why string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.takenOf, s.taken = sum, at
+	news := why != "" && why != s.untaken
+	s.takenOf, s.taken, s.untaken = sum, at, why
+	return news
 }
 
 // tokenTaken returns when the token the account holds was taken, reporting

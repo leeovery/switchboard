@@ -1,11 +1,13 @@
 package status_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
@@ -33,6 +35,35 @@ func TestCollectGivesWhenEachTokenWasTaken(t *testing.T) {
 		if got != want[a.ID] {
 			t.Errorf("%s's token was taken at %v, good until %v; want %v", a.ID, got[0], got[1], want[a.ID])
 		}
+	}
+}
+
+func TestCollectGivesNoDateItCantGoBy(t *testing.T) {
+	tests := []struct {
+		name  string
+		taken func(id string, token tokens.Token) (time.Time, error)
+	}{
+		{name: "with no record", taken: tokenstest.Taken{}.Read},
+		{name: "with a record it can't go by", taken: func(string, tokens.Token) (time.Time, error) {
+			return time.Date(2026, 3, 2, 9, 30, 0, 0, time.UTC), errors.New("the record tokens/work.taken is of another token")
+		}},
+		{name: "knowing of no record, as a collector without Taken"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := status.Collector{
+				Prober: &fakeProber{},
+				Policy: policy,
+				Token:  tokenstest.Files{"work": "test-token-work"}.Read,
+				Taken:  tt.taken,
+				Now:    func() time.Time { return time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC) },
+			}
+
+			work := collector.Collect(t.Context(), []config.Account{{ID: "work"}}).Accounts[0]
+			if !work.TokenSet || !work.TokenTaken.IsZero() || !work.TokenGoodUntil.IsZero() {
+				t.Errorf("work reads %+v, want its token usable, with no date", work)
+			}
+		})
 	}
 }
 

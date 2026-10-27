@@ -302,12 +302,12 @@ func (a *app) readToken(id string) (tokens.Token, error) {
 }
 
 // tokenTaken reads when switchboard took token as the account's with the
-// given id, as its token file's record says, reporting false where that isn't
-// known, as where the state directory can't be found.
-func (a *app) tokenTaken(id string, token tokens.Token) (time.Time, bool) {
+// given id, as its token file's record says, failing where that isn't known,
+// as where the state directory can't be found.
+func (a *app) tokenTaken(id string, token tokens.Token) (time.Time, error) {
 	files, err := a.tokens()
 	if err != nil {
-		return time.Time{}, false
+		return time.Time{}, err
 	}
 	return files.Taken(id, token)
 }
