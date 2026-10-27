@@ -409,10 +409,12 @@ The subcommands do the following:
     `_`.
   - When the account's token file holds no usable token, `add` takes one, and writes it over
     whatever the file held.
-  - A `--label` is taken as it shows: each run of whitespace within it one space, and the
-    whitespace and unseen characters at its edges, such as zero-width spaces and direction
-    marks, trimmed. Joiners within it, as emoji sequences need, are kept. One that's the id is
-    no label, as it shows the same.
+  - A `--label` is taken as it shows: without the characters that play no part in how it shows
+    (zero-width spaces, word joiners, byte order marks and soft hyphens), each run of whitespace
+    within it one space, and the whitespace, joiners and direction marks at its edges trimmed.
+    Joiners and direction marks within it, as emoji sequences and right-to-left text need, are
+    kept, and so is every other character, such as the tags of a subdivision's flag. One that's
+    the id is no label, as it shows the same.
   - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
     the token, and so is a `--label` over 100 characters as it shows, one that holds a control
     character, such as a newline or a tab, or a bidirectional embedding, override or isolate,
@@ -425,10 +427,10 @@ The subcommands do the following:
   - It says what it changed, each value as it is now and as it was, labels in quotes, and a label
     of none as none, the account shown by its id. When every value given is what the account has
     already, it says so, and writes nothing.
-  - Made the primary, an account takes it from the one that had it. The sessions already running,
-    unless pinned, keep the token they started on as Claude Code's own until they restart: the
-    former primary's, or, where it had no usable token, the first account's with one, as the
-    tokens stand now. So what they send outside the conversation, such as artifacts and uploads,
+  - Made the primary, an account takes it from the one that had it. The sessions already running
+    keep the token they started on as Claude Code's own until they restart: the former primary's,
+    pinned or not, or, where it has no usable token, the first account's with one, or a pinned
+    session's pinned account's, as the tokens stand now. So what they send outside the conversation, such as artifacts and uploads,
     still goes out on that account. `edit` says so, and warns on stderr when the new primary has
     no usable token, as new sessions then start on another account's.
   - A reserve written as a number alone, such as `5` or `0.05`, is refused, as either could mean
@@ -437,11 +439,13 @@ The subcommands do the following:
     shows the account by its id, and takes the label out. A label written untidily in the config
     and given tidily is saved tidily, and `edit` says it was written untidily.
   - `--primary=false` is refused: to move the primary, give `--primary` to another account.
-  - An id no account has is said before anything wrong with a flag.
+  - An id no account has is said before anything wrong with a flag's value. Errors in the flags
+    themselves, such as a flag without its value or an unknown flag, come first.
   - A value it replaces keeps the comment beside it; a key it takes out goes with its comment, as
     the primary's mark does when another account is made the primary.
   - A label the config writes over several lines, as a multi-line string, can't be edited as text:
-    a label or plan edit of that account is refused, to be made by hand, and nothing is written.
+    a label edit of that account is refused, to be made by hand, and nothing is written. A plan,
+    reserve or primary edit is made, below the line that closes the label.
 - **`token`** replaces an account's token.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file.

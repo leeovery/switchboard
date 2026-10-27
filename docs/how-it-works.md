@@ -288,7 +288,8 @@ The service's router restarts itself, once no request is in flight, when any of 
 - Your Mac's time zone changes.
 
 So `accounts add`, `accounts edit`, `accounts remove`, an edit by hand, an upgrade and a new time
-zone all take effect without a command. A router you started by hand with `serve` logs that a restart is due instead.
+zone all take effect without a command. A router you started by hand with `serve` logs that a
+restart is due instead.
 
 The router restarts in place. It runs its new binary in the same process and hands that binary the
 sockets it listens on. A request made meanwhile waits a moment rather than being refused, and a
@@ -325,10 +326,10 @@ One account is the primary: the one your browser and the Claude apps are signed 
 
 - **Choosing it:** to mark an account as the primary, run
   `switchboard accounts edit <id> --primary`, or set `primary = true` on it. Without it, the first
-  account is the primary. The sessions already running, unless pinned, keep the token they started
-  on as Claude Code's own until they restart: the former primary's, or, where it had no usable
-  token, the first account's with one. So what they send outside the conversation still goes out
-  on that account, as the edit says.
+  account is the primary. The sessions already running keep the token they started on as Claude
+  Code's own until they restart: the former primary's, pinned or not, or, where it had no usable
+  token, the first account's with one, or a pinned session's pinned account's. So what they send
+  outside the conversation still goes out on that account, as the edit says.
 - **Removing it:** when you remove the primary, the account marked `primary = true`, or else the
   first account, is the primary from then on, as `accounts remove` says. The sessions already
   running hold the removed account's token. They stay routed while the new primary has a usable
