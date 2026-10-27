@@ -70,7 +70,7 @@ func TestTheServiceStep(t *testing.T) {
 			answers: []string{""},
 			want: "The service runs <root>/go/bin/switchboard, not this switchboard, <root>/brew/bin/switchboard, so it's installed afresh.\n" +
 				installed + "The router is up: healthy, pid 4244.\n",
-			wantRan: []string{"print", "print", "bootout", "bootstrap"},
+			wantRan: []string{"print", "print", "bootout", "print", "bootstrap"},
 		},
 		{
 			name:    "installed with a plist naming no program: installed afresh, to run this switchboard",
@@ -78,7 +78,7 @@ func TestTheServiceStep(t *testing.T) {
 			answers: []string{""},
 			want: "The service runs a program its plist doesn't name, not this switchboard, <root>/brew/bin/switchboard, so it's installed afresh.\n" +
 				installed + "The router is up: healthy, pid 4243.\n",
-			wantRan: []string{"print", "print", "bootout", "bootstrap"},
+			wantRan: []string{"print", "print", "bootout", "print", "bootstrap"},
 		},
 		{
 			name:    "installed, its router not answering: restarted",

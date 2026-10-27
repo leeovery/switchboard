@@ -229,7 +229,7 @@ func TestServiceUninstall(t *testing.T) {
 	if got, want := run(t, s.srv.deps, "service", "uninstall"), (result{stdout: "the service isn't installed\n"}); got != want {
 		t.Errorf("switchboard service uninstall, again = %+v, want %+v", got, want)
 	}
-	if want := [][]string{{"print", target}, {"bootout", target}, {"print", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
+	if want := [][]string{{"print", target}, {"bootout", target}, {"print", target}, {"print", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchd.calls, want)
 	}
 	if _, err := os.Stat(s.plist); !os.IsNotExist(err) {
