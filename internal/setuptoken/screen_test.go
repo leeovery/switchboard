@@ -40,13 +40,60 @@ func TestScreenDrawsWhatATerminalShows(t *testing.T) {
 		{name: "the whole screen erased", drawn: "gone\r\ngone\x1b[2J\x1b[Hkept", want: []string{"kept"}},
 		{name: "the screen from its start erased", drawn: "gone\r\ngone kept\x1b[5D\x1b[1J", want: []string{"     kept"}},
 		{name: "a line's characters set in another charset passed over", drawn: "\x1b(Bplain", want: []string{"plain"}},
+		{name: "a line inserted", drawn: "one\r\ntwo\x1b[1;2H\x1b[Lnew", want: []string{"new", "one", "two"}},
+		{name: "lines inserted, those pushed off the bottom gone", drawn: "1\r\n2\r\n3\r\n4\x1b[2;1H\x1b[2L", want: []string{"1", "", "", "2"}},
+		{name: "a line deleted", drawn: "one\r\ntwo\r\nthree\x1b[1;2H\x1b[Mx", want: []string{"xwo", "three"}},
+		{name: "characters inserted", drawn: "abcdef\x1b[1;3H\x1b[2@", want: []string{"ab  cdef"}},
+		{name: "characters inserted, those pushed off the end gone", drawn: "0123456789\x1b[1;1H\x1b[3@", want: []string{"   0123456"}},
+		{name: "characters deleted", drawn: "abcdef\x1b[1;2H\x1b[2P", want: []string{"adef"}},
+		{name: "scrolled down", drawn: "1\r\n2\r\n3\r\n4\x1b[T", want: []string{"1", "2", "3"}},
+		{name: "a mouse's tracking passed over", drawn: "abc\x1b[1;2;3;4;5T", want: []string{"abc"}},
+		{name: "a region scrolled up", drawn: "1\r\n2\r\n3\r\n4\x1b[2;3r\x1b[S", want: []string{"1", "3", "", "4"}},
+		{name: "a region scrolled by a line feed at its bottom", drawn: "1\r\n2\r\n3\r\n4\x1b[1;2r\x1b[2;1H\nx", want: []string{"2", "x", "3", "4"}},
+		{name: "a region scrolled by a reverse line feed at its top", drawn: "1\r\n2\r\n3\r\n4\x1b[2;3r\x1b[2;1H\x1bMx", want: []string{"1", "x", "2", "4"}},
+		{name: "a region set, the cursor taken home", drawn: "one\x1b[2;3rx", want: []string{"xne"}},
+		{name: "a region that isn't one passed over", drawn: "one\x1b[3;2rx", want: []string{"onex"}},
+		{name: "the last character repeated", drawn: "ab\x1b[3b", want: []string{"abbbb"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newScreen(10, 4)
 			s.write([]byte(tt.drawn))
-			if got := s.drawing(); !slices.Equal(got, drawing(tt.want)) {
+			if got := texts(s.drawing()); !slices.Equal(got, tt.want) {
 				t.Errorf("drawing %q shows %q, want %q", tt.drawn, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScreenNotesTheOrderItsRowsWereWrittenIn(t *testing.T) {
+	tests := []struct {
+		name  string
+		drawn string
+		want  []string
+	}{
+		{name: "rows written down the screen", drawn: "1\r\n2\r\n3", want: []string{"1", "2", "3"}},
+		{name: "a row written over", drawn: "1\r\n2\r\n3\x1b[2;1Hx", want: []string{"1", "3", "x"}},
+		{name: "a row erased in part, not written", drawn: "12\r\n2\r\n3\x1b[1;2H\x1b[K", want: []string{"1", "2", "3"}},
+		{name: "rows moved by an inserted line", drawn: "1\r\n2\r\n3\x1b[1;1H\x1b[L", want: []string{"1", "2", "3"}},
+		{name: "rows moved by a deleted line", drawn: "1\r\n2\r\n3\x1b[1;1Hx\x1b[M", want: []string{"2", "3"}},
+		{name: "rows moved by a scroll", drawn: "1\r\n2\r\n3\x1b[T", want: []string{"1", "2", "3"}},
+		{name: "rows dropped by a reset", drawn: "1\x1bc2", want: []string{"2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newScreen(10, 4)
+			s.write([]byte(tt.drawn))
+			d := slices.Clone(s.drawing())
+			slices.SortStableFunc(d, func(a, b line) int { return a.written - b.written })
+			var got []string
+			for _, l := range d {
+				if l.text != "" {
+					got = append(got, l.text)
+				}
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("drawing %q wrote its rows in the order %q, want %q", tt.drawn, got, tt.want)
 			}
 		})
 	}
@@ -57,7 +104,7 @@ func TestScreenScrollsRowsOffTheTopIntoItsScrollback(t *testing.T) {
 
 	s.write([]byte("one\r\ntwo\r\nthree\x1b[1;1Hx"))
 
-	if got, want := s.drawing(), (drawing{"one", "xwo", "three"}); !slices.Equal(got, want) {
+	if got, want := texts(s.drawing()), []string{"one", "xwo", "three"}; !slices.Equal(got, want) {
 		t.Errorf("drawing shows %q, want %q: the place chosen on the screen as it stands", got, want)
 	}
 }
@@ -67,7 +114,7 @@ func TestScreenErasesItsScrollback(t *testing.T) {
 
 	s.write([]byte("one\r\ntwo\r\nthree\x1b[3J"))
 
-	if got, want := s.drawing(), (drawing{"two", "three"}); !slices.Equal(got, want) {
+	if got, want := texts(s.drawing()), []string{"two", "three"}; !slices.Equal(got, want) {
 		t.Errorf("drawing shows %q, want %q", got, want)
 	}
 }
@@ -78,8 +125,8 @@ func TestScreenKeepsItsRowsBounded(t *testing.T) {
 	s.write([]byte(strings.Repeat("x\r\n", maxRows*2) + "last"))
 
 	got := s.drawing()
-	if len(got) > maxRows || got[len(got)-1] != "last" {
-		t.Errorf("drawing holds %d rows, ending %q; want %d at most, ending with the last", len(got), got[len(got)-1], maxRows)
+	if len(got) > maxRows || got[len(got)-1].text != "last" {
+		t.Errorf("drawing holds %d rows, ending %q; want %d at most, ending with the last", len(got), got[len(got)-1].text, maxRows)
 	}
 }
 
@@ -93,7 +140,7 @@ func TestScreenDrawsTheSameHoweverWhatsDrawnArrives(t *testing.T) {
 		s.write(drawn[:cut])
 		s.write(drawn[cut:])
 		if got := s.drawing(); !slices.Equal(got, want) {
-			t.Fatalf("drawing %q cut at %d shows %q, want %q, as drawn whole", drawn, cut, got, want)
+			t.Fatalf("drawing %q cut at %d shows %+v, want %+v, as drawn whole", drawn, cut, got, want)
 		}
 	}
 }
