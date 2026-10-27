@@ -96,11 +96,13 @@ func (d *Draft) Config() *Config {
 // account's, else before the first table, else at the end. As the primary,
 // it takes primary off every other account. It fails, matching ErrConfigured,
 // when an account has its id already, and fails too when one has it in
-// another case, as the two would share a token file.
+// another case, as the two would share a token file. Its label is taken as
+// givenLabel has it.
 func (d *Draft) AddAccount(a NewAccount) error {
 	if err := a.check(); err != nil {
 		return err
 	}
+	a.Label = givenLabel(a.Label)
 	if d.index(a.ID) >= 0 {
 		return fmt.Errorf("account %q is %w", a.ID, ErrConfigured)
 	}
@@ -205,14 +207,16 @@ func (d *Draft) SetPrimeDay(day string) error {
 }
 
 // SetLabel sets the label of the account with the given id, as setAccountKey
-// sets a key: "" takes it out, showing the account by its id. An account
-// shown by the label already is left as it is, whatever its table writes. It
-// fails, matching ErrNotConfigured, when no account has the id, and as
-// AddAccount does for a label no account can have.
+// sets a key: "" takes it out, showing the account by its id. The label is
+// taken as givenLabel has it, and an account shown by it already is left as
+// it is, whatever its table writes. It fails, matching ErrNotConfigured, when
+// no account has the id, and as AddAccount does for a label no account can
+// have.
 func (d *Draft) SetLabel(id, label string) error {
 	if err := checkGivenLabel(accountNamed(id), label); err != nil {
 		return err
 	}
+	label = givenLabel(label)
 	shown := fileAccount{ID: id, Label: label}.shownAs()
 	if i := d.index(id); i >= 0 && d.file.Accounts[i].shownAs() == shown {
 		return nil

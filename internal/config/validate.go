@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
@@ -213,17 +214,35 @@ func checkID(account, id string) error {
 // mostLabelCharacters is the longest a label may be, in runes.
 const mostLabelCharacters = 100
 
+// ErrBlankLabel is what giving an account a label that would show as nothing
+// fails with, wrapped: each command says how to give one, as it asks for it.
+var ErrBlankLabel = errors.New("label is blank, showing nothing")
+
+// givenLabel is a label as it's given to put in the file: its surrounding
+// whitespace trimmed, as it would show without it.
+func givenLabel(label string) string {
+	return strings.TrimSpace(label)
+}
+
 // checkGivenLabel is checkLabel of a label given to put in the file, which it
-// refuses too when it isn't UTF-8, as TOML's text must be, or when it would
-// show as nothing but isn't "", which shows the account by its id.
+// refuses too, matching ErrBlankLabel, when nothing of it would show but it
+// isn't "", which shows the account by its id; and when it isn't UTF-8, as
+// TOML's text must be.
 func checkGivenLabel(account, label string) error {
 	switch {
 	case !utf8.ValidString(label):
 		return fmt.Errorf("%s: label isn't UTF-8 text, as a config's text must be", account)
-	case label != "" && prose.Clean(label) == "":
-		return fmt.Errorf(`%s: label is blank: give one that shows, or "" to show the account by its id`, account)
+	case label != "" && !strings.ContainsFunc(label, shows):
+		return fmt.Errorf("%s: %w", account, ErrBlankLabel)
 	}
 	return checkLabel(account, label)
+}
+
+// shows reports whether r shows as something: graphic, as a format
+// character, such as a zero-width space, a control character and a space
+// aren't, and not a space.
+func shows(r rune) bool {
+	return unicode.IsGraphic(r) && !unicode.IsSpace(r)
 }
 
 // checkLabel keeps anything that looks like a token out of a label, and keeps

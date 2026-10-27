@@ -57,6 +57,20 @@ func TestSetLabel(t *testing.T) {
 			want:   commented,
 		},
 		{
+			name:   "its surrounding whitespace trimmed",
+			config: commented,
+			id:     "work",
+			label:  " Day job\t",
+			want:   replaced(t, commented, `label   = "Work"  # optional`, `label   = "Day job"  # optional`),
+		},
+		{
+			name:   "the label it has already but for surrounding whitespace, left as it is",
+			config: commented,
+			id:     "work",
+			label:  "Work ",
+			want:   commented,
+		},
+		{
 			name:   "its id, for an account shown by its id already, left as it is",
 			config: workThenSide,
 			id:     "work",
@@ -92,7 +106,7 @@ func TestSetLabel(t *testing.T) {
 			want:   "[[account]]\n    id = \"work\"\n    label = \"Work\"\n    # reserve = 0.1\n",
 		},
 		{
-			name:   "in a file whose lines end in CRLF, in place, and the key put in ending so too",
+			name:   "below the last key in a file whose lines end in CRLF, ending so too",
 			config: "[[account]]\r\nid = \"work\"\r\n\r\n[[account]]\r\nid    = \"side\"\r\nlabel = \"Side\"\r\n",
 			id:     "work",
 			label:  "Work",
@@ -115,7 +129,7 @@ func TestSetLabel(t *testing.T) {
 				t.Fatalf("SetLabel(%q, %q) error = %v", tt.id, tt.label, err)
 			}
 			got := checkSaved(t, path, draft, tt.id, tt.want)
-			if want := cmp.Or(tt.label, tt.id); got.Label != want {
+			if want := cmp.Or(strings.TrimSpace(tt.label), tt.id); got.Label != want {
 				t.Errorf("the label loads as %q, want %q", got.Label, want)
 			}
 		})
@@ -284,14 +298,24 @@ func TestSetLabelRefuses(t *testing.T) {
 			config:  commented,
 			id:      "work",
 			label:   "   ",
-			wantErr: `account "work": label is blank: give one that shows, or "" to show the account by its id`,
+			wantErr: `account "work": label is blank, showing nothing`,
+			wantIs:  config.ErrBlankLabel,
 		},
 		{
 			name:    "a label of control characters alone, which show as nothing",
 			config:  commented,
 			id:      "work",
 			label:   "\t\a",
-			wantErr: `account "work": label is blank: give one that shows, or "" to show the account by its id`,
+			wantErr: `account "work": label is blank, showing nothing`,
+			wantIs:  config.ErrBlankLabel,
+		},
+		{
+			name:    "a label of format characters alone, such as zero-width spaces and joiners, which show as nothing",
+			config:  commented,
+			id:      "work",
+			label:   "\u200b \u2060\ufeff\u00ad",
+			wantErr: `account "work": label is blank, showing nothing`,
+			wantIs:  config.ErrBlankLabel,
 		},
 		{
 			name:    "a label that isn't UTF-8",
@@ -419,6 +443,41 @@ func TestSetReserveRefuses(t *testing.T) {
 			err := draft.SetReserve(tt.id, tt.reserve)
 			checkRefused(t, path, tt.config, draft, err, tt.wantErr, tt.wantIs)
 		})
+	}
+}
+
+func TestInAnotherCase(t *testing.T) {
+	accounts := config.Accounts{{ID: "work"}, {ID: "side"}}
+	tests := []struct {
+		id     string
+		want   string
+		wantOK bool
+	}{
+		{id: "Side", want: "side", wantOK: true},
+		{id: "WORK", want: "work", wantOK: true},
+		{id: "side"},
+		{id: "spare"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.id, func(t *testing.T) {
+			got, ok := accounts.InAnotherCase(tt.id)
+			if got.ID != tt.want || ok != tt.wantOK {
+				t.Errorf("InAnotherCase(%q) = %q, %v; want %q, %v", tt.id, got.ID, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestAddAccountTrimsTheLabelsSurroundingWhitespace(t *testing.T) {
+	const work = "[[account]]\nid = \"work\"\n"
+	path := writeConfig(t, work)
+	draft := edit(t, path)
+
+	if err := draft.AddAccount(config.NewAccount{ID: "side", Label: " Side\t"}); err != nil {
+		t.Fatalf("AddAccount() error = %v", err)
+	}
+	if got := checkSaved(t, path, draft, "side", work+"\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"); got.Label != "Side" {
+		t.Errorf("the label loads as %q, want %q", got.Label, "Side")
 	}
 }
 

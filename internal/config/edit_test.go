@@ -530,6 +530,26 @@ func TestAddAccountRefuses(t *testing.T) {
 			wantErr: `account "side": label is 101 characters: must be at most 100`,
 		},
 		{
+			name:    "a label of spaces alone",
+			config:  commented,
+			account: config.NewAccount{ID: "side", Label: "  "},
+			wantErr: `account "side": label is blank, showing nothing`,
+			wantIs:  config.ErrBlankLabel,
+		},
+		{
+			name:    "a label of a zero-width space alone",
+			config:  commented,
+			account: config.NewAccount{ID: "side", Label: "\u200b"},
+			wantErr: `account "side": label is blank, showing nothing`,
+			wantIs:  config.ErrBlankLabel,
+		},
+		{
+			name:    "a label that isn't UTF-8",
+			config:  commented,
+			account: config.NewAccount{ID: "side", Label: "a\xffb"},
+			wantErr: `account "side": label isn't UTF-8 text, as a config's text must be`,
+		},
+		{
 			name:    "accounts listed inline, which a table can't follow",
 			config:  "account = [{ id = \"work\" }]\n",
 			account: config.NewAccount{ID: "side"},

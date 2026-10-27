@@ -104,6 +104,16 @@ func (as Accounts) IDs() []string {
 	return ids
 }
 
+// InAnotherCase returns the account whose id is the one given but for its
+// case, which macOS takes for the same token file, when there's one.
+func (as Accounts) InAnotherCase(id string) (Account, bool) {
+	i := slices.IndexFunc(as, func(a Account) bool { return a.ID != id && strings.EqualFold(a.ID, id) })
+	if i < 0 {
+		return Account{}, false
+	}
+	return as[i], true
+}
+
 // Primary returns the primary account: the one marked primary, else the
 // first. There must be an account.
 func (as Accounts) Primary() Account {
