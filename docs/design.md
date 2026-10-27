@@ -730,7 +730,7 @@ accounts:
 already done, and does only what's missing. It asks as it goes, a line at a time, so it needs a
 terminal: without one, it fails, saying how each step is taken alone: by the command that takes it,
 where there is one, priming by a line in the config's `[prime]` table, and the `claude` link by
-making it and putting its directory on `PATH`; the skill, only setup writes. It stops at a step that
+making it and putting its directory on `PATH`; the skill and the session hook, only setup writes. It stops at a step that
 fails, when its input ends, or at an interrupt; run again, it carries on from there. Before it asks
 anything, it refuses a switchboard that won't last, such as `go run`'s, as `service install` does:
 the service and the `claude` link both run the one setup was run by. An answer shaped like a token,
@@ -753,13 +753,19 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    in switchboard's bin directory (see Files), leading to switchboard by the path it was run by,
    as the LaunchAgent names it, so an upgrade moves the link on; a link there leading anywhere
    else it replaces, as the directory is switchboard's, and anything there that isn't a link it
-   leaves alone, and says so. Then it finds the real `claude` as `run` does, and checks the
-   directory is on `PATH` ahead of it: the step is done when the link is right and the
-   directory is ahead of the real `claude`, and no other place counts. Otherwise it says the one
-   line to add to the shell's startup file, after anything else there that changes `PATH`, so
-   the directory stays ahead of the real `claude`'s, written from `$HOME` when it's in the home:
-   `export PATH="$HOME/.local/share/switchboard/bin:$PATH"`. It never edits the file; run
-   again, setup checks it.
+   leaves alone, and says so. Then it asks the user's own login shell, `$SHELL` run as a login
+   and interactive shell, with no input and a time limit, which `claude` it runs: the step is done
+   when it answers with the link, and no other answer counts. Otherwise, for zsh, bash and fish,
+   it offers to add one line to the end of the startup file the shell reads last, `.zshrc` in
+   `$ZDOTDIR`, else the home, `~/.bash_profile`, or `~/.config/fish/config.fish`, naming the file
+   and showing the line before it asks, and writing through a link to the file as to the file.
+   The line hands off to a file of switchboard's own beside its bin directory, which puts that
+   directory first on `PATH`, once, and the line does nothing once that file is gone; a comment
+   beside it marks it as switchboard's, so it's added once and found again, and found there but
+   not taking effect, setup says something after it changes `PATH`. Declined, or for another
+   shell, it shows the line to add by hand, after anything else that changes `PATH`. Either way
+   it asks the login shell again, and the step is done only when it answers with the link. Then
+   it installs the session hook, or puts it right (see The session hook).
 5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Prints `usage`, every account's windows as they stand (see `usage`, the printout).
 
@@ -7044,6 +7050,26 @@ user's live dashboard, which Claude points to rather than runs, as `status` give
 Claude Sonnet 5.5 session carries on without its earlier reasoning; artifacts always live on the
 primary; and `switchboard --help` for the rest.
 
+## The session hook
+
+`setup` installs a hook in Claude Code's settings that every session runs as it starts, however it
+was started: by switchboard's `claude`, by the real `claude` found ahead of it or run by its path,
+or by an editor. The hook routes nothing and changes nothing: it notices. The launcher marks the
+environment of every Claude Code it starts (see Launching), which a session's hooks inherit; a
+session without the mark hears as it starts that it isn't going through switchboard, as the
+`claude` that started it isn't switchboard's, and what to run: `switchboard setup`. So whatever
+puts the real `claude` ahead again, a startup file changed, a line declined or a Mac restored, the
+first session after it says so.
+
+- **It runs `switchboard hook session-start`** by the path setup was run by, as the `claude` link
+  does, and does nothing when that path leads nowhere, so switchboard removed leaves no hook
+  failing.
+- **It never holds up or fails a session:** it answers at once, and always succeeds.
+- **Switchboard's own entry:** it lives in `settings.json` in Claude Code's config directory,
+  `$CLAUDE_CONFIG_DIR`, else `~/.claude`. Setup adds it, or puts it right, and leaves every other
+  setting and hook as it is; only setup writes it. Taking it away is the uninstall's
+  (`ideas/2026-10-27--uninstall.md`).
+
 ## What doesn't go through the router
 
 Claude Code's own token is the primary's, so what isn't routed lands there.
@@ -7059,7 +7085,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
   rather than refused. The router moves sessions off it once the headers show the window spent,
   but the request that crossed the limit is billed. The accounts tested read extra usage as off.
 - **Programs whose `PATH` lacks the link's directory**, such as launchd jobs and some GUI apps,
-  find the real `claude`, and aren't routed.
+  find the real `claude`, and aren't routed; the session hook says so as each session starts.
 - **A direct launch**, without the router, can spend the reserve of the account it goes out on.
 - **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude
   Code may use the key in place of an account's token, so `claude` starts it as if switchboard
@@ -8513,6 +8539,7 @@ why.
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | chosen by the owner on 27 October 2026, with setup's flow step by step: setup tokens alone, which setup makes itself by running `claude setup-token`; each account's plan, the primary's reserve, a review of each account on a run again, `accounts edit`, and a warning before a token's year is up; to build next | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
 | History kept beyond one Mac: each day's finished files copied to iCloud Drive, a folder a Mac, and `setup` offering to bring a Mac's history back | agreed by the owner on 27 October 2026 that switchboard keeps it itself; the design to settle, before the owner's next Mac arrives in about four weeks | [history-beyond-one-mac](../ideas/2026-10-27--history-beyond-one-mac.md) |
+| An uninstall: everything switchboard put on the Mac taken away, the service, the shell's startup line, the session hook, the skill and the `claude` link | asked for by the owner on 27 October 2026, as setup took on the startup line and the hook; what goes of the config, tokens and history to settle | [uninstall](../ideas/2026-10-27--uninstall.md) |
 | The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
