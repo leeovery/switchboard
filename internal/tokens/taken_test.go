@@ -143,7 +143,11 @@ func TestARecordHoldsTheLatestTokenFirst(t *testing.T) {
 	}
 }
 
-func TestARecordRestoredReadableByOthersKeepsItsDates(t *testing.T) {
+// A plain file at the record's own path is made private before it's read, so
+// it's read as a private record; one reached through a link or by a second
+// name, which is read as one others can read, is in
+// TestARecordByALinkReadableByOthersKeepsItsDates.
+func TestARecordRestoredReadableByOthersIsMadePrivateBeforeItsRead(t *testing.T) {
 	later := taken.Add(48 * time.Hour)
 	tests := []struct {
 		name string
@@ -151,7 +155,7 @@ func TestARecordRestoredReadableByOthersKeepsItsDates(t *testing.T) {
 		// want is the token's date once it's given again, later.
 		want time.Time
 	}{
-		{name: "readable by others, made private", mode: 0o644, want: taken},
+		{name: "readable by others, made private, its dates kept", mode: 0o644, want: taken},
 		{name: "writable by others, which can't be gone by", mode: 0o666, want: later},
 	}
 	for _, tt := range tests {

@@ -159,11 +159,14 @@ func parse(data []byte) (Token, error) {
 // the account's latest tokens was taken, which Taken reads, gains token,
 // taken at taken, as writeTaken writes it: a token it has a date of already
 // keeps the earlier of the two. Failing to write that leaves the token's date
-// unknown, and is logged, never failing the write.
+// unknown, and is logged, never failing the write. The token and its record
+// are written under the tokens directory's lock, which Remove takes too, so a
+// write and a removal at once can't leave a record of a removed account.
 func (s Store) Write(id string, token Token, taken time.Time) error {
 	if err := s.keepPrivate(); err != nil {
 		return err
 	}
+	defer lockDir(s.dir)()
 	target, err := atomicfile.Target(s.Path(id))
 	if err != nil {
 		return fmt.Errorf("write the token file: %w", err)
@@ -171,7 +174,7 @@ func (s Store) Write(id string, token Token, taken time.Time) error {
 	if err := atomicfile.Write(target, []byte(token.Reveal()+"\n"), 0o600); err != nil {
 		return fmt.Errorf("write the token file: %w", err)
 	}
-	if err := s.writeTaken(id, token, taken, target); err != nil {
+	if err := s.writeTaken(id, token, taken); err != nil {
 		logger.Warn("couldn't record when the token was taken", "account", id, "error", err)
 	}
 	return nil
@@ -234,7 +237,9 @@ type Removed struct {
 // but not the file it leads to, which is kept elsewhere, as by a dotfiles
 // step, and isn't switchboard's to delete: a token file that leads to the
 // record's own path, a file, leaves the record too, as linksToRecord says.
+// It holds the tokens directory's lock, as Write does.
 func (s Store) Remove(id string) (Removed, error) {
+	defer lockDir(s.dir)()
 	ledToRecord := s.linksToRecord(id)
 	removed, err := s.removeToken(id)
 	if err != nil {

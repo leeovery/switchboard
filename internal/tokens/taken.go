@@ -253,14 +253,15 @@ func (s Store) unopened(path string, err error) error {
 // go by, or one others can only read: anything else there, or nothing, is
 // left as it is, as a link to another file of the user's, such as another
 // account's token, or one to where a token will go, would otherwise have it
-// replaced by a record. It never writes where the token file, written at
-// tokenTarget, is. One record's reading and writing waits for another's, as
-// of two writes of a token at once, so neither loses the other's.
-func (s Store) writeTaken(id string, token Token, taken time.Time, tokenTarget string) error {
+// replaced by a record. Nor, by its own path or through a link, does it write
+// over a file that's any account's token or another's record, as kept says.
+// The tokens directory's lock must be held, so one record's reading and
+// writing waits for another's, as of two writes of a token at once, and
+// neither loses the other's.
+func (s Store) writeTaken(id string, token Token, taken time.Time) error {
 	if !takeable(taken) {
 		return fmt.Errorf("a record can't say a token was taken at %s, so it's left as it is", taken.UTC().Format(time.RFC3339))
 	}
-	defer lockDir(s.dir)()
 	path := s.takenPath(id)
 	target, linked, err := recordTarget(path)
 	if err != nil {
@@ -275,10 +276,44 @@ func (s Store) writeTaken(id string, token Token, taken time.Time, tokenTarget s
 	if !exposed && bytes.Equal(next.bytes(), was.bytes()) {
 		return nil
 	}
-	if sameFile(target, tokenTarget) {
-		return fmt.Errorf("the record %s leads to the token file, which it would replace", path)
+	if err := s.kept(id, path, target); err != nil {
+		return err
 	}
 	return atomicfile.Write(target, next.bytes(), 0o600)
+}
+
+// kept returns why the record at path, written at target, is left as it is,
+// or nil where it's written. It's left where the file at target, however
+// it's reached, is any account's token file or another account's record,
+// which writing would replace: as where a token file is a link to the
+// record's own path, or the record a link to another's.
+func (s Store) kept(id, path, target string) error {
+	info, err := os.Stat(target)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case err != nil:
+		return fmt.Errorf("the record %s couldn't be looked at, so it's left as it is: %w", path, err)
+	}
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return fmt.Errorf("the tokens directory couldn't be read, so the record %s is left as it is: %w", path, err)
+	}
+	for _, e := range entries {
+		other, record := strings.CutSuffix(e.Name(), takenExt)
+		if config.CheckID(other) != nil || record && other == id {
+			continue
+		}
+		o, err := os.Stat(filepath.Join(s.dir, e.Name()))
+		if err != nil || !os.SameFile(info, o) {
+			continue
+		}
+		if record {
+			return fmt.Errorf("the record %s is %s's record too, so it's left as it is", path, other)
+		}
+		return fmt.Errorf("the record %s is %s's token file, so it's left as it is", path, other)
+	}
+	return nil
 }
 
 // recordTarget returns where the record at path is written: path itself,
@@ -311,17 +346,6 @@ func leaveFor(path string, linked bool, err error) error {
 		return nil
 	}
 	return fmt.Errorf("the record couldn't be read, so it's left as it is: %w", err)
-}
-
-// sameFile reports whether the files at a and b are one: false where either
-// isn't there.
-func sameFile(a, b string) bool {
-	ai, err := os.Stat(a)
-	if err != nil {
-		return false
-	}
-	bi, err := os.Stat(b)
-	return err == nil && os.SameFile(ai, bi)
 }
 
 // tightenRecords makes each record in the tokens directory private, as
@@ -367,10 +391,15 @@ func (s Store) tightenRecord(path string) {
 }
 
 // forgetTaken removes the record of when the account's tokens were taken, if
-// it has one: of one that's a link, the link alone. One left behind counts
-// for nothing but the tokens it's of, so failing to remove it is only logged.
+// it has one: of one that's a link, the link alone. A directory in its place
+// isn't a record, and is left, empty or not. One left behind counts for
+// nothing but the tokens it's of, so failing to remove it is only logged.
 func (s Store) forgetTaken(id string) {
-	if err := os.Remove(s.takenPath(id)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	path := s.takenPath(id)
+	if info, err := os.Lstat(path); err != nil || info.IsDir() {
+		return
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		logger.Debug("couldn't remove the record of when the token was taken", "account", id, "error", err)
 	}
 }

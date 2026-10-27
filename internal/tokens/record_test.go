@@ -437,6 +437,96 @@ func TestWriteLeavesWhatALinkLeadsToThatIsntARecordToGoBy(t *testing.T) {
 	}
 }
 
+func TestWriteNeverWritesARecordOverAnotherAccountsFile(t *testing.T) {
+	personalRecord := "taken 2026-10-01T00:00:00Z\nsha256 " + sumOf("test-token-personal") + "\n"
+	tests := []struct {
+		name string
+		// put puts personal's files, and work's record at record, given the
+		// path of personal's token file, and returns personal's record's
+		// path, where it has one, and what the file it leads to holds.
+		put func(t *testing.T, personal, record string) (personalRecord, holds string)
+	}{
+		{name: "another account's token file a link to the record's own path", put: func(t *testing.T, personal, record string) (string, string) {
+			writeFile(t, record, "test-token-personal\n", 0o600)
+			symlink(t, record, personal)
+			return "", ""
+		}},
+		{name: "the record a second name of another account's token file", put: func(t *testing.T, personal, record string) (string, string) {
+			writeFile(t, personal, "test-token-personal\n", 0o600)
+			if err := os.Link(personal, record); err != nil {
+				t.Fatal(err)
+			}
+			return "", ""
+		}},
+		{name: "the record a link to another account's record", put: func(t *testing.T, personal, record string) (string, string) {
+			writeFile(t, personal, "test-token-personal\n", 0o600)
+			writeFile(t, personal+".taken", personalRecord, 0o600)
+			symlink(t, personal+".taken", record)
+			return personal + ".taken", personalRecord
+		}},
+		{name: "another account's record a link to the record's own path", put: func(t *testing.T, personal, record string) (string, string) {
+			writeFile(t, personal, "test-token-personal\n", 0o600)
+			writeFile(t, record, personalRecord, 0o600)
+			symlink(t, record, personal+".taken")
+			return personal + ".taken", personalRecord
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			mkdirPrivate(t, store.Dir())
+			record := store.Path("work") + ".taken"
+			otherRecord, holds := tt.put(t, store.Path("personal"), record)
+
+			if err := store.Write("work", parse(t, workToken), taken); err != nil {
+				t.Fatalf("Write() error = %v, want the token written all the same", err)
+			}
+			if token, err := store.Read("work"); err != nil || token.Reveal() != workToken {
+				t.Errorf("Read() of work = %q, %v, want the token written", token.Reveal(), err)
+			}
+			if token, err := store.Read("personal"); err != nil || token.Reveal() != "test-token-personal" {
+				t.Errorf("Read() of personal = %q, %v, want its token as it was", token.Reveal(), err)
+			}
+			if otherRecord != "" {
+				if data, err := os.ReadFile(otherRecord); err != nil || string(data) != holds {
+					t.Errorf("personal's record holds %q (%v), want it as it was, %q", data, err, holds)
+				}
+			}
+			if at, err := store.Taken("work", parse(t, workToken)); err == nil {
+				t.Errorf("Taken() = %v, want it not known, as the record wasn't written", at)
+			}
+			if !log.Has("level=WARN", `msg="couldn't record when the token was taken"`, "account=work", "personal") {
+				t.Errorf("the log reads\n%s\nwant why the record wasn't written, naming personal", log)
+			}
+			if strings.Contains(log.String(), workToken) || strings.Contains(log.String(), "test-token-personal") {
+				t.Errorf("the log shows a token:\n%s", log)
+			}
+		})
+	}
+}
+
+func TestRemoveLeavesADirectoryWhereTheRecordGoes(t *testing.T) {
+	for _, kept := range []bool{false, true} {
+		t.Run(fmt.Sprintf("holding something: %v", kept), func(t *testing.T) {
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			record := store.Path("work") + ".taken"
+			mkdirPrivate(t, record)
+			if kept {
+				writeFile(t, filepath.Join(record, "kept"), "kept", 0o600)
+			}
+			writeFile(t, store.Path("work"), workToken+"\n", 0o600)
+
+			if _, err := store.Remove("work"); err != nil {
+				t.Fatal(err)
+			}
+			if info, err := os.Lstat(record); err != nil || !info.IsDir() {
+				t.Errorf("once removed, where the record goes is %v (%v), want the directory left", info, err)
+			}
+		})
+	}
+}
+
 func TestWriteReplacesARecordOfAnotherUsersItCantOpen(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("root reads any file")
