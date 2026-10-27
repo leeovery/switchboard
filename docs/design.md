@@ -759,13 +759,18 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    it offers to add one line to the end of the startup file the shell reads last, `.zshrc` in
    `$ZDOTDIR`, else the home, `~/.bash_profile`, or `~/.config/fish/config.fish`, naming the file
    and showing the line before it asks, and writing through a link to the file as to the file.
-   The line hands off to a file of switchboard's own beside its bin directory, which puts that
-   directory first on `PATH`, once, and the line does nothing once that file is gone; a comment
-   beside it marks it as switchboard's, so it's added once and found again, and found there but
-   not taking effect, setup says something after it changes `PATH`. Declined, or for another
-   shell, it shows the line to add by hand, after anything else that changes `PATH`. Either way
-   it asks the login shell again, and the step is done only when it answers with the link. Then
-   it installs the session hook, or puts it right (see The session hook).
+   The line hands off to a file of switchboard's own beside its bin directory, one a shell,
+   written in that shell's own syntax, which puts that directory first on `PATH`, unless it's
+   there already, and loads switchboard's completions; the line does nothing once that file is
+   gone. So the user's startup file is written once, and everything switchboard does in the shell
+   after that is in its own file: setup writes it, and the router brings it up to date as it
+   starts, as it does the skill. A comment beside the line marks it as switchboard's, so it's
+   added once and found again, and found there but not taking effect, setup says something after
+   it changes `PATH`. Declined, it shows the same line to add by hand, wherever the user keeps
+   such lines, and the directory alone, to put first on `PATH` wherever it's set, for a `PATH`
+   kept another way or a shell setup doesn't know. Either way it asks the login shell again, and
+   the step is done only when it answers with the link. Then it installs the session hook, or
+   puts it right (see The session hook).
 5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Prints `usage`, every account's windows as they stand (see `usage`, the printout).
 
