@@ -2,7 +2,11 @@ package cli_test
 
 import (
 	"errors"
+	"fmt"
 	"maps"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -12,6 +16,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestRun(t *testing.T) {
@@ -181,6 +186,51 @@ func TestRunWithoutTheRouter(t *testing.T) {
 			}
 			if !hasLine(log, "level=WARN", `msg="starting claude" component=launch`, "mode=direct", `router="not running"`) {
 				t.Errorf("cli.log reads\n%s\nwant the direct launch logged", log)
+			}
+		})
+	}
+}
+
+func TestRunThroughAnUnhealthyRouter(t *testing.T) {
+	gone := httptest.NewServer(http.NotFoundHandler())
+	gone.Close()
+	for _, d := range downSettings {
+		t.Run(d.name, func(t *testing.T) {
+			vars := map[string]string{}
+			if d.variable != "" {
+				vars["SWITCHBOARD_WHEN_ROUTER_DOWN"] = d.variable
+			}
+			srv := newServeSetup(t, gone.URL, vars)
+			srv.start(t)
+			// The key, written into the config after the router started: run
+			// reads it, and the router, not run by the service, only logs that a
+			// restart is due.
+			if d.key != "" {
+				config := fmt.Sprintf("when_router_down = %q\nlisten = %q\nupstream = %q\n", d.key, srv.listen, gone.URL) + threeAccounts
+				if err := os.WriteFile(srv.config, []byte(config), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for range 5 {
+				if code := srv.ask(t); code != http.StatusBadGateway {
+					t.Fatalf("a request the router can't send on was answered %d, want 502", code)
+				}
+			}
+			srv.waitForStatus(t, func(doc status.Document) bool { return doc.Router.Requests == 5 })
+			handed := recordHandOffs(t, &srv.deps)
+
+			got := run(t, srv.deps, "run", "--", "--resume")
+
+			const said = "switchboard: the router is unhealthy (5 of the 5 requests in the last 5 minutes failed) — starting claude through it all the same\n"
+			if want := (result{stderr: said}); got != want {
+				t.Errorf("switchboard run = %+v, want %+v", got, want)
+			}
+			env := handed.only(t).only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "SWITCHBOARD_WHEN_ROUTER_DOWN")
+			if want := map[string]string{"ANTHROPIC_BASE_URL": "http://" + srv.listen, "CLAUDE_CODE_OAUTH_TOKEN": "test-token-work"}; !maps.Equal(env, want) {
+				t.Errorf("handed over with\n%q\nwant\n%q, routed", env, want)
+			}
+			if log := srv.cliLog(t); !hasLine(log, "level=WARN", `msg="starting claude" component=launch`, "mode=routed", "router=unhealthy") {
+				t.Errorf("cli.log reads\n%s\nwant the routed launch logged", log)
 			}
 		})
 	}

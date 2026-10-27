@@ -21,12 +21,12 @@ rule a release tightens, as the label's 100 characters (#142) did, meets it.
 
 ## Ways it could go
 
-- **Ask the router first:** where the config can't be read, but the router's state directory can
-  be found, as it can without a config, `run` asks the router, and while it answers healthy, routes
-  through it, saying on stderr that the config can't be read. Only where the router doesn't answer
-  does it start unaided. Which token Claude Code starts on, with no config to name the primary, is
-  to settle. This changes #178's rule that a config that can't be read means unaided, so it's the
-  owner's call.
+- **Ask the router first:** where the config can't be read, but the router's state directory can be
+  found, as it can without a config, `run` asks the router, and while it answers saying where it
+  listens, healthy or not, routes through it, saying on stderr that the config can't be read. Only
+  where the router doesn't answer does it start unaided. Which token Claude Code starts on, with no
+  config to name the primary, is to settle. This changes #178's rule that a config that can't be
+  read means unaided, so it's the owner's call.
 - **Read the config leniently for `run`:** the launcher needs only the accounts and
   `when_router_down`; a key it doesn't know, or a rule only the router holds, needn't stop it.
 - Leave it, and give each tightened rule a line in its release's notes.

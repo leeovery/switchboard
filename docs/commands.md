@@ -257,25 +257,29 @@ a wrapper named `claude` that `exec`s switchboard.
 
 How `claude` starts depends on the router and your environment:
 
-- **Routed.** When the router answers healthy, Claude Code starts with `ANTHROPIC_BASE_URL`
-  pointing at the router. It gets the primary's token, or, while that isn't usable, the token of
-  the first account whose token is. The router chooses an account for each request. Claude Code
-  also gets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, unless your environment sets it already. With
-  it, Claude Code tells the router what it tells the API of each request, such as the prompt the
-  request serves, for the request ledger.
-- **Stopped.** When the router isn't running, or isn't healthy, `claude` starts nothing and exits
-  with status 1. A line on stderr says why, and how to go on:
-  `switchboard: the router isn't running — not starting claude: see to it with switchboard service status, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`.
-  A slow router is waited for, at most 5 seconds in all from the first ask; through the first 2 of
-  them, a router that isn't running is asked again, as it may be restarting.
+- **Routed.** When the router answers saying where it listens, healthy or not, Claude Code starts
+  with `ANTHROPIC_BASE_URL` pointing at the router. It gets the primary's token, or, while that
+  isn't usable, the token of the first account whose token is. The router chooses an account for
+  each request. Claude Code also gets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, unless your environment
+  sets it already. With it, Claude Code tells the router what it tells the API of each request, such
+  as the prompt the request serves, for the request ledger. An unhealthy router is routed through
+  all the same, as its failures are upstream, where a direct connection would meet them too, and a
+  line on stderr says so: `switchboard: the router is unhealthy (…) — starting claude through it all
+  the same`.
+- **Stopped.** When the router isn't running, isn't answering, or answers without saying where it
+  listens, `claude` starts nothing and exits with status 1. A line on stderr says why, and how to go
+  on: `switchboard: the router isn't running — not starting claude: see to it with switchboard
+  service status, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. A slow
+  router is waited for, at most 5 seconds in all from the first ask; through the first 2 of them, a
+  router that isn't running is asked again, as it may be restarting.
 - **Direct.** With `when_router_down = "direct"` in the config, or
   `SWITCHBOARD_WHEN_ROUTER_DOWN=direct` for one launch, Claude Code connects straight to the API
   instead. It uses `--account`'s token, else the primary's, or, while that isn't usable, the token
-  of the first account whose token is. A line on stderr says so:
-  `switchboard: the router isn't running — connecting directly on work · Work`. A direct session
-  isn't routed or recorded, and it can spend the primary's reserve.
-  `SWITCHBOARD_WHEN_ROUTER_DOWN=stop` stops one launch whatever the config says; any other value
-  stops it too, saying so. A healthy router routes whatever either says.
+  of the first account whose token is. A line on stderr says so: `switchboard: the router isn't
+  running — connecting directly on work · Work`. A direct session isn't routed or recorded, and it
+  can spend the primary's reserve. `SWITCHBOARD_WHEN_ROUTER_DOWN=stop` stops one launch whatever the
+  config says; any other value stops it too, saying so. A router that answers saying where it
+  listens, healthy or not, routes whatever either says.
 - **Without switchboard.** When switchboard can't take part at all, such as when it can't read its
   config or no account has a usable token, `claude` starts as if switchboard weren't there; with
   the config read but the router's state directory not found, only where it would go direct. A line

@@ -270,7 +270,7 @@ func primaryOf(id string) config.Accounts {
 	return marked
 }
 
-func TestRunWithoutAHealthyRouter(t *testing.T) {
+func TestRunWithoutARouterToRouteThrough(t *testing.T) {
 	inherited := []string{
 		"HOME=/home/tester",
 		"ANTHROPIC_BASE_URL=http://127.0.0.1:4747",
@@ -291,21 +291,21 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 			wantToken: workToken,
 		},
 		{
-			name:      "unhealthy",
-			router:    &fakeRouter{health: router.Health{OK: false, Reason: unhealthy, PID: 4242}},
-			wantSaid:  "switchboard: the router is unhealthy (" + unhealthy + ") — connecting directly on work · Work\n",
-			wantToken: workToken,
-		},
-		{
 			name:      "answering as no router does",
-			router:    &fakeRouter{healthErr: errors.New("the router answered GET /health with 404 Not Found")},
-			wantSaid:  "switchboard: the router is unhealthy (the router answered GET /health with 404 Not Found) — connecting directly on work · Work\n",
+			router:    notAnswering(),
+			wantSaid:  "switchboard: the router isn't answering (" + noRouter + ") — connecting directly on work · Work\n",
 			wantToken: workToken,
 		},
 		{
-			name:      "not saying where it listens",
+			name:      "healthy, not saying where it listens",
 			router:    &fakeRouter{health: router.Health{OK: true, PID: 4242}},
-			wantSaid:  "switchboard: the router is unhealthy (it doesn't say where it listens) — connecting directly on work · Work\n",
+			wantSaid:  "switchboard: the router can't be used (it doesn't say where it listens) — connecting directly on work · Work\n",
+			wantToken: workToken,
+		},
+		{
+			name:      "unhealthy, not saying where it listens",
+			router:    unlistening(),
+			wantSaid:  "switchboard: the router can't be used (it doesn't say where it listens) — connecting directly on work · Work\n",
 			wantToken: workToken,
 		},
 		{
@@ -399,71 +399,97 @@ func (d downSetting) environ() []string {
 	return []string{"HOME=/home/tester", d.variable}
 }
 
+// downRouters are the routers a launch can't route through, how each is, as a
+// notice says it, and what the log says of it: none of them reads "unhealthy",
+// whatever its health check said, as only a router that can be routed through
+// is called so.
+var downRouters = []struct {
+	name  string
+	r     launch.Router
+	state string
+	log   []string
+}{
+	{name: "not running", r: notRunning(), state: "the router isn't running", log: []string{`router="not running"`}},
+	{
+		name:  "closing the connection before answering, at the last ask",
+		r:     &fakeRouter{healthErr: errClosedUnanswered},
+		state: "the router isn't running", log: []string{`router="not running"`},
+	},
+	{
+		name:  "answering as no router does",
+		r:     notAnswering(),
+		state: "the router isn't answering (" + noRouter + ")", log: []string{`router="not answering"`, `reason="` + noRouter + `"`},
+	},
+	{
+		name:  "not answering in time",
+		r:     &timedRouter{answersIn: never},
+		state: "the router isn't answering (no answer within 5s)", log: []string{`router="not answering"`, `reason="no answer within 5s"`, "asked=5s"},
+	},
+	{
+		name:  "healthy, not saying where it listens",
+		r:     &fakeRouter{health: router.Health{OK: true}},
+		state: "the router can't be used (it doesn't say where it listens)", log: []string{"router=unusable", `reason="it doesn't say where it listens"`},
+	},
+	{
+		name:  "unhealthy, not saying where it listens",
+		r:     unlistening(),
+		state: "the router can't be used (it doesn't say where it listens)", log: []string{"router=unusable", `reason="it doesn't say where it listens"`},
+	},
+}
+
 func TestRunWithTheRouterDownStopsUnlessToldToGoDirect(t *testing.T) {
-	routers := []struct {
-		name string
-		r    *fakeRouter
-		// state is how the router is, as the notice says it, and log what the
-		// log says of it.
-		state string
-		log   []string
-	}{
-		{name: "not running", r: notRunning(), state: "the router isn't running", log: []string{`router="not running"`}},
-		{
-			name:  "closing the connection before answering, at the last ask",
-			r:     &fakeRouter{healthErr: fmt.Errorf(`%w: Get "http://switchboard/health": EOF`, router.ErrUnanswered)},
-			state: "the router isn't running", log: []string{`router="not running"`},
-		},
-		{
-			name: "unhealthy", r: &fakeRouter{health: router.Health{Reason: unhealthy}},
-			state: "the router is unhealthy (" + unhealthy + ")", log: []string{"router=unhealthy", `reason="` + unhealthy + `"`},
-		},
-	}
-	for _, rt := range routers {
+	for _, rt := range downRouters {
 		for _, d := range downSettings {
 			t.Run(rt.name+", "+d.name, func(t *testing.T) {
-				log := logstest.Capture(t)
-				h := newHarness(t, d.environ()...)
-				r := route(rt.r, "")
-				r.Config.WhenRouterDown = d.configured
+				synctest.Test(t, func(t *testing.T) {
+					log := logstest.Capture(t)
+					h := newHarness(t, d.environ()...)
+					r := route(rt.r, "")
+					r.Config.WhenRouterDown = d.configured
 
-				err := h.launcher.Run(t.Context(), r, []string{"--resume"})
+					err := h.launcher.Run(t.Context(), r, []string{"--resume"})
 
-				if !d.wantDirect {
-					if !errors.Is(err, launch.ErrNotStarted) {
-						t.Errorf("Run() error = %v, want %v", err, launch.ErrNotStarted)
+					// The log's lines hold claude's path, under a directory named
+					// after the test, so they're read for the router's state.
+					if said := h.stderr.String(); strings.Contains(said, "unhealthy") || log.Has("router=unhealthy") {
+						t.Errorf("said %q on stderr, the log reading\n%s\nwant neither calling it unhealthy, a router that can't be routed through", said, log)
 					}
-					if len(h.starts) != 0 {
-						t.Errorf("started %d programs, want none", len(h.starts))
+					if !d.wantDirect {
+						if !errors.Is(err, launch.ErrNotStarted) {
+							t.Errorf("Run() error = %v, want %v", err, launch.ErrNotStarted)
+						}
+						if len(h.starts) != 0 {
+							t.Errorf("started %d programs, want none", len(h.starts))
+						}
+						if said, want := h.stderr.String(), "switchboard: "+rt.state+d.wantSaid+stopHint; said != want {
+							t.Errorf("said %q on stderr, want %q", said, want)
+						}
+						want := append([]string{"level=WARN", `msg="not starting claude" component=launch`, "mode=stop", "asked="}, rt.log...)
+						if d.wantSaid != "" {
+							want = append(want, `error="SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not \"`)
+						}
+						if !log.Has(want...) {
+							t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+						}
+						if strings.Contains(log.String(), "fake_token") {
+							t.Errorf("log reads\n%s\nwant it without the token", log)
+						}
+						return
 					}
-					if said, want := h.stderr.String(), "switchboard: "+rt.state+d.wantSaid+stopHint; said != want {
+					if err != nil {
+						t.Fatalf("Run() error = %v", err)
+					}
+					if said, want := h.stderr.String(), "switchboard: "+rt.state+" — connecting directly on work · Work\n"; said != want {
 						t.Errorf("said %q on stderr, want %q", said, want)
 					}
-					want := append([]string{"level=WARN", `msg="not starting claude" component=launch`, "mode=stop", "asked="}, rt.log...)
-					if d.wantSaid != "" {
-						want = append(want, `error="SWITCHBOARD_WHEN_ROUTER_DOWN takes stop or direct, not \"`)
+					want := map[string]string{"HOME": "/home/tester", "CLAUDE_CODE_OAUTH_TOKEN": workToken}
+					if env := h.environment(t); !maps.Equal(env, want) {
+						t.Errorf("started with the environment\n%q\nwant\n%q, direct and without SWITCHBOARD_WHEN_ROUTER_DOWN", env, want)
 					}
-					if !log.Has(want...) {
+					if want := append([]string{"level=WARN", `msg="starting claude"`, "mode=direct", "asked="}, rt.log...); !log.Has(want...) {
 						t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 					}
-					if strings.Contains(log.String(), "fake_token") {
-						t.Errorf("log reads\n%s\nwant it without the token", log)
-					}
-					return
-				}
-				if err != nil {
-					t.Fatalf("Run() error = %v", err)
-				}
-				if said, want := h.stderr.String(), "switchboard: "+rt.state+" — connecting directly on work · Work\n"; said != want {
-					t.Errorf("said %q on stderr, want %q", said, want)
-				}
-				want := map[string]string{"HOME": "/home/tester", "CLAUDE_CODE_OAUTH_TOKEN": workToken}
-				if env := h.environment(t); !maps.Equal(env, want) {
-					t.Errorf("started with the environment\n%q\nwant\n%q, direct and without SWITCHBOARD_WHEN_ROUTER_DOWN", env, want)
-				}
-				if want := append([]string{"level=WARN", `msg="starting claude"`, "mode=direct", "asked="}, rt.log...); !log.Has(want...) {
-					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
-				}
+				})
 			})
 		}
 	}
@@ -510,25 +536,122 @@ func TestRouterUnfoundStopsUnlessToldToGoDirect(t *testing.T) {
 	}
 }
 
-func TestAHealthyRouterRoutesWhateverTheRouterDownSettingSays(t *testing.T) {
-	for _, d := range downSettings {
-		t.Run(d.name, func(t *testing.T) {
-			h := newHarness(t, d.environ()...)
-			r := route(healthy(), "")
-			r.Config.WhenRouterDown = d.configured
+func TestARouterThatAnswersRoutesWhateverTheRouterDownSettingSays(t *testing.T) {
+	routers := []struct {
+		name string
+		r    *fakeRouter
+		// wantSaid is what stderr hears, and wantLog what the log says of the
+		// launch.
+		wantSaid string
+		wantLog  []string
+	}{
+		{name: "healthy", r: healthy(), wantLog: []string{"level=INFO", "router=healthy"}},
+		{
+			name:     "unhealthy",
+			r:        unhealthyRouter(),
+			wantSaid: "switchboard: the router is unhealthy (" + unhealthy + ") — starting claude through it all the same\n",
+			wantLog:  []string{"level=WARN", "router=unhealthy", `reason="` + unhealthy + `"`},
+		},
+	}
+	for _, rt := range routers {
+		for _, d := range downSettings {
+			t.Run(rt.name+", "+d.name, func(t *testing.T) {
+				log := logstest.Capture(t)
+				h := newHarness(t, d.environ()...)
+				r := route(rt.r, "")
+				r.Config.WhenRouterDown = d.configured
 
-			if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+				if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+					t.Fatalf("Run() error = %v", err)
+				}
+				want := map[string]string{
+					"HOME":                             "/home/tester",
+					"ANTHROPIC_BASE_URL":               "http://" + proxyAddr,
+					"CLAUDE_CODE_OAUTH_TOKEN":          workToken,
+					"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
+				}
+				if env := h.environment(t); !maps.Equal(env, want) {
+					t.Errorf("started with the environment\n%q\nwant\n%q, routed and without SWITCHBOARD_WHEN_ROUTER_DOWN", env, want)
+				}
+				if said := h.stderr.String(); said != rt.wantSaid {
+					t.Errorf("said %q on stderr, want %q", said, rt.wantSaid)
+				}
+				if want := append([]string{`msg="starting claude"`, "mode=routed", "asked="}, rt.wantLog...); !log.Has(want...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+				}
+			})
+		}
+	}
+}
+
+func TestRunThroughAnUnhealthyRouter(t *testing.T) {
+	tests := []struct {
+		name    string
+		health  router.Health
+		account string
+		// wantHeaders are the custom headers Claude Code starts with, and
+		// wantSaid what stderr hears.
+		wantHeaders string
+		wantSaid    string
+	}{
+		{
+			name:        "unpinned",
+			health:      unhealthyRouter().health,
+			wantHeaders: "X-Switchboard-Dir: ~/Code/project",
+			wantSaid:    "switchboard: the router is unhealthy (" + unhealthy + ") — starting claude through it all the same\n",
+		},
+		{
+			name:        "pinned",
+			health:      unhealthyRouter().health,
+			account:     "side",
+			wantHeaders: "X-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
+			wantSaid:    "switchboard: the router is unhealthy (" + unhealthy + ") — starting claude through it all the same\n",
+		},
+		{
+			name:        "pinned, a router that doesn't take its headers off, told no directory",
+			health:      router.Health{Reason: unhealthy, Listen: proxyAddr},
+			account:     "side",
+			wantHeaders: "X-Switchboard-Account: side",
+			wantSaid:    "switchboard: the router is unhealthy (" + unhealthy + ") — starting claude through it all the same\n",
+		},
+		{
+			name:        "not saying why",
+			health:      router.Health{Listen: proxyAddr, StripsOwnHeaders: true},
+			wantHeaders: "X-Switchboard-Dir: ~/Code/project",
+			wantSaid:    "switchboard: the router is unhealthy — starting claude through it all the same\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			h := newHarness(t, "HOME=/home/tester")
+			h.launcher.Dir = project
+
+			if err := h.launcher.Run(t.Context(), route(&fakeRouter{health: tt.health}, tt.account), []string{"--resume"}); err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
-			env := h.environment(t)
-			if env["ANTHROPIC_BASE_URL"] != "http://"+proxyAddr {
-				t.Errorf("started with ANTHROPIC_BASE_URL %q, want the router's", env["ANTHROPIC_BASE_URL"])
+			want := map[string]string{
+				"HOME":                             "/home/tester",
+				"ANTHROPIC_BASE_URL":               "http://" + proxyAddr,
+				"CLAUDE_CODE_OAUTH_TOKEN":          workToken,
+				"ANTHROPIC_CUSTOM_HEADERS":         tt.wantHeaders,
+				"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
 			}
-			if value, set := env["SWITCHBOARD_WHEN_ROUTER_DOWN"]; set {
-				t.Errorf("started with SWITCHBOARD_WHEN_ROUTER_DOWN=%s, want it taken off", value)
+			if env := h.environment(t); !maps.Equal(env, want) {
+				t.Errorf("started with the environment\n%q\nwant\n%q, routed as through a healthy router", env, want)
 			}
-			if said := h.stderr.String(); said != "" {
-				t.Errorf("said %q on stderr, want nothing", said)
+			if argv := h.only(t).argv; !slices.Equal(argv, []string{"claude", "--resume"}) {
+				t.Errorf("started claude as %q, want %q", argv, []string{"claude", "--resume"})
+			}
+			if said := h.stderr.String(); said != tt.wantSaid {
+				t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
+			}
+			wantLog := []string{
+				"level=WARN", `msg="starting claude"`, "mode=routed", "router=unhealthy", "reason=",
+				"asked=", "account=work", `chosen="the primary"`, "pin=" + cmp.Or(tt.account, `""`), "claude=" + h.claude,
+			}
+			if !log.Has(wantLog...) {
+				t.Errorf("log reads\n%s\nwant a line with %q", log, wantLog)
 			}
 		})
 	}
@@ -559,7 +682,7 @@ func TestRunWaitsForTheRouterAsSwitchboardDoes(t *testing.T) {
 		{
 			name:       "never answering",
 			router:     &timedRouter{answersIn: never},
-			wantSaid:   "switchboard: the router is unhealthy (no answer within 5s) — connecting directly on work · Work\n",
+			wantSaid:   "switchboard: the router isn't answering (no answer within 5s) — connecting directly on work · Work\n",
 			wantWaited: 5 * time.Second,
 		},
 		{
@@ -1048,10 +1171,19 @@ var withoutSwitchboard = []struct {
 		launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(notRunning()), nil) },
 	},
 	{
-		name: "unaided, the router found unhealthy, going direct without a usable token",
+		name:   "unaided, the router found not answering, going direct without a usable token",
+		launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(notAnswering()), nil) },
+	},
+	{
+		name:   "unaided, the router found unusable, going direct without a usable token",
+		launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(unlistening()), nil) },
+	},
+	{
+		name: "unaided, the router found unhealthy but answering, without a usable token",
 		launch: func(ctx context.Context, l launch.Launcher) error {
-			return l.Run(ctx, tokenless(&fakeRouter{health: router.Health{Reason: unhealthy}}), nil)
+			return l.Run(ctx, tokenless(unhealthyRouter()), nil)
 		},
+		keepsRouting: true,
 	},
 }
 
@@ -1097,8 +1229,26 @@ func TestUnaidedSaysWhereClaudeGoes(t *testing.T) {
 			wantThrough: true,
 		},
 		{
+			name: "no usable token, the router unhealthy but answering",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				return l.Run(ctx, tokenless(unhealthyRouter()), nil)
+			},
+			couldnt:     "no account has a usable token",
+			wantThrough: true,
+		},
+		{
 			name:    "no usable token, the router found down",
 			launch:  func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(notRunning()), nil) },
+			couldnt: "no account has a usable token",
+		},
+		{
+			name:    "no usable token, the router not answering",
+			launch:  func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(notAnswering()), nil) },
+			couldnt: "no account has a usable token",
+		},
+		{
+			name:    "no usable token, the router unusable",
+			launch:  func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(unlistening()), nil) },
 			couldnt: "no account has a usable token",
 		},
 	}
@@ -1790,11 +1940,24 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 			want: []string{"level=WARN", "mode=direct", "account=work", `chosen="the first with a token"`},
 		},
 		{
-			name: "directly, the router unhealthy",
+			name: "through the router, unhealthy, pinned",
 			launch: func(ctx context.Context, l launch.Launcher) error {
-				return l.Run(ctx, route(&fakeRouter{health: router.Health{Reason: unhealthy}}, ""), args)
+				return l.Run(ctx, route(unhealthyRouter(), "side"), args)
 			},
-			want: []string{"level=WARN", "mode=direct", "router=unhealthy", `reason="` + unhealthy + `"`, "account=work"},
+			want: []string{
+				"level=WARN", `msg="starting claude" component=launch`, "mode=routed", "router=unhealthy", `reason="` + unhealthy + `"`,
+				"account=work", `chosen="the primary"`, "pin=side",
+			},
+		},
+		{
+			name:   "directly, the router not answering",
+			launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(notAnswering(), ""), args) },
+			want:   []string{"level=WARN", "mode=direct", `router="not answering"`, `reason="` + noRouter + `"`, "account=work"},
+		},
+		{
+			name:   "directly, the router unusable",
+			launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(unlistening(), ""), args) },
+			want:   []string{"level=WARN", "mode=direct", "router=unusable", `reason="it doesn't say where it listens"`, "account=work"},
 		},
 		{
 			name:   "on its own login",
@@ -1857,6 +2020,28 @@ func (r *fakeRouter) Health(context.Context) (router.Health, error) {
 // healthy answers as a healthy router does.
 func healthy() *fakeRouter {
 	return &fakeRouter{health: router.Health{OK: true, Listen: proxyAddr, PID: 4242, StripsOwnHeaders: true}}
+}
+
+// unhealthyRouter answers as an unhealthy router does: it says why, and where
+// it listens, so it can be routed through.
+func unhealthyRouter() *fakeRouter {
+	r := healthy()
+	r.health.OK, r.health.Reason = false, unhealthy
+	return r
+}
+
+// unlistening answers unhealthy, as a router does, but without saying where
+// it listens, so it can't be routed through.
+func unlistening() *fakeRouter {
+	return &fakeRouter{health: router.Health{Reason: unhealthy, PID: 4242}}
+}
+
+// noRouter is how an ask of something that isn't the router fails, and
+// notAnswering a router that answers so.
+const noRouter = "the router answered GET /health with 404 Not Found"
+
+func notAnswering() *fakeRouter {
+	return &fakeRouter{healthErr: errors.New(noRouter)}
 }
 
 // notRunning answers as a router's client does when no router is listening.

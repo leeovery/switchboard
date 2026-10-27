@@ -5851,28 +5851,32 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 
 ## Health
 
-The launcher routes a new session only when the router answers its health check `ok`, saying where
-its proxy listens; otherwise it starts nothing, unless told to go direct (see Launching). The harder
-case is a router that is running but failing requests: sessions already routed through it fail until
-they restart. The router tracks the requests it has routed over the last 5 minutes, and those it
-failed itself: a 502 for an upstream it couldn't reach, or for a refusal with no account left to
-fail over to. The upstream's own 429s and 5xx, passed through, don't count against it, and nor does
-a failure of a request that arrived before the router last noticed the Mac wake, which may have gone
-out on a connection the sleep left dead (see The router looking after itself). It's unhealthy once
-it has failed 5 of them at least, and half at least: `GET /health` then answers `ok: false` with a
-`reason`, the status document's `router` object says the same, and the log notes the turn, and the
-turn back, at warn and info. Its health is judged whenever it's asked for, and at the router's look
-at the accounts every 15 seconds too, so the turn back is told of as the failures leave the 5
-minutes, though no request comes. `status` and the dashboard show trouble loudly: they read an
-unhealthy router's document all the same, `status`'s router line reading
-`from the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>`, the dashboard's status line
-`● unhealthy`, in red (see The page), and the Log's Events the reason, in the router's `health`
+The launcher routes a new session whenever the router answers its health check saying where its
+proxy listens, healthy or not; otherwise it starts nothing, unless told to go direct (see
+Launching). The harder case is a router that is running but failing requests: sessions already
+routed through it fail until they restart. The router tracks the requests it has routed over the
+last 5 minutes, and those it failed itself: a 502 for an upstream it couldn't reach, or for a
+refusal with no account left to fail over to. The upstream's own 429s and 5xx, passed through, don't
+count against it, and nor does a failure of a request that arrived before the router last noticed
+the Mac wake, which may have gone out on a connection the sleep left dead (see The router looking
+after itself). It's unhealthy once it has failed 5 of them at least, and half at least: `GET
+/health` then answers `ok: false` with a `reason`, the status document's `router` object says the
+same, and the log notes the turn, and the turn back, at warn and info. Its health is judged whenever
+it's asked for, and at the router's look at the accounts every 15 seconds too, so the turn back is
+told of as the failures leave the 5 minutes, though no request comes. `status` and the dashboard
+show trouble loudly: they read an unhealthy router's document all the same, `status`'s router line
+reading `from the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>`, the dashboard's status
+line `● unhealthy`, in red (see The page), and the Log's Events the reason, in the router's `health`
 event (see The Log).
 
-Sessions don't fall back to going direct automatically. A running Claude Code can't change where
-it sends its requests mid-session; the failures that count against the router, an upstream it
-can't reach and refusals with no account left, would meet a direct connection too; and a new
-launch, while the router is down or unhealthy, stops, or goes direct where it's told to.
+Sessions don't fall back to going direct automatically. A running Claude Code can't change where it
+sends its requests mid-session, and the failures that count against the router, an upstream it can't
+reach and refusals with no account left, would meet a direct connection too. So a new launch goes
+through an unhealthy router all the same, saying so on stderr: its trouble is upstream, which a
+direct connection wouldn't escape, and it turns healthy again only as its failures leave the 5
+minutes or requests that succeed outnumber them, so stopping the launch would block work for nothing
+(the owner's call, 27 October 2026). Only a router that can't be routed through, down or not saying
+where it listens, stops a launch, or has it go direct where it's told to.
 
 ## Notifications
 
@@ -7395,8 +7399,9 @@ fails as it is; one that parses has every problem reported at once:
   so isn't one of them (see History, Accounts and Runway). A window's own week, which resets when
   Anthropic resets it, is never moved by it.
 - **`when_router_down`** is `stop` or `direct`, in any case; `stop` unless given. It's what `run`
-  does when the router isn't running, isn't healthy or can't be found: start nothing, or start
-  Claude Code directly; `SWITCHBOARD_WHEN_ROUTER_DOWN` overrides it for one launch (see Launching).
+  does when the router isn't running, can't be routed through or can't be found: start nothing, or
+  start Claude Code directly, an unhealthy router that says where it listens being routed through
+  all the same; `SWITCHBOARD_WHEN_ROUTER_DOWN` overrides it for one launch (see Launching).
 - **`plan`,** on an account, is `pro`, `max5x` or `max20x`: the subscription it's on, which
   switchboard can't read from Anthropic. It prices the account against its worth, and sizes it for
   History's replay of a week (see The request ledger). Without it, the account's plan is unknown:
@@ -7469,7 +7474,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 
 | Endpoint | Job |
 |---|---|
-| `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that answers `ok` and gives `listen`, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all |
+| `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all |
 | `GET /status` | The status document, as `status --json` prints it: see below |
 | `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `0 auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
@@ -7680,77 +7685,86 @@ verbs).
   as it's asked isn't read as one not running: it may have made the change first, so the command
   says so, and that `switchboard status` shows which. The log's `starting claude` line says how
   long asking took, routed or direct, as `asked=312ms`.
-- **Routed:** when the router answers `ok`, `run` starts Claude Code with `ANTHROPIC_BASE_URL`
-  pointing at the proxy, where the router says it listens, not where the config says, which may
-  have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever account the
-  conversation goes to, or, while the primary's isn't usable, `--account`'s, else the first
-  account's with a usable token, and with `--account`, the pin header added to any
+- **Routed:** when the router answers saying where it listens, `run` starts Claude Code with
+  `ANTHROPIC_BASE_URL` pointing at the proxy, where the router says it listens, not where the config
+  says, which may have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever
+  account the conversation goes to, or, while the primary's isn't usable, `--account`'s, else the
+  first account's with a usable token, and with `--account`, the pin header added to any
   `ANTHROPIC_CUSTOM_HEADERS` already set. The directory header is added too, naming the directory
   `run` started in, which Claude Code starts in as well, the home directory at its start shown as
   `~`, as `~/Code/api`, unless `run` can't read it, as when it's been removed since, or the router's
   health doesn't say `strips_own_headers`: a router from before, which took the pin off alone and
   would send the directory on to the API, serves on after an upgrade until it restarts in place, at
   a moment with no request in flight, and one run by hand with `serve` until it's run again (see
-  Proxy rules). It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a
-  base URL the headers it sends the API directly, the prompt each request serves and its class
-  among them, which the router records (see The request ledger); but where the environment sets it
+  Proxy rules). It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a base
+  URL the headers it sends the API directly, the prompt each request serves and its class among
+  them, which the router records (see The request ledger); but where the environment sets it
   already, as to `0`, which turns them off, it's left as it is, though not where it's set empty,
-  which Claude Code reads as unset (settled in the plan).
-- **Stopped:** otherwise, the router not running or not healthy, `run` starts nothing: a session
-  without the router goes unrouted and unrecorded, and spends the primary without its reserve,
-  which only the router honours. It says why in one line on stderr, and how to go on:
-  `switchboard: the router isn't running — not starting claude: see to it with switchboard service
-  status, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`, and fails, with
-  no second line, logging `not starting claude` at warn with `mode=stop`, the router's state, its
-  reason and `asked` (decided 26 October 2026).
+  which Claude Code reads as unset (settled in the plan). An unhealthy router is routed through
+  exactly as a healthy one is, the token, pin, directory and hints alike, and `run` says so in a
+  line on stderr: `switchboard: the router is unhealthy (5 of the 8 requests in the last 5 minutes
+  failed) — starting claude through it all the same`, logging `starting claude` at warn with
+  `mode=routed` and the router's reason. Its failures are upstream, which a direct connection would
+  meet too, and they outlast the trouble by up to 5 minutes (see Health; the owner's call, 27
+  October 2026).
+- **Stopped:** otherwise, `run` starts nothing: the router not running, not answering, as one cut
+  off at the 5 seconds or answering as no router does (`isn't answering (…)`), or answering without
+  saying where it listens (`can't be used (…)`). A state that stops a launch never reads
+  `unhealthy`, on stderr or in the log. A session without the router goes unrouted and unrecorded,
+  and spends the primary without its reserve, which only the router honours. It says why in one line
+  on stderr, and how to go on: `switchboard: the router isn't running — not starting claude: see to
+  it with switchboard service status, or go direct this once with
+  SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`, and fails, with no second line, logging `not starting
+  claude` at warn with `mode=stop`, the router's state, its reason and `asked` (decided 26 October
+  2026).
 - **Direct:** the config's top-level `when_router_down`, `stop` or `direct`, unset `stop`, says
   which; `SWITCHBOARD_WHEN_ROUTER_DOWN`, `stop` or `direct`, says it for the launch it's given to,
   and is taken off the environment Claude Code starts in, on every path, routed, direct, unaided,
   stepping aside, local or `--direct`, so no launch passes it on. Any other value of it stops,
-  saying it takes `stop` or `direct`; a healthy router routes whatever it says. Going direct, `run`
-  connects directly, on `--account`'s token, else the primary's, else the first account's with a
-  usable token, without the base URL, the pin or the directory, and says why in a line on stderr:
-  `switchboard: the router isn't running — connecting directly on work · Work`. Either way, and with
-  `--direct`, a pin or a directory inherited from the environment, as from a session this one is
-  started within, goes: what this launch pins is the only pin, and the directory it names the only
-  directory. `--direct` removes the token and the base URL, so Claude Code uses its own login.
+  saying it takes `stop` or `direct`; a router that can be routed through, healthy or not, routes
+  whatever it says. Going direct, `run` connects directly, on `--account`'s token, else the
+  primary's, else the first account's with a usable token, without the base URL, the pin or the
+  directory, and says why in a line on stderr: `switchboard: the router isn't running — connecting
+  directly on work · Work`. Either way, and with `--direct`, a pin or a directory inherited from the
+  environment, as from a session this one is started within, goes: what this launch pins is the only
+  pin, and the directory it names the only directory. `--direct` removes the token and the base URL,
+  so Claude Code uses its own login.
 - **What `run` set:** a routed session's environment carries what `run` set there to every process
   the session starts, so `run` marks it, in `SWITCHBOARD_SET`: the value it gave
-  `ANTHROPIC_BASE_URL`, even where the user's was the same, and
-  `CLAUDE_CODE_GATEWAY_HINT_HEADERS` where it set it, each with the user's value it replaced, and
-  each line it added to `ANTHROPIC_CUSTOM_HEADERS`, with the user's headers where they were set to
-  nothing. Every launch but a local subcommand's, and an unaided one's within a session still sent
-  to `run`'s router that hasn't found that router down, starts from the environment as the user
-  set it: each variable the mark names
-  that still holds the value `run` gave it goes back to the user's, or goes where the user had
-  none, and the header lines `run` added go, the user's own staying. A variable changed since, as
-  by a script pointing `claude` at a gateway of its own, stays as it is. So a `claude` started
-  within a session that switchboard steps aside for, which a key must never send through the
+  `ANTHROPIC_BASE_URL`, even where the user's was the same, and `CLAUDE_CODE_GATEWAY_HINT_HEADERS`
+  where it set it, each with the user's value it replaced, and each line it added to
+  `ANTHROPIC_CUSTOM_HEADERS`, with the user's headers where they were set to nothing. Every launch
+  but a local subcommand's, and an unaided one's within a session still sent to `run`'s router that
+  hasn't found that router down, starts from the environment as the user set it: each variable the
+  mark names that still holds the value `run` gave it goes back to the user's, or goes where the
+  user had none, and the header lines `run` added go, the user's own staying. A variable changed
+  since, as by a script pointing `claude` at a gateway of its own, stays as it is. So a `claude`
+  started within a session that switchboard steps aside for, which a key must never send through the
   router, carries nothing of switchboard's, and a session started within a session marks only what
-  it sets itself. One started unaided within a session whose base URL is still the one `run` gave
-  it gets the session's environment as it is, mark and all, so the session's router, which still
-  runs, routes and records it as before: only that launch couldn't take part, and its line on
-  stderr ends `— starting claude through this session's router`. That holds only where the launch
-  didn't ask the router, as when it can't read its config or locate the router's state directory,
-  or asked it and found it healthy. One that found the router down, going direct, as
+  it sets itself. One started unaided within a session whose base URL is still the one `run` gave it
+  gets the session's environment as it is, mark and all, so the session's router, which still runs,
+  routes and records it as before: only that launch couldn't take part, and its line on stderr ends
+  `— starting claude through this session's router`. That holds only where the launch didn't ask the
+  router, as when it can't read its config or locate the router's state directory, or asked it and
+  found it could be routed through, healthy or not. One that found the router down, going direct, as
   `when_router_down` or the variable says, with no account's token usable, starts from the user's
-  environment, as stepping aside does: the session's router isn't there to route it, and Claude
-  Code would be pointed at nothing (decided in the cleanliness release's review, 26 October 2026).
-  Where the base URL has changed since, it starts from the user's environment too, the changed
-  base URL staying, so nothing of switchboard's reaches another gateway. The token isn't marked:
-  the user's own, which `run` replaced, can't be written into the mark, and without the value
-  `run` gave it, a token set since couldn't be told from `run`'s. Nothing secret is written into
-  the mark, which every process the session runs can read: a value `run` set holding anything
-  token-shaped goes unmarked, and stays, and a value of the user's that `run` replaced holding a
-  secret, anything token-shaped, or, as a URL, credentials in its userinfo or a query, isn't kept,
-  so its variable is marked as set where the user had none, and goes. A key a URL carries in its
-  path or its host, as a gateway that takes its key as a path segment has it, isn't seen, and is
-  kept: it can't be told from an ordinary path, which most gateways have, and the value was in the
-  session's environment already, as the user set it, so dropping every base URL with a path would
-  lose most gateways on stepping aside, to keep from the mark what every process already reads
-  (decided in the cleanliness release's review, 26 October 2026). A session started before
-  the mark has none, and its environment goes on as it is, but for the pin and directory a routed
-  or direct launch takes off (built in the cleanliness release, 26 October 2026).
+  environment, as stepping aside does: the session's router isn't there to route it, and Claude Code
+  would be pointed at nothing (decided in the cleanliness release's review, 26 October 2026). Where
+  the base URL has changed since, it starts from the user's environment too, the changed base URL
+  staying, so nothing of switchboard's reaches another gateway. The token isn't marked: the user's
+  own, which `run` replaced, can't be written into the mark, and without the value `run` gave it, a
+  token set since couldn't be told from `run`'s. Nothing secret is written into the mark, which
+  every process the session runs can read: a value `run` set holding anything token-shaped goes
+  unmarked, and stays, and a value of the user's that `run` replaced holding a secret, anything
+  token-shaped, or, as a URL, credentials in its userinfo or a query, isn't kept, so its variable is
+  marked as set where the user had none, and goes. A key a URL carries in its path or its host, as a
+  gateway that takes its key as a path segment has it, isn't seen, and is kept: it can't be told
+  from an ordinary path, which most gateways have, and the value was in the session's environment
+  already, as the user set it, so dropping every base URL with a path would lose most gateways on
+  stepping aside, to keep from the mark what every process already reads (decided in the cleanliness
+  release's review, 26 October 2026). A session started before the mark has none, and its
+  environment goes on as it is, but for the pin and directory a routed or direct launch takes off
+  (built in the cleanliness release, 26 October 2026).
 - **Never in the way:** switchboard never stands between the user and `claude` but for the router
   being down, as Stopped says. When it can't take part at all, as when it can't read its config,
   can't locate its state directory, or no account has a usable token, `run` starts `claude` as if
