@@ -534,8 +534,15 @@ const sideOnAPlan = personalAndSide + "plan    = \"pro\"   # for now\nreserve = 
 
 // primaryFromPersonal is what accounts edit says of the sessions already
 // running once it's made another account the primary in place of personal.
-const primaryFromPersonal = "sessions already running keep personal's token as Claude Code's own until they restart, " +
-	"so what they send outside the conversation, such as artifacts and uploads, still goes out on personal\n"
+var primaryFromPersonal = runningOn("personal")
+
+// runningOn is what accounts edit says of the sessions already running, once
+// it's made another account the primary, where they started on the token of
+// the account with the given id.
+func runningOn(id string) string {
+	return "sessions already running, unless pinned, keep the token they started on as Claude Code's own until they restart: " +
+		id + "'s, as the tokens stand now, so what they send outside the conversation, such as artifacts and uploads, still goes out on it\n"
+}
 
 func TestAccountsEdit(t *testing.T) {
 	tests := []struct {
@@ -569,6 +576,30 @@ func TestAccountsEdit(t *testing.T) {
 			wantOut: "edited side: label \"Day job\" (was none)\n",
 			old:     "id = \"side\"\n",
 			new:     "id = \"side\"\nlabel = \"Day job\"\n",
+		},
+		{
+			name:    "a tidy label in place of the same written untidily, saved and said so",
+			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Day  job \"\n",
+			args:    []string{"--label", "Day job"},
+			wantOut: "edited side: label \"Day job\" (was written untidily)\n",
+			old:     `label = "Day  job "`,
+			new:     `label = "Day job"`,
+		},
+		{
+			name:    "its id as its label, which takes the label out, as it shows the same",
+			config:  personalAndSide,
+			args:    []string{"--label", "side"},
+			wantOut: "edited side: label none, shown by its id (was \"Side\")\n",
+			old:     "label = \"Side\"\n",
+			new:     "",
+		},
+		{
+			name:    "a label in place of its id written as one by hand, which is said as written",
+			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"side\"\n",
+			args:    []string{"--label", "Side"},
+			wantOut: "edited side: label \"Side\" (was \"side\")\n",
+			old:     `label = "side"`,
+			new:     `label = "Side"`,
 		},
 		{
 			name:    "a label as it shows, its inner whitespace one space",
@@ -718,16 +749,14 @@ func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
 		wantOut string
 	}{
 		{
-			name:   "the former primary's, which it has",
-			tokens: []string{"work", "personal", "side"},
-			wantOut: "edited side: the primary in place of work\nsessions already running keep work's token as Claude Code's own until they restart, " +
-				"so what they send outside the conversation, such as artifacts and uploads, still goes out on work\n",
+			name:    "the former primary's, which it has",
+			tokens:  []string{"work", "personal", "side"},
+			wantOut: "edited side: the primary in place of work\n" + runningOn("work"),
 		},
 		{
-			name:   "the first with a usable token, the former primary without one",
-			tokens: []string{"personal", "side"},
-			wantOut: "edited side: the primary in place of work\nsessions already running keep personal's token as Claude Code's own until they restart, " +
-				"so what they send outside the conversation, such as artifacts and uploads, still goes out on personal\n",
+			name:    "the first with a usable token, the former primary without one",
+			tokens:  []string{"personal", "side"},
+			wantOut: "edited side: the primary in place of work\n" + runningOn("personal"),
 		},
 		{
 			name:    "nothing, where they took the new primary's",
@@ -777,14 +806,38 @@ func TestAccountsEditChangesNothingGivenWhatTheAccountHas(t *testing.T) {
 }
 
 func TestAccountsEditRefuses(t *testing.T) {
-	const noFlags = "give one or more of --label, --plan, --primary or --reserve"
+	const (
+		noFlags      = "give one or more of --label, --plan, --primary or --reserve"
+		primaryFalse = "--primary marks this account the primary, and can't be false: the primary moves by giving --primary to another account"
+	)
 	tests := []struct {
 		name    string
 		args    []string
 		wantErr string
 	}{
 		{name: "no flags", args: []string{"side"}, wantErr: noFlags},
-		{name: "--primary=false alone, which asks for nothing", args: []string{"side", "--primary=false"}, wantErr: noFlags},
+		{name: "--primary=false alone", args: []string{"side", "--primary=false"}, wantErr: primaryFalse},
+		{name: "--primary=false with another flag", args: []string{"side", "--plan", "pro", "--primary=false"}, wantErr: primaryFalse},
+		{
+			name:    "a reserve for an account not configured, which is what's said",
+			args:    []string{"nosuch", "--reserve", "5"},
+			wantErr: `account "nosuch" is not configured: add it with switchboard accounts add nosuch`,
+		},
+		{
+			name:    "a plan for an account not configured, which is what's said",
+			args:    []string{"nosuch", "--plan", "free"},
+			wantErr: `account "nosuch" is not configured: add it with switchboard accounts add nosuch`,
+		},
+		{
+			name:    "no flags for an account not configured, which is what's said",
+			args:    []string{"nosuch"},
+			wantErr: `account "nosuch" is not configured: add it with switchboard accounts add nosuch`,
+		},
+		{
+			name:    "a reserve with a sign",
+			args:    []string{"side", "--reserve", "+5%"},
+			wantErr: `reserve "+5%": must be a percentage, to two decimal places at most, such as 5% or 2.5%, or 0 for none`,
+		},
 		{
 			name:    "an account not configured",
 			args:    []string{"work", "--plan", "pro"},
@@ -826,7 +879,7 @@ func TestAccountsEditRefuses(t *testing.T) {
 			wantErr: `account "side": label is blank, showing nothing: give one that shows, or --label "" to show the account by its id`,
 		},
 		{
-			name:    "a label holding a newline, which would show as a space",
+			name:    "a label holding a newline, a control character",
 			args:    []string{"side", "--label", "Side\nTeam"},
 			wantErr: `account "side": label holds a control character, such as a newline or a tab, which can't show`,
 		},

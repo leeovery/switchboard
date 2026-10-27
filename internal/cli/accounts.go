@@ -105,18 +105,15 @@ value given is what the account has already, nothing is written.
 to two decimal places at most, such as 5% or 2.5%, of every window, which the
 router leaves unused, or 0 for none.
 --primary makes the account the primary in place of the one that is; the
-sessions already running keep the token they started on as Claude Code's own
-until they restart. --label takes a label as it shows: its surrounding
-whitespace trimmed, each run of whitespace within it one space.
+sessions already running, unless pinned, keep the token they started on as
+Claude Code's own until they restart. --label takes a label as it shows: each
+run of whitespace within it one space, and what's unseen at its edges
+trimmed; the id, or "", shows the account by its id.
 
 ` + editingTheConfig,
 		Args: oneAccount,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			change, err := flags.change(cmd.Flags().Changed)
-			if err != nil {
-				return err
-			}
-			return a.editAccount(cmd, args[0], change)
+			return a.editAccount(cmd, args[0], flags)
 		},
 	}
 	plans := prose.ListOr(config.PlanChoices())
@@ -130,6 +127,9 @@ whitespace trimmed, each run of whitespace within it one space.
 // change is the change the flags ask for, those given as given reports, each
 // read as the config reads it.
 func (f editFlags) change(given func(name string) bool) (accounts.Change, error) {
+	if given("primary") && !f.primary {
+		return accounts.Change{}, errors.New("--primary marks this account the primary, and can't be false: the primary moves by giving --primary to another account")
+	}
 	change := accounts.Change{Primary: f.primary}
 	if given("label") {
 		change.Label = &f.label
@@ -277,17 +277,17 @@ func labelRemedy(err error, none string) error {
 }
 
 // editAccount makes the change to the account, and says what it changed.
-func (a *app) editAccount(cmd *cobra.Command, id string, change accounts.Change) error {
+func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error {
 	registry, err := a.registry(cmd)
 	if err != nil {
 		return err
 	}
-	var before *config.Config
-	if change.Primary {
-		// The account the sessions running took as their own is judged by the
-		// config as it was. One that can't be read fails the edit too, unless
-		// it changes meanwhile, when the edit says nothing of them.
-		before, _ = a.loadConfig()
+	change, err := flags.change(cmd.Flags().Changed)
+	if err != nil {
+		if unknown := registry.Configured(id); unknown != nil {
+			return a.notConfigured(unknown, id, addIt(id))
+		}
+		return err
 	}
 	edited, err := registry.Edit(id, change)
 	if err != nil {
@@ -295,7 +295,7 @@ func (a *app) editAccount(cmd *cobra.Command, id string, change accounts.Change)
 	}
 	said := editedSays(edited)
 	if edited.FormerPrimary != "" {
-		said += a.runningSessions(before, id, registry.Tokens.Read)
+		said += a.runningSessions(edited.Before, id, registry.Tokens.Read)
 		warnNoToken(cmd.ErrOrStderr(), id, registry.Tokens.Read)
 	}
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
@@ -303,20 +303,18 @@ func (a *app) editAccount(cmd *cobra.Command, id string, change accounts.Change)
 }
 
 // runningSessions says, on a line of its own, what becomes of the sessions
-// already running once the account with the given id is the primary: they
-// keep the token they took as Claude Code's own, as launch chose it from the
-// config before, until they restart. It says nothing where that was this
-// account's, or there was none.
+// already running, unless pinned, once the account with the given id is the
+// primary: they keep the token they started on as Claude Code's own until
+// they restart, which launch would choose from the config before, the tokens
+// as they stand now. It says nothing where that's this account's, or none.
 func (a *app) runningSessions(before *config.Config, primary string, readToken func(id string) (tokens.Token, error)) string {
-	if before == nil {
-		return ""
-	}
 	own, ok := launch.Route{Config: before, Token: readToken, Pause: a.Pause}.OwnAccount()
 	if !ok || own.ID == primary {
 		return ""
 	}
-	return "\nsessions already running keep " + own.ID + "'s token as Claude Code's own until they restart, " +
-		"so what they send outside the conversation, such as artifacts and uploads, still goes out on " + own.ID
+	return "\nsessions already running, unless pinned, keep the token they started on as Claude Code's own " +
+		"until they restart: " + own.ID + "'s, as the tokens stand now, so what they send outside the conversation, " +
+		"such as artifacts and uploads, still goes out on it"
 }
 
 // warnNoToken tells w when the account with the given id, the primary now,
@@ -337,7 +335,7 @@ func editedSays(e accounts.Edited) string {
 	}
 	var changed []string
 	if e.Was.Label != e.Now.Label {
-		changed = append(changed, nowAndWas("label", labelNow(e.Now), labelSaid(e.Was)))
+		changed = append(changed, labelChanged(e))
 	}
 	if e.Was.Plan != e.Now.Plan {
 		changed = append(changed, nowAndWas("plan", planSaid(e.Now.Plan), planSaid(e.Was.Plan)))
@@ -356,21 +354,27 @@ func nowAndWas(name, now, was string) string {
 	return name + " " + now + " (was " + was + ")"
 }
 
-// labelSaid says an account's label, quoted, or none where it's shown by its id.
-func labelSaid(a config.Account) string {
-	if a.Label == a.ID {
-		return "none"
+// labelChanged says how an edit changed the account's label: as it is now
+// and as it was, quoted, or none where the config writes none; and where the
+// two show the same, as a label written untidily does once tidied, that it
+// was written untidily.
+func labelChanged(e accounts.Edited) string {
+	now, was := labelSaid(e.Now.Label, e.NowLabelled), labelSaid(e.Was.Label, e.WasLabelled)
+	switch {
+	case now == was:
+		return "label " + now + " (was written untidily)"
+	case !e.NowLabelled:
+		now += ", shown by its id"
 	}
-	return prose.Quoted(a.Label)
+	return nowAndWas("label", now, was)
 }
 
-// labelNow says an account's label as an edit left it, as labelSaid does,
-// saying of none that the account's shown by its id.
-func labelNow(a config.Account) string {
-	if a.Label == a.ID {
-		return "none, shown by its id"
+// labelSaid says a label, quoted, where the config writes it, else none.
+func labelSaid(label string, written bool) string {
+	if !written {
+		return "none"
 	}
-	return labelSaid(a)
+	return prose.Quoted(label)
 }
 
 // planSaid says a plan, or none.
