@@ -38,6 +38,9 @@ var processStarters = []string{
 	// launchctl, by name, for the service: main passes it to the CLI, and
 	// tests pass a fake that notes each call.
 	"internal/service/launchctl.go:Launchctl",
+	// osascript and open, by name, for the browser a sign-in opens in, as the
+	// Runner setuptoken.Programs gives: tests pass a fake that notes each call.
+	"internal/setuptoken/browser.go:runCommand",
 }
 
 const (

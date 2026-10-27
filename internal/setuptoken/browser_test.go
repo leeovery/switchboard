@@ -1,0 +1,161 @@
+package setuptoken
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"strings"
+	"testing"
+)
+
+// runner is a Runner that runs nothing, noting each run, a line each as
+// "name args…", and answering each program as it's set to: what it printed,
+// or that it failed.
+type runner struct {
+	printed map[string]string
+	failed  map[string]error
+	ran     []string
+}
+
+func (r *runner) run(_ context.Context, name string, args ...string) ([]byte, error) {
+	r.ran = append(r.ran, strings.Join(append([]string{name}, args...), " "))
+	return []byte(r.printed[name]), r.failed[name]
+}
+
+// address is the sign-in address the openers are given.
+func address(t *testing.T) Address {
+	t.Helper()
+	a, ok := newAddress(signIn)
+	if !ok {
+		t.Fatalf("newAddress(%q) refused it", signIn)
+	}
+	return a
+}
+
+func TestBrowserOpensTheAddressAsItIs(t *testing.T) {
+	r := &runner{}
+
+	opened, err := Browser{Run: r.run}.Open(t.Context(), address(t))
+
+	if opened != OpenedInBrowser || err != nil {
+		t.Errorf("Open() = %v, %v; want it opened in the browser", opened, err)
+	}
+	if want := []string{"open " + signIn}; !slices.Equal(r.ran, want) {
+		t.Errorf("Open() ran %q, want %q", r.ran, want)
+	}
+}
+
+func TestBrowserSaysWhereOpenFails(t *testing.T) {
+	failed := errors.New("exit status 1")
+	r := &runner{failed: map[string]error{"open": failed}}
+
+	opened, err := Browser{Run: r.run}.Open(t.Context(), address(t))
+
+	if opened != NotOpened || !errors.Is(err, failed) {
+		t.Errorf("Open() = %v, %v; want it not opened, with open's error", opened, err)
+	}
+}
+
+func TestPrivateWindowOpensTheDefaultBrowsersPrivateWindow(t *testing.T) {
+	tests := []struct {
+		name string
+		app  string
+		flag string
+	}{
+		{name: "Google Chrome", app: "/Applications/Google Chrome.app", flag: "--incognito"},
+		{name: "a channel of Google Chrome", app: "/Applications/Google Chrome Canary.app", flag: "--incognito"},
+		{name: "Chromium", app: "/Applications/Chromium.app", flag: "--incognito"},
+		{name: "Brave", app: "/Applications/Brave Browser.app", flag: "--incognito"},
+		{name: "Vivaldi", app: "/Applications/Vivaldi.app", flag: "--incognito"},
+		{name: "Microsoft Edge", app: "/Applications/Microsoft Edge.app", flag: "--inprivate"},
+		{name: "Firefox", app: "/Applications/Firefox.app", flag: "-private-window"},
+		{name: "a channel of Firefox", app: "/Applications/Firefox Developer Edition.app", flag: "-private-window"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &runner{printed: map[string]string{"osascript": tt.app + "\n"}}
+
+			opened, err := PrivateWindow{Run: r.run}.Open(t.Context(), address(t))
+
+			if opened != OpenedPrivately || err != nil {
+				t.Errorf("Open() = %v, %v; want it opened privately", opened, err)
+			}
+			want := []string{"osascript -l JavaScript -e " + findDefaultBrowser, "open -na " + tt.app + " --args " + tt.flag + " " + signIn}
+			if !slices.Equal(r.ran, want) {
+				t.Errorf("Open() ran %q, want %q", r.ran, want)
+			}
+		})
+	}
+}
+
+func TestPrivateWindowOpensNothingOfABrowserItCantOpenOneOf(t *testing.T) {
+	tests := []struct {
+		name string
+		app  string
+		want string
+	}{
+		{name: "Safari", app: "/Applications/Safari.app", want: "Safari"},
+		{name: "Safari, as macOS keeps it", app: "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app", want: "Safari"},
+		{name: "Arc", app: "/Applications/Arc.app", want: "Arc"},
+		{name: "one unknown", app: "/Applications/Some Browser.app", want: "Some Browser"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &runner{printed: map[string]string{"osascript": tt.app + "\n"}}
+
+			opened, err := PrivateWindow{Run: r.run}.Open(t.Context(), address(t))
+
+			refused, ok := errors.AsType[*NoPrivateWindowError](err)
+			if opened != NotOpened || !ok || refused.Browser != tt.want {
+				t.Errorf("Open() = %v, %v; want it not opened, as %s has no private window it can open", opened, err, tt.want)
+			}
+			if len(r.ran) != 1 {
+				t.Errorf("Open() ran %q, want osascript alone", r.ran)
+			}
+		})
+	}
+}
+
+func TestPrivateWindowSaysWhereItCantOpenOne(t *testing.T) {
+	failed := errors.New("exit status 1")
+	tests := []struct {
+		name   string
+		runner *runner
+		want   error
+	}{
+		{name: "osascript failing", runner: &runner{failed: map[string]error{"osascript": failed}}, want: failed},
+		{name: "no default browser", runner: &runner{printed: map[string]string{"osascript": "\n"}}, want: errNoDefaultBrowser},
+		{name: "open failing", runner: &runner{printed: map[string]string{"osascript": "/Applications/Firefox.app"}, failed: map[string]error{"open": failed}}, want: failed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opened, err := PrivateWindow{Run: tt.runner.run}.Open(t.Context(), address(t))
+
+			if opened != NotOpened || !errors.Is(err, tt.want) {
+				t.Errorf("Open() = %v, %v; want it not opened, with %v", opened, err, tt.want)
+			}
+			if strings.Contains(err.Error(), "test-state-work") {
+				t.Errorf("Open() = %v, want the address kept out of its error", err)
+			}
+		})
+	}
+}
+
+func TestOpenersBoundWhatTheyRun(t *testing.T) {
+	var deadlines []bool
+	run := func(ctx context.Context, name string, _ ...string) ([]byte, error) {
+		_, ok := ctx.Deadline()
+		deadlines = append(deadlines, ok)
+		if name == "osascript" {
+			return []byte("/Applications/Firefox.app"), nil
+		}
+		return nil, nil
+	}
+
+	_, _ = Browser{Run: run}.Open(t.Context(), address(t))
+	_, _ = PrivateWindow{Run: run}.Open(t.Context(), address(t))
+
+	if want := []bool{true, true, true}; !slices.Equal(deadlines, want) {
+		t.Errorf("the openers ran programs with deadlines %v, want each bounded", deadlines)
+	}
+}
