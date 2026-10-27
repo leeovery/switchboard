@@ -324,6 +324,22 @@ func fromRouter(err error) error {
 	return err
 }
 
+// errChangeUnanswered is what a change asked of the router fails with when
+// the router closed the connection as it was asked, as one stopping does
+// once what it accepted is done.
+var errChangeUnanswered = errors.New("the router closed as it was asked, so it may or may not have made the change: switchboard status shows which")
+
+// fromRouterChange is err, a router client's from asking for a change, as
+// fromRouter says, but where the router closed the connection without
+// answering: it may have made the change before it closed, so that isn't the
+// router not running.
+func fromRouterChange(err error) error {
+	if errors.Is(err, router.ErrUnanswered) {
+		return errChangeUnanswered
+	}
+	return fromRouter(err)
+}
+
 // loadConfig loads the config file named by --config, else the one config.Path finds.
 func (a *app) loadConfig() (*config.Config, error) {
 	path, err := a.configFile()

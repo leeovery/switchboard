@@ -7,6 +7,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 )
@@ -21,6 +24,7 @@ func TestARequestClosedUnansweredIsToldApart(t *testing.T) {
 		{name: "closed at its end", err: asked(io.EOF), want: true},
 		{name: "reset as it was read", err: asked(&net.OpError{Op: "read", Net: "unix", Err: syscall.ECONNRESET}), want: true},
 		{name: "closed as the request was written", err: asked(&net.OpError{Op: "write", Net: "unix", Err: syscall.EPIPE}), want: true},
+		{name: "disconnected as the request was written", err: asked(&net.OpError{Op: "write", Net: "unix", Err: os.NewSyscallError("write", syscall.ENOTCONN)}), want: true},
 		{name: "closed before the request was read", err: asked(errors.New(serverClosedIdle)), want: true},
 		{name: "cut off by its deadline", err: asked(context.DeadlineExceeded)},
 		{name: "answered with what isn't HTTP", err: asked(errors.New(`net/http: HTTP/1.x transport connection broken: malformed HTTP status code "2"`))},
@@ -44,6 +48,49 @@ func TestAClientWhoseRequestTheRouterClosedUnreadFindsItNotRunning(t *testing.T)
 	_, err := client.Health(t.Context())
 	if !errors.Is(err, ErrUnanswered) || !IsNotRunning(err) {
 		t.Errorf("Health() error = %v, want ErrUnanswered, the router not running at that moment", err)
+	}
+}
+
+func TestARouterClosingEachConnectionAsItAcceptsItIsNotRunningToItsClient(t *testing.T) {
+	dir, err := os.MkdirTemp("", "sb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	path := filepath.Join(dir, "control.sock")
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	// The close races the request's write and the transport's read, so it
+	// fails as each of them, by turns: net/http's own words for a close
+	// before the request was read come in about one ask in six, a
+	// disconnected write in about one in 150.
+	const asks = 300
+	client := NewClient(path)
+	closedIdle := 0
+	for range asks {
+		_, err := client.Health(t.Context())
+		if !IsNotRunning(err) {
+			t.Fatalf("Health() error = %v, want the router not running at that moment", err)
+		}
+		if strings.Contains(err.Error(), serverClosedIdle) {
+			closedIdle++
+		}
+	}
+	if closedIdle == 0 {
+		t.Errorf("no ask in %d failed with %q, the words net/http's transport gives a close before the request was read", asks, serverClosedIdle)
 	}
 }
 

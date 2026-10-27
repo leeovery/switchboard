@@ -392,12 +392,13 @@ func IsNotRunning(err error) bool {
 }
 
 // closedUnanswered reports whether err, a request's that got no answer, is the
-// connection closing under it, at its end or by a reset, as it was read or
-// the request written, rather than its context ending or an answer that
-// isn't HTTP.
+// connection closing under it, rather than its context ending or an answer
+// that isn't HTTP: at its end or by a reset as it was read; as the request
+// was written, broken or, on macOS, already disconnected; or before the
+// request was read at all, as the transport words it.
 func closedUnanswered(err error) bool {
 	return errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) ||
-		strings.Contains(err.Error(), serverClosedIdle)
+		errors.Is(err, syscall.ENOTCONN) || strings.Contains(err.Error(), serverClosedIdle)
 }
 
 // serverClosedIdle is how net/http's transport fails a request whose

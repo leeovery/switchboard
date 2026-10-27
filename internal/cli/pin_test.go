@@ -18,6 +18,10 @@ import (
 // running.
 const routerDown = "Error: the router isn't running: start it with switchboard service install (or switchboard serve)\n"
 
+// changeUnanswered is what a change asked of the router says when the router
+// closed as it was asked, as one stopping does.
+const changeUnanswered = "the router closed as it was asked, so it may or may not have made the change: switchboard status shows which"
+
 // The sessions the tests route: two whose ids start alike, and another.
 const (
 	sessionOne   = "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e"
@@ -315,6 +319,64 @@ func TestCommandsThatNeedTheRouterWithoutIt(t *testing.T) {
 				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
 			}
 		})
+	}
+}
+
+func TestCommandsThatNeedTheRouterAsItClosesUnanswered(t *testing.T) {
+	const changeCut = "Error: " + changeUnanswered + "\n"
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{args: []string{"pin", "side"}, want: changeCut},
+		{args: []string{"pin", "side", "--move"}, want: changeCut},
+		{args: []string{"pin", "auto"}, want: changeCut},
+		{args: []string{"pin", "auto", "--force"}, want: changeCut},
+		// Only the session's lookup is asked before the router closes, so no
+		// change was asked for.
+		{args: []string{"pin", "side", "--session", "0b5c"}, want: routerDown},
+		{args: []string{"pin", "auto", "--session", "0b5c"}, want: routerDown},
+		{args: []string{"status", "--session", sessionOne}, want: routerDown},
+	}
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+			closeUnanswered(t, srv.socket())
+
+			got := run(t, srv.deps, tt.args...)
+			if want := (result{stderr: tt.want, code: 1}); got != want {
+				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, want)
+			}
+		})
+	}
+}
+
+func TestPinSessionTheRouterClosesAsItsAsked(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	closeUnread := func(w http.ResponseWriter, _ *http.Request) {
+		conn, _, err := http.NewResponseController(w).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		_ = conn.Close()
+	}
+	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /sessions": func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode([]status.Session{{ID: sessionOne, Assignments: []status.Assignment{}}})
+		},
+		"POST /sessions/{id}/pin":   closeUnread,
+		"DELETE /sessions/{id}/pin": closeUnread,
+	})
+
+	for _, args := range [][]string{
+		{"pin", "side", "--session", sessionOne},
+		{"pin", "auto", "--session", sessionOne},
+	} {
+		got := run(t, srv.deps, args...)
+		if want := (result{stderr: "Error: " + changeUnanswered + "\n", code: 1}); got != want {
+			t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
+		}
 	}
 }
 

@@ -7668,16 +7668,18 @@ verbs).
   /health`: a slow router isn't a dead one, and on a machine far behind a live router takes
   seconds to answer. A router that isn't running, nothing listening on its socket, is asked again
   every 200ms for the first 2 seconds, as launchd may be bringing it back, or it may be restarting.
-  So is one that closes the connection before it begins to answer, at its end or by a reset, as a
-  router stopping does with an ask it hasn't answered in time (see The router looking after
-  itself): it isn't running at that moment, and where the asks run out on such a close, `run`
-  takes the router as not running, in its words and as `when_router_down` says (the owner's call,
-  26 October 2026). One that connects
-  is asked once, and given what's left of the 5 seconds, as asking again would add work to a
-  machine already behind, and an answer cut off once it has begun is taken as it is. Any other
-  answer is taken at once. `dashboard`, `usage` and
-  `status` ask it alike (see Live updates). The log's `starting claude` line says how long asking
-  took, routed or direct, as `asked=312ms`.
+  So is one that closes the connection before it begins to answer, at its end, by a reset or
+  before reading the request, as a router stopping does with an ask it hasn't answered in time
+  (see The router looking after itself): it isn't running at that moment, and where the asks run
+  out on such a close, `run` takes the router as not running, in its words and as
+  `when_router_down` says (the owner's call, 26 October 2026). One that connects is asked once,
+  and given what's left of the 5 seconds, as asking again would add work to a machine already
+  behind, and an answer cut off once it has begun is taken as it is. Any other answer is taken at
+  once. `dashboard`, `usage` and `status` ask it alike (see Live updates). A change asked of the
+  router, a pin or an unpin from `pin` or the dashboard, isn't asked again, and the router closing
+  as it's asked isn't read as one not running: it may have made the change first, so the command
+  says so, and that `switchboard status` shows which. The log's `starting claude` line says how
+  long asking took, routed or direct, as `asked=312ms`.
 - **Routed:** when the router answers `ok`, `run` starts Claude Code with `ANTHROPIC_BASE_URL`
   pointing at the proxy, where the router says it listens, not where the config says, which may
   have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever account the

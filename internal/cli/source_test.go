@@ -356,6 +356,28 @@ func TestDashboardReadsTheRouterWhileItRuns(t *testing.T) {
 	}
 }
 
+func TestDashboardsChangesTheRouterClosesOnMayHaveBeenMade(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	closeUnanswered(t, srv.socket())
+	cfg := recordWatch(t, &srv.deps)
+	run(t, srv.deps, "dashboard")
+
+	changes := []struct {
+		name   string
+		change func() error
+	}{
+		{name: "Pin", change: func() error { return cfg.Source.Pin(t.Context(), []string{"side"}, false) }},
+		{name: "Unpin", change: func() error { return cfg.Source.Unpin(t.Context()) }},
+		{name: "PinSession", change: func() error { return cfg.Source.PinSession(t.Context(), sessionOne, "side") }},
+		{name: "UnpinSession", change: func() error { return cfg.Source.UnpinSession(t.Context(), sessionOne) }},
+	}
+	for _, c := range changes {
+		if err := c.change(); err == nil || err.Error() != changeUnanswered {
+			t.Errorf("%s() error = %v, want %q", c.name, err, changeUnanswered)
+		}
+	}
+}
+
 func TestDashboardPinsOneSessionAsPinSessionDoes(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)

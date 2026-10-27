@@ -37,3 +37,33 @@ func TestARouterNotRunningIsSaidPlainly(t *testing.T) {
 		})
 	}
 }
+
+func TestAChangeTheRouterClosedOnMayHaveBeenMade(t *testing.T) {
+	refused := errors.New("router answered 400 Bad Request: no such account")
+	tests := []struct {
+		name string
+		err  error
+		want error
+	}{
+		{
+			name: "nothing listening on its socket",
+			err:  fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning),
+			want: errRouterDown,
+		},
+		{
+			name: "the connection closed before any answer, as a router stopping closes it",
+			err:  fmt.Errorf(`%w: Post "http://switchboard/pin": EOF`, router.ErrUnanswered),
+			want: errChangeUnanswered,
+		},
+		{name: "the router not running, as a read before the change found it", err: errRouterDown, want: errRouterDown},
+		{name: "no answer in time", err: context.DeadlineExceeded, want: context.DeadlineExceeded},
+		{name: "an answer refusing the change", err: refused, want: refused},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fromRouterChange(tt.err); got != tt.want {
+				t.Errorf("fromRouterChange(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
