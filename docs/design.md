@@ -29,7 +29,7 @@ It's built for its author's setup, and stays general only where that costs nothi
 macOS only.
 
 Scope: Claude Code, authenticated with long-lived setup tokens (`claude setup-token`). Browser
-logins and other agents are deferred. Claude-specific knowledge sits behind a provider interface,
+logins aren't wanted (see Backlog: OAuth logins), and other agents are deferred. Claude-specific knowledge sits behind a provider interface,
 so another agent can be added later without reshaping the rest; the few pieces that don't are
 listed under Architecture.
 
@@ -8511,7 +8511,7 @@ why.
 | A scheduled review of switchboard's records, raising what it finds as an issue or a pull request | open: to discuss with its owner | [scheduled-review](../ideas/2026-10-14--scheduled-review.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
-| Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | next to discuss, after the cleanliness release: the owner, 26 October 2026, OAuth and the setup process first | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
+| Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | shape chosen by the owner on 27 October 2026: setup tokens alone, which setup makes itself by running `claude setup-token`, asking each account's plan and reserve, and `accounts edit`; setup's flow to settle next | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
 | The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
@@ -8528,7 +8528,7 @@ why.
 | A config checked under the new binary's rules before a handover, so a rule an upgrade tightens, as a label's 100 characters, can't leave the router stopped | built in the cleanliness release, 26 October 2026: the new binary asked with `serve --check`, the restart held only on its refusal (see The router looking after itself); a config edited after an upgrade, before the handover, judged by the new binary since, as the release review's fixes built (26 October 2026) | [config-checked-before-handover](../ideas/2026-10-23--config-checked-before-handover.md) |
 | New sessions routed through a held router while the config can't be read, as when an upgrade's rules refuse it, rather than started unaided | open: to land before any release tightens a config rule; it changes the rule that a config that can't be read starts `claude` unaided, so it's the owner's call | [held-router-routes-unread-config](../ideas/2026-10-26--held-router-routes-unread-config.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
-| OAuth logins in place of setup tokens, kept fresh | next to discuss, after the cleanliness release, with signing in and setup (the owner, 26 October 2026) | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
+| OAuth logins in place of setup tokens, kept fresh | not wanted: the owner, 27 October 2026, as a login lapses about 30 days after it's signed in, however it's refreshed, and Anthropic's terms bar a tool from storing one | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
 | Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from History's Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
 | History's Days in strips per model version, beside its strips per family | later, after milestone 7 | [days-strips-per-version](../ideas/2026-10-08--days-strips-per-version.md) |

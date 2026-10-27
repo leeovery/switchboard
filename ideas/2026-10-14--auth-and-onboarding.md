@@ -63,3 +63,40 @@ for the plan, to follow milestone 7's release: "users wouldn't know to put that 
 ## The owner, 26 October 2026
 
 Next to discuss, after the cleanliness release: making switchboard work with Claude's OAuth logins, and the setup process. First to find out: whether Claude Code and switchboard refreshing one login lock each other out, as single-use refresh tokens would.
+
+## Decided, 27 October 2026
+
+The owner chose, from research that day (`2026-09-30--oauth-logins.md` says why logins aren't
+wanted):
+
+- **No logins.** Switchboard holds no claude.ai login: its one credential is the setup token, a year
+  long and never refreshed. Someone who signs in to Claude Code with a login can still use it, as
+  setup makes them a token; their login stays Claude Code's own, for what goes direct.
+- **Setup makes each token.** `setup` runs `claude setup-token` itself, on a pseudo-terminal, and
+  takes the token from what it draws, so the person approves in the browser and copies nothing.
+  Pasting a token stays, for where that fails.
+- **The browser, an account at a time.** For each account, setup says which the browser must be
+  signed in to, and gives the address to open in a private window, so the browser's own session
+  is left alone. Whether `setup-token` can be told the account, as `claude auth login --email` can,
+  is to check.
+- **What setup asks.** Each account's plan, Pro, Max 5x or Max 20x, saying what it's for, and its
+  reserve. It catches an account added twice, by the organization id the API answers with: reported
+  of setup tokens, to check.
+- **After setup.** `accounts edit` changes an account's label, plan, primary or reserve, and
+  `accounts token` renews its token. Switchboard keeps when it took each token, and warns weeks
+  before its year is up.
+- **No pass-through.** Claude Code's own login isn't let through for the account it's signed in to:
+  one approval in setup gets someone with one account to the same place, and the router keeps one
+  kind of account.
+
+Next: setup's flow, step by step, to settle with the owner before it's built.
+
+### What other tools do (27 October 2026)
+
+TeamClaude, better-ccflare, CLIProxyAPI, claude-relay-service and sub2api, claude-swap and clauth all
+spread Claude Code across several subscriptions. Most hold logins: they run Claude Code's own
+sign-in, under its client id, with a localhost callback and a pasted code as the fallback; refresh
+ahead of expiry, one refresh at a time an account; and read each account's identity and plan from
+the profile endpoint. Their trackers show the cost: logins lapsing monthly, accounts lost to a
+refresh token sent twice, lockouts from sharing Claude Code's own login. None gets the browser onto
+each account in turn: each takes whatever account the browser is signed in to.
