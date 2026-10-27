@@ -65,14 +65,17 @@ func hash(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// replace has the account go out on token from now on, keeping the token it
+// replace has the account go out on token from now on, with when it was
+// taken, as taken notes it, under the same hold, keeping the token it
 // replaces among its former tokens, replaced at now. It reports whether the
 // account held another token: a request refused at the same time may have
-// replaced it with token already.
-func (s *secret) replace(token tokens.Token, now time.Time) bool {
+// replaced it with token already; and why the token's record can't be gone
+// by, as note returns it.
+func (s *secret) replace(token tokens.Token, taken takenNote, now time.Time) (replaced bool, untaken string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.swap(token, now)
+	replaced = s.swap(token, now)
+	return replaced, s.note(taken)
 }
 
 // swap has the account hold token from now on, keeping the one it held

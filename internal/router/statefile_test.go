@@ -773,7 +773,7 @@ func TestTheStateFileKeepsTheAccountsFormerTokensAsHashesForAWeek(t *testing.T) 
 	saving := newTestFile(at(start), accounts)
 	saving.load(path)
 	work, _ := accounts.byID("work")
-	if !work.secret.replace(mustToken(t, renewedToken), start) {
+	if replaced, _ := work.secret.replace(mustToken(t, renewedToken), takenNote{}, start); !replaced {
 		t.Fatal("replace() = false, want work's token replaced")
 	}
 	saving.changes.note()
@@ -877,7 +877,7 @@ func TestAnAccountsTokensOutlastAGapInItsTokenFileAndARestart(t *testing.T) {
 			restarted := resolve(testConfigured, watch.files.read, unrecorded)
 			newTestFile(at(later), restarted).load(path)
 			work, _ := restarted.byID("work")
-			if r := work.secret.reload(mustToken(t, tt.back), nil, later); r.replaced != tt.wantReplaced || !r.gained {
+			if r := work.secret.reload(mustToken(t, tt.back), nil, takenNote{}, later); r.replaced != tt.wantReplaced || !r.gained {
 				t.Errorf("work, its token file back, has gained its token: %v, and replaced the one it held: %v, want true and %v", r.gained, r.replaced, tt.wantReplaced)
 			}
 			for _, token := range []string{workToken, renewedToken, tt.back} {
@@ -1019,7 +1019,7 @@ func TestFormerTokensAreForgottenHourlyAWeekAfterTheyWereReplaced(t *testing.T) 
 		f := newTestFile(time.Now, accounts)
 		f.load(path)
 		work, _ := accounts.byID("work")
-		work.secret.replace(mustToken(t, renewedToken), time.Now().Add(-formerFor+30*time.Minute))
+		work.secret.replace(mustToken(t, renewedToken), takenNote{}, time.Now().Add(-formerFor+30*time.Minute))
 		f.changes.note()
 		stop := keep(f)
 		defer stop()

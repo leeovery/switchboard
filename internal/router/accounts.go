@@ -75,33 +75,59 @@ func unrecorded(string, tokens.Token) (time.Time, error) {
 	return time.Time{}, tokens.ErrUnrecorded
 }
 
-// noteTaken holds, beside token, just read from the account's file, when it
-// was taken, as taken reads it: read before the account's lock is taken, as
-// it reads a file. Why a record there can't be gone by is logged at debug
-// once, until it changes, as the files are read every few seconds.
-func (a account) noteTaken(token tokens.Token, taken TakenFunc) {
-	at, err := taken(a.ID, token)
-	why := ""
-	if err != nil && !errors.Is(err, tokens.ErrUnrecorded) {
-		why = err.Error()
-	}
-	if err != nil {
-		at = time.Time{}
-	}
-	if a.secret.tookAt(hash(token.Reveal()), at, why) {
-		logger.Debug("not going by the record of when the token was taken", "account", a.ID, "error", err)
-	}
+// takenNote is when a token read from its account's file was taken, as its
+// record said: the token's hash, the time, zero where it isn't known, and why
+// it isn't, where there's a record that can't be gone by.
+type takenNote struct {
+	sum string
+	at  time.Time
+	why string
 }
 
-// tookAt notes that the token whose hash is sum was taken at at, zero where
-// that isn't known, why saying why where there's a record it can't go by. It
-// reports whether that's a reason it didn't have before.
-func (s *secret) tookAt(sum string, at time.Time, why string) bool {
+// takenOf reads when token, just read from the account's file, was taken, as
+// taken reads it: before the account's lock is taken, as it reads a file, for
+// what takes the token up to note under the same hold.
+func (a account) takenOf(token tokens.Token, taken TakenFunc) takenNote {
+	n := takenNote{sum: hash(token.Reveal())}
+	at, err := taken(a.ID, token)
+	switch {
+	case err == nil:
+		n.at = at
+	case !errors.Is(err, tokens.ErrUnrecorded):
+		n.why = err.Error()
+	}
+	return n
+}
+
+// note holds n, where it's of the token the account holds, and returns why
+// its record can't be gone by, where that's news: "" where it isn't, so why
+// is logged once until it changes, as the files are read every few seconds.
+// s.mu must be held.
+func (s *secret) note(n takenNote) string {
+	if n.sum != s.held {
+		return ""
+	}
+	news := n.why != "" && n.why != s.untaken
+	s.takenOf, s.taken, s.untaken = n.sum, n.at, n.why
+	if !news {
+		return ""
+	}
+	return n.why
+}
+
+// noteHeld holds n, as note does, taking the account's lock.
+func (s *secret) noteHeld(n takenNote) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	news := why != "" && why != s.untaken
-	s.takenOf, s.taken, s.untaken = sum, at, why
-	return news
+	return s.note(n)
+}
+
+// logUntaken logs why the account's record can't be gone by, at debug,
+// where there's news of it.
+func (a account) logUntaken(why string) {
+	if why != "" {
+		logger.Debug("not going by the record of when the token was taken", "account", a.ID, "error", why)
+	}
 }
 
 // tokenTaken returns when the token the account holds was taken, reporting
@@ -178,7 +204,7 @@ func resolve(configured []config.Account, read func(id string) (tokens.Token, er
 		resolved[i] = account{Account: c, secret: s}
 		if err == nil {
 			s.held = hash(token.Reveal())
-			resolved[i].noteTaken(token, taken)
+			resolved[i].logUntaken(s.noteHeld(resolved[i].takenOf(token, taken)))
 		}
 	}
 	return resolved

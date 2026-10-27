@@ -36,11 +36,12 @@ func (f *tokenFiles) look() {
 	var kept, sendable bool
 	for _, a := range f.accounts {
 		token, err := f.read(a.ID)
-		r := a.secret.reload(token, err, now)
+		var taken takenNote
 		if err == nil {
-			a.noteTaken(token, f.taken)
+			taken = a.takenOf(token, f.taken)
 		}
-		r.log(a.ID, err)
+		r := a.secret.reload(token, err, taken, now)
+		r.log(a, err)
 		if r.replaced {
 			f.replaced(a.ID)
 		}
@@ -83,12 +84,16 @@ type reloaded struct {
 	// account keeps the one it has unless the file holds none at the next
 	// look either.
 	missed bool
+	// untaken is why the record of when the token it holds was taken can't
+	// be gone by, where that's news.
+	untaken string
 }
 
-// log logs what reading the token file of the account with the given id
-// again changed of it, err saying why it holds no token the account can use,
-// when it doesn't.
-func (r reloaded) log(id string, err error) {
+// log logs what reading the token file of account a again changed of it,
+// err saying why it holds no token the account can use, when it doesn't.
+func (r reloaded) log(a account, err error) {
+	id := a.ID
+	a.logUntaken(r.untaken)
 	if r.replaced {
 		logger.Info("token replaced; the one before still counts as the account's", "account", id)
 	}
@@ -103,17 +108,19 @@ func (r reloaded) log(id string, err error) {
 }
 
 // reload takes up what the account's token file holds as it's read again at
-// now: token, or, when err says why, none the account can use, which an
-// account with a usable token takes up only when the file held none the look
-// before either. It returns what that changed.
-func (s *secret) reload(token tokens.Token, err error, now time.Time) reloaded {
+// now: token, with when it was taken, as taken notes it, under the same hold,
+// or, when err says why, none the account can use, which an account with a
+// usable token takes up only when the file held none the look before either.
+// It returns what that changed.
+func (s *secret) reload(token tokens.Token, err error, taken takenNote, now time.Time) reloaded {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	had := s.unusable == nil
 	switch {
 	case err == nil:
 		s.unusable, s.missed = nil, false
-		return reloaded{replaced: s.swap(token, now), gained: !had}
+		replaced := s.swap(token, now)
+		return reloaded{replaced: replaced, gained: !had, untaken: s.note(taken)}
 	case had && !s.missed:
 		s.missed = true
 		return reloaded{missed: true}

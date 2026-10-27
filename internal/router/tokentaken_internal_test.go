@@ -100,9 +100,29 @@ func TestATokensDateCountsOnlyForTheTokenItWasReadWith(t *testing.T) {
 	}
 
 	// Replaced, as a 401 or a look replaces it, before its record is read.
-	work.secret.replace(renewed, start)
+	work.secret.replace(renewed, takenNote{}, start)
 	if at, ok := work.secret.tokenTaken(); ok {
 		t.Errorf("work's new token was taken at %v, want it not known: the date was its old token's", at)
+	}
+}
+
+func TestANoteOfATokenNoLongerHeldIsPassedOver(t *testing.T) {
+	renewedAt := start.Add(-time.Minute)
+	records := recordsOf(map[string]time.Time{workToken: start.Add(-90 * 24 * time.Hour), renewedToken: renewedAt})
+	as := resolve(testConfigured, testTokens.Read, unrecorded)
+	work, _ := as.byID("work")
+	renewed, err := tokens.Parse(renewedToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A look reads the old token and its record, then a 401 takes the new
+	// one up, with its date, before the look's note lands.
+	old := work.takenOf(work.token(), records)
+	work.secret.replace(renewed, work.takenOf(renewed, records), start)
+
+	work.secret.noteHeld(old)
+	if at, ok := work.secret.tokenTaken(); !ok || !at.Equal(renewedAt) {
+		t.Errorf("work's token was taken at %v (%v), want %v: the new token's date, the old one's note passed over", at, ok, renewedAt)
 	}
 }
 
@@ -118,7 +138,7 @@ func TestWhyARecordCantBeGoneByIsLoggedOnceUntilItChanges(t *testing.T) {
 	notOne := errors.New("the record tokens/work.taken isn't one of when tokens were taken")
 
 	for _, err := range []error{another, another, another, tokens.ErrUnrecorded, notOne, notOne, another} {
-		work.noteTaken(token, failing(err))
+		work.logUntaken(work.secret.noteHeld(work.takenOf(token, failing(err))))
 	}
 	var logged []string
 	for _, line := range log.Lines() {

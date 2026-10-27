@@ -233,14 +233,22 @@ func (rp *replay) renewed() bool {
 	a := rp.ex.account
 	token, err := rp.p.readToken(a.ID)
 	changed := err == nil && token.Reveal() != rp.sent.Reveal()
-	if changed && a.secret.replace(token, rp.p.now()) {
-		if lifted, ok := rp.p.state.tokenReplaced(a.ID); ok {
-			rp.p.emit(lifted)
-		}
-		rp.p.tokensReplaced()
-	}
+	var taken takenNote
 	if err == nil {
-		a.noteTaken(token, rp.p.tokenTaken)
+		taken = a.takenOf(token, rp.p.tokenTaken)
+	}
+	switch {
+	case changed:
+		replaced, untaken := a.secret.replace(token, taken, rp.p.now())
+		a.logUntaken(untaken)
+		if replaced {
+			if lifted, ok := rp.p.state.tokenReplaced(a.ID); ok {
+				rp.p.emit(lifted)
+			}
+			rp.p.tokensReplaced()
+		}
+	case err == nil:
+		a.logUntaken(a.secret.noteHeld(taken))
 	}
 	attrs := []any{"id", rp.ex.id, "account", a.ID, "changed", changed}
 	if err != nil {
