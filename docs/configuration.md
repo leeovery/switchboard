@@ -289,14 +289,18 @@ however it's reached, as a link from one account's file to another's leaves it, 
 path where another account's token file or record is a link leading there.
 
 `accounts remove` deletes the record with the token file, a link alone where either is one. Where
-the token file is a link to the record's own path, the file there is the token, and it's left; while
-it's so, a token written is written there, and no record over it, with a warning in the log. Once
-the account's removed, that file still holds the token, and switchboard never writes a record over a
-file holding anything shaped like a token, whatever its permissions or owner, nor over one it can't
-read or one over 1 MiB: a token written for an account of that id later leaves it, with a warning,
-and its date stays unknown until you move the file. `accounts remove` leaves such a file too, with a
-warning, rather than deleting it, unless it's a second name of the very token file it removes, as a
-hard link of it, which goes with it. `status --json` gives each token's `token_taken`, and its
+the token file is a link to the record's own path, and the file there has no other name, it's the
+token's only copy, and it's left; where it has another name, that name goes with the token, and the
+file's kept under its other name, as `accounts remove` says; while it's so, a token written is
+written there, and no record over it, with a warning in the log. Once the account's removed, that
+file still holds the token, and switchboard never writes a record over a file holding anything
+shaped like a token, whatever its permissions or owner, nor over one it can't read or one over 1
+MiB: a token written for an account of that id later leaves it, with a warning, and its date stays
+unknown until you move the file. `accounts remove` leaves such a file too, with a warning, rather
+than deleting it, unless it's a second name of the very token file it removes, or of the file it
+leads to, as a hard link of it, which goes with it. Writing a token replaces the token file, so a
+second name made by hand stops being one at the next write, and is then left as any file holding a
+token at the record's path is. `status --json` gives each token's `token_taken`, and its
 `token_good_until`, 365 days on.
 
 ### When switchboard reads token files
