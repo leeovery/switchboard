@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -49,14 +50,14 @@ func TestEdit(t *testing.T) {
 			id:         "personal",
 			change:     accounts.Change{Label: new("Personal")},
 			want:       strings.Replace(laidOut, "# for now\n", "# for now\nlabel = \"Personal\"\n", 1),
-			wantEdited: accounts.Edited{Was: personal, Now: with(personal, func(a *config.Account) { a.Label = "Personal" })},
+			wantEdited: accounts.Edited{Was: personal, Now: with(personal, func(a *config.Account) { a.Label = "Personal" }), NowLabelled: true},
 		},
 		{
 			name:       "no label, showing the account by its id",
 			id:         "work",
 			change:     accounts.Change{Label: new("")},
 			want:       strings.Replace(laidOut, "label   = \"Work\"\n", "", 1),
-			wantEdited: accounts.Edited{Was: work, Now: with(work, func(a *config.Account) { a.Label = "work" })},
+			wantEdited: accounts.Edited{Was: work, Now: with(work, func(a *config.Account) { a.Label = "work" }), WasLabelled: true},
 		},
 		{
 			name:       "a plan, in place of the one it has, keeping the comment beside it",
@@ -96,14 +97,14 @@ func TestEdit(t *testing.T) {
 			id:         "work",
 			change:     accounts.Change{Reserve: new(0.05)},
 			want:       strings.Replace(laidOut, "reserve = 0.1        #", "reserve = 0.05        #", 1),
-			wantEdited: accounts.Edited{Was: work, Now: with(work, func(a *config.Account) { a.Reserve = 0.05 })},
+			wantEdited: accounts.Edited{Was: work, Now: with(work, func(a *config.Account) { a.Reserve = 0.05 }), WasLabelled: true, NowLabelled: true},
 		},
 		{
 			name:       "no reserve",
 			id:         "work",
 			change:     accounts.Change{Reserve: new(0.0)},
 			want:       strings.Replace(laidOut, "reserve = 0.1        # the app's share\n", "", 1),
-			wantEdited: accounts.Edited{Was: work, Now: with(work, func(a *config.Account) { a.Reserve = 0 })},
+			wantEdited: accounts.Edited{Was: work, Now: with(work, func(a *config.Account) { a.Reserve = 0 }), WasLabelled: true, NowLabelled: true},
 		},
 		{
 			name:   "everything together",
@@ -114,6 +115,7 @@ func TestEdit(t *testing.T) {
 				"plan = \"max5x\"         # for now\nlabel = \"Personal\"\nprimary = true\nreserve = 0.025\n", 1),
 			wantEdited: accounts.Edited{
 				Was:           personal,
+				NowLabelled:   true,
 				Now:           config.Account{ID: "personal", Label: "Personal", Plan: "max5x", Primary: true, Reserve: 0.025},
 				FormerPrimary: "work",
 			},
@@ -124,8 +126,14 @@ func TestEdit(t *testing.T) {
 			w := newWorld(t, laidOut)
 
 			edited, err := w.registry(&user{}, &fakeAPI{}).Edit(tt.id, tt.change)
-			if err != nil || edited != tt.wantEdited {
-				t.Fatalf("Edit(%q) = %+v, %v; want %+v", tt.id, edited, err, tt.wantEdited)
+			if err != nil {
+				t.Fatalf("Edit(%q) error = %v", tt.id, err)
+			}
+			if edited.Before == nil || !slices.Equal(edited.Before.Accounts, []config.Account{work, personal}) {
+				t.Errorf("Edit(%q) read the config as %+v, want it as it was, configuring work and personal", tt.id, edited.Before)
+			}
+			if edited.Before = nil; edited != tt.wantEdited {
+				t.Errorf("Edit(%q) = %+v, want %+v", tt.id, edited, tt.wantEdited)
 			}
 			w.checkConfig(t, tt.want)
 			if got := account(t, w.load(t), tt.id); got != tt.wantEdited.Now {

@@ -28,14 +28,32 @@ func (c Change) Asks() bool {
 // the edit made no longer the primary, when it made this one the primary.
 type Edited struct {
 	Was, Now config.Account
+	// WasLabelled and NowLabelled are set where the config wrote a label for
+	// the account before the edit, and where it does after: where it doesn't,
+	// the account's shown by its id.
+	WasLabelled, NowLabelled bool
 	// FormerPrimary is the id of the account that was the primary before the
 	// edit made this one so: "" when it didn't.
 	FormerPrimary string
+	// Before is the config the edit read, as it was before the edit.
+	Before *config.Config
 }
 
 // Changed reports whether the edit changed the account.
 func (e Edited) Changed() bool {
 	return e.Was != e.Now
+}
+
+// Configured fails, matching config.ErrNotConfigured, when no account in the
+// config file has the given id, and as config.Edit does for a config file it
+// can't read.
+func (r Registry) Configured(id string) error {
+	draft, err := config.Edit(r.ConfigPath)
+	if err != nil {
+		return err
+	}
+	_, err = configured(draft.Config(), id)
+	return err
 }
 
 // Edit changes the account with the given id as change says, in its
@@ -52,6 +70,7 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	if err != nil {
 		return Edited{}, err
 	}
+	wasLabelled := draft.Labelled(id)
 	if err := change.apply(draft, was); err != nil {
 		return Edited{}, err
 	}
@@ -59,7 +78,7 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	if err != nil {
 		return Edited{}, err
 	}
-	edited := Edited{Was: was, Now: now}
+	edited := Edited{Was: was, Now: now, WasLabelled: wasLabelled, NowLabelled: draft.Labelled(id), Before: before}
 	if !edited.Changed() {
 		return edited, nil
 	}
