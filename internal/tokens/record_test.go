@@ -506,6 +506,65 @@ func TestWriteNeverWritesARecordOverAnotherAccountsFile(t *testing.T) {
 	}
 }
 
+func TestWriteLeavesARecordHoldingATokenAtItsOwnPath(t *testing.T) {
+	const shaped = "sk-ant-oat01-fake_token-shaped"
+	tests := []struct {
+		name string
+		// put puts what's at the record's own path, given the store, and
+		// returns what it holds.
+		put func(t *testing.T, store tokens.Store) string
+		// wantLeft is whether it's left as it was, else replaced by the
+		// record of the token written.
+		wantLeft bool
+	}{
+		{name: "a token a removed account's token file led to", wantLeft: true, put: func(t *testing.T, store tokens.Store) string {
+			writeFile(t, store.Path("work")+".taken", shaped+"\n", 0o600)
+			symlink(t, store.Path("work")+".taken", store.Path("work"))
+			if _, err := store.Remove("work"); err != nil {
+				t.Fatal(err)
+			}
+			return shaped + "\n"
+		}},
+		{name: "a token among other words", wantLeft: true, put: func(t *testing.T, store tokens.Store) string {
+			writeFile(t, store.Path("work")+".taken", "token "+shaped+"\n", 0o600)
+			return "token " + shaped + "\n"
+		}},
+		{name: "a damaged record of one word, replaced", put: func(t *testing.T, store tokens.Store) string {
+			writeFile(t, store.Path("work")+".taken", "taken\n", 0o600)
+			return "taken\n"
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			mkdirPrivate(t, store.Dir())
+			holds := tt.put(t, store)
+
+			if err := store.Write("work", parse(t, workToken), taken); err != nil {
+				t.Fatalf("Write() error = %v, want the token written all the same", err)
+			}
+			if token, err := store.Read("work"); err != nil || token.Reveal() != workToken {
+				t.Errorf("Read() = %q, %v, want the token written", token.Reveal(), err)
+			}
+			want := workRecord
+			if tt.wantLeft {
+				want = holds
+			}
+			checkFile(t, store.Path("work")+".taken", want, 0o600)
+			warned := log.Has("level=WARN", `msg="couldn't record when the token was taken"`, "account=work", "holds a token")
+			if warned != tt.wantLeft {
+				t.Errorf("the log reads\n%s\nwant a warning that the record holds a token: %v", log, tt.wantLeft)
+			}
+			for _, secret := range []string{shaped, workToken} {
+				if strings.Contains(log.String(), secret) || strings.Contains(log.String(), sumOf(secret)) {
+					t.Errorf("the log shows a token or its hash:\n%s", log)
+				}
+			}
+		})
+	}
+}
+
 func TestRemoveLeavesADirectoryWhereTheRecordGoes(t *testing.T) {
 	for _, kept := range []bool{false, true} {
 		t.Run(fmt.Sprintf("holding something: %v", kept), func(t *testing.T) {

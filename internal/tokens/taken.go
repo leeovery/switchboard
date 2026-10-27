@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 var logger = logs.For("tokens")
@@ -138,6 +139,16 @@ func takeable(t time.Time) bool {
 // user's alone. A record that couldn't be read at all is left as it is.
 type replaceable struct{ error }
 
+// holdsToken is why a record that holds anything shaped like a token, as
+// redact recognises one, can't be gone by, and is never replaced: it's a
+// token, as one a token file led to that accounts remove leaves, perhaps its
+// only copy. It never says what the file holds.
+type holdsToken struct{ path string }
+
+func (e holdsToken) Error() string {
+	return fmt.Sprintf("the record %s holds a token, not when tokens were taken", e.path)
+}
+
 func (r replaceable) Unwrap() error { return r.error }
 
 // isSum256 reports whether s is a SHA-256 hash, in lowercase hex.
@@ -197,7 +208,10 @@ func (s Store) readRecord(id string, readable bool) (r record, exposed bool, err
 		return nil, false, s.unopened(path, err)
 	}
 	r, ok := parseRecord(data)
-	if !ok {
+	switch {
+	case !ok && redact.HoldsToken(string(data)):
+		return nil, false, holdsToken{path}
+	case !ok:
 		return nil, false, replaceable{fmt.Errorf("the record %s isn't one of when tokens were taken", path)}
 	}
 	return r, perm&shared != 0, nil
@@ -334,14 +348,18 @@ func recordTarget(path string) (target string, linked bool, err error) {
 
 // leaveFor returns why the record at path, read as err says, is left as it
 // is, or nil where it's written: read as one it can go by; or, at its own
-// path, not a link, missing, or looked at and found one it can't go by.
+// path, not a link, missing, or looked at and found one it can't go by that
+// doesn't hold a token.
 func leaveFor(path string, linked bool, err error) error {
 	_, replace := errors.AsType[replaceable](err)
+	_, token := errors.AsType[holdsToken](err)
 	switch {
 	case err == nil:
 		return nil
 	case linked:
 		return fmt.Errorf("the record %s is a link to what isn't a record of the user's that others can't write, so it's left as it is: %w", path, err)
+	case token:
+		return fmt.Errorf("%w, so it's left as it is", err)
 	case replace || errors.Is(err, ErrUnrecorded):
 		return nil
 	}
