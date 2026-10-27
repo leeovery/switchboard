@@ -27,11 +27,15 @@ func Clean(text string) string {
 }
 
 // Quoted shows text the user gave, such as a label, in double quotes, set
-// apart from the words around it: as Clean makes it, and so as it shows, but
-// for its quote marks and backslashes, escaped by a backslash, so where it
-// ends reads plainly.
+// apart from the words around it: as Clean makes it, but for its quote marks
+// and backslashes, escaped by a backslash, so where it ends reads plainly,
+// and each character drawn as nothing, as Unseen has it, that plays no part
+// in a sequence, shown as its escape, as \u200B, so what it holds shows. A
+// bidirectional control is among them, so it can't reorder the rest of the
+// line. A joiner within an emoji's sequence, a variation selector, a flag's
+// tags and a private-use character show as they are.
 func Quoted(text string) string {
-	return `"` + quoteEscaper.Replace(Clean(text)) + `"`
+	return `"` + MapUnseen(quoteEscaper.Replace(Clean(text)), escaped) + `"`
 }
 
 // quoteEscaper escapes the quote marks and backslashes in text Quoted shows.

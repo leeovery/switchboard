@@ -243,6 +243,16 @@ func TestQuoted(t *testing.T) {
 		{name: "an emoji sequence's joiner as it is", text: "Team \U0001f469\u200d\U0001f4bb", want: "\"Team \U0001f469\u200d\U0001f4bb\""},
 		{name: "a private-use glyph as it is", text: "\ue0a0 main", want: "\"\ue0a0 main\""},
 		{name: "a subdivision's flag as it is", text: england, want: `"` + england + `"`},
+		{name: "a variation selector as it is", text: "Home \u2764\uFE0F", want: "\"Home \u2764\uFE0F\""},
+		{name: "a zero-width space escaped", text: "Day job\u200B", want: `"Day job\u200B"`},
+		{name: "a joiner standing alone escaped", text: "Day \u200D job", want: `"Day \u200D job"`},
+		{name: "a lone tag escaped", text: "work\U000e0067", want: `"work\U000E0067"`},
+		{name: "an invisible separator escaped", text: "side\u2063", want: `"side\u2063"`},
+		{name: "a right-to-left override escaped", text: "\u202Ekrow", want: `"\u202Ekrow"`},
+		{name: "an isolate escaped", text: "a\u2067b\u2069", want: `"a\u2067b\u2069"`},
+		{name: "a direction mark escaped", text: "a\u200Fb", want: `"a\u200Fb"`},
+		{name: "an Arabic number sign as it is", text: "\u0600123", want: "\"\u0600123\""},
+		{name: "a backslash before an escape kept apart", text: "a\\\u200B", want: `"a\\\u200B"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
