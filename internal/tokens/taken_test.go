@@ -424,22 +424,28 @@ func TestWriteKeepsTheTokenWhenItCantRecordIt(t *testing.T) {
 
 func TestWriteRecordsThroughALink(t *testing.T) {
 	store := tokens.NewStore(t.TempDir(), os.Getuid())
-	// The record, a link to a file kept elsewhere, as by a dotfiles step.
+	// The record, a link to a record kept elsewhere, as by a dotfiles step.
+	side := "taken 2026-10-01T00:00:00Z\nsha256 " + sumOf("test-token-side") + "\n"
 	target := filepath.Join(t.TempDir(), "secrets", "work.taken")
-	writeFile(t, target, "taken soon\n", 0o600)
+	writeFile(t, target, side, 0o600)
 	mkdirPrivate(t, filepath.Dir(store.Path("work")))
-	if err := os.Symlink(target, store.Path("work")+".taken"); err != nil {
-		t.Fatal(err)
-	}
+	path := store.Path("work") + ".taken"
+	symlink(t, target, path)
 
 	if err := store.Write("work", parse(t, workToken), taken); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Readlink(store.Path("work") + ".taken"); err != nil {
-		t.Errorf("the record isn't a link still: %v", err)
+	checkLink(t, path, target)
+	if data, err := os.ReadFile(target); err != nil || string(data) != workRecord+side {
+		t.Errorf("where the link leads holds %q (%v), want %q", data, err, workRecord+side)
 	}
-	if data, err := os.ReadFile(target); err != nil || string(data) != workRecord {
-		t.Errorf("where the link leads holds %q (%v), want %q", data, err, workRecord)
+}
+
+// checkLink checks path is a link still, leading to target.
+func checkLink(t *testing.T, path, target string) {
+	t.Helper()
+	if got, err := os.Readlink(path); err != nil || got != target {
+		t.Errorf("the record leads to %q (%v), want a link to %q still", got, err, target)
 	}
 }
 

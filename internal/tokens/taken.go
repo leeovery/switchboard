@@ -242,39 +242,75 @@ func (s Store) unopened(path string, err error) error {
 	return err
 }
 
-// writeTaken records token, taken at taken, as the account's, as Write writes
-// its token: through a link, whole or not at all, and private. It keeps the
-// dates of the tokens the record has already, as with says, those of one
-// others can read but not write among them, which it writes afresh, private,
-// and writes nothing where that changes nothing. A record it can't go by,
-// having looked at it, is replaced; one it couldn't read, or a time a record can't hold, as
-// of a clock gone wrong, leaves the record as it is. It never writes where
-// the token file, written at tokenTarget, is, as through a link. One record's
-// reading and writing waits for another's, as of two writes of a token at
-// once, so neither loses the other's.
+// writeTaken records token, taken at taken, as the account's, whole or not
+// at all, and private. It keeps the dates of the tokens the record has
+// already, as with says, those of one others can read but not write among
+// them, which it writes afresh, private, and writes nothing where that
+// changes nothing. A record at its own path that it can't go by, having
+// looked at it, is replaced; one it couldn't read, or a time a record can't
+// hold, as of a clock gone wrong, leaves the record as it is. Through a link,
+// it writes only where what the link leads to was read as a record it can
+// go by, or one others can only read: anything else there, or nothing, is
+// left as it is, as a link to another file of the user's, such as another
+// account's token, or one to where a token will go, would otherwise have it
+// replaced by a record. It never writes where the token file, written at
+// tokenTarget, is. One record's reading and writing waits for another's, as
+// of two writes of a token at once, so neither loses the other's.
 func (s Store) writeTaken(id string, token Token, taken time.Time, tokenTarget string) error {
 	if !takeable(taken) {
 		return fmt.Errorf("a record can't say a token was taken at %s, so it's left as it is", taken.UTC().Format(time.RFC3339))
 	}
 	defer lockDir(s.dir)()
 	path := s.takenPath(id)
+	target, linked, err := recordTarget(path)
+	if err != nil {
+		return err
+	}
 	s.tightenRecord(path)
 	was, exposed, err := s.readRecord(id, true)
-	if _, ok := errors.AsType[replaceable](err); err != nil && !ok && !errors.Is(err, ErrUnrecorded) {
-		return fmt.Errorf("the record couldn't be read, so it's left as it is: %w", err)
+	if err := leaveFor(path, linked, err); err != nil {
+		return err
 	}
 	next := was.with(sum(token), taken)
 	if !exposed && bytes.Equal(next.bytes(), was.bytes()) {
 		return nil
 	}
-	target, err := atomicfile.Target(path)
-	if err != nil {
-		return err
-	}
 	if sameFile(target, tokenTarget) {
 		return fmt.Errorf("the record %s leads to the token file, which it would replace", path)
 	}
 	return atomicfile.Write(target, next.bytes(), 0o600)
+}
+
+// recordTarget returns where the record at path is written: path itself,
+// else, where it's a link, where that leads, which it reports linked.
+func recordTarget(path string) (target string, linked bool, err error) {
+	info, err := os.Lstat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return path, false, nil
+	case err != nil:
+		return "", false, err
+	case info.Mode()&fs.ModeSymlink == 0:
+		return path, false, nil
+	}
+	target, err = atomicfile.Target(path)
+	return target, true, err
+}
+
+// leaveFor returns why the record at path, read as err says, is left as it
+// is, or nil where it's written: read as one it can go by; or, at its own
+// path, not a link, missing, or looked at and found one it can't go by.
+func leaveFor(path string, linked bool, err error) error {
+	_, replace := errors.AsType[replaceable](err)
+	switch {
+	case err == nil:
+		return nil
+	case linked:
+		return fmt.Errorf("the record %s is a link to what isn't a record of the user's that others can't write, so it's left as it is: %w", path, err)
+	case replace || errors.Is(err, ErrUnrecorded):
+		return nil
+	}
+	return fmt.Errorf("the record couldn't be read, so it's left as it is: %w", err)
 }
 
 // sameFile reports whether the files at a and b are one: false where either

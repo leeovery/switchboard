@@ -232,8 +232,8 @@ type Removed struct {
 // when its token was taken, and says what it removed of the token file. A
 // token file it can't remove keeps its record. A link in either's place goes,
 // but not the file it leads to, which is kept elsewhere, as by a dotfiles
-// step, and isn't switchboard's to delete: a token file that's a link to the
-// record's own path, a file, leaves the record too.
+// step, and isn't switchboard's to delete: a token file that leads to the
+// record's own path, a file, leaves the record too, as linksToRecord says.
 func (s Store) Remove(id string) (Removed, error) {
 	ledToRecord := s.linksToRecord(id)
 	removed, err := s.removeToken(id)
@@ -246,30 +246,21 @@ func (s Store) Remove(id string) (Removed, error) {
 	return removed, nil
 }
 
-// linksToRecord reports whether the account's token file is a link that
-// leads to its record's own path: by its path, as a second name of the file
-// it leads to isn't the record.
+// linksToRecord reports whether the account's token file leads to the file
+// at its record's own path: a file, by that one name, which is the file the
+// token file leads to. It's decided by the file, not by how a path to it is
+// spelled; a record that's a second name of the token's file isn't the
+// token's only copy, and goes.
 func (s Store) linksToRecord(id string) bool {
-	token, err := os.Lstat(s.Path(id))
-	if err != nil || token.Mode()&fs.ModeSymlink == 0 {
+	record, err := os.Lstat(s.takenPath(id))
+	if err != nil || !record.Mode().IsRegular() {
 		return false
 	}
-	target, err := atomicfile.Target(s.Path(id))
-	return err == nil && samePath(target, s.takenPath(id))
-}
-
-// samePath reports whether paths a and b name one directory entry: the same
-// name in the same directory, whatever links lead to that directory.
-func samePath(a, b string) bool {
-	if filepath.Base(a) != filepath.Base(b) {
+	if n, ok := links(record); !ok || n != 1 {
 		return false
 	}
-	ad, err := filepath.EvalSymlinks(filepath.Dir(a))
-	if err != nil {
-		return false
-	}
-	bd, err := filepath.EvalSymlinks(filepath.Dir(b))
-	return err == nil && ad == bd
+	token, err := os.Stat(s.Path(id))
+	return err == nil && os.SameFile(record, token)
 }
 
 // removeToken deletes the account's token file, if it has one, as Remove
