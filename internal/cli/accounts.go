@@ -105,8 +105,9 @@ value given is what the account has already, nothing is written.
 to two decimal places at most, such as 5% or 2.5%, of every window, which the
 router leaves unused, or 0 for none.
 --primary makes the account the primary in place of the one that is; the
-sessions already running keep that one's token as Claude Code's own until they
-restart.
+sessions already running keep the token they started on as Claude Code's own
+until they restart. --label takes a label as it shows: its surrounding
+whitespace trimmed, each run of whitespace within it one space.
 
 ` + editingTheConfig,
 		Args: oneAccount,
@@ -235,7 +236,7 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 	}
 	taken, err := registry.SetToken(cmd.Context(), cfg, id)
 	if err != nil {
-		return a.notConfigured(err, id)
+		return a.notConfigured(err, id, addIt(id))
 	}
 	warnUnchecked(cmd.ErrOrStderr(), taken)
 	_, err = io.WriteString(cmd.OutOrStdout(), "saved "+id+"'s token\n")
@@ -244,8 +245,8 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 
 // notConfigured points an error of acting on the account with the given id,
 // which no account has, to the account whose id it is in another case, when
-// the config has one, else to adding it.
-func (a *app) notConfigured(err error, id string) error {
+// the config has one, else to what otherwise says, when it says anything.
+func (a *app) notConfigured(err error, id, otherwise string) error {
 	if !errors.Is(err, config.ErrNotConfigured) {
 		return err
 	}
@@ -254,7 +255,15 @@ func (a *app) notConfigured(err error, id string) error {
 			return fmt.Errorf("%w: %s is; give an id in its own case", err, other.ID)
 		}
 	}
-	return fmt.Errorf("%w: add it with switchboard accounts add %s", err, redact.Text(id))
+	if otherwise == "" {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, otherwise)
+}
+
+// addIt says how to add the account with the given id.
+func addIt(id string) string {
+	return "add it with switchboard accounts add " + redact.Text(id)
 }
 
 // labelRemedy points an error of a label that would show as nothing to
@@ -273,31 +282,51 @@ func (a *app) editAccount(cmd *cobra.Command, id string, change accounts.Change)
 	if err != nil {
 		return err
 	}
+	var before *config.Config
+	if change.Primary {
+		// The account the sessions running took as their own is judged by the
+		// config as it was. One that can't be read fails the edit too, unless
+		// it changes meanwhile, when the edit says nothing of them.
+		before, _ = a.loadConfig()
+	}
 	edited, err := registry.Edit(id, change)
 	if err != nil {
-		return a.notConfigured(labelRemedy(err, `--label ""`), id)
+		return a.notConfigured(labelRemedy(err, `--label ""`), id, addIt(id))
 	}
 	said := editedSays(edited)
 	if edited.FormerPrimary != "" {
-		said += "\n" + primaryMoved(edited.FormerPrimary, id, registry.Tokens.Read)
+		said += a.runningSessions(before, id, registry.Tokens.Read)
+		warnNoToken(cmd.ErrOrStderr(), id, registry.Tokens.Read)
 	}
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
 }
 
-// primaryMoved says what becomes of the sessions already running once the
-// account with the given id is the primary in place of former: they hold
-// former's token as Claude Code's own until they restart. And when the new
-// primary has no usable token, as readToken finds it, it says new sessions
-// take another account's until it has one.
-func primaryMoved(former, primary string, readToken func(id string) (tokens.Token, error)) string {
-	said := "sessions already running keep " + former + "'s token as Claude Code's own until they restart, " +
-		"so what they send outside the conversation, such as artifacts and uploads, still goes out on " + former
-	if _, err := readToken(primary); err != nil {
-		said += "\n" + primary + " has no usable token: new sessions take another account's as Claude Code's own " +
-			"until it has one (switchboard accounts token " + primary + ")"
+// runningSessions says, on a line of its own, what becomes of the sessions
+// already running once the account with the given id is the primary: they
+// keep the token they took as Claude Code's own, as launch chose it from the
+// config before, until they restart. It says nothing where that was this
+// account's, or there was none.
+func (a *app) runningSessions(before *config.Config, primary string, readToken func(id string) (tokens.Token, error)) string {
+	if before == nil {
+		return ""
 	}
-	return said
+	own, ok := launch.Route{Config: before, Token: readToken, Pause: a.Pause}.OwnAccount()
+	if !ok || own.ID == primary {
+		return ""
+	}
+	return "\nsessions already running keep " + own.ID + "'s token as Claude Code's own until they restart, " +
+		"so what they send outside the conversation, such as artifacts and uploads, still goes out on " + own.ID
+}
+
+// warnNoToken tells w when the account with the given id, the primary now,
+// has no usable token, as readToken finds it: new sessions take another
+// account's as Claude Code's own until it has one.
+func warnNoToken(w io.Writer, primary string, readToken func(id string) (tokens.Token, error)) {
+	if _, err := readToken(primary); err != nil {
+		launch.Warn(w, primary+", the primary now, has no usable token", err,
+			"new sessions take another account's as Claude Code's own until it has one: switchboard accounts token "+primary)
+	}
 }
 
 // editedSays says what an edit changed of the account, each value as it is
@@ -308,7 +337,7 @@ func editedSays(e accounts.Edited) string {
 	}
 	var changed []string
 	if e.Was.Label != e.Now.Label {
-		changed = append(changed, nowAndWas("label", prose.Quoted(e.Now.Label), prose.Quoted(e.Was.Label)))
+		changed = append(changed, nowAndWas("label", labelNow(e.Now), labelSaid(e.Was)))
 	}
 	if e.Was.Plan != e.Now.Plan {
 		changed = append(changed, nowAndWas("plan", planSaid(e.Now.Plan), planSaid(e.Was.Plan)))
@@ -325,6 +354,23 @@ func editedSays(e accounts.Edited) string {
 // nowAndWas says a value an edit changed, as "plan max20x (was max5x)".
 func nowAndWas(name, now, was string) string {
 	return name + " " + now + " (was " + was + ")"
+}
+
+// labelSaid says an account's label, quoted, or none where it's shown by its id.
+func labelSaid(a config.Account) string {
+	if a.Label == a.ID {
+		return "none"
+	}
+	return prose.Quoted(a.Label)
+}
+
+// labelNow says an account's label as an edit left it, as labelSaid does,
+// saying of none that the account's shown by its id.
+func labelNow(a config.Account) string {
+	if a.Label == a.ID {
+		return "none, shown by its id"
+	}
+	return labelSaid(a)
 }
 
 // planSaid says a plan, or none.
@@ -349,7 +395,7 @@ func (a *app) removeAccount(cmd *cobra.Command, id string) error {
 	}
 	removed, err := registry.Remove(id)
 	if err != nil {
-		return err
+		return a.notConfigured(err, id, "")
 	}
 	said := "removed " + id
 	switch {

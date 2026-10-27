@@ -563,10 +563,32 @@ func TestAccountsEdit(t *testing.T) {
 			new:     `label = "a, plan b (was c)"`,
 		},
 		{
+			name:    "a label for an account that had none",
+			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"side\"\n",
+			args:    []string{"--label", "Day job"},
+			wantOut: "edited side: label \"Day job\" (was none)\n",
+			old:     "id = \"side\"\n",
+			new:     "id = \"side\"\nlabel = \"Day job\"\n",
+		},
+		{
+			name:    "a label as it shows, its inner whitespace one space",
+			config:  personalAndSide,
+			args:    []string{"--label", "  Day   job "},
+			wantOut: "edited side: label \"Day job\" (was \"Side\")\n",
+			old:     `label = "Side"`,
+			new:     `label = "Day job"`,
+		},
+		{
+			name:    "the label it has but for the whitespace within it, which changes nothing",
+			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Day job\"\n",
+			args:    []string{"--label", "Day  job"},
+			wantOut: "side has every value given already, so nothing changed\n",
+		},
+		{
 			name:    "no label, showing the account by its id",
 			config:  personalAndSide,
 			args:    []string{"--label", ""},
-			wantOut: "edited side: label \"side\" (was \"Side\")\n",
+			wantOut: "edited side: label none, shown by its id (was \"Side\")\n",
 			old:     "label = \"Side\"\n",
 			new:     "",
 		},
@@ -652,6 +674,7 @@ func TestAccountsEdit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deps, path := accountsDeps(t, newClaudeAPI(t).URL, tt.config)
+			writeToken(t, deps, "personal", "test-token-personal")
 			writeToken(t, deps, "side", "test-token-side")
 			before := readFile(t, path)
 			args := append([]string{"accounts", "edit", "side"}, tt.args...)
@@ -672,13 +695,71 @@ func TestAccountsEditWarnsOfAPrimaryWithoutAUsableToken(t *testing.T) {
 	writeToken(t, deps, "personal", "test-token-personal")
 
 	got := run(t, deps, "accounts", "edit", "side", "--primary")
-	want := result{stdout: "edited side: the primary in place of personal\n" + primaryFromPersonal +
-		"side has no usable token: new sessions take another account's as Claude Code's own until it has one (switchboard accounts token side)\n"}
-	if got != want {
-		t.Errorf("switchboard accounts edit side --primary = %+v, want %+v", got, want)
+	if want := "edited side: the primary in place of personal\n" + primaryFromPersonal; got.stdout != want || got.code != 0 {
+		t.Errorf("switchboard accounts edit side --primary = %+v, want stdout %q", got, want)
+	}
+	const (
+		warned = "switchboard: side, the primary now, has no usable token ("
+		then   = ") — new sessions take another account's as Claude Code's own until it has one: switchboard accounts token side\n"
+	)
+	if !strings.HasPrefix(got.stderr, warned) || !strings.HasSuffix(got.stderr, then) || strings.Count(got.stderr, "\n") != 1 {
+		t.Errorf("switchboard accounts edit side --primary warned %q, want a line starting %q and ending %q", got.stderr, warned, then)
 	}
 	if !strings.HasSuffix(readFile(t, path), "label = \"Side\"\nprimary = true\n") {
 		t.Errorf("the config reads\n%s\nwant side marked the primary", readFile(t, path))
+	}
+}
+
+func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
+	const threeAccounts = "\n[[account]]\nid      = \"work\"\nprimary = true\n\n[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"side\"\n"
+	tests := []struct {
+		name    string
+		tokens  []string
+		wantOut string
+	}{
+		{
+			name:   "the former primary's, which it has",
+			tokens: []string{"work", "personal", "side"},
+			wantOut: "edited side: the primary in place of work\nsessions already running keep work's token as Claude Code's own until they restart, " +
+				"so what they send outside the conversation, such as artifacts and uploads, still goes out on work\n",
+		},
+		{
+			name:   "the first with a usable token, the former primary without one",
+			tokens: []string{"personal", "side"},
+			wantOut: "edited side: the primary in place of work\nsessions already running keep personal's token as Claude Code's own until they restart, " +
+				"so what they send outside the conversation, such as artifacts and uploads, still goes out on personal\n",
+		},
+		{
+			name:    "nothing, where they took the new primary's",
+			tokens:  []string{"side"},
+			wantOut: "edited side: the primary in place of work\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := accountsDeps(t, newClaudeAPI(t).URL, threeAccounts)
+			for _, id := range tt.tokens {
+				writeToken(t, deps, id, "test-token-"+id)
+			}
+
+			got := run(t, deps, "accounts", "edit", "side", "--primary")
+			if want := (result{stdout: tt.wantOut}); got != want {
+				t.Errorf("switchboard accounts edit side --primary = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+func TestAccountsRemoveNamesAnIDConfiguredInAnotherCase(t *testing.T) {
+	deps, path := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+	before := readFile(t, path)
+
+	got := run(t, deps, "accounts", "remove", "Side")
+	if want := (result{stderr: "Error: account \"Side\" is not configured: side is; give an id in its own case\n", code: 1}); got != want {
+		t.Errorf("switchboard accounts remove Side = %+v, want %+v", got, want)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("the config reads\n%s\nwant it as it was\n%s", readFile(t, path), before)
 	}
 }
 
@@ -735,7 +816,7 @@ func TestAccountsEditRefuses(t *testing.T) {
 			wantErr: `reserve "100%": must be at least 0% and less than 100%, the share of every window the router leaves unused`,
 		},
 		{
-			name:    "a reserve past two decimal places, which would show as the whole window",
+			name:    "a reserve past two decimal places",
 			args:    []string{"side", "--reserve", "99.999%"},
 			wantErr: `reserve "99.999%": must be a percentage, to two decimal places at most, such as 5% or 2.5%, or 0 for none`,
 		},
@@ -743,6 +824,16 @@ func TestAccountsEditRefuses(t *testing.T) {
 			name:    "a blank label",
 			args:    []string{"side", "--label", "  ", "--plan", "pro"},
 			wantErr: `account "side": label is blank, showing nothing: give one that shows, or --label "" to show the account by its id`,
+		},
+		{
+			name:    "a label holding a newline, which would show as a space",
+			args:    []string{"side", "--label", "Side\nTeam"},
+			wantErr: `account "side": label holds a control character, such as a newline or a tab, which can't show`,
+		},
+		{
+			name:    "a blank label for an account not configured, which is what's said",
+			args:    []string{"nosuch", "--label", "  "},
+			wantErr: `account "nosuch" is not configured: add it with switchboard accounts add nosuch`,
 		},
 		{
 			name:    "a label of a zero-width space alone",
