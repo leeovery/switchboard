@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 // kind is what a line of the config file is, as TOML reads it, as far as
@@ -31,7 +33,6 @@ var (
 	accountHeaderLine = regexp.MustCompile(`^\[\[\s*(?:account|"account"|'account')\s*\]\]\s*(?:#.*)?$`)
 	primaryKeyLine    = regexp.MustCompile(`^(?:primary|"primary"|'primary')\s*=`)
 	primeHeaderLine   = regexp.MustCompile(`^\[\s*(?:prime|"prime"|'prime')\s*\]\s*(?:#.*)?$`)
-	dayKeyLine        = regexp.MustCompile(`^(?:day|"day"|'day')\s*=`)
 	// multilineOpening matches a key whose value opens a string that can go
 	// on over lines, capturing the quotes that open it and what follows them.
 	multilineOpening = regexp.MustCompile(`^[^=]*=\s*("""|''')(.*)$`)
@@ -256,25 +257,70 @@ func (d document) withPrimeDay(day string) document {
 	if h < 0 {
 		return d.insert(len(d.lines), []string{"[prime]", "day = " + value})
 	}
-	for i := h + 1; i < d.nextTable(h); i++ {
-		if d.kinds[i] == content && dayKeyLine.MatchString(strings.TrimSpace(d.lines[i])) {
-			return d.replaced(i, withValue(d.lines[i], value))
-		}
+	if i := d.keyAt(span{start: h + 1, end: d.nextTable(h)}, "day"); i >= 0 {
+		return d.replaced(i, withValue(d.lines[i], value))
 	}
 	return d.put(h+1, "day = "+value)
 }
 
+// withKey returns the document with key, in the table within s, set to
+// value, as TOML writes it: in place of the value the line that sets it
+// gives, else below the table's last key; or, for "", without the line that
+// sets it.
+func (d document) withKey(s span, key, value string) document {
+	i := d.keyAt(s, key)
+	switch {
+	case i >= 0 && value == "":
+		return d.without([]int{i})
+	case i >= 0:
+		return d.replaced(i, withValue(d.lines[i], value))
+	case value == "":
+		return d
+	}
+	return d.put(d.keysEnd(s), key+" = "+value)
+}
+
+// keyAt returns the line within s that sets key, bare or quoted, or -1 when
+// none does.
+func (d document) keyAt(s span, key string) int {
+	quoted := regexp.QuoteMeta(key)
+	line := regexp.MustCompile(`^(?:` + quoted + `|"` + quoted + `"|'` + quoted + `')\s*=`)
+	for i := s.start; i < s.end; i++ {
+		if d.kinds[i] == content && line.MatchString(strings.TrimSpace(d.lines[i])) {
+			return i
+		}
+	}
+	return -1
+}
+
 // withValue returns line, which sets a key, with value in place of the value
 // it gives, keeping what's around it, such as a comment, when that's a string
-// on the one line: otherwise the key set to value alone.
+// on the one line or a bare value, such as a number: otherwise the key set to
+// value alone.
 func withValue(line, value string) string {
 	key, given, _ := strings.Cut(line, "=")
 	start := len(given) - len(strings.TrimLeft(given, " \t"))
-	end := stringEnd(given[start:])
+	end := valueEnd(given[start:])
 	if end < 0 {
 		return strings.TrimRight(key, " \t") + " = " + value
 	}
 	return key + "=" + given[:start] + value + given[start+end:]
+}
+
+// valueEnd returns the length of the value text starts with: a string's, as
+// stringEnd has it; -1 for an array or an inline table; else a bare value's,
+// such as a number's, up to the whitespace or the comment after it.
+func valueEnd(text string) int {
+	switch {
+	case strings.HasPrefix(text, `"`), strings.HasPrefix(text, `'`):
+		return stringEnd(text)
+	case strings.HasPrefix(text, "["), strings.HasPrefix(text, "{"):
+		return -1
+	}
+	if end := strings.IndexAny(text, " \t#"); end >= 0 {
+		return end
+	}
+	return len(text)
 }
 
 // stringEnd returns the length of the string text starts with, its quotes
@@ -365,6 +411,29 @@ func (a NewAccount) lines() []string {
 		lines = append(lines, fmt.Sprintf("%-*s = %s", width, kv[0], kv[1]))
 	}
 	return lines
+}
+
+// written returns s as TOML writes it, a basic string, or "" for "", which
+// withKey takes to mean the key goes.
+func written(s string) string {
+	if s == "" {
+		return ""
+	}
+	return quote(s)
+}
+
+// writtenFloat returns x as TOML writes it, by TOML's own encoder, or "" for
+// 0, which withKey takes to mean the key goes. It's the file's form, not
+// words, so it isn't prose's to write.
+func writtenFloat(x float64) string {
+	var b strings.Builder
+	if x == 0 || toml.NewEncoder(&b).Encode(struct {
+		X float64 `toml:"x"`
+	}{x}) != nil {
+		return ""
+	}
+	_, value, _ := strings.Cut(strings.TrimSpace(b.String()), " = ")
+	return value
 }
 
 // quote returns s as a TOML basic string, escaping what TOML asks to be:

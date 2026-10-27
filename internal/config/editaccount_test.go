@@ -1,0 +1,461 @@
+package config_test
+
+import (
+	"cmp"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/leeovery/switchboard/internal/config"
+)
+
+// workThenSide is a config of two accounts, work's table followed by a
+// comment of its own, then side's, labelled, and a table after them.
+const workThenSide = "[[account]]\nid = \"work\"\n# reserve = 0.2\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n\n[prime]\nday = \"08:00-23:00\"\n"
+
+func TestSetLabel(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		id     string
+		label  string
+		want   string
+	}{
+		{
+			name:   "in place of its label, keeping the comment beside it and the layout",
+			config: commented,
+			id:     "work",
+			label:  "Day job",
+			want:   replaced(t, commented, `label   = "Work"  # optional`, `label   = "Day job"  # optional`),
+		},
+		{
+			name:   "below the account's last key, above the comments directly below it",
+			config: workThenSide,
+			id:     "work",
+			label:  "Work",
+			want:   replaced(t, workThenSide, "id = \"work\"\n", "id = \"work\"\nlabel = \"Work\"\n"),
+		},
+		{
+			name:   "none, taking its label out",
+			config: commented,
+			id:     "personal",
+			label:  "",
+			want:   replaced(t, commented, "label = \"Personal\"\n", ""),
+		},
+		{
+			name:   "quoted as TOML asks",
+			config: workThenSide,
+			id:     "side",
+			label:  `The "side" one`,
+			want:   replaced(t, workThenSide, `label = "Side"`, `label = "The \"side\" one"`),
+		},
+		{
+			name:   "the label it has already, left as it is",
+			config: commented,
+			id:     "work",
+			label:  "Work",
+			want:   commented,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			if err := draft.SetLabel(tt.id, tt.label); err != nil {
+				t.Fatalf("SetLabel(%q, %q) error = %v", tt.id, tt.label, err)
+			}
+			got := checkSaved(t, path, draft, tt.id, tt.want)
+			if want := cmp.Or(tt.label, tt.id); got.Label != want {
+				t.Errorf("the label loads as %q, want %q", got.Label, want)
+			}
+		})
+	}
+}
+
+func TestSetPlan(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		id     string
+		plan   string
+		want   string
+	}{
+		{
+			name:   "below the account's last key",
+			config: workThenSide,
+			id:     "side",
+			plan:   "max5x",
+			want:   replaced(t, workThenSide, "label = \"Side\"\n", "label = \"Side\"\nplan = \"max5x\"\n"),
+		},
+		{
+			name:   "in place of its plan, keeping the comment beside it",
+			config: "[[account]]\nid   = \"work\"\nplan = \"pro\"   # for now\n",
+			id:     "work",
+			plan:   "max20x",
+			want:   "[[account]]\nid   = \"work\"\nplan = \"max20x\"   # for now\n",
+		},
+		{
+			name:   "none, taking its plan out",
+			config: "[[account]]\nid   = \"work\"\nplan = \"pro\"\n\n[[account]]\nid = \"side\"\n",
+			id:     "work",
+			plan:   "",
+			want:   "[[account]]\nid   = \"work\"\n\n[[account]]\nid = \"side\"\n",
+		},
+		{
+			name:   "none for an account without one, left as it is",
+			config: commented,
+			id:     "work",
+			plan:   "",
+			want:   commented,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			if err := draft.SetPlan(tt.id, tt.plan); err != nil {
+				t.Fatalf("SetPlan(%q, %q) error = %v", tt.id, tt.plan, err)
+			}
+			if got := checkSaved(t, path, draft, tt.id, tt.want); got.Plan != tt.plan {
+				t.Errorf("the plan loads as %q, want %q", got.Plan, tt.plan)
+			}
+		})
+	}
+}
+
+func TestSetReserve(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  string
+		id      string
+		reserve float64
+		want    string
+	}{
+		{
+			name:    "in place of its reserve, keeping the comment beside it",
+			config:  commented,
+			id:      "work",
+			reserve: 0.05,
+			want:    replaced(t, commented, "reserve = 0.1     # optional", "reserve = 0.05     # optional"),
+		},
+		{
+			name:    "below the account's last key",
+			config:  commented,
+			id:      "personal",
+			reserve: 0.023,
+			want:    replaced(t, commented, "label = \"Personal\"\n", "label = \"Personal\"\nreserve = 0.023\n"),
+		},
+		{
+			name:    "none, taking its reserve out",
+			config:  commented,
+			id:      "work",
+			reserve: 0,
+			want:    replaced(t, commented, "reserve = 0.1     # optional\n", ""),
+		},
+		{
+			name:    "the reserve it has already, left as it is",
+			config:  commented,
+			id:      "work",
+			reserve: 0.1,
+			want:    commented,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			if err := draft.SetReserve(tt.id, tt.reserve); err != nil {
+				t.Fatalf("SetReserve(%q, %v) error = %v", tt.id, tt.reserve, err)
+			}
+			if got := checkSaved(t, path, draft, tt.id, tt.want); got.Reserve != tt.reserve {
+				t.Errorf("the reserve loads as %v, want %v", got.Reserve, tt.reserve)
+			}
+		})
+	}
+}
+
+// accountsInline lists the accounts inline, which a key can't be put in.
+const accountsInline = "account = [{ id = \"work\" }, { id = \"side\" }]\n"
+
+// cantMakeIt is the error of a change editing the text can't make, %s
+// standing for the config file's path.
+const cantMakeIt = "editing %s as text wouldn't make exactly the change meant, so it's left as it was: "
+
+func TestSetLabelRefuses(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		id     string
+		label  string
+		// wantErr is the error, %s standing for the config file's path.
+		wantErr string
+		wantIs  error
+	}{
+		{
+			name:    "an id no account has",
+			config:  commented,
+			id:      "side",
+			label:   "Side",
+			wantErr: `account "side" is not configured`,
+			wantIs:  config.ErrNotConfigured,
+		},
+		{
+			name:    "a label shaped like a token, never quoted",
+			config:  commented,
+			id:      "work",
+			label:   tokenShaped,
+			wantErr: `account "work": label looks like a token, which a label mustn't, as it shows wherever the account does`,
+		},
+		{
+			name:    "accounts listed inline",
+			config:  accountsInline,
+			id:      "side",
+			label:   "Side",
+			wantErr: cantMakeIt + `set label to "Side" in account "side" by hand`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			err := draft.SetLabel(tt.id, tt.label)
+			checkRefused(t, path, tt.config, draft, err, tt.wantErr, tt.wantIs)
+		})
+	}
+}
+
+func TestSetPlanRefuses(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		id     string
+		plan   string
+		// wantErr is the error, %s standing for the config file's path.
+		wantErr string
+		wantIs  error
+	}{
+		{
+			name:    "a token given as the id, never quoted",
+			config:  commented,
+			id:      tokenShaped,
+			plan:    "pro",
+			wantErr: `account "[redacted]" is not configured`,
+			wantIs:  config.ErrNotConfigured,
+		},
+		{
+			name:    "a plan that isn't one",
+			config:  commented,
+			id:      "work",
+			plan:    "free",
+			wantErr: `account "work": plan "free": must be pro, max5x or max20x, the plan the account's subscription is on`,
+		},
+		{
+			name:    "accounts listed inline",
+			config:  accountsInline,
+			id:      "side",
+			plan:    "pro",
+			wantErr: cantMakeIt + `set plan to "pro" in account "side" by hand`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			err := draft.SetPlan(tt.id, tt.plan)
+			checkRefused(t, path, tt.config, draft, err, tt.wantErr, tt.wantIs)
+		})
+	}
+}
+
+func TestSetReserveRefuses(t *testing.T) {
+	const outOfBounds = "must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1"
+	tests := []struct {
+		name    string
+		config  string
+		id      string
+		reserve float64
+		// wantErr is the error, %s standing for the config file's path.
+		wantErr string
+		wantIs  error
+	}{
+		{
+			name:    "an id no account has",
+			config:  commented,
+			id:      "side",
+			reserve: 0.1,
+			wantErr: `account "side" is not configured`,
+			wantIs:  config.ErrNotConfigured,
+		},
+		{
+			name:    "the whole window",
+			config:  commented,
+			id:      "work",
+			reserve: 1,
+			wantErr: `account "work": reserve 1: ` + outOfBounds,
+		},
+		{
+			name:    "below none",
+			config:  commented,
+			id:      "work",
+			reserve: -0.1,
+			wantErr: `account "work": reserve -0.1: ` + outOfBounds,
+		},
+		{
+			name:    "accounts listed inline",
+			config:  accountsInline,
+			id:      "side",
+			reserve: 0.1,
+			wantErr: cantMakeIt + `set reserve to 0.1 in account "side" by hand`,
+		},
+		{
+			name:    "taking out a reserve written so the edit doesn't find it",
+			config:  "[[account]]\nid = \"work\"\n\"res\\u0065rve\" = 0.1\n",
+			id:      "work",
+			reserve: 0,
+			wantErr: cantMakeIt + `take reserve out of account "work" by hand`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			err := draft.SetReserve(tt.id, tt.reserve)
+			checkRefused(t, path, tt.config, draft, err, tt.wantErr, tt.wantIs)
+		})
+	}
+}
+
+// replaced returns text with old replaced by with, once, failing the test
+// unless text holds old.
+func replaced(t *testing.T, text, old, with string) string {
+	t.Helper()
+	if !strings.Contains(text, old) {
+		t.Fatalf("%q doesn't hold %q", text, old)
+	}
+	return strings.Replace(text, old, with, 1)
+}
+
+func TestParsePlan(t *testing.T) {
+	tests := []struct {
+		given string
+		want  string
+	}{
+		{given: "pro", want: "pro"},
+		{given: "max5x", want: "max5x"},
+		{given: "max20x", want: "max20x"},
+		{given: "none", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.given, func(t *testing.T) {
+			if got, err := config.ParsePlan(tt.given); err != nil || got != tt.want {
+				t.Errorf("ParsePlan(%q) = %q, %v; want %q", tt.given, got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestParsePlanRefuses(t *testing.T) {
+	tests := []struct {
+		name    string
+		given   string
+		wantErr string
+	}{
+		{name: "a plan it doesn't know", given: "free", wantErr: `plan "free": must be pro, max5x, max20x or none`},
+		{name: "a plan in another case", given: "Max5x", wantErr: `plan "Max5x": must be pro, max5x, max20x or none`},
+		{name: "nothing", given: "", wantErr: `plan "": must be pro, max5x, max20x or none`},
+		{name: "a token, never quoted", given: tokenShaped, wantErr: `plan "[redacted]": must be pro, max5x, max20x or none`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := config.ParsePlan(tt.given); err == nil || err.Error() != tt.wantErr {
+				t.Errorf("ParsePlan(%q) error = %v, want %q", tt.given, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestParseReserve(t *testing.T) {
+	tests := []struct {
+		given string
+		want  float64
+	}{
+		{given: "5%", want: 0.05},
+		{given: "2.5%", want: 0.025},
+		{given: "2.3%", want: 0.023},
+		{given: "99.9%", want: 0.999},
+		{given: " 10 % ", want: 0.1},
+		{given: "0%", want: 0},
+		{given: "0", want: 0},
+		{given: "0.0", want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.given, func(t *testing.T) {
+			if got, err := config.ParseReserve(tt.given); err != nil || got != tt.want {
+				t.Errorf("ParseReserve(%q) = %v, %v; want %v", tt.given, got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseReserveRefuses(t *testing.T) {
+	const (
+		notAPercentage = "must be a percentage, such as 5%, or 0 for none"
+		bare           = "must be written as a percentage, such as 5%, as a number alone could be a share or a percentage"
+		outOfBounds    = "must be at least 0% and less than 100%, the share of every window the router leaves unused"
+	)
+	tests := []struct {
+		name  string
+		given string
+		why   string
+	}{
+		{name: "a whole number alone", given: "5", why: bare},
+		{name: "a share alone", given: "0.05", why: bare},
+		{name: "the whole window", given: "100%", why: outOfBounds},
+		{name: "below none", given: "-5%", why: outOfBounds},
+		{name: "words", given: "five%", why: notAPercentage},
+		{name: "nothing", given: "", why: notAPercentage},
+		{name: "a percentage given twice", given: "5%%", why: notAPercentage},
+		{name: "an exponent", given: "1e1%", why: notAPercentage},
+		{name: "infinity", given: "inf%", why: notAPercentage},
+		{name: "not a number", given: "NaN%", why: notAPercentage},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			want := `reserve "` + tt.given + `": ` + tt.why
+			if _, err := config.ParseReserve(tt.given); err == nil || err.Error() != want {
+				t.Errorf("ParseReserve(%q) error = %v, want %q", tt.given, err, want)
+			}
+		})
+	}
+}
+
+// checkSaved saves the draft of the config at path, checks the file reads
+// want and loads as the draft has it, and returns the account with the given
+// id as it loads.
+func checkSaved(t *testing.T, path string, draft *config.Draft, id, want string) config.Account {
+	t.Helper()
+	save(t, draft)
+	if got := readFile(t, path); got != want {
+		t.Errorf("the config reads\n%s\nwant\n%s", got, want)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !reflect.DeepEqual(draft.Config(), cfg) {
+		t.Errorf("Config() = %+v, want what the file saved loads as, %+v", draft.Config(), cfg)
+	}
+	for _, a := range cfg.Accounts {
+		if a.ID == id {
+			return a
+		}
+	}
+	t.Fatalf("no account %q loads", id)
+	return config.Account{}
+}

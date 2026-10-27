@@ -199,6 +199,66 @@ func (d *Draft) SetPrimeDay(day string) error {
 	return d.take(d.doc.withPrimeDay(day), want, fmt.Sprintf("set prime.day to %q", day))
 }
 
+// SetLabel sets the label of the account with the given id, as setAccountKey
+// sets a key: "" takes it out, showing the account by its id. It fails,
+// matching ErrNotConfigured, when no account has the id, and as AddAccount
+// does for a label no account can have.
+func (d *Draft) SetLabel(id, label string) error {
+	if err := checkLabel(accountNamed(id), label); err != nil {
+		return err
+	}
+	return d.setAccountKey(id, "label", written(label), func(a *fileAccount) { a.Label = label })
+}
+
+// SetPlan sets the plan of the account with the given id, one of Plans, as
+// setAccountKey sets a key: "" takes it out, leaving the plan unknown. It
+// fails, matching ErrNotConfigured, when no account has the id, and for a
+// plan that isn't one of Plans.
+func (d *Draft) SetPlan(id, plan string) error {
+	if err := checkPlan(accountNamed(id), plan); err != nil {
+		return err
+	}
+	return d.setAccountKey(id, "plan", written(plan), func(a *fileAccount) { a.Plan = plan })
+}
+
+// SetReserve sets the reserve of the account with the given id, a share of
+// every window, as setAccountKey sets a key: 0 takes it out, leaving none. It
+// fails, matching ErrNotConfigured, when no account has the id, and for a
+// reserve below 0, or of the whole window or more.
+func (d *Draft) SetReserve(id string, reserve float64) error {
+	if err := checkReserve(accountNamed(id), reserve); err != nil {
+		return err
+	}
+	return d.setAccountKey(id, "reserve", writtenFloat(reserve), func(a *fileAccount) { a.Reserve = reserve })
+}
+
+// setAccountKey sets key, in the [[account]] table of the account with the
+// given id, to value, as TOML writes it, which set makes of the account: in
+// place of the value the table gives it, keeping a comment beside it, else
+// below the table's last key; or, for "", taking out the line that sets it.
+// An account that has the value already is left as it is.
+func (d *Draft) setAccountKey(id, key, value string, set func(*fileAccount)) error {
+	i := d.index(id)
+	if i < 0 {
+		return NotConfigured(id)
+	}
+	want := d.file
+	want.Accounts = slices.Clone(d.file.Accounts)
+	set(&want.Accounts[i])
+	if want.Accounts[i] == d.file.Accounts[i] {
+		return nil
+	}
+	change := fmt.Sprintf("set %s to %s in account %q", key, value, id)
+	if value == "" {
+		change = fmt.Sprintf("take %s out of account %q", key, id)
+	}
+	tables, err := d.accountTables(change)
+	if err != nil {
+		return err
+	}
+	return d.take(d.doc.withKey(tables[i], key, value), want, change)
+}
+
 // index returns where the account with the given id is among the draft's
 // accounts, or -1 when none has it.
 func (d *Draft) index(id string) int {

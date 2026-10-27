@@ -229,10 +229,56 @@ func checkLabel(account, label string) error {
 // checkReserve keeps a reserve a share of each window short of the whole of
 // it, which would leave the router nothing of the account, or 0 for none.
 func checkReserve(account string, reserve float64) error {
-	if reserve >= 0 && reserve < 1 {
+	if reserveFits(reserve) {
 		return nil
 	}
 	return fmt.Errorf("%s: reserve %v: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1", account, reserve)
+}
+
+// reserveFits reports whether reserve is one an account can have: at least 0
+// and short of the whole window. NaN isn't.
+func reserveFits(reserve float64) bool {
+	return reserve >= 0 && reserve < 1
+}
+
+// ParseReserve reads a reserve written as a percentage, such as 5% or 2.5%,
+// as the share of every window it is, 0.05 or 0.025: 0, or 0%, for none. A
+// number other than 0 without its % is refused, as 5 or 0.05 could mean
+// either.
+func ParseReserve(given string) (float64, error) {
+	number, percent := strings.CutSuffix(strings.TrimSpace(given), "%")
+	// Moving the point in the text reads 2.3% as 0.023 reads, where dividing
+	// 2.3 by 100 needn't. It refuses an exponent, infinity and NaN too.
+	share, err := strconv.ParseFloat(strings.TrimSpace(number)+"e-2", 64)
+	switch {
+	case err != nil:
+		return 0, wrongValue("reserve", given, "must be a percentage, such as 5%, or 0 for none")
+	case !percent && share != 0:
+		return 0, wrongValue("reserve", given, "must be written as a percentage, such as 5%, as a number alone could be a share or a percentage")
+	case !reserveFits(share):
+		return 0, wrongValue("reserve", given, "must be at least 0% and less than 100%, the share of every window the router leaves unused")
+	}
+	return share, nil
+}
+
+// PlanNone is what ParsePlan reads as no plan, leaving it unknown.
+const PlanNone = "none"
+
+// PlanChoices are what ParsePlan reads: each of Plans, then PlanNone.
+func PlanChoices() []string {
+	return slices.Concat(Plans, []string{PlanNone})
+}
+
+// ParsePlan reads a plan as a command is given it: one of Plans, or PlanNone,
+// which it reads as "".
+func ParsePlan(given string) (string, error) {
+	switch {
+	case given == PlanNone:
+		return "", nil
+	case slices.Contains(Plans, given):
+		return given, nil
+	}
+	return "", wrongValue("plan", given, "must be "+prose.ListOr(PlanChoices()))
 }
 
 // checkPlan keeps an account's plan one of Plans, or none.
