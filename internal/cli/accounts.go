@@ -105,11 +105,13 @@ value given is what the account has already, nothing is written.
 to two decimal places at most, such as 5% or 2.5%, of every window, which the
 router leaves unused, or 0 for none.
 --primary makes the account the primary in place of the one that is; the
-sessions already running keep the token they started on as Claude Code's own,
-the former primary's, until they restart. --label takes a label as it shows:
-without the characters that play no part in how it shows, each run of
-whitespace within it one space, and what's unseen at its edges trimmed; the
-id, or "", shows the account by its id.
+sessions running through the router keep the token they started on as Claude
+Code's own until they restart: the former primary's, or, where it has no
+usable token, the first account's with one, or a pinned session's pinned
+account's. --label takes a label as it shows: without the characters drawn
+as nothing that play no part in a sequence, such as an emoji's, each run of
+whitespace within it one space, and the whitespace and direction marks at its
+edges trimmed; the id, or "", shows the account by its id.
 
 ` + editingTheConfig,
 		Args: oneAccount,
@@ -304,22 +306,31 @@ func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error 
 }
 
 // runningSessions says, on a line of its own, what becomes of the sessions
-// already running once an edit has made the account the primary: they keep
-// the token they started on as Claude Code's own until they restart, which
-// launch would choose from the config the edit read, the tokens as they stand
-// now. That's the former primary's, pinned or not; where it has no usable
-// token, the first account's with one, or a pinned session's pinned
-// account's. It says nothing where that's the new primary's, or none's.
+// running through the router once an edit has made the account the primary:
+// they keep the token they started on as Claude Code's own until they
+// restart, which launch would choose from the config the edit read, the
+// tokens as they stand now. That's the former primary's, pinned or not;
+// where it has no usable token, the first account's with one, or a pinned
+// session's pinned account's, which is all there is to say where the first
+// is the new primary. It says nothing where no account has a usable token.
+// Sessions started directly, while the router was down, are untouched by the
+// move.
 func (a *app) runningSessions(e accounts.Edited, readToken func(id string) (tokens.Token, error)) string {
 	own, ok := launch.Route{Config: e.Before, Token: readToken, Pause: a.Pause}.OwnAccount()
-	const outside = ", so what they send outside the conversation, such as artifacts and uploads, still goes out "
+	const (
+		running = "sessions running through the router"
+		outside = ", so what they send outside the conversation, such as artifacts and uploads, still goes out "
+	)
 	switch {
-	case !ok || own.ID == e.Now.ID:
+	case !ok:
 		return ""
 	case own.ID == e.FormerPrimary:
-		return "\nsessions already running keep " + own.ID + "'s token as Claude Code's own until they restart" + outside + "on " + own.ID
+		return "\n" + running + " keep " + own.ID + "'s token as Claude Code's own until they restart" + outside + "on " + own.ID
+	case own.ID == e.Now.ID:
+		return "\n" + e.FormerPrimary + " has no usable token, so " + running + " pinned to another account " +
+			"started on its token as Claude Code's own, and keep it until they restart" + outside + "there"
 	}
-	return "\n" + e.FormerPrimary + " has no usable token, so sessions already running started on " + own.ID +
+	return "\n" + e.FormerPrimary + " has no usable token, so " + running + " started on " + own.ID +
 		"'s, the first account with one, or, pinned, on their pinned account's, as Claude Code's own, " +
 		"and keep it until they restart" + outside + "there"
 }

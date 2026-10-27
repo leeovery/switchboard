@@ -540,17 +540,27 @@ var primaryFromPersonal = keepingTheFormer("personal")
 // running, once it's made another account the primary in place of the one
 // with the given id, which has a usable token.
 func keepingTheFormer(former string) string {
-	return "sessions already running keep " + former + "'s token as Claude Code's own until they restart, " +
+	return "sessions running through the router keep " + former + "'s token as Claude Code's own until they restart, " +
 		"so what they send outside the conversation, such as artifacts and uploads, still goes out on " + former + "\n"
 }
 
-// onTheFirst is what accounts edit says of the sessions already running,
-// once it's made another account the primary in place of former, which has
-// no usable token, where first is the first account with one.
+// onTheFirst is what accounts edit says of the sessions running through the
+// router, once it's made another account the primary in place of former,
+// which has no usable token, where first is the first account with one.
 func onTheFirst(former, first string) string {
-	return former + " has no usable token, so sessions already running started on " + first +
+	return former + " has no usable token, so sessions running through the router started on " + first +
 		"'s, the first account with one, or, pinned, on their pinned account's, as Claude Code's own, " +
 		"and keep it until they restart, so what they send outside the conversation, such as artifacts and uploads, still goes out there\n"
+}
+
+// onTheirPins is what accounts edit says of the sessions running through the
+// router, once it's made the first account with a usable token the primary
+// in place of former, which has none: only the pinned ones started on another
+// account's.
+func onTheirPins(former string) string {
+	return former + " has no usable token, so sessions running through the router pinned to another account " +
+		"started on its token as Claude Code's own, and keep it until they restart, " +
+		"so what they send outside the conversation, such as artifacts and uploads, still goes out there\n"
 }
 
 func TestAccountsEdit(t *testing.T) {
@@ -601,6 +611,30 @@ func TestAccountsEdit(t *testing.T) {
 			wantOut: "edited side: label none, shown by its id (was \"Side\")\n",
 			old:     "label = \"Side\"\n",
 			new:     "",
+		},
+		{
+			name:    "its id with an invisible separator, which is dropped, so the label's taken out",
+			config:  personalAndSide,
+			args:    []string{"--label", "side\u2063"},
+			wantOut: "edited side: label none, shown by its id (was \"Side\")\n",
+			old:     "label = \"Side\"\n",
+			new:     "",
+		},
+		{
+			name:    "a label in place of one written by hand with a zero-width space, which is said escaped",
+			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Day job\\u200B\"\n",
+			args:    []string{"--label", "Day job"},
+			wantOut: "edited side: label \"Day job\" (was \"Day job\\u200B\")\n",
+			old:     `label = "Day job\u200B"`,
+			new:     `label = "Day job"`,
+		},
+		{
+			name:    "a label in place of one written by hand with an override, which is said escaped",
+			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"\\u202Ekrow\"\n",
+			args:    []string{"--label", "work"},
+			wantOut: "edited side: label \"work\" (was \"\\u202Ekrow\")\n",
+			old:     `label = "\u202Ekrow"`,
+			new:     `label = "work"`,
 		},
 		{
 			name:    "a label in place of its id written as one by hand, which is said as written",
@@ -784,8 +818,12 @@ func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
 			wantOut: "edited side: the primary in place of work\n" + onTheFirst("work", "personal"),
 		},
 		{
-			name:    "nothing, where they took the new primary's",
+			name:    "a pinned account's, where the rest took the new primary's",
 			tokens:  []string{"side"},
+			wantOut: "edited side: the primary in place of work\n" + onTheirPins("work"),
+		},
+		{
+			name:    "nothing, where no account has a usable token",
 			wantOut: "edited side: the primary in place of work\n",
 		},
 	}
@@ -797,8 +835,8 @@ func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
 			}
 
 			got := run(t, deps, "accounts", "edit", "side", "--primary")
-			if want := (result{stdout: tt.wantOut}); got != want {
-				t.Errorf("switchboard accounts edit side --primary = %+v, want %+v", got, want)
+			if got.stdout != tt.wantOut || got.code != 0 {
+				t.Errorf("switchboard accounts edit side --primary = %+v, want stdout %q", got, tt.wantOut)
 			}
 		})
 	}
