@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -317,7 +318,7 @@ func (a *app) routerClient() (*router.Client, error) {
 // fromRouter is err, a router client's, saying plainly when the router isn't
 // running.
 func fromRouter(err error) error {
-	if errors.Is(err, router.ErrNotRunning) {
+	if router.IsNotRunning(err) {
 		return errRouterDown
 	}
 	return err
@@ -356,7 +357,7 @@ func (a *app) configFile() (string, error) {
 // collect loads the config and reads the status document usage prints, as r
 // asks, from the source that decides where it comes from,
 // probing alone when probe says so. It gives the config too, as usage lays
-// its printout out as the config says.
+// its printout out as the config says: nil where the config can't be read.
 func (a *app) collect(ctx context.Context, probe bool, r status.Read) (*config.Config, status.Document, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
@@ -372,17 +373,16 @@ func (a *app) collect(ctx context.Context, probe bool, r status.Read) (*config.C
 // binary's refusal of the config holds its restart: it gives the config's
 // error as unread then, beside the router's document. Where the router
 // doesn't give its document either, it fails with the config's error, as
-// collect does.
+// collect does. The router is asked once there, not waited for as it comes
+// back, so the config's error is told at once where no router runs.
 func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read) (doc status.Document, unread, err error) {
-	cfg, err := a.loadConfig()
-	if err == nil {
-		doc, _, err = a.source(cfg, probe).Read(ctx, r)
+	cfg, doc, err := a.collect(ctx, probe, r)
+	if cfg != nil || probe {
 		return doc, nil, err
 	}
-	if probe {
-		return status.Document{}, nil, err
-	}
-	doc, _, readErr := a.routerSource().Read(ctx, status.Read{Refresh: r.Refresh})
+	source := a.routerSource()
+	source.patience = launch.Patience{Answer: cmp.Or(a.Patience.Answer, launch.AskTimeout)}
+	doc, _, readErr := source.Read(ctx, status.Read{Refresh: r.Refresh})
 	if readErr != nil {
 		logger.Debug("can't read the router's document either", "error", readErr)
 		return status.Document{}, nil, err

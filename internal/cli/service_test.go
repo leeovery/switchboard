@@ -332,6 +332,20 @@ func TestServiceStatus(t *testing.T) {
 	}
 }
 
+func TestServiceStatusOfARouterNotRunning(t *testing.T) {
+	for _, state := range routerStates {
+		t.Run(state.name, func(t *testing.T) {
+			s := newServiceSetup(t)
+			state.ready(t, s.srv.socket())
+
+			got := run(t, s.srv.deps, "service", "status")
+			if want := (result{stdout: "LaunchAgent  not installed\nlaunchd      not loaded\nrouter       not running\n"}); got != want {
+				t.Errorf("switchboard service status = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
 func TestServiceIsMacOSOnly(t *testing.T) {
 	for _, args := range [][]string{{"install"}, {"uninstall"}, {"restart"}, {"status"}} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {

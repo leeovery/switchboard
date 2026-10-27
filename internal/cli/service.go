@@ -214,7 +214,7 @@ func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
 	switch {
 	case st.Router != nil:
 		answer = service.Health(*st.Router)
-	case !errors.Is(st.RouterErr, router.ErrNotRunning):
+	case !router.IsNotRunning(st.RouterErr):
 		answer = "not answering: " + st.RouterErr.Error()
 	}
 	return writeTable(out, [][]string{{"LaunchAgent", installed}, {"launchd", loaded}, {"router", answer}})

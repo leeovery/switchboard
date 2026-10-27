@@ -237,7 +237,19 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 }
 
 func TestSessionsWithoutTheRouterListsTheLedgersAloneNoneRunning(t *testing.T) {
-	deps := sessionsDeps(t)
+	for _, state := range routerStates {
+		t.Run(state.name, func(t *testing.T) {
+			deps := sessionsDeps(t)
+			state.ready(t, router.SocketPath(stateDir(t, deps)))
+			sessionsWithoutTheRouter(t, deps)
+		})
+	}
+}
+
+// sessionsWithoutTheRouter checks sessions, run with deps, the router not
+// running, lists the ledger's sessions alone, none as running, and says so.
+func sessionsWithoutTheRouter(t *testing.T, deps cli.Deps) {
+	t.Helper()
 	const notice = "switchboard: the router isn't running — listing today's sessions from the ledger alone, none as running\n"
 	const want = `   session              on    model     state        started          requests  worth   routing
 ▸  5e6f7a8b ~/Code/cli  side  opus-5-5  ended 11:00  10:15            2         $0.08   from work, at its cap  $0.01

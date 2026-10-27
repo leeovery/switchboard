@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -130,7 +131,7 @@ func TestTheControlAPIAnswersAnAskItAcceptedAsItCloses(t *testing.T) {
 					close(asked)
 					<-answer
 				}))
-				ln := servePipes(t, control)
+				ln := servePipes(t, control.Server)
 				answered := make(chan error, 1)
 				go func() {
 					_, err := ln.client().Health(t.Context())
@@ -207,7 +208,7 @@ func TestTheControlAPIHoldsTheStopUpNoLongerThanItsWait(t *testing.T) {
 				logstest.Capture(t)
 				r := newTestRouter(t, at(start), &stubProber{})
 				control := newControlServer(delayed("/refresh", r.Control(), func(req *http.Request) { <-req.Context().Done() }))
-				ln := servePipes(t, control)
+				ln := servePipes(t, control.Server)
 				ended := tt.open(t, ln)
 				synctest.Wait()
 
@@ -223,6 +224,49 @@ func TestTheControlAPIHoldsTheStopUpNoLongerThanItsWait(t *testing.T) {
 	}
 }
 
+func TestAStoppingRouterClosesItsControlAPIWhileItsRequestsDrain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		logstest.Capture(t)
+		r := newTestRouter(t, at(start), &stubProber{})
+		r.cfg.DrainFor = 10 * time.Second
+		// A request in flight at the proxy runs until it's cut off, as does a
+		// request the control API has accepted.
+		proxy := newProxyServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) { <-req.Context().Done() }))
+		proxied := servePipes(t, proxy.Server)
+		control := newControlServer(delayed("/sessions", r.Control(), func(req *http.Request) { <-req.Context().Done() }))
+		ln := servePipes(t, control.Server)
+		go func() {
+			if resp, err := (&http.Client{Transport: proxied.transport()}).Get("http://switchboard/v1/messages"); err == nil {
+				_ = resp.Body.Close()
+			}
+		}()
+		began := time.Now()
+		asked := make(chan time.Duration, 1)
+		go func() {
+			_, _ = ln.client().Sessions(t.Context())
+			asked <- time.Since(began)
+		}()
+		synctest.Wait()
+
+		stopped := make(chan struct{})
+		go func() {
+			r.shutdown(control, proxy)
+			close(stopped)
+		}()
+		synctest.Wait()
+		if _, err := ln.client().Health(t.Context()); !errors.Is(err, ErrNotRunning) {
+			t.Errorf("Health() = %v as the proxy's requests drain, want nothing listening: the control API closes at once", err)
+		}
+		if took := <-asked; took != controlCloseWait {
+			t.Errorf("the request the control API had accepted ended %v on, want %v, its wait, while the proxy's requests drain", took, controlCloseWait)
+		}
+		<-stopped
+		if took := time.Since(began); took != r.cfg.DrainFor {
+			t.Errorf("stopping took %v, want %v, the drain's", took, r.cfg.DrainFor)
+		}
+	})
+}
+
 func TestWhatARequestTheControlAPIAcceptedChangesIsChangedOnceItCloses(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logstest.Capture(t)
@@ -233,7 +277,7 @@ func TestWhatARequestTheControlAPIAcceptedChangesIsChangedOnceItCloses(t *testin
 			<-req.Context().Done()
 			time.Sleep(time.Millisecond)
 		}))
-		ln := servePipes(t, control)
+		ln := servePipes(t, control.Server)
 		go func() { _, _ = ln.client().Pin(t.Context(), PinRequest{Accounts: []string{"side"}, By: ByCLI}) }()
 		synctest.Wait()
 
@@ -275,13 +319,13 @@ func holdAProxy(t *testing.T) *handover.Held {
 	return held
 }
 
-// servePipes serves control on a listener of in-memory connections until the
+// servePipes serves srv on a listener of in-memory connections until the
 // test ends, and returns the listener.
-func servePipes(t *testing.T, control controlServer) *pipes {
+func servePipes(t *testing.T, srv *http.Server) *pipes {
 	t.Helper()
 	ln := &pipes{conns: make(chan net.Conn), closed: make(chan struct{})}
-	go func() { _ = control.Serve(ln) }()
-	t.Cleanup(func() { _ = control.Close() })
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
 	return ln
 }
 
@@ -314,6 +358,12 @@ func (p *pipes) Addr() net.Addr {
 // client returns a client of the router whose control API is served on p,
 // which finds nothing listening once p is closed.
 func (p *pipes) client() *Client {
+	return &Client{http: &http.Client{Transport: p.transport()}}
+}
+
+// transport returns a transport whose every connection is to p, which finds
+// nothing listening once p is closed.
+func (p *pipes) transport() *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.DisableKeepAlives = true
@@ -328,7 +378,7 @@ func (p *pipes) client() *Client {
 			return nil, ctx.Err()
 		}
 	}
-	return &Client{http: &http.Client{Transport: transport}}
+	return transport
 }
 
 type pipeAddr struct{}

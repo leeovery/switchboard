@@ -17,6 +17,8 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -304,6 +306,22 @@ func TestStatusWithInvalidConfig(t *testing.T) {
 	wantErr := "Error: invalid config " + path + ":\n" + `unknown key "account.token_env": tokens now live in files`
 	if got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, wantErr) {
 		t.Errorf("switchboard status = %+v, want exit status 1 and an error starting %q", got, wantErr)
+	}
+}
+
+func TestStatusWithAConfigItCantReadAsksTheRouterOnce(t *testing.T) {
+	path := writeConfig(t, invalidConfig)
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	deps.Patience = launch.Patience{Answer: launch.AskTimeout, Back: 2 * time.Second}
+	asks := closesUnanswered(t, router.SocketPath(stateDir(t, deps)))
+
+	got := run(t, deps, "status")
+	wantErr := "Error: invalid config " + path + ":\n"
+	if got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, wantErr) {
+		t.Errorf("switchboard status = %+v, want exit status 1 and an error starting %q", got, wantErr)
+	}
+	if n := asks.Load(); n != 1 {
+		t.Errorf("switchboard status asked a router that isn't running %d times, want once", n)
 	}
 }
 

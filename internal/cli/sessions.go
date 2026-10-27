@@ -97,7 +97,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, asJSON bool) 
 func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead string) (sessions []status.Session, unlisted bool) {
 	sessions, err := a.routerSessions(ctx)
 	switch {
-	case errors.Is(err, router.ErrNotRunning):
+	case router.IsNotRunning(err):
 		launch.Notice(errOut, "the router isn't running — "+instead)
 	case err != nil:
 		launch.Warn(errOut, "couldn't ask the router its sessions", err, instead)

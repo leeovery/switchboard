@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"syscall"
 	"time"
 
@@ -395,5 +396,14 @@ func IsNotRunning(err error) bool {
 // the request written, rather than its context ending or an answer that
 // isn't HTTP.
 func closedUnanswered(err error) bool {
-	return errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
+	return errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) ||
+		strings.Contains(err.Error(), serverClosedIdle)
 }
+
+// serverClosedIdle is how net/http's transport fails a request whose
+// connection the server closed before reading it, as a router from before
+// stopped its control API, cutting the connections it had accepted: the
+// error is unexported, wrapping neither EOF nor a reset, so only its text
+// tells it (found as one in six such closes, in a reproduction of 200). It
+// comes only where nothing was answered.
+const serverClosedIdle = "http: server closed idle connection"
