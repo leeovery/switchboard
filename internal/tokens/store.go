@@ -1,7 +1,7 @@
 // Package tokens keeps the accounts' tokens: a file each, holding the token
 // alone, in a directory of the state directory's that only the user can use.
 // A token file counts only while it's the user's, and no one else can read or
-// write it.
+// write it. Beside each it writes goes the record of when it took it.
 package tokens
 
 import (
@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
@@ -28,7 +29,8 @@ const (
 )
 
 // Store is the token files of a state directory: <state dir>/tokens/<id>, one
-// for each account. Each is named by its account's id, which config keeps a
+// for each account, and beside each the record of when switchboard took its
+// token, <id>.taken. Each is named by its account's id, which config keeps a
 // plain file name.
 type Store struct {
 	dir string
@@ -138,8 +140,10 @@ func parse(data []byte) (Token, error) {
 // the user can read or write, having made the tokens directory, or made it
 // theirs alone: through a link, where it leads, rather than in its place. The
 // file is written whole or not at all, and synced, as a token lost to a crash
-// takes a new setup token to replace.
-func (s Store) Write(id string, token Token) error {
+// takes a new setup token to replace. Beside it goes the record that it was
+// taken at taken, which Taken reads; failing to write that leaves the token's
+// date unknown, and is logged, never failing the write.
+func (s Store) Write(id string, token Token, taken time.Time) error {
 	if err := s.keepPrivate(); err != nil {
 		return err
 	}
@@ -149,6 +153,9 @@ func (s Store) Write(id string, token Token) error {
 	}
 	if err := atomicfile.Write(target, []byte(token.Reveal()+"\n"), 0o600); err != nil {
 		return fmt.Errorf("write the token file: %w", err)
+	}
+	if err := s.writeTaken(id, token, taken); err != nil {
+		logger.Warn("couldn't record when the token was taken", "account", id, "error", err)
 	}
 	return nil
 }
@@ -202,10 +209,12 @@ type Removed struct {
 	LinkedTo string
 }
 
-// Remove deletes the account's token file, if it has one, and says what it
-// removed. A link in its place goes, but not the file it leads to, which is
-// kept elsewhere, as by a dotfiles step, and isn't switchboard's to delete.
+// Remove deletes the account's token file, if it has one, and the record of
+// when its token was taken, and says what it removed of the token file. A
+// link in its place goes, but not the file it leads to, which is kept
+// elsewhere, as by a dotfiles step, and isn't switchboard's to delete.
 func (s Store) Remove(id string) (Removed, error) {
+	s.forgetTaken(id)
 	path := s.Path(id)
 	info, err := os.Lstat(path)
 	switch {

@@ -227,6 +227,7 @@ func (a *app) registry(cmd *cobra.Command) (accounts.Registry, error) {
 		Tokens:     files,
 		Prober:     a.prober,
 		Input:      a.tokenInput(cmd.InOrStdin(), cmd.ErrOrStderr()),
+		Now:        a.Now,
 	}, nil
 }
 

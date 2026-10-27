@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
@@ -66,6 +67,8 @@ type Registry struct {
 	// config's.
 	Prober func(upstream string) Prober
 	Input  Input
+	// Now reads the clock, which says when a token the user gives is taken.
+	Now func() time.Time
 }
 
 // Taken is how an account came by its token.
@@ -166,7 +169,7 @@ func (r Registry) take(ctx context.Context, id, upstream string) (Taken, error) 
 	if err != nil {
 		return Taken{}, err
 	}
-	if err := r.Tokens.Write(id, token); err != nil {
+	if err := r.Tokens.Write(id, token, r.Now()); err != nil {
 		return Taken{}, err
 	}
 	logger.Info("saved a token", "account", id, "checked", taken.Unchecked == nil)

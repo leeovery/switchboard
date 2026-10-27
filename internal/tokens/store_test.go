@@ -7,14 +7,19 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 const workToken = "test-token-work"
+
+// taken is when a token is written, as its record says.
+var taken = time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
 
 func TestRead(t *testing.T) {
 	tests := []struct {
@@ -173,7 +178,7 @@ func TestWrite(t *testing.T) {
 			tt.before(t, state)
 			store := tokens.NewStore(state, os.Getuid())
 
-			if err := store.Write("work", parse(t, workToken)); err != nil {
+			if err := store.Write("work", parse(t, workToken), taken); err != nil {
 				t.Fatalf("Write() error = %v", err)
 			}
 			checkMode(t, filepath.Join(state, "tokens"), fs.ModeDir|0o700)
@@ -181,8 +186,9 @@ func TestWrite(t *testing.T) {
 			if data, err := os.ReadFile(store.Path("work")); err != nil || string(data) != workToken+"\n" {
 				t.Errorf("the token file holds %q (%v), want the token and a newline", data, err)
 			}
-			if entries, err := os.ReadDir(filepath.Join(state, "tokens")); err != nil || len(entries) != 1 {
-				t.Errorf("the tokens directory holds %v (%v), want the token file alone", entries, err)
+			checkMode(t, filepath.Join(state, "tokens", "work.taken"), 0o600)
+			if names := namesIn(t, filepath.Join(state, "tokens")); !slices.Equal(names, []string{"work", "work.taken"}) {
+				t.Errorf("the tokens directory holds %q, want the token file and its record alone", names)
 			}
 			if token, err := store.Read("work"); err != nil || token.Reveal() != workToken {
 				t.Errorf("Read() = %q, %v, want the token written", token.Reveal(), err)
@@ -196,7 +202,7 @@ func TestWriteLeavesNothingBehindWhenItFails(t *testing.T) {
 	// A directory, with something in it, where the token file goes.
 	writeFile(t, filepath.Join(store.Path("work"), "kept"), "kept", 0o600)
 
-	err := store.Write("work", parse(t, workToken))
+	err := store.Write("work", parse(t, workToken), taken)
 	if err == nil || !strings.HasPrefix(err.Error(), "write the token file: ") {
 		t.Fatalf("Write() error = %v, want it to fail writing the token file", err)
 	}
@@ -233,7 +239,7 @@ func TestWriteThroughALink(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err := store.Write("work", parse(t, workToken)); err != nil {
+			if err := store.Write("work", parse(t, workToken), taken); err != nil {
 				t.Fatalf("Write() error = %v", err)
 			}
 			if _, err := os.Readlink(store.Path("work")); err != nil {
@@ -243,10 +249,11 @@ func TestWriteThroughALink(t *testing.T) {
 			if data, err := os.ReadFile(target); err != nil || string(data) != workToken+"\n" {
 				t.Errorf("where the link leads holds %q (%v), want the token and a newline", data, err)
 			}
-			for _, dir := range []string{filepath.Dir(target), filepath.Dir(store.Path("work"))} {
-				if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
-					t.Errorf("%s holds %v (%v), want the one file alone", dir, entries, err)
-				}
+			if names := namesIn(t, filepath.Dir(target)); !slices.Equal(names, []string{"work"}) {
+				t.Errorf("where the link leads holds %q, want the token file alone", names)
+			}
+			if names := namesIn(t, filepath.Dir(store.Path("work"))); !slices.Equal(names, []string{"work", "work.taken"}) {
+				t.Errorf("the tokens directory holds %q, want the link and the token's record alone", names)
 			}
 		})
 	}
@@ -274,6 +281,7 @@ func TestRemove(t *testing.T) {
 			if tt.put != nil {
 				tt.put(t, path)
 			}
+			writeFile(t, path+".taken", "taken 2026-10-27T09:30:00Z\nsha256 0\n", 0o600)
 			// Where the token file leads, and what it holds there, when it's a
 			// link.
 			target, _ := os.Readlink(path)
@@ -285,6 +293,9 @@ func TestRemove(t *testing.T) {
 			}
 			if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
 				t.Errorf("once removed, the token file: %v, want it gone", err)
+			}
+			if _, err := os.Lstat(path + ".taken"); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("once removed, the record of when its token was taken: %v, want it gone", err)
 			}
 			if heldErr == nil {
 				if data, err := os.ReadFile(target); err != nil || !bytes.Equal(data, held) {
@@ -423,6 +434,20 @@ func linkToNothing(t *testing.T, path string) {
 	if err := os.Symlink(filepath.Join(t.TempDir(), "gone"), path); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// namesIn returns the names of what dir holds, in order.
+func namesIn(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.Name()
+	}
+	return names
 }
 
 // checkMode checks what's at path has mode.

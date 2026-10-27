@@ -29,6 +29,9 @@ import (
 
 var update = flag.Bool("update", false, "rewrite the golden files with what the tests show")
 
+// tokenTaken is when setup takes a token the user gives, by its clock.
+var tokenTaken = time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
+
 // doneConfig is the config a first run of setup leaves, as the user answers
 // firstRun: work and side, work the primary, and priming over 08:00-23:00.
 const doneConfig = `[[account]]
@@ -125,7 +128,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 	}
 	return &setup.Setup{
 		Terminal:     u.terminal(),
-		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt},
+		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt, Now: func() time.Time { return tokenTaken }},
 		Service:      svc,
 		Install:      service.InstallOptions{Executable: w.switchboard},
 		Path:         strings.Join(w.path, string(filepath.ListSeparator)),
