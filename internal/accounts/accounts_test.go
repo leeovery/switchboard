@@ -402,7 +402,11 @@ func TestRemoveLeavesWhereATokenFilesLinkLeads(t *testing.T) {
 	w := newWorld(t, withSide)
 	// side's token file, a link to a file kept elsewhere, as by a dotfiles
 	// step.
-	target := filepath.Join(t.TempDir(), "side")
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dir, "side")
 	if err := os.WriteFile(target, []byte(sideToken+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

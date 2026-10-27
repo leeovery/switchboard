@@ -288,7 +288,7 @@ func TestRemove(t *testing.T) {
 			held, heldErr := os.ReadFile(target)
 
 			removed, err := store.Remove("work")
-			if want := (tokens.Removed{File: tt.wantFile, LinkedTo: target}); err != nil || removed != want {
+			if want := (tokens.Removed{File: tt.wantFile, LinkedTo: realPath(t, target)}); err != nil || removed != want {
 				t.Errorf("Remove() = %+v, %v; want %+v", removed, err, want)
 			}
 			if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
@@ -448,6 +448,20 @@ func namesIn(t *testing.T, dir string) []string {
 		names[i] = e.Name()
 	}
 	return names
+}
+
+// realPath is path with the links in its directory followed, as where a link
+// leads is said: "" for "".
+func realPath(t *testing.T, path string) string {
+	t.Helper()
+	if path == "" {
+		return ""
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(dir, filepath.Base(path))
 }
 
 // checkMode checks what's at path has mode.

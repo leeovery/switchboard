@@ -139,15 +139,17 @@ func takeable(t time.Time) bool {
 // user's alone. A record that couldn't be read at all is left as it is.
 type replaceable struct{ error }
 
-// holdsToken is why a record that holds anything shaped like a token, as
-// redact recognises one, can't be gone by, and is never replaced: it's a
-// token, as one a token file led to that accounts remove leaves, perhaps its
-// only copy. It never says what the file holds.
-type holdsToken struct{ path string }
+// unreplaceable is why a file at a record's path can't be gone by, and is
+// never replaced nor removed, as it may be a token, perhaps its only copy, as
+// one a token file led to that accounts remove leaves: it holds anything
+// shaped like a token, as redact recognises one, or is too large to tell it
+// holds none. It never says what the file holds.
+type unreplaceable struct{ error }
 
-func (e holdsToken) Error() string {
-	return fmt.Sprintf("the record %s holds a token, not when tokens were taken", e.path)
-}
+// mostRead is how much of a file at a record's path is read, a record or
+// not, to tell whether it holds a token: far more than a record or a token
+// file holds.
+const mostRead = 1 << 20
 
 func (r replaceable) Unwrap() error { return r.error }
 
@@ -193,14 +195,14 @@ func (s Store) readTaken(id string) (record, error) {
 // readTaken does, but with readable, one others can read, though not write,
 // too, which it reports exposed, as a copy restored by a dotfiles step, or by
 // a second name, is often left. A file, whoever's it is and whoever can write
-// it, is read for what it holds, as one that holds a token, which it reports
-// as holdsToken, is never replaced. One that isn't a record, isn't the
+// it, is read for what it holds, up to mostRead, as one that holds a token,
+// or more than that, is unreplaceable. One that isn't a record, isn't the
 // user's alone, or isn't a file, is replaceable; one that can't be read is
 // left.
 func (s Store) readRecord(id string, readable bool) (r record, exposed bool, err error) {
 	path := s.takenPath(id)
 	var info fs.FileInfo
-	data, err := readChecked(path, "the record of when the token was taken", func(i fs.FileInfo) error {
+	data, err := readChecked(path, "the record of when the token was taken", mostRead, func(i fs.FileInfo) error {
 		info = i
 		if !i.Mode().IsRegular() {
 			return replaceable{fmt.Errorf("the record %s isn't a file", path)}
@@ -212,10 +214,12 @@ func (s Store) readRecord(id string, readable bool) (r record, exposed bool, err
 		return nil, false, ErrUnrecorded
 	case err != nil:
 		return nil, false, unopened(path, err)
+	case len(data) > mostRead:
+		return nil, false, unreplaceable{fmt.Errorf("the record %s holds over %d bytes, too many to tell it holds no token", path, mostRead)}
 	}
 	r, ok := parseRecord(data)
 	if !ok && redact.HoldsToken(string(data)) {
-		return nil, false, holdsToken{path}
+		return nil, false, unreplaceable{fmt.Errorf("the record %s holds a token, not when tokens were taken", path)}
 	}
 	if err := s.checkRecord(path, info, readable); err != nil {
 		return nil, false, err
@@ -291,7 +295,7 @@ func (s Store) writeTaken(id string, token Token, taken time.Time) error {
 	if !exposed && bytes.Equal(next.bytes(), was.bytes()) {
 		return nil
 	}
-	if err := s.kept(path, target); err != nil {
+	if err := s.kept(id, path, target); err != nil {
 		return err
 	}
 	return atomicfile.Write(target, next.bytes(), 0o600)
@@ -304,9 +308,10 @@ func (s Store) writeTaken(id string, token Token, taken time.Time) error {
 // record's own path, or the record a link to another's. Where nothing's at
 // target yet, it's left where another's link leads there, as one leading
 // nowhere, to where the record would go, would then lead to the record. The
-// account's own record is told by the file at path, whatever its name's
-// case, as on a file system that doesn't tell them apart.
-func (s Store) kept(path, target string) error {
+// account's own record is the entry named for id, whatever its name's case,
+// as on a file system that doesn't tell them apart, that's the file at path;
+// another account's that's a second name of it is another's.
+func (s Store) kept(id, path, target string) error {
 	info, err := os.Stat(target)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("the record %s couldn't be looked at, so it's left as it is: %w", path, err)
@@ -319,7 +324,7 @@ func (s Store) kept(path, target string) error {
 	for _, e := range entries {
 		other, record := strings.CutSuffix(e.Name(), takenExt)
 		at := filepath.Join(s.dir, e.Name())
-		if config.CheckID(other) != nil || record && isFile(at, own) || !leadsTo(at, target, info) {
+		if config.CheckID(other) != nil || record && strings.EqualFold(other, id) && isFile(at, own) || !leadsTo(at, target, info) {
 			continue
 		}
 		what := other + "'s token file"
@@ -390,22 +395,29 @@ func recordTarget(path string) (target string, linked bool, err error) {
 
 // leaveFor returns why the record at path, read as err says, is left as it
 // is, or nil where it's written: read as one it can go by; or, at its own
-// path, not a link, missing, or looked at and found one it can't go by that
-// doesn't hold a token.
+// path, not a link, missing, or looked at and found one it can't go by that's
+// replaceable.
 func leaveFor(path string, linked bool, err error) error {
-	_, replace := errors.AsType[replaceable](err)
-	_, token := errors.AsType[holdsToken](err)
+	_, left := errors.AsType[unreplaceable](err)
 	switch {
 	case err == nil:
 		return nil
 	case linked:
 		return fmt.Errorf("the record %s is a link to what isn't a record of the user's that others can't write, so it's left as it is: %w", path, err)
-	case token:
-		return fmt.Errorf("%w, so it's left as it is", err)
-	case replace || errors.Is(err, ErrUnrecorded):
+	case !mustLeave(err):
 		return nil
+	case left:
+		return fmt.Errorf("%w, so it's left as it is", err)
 	}
 	return fmt.Errorf("the record couldn't be read, so it's left as it is: %w", err)
+}
+
+// mustLeave reports whether a file at a record's own path, read as err says,
+// is left as it is, neither written over nor removed: it's unreplaceable, or
+// couldn't be read, so it may hold a token.
+func mustLeave(err error) bool {
+	_, replace := errors.AsType[replaceable](err)
+	return err != nil && !replace && !errors.Is(err, ErrUnrecorded)
 }
 
 // tightenRecords makes each record in the tokens directory private, as
@@ -452,12 +464,21 @@ func (s Store) tightenRecord(path string) {
 
 // forgetTaken removes the record of when the account's tokens were taken, if
 // it has one: of one that's a link, the link alone. A directory in its place
-// isn't a record, and is left, empty or not. One left behind counts for
-// nothing but the tokens it's of, so failing to remove it is only logged.
+// isn't a record, and is left, empty or not, and so is a file Write would
+// leave, as mustLeave says, as it may be a token, with a warning. One left
+// behind counts for nothing but the tokens it's of, so failing to remove it
+// is only logged.
 func (s Store) forgetTaken(id string) {
 	path := s.takenPath(id)
-	if info, err := os.Lstat(path); err != nil || info.IsDir() {
+	info, err := os.Lstat(path)
+	if err != nil || info.IsDir() {
 		return
+	}
+	if info.Mode().IsRegular() {
+		if _, _, err := s.readRecord(id, true); mustLeave(err) {
+			logger.Warn("left what's where the record of when the token was taken goes", "account", id, "error", err)
+			return
+		}
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		logger.Debug("couldn't remove the record of when the token was taken", "account", id, "error", err)

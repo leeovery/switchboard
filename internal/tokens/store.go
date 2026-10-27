@@ -75,7 +75,7 @@ func (s Store) Read(id string) (Token, error) {
 // read or write. What it checks is the file it has open, whatever takes its
 // place at path meanwhile.
 func (s Store) readPrivate(path string) ([]byte, error) {
-	data, err := readChecked(path, "the token file", func(info fs.FileInfo) error { return s.checkPrivate(path, info) })
+	data, err := readChecked(path, "the token file", maxFile, func(info fs.FileInfo) error { return s.checkPrivate(path, info) })
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%w: write it to %s", ErrMissing, path)
 	}
@@ -83,10 +83,10 @@ func (s Store) readPrivate(path string) ([]byte, error) {
 }
 
 // readChecked returns what the file at path holds, up to a byte more than
-// maxFile, once check passes it, as the file it has open: whatever takes its
+// most, once check passes it, as the file it has open: whatever takes its
 // place at path meanwhile. It fails with check's error, else saying it
 // couldn't read what, wrapping fs.ErrNotExist where there's nothing at path.
-func readChecked(path, what string, check func(fs.FileInfo) error) ([]byte, error) {
+func readChecked(path, what string, most int64, check func(fs.FileInfo) error) ([]byte, error) {
 	f, err := os.OpenFile(path, openFlags, 0)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", what, err)
@@ -99,7 +99,7 @@ func readChecked(path, what string, check func(fs.FileInfo) error) ([]byte, erro
 	if err := check(info); err != nil {
 		return nil, err
 	}
-	data, err := io.ReadAll(io.LimitReader(f, maxFile+1))
+	data, err := io.ReadAll(io.LimitReader(f, most+1))
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", what, err)
 	}

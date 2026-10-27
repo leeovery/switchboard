@@ -1,6 +1,7 @@
 package tokens_test
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -470,6 +471,14 @@ func TestWriteNeverWritesARecordOverAnotherAccountsFile(t *testing.T) {
 			symlink(t, record, personal+".taken")
 			return personal + ".taken", personalRecord
 		}},
+		{name: "the record a second name of another account's record", put: func(t *testing.T, personal, record string) (string, string) {
+			writeFile(t, personal, "test-token-personal\n", 0o600)
+			writeFile(t, personal+".taken", personalRecord, 0o600)
+			if err := os.Link(personal+".taken", record); err != nil {
+				t.Fatal(err)
+			}
+			return personal + ".taken", personalRecord
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -529,8 +538,10 @@ func TestWriteLeavesARecordHoldingATokenAtItsOwnPath(t *testing.T) {
 		// whose file it is.
 		another bool
 		// wantLeft is whether it's left as it was, else replaced by the
-		// record of the token written.
+		// record of the token written, and why says why it's left, where
+		// that isn't that it holds a token.
 		wantLeft bool
+		why      string
 	}{
 		{name: "a token a removed account's token file led to", put: removed, mode: 0o600, wantMode: 0o600, wantLeft: true},
 		{name: "the same, readable by others, made private", put: removed, mode: 0o644, wantMode: 0o600, wantLeft: true},
@@ -540,6 +551,16 @@ func TestWriteLeavesARecordHoldingATokenAtItsOwnPath(t *testing.T) {
 		{name: "a token in another user's file", another: true, mode: 0o644, wantMode: 0o644, wantLeft: true, put: func(t *testing.T, _ tokens.Store, path string) string {
 			writeFile(t, path, shaped+"\n", 0o644)
 			return shaped + "\n"
+		}},
+		{name: "a token far into a long file", mode: 0o600, wantMode: 0o600, wantLeft: true, put: func(t *testing.T, _ tokens.Store, path string) string {
+			long := strings.Repeat("taken soon\n", 1000) + shaped + "\n"
+			writeFile(t, path, long, 0o600)
+			return long
+		}},
+		{name: "a file too long to tell it holds no token", mode: 0o600, wantMode: 0o600, wantLeft: true, why: "too many to tell", put: func(t *testing.T, _ tokens.Store, path string) string {
+			long := strings.Repeat("taken soon\n", 100_000)
+			writeFile(t, path, long, 0o600)
+			return long
 		}},
 		{name: "a token among other words", mode: 0o600, wantMode: 0o600, wantLeft: true, put: func(t *testing.T, _ tokens.Store, path string) string {
 			writeFile(t, path, "token "+shaped+"\n", 0o600)
@@ -580,9 +601,10 @@ func TestWriteLeavesARecordHoldingATokenAtItsOwnPath(t *testing.T) {
 				want = holds
 			}
 			checkFile(t, path, want, tt.wantMode)
-			warned := log.Has("level=WARN", `msg="couldn't record when the token was taken"`, "account=work", "holds a token")
+			why := cmp.Or(tt.why, "holds a token")
+			warned := log.Has("level=WARN", `msg="couldn't record when the token was taken"`, "account=work", why)
 			if warned != tt.wantLeft {
-				t.Errorf("the log reads\n%s\nwant a warning that the record holds a token: %v", log, tt.wantLeft)
+				t.Errorf("the log reads\n%s\nwant a warning that the record %s: %v", log, why, tt.wantLeft)
 			}
 			for _, secret := range []string{shaped, workToken} {
 				if strings.Contains(log.String(), secret) || strings.Contains(log.String(), sumOf(secret)) {
@@ -594,23 +616,43 @@ func TestWriteLeavesARecordHoldingATokenAtItsOwnPath(t *testing.T) {
 }
 
 func TestWriteLeavesWhereTheRecordGoesWhenAnotherLeadsThere(t *testing.T) {
-	log := logstest.Capture(t)
-	store := tokens.NewStore(t.TempDir(), os.Getuid())
-	mkdirPrivate(t, store.Dir())
-	record := store.Path("work") + ".taken"
-	// Personal's token file a link to where work's record would go, before
-	// its token's written there.
-	symlink(t, record, store.Path("personal"))
+	sep := string(filepath.Separator)
+	tests := []struct {
+		name string
+		// link returns the text of a link that leads to record, in the
+		// tokens directory dir.
+		link func(t *testing.T, dir, record string) string
+	}{
+		{name: "a link", link: func(_ *testing.T, _, record string) string { return record }},
+		{name: "a link back out of a linked directory", link: func(t *testing.T, dir, record string) string {
+			mkdirPrivate(t, filepath.Join(dir, "inner"))
+			linked := filepath.Join(t.TempDir(), "inner")
+			symlink(t, filepath.Join(dir, "inner"), linked)
+			return linked + sep + ".." + sep + filepath.Base(record)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			mkdirPrivate(t, store.Dir())
+			record := store.Path("work") + ".taken"
+			// Personal's token file a link to where work's record would go,
+			// before its token's written there.
+			link := tt.link(t, store.Dir(), record)
+			symlink(t, link, store.Path("personal"))
 
-	if err := store.Write("work", parse(t, workToken), taken); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Lstat(record); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("where work's record would go: %v, want nothing there still", err)
-	}
-	checkLink(t, store.Path("personal"), record)
-	if !log.Has("level=WARN", `msg="couldn't record when the token was taken"`, "account=work", "personal's token file") {
-		t.Errorf("the log reads\n%s\nwant why the record wasn't written, naming personal", log)
+			if err := store.Write("work", parse(t, workToken), taken); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Lstat(record); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("where work's record would go: %v, want nothing there still", err)
+			}
+			checkLink(t, store.Path("personal"), link)
+			if !log.Has("level=WARN", `msg="couldn't record when the token was taken"`, "account=work", "personal's token file") {
+				t.Errorf("the log reads\n%s\nwant why the record wasn't written, naming personal", log)
+			}
+		})
 	}
 }
 
@@ -647,6 +689,95 @@ func TestWriteLeavesATokenWhoseLinkGoesBackOutOfADirectoryThatIsntThere(t *testi
 	}
 	if token, err := store.Read("personal"); err != nil || token.Reveal() != "test-token-personal" {
 		t.Errorf("Read() of personal = %q, %v, want its token as it was", token.Reveal(), err)
+	}
+}
+
+func TestRemoveLeavesWhatWriteLeavesWhereTheRecordGoes(t *testing.T) {
+	const shaped = "sk-ant-oat01-fake_token-shaped"
+	tests := []struct {
+		name string
+		// put puts what's at the record's own path, given the store, and
+		// returns what it holds.
+		put func(t *testing.T, store tokens.Store, path string) string
+		// wantLeft is whether it's left, and why the warning says why.
+		wantLeft bool
+		why      string
+	}{
+		{name: "a token a removed account's token file led to, the account added again", wantLeft: true, why: "holds a token", put: func(t *testing.T, store tokens.Store, path string) string {
+			writeFile(t, path, shaped+"\n", 0o600)
+			symlink(t, path, store.Path("work"))
+			if _, err := store.Remove("work"); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.Write("work", parse(t, workToken), taken); err != nil {
+				t.Fatal(err)
+			}
+			return shaped + "\n"
+		}},
+		{name: "a token far into a long file", wantLeft: true, why: "holds a token", put: func(t *testing.T, _ tokens.Store, path string) string {
+			long := strings.Repeat("taken soon\n", 1000) + shaped + "\n"
+			writeFile(t, path, long, 0o600)
+			return long
+		}},
+		{name: "a file too long to tell it holds no token", wantLeft: true, why: "too many to tell", put: func(t *testing.T, _ tokens.Store, path string) string {
+			long := strings.Repeat("taken soon\n", 100_000)
+			writeFile(t, path, long, 0o600)
+			return long
+		}},
+		{name: "a damaged record, removed", put: func(t *testing.T, _ tokens.Store, path string) string {
+			writeFile(t, path, "taken soon\n", 0o600)
+			return "taken soon\n"
+		}},
+		{name: "a record, removed", put: func(t *testing.T, _ tokens.Store, path string) string {
+			writeFile(t, path, workRecord, 0o600)
+			return workRecord
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			mkdirPrivate(t, store.Dir())
+			path := store.Path("work") + ".taken"
+			holds := tt.put(t, store, path)
+			if _, err := os.Lstat(store.Path("work")); errors.Is(err, fs.ErrNotExist) {
+				writeFile(t, store.Path("work"), workToken+"\n", 0o600)
+			}
+			log := logstest.Capture(t)
+
+			if _, err := store.Remove("work"); err != nil {
+				t.Fatal(err)
+			}
+			if tt.wantLeft {
+				checkFile(t, path, holds, 0o600)
+			} else if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("once removed, the record: %v, want it gone", err)
+			}
+			if tt.wantLeft && !log.Has("level=WARN", "account=work", tt.why) || !tt.wantLeft && log.Has("level=WARN") {
+				t.Errorf("the log reads\n%s\nwant a warning that it %s: %v", log, tt.why, tt.wantLeft)
+			}
+			if strings.Contains(log.String(), shaped) || strings.Contains(log.String(), sumOf(shaped)) {
+				t.Errorf("the log shows the token or its hash:\n%s", log)
+			}
+		})
+	}
+}
+
+func TestRemoveLeavesARecordItCantRead(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads any file")
+	}
+	log := logstest.Capture(t)
+	store := tokens.NewStore(t.TempDir(), os.Getuid())
+	writeFile(t, store.Path("work")+".taken", workRecord, 0o200)
+
+	if _, err := store.Remove("work"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(store.Path("work") + ".taken"); err != nil {
+		t.Errorf("once removed, the record: %v, want it left, as it may hold a token", err)
+	}
+	if !log.Has("level=WARN", "account=work") {
+		t.Errorf("the log reads\n%s\nwant why it's left", log)
 	}
 }
 
