@@ -94,9 +94,9 @@ type Signing struct {
 // its sign-in address over within handOverWithin. When ctx ends, setup-token
 // is stopped. Before the token's made, Make fails with ctx's cause. Once it's
 // made, it lasts a year on the account, so Make returns it all the same where
-// setup-token showed it whole, and otherwise fails with a *ScreenError that
-// is ctx's cause too. Whichever way Make returns, setup-token is gone, all it
-// started on its terminal with it.
+// setup-token showed it whole, and otherwise fails with a *ScreenError, which
+// is ctx's cause too where that's what stopped setup-token. Whichever way
+// Make returns, setup-token is gone, all it started on its terminal with it.
 func (m Maker) Make(ctx context.Context, s Signing) (tokens.Token, error) {
 	switch {
 	case ctx.Err() != nil:

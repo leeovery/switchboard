@@ -37,6 +37,11 @@ import (
 //	oauth-error  an OAuth error where the token would be, waiting at it
 //	broken       the token broken across two rows
 //	slow         the token drawn in two pieces, FAKE_PAUSE seconds apart
+//	in-place     the token's frame drawn over the last in place, as a
+//	             renderer drawing what's changed does, cut short in the token,
+//	             waiting
+//	clears       the token's frame erased FAKE_PAUSE seconds after it's drawn,
+//	             before the exit
 const fakeSetupToken = `#!/bin/sh
 d=$FAKE_DIR
 note() { printf '%s\n' "$2" > "$d/$1.tmp" && /bin/mv "$d/$1.tmp" "$d/$1"; }
@@ -54,6 +59,10 @@ frame() {
 	[ "$shown" -gt 0 ] && printf '\033[%dA\033[J' "$shown"
 	printf '%b' "$1"
 	shown=$(( $(printf '%b' "$1" | /usr/bin/wc -l) ))
+}
+over() {
+	printf '\033[%dA' "$shown"
+	printf '%b' "$1" | while IFS= read -r row || [ -n "$row" ]; do printf '\033[2K%s\n' "$row"; done
 }
 
 [ "$FAKE_MODE" = stall ] && exec /bin/sleep 60
@@ -83,8 +92,16 @@ slow)
 	/bin/sleep "$FAKE_PAUSE"
 	printf '%b' "$rest\\033[39m$after"
 	;;
+in-place)
+	over "$made \\033[33m$first"
+	exec /bin/sleep 60
+	;;
 *) frame "$made \\033[33m$FAKE_TOKEN\\033[39m$after" ;;
 esac
+if [ "$FAKE_MODE" = clears ]; then
+	/bin/sleep "$FAKE_PAUSE"
+	frame ''
+fi
 exec /bin/sleep "${FAKE_EXIT_AFTER:-0.5}"
 `
 

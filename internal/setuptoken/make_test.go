@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -313,8 +314,9 @@ func TestMakeOpensNothingButAnHTTPSAddress(t *testing.T) {
 
 	_, err := f.maker.Make(t.Context(), setuptoken.Signing{Opener: open})
 
-	if _, ok := errors.AsType[*setuptoken.ScreenError](err); !ok {
-		t.Errorf("Make() = %v, want a *ScreenError", err)
+	want := "setup-token handed switchboard something other than an https sign-in address"
+	if _, ok := errors.AsType[*setuptoken.ScreenError](err); !ok || err.Error() != want {
+		t.Errorf("Make() = %v, want a *ScreenError saying %q", err, want)
 	}
 	if len(open.asked) > 0 {
 		t.Errorf("the Opener was asked to open %q, want nothing", open.asked)
@@ -406,6 +408,93 @@ func TestMakeTakesNoTokenCutShortWhereSetupTokenIsStoppedDrawingIt(t *testing.T)
 	}
 	if !strings.Contains(screen.Screen(), fakeToken[:40]) {
 		t.Errorf("the error's Screen() = %q, want the token as far as it was drawn", screen.Screen())
+	}
+	leaks.check(t, f)
+}
+
+func TestMakeTakesNoTokenCutShortInAFrameDrawnOverTheLastInPlace(t *testing.T) {
+	f := newFake(t, "in-place")
+	maker := setuptoken.Waiting(f.maker, time.Second, time.Minute)
+	leaks := watchLeaks(t)
+	var events []setuptoken.Event
+
+	token, err := maker.Make(t.Context(), setuptoken.Signing{Opener: &opener{}, Report: approving(t, f, &events)})
+
+	screen, ok := errors.AsType[*setuptoken.ScreenError](err)
+	if !ok || token.Reveal() != "" {
+		t.Fatalf("Make() = %q, %v; want a *ScreenError, and no token", token.Reveal(), err)
+	}
+	if want := "setup-token said it made a token, but its screen didn't show one"; err.Error() != want {
+		t.Errorf("Make() = %q, want %q", err, want)
+	}
+	for _, want := range []string{fakeToken[:40], "Paste code here if prompted >"} {
+		if !strings.Contains(screen.Screen(), want) {
+			t.Errorf("the error's Screen() = %q, want the token as far as it was drawn, over the frame before: %q", screen.Screen(), want)
+		}
+	}
+	leaks.check(t, f)
+}
+
+func TestMakeTakesTheTokenShownThoughSetupTokenErasesItBeforeItExits(t *testing.T) {
+	f := newFake(t, "clears", "FAKE_PAUSE=1")
+	leaks := watchLeaks(t)
+	var events []setuptoken.Event
+
+	token, err := f.maker.Make(t.Context(), setuptoken.Signing{Opener: &opener{}, Report: approving(t, f, &events)})
+
+	if err != nil || token.Reveal() != fakeToken {
+		t.Errorf("Make() = %q, %v; want the token setup-token showed whole", token.Reveal(), err)
+	}
+	leaks.check(t, f)
+}
+
+func TestMakeNamesTheCancelOnlyWhereItStoppedSetupToken(t *testing.T) {
+	f := newFake(t, "broken")
+	leaks := watchLeaks(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var events []setuptoken.Event
+	approve := approving(t, f, &events)
+	// Report holds Make up, so the cancel comes before Make concludes, once
+	// setup-token has exited by itself.
+	report := func(e setuptoken.Event) {
+		approve(e)
+		if e.Step != setuptoken.StepMade {
+			return
+		}
+		if pid, err := strconv.Atoi(f.noted(t, "pid")); err != nil || !gone(pid) {
+			t.Errorf("the fake setup-token, %d, never exited by itself (%v)", pid, err)
+		}
+		cancel()
+	}
+
+	_, err := f.maker.Make(ctx, setuptoken.Signing{Opener: &opener{}, Report: report})
+
+	if want := "setup-token said it made a token, but its screen didn't show one"; err == nil || err.Error() != want || errors.Is(err, context.Canceled) {
+		t.Errorf("Make() = %v, want %q, without the cancel, which came once setup-token had exited", err, want)
+	}
+	leaks.check(t, f)
+}
+
+func TestMakeFailsWithTheCancelWhenItsContextEndsAsSetupTokenStarts(t *testing.T) {
+	f := newFake(t, "")
+	leaks := watchLeaks(t)
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	cause := errors.New("the person stopped it")
+	executable := f.maker.Executable
+	f.maker.Executable = func() (string, error) {
+		cancel(cause)
+		return executable()
+	}
+
+	_, err := f.maker.Make(ctx, setuptoken.Signing{Opener: &opener{}})
+
+	if !errors.Is(err, cause) {
+		t.Errorf("Make() = %v, want it failing with the cancel's cause", err)
+	}
+	if f.ran() {
+		t.Error("setup-token ran, want it never started")
 	}
 	leaks.check(t, f)
 }
