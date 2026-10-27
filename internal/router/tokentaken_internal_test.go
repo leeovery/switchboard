@@ -106,7 +106,11 @@ func TestATokensDateCountsOnlyForTheTokenItWasReadWith(t *testing.T) {
 	}
 }
 
-func TestANoteOfATokenNoLongerHeldIsPassedOver(t *testing.T) {
+// A note goes only to the token it was read with, as resolve and renewed
+// note it, by noteHeld, after the token's taken up: one of a token the
+// account no longer holds is passed over. A look's note is taken up with its
+// token, by reload, under the same hold.
+func TestANoteOfATokenNotHeldIsPassedOver(t *testing.T) {
 	renewedAt := start.Add(-time.Minute)
 	records := recordsOf(map[string]time.Time{workToken: start.Add(-90 * 24 * time.Hour), renewedToken: renewedAt})
 	as := resolve(testConfigured, testTokens.Read, unrecorded)
@@ -115,8 +119,8 @@ func TestANoteOfATokenNoLongerHeldIsPassedOver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A look reads the old token and its record, then a 401 takes the new
-	// one up, with its date, before the look's note lands.
+	// The old token's date, read with it, and the new token taken up, with
+	// its own, before the old one's note is held.
 	old := work.takenOf(work.token(), records)
 	work.secret.replace(renewed, work.takenOf(renewed, records), start)
 
