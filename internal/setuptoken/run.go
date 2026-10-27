@@ -236,7 +236,7 @@ func (r *run) next(ctx context.Context) {
 // or it failed by itself first. Once it's made, it lasts a year on the
 // account, and nobody could see it were Make to drop it, so Make reads on
 // till it's shown whole, and only then stops setup-token, or till its grace
-// is over, which no longer runs on from what it draws (see draw).
+// is over, which no longer runs on from what it draws (see pace).
 func (r *run) cancel() {
 	r.ended = nil
 	if !r.made || r.shown {
@@ -261,10 +261,8 @@ func cancelled(ctx context.Context) error {
 
 // draw draws what setup-token drew, and follows what its screen says before
 // each control sequence in it, and after it all, until the token's shown
-// whole: a frame and what erases it can come in one read. Once the token's
-// made, setup-token's grace runs from the last it draws while ctx lasts, and
-// once ctx has ended, it's stopped as soon as it has shown the token. Its
-// drawing over, ok false, and setup-token gone, Make concludes.
+// whole: a frame and what erases it can come in one read. Its drawing over,
+// ok false, and setup-token gone, Make concludes.
 func (r *run) draw(ctx context.Context, drawn []byte, ok bool) {
 	if !ok {
 		r.output = nil
@@ -273,6 +271,7 @@ func (r *run) draw(ctx context.Context, drawn []byte, ok bool) {
 		}
 		return
 	}
+	wasShown := r.shown
 	for len(drawn) > 0 && !r.shown && !r.over {
 		piece := len(drawn)
 		if at := bytes.IndexByte(drawn[1:], ansi.ESC); at >= 0 {
@@ -283,8 +282,18 @@ func (r *run) draw(ctx context.Context, drawn []byte, ok bool) {
 		r.follow(ctx)
 	}
 	r.screen.write(drawn)
+	r.pace(ctx, wasShown)
+}
+
+// pace sets setup-token's grace as it draws, once it has made the token,
+// wasShown saying it had shown the token whole before. While ctx lasts, the
+// grace runs afresh from each thing it draws, up to the token shown whole, and
+// on from there however it draws on, so a setup-token that never stops
+// drawing is stopped all the same. Once ctx has ended, what it draws gives it
+// no more grace, and it's stopped as soon as it has shown the token.
+func (r *run) pace(ctx context.Context, wasShown bool) {
 	switch {
-	case !r.made || r.over || r.drained != nil:
+	case !r.made || r.over || r.drained != nil || wasShown:
 	case ctx.Err() == nil:
 		r.graceOver = time.After(r.waits.grace)
 	case r.shown:

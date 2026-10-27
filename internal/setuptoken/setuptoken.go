@@ -27,8 +27,8 @@ const (
 
 const (
 	// exitGrace is how long setup-token is given, once it says it has made
-	// the token, from the last it draws, to exit by itself, as it does half
-	// a second later, before it's stopped.
+	// the token, from the last it draws till it has shown the token whole,
+	// to exit by itself, as it does half a second later, before it's stopped.
 	exitGrace = 5 * time.Second
 	// handOverWithin bounds the wait for setup-token to hand its sign-in
 	// address over, which it does as it starts, a moment after it's run,

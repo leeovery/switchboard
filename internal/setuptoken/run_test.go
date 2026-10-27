@@ -8,7 +8,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -44,6 +46,44 @@ func conclusion(t *testing.T, ctx context.Context, r *run) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("Make has no answer after ten seconds, want it bounded")
 	}
+}
+
+// redrawn is what setup-token draws that shows nothing new, as a frame drawn
+// the same as the last does.
+const redrawn = "\x1b[?25l"
+
+// drawsEvery returns what a setup-token draws, and how it exits, which draws
+// pieces, one every interval, then exits 0, or, where drawsOn, draws the last
+// again every interval till it's stopped; and the stop, which has it exit
+// killed.
+func drawsEvery(t *testing.T, interval time.Duration, drawsOn bool, pieces ...string) (<-chan []byte, <-chan error, func()) {
+	killed := exitAs(t, true, "/bin/sleep", "60")
+	output, exited, stopped := make(chan []byte), make(chan error, 1), make(chan struct{})
+	go func() {
+		var exit error
+		defer func() {
+			close(output)
+			exited <- exit
+		}()
+		tick := time.NewTicker(interval)
+		defer tick.Stop()
+		for i := 0; i < len(pieces) || drawsOn; i++ {
+			select {
+			case output <- []byte(pieces[min(i, len(pieces)-1)]):
+			case <-stopped:
+				exit = killed
+				return
+			}
+			select {
+			case <-tick.C:
+			case <-stopped:
+				exit = killed
+				return
+			}
+		}
+	}()
+	var once sync.Once
+	return output, exited, func() { once.Do(func() { close(stopped) }) }
 }
 
 // The made frame, the end of output and the exit come from goroutines as ctx
@@ -224,6 +264,55 @@ func TestRunStopsSetupTokenItselfOnlyBeforeItsContextEnds(t *testing.T) {
 
 			if stops != 1 || r.stopped != tt.want {
 				t.Errorf("its grace over, Make stopped setup-token %d times, saying it stopped it: %v; want once, saying %v", stops, r.stopped, tt.want)
+			}
+		})
+	}
+}
+
+// Setup-token draws on, for longer than its grace, between the line saying
+// it has made the token and the token.
+func TestRunGivesSetupTokenItsGraceAfreshAsItDrawsTillItShowsTheToken(t *testing.T) {
+	made := madeRows(" " + madeToken)
+	pieces := slices.Concat([]string{frame(made[:4])}, slices.Repeat([]string{redrawn}, 20), []string{frame(made[4:])})
+	output, exited, stop := drawsEvery(t, 100*time.Millisecond, false, pieces...)
+	r := newTestRun(t, stop, waits{grace: time.Second, handOver: time.Minute, drain: time.Minute})
+	r.output, r.exited = output, exited
+
+	conclusion(t, t.Context(), r)
+
+	if r.err != nil || r.token.Reveal() != madeToken {
+		t.Errorf("Make has the token %q (%v), want the token, drawn within its grace of the last setup-token drew", r.token.Reveal(), r.err)
+	}
+}
+
+// Once ctx has ended, or setup-token has shown the token whole, what it draws
+// gives it no more grace: here it draws on and on, more often than its grace,
+// and Make stops it.
+func TestRunGivesSetupTokenThatDrawsOnNoMoreGrace(t *testing.T) {
+	ended, cancel := context.WithCancel(t.Context())
+	cancel()
+	tests := []struct {
+		name string
+		ctx  context.Context
+		// drawn is what setup-token has drawn as ctx lasts.
+		drawn     string
+		wantToken bool
+		wantErr   error
+	}{
+		{name: "its context ended", ctx: ended, drawn: frame(madeRows("")[:4]), wantErr: context.Canceled},
+		{name: "the token shown", ctx: t.Context(), drawn: madeFrame(), wantToken: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, exited, stop := drawsEvery(t, 100*time.Millisecond, true, redrawn)
+			r := newTestRun(t, stop, waits{grace: 500 * time.Millisecond, handOver: time.Minute, drain: time.Minute})
+			r.draw(t.Context(), []byte(tt.drawn), true)
+			r.output, r.exited, r.ended = output, exited, tt.ctx.Done()
+
+			conclusion(t, tt.ctx, r)
+
+			if got := r.token.Reveal() == madeToken; got != tt.wantToken || !errors.Is(r.err, tt.wantErr) {
+				t.Errorf("Make has the token %q (%v), want it: %v, failing with %v", r.token.Reveal(), r.err, tt.wantToken, tt.wantErr)
 			}
 		})
 	}
