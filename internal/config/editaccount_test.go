@@ -85,6 +85,13 @@ func TestSetLabel(t *testing.T) {
 			want:   "[[account]]\r\nid = \"work\"\r\nlabel = \"W\"\r\n\n[[account]]\nid = \"side\"\n",
 		},
 		{
+			name:   "below a last line without an ending in a file of mixed endings, as the nearest line with one ends",
+			config: "\n[[account]]\nid = \"side\"\n\n[[account]]\r\nid = \"work\"",
+			id:     "work",
+			label:  "W",
+			want:   "\n[[account]]\nid = \"side\"\n\n[[account]]\r\nid = \"work\"\r\nlabel = \"W\"\r\n",
+		},
+		{
 			name:   "the label it has already but for surrounding whitespace, left as it is",
 			config: commented,
 			id:     "work",
@@ -155,6 +162,51 @@ func TestSetLabel(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
+	const side = "[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"
+	tests := []struct {
+		name  string
+		given string
+		// want is the label saved, "" for none.
+		want string
+	}{
+		{name: "format characters at its edges trimmed", given: "\u200b\ufeff\u200eDay job\u200f\u2060 ", want: "Day job"},
+		{name: "joiners within it kept, as an emoji sequence needs them", given: "Team \U0001f469\u200d\U0001f4bb", want: "Team \U0001f469\u200d\U0001f4bb"},
+		{name: "a private-use glyph, such as a Nerd Font icon, which shows", given: "\ue0a0", want: "\ue0a0"},
+		{name: "its id, which takes the label out, as it shows the same", given: "side", want: ""},
+		{name: "its id once trimmed", given: " side\u200b", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, side)
+			draft := edit(t, path)
+
+			if err := draft.SetLabel("side", tt.given); err != nil {
+				t.Fatalf("SetLabel(%q) error = %v", tt.given, err)
+			}
+			want := "[[account]]\nid    = \"side\"\n"
+			if tt.want != "" {
+				want += "label = \"" + tt.want + "\"\n"
+			}
+			got := checkSaved(t, path, draft, "side", want)
+			if shown := cmp.Or(tt.want, "side"); got.Label != shown || draft.Labelled("side") != (tt.want != "") {
+				t.Errorf("the label loads as %q, labelled: %v; want %q, labelled: %v", got.Label, draft.Labelled("side"), shown, tt.want != "")
+			}
+		})
+	}
+}
+
+func TestAddAccountWritesNoLabelThatsItsID(t *testing.T) {
+	const work = "[[account]]\nid = \"work\"\n"
+	path := writeConfig(t, work)
+	draft := edit(t, path)
+
+	if err := draft.AddAccount(config.NewAccount{ID: "side", Label: "side"}); err != nil {
+		t.Fatalf("AddAccount() error = %v", err)
+	}
+	checkSaved(t, path, draft, "side", work+"\n[[account]]\nid = \"side\"\n")
 }
 
 func TestSetPlan(t *testing.T) {
@@ -342,6 +394,20 @@ func TestSetLabelRefuses(t *testing.T) {
 			id:      "work",
 			label:   "Side\x1b[31m",
 			wantErr: `account "work": label holds a control character, such as a newline or a tab, which can't show`,
+		},
+		{
+			name:    "a label holding a bidirectional override, which can reorder the row",
+			config:  commented,
+			id:      "work",
+			label:   "Side \u202e team",
+			wantErr: `account "work": label holds a bidirectional embedding, override or isolate, which could reorder the rest of what it's shown in`,
+		},
+		{
+			name:    "a label holding a bidirectional isolate",
+			config:  commented,
+			id:      "work",
+			label:   "\u2067Side",
+			wantErr: `account "work": label holds a bidirectional embedding, override or isolate, which could reorder the rest of what it's shown in`,
 		},
 		{
 			name:    "a label that draws as nothing: Hangul fillers, blank braille and a mark on its own",
@@ -644,7 +710,9 @@ func TestParseReserveRefuses(t *testing.T) {
 		{name: "a whole number alone", given: "5", why: bare},
 		{name: "a share alone", given: "0.05", why: bare},
 		{name: "the whole window", given: "100%", why: outOfBounds},
-		{name: "below none", given: "-5%", why: outOfBounds},
+		{name: "below none", given: "-5%", why: notAPercentage},
+		{name: "a sign", given: "+5%", why: notAPercentage},
+		{name: "none with a sign", given: "-0%", why: notAPercentage},
 		{name: "words", given: "five%", why: notAPercentage},
 		{name: "nothing", given: "", why: notAPercentage},
 		{name: "a percentage given twice", given: "5%%", why: notAPercentage},

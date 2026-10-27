@@ -64,8 +64,15 @@ func newDocument(text string) document {
 		d.eol, text = "\r\n", strings.ReplaceAll(text, "\r\n", "\n")
 	}
 	lines := strings.Split(text, "\n")
-	if lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
+	last := len(lines) - 1
+	switch {
+	case lines[last] == "":
+		lines = lines[:last]
+	case last > 0 && strings.HasSuffix(lines[last-1], "\r") && !strings.HasSuffix(lines[last], "\r"):
+		// The text is written with every line ended, so a last line that had
+		// no ending takes the one of the line before it, the nearest that has
+		// one, as a line put in after it then does.
+		lines[last] += "\r"
 	}
 	return d.of(lines)
 }

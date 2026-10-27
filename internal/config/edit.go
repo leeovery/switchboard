@@ -43,16 +43,28 @@ type NewAccount struct {
 	Primary bool
 }
 
-// taken returns the account with its label as takeLabel takes it, failing,
+// taken returns the account with its label as labelOf takes it, failing,
 // saying why, unless its id and label are ones an account can have.
 func (a NewAccount) taken() (NewAccount, error) {
 	name := accountNamed(a.ID)
-	label, labelErr := takeLabel(name, a.Label)
+	label, labelErr := labelOf(a.ID, a.Label)
 	if err := errors.Join(checkID(name, a.ID), labelErr); err != nil {
 		return NewAccount{}, err
 	}
 	a.Label = label
 	return a, nil
+}
+
+// labelOf returns the label given the account with the given id as
+// takeLabel takes it, or "" for one that's the id, which shows the same
+// without one, so the file writes no label where the account's shown by its
+// id.
+func labelOf(id, given string) (string, error) {
+	label, err := takeLabel(accountNamed(id), given)
+	if err != nil || label == id {
+		return "", err
+	}
+	return label, nil
 }
 
 // Draft is the config file's text, edited as text: its comments and layout
@@ -102,7 +114,7 @@ func (d *Draft) Config() *Config {
 // it takes primary off every other account. It fails, matching ErrConfigured,
 // when an account has its id already, and fails too when one has it in
 // another case, as the two would share a token file. Its label is taken as
-// takeLabel takes it.
+// labelOf takes it.
 func (d *Draft) AddAccount(given NewAccount) error {
 	a, err := given.taken()
 	if err != nil {
@@ -163,6 +175,13 @@ func (d *Draft) MarksPrimary() bool {
 	return slices.ContainsFunc(d.file.Accounts, func(a fileAccount) bool { return a.Primary })
 }
 
+// Labelled reports whether the draft writes a label for the account with
+// the given id, rather than leaving it to be shown by its id for want of one.
+func (d *Draft) Labelled(id string) bool {
+	i := d.index(id)
+	return i >= 0 && d.file.Accounts[i].Label != ""
+}
+
 // SetPrimary makes the account with the given id the primary: it marks it so
 // in place of the value any primary it sets gives, keeping a comment beside
 // it, else below the last key of its [[account]] table, and takes primary off
@@ -213,7 +232,7 @@ func (d *Draft) SetPrimeDay(day string) error {
 
 // SetLabel sets the label of the account with the given id, as setAccountKey
 // sets a key: "" takes it out, showing the account by its id. The label is
-// taken as takeLabel takes it, and an account shown by it already is left as
+// taken as labelOf takes it, and an account shown by it already is left as
 // it is, whatever its table writes. It fails, matching ErrNotConfigured, when
 // no account has the id, and then as AddAccount does for a label no account
 // can have.
@@ -222,7 +241,7 @@ func (d *Draft) SetLabel(id, given string) error {
 	if i < 0 {
 		return NotConfigured(id)
 	}
-	label, err := takeLabel(accountNamed(id), given)
+	label, err := labelOf(id, given)
 	if err != nil {
 		return err
 	}

@@ -219,21 +219,26 @@ const mostLabelCharacters = 100
 var ErrBlankLabel = errors.New("label is blank, showing nothing")
 
 // takeLabel returns a label given to put in the file as it shows, so what's
-// saved is what's shown: its surrounding whitespace trimmed, and each run of
-// whitespace within it one space. It's checked as it shows, and refused, as
-// a label in the file isn't: when it isn't UTF-8, as TOML's text must be;
-// when it holds a control character, such as a newline or a tab, which can't
-// show; and when nothing of it would show but it isn't "", which shows the
-// account by its id, matching ErrBlankLabel. Then it's checked as checkLabel
-// checks one.
+// saved is what's shown: each run of whitespace within it one space, and the
+// whitespace and format characters, such as a zero-width space, a byte order
+// mark or a direction mark, at its edges trimmed; those within it, such as
+// the joiners an emoji sequence needs, are kept. It's checked as it shows,
+// and refused, as a label in the file isn't: when it isn't UTF-8, as TOML's
+// text must be; when it holds a control character, such as a newline or a
+// tab, which can't show, or a bidirectional embedding, override or isolate,
+// which can reorder the rest of the row it's shown in; and when nothing of it
+// would show but it isn't "", which shows the account by its id, matching
+// ErrBlankLabel. Then it's checked as checkLabel checks one.
 func takeLabel(account, given string) (string, error) {
 	switch {
 	case !utf8.ValidString(given):
 		return "", fmt.Errorf("%s: label isn't UTF-8 text, as a config's text must be", account)
 	case strings.ContainsFunc(given, unicode.IsControl):
 		return "", fmt.Errorf("%s: label holds a control character, such as a newline or a tab, which can't show", account)
+	case strings.ContainsFunc(given, reorders):
+		return "", fmt.Errorf("%s: label holds a bidirectional embedding, override or isolate, which could reorder the rest of what it's shown in", account)
 	}
-	label := strings.Join(strings.Fields(given), " ")
+	label := strings.TrimFunc(strings.Join(strings.Fields(given), " "), unseenAtAnEdge)
 	if given != "" && !strings.ContainsFunc(label, shows) {
 		return "", fmt.Errorf("%s: %w", account, ErrBlankLabel)
 	}
@@ -243,16 +248,29 @@ func takeLabel(account, given string) (string, error) {
 	return label, nil
 }
 
+// reorders reports whether r is a bidirectional embedding, override or
+// isolate, U+202A to U+202E and U+2066 to U+2069.
+func reorders(r rune) bool {
+	return (r >= '\u202a' && r <= '\u202e') || (r >= '\u2066' && r <= '\u2069')
+}
+
+// unseenAtAnEdge reports whether r, at a label's edge, is trimmed as unseen:
+// whitespace, or a format character.
+func unseenAtAnEdge(r rune) bool {
+	return unicode.IsSpace(r) || unicode.Is(unicode.Cf, r)
+}
+
 // blanks are the letters and the symbol that draw as nothing: the Hangul
 // fillers and the blank braille pattern.
-var blanks = []rune{'ᅟ', 'ᅠ', 'ㅤ', 'ﾠ', '⠀'}
+var blanks = []rune{'\u115f', '\u1160', '\u3164', '\uffa0', '\u2800'}
 
 // shows reports whether r draws as something: graphic, as a format
-// character, such as a zero-width space, and a control character aren't; and
-// neither a space, nor a mark, which draws on what it follows alone, nor one
-// of blanks.
+// character, such as a zero-width space, and a control character aren't, or
+// a private-use character, such as a Nerd Font icon; and neither a space, nor
+// a mark, which draws on what it follows alone, nor one of blanks.
 func shows(r rune) bool {
-	return unicode.IsGraphic(r) && !unicode.IsSpace(r) && !unicode.IsMark(r) && !slices.Contains(blanks, r)
+	return (unicode.IsGraphic(r) || unicode.Is(unicode.Co, r)) &&
+		!unicode.IsSpace(r) && !unicode.IsMark(r) && !slices.Contains(blanks, r)
 }
 
 // checkLabel keeps anything that looks like a token out of a label, and keeps
@@ -284,8 +302,9 @@ func reserveFits(reserve float64) bool {
 }
 
 // percentage is the number of a percentage as a reserve is written: digits,
-// to two decimal places at most, so what's shown of it is what's saved.
-var percentage = regexp.MustCompile(`^[+-]?[0-9]+(?:\.[0-9]{1,2})?$`)
+// without a sign, to two decimal places at most, so what's shown of it is
+// what's saved.
+var percentage = regexp.MustCompile(`^[0-9]+(?:\.[0-9]{1,2})?$`)
 
 // ParseReserve reads a reserve written as a percentage, to two decimal places
 // at most, such as 5% or 2.5%, as the share of every window it is, 0.05 or
