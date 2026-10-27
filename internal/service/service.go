@@ -186,7 +186,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 // that runs it, with what's worth the user's attention: the router having no
 // token to serve with.
 func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
-	binary, err := s.Binary(opts.Executable)
+	a, err := s.describe(opts)
 	if err != nil {
 		return agent{}, nil, err
 	}
@@ -195,9 +195,18 @@ func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
 		warnings = append(warnings, "no account has a usable token, so the router will have nothing to route to: switchboard accounts says why")
 		logger.Warn("no account has a usable token")
 	}
+	return a, warnings, nil
+}
+
+// describe describes the LaunchAgent Install writes for opts, with the
+// switchboard binary as Binary finds it.
+func (s *Service) describe(opts InstallOptions) (agent, error) {
+	binary, err := s.Binary(opts.Executable)
+	if err != nil {
+		return agent{}, err
+	}
 	opts.Executable = binary
-	a, err := s.agent(opts)
-	return a, warnings, err
+	return s.agent(opts)
 }
 
 // tokenless reports whether the router looks set to start with none of the
@@ -329,11 +338,8 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 // installedBinary is the switchboard binary the plist in place has launchd
 // run, as it names it: "" when there's no plist to read, or it names none.
 func (s *Service) installedBinary() string {
-	plist, err := os.ReadFile(s.Plist())
-	if err != nil {
-		return ""
-	}
-	return binaryOf(plist)
+	opts, _ := s.Options()
+	return opts.Executable
 }
 
 // Answered fails, saying where to find out why, when the router launchd
