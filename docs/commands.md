@@ -352,20 +352,23 @@ The steps are:
    `setup` is given another config file than the one the router serves, or when its plist differs
    from the one `switchboard service install` would write with what it was installed with, as
    after an upgrade that adds a key, and says what differed. Installing it again keeps the
-   `--log-level`, `--config` and environment it was installed with, every variable in it, its
+   `--log-level`, `--config` and environment it was installed with, every variable in it, a
    `HOME` too, as the environment decides where the router keeps its state, tokens included. A
    `--config` given to `setup` takes the place of the kept one only where it names another file
    than the one the router serves. Before it touches a running service, `setup` checks the router
    could start from what it keeps, its flags included. Where it couldn't, `setup` leaves the
    service as it is while a router answers, saying why, and fails while none does, saying how to
    install it once that's put right. A plist `setup` can't read back, or one that names no
-   program, is installed afresh from `setup`'s own options and your shell's environment, once the
-   router could start from them. A binary plist, as `defaults write` leaves one, is read back
+   program, is left as it is while a router answers, saying so; while none does, it's installed
+   afresh from `setup`'s own options and your shell's environment, once the router could start
+   from them. A plist that isn't XML, as the binary one `defaults write` leaves, is read back
    through `plutil`.
 
-   `setup` watches the router where the service keeps its state, and the one where your shell
-   does: where only the one at your shell's answers, its directory is the service's. It restarts
-   the router only when neither answers. When the router uses another state directory, config
+   `setup` watches the router where the service's plist keeps its state, and the one where your
+   shell does. Where only the one at your shell's answers, `setup` can't tell which the service
+   runs, so it leaves the service as it is and says so: run `switchboard service install` from
+   the shell the router should use to line them up. It restarts the router only when neither
+   answers. When the router uses another state directory, config
    file or Claude Code config directory than `setup`, `setup` says which, never where: run
    `switchboard service install` from the shell the router should use to line them up, or, for
    the config file, `switchboard setup --config` naming the router's, after which `setup` finds
@@ -501,8 +504,10 @@ in flight, and waits up to 5 seconds for the router to answer.
   `CLAUDE_CONFIG_DIR`. It makes `--config`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`
   absolute, so the router finds what the CLI does. The tokens are files, so the router needs
   nothing else of your environment. Any other variable the LaunchAgent in place sets, such as an
-  `HTTPS_PROXY` or a `HOME` you added to it by hand, even with `defaults write`, `install` keeps,
-  and waits for the router where that environment keeps its state.
+  `HTTPS_PROXY` you added to it by hand, even with `defaults write`, `install` keeps, saying so
+  where it can't read the LaunchAgent in place and they're gone. A `HOME` it sets `install`
+  drops, as launchd gives the router yours. It waits for the router where the environment it
+  writes keeps its state, and for no other.
 - **The tokens.** `install` warns when no account has a usable token. The router starts all the
   same, and routes as soon as a token file holds one.
 

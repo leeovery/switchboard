@@ -752,12 +752,16 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      the shell's, in the `HOME` the plist sets, if it sets one, its paths named relatively taken
      as under `/`, where launchd runs the router; that decides the state directory, and with it the
      router asked, the token files and launchd's log, which switchboard keeps in the state
-     directory, never where a plist says. Where the router at that state directory doesn't answer
-     and the one at the shell's does, as when `launchctl setenv` gave launchd the directory, the
-     router that answers decides: its state directory is the service's for everything, as launchd
-     gives it to a router it starts again too. Setup never restarts the router while either
-     answers. A plist in Apple's binary form, as `defaults write` leaves one, is read through
-     `/usr/bin/plutil`; switchboard writes XML.
+     directory, never where a plist says. The plist alone decides it, never a router that
+     answers. A plist that isn't XML, as in Apple's binary form, as `defaults write` leaves one,
+     is read through `/usr/bin/plutil`; switchboard writes XML.
+   - **Which router answers:** where the router at the plist's state directory answers, setup
+     goes on as below. Where it doesn't but one answers at the shell's, as when `launchctl setenv`
+     gave launchd another directory than the plist's, setup can't tell which the service runs: it
+     leaves the service as it is, reinstalling and restarting nothing, and says so in one line,
+     naming `service install`, run from the shell the router should use, as what lines them up.
+     Where none answers, setup goes on as below, restarting the router where nothing else is to
+     do. Neither setup nor `service restart` restarts the service while any router answers.
    - **What it's installed with:** read back from the plist, `--log-level`, and `--config`, which
      a `--config` given to setup replaces only where it names another file than the one the
      router serves; and the whole of `EnvironmentVariables`, those carried and any added by hand.
@@ -780,10 +784,12 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      why, the reason on lines of its own, and that `service install`, run from the shell the
      router should use, installs it afresh once that's put right. Where none answers, setup says
      the same and fails, saying why.
-   - **A plist it can't read back:** one that can't be read, isn't a plist, or names no program.
-     Setup says so, and installs the service afresh from its own options and the shell's
-     environment, once the router could start from them; where it couldn't, it leaves the service
-     as it is while a router answers, and fails while none does, as above.
+   - **A plist it can't read back:** one that can't be read, isn't a plist, names no program, or
+     that `plutil` fails on or doesn't answer for in time. While a router answers, which may be
+     the one it runs, setup leaves the service as it is, saying so and that `service install`
+     installs it afresh. Where none answers, setup says so, and installs the service afresh from
+     its own options and the shell's environment, once the router could start from them, and
+     fails where it couldn't, as above.
    - **Where they see apart:** setup sets the router's places, as the service is seen, beside its
      own, the token files and the config file of its accounts and the directory it writes the
      skill in: the state directory, the config file and Claude Code's config directory, compared
@@ -7885,9 +7891,11 @@ verbs).
   links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG` and
   `CLAUDE_CONFIG_DIR`, those two made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're set, so the
   service finds what the CLI does, and brings the skill up to date where `setup` wrote it. Any other
-  variable a plist in place sets, as one added by hand, such as `HTTPS_PROXY` or `HOME`, it keeps,
-  reading a binary plist through `/usr/bin/plutil`, and it waits for the router, and judges its
-  tokens, where the environment it writes keeps its state. It runs
+  variable a plist in place sets, as one added by hand, such as `HTTPS_PROXY`, it keeps, reading
+  a plist that isn't XML through `/usr/bin/plutil`, and says so where it can't read the plist in
+  place, those variables then gone. A `HOME` the plist sets it drops, taking the shell's, as
+  launchd gives the router the user's. It waits for the router, and judges its tokens, where the
+  environment it writes keeps its state, and takes no other router answering for the new one. It runs
   switchboard directly: the tokens are files, so it needs nothing else of the user's environment.
   `install` warns when no account has a usable token; the router starts all the same, and routes
   once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
