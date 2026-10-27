@@ -746,48 +746,59 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    leaves priming off.
 3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
    `service install` does, that the router could start; it fails, saying why, where it couldn't.
-   Installed, the service is seen as the router it runs sees it: in the environment read back from
-   the plist, over the shell's, and in the `HOME` the plist sets, if it sets one, so its state
-   directory, and with it the router setup asks, the token files it serves with, and the log the
-   plist names, are the router's. The router at the shell's state directory is asked too, so one
-   launchd runs there, as after `launchctl setenv`, counts as up: setup never restarts the router
-   while either answers.
+   - **The service as its router sees it:** one owner, in `internal/service`, works it out, and
+     setup, its startable check, `service install`'s wait and token warning, `service restart` and
+     `service status` all take it from there. It's the environment read back from the plist, over
+     the shell's, in the `HOME` the plist sets, if it sets one, its paths named relatively taken
+     as under `/`, where launchd runs the router; that decides the state directory, and with it the
+     router asked, the token files and launchd's log, which switchboard keeps in the state
+     directory, never where a plist says. Where the router at that state directory doesn't answer
+     and the one at the shell's does, as when `launchctl setenv` gave launchd the directory, the
+     router that answers decides: its state directory is the service's for everything, as launchd
+     gives it to a router it starts again too. Setup never restarts the router while either
+     answers. A plist in Apple's binary form, as `defaults write` leaves one, is read through
+     `/usr/bin/plutil`; switchboard writes XML.
    - **What it's installed with:** read back from the plist, `--log-level`, and `--config`, which
      a `--config` given to setup replaces only where it names another file than the one the
-     router serves; the whole of `EnvironmentVariables`, those carried and any added by hand; and
-     the log launchd writes. A flag given after `=` reads as one given before its value, as `serve`
-     parses them, and one given twice reads as its last.
+     router serves; and the whole of `EnvironmentVariables`, those carried and any added by hand.
+     A flag given after `=` reads as one given before its value, as `serve` parses them, and one
+     given twice reads as its last.
    - **Installing again:** when launchd hasn't loaded the service; when the plist runs another
-     program than the switchboard setup runs as, saying which it ran; and when the plist differs
-     from the one `service install` would write with what the service was installed with, saying
-     what differed by its keys and arguments, never their values. Key order, whitespace and the
-     form of a flag's value don't count, nor do the `EnvironmentVariables`, which differ as the
-     shells installing from do, never as switchboards do; a flag given twice does. Setup keeps what
-     the service was installed with. It warns of accounts without a usable token only where the
-     router serves setup's config file, whose accounts it knows.
+     program than the switchboard setup runs as, saying which it ran; when setup is given another
+     config file than the router serves, saying so; and when the plist differs from the one
+     `service install` would write with what the service was installed with, saying what differed
+     by its keys and arguments, never their values. Key order, whitespace and the form of a flag's
+     value don't count, nor do the `EnvironmentVariables`, which differ as the shells installing
+     from do, never as switchboards do; a flag given twice does, and so does launchd's log named
+     anywhere but the state directory. Setup keeps what the service was installed with. It warns
+     of accounts without a usable token only where the router serves setup's config file, whose
+     accounts it knows.
    - **A router that couldn't start:** before it boots anything out, setup checks the router could
-     start from what it keeps: its environment, its config file, and the flags `serve` parses,
-     such as `--log-level`. Where it couldn't, and a router answers, the service is left as it is,
-     and setup says why, the reason on lines of its own, and that `service install`, run from the
-     shell the router should use, installs it afresh once that's put right. Where none answers,
-     setup fails, saying why, as it does installing a first time.
-   - **A plist it can't read back:** one that can't be read, isn't XML, or names no program.
+     start from what it keeps: its state directory, its config file, and the flags `serve`
+     parses, such as `--log-level`. Where it couldn't, and a router answers, the service is left
+     as it is, and setup judges where the router and setup see apart by what stays served; it says
+     why, the reason on lines of its own, and that `service install`, run from the shell the
+     router should use, installs it afresh once that's put right. Where none answers, setup says
+     the same and fails, saying why.
+   - **A plist it can't read back:** one that can't be read, isn't a plist, or names no program.
      Setup says so, and installs the service afresh from its own options and the shell's
      environment, once the router could start from them; where it couldn't, it leaves the service
-     as it is while a router answers, and fails while none does.
-   - **Where they see apart:** setup works out, for the router and for itself, the state
-     directory, the config file it serves or edits, and Claude Code's config directory, each from
-     its owner, and sets them side by side as files, a link to the same one finding the same. One
-     line names those that differ, never where they are, such as `the router uses another state
-     directory and config file than setup`, and says `service install`, run from the shell the
-     router should use, lines them up, or, for the config file, `setup --config` naming the
-     router's. Run so, setup finds the router's config file its own, and changes nothing. The log
-     level is never said.
+     as it is while a router answers, and fails while none does, as above.
+   - **Where they see apart:** setup sets the router's places, as the service is seen, beside its
+     own, the token files and the config file of its accounts and the directory it writes the
+     skill in: the state directory, the config file and Claude Code's config directory, compared
+     as files, a link to the same one finding the same, and a path not there yet, as Claude Code's
+     config directory before setup writes the skill, by the nearest of its directories that is
+     there. One line names those that differ, never where they are, such as `the router uses
+     another state directory and config file than setup`, and says `service install`, run from
+     the shell the router should use, lines them up, or, for the config file, `setup --config`
+     naming the router's. Run so, setup finds the router's config file its own, and changes
+     nothing. The log level is never said.
    Nothing asks first, and `service install` stays the way to force a reinstall. Otherwise setup
    restarts the router when none answers, and says it's up. It never restarts the router for
    setup's changes to the config or a token: the router takes them up itself (see The router
-   looking after itself), and setup says so, where the router finds setup's config file and state
-   directory.
+   looking after itself), and setup says so, where the router finds setup's config file and token
+   files.
 4. **The `claude` link:** setup writes into no directory but its own. It makes the `claude` link
    in switchboard's bin directory (see Files), leading to switchboard by the path it was run by,
    as the LaunchAgent names it, so an upgrade moves the link on; a link there leading anywhere
@@ -7874,7 +7885,9 @@ verbs).
   links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG` and
   `CLAUDE_CONFIG_DIR`, those two made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're set, so the
   service finds what the CLI does, and brings the skill up to date where `setup` wrote it. Any other
-  variable a plist in place sets, as one added by hand, such as `HTTPS_PROXY`, it keeps. It runs
+  variable a plist in place sets, as one added by hand, such as `HTTPS_PROXY` or `HOME`, it keeps,
+  reading a binary plist through `/usr/bin/plutil`, and it waits for the router, and judges its
+  tokens, where the environment it writes keeps its state. It runs
   switchboard directly: the tokens are files, so it needs nothing else of the user's environment.
   `install` warns when no account has a usable token; the router starts all the same, and routes
   once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
