@@ -753,15 +753,28 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      as under `/`, where launchd runs the router; that decides the state directory, and with it the
      router asked, the token files and launchd's log, which switchboard keeps in the state
      directory, never where a plist says. The plist alone decides it, never a router that
-     answers. A plist that isn't XML, as in Apple's binary form, as `defaults write` leaves one,
+     answers. A `HOME` the plist sets empty, as launchd passes it, is one the router can't start
+     in. A relative `--config` reads as under `/` too, so it never counts as a difference. A plist
+     that isn't XML, as in Apple's binary form, as `defaults write` leaves one,
      is read through `/usr/bin/plutil`; switchboard writes XML.
-   - **Which router answers:** where the router at the plist's state directory answers, setup
-     goes on as below. Where it doesn't but one answers at the shell's, as when `launchctl setenv`
-     gave launchd another directory than the plist's, setup can't tell which the service runs: it
-     leaves the service as it is, reinstalling and restarting nothing, and says so in one line,
-     naming `service install`, run from the shell the router should use, as what lines them up.
-     Where none answers, setup goes on as below, restarting the router where nothing else is to
-     do. Neither setup nor `service restart` restarts the service while any router answers.
+   - **Which router answers:** setup asks the router at the plist's state directory and the one
+     at the shell's, and takes from `launchctl print` whether launchd has the service loaded and
+     the pid of the router it runs. Where the router at the plist's state directory answers,
+     setup goes on as below. Where launchd hasn't loaded the service but a router answers, run
+     some other way, setup leaves it as it is, as another would clash with it, and says so,
+     naming `service install` once that one's stopped. Where only the one at the shell's answers,
+     as when `launchctl setenv` gave launchd another directory than the plist's, setup can't tell
+     which the service runs: it leaves the service as it is, and says so in one line, naming
+     `service install`, run from the shell the router should use, as what lines them up. Where
+     none answers but launchd runs a router, as at a third directory `launchctl setenv` gave it,
+     or a plist edited since launchd loaded it, setup can't reach it: it leaves it as it is, and
+     says so, pointing to `service status`. Where none answers and none runs, setup goes on as
+     below, checking the router could start before it restarts it, and failing, naming `service
+     install`, where it couldn't. Once setup has started the router afresh, with none answering
+     before, the first that answers at either directory is launchd's. Neither setup nor `service
+     restart` kickstarts the service while any router answers: `service restart` asks the one
+     answering to restart itself. Setup installs the service again while a router answers only
+     where it answers at the plist's state directory, launchd having the service loaded.
    - **What it's installed with:** read back from the plist, `--log-level`, and `--config`, which
      a `--config` given to setup replaces only where it names another file than the one the
      router serves; and the whole of `EnvironmentVariables`, those carried and any added by hand.
@@ -785,11 +798,14 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      router should use, installs it afresh once that's put right. Where none answers, setup says
      the same and fails, saying why.
    - **A plist it can't read back:** one that can't be read, isn't a plist, names no program, or
-     that `plutil` fails on or doesn't answer for in time. While a router answers, which may be
-     the one it runs, setup leaves the service as it is, saying so and that `service install`
-     installs it afresh. Where none answers, setup says so, and installs the service afresh from
-     its own options and the shell's environment, once the router could start from them, and
-     fails where it couldn't, as above.
+     that `plutil` fails on or doesn't finish reading in time. While launchd has the service
+     loaded, or a router answers, either of which may run as the plist says, setup leaves the
+     service as it is, saying so, why redacted, and that `service install` installs it afresh.
+     Otherwise setup says so, and installs the service afresh from its own options and the
+     shell's environment, once the router could start from them, and fails where it couldn't, as
+     above. `service restart` and `service status` say they couldn't read it, and look for the
+     router where the shell keeps its state; `status` says when the router answering is the
+     shell's, not the plist's.
    - **Where they see apart:** setup sets the router's places, as the service is seen, beside its
      own, the token files and the config file of its accounts and the directory it writes the
      skill in: the state directory, the config file and Claude Code's config directory, compared
@@ -7899,9 +7915,11 @@ verbs).
   switchboard directly: the tokens are files, so it needs nothing else of the user's environment.
   `install` warns when no account has a usable token; the router starts all the same, and routes
   once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
-  113 for one it hasn't: `install` boots out a loaded copy, waits for launchd to let it go,
+  113 for one it hasn't, and the pid of the router it runs, the job's own `pid =` line, there only
+  while one runs: `install` boots out a loaded copy, waits for launchd to let it go,
   bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router other than any
-  running before to answer. `bootout` can return at once, as on macOS 26, while launchd keeps the
+  running before to answer: with none answering before, at the state directory it writes or the
+  shell's, as launchd may give the router either; else at the one it writes alone. `bootout` can return at once, as on macOS 26, while launchd keeps the
   service until its router has finished its requests in flight, and launchd refuses to load it
   again until then (`5: Input/output error`), so after a bootout, `print` is asked every quarter
   second until it exits 113. `install` then tries bootstrapping 5 times, half a second apart,

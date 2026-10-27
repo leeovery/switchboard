@@ -348,7 +348,7 @@ The steps are:
 2. **Priming.** With no day set, asks for one, as `HH:MM-HH:MM`, and writes it to `[prime]`.
    Pressing Enter leaves priming off.
 3. **The service.** Installs the LaunchAgent when it isn't installed. Installs it again when
-   launchd hasn't loaded it, when it runs another switchboard than the one `setup` runs as, when
+   launchd hasn't loaded it and no router answers, when it runs another switchboard than the one `setup` runs as, when
    `setup` is given another config file than the one the router serves, or when its plist differs
    from the one `switchboard service install` would write with what it was installed with, as
    after an upgrade that adds a key, and says what differed. Installing it again keeps the
@@ -359,17 +359,23 @@ The steps are:
    could start from what it keeps, its flags included. Where it couldn't, `setup` leaves the
    service as it is while a router answers, saying why, and fails while none does, saying how to
    install it once that's put right. A plist `setup` can't read back, or one that names no
-   program, is left as it is while a router answers, saying so; while none does, it's installed
-   afresh from `setup`'s own options and your shell's environment, once the router could start
-   from them. A plist that isn't XML, as the binary one `defaults write` leaves, is read back
+   program, is left as it is while launchd has the service loaded or a router answers, saying
+   so; otherwise it's installed afresh from `setup`'s own options and your shell's environment,
+   once the router could start from them. A plist that isn't XML, as the binary one `defaults write` leaves, is read back
    through `plutil`.
 
    `setup` watches the router where the service's plist keeps its state, and the one where your
-   shell does. Where only the one at your shell's answers, `setup` can't tell which the service
-   runs, so it leaves the service as it is and says so: run `switchboard service install` from
-   the shell the router should use to line them up. It restarts the router only when neither
-   answers. When the router uses another state directory, config
-   file or Claude Code config directory than `setup`, `setup` says which, never where: run
+   shell does, and asks launchd whether it runs the router. It leaves the service as it is, saying
+   why, where launchd hasn't loaded it but a router run some other way answers, as another would
+   clash with it; where only the one at your shell's answers, so it can't tell which the service
+   runs; and where launchd runs a router that answers at neither, which `switchboard service
+   status` helps you find. Run `switchboard service install` from the shell the router should use
+   to line them up. It restarts the router only when none answers and none runs, once it has
+   checked the router could start, and fails where it couldn't, saying how to install it. It
+   never starts the service afresh while any router answers, and installs it again while one
+   answers only where that one answers where the plist keeps its state, launchd having it
+   loaded. When the router uses another state directory, config file or Claude Code config
+   directory than `setup`, `setup` says which, never where: run
    `switchboard service install` from the shell the router should use to line them up, or, for
    the config file, `switchboard setup --config` naming the router's, after which `setup` finds
    them the same and changes nothing. Where the router reads the config and the tokens `setup`
@@ -525,7 +531,7 @@ on the router:
 | Answering, with a binary that refuses to start | The router asks the binary it would become first. Where that refuses, as a newer version can refuse a config the running one takes, the router refuses too, and `restart` says why, in the binary's words. |
 | Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the router checks whether it could restart, the router refuses, and `restart` names what changed and says to try again. |
 | From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
-| Not answering | launchd starts the service afresh at once. `restart` asks the router where the LaunchAgent keeps its state, and the one where your shell does, and starts the service afresh only when neither answers. |
+| Not answering | launchd starts the service afresh at once. `restart` asks the router where the LaunchAgent keeps its state, and the one where your shell does, and starts the service afresh only when neither answers; the first to answer then, at either, is the one launchd started. |
 
 When the router restarts, `restart` says so,
 `the router is finishing its requests in flight, then it restarts in place`, or, for a router that
@@ -542,7 +548,9 @@ put the config right as it says.
 - **`uninstall`** stops the router, once it has finished its requests in flight, and removes the
   LaunchAgent.
 - **`status`** shows whether the LaunchAgent is installed and loaded, and the health of the router
-  where the LaunchAgent keeps its state, else of the one where your shell does.
+  where the LaunchAgent keeps its state, else of the one where your shell does, saying so. Where
+  it can't read the LaunchAgent's plist back, `status` and `restart` say so, and look for the
+  router where your shell keeps its state.
 
 When the router doesn't answer in time, `install` and `restart` fail, with the LaunchAgent left in
 place. They point to `switchboard logs router` and `launchd.log` for why.
