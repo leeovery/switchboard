@@ -1,7 +1,6 @@
 package prose
 
 import (
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -28,11 +27,15 @@ func Clean(text string) string {
 }
 
 // Quoted shows text the user gave, such as a label, in double quotes, set
-// apart from the words around it: as Clean makes it, its quotes and
-// backslashes escaped as Go escapes them.
+// apart from the words around it: as Clean makes it, and so as it shows, but
+// for its quote marks and backslashes, escaped by a backslash, so where it
+// ends reads plainly.
 func Quoted(text string) string {
-	return strconv.Quote(Clean(text))
+	return `"` + quoteEscaper.Replace(Clean(text)) + `"`
 }
+
+// quoteEscaper escapes the quote marks and backslashes in text Quoted shows.
+var quoteEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 
 // The words that join a list's last item to the rest: And, as List runs
 // items together, "a, b and c"; and Or, as ListOr runs together what's

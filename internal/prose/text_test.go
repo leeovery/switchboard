@@ -225,6 +225,10 @@ func TestClean(t *testing.T) {
 	}
 }
 
+// england is England's flag: a black flag, then the tags that name the
+// subdivision, then the tag that ends them.
+const england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"
+
 func TestQuoted(t *testing.T) {
 	tests := []struct {
 		name string
@@ -236,6 +240,9 @@ func TestQuoted(t *testing.T) {
 		{name: "quotes and backslashes escaped", text: `the "side" one\`, want: `"the \"side\" one\\"`},
 		{name: "cleaned", text: "Work\x1b[31m team", want: `"Work [31m team"`},
 		{name: "text beyond ASCII as it is", text: "Café", want: `"Café"`},
+		{name: "an emoji sequence's joiner as it is", text: "Team \U0001f469\u200d\U0001f4bb", want: "\"Team \U0001f469\u200d\U0001f4bb\""},
+		{name: "a private-use glyph as it is", text: "\ue0a0 main", want: "\"\ue0a0 main\""},
+		{name: "a subdivision's flag as it is", text: england, want: `"` + england + `"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
