@@ -701,13 +701,16 @@ accounts:
   file it can't remove keeps its record, and a token file that's a link leading to the file at the
   record's own path, by that one name, leaves that file, the one it led to, however the link spells
   its path; while the token file leads there, a token written is written there, and no record over
-  it, with a warning. A record that's a link, to the token file or to a file elsewhere, goes as a
-  link, and one that's a second name of the token file, or of the file it leads to, goes with it; a
-  directory in the record's place, empty or not, is left. The status document gives each account's
-  `token_taken`, and `token_good_until`, 365 days on, the router's as probing's: the router reads
-  the record whenever it reads the token, as it starts, at every look and on a 401, never per
-  request, and holds the date beside the token it was of, so a record that lands a moment after its
-  token counts from the next look.
+  it, with a warning. Once it's removed, the file left there holds a token, perhaps that token's
+  only copy, and a record is never written over a file at its own path holding anything shaped like
+  a token, as `redact` recognises one: it's left, with a warning, never quoting it. A damaged record
+  of other words is replaced. A record that's a link, to the token file or to a file elsewhere, goes
+  as a link, and one that's a second name of the token file, or of the file it leads to, goes with
+  it; a directory in the record's place, empty or not, is left. The status document gives each
+  account's `token_taken`, and `token_good_until`, 365 days on, the router's as probing's: the
+  router reads the record whenever it reads the token, as it starts, at every look and on a 401,
+  never per request, and holds the date beside the token it was of, so a record that lands a moment
+  after its token counts from the next look.
 - Anything can write the files, such as a password manager's file export or a dotfiles secrets step.
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
