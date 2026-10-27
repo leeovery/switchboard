@@ -130,7 +130,8 @@ An `id` must follow these rules:
 - It holds nothing shaped like a token.
 
 Switchboard can't read an account's plan from Anthropic, so `plan` is the only way it knows the
-plan. Switchboard uses the plan in two places:
+plan. [`accounts edit <id> --plan <plan>`](commands.md#accounts) sets it. Switchboard uses the plan
+in two places:
 
 - It compares what the plan costs with what the account's use was worth at API prices.
 - It sizes the account in [`history`](commands.md#history)'s replay of a week.

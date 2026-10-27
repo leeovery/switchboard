@@ -215,7 +215,7 @@ func TestAccountsAddWhenTheAPIDoesntAnswer(t *testing.T) {
 		t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
 	}
 	checkTokenFile(t, deps, "work", "test-token-work\n")
-	checkNoToken(t, got, "test-token-work")
+	checkNoToken(t, got, tokenShaped)
 }
 
 func TestAccountsAddRefusesATokenAsTheIDOrTheLabel(t *testing.T) {
@@ -485,6 +485,177 @@ func TestAccountsRemoveRefuses(t *testing.T) {
 				t.Errorf("the config reads\n%s\nwant it as it was\n%s", readFile(t, path), before)
 			}
 			checkTokenFile(t, deps, "side", "test-token-side\n")
+		})
+	}
+}
+
+// sideOnAPlan is personalAndSide with side on a plan, with a reserve, a
+// comment beside each.
+const sideOnAPlan = personalAndSide + "plan    = \"pro\"   # for now\nreserve = 0.1     # the app's share\n"
+
+func TestAccountsEdit(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  string
+		args    []string
+		wantOut string
+		// old is what the config held that the edit replaces with new.
+		old, new string
+	}{
+		{
+			name:    "a label",
+			config:  personalAndSide,
+			args:    []string{"--label", "Day job"},
+			wantOut: "edited side: label Day job (was Side)\n",
+			old:     `label = "Side"`,
+			new:     `label = "Day job"`,
+		},
+		{
+			name:    "no label, showing the account by its id",
+			config:  personalAndSide,
+			args:    []string{"--label", ""},
+			wantOut: "edited side: label side (was Side)\n",
+			old:     "label = \"Side\"\n",
+			new:     "",
+		},
+		{
+			name:    "a plan",
+			config:  personalAndSide,
+			args:    []string{"--plan", "max5x"},
+			wantOut: "edited side: plan max5x (was none)\n",
+			old:     "label = \"Side\"\n",
+			new:     "label = \"Side\"\nplan = \"max5x\"\n",
+		},
+		{
+			name:    "the primary, in place of the first, the primary for want of a mark",
+			config:  personalAndSide,
+			args:    []string{"--primary"},
+			wantOut: "edited side: the primary in place of personal\n",
+			old:     "label = \"Side\"\n",
+			new:     "label = \"Side\"\nprimary = true\n",
+		},
+		{
+			name:    "a reserve, as a percentage",
+			config:  personalAndSide,
+			args:    []string{"--reserve", "5%"},
+			wantOut: "edited side: reserve 5% (was none)\n",
+			old:     "label = \"Side\"\n",
+			new:     "label = \"Side\"\nreserve = 0.05\n",
+		},
+		{
+			name:    "everything together",
+			config:  personalAndSide,
+			args:    []string{"--label", "Day job", "--plan", "max20x", "--primary", "--reserve", "2.5%"},
+			wantOut: "edited side: label Day job (was Side), plan max20x (was none), the primary in place of personal, reserve 2.5% (was none)\n",
+			old:     "label = \"Side\"\n",
+			new:     "label = \"Day job\"\nplan = \"max20x\"\nprimary = true\nreserve = 0.025\n",
+		},
+		{
+			name:    "no plan and no reserve, keeping the comments around them",
+			config:  sideOnAPlan,
+			args:    []string{"--plan", "none", "--reserve", "0"},
+			wantOut: "edited side: plan none (was pro), reserve none (was 10%)\n",
+			old:     "plan    = \"pro\"   # for now\nreserve = 0.1     # the app's share\n",
+			new:     "",
+		},
+		{
+			name:    "a plan and a reserve in place of those it has, keeping the comments beside them",
+			config:  sideOnAPlan,
+			args:    []string{"--plan", "max5x", "--reserve", "0%"},
+			wantOut: "edited side: plan max5x (was pro), reserve none (was 10%)\n",
+			old:     "plan    = \"pro\"   # for now\nreserve = 0.1     # the app's share\n",
+			new:     "plan    = \"max5x\"   # for now\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, path := accountsDeps(t, newClaudeAPI(t).URL, tt.config)
+			before := readFile(t, path)
+			args := append([]string{"accounts", "edit", "side"}, tt.args...)
+
+			got := run(t, deps, args...)
+			if want := (result{stdout: tt.wantOut}); got != want {
+				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
+			}
+			if want := strings.Replace(before, tt.old, tt.new, 1); !strings.Contains(before, tt.old) || readFile(t, path) != want {
+				t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
+			}
+		})
+	}
+}
+
+func TestAccountsEditChangesNothingGivenWhatTheAccountHas(t *testing.T) {
+	deps, path := accountsDeps(t, newClaudeAPI(t).URL, sideOnAPlan)
+	before := readFile(t, path)
+
+	got := run(t, deps, "accounts", "edit", "side", "--label", "Side", "--plan", "pro", "--reserve", "10%")
+	if want := (result{stdout: "side has every value given already, so nothing changed\n"}); got != want {
+		t.Errorf("switchboard accounts edit = %+v, want %+v", got, want)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("the config reads\n%s\nwant it as it was\n%s", readFile(t, path), before)
+	}
+}
+
+func TestAccountsEditRefuses(t *testing.T) {
+	const noFlags = "give one or more of --label, --plan, --primary or --reserve"
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "no flags", args: []string{"side"}, wantErr: noFlags},
+		{name: "--primary=false alone, which asks for nothing", args: []string{"side", "--primary=false"}, wantErr: noFlags},
+		{
+			name:    "an account not configured",
+			args:    []string{"work", "--plan", "pro"},
+			wantErr: `account "work" is not configured: add it with switchboard accounts add work`,
+		},
+		{
+			name:    "a token given as the id, never shown",
+			args:    []string{tokenShaped, "--plan", "pro"},
+			wantErr: `account "[redacted]" is not configured: add it with switchboard accounts add [redacted]`,
+		},
+		{
+			name:    "a plan that isn't one",
+			args:    []string{"side", "--plan", "free"},
+			wantErr: `plan "free": must be pro, max5x, max20x or none`,
+		},
+		{
+			name:    "a reserve as a number alone",
+			args:    []string{"side", "--reserve", "5"},
+			wantErr: `reserve "5": must be written as a percentage, such as 5%, as a number alone could be a share or a percentage`,
+		},
+		{
+			name:    "a reserve as a share alone",
+			args:    []string{"side", "--reserve", "0.05"},
+			wantErr: `reserve "0.05": must be written as a percentage, such as 5%, as a number alone could be a share or a percentage`,
+		},
+		{
+			name:    "a reserve of the whole window",
+			args:    []string{"side", "--reserve", "100%"},
+			wantErr: `reserve "100%": must be at least 0% and less than 100%, the share of every window the router leaves unused`,
+		},
+		{
+			name:    "a label shaped like a token, never shown",
+			args:    []string{"side", "--label", tokenShaped},
+			wantErr: `account "side": label looks like a token, which a label mustn't, as it shows wherever the account does`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, path := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+			before := readFile(t, path)
+			args := append([]string{"accounts", "edit"}, tt.args...)
+
+			got := run(t, deps, args...)
+			if want := (result{stderr: "Error: " + tt.wantErr + "\n", code: 1}); got != want {
+				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
+			}
+			if readFile(t, path) != before {
+				t.Errorf("the config reads\n%s\nwant it as it was\n%s", readFile(t, path), before)
+			}
+			checkNoToken(t, got, tokenShaped)
 		})
 	}
 }

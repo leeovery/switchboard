@@ -714,6 +714,14 @@ accounts:
   doesn't save one the API refuses (401 or 403); when the probe fails otherwise, as when it can't
   reach the API, it saves it with a warning. `--label` sets the label, and `--primary` makes the
   account the primary.
+- `accounts edit <id>` changes an account's label (`--label`, under `add`'s rules, `""` for none),
+  plan (`--plan`, one of the plans or `none`), primary (`--primary`, taking it off the account that
+  had it) or reserve (`--reserve`), given one or more, and leaves the rest as they are. A reserve
+  is written as a percentage, `5%`, and stored as the share, `0.05`; `0` or `0%` clears it, and a
+  number alone is refused, as `5` and `0.05` could each mean the other. It says what it changed,
+  each value now and as it was, or, when every value given is the account's already, that nothing
+  changed, writing nothing. The flags are read into the values its action,
+  `accounts.Registry.Edit`, takes, so a form can give it the same.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file: of one that's a link, the link
   alone, saying where it led, as the file there isn't switchboard's. Of the primary, it says which
@@ -774,6 +782,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 |---|---|
 | `accounts` | List the accounts: id, label, whether its token is present and usable, and why not, and which is the primary |
 | `accounts add <id> [--label <label>] [--primary]` | Register an account, asking for its token or reading it from stdin: see Accounts and tokens |
+| `accounts edit <id> [--label <label>] [--plan <plan>] [--primary] [--reserve <percent>]` | Change an account's label, plan, primary or reserve: see Accounts and tokens |
 | `accounts token <id>` | Replace an account's token |
 | `accounts remove <id>` | Remove an account, and its token file |
 | `setup` | Walk through setting up, or what's left of it: see Setup |

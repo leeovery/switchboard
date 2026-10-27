@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -37,8 +39,8 @@ func newAccountsCommand(a *app) *cobra.Command {
 the primary, and whether its token file, <state dir>/tokens/<id>, holds a
 token switchboard can use, or why not, and what would put it right.
 
-accounts add, token and remove register an account, replace its token, and
-remove it.`,
+accounts add, edit, token and remove register an account, change its label,
+plan, primary or reserve, replace its token, and remove it.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := a.loadConfig()
@@ -52,7 +54,7 @@ remove it.`,
 			return writeTable(cmd.OutOrStdout(), accountRows(cfg.Accounts, files.Read))
 		},
 	}
-	cmd.AddCommand(newAccountsAddCommand(a), newAccountsTokenCommand(a), newAccountsRemoveCommand(a))
+	cmd.AddCommand(newAccountsAddCommand(a), newAccountsEditCommand(a), newAccountsTokenCommand(a), newAccountsRemoveCommand(a))
 	return cmd
 }
 
@@ -78,6 +80,74 @@ token file: letters, digits, '-' and '_'.
 	cmd.Flags().StringVar(&account.Label, "label", "", "show the account as `LABEL` (default the id)")
 	cmd.Flags().BoolVar(&account.Primary, "primary", false, "make it the primary, the account the browser and the Claude apps use")
 	return cmd
+}
+
+// editFlags are accounts edit's flags, as they're given.
+type editFlags struct {
+	label, plan, reserve string
+	primary              bool
+}
+
+// editFlagNames are accounts edit's flags, of which it's given one or more.
+var editFlagNames = []string{"--label", "--plan", "--primary", "--reserve"}
+
+func newAccountsEditCommand(a *app) *cobra.Command {
+	var flags editFlags
+	cmd := &cobra.Command{
+		Use:   "edit <id>",
+		Short: "Change an account's label, plan, primary or reserve",
+		Long: `Change an account's label, its plan, whether it's the primary, or its reserve,
+in its [[account]] table in the config. Give one or more of --label, --plan,
+--primary and --reserve; what isn't given is left as it is, and when every
+value given is what the account has already, nothing is written.
+
+--plan takes none, to leave the plan unknown. --reserve takes a percentage,
+such as 5%, of every window, which the router leaves unused, or 0 for none.
+--primary makes the account the primary in place of the one that is.
+
+` + editingTheConfig,
+		Args: oneAccount,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			change, err := flags.change(cmd.Flags().Changed)
+			if err != nil {
+				return err
+			}
+			return a.editAccount(cmd, args[0], change)
+		},
+	}
+	plans := prose.ListOr(config.PlanChoices())
+	cmd.Flags().StringVar(&flags.label, "label", "", "show the account as `LABEL`: \"\" shows it by its id")
+	cmd.Flags().StringVar(&flags.plan, "plan", "", "the `PLAN` its subscription is on: "+plans)
+	cmd.Flags().BoolVar(&flags.primary, "primary", false, "make it the primary, the account the browser and the Claude apps use")
+	cmd.Flags().StringVar(&flags.reserve, "reserve", "", "leave `PERCENT` of every window unused, such as 5%, or 0 for none")
+	return cmd
+}
+
+// change is the change the flags ask for, those given as given reports, each
+// read as the config reads it.
+func (f editFlags) change(given func(name string) bool) (accounts.Change, error) {
+	change := accounts.Change{Primary: f.primary}
+	if given("label") {
+		change.Label = &f.label
+	}
+	if given("plan") {
+		plan, err := config.ParsePlan(f.plan)
+		if err != nil {
+			return accounts.Change{}, err
+		}
+		change.Plan = &plan
+	}
+	if given("reserve") {
+		reserve, err := config.ParseReserve(f.reserve)
+		if err != nil {
+			return accounts.Change{}, err
+		}
+		change.Reserve = &reserve
+	}
+	if !change.Asks() {
+		return accounts.Change{}, errors.New("give one or more of " + prose.ListOr(editFlagNames))
+	}
+	return change, nil
 }
 
 func newAccountsTokenCommand(a *app) *cobra.Command {
@@ -161,15 +231,75 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 		return err
 	}
 	taken, err := registry.SetToken(cmd.Context(), cfg, id)
-	if errors.Is(err, config.ErrNotConfigured) {
-		return fmt.Errorf("%w: add it with switchboard accounts add %s", err, redact.Text(id))
-	}
 	if err != nil {
-		return err
+		return pointToAdding(err, id)
 	}
 	warnUnchecked(cmd.ErrOrStderr(), taken)
 	_, err = io.WriteString(cmd.OutOrStdout(), "saved "+id+"'s token\n")
 	return err
+}
+
+// pointToAdding points an error of acting on the account with the given id,
+// which no account has, to adding it.
+func pointToAdding(err error, id string) error {
+	if errors.Is(err, config.ErrNotConfigured) {
+		return fmt.Errorf("%w: add it with switchboard accounts add %s", err, redact.Text(id))
+	}
+	return err
+}
+
+// editAccount makes the change to the account, and says what it changed.
+func (a *app) editAccount(cmd *cobra.Command, id string, change accounts.Change) error {
+	registry, err := a.registry(cmd)
+	if err != nil {
+		return err
+	}
+	edited, err := registry.Edit(id, change)
+	if err != nil {
+		return pointToAdding(err, id)
+	}
+	_, err = io.WriteString(cmd.OutOrStdout(), editedSays(edited)+"\n")
+	return err
+}
+
+// editedSays says what an edit changed of the account, each value as it is
+// now, then as it was, or that it changed nothing.
+func editedSays(e accounts.Edited) string {
+	if !e.Changed() {
+		return e.Now.ID + " has every value given already, so nothing changed"
+	}
+	var changed []string
+	if e.Was.Label != e.Now.Label {
+		changed = append(changed, nowAndWas("label", prose.Clean(e.Now.Label), prose.Clean(e.Was.Label)))
+	}
+	if e.Was.Plan != e.Now.Plan {
+		changed = append(changed, nowAndWas("plan", planSaid(e.Now.Plan), planSaid(e.Was.Plan)))
+	}
+	if e.FormerPrimary != "" {
+		changed = append(changed, "the primary in place of "+e.FormerPrimary)
+	}
+	if e.Was.Reserve != e.Now.Reserve {
+		changed = append(changed, nowAndWas("reserve", reserveSaid(e.Now.Reserve), reserveSaid(e.Was.Reserve)))
+	}
+	return "edited " + e.Now.ID + ": " + strings.Join(changed, ", ")
+}
+
+// nowAndWas says a value an edit changed, as "plan max20x (was max5x)".
+func nowAndWas(name, now, was string) string {
+	return name + " " + now + " (was " + was + ")"
+}
+
+// planSaid says a plan, or none.
+func planSaid(plan string) string {
+	return cmp.Or(plan, config.PlanNone)
+}
+
+// reserveSaid says a reserve, as the percentage it was set as, or none.
+func reserveSaid(reserve float64) string {
+	if reserve == 0 {
+		return "none"
+	}
+	return prose.PercentSet(reserve)
 }
 
 // removeAccount removes the account and its token file, and says what it
