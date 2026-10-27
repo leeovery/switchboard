@@ -689,35 +689,41 @@ accounts:
   on the tokens directory, so two writes at once both keep their dates, and a write beside a removal
   can't leave a removed account's record; a write changes nothing of a record where nothing would
   change. At its own path, not a link, a record that's missing, or was read and can't be gone by, is
-  replaced, and so is one that can't be opened, where it isn't the user's, as one written under
-  sudo, or isn't a file, but for a directory, which a file can't be renamed over, so it's left, with
-  a warning; the user's own that couldn't be read is left as it is, and so is the record where the
-  time given is one it can't hold, as of a clock gone wrong. Nor is it ever written over a file
-  that's any account's token or another account's record, judged by the file, however it's reached:
-  at its own path, through a link or as a second name, as where a token file is a link to the
-  record's own path, or the record a link to another account's. That's left as it is, with a
-  warning. A failure to write it is logged as a warning, the token saved all the same.
-  `accounts remove` deletes the token file, then the record, a link alone where it's one; a token
-  file it can't remove keeps its record, and a token file that's a link leading to the file at the
-  record's own path, by that one name, leaves that file, the one it led to, however the link spells
-  its path; while the token file leads there, a token written is written there, and no record over
-  it, with a warning. Once it's removed, the file left there holds a token, perhaps that token's
-  only copy, and a record is never written over a file at its own path holding anything shaped like
-  a token, as `redact` recognises one: it's left, with a warning, never quoting it. A damaged record
-  of other words is replaced. A record that's a link, to the token file or to a file elsewhere, goes
-  as a link, and one that's a second name of the token file, or of the file it leads to, goes with
-  it; a directory in the record's place, empty or not, is left. The status document gives each
-  account's `token_taken`, and `token_good_until`, 365 days on, the router's as probing's: the
-  router reads the record whenever it reads the token, as it starts, at every look and on a 401,
-  never per request, and holds the date beside the token it was of, so a record that lands a moment
-  after its token counts from the next look.
+  replaced, and so is what isn't a file, but for a directory, which a file can't be renamed over, so
+  it's left, with a warning. A file that can't be read, whoever's it is, as one written under sudo,
+  is left as it is, as it may hold a token, and so is the record where the time given is one it
+  can't hold, as of a clock gone wrong. Nor is it ever written over a file that's any account's
+  token or another account's record, judged by the file, however it's reached: at its own path,
+  through a link or as a second name, as where a token file is a link to the record's own path, or
+  the record a link to another account's. That's left as it is, with a warning, and so is where the
+  record would go, while nothing's there, where another account's token file or record is a link
+  leading there. The account's own record is told by the file, so one whose name's case changed with
+  its id, on a file system that doesn't tell case apart, is the account's own. A failure to write it
+  is logged as a warning, the token saved all the same. `accounts remove` deletes the token file,
+  then the record, a link alone where it's one; a token file it can't remove keeps its record, and a
+  token file that's a link leading to the file at the record's own path, by that one name, leaves
+  that file, the one it led to, however the link spells its path; while the token file leads there,
+  a token written is written there, and no record over it, with a warning. Once it's removed, the
+  file left there holds a token, perhaps that token's only copy, and a record is never written over
+  a file at its own path holding anything shaped like a token, as `redact` recognises one, whatever
+  the file's mode or owner: every file it can read is read for that before its mode and owner are
+  judged, and it's left, with a warning, never quoting it. A damaged record of other words is
+  replaced; the dates of one others can write, or another user's, are never gone by. A record that's
+  a link, to the token file or to a file elsewhere, goes as a link, and one that's a second name of
+  the token file, or of the file it leads to, goes with it; a directory in the record's place, empty
+  or not, is left. The status document gives each account's `token_taken`, and `token_good_until`,
+  365 days on, the router's as probing's: the router reads the record whenever it reads the token,
+  as it starts, at every look and on a 401, never per request, and holds the date beside the token
+  it was of, so a record that lands a moment after its token counts from the next look.
 - Anything can write the files, such as a password manager's file export or a dotfiles secrets step.
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
   empties the file before it writes the token, as a shell's redirect does, leaves it empty for a
-  moment, which the router can catch (see below). A token file may be a link to one kept
-  elsewhere, as by a dotfiles step: switchboard reads it, and writes a token, through the link, to
-  where it leads, never in its place.
+  moment, which the router can catch (see below). A token file may be a link to one kept elsewhere,
+  as by a dotfiles step: switchboard reads it, and writes a token, through the link, to where it
+  leads, never in its place. A link whose way goes back, by `..`, out of a directory that isn't
+  there leads nowhere the system can follow, so writing through it fails, saying so, as for any file
+  switchboard writes through a link.
 - The router reads the tokens as it starts, every account's file again every 3 seconds, and an
   account's file again when a request on it gets a 401 (see Requests that need special
   handling), so a changed token file needs no restart: an account whose file holds another token
