@@ -39,7 +39,7 @@ func (r *run) service(ctx context.Context) error {
 func (r *run) install(ctx context.Context) error {
 	opts := r.Install
 	opts.Executable, opts.Accounts = r.switchboard, r.cfg.Accounts
-	installed, err := r.Service.Install(ctx, opts)
+	installed, err := r.Service.Install(ctx, opts, r.draining)
 	if err != nil {
 		return err
 	}
@@ -55,14 +55,18 @@ func (r *run) install(ctx context.Context) error {
 // as one starting might, it's restarted, saying first that it's finishing its
 // requests in flight.
 func (r *run) restart(ctx context.Context) error {
-	h, err := r.Service.Restart(ctx, func(how service.Restarting) {
-		r.Terminal.sayf("The router is finishing its requests in flight, then %s.", how)
-	})
+	h, err := r.Service.Restart(ctx, r.draining)
 	if err != nil {
 		return err
 	}
 	r.Terminal.sayf("Restarted the router, as it didn't answer.")
 	return r.up(h)
+}
+
+// draining says, as the router finishes its requests in flight, how it
+// restarts.
+func (r *run) draining(how service.Restarting) {
+	r.Terminal.sayf("The router is finishing its requests in flight, then %s.", how)
 }
 
 // up says how the router launchd started answered, failing, saying where to

@@ -124,8 +124,8 @@ func (a *app) service() (*service.Service, error) {
 // installService installs the LaunchAgent to run this switchboard binary as
 // opts says, serving the config the CLI finds, once it has checked what the
 // router would start from, as serve's check does, so a router that couldn't
-// start never replaces one that runs, and says how the router it starts
-// answers.
+// start never replaces one that runs, saying so while the router it replaces
+// finishes its requests in flight, and says how the router it starts answers.
 func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts service.InstallOptions) error {
 	svc, err := a.service()
 	if err != nil {
@@ -139,7 +139,7 @@ func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts se
 		return fmt.Errorf("find this switchboard binary: %w", err)
 	}
 	opts.Config, opts.Accounts = a.configPath, cfg.Accounts
-	installed, err := svc.Install(ctx, opts)
+	installed, err := svc.Install(ctx, opts, draining(out))
 	if err != nil {
 		return err
 	}
@@ -152,13 +152,14 @@ func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts se
 	return started(out, svc, installed.Router)
 }
 
-// uninstallService stops the router and removes the LaunchAgent.
+// uninstallService stops the router, saying so while it finishes its
+// requests in flight first, and removes the LaunchAgent.
 func (a *app) uninstallService(ctx context.Context, out io.Writer) error {
 	svc, err := a.service()
 	if err != nil {
 		return err
 	}
-	removed, err := svc.Uninstall(ctx)
+	removed, err := svc.Uninstall(ctx, func() { finishing(out, "it stops") })
 	if err != nil {
 		return err
 	}
@@ -177,9 +178,7 @@ func (a *app) restartService(ctx context.Context, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	h, err := svc.Restart(ctx, func(how service.Restarting) {
-		_, _ = fmt.Fprintln(out, "the router is finishing its requests in flight, then "+how.String())
-	})
+	h, err := svc.Restart(ctx, draining(out))
 	if errors.Is(err, service.ErrNotLoaded) {
 		return fmt.Errorf("%w: run switchboard service install", err)
 	}
@@ -218,6 +217,18 @@ func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
 		answer = "not answering: " + st.RouterErr.Error()
 	}
 	return writeTable(out, [][]string{{"LaunchAgent", installed}, {"launchd", loaded}, {"router", answer}})
+}
+
+// draining says to out, as the router finishes its requests in flight, how
+// it restarts.
+func draining(out io.Writer) func(service.Restarting) {
+	return func(how service.Restarting) { finishing(out, how.String()) }
+}
+
+// finishing says to out that the router is finishing its requests in
+// flight, and what follows.
+func finishing(out io.Writer, then string) {
+	_, _ = fmt.Fprintln(out, "the router is finishing its requests in flight, then "+then)
 }
 
 // started says how the router launchd started answered, failing, with where

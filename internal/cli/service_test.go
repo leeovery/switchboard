@@ -229,11 +229,73 @@ func TestServiceUninstall(t *testing.T) {
 	if got, want := run(t, s.srv.deps, "service", "uninstall"), (result{stdout: "the service isn't installed\n"}); got != want {
 		t.Errorf("switchboard service uninstall, again = %+v, want %+v", got, want)
 	}
-	if want := [][]string{{"print", target}, {"bootout", target}, {"print", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
+	if want := [][]string{{"print", target}, {"bootout", target}, {"print", target}, {"print", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchd.calls, want)
 	}
 	if _, err := os.Stat(s.plist); !os.IsNotExist(err) {
 		t.Errorf("the plist: %v, want it gone", err)
+	}
+}
+
+func TestServiceInstallAndUninstallSayTheRouterIsFinishingItsRequests(t *testing.T) {
+	const finishing = "the router is finishing its requests in flight, then "
+	tests := []struct {
+		name string
+		args []string
+		// installed installs the service first, as uninstalling needs; the
+		// service is loaded either way, and its prints find it lingers times
+		// once it's booted out.
+		installed bool
+		lingers   int
+		// want is what's printed, given the plist's path and the router's
+		// answer.
+		want func(plist, up string) string
+	}{
+		{
+			name:    "install, over a service launchd keeps while its router finishes",
+			args:    []string{"install"},
+			lingers: 1,
+			want: func(plist, up string) string {
+				return finishing + "launchd starts it again\ninstalled " + plist + "\n" + up
+			},
+		},
+		{
+			name: "install, over a service launchd lets go at once",
+			args: []string{"install"},
+			want: func(plist, up string) string { return "installed " + plist + "\n" + up },
+		},
+		{
+			name:      "uninstall, of a service launchd keeps while its router finishes",
+			args:      []string{"uninstall"},
+			installed: true,
+			lingers:   1,
+			want: func(plist, _ string) string {
+				return finishing + "it stops\nuninstalled: removed " + plist + "\n"
+			},
+		},
+		{
+			name:      "uninstall, of a service launchd lets go at once",
+			args:      []string{"uninstall"},
+			installed: true,
+			want:      func(plist, _ string) string { return "uninstalled: removed " + plist + "\n" },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newServiceSetup(t)
+			if tt.installed {
+				if got := run(t, s.srv.deps, "service", "install"); got.code != 0 {
+					t.Fatalf("switchboard service install = %+v, want exit status 0", got)
+				}
+			}
+			s.launchd.loaded, s.launchd.lingers = true, tt.lingers
+
+			got := run(t, s.srv.deps, append([]string{"service"}, tt.args...)...)
+			want := result{stdout: tt.want(s.plist, "the router is up: healthy, pid "+strconv.Itoa(os.Getpid())+"\n")}
+			if got != want {
+				t.Errorf("switchboard service %s = %+v, want %+v", strings.Join(tt.args, " "), got, want)
+			}
+		})
 	}
 }
 
@@ -450,8 +512,10 @@ func (s *serviceSetup) checkPlist(t *testing.T, parts ...string) {
 // fakeLaunchd stands in for launchctl, and for launchd behind it, noting each
 // run: bootstrapping the service loads it, and starts srv's router when
 // starts is set; kickstarting it starts the router; booting it out forgets
-// it; and printing it succeeds. While it isn't loaded, anything but
-// bootstrapping it exits 113, as printing it does in launchctl. With probed
+// it, once the next lingers prints have found it, as launchd keeps a service
+// loaded while its router finishes its requests in flight; and printing it
+// succeeds. While it isn't loaded, anything but bootstrapping it exits 113,
+// as printing it does in launchctl. With probed
 // set, a router it starts has probed every account it has a token for before
 // launchctl returns, so what's read of the router next reads those probes,
 // rather than racing them.
@@ -461,7 +525,9 @@ type fakeLaunchd struct {
 	starts bool
 	probed bool
 	loaded bool
-	calls  [][]string
+	// lingering is how many more prints find the service booted out.
+	lingers, lingering int
+	calls              [][]string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -475,7 +541,10 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 	case !f.loaded:
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
 	case args[0] == "bootout":
-		f.loaded = false
+		f.loaded, f.lingering = f.lingers > 0, f.lingers
+	case args[0] == "print" && f.lingering > 0:
+		f.lingering--
+		f.loaded = f.lingering > 0
 	case args[0] == "kickstart":
 		f.start()
 	}

@@ -28,7 +28,7 @@ const target = "gui/501/io.github.leeovery.switchboard"
 func TestInstall(t *testing.T) {
 	s := newSetup(t, nil, upOnceStarted(4242))
 
-	installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+	installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, notDraining(t))
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
@@ -61,7 +61,7 @@ func TestInstallNamesTheBinaryAsItWasRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: link}); err != nil {
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: link}, notDraining(t)); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
 	s.checkPlist(t, link, "")
@@ -76,7 +76,7 @@ func TestInstallReplacesAPlistThere(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, notDraining(t)); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
 	s.checkPlist(t, s.binary, "")
@@ -93,7 +93,7 @@ func TestInstallReplacesAPlistWholeNeverCuttingTheOldOneShort(t *testing.T) {
 	}
 	defer func() { _ = old.Close() }()
 
-	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, notDraining(t)); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
 	if read, err := io.ReadAll(old); err != nil || string(read) != "<plist/>\n" {
@@ -121,7 +121,7 @@ func TestInstallWritesALinkedPlistWhereItsLinkLeads(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, notDraining(t)); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
 	if dest, err := os.Readlink(s.plist); err != nil || dest != kept {
@@ -134,10 +134,10 @@ func TestInstallOverALoadedService(t *testing.T) {
 	s := newSetup(t, nil, upOnceStarted(4242))
 	s.launchctl.loaded = true
 
-	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, notDraining(t)); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
-	if want := [][]string{{"print", target}, {"bootout", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchctl.calls, want) {
+	if want := [][]string{{"print", target}, {"bootout", target}, {"print", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchctl.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
 	}
 }
@@ -192,7 +192,7 @@ func TestInstallFailsWhenLaunchctlDoes(t *testing.T) {
 				s := newSetup(t, nil, upOnceStarted(4242))
 				s.launchctl.loaded, s.launchctl.exits, s.launchctl.cantRun = tt.loaded, tt.exits, tt.cantRun
 
-				_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+				_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, notDraining(t))
 				wantErr, wantCalls := tt.want(s.plist)
 				if err == nil || err.Error() != wantErr {
 					t.Errorf("Install() error = %v, want %q", err, wantErr)
@@ -228,11 +228,11 @@ func TestInstallTriesBootstrappingAgain(t *testing.T) {
 				s.launchctl.fails = map[string]int{"bootstrap": tt.fails}
 				began := time.Now()
 
-				installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+				installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, notDraining(t))
 				if err != nil || installed.Router == nil {
 					t.Fatalf("Install() = %+v, %v; want it installed, the router answering", installed, err)
 				}
-				want := [][]string{{"print", target}, {"bootout", target}}
+				want := [][]string{{"print", target}, {"bootout", target}, {"print", target}}
 				for range tt.wantTries {
 					want = append(want, []string{"bootstrap", "gui/501", s.plist})
 				}
@@ -255,7 +255,7 @@ func TestInstallGivenUpWhileItWaitsToBootstrapAgainFailsAsTheTryDid(t *testing.T
 		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 		defer cancel()
 
-		_, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
+		_, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary}, notDraining(t))
 		want := "launchctl bootstrap gui/501 " + s.plist + ": bootstrap failed: 5: Input/output error (exit status 5)"
 		if err == nil || err.Error() != want {
 			t.Errorf("Install() error = %v, want %q", err, want)
@@ -312,7 +312,7 @@ func TestInstallRefusesATemporaryBuild(t *testing.T) {
 			s.launchctl.refuse = true
 			exe, found := tt.build(t, s.root, s.tmp)
 
-			_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: exe})
+			_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: exe}, notDraining(t))
 			want := "this switchboard is a temporary build, " + found + ", which won't last: use one that does, such as Homebrew's or one go install built"
 			if err == nil || err.Error() != want {
 				t.Errorf("Install() error = %v, want %q", err, want)
@@ -352,7 +352,7 @@ func TestInstallWarnsWhenTheRouterWouldHaveNoToken(t *testing.T) {
 				writeTokenFile(t, filepath.Join(s.cfg.StateDir, "tokens", id), mode)
 			}
 
-			installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary, Accounts: accounts})
+			installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary, Accounts: accounts}, notDraining(t))
 			if err != nil {
 				t.Fatalf("Install() error = %v", err)
 			}
@@ -381,7 +381,7 @@ func TestInstallCarriesTheVariablesNamingAFileOrADirectoryAbsolute(t *testing.T)
 	s := newSetup(t, map[string]string{"SWITCHBOARD_CONFIG": "work.toml", "CLAUDE_CONFIG_DIR": "claude", "XDG_STATE_HOME": "state"}, upOnceStarted(4242))
 	t.Chdir(s.root)
 
-	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, notDraining(t)); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
 	plist, err := os.ReadFile(s.plist)
@@ -405,7 +405,7 @@ func TestInstallServesTheConfigGiven(t *testing.T) {
 	s := newSetup(t, env, upOnceStarted(4242))
 	t.Chdir(s.root)
 
-	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary, Config: "work.toml"}); err != nil {
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary, Config: "work.toml"}, notDraining(t)); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
 	s.checkPlist(t, s.binary, filepath.Join(s.root, "work.toml"))
@@ -466,7 +466,7 @@ func TestInstallWaitsForTheRouter(t *testing.T) {
 				began := time.Now()
 				s := newSetup(t, nil, func(asked int) (router.Health, error) { return tt.answer(time.Since(began), asked) })
 
-				installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+				installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, notDraining(t))
 				if err != nil {
 					t.Fatalf("Install() error = %v", err)
 				}
@@ -485,7 +485,7 @@ func TestInstallWaitsForTheRouter(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	loadedRuns := [][]string{{"print", target}, {"bootout", target}}
+	bootedOut := [][]string{{"print", target}, {"bootout", target}}
 	tests := []struct {
 		name string
 		// installed puts the plist in place first.
@@ -496,7 +496,7 @@ func TestUninstall(t *testing.T) {
 		wantErr     string
 		wantRuns    [][]string
 	}{
-		{name: "installed and loaded", installed: true, loaded: true, wantRemoved: true, wantRuns: loadedRuns},
+		{name: "installed and loaded", installed: true, loaded: true, wantRemoved: true, wantRuns: [][]string{{"print", target}, {"bootout", target}, {"print", target}}},
 		{name: "installed, not loaded", installed: true, wantRemoved: true, wantRuns: [][]string{{"print", target}}},
 		{name: "not installed", wantRuns: [][]string{{"print", target}}},
 		{
@@ -505,7 +505,7 @@ func TestUninstall(t *testing.T) {
 			loaded:    true,
 			exits:     map[string]int{"bootout": 5},
 			wantErr:   "launchctl bootout " + target + ": bootout failed: 5: Input/output error (exit status 5)",
-			wantRuns:  loadedRuns,
+			wantRuns:  bootedOut,
 		},
 	}
 	for _, tt := range tests {
@@ -516,7 +516,7 @@ func TestUninstall(t *testing.T) {
 				s.putPlist(t, "<plist/>\n")
 			}
 
-			removed, err := s.svc.Uninstall(t.Context())
+			removed, err := s.svc.Uninstall(t.Context(), notStopping(t))
 			if (err == nil) != (tt.wantErr == "") || (err != nil && err.Error() != tt.wantErr) || removed != tt.wantRemoved {
 				t.Errorf("Uninstall() = %v, %v; want %v, and the error %q", removed, err, tt.wantRemoved, tt.wantErr)
 			}
@@ -799,38 +799,167 @@ func TestRestartFails(t *testing.T) {
 	}
 }
 
-func TestBootingTheServiceOutWaitsForTheRouterToStop(t *testing.T) {
+// stillLoaded is what booting the service out fails with when launchd hasn't
+// let it go 55 seconds after: the 45 it gives the router to stop, and 10
+// more.
+const stillLoaded = "launchd still had the service loaded 55s after booting it out"
+
+// bootOut boots a loaded service out, as a method does.
+type bootOut struct {
+	name string
+	// run boots the service out, calling drained when the method says the
+	// router is finishing its requests in flight.
+	run func(t *testing.T, s *setup, drained func()) error
+	// bootstraps is set for Install, which has launchd load the service
+	// afresh once it has let the one before go.
+	bootstraps bool
+}
+
+var bootOuts = []bootOut{
+	{
+		name:       "Install, over a loaded service",
+		bootstraps: true,
+		run: func(t *testing.T, s *setup, drained func()) error {
+			installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}, func(how service.Restarting) {
+				if how != service.ByLaunchd {
+					t.Errorf("said the router is finishing its requests in flight, then %s, want then launchd starts it again", how)
+				}
+				drained()
+			})
+			if err == nil && (installed.Router == nil || installed.Router.PID != 4242) {
+				t.Errorf("Install() found the router %v, want pid 4242", installed.Router)
+			}
+			return err
+		},
+	},
+	{
+		name: "Uninstall",
+		run: func(t *testing.T, s *setup, drained func()) error {
+			_, err := s.svc.Uninstall(t.Context(), drained)
+			return err
+		},
+	},
+}
+
+func TestBootingTheServiceOutWaitsForLaunchdToLetItGo(t *testing.T) {
 	tests := []struct {
 		name string
-		// bootOut boots the loaded service out, as the method named does.
-		bootOut func(ctx context.Context, s *setup) error
+		// takes is how long booting the service out takes, and lingers how
+		// long launchd keeps it loaded after.
+		takes, lingers time.Duration
+		wantDrained    bool
+		wantWaited     time.Duration
+		wantErr        string
 	}{
+		{name: "let go at once"},
 		{
-			name: "Install, over a loaded service",
-			bootOut: func(ctx context.Context, s *setup) error {
-				_, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
-				return err
-			},
+			name:        "let go once the router has finished its requests in flight",
+			lingers:     30 * time.Second,
+			wantDrained: true,
+			wantWaited:  30 * time.Second,
 		},
 		{
-			name: "Uninstall",
-			bootOut: func(ctx context.Context, s *setup) error {
-				_, err := s.svc.Uninstall(ctx)
-				return err
-			},
+			name:       "booting out takes as long as launchd gives the router to stop",
+			takes:      45 * time.Second,
+			wantWaited: 45 * time.Second,
+		},
+		{
+			name:        "booting out takes a while, then launchd lets go within 55 seconds of it",
+			takes:       40 * time.Second,
+			lingers:     10 * time.Second,
+			wantDrained: true,
+			wantWaited:  50 * time.Second,
+		},
+		{
+			name:        "booting out takes a while, then launchd lets go more than 55 seconds after it",
+			takes:       40 * time.Second,
+			lingers:     20 * time.Second,
+			wantDrained: true,
+			wantWaited:  55 * time.Second,
+			wantErr:     stillLoaded,
+		},
+		{
+			name:        "never let go",
+			lingers:     time.Hour,
+			wantDrained: true,
+			wantWaited:  55 * time.Second,
+			wantErr:     stillLoaded,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, b := range bootOuts {
+		for _, tt := range tests {
+			t.Run(b.name+"/"+tt.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					s := newSetup(t, nil, upOnceStarted(4242))
+					s.putPlist(t, "<plist/>\n")
+					s.launchctl.loaded, s.launchctl.lingers = true, tt.lingers
+					s.launchctl.takes = map[string]time.Duration{"bootout": tt.takes}
+					began := time.Now()
+					var drained []time.Duration
+
+					err := b.run(t, s, func() { drained = append(drained, time.Since(began)) })
+					if (err == nil) != (tt.wantErr == "") || (err != nil && err.Error() != tt.wantErr) {
+						t.Errorf("error = %v, want %q", err, tt.wantErr)
+					}
+					if waited := time.Since(began); waited != tt.wantWaited {
+						t.Errorf("waited %v, want %v", waited, tt.wantWaited)
+					}
+					if want := wantDrained(tt.wantDrained, tt.takes); !slices.Equal(drained, want) {
+						t.Errorf("said the router is finishing its requests in flight at %v, want at %v: once, as booting out returns, if launchd still has the service", drained, want)
+					}
+					want := [][]string{{"print", target}, {"bootout", target}, {"print", target}}
+					if b.bootstraps && tt.wantErr == "" {
+						want = append(want, []string{"bootstrap", "gui/501", s.plist})
+					}
+					if got := slices.CompactFunc(slices.Clone(s.launchctl.calls), slices.Equal[[]string]); !reflect.DeepEqual(got, want) {
+						t.Errorf("ran launchctl %q, want %q, each in turn as often as it takes", s.launchctl.calls, want)
+					}
+					if _, statErr := os.Stat(s.plist); !b.bootstraps && (statErr == nil) != (tt.wantErr != "") {
+						t.Errorf("the plist is still there: %v, want it kept only when launchd hasn't let the service go", statErr == nil)
+					}
+				})
+			})
+		}
+	}
+}
+
+// wantDrained is when booting out says the router is finishing its requests
+// in flight: once, as booting out returns, when it says so, and never
+// otherwise.
+func wantDrained(says bool, bootout time.Duration) []time.Duration {
+	if !says {
+		return nil
+	}
+	return []time.Duration{bootout}
+}
+
+func TestBootingTheServiceOutFailsWhenLaunchctlCantSayWhetherLaunchdLetItGo(t *testing.T) {
+	for _, b := range bootOuts {
+		t.Run(b.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				s := newSetup(t, nil, upOnceStarted(4242))
-				s.launchctl.loaded = true
-				// Booting out waits for the router to stop, which launchd gives
-				// it its ExitTimeOut, 45 seconds, to do.
-				s.launchctl.takes = map[string]time.Duration{"bootout": 45 * time.Second}
+				s.putPlist(t, "<plist/>\n")
+				s.launchctl.loaded, s.launchctl.lingers = true, time.Hour
+				run := s.cfg.Launchctl
+				s.cfg.Launchctl = func(ctx context.Context, args ...string) ([]byte, error) {
+					if args[0] == "print" && len(s.launchctl.calls) > 3 {
+						s.launchctl.calls = append(s.launchctl.calls, args)
+						return []byte("print failed: 5: Input/output error\n"), exitStatus(5)
+					}
+					return run(ctx, args...)
+				}
+				s.svc = newService(t, s.cfg)
 
-				if err := tt.bootOut(t.Context(), s); err != nil {
-					t.Errorf("error = %v, want none: bootout given as long as launchd gives the router to stop", err)
+				err := b.run(t, s, func() {})
+				want := "launchctl print " + target + ": print failed: 5: Input/output error (exit status 5)"
+				if err == nil || err.Error() != want {
+					t.Errorf("error = %v, want %q", err, want)
+				}
+				if got := s.launchctl.calls[len(s.launchctl.calls)-1]; !slices.Equal(got, []string{"print", target}) {
+					t.Errorf("last ran launchctl %q, want the print that failed, and nothing after it", got)
+				}
+				if _, statErr := os.Stat(s.plist); !b.bootstraps && statErr != nil {
+					t.Errorf("the plist: %v, want it kept", statErr)
 				}
 			})
 		})
@@ -1136,6 +1265,22 @@ func (s *setup) putPlist(t *testing.T, content string) {
 	}
 }
 
+// notDraining fails the test should Install say the router is finishing its
+// requests in flight.
+func notDraining(t *testing.T) func(service.Restarting) {
+	return func(how service.Restarting) {
+		t.Errorf("said the router is finishing its requests in flight, then %s, want nothing said: launchd let the service go at once", how)
+	}
+}
+
+// notStopping fails the test should Uninstall say the router is finishing
+// its requests in flight.
+func notStopping(t *testing.T) func() {
+	return func() {
+		t.Error("said the router is finishing its requests in flight, want nothing said: launchd let the service go at once")
+	}
+}
+
 // writeBinary writes a program at path, and returns path.
 func writeBinary(t *testing.T, path string) string {
 	t.Helper()
@@ -1151,7 +1296,9 @@ func writeBinary(t *testing.T, path string) string {
 // fakeLaunchctl stands in for launchctl, and launchd behind it, noting each
 // run. Printing the service succeeds while it's loaded, and exits 113 when
 // it isn't, as launchctl does; bootstrapping loads it, and booting it out
-// unloads it. A subcommand takes as long as takes gives it, killed as
+// unloads it once lingers has passed since, as launchd keeps a service
+// loaded while its router finishes its requests in flight: time.Hour for
+// one it never lets go. A subcommand takes as long as takes gives it, killed as
 // exec.CommandContext kills it when its context ends first, and exits with
 // the status exits gives it, saying why as launchctl does: its first runs
 // alone, as many as fails gives, when fails gives it any. cantRun fails
@@ -1161,6 +1308,10 @@ type fakeLaunchctl struct {
 	t       *testing.T
 	refuse  bool
 	loaded  bool
+	lingers time.Duration
+	// letsGo is when the service booted out is unloaded, zero when none is
+	// being booted out.
+	letsGo  time.Time
 	takes   map[string]time.Duration
 	exits   map[string]int
 	fails   map[string]int
@@ -1198,6 +1349,9 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 	case <-ctx.Done():
 		return nil, errors.New("signal: killed")
 	}
+	if !f.letsGo.IsZero() && !time.Now().Before(f.letsGo) {
+		f.loaded, f.letsGo = false, time.Time{}
+	}
 	if status := f.exit(args[0]); status != 0 {
 		return fmt.Appendf(nil, "%s failed: %d: Input/output error\n", args[0], status), exitStatus(status)
 	}
@@ -1209,7 +1363,7 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 	case "bootstrap":
 		f.loaded = true
 	case "bootout":
-		f.loaded = false
+		f.letsGo = time.Now().Add(f.lingers)
 	}
 	return nil, nil
 }

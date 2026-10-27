@@ -158,9 +158,11 @@ type Installed struct {
 
 // Install writes the LaunchAgent's plist, has launchd load it, in place of
 // the one it had loaded if it had, which starts the router, and waits for
-// the router to answer. It refuses a switchboard binary that won't last,
-// such as go run's.
-func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, error) {
+// the router to answer. Replacing a loaded one, it waits for launchd to let
+// that go first, as unload does, calling draining, with ByLaunchd, should
+// its router still be finishing its requests in flight. It refuses a
+// switchboard binary that won't last, such as go run's.
+func (s *Service) Install(ctx context.Context, opts InstallOptions, draining func(Restarting)) (Installed, error) {
 	a, warnings, err := s.prepare(opts)
 	if err != nil {
 		return Installed{}, err
@@ -169,7 +171,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	before := s.current(ctx)
-	if err := s.unload(ctx); err != nil {
+	if err := s.unload(ctx, func() { draining(ByLaunchd) }); err != nil {
 		return Installed{}, err
 	}
 	if err := s.bootstrap(ctx); err != nil {
@@ -208,10 +210,12 @@ func (s *Service) tokenless(accounts config.Accounts) bool {
 }
 
 // Uninstall has launchd stop the router and forget the service, if it had
-// loaded it, then removes its plist, reporting whether there was one. A
-// service that isn't installed is left as it is.
-func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
-	if err := s.unload(ctx); err != nil {
+// loaded it, waiting as unload does, calling draining should the router
+// still be finishing its requests in flight, then removes its plist,
+// reporting whether there was one. A service that isn't installed is left as
+// it is.
+func (s *Service) Uninstall(ctx context.Context, draining func()) (removed bool, err error) {
+	if err := s.unload(ctx, draining); err != nil {
 		return false, err
 	}
 	err = os.Remove(s.Plist())
@@ -430,10 +434,10 @@ func (s *Service) write(a agent) error {
 }
 
 // bootstrap has launchd load the service from its plist, trying again,
-// bootstrapPause apart, bootstrapTries times in all, while launchctl
-// fails: launchd finishes booting a service out after launchctl bootout
-// returns, and refuses to load it again until it has, as with "5:
-// Input/output error". It fails as the last try did.
+// bootstrapPause apart, bootstrapTries times in all, while launchctl fails.
+// launchd refuses to load a service it hasn't finished booting out, as with
+// "5: Input/output error": unload waits for it to finish, and the tries
+// again are a backstop. It fails as the last try did.
 func (s *Service) bootstrap(ctx context.Context) error {
 	for try := 1; ; try++ {
 		err := s.launchctl(ctx, "bootstrap", s.domain(), s.Plist())
@@ -447,15 +451,6 @@ func (s *Service) bootstrap(ctx context.Context) error {
 		}
 		logger.Info("launchd didn't load the service; trying again", "try", try, "error", err)
 	}
-}
-
-// unload has launchd stop the service and forget it, when it has loaded it.
-func (s *Service) unload(ctx context.Context) error {
-	loaded, err := s.loaded(ctx)
-	if err != nil || !loaded {
-		return err
-	}
-	return s.launchctlWithin(ctx, bootoutTimeout, "bootout", s.target())
 }
 
 // current is the answer of the router answering now, or the zero Health when

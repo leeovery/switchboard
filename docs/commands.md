@@ -469,6 +469,11 @@ switchboard service status
 the file in place of any copy launchd had loaded, and waits up to 5 seconds for the router to
 answer.
 
+- **The router it replaces.** A router running finishes its requests in flight before it stops,
+  and launchd keeps the old copy loaded until it has. `install` waits for that, up to 55 seconds
+  from booting the old copy out, saying
+  `the router is finishing its requests in flight, then launchd starts it again`, before launchd
+  loads the new one. Should launchd still have the old copy then, `install` fails, saying so.
 - **The config.** `install` first checks what the router would start from, as the router itself
   checks a new version before restarting into it: the config above all, and the state directory
   its control socket goes in. It fails where the router couldn't start, before it touches the
@@ -511,7 +516,11 @@ put the config right as it says.
 
 #### `service uninstall` and `service status`
 
-- **`uninstall`** stops the router, and removes the LaunchAgent.
+- **`uninstall`** stops the router, and removes the LaunchAgent. A router running finishes its
+  requests in flight first: `uninstall` waits for it, as `install` does, up to 55 seconds, saying
+  `the router is finishing its requests in flight, then it stops`, before it removes the
+  LaunchAgent. Should launchd still have the service then, `uninstall` fails, saying so, and leaves
+  the LaunchAgent in place.
 - **`status`** shows whether the LaunchAgent is installed and loaded, and the router's health.
 
 When the router doesn't answer in time, `install` and `restart` fail, with the LaunchAgent left in

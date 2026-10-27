@@ -7839,10 +7839,17 @@ verbs).
   `install` warns when no account has a usable token; the router starts all the same, and routes
   once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
   113 for one it hasn't: `install` boots out a loaded copy, bootstraps the new one into `gui/<uid>`,
-  and waits up to 5 seconds for a router other than any running before to answer. launchd finishes
-  booting a service out after `bootout` returns, and refuses to load it until then (`5: Input/output
-  error`), so `install` tries bootstrapping 5 times, half a second apart, before it fails as the
-  last try did. launchd reads the plist only as it loads the service, so an upgrade or a restart, in
+  and waits up to 5 seconds for a router other than any running before to answer. `bootout` can
+  return while the router is still finishing its requests in flight, launchd keeping the service
+  loaded until it has stopped, and refusing to load it again until then (`5: Input/output error`;
+  see Observed). So `install` and `uninstall`, once `bootout` returns, ask `launchctl print` every
+  200 ms until launchd has let the service go, up to 55 seconds from the bootout, the 45 launchd
+  gives the router to stop and 10 more. While they wait, they say so: `the router is finishing its
+  requests in flight, then launchd starts it again`, or, for `uninstall`, `…, then it stops`;
+  nothing when launchd lets go at once. Past the 55 seconds they fail, saying launchd still had the
+  service loaded, before loading the new one or removing the plist. `install` still tries
+  bootstrapping 5 times, half a second apart, a backstop, before it fails as the last try did.
+  launchd reads the plist only as it loads the service, so an upgrade or a restart, in
   place or by launchd, keeps what it said: a key a newer switchboard writes, as `ProcessType` was,
   reaches an install only through `install`, restarting the router; `setup` reinstalls only for
   another binary. `uninstall` boots it out when loaded and removes the plist. `restart`, with a
@@ -7865,8 +7872,9 @@ verbs).
   loaded, `restart` is an error saying so. `status` reports the plist, whether launchd has it
   loaded, and the router's health. When no router answers in time, `install` and `restart` fail, the
   LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why. Each run of
-  `launchctl` is cut off after 10 seconds, but a bootout, which waits for the router to stop, after
-  55: the 45 and 10 more. Any other failure of `launchctl` is an error that quotes it.
+  `launchctl` is cut off after 10 seconds, but a bootout, which may wait for the router to stop,
+  after 55, the deadline it shares with the wait for launchd to let the service go. Any other
+  failure of `launchctl` is an error that quotes it.
 
 ## Milestones
 
@@ -8437,6 +8445,12 @@ any of it. Times are the Mac's, UTC+1.
   the window at 0%, allowed, its reset five hours on, cut back to a ten-minute mark: 01:30 for a
   probe at 20:37, 02:00 for one at 21:01, the reset a window opened then would have. Hence a
   summary records no reset of a run that read nothing (see The request ledger).
+- **27 October 2026: `bootout` doesn't wait for the router.** On macOS 26, `service install` over
+  a router with requests in flight ran `launchctl bootout`, which exited 0 at once; `launchctl
+  print` went on finding the service, and every `bootstrap`, 5 over 2 seconds, failed with `5:
+  Input/output error`. launchd logged the service inactive and removed it 30 seconds after the
+  bootout, as the router finished its requests in flight, and only then would it load it again.
+  Hence `install` and `uninstall` wait for `print` to exit 113 before they go on (see The service).
 
 ## Checks owed
 

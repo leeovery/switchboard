@@ -70,7 +70,7 @@ func TestTheServiceStep(t *testing.T) {
 			answers: []string{""},
 			want: "The service runs <root>/go/bin/switchboard, not this switchboard, <root>/brew/bin/switchboard, so it's installed afresh.\n" +
 				installed + "The router is up: healthy, pid 4244.\n",
-			wantRan: []string{"print", "print", "bootout", "bootstrap"},
+			wantRan: []string{"print", "print", "bootout", "print", "bootstrap"},
 		},
 		{
 			name:    "installed with a plist naming no program: installed afresh, to run this switchboard",
@@ -78,7 +78,7 @@ func TestTheServiceStep(t *testing.T) {
 			answers: []string{""},
 			want: "The service runs a program its plist doesn't name, not this switchboard, <root>/brew/bin/switchboard, so it's installed afresh.\n" +
 				installed + "The router is up: healthy, pid 4243.\n",
-			wantRan: []string{"print", "print", "bootout", "bootstrap"},
+			wantRan: []string{"print", "print", "bootout", "print", "bootstrap"},
 		},
 		{
 			name:    "installed, its router not answering: restarted",
@@ -137,6 +137,27 @@ func TestTheServiceStep(t *testing.T) {
 				t.Errorf("ran launchctl %q, want %q", ran, tt.wantRan)
 			}
 		})
+	}
+}
+
+func TestTheServiceStepSaysTheRouterItReplacesIsFinishingItsRequests(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	w.installService(t, w.goInstalled(t))
+	w.launchd.lingers = 2
+	synctest.Test(t, func(t *testing.T) {
+		shown := w.runs(t, "")
+		want := "The service runs <root>/go/bin/switchboard, not this switchboard, <root>/brew/bin/switchboard, so it's installed afresh.\n" +
+			"The router is finishing its requests in flight, then launchd starts it again.\n" +
+			"Installed <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist: " +
+			"launchd starts the router now, at every login, and whenever it stops.\n" +
+			"The router is up: healthy, pid 4244.\n"
+		if got := section(t, shown, "3. The service"); got != want {
+			t.Errorf("the service step showed\n%s\nwant\n%s", got, want)
+		}
+	})
+	if want := []string{"print", "print", "bootout", "print", "print", "print", "bootstrap"}; !slices.Equal(w.launchd.ran(), want) {
+		t.Errorf("ran launchctl %q, want %q: launchd let go before the service was installed afresh", w.launchd.ran(), want)
 	}
 }
 

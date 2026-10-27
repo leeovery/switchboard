@@ -186,7 +186,7 @@ func (w *world) done(t *testing.T) {
 // forgets the launchctl runs it took.
 func (w *world) installService(t *testing.T, binary string) {
 	t.Helper()
-	if _, err := w.setup(t, &user{}).Service.Install(t.Context(), service.InstallOptions{Executable: binary}); err != nil {
+	if _, err := w.setup(t, &user{}).Service.Install(t.Context(), service.InstallOptions{Executable: binary}, func(service.Restarting) {}); err != nil {
 		t.Fatal(err)
 	}
 	w.launchd.calls = nil
@@ -403,7 +403,9 @@ func (u *user) typeUnseen() ([]byte, error) {
 // Bootstrapping the service loads it and starts a router, kickstarting it
 // starts another, as does signalling the router, which stops it for launchd
 // to start again, and booting it out stops it; printing the service exits
-// 113 while it isn't loaded, as launchctl does. Each router started answers
+// 113 while it isn't loaded, as launchctl does, and finds it the next
+// lingers times after booting it out, as launchd keeps a service loaded
+// while its router finishes its requests in flight. Each router started answers
 // with a pid of its own, from 4242 on, unless dead is set, when none starts;
 // the next unanswered health checks go unanswered all the same, as while a
 // router starts. Asked to restart, the router restarts in place, keeping its
@@ -419,7 +421,10 @@ type fakeLaunchd struct {
 	restarts   int
 	started    int
 	unanswered int
-	calls      [][]string
+	lingers    int
+	// lingering is how many more prints find the service booted out.
+	lingering int
+	calls     [][]string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -431,7 +436,10 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 	case !f.loaded:
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
 	case args[0] == "bootout":
-		f.loaded, f.pid = false, 0
+		f.loaded, f.pid, f.lingering = f.lingers > 0, 0, f.lingers
+	case args[0] == "print" && f.lingering > 0:
+		f.lingering--
+		f.loaded = f.lingering > 0
 	case args[0] == "kickstart", args[0] == "kill":
 		f.start()
 	}
