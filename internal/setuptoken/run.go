@@ -227,7 +227,25 @@ func (r *run) next(ctx context.Context) {
 		r.stopped = ctx.Err() == nil
 		r.halt()
 	case <-r.drained:
-		r.conclude(ctx)
+		r.drawWaiting(ctx)
+		if !r.over {
+			r.conclude(ctx)
+		}
+	}
+}
+
+// drawWaiting draws what's been read of setup-token's drawing and waits on
+// Make as its drain ends: the select the drain won could have taken that
+// instead, and it can hold the rest of a token Make would otherwise conclude
+// on cut short.
+func (r *run) drawWaiting(ctx context.Context) {
+	for r.output != nil && !r.over {
+		select {
+		case drawn, ok := <-r.output:
+			r.draw(ctx, drawn, ok)
+		default:
+			return
+		}
 	}
 }
 

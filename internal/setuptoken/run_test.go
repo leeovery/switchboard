@@ -318,6 +318,27 @@ func TestRunGivesSetupTokenThatDrawsOnNoMoreGrace(t *testing.T) {
 	}
 }
 
+// Its drain over, a read of the rest of the token is waiting on Make as well,
+// setup-token having exited 0 by itself: each attempt is a draw between them.
+func TestRunDrawsWhatsWaitingBeforeItConcludesOnItsDrain(t *testing.T) {
+	made := madeRows(" " + madeToken)
+	cut := frame(made[:4]) + made[4][:40]
+	for attempt := range 32 {
+		r := newTestRun(t, func() {}, waitsLong)
+		r.draw(t.Context(), []byte(cut), true)
+		output, drained := make(chan []byte, 1), make(chan time.Time, 1)
+		output <- []byte(made[4][40:] + "\r\n" + frame(made[5:]))
+		drained <- time.Now()
+		r.output, r.drained = output, drained
+
+		conclusion(t, t.Context(), r)
+
+		if r.err != nil || r.token.Reveal() != madeToken {
+			t.Fatalf("attempt %d: Make has the token %q (%v), want the token whole", attempt, r.token.Reveal(), r.err)
+		}
+	}
+}
+
 func TestRunNamesWhatStoppedSetupToken(t *testing.T) {
 	killed := exitAs(t, true, "/bin/sleep", "60")
 	failed := exitAs(t, false, "/bin/sh", "-c", "exit 1")
