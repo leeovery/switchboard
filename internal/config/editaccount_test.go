@@ -187,6 +187,17 @@ func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
 		{name: "characters that play no part dropped, the whitespace either side then one space", given: "Work \u200b Team", want: "Work Team"},
 		{name: "a soft hyphen and a word joiner dropped within it", given: "Day\u00adjob\u2060s", want: "Dayjobs"},
 		{name: "direction marks within it kept, trimmed at its edges", given: "\u200f\u061cabc\u200fdef\u200e", want: "abc\u200fdef"},
+		{name: "the invisible operators and separator dropped", given: "a\u2061b\u2062c\u2063d\u2064e", want: "abcde"},
+		{name: "the Mongolian vowel separator dropped", given: "a\u180eb", want: "ab"},
+		{name: "the deprecated format characters dropped", given: "a\u206a\u206b\u206c\u206d\u206e\u206fb", want: "ab"},
+		{name: "the interlinear annotation characters dropped", given: "a\ufff9b\ufffac\ufffbd", want: "abcd"},
+		{name: "a Hangul filler dropped", given: "a\u3164b", want: "ab"},
+		{name: "a lone tag dropped", given: "work\U000e0067", want: "work"},
+		{name: "a variation selector kept at the end, as it shapes what it follows", given: "Home \u2764\ufe0f", want: "Home \u2764\ufe0f"},
+		{name: "a variation selector at the start dropped, with nothing to shape", given: "\ufe0fHome", want: "Home"},
+		{name: "joiners at its edges dropped", given: "\u200dDay job\u200c", want: "Day job"},
+		{name: "a joiner standing alone between spaces dropped, one space left", given: "a \u200d b", want: "a b"},
+		{name: "its id once an invisible separator is dropped", given: "side\u2063", want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -240,6 +251,32 @@ func TestAnAccountWithALabelOverLinesIsMadeThePrimaryBelowIt(t *testing.T) {
 		t.Fatalf("SetPrimary() error = %v", err)
 	}
 	checkSaved(t, path, draft, "work", overLines+"primary = true\n"+side)
+}
+
+// keyInLabel is a config whose account's label, over lines, holds a line
+// that reads as a key.
+const keyInLabel = "[[account]]\nid    = \"work\"\nlabel = \"\"\"\nplan = \"max5x\"\nreserve = 0.1\n\"\"\"\n"
+
+func TestALabelOverLinesHoldingAKeyLineTakesThatKeyBelowIt(t *testing.T) {
+	tests := []struct {
+		name string
+		set  func(d *config.Draft) error
+		want string
+	}{
+		{name: "a plan", set: func(d *config.Draft) error { return d.SetPlan("work", "pro") }, want: "plan = \"pro\"\n"},
+		{name: "a reserve", set: func(d *config.Draft) error { return d.SetReserve("work", 0.05) }, want: "reserve = 0.05\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, keyInLabel)
+			draft := edit(t, path)
+
+			if err := tt.set(draft); err != nil {
+				t.Fatalf("setting %s: error = %v", tt.name, err)
+			}
+			checkSaved(t, path, draft, "work", keyInLabel+tt.want)
+		})
+	}
 }
 
 func TestAnAccountWithALabelOverLinesRefusesALabel(t *testing.T) {

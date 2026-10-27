@@ -219,11 +219,13 @@ const mostLabelCharacters = 100
 var ErrBlankLabel = errors.New("label is blank, showing nothing")
 
 // takeLabel returns a label given to put in the file as it shows, so what's
-// saved is what's shown: without the characters that play no part in how it
-// shows, wherever they are, each run of whitespace within it one space, and
-// the whitespace, joiners and direction marks at its edges trimmed, which do
-// their part only within it. Every other character is kept, such as the tags
-// of a subdivision's flag, wherever it is. It's checked as it shows, and
+// saved is what's shown: without the characters drawn as nothing, as
+// prose.Unseen has them, but for those playing their part in a sequence, as
+// a joiner within an emoji's, a variation selector after the character it
+// shapes or the tags of a subdivision's flag do, and the direction marks
+// within it; each run of whitespace within it one space; and the whitespace
+// and direction marks at its edges trimmed. Every other character is kept,
+// such as the Arabic number signs, which draw. It's checked as it shows, and
 // refused, as a label in the file isn't: when it isn't UTF-8, as TOML's text
 // must be; when it holds a control character, such as a newline or a tab,
 // which can't show, or a bidirectional embedding, override or isolate, which
@@ -236,11 +238,11 @@ func takeLabel(account, given string) (string, error) {
 		return "", fmt.Errorf("%s: label isn't UTF-8 text, as a config's text must be", account)
 	case strings.ContainsFunc(given, unicode.IsControl):
 		return "", fmt.Errorf("%s: label holds a control character, such as a newline or a tab, which can't show", account)
-	case strings.ContainsFunc(given, reorders):
+	case strings.ContainsFunc(given, prose.Reorders):
 		return "", fmt.Errorf("%s: label holds a bidirectional embedding, override or isolate, which could reorder the rest of what it's shown in", account)
 	}
-	kept := strings.Map(withoutPartless, given)
-	label := strings.TrimFunc(strings.Join(strings.Fields(kept), " "), unseenAtAnEdge)
+	kept := prose.MapUnseen(given, keptIfAMark)
+	label := strings.TrimFunc(strings.Join(strings.Fields(kept), " "), spaceOrMark)
 	if given != "" && !strings.ContainsFunc(label, shows) {
 		return "", fmt.Errorf("%s: %w", account, ErrBlankLabel)
 	}
@@ -250,48 +252,33 @@ func takeLabel(account, given string) (string, error) {
 	return label, nil
 }
 
-// reorders reports whether r is a bidirectional embedding, override or
-// isolate, U+202A to U+202E and U+2066 to U+2069.
-func reorders(r rune) bool {
-	return (r >= '\u202a' && r <= '\u202e') || (r >= '\u2066' && r <= '\u2069')
-}
-
-// partless are the characters that play no part in how a label shows,
-// wherever they are: the zero-width space, the word joiner, the zero-width
-// no-break space, or byte order mark, and the soft hyphen.
-var partless = []rune{'\u200b', '\u2060', '\ufeff', '\u00ad'}
-
-// withoutPartless maps r, as strings.Map does, to itself, or to nothing for
-// one of partless.
-func withoutPartless(r rune) rune {
-	if slices.Contains(partless, r) {
-		return -1
+// keptIfAMark is what prose.MapUnseen makes of an unseen character of a label
+// playing no part in a sequence: a direction mark is kept, as it orders
+// what's around it, and anything else dropped.
+func keptIfAMark(r rune) string {
+	if prose.DirectionMark(r) {
+		return string(r)
 	}
-	return r
+	return ""
 }
 
-// edgeless are the characters that play their part only within a label,
-// trimmed at its edges: the zero-width joiner and non-joiner, and the
-// direction marks, left-to-right, right-to-left and Arabic letter.
-var edgeless = []rune{'\u200c', '\u200d', '\u200e', '\u200f', '\u061c'}
-
-// unseenAtAnEdge reports whether r, at a label's edge, is trimmed as unseen:
-// whitespace, or one of edgeless.
-func unseenAtAnEdge(r rune) bool {
-	return unicode.IsSpace(r) || slices.Contains(edgeless, r)
+// spaceOrMark reports whether r, at a label's edge, is trimmed: whitespace,
+// or a direction mark, which does its part only within it.
+func spaceOrMark(r rune) bool {
+	return unicode.IsSpace(r) || prose.DirectionMark(r)
 }
 
-// blanks are the letters and the symbol that draw as nothing: the Hangul
-// fillers and the blank braille pattern.
-var blanks = []rune{'\u115f', '\u1160', '\u3164', '\uffa0', '\u2800'}
+// blankBraille is the braille pattern with no dots, a symbol drawn as
+// nothing.
+const blankBraille = '\u2800'
 
 // shows reports whether r draws as something: graphic, as a format
 // character, such as a zero-width space, and a control character aren't, or
 // a private-use character, such as a Nerd Font icon; and neither a space, nor
-// a mark, which draws on what it follows alone, nor one of blanks.
+// a mark, which draws on what it follows alone, nor blankBraille.
 func shows(r rune) bool {
 	return (unicode.IsGraphic(r) || unicode.Is(unicode.Co, r)) &&
-		!unicode.IsSpace(r) && !unicode.IsMark(r) && !slices.Contains(blanks, r)
+		!unicode.IsSpace(r) && !unicode.IsMark(r) && r != blankBraille
 }
 
 // checkLabel keeps anything that looks like a token out of a label, and keeps
