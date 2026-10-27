@@ -218,31 +218,41 @@ const mostLabelCharacters = 100
 // fails with, wrapped: each command says how to give one, as it asks for it.
 var ErrBlankLabel = errors.New("label is blank, showing nothing")
 
-// givenLabel is a label as it's given to put in the file: its surrounding
-// whitespace trimmed, as it would show without it.
-func givenLabel(label string) string {
-	return strings.TrimSpace(label)
-}
-
-// checkGivenLabel is checkLabel of a label given to put in the file, which it
-// refuses too, matching ErrBlankLabel, when nothing of it would show but it
-// isn't "", which shows the account by its id; and when it isn't UTF-8, as
-// TOML's text must be.
-func checkGivenLabel(account, label string) error {
+// takeLabel returns a label given to put in the file as it shows, so what's
+// saved is what's shown: its surrounding whitespace trimmed, and each run of
+// whitespace within it one space. It's checked as it shows, and refused, as
+// a label in the file isn't: when it isn't UTF-8, as TOML's text must be;
+// when it holds a control character, such as a newline or a tab, which can't
+// show; and when nothing of it would show but it isn't "", which shows the
+// account by its id, matching ErrBlankLabel. Then it's checked as checkLabel
+// checks one.
+func takeLabel(account, given string) (string, error) {
 	switch {
-	case !utf8.ValidString(label):
-		return fmt.Errorf("%s: label isn't UTF-8 text, as a config's text must be", account)
-	case label != "" && !strings.ContainsFunc(label, shows):
-		return fmt.Errorf("%s: %w", account, ErrBlankLabel)
+	case !utf8.ValidString(given):
+		return "", fmt.Errorf("%s: label isn't UTF-8 text, as a config's text must be", account)
+	case strings.ContainsFunc(given, unicode.IsControl):
+		return "", fmt.Errorf("%s: label holds a control character, such as a newline or a tab, which can't show", account)
 	}
-	return checkLabel(account, label)
+	label := strings.Join(strings.Fields(given), " ")
+	if given != "" && !strings.ContainsFunc(label, shows) {
+		return "", fmt.Errorf("%s: %w", account, ErrBlankLabel)
+	}
+	if err := checkLabel(account, label); err != nil {
+		return "", err
+	}
+	return label, nil
 }
 
-// shows reports whether r shows as something: graphic, as a format
-// character, such as a zero-width space, a control character and a space
-// aren't, and not a space.
+// blanks are the letters and the symbol that draw as nothing: the Hangul
+// fillers and the blank braille pattern.
+var blanks = []rune{'ᅟ', 'ᅠ', 'ㅤ', 'ﾠ', '⠀'}
+
+// shows reports whether r draws as something: graphic, as a format
+// character, such as a zero-width space, and a control character aren't; and
+// neither a space, nor a mark, which draws on what it follows alone, nor one
+// of blanks.
 func shows(r rune) bool {
-	return unicode.IsGraphic(r) && !unicode.IsSpace(r)
+	return unicode.IsGraphic(r) && !unicode.IsSpace(r) && !unicode.IsMark(r) && !slices.Contains(blanks, r)
 }
 
 // checkLabel keeps anything that looks like a token out of a label, and keeps

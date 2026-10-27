@@ -43,11 +43,16 @@ type NewAccount struct {
 	Primary bool
 }
 
-// check fails, saying why, unless the account's id and label are ones an
-// account can have.
-func (a NewAccount) check() error {
+// taken returns the account with its label as takeLabel takes it, failing,
+// saying why, unless its id and label are ones an account can have.
+func (a NewAccount) taken() (NewAccount, error) {
 	name := accountNamed(a.ID)
-	return errors.Join(checkID(name, a.ID), checkGivenLabel(name, a.Label))
+	label, labelErr := takeLabel(name, a.Label)
+	if err := errors.Join(checkID(name, a.ID), labelErr); err != nil {
+		return NewAccount{}, err
+	}
+	a.Label = label
+	return a, nil
 }
 
 // Draft is the config file's text, edited as text: its comments and layout
@@ -97,12 +102,12 @@ func (d *Draft) Config() *Config {
 // it takes primary off every other account. It fails, matching ErrConfigured,
 // when an account has its id already, and fails too when one has it in
 // another case, as the two would share a token file. Its label is taken as
-// givenLabel has it.
-func (d *Draft) AddAccount(a NewAccount) error {
-	if err := a.check(); err != nil {
+// takeLabel takes it.
+func (d *Draft) AddAccount(given NewAccount) error {
+	a, err := given.taken()
+	if err != nil {
 		return err
 	}
-	a.Label = givenLabel(a.Label)
 	if d.index(a.ID) >= 0 {
 		return fmt.Errorf("account %q is %w", a.ID, ErrConfigured)
 	}
@@ -208,17 +213,20 @@ func (d *Draft) SetPrimeDay(day string) error {
 
 // SetLabel sets the label of the account with the given id, as setAccountKey
 // sets a key: "" takes it out, showing the account by its id. The label is
-// taken as givenLabel has it, and an account shown by it already is left as
+// taken as takeLabel takes it, and an account shown by it already is left as
 // it is, whatever its table writes. It fails, matching ErrNotConfigured, when
-// no account has the id, and as AddAccount does for a label no account can
-// have.
-func (d *Draft) SetLabel(id, label string) error {
-	if err := checkGivenLabel(accountNamed(id), label); err != nil {
+// no account has the id, and then as AddAccount does for a label no account
+// can have.
+func (d *Draft) SetLabel(id, given string) error {
+	i := d.index(id)
+	if i < 0 {
+		return NotConfigured(id)
+	}
+	label, err := takeLabel(accountNamed(id), given)
+	if err != nil {
 		return err
 	}
-	label = givenLabel(label)
-	shown := fileAccount{ID: id, Label: label}.shownAs()
-	if i := d.index(id); i >= 0 && d.file.Accounts[i].shownAs() == shown {
+	if d.file.Accounts[i].shownAs() == (fileAccount{ID: id, Label: label}).shownAs() {
 		return nil
 	}
 	return d.setAccountKey(id, "label", written(label), func(a *fileAccount) { a.Label = label })

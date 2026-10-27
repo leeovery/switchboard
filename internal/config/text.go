@@ -257,12 +257,32 @@ func (d document) insert(at int, lines []string) document {
 	if at < len(d.kinds) && d.kinds[at] != blank {
 		inserted = append(inserted, "")
 	}
-	return d.of(slices.Concat(d.lines[:at], inserted, d.lines[at:]))
+	return d.put(at, inserted...)
 }
 
-// put returns the document with lines put in at line at, as they are.
+// put returns the document with lines put in at line at, as they are but for
+// their ending, as endedAt has it.
 func (d document) put(at int, lines ...string) document {
-	return d.of(slices.Concat(d.lines[:at], lines, d.lines[at:]))
+	return d.of(slices.Concat(d.lines[:at], d.endedAt(at, lines), d.lines[at:]))
+}
+
+// endedAt returns lines, to be put in at line at, each ending as the line
+// they follow does, else the line they go before: in a document of mixed
+// endings, whose lines keep any "\r" of their own, one that ends in "\r"
+// gives them one too.
+func (d document) endedAt(at int, lines []string) []string {
+	neighbour := at - 1
+	if at == 0 {
+		neighbour = 0
+	}
+	if neighbour >= len(d.lines) || !strings.HasSuffix(d.lines[neighbour], "\r") {
+		return lines
+	}
+	ended := make([]string, len(lines))
+	for i, line := range lines {
+		ended[i] = line + "\r"
+	}
+	return ended
 }
 
 // replaced returns the document with line i replaced by line.
@@ -337,13 +357,17 @@ func (d document) keyAt(s span, key string) int {
 // withValue returns line, which sets a key, with value in place of the value
 // it gives, keeping what's around it, such as a comment, when that's a string
 // on the one line or a bare value, such as a number: otherwise the key set to
-// value alone.
+// value alone, and the line's "\r", where it ends in one.
 func withValue(line, value string) string {
 	key, given, _ := strings.Cut(line, "=")
 	start := len(given) - len(strings.TrimLeft(given, " \t"))
 	end := valueEnd(given[start:])
 	if end < 0 {
-		return strings.TrimRight(key, " \t") + " = " + value
+		set := strings.TrimRight(key, " \t") + " = " + value
+		if strings.HasSuffix(line, "\r") {
+			set += "\r"
+		}
+		return set
 	}
 	return key + "=" + given[:start] + value + given[start+end:]
 }

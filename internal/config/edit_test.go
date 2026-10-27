@@ -141,8 +141,14 @@ primary = true
 		{
 			name:    "a label TOML asks to be escaped",
 			config:  "[[account]]\nid = \"work\"\n",
-			account: config.NewAccount{ID: "side", Label: "Side \"B\" \\ two\nlines\ttabbed\x7f"},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side \\\"B\\\" \\\\ two\\u000Alines\\u0009tabbed\\u007F\"\n",
+			account: config.NewAccount{ID: "side", Label: "Side \"B\" \\ two"},
+			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side \\\"B\\\" \\\\ two\"\n",
+		},
+		{
+			name:    "a label as it shows: trimmed, each run of whitespace within it one space",
+			config:  "[[account]]\nid = \"work\"\n",
+			account: config.NewAccount{ID: "side", Label: "  Side \u00a0  team "},
+			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side team\"\n",
 		},
 		{
 			name: "past a label that goes on over lines, whatever its lines look like",
@@ -169,7 +175,7 @@ primary = true
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
-			if added := cfg.Accounts[len(cfg.Accounts)-1]; added.ID != tt.account.ID || added.Label != cmp.Or(tt.account.Label, tt.account.ID) {
+			if added := cfg.Accounts[len(cfg.Accounts)-1]; added.ID != tt.account.ID || added.Label != cmp.Or(strings.Join(strings.Fields(tt.account.Label), " "), tt.account.ID) {
 				t.Errorf("the account added loads as %+v, want %+v", added, tt.account)
 			}
 			if !reflect.DeepEqual(draft.Config(), cfg) {

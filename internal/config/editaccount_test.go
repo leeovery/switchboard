@@ -57,11 +57,32 @@ func TestSetLabel(t *testing.T) {
 			want:   commented,
 		},
 		{
-			name:   "its surrounding whitespace trimmed",
+			name:   "as it shows: trimmed, each run of whitespace within it one space",
 			config: commented,
 			id:     "work",
-			label:  " Day job\t",
+			label:  "  Day   job ",
 			want:   replaced(t, commented, `label   = "Work"  # optional`, `label   = "Day job"  # optional`),
+		},
+		{
+			name:   "the longest, once its surrounding whitespace is trimmed",
+			config: commented,
+			id:     "work",
+			label:  "  " + strings.Repeat("s", 98) + "   ",
+			want:   replaced(t, commented, `label   = "Work"  # optional`, `label   = "`+strings.Repeat("s", 98)+`"  # optional`),
+		},
+		{
+			name:   "the label it has already but for the whitespace within it, left as it is",
+			config: "[[account]]\nid    = \"work\"\nlabel = \"Day job\"\n",
+			id:     "work",
+			label:  "Day  job",
+			want:   "[[account]]\nid    = \"work\"\nlabel = \"Day job\"\n",
+		},
+		{
+			name:   "below the last key in a file of mixed endings, ending as the line it follows",
+			config: "[[account]]\r\nid = \"work\"\r\n\n[[account]]\nid = \"side\"\n",
+			id:     "work",
+			label:  "W",
+			want:   "[[account]]\r\nid = \"work\"\r\nlabel = \"W\"\r\n\n[[account]]\nid = \"side\"\n",
 		},
 		{
 			name:   "the label it has already but for surrounding whitespace, left as it is",
@@ -129,7 +150,7 @@ func TestSetLabel(t *testing.T) {
 				t.Fatalf("SetLabel(%q, %q) error = %v", tt.id, tt.label, err)
 			}
 			got := checkSaved(t, path, draft, tt.id, tt.want)
-			if want := cmp.Or(strings.TrimSpace(tt.label), tt.id); got.Label != want {
+			if want := cmp.Or(strings.Join(strings.Fields(tt.label), " "), tt.id); got.Label != want {
 				t.Errorf("the label loads as %q, want %q", got.Label, want)
 			}
 		})
@@ -302,12 +323,48 @@ func TestSetLabelRefuses(t *testing.T) {
 			wantIs:  config.ErrBlankLabel,
 		},
 		{
-			name:    "a label of control characters alone, which show as nothing",
+			name:    "a label holding a newline, which can't show",
 			config:  commented,
 			id:      "work",
-			label:   "\t\a",
+			label:   "Side\nTeam",
+			wantErr: `account "work": label holds a control character, such as a newline or a tab, which can't show`,
+		},
+		{
+			name:    "a label holding a tab",
+			config:  commented,
+			id:      "work",
+			label:   "Side\tTeam",
+			wantErr: `account "work": label holds a control character, such as a newline or a tab, which can't show`,
+		},
+		{
+			name:    "a label holding an escape, which would restyle what follows",
+			config:  commented,
+			id:      "work",
+			label:   "Side\x1b[31m",
+			wantErr: `account "work": label holds a control character, such as a newline or a tab, which can't show`,
+		},
+		{
+			name:    "a label that draws as nothing: Hangul fillers, blank braille and a mark on its own",
+			config:  commented,
+			id:      "work",
+			label:   "\u3164\u115f\u1160\uffa0\u2800\u0301",
 			wantErr: `account "work": label is blank, showing nothing`,
 			wantIs:  config.ErrBlankLabel,
+		},
+		{
+			name:    "a label past the longest, counted as it shows",
+			config:  commented,
+			id:      "work",
+			label:   strings.Repeat("s", 50) + "   " + strings.Repeat("s", 51),
+			wantErr: `account "work": label is 102 characters: must be at most 100`,
+		},
+		{
+			name:    "a blank label for an id no account has, which is what's said",
+			config:  commented,
+			id:      "side",
+			label:   "  ",
+			wantErr: `account "side" is not configured`,
+			wantIs:  config.ErrNotConfigured,
 		},
 		{
 			name:    "a label of format characters alone, such as zero-width spaces and joiners, which show as nothing",
@@ -473,7 +530,7 @@ func TestAddAccountTrimsTheLabelsSurroundingWhitespace(t *testing.T) {
 	path := writeConfig(t, work)
 	draft := edit(t, path)
 
-	if err := draft.AddAccount(config.NewAccount{ID: "side", Label: " Side\t"}); err != nil {
+	if err := draft.AddAccount(config.NewAccount{ID: "side", Label: " Side  "}); err != nil {
 		t.Fatalf("AddAccount() error = %v", err)
 	}
 	if got := checkSaved(t, path, draft, "side", work+"\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"); got.Label != "Side" {
