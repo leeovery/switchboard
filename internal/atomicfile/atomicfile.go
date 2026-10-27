@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // maxLinks is how many links Target follows, as a loop of them leads
@@ -24,15 +25,24 @@ const maxLinks = 40
 // is written at its target.
 func Target(path string) (string, error) {
 	named := path
+	// relative is set once a relative link is followed, which leaves path
+	// uncleaned, to clean once it's followed to its end.
+	relative := false
+	reached := func() string {
+		if relative {
+			return resolved(path)
+		}
+		return path
+	}
 	for range maxLinks {
 		info, err := os.Lstat(path)
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
-			return path, nil
+			return reached(), nil
 		case err != nil:
 			return "", err
 		case info.Mode()&fs.ModeSymlink == 0:
-			return path, nil
+			return reached(), nil
 		}
 		dest, err := os.Readlink(path)
 		if err != nil {
@@ -40,17 +50,43 @@ func Target(path string) (string, error) {
 		}
 		if !filepath.IsAbs(dest) {
 			// A relative link leads on from the directory it's in, as the system
-			// finds it, following any link to that directory, where joining the
-			// two as text would take a ".." in the link back through it.
-			dir, err := filepath.EvalSymlinks(filepath.Dir(path))
-			if err != nil {
-				return "", err
-			}
-			dest = filepath.Join(dir, dest)
+			// reads it: its text after that directory, uncleaned, as cleaning
+			// would take a ".." in it back through a linked directory before
+			// it, where the system goes back from where that link leads.
+			dir, _ := split(path)
+			dest = dir + string(filepath.Separator) + dest
+			relative = true
 		}
 		path = dest
 	}
 	return "", fmt.Errorf("%s: too many links", named)
+}
+
+// resolved is path with the links in its directory followed as the system
+// follows them, a ".." after one going back from where it leads, and cleaned:
+// path as it is where its directory can't be followed, as where it isn't
+// there.
+func resolved(path string) string {
+	dir, base := split(path)
+	followed, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return path
+	}
+	return filepath.Join(followed, base)
+}
+
+// split splits path at its last separator, into its directory and its name,
+// as text, without cleaning either, as filepath.Split would its directory:
+// "." for a path with no directory.
+func split(path string) (dir, base string) {
+	i := strings.LastIndexByte(path, filepath.Separator)
+	switch {
+	case i < 0:
+		return ".", path
+	case i == 0:
+		return string(filepath.Separator), path[1:]
+	}
+	return path[:i], path[i+1:]
 }
 
 // Write writes data to a file at path, with the permissions perm, in place of

@@ -69,6 +69,12 @@ func TestTarget(t *testing.T) {
 	// leads on from the directory it's really in.
 	symlink(t, at("dotfiles", "linked"), at("state"))
 	symlink(t, filepath.Join("..", "token"), at("dotfiles", "linked", "relative"))
+	// A relative link whose text goes through a linked directory and back
+	// out of it, which the system takes back from where that link leads.
+	write(t, at("elsewhere", "kept"))
+	write(t, at("elsewhere", "deep", "placeholder"))
+	symlink(t, at("elsewhere", "deep"), at("links", "sub"))
+	symlink(t, "sub/../kept", at("links", "through"))
 	symlink(t, at("dotfiles", "missing"), at("links", "missing"))
 	symlink(t, at("links", "loop-back"), at("links", "loop"))
 	symlink(t, at("links", "loop"), at("links", "loop-back"))
@@ -83,6 +89,7 @@ func TestTarget(t *testing.T) {
 		{name: "a link, where it leads", path: at("links", "token"), want: token},
 		{name: "a link to a link, where the last leads", path: at("links", "chain"), want: token},
 		{name: "a relative link, through a link to its directory, from where it really is", path: at("state", "relative"), want: token},
+		{name: "a relative link back out of a linked directory, from where that leads", path: at("links", "through"), want: at("elsewhere", "kept")},
 		{name: "a link to a file that isn't there yet, where it would be", path: at("links", "missing"), want: at("dotfiles", "missing")},
 		{name: "a loop of links, nowhere", path: at("links", "loop"), wantErr: at("links", "loop") + ": too many links"},
 	}
