@@ -378,7 +378,7 @@ func TestTheServiceStepKeepsTheServicesEnvironment(t *testing.T) {
 		{
 			name:      "not loaded: installed again, keeping it",
 			lay:       func(_ *testing.T, w *world) { w.launchd.loaded, w.launchd.pid = false, 0 },
-			wantShown: apart + installedAt + tokenless + "The router is up: healthy, pid 4244.\n",
+			wantShown: installedAt + tokenless + apart + "The router is up: healthy, pid 4244.\n",
 			wantRan:   []string{"print", "print", "bootstrap"},
 		},
 	}
@@ -811,8 +811,18 @@ func TestTheServiceStepTakesTheRouterLaunchdStartsWhereverItAnswers(t *testing.T
 			if err != nil {
 				t.Errorf("Run() error = %v, want the router launchd started, at the shell's state directory, taken", err)
 			}
-			if got := section(t, shown, "3. The service"); !strings.HasSuffix(got, "The router is up: healthy, pid 4243.\n") {
-				t.Errorf("the service step showed\n%s\nwant the router up", got)
+			// Its places judged where it answered: the shell's state
+			// directory, which holds setup's tokens.
+			const elsewhere = "Launchd started the router where this shell keeps its state, not where the service's plist does: " +
+				"switchboard service install, run from the shell the router should use, lines them up.\n"
+			got := section(t, shown, "3. The service")
+			if !strings.HasSuffix(got, elsewhere+"The router is up: healthy, pid 4243.\n") {
+				t.Errorf("the service step showed\n%s\nwant it to end\n%sThe router is up: healthy, pid 4243.", got, elsewhere)
+			}
+			for _, never := range []string{"uses another", "Warning"} {
+				if strings.Contains(got, never) {
+					t.Errorf("the service step showed\n%s\nwant nothing holding %q: the router's state directory and tokens are setup's", got, never)
+				}
 			}
 			if ran := w.launchd.ran(); !slices.Equal(ran, tt.wantRan) {
 				t.Errorf("ran launchctl %q, want %q", ran, tt.wantRan)
@@ -833,8 +843,8 @@ func TestTheServiceStepSettlesAServiceStartedAgain(t *testing.T) {
 	first := section(t, w.runs(t, ""), "3. The service")
 	// The router's state directory, apart from setup's, is said each run.
 	const apart = "The router uses another state directory than setup: switchboard service install, run from the shell the router should use, lines them up.\n"
-	if !strings.HasPrefix(first, apart+"The service's plist differs from the one this switchboard writes, with no ProcessType, so it's installed afresh.\n") {
-		t.Errorf("the service step showed\n%s\nwant the service installed afresh", first)
+	if !strings.HasPrefix(first, "The service's plist differs from the one this switchboard writes, with no ProcessType, so it's installed afresh.\n") || !strings.Contains(first, apart) {
+		t.Errorf("the service step showed\n%s\nwant the service installed afresh, its state directory said apart", first)
 	}
 	if checked := []string{filepath.Join(custom, "switchboard") + " " + filepath.Join(w.root, "config", "switchboard", "config.toml")}; !slices.Equal(w.checked, checked) {
 		t.Errorf("checked the router could start from %q, want %q: the plist's state directory", w.checked, checked)

@@ -771,7 +771,11 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      says so, pointing to `service status`. Where none answers and none runs, setup goes on as
      below, checking the router could start before it restarts it, and failing, naming `service
      install`, where it couldn't. Once setup has started the router afresh, with none answering
-     before, the first that answers at either directory is launchd's. Neither setup nor `service
+     before, the first that answers at either directory is launchd's, and setup judges where it
+     sees apart from setup, and `service install` which tokens it has, only once it answers, at
+     the directory it answers at. Where that's the shell's, setup says launchd started it there,
+     not where the plist keeps its state, naming `service install`; launchd's log stays where the
+     plist names it, as moving it would take a second reinstall. Neither setup nor `service
      restart` kickstarts the service while any router answers: `service restart` asks the one
      answering to restart itself. Setup installs the service again while a router answers only
      where it answers at the plist's state directory, launchd having the service loaded.
@@ -7913,8 +7917,8 @@ verbs).
   launchd gives the router the user's. It waits for the router, and judges its tokens, where the
   environment it writes keeps its state, and takes no other router answering for the new one. It runs
   switchboard directly: the tokens are files, so it needs nothing else of the user's environment.
-  `install` warns when no account has a usable token; the router starts all the same, and routes
-  once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
+  `install` warns when no account has a usable token, judged in the state directory where the
+  router it started answers; the router starts all the same, and routes once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
   113 for one it hasn't, and the pid of the router it runs, the job's own `pid =` line, there only
   while one runs: `install` boots out a loaded copy, waits for launchd to let it go,
   bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router other than any

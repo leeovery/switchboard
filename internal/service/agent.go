@@ -69,7 +69,7 @@ type variable struct {
 }
 
 // agent describes the LaunchAgent that serves as opts says, with the
-// switchboard binary as prepare finds it, the config file and the log level
+// switchboard binary as describe finds it, the config file and the log level
 // given, when they are, the environment opts keep, else the variables
 // carried, and its log in the state directory. launchd runs switchboard
 // itself: the router reads the tokens from their files, so it needs nothing

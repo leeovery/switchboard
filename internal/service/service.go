@@ -198,7 +198,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if err != nil {
 		return Installed{}, err
 	}
-	a, warnings, err := s.prepare(opts)
+	a, err := s.describe(opts)
 	if err != nil {
 		return Installed{}, err
 	}
@@ -219,23 +219,14 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if i >= 0 {
 		waitFor = waitFor[:1]
 	}
-	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, waitFor, before, StartWait), Unread: opts.unread}, nil
-}
-
-// prepare checks what the service is to run, and describes the LaunchAgent
-// that runs it, with what's worth the user's attention: the router having no
-// token to serve with.
-func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
-	a, err := s.describe(opts)
-	if err != nil {
-		return agent{}, nil, err
-	}
-	var warnings []string
-	if s.tokenless(opts.Accounts) {
-		warnings = append(warnings, "no account has a usable token, so the router will have nothing to route to: switchboard accounts says why")
+	h, at := s.waitForRouter(ctx, waitFor, before, StartWait)
+	installed := Installed{Router: h, Unread: opts.unread}
+	// Judged where the router answered, whose token files it reads.
+	if s.seenAt(at).tokenless(opts.Accounts) {
+		installed.Warnings = append(installed.Warnings, "no account has a usable token, so the router will have nothing to route to: switchboard accounts says why")
 		logger.Warn("no account has a usable token")
 	}
-	return a, warnings, nil
+	return installed, nil
 }
 
 // describe describes the LaunchAgent Install writes for opts, with the
@@ -309,7 +300,8 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 		return nil, err
 	}
 	draining(how)
-	return s.waitForRouter(ctx, []Router{rt}, before, exitTimeout+StartWait), nil
+	h, _ := s.waitForRouter(ctx, []Router{rt}, before, exitTimeout+StartWait)
+	return h, nil
 }
 
 // restart has the router rt, answering, restart, and returns how, with the
@@ -344,7 +336,8 @@ func (s *Service) startAfresh(ctx context.Context) (*router.Health, error) {
 		return nil, err
 	}
 	logger.Info("started the service afresh")
-	return s.waitForRouter(ctx, s.routers(), router.Health{}, StartWait), nil
+	h, _ := s.waitForRouter(ctx, s.routers(), router.Health{}, StartWait)
+	return h, nil
 }
 
 // Status is how the service stands.
@@ -570,19 +563,20 @@ func (s *Service) routers() []Router {
 
 // waitForRouter waits up to wait for the first of routers to answer as
 // another router than before, which may not have stopped yet, and returns
-// its answer, or nil when none does: no other router stands in for them.
-func (s *Service) waitForRouter(ctx context.Context, routers []Router, before router.Health, wait time.Duration) *router.Health {
+// its answer, with its index among them, or nil and -1 when none does: no
+// other router stands in for them.
+func (s *Service) waitForRouter(ctx context.Context, routers []Router, before router.Health, wait time.Duration) (*router.Health, int) {
 	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	for {
 		if h, i, _ := answeringOf(ctx, routers); i >= 0 && !h.Same(before) {
 			logger.Info("the router answered", "pid", h.PID, "ok", h.OK)
-			return &h
+			return &h, i
 		}
 		select {
 		case <-ctx.Done():
 			logger.Warn("the router didn't answer", "within", wait)
-			return nil
+			return nil, -1
 		case <-time.After(startPoll):
 		}
 	}

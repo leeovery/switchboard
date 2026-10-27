@@ -83,6 +83,29 @@ func (s *Service) seenIn(env map[string]string) (*Service, error) {
 	return seen, nil
 }
 
+// seenAt is the service as the router of index i among those it may run
+// sees it: itself for the first, or where none answered; for the one at the
+// state directory it's asked from, itself with that state directory, the
+// token files and launchd's log in it, the rest of its environment kept.
+func (s *Service) seenAt(i int) *Service {
+	if i <= 0 {
+		return s
+	}
+	root := s.root()
+	seen := *s
+	seen.cfg.StateDir, seen.cfg.Router, seen.also = root.cfg.StateDir, root.cfg.Router, nil
+	return &seen
+}
+
+// Found is the service as the router answering now sees it, as seenAt says,
+// and whether that router answers at the state directory the service is
+// asked from, rather than the one its plist keeps: itself where none
+// answers.
+func (s *Service) Found(ctx context.Context) (*Service, bool) {
+	_, i, _ := s.answering(ctx)
+	return s.seenAt(i), i > 0
+}
+
 // root is the service as it's asked about, before it's seen in another
 // environment.
 func (s *Service) root() *Service {

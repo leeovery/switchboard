@@ -68,9 +68,14 @@ func (r *run) service(ctx context.Context) error {
 	if refused != nil {
 		served = installed
 	}
-	shared, err := r.apart(svc, served)
-	if err != nil {
-		return err
+	// A router started with none answering is launchd's, wherever it
+	// answers, which is where its places are judged.
+	afresh := st.Router == nil && refused == nil
+	var shared bool
+	if !afresh {
+		if shared, err = r.apart(svc, served); err != nil {
+			return err
+		}
 	}
 	switch {
 	case stale && refused != nil:
@@ -79,12 +84,12 @@ func (r *run) service(ctx context.Context) error {
 		if why != "" {
 			r.Terminal.sayf("%s, so it's installed afresh.", why)
 		}
-		return r.install(ctx, svc, opts)
+		return r.install(ctx, svc, opts, afresh)
 	case st.Router == nil && refused != nil:
 		r.Terminal.sayf("Launchd has the service loaded, but no router runs, and one couldn't start as the service runs it: %s, installs it once what stops it is put right.", installAdvice)
 		return fmt.Errorf("the router couldn't start: %w", refused)
 	case st.Router == nil:
-		return r.restart(ctx, svc)
+		return r.restart(ctx, svc, opts)
 	}
 	up := "The service is installed, and the router is up: " + service.Health(*st.Router) + "."
 	if r.changed && shared {
@@ -124,7 +129,7 @@ func (r *run) installFirst(ctx context.Context) error {
 	if err := r.startable(svc, opts); err != nil {
 		return fmt.Errorf("the router couldn't start: %w", err)
 	}
-	return r.install(ctx, svc, opts)
+	return r.install(ctx, svc, opts, false)
 }
 
 // reinstallUnread installs the LaunchAgent afresh, as setup's options say,
@@ -153,7 +158,7 @@ func (r *run) reinstallUnread(ctx context.Context, unread error) error {
 		return r.unstartable(ctx, svc, why, err)
 	}
 	r.Terminal.sayf("%s, so it's installed afresh.", why)
-	return r.install(ctx, svc, opts)
+	return r.install(ctx, svc, opts, false)
 }
 
 // unstartable says, why it was to be, that the service isn't installed
@@ -263,10 +268,11 @@ func (r *run) stale(ctx context.Context, svc *service.Service, opts service.Inst
 }
 
 // install installs svc's LaunchAgent as opts says, to run this switchboard,
-// and says how the router it starts answers. It warns of the accounts
-// without a usable token only where the router serves setup's config file,
-// whose accounts setup has.
-func (r *run) install(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
+// and says how the router it starts answers, and, with placesAfter set,
+// where it finds what setup does elsewhere, as placesOfStarted says. It
+// warns of the accounts without a usable token only where the router serves
+// setup's config file, whose accounts setup has.
+func (r *run) install(ctx context.Context, svc *service.Service, opts service.InstallOptions, placesAfter bool) error {
 	opts.Executable = r.switchboard
 	routers, err := svc.Places(opts)
 	if err != nil {
@@ -287,14 +293,20 @@ func (r *run) install(ctx context.Context, svc *service.Service, opts service.In
 	for _, warning := range installed.Warnings {
 		r.Terminal.sayf("Warning: %s.", warning)
 	}
+	if placesAfter {
+		if err := r.placesOfStarted(ctx, svc, opts); err != nil {
+			return err
+		}
+	}
 	return r.up(svc, installed.Router)
 }
 
-// restart has launchd restart svc's router, which didn't answer, and says
-// how the one launchd starts answers. Should the router answer by then after
-// all, as one starting might, it's restarted, saying first that it's
-// finishing its requests in flight.
-func (r *run) restart(ctx context.Context, svc *service.Service) error {
+// restart has launchd restart svc's router, installed with opts, which
+// didn't answer, and says how the one launchd starts answers, and where it
+// finds what setup does elsewhere, as placesOfStarted says. Should the
+// router answer by then after all, as one starting might, it's restarted,
+// saying first that it's finishing its requests in flight.
+func (r *run) restart(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
 	h, err := svc.Restart(ctx, func(how service.Restarting) {
 		r.Terminal.sayf("The router is finishing its requests in flight, then %s.", how)
 	})
@@ -302,7 +314,23 @@ func (r *run) restart(ctx context.Context, svc *service.Service) error {
 		return err
 	}
 	r.Terminal.sayf("Restarted the router, as it didn't answer.")
+	if err := r.placesOfStarted(ctx, svc, opts); err != nil {
+		return err
+	}
 	return r.up(svc, h)
+}
+
+// placesOfStarted says where the router launchd started, svc's, installed
+// with opts, finds its state, its config or Claude Code's config elsewhere
+// than setup, as apart does, seen where it answers: saying so first where
+// that's where this shell keeps its state, not where the plist does.
+func (r *run) placesOfStarted(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
+	running, elsewhere := svc.Found(ctx)
+	if elsewhere {
+		r.Terminal.sayf("Launchd started the router where this shell keeps its state, not where the service's plist does: %s, lines them up.", installAdvice)
+	}
+	_, err := r.apart(running, opts)
+	return err
 }
 
 // up says how the router svc's launchd started answered, failing, saying

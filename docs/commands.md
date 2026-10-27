@@ -371,8 +371,9 @@ The steps are:
    runs; and where launchd runs a router that answers at neither, which `switchboard service
    status` helps you find. Run `switchboard service install` from the shell the router should use
    to line them up. It restarts the router only when none answers and none runs, once it has
-   checked the router could start, and fails where it couldn't, saying how to install it. It
-   never starts the service afresh while any router answers, and installs it again while one
+   checked the router could start, and fails where it couldn't, saying how to install it. A router
+   started so is judged where it answers: where that's where your shell keeps its state, not
+   where the plist does, `setup` says so. It never starts the service afresh while any router answers, and installs it again while one
    answers only where that one answers where the plist keeps its state, launchd having it
    loaded. When the router uses another state directory, config file or Claude Code config
    directory than `setup`, `setup` says which, never where: run
@@ -514,8 +515,8 @@ in flight, and waits up to 5 seconds for the router to answer.
   where it can't read the LaunchAgent in place and they're gone. A `HOME` it sets `install`
   drops, as launchd gives the router yours. It waits for the router where the environment it
   writes keeps its state, and for no other.
-- **The tokens.** `install` warns when no account has a usable token. The router starts all the
-  same, and routes as soon as a token file holds one.
+- **The tokens.** `install` warns when no account has a usable token, where the router it started
+  answers. The router starts all the same, and routes as soon as a token file holds one.
 
 #### `service restart`
 
