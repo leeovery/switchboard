@@ -2,9 +2,11 @@ package setuptoken
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,6 +15,11 @@ import (
 
 func TestScreenErrorKeepsTheScreenOutOfEveryWayItsShown(t *testing.T) {
 	screen := madeScreen(" " + madeToken).text()
+	// What's on the screen, as it is and as hex, as %x shows it.
+	var secrets []string
+	for _, secret := range []string{madeToken, "Store this token"} {
+		secrets = append(secrets, secret, hex.EncodeToString([]byte(secret)))
+	}
 	tests := []struct {
 		name string
 		err  *ScreenError
@@ -33,7 +40,7 @@ func TestScreenErrorKeepsTheScreenOutOfEveryWayItsShown(t *testing.T) {
 				shown = append(shown, fmt.Sprintf(verb, tt.err), fmt.Sprintf(verb, *tt.err))
 			}
 			for _, s := range shown {
-				if redact.HoldsToken(s) || strings.Contains(s, "Store this token") {
+				if redact.HoldsToken(s) || slices.ContainsFunc(secrets, func(secret string) bool { return strings.Contains(s, secret) }) {
 					t.Errorf("the error shows as %q, want nothing of the screen", s)
 				}
 			}

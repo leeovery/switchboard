@@ -28,12 +28,12 @@ func TestForSetupTokenIsTheUsersEnvironmentWithTheShimAsItsBrowser(t *testing.T)
 	}
 }
 
-func TestEnvironGetsTheFirstValueOfAKey(t *testing.T) {
-	env := environ{"EDITOR=vi", "PATH=/bin", "PATH=/usr/bin", "EMPTY="}
+func TestEnvironGetsAKeysValue(t *testing.T) {
+	env := ownEnviron([]string{"EDITOR=vi", "PATH=/bin", "PATH=/usr/bin", "EMPTY="})
 	tests := []struct {
 		key, want string
 	}{
-		{key: "PATH", want: "/bin"},
+		{key: "PATH", want: "/usr/bin"},
 		{key: "EMPTY"},
 		{key: "UNSET"},
 		{key: "EDIT"},
