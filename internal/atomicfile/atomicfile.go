@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -22,27 +23,23 @@ const maxLinks = 40
 // Target returns where writing to path leads: path itself, or where the links
 // it names lead, which needn't be there yet. Write renames a file into place,
 // which would replace a link at path, so a file kept elsewhere, and linked to,
-// is written at its target.
+// is written at its target. It fails where the way there goes back, by "..",
+// out of a directory that isn't there, which the system can't follow, so
+// where it leads can't be known.
 func Target(path string) (string, error) {
 	named := path
 	// relative is set once a relative link is followed, which leaves path
 	// uncleaned, to clean once it's followed to its end.
 	relative := false
-	reached := func() string {
-		if relative {
-			return resolved(path)
-		}
-		return path
-	}
 	for range maxLinks {
 		info, err := os.Lstat(path)
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
-			return reached(), nil
+			return reached(named, path, relative)
 		case err != nil:
 			return "", err
 		case info.Mode()&fs.ModeSymlink == 0:
-			return reached(), nil
+			return reached(named, path, relative)
 		}
 		dest, err := os.Readlink(path)
 		if err != nil {
@@ -62,19 +59,39 @@ func Target(path string) (string, error) {
 	return "", fmt.Errorf("%s: too many links", named)
 }
 
+// reached is path, reached from named: cleaned, as resolved cleans it, once
+// a relative link has been followed, else as it is. It fails where path goes
+// back, by "..", out of a directory that isn't there.
+func reached(named, path string, relative bool) (string, error) {
+	clean, missing := resolved(path)
+	switch {
+	case missing != "":
+		return "", fmt.Errorf("%s: leads back out of %s, which isn't there", named, missing)
+	case relative:
+		return clean, nil
+	}
+	return path, nil
+}
+
 // resolved is path with the links in its directory followed as the system
 // follows them, a ".." after one going back from where it leads, and cleaned:
 // of a directory that isn't there yet, the longest part of it that is, and
-// the rest after it. It's path as it is where no part can be followed.
-func resolved(path string) string {
+// the rest after it. It's path as it is where no part can be followed. Where
+// a ".." comes after a directory that isn't there, it returns that directory,
+// as missing, as the system would go no further.
+func resolved(path string) (clean, missing string) {
 	dir, rest := split(path)
 	for {
 		if followed, err := filepath.EvalSymlinks(dir); err == nil {
-			return filepath.Join(followed, rest)
+			parts := strings.Split(rest, string(filepath.Separator))
+			if slices.Contains(parts[1:], "..") {
+				return "", filepath.Join(followed, parts[0])
+			}
+			return filepath.Join(followed, rest), ""
 		}
 		parent, name := split(dir)
 		if parent == dir {
-			return path
+			return path, ""
 		}
 		dir, rest = parent, name+string(filepath.Separator)+rest
 	}

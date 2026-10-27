@@ -80,6 +80,11 @@ func TestTarget(t *testing.T) {
 	write(t, at("real", "cfgdir", "placeholder"))
 	symlink(t, at("real", "cfgdir"), at("config"))
 	symlink(t, "../sb/config.toml", at("config", "config.toml"))
+	// Links that go back, by "..", out of a directory that isn't there,
+	// which the system can't follow: relative, and not.
+	sep := string(filepath.Separator)
+	symlink(t, "gone"+sep+".."+sep+"token", at("links", "back"))
+	symlink(t, at("dotfiles", "gone")+sep+".."+sep+"token", at("links", "back-whole"))
 	symlink(t, at("dotfiles", "missing"), at("links", "missing"))
 	symlink(t, at("links", "loop-back"), at("links", "loop"))
 	symlink(t, at("links", "loop"), at("links", "loop-back"))
@@ -97,6 +102,8 @@ func TestTarget(t *testing.T) {
 		{name: "a relative link back out of a linked directory, from where that leads", path: at("links", "through"), want: at("elsewhere", "kept")},
 		{name: "a link to a file that isn't there yet, where it would be", path: at("links", "missing"), want: at("dotfiles", "missing")},
 		{name: "a relative link into a directory that isn't there yet, from where its link leads", path: at("config", "config.toml"), want: at("real", "sb", "config.toml")},
+		{name: "a relative link back out of a directory that isn't there, nowhere", path: at("links", "back"), wantErr: at("links", "back") + ": leads back out of " + at("links", "gone") + ", which isn't there"},
+		{name: "a link back out of a directory that isn't there, nowhere", path: at("links", "back-whole"), wantErr: at("links", "back-whole") + ": leads back out of " + at("dotfiles", "gone") + ", which isn't there"},
 		{name: "a loop of links, nowhere", path: at("links", "loop"), wantErr: at("links", "loop") + ": too many links"},
 	}
 	for _, tt := range tests {
