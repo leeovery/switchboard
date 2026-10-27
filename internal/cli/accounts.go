@@ -102,8 +102,11 @@ in its [[account]] table in the config. Give one or more of --label, --plan,
 value given is what the account has already, nothing is written.
 
 --plan takes none, to leave the plan unknown. --reserve takes a percentage,
-such as 5%, of every window, which the router leaves unused, or 0 for none.
---primary makes the account the primary in place of the one that is.
+to two decimal places at most, such as 5% or 2.5%, of every window, which the
+router leaves unused, or 0 for none.
+--primary makes the account the primary in place of the one that is; the
+sessions already running keep that one's token as Claude Code's own until they
+restart.
 
 ` + editingTheConfig,
 		Args: oneAccount,
@@ -258,8 +261,20 @@ func (a *app) editAccount(cmd *cobra.Command, id string, change accounts.Change)
 	if err != nil {
 		return pointToAdding(err, id)
 	}
-	_, err = io.WriteString(cmd.OutOrStdout(), editedSays(edited)+"\n")
+	said := editedSays(edited)
+	if edited.FormerPrimary != "" {
+		said += "\n" + primaryMoved(edited.FormerPrimary)
+	}
+	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
+}
+
+// primaryMoved says what becomes of the sessions already running once the
+// primary, formerly the account with the given id, is another: they hold its
+// token as Claude Code's own until they restart.
+func primaryMoved(former string) string {
+	return "sessions already running keep " + former + "'s token as Claude Code's own until they restart, " +
+		"so what they send outside the conversation, such as artifacts and uploads, still goes out on " + former
 }
 
 // editedSays says what an edit changed of the account, each value as it is
@@ -270,7 +285,7 @@ func editedSays(e accounts.Edited) string {
 	}
 	var changed []string
 	if e.Was.Label != e.Now.Label {
-		changed = append(changed, nowAndWas("label", prose.Clean(e.Now.Label), prose.Clean(e.Was.Label)))
+		changed = append(changed, nowAndWas("label", prose.Quoted(e.Now.Label), prose.Quoted(e.Was.Label)))
 	}
 	if e.Was.Plan != e.Now.Plan {
 		changed = append(changed, nowAndWas("plan", planSaid(e.Now.Plan), planSaid(e.Was.Plan)))

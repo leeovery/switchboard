@@ -392,7 +392,7 @@ switchboard accounts remove <id>
 | `--label <label>` | `add` and `edit`: show the account as `<label>`. Default: the id, which `--label ""` goes back to. |
 | `--plan <plan>` | `edit`: the plan the account's subscription is on: `pro`, `max5x` or `max20x`, or `none` to leave it unknown. |
 | `--primary` | `add` and `edit`: make the account the primary, the account the browser and the Claude apps use, in place of the one that was. |
-| `--reserve <percent>` | `edit`: the share of every window the router leaves unused on the account, as a percentage, such as `5%`, from `0%` up to but not including `100%`. `0` or `0%` takes the reserve away. |
+| `--reserve <percent>` | `edit`: the share of every window the router leaves unused on the account, as a percentage to two decimal places at most, such as `5%` or `2.5%`, from `0%` up to but not including `100%`. `0` or `0%` takes the reserve away. |
 
 For each account, `switchboard accounts` shows:
 
@@ -414,10 +414,15 @@ The subcommands do the following:
 - **`edit`** changes an account's label, plan, primary or reserve, in its table in the config.
   - It takes one or more of `--label`, `--plan`, `--primary` and `--reserve`, and leaves what it
     isn't given as it is.
-  - It says what it changed, each value as it is now and as it was. When every value given is
-    what the account has already, it says so, and writes nothing.
+  - It says what it changed, each value as it is now and as it was, labels in quotes. When every
+    value given is what the account has already, it says so, and writes nothing.
+  - Made the primary, an account takes it from the one that had it. The sessions already running
+    keep that account's token as Claude Code's own until they restart, so what they send outside
+    the conversation, such as artifacts and uploads, still goes out on it. `edit` says so.
   - A reserve written as a number alone, such as `5` or `0.05`, is refused, as either could mean
-    the other: write it as a percentage. A `--label` is refused as `add` refuses one.
+    the other: write it as a percentage. So is one past two decimal places.
+  - A `--label` is refused as `add` refuses one, and so is one that would show as nothing; `""`
+    shows the account by its id.
 - **`token`** replaces an account's token.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file.

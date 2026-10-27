@@ -323,8 +323,11 @@ restart`. See [`serve`](commands.md#serve).
 
 One account is the primary: the one your browser and the Claude apps are signed into.
 
-- **Choosing it:** to mark an account as the primary, set `primary = true` on it. Without it, the
-  first account is the primary.
+- **Choosing it:** to mark an account as the primary, run
+  `switchboard accounts edit <id> --primary`, or set `primary = true` on it. Without it, the first
+  account is the primary. The sessions already running keep the former primary's token as Claude
+  Code's own until they restart, so what they send outside the conversation still goes out on it,
+  as the edit says.
 - **Removing it:** when you remove the primary, the account marked `primary = true`, or else the
   first account, is the primary from then on, as `accounts remove` says. The sessions already
   running hold the removed account's token. They stay routed while the new primary has a usable

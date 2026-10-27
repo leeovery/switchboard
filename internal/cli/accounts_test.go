@@ -215,7 +215,7 @@ func TestAccountsAddWhenTheAPIDoesntAnswer(t *testing.T) {
 		t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
 	}
 	checkTokenFile(t, deps, "work", "test-token-work\n")
-	checkNoToken(t, got, tokenShaped)
+	checkNoToken(t, got, "test-token-work")
 }
 
 func TestAccountsAddRefusesATokenAsTheIDOrTheLabel(t *testing.T) {
@@ -493,6 +493,11 @@ func TestAccountsRemoveRefuses(t *testing.T) {
 // comment beside each.
 const sideOnAPlan = personalAndSide + "plan    = \"pro\"   # for now\nreserve = 0.1     # the app's share\n"
 
+// primaryFromPersonal is what accounts edit says of the sessions already
+// running once it's made another account the primary in place of personal.
+const primaryFromPersonal = "sessions already running keep personal's token as Claude Code's own until they restart, " +
+	"so what they send outside the conversation, such as artifacts and uploads, still goes out on personal\n"
+
 func TestAccountsEdit(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -506,15 +511,23 @@ func TestAccountsEdit(t *testing.T) {
 			name:    "a label",
 			config:  personalAndSide,
 			args:    []string{"--label", "Day job"},
-			wantOut: "edited side: label Day job (was Side)\n",
+			wantOut: "edited side: label \"Day job\" (was \"Side\")\n",
 			old:     `label = "Side"`,
 			new:     `label = "Day job"`,
+		},
+		{
+			name:    "a label that reads as more changes, quoted",
+			config:  personalAndSide,
+			args:    []string{"--label", "a, plan b (was c)"},
+			wantOut: "edited side: label \"a, plan b (was c)\" (was \"Side\")\n",
+			old:     `label = "Side"`,
+			new:     `label = "a, plan b (was c)"`,
 		},
 		{
 			name:    "no label, showing the account by its id",
 			config:  personalAndSide,
 			args:    []string{"--label", ""},
-			wantOut: "edited side: label side (was Side)\n",
+			wantOut: "edited side: label \"side\" (was \"Side\")\n",
 			old:     "label = \"Side\"\n",
 			new:     "",
 		},
@@ -530,7 +543,7 @@ func TestAccountsEdit(t *testing.T) {
 			name:    "the primary, in place of the first, the primary for want of a mark",
 			config:  personalAndSide,
 			args:    []string{"--primary"},
-			wantOut: "edited side: the primary in place of personal\n",
+			wantOut: "edited side: the primary in place of personal\n" + primaryFromPersonal,
 			old:     "label = \"Side\"\n",
 			new:     "label = \"Side\"\nprimary = true\n",
 		},
@@ -546,12 +559,12 @@ func TestAccountsEdit(t *testing.T) {
 			name:    "everything together",
 			config:  personalAndSide,
 			args:    []string{"--label", "Day job", "--plan", "max20x", "--primary", "--reserve", "2.5%"},
-			wantOut: "edited side: label Day job (was Side), plan max20x (was none), the primary in place of personal, reserve 2.5% (was none)\n",
+			wantOut: "edited side: label \"Day job\" (was \"Side\"), plan max20x (was none), the primary in place of personal, reserve 2.5% (was none)\n" + primaryFromPersonal,
 			old:     "label = \"Side\"\n",
 			new:     "label = \"Day job\"\nplan = \"max20x\"\nprimary = true\nreserve = 0.025\n",
 		},
 		{
-			name:    "no plan and no reserve, keeping the comments around them",
+			name:    "no plan and no reserve, taking out their lines and the comments beside them",
 			config:  sideOnAPlan,
 			args:    []string{"--plan", "none", "--reserve", "0"},
 			wantOut: "edited side: plan none (was pro), reserve none (was 10%)\n",
@@ -561,10 +574,18 @@ func TestAccountsEdit(t *testing.T) {
 		{
 			name:    "a plan and a reserve in place of those it has, keeping the comments beside them",
 			config:  sideOnAPlan,
-			args:    []string{"--plan", "max5x", "--reserve", "0%"},
-			wantOut: "edited side: plan max5x (was pro), reserve none (was 10%)\n",
+			args:    []string{"--plan", "max5x", "--reserve", "7.5%"},
+			wantOut: "edited side: plan max5x (was pro), reserve 7.5% (was 10%)\n",
 			old:     "plan    = \"pro\"   # for now\nreserve = 0.1     # the app's share\n",
-			new:     "plan    = \"max5x\"   # for now\n",
+			new:     "plan    = \"max5x\"   # for now\nreserve = 0.075     # the app's share\n",
+		},
+		{
+			name:    "no reserve, written as 0%",
+			config:  sideOnAPlan,
+			args:    []string{"--reserve", "0%"},
+			wantOut: "edited side: reserve none (was 10%)\n",
+			old:     "reserve = 0.1     # the app's share\n",
+			new:     "",
 		},
 	}
 	for _, tt := range tests {
@@ -635,6 +656,16 @@ func TestAccountsEditRefuses(t *testing.T) {
 			name:    "a reserve of the whole window",
 			args:    []string{"side", "--reserve", "100%"},
 			wantErr: `reserve "100%": must be at least 0% and less than 100%, the share of every window the router leaves unused`,
+		},
+		{
+			name:    "a reserve past two decimal places, which would show as the whole window",
+			args:    []string{"side", "--reserve", "99.999%"},
+			wantErr: `reserve "99.999%": must be a percentage, to two decimal places at most, such as 5% or 2.5%, or 0 for none`,
+		},
+		{
+			name:    "a blank label",
+			args:    []string{"side", "--label", "  ", "--plan", "pro"},
+			wantErr: `account "side": label is blank: give one that shows, or "" to show the account by its id`,
 		},
 		{
 			name:    "a label shaped like a token, never shown",

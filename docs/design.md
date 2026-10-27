@@ -717,10 +717,15 @@ accounts:
 - `accounts edit <id>` changes an account's label (`--label`, under `add`'s rules, `""` for none),
   plan (`--plan`, one of the plans or `none`), primary (`--primary`, taking it off the account that
   had it) or reserve (`--reserve`), given one or more, and leaves the rest as they are. A reserve
-  is written as a percentage, `5%`, and stored as the share, `0.05`; `0` or `0%` clears it, and a
-  number alone is refused, as `5` and `0.05` could each mean the other. It says what it changed,
-  each value now and as it was, or, when every value given is the account's already, that nothing
-  changed, writing nothing. The flags are read into the values its action,
+  is written as a percentage to two decimal places at most, `5%`, so what's shown is what's saved,
+  and stored as the share, `0.05`; `0` or `0%` clears it, and a number alone is refused, as `5`
+  and `0.05` could each mean the other. A label that would show as nothing, or isn't UTF-8, is
+  refused. It writes only what changes the account as the config reads it, and says what it
+  changed, each value now and as it was, labels quoted, or, when every value given is the
+  account's already, that nothing changed, writing nothing. Moving the primary, it says the
+  sessions already running keep the former primary's token as Claude Code's own until they
+  restart. Edits keep the file's line endings, byte order mark, comments beside a value and
+  indentation. The flags are read into the values its action,
   `accounts.Registry.Edit`, takes, so a form can give it the same.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file: of one that's a link, the link
