@@ -164,6 +164,11 @@ func TestSetLabel(t *testing.T) {
 	}
 }
 
+// england is England's flag: a black flag, then the tags that name the
+// subdivision, then the tag that ends them, which trimming would leave a
+// plain black flag.
+const england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"
+
 func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
 	const side = "[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"
 	tests := []struct {
@@ -177,6 +182,11 @@ func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
 		{name: "a private-use glyph, such as a Nerd Font icon, which shows", given: "\ue0a0", want: "\ue0a0"},
 		{name: "its id, which takes the label out, as it shows the same", given: "side", want: ""},
 		{name: "its id once trimmed", given: " side\u200b", want: ""},
+		{name: "a subdivision's flag, its tags kept at the edge", given: "Team " + england, want: "Team " + england},
+		{name: "an Arabic number sign kept at the edge", given: "\u0600123", want: "\u0600123"},
+		{name: "characters that play no part dropped, the whitespace either side then one space", given: "Work \u200b Team", want: "Work Team"},
+		{name: "a soft hyphen and a word joiner dropped within it", given: "Day\u00adjob\u2060s", want: "Dayjobs"},
+		{name: "direction marks within it kept, trimmed at its edges", given: "\u200f\u061cabc\u200fdef\u200e", want: "abc\u200fdef"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -196,6 +206,48 @@ func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
 			}
 		})
 	}
+}
+
+// overLines is a config whose account's label goes on over lines.
+const overLines = "[[account]]\nid    = \"work\"\nlabel = \"\"\"\nWork\"\"\"\n"
+
+func TestAnAccountWithALabelOverLinesTakesAPlanBelowIt(t *testing.T) {
+	path := writeConfig(t, overLines)
+	draft := edit(t, path)
+
+	if err := draft.SetPlan("work", "pro"); err != nil {
+		t.Fatalf("SetPlan() error = %v", err)
+	}
+	checkSaved(t, path, draft, "work", overLines+"plan = \"pro\"\n")
+}
+
+func TestAnAccountWithALabelOverLinesTakesAReserveBelowIt(t *testing.T) {
+	path := writeConfig(t, overLines)
+	draft := edit(t, path)
+
+	if err := draft.SetReserve("work", 0.05); err != nil {
+		t.Fatalf("SetReserve() error = %v", err)
+	}
+	checkSaved(t, path, draft, "work", overLines+"reserve = 0.05\n")
+}
+
+func TestAnAccountWithALabelOverLinesIsMadeThePrimaryBelowIt(t *testing.T) {
+	const side = "\n[[account]]\nid = \"side\"\n"
+	path := writeConfig(t, overLines+side+"primary = true\n")
+	draft := edit(t, path)
+
+	if err := draft.SetPrimary("work"); err != nil {
+		t.Fatalf("SetPrimary() error = %v", err)
+	}
+	checkSaved(t, path, draft, "work", overLines+"primary = true\n"+side)
+}
+
+func TestAnAccountWithALabelOverLinesRefusesALabel(t *testing.T) {
+	path := writeConfig(t, overLines)
+	draft := edit(t, path)
+
+	err := draft.SetLabel("work", "Day job")
+	checkRefused(t, path, overLines, draft, err, cantMakeIt+`set label to "Day job" in account "work" by hand`, nil)
 }
 
 func TestAddAccountWritesNoLabelThatsItsID(t *testing.T) {

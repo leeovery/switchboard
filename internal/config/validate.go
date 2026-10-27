@@ -219,15 +219,16 @@ const mostLabelCharacters = 100
 var ErrBlankLabel = errors.New("label is blank, showing nothing")
 
 // takeLabel returns a label given to put in the file as it shows, so what's
-// saved is what's shown: each run of whitespace within it one space, and the
-// whitespace and format characters, such as a zero-width space, a byte order
-// mark or a direction mark, at its edges trimmed; those within it, such as
-// the joiners an emoji sequence needs, are kept. It's checked as it shows,
-// and refused, as a label in the file isn't: when it isn't UTF-8, as TOML's
-// text must be; when it holds a control character, such as a newline or a
-// tab, which can't show, or a bidirectional embedding, override or isolate,
-// which can reorder the rest of the row it's shown in; and when nothing of it
-// would show but it isn't "", which shows the account by its id, matching
+// saved is what's shown: without the characters that play no part in how it
+// shows, wherever they are, each run of whitespace within it one space, and
+// the whitespace, joiners and direction marks at its edges trimmed, which do
+// their part only within it. Every other character is kept, such as the tags
+// of a subdivision's flag, wherever it is. It's checked as it shows, and
+// refused, as a label in the file isn't: when it isn't UTF-8, as TOML's text
+// must be; when it holds a control character, such as a newline or a tab,
+// which can't show, or a bidirectional embedding, override or isolate, which
+// can reorder the rest of the row it's shown in; and when nothing of it would
+// show but it isn't "", which shows the account by its id, matching
 // ErrBlankLabel. Then it's checked as checkLabel checks one.
 func takeLabel(account, given string) (string, error) {
 	switch {
@@ -238,7 +239,8 @@ func takeLabel(account, given string) (string, error) {
 	case strings.ContainsFunc(given, reorders):
 		return "", fmt.Errorf("%s: label holds a bidirectional embedding, override or isolate, which could reorder the rest of what it's shown in", account)
 	}
-	label := strings.TrimFunc(strings.Join(strings.Fields(given), " "), unseenAtAnEdge)
+	kept := strings.Map(withoutPartless, given)
+	label := strings.TrimFunc(strings.Join(strings.Fields(kept), " "), unseenAtAnEdge)
 	if given != "" && !strings.ContainsFunc(label, shows) {
 		return "", fmt.Errorf("%s: %w", account, ErrBlankLabel)
 	}
@@ -254,10 +256,29 @@ func reorders(r rune) bool {
 	return (r >= '\u202a' && r <= '\u202e') || (r >= '\u2066' && r <= '\u2069')
 }
 
+// partless are the characters that play no part in how a label shows,
+// wherever they are: the zero-width space, the word joiner, the zero-width
+// no-break space, or byte order mark, and the soft hyphen.
+var partless = []rune{'\u200b', '\u2060', '\ufeff', '\u00ad'}
+
+// withoutPartless maps r, as strings.Map does, to itself, or to nothing for
+// one of partless.
+func withoutPartless(r rune) rune {
+	if slices.Contains(partless, r) {
+		return -1
+	}
+	return r
+}
+
+// edgeless are the characters that play their part only within a label,
+// trimmed at its edges: the zero-width joiner and non-joiner, and the
+// direction marks, left-to-right, right-to-left and Arabic letter.
+var edgeless = []rune{'\u200c', '\u200d', '\u200e', '\u200f', '\u061c'}
+
 // unseenAtAnEdge reports whether r, at a label's edge, is trimmed as unseen:
-// whitespace, or a format character.
+// whitespace, or one of edgeless.
 func unseenAtAnEdge(r rune) bool {
-	return unicode.IsSpace(r) || unicode.Is(unicode.Cf, r)
+	return unicode.IsSpace(r) || slices.Contains(edgeless, r)
 }
 
 // blanks are the letters and the symbol that draw as nothing: the Hangul
