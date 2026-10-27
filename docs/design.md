@@ -7838,17 +7838,20 @@ verbs).
   switchboard directly: the tokens are files, so it needs nothing else of the user's environment.
   `install` warns when no account has a usable token; the router starts all the same, and routes
   once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
-  113 for one it hasn't: `install` boots out a loaded copy, bootstraps the new one into `gui/<uid>`,
-  and waits up to 5 seconds for a router other than any running before to answer. launchd finishes
-  booting a service out after `bootout` returns, and refuses to load it until then (`5: Input/output
-  error`), so `install` tries bootstrapping 5 times, half a second apart, before it fails as the
-  last try did. launchd reads the plist only as it loads the service, so an upgrade or a restart, in
-  place or by launchd, keeps what it said: a key a newer switchboard writes, as `ProcessType` was,
-  reaches an install only through `install`, restarting the router; `setup` reinstalls only for
-  another binary. `uninstall` boots it out when loaded and removes the plist. `restart`, with a
-  router answering, asks it to restart (`POST /restart`): it finishes its requests in flight, within
-  30 seconds, those it cuts off then given 5 more to unwind, then replaces itself in place, keeping
-  its process, or, as it says when it can't, exits for launchd to start it again (see The router
+  113 for one it hasn't: `install` boots out a loaded copy, waits for launchd to let it go,
+  bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router other than any
+  running before to answer. `bootout` can return at once, as on macOS 26, while launchd keeps the
+  service until its router has finished its requests in flight, and launchd refuses to load it
+  again until then (`5: Input/output error`), so after a bootout, `print` is asked every quarter
+  second until it exits 113. `install` then tries bootstrapping 5 times, half a second apart,
+  before it fails as the last try did. launchd reads the plist only as it loads the service, so an
+  upgrade or a restart, in place or by launchd, keeps what it said: a key a newer switchboard
+  writes, as `ProcessType` was, reaches an install only through `install`, restarting the router;
+  `setup` reinstalls only for another binary. `uninstall` boots it out when loaded, waits for
+  launchd to let it go, and removes the plist. `restart`, with a router answering, asks it to
+  restart (`POST /restart`): it finishes its requests in flight, within 30 seconds, those it cuts
+  off then given 5 more to unwind, then replaces itself in place, keeping its process, or, as it
+  says when it can't, exits for launchd to start it again (see The router
   looking after itself). `restart` says which first, `the router is finishing its requests in
   flight, then it restarts in place`, or `…, then launchd starts it again`, then waits up to 50
   seconds, the 45 launchd would give the router to stop and 5 to start, for a router other than the
@@ -7865,8 +7868,9 @@ verbs).
   loaded, `restart` is an error saying so. `status` reports the plist, whether launchd has it
   loaded, and the router's health. When no router answers in time, `install` and `restart` fail, the
   LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why. Each run of
-  `launchctl` is cut off after 10 seconds, but a bootout, which waits for the router to stop, after
-  55: the 45 and 10 more. Any other failure of `launchctl` is an error that quotes it.
+  `launchctl` is cut off after 10 seconds, but a bootout, with the wait for launchd to let the
+  service go, after 55: the 45 and 10 more, failing `install` or `uninstall` when launchd still has
+  it then. Any other failure of `launchctl` is an error that quotes it.
 
 ## Milestones
 

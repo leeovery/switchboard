@@ -16,8 +16,9 @@ const (
 	// launchctlTimeout bounds each run of launchctl, which normally takes a
 	// moment.
 	launchctlTimeout = 10 * time.Second
-	// bootoutTimeout bounds booting the service out, which waits for the
-	// router to stop: launchd gives it exitTimeout before it kills it.
+	// bootoutTimeout bounds booting the service out, with the wait for
+	// launchd to let it go once the router stops: launchd gives the router
+	// exitTimeout before it kills it.
 	bootoutTimeout = exitTimeout + launchctlTimeout
 )
 

@@ -41,6 +41,9 @@ const (
 	// between them.
 	bootstrapTries = 5
 	bootstrapPause = 500 * time.Millisecond
+	// unloadPoll is how often booting the service out asks launchd whether
+	// it has let the service go.
+	unloadPoll = 250 * time.Millisecond
 )
 
 var (
@@ -431,9 +434,8 @@ func (s *Service) write(a agent) error {
 
 // bootstrap has launchd load the service from its plist, trying again,
 // bootstrapPause apart, bootstrapTries times in all, while launchctl
-// fails: launchd finishes booting a service out after launchctl bootout
-// returns, and refuses to load it again until it has, as with "5:
-// Input/output error". It fails as the last try did.
+// fails: launchd refuses to load a service it hasn't finished letting go, as
+// with "5: Input/output error". It fails as the last try did.
 func (s *Service) bootstrap(ctx context.Context) error {
 	for try := 1; ; try++ {
 		err := s.launchctl(ctx, "bootstrap", s.domain(), s.Plist())
@@ -449,13 +451,36 @@ func (s *Service) bootstrap(ctx context.Context) error {
 	}
 }
 
-// unload has launchd stop the service and forget it, when it has loaded it.
+// unload has launchd stop the service and forget it, when it has loaded it,
+// and waits until it has: launchctl bootout can return at once, as on macOS
+// 26, while launchd keeps the service until its router has finished its
+// requests in flight. It gives up bootoutTimeout after booting it out.
 func (s *Service) unload(ctx context.Context) error {
 	loaded, err := s.loaded(ctx)
 	if err != nil || !loaded {
 		return err
 	}
-	return s.launchctlWithin(ctx, bootoutTimeout, "bootout", s.target())
+	ctx, cancel := context.WithTimeoutCause(ctx, bootoutTimeout, fmt.Errorf("launchd didn't let the service go within %v of booting it out", bootoutTimeout))
+	defer cancel()
+	if err := s.launchctlWithin(ctx, bootoutTimeout, "bootout", s.target()); err != nil {
+		return err
+	}
+	for {
+		loaded, err := s.loaded(ctx)
+		switch {
+		case err == nil && !loaded:
+			return nil
+		case ctx.Err() != nil:
+			return context.Cause(ctx)
+		case err != nil:
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-time.After(unloadPoll):
+		}
+	}
 }
 
 // current is the answer of the router answering now, or the zero Health when
