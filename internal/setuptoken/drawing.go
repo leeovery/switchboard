@@ -137,17 +137,7 @@ func (d drawing) endsAt(at int, final bool) bool {
 	return final
 }
 
-// failed returns the error setup-token shows, which it waits to retry at:
-// its message, without what begins it, or "" where it shows none but asks to
-// retry all the same. It's false where setup-token isn't waiting to retry.
-func (d drawing) failed() (string, bool) {
-	if !slices.ContainsFunc(d, func(l line) bool { return strings.Contains(l.text(), claude.SetupTokenRetry) }) {
-		return "", false
-	}
-	for _, l := range d {
-		if _, message, ok := strings.Cut(l.text(), claude.SetupTokenError); ok {
-			return strings.TrimSpace(message), true
-		}
-	}
-	return "", true
+// failed reports whether setup-token shows an error it waits to retry at.
+func (d drawing) failed() bool {
+	return slices.ContainsFunc(d, func(l line) bool { return strings.Contains(l.text(), claude.SetupTokenRetry) })
 }

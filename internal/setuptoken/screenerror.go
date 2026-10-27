@@ -1,10 +1,6 @@
 package setuptoken
 
-import (
-	"fmt"
-
-	"github.com/leeovery/switchboard/internal/redact"
-)
+import "fmt"
 
 // ScreenError is what Make fails with where setup-token gave no token it
 // could read: it exited without making one, it showed an error it would have
@@ -36,14 +32,11 @@ func exitedWithout(screen string, exit error) *ScreenError {
 	return newScreenError("setup-token exited without making a token", screen, exit)
 }
 
-// failedAt is setup-token, which drew screen, showing the error message,
-// which it would have retried at.
-func failedAt(screen, message string) *ScreenError {
-	reason := "setup-token showed an error"
-	if message != "" {
-		reason += ": " + redact.Text(message)
-	}
-	return newScreenError(reason, screen, nil)
+// failedAt is setup-token, which drew screen, showing an error it would have
+// retried at. Its words stay on the screen: setup-token's own, they could
+// hold what's no error's to say.
+func failedAt(screen string) *ScreenError {
+	return newScreenError("setup-token showed an error", screen, nil)
 }
 
 // notHandedOver is setup-token, which drew screen, not handing its sign-in

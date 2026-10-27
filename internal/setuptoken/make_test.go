@@ -238,7 +238,7 @@ func TestMakeFailsWithTheScreenWhereSetupTokenGivesNoToken(t *testing.T) {
 		// want is what the error says, and shown what the screen holds.
 		want, shown string
 	}{
-		{name: "an OAuth error, where it stops setup-token", mode: "oauth-error", want: "setup-token showed an error: Request failed with status code 400", shown: "OAuth error: Request failed with status code 400\n\n Press Enter to retry."},
+		{name: "an OAuth error, where it stops setup-token", mode: "oauth-error", want: "setup-token showed an error", shown: "OAuth error: Request failed with status code 400\n\n Press Enter to retry."},
 		{name: "an exit without a token", mode: "on-hold", want: "setup-token exited without making a token (exit status 1)", shown: "This account is on hold."},
 		{name: "a token it can't read", mode: "broken", want: "setup-token said it made a token, but its screen didn't show one", shown: fakeToken[:40] + "\n " + fakeToken[40:]},
 	}

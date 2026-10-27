@@ -279,21 +279,19 @@ func TestDrawingSaysWhetherSetupTokenMadeTheToken(t *testing.T) {
 
 func TestDrawingFindsTheErrorSetupTokenWaitsToRetryAt(t *testing.T) {
 	tests := []struct {
-		name        string
-		drawing     drawing
-		wantMessage string
-		wantFailed  bool
+		name    string
+		drawing drawing
+		want    bool
 	}{
-		{name: "an OAuth error", drawing: drawn(" OAuth error: Request failed with status code 400", "", " Press Enter to retry."), wantMessage: "Request failed with status code 400", wantFailed: true},
-		{name: "an error shown as it is", drawing: drawn(" The sign-in timed out.", "", " Press Enter to retry."), wantFailed: true},
+		{name: "an OAuth error", drawing: drawn(" OAuth error: Request failed with status code 400", "", " Press Enter to retry."), want: true},
+		{name: "an error shown as it is", drawing: drawn(" The sign-in timed out.", "", " Press Enter to retry."), want: true},
 		{name: "an OAuth error it doesn't wait at", drawing: drawn(" OAuth error: Request failed with status code 400")},
 		{name: "none", drawing: drawn(" Opening browser to sign in…")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			message, failed := tt.drawing.failed()
-			if message != tt.wantMessage || failed != tt.wantFailed {
-				t.Errorf("failed() of %q = %q, %v; want %q, %v", tt.drawing.text(), message, failed, tt.wantMessage, tt.wantFailed)
+			if got := tt.drawing.failed(); got != tt.want {
+				t.Errorf("failed() of %q = %v, want %v", tt.drawing.text(), got, tt.want)
 			}
 		})
 	}

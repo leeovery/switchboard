@@ -272,8 +272,8 @@ func (r *run) follow() {
 		r.report(Event{Step: StepMade})
 	}
 	if !r.made {
-		if message, failed := d.failed(); failed {
-			r.fail(failedAt(d.text(), message))
+		if d.failed() {
+			r.fail(failedAt(d.text()))
 		}
 		return
 	}
@@ -333,14 +333,13 @@ func (r *run) conclude(ctx context.Context) {
 		r.token, r.shown = r.screen.drawing().token(true)
 	}
 	d := r.screen.drawing()
-	message, failed := d.failed()
 	switch {
 	case r.shown:
 		r.over = true
 	case r.made:
 		r.fail(unreadable(r.madeScreen, r.stoppedBy(ctx)))
-	case failed:
-		r.fail(failedAt(d.text(), message))
+	case d.failed():
+		r.fail(failedAt(d.text()))
 	case r.exited != nil:
 		// Still running drainFor after ctx ended, which kills it.
 		r.fail(cancelled(ctx))

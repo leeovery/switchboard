@@ -25,7 +25,7 @@ func TestScreenErrorKeepsTheScreenOutOfEveryWayItsShown(t *testing.T) {
 		err  *ScreenError
 	}{
 		{name: "an exit without a token", err: exitedWithout(screen, errors.New("exit status 1"))},
-		{name: "an error, its message holding a token", err: failedAt(screen, "Request failed for "+madeToken)},
+		{name: "an error", err: failedAt(screen)},
 		{name: "a token it can't read", err: unreadable(screen, nil)},
 		{name: "a token it can't read, cancelled", err: unreadable(screen, context.Canceled)},
 		{name: "no address handed over", err: notHandedOver(screen)},
@@ -59,8 +59,7 @@ func TestScreenErrorSaysWhatWentWrong(t *testing.T) {
 	}{
 		{name: "an exit without a token", err: exitedWithout("", errors.New("exit status 1")), want: "setup-token exited without making a token (exit status 1)"},
 		{name: "an exit without a token, of unknown status", err: exitedWithout("", nil), want: "setup-token exited without making a token"},
-		{name: "an error", err: failedAt("", "Request failed with status code 400"), want: "setup-token showed an error: Request failed with status code 400"},
-		{name: "an error without a message", err: failedAt("", ""), want: "setup-token showed an error"},
+		{name: "an error, its words setup-token's alone", err: failedAt(" OAuth error: Request to https://claude.example/callback?code=test-code-work failed\n\n Press Enter to retry."), want: "setup-token showed an error"},
 		{name: "a token it can't read", err: unreadable("", nil), want: "setup-token said it made a token, but its screen didn't show one"},
 		{name: "a token it can't read, cancelled", err: unreadable("", context.Canceled), want: "setup-token said it made a token, but its screen didn't show one (context canceled)"},
 		{name: "no address handed over", err: notHandedOver(""), want: "setup-token didn't hand switchboard its sign-in address"},

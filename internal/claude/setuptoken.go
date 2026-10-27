@@ -19,8 +19,6 @@ const (
 	// SetupTokenMade is the line setup-token shows once it has made the
 	// token, which it shows on a line of its own below.
 	SetupTokenMade = "Long-lived authentication token created successfully!"
-	// SetupTokenError begins the line setup-token shows a sign-in's error on.
-	SetupTokenError = "OAuth error:"
 	// SetupTokenBelow begins the line setup-token shows next below the token
 	// it made, past a blank one.
 	SetupTokenBelow = "Store this token securely."
