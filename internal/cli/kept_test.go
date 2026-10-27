@@ -74,11 +74,11 @@ func TestServiceRestartAsksTheRouterWhereThePlistKeepsItsState(t *testing.T) {
 
 func TestServiceStatusAsksTheRouterWhereThePlistKeepsItsState(t *testing.T) {
 	s := newServiceSetup(t)
-	s.launchd.loaded = true
+	s.launchd.loaded, s.launchd.pid = true, 100
 	s.putKeptPlist(t, s.keptRouter(t))
 
 	got := run(t, s.srv.deps, "service", "status")
-	if want := (result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded\nrouter       healthy, pid 100\n"}); got != want {
+	if want := (result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded, running pid 100\nrouter       healthy, pid 100\n"}); got != want {
 		t.Errorf("switchboard service status = %+v, want %+v", got, want)
 	}
 }
@@ -199,7 +199,7 @@ func TestServiceStatusSaysWhenTheRouterAnsweringIsntThePlists(t *testing.T) {
 	serveRouter(t, s.srv.socket(), &pid, nil)
 
 	got := run(t, s.srv.deps, "service", "status")
-	want := result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded\nrouter       healthy, pid 100, where this shell keeps its state, not where the plist does\n"}
+	want := result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded, not running\nrouter       healthy, pid 100, where this shell keeps its state, not where the plist does\n"}
 	if got != want {
 		t.Errorf("switchboard service status = %+v, want %+v", got, want)
 	}
@@ -241,5 +241,24 @@ func TestServiceCommandsSayWhenThePlistCantBeRead(t *testing.T) {
 				t.Errorf("switchboard %s printed on stderr\n%s\nwant it to hold, redacted\n%s", strings.Join(tt.args, " "), got.stderr, tt.want)
 			}
 		})
+	}
+}
+
+func TestServiceStatusSaysWhenThePlistsPlacesCantBeWorkedOut(t *testing.T) {
+	s := newServiceSetup(t)
+	s.launchd.loaded = true
+	if err := os.MkdirAll(filepath.Dir(s.plist), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plist := `<plist><dict><key>ProgramArguments</key><array><string>` + s.binary + `</string><string>serve</string></array>` +
+		`<key>EnvironmentVariables</key><dict><key>HOME</key><string></string></dict></dict></plist>`
+	if err := os.WriteFile(s.plist, []byte(plist), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := run(t, s.srv.deps, "service", "status")
+	const want = "switchboard: where the service's router keeps its state can't be worked out from its plist, so it's looked for where this shell keeps its state ("
+	if !strings.Contains(got.stderr, want) || !strings.Contains(got.stderr, "HOME empty") || strings.Contains(got.stderr, "can't be read back") {
+		t.Errorf("switchboard service status printed on stderr\n%s\nwant it to hold\n%s", got.stderr, want)
 	}
 }

@@ -295,7 +295,7 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 		return s.startAfresh(ctx)
 	}
 	rt := s.routers()[i]
-	how, before, err := s.restart(ctx, answering, rt)
+	how, before, err := s.restart(ctx, answering, rt, i > 0)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +308,11 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 // router whose replacement to wait for: the one that took the request, which
 // may have restarted since it answered as answering, or, one that can't be
 // asked, answering, which launchd starts again once SIGTERM stops it.
-func (s *Service) restart(ctx context.Context, answering router.Health, rt Router) (Restarting, router.Health, error) {
+//
+// Where rt isn't the router at the service's state directory, but the one at
+// the state directory it's asked from, which may not be the one launchd
+// runs, it fails rather than signal launchd's.
+func (s *Service) restart(ctx context.Context, answering router.Health, rt Router, elsewhere bool) (Restarting, router.Health, error) {
 	asked, err := rt.Restart(ctx)
 	switch {
 	case err == nil && asked.InPlace:
@@ -319,6 +323,8 @@ func (s *Service) restart(ctx context.Context, answering router.Health, rt Route
 		return ByLaunchd, asked.Health, nil
 	case !errors.Is(err, router.ErrNoRestart):
 		return 0, router.Health{}, err
+	case elsewhere:
+		return 0, router.Health{}, fmt.Errorf("%w, and it answers where this shell keeps its state, not where the service's plist does, so it may not be the one launchd runs, which is left alone", err)
 	}
 	if killed := s.launchctl(ctx, "kill", "SIGTERM", s.target()); killed != nil {
 		return 0, router.Health{}, killed
@@ -559,6 +565,13 @@ func answeringOf(ctx context.Context, routers []Router) (router.Health, int, err
 // then those For keeps.
 func (s *Service) routers() []Router {
 	return append([]Router{s.cfg.Router}, s.also...)
+}
+
+// Await waits up to wait for any of the routers the service may run to
+// answer, and returns its answer, or nil when none does.
+func (s *Service) Await(ctx context.Context, wait time.Duration) *router.Health {
+	h, _ := s.waitForRouter(ctx, s.routers(), router.Health{}, wait)
+	return h
 }
 
 // waitForRouter waits up to wait for the first of routers to answer as

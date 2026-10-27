@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
@@ -42,19 +43,22 @@ func (r *run) service(ctx context.Context) error {
 		return r.reinstallUnread(ctx, err)
 	}
 	svc, err := r.Service.For(installed)
+	if err == nil {
+		_, err = svc.Places(installed)
+	}
 	if err != nil {
-		return err
+		return r.placeless(ctx, err)
 	}
 	opts, given, err := r.configured(svc, installed)
 	if err != nil {
 		return err
 	}
-	st, err := svc.Status(ctx)
+	st, err := r.status(ctx, svc)
 	if err != nil {
 		return err
 	}
-	if r.leaves(st) {
-		return nil
+	if left, err := r.leaves(st); left {
+		return err
 	}
 	why, stale, err := r.stale(ctx, svc, opts, given, st)
 	if err != nil {
@@ -99,29 +103,83 @@ func (r *run) service(ctx context.Context) error {
 	return nil
 }
 
+// errLeftUnanswered is how the service step fails where it leaves the
+// service as it is with no router answering.
+var errLeftUnanswered = errors.New("setup left the service as it is, and no router answers: run switchboard setup again once one does")
+
+// status is how svc stands, as Status says; but where launchd runs a router
+// that doesn't answer, asked again for as long as the launcher waits for one,
+// as a router starting under launchd, or handing over in the same process,
+// answers within that.
+func (r *run) status(ctx context.Context, svc *service.Service) (service.Status, error) {
+	st, err := svc.Status(ctx)
+	if err != nil || st.Router != nil || st.PID == 0 || svc.Await(ctx, launch.AskTimeout) == nil {
+		return st, err
+	}
+	return svc.Status(ctx)
+}
+
 // leaves reports whether setup leaves the service, standing as st says, as
-// it is, having said why: where launchd hasn't loaded it but a router run
-// some other way answers, which another would clash with; where the router
-// that answers may not be the one the service runs, as Status's Elsewhere
-// says; and where launchd runs a router that answers nowhere setup looks.
-func (r *run) leaves(st service.Status) bool {
+// it is, having said why, failing where no router answers: where launchd
+// hasn't loaded it but a router run some other way answers, which another
+// would clash with; where the router that answers may not be the one the
+// service runs, as Status's Elsewhere says; and where launchd runs a router
+// that doesn't answer.
+func (r *run) leaves(st service.Status) (bool, error) {
 	switch {
 	case !st.Loaded && st.Router != nil:
 		r.Terminal.sayf("Launchd hasn't loaded the service, but a router run some other way answers, and another would clash with it, so setup leaves it as it is: once that one's stopped, %s, installs it.", installAdvice)
 	case st.Elsewhere:
 		r.Terminal.sayf("No router answers where the service's plist keeps its state, but one answers where this shell keeps it, so which the service runs can't be told, and setup leaves it as it is: %s, lines them up.", installAdvice)
 	case st.Router == nil && st.PID != 0:
-		r.Terminal.sayf("Launchd runs the service's router, pid %d, but it answers neither where the service's plist keeps its state nor where this shell keeps it, so setup leaves it as it is: switchboard service status says how it stands.", st.PID)
+		r.leftRunning(st.PID)
+		return true, errLeftUnanswered
 	default:
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
+}
+
+// leftRunning says setup leaves the service as it is, launchd running its
+// router, pid, which doesn't answer.
+func (r *run) leftRunning(pid int) {
+	r.Terminal.sayf("Launchd runs the service's router, pid %d, but it doesn't answer here: it may be starting, or stopping, which can take over half a minute after a bootout, "+
+		"or keeping its state somewhere setup doesn't look. Setup leaves it as it is: switchboard service status says how it stands.", pid)
+}
+
+// placeless says where the service's router finds things can't be worked
+// out from its plist, as err says, and leaves the service as it is while a
+// router answers, or fails while none does, naming service install.
+func (r *run) placeless(ctx context.Context, err error) error {
+	why := fmt.Sprintf("Where the service's router finds its state or its config can't be worked out from its plist (%s)", redact.Text(err.Error()))
+	if r.Service.Answering(ctx) != nil {
+		r.Terminal.sayf("%s, but a router answers, so the service is left as it is: %s, installs it afresh.", why, installAdvice)
+		return nil
+	}
+	r.Terminal.sayf("%s, and no router answers: %s, installs it afresh.", why, installAdvice)
+	return fmt.Errorf("the service's plist: %w", err)
 }
 
 // installFirst installs the LaunchAgent, which isn't installed, as setup's
 // options say, in the environment setup runs in, failing where the router
 // couldn't start.
+//
+// With no plist, it leaves a router that answers, run by hand or by launchd
+// all the same, which another would clash with or replace, and one launchd
+// runs that doesn't.
 func (r *run) installFirst(ctx context.Context) error {
+	st, err := r.status(ctx, r.Service)
+	switch {
+	case err != nil:
+		return err
+	case st.Router != nil:
+		r.Terminal.sayf("The service's plist is gone, but a router answers, so setup leaves it as it is: stop a router run by hand and run setup again, " +
+			"or switchboard service install writes the plist again.")
+		return nil
+	case st.PID != 0:
+		r.leftRunning(st.PID)
+		return errLeftUnanswered
+	}
 	svc, opts, err := r.Service.Planned(ctx, r.Install)
 	if err != nil {
 		return err
@@ -139,12 +197,15 @@ func (r *run) installFirst(ctx context.Context) error {
 // either of which may run as the plist says.
 func (r *run) reinstallUnread(ctx context.Context, unread error) error {
 	why := fmt.Sprintf("The service's plist can't be read back (%s)", redact.Text(unread.Error()))
-	st, err := r.Service.Status(ctx)
+	st, err := r.status(ctx, r.Service)
 	switch {
 	case err != nil:
 		return err
 	case st.Loaded:
 		r.Terminal.sayf("%s, but launchd has it loaded, so the service is left as it is: %s, installs it afresh.", why, installAdvice)
+		if st.Router == nil {
+			return errLeftUnanswered
+		}
 		return nil
 	case st.Router != nil:
 		r.Terminal.sayf("%s, but a router answers, so the service is left as it is: %s, installs it afresh.", why, installAdvice)
@@ -293,12 +354,7 @@ func (r *run) install(ctx context.Context, svc *service.Service, opts service.In
 	for _, warning := range installed.Warnings {
 		r.Terminal.sayf("Warning: %s.", warning)
 	}
-	if placesAfter {
-		if err := r.placesOfStarted(ctx, svc, opts); err != nil {
-			return err
-		}
-	}
-	return r.up(svc, installed.Router)
+	return r.up(ctx, svc, opts, installed.Router, placesAfter)
 }
 
 // restart has launchd restart svc's router, installed with opts, which
@@ -314,10 +370,7 @@ func (r *run) restart(ctx context.Context, svc *service.Service, opts service.In
 		return err
 	}
 	r.Terminal.sayf("Restarted the router, as it didn't answer.")
-	if err := r.placesOfStarted(ctx, svc, opts); err != nil {
-		return err
-	}
-	return r.up(svc, h)
+	return r.up(ctx, svc, opts, h, true)
 }
 
 // placesOfStarted says where the router launchd started, svc's, installed
@@ -333,11 +386,18 @@ func (r *run) placesOfStarted(ctx context.Context, svc *service.Service, opts se
 	return err
 }
 
-// up says how the router svc's launchd started answered, failing, saying
-// where to find out why, when it didn't.
-func (r *run) up(svc *service.Service, h *router.Health) error {
+// up says how the router svc's launchd started, installed with opts,
+// answered, failing, saying where to find out why, when it didn't; and, with
+// placesAfter set, once it answers, where it finds what setup does
+// elsewhere, as placesOfStarted says.
+func (r *run) up(ctx context.Context, svc *service.Service, opts service.InstallOptions, h *router.Health, placesAfter bool) error {
 	if err := svc.Answered(h); err != nil {
 		return err
+	}
+	if placesAfter {
+		if err := r.placesOfStarted(ctx, svc, opts); err != nil {
+			return err
+		}
 	}
 	r.Terminal.sayf("The router is up: %s.", service.Health(*h))
 	return nil

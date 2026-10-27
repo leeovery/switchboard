@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -326,7 +327,7 @@ func TestServiceStatus(t *testing.T) {
 		t.Fatalf("switchboard service install = %+v, want exit status 0", got)
 	}
 	got = run(t, s.srv.deps, "service", "status")
-	want = result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded\nrouter       healthy, pid " + strconv.Itoa(os.Getpid()) + "\n"}
+	want = result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded, running pid " + strconv.Itoa(os.Getpid()) + "\nrouter       healthy, pid " + strconv.Itoa(os.Getpid()) + "\n"}
 	if got != want {
 		t.Errorf("once installed, switchboard service status = %+v, want %+v", got, want)
 	}
@@ -461,7 +462,10 @@ type fakeLaunchd struct {
 	starts bool
 	probed bool
 	loaded bool
-	calls  [][]string
+	// pid is the router's process id, which print names while it's not 0,
+	// as it is once launchd starts one.
+	pid   int
+	calls [][]string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -475,15 +479,18 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 	case !f.loaded:
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
 	case args[0] == "bootout":
-		f.loaded = false
+		f.loaded, f.pid = false, 0
 	case args[0] == "kickstart":
 		f.start()
+	case args[0] == "print" && f.pid != 0:
+		return fmt.Appendf(nil, "%s = {\n\tstate = running\n\tpid = %d\n}\n", args[1], f.pid), nil
 	}
 	return nil, nil
 }
 
 // start starts srv's router, and with probed set, waits for its probes.
 func (f *fakeLaunchd) start() {
+	f.pid = os.Getpid()
 	f.srv.start(f.t)
 	if f.probed {
 		f.srv.waitForProbes(f.t)

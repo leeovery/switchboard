@@ -50,10 +50,10 @@ func (s *Service) Options(ctx context.Context) (InstallOptions, error) {
 	return opts, nil
 }
 
-// asLaunchdRuns is path as the router launchd runs finds it, in /: a
-// relative one is under /.
+// asLaunchdRuns is path as the router launchd runs finds it, in /, clean,
+// as Install writes it: a relative one is under /.
 func asLaunchdRuns(path string) string {
-	if path == "" || filepath.IsAbs(path) {
+	if path == "" {
 		return path
 	}
 	return filepath.Join("/", path)

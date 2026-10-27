@@ -475,22 +475,98 @@ func TestDriftReadsARelativeConfigAsLaunchdDoes(t *testing.T) {
 	}
 }
 
-func TestStartsFromRefusesAnEmptyHome(t *testing.T) {
-	s := newSetup(t, nil, nil)
-	s.putPlist(t, `<plist><dict><key>ProgramArguments</key><array><string>`+s.binary+`</string><string>serve</string></array>`+
-		`<key>EnvironmentVariables</key><dict><key>HOME</key><string></string><key>XDG_STATE_HOME</key><string>`+s.root+`/custom</string>`+
-		`<key>SWITCHBOARD_CONFIG</key><string>`+s.root+`/work.toml</string><key>CLAUDE_CONFIG_DIR</key><string>`+s.root+`/claude</string></dict></dict></plist>`)
-	opts, err := s.svc.Options(t.Context())
+func TestAnEmptyHomeRefusesOnlyThePlacesThatNeedIt(t *testing.T) {
+	tests := []struct {
+		name string
+		// set are the variables the plist sets beside HOME, set empty, each
+		// value's <root> the setup's root.
+		set map[string]string
+		// wantFor and wantStart are whether For and StartsFrom fail, as a
+		// place the router needs is under its home.
+		wantFor, wantStart bool
+	}{
+		{
+			name: "every place set absolutely",
+			set:  map[string]string{"XDG_STATE_HOME": "<root>/custom", "SWITCHBOARD_CONFIG": "<root>/work.toml", "CLAUDE_CONFIG_DIR": "<root>/claude"},
+		},
+		{
+			name:      "the config under the home",
+			set:       map[string]string{"XDG_STATE_HOME": "<root>/custom", "CLAUDE_CONFIG_DIR": "<root>/claude"},
+			wantStart: true,
+		},
+		{
+			name:    "the state directory under the home",
+			set:     map[string]string{"SWITCHBOARD_CONFIG": "<root>/work.toml", "CLAUDE_CONFIG_DIR": "<root>/claude"},
+			wantFor: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, nil)
+			variables := "<key>HOME</key><string></string>"
+			for key, value := range tt.set {
+				variables += "<key>" + key + "</key><string>" + strings.ReplaceAll(value, "<root>", s.root) + "</string>"
+			}
+			s.putPlist(t, `<plist><dict><key>ProgramArguments</key><array><string>`+s.binary+`</string><string>serve</string></array>`+
+				`<key>EnvironmentVariables</key><dict>`+variables+`</dict></dict></plist>`)
+			opts, err := s.svc.Options(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			svc, err := s.svc.For(opts)
+			if (err != nil) != tt.wantFor || err != nil && !strings.Contains(err.Error(), "HOME empty") {
+				t.Fatalf("For() error = %v, want an error saying HOME is empty: %v", err, tt.wantFor)
+			}
+			if err != nil {
+				return
+			}
+			start, err := svc.StartsFrom(opts)
+			if (err != nil) != tt.wantStart || err != nil && !strings.Contains(err.Error(), "HOME empty") {
+				t.Errorf("StartsFrom() = %+v, %v; want an error saying HOME is empty: %v", start, err, tt.wantStart)
+			}
+		})
+	}
+}
+
+func TestRestartLeavesLaunchdsJobWhereTheRouterAnsweringIsntThePlists(t *testing.T) {
+	// The router at the shell's state directory answers, from before
+	// routers restarted when asked.
+	s := newSetup(t, nil, func(int) (router.Health, error) { return up(4242) })
+	s.launchctl.loaded = true
+	shell := s.installedFrom(t, map[string]string{"XDG_STATE_HOME": "<root>/custom"}, service.InstallOptions{}, nil, func(string) service.Router { return down(t) })
+	opts, err := shell.Options(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc, err := s.svc.For(opts)
+	svc, err := shell.For(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if start, err := svc.StartsFrom(opts); err == nil || !strings.Contains(err.Error(), "HOME empty") {
-		t.Errorf("StartsFrom() = %+v, %v; want it refused, as launchd passes HOME empty and the router finds no home", start, err)
+	h, err := svc.Restart(t.Context(), func(service.Restarting) { t.Error("told the router restarts, want it left") })
+	if err == nil || h != nil || !strings.Contains(err.Error(), "left alone") {
+		t.Errorf("Restart() = %+v, %v; want it refused, launchd's job left alone", h, err)
+	}
+	if want := [][]string{{"print", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
+		t.Errorf("ran launchctl %q, want %q: launchd's job never signalled", s.launchctl.calls, want)
+	}
+}
+
+func TestDriftReadsAnUncleanConfigAsLaunchdDoes(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary, Config: "/b.toml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.putPlist(t, strings.Replace(string(written), "<string>/b.toml</string>", "<string>/a/../b.toml</string>", 1))
+	opts, err := s.svc.Options(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if drift, err := s.svc.Drift(t.Context(), opts); err != nil || len(drift) != 0 {
+		t.Errorf("Drift() = %q, %v; want none, /a/../b.toml being /b.toml", drift, err)
 	}
 }
 

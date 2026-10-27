@@ -141,15 +141,16 @@ func (a *app) installedService(ctx context.Context, errOut io.Writer) (*service.
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return svc, nil
-	case err == nil:
-		installed, seen := svc.For(opts)
-		if seen == nil {
-			return installed, nil
-		}
-		err = seen
+	case err != nil:
+		launch.Notice(errOut, "the service's plist can't be read back, so the router is looked for where this shell keeps its state ("+redact.Text(err.Error())+")")
+		return svc, nil
 	}
-	launch.Notice(errOut, "the service's plist can't be read back, so the router is looked for where this shell keeps its state ("+redact.Text(err.Error())+")")
-	return svc, nil
+	installed, err := svc.For(opts)
+	if err != nil {
+		launch.Notice(errOut, "where the service's router keeps its state can't be worked out from its plist, so it's looked for where this shell keeps its state ("+redact.Text(err.Error())+")")
+		return svc, nil
+	}
+	return installed, nil
 }
 
 // installService installs the LaunchAgent to run this switchboard binary as
@@ -252,8 +253,11 @@ func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
 	if st.Installed {
 		installed = svc.Plist()
 	}
-	if st.Loaded {
-		loaded = "loaded"
+	switch {
+	case st.PID != 0:
+		loaded = fmt.Sprintf("loaded, running pid %d", st.PID)
+	case st.Loaded:
+		loaded = "loaded, not running"
 	}
 	answer := "not running"
 	switch {

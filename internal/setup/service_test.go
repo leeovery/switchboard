@@ -15,6 +15,20 @@ import (
 // unreadBinary is why a binary plist plutil can't read can't be read back.
 const unreadBinary = "read the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist, through plutil: plutil: not a binary plist the world knows"
 
+// plistGone is what the service step says of a router answering with no
+// plist in place.
+const plistGone = "The service's plist is gone, but a router answers, so setup leaves it as it is: stop a router run by hand and run setup again, " +
+	"or switchboard service install writes the plist again.\n"
+
+// leftRunning is what the service step says of launchd running a router,
+// pid 4242, that doesn't answer.
+const leftRunning = "Launchd runs the service's router, pid 4242, but it doesn't answer here: it may be starting, or stopping, which can take over half a minute after a bootout, " +
+	"or keeping its state somewhere setup doesn't look. Setup leaves it as it is: switchboard service status says how it stands.\n"
+
+// errLeft is how the service step fails where it leaves the service with no
+// router answering.
+const errLeft = "setup left the service as it is, and no router answers: run switchboard setup again once one does"
+
 // restarted are the launchctl subcommands a run of setup runs that restarts
 // the router: it asks whether the service is loaded, then restarts it.
 var restarted = []string{"print", "print", "kickstart"}
@@ -40,7 +54,7 @@ func TestTheServiceStep(t *testing.T) {
 			},
 			answers: []string{""},
 			want:    installed + "The router is up: healthy, pid 4243.\n",
-			wantRan: []string{"print", "bootstrap"},
+			wantRan: []string{"print", "print", "bootstrap"},
 		},
 		{
 			name:    "installed, but launchd hasn't loaded it: installed again",
@@ -157,11 +171,33 @@ func TestTheServiceStep(t *testing.T) {
 			wantRan: restarted,
 		},
 		{
-			name:    "installed, launchd running its router, which answers nowhere setup looks: left as it is",
+			name:    "installed, launchd running its router, which answers once asked again, as one starting does: up",
 			lay:     func(_ *testing.T, w *world) { w.launchd.unanswered = 1 },
 			answers: []string{""},
-			want: "Launchd runs the service's router, pid 4242, but it answers neither where the service's plist keeps its state nor where this shell keeps it, " +
-				"so setup leaves it as it is: switchboard service status says how it stands.\n",
+			want:    "The service is installed, and the router is up: healthy, pid 4242.\n",
+			wantRan: []string{"print", "print"},
+		},
+		{
+			name: "no plist, a router run by hand answering: left as it is",
+			lay: func(t *testing.T, w *world) {
+				if err := os.Remove(w.plist()); err != nil {
+					t.Fatal(err)
+				}
+				w.launchd.loaded = false
+			},
+			answers: []string{""},
+			want:    plistGone,
+			wantRan: untouched,
+		},
+		{
+			name: "no plist, launchd's router answering: left as it is",
+			lay: func(t *testing.T, w *world) {
+				if err := os.Remove(w.plist()); err != nil {
+					t.Fatal(err)
+				}
+			},
+			answers: []string{""},
+			want:    plistGone,
 			wantRan: untouched,
 		},
 		{
@@ -185,7 +221,7 @@ func TestTheServiceStep(t *testing.T) {
 			answers: []string{"", "", ""},
 			want: installed + "Warning: no account has a usable token, so the router will have nothing to route to: switchboard accounts says why.\n" +
 				"The router is up: healthy, pid 4243.\n",
-			wantRan: []string{"print", "bootstrap"},
+			wantRan: []string{"print", "print", "bootstrap"},
 		},
 	}
 	for _, tt := range tests {
@@ -732,8 +768,6 @@ func TestTheServiceStepLeavesAServiceWhoseRouterCantBeTold(t *testing.T) {
 }
 
 func TestTheServiceStepLeavesARouterLaunchdRunsOutOfReach(t *testing.T) {
-	const left = "Launchd runs the service's router, pid 4242, but it answers neither where the service's plist keeps its state nor where this shell keeps it, " +
-		"so setup leaves it as it is: switchboard service status says how it stands.\n"
 	for name, drifted := range map[string]bool{"as written": false, "its plist differing": true} {
 		t.Run(name, func(t *testing.T) {
 			w := newWorld(t)
@@ -742,7 +776,9 @@ func TestTheServiceStepLeavesARouterLaunchdRunsOutOfReach(t *testing.T) {
 			// router runs.
 			w.launchd.setenv = map[string]string{"XDG_STATE_HOME": filepath.Join(w.root, "third")}
 			w.editPlist(t, func(plist string) string {
-				return strings.Replace(plist, "\t\t<key>XDG_STATE_HOME</key>\n\t\t<string>"+filepath.Join(w.root, "state")+"</string>\n", "", 1)
+				plist = strings.Replace(plist, "\t\t<key>XDG_STATE_HOME</key>\n\t\t<string>"+filepath.Join(w.root, "state")+"</string>\n", "", 1)
+				// launchd's log where the plist's state directory has it.
+				return strings.ReplaceAll(plist, service.LogIn(filepath.Join(w.root, "state", "switchboard")), service.LogIn(filepath.Join(w.home, ".local", "state", "switchboard")))
 			})
 			w.launchd.stateDir = filepath.Join(w.root, "third", "switchboard")
 			if drifted {
@@ -755,13 +791,15 @@ func TestTheServiceStepLeavesARouterLaunchdRunsOutOfReach(t *testing.T) {
 			w.launchd.calls = nil
 			w.unstartable = errors.New("the config names no account")
 
-			shown, err := w.run(t, "")
-			if err != nil {
-				t.Errorf("Run() error = %v, want none", err)
-			}
-			if got := section(t, shown, "3. The service"); got != left {
-				t.Errorf("the service step showed\n%s\nwant\n%s", got, left)
-			}
+			synctest.Test(t, func(t *testing.T) {
+				shown, err := w.run(t, "")
+				if err == nil || err.Error() != errLeft {
+					t.Errorf("Run() error = %v, want %q", err, errLeft)
+				}
+				if got := section(t, shown, "3. The service"); got != leftRunning {
+					t.Errorf("the service step showed\n%s\nwant\n%s", got, leftRunning)
+				}
+			})
 			if ran := w.launchd.ran(); !slices.Equal(ran, untouched) {
 				t.Errorf("ran launchctl %q, want %q: the router launchd runs left alone", ran, untouched)
 			}
@@ -770,6 +808,105 @@ func TestTheServiceStepLeavesARouterLaunchdRunsOutOfReach(t *testing.T) {
 			}
 			if len(w.checked) != 0 {
 				t.Errorf("checked the router could start from %q, want nothing checked", w.checked)
+			}
+		})
+	}
+}
+
+func TestTheServiceStepLeavesUnansweredFails(t *testing.T) {
+	tests := []struct {
+		name string
+		// lay changes the world, which is done, before setup runs.
+		lay  func(t *testing.T, w *world)
+		want string
+	}{
+		{
+			name: "a plist it can't read, loaded, no router running",
+			lay: func(t *testing.T, w *world) {
+				writeFile(t, w.plist(), "<plist/>\n", 0o644)
+				w.launchd.pid = 0
+			},
+			want: "The service's plist can't be read back (the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist, names no program), " +
+				"but launchd has it loaded, so the service is left as it is: switchboard service install, run from the shell the router should use, installs it afresh.\n",
+		},
+		{
+			name: "no plist, launchd running a router that doesn't answer",
+			lay: func(t *testing.T, w *world) {
+				if err := os.Remove(w.plist()); err != nil {
+					t.Fatal(err)
+				}
+				w.launchd.stateDir = filepath.Join(w.root, "third", "switchboard")
+			},
+			want: leftRunning,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			tt.lay(t, w)
+			w.launchd.calls = nil
+
+			synctest.Test(t, func(t *testing.T) {
+				shown, err := w.run(t, "")
+				if err == nil || err.Error() != errLeft {
+					t.Errorf("Run() error = %v, want %q", err, errLeft)
+				}
+				if got := section(t, shown, "3. The service"); got != tt.want {
+					t.Errorf("the service step showed\n%s\nwant\n%s", got, tt.want)
+				}
+			})
+			if ran := w.launchd.ran(); !slices.Equal(ran, untouched) {
+				t.Errorf("ran launchctl %q, want %q: the service left alone", ran, untouched)
+			}
+		})
+	}
+}
+
+func TestTheServiceStepCantWorkOutThePlacesOfAnEmptyHome(t *testing.T) {
+	const why = "Where the service's router finds its state or its config can't be worked out from its plist ("
+	tests := []struct {
+		name string
+		// place is the variable the plist sets HOME empty in place of, so
+		// the place it named is under HOME.
+		place, dir string
+		running    bool
+		want       string
+		wantErr    bool
+	}{
+		{name: "the state directory, a router answering: left as it is", place: "XDG_STATE_HOME", dir: "state", running: true,
+			want: ", but a router answers, so the service is left as it is: switchboard service install, run from the shell the router should use, installs it afresh.\n"},
+		{name: "the state directory, none answering: failing", place: "XDG_STATE_HOME", dir: "state", wantErr: true,
+			want: ", and no router answers: switchboard service install, run from the shell the router should use, installs it afresh.\n"},
+		{name: "Claude Code's config directory, none answering: failing", place: "CLAUDE_CONFIG_DIR", dir: "claude", wantErr: true,
+			want: ", and no router answers: switchboard service install, run from the shell the router should use, installs it afresh.\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			w.editPlist(t, func(plist string) string {
+				plist = strings.Replace(plist, "\t\t<key>"+tt.place+"</key>\n\t\t<string>"+filepath.Join(w.root, tt.dir)+"</string>\n", "\t\t<key>HOME</key>\n\t\t<string></string>\n", 1)
+				if !strings.Contains(plist, "<key>HOME</key>") {
+					t.Fatalf("the plist reads\n%s\nwant HOME set empty in place of %s", plist, tt.place)
+				}
+				return plist
+			})
+			if !tt.running {
+				w.launchd.pid = 0
+			}
+			w.launchd.calls = nil
+
+			shown, err := w.run(t, "")
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Run() error = %v, want an error: %v", err, tt.wantErr)
+			}
+			got := section(t, shown, "3. The service")
+			if !strings.HasPrefix(got, why) || !strings.Contains(got, "HOME empty") || !strings.HasSuffix(got, tt.want) {
+				t.Errorf("the service step showed\n%s\nwant it to start\n%s\nsay HOME is empty, and end\n%s", got, why, tt.want)
+			}
+			if ran := w.launchd.ran(); len(ran) != 0 {
+				t.Errorf("ran launchctl %q, want the service left alone", ran)
 			}
 		})
 	}

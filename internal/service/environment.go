@@ -258,9 +258,6 @@ type Start struct {
 // StartsFrom is what the router, installed with opts, starts from, as the
 // service is seen.
 func (s *Service) StartsFrom(opts InstallOptions) (Start, error) {
-	if s.emptyHome {
-		return Start{}, errEmptyHome
-	}
 	file, err := s.ConfigFile(opts)
 	if err != nil {
 		return Start{}, err
@@ -268,8 +265,9 @@ func (s *Service) StartsFrom(opts InstallOptions) (Start, error) {
 	return Start{StateDir: s.cfg.StateDir, ConfigFile: file, LogLevel: opts.LogLevel}, nil
 }
 
-// errEmptyHome is why a router can't start in the HOME launchd sets empty,
-// as it passes one the plist sets so.
+// errEmptyHome is why a place the router finds under its home can't be
+// worked out where launchd sets HOME empty, as it passes one the plist sets
+// so: the router serves all the same where none of its places needs it.
 var errEmptyHome = errors.New("the service's plist sets HOME empty, where the router finds no home directory")
 
 // homeDir is the home directory the router runs in, as config's paths ask
