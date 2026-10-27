@@ -123,7 +123,6 @@ func TestSetupChecksTheRouterCouldStartFromWhatThePlistKeeps(t *testing.T) {
 	_, step, _ := strings.Cut(got.stdout, "\n3. The service\n")
 	step, _, _ = strings.Cut(step, "\n4. ")
 	for _, want := range []string{
-		"The router uses another state directory",
 		"The service's plist differs from the one this switchboard writes, with ",
 		"but the router couldn't start installed afresh, so the service is left as it is, its router running: ",
 		"It couldn't start as:\n--log-level: ",
@@ -263,23 +262,30 @@ func TestServiceStatusSaysWhenThePlistsPlacesCantBeWorkedOut(t *testing.T) {
 	}
 }
 
-func TestServiceRestartLeavesLaunchdsJobWhereThePlistCantBeRead(t *testing.T) {
-	s := newServiceSetup(t)
-	s.launchd.loaded = true
-	s.putUnreadablePlist(t)
-	// A router from before routers restarted when asked, where this shell
-	// keeps its state.
-	var pid atomic.Int64
-	pid.Store(100)
-	serveRouter(t, s.srv.socket(), &pid, nil)
+func TestServiceRestartLeavesLaunchdsJobWhereThePlistCantSayItsRouter(t *testing.T) {
+	for name, lay := range map[string]func(s *serviceSetup, t *testing.T){
+		"a plist it can't read": (*serviceSetup).putUnreadablePlist,
+		"no plist":              func(*serviceSetup, *testing.T) {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := newServiceSetup(t)
+			s.launchd.loaded = true
+			lay(s, t)
+			// A router from before routers restarted when asked, where this
+			// shell keeps its state.
+			var pid atomic.Int64
+			pid.Store(100)
+			serveRouter(t, s.srv.socket(), &pid, nil)
 
-	got := run(t, s.srv.deps, "service", "restart")
-	if got.code == 0 || !strings.Contains(got.stderr, "launchd's job is left alone") {
-		t.Errorf("switchboard service restart = %+v, want it refused, launchd's job left alone", got)
-	}
-	for _, call := range s.launchd.calls {
-		if call[0] != "print" {
-			t.Errorf("ran launchctl %q, want launchd's job never signalled", s.launchd.calls)
-		}
+			got := run(t, s.srv.deps, "service", "restart")
+			if got.code == 0 || !strings.Contains(got.stderr, "launchd's job is left alone") {
+				t.Errorf("switchboard service restart = %+v, want it refused, launchd's job left alone", got)
+			}
+			for _, call := range s.launchd.calls {
+				if call[0] != "print" {
+					t.Errorf("ran launchctl %q, want launchd's job never signalled", s.launchd.calls)
+				}
+			}
+		})
 	}
 }

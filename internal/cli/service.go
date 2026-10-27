@@ -140,7 +140,7 @@ func (a *app) installedService(ctx context.Context, errOut io.Writer) (*service.
 	opts, err := svc.Options(ctx)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return svc, nil
+		return svc.Unplaced(), nil
 	case err != nil:
 		launch.Notice(errOut, "the service's plist can't be read back, so the router is looked for where this shell keeps its state ("+redact.Text(err.Error())+")")
 		return svc.Unplaced(), nil

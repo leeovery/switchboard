@@ -280,6 +280,7 @@ func TestServiceRestartRestartsTheRouterInPlace(t *testing.T) {
 func TestServiceRestartOfARouterFromBeforeRoutersRestartedWhenAsked(t *testing.T) {
 	s := newServiceSetup(t)
 	s.launchd.loaded = true
+	s.putKeptPlist(t, filepath.Dir(s.srv.state))
 	// A router from before routers restarted when asked, at pid 100, which
 	// launchd, once it's signalled the router to stop, starts again at pid
 	// 4242.

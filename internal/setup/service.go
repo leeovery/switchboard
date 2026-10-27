@@ -68,9 +68,12 @@ func (r *run) service(ctx context.Context) error {
 	if stale || st.Router == nil {
 		refused = r.startable(svc, opts)
 	}
-	served := opts
-	if refused != nil {
-		served = installed
+	switch {
+	case stale && refused != nil:
+		return r.unstartable(ctx, svc, why, refused)
+	case st.Router == nil && refused != nil:
+		r.Terminal.sayf("Launchd has the service loaded, but no router runs, and one couldn't start as the service runs it: %s, installs it once what stops it is put right.", installAdvice)
+		return fmt.Errorf("the router couldn't start: %w", refused)
 	}
 	// Places are said only of a router that answers: a router started with
 	// none answering is launchd's, wherever it answers, which is where its
@@ -78,22 +81,17 @@ func (r *run) service(ctx context.Context) error {
 	afresh := st.Router == nil
 	var shared bool
 	if !afresh {
-		if shared, err = r.apart(svc, served); err != nil {
+		if shared, err = r.apart(svc, opts); err != nil {
 			return err
 		}
 	}
 	switch {
-	case stale && refused != nil:
-		return r.unstartable(ctx, svc, why, refused)
 	case stale:
 		if why != "" {
 			r.Terminal.sayf("%s, so it's installed afresh.", why)
 		}
 		return r.install(ctx, svc, opts, afresh)
-	case st.Router == nil && refused != nil:
-		r.Terminal.sayf("Launchd has the service loaded, but no router runs, and one couldn't start as the service runs it: %s, installs it once what stops it is put right.", installAdvice)
-		return fmt.Errorf("the router couldn't start: %w", refused)
-	case st.Router == nil:
+	case afresh:
 		return r.restart(ctx, svc, opts)
 	}
 	up := "The service is installed, and the router is up: " + service.Health(*st.Router) + "."
@@ -175,7 +173,7 @@ func (r *run) installFirst(ctx context.Context) error {
 	switch {
 	case err != nil:
 		return err
-	case st.Loaded && st.Router != nil:
+	case launchdAnswers(st):
 		r.Terminal.sayf("The service's plist is gone, though launchd still runs its router, which answers: setup leaves it as it is, and switchboard service install writes the plist again.")
 		return errors.New("the service's plist is gone: run switchboard service install to write it again")
 	case st.Router != nil:
@@ -195,6 +193,13 @@ func (r *run) installFirst(ctx context.Context) error {
 	return r.install(ctx, svc, opts, false)
 }
 
+// launchdAnswers reports whether the router that answers, as st says, is
+// launchd's: launchd runs one, and, where the router says its pid, it's
+// that one.
+func launchdAnswers(st service.Status) bool {
+	return st.Router != nil && st.PID != 0 && (st.Router.PID == 0 || st.Router.PID == st.PID)
+}
+
 // reinstallUnread installs the LaunchAgent afresh, as setup's options say,
 // in the environment setup runs in, its plist being one setup couldn't read
 // back, as err says, once it has checked the router could start so; but
@@ -206,6 +211,9 @@ func (r *run) reinstallUnread(ctx context.Context, unread error) error {
 	switch {
 	case err != nil:
 		return err
+	case st.Loaded && st.Router == nil && st.PID != 0:
+		r.leftRunning(why+". ", st.PID)
+		return errLeftUnanswered
 	case st.Loaded:
 		r.Terminal.sayf("%s, but launchd has it loaded, so the service is left as it is: %s, installs it afresh.", why, installAdvice)
 		if st.Router == nil {

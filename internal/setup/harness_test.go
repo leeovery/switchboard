@@ -482,7 +482,11 @@ type fakeLaunchd struct {
 	setenv         map[string]string
 	loaded         bool
 	dead           bool
-	old            bool
+	// byHand is the pid of a router run by hand where the router launchd
+	// runs would be, answering in its place, which print doesn't name; 0 for
+	// none.
+	byHand int
+	old    bool
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
 	pid        int
@@ -581,6 +585,11 @@ func (f *fakeLaunchd) ran() []string {
 func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 	unanswered := f.unanswered > 0
 	f.unanswered = max(f.unanswered-1, 0)
+	if f.byHand != 0 && !unanswered {
+		h := f.router()
+		h.PID = f.byHand
+		return h, nil
+	}
 	if f.pid == 0 || unanswered {
 		return router.Health{}, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning)
 	}

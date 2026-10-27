@@ -534,8 +534,7 @@ func TestTheServiceStepLeavesAServiceWhoseRouterCouldntStartInstalledAfresh(t *t
 	w.unstartable = errors.New("no config file at <the config>\n\nCreate one like this:\n\n[[account]]")
 
 	shown := section(t, w.runs(t, ""), "3. The service")
-	want := "The router uses another state directory than setup: switchboard service install, run from the shell the router should use, lines them up.\n" +
-		"The service's plist differs from the one this switchboard writes, with no ProcessType, " +
+	want := "The service's plist differs from the one this switchboard writes, with no ProcessType, " +
 		"but the router couldn't start installed afresh, so the service is left as it is, its router running: " +
 		"switchboard service install, run from the shell the router should use, installs it afresh once what stops it is put right. It couldn't start as:\n" +
 		"no config file at <the config>\n\nCreate one like this:\n\n[[account]]\n"
@@ -820,14 +819,40 @@ func TestTheServiceStepFailsWhatItLeavesUndone(t *testing.T) {
 			wantErr: "the service's plist is gone: run switchboard service install to write it again",
 		},
 		{
+			name: "a plist it can't read, loaded, launchd running a router that doesn't answer",
+			lay: func(t *testing.T, w *world) {
+				writeFile(t, w.plist(), "<plist/>\n", 0o644)
+				w.launchd.stateDir = filepath.Join(w.root, "third", "switchboard")
+			},
+			want:    "The service's plist can't be read back (the service's plist, <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist, names no program). " + leftRunning,
+			wantErr: errLeft,
+		},
+		{
+			name: "no plist, launchd's job loaded but not running, a router run by hand answering",
+			lay: func(t *testing.T, w *world) {
+				removePlist(t, w)
+				w.launchd.pid, w.launchd.byHand = 0, 5000
+			},
+			want:    byHand,
+			wantErr: errByHand,
+		},
+		{
+			name: "no plist, launchd running another router than the one answering",
+			lay: func(t *testing.T, w *world) {
+				removePlist(t, w)
+				w.launchd.byHand = 5000
+			},
+			want:    byHand,
+			wantErr: errByHand,
+		},
+		{
 			name: "never installed, a router run by hand answering",
 			lay: func(t *testing.T, w *world) {
 				removePlist(t, w)
 				w.launchd.loaded = false
 			},
-			want: "No service is installed, and a router run some other way answers: another would clash with it, so setup leaves it; " +
-				"stop it, then run setup again to install the service.\n",
-			wantErr: "no service is installed, so nothing brings the router back after a restart: stop the router run by hand, then run switchboard setup again",
+			want:    byHand,
+			wantErr: errByHand,
 		},
 	}
 	for _, tt := range tests {
@@ -852,6 +877,14 @@ func TestTheServiceStepFailsWhatItLeavesUndone(t *testing.T) {
 		})
 	}
 }
+
+// byHand and errByHand are what the service step says, and fails with, where
+// no service is installed and a router run some other way answers.
+const (
+	byHand = "No service is installed, and a router run some other way answers: another would clash with it, so setup leaves it; " +
+		"stop it, then run setup again to install the service.\n"
+	errByHand = "no service is installed, so nothing brings the router back after a restart: stop the router run by hand, then run switchboard setup again"
+)
 
 // removePlist removes the service's plist, which launchd keeps loaded.
 func removePlist(t *testing.T, w *world) {
@@ -952,6 +985,28 @@ func TestTheServiceStepTakesTheConfigGivenForOneUnderAnEmptyHome(t *testing.T) {
 	}
 	if plist, err := os.ReadFile(w.plist()); err != nil || !strings.Contains(string(plist), "<string>--config</string>\n\t\t<string>"+w.config+"</string>") {
 		t.Errorf("the plist reads\n%s(%v)\nwant --config %s", plist, err, w.config)
+	}
+}
+
+func TestTheServiceStepLeavesARouterBeforeItsPlacesWhereTheConfigGivenCouldntStart(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	// The plist's config is under the HOME it sets empty; the config given
+	// couldn't start a router; the router answers.
+	setsHomeEmpty(t, w, "XDG_CONFIG_HOME", "config")
+	w.configFlag = w.config
+	w.unstartable = errors.New("the config names no account")
+	w.launchd.calls = nil
+
+	shown := section(t, w.runs(t, ""), "3. The service")
+	want := "Setup is given another config file than the one the router serves, but the router couldn't start installed afresh, so the service is left as it is, its router running: " +
+		"switchboard service install, run from the shell the router should use, installs it afresh once what stops it is put right. It couldn't start as:\n" +
+		"the config names no account\n"
+	if shown != want {
+		t.Errorf("the service step showed\n%s\nwant\n%s", shown, want)
+	}
+	if ran := w.launchd.ran(); !slices.Equal(ran, untouched) {
+		t.Errorf("ran launchctl %q, want %q", ran, untouched)
 	}
 }
 
@@ -1145,9 +1200,7 @@ func TestTheServiceStepSaysSetupIsGivenAnotherConfigFile(t *testing.T) {
 
 	shown := section(t, w.runs(t, ""), "3. The service")
 	// Refused, the router serves the other still.
-	want := "The router uses another config file than setup: switchboard service install, run from the shell the router should use, lines them up. " +
-		"For the config file, switchboard setup --config, naming the router's, does too.\n" +
-		"Setup is given another config file than the one the router serves, but the router couldn't start installed afresh, so the service is left as it is, its router running: " +
+	want := "Setup is given another config file than the one the router serves, but the router couldn't start installed afresh, so the service is left as it is, its router running: " +
 		"switchboard service install, run from the shell the router should use, installs it afresh once what stops it is put right. It couldn't start as:\n" +
 		"the config names no account\n"
 	if shown != want {
