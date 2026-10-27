@@ -2,9 +2,16 @@ package claude_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
 )
+
+func TestASetupTokenLastsTheSecondsItsExpiresInGives(t *testing.T) {
+	if got, want := claude.SetupTokenLifetime, 31536000*time.Second; got != want {
+		t.Errorf("SetupTokenLifetime = %v, want %v, as expires_in gives it", got, want)
+	}
+}
 
 func TestKeyEnv(t *testing.T) {
 	tests := []struct {
