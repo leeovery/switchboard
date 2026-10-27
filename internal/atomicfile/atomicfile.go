@@ -64,15 +64,20 @@ func Target(path string) (string, error) {
 
 // resolved is path with the links in its directory followed as the system
 // follows them, a ".." after one going back from where it leads, and cleaned:
-// path as it is where its directory can't be followed, as where it isn't
-// there.
+// of a directory that isn't there yet, the longest part of it that is, and
+// the rest after it. It's path as it is where no part can be followed.
 func resolved(path string) string {
-	dir, base := split(path)
-	followed, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		return path
+	dir, rest := split(path)
+	for {
+		if followed, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(followed, rest)
+		}
+		parent, name := split(dir)
+		if parent == dir {
+			return path
+		}
+		dir, rest = parent, name+string(filepath.Separator)+rest
 	}
-	return filepath.Join(followed, base)
 }
 
 // split splits path at its last separator, into its directory and its name,
