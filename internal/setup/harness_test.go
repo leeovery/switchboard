@@ -79,10 +79,11 @@ type world struct {
 	unstartable error
 	checked     []string
 	// binary is the XML a binary plist in the service's place reads as,
-	// through plutil, "" for none.
-	binary  string
-	launchd *fakeLaunchd
-	api     *fakeAPI
+	// through plutil, "" for none, and plutilSays what plutil fails with
+	// reading one it doesn't know, "" for its own words.
+	binary, plutilSays string
+	launchd            *fakeLaunchd
+	api                *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -128,7 +129,7 @@ func (w *world) startable(start service.Start) error {
 // plutil reads the binary plist in the service's place as binary has it.
 func (w *world) plutil(_ context.Context, args ...string) ([]byte, error) {
 	if w.binary == "" || args[len(args)-1] != w.plist() {
-		return nil, errors.New("plutil: not a binary plist the world knows")
+		return nil, errors.New(cmp.Or(w.plutilSays, "plutil: not a binary plist the world knows"))
 	}
 	return []byte(w.binary), nil
 }
@@ -464,7 +465,7 @@ func (u *user) typeUnseen() ([]byte, error) {
 }
 
 // fakeLaunchd stands in for launchctl, and launchd and the router behind it.
-// Bootstrapping the service loads it and starts a router, kickstarting it
+// Printing the service names its router's pid while one runs. Bootstrapping the service loads it and starts a router, kickstarting it
 // starts another, as does signalling the router, which stops it for launchd
 // to start again, and booting it out stops it; printing the service exits
 // 113 while it isn't loaded, as launchctl does. Each router started answers
@@ -504,6 +505,8 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 		f.loaded, f.pid = false, 0
 	case args[0] == "kickstart", args[0] == "kill":
 		f.start()
+	case args[0] == "print" && f.pid != 0:
+		return fmt.Appendf(nil, "%s = {\n\tstate = running\n\tpid = %d\n}\n", args[1], f.pid), nil
 	}
 	return nil, nil
 }

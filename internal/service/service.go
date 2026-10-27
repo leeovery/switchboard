@@ -114,6 +114,9 @@ type Service struct {
 	// home is the home directory the router runs in, where the environment
 	// the service is seen in names one other than the user's.
 	home string
+	// emptyHome is whether the environment the service is seen in sets
+	// HOME empty, as launchd passes it.
+	emptyHome bool
 	// also are the routers the service may run besides cfg.Router's, as one
 	// seen in another environment keeps the one at the state directory it's
 	// asked from, and base the service as it's asked about.
@@ -180,6 +183,10 @@ type Installed struct {
 	// Router is the answer of the router launchd started, or nil when none
 	// answered within StartWait.
 	Router *router.Health
+	// Unread is why the plist in place couldn't be read back, whose
+	// variables added by hand are then gone, nil where it could or there was
+	// none.
+	Unread error
 }
 
 // Install writes the LaunchAgent's plist, has launchd load it, in place of
@@ -198,7 +205,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if err := s.write(a); err != nil {
 		return Installed{}, err
 	}
-	before := s.current(ctx)
+	before, i, _ := s.answering(ctx)
 	if err := s.unload(ctx); err != nil {
 		return Installed{}, err
 	}
@@ -206,7 +213,13 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	logger.Info("installed the service", "plist", s.Plist(), "program", strings.Join(a.Program, " "))
-	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, s.cfg.Router, before, StartWait)}, nil
+	// With none answering before, one that answers now is launchd's,
+	// wherever it is; with one answering, it may be one run otherwise.
+	waitFor := s.routers()
+	if i >= 0 {
+		waitFor = waitFor[:1]
+	}
+	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, waitFor, before, StartWait), Unread: opts.unread}, nil
 }
 
 // prepare checks what the service is to run, and describes the LaunchAgent
@@ -218,9 +231,6 @@ func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
 		return agent{}, nil, err
 	}
 	var warnings []string
-	if opts.unread != nil {
-		warnings = append(warnings, fmt.Sprintf("the plist in place couldn't be read back, so any variable added to it by hand is gone (%v)", opts.unread))
-	}
 	if s.tokenless(opts.Accounts) {
 		warnings = append(warnings, "no account has a usable token, so the router will have nothing to route to: switchboard accounts says why")
 		logger.Warn("no account has a usable token")
@@ -289,16 +299,17 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 	case !loaded:
 		return nil, ErrNotLoaded
 	}
-	answering, rt, _ := s.answering(ctx)
-	if rt == nil {
+	answering, i, _ := s.answering(ctx)
+	if i < 0 {
 		return s.startAfresh(ctx)
 	}
+	rt := s.routers()[i]
 	how, before, err := s.restart(ctx, answering, rt)
 	if err != nil {
 		return nil, err
 	}
 	draining(how)
-	return s.waitForRouter(ctx, rt, before, exitTimeout+StartWait), nil
+	return s.waitForRouter(ctx, []Router{rt}, before, exitTimeout+StartWait), nil
 }
 
 // restart has the router rt, answering, restart, and returns how, with the
@@ -326,13 +337,14 @@ func (s *Service) restart(ctx context.Context, answering router.Health, rt Route
 
 // startAfresh has launchd start the service afresh, stopping any process of
 // it at once, and returns the answer of the router it starts, or nil when
-// none answers within StartWait.
+// none answers within StartWait. None answered before, so any of the routers
+// the service may run that answers now is the one launchd started.
 func (s *Service) startAfresh(ctx context.Context) (*router.Health, error) {
 	if err := s.launchctl(ctx, "kickstart", "-k", s.target()); err != nil {
 		return nil, err
 	}
 	logger.Info("started the service afresh")
-	return s.waitForRouter(ctx, s.cfg.Router, router.Health{}, StartWait), nil
+	return s.waitForRouter(ctx, s.routers(), router.Health{}, StartWait), nil
 }
 
 // Status is how the service stands.
@@ -340,6 +352,9 @@ type Status struct {
 	// Installed is whether its plist is in place, and Loaded whether launchd
 	// has loaded it.
 	Installed, Loaded bool
+	// PID is the process id of the router launchd runs, as launchctl print
+	// says, 0 when none runs.
+	PID int
 	// Router is the answer of the first router to answer its health check,
 	// or nil when none did, and RouterErr then says why the one at its state
 	// directory didn't. Elsewhere is whether the one that answered isn't
@@ -355,11 +370,13 @@ type Status struct {
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	_, err := os.Stat(s.Plist())
 	st := Status{Installed: err == nil}
-	if st.Loaded, err = s.loaded(ctx); err != nil {
+	j, err := s.job(ctx)
+	if err != nil {
 		return Status{}, err
 	}
-	if h, rt, err := s.answering(ctx); rt != nil {
-		st.Router, st.Elsewhere = &h, rt != s.cfg.Router
+	st.Loaded, st.PID = j.loaded, j.pid
+	if h, i, err := s.answering(ctx); i >= 0 {
+		st.Router, st.Elsewhere = &h, i > 0
 	} else {
 		st.RouterErr = err
 	}
@@ -516,36 +533,33 @@ func (s *Service) unload(ctx context.Context) error {
 // Answering is the answer of the router the service runs, if one answers,
 // else nil.
 func (s *Service) Answering(ctx context.Context) *router.Health {
-	if h, rt, _ := s.answering(ctx); rt != nil {
+	if h, i, _ := s.answering(ctx); i >= 0 {
 		return &h
 	}
 	return nil
 }
 
-// current is the answer of the router at the service's state directory, or
-// the zero Health when it doesn't answer.
-func (s *Service) current(ctx context.Context) router.Health {
-	h, err := s.cfg.Router.Health(ctx)
-	if err != nil {
-		return router.Health{}
-	}
-	return h
+// answering is the answer of the first of the routers the service may run
+// that answers, with its index among them, or, when none does, -1, and why
+// the first didn't.
+func (s *Service) answering(ctx context.Context) (router.Health, int, error) {
+	return answeringOf(ctx, s.routers())
 }
 
-// answering is the answer of the first of the routers the service may run
-// that answers, with it, or, when none does, nil, and why the first didn't.
-func (s *Service) answering(ctx context.Context) (router.Health, Router, error) {
+// answeringOf is the answer of the first of routers that answers, with its
+// index, or, when none does, -1, and why the first didn't.
+func answeringOf(ctx context.Context, routers []Router) (router.Health, int, error) {
 	var first error
-	for i, rt := range s.routers() {
+	for i, rt := range routers {
 		h, err := rt.Health(ctx)
 		if err == nil {
-			return h, rt, nil
+			return h, i, nil
 		}
 		if i == 0 {
 			first = err
 		}
 	}
-	return router.Health{}, nil, first
+	return router.Health{}, -1, first
 }
 
 // routers are those the service may run: the one at its state directory,
@@ -554,14 +568,14 @@ func (s *Service) routers() []Router {
 	return append([]Router{s.cfg.Router}, s.also...)
 }
 
-// waitForRouter waits up to wait for rt to answer as another router than
-// before, which may not have stopped yet, and returns its answer, or nil when
-// it doesn't: no other router stands in for it.
-func (s *Service) waitForRouter(ctx context.Context, rt Router, before router.Health, wait time.Duration) *router.Health {
+// waitForRouter waits up to wait for the first of routers to answer as
+// another router than before, which may not have stopped yet, and returns
+// its answer, or nil when none does: no other router stands in for them.
+func (s *Service) waitForRouter(ctx context.Context, routers []Router, before router.Health, wait time.Duration) *router.Health {
 	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	for {
-		if h, err := rt.Health(ctx); err == nil && !h.Same(before) {
+		if h, i, _ := answeringOf(ctx, routers); i >= 0 && !h.Same(before) {
 			logger.Info("the router answered", "pid", h.PID, "ok", h.OK)
 			return &h
 		}

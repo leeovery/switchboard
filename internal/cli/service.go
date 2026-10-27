@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 )
@@ -83,7 +85,7 @@ it does at a signal, and launchd starts it again. With no router answering,
 there's nothing to finish, and launchd starts the service afresh at once.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.restartService(cmd.Context(), cmd.OutOrStdout())
+			return a.restartService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 }
@@ -94,7 +96,7 @@ func newServiceStatusCommand(a *app) *cobra.Command {
 		Short: "Show whether the LaunchAgent is installed and loaded, and the router's health",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.serviceStatus(cmd.Context(), cmd.OutOrStdout())
+			return a.serviceStatus(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 }
@@ -127,18 +129,27 @@ func (a *app) service() (*service.Service, error) {
 
 // installedService returns the LaunchAgent as the router it runs sees it,
 // in the environment its plist keeps, where its state directory, and its
-// router, may be other than this shell's; or, where the plist can't be read
-// back, as service sees it.
-func (a *app) installedService(ctx context.Context) (*service.Service, error) {
+// router, may be other than this shell's; or, where there's no plist, as
+// service sees it, and where it can't be read back, so too, saying so on
+// errOut.
+func (a *app) installedService(ctx context.Context, errOut io.Writer) (*service.Service, error) {
 	svc, err := a.service()
 	if err != nil {
 		return nil, err
 	}
 	opts, err := svc.Options(ctx)
-	if err != nil {
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
 		return svc, nil
+	case err == nil:
+		installed, seen := svc.For(opts)
+		if seen == nil {
+			return installed, nil
+		}
+		err = seen
 	}
-	return svc.For(opts)
+	launch.Notice(errOut, "the service's plist can't be read back, so the router is looked for where this shell keeps its state ("+redact.Text(err.Error())+")")
+	return svc, nil
 }
 
 // installService installs the LaunchAgent to run this switchboard binary as
@@ -174,6 +185,9 @@ func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts se
 	if err != nil {
 		return err
 	}
+	if installed.Unread != nil {
+		launch.Notice(errOut, "the plist in place couldn't be read back, so any variable added to it by hand is gone ("+redact.Text(installed.Unread.Error())+")")
+	}
 	for _, warning := range installed.Warnings {
 		launch.Notice(errOut, warning)
 	}
@@ -203,8 +217,8 @@ func (a *app) uninstallService(ctx context.Context, out io.Writer) error {
 
 // restartService restarts the router, saying how while a router finishes its
 // requests in flight first, and says how the one it becomes answers.
-func (a *app) restartService(ctx context.Context, out io.Writer) error {
-	svc, err := a.installedService(ctx)
+func (a *app) restartService(ctx context.Context, out, errOut io.Writer) error {
+	svc, err := a.installedService(ctx, errOut)
 	if err != nil {
 		return err
 	}
@@ -225,8 +239,8 @@ func (a *app) restartService(ctx context.Context, out io.Writer) error {
 
 // serviceStatus prints whether the LaunchAgent is installed and loaded, and
 // how the router answers.
-func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
-	svc, err := a.installedService(ctx)
+func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
+	svc, err := a.installedService(ctx, errOut)
 	if err != nil {
 		return err
 	}
@@ -243,6 +257,8 @@ func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
 	}
 	answer := "not running"
 	switch {
+	case st.Elsewhere:
+		answer = service.Health(*st.Router) + ", where this shell keeps its state, not where the plist does"
 	case st.Router != nil:
 		answer = service.Health(*st.Router)
 	case !router.IsNotRunning(st.RouterErr):

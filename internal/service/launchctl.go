@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -58,26 +60,59 @@ func (s *Service) launchctl(ctx context.Context, args ...string) error {
 // launchctlWithin runs launchctl with args as launchctl does, for up to
 // limit.
 func (s *Service) launchctlWithin(ctx context.Context, limit time.Duration, args ...string) error {
+	_, err := s.launchctlOutput(ctx, limit, args...)
+	return err
+}
+
+// launchctlOutput runs launchctl with args as launchctl does, for up to
+// limit, and returns what it printed.
+func (s *Service) launchctlOutput(ctx context.Context, limit time.Duration, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	out, err := s.cfg.Launchctl(ctx, args...)
 	command := strings.Join(args, " ")
 	logger.Debug("ran launchctl", "args", command, "error", err)
 	if err == nil {
-		return nil
+		return out, nil
 	}
 	if said := strings.TrimSpace(string(out)); said != "" {
-		return fmt.Errorf("launchctl %s: %s (%w)", command, said, err)
+		return out, fmt.Errorf("launchctl %s: %s (%w)", command, said, err)
 	}
-	return fmt.Errorf("launchctl %s: %w", command, err)
+	return out, fmt.Errorf("launchctl %s: %w", command, err)
 }
 
-// loaded reports whether launchd has loaded the service, as launchctl print
-// says: it knows the service, or exits unknownService.
-func (s *Service) loaded(ctx context.Context) (bool, error) {
-	err := s.launchctl(ctx, "print", s.target())
+// job is the service as launchd has it.
+type job struct {
+	// loaded is whether launchd has loaded it, and pid its router's process
+	// id, 0 when none runs.
+	loaded bool
+	pid    int
+}
+
+// jobPID is how launchctl print names the process of the job it prints: a
+// line of the job's own, one tab in, which it prints only while one runs.
+var jobPID = regexp.MustCompile(`(?m)^\tpid = (\d+)$`)
+
+// job is the service as launchctl print says launchd has it: loaded where it
+// knows the service, not where it exits unknownService; running where it
+// names the job's process.
+func (s *Service) job(ctx context.Context) (job, error) {
+	out, err := s.launchctlOutput(ctx, launchctlTimeout, "print", s.target())
 	if exit, ok := errors.AsType[exitError](err); ok && exit.ExitCode() == unknownService {
-		return false, nil
+		return job{}, nil
 	}
-	return err == nil, err
+	if err != nil {
+		return job{}, err
+	}
+	j := job{loaded: true}
+	if m := jobPID.FindSubmatch(out); m != nil {
+		j.pid, _ = strconv.Atoi(string(m[1]))
+	}
+	return j, nil
+}
+
+// loaded reports whether launchd has loaded the service, as job says.
+func (s *Service) loaded(ctx context.Context) (bool, error) {
+	j, err := s.job(ctx)
+	return j.loaded, err
 }

@@ -22,6 +22,17 @@ func (s *Service) PlannedPlistOf(ctx context.Context, opts InstallOptions) ([]by
 	return planned.PlistOf(opts)
 }
 
+// StateDir is the router's state directory, as the service is seen.
+func (s *Service) StateDir() string {
+	return s.cfg.StateDir
+}
+
+// Getenv reads the environment the service's router runs in, as far as
+// switchboard reads it, as the service is seen.
+func (s *Service) Getenv(name string) string {
+	return s.cfg.Getenv(name)
+}
+
 // ProgramOf returns what launchd runs for that LaunchAgent.
 func (s *Service) ProgramOf(opts InstallOptions) ([]string, error) {
 	a, err := s.agent(opts)

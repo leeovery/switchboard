@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/service"
 )
 
 // putKeptPlist puts a plist in the service's place that runs this
@@ -143,27 +144,102 @@ func TestSetupChecksTheRouterCouldStartFromWhatThePlistKeeps(t *testing.T) {
 }
 
 func TestServiceInstallTakesHomeFromTheShell(t *testing.T) {
+	tests := []struct {
+		name string
+		// homeDecides has the shell set no XDG_STATE_HOME, so the home
+		// decides where the router keeps its state.
+		homeDecides bool
+	}{
+		{name: "the shell setting XDG_STATE_HOME"},
+		{name: "the home deciding the state directory", homeDecides: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newServiceSetup(t)
+			if tt.homeDecides {
+				home := shortTempDir(t)
+				s.srv.deps.HomeDir = func() (string, error) { return home, nil }
+				s.setenv("XDG_STATE_HOME", "")
+				s.srv.state = filepath.Join(home, ".local", "state", "switchboard")
+				s.plist = filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
+			}
+			if err := os.MkdirAll(filepath.Dir(s.plist), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			plist := `<plist><dict><key>ProgramArguments</key><array><string>` + s.binary + `</string><string>serve</string></array>` +
+				`<key>EnvironmentVariables</key><dict><key>HOME</key><string>` + shortTempDir(t) + `</string>` +
+				`<key>HTTPS_PROXY</key><string>http://proxy.example:8080</string></dict></dict></plist>`
+			if err := os.WriteFile(s.plist, []byte(plist), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			got := run(t, s.srv.deps, "service", "install")
+			want := "installed " + s.plist + "\nthe router is up: healthy, pid " + strconv.Itoa(os.Getpid()) + "\n"
+			if got.code != 0 || got.stdout != want {
+				t.Errorf("switchboard service install = %+v, want stdout %q: the router up where the shell's home keeps its state", got, want)
+			}
+			written := readFile(t, s.plist)
+			if strings.Contains(written, "<key>HOME</key>") {
+				t.Errorf("the plist reads\n%s\nwant the HOME it set dropped, as launchd sets the user's", written)
+			}
+			if !strings.Contains(written, "<string>"+service.LogIn(s.srv.state)+"</string>") {
+				t.Errorf("the plist reads\n%s\nwant launchd's log in %s", written, s.srv.state)
+			}
+			s.checkPlist(t, "<key>HTTPS_PROXY</key>\n\t\t<string>http://proxy.example:8080</string>")
+		})
+	}
+}
+
+func TestServiceStatusSaysWhenTheRouterAnsweringIsntThePlists(t *testing.T) {
 	s := newServiceSetup(t)
+	s.launchd.loaded = true
+	s.putKeptPlist(t, shortTempDir(t))
+	var pid atomic.Int64
+	pid.Store(100)
+	serveRouter(t, s.srv.socket(), &pid, nil)
+
+	got := run(t, s.srv.deps, "service", "status")
+	want := result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded\nrouter       healthy, pid 100, where this shell keeps its state, not where the plist does\n"}
+	if got != want {
+		t.Errorf("switchboard service status = %+v, want %+v", got, want)
+	}
+}
+
+// putUnreadablePlist puts a binary plist in the service's place, which
+// plutil fails to read, saying something token-shaped.
+func (s *serviceSetup) putUnreadablePlist(t *testing.T) {
+	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(s.plist), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	plist := `<plist><dict><key>ProgramArguments</key><array><string>` + s.binary + `</string><string>serve</string></array>` +
-		`<key>EnvironmentVariables</key><dict><key>HOME</key><string>` + shortTempDir(t) + `</string>` +
-		`<key>HTTPS_PROXY</key><string>http://proxy.example:8080</string></dict></dict></plist>`
-	if err := os.WriteFile(s.plist, []byte(plist), 0o644); err != nil {
+	if err := os.WriteFile(s.plist, []byte("bplist00\xd1\x01\x02"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	s.srv.deps.Plutil = func(context.Context, ...string) ([]byte, error) {
+		return nil, fmt.Errorf("plutil: not a plist, but %s", tokenShaped)
+	}
+}
 
-	got := run(t, s.srv.deps, "service", "install")
-	want := result{stdout: "installed " + s.plist + "\nthe router is up: healthy, pid " + strconv.Itoa(os.Getpid()) + "\n"}
-	if got != want {
-		t.Errorf("switchboard service install = %+v, want %+v", got, want)
+func TestServiceCommandsSayWhenThePlistCantBeRead(t *testing.T) {
+	const lookedFor = "switchboard: the service's plist can't be read back, so the router is looked for where this shell keeps its state ("
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{args: []string{"service", "status"}, want: lookedFor},
+		{args: []string{"service", "restart"}, want: lookedFor},
+		{args: []string{"service", "install"}, want: "switchboard: the plist in place couldn't be read back, so any variable added to it by hand is gone ("},
 	}
-	if written := readFile(t, s.plist); strings.Contains(written, "<key>HOME</key>") {
-		t.Errorf("the plist reads\n%s\nwant the HOME it set dropped, as launchd sets the user's", written)
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			s := newServiceSetup(t)
+			s.launchd.loaded = true
+			s.putUnreadablePlist(t)
+
+			got := run(t, s.srv.deps, tt.args...)
+			if !strings.Contains(got.stderr, tt.want) || strings.Contains(got.stderr, tokenShaped) {
+				t.Errorf("switchboard %s printed on stderr\n%s\nwant it to hold, redacted\n%s", strings.Join(tt.args, " "), got.stderr, tt.want)
+			}
+		})
 	}
-	s.checkPlist(t,
-		"<key>XDG_STATE_HOME</key>\n\t\t<string>"+filepath.Dir(s.srv.state)+"</string>",
-		"<key>HTTPS_PROXY</key>\n\t\t<string>http://proxy.example:8080</string>",
-	)
 }

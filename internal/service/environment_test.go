@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
@@ -406,6 +407,110 @@ func TestInstallWaitsForTheRouterAtTheStateDirectoryItWrites(t *testing.T) {
 	}
 }
 
+func TestTheRouterLaunchdStartsIsTakenWhereverItAnswersWhenNoneDidBefore(t *testing.T) {
+	tests := []struct {
+		name  string
+		start func(t *testing.T, svc *service.Service, opts service.InstallOptions) *router.Health
+	}{
+		{
+			name: "restarted",
+			start: func(t *testing.T, svc *service.Service, _ service.InstallOptions) *router.Health {
+				h, err := svc.Restart(t.Context(), func(service.Restarting) {
+					t.Error("told the router restarts as it finishes its requests, want none answering")
+				})
+				if err != nil {
+					t.Fatalf("Restart() error = %v", err)
+				}
+				return h
+			},
+		},
+		{
+			name: "installed afresh",
+			start: func(t *testing.T, svc *service.Service, opts service.InstallOptions) *router.Health {
+				installed, err := svc.Install(t.Context(), opts)
+				if err != nil {
+					t.Fatalf("Install() error = %v", err)
+				}
+				return installed.Router
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// launchd starts the router where the shell keeps its state, not
+			// where the plist does.
+			s := newSetup(t, nil, upOnceStarted(4242))
+			s.launchctl.loaded = true
+			shell := s.installedFrom(t, map[string]string{"XDG_STATE_HOME": "<root>/custom"}, service.InstallOptions{}, nil, func(string) service.Router { return down(t) })
+			opts, err := shell.Options(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			svc, err := shell.For(opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if h := tt.start(t, svc, opts); h == nil || h.PID != 4242 {
+				t.Errorf("the router started = %+v, want the one launchd started, answering where the shell keeps its state", h)
+			}
+		})
+	}
+}
+
+func TestDriftReadsARelativeConfigAsLaunchdDoes(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary, Config: "/work.toml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.putPlist(t, strings.Replace(string(written), "<string>/work.toml</string>", "<string>work.toml</string>", 1))
+	opts, err := s.svc.Options(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if drift, err := s.svc.Drift(t.Context(), opts); err != nil || len(drift) != 0 {
+		t.Errorf("Drift() = %q, %v; want none, as launchd runs the router in /, where work.toml is /work.toml", drift, err)
+	}
+}
+
+func TestStartsFromRefusesAnEmptyHome(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	s.putPlist(t, `<plist><dict><key>ProgramArguments</key><array><string>`+s.binary+`</string><string>serve</string></array>`+
+		`<key>EnvironmentVariables</key><dict><key>HOME</key><string></string><key>XDG_STATE_HOME</key><string>`+s.root+`/custom</string>`+
+		`<key>SWITCHBOARD_CONFIG</key><string>`+s.root+`/work.toml</string><key>CLAUDE_CONFIG_DIR</key><string>`+s.root+`/claude</string></dict></dict></plist>`)
+	opts, err := s.svc.Options(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, err := s.svc.For(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if start, err := svc.StartsFrom(opts); err == nil || !strings.Contains(err.Error(), "HOME empty") {
+		t.Errorf("StartsFrom() = %+v, %v; want it refused, as launchd passes HOME empty and the router finds no home", start, err)
+	}
+}
+
+func TestOptionsSaysWhenPlutilDoesntFinish(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSetup(t, nil, nil)
+		s.putPlist(t, "bplist00\xd1\x01\x02")
+		cfg := s.cfg
+		cfg.Plutil = func(ctx context.Context, _ ...string) ([]byte, error) {
+			<-ctx.Done()
+			return nil, errors.New("signal: killed")
+		}
+
+		_, err := newService(t, cfg).Options(t.Context())
+		if err == nil || !strings.Contains(err.Error(), "plutil didn't finish within") {
+			t.Errorf("Options() error = %v, want plutil said to have not finished in time", err)
+		}
+	})
+}
+
 func TestInstallSaysWhenThePlistInPlaceCantBeRead(t *testing.T) {
 	s := newSetup(t, nil, upOnceStarted(4242))
 	s.putPlist(t, "<plist><dict>")
@@ -414,8 +519,8 @@ func TestInstallSaysWhenThePlistInPlaceCantBeRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
-	if !slices.ContainsFunc(installed.Warnings, func(w string) bool { return strings.Contains(w, "added to it by hand is gone") }) {
-		t.Errorf("Install() warnings = %q, want one saying the variables added by hand are gone", installed.Warnings)
+	if installed.Unread == nil || !strings.Contains(installed.Unread.Error(), "service's plist") {
+		t.Errorf("Install() Unread = %v, want why the plist in place couldn't be read back", installed.Unread)
 	}
 }
 
@@ -426,8 +531,8 @@ func TestInstallSaysNothingOfAPlistNotThere(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
-	if slices.ContainsFunc(installed.Warnings, func(w string) bool { return strings.Contains(w, "by hand") }) {
-		t.Errorf("Install() warnings = %q, want none of a plist that wasn't there", installed.Warnings)
+	if installed.Unread != nil {
+		t.Errorf("Install() Unread = %v, want none for a plist that wasn't there", installed.Unread)
 	}
 }
 

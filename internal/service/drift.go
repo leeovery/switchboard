@@ -17,9 +17,9 @@ const environmentKey = "EnvironmentVariables"
 // byteOrderMark is what a UTF-8 file may start with before its text.
 var byteOrderMark = []byte("\xef\xbb\xbf")
 
-// errNoPlutil is what reading a binary plist fails with without plutil to
-// read it back as XML.
-var errNoPlutil = errors.New("it's a binary plist, and there's no plutil to read it")
+// errNoPlutil is what reading a plist that isn't XML fails with without
+// plutil to read it back as XML.
+var errNoPlutil = errors.New("it isn't XML, and there's no plutil to read it")
 
 // Options reads back the options the plist in place was installed with: the
 // binary it runs, the config file and the log level it gives the router, and
@@ -38,7 +38,6 @@ func (s *Service) Options(ctx context.Context) (InstallOptions, error) {
 	if opts.Executable == "" {
 		return InstallOptions{}, fmt.Errorf("the service's plist, %s, names no program", s.Plist())
 	}
-	opts.Config = asLaunchdRuns(opts.Config)
 	opts.environment = map[string]string{}
 	variables, _ := lookup(installed, environmentKey)
 	for _, v := range variables.entries() {
@@ -126,7 +125,11 @@ func (s *Service) asXML(ctx context.Context) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, launchctlTimeout)
 	defer cancel()
-	return s.cfg.Plutil(ctx, "-convert", "xml1", "-o", "-", s.Plist())
+	out, err := s.cfg.Plutil(ctx, "-convert", "xml1", "-o", "-", s.Plist())
+	if err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, fmt.Errorf("plutil didn't finish within %v", launchctlTimeout)
+	}
+	return out, err
 }
 
 // optionsOf reads back the options a program, as agent writes it, was

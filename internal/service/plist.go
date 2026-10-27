@@ -137,7 +137,8 @@ func argumentDifferences(want, have []string, in string) []string {
 // arguments splits a program's arguments as serve parses its flags: what's
 // not a flag, the program first; its flags by name, each with its value,
 // given after = or as the argument after it, the last given of a flag given
-// more than once; and the names of those given more than once.
+// more than once, --config's as launchd runs the router finds it; and the
+// names of those given more than once.
 func arguments(program []string) (plain []string, flags []entry, repeated []string) {
 	for i := 0; i < len(program); i++ {
 		arg := program[i]
@@ -149,6 +150,9 @@ func arguments(program []string) (plain []string, flags []entry, repeated []stri
 		if !given && i+1 < len(program) && (slices.Contains(valueFlags, name) || !strings.HasPrefix(program[i+1], "-")) {
 			i++
 			value = program[i]
+		}
+		if name == configFlag {
+			value = asLaunchdRuns(value)
 		}
 		flag := entry{key: name, value: node{XMLName: xml.Name{Local: "string"}, Text: value}}
 		if j := slices.IndexFunc(flags, func(e entry) bool { return e.key == name }); j >= 0 {

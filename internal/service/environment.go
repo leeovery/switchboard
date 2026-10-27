@@ -68,7 +68,8 @@ func (s *Service) seenIn(env map[string]string) (*Service, error) {
 		}
 		return root.cfg.Getenv(name)
 	}
-	seen := &Service{cfg: cfg, home: env["HOME"], base: root}
+	home, set := env["HOME"]
+	seen := &Service{cfg: cfg, home: home, emptyHome: set && home == "", base: root}
 	dir, err := config.StateDir(cfg.Getenv, seen.homeDir)
 	if err != nil {
 		return nil, err
@@ -89,17 +90,6 @@ func (s *Service) root() *Service {
 		return s.base
 	}
 	return s
-}
-
-// StateDir is the router's state directory, as the service is seen.
-func (s *Service) StateDir() string {
-	return s.cfg.StateDir
-}
-
-// Getenv reads the environment the service's router runs in, as far as
-// switchboard reads it, as the service is seen.
-func (s *Service) Getenv(name string) string {
-	return s.cfg.Getenv(name)
 }
 
 // ConfigFile is the config file the router serves, installed with opts: the
@@ -245,6 +235,9 @@ type Start struct {
 // StartsFrom is what the router, installed with opts, starts from, as the
 // service is seen.
 func (s *Service) StartsFrom(opts InstallOptions) (Start, error) {
+	if s.emptyHome {
+		return Start{}, errEmptyHome
+	}
 	file, err := s.ConfigFile(opts)
 	if err != nil {
 		return Start{}, err
@@ -252,8 +245,15 @@ func (s *Service) StartsFrom(opts InstallOptions) (Start, error) {
 	return Start{StateDir: s.cfg.StateDir, ConfigFile: file, LogLevel: opts.LogLevel}, nil
 }
 
+// errEmptyHome is why a router can't start in the HOME launchd sets empty,
+// as it passes one the plist sets so.
+var errEmptyHome = errors.New("the service's plist sets HOME empty, where the router finds no home directory")
+
 // homeDir is the home directory the router runs in, as config's paths ask
 // for it.
 func (s *Service) homeDir() (string, error) {
+	if s.emptyHome {
+		return "", errEmptyHome
+	}
 	return cmp.Or(s.home, s.cfg.Home), nil
 }
