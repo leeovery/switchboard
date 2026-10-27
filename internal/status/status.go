@@ -482,8 +482,9 @@ type Collector struct {
 	Prime config.Prime
 	// Token reads an account's token, by the account's id, from its file.
 	Token func(id string) (tokens.Token, error)
-	// Taken reads when switchboard took an account's token, by the account's
-	// id, reporting false where that isn't known.
+	// Taken reads when switchboard took the token given as the account's, by
+	// the account's id, from the record beside its file, reporting false
+	// where that isn't known.
 	Taken func(id string, token tokens.Token) (time.Time, bool)
 	// Now reads the clock. Concurrent probes call it.
 	Now func() time.Time
@@ -491,10 +492,10 @@ type Collector struct {
 
 // Collect probes every account that has a usable token, all at once, and
 // reports them in the order given, as they stand once read, with when each
-// token was taken where that's known, along with the
-// best of them, the priming schedule over them, and what's worked out of
-// them, as WorkedOut says. An account without one isn't probed: its status
-// says why, and what would put it right.
+// token was taken where that's known, along with the best of them, the
+// priming schedule over them, and what's worked out of them, as WorkedOut
+// says. An account without one isn't probed: its status says why, and what
+// would put it right.
 func (c Collector) Collect(ctx context.Context, accounts []config.Account) Document {
 	statuses := make([]Account, len(accounts))
 	var usable []string
