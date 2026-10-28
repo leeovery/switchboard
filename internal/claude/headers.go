@@ -320,6 +320,15 @@ func parseReset(value string) time.Time {
 	return time.Unix(seconds, 0).UTC()
 }
 
+// organizationHeader names the organization an answer's account is in.
+const organizationHeader = "anthropic-organization-id"
+
+// organizationOf is the id of the organization a Claude API response's headers
+// name its account in: "" where they name none.
+func organizationOf(h http.Header) string {
+	return h.Get(organizationHeader)
+}
+
 // WindowLabel is the human name of the window Claude reports by the key
 // given, as Session is 5h's: the key itself for one it doesn't name.
 func WindowLabel(key string) string {
