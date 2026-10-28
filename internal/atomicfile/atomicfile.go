@@ -65,7 +65,16 @@ func Write(path string, data []byte, perm fs.FileMode) error {
 // WriteFrom writes what write writes, to the writer it's given, to a file at
 // path, with the permissions perm, in place of any file there: whole, or not
 // at all, as Write does, and not at all where write fails.
-func WriteFrom(path string, perm fs.FileMode, write func(w io.Writer) error) (err error) {
+func WriteFrom(path string, perm fs.FileMode, write func(w io.Writer) error) error {
+	return WriteChecked(path, perm, write, func() error { return nil })
+}
+
+// WriteChecked writes as WriteFrom does, but calls check once the file is
+// written whole beside path, synced and closed, just before it's renamed
+// into place: where check fails, nothing is written, and its error is
+// returned. A caller that must not replace a file changed since it read it
+// checks there, leaving the change as little time as can be.
+func WriteChecked(path string, perm fs.FileMode, write func(w io.Writer) error, check func() error) (err error) {
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
 		return err
@@ -90,6 +99,9 @@ func WriteFrom(path string, perm fs.FileMode, write func(w io.Writer) error) (er
 		return err
 	}
 	if err = tmp.Close(); err != nil {
+		return err
+	}
+	if err = check(); err != nil {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)

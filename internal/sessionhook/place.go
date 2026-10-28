@@ -119,15 +119,16 @@ func (p *placer) group(raw json.RawMessage) (json.RawMessage, bool) {
 	return group.encode(), true
 }
 
-// matchesEverySession reports whether group has no matcher, missing or
-// empty, so its hooks run for every session, whatever its source.
+// matchesEverySession reports whether group's hooks run for every session,
+// whatever its source: where its matcher is missing, empty or "*", which
+// Claude Code reads as matching everything.
 func matchesEverySession(group object) bool {
 	raw, ok := group.get("matcher")
 	if !ok {
 		return true
 	}
 	var matcher string
-	return json.Unmarshal(raw, &matcher) == nil && matcher == ""
+	return json.Unmarshal(raw, &matcher) == nil && (matcher == "" || matcher == "*")
 }
 
 // hook returns the hook put right where it's switchboard's, whether it's

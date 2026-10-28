@@ -166,6 +166,52 @@ func TestWriteFrom(t *testing.T) {
 	}
 }
 
+func TestWriteChecked(t *testing.T) {
+	refused := errors.New("the file changed")
+	for _, checkErr := range []error{nil, refused} {
+		t.Run(errorText(checkErr), func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "file")
+			write(t, path)
+			checked := false
+			check := func() error {
+				checked = true
+				// Checked once the new file is written whole beside the old,
+				// the old still in place.
+				if data, err := os.ReadFile(path); err != nil || string(data) != "old\n" {
+					t.Errorf("at the check, the file holds %q (%v), want the old", data, err)
+				}
+				written, err := filepath.Glob(filepath.Join(dir, ".file.*"))
+				if err != nil || len(written) != 1 {
+					t.Fatalf("at the check, beside the file: %v (%v), want the new one", written, err)
+				}
+				if data, err := os.ReadFile(written[0]); err != nil || string(data) != "new\n" {
+					t.Errorf("at the check, the new file holds %q (%v), want it whole", data, err)
+				}
+				return checkErr
+			}
+
+			err := atomicfile.WriteChecked(path, 0o600, func(w io.Writer) error {
+				_, err := io.WriteString(w, "new\n")
+				return err
+			}, check)
+			if !errors.Is(err, checkErr) || !checked {
+				t.Fatalf("WriteChecked() error = %v, checked %v; want %v, checked", err, checked, checkErr)
+			}
+			want := "new\n"
+			if checkErr != nil {
+				want = "old\n"
+			}
+			if data, err := os.ReadFile(path); err != nil || string(data) != want {
+				t.Errorf("the file holds %q (%v), want %q", data, err, want)
+			}
+			if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
+				t.Errorf("the directory holds %v (%v), want the file alone", entries, err)
+			}
+		})
+	}
+}
+
 // write writes a file at path, making its directory.
 func write(t *testing.T, path string) {
 	t.Helper()

@@ -14,7 +14,7 @@ func (r *run) sessionHook(context.Context) {
 	switch {
 	case err != nil:
 		logger.Warn("can't install the session hook", "path", r.Settings, "error", err)
-		r.Terminal.sayf("The session hook isn't installed, so a session that doesn't go through switchboard won't say so: %v. Setup carries on without it.", err)
+		r.Terminal.sayf("Setup carries on without the session hook, so a session that doesn't go through switchboard won't say so: %v.", err)
 	case outcome == sessionhook.Installed:
 		logger.Info("installed the session hook", "path", r.Settings)
 		r.Terminal.sayf("Installed the session hook, which tells a session that doesn't go through switchboard so: %s", r.Settings)

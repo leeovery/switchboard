@@ -29,7 +29,9 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `setup` leaves the file as it is, says what's wrong, with the line and column it can't read, or
   that the file starts with a byte order mark, and carries on. Put the file right, then run `setup`
   again. Where it says the file kept changing, Claude Code was writing it as `setup` did: run
-  `setup` again.
+  `setup` again. Where it says `switchboard is running as sb here`, you ran switchboard by
+  another name, such as a link or alias of your own: run `setup` as `switchboard`, by the path
+  you installed it at.
 - **The ledger's digests:** the `ledger/digest-<date>.json.gz`, `ledger/parts-<date>.gz`,
   `ledger/logday-<date>.json.gz` and `ledger/rows-<date>.gz` files are safe to delete. They're
   worked out from the day's lines, and the router writes them again on its next round, or when it

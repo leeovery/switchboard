@@ -6,8 +6,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/sessionhook"
 )
+
+// withoutTheHook starts what setup says where the session hook can't be
+// installed, before why.
+const withoutTheHook = "Setup carries on without the session hook, so a session that doesn't go through switchboard won't say so: "
 
 func TestTheSessionHook(t *testing.T) {
 	const settings = "<root>/claude/settings.json"
@@ -60,10 +65,24 @@ func TestTheSessionHook(t *testing.T) {
 			want: "The session hook is in place: " + settings + "\n",
 		},
 		{
-			name: "settings that aren't an object: left as they are, and setup carries on",
-			lay:  func(t *testing.T, w *world) { writeFile(t, w.settings, "[]\n", 0o644) },
-			want: "The session hook isn't installed, so a session that doesn't go through switchboard won't say so: " +
-				settings + ": not a JSON object. Setup carries on without it.\n",
+			name:     "settings that aren't an object: left as they are, and setup carries on",
+			lay:      func(t *testing.T, w *world) { writeFile(t, w.settings, "[]\n", 0o644) },
+			want:     withoutTheHook + settings + ": not a JSON object.\n",
+			wantLeft: true,
+		},
+		{
+			name: "switchboard run by another name: left as it is, and setup carries on",
+			lay: func(t *testing.T, w *world) {
+				version := filepath.Join(w.root, "Cellar", "switchboard", "1.2.3", "bin", "switchboard")
+				w.switchboard = claudetest.Link(t, version, filepath.Join(w.home, "bin", "sb"))
+				w.installService(t, w.switchboard)
+				claudeLink := filepath.Join(w.bin, "claude")
+				if err := os.Remove(claudeLink); err != nil {
+					t.Fatal(err)
+				}
+				claudetest.Link(t, w.switchboard, claudeLink)
+			},
+			want:     withoutTheHook + "switchboard is running as sb here, so the session hook isn't installed: run setup as switchboard.\n",
 			wantLeft: true,
 		},
 	}

@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -54,8 +55,13 @@ var bom = []byte("\xef\xbb\xbf")
 // empty or a JSON object, or whose hooks aren't shaped as Claude Code reads
 // them, is left as it is, and Install fails saying what's wrong. A file that
 // changes as it's written, as by Claude Code, is read again and the entry
-// put in what it holds then.
+// put in what it holds then. A switchboard run by a name other than its own,
+// as through a link of the user's, writes nothing and fails: the entry is
+// known by that name, and one by another would be added again at every run.
 func Install(path, switchboard string) (Outcome, error) {
+	if name := filepath.Base(switchboard); name != binaryName {
+		return InPlace, fmt.Errorf("switchboard is running as %s here, so the session hook isn't installed: run setup as %s", name, binaryName)
+	}
 	target, err := atomicfile.Target(path)
 	if err != nil {
 		return InPlace, fmt.Errorf("follow %s: %w", path, err)
@@ -122,14 +128,28 @@ func parseSettings(data []byte) (object, error) {
 		return object{}, nil
 	}
 	settings, err := parseObject(data)
+	if err == nil {
+		return settings, nil
+	}
+	if cutShort(data) {
+		return nil, errors.New("it ends before its JSON does")
+	}
 	if syntax, ok := errors.AsType[*json.SyntaxError](err); ok {
 		line, column := position(data, syntax.Offset)
 		return nil, fmt.Errorf("line %d, column %d: %w", line, column, err)
 	}
-	if errors.Is(err, io.ErrUnexpectedEOF) {
-		return nil, errors.New("it ends before its JSON does")
-	}
-	return settings, err
+	return nil, err
+}
+
+// cutShort reports whether data, which doesn't parse as an object, ends
+// before its JSON does. Its error can't say: a bad last byte and the end
+// coming too soon both fail at data's end. So it's read again with a byte
+// no JSON takes after it, which fails past data's end only where data was
+// all well formed, as far as it went.
+func cutShort(data []byte) bool {
+	_, err := parseObject(append(slices.Clip(data), 0))
+	syntax, ok := errors.AsType[*json.SyntaxError](err)
+	return ok && syntax.Offset > int64(len(data))
 }
 
 // position is the line and column, each from 1, of the byte data's reader
@@ -152,10 +172,10 @@ func writeSettings(path string, settings object, mode fs.FileMode, read []byte) 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create Claude Code's config directory: %w", err)
 	}
-	err := atomicfile.WriteFrom(path, mode, func(w io.Writer) error {
-		if _, err := w.Write(out.Bytes()); err != nil {
-			return err
-		}
+	err := atomicfile.WriteChecked(path, mode, func(w io.Writer) error {
+		_, err := w.Write(out.Bytes())
+		return err
+	}, func() error {
 		now, _, err := readSettings(path)
 		if err != nil {
 			return err

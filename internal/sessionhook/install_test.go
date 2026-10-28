@@ -207,6 +207,12 @@ func TestInstall(t *testing.T) {
 			wantOutcome: sessionhook.PutRight,
 		},
 		{
+			name:        `ours, right, under "*", which matches every session: in place`,
+			before:      new(session(matched(`"*"`, ours("          ", switchboard)))),
+			want:        session(matched(`"*"`, ours("          ", switchboard))),
+			wantOutcome: sessionhook.InPlace,
+		},
+		{
 			name:        "ours, right, under an empty matcher: in place",
 			before:      new(session(matched(`""`, ours("          ", switchboard)))),
 			want:        session(matched(`""`, ours("          ", switchboard))),
@@ -300,7 +306,12 @@ func TestInstallRefuses(t *testing.T) {
 		{name: "junk", before: "not json", wantErr: "line 1, column 2: invalid character 'o'"},
 		{name: "junk on its third line", before: "{\n  \"model\": \"opus\",\n  x\n}\n", wantErr: "line 3, column 3: invalid character 'x'"},
 		{name: "junk after letters of more than a byte", before: "{\"é\": 1 x}", wantErr: "line 1, column 9: invalid character 'x'"},
-		{name: "cut short", before: `{"model": "op`, wantErr: "it ends before its JSON does"},
+		{name: "cut short in a string", before: `{"model": "op`, wantErr: "it ends before its JSON does"},
+		{name: "cut short after its brace", before: "{\n", wantErr: "it ends before its JSON does"},
+		{name: "cut short after a member", before: `{"a": 1`, wantErr: "it ends before its JSON does"},
+		{name: "cut short after a comma", before: `{"a": 1,`, wantErr: "it ends before its JSON does"},
+		{name: "cut short after an object in it", before: `{"a": {"b": 1}`, wantErr: "it ends before its JSON does"},
+		{name: "a bad last byte, not cut short", before: `{"a": 1 x`, wantErr: "line 1, column 9: invalid character 'x'"},
 		{name: "a byte order mark", before: "\xef\xbb\xbf{}\n", wantErr: "it starts with a byte order mark, which JSON doesn't allow"},
 		{name: "an array", before: "[]\n", wantErr: "not a JSON object"},
 		{name: "a string", before: `"settings"`, wantErr: "not a JSON object"},
@@ -377,6 +388,27 @@ func TestInstallByAPathWithAQuote(t *testing.T) {
 	}
 	if got := readFile(t, path); got != onlyOurs {
 		t.Errorf("the settings hold\n%s\nwant\n%s", got, onlyOurs)
+	}
+}
+
+func TestInstallRefusesASwitchboardByAnotherName(t *testing.T) {
+	for _, before := range []*string{nil, new("{}\n"), new(onlyOurs)} {
+		path := filepath.Join(t.TempDir(), "settings.json")
+		if before != nil {
+			writeFile(t, path, *before, 0o644)
+		}
+
+		got, err := sessionhook.Install(path, "/Users/test/bin/sb")
+		if want := "switchboard is running as sb here, so the session hook isn't installed: run setup as switchboard"; err == nil || err.Error() != want {
+			t.Errorf("Install() = %v, %v, want the error %q", got, err, want)
+		}
+		if before == nil {
+			if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("%s: %v, want nothing written", path, err)
+			}
+		} else if written := readFile(t, path); written != *before {
+			t.Errorf("Install() left\n%s\nwant it as it was\n%s", written, *before)
+		}
 	}
 }
 
@@ -485,6 +517,17 @@ func TestInstallStartsAgainFromAFileChangedMeanwhile(t *testing.T) {
 	if written := readFile(t, path); written != want {
 		t.Errorf("Install() wrote\n%s\nwant\n%s", written, want)
 	}
+	checkNothingLeftBeside(t, path)
+}
+
+// checkNothingLeftBeside checks no file Install wrote beside the settings
+// file at path, to rename into place, is left there.
+func checkNothingLeftBeside(t *testing.T, path string) {
+	t.Helper()
+	left, err := filepath.Glob(filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".*"))
+	if err != nil || len(left) > 0 {
+		t.Errorf("beside %s: %v (%v), want nothing left", path, left, err)
+	}
 }
 
 func TestInstallGivesUpOnAFileThatKeepsChanging(t *testing.T) {
@@ -509,6 +552,7 @@ func TestInstallGivesUpOnAFileThatKeepsChanging(t *testing.T) {
 	if written := readFile(t, path); written != "{\"changes\": 8}\n" {
 		t.Errorf("the settings file holds\n%s\nwant the last change, nothing of Install's", written)
 	}
+	checkNothingLeftBeside(t, path)
 }
 
 func TestTheCommandRunsUnderSh(t *testing.T) {
@@ -524,6 +568,12 @@ func TestTheCommandRunsUnderSh(t *testing.T) {
 	}
 	if got := readFile(t, ran); got != "hook session-start\n" {
 		t.Errorf("switchboard ran with %q, want %q", got, "hook session-start\n")
+	}
+
+	// One that fails fails no session.
+	writeFile(t, switchboard, "#!/bin/sh\nexit 3\n", 0o700)
+	if err := sh(); err != nil {
+		t.Errorf("sh -c %s, switchboard failing: %v, want it to succeed all the same", sessionhook.Command(switchboard), err)
 	}
 
 	if err := os.Remove(switchboard); err != nil {
