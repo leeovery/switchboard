@@ -54,10 +54,22 @@ func TestTheWalkGoesForwardAStepAtATimeEachPassedTicked(t *testing.T) {
 	}
 }
 
-func TestAStepPastDoneOpensOnDone(t *testing.T) {
-	h := newHarness(t, dashboard.SetupDone+1)
-	if got := h.model.page(); got.Step != dashboard.SetupDone || !slices.Equal(got.Passed, dashboard.SetupSteps()[:dashboard.SetupDone]) {
-		t.Errorf("the screen opens on %s, %v passed; want Done, every step before it passed", got.Step.Title(), got.Passed)
+func TestAStepOutsideTheStepsOpensOnTheNearest(t *testing.T) {
+	tests := []struct {
+		name string
+		step dashboard.SetupStep
+		want dashboard.SetupStep
+	}{
+		{name: "before the first: Accounts, none passed", step: dashboard.SetupAccounts - 1, want: dashboard.SetupAccounts},
+		{name: "past Done: Done, every step before it passed", step: dashboard.SetupDone + 1, want: dashboard.SetupDone},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, tt.step)
+			if got := h.model.page(); got.Step != tt.want || !slices.Equal(got.Passed, dashboard.SetupSteps()[:tt.want]) {
+				t.Errorf("the screen opens on %s, %v passed; want %s, %v passed", got.Step.Title(), got.Passed, tt.want.Title(), dashboard.SetupSteps()[:tt.want])
+			}
+		})
 	}
 }
 

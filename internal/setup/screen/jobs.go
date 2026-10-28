@@ -56,19 +56,16 @@ func (js *jobs) read(j job) tea.Cmd {
 }
 
 // given is a job's outcome, as read gives it: nothing once the jobs' context
-// is done; a job's panic, its panic again, but once the context is done,
-// with nothing left to recover from it, logged.
+// is done; a job's panic, while the context lasts, its panic again, for
+// Bubble Tea to recover from.
 func (js *jobs) given(msg tea.Msg) tea.Msg {
-	p, panicked := msg.(jobPanic)
-	switch {
-	case panicked && js.ctx.Err() == nil:
-		panic(p)
+	switch p, panicked := msg.(jobPanic); {
+	case js.ctx.Err() != nil:
+		return nil
 	case panicked:
-		p.log()
-	case js.ctx.Err() == nil:
-		return msg
+		panic(p)
 	}
-	return nil
+	return msg
 }
 
 // write is a command that runs j once no other writing action runs, as read
@@ -86,8 +83,9 @@ func (js *jobs) write(j job) tea.Cmd {
 
 // start runs j on a goroutine wait waits for, its outcome given on the
 // channel it returns, reporting false where wait has begun. A panic of j's
-// is its outcome, but once the jobs' context is done, when no command waits
-// to panic with it again, it's logged.
+// is logged as it's recovered from, whatever comes of it after, as Bubble
+// Tea writes one it recovers from where the screen hides it, and it's j's
+// outcome.
 func (js *jobs) start(j job) (<-chan tea.Msg, bool) {
 	js.mu.Lock()
 	defer js.mu.Unlock()
@@ -99,10 +97,7 @@ func (js *jobs) start(j job) (<-chan tea.Msg, bool) {
 		defer func() {
 			if r := recover(); r != nil {
 				p := jobPanic{value: r, stack: debug.Stack()}
-				if js.ctx.Err() != nil {
-					p.log()
-					return
-				}
+				logger.Error("a job of setup's panicked", "panic", fmt.Sprint(p.value), "stack", string(p.stack))
 				outcome <- p
 			}
 		}()
@@ -131,9 +126,4 @@ type jobPanic struct {
 // recovers from.
 func (p jobPanic) String() string {
 	return fmt.Sprintf("%v\n\n%s", p.value, p.stack)
-}
-
-// log notes the panic in the log, as nothing is left to recover from it.
-func (p jobPanic) log() {
-	logger.Error("a job of setup's panicked as setup's screen stopped", "panic", fmt.Sprint(p.value), "stack", string(p.stack))
 }

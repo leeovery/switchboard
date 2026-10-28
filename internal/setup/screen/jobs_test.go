@@ -80,7 +80,8 @@ func TestAWriteWaitingItsTurnAsTheContextEndsNeverRuns(t *testing.T) {
 	}
 }
 
-func TestAJobsPanicIsPanickedAgainByItsCommand(t *testing.T) {
+func TestAJobsPanicIsLoggedAndPanickedAgainByItsCommand(t *testing.T) {
+	log := logstest.Capture(t)
 	js := newJobs(t.Context())
 	t.Cleanup(js.wait)
 	defer func() {
@@ -88,9 +89,26 @@ func TestAJobsPanicIsPanickedAgainByItsCommand(t *testing.T) {
 		if !ok || p.value != "a bug" || !strings.Contains(p.String(), "a bug") {
 			t.Errorf("the command panicked with %v, want the job's panic, a bug", p)
 		}
+		if !log.Has("level=ERROR", "panicked", "panic=", "a bug", "stack=") {
+			t.Errorf("the log reads\n%s\nwant the job's panic, and where it was", log)
+		}
 	}()
 	js.read(func(context.Context) tea.Msg { panic("a bug") })()
 	t.Error("the command returned, want it to panic as the job did")
+}
+
+func TestAPanicTakenOnceTheContextHasEndedIsntPanickedAgain(t *testing.T) {
+	ctx := &endedUnheard{Context: t.Context()}
+	ctx.ended.Store(true)
+	js := newJobs(ctx)
+	defer func() {
+		if p := recover(); p != nil {
+			t.Errorf("taking a job's panic once its context has ended panicked with %v, want nothing", p)
+		}
+	}()
+	if got := js.given(jobPanic{value: "a bug"}); got != nil {
+		t.Errorf("a job's panic taken once its context has ended gives %v, want nothing", got)
+	}
 }
 
 func TestAJobsPanicOnceTheContextIsDoneIsLogged(t *testing.T) {
