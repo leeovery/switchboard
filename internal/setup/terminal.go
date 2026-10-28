@@ -36,9 +36,11 @@ func (t Terminal) say(line string) {
 	t.sayf("%s", line)
 }
 
-// tell tells the user what a step said, by its sentence.
+// tell tells the user what a step said, by its sentence, where it has one.
 func (t Terminal) tell(said Said) {
-	t.say(said.Sentence)
+	if said.Sentence != "" {
+		t.say(said.Sentence)
+	}
 }
 
 // heading sets the step numbered n apart, by its title.

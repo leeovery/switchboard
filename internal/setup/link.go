@@ -14,18 +14,21 @@ import (
 // LinkFound is what the claude link step found, with no question asked.
 type LinkFound struct {
 	// Said is what the step told before it asked the login shell, in turn:
-	// the claude link, then switchboard's files for the shells, or that
-	// there's no Claude Code for claude to start.
+	// the claude link, then, the line walk's alone, switchboard's files for
+	// the shells.
 	Said []Said
 	// Shell is the situation the login shell's answer leaves.
 	Shell ShellFound
+	// claudeCode is Claude Code's own claude, as claude.Find found it.
+	claudeCode string
 }
 
 // Link makes switchboard's claude link, or repairs it, writes switchboard's
 // files for the shells, and asks the user's login shell which claude it
 // runs, as the line walk's claude link step does, and returns what it found,
 // asking the user nothing. It fails as the step does, and with
-// accounts.ErrInterrupted where the user interrupts the asking.
+// accounts.ErrInterrupted where the user interrupts the asking, returning
+// what it said, and the zero ShellFound.
 func (s *Setup) Link(ctx context.Context) (LinkFound, error) {
 	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
 	if err != nil {
@@ -34,6 +37,7 @@ func (s *Setup) Link(ctx context.Context) (LinkFound, error) {
 	var found LinkFound
 	r := &run{Setup: s, switchboard: switchboard, tell: func(said Said) { found.Said = append(found.Said, said) }}
 	found.Shell, err = r.linkClaude(ctx)
+	found.claudeCode = r.claudeCode
 	return found, err
 }
 
@@ -60,21 +64,21 @@ func (r *run) link(ctx context.Context) error {
 
 // linkClaude makes switchboard's claude link, writes switchboard's files for
 // the shells, telling each, and asks the user's login shell which claude it
-// runs, as Link says, returning the situation its answer leaves: Unreached
-// where the link is blocked, or there's no Claude Code for it to start.
+// runs, as Link says, returning the situation its answer leaves: Unreached,
+// the shell's row saying why it wasn't asked, where the link is blocked, or
+// there's no Claude Code for it to start.
 func (r *run) linkClaude(ctx context.Context) (ShellFound, error) {
 	linked, err := r.makeLink()
-	if err != nil || !linked {
+	switch {
+	case err != nil:
 		return ShellFound{}, err
+	case !linked:
+		return ShellFound{Situation: Unreached, Said: yourShell(Warning, "not asked, as the claude link isn't made", "")}, nil
 	}
-	if _, err := claude.Find(r.Path, r.InstallPaths, func() (string, error) { return r.switchboard, nil }); err != nil {
-		r.tell(Said{
-			Mark:     Warning,
-			Label:    "Claude Code",
-			Detail:   fmt.Sprintf("none for claude to start: %v: install it, then run setup again", err),
-			Sentence: fmt.Sprintf("There's no Claude Code for claude to start: %v. Install it, then run setup again.", err),
-		})
-		return ShellFound{}, nil
+	if r.claudeCode, err = claude.Find(r.Path, r.InstallPaths, func() (string, error) { return r.switchboard, nil }); err != nil {
+		return ShellFound{Situation: Unreached, Said: yourShell(Warning,
+			fmt.Sprintf("not asked, as there's no Claude Code for claude to start: %v: install it, then run setup again", err),
+			fmt.Sprintf("There's no Claude Code for claude to start: %v. Install it, then run setup again.", err))}, nil
 	}
 	if err := r.shellFiles(); err != nil {
 		return ShellFound{}, err

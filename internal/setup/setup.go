@@ -135,6 +135,9 @@ type run struct {
 	// walk says what's about to take a while: nil where nothing hears it.
 	tell func(Said)
 	note func(string)
+	// claudeCode is Claude Code's own claude, as the claude link step found
+	// it.
+	claudeCode string
 	// health is the service's router's, where the service step saw it
 	// answer.
 	health *router.Health

@@ -296,7 +296,8 @@ func (w *world) done(t *testing.T) {
 // where set, stands in front of PATH's claude. Its answers, while it has
 // some, come first, in turn, as the user puts switchboard's bin directory on
 // PATH by hand meanwhile; and where interrupted is set, the user interrupts
-// its asking. A shell switchboard doesn't know, it doesn't ask.
+// its asking, or, where interruptAt is, its asking that many times. A shell
+// switchboard doesn't know, it doesn't ask.
 type fakeLogin struct {
 	w           *world
 	overridden  bool
@@ -304,13 +305,14 @@ type fakeLogin struct {
 	front       shell.Front
 	answers     []shell.Answer
 	interrupted bool
+	interruptAt int
 	// asked are the links it was asked about, in turn.
 	asked []string
 }
 
 func (f *fakeLogin) Which(ctx context.Context, link string) shell.Answer {
 	f.asked = append(f.asked, link)
-	if f.interrupted {
+	if f.interrupted || len(f.asked) == f.interruptAt {
 		f.w.interrupt()
 		return shell.Answer{Why: context.Cause(ctx).Error()}
 	}

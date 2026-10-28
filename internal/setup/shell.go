@@ -56,7 +56,8 @@ const (
 	// NotTaking is switchboard's line in the startup file, not taking
 	// effect, or in a shell that couldn't be asked whether it does.
 	NotTaking
-	// LineAdded is switchboard's line just added, the shell to ask again.
+	// LineAdded is switchboard's line just added, or found there already as
+	// it was to be added, the shell to ask again.
 	LineAdded
 	// CantAdd is switchboard's line offered, which setup couldn't add.
 	CantAdd
@@ -72,53 +73,74 @@ type ShellFound struct {
 	// File is the startup file switchboard's line goes in, and Line the line,
 	// where the shell is one setup asks, and the file one it can name.
 	File, Line string
-	// Last is set where switchboard's line, not taking effect, is the last
-	// thing in File that changes PATH.
+	// Last is set where switchboard's line, not taking effect or just added,
+	// is the last thing in File that changes PATH.
 	Last bool
 	// ByHand is how to have claude go through switchboard by hand, as the
 	// line walk shows it after Said: the bin directory last, but for a shell
 	// setup doesn't ask, after which it says setup can't check it.
 	ByHand []string
+	// answer is the login shell's that left it.
+	answer shell.Answer
 }
 
 // errNoLine is what AddLine fails with where setup offers no line to add.
 var errNoLine = errors.New("setup offers no line to add")
 
 // AddLine adds switchboard's line, which found offers, to the end of the
-// startup file it offers it for, and returns what that leaves: the line
-// added, the login shell to ask again, as AskAgain does; or, where it can't
-// be added, how to add it by hand. It fails, changing nothing, where found
-// offers no line.
+// startup file it offers it for, unless a line of switchboard's is there
+// already, as when the user has added it meanwhile, so it's added once. It
+// returns what that leaves: the line added, or found there, the login shell
+// to ask again, as AskAgain does; a line there reading another switchboard
+// shell directory's file, as Link says; or, where it can't be added, how to
+// add it by hand. It fails, changing nothing, where found offers no line.
 func (s *Setup) AddLine(found LinkFound) (LinkFound, error) {
 	at := &found.Shell
 	if at.Situation != OfferLine {
 		return found, errNoLine
 	}
 	where := s.fromHome(at.File)
-	if err := shell.AddLine(at.File, at.Line); err != nil {
+	sh, _ := shell.Of(s.Getenv("SHELL"))
+	there, err := shell.FindLine(sh, at.File, s.Home)
+	switch {
+	case err != nil:
+	case there.Sources == "":
+		err = shell.AddLine(at.File, at.Line)
+	case filepath.Clean(there.Sources) == shell.InitFile(s.Shells.Dir, sh):
+		at.Situation, at.Last, at.ByHand = LineAdded, there.Last, nil
+		at.Said = yourShell(Done, "switchboard's line is in "+where+" already", "switchboard's line is in "+where+" already.")
+		return found, nil
+	default:
+		found.Shell = (&run{Setup: s, claudeCode: found.claudeCode}).onPath(at.answer)
+		return found, nil
+	}
+	if err != nil {
 		at.Situation = CantAdd
 		at.Said = yourShell(Warning, fmt.Sprintf("setup can't add its line to %s: %v", where, err), fmt.Sprintf("Setup can't add it: %v.", err))
 		return found, nil
 	}
 	logger.Info("added switchboard's line to the shell's startup file", "path", at.File)
-	at.Situation, at.ByHand = LineAdded, nil
+	at.Situation, at.Last, at.ByHand = LineAdded, true, nil
 	at.Said = yourShell(Done, "switchboard's line added to the end of "+where, "Added it to "+where+".")
 	return found, nil
 }
 
 // AskAgain asks the user's login shell again which claude it runs, found
-// being what setup found before, and returns what its answer leaves: where a
-// claude typed there goes through switchboard, Through; where an alias in
-// front of the link runs something else, InFront; where switchboard's line
-// was just added, NotTaking; and otherwise found's situation, the shell's row
-// saying what it runs now. It fails with accounts.ErrInterrupted where the
-// user interrupts the asking.
+// being what setup found before, and returns the situation its answer
+// leaves, sorted afresh, as Link sorts it; but where switchboard's line was
+// just added, and the shell's PATH doesn't find the link, NotTaking, in the
+// file it was added to. Elsewhere its sentence is the line walk's as it asks
+// again: where claude doesn't go through switchboard yet, what keeps it from
+// it, and no more. Unreached, there's nothing to ask: it returns found as it
+// is. It fails with accounts.ErrInterrupted where the user interrupts the
+// asking.
 func (s *Setup) AskAgain(ctx context.Context, found LinkFound) (LinkFound, error) {
-	return (&run{Setup: s}).askAgain(ctx, found)
+	return (&run{Setup: s, claudeCode: found.claudeCode}).askAgain(ctx, found)
 }
 
-// shellFiles writes switchboard's files for the shells, telling which it
-// wrote or brought up to date, or that they were up to date already.
+// shellFiles writes switchboard's files for the shells, telling the line
+// walk alone which it wrote or brought up to date, or that they were up to
+// date already.
 func (r *run) shellFiles() error {
 	files, err := r.Shells.Write()
 	if err != nil {
@@ -135,20 +157,17 @@ func (r *run) shellFiles() error {
 		}
 	}
 	dir := r.fromHome(r.Shells.Dir)
-	var details, sentences []string
+	var sentences []string
 	if wrote := names[shell.Created]; len(wrote) > 0 {
-		details = append(details, "wrote "+prose.List(wrote))
 		sentences = append(sentences, fmt.Sprintf("Wrote switchboard's files for the shells, in %s: %s.", dir, prose.List(wrote)))
 	}
 	if updated := names[shell.Updated]; len(updated) > 0 {
-		details = append(details, "brought "+prose.List(updated)+" up to date")
 		sentences = append(sentences, fmt.Sprintf("Brought switchboard's files for the shells up to date, in %s: %s.", dir, prose.List(updated)))
 	}
 	if len(names[shell.Current]) == len(files) {
-		details = append(details, "up to date")
 		sentences = append(sentences, fmt.Sprintf("switchboard's files for the shells are up to date, in %s.", dir))
 	}
-	r.tell(Said{Mark: Done, Label: "Shell files", Detail: strings.Join(append(details, dir), " · "), Sentence: strings.Join(sentences, "\n")})
+	r.tell(Said{Mark: Done, Sentence: strings.Join(sentences, "\n")})
 	return nil
 }
 
@@ -158,6 +177,13 @@ func (r *run) shellFiles() error {
 // claude go through it, as startupLine says. Another shell setup can't ask,
 // so it's left with the bin directory, to put on PATH by hand.
 func (r *run) onPath(answer shell.Answer) ShellFound {
+	at := r.sorted(answer)
+	at.answer = answer
+	return at
+}
+
+// sorted is the situation answer leaves, as onPath says.
+func (r *run) sorted(answer shell.Answer) ShellFound {
 	sh, known := shell.Of(r.Getenv("SHELL"))
 	switch {
 	case answer.Through():
@@ -273,12 +299,9 @@ func (r *run) byHand(how ...string) []string {
 // Leaving it isn't a failure: setup goes on.
 func (r *run) settle(ctx context.Context, found LinkFound) error {
 	at := found.Shell
-	if at.Situation == Unreached {
-		return nil
-	}
 	r.tell(at.Said)
 	switch at.Situation {
-	case Through:
+	case Unreached, Through:
 		return nil
 	case UnknownShell:
 		r.show(at.ByHand)
@@ -348,20 +371,23 @@ func (r *run) checkAgain(ctx context.Context, found LinkFound) error {
 
 // askAgain asks the login shell again, as AskAgain says.
 func (r *run) askAgain(ctx context.Context, found LinkFound) (LinkFound, error) {
+	was := found.Shell
+	if was.Situation == Unreached {
+		return found, nil
+	}
 	answer, err := r.ask(ctx)
 	if err != nil {
 		return found, err
 	}
-	was := found.Shell
 	switch {
-	case answer.Through():
-		found.Shell = r.through(answer)
-	case answer.Kind == shell.Link:
-		found.Shell = ShellFound{Situation: InFront, Said: r.notYetSaid(answer)}
-	case was.Situation == LineAdded:
-		found.Shell = r.notTakingEffect(was.File, was.Line, true, answer)
+	case was.Situation == LineAdded && !answer.Through() && answer.Kind != shell.Link:
+		found.Shell = r.notTakingEffect(was.File, was.Line, was.Last, answer)
+		found.Shell.answer = answer
 	default:
-		found.Shell.Said = r.notYetSaid(answer)
+		found.Shell = r.onPath(answer)
+		if found.Shell.Situation != Through {
+			found.Shell.Said.Sentence = r.notYet(answer)
+		}
 	}
 	return found, nil
 }
@@ -441,7 +467,7 @@ func (r *run) notYet(answer shell.Answer) string {
 		return fmt.Sprintf("Setup can't ask %s which claude it runs: %s.", r.shellName(), answer.Why)
 	}
 	const not = "claude doesn't go through switchboard in a new terminal yet: "
-	front := r.inFront(answer.Front)
+	front := r.inFront(answer.Front, answer.Front.Path)
 	switch {
 	case answer.Kind == shell.Link:
 		return not + front + "."
@@ -457,11 +483,15 @@ func (r *run) stands(answer shell.Answer) string {
 	if answer.Kind == shell.Unasked {
 		return "setup can't ask it which claude it runs: " + answer.Why
 	}
-	finds := fmt.Sprintf("runs another claude, %s, so its sessions aren't routed", r.fromHome(answer.Claude))
+	whose := "another claude"
+	if r.claudeCode != "" && filepath.Clean(answer.Claude) == filepath.Clean(r.claudeCode) {
+		whose = "Claude Code's own claude"
+	}
+	finds := fmt.Sprintf("runs %s, %s, so its sessions aren't routed", whose, r.fromHome(answer.Claude))
 	if answer.Kind == shell.None {
 		finds = "finds no claude, so claude doesn't go through switchboard"
 	}
-	front := r.inFront(answer.Front)
+	front := r.inFront(answer.Front, r.fromHome(answer.Front.Path))
 	switch {
 	case answer.Kind == shell.Link:
 		return front
@@ -472,13 +502,13 @@ func (r *run) stands(answer shell.Answer) string {
 }
 
 // inFront says what an alias in front of PATH's claude runs, where that's
-// not switchboard's claude, and how to put it right: "" where it's nothing
-// else.
-func (r *run) inFront(front shell.Front) string {
+// not switchboard's claude, a path it runs written as path, and how to put
+// it right: "" where it's nothing else.
+func (r *run) inFront(front shell.Front, path string) string {
 	const fix = "removing the alias, or pointing it at claude, puts it right"
 	switch front.Runs {
 	case shell.APath:
-		return fmt.Sprintf("%s's claude is %s, which runs %s, not switchboard's claude: %s", r.shellName(), front.Text, front.Path, fix)
+		return fmt.Sprintf("%s's claude is %s, which runs %s, not switchboard's claude: %s", r.shellName(), front.Text, path, fix)
 	case shell.Else:
 		return fmt.Sprintf("%s's claude is %s, which runs something other than switchboard's claude: %s", r.shellName(), front.Text, fix)
 	case shell.SetsPath:
