@@ -252,6 +252,8 @@ func TestQuoted(t *testing.T) {
 		{name: "an isolate escaped", text: "a\u2067b\u2069", want: `"a\u2067b\u2069"`},
 		{name: "a direction mark escaped", text: "a\u200Fb", want: `"a\u200Fb"`},
 		{name: "an Arabic number sign as it is", text: "\u0600123", want: "\"\u0600123\""},
+		{name: "a selector after an escape escaped", text: "\u263a\u200b\ufe0f", want: "\"\u263a\\u200B\\uFE0F\""},
+		{name: "a joiner after an escape escaped", text: "\u0915\u200b\u200d\u0937", want: "\"\u0915\\u200B\\u200D\u0937\""},
 		{name: "a backslash before an escape kept apart", text: "a\\\u200B", want: `"a\\\u200B"`},
 	}
 	for _, tt := range tests {

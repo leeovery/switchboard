@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -43,8 +44,9 @@ var unseenProbes = []string{
 }
 
 // FuzzTakeLabel holds a label taken to what it shows: taking it again
-// changes nothing, and quoted, it holds no unseen character raw that no
-// sequence owns.
+// changes nothing, and quoted, it's as it is but for its direction marks,
+// quote marks and backslashes escaped, as every other unseen character
+// it holds is owned by a sequence.
 func FuzzTakeLabel(f *testing.F) {
 	for _, given := range unseenProbes {
 		f.Add(given)
@@ -60,10 +62,14 @@ func FuzzTakeLabel(f *testing.F) {
 		if again, err := takeLabel("work", label); err != nil || again != label {
 			t.Fatalf("takeLabel(%q) = %q, then takeLabel of that = %q, %v; want it as it was", given, label, again, err)
 		}
-		quoted := prose.Quoted(label)
-		prose.MapUnseen(quoted, func(r rune) string {
-			t.Errorf("Quoted(%q) = %q holds U+%04X raw, which no sequence owns", label, quoted, r)
-			return ""
-		})
+		if got, want := prose.Quoted(label), `"`+markEscaper.Replace(label)+`"`; got != want {
+			t.Errorf("Quoted(%q) = %q, want %q", label, got, want)
+		}
 	})
 }
+
+// markEscaper escapes a label's quote marks and backslashes, and its
+// direction marks, the only unseen characters a label keeps that no
+// sequence owns.
+var markEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`,
+	"\u200e", `\u200E`, "\u200f", `\u200F`, "\u061c", `\u061C`)

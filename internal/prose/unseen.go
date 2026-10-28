@@ -58,19 +58,20 @@ func DirectionMark(r rune) bool {
 
 // MapUnseen returns text with each unseen character that does nothing to
 // show, as a sequence owns one, replaced by what replace makes of it: ""
-// to drop it, or the character itself to keep it. Every other character is
-// kept as it is.
+// to drop it, the character itself to keep it, or other text, such as an
+// escape, to show in its place. Every other character is kept as it is.
 //
 // An unseen character is kept only where it does something that shows,
 // judged left to right on what's kept, so the character before one is the
-// last kept, never one dropped:
+// last kept, never one dropped, and after text shown in one's place, nothing
+// is owned:
 //   - a zero-width joiner between two pictographs, after a symbol, an emoji
 //     modifier or an emoji presentation selector kept after one, and before
 //     a symbol; and, as a non-joiner is, between two letters or marks of a
 //     script that shapes with joiners;
 //   - a variation selector after a symbol, punctuation beyond ASCII, a
-//     letter of a script with variants, such as an ideograph, or a keycap's
-//     #, * or digit, as the keycap follows;
+//     letter outside Latin, Greek and Cyrillic, such as an ideograph, or a
+//     keycap's #, * or digit, as the keycap follows;
 //   - a subdivision flag's tags: a black flag, one to eight tags and the tag
 //     that cancels them, whole.
 func MapUnseen(text string, replace func(r rune) string) string {
@@ -86,14 +87,24 @@ func MapUnseen(text string, replace func(r rune) string) string {
 		}
 		s := replace(r)
 		b.WriteString(s)
-		if s == string(r) {
+		switch s {
+		case string(r):
 			kept.add(r)
+		case "":
+		default:
+			kept.add(shown)
 		}
 	}
 	return b.String()
 }
 
-// recent is the last two characters kept, last first, 0 where none was.
+// shown stands, among the characters kept, for text replace put in place of
+// an unseen character, such as an escape: seen, it ends any sequence, and
+// owns nothing after it.
+const shown rune = 0
+
+// recent is the last two characters kept, last first, shown standing too for
+// none, as at the start, which owns nothing after it alike.
 type recent struct {
 	last, before rune
 }
@@ -139,8 +150,9 @@ func selector(r rune) bool {
 }
 
 // selects reports whether a variation selector after last, and before next,
-// picks a variant of last: a symbol, punctuation beyond ASCII, a letter of a
-// script with variants, or a keycap's #, * or digit, the keycap next.
+// picks a variant of last: a symbol, punctuation beyond ASCII, a letter
+// outside Latin, Greek and Cyrillic, or a keycap's #, * or digit, the
+// keycap next.
 func selects(last, next rune) bool {
 	switch {
 	case unicode.IsSymbol(last):

@@ -221,9 +221,9 @@ var ErrBlankLabel = errors.New("label is blank, showing nothing")
 // takeLabel returns a label given to put in the file as it shows, so what's
 // saved is what's shown: without the characters drawn as nothing, as
 // prose.Unseen has them, but for those prose.MapUnseen keeps, as they make
-// an emoji, a symbol's or an ideograph's variant or a flag, or shape a
-// joining script, and the direction marks within it; each run of whitespace within it one space; and the whitespace
-// and direction marks at its edges trimmed. Every other character is kept,
+// an emoji, a keycap, a variant or a flag, or shape a joining script, and
+// the direction marks within it; each run of whitespace within it one space;
+// and the whitespace and direction marks at its edges trimmed. Every other character is kept,
 // such as the Arabic number signs, which draw. It's checked as it shows, and
 // refused, as a label in the file isn't: when it isn't UTF-8, as TOML's text
 // must be; when it holds a control character, such as a newline or a tab,

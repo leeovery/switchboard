@@ -32,9 +32,10 @@ func Clean(text string) string {
 // and each character drawn as nothing, as Unseen has it, that does nothing
 // that shows, as MapUnseen has it, shown as its escape, as \u200B, so what it
 // holds shows. A bidirectional control is among them, so it can't reorder
-// the rest of the line. What makes an emoji, a symbol's or an ideograph's
-// variant or a flag, or shapes a joining script, shows as it is, and so does
-// a private-use character.
+// the rest of the line, and so is a direction mark, which a label keeps but
+// whose part in it can't be seen. What makes an emoji, a keycap, a variant
+// or a flag, or shapes a joining script, shows as it is, and so does a
+// private-use character.
 func Quoted(text string) string {
 	return `"` + MapUnseen(quoteEscaper.Replace(Clean(text)), escaped) + `"`
 }
