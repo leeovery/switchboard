@@ -178,9 +178,9 @@ func (r *run) installFirst(ctx context.Context) error {
 }
 
 // unusable judges the service where setup has no plist it can use: none, or
-// one it can't read back, as unread says. Where launchd has the service
-// loaded, or a router answers, it leaves both as they are, saying truly what
-// runs, and fails: a plist launchd can't read, or none, can't start the
+// one it can't read back, as unread says. Where launchd runs a router, or
+// one answers, or launchd has loaded a plist it can't read back, it leaves
+// both as they are, saying truly what runs, and fails: a plist launchd can't read, or none, can't start the
 // router at login, so the step isn't done, and only service install, which
 // writes the plist afresh, puts that right. It reports whether it left the
 // service so; where it didn't, setup installs it afresh.
@@ -189,7 +189,9 @@ func (r *run) unusable(ctx context.Context, unread error) (bool, error) {
 	switch {
 	case err != nil:
 		return true, err
-	case !st.Loaded && st.Router == nil:
+	// Nothing answers and nothing runs, so there's nothing to swap out; but
+	// with a plist it can't read, setup can't keep the options it holds.
+	case st.Router == nil && st.PID == 0 && (!st.Loaded || unread == nil):
 		return false, nil
 	}
 	plist, short := "The service's plist is gone", "the service's plist is gone"

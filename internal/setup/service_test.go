@@ -801,8 +801,10 @@ func TestTheServiceStepFailsWithNoPlistItCanUse(t *testing.T) {
 		lay      func(w *world)
 		unloaded bool
 		// line and err are what the step says after the plist's words, and
-		// fails with after its short words.
-		line, err string
+		// fails with after its short words; but with no plist, where
+		// installsWithNoPlist is set, setup installs the service.
+		line, err           string
+		installsWithNoPlist bool
 	}{
 		{
 			name: "launchd's router answering",
@@ -836,6 +838,8 @@ func TestTheServiceStepFailsWithNoPlistItCanUse(t *testing.T) {
 			name: "none answering, launchd loaded but running none",
 			lay:  func(w *world) { w.launchd.pid = 0 },
 			line: fmt.Sprintf(noneAnswers, notRunning), err: ", and no router answers: run switchboard service install",
+			// Nothing to swap out, and no options it can't keep.
+			installsWithNoPlist: true,
 		},
 		{
 			name: "none answering, launchd running one at a third state directory",
@@ -856,6 +860,16 @@ func TestTheServiceStepFailsWithNoPlistItCanUse(t *testing.T) {
 					said, short = plist.unloaded, plist.shortUnloaded
 				}
 
+				if tt.installsWithNoPlist && plist.name == "no plist" {
+					shown := section(t, w.runs(t, ""), "3. The service")
+					if want := installedAt + "The router is up: healthy, pid 4243.\n"; shown != want {
+						t.Errorf("the service step showed\n%s\nwant\n%s", shown, want)
+					}
+					if ran, want := w.launchd.ran(), []string{"print", "print", "bootout", "print", "bootstrap"}; !slices.Equal(ran, want) {
+						t.Errorf("ran launchctl %q, want %q", ran, want)
+					}
+					return
+				}
 				synctest.Test(t, func(t *testing.T) {
 					shown, err := w.run(t, "")
 					if want := short + tt.err; err == nil || err.Error() != want {
