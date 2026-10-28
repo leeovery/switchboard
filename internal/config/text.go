@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 // kind is what a line of the config file is, as TOML reads it, as far as
@@ -22,16 +24,18 @@ const (
 	header
 	// primaryKey sets primary.
 	primaryKey
-	// content is any other line: a key and its value, or part of a string
-	// that goes on over lines.
+	// content is any other line: a key and its value, the first line of one
+	// whose string goes on over lines among them.
 	content
+	// inString is a line within a string that goes on over lines, past the
+	// line that opens it, whatever it looks like.
+	inString
 )
 
 var (
 	accountHeaderLine = regexp.MustCompile(`^\[\[\s*(?:account|"account"|'account')\s*\]\]\s*(?:#.*)?$`)
 	primaryKeyLine    = regexp.MustCompile(`^(?:primary|"primary"|'primary')\s*=`)
 	primeHeaderLine   = regexp.MustCompile(`^\[\s*(?:prime|"prime"|'prime')\s*\]\s*(?:#.*)?$`)
-	dayKeyLine        = regexp.MustCompile(`^(?:day|"day"|'day')\s*=`)
 	// multilineOpening matches a key whose value opens a string that can go
 	// on over lines, capturing the quotes that open it and what follows them.
 	multilineOpening = regexp.MustCompile(`^[^=]*=\s*("""|''')(.*)$`)
@@ -42,31 +46,56 @@ var (
 type document struct {
 	lines []string
 	kinds []kind
+	// bom is the byte order mark the text starts with, when it does, which
+	// the lines go without, so the first reads as what it is.
+	bom string
+	// eol ends each line: "\r\n" where every line of the text ends so, so
+	// lines put in end as the rest do; else "\n", any "\r" kept in its line.
+	eol string
 }
+
+// byteOrderMark is the mark of UTF-8 a text may start with.
+const byteOrderMark = "\uFEFF"
 
 // newDocument reads text as a document.
 func newDocument(text string) document {
-	lines := strings.Split(text, "\n")
-	if lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
+	d := document{eol: "\n"}
+	if rest, ok := strings.CutPrefix(text, byteOrderMark); ok {
+		d.bom, text = byteOrderMark, rest
 	}
-	return documentOf(lines)
+	if crlf := strings.Count(text, "\r\n"); crlf > 0 && crlf == strings.Count(text, "\n") {
+		d.eol, text = "\r\n", strings.ReplaceAll(text, "\r\n", "\n")
+	}
+	lines := strings.Split(text, "\n")
+	last := len(lines) - 1
+	switch {
+	case lines[last] == "":
+		lines = lines[:last]
+	case last > 0 && strings.HasSuffix(lines[last-1], "\r") && !strings.HasSuffix(lines[last], "\r"):
+		// The text is written with every line ended, so a last line that had
+		// no ending takes the one of the line before it, the nearest that has
+		// one, as a line put in after it then does.
+		lines[last] += "\r"
+	}
+	return d.of(lines)
 }
 
-func documentOf(lines []string) document {
-	return document{lines: lines, kinds: scan(lines)}
+// of returns lines as a document whose text starts and ends its lines as d's
+// does.
+func (d document) of(lines []string) document {
+	return document{lines: lines, kinds: scan(lines), bom: d.bom, eol: d.eol}
 }
 
-// text is the document's text, each line ending in a newline.
+// text is the document's text, each line ending as eol has it.
 func (d document) text() string {
 	if len(d.lines) == 0 {
-		return ""
+		return d.bom
 	}
-	return strings.Join(d.lines, "\n") + "\n"
+	return d.bom + strings.Join(d.lines, d.eol) + d.eol
 }
 
 // scan says what each of lines is. A line within a string that goes on over
-// lines is content, whatever it looks like.
+// lines is inString, whatever it looks like.
 func scan(lines []string) []kind {
 	kinds := make([]kind, len(lines))
 	// open is the quotes that opened a string that goes on past the lines
@@ -75,7 +104,7 @@ func scan(lines []string) []kind {
 	for i, line := range lines {
 		text := strings.TrimSpace(line)
 		if open != "" {
-			kinds[i] = content
+			kinds[i] = inString
 			if closes(open, text) {
 				open = ""
 			}
@@ -118,21 +147,27 @@ func opens(text string) string {
 }
 
 // closes reports whether text holds the quotes that close a string opened
-// with quote: the same three again, which a backslash escapes in a basic
-// string but not in a literal one.
+// with quote, as closing finds them.
 func closes(quote, text string) bool {
-	if quote == `'''` {
-		return strings.Contains(text, quote)
+	return closing(text, quote) >= 0
+}
+
+// closing returns where in text the quotes that close a string opened with
+// quote start, the same quotes again, which a backslash escapes in a basic
+// string but not in a literal one: -1 when text doesn't hold them.
+func closing(text, quote string) int {
+	if quote[0] == '\'' {
+		return strings.Index(text, quote)
 	}
 	for i := 0; i < len(text); i++ {
 		switch {
 		case text[i] == '\\':
 			i++
 		case strings.HasPrefix(text[i:], quote):
-			return true
+			return i
 		}
 	}
-	return false
+	return -1
 }
 
 // span is the lines of a document from start up to end.
@@ -232,19 +267,39 @@ func (d document) insert(at int, lines []string) document {
 	if at < len(d.kinds) && d.kinds[at] != blank {
 		inserted = append(inserted, "")
 	}
-	return documentOf(slices.Concat(d.lines[:at], inserted, d.lines[at:]))
+	return d.put(at, inserted...)
 }
 
-// put returns the document with lines put in at line at, as they are.
+// put returns the document with lines put in at line at, as they are but for
+// their ending, as endedAt has it.
 func (d document) put(at int, lines ...string) document {
-	return documentOf(slices.Concat(d.lines[:at], lines, d.lines[at:]))
+	return d.of(slices.Concat(d.lines[:at], d.endedAt(at, lines), d.lines[at:]))
+}
+
+// endedAt returns lines, to be put in at line at, each ending as the line
+// they follow does, else the line they go before: in a document of mixed
+// endings, whose lines keep any "\r" of their own, one that ends in "\r"
+// gives them one too.
+func (d document) endedAt(at int, lines []string) []string {
+	neighbour := at - 1
+	if at == 0 {
+		neighbour = 0
+	}
+	if neighbour >= len(d.lines) || !strings.HasSuffix(d.lines[neighbour], "\r") {
+		return lines
+	}
+	ended := make([]string, len(lines))
+	for i, line := range lines {
+		ended[i] = line + "\r"
+	}
+	return ended
 }
 
 // replaced returns the document with line i replaced by line.
 func (d document) replaced(i int, line string) document {
 	lines := slices.Clone(d.lines)
 	lines[i] = line
-	return documentOf(lines)
+	return d.of(lines)
 }
 
 // withPrimeDay returns the document with [prime]'s day set to day: in place
@@ -256,48 +311,111 @@ func (d document) withPrimeDay(day string) document {
 	if h < 0 {
 		return d.insert(len(d.lines), []string{"[prime]", "day = " + value})
 	}
-	for i := h + 1; i < d.nextTable(h); i++ {
-		if d.kinds[i] == content && dayKeyLine.MatchString(strings.TrimSpace(d.lines[i])) {
-			return d.replaced(i, withValue(d.lines[i], value))
-		}
+	if i := d.keyAt(span{start: h + 1, end: d.nextTable(h)}, "day"); i >= 0 {
+		return d.replaced(i, withValue(d.lines[i], value))
 	}
 	return d.put(h+1, "day = "+value)
 }
 
+// withKey returns the document with key, in the table within s, set to
+// value, as TOML writes it: in place of the value the line that sets it
+// gives, else below the table's last key; or, for "", without the line that
+// sets it.
+func (d document) withKey(s span, key, value string) document {
+	i := d.keyAt(s, key)
+	switch {
+	case i >= 0 && value == "":
+		return d.without([]int{i})
+	case i >= 0:
+		return d.replaced(i, withValue(d.lines[i], value))
+	case value == "":
+		return d
+	}
+	return d.putKey(s, key+" = "+value)
+}
+
+// putKey returns the document with line, a key and its value, put below the
+// last key of the table within s, indented as the table's first key is.
+func (d document) putKey(s span, line string) document {
+	return d.put(d.keysEnd(s), d.keyIndent(s)+line)
+}
+
+// keyIndent returns the whitespace the first key of the table within s is
+// indented by.
+func (d document) keyIndent(s span) string {
+	for i := s.start; i < s.end; i++ {
+		if d.kinds[i] == content || d.kinds[i] == primaryKey {
+			return d.lines[i][:len(d.lines[i])-len(strings.TrimLeft(d.lines[i], " \t"))]
+		}
+	}
+	return ""
+}
+
+// keyAt returns the line within s that sets key, bare or quoted, or -1 when
+// none does.
+func (d document) keyAt(s span, key string) int {
+	quoted := regexp.QuoteMeta(key)
+	line := regexp.MustCompile(`^(?:` + quoted + `|"` + quoted + `"|'` + quoted + `')\s*=`)
+	for i := s.start; i < s.end; i++ {
+		if d.kinds[i] == content && line.MatchString(strings.TrimSpace(d.lines[i])) {
+			return i
+		}
+	}
+	return -1
+}
+
 // withValue returns line, which sets a key, with value in place of the value
 // it gives, keeping what's around it, such as a comment, when that's a string
-// on the one line: otherwise the key set to value alone.
+// on the one line or a bare value, such as a number: otherwise the key set to
+// value alone, and the line's "\r", where it ends in one.
 func withValue(line, value string) string {
 	key, given, _ := strings.Cut(line, "=")
 	start := len(given) - len(strings.TrimLeft(given, " \t"))
-	end := stringEnd(given[start:])
+	end := valueEnd(given[start:])
 	if end < 0 {
-		return strings.TrimRight(key, " \t") + " = " + value
+		set := strings.TrimRight(key, " \t") + " = " + value
+		if strings.HasSuffix(line, "\r") {
+			set += "\r"
+		}
+		return set
 	}
 	return key + "=" + given[:start] + value + given[start+end:]
 }
 
-// stringEnd returns the length of the string text starts with, its quotes
-// included, when it's a basic or a literal string on the one line, else -1.
-func stringEnd(text string) int {
+// valueEnd returns the length of the value text starts with: a string's, as
+// stringEnd has it; -1 for an array or an inline table; else a bare value's,
+// such as a number's, up to the whitespace or the comment after it.
+func valueEnd(text string) int {
 	switch {
-	case strings.HasPrefix(text, `"""`), strings.HasPrefix(text, `'''`):
+	case strings.HasPrefix(text, `"`), strings.HasPrefix(text, `'`):
+		return stringEnd(text)
+	case strings.HasPrefix(text, "["), strings.HasPrefix(text, "{"):
 		return -1
-	case strings.HasPrefix(text, `'`):
-		if end := strings.Index(text[1:], `'`); end >= 0 {
-			return end + 2
-		}
-	case strings.HasPrefix(text, `"`):
-		for i := 1; i < len(text); i++ {
-			switch text[i] {
-			case '\\':
-				i++
-			case '"':
-				return i + 1
-			}
-		}
 	}
-	return -1
+	if end := strings.IndexAny(text, " \t\r#"); end >= 0 {
+		return end
+	}
+	return len(text)
+}
+
+// stringEnd returns the length of the string text starts with, its quotes
+// included, when it's a basic or a literal string that ends on the one line,
+// in one quote or three, else -1. One or two quotes directly before the three
+// that close it are the string's own, as TOML reads them.
+func stringEnd(text string) int {
+	quote := text[:1]
+	if triple := strings.Repeat(quote, 3); strings.HasPrefix(text, triple) {
+		quote = triple
+	}
+	at := closing(text[len(quote):], quote)
+	if at < 0 {
+		return -1
+	}
+	end := 2*len(quote) + at
+	for own := 0; len(quote) == 3 && own < 2 && end < len(text) && text[end] == quote[0]; own++ {
+		end++
+	}
+	return end
 }
 
 // header returns the line of the first table header that pattern matches,
@@ -319,7 +437,7 @@ func (d document) without(drop []int) document {
 			kept = append(kept, line)
 		}
 	}
-	return documentOf(kept)
+	return d.of(kept)
 }
 
 // cut returns the document without the lines in s, which are whole tables,
@@ -327,7 +445,7 @@ func (d document) without(drop []int) document {
 // apart: those left leading or trailing the document, and those after where
 // s was when there are some before it too.
 func (d document) cut(s span) document {
-	left := documentOf(slices.Concat(d.lines[:s.start], d.lines[s.end:]))
+	left := d.of(slices.Concat(d.lines[:s.start], d.lines[s.end:]))
 	before, after := s.start, s.start
 	for before > 0 && left.kinds[before-1] == blank {
 		before--
@@ -337,11 +455,11 @@ func (d document) cut(s span) document {
 	}
 	switch {
 	case after == len(left.lines):
-		return documentOf(left.lines[:before])
+		return d.of(left.lines[:before])
 	case before == 0:
-		return documentOf(left.lines[after:])
+		return d.of(left.lines[after:])
 	case before < s.start:
-		return documentOf(slices.Delete(left.lines, s.start, after))
+		return d.of(slices.Delete(left.lines, s.start, after))
 	}
 	return left
 }
@@ -365,6 +483,29 @@ func (a NewAccount) lines() []string {
 		lines = append(lines, fmt.Sprintf("%-*s = %s", width, kv[0], kv[1]))
 	}
 	return lines
+}
+
+// written returns s as TOML writes it, a basic string, or "" for "", which
+// withKey takes to mean the key goes.
+func written(s string) string {
+	if s == "" {
+		return ""
+	}
+	return quote(s)
+}
+
+// writtenFloat returns x as TOML writes it, by TOML's own encoder, or "" for
+// 0, which withKey takes to mean the key goes. It's the file's form, not
+// words, so it isn't prose's to write.
+func writtenFloat(x float64) string {
+	var b strings.Builder
+	if x == 0 || toml.NewEncoder(&b).Encode(struct {
+		X float64 `toml:"x"`
+	}{x}) != nil {
+		return ""
+	}
+	_, value, _ := strings.Cut(strings.TrimSpace(b.String()), " = ")
+	return value
 }
 
 // quote returns s as a TOML basic string, escaping what TOML asks to be:

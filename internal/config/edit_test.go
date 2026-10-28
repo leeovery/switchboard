@@ -141,8 +141,14 @@ primary = true
 		{
 			name:    "a label TOML asks to be escaped",
 			config:  "[[account]]\nid = \"work\"\n",
-			account: config.NewAccount{ID: "side", Label: "Side \"B\" \\ two\nlines\ttabbed\x7f"},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side \\\"B\\\" \\\\ two\\u000Alines\\u0009tabbed\\u007F\"\n",
+			account: config.NewAccount{ID: "side", Label: "Side \"B\" \\ two"},
+			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side \\\"B\\\" \\\\ two\"\n",
+		},
+		{
+			name:    "a label as it shows: trimmed, each run of whitespace within it one space",
+			config:  "[[account]]\nid = \"work\"\n",
+			account: config.NewAccount{ID: "side", Label: "  Side \u00a0  team "},
+			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side team\"\n",
 		},
 		{
 			name: "past a label that goes on over lines, whatever its lines look like",
@@ -169,7 +175,7 @@ primary = true
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
-			if added := cfg.Accounts[len(cfg.Accounts)-1]; added.ID != tt.account.ID || added.Label != cmp.Or(tt.account.Label, tt.account.ID) {
+			if added := cfg.Accounts[len(cfg.Accounts)-1]; added.ID != tt.account.ID || added.Label != cmp.Or(strings.Join(strings.Fields(tt.account.Label), " "), tt.account.ID) {
 				t.Errorf("the account added loads as %+v, want %+v", added, tt.account)
 			}
 			if !reflect.DeepEqual(draft.Config(), cfg) {
@@ -530,6 +536,26 @@ func TestAddAccountRefuses(t *testing.T) {
 			wantErr: `account "side": label is 101 characters: must be at most 100`,
 		},
 		{
+			name:    "a label of spaces alone",
+			config:  commented,
+			account: config.NewAccount{ID: "side", Label: "  "},
+			wantErr: `account "side": label is blank, showing nothing`,
+			wantIs:  config.ErrBlankLabel,
+		},
+		{
+			name:    "a label of a zero-width space alone",
+			config:  commented,
+			account: config.NewAccount{ID: "side", Label: "\u200b"},
+			wantErr: `account "side": label is blank, showing nothing`,
+			wantIs:  config.ErrBlankLabel,
+		},
+		{
+			name:    "a label that isn't UTF-8",
+			config:  commented,
+			account: config.NewAccount{ID: "side", Label: "a\xffb"},
+			wantErr: `account "side": label isn't UTF-8 text, as a config's text must be`,
+		},
+		{
 			name:    "accounts listed inline, which a table can't follow",
 			config:  "account = [{ id = \"work\" }]\n",
 			account: config.NewAccount{ID: "side"},
@@ -654,10 +680,16 @@ primary = true
 `,
 		},
 		{
-			name:   "in place of its own primary = false, leaving another's",
-			config: "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nprimary = false\nlabel = \"Side\"\n",
+			name:   "in place of its own primary = false, keeping the comment beside it, and leaving another's",
+			config: "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nprimary = false  # not yet\nlabel = \"Side\"\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nlabel = \"Side\"\nprimary = true\n",
+			want:   "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nprimary = true  # not yet\nlabel = \"Side\"\n",
+		},
+		{
+			name:   "indented as the table's keys are",
+			config: "[[account]]\n  id = \"work\"\n\n[[account]]\n  id = \"side\"\n",
+			id:     "side",
+			want:   "[[account]]\n  id = \"work\"\n\n[[account]]\n  id = \"side\"\n  primary = true\n",
 		},
 		{
 			name:   "below a label that goes on over lines",

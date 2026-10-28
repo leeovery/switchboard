@@ -1,7 +1,7 @@
-// Package accounts adds switchboard's accounts, replaces their tokens and
-// removes them: an account's [[account]] table in the config file and its
-// token file together. A token the user gives, typed unseen at a terminal or
-// piped in, is checked with the API before it's saved.
+// Package accounts adds switchboard's accounts, edits them, replaces their
+// tokens and removes them: an account's [[account]] table in the config file
+// and its token file together. A token the user gives, typed unseen at a
+// terminal or piped in, is checked with the API before it's saved.
 package accounts
 
 import (

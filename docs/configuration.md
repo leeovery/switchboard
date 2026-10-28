@@ -119,7 +119,7 @@ The config has one `[[account]]` table for each subscription, and at least one.
 | `id` | Required | The account's permanent name. It's also the name of the account's token file. |
 | `label` | The id | What the account is shown as, at most 100 characters. It can't hold anything shaped like a token. |
 | `primary` | The first account | Marks the account the browser and the Claude apps are signed into: [the primary](how-it-works.md#the-primary). At most one account can set it. |
-| `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. See [Reserves](how-it-works.md#reserves). |
+| `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. [`accounts edit <id> --reserve <percent>`](commands.md#accounts) sets it, as a percentage. See [Reserves](how-it-works.md#reserves). |
 | `plan` | None (unknown) | The plan the account's subscription is on: `pro`, `max5x` or `max20x`. |
 
 An `id` must follow these rules:
@@ -130,7 +130,8 @@ An `id` must follow these rules:
 - It holds nothing shaped like a token.
 
 Switchboard can't read an account's plan from Anthropic, so `plan` is the only way it knows the
-plan. Switchboard uses the plan in two places:
+plan. [`accounts edit <id> --plan <plan>`](commands.md#accounts) sets it. Switchboard uses the plan
+in two places:
 
 - It compares what the plan costs with what the account's use was worth at API prices.
 - It sizes the account in [`history`](commands.md#history)'s replay of a week.
