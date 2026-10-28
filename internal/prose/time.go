@@ -248,10 +248,11 @@ func DayMonthYear(d time.Time) string {
 }
 
 // Expires says when a token's year is up, t, by its date in now's time zone:
-// "expires 17 Nov 2026", or "expired 17 Nov 2026" from t on.
-func Expires(now, t time.Time) string {
+// "expires 17 Nov 2026", or "expired 17 Nov 2026" where it's up, as
+// status.TokenYear.Up judges it.
+func Expires(now, t time.Time, up bool) string {
 	verb := "expires "
-	if !now.Before(t) {
+	if up {
 		verb = "expired "
 	}
 	return verb + DayMonthYear(t.In(now.Location()))
