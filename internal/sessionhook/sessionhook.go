@@ -46,22 +46,19 @@ func ReadInput(r io.Reader) ([]byte, error) {
 	return input, nil
 }
 
-// The notice's two parts: what the user sees, and what Claude is told.
-const (
-	userMessage   = "This session isn't going through switchboard, as the claude that started it isn't switchboard's: run switchboard setup."
-	claudeContext = "This session isn't going through switchboard: its requests go straight to Anthropic on Claude Code's own login, " +
-		"not spread across the user's Claude accounts. It wasn't started by switchboard's claude: whatever started it found Claude Code's own first. " +
-		"Running switchboard setup puts switchboard's claude first on PATH, so the sessions started after it go through switchboard."
-)
+// message is what a session that isn't going through switchboard shows the
+// user. It's true of every session the hook reaches: one started from a
+// shell whose PATH finds the real claude first, which setup puts right, and
+// one an app starts with a Claude Code of its own, which nothing routes.
+const message = "This session isn't going through switchboard, as the claude that started it isn't switchboard's: " +
+	"from a terminal, switchboard setup puts that right; an app that runs its own Claude Code isn't routed."
 
-// notice is what the hook prints, in the shape Claude Code reads a
-// SessionStart hook's output in.
+// notice is what the hook prints, in the shape Claude Code reads a hook's
+// output in: a message the user sees, and nothing Claude is told, which
+// every headless run, such as a script's claude -p, would carry in its
+// prompt.
 type notice struct {
-	SystemMessage      string `json:"systemMessage"`
-	HookSpecificOutput struct {
-		HookEventName     string `json:"hookEventName"`
-		AdditionalContext string `json:"additionalContext"`
-	} `json:"hookSpecificOutput"`
+	SystemMessage string `json:"systemMessage"`
 }
 
 // Notice returns what the hook prints for a session starting with input,
@@ -74,11 +71,7 @@ func Notice(input []byte, started bool) []byte {
 	if started || !speaks(input) {
 		return nil
 	}
-	var n notice
-	n.SystemMessage = userMessage
-	n.HookSpecificOutput.HookEventName = Event
-	n.HookSpecificOutput.AdditionalContext = claudeContext
-	out, err := json.Marshal(n)
+	out, err := json.Marshal(notice{SystemMessage: message})
 	if err != nil {
 		panic(fmt.Sprintf("encode the session hook's notice: %v", err))
 	}

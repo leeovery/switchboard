@@ -49,13 +49,14 @@ The session hook's entry is a group of its own, with no matcher:
 }
 ```
 
-The path is the one `setup` was run by. `setup` knows the entry by its command's shape, whatever
-the path, and puts it right where it differs. Without the mark switchboard gives every `claude` it
-starts, as the session starts or is resumed, `switchboard hook session-start` prints one JSON
-object, which Claude Code shows the user and tells Claude:
+The path is the one `setup` was run by. `setup` knows the entry by its command's shape: the same
+path in both places, naming a binary called `switchboard`. It puts the entry right where it
+differs, or where it's in a group with a matcher. Without the mark switchboard gives every `claude`
+it starts, as the session starts or is resumed, `switchboard hook session-start` prints one JSON
+object, which Claude Code shows the user. It adds nothing to what Claude is told:
 
 ```json
-{"systemMessage": "This session isn't going through switchboard, …", "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "This session isn't going through switchboard: …"}}
+{"systemMessage": "This session isn't going through switchboard, as the claude that started it isn't switchboard's: from a terminal, switchboard setup puts that right; an app that runs its own Claude Code isn't routed."}
 ```
 
 Otherwise it prints nothing. See

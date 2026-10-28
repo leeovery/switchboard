@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
@@ -22,81 +23,28 @@ const (
 	InPlace Outcome = iota
 	// Installed is the entry added, where there was none.
 	Installed
-	// PutRight is the entry corrected, or found more than once and the
-	// others removed.
+	// PutRight is the entry corrected, moved into a group of its own, or
+	// found more than once and the others removed.
 	PutRight
 )
-
-// timeout is how many seconds Claude Code gives the hook before it gives up
-// on it: far more than it takes, as it answers at once.
-const timeout = 5
-
-// subcommand is what the hook runs switchboard with.
-const subcommand = "hook session-start"
 
 // newFileMode is the mode of a settings file Install makes.
 const newFileMode fs.FileMode = 0o644
 
-// Command returns the command the hook runs: switchboard at path, unless
-// nothing there can be run, as when switchboard is removed, which leaves the
-// hook doing nothing, and succeeding.
-func Command(switchboard string) string {
-	quoted := shellQuoted(switchboard)
-	return "[ -x " + quoted + " ] && " + quoted + " " + subcommand + " || true"
-}
+// restarts is how many times Install starts again from a settings file that
+// changed as it was writing it, as Claude Code writes it as it likes.
+const restarts = 3
 
-// shellQuoted quotes s as one word for sh: between single quotes, each
-// single quote in it ended, escaped and begun again.
-func shellQuoted(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
+// errChanged is what a write fails with when the settings file changed since
+// it was read.
+var errChanged = errors.New("changed since it was read")
 
-// isOurCommand reports whether command is shaped as Command shapes it, with
-// any path: switchboard's, as a hook of the user's that merely mentions
-// switchboard isn't.
-func isOurCommand(command string) bool {
-	rest, ok := strings.CutPrefix(command, "[ -x ")
-	if !ok {
-		return false
-	}
-	if rest, ok = cutQuoted(rest); !ok {
-		return false
-	}
-	if rest, ok = strings.CutPrefix(rest, " ] && "); !ok {
-		return false
-	}
-	if rest, ok = cutQuoted(rest); !ok {
-		return false
-	}
-	return rest == " "+subcommand+" || true"
-}
+// readFile reads a file, as os.ReadFile does: a seam, so tests can change
+// the settings file between Install's reads of it.
+var readFile = os.ReadFile
 
-// cutQuoted cuts a word quoted as shellQuoted quotes it from the start of s,
-// returning what follows it.
-func cutQuoted(s string) (string, bool) {
-	for {
-		inside, ok := strings.CutPrefix(s, "'")
-		if !ok {
-			return "", false
-		}
-		_, after, ok := strings.Cut(inside, "'")
-		if !ok {
-			return "", false
-		}
-		if s, ok = strings.CutPrefix(after, `\'`); !ok {
-			return after, true
-		}
-	}
-}
-
-// entry is switchboard's hook, running command.
-func entry(command string) object {
-	return object{
-		{key: "type", value: encodeString("command")},
-		{key: "command", value: encodeString(command)},
-		{key: "timeout", value: json.RawMessage(fmt.Sprint(timeout))},
-	}
-}
+// bom is the byte order mark, which JSON doesn't allow, nor Claude Code.
+var bom = []byte("\xef\xbb\xbf")
 
 // Install puts switchboard's entry, running switchboard at the path given,
 // in Claude Code's settings file at path, or puts it right, and reports
@@ -104,39 +52,54 @@ func entry(command string) object {
 // hook is left as it was, in its order, and the file is written whole, by
 // its mode, through a link to it as to the file. A file that isn't missing,
 // empty or a JSON object, or whose hooks aren't shaped as Claude Code reads
-// them, is left as it is, and Install fails saying what's wrong.
+// them, is left as it is, and Install fails saying what's wrong. A file that
+// changes as it's written, as by Claude Code, is read again and the entry
+// put in what it holds then.
 func Install(path, switchboard string) (Outcome, error) {
 	target, err := atomicfile.Target(path)
 	if err != nil {
 		return InPlace, fmt.Errorf("follow %s: %w", path, err)
 	}
-	data, mode, err := readSettings(target)
+	for range restarts + 1 {
+		outcome, err := installAt(target, Command(switchboard))
+		if !errors.Is(err, errChanged) {
+			if err != nil {
+				return InPlace, fmt.Errorf("%s: %w", path, err)
+			}
+			return outcome, nil
+		}
+	}
+	return InPlace, fmt.Errorf("%s kept changing as the session hook was written into it, so it's left as it is: run setup again", path)
+}
+
+// installAt puts the entry running command in the settings file at target,
+// failing with errChanged, having written nothing, where the file changed
+// meanwhile.
+func installAt(target, command string) (Outcome, error) {
+	read, mode, err := readSettings(target)
 	if err != nil {
 		return InPlace, err
 	}
-	settings, err := parseObject(data)
+	settings, err := parseSettings(read)
 	if err != nil {
-		return InPlace, fmt.Errorf("%s: %w", path, err)
+		return InPlace, err
 	}
-	outcome, err := place(&settings, Command(switchboard))
-	if err != nil {
-		return InPlace, fmt.Errorf("%s: %w", path, err)
+	outcome, err := place(&settings, command)
+	if err != nil || outcome == InPlace {
+		return outcome, err
 	}
-	if outcome == InPlace {
-		return InPlace, nil
-	}
-	if err := writeSettings(target, settings, mode); err != nil {
+	if err := writeSettings(target, settings, mode, read); err != nil {
 		return InPlace, err
 	}
 	return outcome, nil
 }
 
-// readSettings reads the settings file at path, and its mode: an object with
-// nothing in it, of newFileMode, where it's missing or holds only spaces.
+// readSettings reads the settings file at path as it is, and its mode: nil,
+// and newFileMode, where it's missing.
 func readSettings(path string) ([]byte, fs.FileMode, error) {
-	data, err := os.ReadFile(path)
+	data, err := readFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return []byte("{}"), newFileMode, nil
+		return nil, newFileMode, nil
 	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("read Claude Code's settings: %w", err)
@@ -145,15 +108,42 @@ func readSettings(path string) ([]byte, fs.FileMode, error) {
 	if err != nil {
 		return nil, 0, fmt.Errorf("read Claude Code's settings: %w", err)
 	}
-	if len(bytes.TrimSpace(data)) == 0 {
-		data = []byte("{}")
-	}
 	return data, info.Mode().Perm(), nil
 }
 
+// parseSettings reads data, the settings file's, as an object: one with
+// nothing in it where the file's missing or holds only spaces. Where it
+// can't, it says where.
+func parseSettings(data []byte) (object, error) {
+	if bytes.HasPrefix(data, bom) {
+		return nil, errors.New("it starts with a byte order mark, which JSON doesn't allow")
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		return object{}, nil
+	}
+	settings, err := parseObject(data)
+	if syntax, ok := errors.AsType[*json.SyntaxError](err); ok {
+		line, column := position(data, syntax.Offset)
+		return nil, fmt.Errorf("line %d, column %d: %w", line, column, err)
+	}
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil, errors.New("it ends before its JSON does")
+	}
+	return settings, err
+}
+
+// position is the line and column, each from 1, of the byte data's reader
+// failed at, having read offset bytes.
+func position(data []byte, offset int64) (line, column int) {
+	before := data[:max(0, min(offset-1, int64(len(data))))]
+	start := bytes.LastIndexByte(before, '\n') + 1
+	return bytes.Count(before, []byte{'\n'}) + 1, utf8.RuneCount(before[start:]) + 1
+}
+
 // writeSettings writes settings to path, indented as Claude Code writes them,
-// making its directory.
-func writeSettings(path string, settings object, mode fs.FileMode) error {
+// making its directory, unless the file no longer holds read, what it held
+// when it was read: then it fails with errChanged, writing nothing.
+func writeSettings(path string, settings object, mode fs.FileMode, read []byte) error {
 	var out bytes.Buffer
 	if err := json.Indent(&out, settings.encode(), "", "  "); err != nil {
 		return fmt.Errorf("write Claude Code's settings: %w", err)
@@ -162,160 +152,21 @@ func writeSettings(path string, settings object, mode fs.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create Claude Code's config directory: %w", err)
 	}
-	if err := atomicfile.Write(path, out.Bytes(), mode); err != nil {
+	err := atomicfile.WriteFrom(path, mode, func(w io.Writer) error {
+		if _, err := w.Write(out.Bytes()); err != nil {
+			return err
+		}
+		now, _, err := readSettings(path)
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(now, read) {
+			return errChanged
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, errChanged) {
 		return fmt.Errorf("write Claude Code's settings: %w", err)
 	}
-	return nil
-}
-
-// place puts switchboard's entry, running command, among settings' hooks,
-// making hooks and its SessionStart where they're missing, and reports what
-// it did.
-func place(settings *object, command string) (Outcome, error) {
-	hooks := object{}
-	if raw, ok := settings.get("hooks"); ok {
-		var err error
-		if hooks, err = parseObject(raw); err != nil {
-			return InPlace, fmt.Errorf("hooks: %w", err)
-		}
-	}
-	var groups []json.RawMessage
-	if raw, ok := hooks.get(Event); ok {
-		var err error
-		if groups, err = parseArray(raw); err != nil {
-			return InPlace, fmt.Errorf("hooks.%s: %w", Event, err)
-		}
-	}
-	p := placer{command: command}
-	groups = p.groups(groups)
-	outcome := p.outcome()
-	if outcome != InPlace {
-		hooks.set(Event, encodeArray(groups))
-		settings.set("hooks", hooks.encode())
-	}
-	return outcome, nil
-}
-
-// placer puts switchboard's entry, running command, among SessionStart's
-// groups: the first of its own it finds corrected, and any after it removed.
-type placer struct {
-	command string
-	// found is set once one of switchboard's own entries is found, and
-	// changed once one is corrected or removed.
-	found, changed bool
-}
-
-func (p *placer) outcome() Outcome {
-	switch {
-	case !p.found:
-		return Installed
-	case p.changed:
-		return PutRight
-	}
-	return InPlace
-}
-
-// groups returns the groups with switchboard's entry put right among them,
-// or in a group of its own added at the end, where it's in none.
-func (p *placer) groups(groups []json.RawMessage) []json.RawMessage {
-	placed := make([]json.RawMessage, 0, len(groups)+1)
-	for _, raw := range groups {
-		if group, kept := p.group(raw); kept {
-			placed = append(placed, group)
-		}
-	}
-	if !p.found {
-		placed = append(placed, object{{key: "hooks", value: encodeArray([]json.RawMessage{entry(p.command).encode()})}}.encode())
-	}
-	return placed
-}
-
-// group returns the group with switchboard's entries in it put right, and
-// whether it's kept: one that held them alone, and has none left, isn't. A
-// group not shaped as Claude Code reads one is the user's, and left as it
-// is.
-func (p *placer) group(raw json.RawMessage) (json.RawMessage, bool) {
-	group, err := parseObject(raw)
-	if err != nil {
-		return raw, true
-	}
-	list, ok := group.get("hooks")
-	if !ok {
-		return raw, true
-	}
-	hooks, err := parseArray(list)
-	if err != nil {
-		return raw, true
-	}
-	kept := make([]json.RawMessage, 0, len(hooks))
-	touched := false
-	for _, hook := range hooks {
-		placed, keep, changed := p.hook(hook)
-		touched = touched || changed
-		if keep {
-			kept = append(kept, placed)
-		}
-	}
-	if !touched {
-		return raw, true
-	}
-	p.changed = true
-	if len(kept) == 0 {
-		return nil, false
-	}
-	group.set("hooks", encodeArray(kept))
-	return group.encode(), true
-}
-
-// hook returns the hook put right where it's switchboard's, whether it's
-// kept, as only the first of switchboard's is, and whether it changed.
-func (p *placer) hook(raw json.RawMessage) (placed json.RawMessage, keep, changed bool) {
-	hook, err := parseObject(raw)
-	if err != nil || !isOurs(hook) {
-		return raw, true, false
-	}
-	if p.found {
-		return nil, false, true
-	}
-	p.found = true
-	if !correct(&hook, entry(p.command)) {
-		return raw, true, false
-	}
-	return hook.encode(), true, true
-}
-
-// isOurs reports whether hook is switchboard's, by its command.
-func isOurs(hook object) bool {
-	raw, ok := hook.get("command")
-	if !ok {
-		return false
-	}
-	var command string
-	return json.Unmarshal(raw, &command) == nil && isOurCommand(command)
-}
-
-// correct gives hook each of want's members it hasn't, or has another value
-// of, keeping its others, and reports whether it changed it.
-func correct(hook *object, want object) bool {
-	changed := false
-	for _, m := range want {
-		if have, ok := hook.get(m.key); ok && sameValue(have, m.value) {
-			continue
-		}
-		hook.set(m.key, m.value)
-		changed = true
-	}
-	return changed
-}
-
-// sameValue reports whether have holds the value want does, however it's
-// written. want is a string or a number.
-func sameValue(have, want json.RawMessage) bool {
-	var h, w any
-	if json.Unmarshal(have, &h) != nil || json.Unmarshal(want, &w) != nil {
-		return false
-	}
-	// Comparing values of different types is false, not a panic, and want's
-	// type is comparable.
-	return h == w
+	return err
 }

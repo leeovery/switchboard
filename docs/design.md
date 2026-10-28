@@ -730,8 +730,9 @@ accounts:
 already done, and does only what's missing. It asks as it goes, a line at a time, so it needs a
 terminal: without one, it fails, saying how each step is taken alone: by the command that takes it,
 where there is one, priming by a line in the config's `[prime]` table, and the `claude` link by
-making it and putting its directory on `PATH`; the skill and the session hook, only setup writes. It stops at a step that
-fails, when its input ends, or at an interrupt; run again, it carries on from there. Before it asks
+making it and putting its directory on `PATH`; the skill and the session hook, only setup writes.
+It stops at a step that fails, when its input ends, or at an interrupt; run again, it carries on
+from there. Before it asks
 anything, it refuses a switchboard that won't last, such as `go run`'s, as `service install` does:
 the service and the `claude` link both run the one setup was run by. An answer shaped like a token,
 pasted where it shows, is never taken: setup asks for tokens where they don't show.
@@ -769,8 +770,8 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    it changes `PATH`. Declined, it shows the same line to add by hand, wherever the user keeps
    such lines, and the directory alone, to put first on `PATH` wherever it's set, for a `PATH`
    kept another way or a shell setup doesn't know. Either way it asks the login shell again, and
-   the step is done only when it answers with the link. Then it installs the session hook, or
-   puts it right (see The session hook).
+   the step is done only when it answers with the link. Then, whatever the link step found, it
+   installs the session hook, or puts it right (see The session hook).
 5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Prints `usage`, every account's windows as they stand (see `usage`, the printout).
 
@@ -7065,7 +7066,9 @@ was started: by switchboard's `claude`, by the real `claude` found ahead of it o
 or by an editor. The hook routes nothing and changes nothing: it notices. The launcher marks the
 environment of every Claude Code it starts (see Launching), which a session's hooks inherit; a
 session without the mark hears as it starts that it isn't going through switchboard, as the
-`claude` that started it isn't switchboard's, and what to run: `switchboard setup`. So whatever
+`claude` that started it isn't switchboard's: from a terminal, `switchboard setup` puts that right,
+and an app that runs a Claude Code of its own, never looking on `PATH`, such as the Claude desktop
+app's Code sessions or an editor's bundled binary, isn't routed. So whatever
 puts the real `claude` ahead again, a startup file changed, a line declined or a Mac restored, the
 first session after it says so.
 
@@ -7081,25 +7084,34 @@ first session after it says so.
   or output it can't write, is logged in `cli.log`, and it exits 0.
 - **What it says:** nothing in a session with the mark, whatever it was started as. Without it,
   as the session starts or is resumed, or where the source is missing or can't be read, it prints
-  one JSON object, as Claude Code reads a `SessionStart` hook's: a `systemMessage` the user sees,
-  `This session isn't going through switchboard, as the claude that started it isn't
-  switchboard's: run switchboard setup.`, and `hookSpecificOutput.additionalContext`, which
-  Claude reads: that the session's requests go straight to Anthropic on Claude Code's own login,
-  not spread across the user's accounts; that it wasn't started by switchboard's `claude`; and
-  that `switchboard setup` puts switchboard's `claude` first on `PATH`. A session cleared or
-  compacted says nothing, as it said so as it started.
+  one line of JSON, `{"systemMessage": "…"}`, which Claude Code shows the user: `This session
+  isn't going through switchboard, as the claude that started it isn't switchboard's: from a
+  terminal, switchboard setup puts that right; an app that runs its own Claude Code isn't
+  routed.` It tells Claude nothing: context it added would go into every prompt of a headless run
+  that doesn't go through switchboard, such as a script's or cron's `claude -p`, costing tokens
+  and steering its output. A session cleared or compacted says nothing, as it said so as it
+  started.
 - **Switchboard's own entry:** it lives in `settings.json` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, as `{"type": "command", "command": "…", "timeout": 5}`
-  in a group of its own under `hooks.SessionStart`, with no matcher. It's known by its command's
-  shape, by any path: a hook of the user's that merely mentions switchboard isn't it. Setup adds it
-  where there's none, making `hooks` and `SessionStart` as needed; corrects one with another path,
-  type or timeout in place, keeping its other keys; and of several, keeps the first, corrected,
-  removing the rest and any group they leave empty. Already right, it writes nothing. It leaves
+  in a group of its own under `hooks.SessionStart`, with no matcher, so it runs for every
+  session. It's known by its command's shape, the same path in both places, whatever it is, so
+  long as it names a binary called `switchboard`: anything else, a hook of the user's that merely
+  mentions switchboard included, isn't it. Of two keys alike in an object, the last is read, as
+  Claude Code reads it. Setup adds it where there's none, making `hooks` and `SessionStart` as
+  needed; corrects one with another path, type or timeout in place, keeping its other keys; takes
+  one out of a group with a matcher, other than an empty one, removing the group if that empties
+  it; and of several, keeps the first in a group without a matcher, corrected, removing the rest
+  and any group they leave empty. A group or hook not shaped as Claude Code reads one is the
+  user's, and left as it is. Already right, it writes nothing. It leaves
   every other setting and hook as it is, in its order, and writes the file whole, indented by two
   spaces as Claude Code writes it, keeping its mode, and through a link to it, as dotfiles keep
-  it, to the file the link leads to. A missing file, or one of only spaces, is `{}`; one that
-  isn't a JSON object, or whose `hooks` isn't an object or `SessionStart` an array, it leaves as
-  it is, saying what's wrong, and setup carries on. Only setup writes it. Taking it away is the
+  it, to the file the link leads to. Just before it renames the file into place, it reads it
+  again, and where Claude Code has written it meanwhile, starts again from what it holds then, up
+  to three times, then fails saying the file kept changing, as `config`'s saves refuse a changed
+  file. A missing file, or one of only spaces, is `{}`; one that isn't a JSON object, where it
+  says the line and column it can't read, or that the file starts with a byte order mark, or
+  whose `hooks` isn't an object or `SessionStart` an array, it leaves as it is, saying what's
+  wrong, and setup carries on. Only setup writes it. Taking it away is the
   uninstall's (`ideas/2026-10-27--uninstall.md`).
 
 ## What doesn't go through the router
@@ -7118,6 +7130,9 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
   but the request that crossed the limit is billed. The accounts tested read extra usage as off.
 - **Programs whose `PATH` lacks the link's directory**, such as launchd jobs and some GUI apps,
   find the real `claude`, and aren't routed; the session hook says so as each session starts.
+- **Apps that run a Claude Code of their own**, never looking on `PATH`, such as the Claude
+  desktop app's Code sessions or an editor's bundled binary, aren't routed, and setup can't change
+  that; the session hook says so as each session starts.
 - **A direct launch**, without the router, can spend the reserve of the account it goes out on.
 - **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude
   Code may use the key in place of an account's token, so `claude` starts it as if switchboard

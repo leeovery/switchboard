@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -114,6 +116,15 @@ func group(hooks ...string) string {
 	return "      {\n        \"hooks\": [\n" + strings.Join(hooks, ",\n") + "\n        ]\n      }"
 }
 
+// matched is a SessionStart group under matcher, as JSON writes it,
+// holding hooks.
+func matched(matcher string, hooks ...string) string {
+	return "      {\n        \"matcher\": " + matcher + ",\n        \"hooks\": [\n" + strings.Join(hooks, ",\n") + "\n        ]\n      }"
+}
+
+// oursCompact is switchboard's hook object, written without spaces.
+var oursCompact = `{"type":"command","command":` + command(switchboard) + `,"timeout":5}`
+
 // usersHook is a SessionStart hook of the user's.
 const usersHook = "          {\n            \"type\": \"command\",\n            \"command\": \"~/bin/notes\"\n          }"
 
@@ -195,6 +206,54 @@ func TestInstall(t *testing.T) {
 			want:        onlyOurs,
 			wantOutcome: sessionhook.PutRight,
 		},
+		{
+			name:        "ours, right, under an empty matcher: in place",
+			before:      new(session(matched(`""`, ours("          ", switchboard)))),
+			want:        session(matched(`""`, ours("          ", switchboard))),
+			wantOutcome: sessionhook.InPlace,
+		},
+		{
+			name:        "ours, under a matcher alone: taken out, with its group, and ours put in a group of its own",
+			before:      new(session(matched(`"startup"`, ours("          ", switchboard)))),
+			want:        onlyOurs,
+			wantOutcome: sessionhook.PutRight,
+		},
+		{
+			name:        "ours, under compact with a user's hook: taken out, theirs left, and ours put in a group of its own",
+			before:      new(session(matched(`"compact"`, usersHook, ours("          ", switchboard)))),
+			want:        session(matched(`"compact"`, usersHook), ourGroup(switchboard)),
+			wantOutcome: sessionhook.PutRight,
+		},
+		{
+			name:        "ours, under a matcher before ours right: the one under the matcher taken out",
+			before:      new(session(matched(`"resume"`, ours("          ", switchboard)), ourGroup(switchboard))),
+			want:        onlyOurs,
+			wantOutcome: sessionhook.PutRight,
+		},
+		{
+			name:        "groups not shaped as Claude Code reads them: left as the user's",
+			before:      new(session(`      "a group that isn't an object"`, `      {"hooks": "not an array"}`, `      {"matcher": "x"}`, group(`          "a hook that isn't an object"`))),
+			want:        session(`      "a group that isn't an object"`, "      {\n        \"hooks\": \"not an array\"\n      }", "      {\n        \"matcher\": \"x\"\n      }", group(`          "a hook that isn't an object"`), ourGroup(switchboard)),
+			wantOutcome: sessionhook.Installed,
+		},
+		{
+			name:        "SessionStart given twice: the last read, where ours is right",
+			before:      new("{\n  \"hooks\": {\n    \"SessionStart\": [],\n    \"SessionStart\": [\n" + ourGroup(switchboard) + "\n    ]\n  }\n}\n"),
+			want:        "{\n  \"hooks\": {\n    \"SessionStart\": [],\n    \"SessionStart\": [\n" + ourGroup(switchboard) + "\n    ]\n  }\n}\n",
+			wantOutcome: sessionhook.InPlace,
+		},
+		{
+			name:        "a group's hooks given twice, the first ours: the last read, which isn't, so ours added",
+			before:      new(`{"hooks":{"SessionStart":[{"hooks":[` + oursCompact + `],"hooks":[]}]}}`),
+			want:        session("      {\n        \"hooks\": [\n"+ours("          ", switchboard)+"\n        ],\n        \"hooks\": []\n      }", ourGroup(switchboard)),
+			wantOutcome: sessionhook.Installed,
+		},
+		{
+			name:        "a hook's command given twice, the first ours: the last read, which isn't, so ours added",
+			before:      new(`{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":` + command(switchboard) + `,"command":"~/bin/notes"}]}]}}`),
+			want:        session(group("          {\n            \"type\": \"command\",\n            \"command\": "+command(switchboard)+",\n            \"command\": \"~/bin/notes\"\n          }"), ourGroup(switchboard)),
+			wantOutcome: sessionhook.Installed,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -238,7 +297,11 @@ func TestInstallRefuses(t *testing.T) {
 		before  string
 		wantErr string
 	}{
-		{name: "junk", before: "not json", wantErr: "invalid character"},
+		{name: "junk", before: "not json", wantErr: "line 1, column 2: invalid character 'o'"},
+		{name: "junk on its third line", before: "{\n  \"model\": \"opus\",\n  x\n}\n", wantErr: "line 3, column 3: invalid character 'x'"},
+		{name: "junk after letters of more than a byte", before: "{\"é\": 1 x}", wantErr: "line 1, column 9: invalid character 'x'"},
+		{name: "cut short", before: `{"model": "op`, wantErr: "it ends before its JSON does"},
+		{name: "a byte order mark", before: "\xef\xbb\xbf{}\n", wantErr: "it starts with a byte order mark, which JSON doesn't allow"},
 		{name: "an array", before: "[]\n", wantErr: "not a JSON object"},
 		{name: "a string", before: `"settings"`, wantErr: "not a JSON object"},
 		{name: "an object, then more", before: "{} {}", wantErr: "not a JSON object: more follows it"},
@@ -324,8 +387,11 @@ func TestOursIsKnownByItsShape(t *testing.T) {
 		ours    bool
 	}{
 		{name: "ours", command: sessionhook.Command(switchboard), ours: true},
-		{name: "ours, by a path with quotes", command: sessionhook.Command("/x/'a'/''/b'"), ours: true},
+		{name: "ours, by a path with quotes", command: sessionhook.Command("/x/'a'/''/switchboard"), ours: true},
 		{name: "ours, by a path with spaces", command: sessionhook.Command("/Users/test/My Apps/switchboard"), ours: true},
+		{name: "two paths", command: "[ -x '" + switchboard + "' ] && '" + oldSwitchboard + "' hook session-start || true"},
+		{name: "a binary named otherwise", command: sessionhook.Command("/opt/homebrew/bin/switchboard-notes")},
+		{name: "a binary in a directory named switchboard", command: sessionhook.Command("/opt/switchboard/bin/notes")},
 		{name: "unguarded", command: "'" + switchboard + "' hook session-start"},
 		{name: "unquoted", command: "[ -x " + switchboard + " ] && " + switchboard + " hook session-start || true"},
 		{name: "another subcommand", command: "[ -x '/x' ] && '/x' status --session || true"},
@@ -367,8 +433,9 @@ func TestInstallFailsWhereItCantWrite(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 
-	got, err := sessionhook.Install(filepath.Join(dir, "settings.json"), switchboard)
-	if err == nil || !strings.HasPrefix(err.Error(), "write Claude Code's settings: ") {
+	path := filepath.Join(dir, "settings.json")
+	got, err := sessionhook.Install(path, switchboard)
+	if err == nil || !strings.HasPrefix(err.Error(), path+": write Claude Code's settings: ") {
 		t.Errorf("Install() = %v, %v, want it to fail writing the settings", got, err)
 	}
 	if !errors.Is(err, fs.ErrPermission) {
@@ -396,4 +463,79 @@ func readFile(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func TestInstallStartsAgainFromAFileChangedMeanwhile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	writeFile(t, path, "{}\n", 0o644)
+	reads := 0
+	sessionhook.SetReadFile(t, func(name string) ([]byte, error) {
+		reads++
+		if reads == 2 {
+			// Claude Code writes the file between Install's read and its write.
+			writeFile(t, path, "{\n  \"model\": \"sonnet\"\n}\n", 0o644)
+		}
+		return os.ReadFile(name)
+	})
+
+	if got, err := sessionhook.Install(path, switchboard); err != nil || got != sessionhook.Installed {
+		t.Fatalf("Install() = %v, %v, want %v", got, err, sessionhook.Installed)
+	}
+	want := "{\n  \"model\": \"sonnet\",\n  \"hooks\": {\n    \"SessionStart\": [\n" + ourGroup(switchboard) + "\n    ]\n  }\n}\n"
+	if written := readFile(t, path); written != want {
+		t.Errorf("Install() wrote\n%s\nwant\n%s", written, want)
+	}
+}
+
+func TestInstallGivesUpOnAFileThatKeepsChanging(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	writeFile(t, path, "{}\n", 0o644)
+	reads := 0
+	sessionhook.SetReadFile(t, func(name string) ([]byte, error) {
+		reads++
+		if reads%2 == 0 {
+			writeFile(t, path, fmt.Sprintf("{\"changes\": %d}\n", reads), 0o644)
+		}
+		return os.ReadFile(name)
+	})
+
+	got, err := sessionhook.Install(path, switchboard)
+	if want := path + " kept changing as the session hook was written into it, so it's left as it is: run setup again"; err == nil || err.Error() != want {
+		t.Errorf("Install() = %v, %v, want the error %q", got, err, want)
+	}
+	if reads != 8 {
+		t.Errorf("Install() read the file %d times, want 8: twice a try, starting again 3 times", reads)
+	}
+	if written := readFile(t, path); written != "{\"changes\": 8}\n" {
+		t.Errorf("the settings file holds\n%s\nwant the last change, nothing of Install's", written)
+	}
+}
+
+func TestTheCommandRunsUnderSh(t *testing.T) {
+	ran := filepath.Join(t.TempDir(), "ran")
+	switchboard := filepath.Join(t.TempDir(), `it's a $HOME \n dir`, "switchboard")
+	writeFile(t, switchboard, "#!/bin/sh\nprintf '%s\\n' \"$*\" > '"+ran+"'\n", 0o700)
+	sh := func() error {
+		return exec.Command("/bin/sh", "-c", sessionhook.Command(switchboard)).Run()
+	}
+
+	if err := sh(); err != nil {
+		t.Fatalf("sh -c %s: %v", sessionhook.Command(switchboard), err)
+	}
+	if got := readFile(t, ran); got != "hook session-start\n" {
+		t.Errorf("switchboard ran with %q, want %q", got, "hook session-start\n")
+	}
+
+	if err := os.Remove(switchboard); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(ran); err != nil {
+		t.Fatal(err)
+	}
+	if err := sh(); err != nil {
+		t.Errorf("sh -c %s, switchboard gone: %v, want it to succeed doing nothing", sessionhook.Command(switchboard), err)
+	}
+	if _, err := os.Stat(ran); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("%s: %v, want nothing run", ran, err)
+	}
 }

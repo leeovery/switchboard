@@ -10,11 +10,10 @@ import (
 
 // wantNotice is the notice, exactly, that a session not started through
 // switchboard hears as it starts.
-const wantNotice = `{"systemMessage":"This session isn't going through switchboard, as the claude that started it isn't switchboard's: run switchboard setup.",` +
-	`"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session isn't going through switchboard: ` +
-	`its requests go straight to Anthropic on Claude Code's own login, not spread across the user's Claude accounts. ` +
-	`It wasn't started by switchboard's claude: whatever started it found Claude Code's own first. ` +
-	`Running switchboard setup puts switchboard's claude first on PATH, so the sessions started after it go through switchboard."}}` + "\n"
+// It tells the user alone: nothing goes into Claude's context, which every
+// headless run would carry in its prompt.
+const wantNotice = `{"systemMessage":"This session isn't going through switchboard, as the claude that started it isn't switchboard's: ` +
+	`from a terminal, switchboard setup puts that right; an app that runs its own Claude Code isn't routed."}` + "\n"
 
 func TestNotice(t *testing.T) {
 	tests := []struct {
