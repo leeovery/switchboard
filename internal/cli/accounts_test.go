@@ -546,10 +546,15 @@ func keepingTheFormer(former string) string {
 
 // onTheFirst is what accounts edit says of the sessions running through the
 // router, once it's made another account the primary in place of former,
-// which has no usable token, where first is the first account with one.
-func onTheFirst(former, first string) string {
+// which has no usable token, where first is the first account with one, and
+// pinned, whether another account has one, which a session can be pinned to.
+func onTheFirst(former, first string, pinned bool) string {
+	var orPinned string
+	if pinned {
+		orPinned = ", or, pinned, on their pinned account's token"
+	}
 	return former + " has no usable token, so sessions running through the router started on " + first +
-		"'s, the first account with one, or, pinned, on their pinned account's token, as Claude Code's own, " +
+		"'s, the first account with one" + orPinned + ", as Claude Code's own, " +
 		"and keep it until they restart, so what they send outside the conversation, such as artifacts and uploads, still goes out there\n"
 }
 
@@ -801,7 +806,8 @@ func TestAccountsEditWarnsOfAPrimaryWithoutAUsableToken(t *testing.T) {
 }
 
 func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
-	const threeAccounts = "\n[[account]]\nid      = \"work\"\nprimary = true\n\n[[account]]\nid = \"side\"\n\n[[account]]\nid = \"personal\"\n"
+	const fourAccounts = "\n[[account]]\nid      = \"work\"\nprimary = true\n\n[[account]]\nid = \"side\"\n\n" +
+		"[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"spare\"\n"
 	tests := []struct {
 		name    string
 		tokens  []string
@@ -813,9 +819,14 @@ func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
 			wantOut: "edited side: the primary in place of work\n" + keepingTheFormer("work"),
 		},
 		{
-			name:    "the first with a usable token, the former primary without one",
+			name:    "the first with a usable token, the former primary without one, or a pinned account's",
+			tokens:  []string{"personal", "spare"},
+			wantOut: "edited side: the primary in place of work\n" + onTheFirst("work", "personal", true),
+		},
+		{
+			name:    "the first with a usable token alone, as none is pinned elsewhere",
 			tokens:  []string{"personal"},
-			wantOut: "edited side: the primary in place of work\n" + onTheFirst("work", "personal"),
+			wantOut: "edited side: the primary in place of work\n" + onTheFirst("work", "personal", false),
 		},
 		{
 			name:    "a pinned account's, where the rest took the new primary's",
@@ -834,7 +845,7 @@ func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deps, _ := accountsDeps(t, newClaudeAPI(t).URL, threeAccounts)
+			deps, _ := accountsDeps(t, newClaudeAPI(t).URL, fourAccounts)
 			for _, id := range tt.tokens {
 				writeToken(t, deps, id, "test-token-"+id)
 			}

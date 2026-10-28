@@ -110,10 +110,11 @@ sessions running through the router keep the token they started on as Claude
 Code's own until they restart: the former primary's, or, where it has no
 usable token, the first account's with one, or a pinned session's pinned
 account's. --label takes a label as it shows: without the characters drawn
-as nothing, but where one makes an emoji, a symbol's or ideograph's variant
-or a flag, or shapes a joining script; each run of whitespace within it one
-space; and the whitespace and direction marks at its edges trimmed. The id,
-or "", shows the account by its id.
+as nothing, but where one makes an emoji or a flag, or shapes a joining
+script, and a variation selector after a symbol, non-ASCII punctuation, a
+letter outside Latin, Greek and Cyrillic, or in a keycap; each run of
+whitespace within it one space; and the whitespace and direction marks at its
+edges trimmed. The id, or "", shows the account by its id.
 
 ` + editingTheConfig,
 		Args: oneAccount,
@@ -313,38 +314,44 @@ func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error 
 // restart, which launch would choose from the config the edit read, the
 // tokens as they stand now. That's the former primary's, pinned or not;
 // where it has no usable token, the first account's with one, or a pinned
-// session's pinned account's, which is all there is to say where the first
-// is the new primary, and only where another account has a usable token, as
-// no session can be pinned elsewhere otherwise. It says nothing where no
-// account has a usable token. Sessions started directly, while the router
-// was down, are untouched by the move.
+// session's pinned account's, said only where another account has a usable
+// token, as no session can be pinned elsewhere otherwise; where the first is
+// the new primary, the pinned sessions are all there is to say. It says
+// nothing where no account has a usable token. Sessions started directly,
+// while the router was down, are untouched by the move.
 func (a *app) runningSessions(e accounts.Edited, readToken func(id string) (tokens.Token, error)) string {
 	own, ok := launch.Route{Config: e.Before, Token: readToken, Pause: a.Pause}.OwnAccount()
+	if !ok {
+		return ""
+	}
 	const (
 		running = "sessions running through the router"
 		outside = ", so what they send outside the conversation, such as artifacts and uploads, still goes out "
 	)
-	switch {
-	case !ok:
-		return ""
-	case own.ID == e.FormerPrimary:
+	if own.ID == e.FormerPrimary {
 		return "\n" + running + " keep " + own.ID + "'s token as Claude Code's own until they restart" + outside + "on " + own.ID
-	case own.ID == e.Now.ID && !otherWithAToken(e, readToken):
+	}
+	pinned := otherWithAToken(e.Before.Accounts, own.ID, readToken)
+	switch {
+	case own.ID == e.Now.ID && !pinned:
 		return ""
 	case own.ID == e.Now.ID:
 		return "\n" + e.FormerPrimary + " has no usable token, so " + running + " pinned to another account " +
 			"started on their pinned account's token as Claude Code's own, and keep it until they restart" + outside + "there"
 	}
+	var orPinned string
+	if pinned {
+		orPinned = ", or, pinned, on their pinned account's token"
+	}
 	return "\n" + e.FormerPrimary + " has no usable token, so " + running + " started on " + own.ID +
-		"'s, the first account with one, or, pinned, on their pinned account's token, as Claude Code's own, " +
-		"and keep it until they restart" + outside + "there"
+		"'s, the first account with one" + orPinned + ", as Claude Code's own, and keep it until they restart" + outside + "there"
 }
 
-// otherWithAToken reports whether an account other than the one an edit made
-// the primary has a usable token, as readToken finds it.
-func otherWithAToken(e accounts.Edited, readToken func(id string) (tokens.Token, error)) bool {
-	return slices.ContainsFunc(e.Before.Accounts, func(a config.Account) bool {
-		if a.ID == e.Now.ID {
+// otherWithAToken reports whether an account of among, but the one with the
+// given id, has a usable token, as readToken finds it.
+func otherWithAToken(among config.Accounts, id string, readToken func(id string) (tokens.Token, error)) bool {
+	return slices.ContainsFunc(among, func(a config.Account) bool {
+		if a.ID == id {
 			return false
 		}
 		_, err := readToken(a.ID)
