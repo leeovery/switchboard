@@ -91,28 +91,30 @@ func TestAskingTheLoginShellWhichClaudeItRuns(t *testing.T) {
 			want: shell.Answer{Kind: shell.Other, Claude: other},
 		},
 		{
-			name: "an alias to the name in front of the link",
+			name: "the link, a prompt's mark before each answer, as a hook prints it, passed over",
+			out:  strings.ReplaceAll(strings.ReplaceAll(said(claudeLink, claudeLink, ""), "\npath:", "\n\x1b]133;C\x07path:"), "\nis:", "\n\x1b]133;C\x1b\\is:"),
+			want: linked,
+		},
+		{
+			name: "another claude, colour codes about its answer passed over",
+			out:  strings.ReplaceAll(said(other, other, ""), "\npath:", "\n\x1b[0m\x1b[?2004lpath:"),
+			want: shell.Answer{Kind: shell.Other, Claude: other},
+		},
+		{
+			name: "a path for PATH's claude that isn't one: no answer",
+			out:  said("claude", "claude", ""),
+			want: shell.Answer{Why: `it answered "claude" for the claude on its PATH, which isn't a path`},
+		},
+		{
+			name: "an alias in front of the link, said",
 			out:  said("alias claude='claude --verbose'", claudeLink, ""),
-			want: shell.Answer{Kind: shell.Link, Front: "alias claude='claude --verbose'"},
+			want: shell.Answer{Kind: shell.Link, Front: shell.Front{Text: "alias claude='claude --verbose'", Runs: shell.ByName}},
 		},
 		{
-			name: "an alias to a path in front of the link",
-			out:  said("alias claude="+other, claudeLink, ""),
-			want: shell.Answer{Kind: shell.Link, Front: "alias claude=" + other},
+			name: "an alias in front of another claude, said",
+			out:  said("alias claude=/opt/homebrew/bin/claude", other, ""),
+			want: shell.Answer{Kind: shell.Other, Claude: other, Front: shell.Front{Text: "alias claude=/opt/homebrew/bin/claude", Runs: shell.APath, Path: other}},
 		},
-		{name: "a function in front of the link", out: said("claude", claudeLink, ""), want: shell.Answer{Kind: shell.Link, Front: "function claude"}},
-		{name: "fish's function in front of the link", out: said("function claude", claudeLink, ""), want: shell.Answer{Kind: shell.Link, Front: "function claude"}},
-		{
-			name: "an alias in front of another claude",
-			out:  said("alias claude='claude --verbose'", other, ""),
-			want: shell.Answer{Kind: shell.Other, Claude: other, Front: "alias claude='claude --verbose'"},
-		},
-		{
-			name: "an alias holding a token, hidden",
-			out:  said("alias claude='ANTHROPIC_API_KEY=sk-ant-oat01-fake_token-shaped claude'", claudeLink, ""),
-			want: shell.Answer{Kind: shell.Link, Front: "alias claude='ANTHROPIC_API_KEY=[redacted] claude'"},
-		},
-		{name: "an alias, and no claude on PATH", out: said("alias claude='claude --verbose'", "", ""), want: shell.Answer{Kind: shell.None, Front: "alias claude='claude --verbose'"}},
 		{name: "none", out: banner + "\n" + said("", "", ""), want: shell.Answer{Kind: shell.None}},
 		{
 			name: "none, what logging out prints after the answers ignored",
@@ -166,6 +168,108 @@ func TestAskingTheLoginShellWhichClaudeItRuns(t *testing.T) {
 	}
 }
 
+func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
+	dir := t.TempDir()
+	claudeLink := filepath.Join(dir, "switchboard", "bin", "claude")
+	write(t, filepath.Join(dir, "switchboard-binary"), "")
+	link(t, filepath.Join(dir, "switchboard-binary"), claudeLink)
+	const other = "/opt/homebrew/bin/claude"
+	// The old local installer's, from the home.
+	const local = "/home/tester/.claude/local/claude"
+	byName := func(text string) shell.Front { return shell.Front{Text: text, Runs: shell.ByName} }
+	aPath := func(text, path string) shell.Front { return shell.Front{Text: text, Runs: shell.APath, Path: path} }
+	tests := []struct {
+		name string
+		is   string
+		want shell.Front
+	}{
+		{name: "nothing", is: claudeLink, want: shell.Front{}},
+		{name: "an alias to the name", is: "alias claude='claude --verbose'", want: byName("alias claude='claude --verbose'")},
+		{name: "an alias to the name, unquoted", is: "alias claude=claude", want: byName("alias claude=claude")},
+		{
+			name: "an alias to the name, past variables set for it and precommands",
+			is:   `alias claude='ANTHROPIC_LOG=debug FOO="a b" noglob nocorrect command builtin \claude --verbose'`,
+			want: byName(`alias claude='ANTHROPIC_LOG=debug FOO="a b" noglob nocorrect command builtin \claude --verbose'`),
+		},
+		{name: "an alias through env, whose options it doesn't read", is: "alias claude='env -u FOO claude'", want: shell.Front{Text: "alias claude='env -u FOO claude'", Runs: shell.Unknown}},
+		{name: "an alias to the name, quoted within", is: `alias claude='"claude" --verbose'`, want: byName(`alias claude='"claude" --verbose'`)},
+		{name: "an alias to the name, as bash quotes a quote", is: `alias claude='claude --append-system-prompt '\''be brief'\'''`, want: byName(`alias claude='claude --append-system-prompt '\''be brief'\'''`)},
+		{name: "an alias to the name, then another command", is: "alias claude='claude; echo done'", want: byName("alias claude='claude; echo done'")},
+		{
+			name: "an alias holding a token, hidden, to the name",
+			is:   "alias claude='ANTHROPIC_API_KEY=sk-ant-oat01-fake_token-shaped claude'",
+			want: byName("alias claude='ANTHROPIC_API_KEY=[redacted] claude'"),
+		},
+		{name: "an alias to another claude by its path", is: "alias claude=" + other, want: aPath("alias claude="+other, other)},
+		{name: "an alias to another claude by its path, quoted", is: "alias claude='" + other + " --verbose'", want: aPath("alias claude='"+other+" --verbose'", other)},
+		{name: "the old local installer's alias, from ~", is: "alias claude=~/.claude/local/claude", want: aPath("alias claude=~/.claude/local/claude", local)},
+		{name: "the old local installer's alias, from $HOME", is: `alias claude='$HOME/.claude/local/claude'`, want: aPath(`alias claude='$HOME/.claude/local/claude'`, local)},
+		{name: "the old local installer's alias, expanded as it was set", is: "alias claude=" + local, want: aPath("alias claude="+local, local)},
+		{name: "an alias to the link by its path", is: "alias claude=" + claudeLink, want: shell.Front{Text: "alias claude=" + claudeLink, Runs: shell.TheLink}},
+		{name: "an alias to something else", is: "alias claude='npx @anthropic-ai/claude-code'", want: shell.Front{Text: "alias claude='npx @anthropic-ai/claude-code'", Runs: shell.Else}},
+		{name: "an alias to another name", is: "alias claude=claude-code", want: shell.Front{Text: "alias claude=claude-code", Runs: shell.Else}},
+		{name: "an alias to what only its expansion tells", is: `alias claude='$CLAUDE_BIN'`, want: shell.Front{Text: `alias claude='$CLAUDE_BIN'`, Runs: shell.Unknown}},
+		{name: "an alias that runs nothing but variables", is: "alias claude='FOO=1'", want: shell.Front{Text: "alias claude='FOO=1'", Runs: shell.Unknown}},
+		{name: "an alias with a quote that isn't closed", is: `alias claude='"claude'`, want: shell.Front{Text: `alias claude='"claude'`, Runs: shell.Unknown}},
+		{name: "a function, by its name alone", is: "claude", want: shell.Front{Text: "function claude", Runs: shell.Unknown}},
+		{name: "fish's function", is: "function claude", want: shell.Front{Text: "function claude", Runs: shell.Unknown}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var runs []ran
+			login := shell.Login{Environ: environ, Run: fakeShell(said(tt.is, claudeLink, ""), nil, &runs)}
+
+			if got := login.Which(t.Context(), claudeLink); got.Front != tt.want {
+				t.Errorf("Which().Front = %+v, want %+v", got.Front, tt.want)
+			}
+		})
+	}
+}
+
+func TestWhetherClaudeGoesThroughSwitchboard(t *testing.T) {
+	tests := []struct {
+		name   string
+		answer shell.Answer
+		want   bool
+	}{
+		{name: "PATH's the link", answer: shell.Answer{Kind: shell.Link}, want: true},
+		{name: "PATH's another", answer: shell.Answer{Kind: shell.Other}},
+		{name: "PATH's none", answer: shell.Answer{Kind: shell.None}},
+		{name: "unasked", answer: shell.Answer{Why: "it didn't answer within 15s"}},
+		{name: "PATH's the link, an alias to the name in front", answer: shell.Answer{Kind: shell.Link, Front: shell.Front{Runs: shell.ByName}}, want: true},
+		{name: "PATH's another, an alias to the name in front", answer: shell.Answer{Kind: shell.Other, Front: shell.Front{Runs: shell.ByName}}},
+		{name: "PATH's the link, a function in front, which may run it", answer: shell.Answer{Kind: shell.Link, Front: shell.Front{Runs: shell.Unknown}}, want: true},
+		{name: "PATH's another, an alias to the link's path in front", answer: shell.Answer{Kind: shell.Other, Front: shell.Front{Runs: shell.TheLink}}, want: true},
+		{name: "PATH's the link, an alias to another path in front", answer: shell.Answer{Kind: shell.Link, Front: shell.Front{Runs: shell.APath}}},
+		{name: "PATH's the link, an alias to something else in front", answer: shell.Answer{Kind: shell.Link, Front: shell.Front{Runs: shell.Else}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.answer.Through(); got != tt.want {
+				t.Errorf("Through() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAShellSwitchboardDoesntKnowIsntAsked(t *testing.T) {
+	for _, path := range []string{"/bin/ksh", "/bin/tcsh", "/opt/homebrew/bin/nu", "/opt/homebrew/bin/xonsh"} {
+		t.Run(path, func(t *testing.T) {
+			var runs []ran
+			env := slices.Clone(environ)
+			env[slices.Index(env, "SHELL=/bin/zsh")] = "SHELL=" + path
+			login := shell.Login{Environ: env, Run: fakeShell(said("", "/opt/homebrew/bin/claude", ""), nil, &runs)}
+
+			if got, want := login.Which(t.Context(), "/data/switchboard/bin/claude"), (shell.Answer{Why: "switchboard asks zsh, bash and fish alone"}); got != want {
+				t.Errorf("Which() = %+v, want %+v", got, want)
+			}
+			if len(runs) > 0 {
+				t.Errorf("ran %+v, want nothing run", runs)
+			}
+		})
+	}
+}
+
 func TestEachShellIsAskedInItsOwnWords(t *testing.T) {
 	tests := []struct {
 		shell string
@@ -179,7 +283,6 @@ func TestEachShellIsAskedInItsOwnWords(t *testing.T) {
 			shell: "/opt/homebrew/bin/fish", is: "(functions -q claude; and echo function claude; or command --search claude)",
 			path: "(command --search claude)", config: "$__fish_config_dir",
 		},
-		{shell: "/bin/ksh", is: `"$(command -v claude)"`, path: `"$(command -v claude)"`, config: `""`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.shell, func(t *testing.T) {
@@ -223,22 +326,35 @@ func TestTheQuestionInARealShell(t *testing.T) {
 		// args start it interactive, reading no startup file, in place of a
 		// login shell's.
 		args []string
-		// front is what it says of an alias in front of PATH's claude, and
-		// of a function.
-		alias, function string
-		config          string
+		// quoted is how it gives an alias's value.
+		quoted func(string) string
+		config string
 	}{
-		{path: "/bin/zsh", args: []string{"-f", "-i"}, alias: "alias claude='claude --verbose'", function: "function claude", config: home},
-		{path: "/bin/bash", args: []string{"--noprofile", "--norc", "-i"}, alias: "alias claude='claude --verbose'", function: "function claude"},
+		{
+			path: "/bin/zsh", args: []string{"-f", "-i"}, config: home,
+			quoted: func(v string) string {
+				if strings.Contains(v, " ") {
+					return "'" + v + "'"
+				}
+				return v
+			},
+		},
+		{path: "/bin/bash", args: []string{"--noprofile", "--norc", "-i"}, quoted: func(v string) string { return "'" + v + "'" }},
+	}
+	// alias is what's in front, as a shell giving an alias's value as quoted
+	// does.
+	alias := func(quoted func(string) string, value string, runs shell.Runs, path string) shell.Front {
+		return shell.Front{Text: "alias claude=" + quoted(value), Runs: runs, Path: path}
 	}
 	tests := []struct {
 		name string
 		// before defines claude in front of PATH's, before the shell's asked.
 		before string
 		path   string
-		// want is the answer, front standing for what the shell says of
-		// what's in front, config for where it reads its startup file.
-		want shell.Answer
+		// want is the answer, config standing for where it reads its startup
+		// file; and front what's in front, as the shell gives it, quoted.
+		want  shell.Answer
+		front func(quoted func(string) string) shell.Front
 	}{
 		{name: "the link", path: bin, want: shell.Answer{Kind: shell.Link, ConfigDir: "config"}},
 		{name: "another", path: filepath.Dir(other) + ":" + bin, want: shell.Answer{Kind: shell.Other, Claude: other, ConfigDir: "config"}},
@@ -246,12 +362,28 @@ func TestTheQuestionInARealShell(t *testing.T) {
 		{
 			name:   "an alias to the name, in front of the link",
 			before: "alias claude='claude --verbose'; ",
-			path:   bin, want: shell.Answer{Kind: shell.Link, Front: "alias", ConfigDir: "config"},
+			path:   bin, want: shell.Answer{Kind: shell.Link, ConfigDir: "config"},
+			front: func(q func(string) string) shell.Front { return alias(q, "claude --verbose", shell.ByName, "") },
+		},
+		{
+			name:   "an alias to another claude by its path, in front of the link",
+			before: "alias claude=" + other + "; ",
+			path:   bin, want: shell.Answer{Kind: shell.Link, ConfigDir: "config"},
+			front: func(q func(string) string) shell.Front { return alias(q, other, shell.APath, other) },
+		},
+		{
+			name:   "an alias to the link by its path, in front of another claude",
+			before: "alias claude=" + claudeLink + "; ",
+			path:   filepath.Dir(other), want: shell.Answer{Kind: shell.Other, Claude: other, ConfigDir: "config"},
+			front: func(q func(string) string) shell.Front { return alias(q, claudeLink, shell.TheLink, "") },
 		},
 		{
 			name:   "a function, in front of the link",
 			before: "claude() { command claude \"$@\"; }; ",
-			path:   bin, want: shell.Answer{Kind: shell.Link, Front: "function", ConfigDir: "config"},
+			path:   bin, want: shell.Answer{Kind: shell.Link, ConfigDir: "config"},
+			front: func(func(string) string) shell.Front {
+				return shell.Front{Text: "function claude", Runs: shell.Unknown}
+			},
 		},
 	}
 	for _, s := range shells {
@@ -268,7 +400,9 @@ func TestTheQuestionInARealShell(t *testing.T) {
 				login := shell.Login{Environ: env, Run: run}
 
 				want := tt.want
-				want.Front = map[string]string{"alias": s.alias, "function": s.function}[want.Front]
+				if tt.front != nil {
+					want.Front = tt.front(s.quoted)
+				}
 				want.ConfigDir = map[string]string{"config": s.config}[want.ConfigDir]
 				if got := login.Which(t.Context(), claudeLink); got != want {
 					t.Errorf("Which() = %+v, want %+v", got, want)

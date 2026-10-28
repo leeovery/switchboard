@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -130,7 +131,7 @@ func (w *world) shellFiles() shell.Files {
 // where the shell reads it.
 func (w *world) startupFile() string {
 	sh, _ := shell.Of(w.env["SHELL"])
-	return shell.StartupFile(sh, w.getenv, w.home, w.login.configDir)
+	return shell.StartupFile(sh, w.home, w.login.reads())
 }
 
 // line is switchboard's line for the user's shell, as $SHELL names it.
@@ -234,15 +235,16 @@ func (w *world) done(t *testing.T) {
 // startup file, reading this switchboard's file for it, which is there,
 // unless overridden is set, as something after the line changes PATH; and
 // otherwise the real claude. It reads its startup file from configDir, where
-// that's set, which it says, and front, where set, stands in front of
-// PATH's claude. Its answers, while it has some, come first, in turn, as the
-// user puts switchboard's bin directory on PATH by hand meanwhile; and where
-// interrupted is set, the user interrupts its asking.
+// that's set, and otherwise as the shell does, which it says; and front,
+// where set, stands in front of PATH's claude. Its answers, while it has
+// some, come first, in turn, as the user puts switchboard's bin directory on
+// PATH by hand meanwhile; and where interrupted is set, the user interrupts
+// its asking. A shell switchboard doesn't know, it doesn't ask.
 type fakeLogin struct {
 	w           *world
 	overridden  bool
 	configDir   string
-	front       string
+	front       shell.Front
 	answers     []shell.Answer
 	interrupted bool
 	// asked are the links it was asked about, in turn.
@@ -255,20 +257,40 @@ func (f *fakeLogin) Which(ctx context.Context, link string) shell.Answer {
 		f.w.interrupt()
 		return shell.Answer{Why: context.Cause(ctx).Error()}
 	}
-	if len(f.answers) > 0 {
+	sh, known := shell.Of(f.w.env["SHELL"])
+	switch {
+	case f.w.env["SHELL"] == "":
+		return shell.Answer{Why: "$SHELL isn't set"}
+	case !known:
+		return shell.Answer{Why: "switchboard asks zsh, bash and fish alone"}
+	case len(f.answers) > 0:
 		answer := f.answers[0]
 		f.answers = f.answers[1:]
 		return answer
 	}
-	answer := shell.Answer{Kind: shell.Other, Claude: f.w.realClaude, Front: f.front, ConfigDir: f.configDir}
-	if sh, known := shell.Of(f.w.env["SHELL"]); known && !f.overridden {
-		init := shell.InitFile(f.w.shellDir, sh)
-		_, err := os.Stat(init)
-		if reads, _ := shell.FindLine(sh, f.w.startupFile(), f.w.home); reads == init && err == nil {
-			answer.Kind, answer.Claude = shell.Link, ""
-		}
+	answer := shell.Answer{Kind: shell.Other, Claude: f.w.realClaude, Front: f.front, ConfigDir: f.reads()}
+	init := shell.InitFile(f.w.shellDir, sh)
+	_, err := os.Stat(init)
+	if found, _ := shell.FindLine(sh, f.w.startupFile(), f.w.home); found.Sources == init && err == nil && !f.overridden {
+		answer.Kind, answer.Claude = shell.Link, ""
 	}
 	return answer
+}
+
+// reads is where the shell reads its startup file, as it says: configDir,
+// where that's set, and otherwise, for zsh, $ZDOTDIR, else the home, and for
+// fish, fish in $XDG_CONFIG_HOME, else in ~/.config; bash says nothing.
+func (f *fakeLogin) reads() string {
+	env := f.w.env
+	switch sh, _ := shell.Of(env["SHELL"]); {
+	case f.configDir != "":
+		return f.configDir
+	case sh == shell.Zsh:
+		return cmp.Or(env["ZDOTDIR"], f.w.home)
+	case sh == shell.Fish:
+		return filepath.Join(cmp.Or(env["XDG_CONFIG_HOME"], filepath.Join(f.w.home, ".config")), "fish")
+	}
+	return ""
 }
 
 // interruptible is setup's way of taking an interrupt in the world: the

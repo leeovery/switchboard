@@ -52,25 +52,33 @@ func (f Files) Write() ([]File, error) {
 }
 
 // Refresh rewrites each of the files that's there but isn't as this
-// switchboard writes it, and reports what became of each: it never writes
-// one that isn't there, as setup didn't, or the user removed it. It stops at
-// a file it can't write.
+// switchboard writes it, and reports what became of each. It writes a shell's
+// file that isn't there only beside that shell's own, as a newer switchboard
+// adds one, such as bash's completions: never the shell's own, as setup
+// didn't write it, or the user removed it. It stops at a file it can't
+// write.
 func (f Files) Refresh() ([]File, error) {
 	return f.each(false)
 }
 
 // each brings each of the files to this switchboard's, writing one that
-// isn't there when create is set.
+// isn't there when create is set, or where it's beside its shell's own file,
+// which is.
 func (f Files) each(create bool) ([]File, error) {
 	wanted, err := f.wanted()
 	if err != nil {
 		return nil, err
 	}
 	var files []File
+	present := make(map[Shell]bool)
 	for _, w := range wanted {
-		file, err := bring(w.File, w.text, create)
+		own := w.Path == InitFile(f.Dir, w.Shell)
+		file, err := bring(w.File, w.text, create || !own && present[w.Shell])
 		if err != nil {
 			return files, err
+		}
+		if own {
+			present[w.Shell] = file.State != Absent
 		}
 		files = append(files, file)
 	}

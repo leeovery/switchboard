@@ -69,30 +69,20 @@ func TestTheStartupFile(t *testing.T) {
 	tests := []struct {
 		name string
 		sh   shell.Shell
-		env  map[string]string
 		// configDir is where the shell said it reads its startup file from,
-		// from the home.
+		// <home> standing for the home.
 		configDir string
 		// there are the files in the home, by their names.
 		there []string
 		// want is the startup file, from the home.
 		want string
 	}{
-		{name: "zsh: .zshrc in the home", sh: shell.Zsh, want: ".zshrc"},
-		{name: "zsh: .zshrc in ZDOTDIR", sh: shell.Zsh, env: map[string]string{"ZDOTDIR": "<home>/.config/zsh"}, want: ".config/zsh/.zshrc"},
-		{name: "zsh: a relative ZDOTDIR passed over", sh: shell.Zsh, env: map[string]string{"ZDOTDIR": ".config/zsh"}, want: ".zshrc"},
-		{
-			name: "zsh: .zshrc where the shell said, over ZDOTDIR, which a startup file can set unexported",
-			sh:   shell.Zsh, env: map[string]string{"ZDOTDIR": "<home>/elsewhere"}, configDir: "<home>/.config/zsh", want: ".config/zsh/.zshrc",
-		},
+		{name: "zsh: .zshrc in the home, the shell not saying", sh: shell.Zsh, want: ".zshrc"},
+		{name: "zsh: .zshrc where the shell said, as its ZDOTDIR", sh: shell.Zsh, configDir: "<home>/.config/zsh", want: ".config/zsh/.zshrc"},
 		{name: "zsh: a relative directory the shell said passed over", sh: shell.Zsh, configDir: "zsh", want: ".zshrc"},
-		{name: "fish: config.fish in ~/.config", sh: shell.Fish, want: ".config/fish/config.fish"},
-		{name: "fish: config.fish in XDG_CONFIG_HOME", sh: shell.Fish, env: map[string]string{"XDG_CONFIG_HOME": "<home>/xdg"}, want: "xdg/fish/config.fish"},
-		{name: "fish: a relative XDG_CONFIG_HOME passed over", sh: shell.Fish, env: map[string]string{"XDG_CONFIG_HOME": "xdg"}, want: ".config/fish/config.fish"},
-		{
-			name: "fish: config.fish where the shell said, over XDG_CONFIG_HOME",
-			sh:   shell.Fish, env: map[string]string{"XDG_CONFIG_HOME": "<home>/xdg"}, configDir: "<home>/fish-config", want: "fish-config/config.fish",
-		},
+		{name: "fish: config.fish in ~/.config/fish, the shell not saying", sh: shell.Fish, want: ".config/fish/config.fish"},
+		{name: "fish: config.fish where the shell said", sh: shell.Fish, configDir: "<home>/xdg/fish", want: "xdg/fish/config.fish"},
+		{name: "fish: a relative directory the shell said passed over", sh: shell.Fish, configDir: "fish", want: ".config/fish/config.fish"},
 		{name: "bash: none there, .bash_profile made", sh: shell.Bash, want: ".bash_profile"},
 		{name: "bash: .bash_profile, read first", sh: shell.Bash, there: []string{".bash_profile", ".bash_login", ".profile"}, want: ".bash_profile"},
 		{name: "bash: .bash_login, without .bash_profile", sh: shell.Bash, there: []string{".bash_login", ".profile"}, want: ".bash_login"},
@@ -108,9 +98,7 @@ func TestTheStartupFile(t *testing.T) {
 			for _, name := range tt.there {
 				write(t, filepath.Join(home, name), "")
 			}
-			atHome := func(path string) string { return strings.ReplaceAll(path, "<home>", home) }
-			getenv := func(key string) string { return atHome(tt.env[key]) }
-			if got := shell.StartupFile(tt.sh, getenv, home, atHome(tt.configDir)); got != filepath.Join(home, tt.want) {
+			if got := shell.StartupFile(tt.sh, home, strings.ReplaceAll(tt.configDir, "<home>", home)); got != filepath.Join(home, tt.want) {
 				t.Errorf("StartupFile() = %s, want ~/%s", got, tt.want)
 			}
 		})
@@ -122,7 +110,7 @@ func TestBashsStartupFileIsOneThatLeadsSomewhere(t *testing.T) {
 	link(t, filepath.Join(home, "gone"), filepath.Join(home, ".bash_profile"))
 	write(t, filepath.Join(home, ".profile"), "")
 
-	if got, want := shell.StartupFile(shell.Bash, noEnv, home, ""), filepath.Join(home, ".profile"); got != want {
+	if got, want := shell.StartupFile(shell.Bash, home, ""), filepath.Join(home, ".profile"); got != want {
 		t.Errorf("StartupFile() = %s, want %s: bash passes over a .bash_profile that leads nowhere, as it can't read it", got, want)
 	}
 }
@@ -139,27 +127,32 @@ func TestFindingTheLine(t *testing.T) {
 		sh   shell.Shell
 		// text is the startup file's, or none where there's no file.
 		text *string
-		// want is the file the line found sources, "" for none found.
+		// want is the file the line found sources, "" for none found, and
+		// last whether nothing but blank lines and comments follows it.
 		want string
+		last bool
 	}{
 		{name: "no file", sh: shell.Zsh},
 		{name: "an empty file", sh: shell.Zsh, text: new("")},
 		{name: "ours, among others", sh: shell.Zsh, text: new("export EDITOR=vi\n" + ours[shell.Zsh] + "\nalias ll='ls -l'\n"), want: zshFile},
-		{name: "ours, last, without a newline", sh: shell.Zsh, text: new("export EDITOR=vi\n" + ours[shell.Zsh]), want: zshFile},
-		{name: "ours, indented", sh: shell.Zsh, text: new("  " + ours[shell.Zsh] + "\n"), want: zshFile},
-		{name: "ours from another directory", sh: shell.Bash, text: new(ours[shell.Bash] + "\n"), want: "/data/switchboard/shell/init.bash"},
-		{name: "fish's", sh: shell.Fish, text: new(ours[shell.Fish] + "\n"), want: "/home/tester/.local/share/switchboard/shell/init.fish"},
+		{name: "ours, last, without a newline", sh: shell.Zsh, text: new("export EDITOR=vi\n" + ours[shell.Zsh]), want: zshFile, last: true},
+		{name: "ours, last but for blank lines and comments", sh: shell.Zsh, text: new(ours[shell.Zsh] + "\n\n  # the end\n\t\n"), want: zshFile, last: true},
+		{name: "ours, indented", sh: shell.Zsh, text: new("  " + ours[shell.Zsh] + "\n"), want: zshFile, last: true},
+		{name: "ours from another directory", sh: shell.Bash, text: new(ours[shell.Bash] + "\n"), want: "/data/switchboard/shell/init.bash", last: true},
+		{name: "fish's", sh: shell.Fish, text: new(ours[shell.Fish] + "\n"), want: "/home/tester/.local/share/switchboard/shell/init.fish", last: true},
 		{
 			name: "ours, a path with what's escaped in it",
 			sh:   shell.Zsh,
 			text: new(`if [ -r "$HOME/it's \"\$x\" \` + "`y\\`" + `/switchboard/shell/init.zsh" ]; then . "$HOME/it's \"\$x\" \` + "`y\\`" + `/switchboard/shell/init.zsh"; fi  # switchboard` + "\n"),
 			want: "/home/tester/it's \"$x\" `y`/switchboard/shell/init.zsh",
+			last: true,
 		},
 		{
 			name: "ours, written whole, $HOME in it escaped",
 			sh:   shell.Zsh,
 			text: new(`if [ -r "/data/\$HOME/switchboard/shell/init.zsh" ]; then . "/data/\$HOME/switchboard/shell/init.zsh"; fi  # switchboard` + "\n"),
 			want: "/data/$HOME/switchboard/shell/init.zsh",
+			last: true,
 		},
 		{name: "the user's own # switchboard comment", sh: shell.Zsh, text: new("# switchboard\n")},
 		{name: "the user's own export line, marked", sh: shell.Zsh, text: new(`export PATH="$HOME/.local/share/switchboard/bin:$PATH"  # switchboard` + "\n")},
@@ -184,8 +177,9 @@ func TestFindingTheLine(t *testing.T) {
 			if tt.text != nil {
 				write(t, file, *tt.text)
 			}
-			if got, err := shell.FindLine(tt.sh, file, "/home/tester"); err != nil || got != tt.want {
-				t.Errorf("FindLine() = %q, %v; want %q", got, err, tt.want)
+			want := shell.Found{Sources: tt.want, Last: tt.last}
+			if got, err := shell.FindLine(tt.sh, file, "/home/tester"); err != nil || got != want {
+				t.Errorf("FindLine() = %+v, %v; want %+v", got, err, want)
 			}
 		})
 	}
@@ -201,8 +195,8 @@ func TestTheLineSetupAddsIsFoundAgain(t *testing.T) {
 				shell.InitFile(filepath.Join("/data", `it's "$x"`, "switchboard", "shell"), sh),
 			} {
 				write(t, file, shell.Line(sh, init, home)+"\n")
-				if found, err := shell.FindLine(sh, file, home); err != nil || found != init {
-					t.Errorf("FindLine() = %q, %v for the line for %s; want it found, sourcing that", found, err, init)
+				if found, err := shell.FindLine(sh, file, home); err != nil || found.Sources != init {
+					t.Errorf("FindLine() = %+v, %v for the line for %s; want it found, sourcing that", found, err, init)
 				}
 			}
 		})
@@ -220,6 +214,16 @@ func TestAddingTheLine(t *testing.T) {
 		{name: "a file ending in a newline", text: new("export EDITOR=vi\n"), want: "export EDITOR=vi\n" + line + "\n"},
 		{name: "a file without a final newline: one added first", text: new("export EDITOR=vi"), want: "export EDITOR=vi\n" + line + "\n"},
 		{name: "an empty file", text: new(""), want: line + "\n"},
+		{
+			name: "a last line continued by a backslash: an empty line added first, so the line isn't joined to it",
+			text: new("export PATH=/opt/bin:\\\n"), want: "export PATH=/opt/bin:\\\n\n" + line + "\n",
+		},
+		{
+			name: "a last line continued by a backslash, without a final newline: a newline and an empty line added first",
+			text: new("export PATH=/opt/bin:\\"), want: "export PATH=/opt/bin:\\\n\n" + line + "\n",
+		},
+		{name: "a last line ending in an escaped backslash, which continues nothing", text: new("echo \\\\\n"), want: "echo \\\\\n" + line + "\n"},
+		{name: "a last line of three backslashes, the last continuing it", text: new("echo \\\\\\"), want: "echo \\\\\\\n\n" + line + "\n"},
 		{name: "no file: made", want: line + "\n"},
 	}
 	for _, tt := range tests {
@@ -336,8 +340,6 @@ func TestAddingTheLineFailsSayingWhy(t *testing.T) {
 		})
 	}
 }
-
-func noEnv(string) string { return "" }
 
 // write writes text to a file at path, making its directory.
 func write(t *testing.T, path, text string) {

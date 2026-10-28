@@ -53,22 +53,31 @@ func TestSetup(t *testing.T) {
 	s.setenv("CLAUDE_CONFIG_DIR", claudeConfig)
 	s.setenv("SHELL", "/bin/zsh")
 	s.setenv("LANG", "en_GB.UTF-8")
+	home, err := s.srv.deps.HomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The login shell finds the real claude, then, once switchboard's line is
+	// added, the link; and says it reads .zshrc in the home.
 	var asked [][]string
 	s.srv.deps.LoginShell = func(_ context.Context, path string, args, env []string) ([]byte, error) {
 		asked = append(asked, slices.Concat([]string{path}, args, env))
-		return nil, errors.New("no test runs a login shell")
+		found := realClaude
+		if len(asked) > 1 {
+			found = filepath.Join(bin, "claude")
+		}
+		return []byte("switchboard-asks-which-claude\nis:" + found + "\npath:" + found + "\nconfig:" + home + "\nswitchboard-asked-which-claude\n"), nil
 	}
 	atATerminal(&s.srv.deps)
 	// Setup prints usage as it stands, which the router's first probes may
 	// not have reached: here they have, so it prints them.
 	s.launchd.probed = true
 	answers := strings.Join([]string{
-		"",  // no token for personal, for now
-		"",  // no more accounts
-		"",  // work, the first, the primary
-		"",  // no priming
-		"",  // switchboard's line added to .zshrc
-		"n", // the login shell, which can't be asked, left
+		"", // no token for personal, for now
+		"", // no more accounts
+		"", // work, the first, the primary
+		"", // no priming
+		"", // switchboard's line added to .zshrc
 	}, "\n") + "\n"
 
 	got := runWithInput(t, s.srv.deps, answers, "setup")
@@ -78,10 +87,6 @@ func TestSetup(t *testing.T) {
 	link := filepath.Join(bin, "claude")
 	skill := filepath.Join(claudeConfig, "skills", "switchboard", "SKILL.md")
 	shellDir := filepath.Join(data, "switchboard", "shell")
-	home, err := s.srv.deps.HomeDir()
-	if err != nil {
-		t.Fatal(err)
-	}
 	line := `if [ -r "` + shellDir + `/init.zsh" ]; then . "` + shellDir + `/init.zsh"; fi  # switchboard`
 	for _, want := range []string{
 		"\n1. Accounts\nwork · Work: its token is usable.\npersonal · Personal has no usable token: ",
@@ -94,9 +99,9 @@ func TestSetup(t *testing.T) {
 		"\n4. The claude link\nLinked " + link + " to " + s.binary + ".\n" +
 			"Wrote switchboard's files for the shells, in " + shellDir + ": init.zsh, init.bash, completion.bash and init.fish.\n" +
 			"Asking zsh, as a new terminal starts it, which claude it runs.\n" +
-			"Setup can't ask zsh which claude it runs: no test runs a login shell. This line, at the end of ~/.zshrc, has claude go through switchboard",
-		"\n" + line + "\nAdd it? [Y/n] Added it to ~/.zshrc.\nAsking zsh, as a new terminal starts it, which claude it runs.\n",
-		"\nCheck again? [Y/n] Left as it is: ",
+			"claude doesn't go through switchboard in a new terminal yet: zsh runs another claude, " + realClaude + ". This line, at the end of ~/.zshrc, has claude go through switchboard",
+		"\n" + line + "\nAdd it? [Y/n] Added it to ~/.zshrc.\nAsking zsh, as a new terminal starts it, which claude it runs.\n" +
+			"claude goes through switchboard in a new terminal: zsh runs " + link + ".\n",
 		"\n5. The skill\nInstalled the skill, which tells Claude what switchboard does under claude: " + skill + "\n",
 		"\n6. Usage\n",
 	} {

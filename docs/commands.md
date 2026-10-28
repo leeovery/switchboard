@@ -363,32 +363,38 @@ The steps are:
    them, and the router brings them up to date as it starts, so an edit to one doesn't last.
 
    Then `setup` asks your login shell, `$SHELL`, started as a new terminal starts it, which
-   `claude` its `PATH` finds. The step is done once that's the link. Where an alias or function
-   named `claude` stands in front of it, `setup` names it: it goes through switchboard where it
-   runs `claude` by name. Ctrl-C while it asks stops `setup`. Until then, for zsh, bash and fish,
-   `setup` offers to add one line to the end of your shell's startup file, naming the file and
-   showing the line first. For zsh, the line is:
+   `claude` its `PATH` finds. The step is done once a `claude` typed there goes through the link.
+   An alias named `claude` in front of it decides that by what it runs: `claude` by name leaves it
+   to `PATH`; a path, such as Claude Code's old `~/.claude/local/claude`, goes through switchboard
+   only where it's the link, and otherwise `setup` says to remove the alias or point it at
+   `claude`. A function `setup` can't read, so it says the function goes through switchboard where
+   it runs `claude` by name. Ctrl-C while it asks stops `setup`. `setup` asks zsh, bash and fish
+   alone: for another shell, it shows the bin directory, as `$HOME/…`, to put first on `PATH` by
+   hand. Until it's done, for zsh, bash and fish, `setup` offers to add one line to the end of your
+   shell's startup file, naming the file and showing the line first. For zsh, the line is:
 
    ```bash
    if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
    ```
 
-   The file is `.zshrc` where zsh says it reads it, from `$ZDOTDIR`, else in your home; for bash,
-   the first there of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, the one a login bash
-   reads, else a new `~/.bash_profile`; and for fish, `config.fish` where fish says it reads it,
-   else `fish/config.fish` in `$XDG_CONFIG_HOME`, else in `~/.config`.
-   A startup file that's a link, as to your dotfiles, is written where it leads. The line is added
-   once, ever: everything else switchboard does in your shell is in its own file. Should the
-   file go, the line does nothing.
+   The file is `.zshrc` where zsh says it reads it, `$ZDOTDIR` or your home; for bash, the first
+   there of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, the one a login bash reads, else
+   a new `~/.bash_profile`; and for fish, `config.fish` where fish says it reads it, as
+   `$__fish_config_dir`. Where your shell couldn't be asked, `setup` writes nothing: it shows the
+   line to add by hand, naming the file it usually goes in. A startup file that's a link, as to
+   your dotfiles, is written where it leads. The line is added once, ever: everything else
+   switchboard does in your shell is in its own file. Should the file go, the line does nothing.
 
    When the line's there but the shell still runs another `claude`, something after the line
    changes `PATH`: `setup` says so, and to move the line to the end of the file, or what changes
-   `PATH` after it to before it. A line there reading another switchboard's file, `setup` shows
-   the line to put in its place. Declined, or for another shell, `setup` shows the line to add by
-   hand, and the bin directory alone, as `$HOME/…`, to put first on `PATH` wherever you keep it
-   another way. Then it asks your login shell again, as often as you like, until it runs the link.
-   Leaving it isn't a failure: `setup` carries on. A shell that exits without answering may have a
-   startup file that starts something needing a terminal, such as tmux, and `setup` says so.
+   `PATH` after it to before it. Where the line is last already, something read after the file
+   changes `PATH`, such as `.zlogin`, and `setup` says to put the line after it. A line there
+   reading another switchboard's file, `setup` shows the line to put in its place. Declined,
+   `setup` shows the line to add by hand, and the bin directory alone, as `$HOME/…`, to put first
+   on `PATH` wherever you keep it another way. Then it asks your login shell again, as often as you
+   like, until it runs the link. Leaving it isn't a failure: `setup` carries on. A shell that exits
+   without answering may have a startup file that starts something needing a terminal, such as
+   tmux, and `setup` says so.
 5. **The skill.** Writes a Claude Code skill, or brings it up to date. The skill tells Claude what
    switchboard does under `claude`, so no session needs it explained. It's
    `skills/switchboard/SKILL.md` in `~/.claude`, or in `$CLAUDE_CONFIG_DIR`. Switchboard owns the

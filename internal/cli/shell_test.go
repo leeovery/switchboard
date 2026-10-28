@@ -22,13 +22,12 @@ func TestServeBringsTheShellFilesUpToDate(t *testing.T) {
 	bashCompletion := shell.CompletionFile(dir)
 	writeShellFile(t, zsh, "# an older switchboard's\n")
 	writeShellFile(t, bash, string(shellFile(t, srv.deps, shell.Bash, dir, bin)))
-	writeShellFile(t, bashCompletion, "# an older switchboard's\n")
 
 	srv.start(t)
 	for _, want := range [][]string{
 		{"level=INFO", `msg="brought switchboard's file for the shell up to date"`, "path=" + zsh},
 		{"level=INFO", `msg="switchboard's file for the shell is up to date"`, "path=" + bash},
-		{"level=INFO", `msg="brought switchboard's file for the shell up to date"`, "path=" + bashCompletion},
+		{"level=INFO", `msg="wrote switchboard's file for the shell, missing beside the shell's own"`, "path=" + bashCompletion},
 		{"level=INFO", `msg="no file of switchboard's for the shell to bring up to date; setup writes it"`, "path=" + fish},
 	} {
 		if log := srv.routerLog(t); !hasLine(log, want...) {

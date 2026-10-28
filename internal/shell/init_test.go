@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -256,6 +257,64 @@ func TestTheInitFileLoadsCompletionsOnlyWhereTheShellCanTakeThem(t *testing.T) {
 	}
 }
 
+func TestTheInitFileHoldsUnderTheUsersOptions(t *testing.T) {
+	// names lists every variable and function the shell has, into the file
+	// it's given, so the file's sourcing can be seen to leave none behind.
+	names := map[shell.Shell]string{
+		shell.Zsh:  "names() { local f; print -rl -- ${(k)parameters} >\"$1\"; for f in ${(k)functions}; do print -r -- \"function $f\"; done >>\"$1\"; }\n",
+		shell.Bash: "names() { compgen -v >\"$1\"; compgen -A function -P 'function ' >>\"$1\"; }\n",
+	}
+	tests := []struct {
+		sh      shell.Shell
+		options string
+		// ready makes the shell ready for completions, which then load.
+		ready string
+	}{
+		{sh: shell.Zsh, options: "setopt ksh_arrays"},
+		{sh: shell.Zsh, options: "setopt sh_word_split"},
+		{sh: shell.Zsh, options: "setopt nounset"},
+		{sh: shell.Zsh, options: "setopt err_exit"},
+		{sh: shell.Zsh, options: "setopt warn_create_global"},
+		{sh: shell.Zsh, options: "setopt ksh_arrays sh_word_split nounset err_exit warn_create_global"},
+		{sh: shell.Zsh, options: "setopt ksh_arrays sh_word_split nounset err_exit warn_create_global", ready: "compdef() { :; }\n"},
+		{sh: shell.Bash, options: "set -eu"},
+		{sh: shell.Bash, options: "set -eu", ready: "_get_comp_words_by_ref() { :; }\n"},
+	}
+	installed := make(map[shell.Shell]realShell)
+	for _, s := range realShells(t) {
+		installed[s.sh] = s
+	}
+	for _, tt := range tests {
+		s := installed[tt.sh]
+		name := string(tt.sh) + "/" + tt.options + map[bool]string{false: "", true: ", its completions loaded"}[tt.ready != ""]
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			bin := filepath.Join(dir, `it's "$x" here`, "bin")
+			init := writeInit(t, tt.sh, dir, bin, completion(t, tt.sh))
+			out := filepath.Join(dir, "out")
+			before, after := filepath.Join(dir, "before"), filepath.Join(dir, "after")
+			script := names[tt.sh] + tt.ready + tt.options + "\n" +
+				"names " + before + "\n" + s.sourceInit() + s.statusAndPath() + "names " + after + "\n"
+
+			printed := s.source(t, script, "/a:"+bin+":/b", filepath.Join(dir, "home"), init, out)
+
+			if want := "0\n" + bin + ":/a:/b\n"; printed != want {
+				t.Errorf("sourcing it ended with the status and PATH\n%s\nwant\n%s", printed, want)
+			}
+			checkSaidNothing(t, out)
+			if tt.ready != "" {
+				return
+			}
+			had := lines(t, before)
+			for _, n := range lines(t, after) {
+				if !slices.Contains(had, n) {
+					t.Errorf("sourcing it left %q defined, want nothing left", n)
+				}
+			}
+		})
+	}
+}
+
 func TestBashsFileIsPOSIXShellWhichLoadsNoCompletions(t *testing.T) {
 	// The completion script, here, says it's loaded, where bash's would fail
 	// to parse in sh, and stop it reading ~/.profile.
@@ -347,4 +406,14 @@ func checkSaidNothing(t *testing.T, out string) {
 	if len(said) > 0 {
 		t.Errorf("sourcing it said\n%s\nwant nothing", said)
 	}
+}
+
+// lines are the lines of the file at path.
+func lines(t *testing.T, path string) []string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
 }

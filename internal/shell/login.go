@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -77,9 +78,8 @@ type Answer struct {
 	// Claude is the other claude the shell's PATH finds.
 	Claude string
 	// Front is an alias or function named claude that stands in front of
-	// PATH's, as the shell gives it, any token in it hidden: it goes where
-	// PATH's claude does only where it runs claude by name.
-	Front string
+	// PATH's.
+	Front Front
 	// ConfigDir is where the shell reads its startup file from, as it says
 	// itself: zsh's $ZDOTDIR, else the home, and fish's configuration
 	// directory. It's empty for bash, which isn't asked, and where it isn't
@@ -89,35 +89,52 @@ type Answer struct {
 	Why string
 }
 
+// Through reports whether claude, typed in a new terminal, goes through
+// switchboard, as the answer says: where PATH finds the link and what's in
+// front of it runs claude by name, or may; or where an alias in front runs
+// the link by its path.
+func (a Answer) Through() bool {
+	switch a.Front.Runs {
+	case TheLink:
+		return true
+	case APath, Else:
+		return false
+	}
+	return a.Kind == Link
+}
+
 // Which asks the login shell which claude it runs, whether PATH's is link,
 // switchboard's claude link, and where it reads its startup file. The
 // shell's started as a new terminal's is, login and interactive, in the
 // environment one starts in, so the PATH setup runs with can't answer for
 // it: HOME, USER, LOGNAME, SHELL, TMPDIR, TERM, TMUX and the locale's
-// variables from Environ, PATH as launchd sets it, and nothing else.
+// variables from Environ, PATH as launchd sets it, and nothing else. Only
+// zsh, bash and fish are asked, the shells switchboard knows the words of.
 func (l Login) Which(ctx context.Context, link string) Answer {
 	path := lookup(l.Environ, "SHELL")
 	if path == "" {
 		return Answer{Why: "$SHELL isn't set"}
 	}
+	sh, known := Of(path)
+	if !known {
+		return Answer{Why: "switchboard asks zsh, bash and fish alone"}
+	}
 	limit := cmp.Or(l.Limit, defaultLimit)
 	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
-	out, err := l.Run(ctx, path, []string{"-l", "-i", "-c", question(path)}, loginEnv(l.Environ))
+	out, err := l.Run(ctx, path, []string{"-l", "-i", "-c", question(sh)}, loginEnv(l.Environ))
 	if said, ok := between(out); ok {
-		return read(said, link)
+		return read(said, lookup(l.Environ, "HOME"), link)
 	}
 	return Answer{Why: why(ctx, err, limit)}
 }
 
-// question is what the shell at path is asked, between the sentinels, a
-// line each: what claude is, which claude PATH finds, and where the shell
-// reads its startup file.
-func question(path string) string {
-	is, found, config := `"$(command -v claude)"`, `"$(command -v claude)"`, `""`
-	switch sh, _ := Of(path); sh {
-	case Bash:
-		found = `"$(type -P claude)"`
+// question is what sh is asked, between the sentinels, a line each: what
+// claude is, which claude PATH finds, and where the shell reads its startup
+// file.
+func question(sh Shell) string {
+	is, found, config := `"$(command -v claude)"`, `"$(type -P claude)"`, `""`
+	switch sh {
 	case Zsh:
 		found, config = `"$(whence -p claude)"`, `"${ZDOTDIR:-$HOME}"`
 	case Fish:
@@ -149,6 +166,8 @@ func loginEnv(environ []string) []string {
 // own environment gives the login shell, with the locale's LC_ ones. TMUX is
 // among them: a startup file that starts tmux where it's unset would start
 // it in the shell's place, and the shells claude runs in inside tmux have it.
+// ZDOTDIR isn't: an editor's terminal points it at a directory of its own,
+// which zsh in a new terminal never reads.
 var carried = []string{"HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "TERM", "TMUX", "LANG"}
 
 // lookup returns the value of the variable key in environ.
@@ -164,11 +183,16 @@ func lookup(environ []string, key string) string {
 // answers are what the shell said between the sentinels, by name.
 type answers map[string]string
 
-// between returns the shell's answers, from out: what's between the last
-// start sentinel, found anywhere, and the end sentinel after it; and whether
-// both are there.
+// escapes are the terminal's escape sequences a startup file's hooks print,
+// even inside the answers, as a prompt's marks before each command: OSC,
+// ended by BEL or ST, CSI, and the rest, of one character.
+var escapes = regexp.MustCompile(`\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]`)
+
+// between returns the shell's answers, from out, its escape sequences
+// passed over: what's between the last start sentinel, found anywhere, and
+// the end sentinel after it; and whether both are there.
 func between(out []byte) (answers, bool) {
-	text := strings.ReplaceAll(string(out), "\r", "")
+	text := escapes.ReplaceAllString(strings.ReplaceAll(string(out), "\r", ""), "")
 	at := strings.LastIndex(text, startSentinel+"\n")
 	if at < 0 {
 		return nil, false
@@ -187,22 +211,19 @@ func between(out []byte) (answers, bool) {
 	return said, true
 }
 
-// read is the shell's answer, from what it said, link being switchboard's
-// claude link.
-func read(said answers, link string) Answer {
-	var a Answer
+// read is the shell's answer, from what it said, home being the user's home
+// and link switchboard's claude link. A path for PATH's claude that isn't
+// one is no answer.
+func read(said answers, home, link string) Answer {
+	found := said["path"]
+	if found != "" && !filepath.IsAbs(found) {
+		return Answer{Why: fmt.Sprintf("it answered %q for the claude on its PATH, which isn't a path", redact.Text(found))}
+	}
+	a := Answer{Front: readFront(said["is"], home, link)}
 	if dir := said["config"]; filepath.IsAbs(dir) {
 		a.ConfigDir = dir
 	}
-	switch is := said["is"]; {
-	case is == "claude":
-		// command -v gives a function by its name alone, as fish is asked
-		// to give it.
-		a.Front = "function claude"
-	case is != "" && !filepath.IsAbs(is):
-		a.Front = redact.Text(is)
-	}
-	switch found := said["path"]; {
+	switch {
 	case found == "":
 		a.Kind = None
 	case sameFile(found, link):

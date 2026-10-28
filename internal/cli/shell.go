@@ -51,7 +51,8 @@ func completions(root *cobra.Command) func(shell.Shell) ([]byte, error) {
 }
 
 // refreshShellFiles brings switchboard's files for the shells up to date, as
-// the router starts, and logs what it did: it writes none that setup didn't.
+// the router starts, and logs what it did: it writes no shell's own file that
+// setup didn't.
 func (a *app) refreshShellFiles(root *cobra.Command) {
 	files, err := a.shellFiles(root)
 	if err != nil {
@@ -63,6 +64,8 @@ func (a *app) refreshShellFiles(root *cobra.Command) {
 		switch f.State {
 		case shell.Absent:
 			logger.Info("no file of switchboard's for the shell to bring up to date; setup writes it", "path", f.Path)
+		case shell.Created:
+			logger.Info("wrote switchboard's file for the shell, missing beside the shell's own", "path", f.Path)
 		case shell.Updated:
 			logger.Info("brought switchboard's file for the shell up to date", "path", f.Path)
 		default:

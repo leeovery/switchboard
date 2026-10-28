@@ -756,22 +756,36 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    alone, and says so. It writes switchboard's files for the shells, below, or brings them up to
    date. Then, saying so first, it asks the user's own login shell, `$SHELL` run as a login and
    interactive shell, with no input and a time limit, in the environment a new terminal's shell
-   starts in, `TMUX` among it, so setup's own `PATH` can't answer for it, which `claude` its `PATH`
-   finds, what `claude` is to it, and where it reads its startup file: the step is done when its
-   `PATH` finds the link, and no other answer counts. An alias or function named `claude` in front
-   of it is named, as going through switchboard where it runs `claude` by name. The shell runs in a
-   process group of its own, killed whole once it answers or at its time limit; an interrupt
-   meanwhile kills it, and setup stops, as at any interrupt. A shell that exits without answering
-   may have a startup file start something that needs a terminal, such as tmux, and setup says so.
-   Otherwise, for zsh, bash and fish, it offers to add one line to the end of the startup file it
-   reads for every interactive shell: `.zshrc` where zsh says it reads it, `${ZDOTDIR:-$HOME}`,
-   else in `$ZDOTDIR`, else the home; for bash, the first there of `~/.bash_profile`,
-   `~/.bash_login` and `~/.profile`, else `~/.bash_profile`, as a login bash reads only the first it
-   finds, so a `.bash_profile` made beside a `.profile` would stop the `.profile` loading; or
-   `config.fish` where fish says it reads it, `$__fish_config_dir`, else `fish/config.fish` in
-   `$XDG_CONFIG_HOME`, else `~/.config`, a relative directory counting for none. It names the file
-   and shows the line before it asks, and writes through a link to the file as to the file,
-   appending, so the file keeps its inode, mode and links. The line hands off to a file of
+   starts in, `TMUX` among it but not `ZDOTDIR`, which an editor's terminal points at a directory
+   of its own, so setup's own `PATH` can't answer for it, which `claude` its `PATH` finds, what
+   `claude` is to it, and where it reads its startup file. Escape sequences its startup files'
+   hooks print are passed over, and a `PATH` answer that isn't a path is no answer. Only zsh, bash
+   and fish are asked: for any other shell setup says it can't ask it, and shows the bin directory
+   to put first on `PATH` by hand. The step is done when a `claude` typed in a new terminal goes
+   through the link, and no other answer counts: its `PATH` finds the link, and nothing in front of
+   it runs anything else. An alias named `claude` is text, so it's decided by its first command
+   word, past any `VAR=value` words, `command`, `builtin`, `noglob`, `nocorrect` and a leading `\`:
+   `claude` runs it by name, so `PATH` decides; an absolute path, or one from `~` or `$HOME`,
+   decides itself, done where it's the link, and otherwise not, setup saying the alias runs that
+   path, and that removing it or pointing it at `claude` puts it right; anything else, such as
+   `npx …`, runs something else, and setup says so. A function, or an alias that runs only what its
+   expansion tells, can't be decided: setup says it goes through switchboard where it runs `claude`
+   by name. The shell runs in a process group of its own, killed whole once it answers or at its
+   time limit; an interrupt meanwhile kills it, and setup stops, as at any interrupt. A shell that
+   exits without answering may have a startup file start something that needs a terminal, such as
+   tmux, and setup says so. Otherwise, for zsh, bash and fish, it offers to add one line to the end
+   of the startup file it reads for every interactive shell, only where the shell said where it
+   reads it: `.zshrc` in `${ZDOTDIR:-$HOME}`, as zsh says; for bash, the first there of
+   `~/.bash_profile`, `~/.bash_login` and `~/.profile`, else `~/.bash_profile`, as a login bash
+   reads only the first it finds, so a `.bash_profile` made beside a `.profile` would stop the
+   `.profile` loading; or `config.fish` in `$__fish_config_dir`, as fish says, a relative
+   directory counting for none. Where the shell couldn't be asked, setup writes nothing, as its own
+   `ZDOTDIR` can be a terminal's, which zsh in a new terminal never reads: it shows the line to add
+   by hand, naming the file it usually goes in, `~/.zshrc`, the bash file above, or
+   `~/.config/fish/config.fish`, and asks the shell again. It names the file and shows the line
+   before it asks, and writes through a link to the file as to the file,
+   appending, so the file keeps its inode, mode and links, and after an empty line where the
+   file's last line ends in a backslash that would join the line to it. The line hands off to a file of
    switchboard's own beside its bin directory, one a shell, written in that shell's own syntax,
    which puts that directory first on `PATH`, once: `PATH` is left as it was where the directory is
    first already, and otherwise the directory goes first and every other copy of it is taken off,
@@ -783,14 +797,17 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    bash, outside POSIX mode, where bash-completion is loaded. The line does nothing once that file
    is gone. So the user's startup file is written once, and everything switchboard does in the
    shell after that is in its own files: setup writes them, and the router brings them up to date
-   as it starts, as it does the skill. A comment beside the line marks it as switchboard's, so it's
-   added once and found again. Found there but not taking effect, setup says something after it
-   changes `PATH`, and to move the line to the end of the file, or what changes `PATH` after it to
-   before it; found reading another switchboard shell directory's file, it says so, and shows the
-   line to put in its place. Declined, it shows the same line to add by hand, wherever the user
-   keeps such lines, and the directory alone, written from `$HOME`, to put first on `PATH` wherever
-   it's set, for a `PATH` kept another way or a shell setup doesn't know. Either way it asks the
-   login shell again, and the step is done only when its `PATH` finds the link. Then it installs the session hook, or puts it right (see The
+   as it starts, as it does the skill, writing one that's missing beside its shell's own file, as a
+   newer switchboard adds one, but never a shell's own file setup didn't write. A comment beside
+   the line marks it as switchboard's, so it's added once and found again. Found there but not
+   taking effect, setup says something after it changes `PATH`, and to move the line to the end of
+   the file, or what changes `PATH` after it to before it; or, where the line is last already,
+   that something read after the file changes `PATH`, such as `.zlogin`, and to put the line after
+   it. Found reading another switchboard shell directory's file, it says so, and shows the line to
+   put in its place. Declined, it shows the same line to add by hand, wherever the user keeps such
+   lines, and the directory alone, written from `$HOME`, to put first on `PATH` wherever it's set,
+   for a `PATH` kept another way. Either way it asks the login shell again, and the step is done
+   only when a `claude` typed there goes through the link. Then it installs the session hook, or puts it right (see The
    session hook).
 5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Prints `usage`, every account's windows as they stand (see `usage`, the printout).
@@ -7332,10 +7349,11 @@ hiding it behind the provider would take a wider interface than it's worth:
   `~/.local/share/switchboard/bin`, which `setup` makes, and switchboard's file for the shell
   puts first on `PATH`, ahead of the real `claude`'s directory.
 - **The shell's files:** `init.zsh`, `init.bash` and `init.fish`, switchboard's file for each
-  shell, and `completion.bash`, bash's completions, which `init.bash` sources, in its shell directory, `$XDG_DATA_HOME/switchboard/shell`, else
-  `~/.local/share/switchboard/shell`, 0644, which `setup` writes whole, and the router, as it
-  starts, rewrites where one's there but isn't as this switchboard writes it, never making one
-  `setup` didn't; and switchboard's line, the last of the shell's startup file, marked
+  shell, and `completion.bash`, bash's completions, which `init.bash` sources, in its shell
+  directory, `$XDG_DATA_HOME/switchboard/shell`, else `~/.local/share/switchboard/shell`, 0644,
+  which `setup` writes whole, and the router, as it starts, rewrites where one's there but isn't as
+  this switchboard writes it, and writes where it's missing beside its shell's own file, never
+  making a shell's own file `setup` didn't; and switchboard's line, the last of the shell's startup file, marked
   `# switchboard`, which sources its file there (see Setup).
 - **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.

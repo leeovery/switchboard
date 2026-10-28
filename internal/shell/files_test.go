@@ -102,8 +102,18 @@ func TestRefreshingTheFiles(t *testing.T) {
 		},
 		{
 			name:  "one another's, one current, others missing: the one brought up to date alone",
-			there: map[string]string{"init.zsh": "# an older switchboard's\n", "init.bash": "current"},
-			want:  map[string]shell.State{"init.zsh": shell.Updated, "init.bash": shell.Current, "completion.bash": shell.Absent, "init.fish": shell.Absent},
+			there: map[string]string{"init.zsh": "# an older switchboard's\n", "init.bash": "current", "completion.bash": "current"},
+			want:  map[string]shell.State{"init.zsh": shell.Updated, "init.bash": shell.Current, "completion.bash": shell.Current, "init.fish": shell.Absent},
+		},
+		{
+			name:  "bash's completions missing beside bash's file, as an older switchboard's setup wrote none: written",
+			there: map[string]string{"init.bash": "current"},
+			want:  map[string]shell.State{"init.zsh": shell.Absent, "init.bash": shell.Current, "completion.bash": shell.Created, "init.fish": shell.Absent},
+		},
+		{
+			name:  "bash's completions missing beside bash's file, itself missing: neither written",
+			there: map[string]string{"init.zsh": "current"},
+			want:  map[string]shell.State{"init.zsh": shell.Current, "init.bash": shell.Absent, "completion.bash": shell.Absent, "init.fish": shell.Absent},
 		},
 		{
 			name:  "bash's completions differing by a byte: rewritten",

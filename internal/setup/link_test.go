@@ -177,9 +177,17 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 		return "To have claude go through switchboard by hand, add this line to the end of your shell's startup file, after anything there that changes PATH:\n" + line + "\n" + orElsewhere
 	}
 	const move = "move switchboard's line to the end of ~/.zshrc, or what changes PATH after it to before it. " + orElsewhere
-	const overridden = "switchboard's line is in ~/.zshrc, but zsh runs " + otherClaude + ", so something after the line changes PATH.\n" +
+	const putAfter = "put switchboard's line after what changes PATH, wherever that's read. " + orElsewhere
+	// readAfter is what's said where switchboard's line is last in .zshrc,
+	// but something read after it changes PATH, and afterIt where something
+	// after it does.
+	const readAfter = "switchboard's line is in ~/.zshrc, but zsh runs " + otherClaude + ", so something read after ~/.zshrc changes PATH.\n" +
+		"To have claude go through switchboard, " + putAfter
+	const afterIt = "switchboard's line is in ~/.zshrc, but zsh runs " + otherClaude + ", so something after the line changes PATH.\n" +
 		"To have claude go through switchboard, " + move
+	const aliasFix = ": removing the alias, or pointing it at claude, puts it right."
 	const left = "Check again? [Y/n] n\nLeft as it is: until it's done, claude in a new terminal doesn't go through switchboard. Running setup again checks it.\n"
+	const cantCheck = "Setup can't check it for this shell: once it's done, claude in a new terminal goes through switchboard.\n"
 	other := shell.Answer{Kind: shell.Other, Claude: "<root>/claude-code/bin/claude"}
 	tests := []struct {
 		name string
@@ -187,8 +195,10 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 		// .zshrc, before setup runs.
 		lay func(t *testing.T, w *world)
 		// asks is what the step says as it first asks the login shell, when
-		// it's not zsh.
-		asks string
+		// it's not zsh; and unasked is set where it can't ask it, and says
+		// nothing of asking.
+		asks    string
+		unasked bool
 		// answers are the claude link step's.
 		answers []string
 		want    string
@@ -220,7 +230,7 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			wantFile: ".zshrc", wantText: "export EDITOR=vi\n<line>\n",
 		},
 		{
-			name:     "offered, in $ZDOTDIR",
+			name:     "offered, in $ZDOTDIR, as zsh says",
 			lay:      func(_ *testing.T, w *world) { w.env["ZDOTDIR"] = filepath.Join(w.home, ".config", "zsh") },
 			answers:  []string{""},
 			want:     notYet + strings.ReplaceAll(offer, "~/.zshrc", "~/.config/zsh/.zshrc") + "\nAdded it to ~/.config/zsh/.zshrc.\n" + goesThrough,
@@ -272,18 +282,31 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			name:     "added, but not taking effect: something after it changes PATH",
 			lay:      func(_ *testing.T, w *world) { w.login.overridden = true },
 			answers:  []string{"", "n"},
-			want:     notYet + offer + "\nAdded it to ~/.zshrc.\n" + asks + overridden + left,
+			want:     notYet + offer + "\nAdded it to ~/.zshrc.\n" + asks + readAfter + left,
 			wantFile: ".zshrc", wantText: "<line>\n",
+		},
+		{
+			name: "there already, last, but not taking effect: something read after .zshrc changes PATH",
+			lay: func(t *testing.T, w *world) {
+				writeFile(t, filepath.Join(w.home, ".zshrc"), "export EDITOR=vi\n", 0o644)
+				w.addLine(t)
+				writeFile(t, filepath.Join(w.home, ".zshrc"), "export EDITOR=vi\n"+w.line()+"\n\n# the end\n", 0o644)
+				w.login.overridden = true
+			},
+			answers:  []string{"n"},
+			want:     readAfter + left,
+			wantFile: ".zshrc", wantText: "export EDITOR=vi\n<line>\n\n# the end\n",
 		},
 		{
 			name: "there already, but not taking effect: something after it changes PATH",
 			lay: func(t *testing.T, w *world) {
 				w.addLine(t)
+				writeFile(t, filepath.Join(w.home, ".zshrc"), w.line()+"\nexport PATH=/opt/claude-code/bin:$PATH\n", 0o644)
 				w.login.overridden = true
 			},
 			answers:  []string{"n"},
-			want:     overridden + left,
-			wantFile: ".zshrc", wantText: "<line>\n",
+			want:     afterIt + left,
+			wantFile: ".zshrc", wantText: "<line>\nexport PATH=/opt/claude-code/bin:$PATH\n",
 		},
 		{
 			name: "there already, the shell not answering at first",
@@ -293,7 +316,7 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			},
 			answers: []string{""},
 			want: "switchboard's line is in ~/.zshrc, but setup can't ask zsh whether it takes effect: it didn't answer within 15s.\n" +
-				"Should it not, " + move + "Check again? [Y/n] \n" + goesThrough,
+				"Should it not, something read after ~/.zshrc changes PATH: " + putAfter + "Check again? [Y/n] \n" + goesThrough,
 			wantFile: ".zshrc", wantText: "<line>\n",
 		},
 		{
@@ -309,35 +332,82 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			name: "there already, and run, an alias to the name in front: said to go through switchboard",
 			lay: func(t *testing.T, w *world) {
 				w.addLine(t)
-				w.login.front = "alias claude='claude --verbose'"
+				w.login.front = shell.Front{Text: "alias claude='claude --verbose'", Runs: shell.ByName}
 			},
-			want:     linkRuns + "zsh's claude is alias claude='claude --verbose', which goes through switchboard where it runs claude by name.\n",
+			want:     linkRuns + "zsh's claude is alias claude='claude --verbose', which runs claude by name, so goes through switchboard too.\n",
 			wantFile: ".zshrc", wantText: "<line>\n",
 		},
 		{
-			name: "there already, and run, an alias to a path in front: said to go through switchboard only by name",
+			name: "there already, PATH's the link, but an alias in front runs another claude by its path: not done, the alias to put right",
 			lay: func(t *testing.T, w *world) {
 				w.addLine(t)
-				w.login.front = "alias claude=/opt/homebrew/bin/claude"
+				w.login.front = shell.Front{Text: "alias claude=~/.claude/local/claude", Runs: shell.APath, Path: "<root>/home/.claude/local/claude"}
 			},
-			want:     linkRuns + "zsh's claude is alias claude=/opt/homebrew/bin/claude, which goes through switchboard where it runs claude by name.\n",
+			answers: []string{"n"},
+			want: "claude doesn't go through switchboard in a new terminal yet: zsh's claude is alias claude=~/.claude/local/claude, which runs <root>/home/.claude/local/claude, not switchboard's claude" + aliasFix + "\n" +
+				left,
 			wantFile: ".zshrc", wantText: "<line>\n",
+		},
+		{
+			name: "there already, PATH's the link, but an alias in front runs something else: not done, the alias to put right, until it is",
+			lay: func(t *testing.T, w *world) {
+				w.addLine(t)
+				npx := shell.Front{Text: "alias claude='npx @anthropic-ai/claude-code'", Runs: shell.Else}
+				w.login.answers = []shell.Answer{{Kind: shell.Link, Front: npx}, {Kind: shell.Link}}
+			},
+			answers: []string{""},
+			want: "claude doesn't go through switchboard in a new terminal yet: zsh's claude is alias claude='npx @anthropic-ai/claude-code', which runs something other than switchboard's claude" + aliasFix + "\n" +
+				"Check again? [Y/n] \n" + goesThrough,
+			wantFile: ".zshrc", wantText: "<line>\n",
+		},
+		{
+			name: "offered, an alias in front of another claude running something else: added, and the alias still to put right",
+			lay: func(_ *testing.T, w *world) {
+				w.login.front = shell.Front{Text: "alias claude='npx @anthropic-ai/claude-code'", Runs: shell.Else}
+			},
+			answers: []string{"", "n"},
+			want: notYet + " zsh's claude is alias claude='npx @anthropic-ai/claude-code', which runs something other than switchboard's claude" + aliasFix + offer +
+				"\nAdded it to ~/.zshrc.\n" + asks +
+				"claude doesn't go through switchboard in a new terminal yet: zsh's claude is alias claude='npx @anthropic-ai/claude-code', which runs something other than switchboard's claude" + aliasFix + "\n" +
+				left,
+			wantFile: ".zshrc", wantText: "<line>\n",
+		},
+		{
+			name: "PATH's another claude, but an alias in front runs the link by its path: done",
+			lay: func(_ *testing.T, w *world) {
+				w.login.front = shell.Front{Text: "alias claude=~/.local/share/switchboard/bin/claude", Runs: shell.TheLink}
+			},
+			want: linkRuns + "zsh's claude is alias claude=~/.local/share/switchboard/bin/claude, which runs switchboard's claude link by its path.\n",
 		},
 		{
 			name: "there already, and run, a function in front, never blamed on PATH",
 			lay: func(t *testing.T, w *world) {
 				w.addLine(t)
-				w.login.front = "function claude"
+				w.login.front = shell.Front{Text: "function claude", Runs: shell.Unknown}
 			},
 			want:     linkRuns + "zsh's claude is function claude, which goes through switchboard where it runs claude by name.\n",
 			wantFile: ".zshrc", wantText: "<line>\n",
 		},
 		{
-			name:     "offered, an alias in front of another claude",
-			lay:      func(_ *testing.T, w *world) { w.login.front = "alias claude='claude --verbose'" },
+			name: "offered, an alias to the name in front of another claude",
+			lay: func(_ *testing.T, w *world) {
+				w.login.front = shell.Front{Text: "alias claude='claude --verbose'", Runs: shell.ByName}
+			},
 			answers:  []string{""},
-			want:     notYet + offer + "\nAdded it to ~/.zshrc.\n" + goesThrough + "zsh's claude is alias claude='claude --verbose', which goes through switchboard where it runs claude by name.\n",
+			want:     notYet + offer + "\nAdded it to ~/.zshrc.\n" + goesThrough + "zsh's claude is alias claude='claude --verbose', which runs claude by name, so goes through switchboard too.\n",
 			wantFile: ".zshrc", wantText: "<line>\n",
+		},
+		{
+			name: "the shell not answering, and no line: none written, even where setup's own ZDOTDIR is a terminal's, but shown by hand",
+			lay: func(_ *testing.T, w *world) {
+				w.env["ZDOTDIR"] = filepath.Join(w.root, "editor-terminal")
+				w.login.answers = []shell.Answer{{Why: "it didn't answer within 15s"}}
+			},
+			answers: []string{"n"},
+			want: "Setup can't ask zsh which claude it runs: it didn't answer within 15s. Setup can't tell which startup file zsh reads, so it adds no line.\n" +
+				"To have claude go through switchboard by hand, add this line to the end of zsh's startup file, usually ~/.zshrc, after anything there that changes PATH:\n" +
+				zshLine + "\n" + orElsewhere + left,
+			wantFile: ".zshrc", wantText: "",
 		},
 		{
 			name: "can't be added, as .zshrc is a link that leads nowhere: by hand",
@@ -348,23 +418,18 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			want:    notYet + offer + "\nSetup can't add it: <root>/home/.zshrc is a link to <root>/gone, which isn't there.\n" + byHand(zshLine) + left,
 		},
 		{
-			name:    "another shell: the directory alone, by hand",
+			name:    "another shell, not asked: the directory alone, by hand",
 			lay:     func(_ *testing.T, w *world) { w.env["SHELL"] = "/bin/tcsh" },
-			asks:    "Asking tcsh, as a new terminal starts it, which claude it runs.\n",
-			answers: []string{"n"},
-			want: "claude doesn't go through switchboard in a new terminal yet: tcsh runs " + otherClaude + ".\n" +
-				"To have claude go through switchboard, put this directory first on PATH, wherever your shell sets it:\n$HOME/.local/share/switchboard/bin\n" + left,
+			unasked: true,
+			want: "Setup can't ask tcsh which claude it runs: switchboard asks zsh, bash and fish alone.\n" +
+				"To have claude go through switchboard, put this directory first on PATH, wherever your shell sets it:\n$HOME/.local/share/switchboard/bin\n" + cantCheck,
 		},
 		{
-			name: "no $SHELL: the directory alone, by hand",
-			lay: func(_ *testing.T, w *world) {
-				delete(w.env, "SHELL")
-				w.login.answers = []shell.Answer{{Why: "$SHELL isn't set"}}
-			},
-			asks:    "Asking your login shell, as a new terminal starts it, which claude it runs.\n",
-			answers: []string{"n"},
+			name:    "no $SHELL: the directory alone, by hand",
+			lay:     func(_ *testing.T, w *world) { delete(w.env, "SHELL") },
+			unasked: true,
 			want: "Setup can't ask your login shell which claude it runs: $SHELL isn't set.\n" +
-				"To have claude go through switchboard, put this directory first on PATH, wherever your shell sets it:\n$HOME/.local/share/switchboard/bin\n" + left,
+				"To have claude go through switchboard, put this directory first on PATH, wherever your shell sets it:\n$HOME/.local/share/switchboard/bin\n" + cantCheck,
 		},
 	}
 	for _, tt := range tests {
@@ -379,7 +444,11 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			}
 
 			shown := w.runs(t, append([]string{""}, tt.answers...)...) // no more accounts, then the step's answers
-			want := "<root>/home/.local/share/switchboard/bin/claude leads to switchboard, at <root>/brew/bin/switchboard.\n" + filesCurrent + cmp.Or(tt.asks, asks) + tt.want
+			asking := cmp.Or(tt.asks, asks)
+			if tt.unasked {
+				asking = ""
+			}
+			want := "<root>/home/.local/share/switchboard/bin/claude leads to switchboard, at <root>/brew/bin/switchboard.\n" + filesCurrent + asking + tt.want
 			if got := section(t, shown, "4. The claude link"); got != want {
 				t.Errorf("the claude link step showed\n%s\nwant\n%s", got, want)
 			}

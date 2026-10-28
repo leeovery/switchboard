@@ -1,8 +1,10 @@
 package shell
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -69,21 +71,19 @@ func sources(sh Shell, line, home string) string {
 
 // StartupFile returns the startup file of sh's that switchboard's line goes
 // at the end of, the user's home being home: for zsh, .zshrc in configDir,
-// where the shell said it reads it from, else $ZDOTDIR, else the home; for
-// bash, the first there of ~/.bash_profile, ~/.bash_login and ~/.profile, as
-// a login bash reads only the first it finds, else ~/.bash_profile; and for
-// fish, config.fish in configDir, else fish/config.fish in $XDG_CONFIG_HOME,
-// else ~/.config. A directory that isn't absolute is passed over, as the XDG
-// spec says of its own.
-func StartupFile(sh Shell, getenv func(string) string, home, configDir string) string {
+// where the shell said it reads it from, else the home; for bash, the first
+// there of ~/.bash_profile, ~/.bash_login and ~/.profile, as a login bash
+// reads only the first it finds, else ~/.bash_profile; and for fish,
+// config.fish in configDir, else ~/.config/fish. A configDir that isn't
+// absolute is passed over. Setup's own environment never says where: its
+// ZDOTDIR can be a terminal's own, as an editor's terminal sets it to a
+// directory of its own.
+func StartupFile(sh Shell, home, configDir string) string {
 	switch sh {
 	case Zsh:
-		return filepath.Join(absolute(configDir, getenv("ZDOTDIR"), home), ".zshrc")
+		return filepath.Join(absolute(configDir, home), ".zshrc")
 	case Fish:
-		if filepath.IsAbs(configDir) {
-			return filepath.Join(configDir, "config.fish")
-		}
-		return filepath.Join(absolute(getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config")), "fish", "config.fish")
+		return filepath.Join(absolute(configDir, filepath.Join(home, ".config", "fish")), "config.fish")
 	}
 	for _, name := range []string{".bash_profile", ".bash_login", ".profile"} {
 		if _, err := os.Stat(filepath.Join(home, name)); err == nil {
@@ -93,37 +93,48 @@ func StartupFile(sh Shell, getenv func(string) string, home, configDir string) s
 	return filepath.Join(home, ".bash_profile")
 }
 
-// absolute returns the first of dirs that's absolute, else the last.
-func absolute(dirs ...string) string {
-	for _, dir := range dirs {
-		if filepath.IsAbs(dir) {
-			return dir
-		}
+// absolute returns dir where it's absolute, else otherwise.
+func absolute(dir, otherwise string) string {
+	if filepath.IsAbs(dir) {
+		return dir
 	}
-	return dirs[len(dirs)-1]
+	return otherwise
 }
 
-// FindLine returns the file switchboard's line for sh in the startup file at
-// file sources, $HOME in it standing for home: "" where there's no such line,
-// or no such file.
-func FindLine(sh Shell, file, home string) (string, error) {
+// Found is switchboard's line in a startup file, as FindLine finds it.
+type Found struct {
+	// Sources is the file the line sources: "" where there's no line.
+	Sources string
+	// Last is whether nothing but blank lines and comments follows it.
+	Last bool
+}
+
+// FindLine returns switchboard's line for sh in the startup file at file,
+// $HOME in it standing for home: none where there's no such line, or no
+// such file.
+func FindLine(sh Shell, file, home string) (Found, error) {
 	data, err := os.ReadFile(file)
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", nil
+		return Found{}, nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("read %s: %w", file, err)
+		return Found{}, fmt.Errorf("read %s: %w", file, err)
 	}
+	var found Found
 	for line := range strings.Lines(string(data)) {
-		if path := sources(sh, line, home); path != "" {
-			return path, nil
+		if path := sources(sh, line, home); path != "" && found.Sources == "" {
+			found = Found{Sources: path, Last: true}
+			continue
+		}
+		if text := strings.TrimSpace(line); text != "" && !strings.HasPrefix(text, "#") {
+			found.Last = false
 		}
 	}
-	return "", nil
+	return found, nil
 }
 
-// AddLine adds line to the end of the startup file at file, after a newline
-// when the file doesn't end in one. It appends to the file at the end of
+// AddLine adds line to the end of the startup file at file, on a line of its
+// own, as before says. It appends to the file at the end of
 // file's links, as a startup file kept with the user's dotfiles is linked to,
 // so the file keeps its inode, mode and links; and makes a file that isn't
 // there, and its directory. It fails, saying why, at a link that leads
@@ -142,14 +153,12 @@ func AddLine(file, line string) error {
 	case err != nil:
 		return fmt.Errorf("open %s: %w", file, err)
 	}
-	text := line + "\n"
-	if ends, err := endsInNewline(f); err != nil {
+	have, err := io.ReadAll(f)
+	if err != nil {
 		_ = f.Close()
 		return fmt.Errorf("read %s: %w", file, err)
-	} else if !ends {
-		text = "\n" + text
 	}
-	if _, err := f.WriteString(text); err != nil {
+	if _, err := f.WriteString(before(have) + line + "\n"); err != nil {
 		_ = f.Close()
 		return fmt.Errorf("add to %s: %w", file, err)
 	}
@@ -159,20 +168,23 @@ func AddLine(file, line string) error {
 	return nil
 }
 
-// endsInNewline reports whether f is empty or ends in a newline.
-func endsInNewline(f *os.File) (bool, error) {
-	info, err := f.Stat()
-	if err != nil {
-		return false, err
+// before is what goes between have, a startup file's text, and the line
+// added after it: a newline where have doesn't end in one; and an empty line
+// where its last line ends in a backslash that escapes the newline after it,
+// which would join the added line to it.
+func before(have []byte) string {
+	if len(have) == 0 {
+		return ""
 	}
-	if info.Size() == 0 {
-		return true, nil
+	sep := ""
+	last, ended := bytes.CutSuffix(have, []byte("\n"))
+	if !ended {
+		sep = "\n"
 	}
-	last := make([]byte, 1)
-	if _, err := f.ReadAt(last, info.Size()-1); err != nil {
-		return false, err
+	if backslashes := len(last) - len(bytes.TrimRight(last, `\`)); backslashes%2 == 1 {
+		sep += "\n"
 	}
-	return last[0] == '\n', nil
+	return sep
 }
 
 // create makes the startup file at file, holding line alone, and its
