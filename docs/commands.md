@@ -376,20 +376,23 @@ it would show.
 
 ### `accounts`
 
-`accounts` lists the accounts, in config order. Its subcommands add an account, replace an
-account's token, and remove an account.
+`accounts` lists the accounts, in config order. Its subcommands add an account, edit one, replace
+an account's token, and remove an account.
 
 ```bash
 switchboard accounts
 switchboard accounts add <id> [--label <label>] [--primary]
+switchboard accounts edit <id> [--label <label>] [--plan <plan>] [--primary] [--reserve <percent>]
 switchboard accounts token <id>
 switchboard accounts remove <id>
 ```
 
 | Flag | What it does |
 |---|---|
-| `--label <label>` | `add`: show the account as `<label>`. Default: the id. |
-| `--primary` | `add`: make the account the primary, the account the browser and the Claude apps use. |
+| `--label <label>` | `add` and `edit`: show the account as `<label>`. Default: the id, which `--label ""` goes back to. |
+| `--plan <plan>` | `edit`: the plan the account's subscription is on: `pro`, `max5x` or `max20x`, or `none` to leave it unknown. |
+| `--primary` | `add` and `edit`: make the account the primary, the account the browser and the Claude apps use, in place of the one that was. |
+| `--reserve <percent>` | `edit`: the share of every window the router leaves unused on the account, as a percentage to two decimal places at most, such as `5%` or `2.5%`, from `0%` up to but not including `100%`. `0` or `0%` takes the reserve away. |
 
 For each account, `switchboard accounts` shows:
 
@@ -406,8 +409,56 @@ The subcommands do the following:
     `_`.
   - When the account's token file holds no usable token, `add` takes one, and writes it over
     whatever the file held.
+  - A `--label` is taken as it shows: without the characters Unicode draws as nothing (its
+    default ignorables, such as zero-width spaces and joiners, variation selectors and tags),
+    each run of whitespace within it one space, and the whitespace and direction marks at its
+    edges trimmed. Such a character is kept only where it makes an emoji or a flag, or shapes a
+    joining script, such as Persian or Devanagari, and a variation selector only after a symbol,
+    as in ❤️, non-ASCII punctuation, or a letter outside Latin, Greek and Cyrillic, or in a
+    keycap, as in 1️⃣; it's dropped everywhere else. Direction marks within it are kept, and so
+    is every other character, such as an Arabic number sign. One that's the id is no label, as it
+    shows the same.
   - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
-    the token, and so is a `--label` over 100 characters.
+    the token, and so is a `--label` over 100 characters as it shows, one that holds a control
+    character, such as a newline or a tab, or a bidirectional embedding, override or isolate,
+    which could reorder the row it's shown in, one that would show as nothing, such as spaces or
+    zero-width characters alone, and one that isn't UTF-8 text. Private-use glyphs, such as Nerd
+    Font icons, show.
+- **`edit`** changes an account's label, plan, primary or reserve, in its table in the config.
+  - It takes one or more of `--label`, `--plan`, `--primary` and `--reserve`, and leaves what it
+    isn't given as it is.
+  - It says what it changed, each value as it is now and as it was, labels in quotes, and a label
+    of none as none, the account shown by its id. When every value given is what the account has
+    already, it says so, and writes nothing.
+  - Made the primary, an account takes it from the one that had it. The sessions running through
+    the router keep the token they started on as Claude Code's own until they restart: the former
+    primary's, pinned or not, or, where it has no usable token, the first account's with one, or a
+    pinned session's pinned account's, as the tokens stand now. So what they send outside the
+    conversation, such as artifacts and uploads, still goes out on that account. `edit` says so:
+    where the first account with a usable token is the new primary, it says the pinned sessions
+    keep their pinned account's token. It speaks of pinned sessions only where an account other
+    than the first with a usable token has one, as otherwise none can be pinned elsewhere; and
+    where no account has one, it says nothing. Sessions started
+    directly, while the router was down, are untouched by the move. It warns on stderr when the
+    new primary has no usable token, as new sessions then start on another account's.
+  - A reserve written as a number alone, such as `5` or `0.05`, is refused, as either could mean
+    the other: write it as a percentage. So is one past two decimal places.
+  - A `--label` is taken and refused as `add` takes and refuses one; `--label ""`, or the id,
+    shows the account by its id, and takes the label out. A label written untidily in the config
+    and given tidily is saved tidily, and `edit` says it was written untidily. A label written by
+    hand is said as it holds: a character drawn as nothing that `add` would drop, a
+    bidirectional control, or a direction mark, which `add` keeps, shows as its escape, such as
+    `\u200B`. What `add` keeps in an emoji, a keycap, a variant, a flag or a joining script shows
+    as it is, unless an escape stands before it.
+  - `--primary=false` is refused: to move the primary, give `--primary` to another account.
+  - An id no account has is said before anything wrong with a flag's value. Errors in the flags
+    themselves, such as a flag without its value or an unknown flag, come first.
+  - A value it replaces keeps the comment beside it; a key it takes out goes with its comment, as
+    the primary's mark does when another account is made the primary.
+  - A label the config writes over several lines, as a multi-line string, can't be edited as text:
+    a label edit of that account is refused, to be made by hand, and nothing is written. A plan,
+    reserve or primary edit is made: a key the account has is replaced where it stands, and one
+    it hasn't is put below the line that closes the label, whatever the label holds.
 - **`token`** replaces an account's token.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file, then the record of when its token was taken (see
@@ -448,6 +499,7 @@ Examples:
 ```bash
 switchboard accounts add work --label Work --primary
 switchboard accounts add side --label Side
+switchboard accounts edit side --plan max5x --reserve 5%
 pbpaste | switchboard accounts token side
 switchboard accounts remove side
 ```

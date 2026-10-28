@@ -224,3 +224,43 @@ func TestClean(t *testing.T) {
 		}
 	}
 }
+
+// england is England's flag: a black flag, then the tags that name the
+// subdivision, then the tag that ends them.
+const england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"
+
+func TestQuoted(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want string
+	}{
+		{name: "a label", text: "Day job", want: `"Day job"`},
+		{name: "words that read as more of the line", text: "a, plan b (was c)", want: `"a, plan b (was c)"`},
+		{name: "quotes and backslashes escaped", text: `the "side" one\`, want: `"the \"side\" one\\"`},
+		{name: "cleaned", text: "Work\x1b[31m team", want: `"Work [31m team"`},
+		{name: "text beyond ASCII as it is", text: "Café", want: `"Café"`},
+		{name: "an emoji sequence's joiner as it is", text: "Team \U0001f469\u200d\U0001f4bb", want: "\"Team \U0001f469\u200d\U0001f4bb\""},
+		{name: "a private-use glyph as it is", text: "\ue0a0 main", want: "\"\ue0a0 main\""},
+		{name: "a subdivision's flag as it is", text: england, want: `"` + england + `"`},
+		{name: "a variation selector as it is", text: "Home \u2764\uFE0F", want: "\"Home \u2764\uFE0F\""},
+		{name: "a zero-width space escaped", text: "Day job\u200B", want: `"Day job\u200B"`},
+		{name: "a joiner standing alone escaped", text: "Day \u200D job", want: `"Day \u200D job"`},
+		{name: "a lone tag escaped", text: "work\U000e0067", want: `"work\U000E0067"`},
+		{name: "an invisible separator escaped", text: "side\u2063", want: `"side\u2063"`},
+		{name: "a right-to-left override escaped", text: "\u202Ekrow", want: `"\u202Ekrow"`},
+		{name: "an isolate escaped", text: "a\u2067b\u2069", want: `"a\u2067b\u2069"`},
+		{name: "a direction mark escaped", text: "a\u200Fb", want: `"a\u200Fb"`},
+		{name: "an Arabic number sign as it is", text: "\u0600123", want: "\"\u0600123\""},
+		{name: "a selector after an escape escaped", text: "\u263a\u200b\ufe0f", want: "\"\u263a\\u200B\\uFE0F\""},
+		{name: "a joiner after an escape escaped", text: "\u0915\u200b\u200d\u0937", want: "\"\u0915\\u200B\\u200D\u0937\""},
+		{name: "a backslash before an escape kept apart", text: "a\\\u200B", want: `"a\\\u200B"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Quoted(tt.text); got != tt.want {
+				t.Errorf("Quoted(%q) = %q, want %q", tt.text, got, tt.want)
+			}
+		})
+	}
+}

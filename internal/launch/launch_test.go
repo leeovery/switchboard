@@ -2157,3 +2157,31 @@ func (h *harness) environment(t *testing.T) map[string]string {
 	}
 	return env
 }
+
+func TestOwnAccount(t *testing.T) {
+	tests := []struct {
+		name    string
+		primary string
+		files   tokenstest.Files
+		want    string
+		wantOK  bool
+	}{
+		{name: "the primary, with a usable token", primary: "side", files: testTokens, want: "side", wantOK: true},
+		{name: "the first with a usable token, the primary without one", primary: "personal", files: testTokens, want: "work", wantOK: true},
+		{name: "none, no account having a usable token", primary: "work", files: tokenstest.Files{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configured := slices.Clone(accounts)
+			for i := range configured {
+				configured[i].Primary = configured[i].ID == tt.primary
+			}
+			r := launch.Route{Config: &config.Config{Accounts: configured}, Token: tt.files.Read, Pause: func(time.Duration) {}}
+
+			got, ok := r.OwnAccount()
+			if got.ID != tt.want || ok != tt.wantOK {
+				t.Errorf("OwnAccount() = %q, %v; want %q, %v", got.ID, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}

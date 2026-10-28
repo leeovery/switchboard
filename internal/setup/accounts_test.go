@@ -157,6 +157,19 @@ func TestTheAccountsStep(t *testing.T) {
 				"side isn't added: account \"side\" is already configured.\n" + noMore + primary,
 		},
 		{
+			name:    "an account whose label shows nothing, not added, told how to give one as setup asks",
+			answers: []string{"y", "spare", "\u200b", ""},
+			want: listed + "side · Side: its token is usable.\nAdd another account? [y/N] y\n" +
+				"Its id, for good: letters, digits, - and _, such as work: spare\nIts label, to show it by (Enter for spare): \u200b\n" +
+				"spare isn't added: account \"spare\": label is blank, showing nothing: " +
+				"add it again with a label that shows, or Enter for none, to show it by its id.\n" + noMore + primary,
+			check: func(t *testing.T, w *world) {
+				if got := w.readConfig(t); got != doneConfig {
+					t.Errorf("the config reads\n%s\nwant it as it was", got)
+				}
+			},
+		},
+		{
 			name:    "no id given for another account",
 			answers: []string{"y", ""},
 			want: listed + "side · Side: its token is usable.\nAdd another account? [y/N] y\n" +

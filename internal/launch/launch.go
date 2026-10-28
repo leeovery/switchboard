@@ -424,6 +424,15 @@ func stateOf(h router.Health, err error) routerState {
 	return state
 }
 
+// OwnAccount is the account whose token a routed session that isn't pinned
+// starts on, as Claude Code's own, as choose chooses it: the primary while
+// its token is usable, else the first with a usable token. It reports false
+// when no account has one.
+func (r Route) OwnAccount() (config.Account, bool) {
+	c, err := r.choose(choice{}, true)
+	return c.account, err == nil
+}
+
 // choice is the account whose token Claude Code starts on, and why it was
 // chosen.
 type choice struct {

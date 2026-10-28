@@ -773,17 +773,65 @@ accounts:
   `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
   npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
   which holds the system's directories alone.
-- `accounts add <id>` registers an account. It refuses an id, or a `--label`, holding anything
-  shaped like a token, or a `--label` over 100 characters, before it asks for the token, saving
-  nothing, and shows the id as
-  `[redacted]`. When the account's token file holds no usable token, it asks for the token, hidden,
-  pointing to `claude setup-token` run while signed in to that subscription, or reads it from stdin
-  when stdin isn't a terminal, and writes it in place of whatever the file held. An interrupt while
-  it waits puts the terminal back as it was, showing what's typed again, and the command exits 130,
-  as a shell expects of an interrupt, saving nothing. It probes the token before saving it, and
-  doesn't save one the API refuses (401 or 403); when the probe fails otherwise, as when it can't
-  reach the API, it saves it with a warning. `--label` sets the label, and `--primary` makes the
-  account the primary.
+- `accounts add <id>` registers an account. It takes a `--label` as it shows, and saves it so,
+  by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
+  default ignorables, the format characters and the variation selectors, but for whitespace and
+  the prepended concatenation marks, such as the Arabic number signs, which draw) kept only
+  where one makes an emoji or a flag, or shapes a joining script, and a variation selector only
+  after a symbol, non-ASCII punctuation, or a letter outside Latin, Greek and Cyrillic, or in a
+  keycap (`prose.MapUnseen`, judged left to right on what's kept: a character dropped is passed
+  over, one shown escaped owns nothing after it, and the character after one is the first seen),
+  and dropped everywhere else; a joiner's pictographs are symbols beyond ASCII, so one between
+  `+` and `=` goes. Direction marks are kept within it. Then each run of whitespace within it is
+  one space, and the whitespace and direction marks at its edges trimmed. One that's the id is
+  no label. It refuses an id, or a `--label`, holding anything shaped like a token, or a
+  `--label` over 100 characters as it shows, holding a control character, such as a newline or a
+  tab, or a bidirectional embedding, override or isolate, drawing as nothing (spaces, characters
+  drawn as nothing, marks on their own or blank braille alone; a private-use glyph shows) or
+  that isn't UTF-8, before it asks for the token, saving nothing, and shows the id as
+  `[redacted]`. A label written in the config by hand is read as it is. When the account's token
+  file holds no usable token, it asks for the token, hidden, pointing to `claude setup-token` run
+  while signed in to that subscription, or reads it from stdin when stdin isn't a terminal, and
+  writes it in place of whatever the file held. An interrupt while it waits puts the terminal
+  back as it was, showing what's typed again, and the command exits 130, as a shell expects of an
+  interrupt, saving nothing. It probes the token before saving it, and doesn't save one the API
+  refuses (401 or 403); when the probe fails otherwise, as when it can't reach the API, it saves
+  it with a warning. `--label` sets the label, and `--primary` makes the account the primary.
+- `accounts edit <id>` changes an account's label (`--label`, under `add`'s rules, `""` for none),
+  plan (`--plan`, one of the plans or `none`), primary (`--primary`, taking it off the account that
+  had it) or reserve (`--reserve`), given one or more, and leaves the rest as they are. A reserve
+  is written as a percentage to two decimal places at most, `5%`, so what's shown is what's saved,
+  and stored as the share, `0.05`, without a sign; `0` or `0%` clears it, and a number alone is
+  refused, as `5` and `0.05` could each mean the other. `--primary=false` is refused: the primary
+  moves by giving `--primary` to another account. An id no account has is said before anything
+  wrong with the flags' values (cobra's own errors, such as a flag without its value or an
+  unknown flag, come first). A label given that's the id takes the label out, as it shows the
+  same. It writes only what changes the account as the config reads it, and says what it
+  changed, each value now and as it was, labels quoted (`prose.Quoted`) and none, where the
+  config writes no label, said so, and a label written untidily and tidied said so; or, when
+  every value given is the account's already, that nothing changed, writing nothing. A label
+  written by hand can't go through `add`'s rules, so `prose.Quoted` shows what it holds: a
+  character drawn as nothing that `add` would drop, a bidirectional control among them, as its
+  `\u` escape, so it can't reorder the line, and a direction mark too, which `add` keeps but
+  whose part can't be seen, while what `add` keeps in an emoji, a keycap, a variant, a flag or
+  a joining script shows as it is, unless an escape stands before it, and so does private use.
+  Moving the primary, it says what the sessions running through the router keep as Claude Code's
+  own until they restart, as launch chose it from the config the edit read, the tokens as they
+  stand now: the former primary's token, pinned or not; or, where it has no usable token, the
+  first account's with one, or a pinned session's pinned account's token, and, where the first
+  is the new primary, that the pinned sessions keep their pinned account's token. The pinned
+  sessions are said only where an account other than the first with a usable token has one, as
+  otherwise none can be pinned elsewhere; and nothing is said where no account has a usable
+  token. Sessions started directly, while the router was down, are untouched by the move. It
+  warns on stderr when the new primary has no usable token. A label the config writes over
+  several lines, as a multi-line string, can't be edited as text: a label edit of that account
+  is refused, to be made by hand, writing nothing, while a plan, reserve or primary edit is
+  made, a key the account has replaced where it stands, and one it hasn't put below the line
+  that closes the label; a line within the string reads as part of it, whatever it looks like.
+  Edits keep the file's line endings, byte order mark and indentation, a line put in ending as
+  the line it follows; a replaced value keeps the comment beside it, and a key taken out, such as
+  the former primary's mark, goes with its comment. The flags are read into the values its
+  action, `accounts.Registry.Edit`, takes, so a form can give it the same.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file: of one that's a link, the link
   alone, saying where it led, as the file there isn't switchboard's. Of the primary, it says which
@@ -855,6 +903,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 |---|---|
 | `accounts` | List the accounts: id, label, whether its token is present and usable, and why not, and which is the primary |
 | `accounts add <id> [--label <label>] [--primary]` | Register an account, asking for its token or reading it from stdin: see Accounts and tokens |
+| `accounts edit <id> [--label <label>] [--plan <plan>] [--primary] [--reserve <percent>]` | Change an account's label, plan, primary or reserve: see Accounts and tokens |
 | `accounts token <id>` | Replace an account's token |
 | `accounts remove <id>` | Remove an account, and its token file |
 | `setup` | Walk through setting up, or what's left of it: see Setup |

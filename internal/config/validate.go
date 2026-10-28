@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
@@ -213,6 +214,72 @@ func checkID(account, id string) error {
 // mostLabelCharacters is the longest a label may be, in runes.
 const mostLabelCharacters = 100
 
+// ErrBlankLabel is what giving an account a label that would show as nothing
+// fails with, wrapped: each command says how to give one, as it asks for it.
+var ErrBlankLabel = errors.New("label is blank, showing nothing")
+
+// takeLabel returns a label given to put in the file as it shows, so what's
+// saved is what's shown: without the characters drawn as nothing, as
+// prose.Unseen has them, but for those prose.MapUnseen keeps, as they make
+// an emoji, a keycap, a variant or a flag, or shape a joining script, and
+// the direction marks within it; each run of whitespace within it one space;
+// and the whitespace and direction marks at its edges trimmed. Every other character is kept,
+// such as the Arabic number signs, which draw. It's checked as it shows, and
+// refused, as a label in the file isn't: when it isn't UTF-8, as TOML's text
+// must be; when it holds a control character, such as a newline or a tab,
+// which can't show, or a bidirectional embedding, override or isolate, which
+// can reorder the rest of the row it's shown in; and when nothing of it would
+// show but it isn't "", which shows the account by its id, matching
+// ErrBlankLabel. Then it's checked as checkLabel checks one.
+func takeLabel(account, given string) (string, error) {
+	switch {
+	case !utf8.ValidString(given):
+		return "", fmt.Errorf("%s: label isn't UTF-8 text, as a config's text must be", account)
+	case strings.ContainsFunc(given, unicode.IsControl):
+		return "", fmt.Errorf("%s: label holds a control character, such as a newline or a tab, which can't show", account)
+	case strings.ContainsFunc(given, prose.Reorders):
+		return "", fmt.Errorf("%s: label holds a bidirectional embedding, override or isolate, which could reorder the rest of what it's shown in", account)
+	}
+	kept := prose.MapUnseen(given, keptIfAMark)
+	label := strings.TrimFunc(strings.Join(strings.Fields(kept), " "), spaceOrMark)
+	if given != "" && !strings.ContainsFunc(label, shows) {
+		return "", fmt.Errorf("%s: %w", account, ErrBlankLabel)
+	}
+	if err := checkLabel(account, label); err != nil {
+		return "", err
+	}
+	return label, nil
+}
+
+// keptIfAMark is what prose.MapUnseen makes of an unseen character of a label
+// that does nothing that shows: a direction mark is kept, as it orders
+// what's around it, and anything else dropped.
+func keptIfAMark(r rune) string {
+	if prose.DirectionMark(r) {
+		return string(r)
+	}
+	return ""
+}
+
+// spaceOrMark reports whether r, at a label's edge, is trimmed: whitespace,
+// or a direction mark, which does its part only within it.
+func spaceOrMark(r rune) bool {
+	return unicode.IsSpace(r) || prose.DirectionMark(r)
+}
+
+// blankBraille is the braille pattern with no dots, a symbol drawn as
+// nothing.
+const blankBraille = '\u2800'
+
+// shows reports whether r draws as something: graphic, as a format
+// character, such as a zero-width space, and a control character aren't, or
+// a private-use character, such as a Nerd Font icon; and neither a space, nor
+// a mark, which draws on what it follows alone, nor blankBraille.
+func shows(r rune) bool {
+	return (unicode.IsGraphic(r) || unicode.Is(unicode.Co, r)) &&
+		!unicode.IsSpace(r) && !unicode.IsMark(r) && r != blankBraille
+}
+
 // checkLabel keeps anything that looks like a token out of a label, and keeps
 // a label to mostLabelCharacters. It never quotes the label, which could be
 // anything.
@@ -229,10 +296,62 @@ func checkLabel(account, label string) error {
 // checkReserve keeps a reserve a share of each window short of the whole of
 // it, which would leave the router nothing of the account, or 0 for none.
 func checkReserve(account string, reserve float64) error {
-	if reserve >= 0 && reserve < 1 {
+	if reserveFits(reserve) {
 		return nil
 	}
 	return fmt.Errorf("%s: reserve %v: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1", account, reserve)
+}
+
+// reserveFits reports whether reserve is one an account can have: at least 0
+// and short of the whole window. NaN isn't.
+func reserveFits(reserve float64) bool {
+	return reserve >= 0 && reserve < 1
+}
+
+// percentage is the number of a percentage as a reserve is written: digits,
+// without a sign, to two decimal places at most, so what's shown of it is
+// what's saved.
+var percentage = regexp.MustCompile(`^[0-9]+(?:\.[0-9]{1,2})?$`)
+
+// ParseReserve reads a reserve written as a percentage, to two decimal places
+// at most, such as 5% or 2.5%, as the share of every window it is, 0.05 or
+// 0.025: 0, or 0%, for none. A number other than 0 without its % is refused,
+// as 5 or 0.05 could mean either.
+func ParseReserve(given string) (float64, error) {
+	number, percent := strings.CutSuffix(strings.TrimSpace(given), "%")
+	number = strings.TrimSpace(number)
+	// Moving the point in the text reads 2.3% as 0.023 reads, where dividing
+	// 2.3 by 100 needn't.
+	share, err := strconv.ParseFloat(number+"e-2", 64)
+	switch {
+	case err != nil || !percentage.MatchString(number):
+		return 0, wrongValue("reserve", given, "must be a percentage, to two decimal places at most, such as 5% or 2.5%, or 0 for none")
+	case !percent && share != 0:
+		return 0, wrongValue("reserve", given, "must be written as a percentage, such as 5%, as a number alone could be a share or a percentage")
+	case !reserveFits(share):
+		return 0, wrongValue("reserve", given, "must be at least 0% and less than 100%, the share of every window the router leaves unused")
+	}
+	return share, nil
+}
+
+// PlanNone is what ParsePlan reads as no plan, leaving it unknown.
+const PlanNone = "none"
+
+// PlanChoices are what ParsePlan reads: each of Plans, then PlanNone.
+func PlanChoices() []string {
+	return slices.Concat(Plans, []string{PlanNone})
+}
+
+// ParsePlan reads a plan as a command is given it: one of Plans, or PlanNone,
+// which it reads as "".
+func ParsePlan(given string) (string, error) {
+	switch {
+	case given == PlanNone:
+		return "", nil
+	case slices.Contains(Plans, given):
+		return given, nil
+	}
+	return "", wrongValue("plan", given, "must be "+prose.ListOr(PlanChoices()))
 }
 
 // checkPlan keeps an account's plan one of Plans, or none.

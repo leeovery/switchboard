@@ -43,11 +43,28 @@ type NewAccount struct {
 	Primary bool
 }
 
-// check fails, saying why, unless the account's id and label are ones an
-// account can have.
-func (a NewAccount) check() error {
+// taken returns the account with its label as labelOf takes it, failing,
+// saying why, unless its id and label are ones an account can have.
+func (a NewAccount) taken() (NewAccount, error) {
 	name := accountNamed(a.ID)
-	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label))
+	label, labelErr := labelOf(a.ID, a.Label)
+	if err := errors.Join(checkID(name, a.ID), labelErr); err != nil {
+		return NewAccount{}, err
+	}
+	a.Label = label
+	return a, nil
+}
+
+// labelOf returns the label given the account with the given id as
+// takeLabel takes it, or "" for one that's the id, which shows the same
+// without one, so the file writes no label where the account's shown by its
+// id.
+func labelOf(id, given string) (string, error) {
+	label, err := takeLabel(accountNamed(id), given)
+	if err != nil || label == id {
+		return "", err
+	}
+	return label, nil
 }
 
 // Draft is the config file's text, edited as text: its comments and layout
@@ -96,9 +113,11 @@ func (d *Draft) Config() *Config {
 // account's, else before the first table, else at the end. As the primary,
 // it takes primary off every other account. It fails, matching ErrConfigured,
 // when an account has its id already, and fails too when one has it in
-// another case, as the two would share a token file.
-func (d *Draft) AddAccount(a NewAccount) error {
-	if err := a.check(); err != nil {
+// another case, as the two would share a token file. Its label is taken as
+// labelOf takes it.
+func (d *Draft) AddAccount(given NewAccount) error {
+	a, err := given.taken()
+	if err != nil {
 		return err
 	}
 	if d.index(a.ID) >= 0 {
@@ -156,10 +175,18 @@ func (d *Draft) MarksPrimary() bool {
 	return slices.ContainsFunc(d.file.Accounts, func(a fileAccount) bool { return a.Primary })
 }
 
+// Labelled reports whether the draft writes a label for the account with
+// the given id, rather than leaving it to be shown by its id for want of one.
+func (d *Draft) Labelled(id string) bool {
+	i := d.index(id)
+	return i >= 0 && d.file.Accounts[i].Label != ""
+}
+
 // SetPrimary makes the account with the given id the primary: it marks it so
-// below the last key of its [[account]] table, in place of any primary it
-// set, and takes primary off every other account. It fails, matching
-// ErrNotConfigured, when no account has the id.
+// in place of the value any primary it sets gives, keeping a comment beside
+// it, else below the last key of its [[account]] table, and takes primary off
+// every other account. It fails, matching ErrNotConfigured, when no account
+// has the id.
 func (d *Draft) SetPrimary(id string) error {
 	i := d.index(id)
 	switch {
@@ -177,13 +204,17 @@ func (d *Draft) SetPrimary(id string) error {
 	want.Accounts = slices.Clone(d.file.Accounts)
 	var marks []int
 	for j := range want.Accounts {
-		if want.Accounts[j].Primary || j == i {
+		if want.Accounts[j].Primary {
 			marks = append(marks, d.doc.linesOf(primaryKey, tables[j])...)
 		}
 		want.Accounts[j].Primary = j == i
 	}
+	if own := d.doc.linesOf(primaryKey, tables[i]); len(own) > 0 {
+		doc := d.doc.replaced(own[0], withValue(d.doc.lines[own[0]], "true"))
+		return d.take(doc.without(marks), want, change)
+	}
 	doc := d.doc.without(marks)
-	doc = doc.put(doc.keysEnd(doc.accounts()[i]), "primary = true")
+	doc = doc.putKey(doc.accounts()[i], "primary = true")
 	return d.take(doc, want, change)
 }
 
@@ -197,6 +228,76 @@ func (d *Draft) SetPrimeDay(day string) error {
 	want := d.file
 	want.Prime.Day = day
 	return d.take(d.doc.withPrimeDay(day), want, fmt.Sprintf("set prime.day to %q", day))
+}
+
+// SetLabel sets the label of the account with the given id, as setAccountKey
+// sets a key: "" takes it out, showing the account by its id. The label is
+// taken as labelOf takes it, and an account shown by it already is left as
+// it is, whatever its table writes. It fails, matching ErrNotConfigured, when
+// no account has the id, and then as AddAccount does for a label no account
+// can have.
+func (d *Draft) SetLabel(id, given string) error {
+	i := d.index(id)
+	if i < 0 {
+		return NotConfigured(id)
+	}
+	label, err := labelOf(id, given)
+	if err != nil {
+		return err
+	}
+	if d.file.Accounts[i].shownAs() == (fileAccount{ID: id, Label: label}).shownAs() {
+		return nil
+	}
+	return d.setAccountKey(id, "label", written(label), func(a *fileAccount) { a.Label = label })
+}
+
+// SetPlan sets the plan of the account with the given id, one of Plans, as
+// setAccountKey sets a key: "" takes it out, leaving the plan unknown. It
+// fails, matching ErrNotConfigured, when no account has the id, and for a
+// plan that isn't one of Plans.
+func (d *Draft) SetPlan(id, plan string) error {
+	if err := checkPlan(accountNamed(id), plan); err != nil {
+		return err
+	}
+	return d.setAccountKey(id, "plan", written(plan), func(a *fileAccount) { a.Plan = plan })
+}
+
+// SetReserve sets the reserve of the account with the given id, a share of
+// every window, as setAccountKey sets a key: 0 takes it out, leaving none. It
+// fails, matching ErrNotConfigured, when no account has the id, and for a
+// reserve below 0, or of the whole window or more.
+func (d *Draft) SetReserve(id string, reserve float64) error {
+	if err := checkReserve(accountNamed(id), reserve); err != nil {
+		return err
+	}
+	return d.setAccountKey(id, "reserve", writtenFloat(reserve), func(a *fileAccount) { a.Reserve = reserve })
+}
+
+// setAccountKey sets key, in the [[account]] table of the account with the
+// given id, to value, as TOML writes it, which set makes of the account: in
+// place of the value the table gives it, keeping a comment beside it, else
+// below the table's last key; or, for "", taking out the line that sets it.
+// An account that has the value already is left as it is.
+func (d *Draft) setAccountKey(id, key, value string, set func(*fileAccount)) error {
+	i := d.index(id)
+	if i < 0 {
+		return NotConfigured(id)
+	}
+	want := d.file
+	want.Accounts = slices.Clone(d.file.Accounts)
+	set(&want.Accounts[i])
+	if want.Accounts[i] == d.file.Accounts[i] {
+		return nil
+	}
+	change := fmt.Sprintf("set %s to %s in account %q", key, value, id)
+	if value == "" {
+		change = fmt.Sprintf("take %s out of account %q", key, id)
+	}
+	tables, err := d.accountTables(change)
+	if err != nil {
+		return err
+	}
+	return d.take(d.doc.withKey(tables[i], key, value), want, change)
 }
 
 // index returns where the account with the given id is among the draft's
