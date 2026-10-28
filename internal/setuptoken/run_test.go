@@ -9,8 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -318,6 +320,23 @@ func TestRunGivesSetupTokenThatDrawsOnNoMoreGrace(t *testing.T) {
 	}
 }
 
+// Setup-token has exited 0 by itself, but what it drew is being read yet as
+// the drain ends, the rest of the token unread.
+func TestRunTakesNoTokenCutShortFromADrawingThatHasntEnded(t *testing.T) {
+	made := madeRows(" " + madeToken)
+	r := newTestRun(t, func() {}, waitsLong)
+	r.draw(t.Context(), []byte(frame(made[:4])+made[4][:40]), true)
+	drained := make(chan time.Time, 1)
+	drained <- time.Now()
+	r.output, r.drained = make(chan []byte), drained
+
+	conclusion(t, t.Context(), r)
+
+	if _, ok := errors.AsType[*ScreenError](r.err); !ok || r.token.Reveal() != "" {
+		t.Errorf("Make has the token %q (%v), want none, and a *ScreenError", r.token.Reveal(), r.err)
+	}
+}
+
 // Its drain over, a read of the rest of the token is waiting on Make as well,
 // setup-token having exited 0 by itself: each attempt is a draw between them.
 func TestRunDrawsWhatsWaitingBeforeItConcludesOnItsDrain(t *testing.T) {
@@ -402,6 +421,36 @@ func TestRunNamesWhatStoppedSetupToken(t *testing.T) {
 				t.Errorf("stoppedByCancel() = %v, want %v", got, tt.wantCancel)
 			}
 		})
+	}
+}
+
+// The program leaves a process running, deaf to the hang-up its exit sends.
+func TestExitOfKillsWhatItsProgramLeftRunning(t *testing.T) {
+	master, tty, err := openTerminal(columns, rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = master.Close() }()
+	cmd, err := start(t.Context(), "/bin/sh", []string{"sh", "-c", "(trap '' HUP; exec /bin/sleep 60) & echo $!"}, []string{}, tty)
+	_ = tty.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = killGroup(cmd.Process.Pid) }()
+	drawn, err := io.ReadAll(master)
+	left, atoi := strconv.Atoi(strings.TrimSpace(string(drawn)))
+	if err != nil || atoi != nil {
+		t.Fatalf("the program drew %q (%v), want the id of what it left running", drawn, err)
+	}
+
+	if err := exitOf(cmd); err != nil {
+		t.Fatalf("exitOf() = %v, want nothing: it exited 0", err)
+	}
+
+	for deadline := time.Now().Add(10 * time.Second); syscall.Kill(left, 0) == nil; time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("what the program left running, %d, outlived its exit", left)
+		}
 	}
 }
 

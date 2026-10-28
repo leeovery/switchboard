@@ -21,8 +21,7 @@ const (
 	// address it's handed.
 	lookEvery = 50 * time.Millisecond
 	// drainFor bounds the wait on setup-token's exit once Make stops it, and
-	// on the end of its drawing once it has exited: anything it left running
-	// can hold its terminal open.
+	// on the end of its drawing once it has exited, each a moment as a rule.
 	drainFor = 2 * time.Second
 	// readSize is how much of what setup-token draws is read at a time.
 	readSize = 32 << 10
@@ -127,8 +126,18 @@ func (r *run) start(ctx context.Context, path string, env environ) error {
 	exited := make(chan error, 1)
 	r.output, r.exited = output, exited
 	r.wg.Go(func() { r.read(output) })
-	r.wg.Go(func() { exited <- waitOn(cmd) })
+	r.wg.Go(func() { exited <- exitOf(cmd) })
 	return nil
+}
+
+// exitOf waits on cmd's exit, then kills what it left running in its group,
+// so nothing of it holds its terminal open, and returns how it exited (see
+// waitOn). The group's id stays its own while anything's left in it, as
+// close says.
+func exitOf(cmd *exec.Cmd) error {
+	err := waitOn(cmd)
+	_ = killGroup(cmd.Process.Pid)
+	return err
 }
 
 // waitOn waits on cmd's exit, and returns how it exited: nil where it exited
@@ -388,12 +397,12 @@ func (r *run) lookForAddress(ctx context.Context) {
 }
 
 // conclude takes the token setup-token showed whole, or, where it exited 0 by
-// itself, the token its screen shows last, as nothing's left to draw; or
-// fails, saying why there's none: for a token made, with the fullest drawing
-// that said so, and what stopped setup-token (see stoppedBy); otherwise, with
-// what it drew last.
+// itself, and its drawing has ended, the token its screen shows last, as
+// nothing's left to draw; or fails, saying why there's none: for a token made,
+// with the fullest drawing that said so, and what stopped setup-token (see
+// stoppedBy); otherwise, with what it drew last.
 func (r *run) conclude(ctx context.Context) {
-	if r.made && !r.shown && r.exited == nil && r.exit == nil {
+	if r.made && !r.shown && r.drewAll() {
 		r.token, r.shown = r.screen.drawing().token(true)
 	}
 	d := r.screen.drawing()
@@ -410,6 +419,13 @@ func (r *run) conclude(ctx context.Context) {
 	default:
 		r.fail(exitedWithout(d.text(), r.exit))
 	}
+}
+
+// drewAll reports whether setup-token has exited 0 by itself, and what it drew
+// has been read to its end, the terminal closed: not where the drain ends
+// first, as the last of it could be on its way yet.
+func (r *run) drewAll() bool {
+	return r.output == nil && r.exited == nil && r.exit == nil
 }
 
 // judge fails with err, a failure Make judged from what setup-token drew or
