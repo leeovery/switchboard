@@ -107,18 +107,25 @@ func withTokenFiles(t *testing.T) (tokens.Store, func(*router.Config)) {
 	store := tokens.NewStore(t.TempDir(), os.Getuid())
 	writeToken(t, store, "work", workToken)
 	writeToken(t, store, "side", sideToken)
-	return store, func(cfg *router.Config) { cfg.Token = store.Read }
+	return store, func(cfg *router.Config) { cfg.Token, cfg.Taken = store.Read, store.Taken }
 }
 
 // writeToken writes secret to the token file of the account with the given
-// id.
+// id, recording it taken at now.
 func writeToken(t *testing.T, store tokens.Store, id, secret string) {
+	t.Helper()
+	writeTokenTaken(t, store, id, secret, now)
+}
+
+// writeTokenTaken writes secret to the token file of the account with the
+// given id, recording it taken at taken.
+func writeTokenTaken(t *testing.T, store tokens.Store, id, secret string, taken time.Time) {
 	t.Helper()
 	token, err := tokens.Parse(secret)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Write(id, token); err != nil {
+	if err := store.Write(id, token, taken); err != nil {
 		t.Fatal(err)
 	}
 }

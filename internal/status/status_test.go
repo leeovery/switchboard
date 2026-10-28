@@ -42,6 +42,7 @@ func TestCollect(t *testing.T) {
 		Prober: prober,
 		Policy: policy,
 		Token:  tokenstest.Files{"work": "test-token-work", "side": " test-token-side\n"}.Read,
+		Taken:  tokenstest.Taken{}.Read,
 		Now:    func() time.Time { return now },
 	}
 
@@ -80,6 +81,7 @@ func TestCollectGivesThePrimaryAndTheWindowsAtEachReserve(t *testing.T) {
 		}},
 		Policy: policy,
 		Token:  tokenstest.Files{"work": "test-token-work", "side": "test-token-side"}.Read,
+		Taken:  tokenstest.Taken{}.Read,
 		Now:    func() time.Time { return now },
 	}
 	accounts := []config.Account{
@@ -395,6 +397,7 @@ func TestCollectLogsEachAccount(t *testing.T) {
 		}},
 		Policy: policy,
 		Token:  tokenstest.Files{"work": "test-token-work", "side": "test-token-side"}.Read,
+		Taken:  tokenstest.Taken{}.Read,
 		Now:    func() time.Time { return now },
 	}
 
@@ -420,6 +423,7 @@ func TestCollectProbesAccountsAtOnce(t *testing.T) {
 	collector := status.Collector{
 		Prober: &gatheringProber{waitFor: len(accounts), gathered: make(chan struct{})},
 		Token:  tokenstest.Files{"work": "test-token-work", "personal": "test-token-personal", "side": "test-token-side"}.Read,
+		Taken:  tokenstest.Taken{}.Read,
 		Now:    time.Now,
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -517,6 +521,7 @@ func TestCollectBest(t *testing.T) {
 				Prober: &fakeProber{results: map[string]probeResult{"test-token-work": tt.work, "test-token-side": tt.side}},
 				Policy: policy,
 				Token:  tokenstest.Files{"work": "test-token-work", "side": "test-token-side"}.Read,
+				Taken:  tokenstest.Taken{}.Read,
 				Now:    func() time.Time { return now },
 			}
 			accounts := []config.Account{{ID: "work", Label: "Work", Reserve: tt.workReserve}, {ID: "side", Label: "Side"}}
@@ -662,6 +667,7 @@ func TestDocumentJSON(t *testing.T) {
 				Accounts: []status.Account{
 					{
 						ID: "work", Label: "Work", TokenSet: true, FetchedAt: generated,
+						TokenTaken: time.Date(2026, 3, 2, 9, 30, 0, 0, time.UTC), TokenGoodUntil: time.Date(2027, 3, 2, 9, 30, 0, 0, time.UTC),
 						Windows: []quota.Window{
 							{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), Status: quota.StatusAllowed},
 							{Key: "7d", Label: "Week", Utilization: 0.93},
@@ -681,6 +687,8 @@ func TestDocumentJSON(t *testing.T) {
       "id": "work",
       "label": "Work",
       "token_set": true,
+      "token_taken": "2026-03-02T09:30:00Z",
+      "token_good_until": "2027-03-02T09:30:00Z",
       "fetched_at": "2026-09-28T13:12:00Z",
       "windows": [
         {

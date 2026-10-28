@@ -29,7 +29,7 @@ It's built for its author's setup, and stays general only where that costs nothi
 macOS only.
 
 Scope: Claude Code, authenticated with long-lived setup tokens (`claude setup-token`). Browser
-logins and other agents are deferred. Claude-specific knowledge sits behind a provider interface,
+logins aren't wanted (see Backlog: OAuth logins), and other agents are deferred. Claude-specific knowledge sits behind a provider interface,
 so another agent can be added later without reshaping the rest; the few pieces that don't are
 listed under Architecture.
 
@@ -657,13 +657,83 @@ accounts:
   neither readable nor writable by anyone else; otherwise the account counts as having no token,
   and `accounts` and `status` say why and how to fix it. Switchboard reads no token from the
   environment.
+- A setup token is good for a year from when it's made, 365 days, and is never refreshed, so
+  switchboard keeps when it took each token: whenever it writes one, it writes beside it
+  `<state dir>/tokens/<id>.taken`, as it writes the token, whole and 0600. It holds a pair of lines
+  for each of the account's latest 8 tokens, the latest given first: the time taken, RFC 3339 in
+  UTC, then the token's SHA-256 hash in lowercase hex, never the token, as
+  `taken 2026-10-27T09:30:00Z` then `sha256 <hash>`. A token's date is the one its hash has there,
+  so a token file replaced by anything else has no known date rather than a wrong one. A token's
+  year counts from when switchboard took it, a pasted token's from the day it was given, as nothing
+  says when it was made, as one setup-token makes each: a token given again, even after others, as
+  one given by mistake, moves to the front keeping the earlier of its two dates, which a clock set
+  wrong when it was first taken can't have moved on. One given again after 8 others counts afresh. A
+  record that's missing leaves the date unknown, saying nothing; one that isn't the user's alone,
+  isn't whole pairs of those lines, from 1 to 8, each well formed, no hash twice, holds a time
+  that's zero or outside the years 1 to 9998 in UTC, so its year's end has a year RFC 3339 can
+  write, or has no date of the token leaves it unknown too, logged at debug, by the router once
+  until why changes. Neither ever makes the token unusable. A record restored readable by others,
+  though no one else can write it, is made the user's alone, as the tokens directory is: as the
+  router starts, and as a token is written beside it; only a file of the user's, by that one name,
+  at an account's record's own path, never through a link. One that's a second name of a file, as a
+  dotfiles checkout may leave it, keeps its dates as a token is written beside it, written afresh,
+  private, as a new file at the record's own path, the file's other name left as it was. One that's
+  a link keeps them too, written afresh, private, where the link leads, but only where what it leads
+  to was read as a record: a file of the user's that no one else can write. A link may lead
+  anywhere, and writing there would replace whatever it leads to, so a link to anything else is left
+  as it is, and what it leads to, with a warning, the date unknown and the token working as before:
+  a link leading nowhere, or to another account's token file, a file that isn't a record, one
+  another user's or others can write, or what isn't a file. A token switchboard keeps rather than
+  takes, as `accounts add` keeps a usable one, keeps whatever record it has, as one restored with
+  it. Writing a token, and reading and rewriting its record, and removing an account's, hold a lock
+  on the tokens directory, so two writes at once both keep their dates, and a write beside a removal
+  can't leave a removed account's record; a write changes nothing of a record where nothing would
+  change. At its own path, not a link, a record that's missing, or was read and can't be gone by, is
+  replaced, and so is what isn't a file, but for a directory, which a file can't be renamed over, so
+  it's left, with a warning. A file that can't be read, whoever's it is, as one written under sudo,
+  is left as it is, as it may hold a token, and so is the record where the time given is one it
+  can't hold, as of a clock gone wrong. Nor is it ever written over a file that's any account's
+  token or another account's record, judged by the file, however it's reached: at its own path,
+  through a link or as a second name, as where a token file is a link to the record's own path, or
+  the record a link to another account's. That's left as it is, with a warning, and so is where the
+  record would go, while nothing's there, where another account's token file or record is a link
+  leading there. The account's own record is the entry named for its id, whatever its case, that's
+  the file at the record's path, so one whose name's case changed with its id, on a file system that
+  doesn't tell case apart, is the account's own, while another account's record that's a second name
+  of it is another's, and left. A failure to write it is logged as a warning, the token saved all
+  the same. `accounts remove` deletes the token file, then the record, a link alone where it's one;
+  a token file it can't remove keeps its record, and a token file that's a link leading to the file
+  at the record's own path, by that one name, leaves that file, the one it led to, however the link
+  spells its path; while the token file leads there, a token written is written there, and no record
+  over it, with a warning. Once it's removed, the file left there holds a token, perhaps that
+  token's only copy, and a record is never written over a file at its own path holding anything
+  shaped like a token, as `redact` recognises one, whatever the file's mode or owner: every file it
+  can read is read for that, whole, up to 1 MiB, before its mode and owner are judged, and it's
+  left, with a warning, never quoting it; so is one larger than that, too large to tell it holds no
+  token. A damaged record of other words is replaced; the dates of one others can write, or another
+  user's, are never gone by. A record that's a link, to the token file or to a file elsewhere, goes
+  as a link, and one that's a second name of the token file, or of the file it leads to, judged by
+  the file before the token file goes, is the token being removed, and its name goes with it,
+  whatever it holds, and `accounts remove` says so where the token file led to that name and it's
+  gone; where how many names the file has can't be told, as on a system that doesn't count them,
+  it's left, with a warning, as it may be the token's only copy. Writing a token replaces the token
+  file, so a second name made by hand stops being one at the next write, and is then left as any
+  file holding a token at the record's path is; a directory in the record's place, empty or not, is
+  left, and so is a file at the record's own path that a write would leave, as it may be a token:
+  one holding a token, too large to tell, or that can't be read, with a warning, but for that second
+  name. The status document gives each account's `token_taken`, and `token_good_until`, 365 days on,
+  the router's as probing's: the router reads the record whenever it reads the token, as it starts,
+  at every look and on a 401, never per request, and holds the date beside the token it was of, so a
+  record that lands a moment after its token counts from the next look.
 - Anything can write the files, such as a password manager's file export or a dotfiles secrets step.
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
   empties the file before it writes the token, as a shell's redirect does, leaves it empty for a
-  moment, which the router can catch (see below). A token file may be a link to one kept
-  elsewhere, as by a dotfiles step: switchboard reads it, and writes a token, through the link, to
-  where it leads, never in its place.
+  moment, which the router can catch (see below). A token file may be a link to one kept elsewhere,
+  as by a dotfiles step: switchboard reads it, and writes a token, through the link, to where it
+  leads, never in its place. A link whose way goes back, by `..`, out of a directory that isn't
+  there leads nowhere the system can follow, so writing through it fails, saying so, as for any file
+  switchboard writes through a link.
 - The router reads the tokens as it starts, every account's file again every 3 seconds, and an
   account's file again when a request on it gets a 401 (see Requests that need special
   handling), so a changed token file needs no restart: an account whose file holds another token
@@ -730,7 +800,7 @@ accounts:
 already done, and does only what's missing. It asks as it goes, a line at a time, so it needs a
 terminal: without one, it fails, saying how each step is taken alone: by the command that takes it,
 where there is one, priming by a line in the config's `[prime]` table, and the `claude` link by
-making it and putting its directory on `PATH`; the skill, only setup writes. It stops at a step that
+making it and putting its directory on `PATH`; the skill and the session hook, only setup writes. It stops at a step that
 fails, when its input ends, or at an interrupt; run again, it carries on from there. Before it asks
 anything, it refuses a switchboard that won't last, such as `go run`'s, as `service install` does:
 the service and the `claude` link both run the one setup was run by. An answer shaped like a token,
@@ -753,13 +823,24 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    in switchboard's bin directory (see Files), leading to switchboard by the path it was run by,
    as the LaunchAgent names it, so an upgrade moves the link on; a link there leading anywhere
    else it replaces, as the directory is switchboard's, and anything there that isn't a link it
-   leaves alone, and says so. Then it finds the real `claude` as `run` does, and checks the
-   directory is on `PATH` ahead of it: the step is done when the link is right and the
-   directory is ahead of the real `claude`, and no other place counts. Otherwise it says the one
-   line to add to the shell's startup file, after anything else there that changes `PATH`, so
-   the directory stays ahead of the real `claude`'s, written from `$HOME` when it's in the home:
-   `export PATH="$HOME/.local/share/switchboard/bin:$PATH"`. It never edits the file; run
-   again, setup checks it.
+   leaves alone, and says so. Then it asks the user's own login shell, `$SHELL` run as a login
+   and interactive shell, with no input and a time limit, which `claude` it runs: the step is done
+   when it answers with the link, and no other answer counts. Otherwise, for zsh, bash and fish,
+   it offers to add one line to the end of the startup file the shell reads last, `.zshrc` in
+   `$ZDOTDIR`, else the home, `~/.bash_profile`, or `~/.config/fish/config.fish`, naming the file
+   and showing the line before it asks, and writing through a link to the file as to the file.
+   The line hands off to a file of switchboard's own beside its bin directory, one a shell,
+   written in that shell's own syntax, which puts that directory first on `PATH`, unless it's
+   there already, and loads switchboard's completions; the line does nothing once that file is
+   gone. So the user's startup file is written once, and everything switchboard does in the shell
+   after that is in its own file: setup writes it, and the router brings it up to date as it
+   starts, as it does the skill. A comment beside the line marks it as switchboard's, so it's
+   added once and found again, and found there but not taking effect, setup says something after
+   it changes `PATH`. Declined, it shows the same line to add by hand, wherever the user keeps
+   such lines, and the directory alone, to put first on `PATH` wherever it's set, for a `PATH`
+   kept another way or a shell setup doesn't know. Either way it asks the login shell again, and
+   the step is done only when it answers with the link. Then it installs the session hook, or
+   puts it right (see The session hook).
 5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Prints `usage`, every account's windows as they stand (see `usage`, the printout).
 
@@ -7044,6 +7125,26 @@ user's live dashboard, which Claude points to rather than runs, as `status` give
 Claude Sonnet 5.5 session carries on without its earlier reasoning; artifacts always live on the
 primary; and `switchboard --help` for the rest.
 
+## The session hook
+
+`setup` installs a hook in Claude Code's settings that every session runs as it starts, however it
+was started: by switchboard's `claude`, by the real `claude` found ahead of it or run by its path,
+or by an editor. The hook routes nothing and changes nothing: it notices. The launcher marks the
+environment of every Claude Code it starts (see Launching), which a session's hooks inherit; a
+session without the mark hears as it starts that it isn't going through switchboard, as the
+`claude` that started it isn't switchboard's, and what to run: `switchboard setup`. So whatever
+puts the real `claude` ahead again, a startup file changed, a line declined or a Mac restored, the
+first session after it says so.
+
+- **It runs `switchboard hook session-start`** by the path setup was run by, as the `claude` link
+  does, and does nothing when that path leads nowhere, so switchboard removed leaves no hook
+  failing.
+- **It never holds up or fails a session:** it answers at once, and always succeeds.
+- **Switchboard's own entry:** it lives in `settings.json` in Claude Code's config directory,
+  `$CLAUDE_CONFIG_DIR`, else `~/.claude`. Setup adds it, or puts it right, and leaves every other
+  setting and hook as it is; only setup writes it. Taking it away is the uninstall's
+  (`ideas/2026-10-27--uninstall.md`).
+
 ## What doesn't go through the router
 
 Claude Code's own token is the primary's, so what isn't routed lands there.
@@ -7059,7 +7160,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
   rather than refused. The router moves sessions off it once the headers show the window spent,
   but the request that crossed the limit is billed. The accounts tested read extra usage as off.
 - **Programs whose `PATH` lacks the link's directory**, such as launchd jobs and some GUI apps,
-  find the real `claude`, and aren't routed.
+  find the real `claude`, and aren't routed; the session hook says so as each session starts.
 - **A direct launch**, without the router, can spend the reserve of the account it goes out on.
 - **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude
   Code may use the key in place of an account's token, so `claude` starts it as if switchboard
@@ -7075,7 +7176,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text (`--print`) or in colour (`--ansi`), at its frame's size or one given (`--size`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot; plays a scenario of `internal/capture`'s in real time, for the README's demos (`--scenario`); and writes the frames in `testdata/vhs/reference/` from their fixtures, every one it keeps or those named (`--frames`). Capture's tests hold each fixture to its frame's text and ANSI, cell for cell (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print; a data verb in its form for a person on a terminal, else its JSON (see The data verbs) |
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
-| `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
+| `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, with the record of when each was taken, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/dayfile` | Files a day of JSON lines, as the readings history, the request ledger and the router's events keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included, or a day's file on from where a read of it last ended, as a tail reads it; the days themselves, each from its first instant, and the times of a day, each as the clocks first read it, where they go forward over it, or back over it, too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too, at every round or just before each prune |
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; the days' digests, built on a goroutine of their own through the `Digester` seam it declares, each day's builder handed every line its read reads, and their parts files, a gzip member a session pointed at by offset, length and CRC; each day's head, built after the digests, newest first, of exactly the lines `Day` gives the day by the one read both share, its side the views'; when a digest or a head stands, and a session as of a day, on the newest state a digest holds that stands for it, or, for a page, the newest whose chain of parts reads, and the raw lines after, one lookup the writer and the readers share; a line's usage decoded once into what its request spent, which the price table prices as it prices the line, and what a page's requests spent, summed by model and where they were served, priced alike once as the page is built; a window's climb, and its stored form; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
@@ -7267,8 +7368,11 @@ hiding it behind the provider would take a wider interface than it's worth:
   (see Themes).
 - **Themes:** `<slug>.theme` files in `SWITCHBOARD_THEMES_DIR`, else
   `$XDG_CONFIG_HOME/switchboard/themes/`, else `~/.config/switchboard/themes/` (see Themes).
-- **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
-  and tokens.
+- **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory, and beside
+  each token switchboard wrote, `<id>.taken`, 0600: a pair of lines for each of the account's latest
+  8 tokens, the latest first, `taken <RFC 3339 time, UTC>` then `sha256 <the token's hash, lowercase
+  hex>`, saying when it first took each. An account id holds no `.`, so no token file is named so.
+  See Accounts and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
   Logging), and `launchd.log`, where the service's raw stdout and stderr, such as crash output,
   go, cut to its newest 5 MiB as the service starts the router, once past 10 (see Logging).
@@ -7521,6 +7625,8 @@ Each account:
 | `primary` | `true` on the primary; left out otherwise |
 | `reserve` | Its reserve; left out at 0 |
 | `token_set` | Whether its token file is present and usable |
+| `token_taken` | When switchboard took its token, as the record it wrote beside the token says (see Accounts and tokens); left out when that isn't known, as of a token written by anything else |
+| `token_good_until` | When its token's year is up: `token_taken` and 365 days, a setup token's lifetime; left out with `token_taken` |
 | `fetched_at` | When its usage was last read; left out when it never was |
 | `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status, restarted_at, pace, allowance}`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given: a 5-hour window that has lapsed reads 0, with neither. `restarted_at` is *router*: when the window started again, as a reset made by hand that keeps its reset starts it, which its pace and projection measure from until its next reset; left out otherwise, when it runs a whole length before its reset. `pace` is its even pace: the share of its length that has passed since it started, its reset less its length, or its `restarted_at`, so where even use would have put its utilization now, as `usage` marks it; left out where it isn't running, as a 5-hour window that has lapsed, which `usage` says hasn't started, or where its reset isn't known. `allowance` is what can be spent of it and still last to its reset: `{share, per}`, the room left below its cap, where its reserve holds it back, else its limit, as a fraction of the window, divided by the time to its reset: `per` `hour` for a window of a day or less, as the 5-hour, and `day` for a longer one, as a week; and where its reset comes within one `per`, the room itself, `per` left out. Left out where it has no room left, isn't running, or its reset isn't known. A window whose reset has passed since it was read counts from empty, its pace from that reset and its next reset a length after it. Left out when none has been read |
 | `lapsed` | The keys of its windows that have lapsed: the 5-hour window, once its reset has passed with nothing read since, which isn't running, and reads empty, until a request starts it (see Priming). Left out when none has |
@@ -8511,7 +8617,10 @@ why.
 | A scheduled review of switchboard's records, raising what it finds as an issue or a pull request | open: to discuss with its owner | [scheduled-review](../ideas/2026-10-14--scheduled-review.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
-| Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | next to discuss, after the cleanliness release: the owner, 26 October 2026, OAuth and the setup process first | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
+| Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | chosen by the owner on 27 October 2026, with setup's flow step by step: setup tokens alone, which setup makes itself by running `claude setup-token`; each account's plan, the primary's reserve, a review of each account on a run again, `accounts edit`, and a warning before a token's year is up; to build next | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
+| History kept beyond one Mac: each day's finished files copied to iCloud Drive, a folder a Mac, and `setup` offering to bring a Mac's history back | agreed by the owner on 27 October 2026 that switchboard keeps it itself; the design to settle, before the owner's next Mac arrives in about four weeks | [history-beyond-one-mac](../ideas/2026-10-27--history-beyond-one-mac.md) |
+| An uninstall: everything switchboard put on the Mac taken away, the service, the shell's startup line, the session hook, the skill and the `claude` link | asked for by the owner on 27 October 2026, as setup took on the startup line and the hook; what goes of the config, tokens and history to settle | [uninstall](../ideas/2026-10-27--uninstall.md) |
+| Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
 | The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
@@ -8528,7 +8637,7 @@ why.
 | A config checked under the new binary's rules before a handover, so a rule an upgrade tightens, as a label's 100 characters, can't leave the router stopped | built in the cleanliness release, 26 October 2026: the new binary asked with `serve --check`, the restart held only on its refusal (see The router looking after itself); a config edited after an upgrade, before the handover, judged by the new binary since, as the release review's fixes built (26 October 2026) | [config-checked-before-handover](../ideas/2026-10-23--config-checked-before-handover.md) |
 | New sessions routed through a held router while the config can't be read, as when an upgrade's rules refuse it, rather than started unaided | open: to land before any release tightens a config rule; it changes the rule that a config that can't be read starts `claude` unaided, so it's the owner's call | [held-router-routes-unread-config](../ideas/2026-10-26--held-router-routes-unread-config.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
-| OAuth logins in place of setup tokens, kept fresh | next to discuss, after the cleanliness release, with signing in and setup (the owner, 26 October 2026) | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
+| OAuth logins in place of setup tokens, kept fresh | not wanted: the owner, 27 October 2026, as a login lapses about 30 days after it's signed in, however it's refreshed, and Anthropic's terms bar a tool from storing one | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
 | Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from History's Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
 | History's Days in strips per model version, beside its strips per family | later, after milestone 7 | [days-strips-per-version](../ideas/2026-10-08--days-strips-per-version.md) |

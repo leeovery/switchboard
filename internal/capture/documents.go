@@ -83,13 +83,18 @@ func (w accountWorld) document(now time.Time) status.Document {
 // none turned on: rejected, as every account of the frames reads it.
 var extraOff = quota.ExtraUsage{Status: quota.StatusRejected}
 
+// tokenAge is how long before a frame's moment each account took its token,
+// as at setup some months before.
+const tokenAge = 97 * 24 * time.Hour
+
 // account is the account a's status at at, its readings history h, as the
 // router gives it: as last read at at, or, where the world has the router
 // unable to read it since a time, then, its rates and pressure worked out
-// from its readings to then, and its extra usage off.
+// from its readings to then, its token taken tokenAge before, and its extra
+// usage off.
 func (w accountWorld) account(a config.Account, h history, at time.Time) status.Account {
 	read := w.readAt(a.ID, at)
-	st := status.Configured(a)
+	st := status.Configured(a).WithTokenTaken(at.Add(-tokenAge))
 	st.TokenSet, st.FetchedAt = true, read.UTC()
 	held := h.before(read)
 	latest := held.windows(claude.WindowLabel)

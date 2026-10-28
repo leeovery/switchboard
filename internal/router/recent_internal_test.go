@@ -520,7 +520,7 @@ func TestPressureIsJudgedAsTheDocumentJudgesItWithTheGlobalPin(t *testing.T) {
 	clock := &testClock{now: start}
 	reserving := slices.Clone(testConfigured)
 	reserving[0].Reserve = 0.2
-	s := newState(resolve(reserving, testTokens.Read), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+	s := newState(resolve(reserving, testTokens.Read, unrecorded), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 	sessions := newSessions(clock.read, unkept, unkept)
 	r := newRecent(s, sessions, clock.read)
 	// At the pace its use since it started sets, work's session reaches its
@@ -670,7 +670,7 @@ func newRecording(t *testing.T) *recording {
 func newRecordingOf(t *testing.T, configured []config.Account) *recording {
 	t.Helper()
 	now := func() time.Time { return time.Now().UTC() }
-	s := newState(resolve(configured, testTokens.Read), testPolicy, claude.Provider{}.Family, now, unkept, unkept)
+	s := newState(resolve(configured, testTokens.Read, unrecorded), testPolicy, claude.Provider{}.Family, now, unkept, unkept)
 	return &recording{t: t, state: s, r: newRecent(s, newSessions(now, unkept, unkept), now), began: now()}
 }
 

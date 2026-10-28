@@ -391,8 +391,12 @@ func TestAnAccountGoesOutOnTheTokenItsFileHeldWhenReadAgain(t *testing.T) {
 	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
 	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
 	r.api.script(workToken, refuseWith(http.StatusUnauthorized, "Invalid bearer token"))
-	writeToken(t, store, "work", renewed)
+	renewedAt := now.Add(time.Minute)
+	writeTokenTaken(t, store, "work", renewed, renewedAt)
 	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+	if work, _ := r.rt.Status().Account("work"); !work.TokenTaken.Equal(renewedAt) {
+		t.Errorf("work's token was taken at %v, want %v: when its new token was, as read again", work.TokenTaken, renewedAt)
+	}
 
 	// Another session, on side's token, pinned to work.
 	pinned := with(with(claudeCode(sideToken), claude.SessionHeader, "two"), router.PinHeader, "work")

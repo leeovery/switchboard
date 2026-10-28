@@ -421,7 +421,7 @@ func TestAnAccountOnATokenTakenUpWhileTheRouterWasAwayIsProbedAfresh(t *testing.
 	before.save()
 
 	later := start.Add(time.Minute)
-	restarted := newTestFile(at(later), resolve(testConfigured, tokenstest.Files{"work": renewedToken, "side": sideToken}.Read))
+	restarted := newTestFile(at(later), resolve(testConfigured, tokenstest.Files{"work": renewedToken, "side": sideToken}.Read, unrecorded))
 	restarted.load(path)
 	if u := restarted.state.usage["work"]; !u.probed.IsZero() || u.probeErr != "" || u.misses != 0 {
 		t.Errorf("work's probes loaded as ended %v, %q, %d in a row; want none: they went out on the token before", u.probed, u.probeErr, u.misses)
@@ -467,7 +467,7 @@ func TestAnAccountWithoutItsTokenAsTheRouterStartsStartsAfreshOnceItsBack(t *tes
 
 	// Side's token file is gone as the router starts again, and the state
 	// file is saved; then the router starts once more with the token back.
-	tokenless := newTestFile(at(start.Add(time.Hour)), resolve(testConfigured, tokenstest.Files{"work": workToken}.Read))
+	tokenless := newTestFile(at(start.Add(time.Hour)), resolve(testConfigured, tokenstest.Files{"work": workToken}.Read, unrecorded))
 	tokenless.load(path)
 	if u := tokenless.state.usage["side"]; !u.probed.IsZero() || u.probeErr != "" || u.misses != 0 || !u.tokenless {
 		t.Errorf("side, without its token, loaded its probes as ended %v, %q, %d in a row, tokenless %v; want none, tokenless, as on a loss",
@@ -773,7 +773,7 @@ func TestTheStateFileKeepsTheAccountsFormerTokensAsHashesForAWeek(t *testing.T) 
 	saving := newTestFile(at(start), accounts)
 	saving.load(path)
 	work, _ := accounts.byID("work")
-	if !work.secret.replace(mustToken(t, renewedToken), start) {
+	if replaced, _ := work.secret.replace(mustToken(t, renewedToken), takenNote{}, start); !replaced {
 		t.Fatal("replace() = false, want work's token replaced")
 	}
 	saving.changes.note()
@@ -808,7 +808,7 @@ func TestTheStateFileKeepsTheAccountsFormerTokensAsHashesForAWeek(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			restarted := resolve(testConfigured, tokenstest.Files{"work": renewedToken, "side": sideToken}.Read)
+			restarted := resolve(testConfigured, tokenstest.Files{"work": renewedToken, "side": sideToken}.Read, unrecorded)
 			newTestFile(at(start.Add(tt.after)), restarted).load(path)
 
 			a, ok := restarted.byToken(workToken, start.Add(tt.after))
@@ -827,7 +827,7 @@ func TestATokenReplacedWhileTheRouterWasAwayStillCountsAsItsAccounts(t *testing.
 	before.save()
 
 	later := start.Add(time.Hour)
-	restarted := resolve(testConfigured, tokenstest.Files{"work": renewedToken, "side": sideToken}.Read)
+	restarted := resolve(testConfigured, tokenstest.Files{"work": renewedToken, "side": sideToken}.Read, unrecorded)
 	f := newTestFile(at(later), restarted)
 	f.load(path)
 	for token, want := range map[string]string{renewedToken: "work", workToken: "work", sideToken: "side"} {
@@ -874,10 +874,10 @@ func TestAnAccountsTokensOutlastAGapInItsTokenFileAndARestart(t *testing.T) {
 			// The router starts again an hour on, work's file still gone,
 			// and it comes back.
 			later := start.Add(time.Hour)
-			restarted := resolve(testConfigured, watch.files.read)
+			restarted := resolve(testConfigured, watch.files.read, unrecorded)
 			newTestFile(at(later), restarted).load(path)
 			work, _ := restarted.byID("work")
-			if r := work.secret.reload(mustToken(t, tt.back), nil, later); r.replaced != tt.wantReplaced || !r.gained {
+			if r := work.secret.reload(mustToken(t, tt.back), nil, takenNote{}, later); r.replaced != tt.wantReplaced || !r.gained {
 				t.Errorf("work, its token file back, has gained its token: %v, and replaced the one it held: %v, want true and %v", r.gained, r.replaced, tt.wantReplaced)
 			}
 			for _, token := range []string{workToken, renewedToken, tt.back} {
@@ -988,7 +988,7 @@ func TestTheTokensOfAnAccountThatLeftTheConfigOutlastARestartAsThePrimarysAlone(
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			later := start.Add(tt.after)
-			restarted := resolve(tt.configured, testTokens.Read)
+			restarted := resolve(tt.configured, testTokens.Read, unrecorded)
 			newTestFile(at(later), restarted).load(path)
 			side, _ := restarted.byID("side")
 			if got := side.secret.was(workHash, later); got != tt.wantSides {
@@ -1019,7 +1019,7 @@ func TestFormerTokensAreForgottenHourlyAWeekAfterTheyWereReplaced(t *testing.T) 
 		f := newTestFile(time.Now, accounts)
 		f.load(path)
 		work, _ := accounts.byID("work")
-		work.secret.replace(mustToken(t, renewedToken), time.Now().Add(-formerFor+30*time.Minute))
+		work.secret.replace(mustToken(t, renewedToken), takenNote{}, time.Now().Add(-formerFor+30*time.Minute))
 		f.changes.note()
 		stop := keep(f)
 		defer stop()
@@ -1112,7 +1112,7 @@ func TestLoadingKeepsWhatsOfAnAccountWhoseTokenFileCantBeReadAsTheRouterStarts(t
 		Tokens:      map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
 	})
 	// Work's token file is caught emptied as it's rewritten.
-	f := newTestFile(at(start), resolve(testConfigured, tokenstest.Files{"work": "", "side": sideToken}.Read))
+	f := newTestFile(at(start), resolve(testConfigured, tokenstest.Files{"work": "", "side": sideToken}.Read, unrecorded))
 
 	f.load(path)
 	if s := f.sessions; !maps.Equal(s.assignments, assignments) || !maps.Equal(s.own, own) || !reflect.DeepEqual(s.pin, pin) {

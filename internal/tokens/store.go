@@ -1,7 +1,7 @@
 // Package tokens keeps the accounts' tokens: a file each, holding the token
 // alone, in a directory of the state directory's that only the user can use.
 // A token file counts only while it's the user's, and no one else can read or
-// write it.
+// write it. Beside each it writes goes the record of when it took it.
 package tokens
 
 import (
@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
@@ -28,7 +29,8 @@ const (
 )
 
 // Store is the token files of a state directory: <state dir>/tokens/<id>, one
-// for each account. Each is named by its account's id, which config keeps a
+// for each account, and beside each the record of when switchboard took its
+// token, <id>.taken. Each is named by its account's id, which config keeps a
 // plain file name.
 type Store struct {
 	dir string
@@ -73,24 +75,33 @@ func (s Store) Read(id string) (Token, error) {
 // read or write. What it checks is the file it has open, whatever takes its
 // place at path meanwhile.
 func (s Store) readPrivate(path string) ([]byte, error) {
-	f, err := os.OpenFile(path, openFlags, 0)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
+	data, err := readChecked(path, "the token file", maxFile, func(info fs.FileInfo) error { return s.checkPrivate(path, info) })
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%w: write it to %s", ErrMissing, path)
-	case err != nil:
-		return nil, fmt.Errorf("read the token file: %w", err)
+	}
+	return data, err
+}
+
+// readChecked returns what the file at path holds, up to a byte more than
+// most, once check passes it, as the file it has open: whatever takes its
+// place at path meanwhile. It fails with check's error, else saying it
+// couldn't read what, wrapping fs.ErrNotExist where there's nothing at path.
+func readChecked(path, what string, most int64, check func(fs.FileInfo) error) ([]byte, error) {
+	f, err := os.OpenFile(path, openFlags, 0)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", what, err)
 	}
 	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("read the token file: %w", err)
+		return nil, fmt.Errorf("read %s: %w", what, err)
 	}
-	if err := s.checkPrivate(path, info); err != nil {
+	if err := check(info); err != nil {
 		return nil, err
 	}
-	data, err := io.ReadAll(io.LimitReader(f, maxFile+1))
+	data, err := io.ReadAll(io.LimitReader(f, most+1))
 	if err != nil {
-		return nil, fmt.Errorf("read the token file: %w", err)
+		return nil, fmt.Errorf("read %s: %w", what, err)
 	}
 	return data, nil
 }
@@ -103,13 +114,19 @@ func (s Store) checkPrivate(path string, info fs.FileInfo) error {
 	if !mode.IsRegular() {
 		return fmt.Errorf("the token file %s isn't a file: replace it with one holding the token", path)
 	}
-	if uid, ok := owner(info); !ok || uid != s.uid {
+	if !s.owns(info) {
 		return fmt.Errorf("the token file %s is another user's: replace it with one of your own", path)
 	}
 	if exposed := mode.Perm() & shared; exposed != 0 {
 		return fmt.Errorf("other users can %s the token file (mode %04o): chmod 600 %s", access(exposed), mode.Perm(), path)
 	}
 	return nil
+}
+
+// owns reports whether the file info describes is the user's.
+func (s Store) owns(info fs.FileInfo) bool {
+	uid, ok := owner(info)
+	return ok && uid == s.uid
 }
 
 // access says what the permission bits exposed let others do with a file.
@@ -138,17 +155,27 @@ func parse(data []byte) (Token, error) {
 // the user can read or write, having made the tokens directory, or made it
 // theirs alone: through a link, where it leads, rather than in its place. The
 // file is written whole or not at all, and synced, as a token lost to a crash
-// takes a new setup token to replace.
-func (s Store) Write(id string, token Token) error {
+// takes a new setup token to replace. Beside it, the record of when each of
+// the account's latest tokens was taken, which Taken reads, gains token,
+// taken at taken, as writeTaken writes it: a token it has a date of already
+// keeps the earlier of the two. Failing to write that leaves the token's date
+// unknown, and is logged, never failing the write. The token and its record
+// are written under the tokens directory's lock, which Remove takes too, so a
+// write and a removal at once can't leave a record of a removed account.
+func (s Store) Write(id string, token Token, taken time.Time) error {
 	if err := s.keepPrivate(); err != nil {
 		return err
 	}
+	defer lockDir(s.dir)()
 	target, err := atomicfile.Target(s.Path(id))
 	if err != nil {
 		return fmt.Errorf("write the token file: %w", err)
 	}
 	if err := atomicfile.Write(target, []byte(token.Reveal()+"\n"), 0o600); err != nil {
 		return fmt.Errorf("write the token file: %w", err)
+	}
+	if err := s.writeTaken(id, token, taken); err != nil {
+		logger.Warn("couldn't record when the token was taken", "account", id, "error", err)
 	}
 	return nil
 }
@@ -172,7 +199,8 @@ func (s Store) Dir() string {
 
 // Tighten makes the tokens directory the user's alone, as Write keeps it,
 // when it's there: it never makes one. It returns the permissions the
-// directory had, and reports whether it changed them.
+// directory had, and reports whether it changed them. It makes the records
+// in it of when each token was taken private too, as tightenRecord does.
 func (s Store) Tighten() (was fs.FileMode, tightened bool, err error) {
 	info, err := os.Stat(s.dir)
 	switch {
@@ -184,13 +212,14 @@ func (s Store) Tighten() (was fs.FileMode, tightened bool, err error) {
 		return 0, false, fmt.Errorf("the tokens directory %s isn't a directory: remove it, and write the tokens again", s.dir)
 	}
 	was = info.Mode().Perm()
-	if was == private {
-		return was, false, nil
+	tightened = was != private
+	if tightened {
+		if err := os.Chmod(s.dir, private); err != nil {
+			return was, false, fmt.Errorf("make the tokens directory private: %w", err)
+		}
 	}
-	if err := os.Chmod(s.dir, private); err != nil {
-		return was, false, fmt.Errorf("make the tokens directory private: %w", err)
-	}
-	return was, true, nil
+	s.tightenRecords()
+	return was, tightened, nil
 }
 
 // Removed is what removing an account's token file removed.
@@ -200,12 +229,91 @@ type Removed struct {
 	// LinkedTo is where the token file led, when it was a link: "" when it
 	// wasn't.
 	LinkedTo string
+	// LinkedToGone is set where the name the token file led to, the
+	// record's own path, a second name of the token's file, went with it:
+	// the file's kept under its other name.
+	LinkedToGone bool
 }
 
-// Remove deletes the account's token file, if it has one, and says what it
-// removed. A link in its place goes, but not the file it leads to, which is
-// kept elsewhere, as by a dotfiles step, and isn't switchboard's to delete.
+// Remove deletes the account's token file, if it has one, then the record of
+// when its token was taken, and says what it removed of the token file. A
+// token file it can't remove keeps its record. A link in either's place goes,
+// but not the file it leads to, which is kept elsewhere, as by a dotfiles
+// step, and isn't switchboard's to delete. As tokenAtRecord judges it before
+// the token file goes: a record that's the token's file, the one it leads to,
+// by that one name, is the token's only copy, and is left; one that's a
+// second name of it is the token being removed, and its name goes with it;
+// one whose names can't be counted is left, with a warning. Anything else at
+// the record's path goes as forgetTaken says. It holds the tokens
+// directory's lock, as Write does.
 func (s Store) Remove(id string) (Removed, error) {
+	defer lockDir(s.dir)()
+	at := s.tokenAtRecord(id)
+	removed, err := s.removeToken(id)
+	if err != nil {
+		return Removed{}, err
+	}
+	switch at {
+	case onlyName:
+	case uncounted:
+		logger.Warn("left what's where the record of when the token was taken goes", "account", id,
+			"error", "it's the token file's, by a number of names that can't be told, so it may be its only copy")
+	case secondName:
+		s.removeRecord(id)
+		removed.LinkedToGone = removed.LinkedTo != "" && gone(removed.LinkedTo)
+	default:
+		s.forgetTaken(id)
+	}
+	return removed, nil
+}
+
+// tokenAt is what the file at an account's record's own path is of its
+// token's file, as tokenAtRecord judges it.
+type tokenAt int
+
+const (
+	// notTokens is anything else, or nothing.
+	notTokens tokenAt = iota
+	// onlyName is the token's file, by that one name.
+	onlyName
+	// secondName is the token's file, by that name among others.
+	secondName
+	// uncounted is the token's file, by a number of names that can't be told.
+	uncounted
+)
+
+// tokenAtRecord judges whether the file at the account's record's own path,
+// by that name, not followed where it's a link, is the token file's, or the
+// one the token file leads to, by the file, however a path to it is spelled,
+// and by how many names.
+func (s Store) tokenAtRecord(id string) tokenAt {
+	record, err := os.Lstat(s.takenPath(id))
+	if err != nil || !record.Mode().IsRegular() {
+		return notTokens
+	}
+	token, err := os.Stat(s.Path(id))
+	if err != nil || !os.SameFile(record, token) {
+		return notTokens
+	}
+	switch n, ok := links(record); {
+	case !ok:
+		return uncounted
+	case n == 1:
+		return onlyName
+	}
+	return secondName
+}
+
+// gone reports whether there's nothing at path, not followed where it's a
+// link.
+func gone(path string) bool {
+	_, err := os.Lstat(path)
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+// removeToken deletes the account's token file, if it has one, as Remove
+// does, and says what it removed.
+func (s Store) removeToken(id string) (Removed, error) {
 	path := s.Path(id)
 	info, err := os.Lstat(path)
 	switch {
