@@ -2,7 +2,6 @@ package shell
 
 import (
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -62,159 +61,121 @@ func readFront(sh Shell, is, home, link string) Front {
 	if !isAlias {
 		return f
 	}
-	if body, ok := words(value); ok {
-		f.Runs, f.Path = aliasRuns(sh, strings.Join(body, " "), home, link)
+	if body, ok := unquote(value); ok {
+		f.Runs, f.Path = alias{sh: sh, home: home, link: link}.runs(body)
 	}
 	return f
 }
 
-// assignment is a word that sets a variable, or adds to it, for the command
-// after it.
-var assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*\+?=`)
-
-// setsPath reports whether w, an assignment, sets PATH in sh, as zsh's path
-// does too.
-func setsPath(sh Shell, w string) bool {
-	name, _, _ := strings.Cut(strings.Replace(w, "+=", "=", 1), "=")
-	return name == "PATH" || sh == Zsh && name == "path"
+// alias reads an alias's body in sh, home being the user's home and link
+// switchboard's claude link.
+type alias struct {
+	sh         Shell
+	home, link string
 }
 
-// aliasRuns returns what body, an alias's in sh, runs, and the other claude
-// it runs by its path. Variables set first are passed over, but one that
-// sets PATH runs claude where only that PATH tells. Then its first command
-// decides: claude, or command claude without an option, by name; a path by
-// itself; builtin, or command with an option, runs no claude, or not the one
-// PATH finds; and one only its expansion tells, setup can't read. Any other
-// command is a wrapper setup doesn't read where a later word is claude, and
-// otherwise runs something else.
-func aliasRuns(sh Shell, body, home, link string) (Runs, string) {
-	ws, ok := words(body)
+// runs returns what body runs, and the other claude it runs by its path. Its
+// first command decides, as first says; but where that runs something else
+// without deciding it, a later word of the alias, in any of its commands,
+// that's claude or a path to one makes it a wrapper setup doesn't read.
+func (a alias) runs(body string) (Runs, string) {
+	cmds, ok := commands(body)
 	if !ok {
 		return Unknown, ""
 	}
-	for len(ws) > 0 && assignment.MatchString(ws[0]) {
-		if setsPath(sh, ws[0]) {
-			return SetsPath, ""
-		}
-		ws = ws[1:]
-	}
-	if len(ws) == 0 {
-		return Else, ""
-	}
-	if ws[0] == "command" {
-		ws = ws[1:]
-		if len(ws) > 0 && ws[0] == "--" {
-			ws = ws[1:]
-		}
-		if len(ws) == 0 || strings.HasPrefix(ws[0], "-") {
-			return Else, ""
-		}
-	}
-	if runs, path, decided := command(ws[0], home, link); decided {
+	runs, path, after, decided := a.first(cmds[0])
+	switch {
+	case decided:
 		return runs, path
-	}
-	if slices.Contains(ws[1:], "claude") {
+	case slices.ContainsFunc(after, namesClaude) || slices.ContainsFunc(slices.Concat(cmds[1:]...), namesClaude):
 		return Unknown, ""
 	}
 	return Else, ""
 }
 
-// command returns what word, the command an alias runs, is, and the other
+// first returns what ws, an alias's first command, runs, the other claude it
+// runs by its path, the words after its command word, and whether that
+// decides what the alias runs. Variables set first are passed over. Then its
+// command word decides: claude, or command claude without an option, by
+// name; a path by itself; builtin, or command with an option or alone, runs
+// no claude, or not the one PATH finds; and one only its expansion tells,
+// setup can't read. A PATH set before claude, by a variable or a word after
+// another command, as env's, runs claude where only that PATH tells.
+func (a alias) first(ws []word) (runs Runs, path string, after []word, decided bool) {
+	n := 0
+	for n < len(ws) && ws[n].assigns() {
+		n++
+	}
+	pathSet := slices.ContainsFunc(ws[:n], a.setsPath)
+	cmd := ws[n:]
+	if len(cmd) > 0 && cmd[0].text == "command" {
+		cmd = cmd[1:]
+		if len(cmd) > 0 && cmd[0].text == "--" {
+			cmd = cmd[1:]
+		}
+		if len(cmd) == 0 || strings.HasPrefix(cmd[0].text, "-") {
+			return Else, "", nil, true
+		}
+	}
+	if len(cmd) == 0 {
+		return Else, "", nil, false
+	}
+	runs, path, decided = a.command(cmd[0])
+	if decided && runs == ByName && pathSet || !decided && a.pathBeforeClaude(pathSet, cmd[1:]) {
+		return SetsPath, "", nil, true
+	}
+	return runs, path, cmd[1:], decided
+}
+
+// pathBeforeClaude reports whether claude is among ws after a word that sets
+// PATH, or after any where set.
+func (a alias) pathBeforeClaude(set bool, ws []word) bool {
+	for _, w := range ws {
+		if set && w.text == "claude" {
+			return true
+		}
+		set = set || a.setsPath(w)
+	}
+	return false
+}
+
+// setsPath reports whether w sets PATH, or adds to it, in sh, as zsh's path
+// does too.
+func (a alias) setsPath(w word) bool {
+	name := strings.TrimSuffix(strings.TrimSuffix(assignment.FindString(w.text), "="), "+")
+	return name == "PATH" || a.sh == Zsh && name == "path"
+}
+
+// command returns what w, the command word an alias runs, is, and the other
 // claude it names by its path, and whether that decides what the alias runs.
-func command(word, home, link string) (Runs, string, bool) {
-	path, isPath := fromHome(word, home)
+// zsh's =claude is PATH's claude by its path.
+func (a alias) command(w word) (Runs, string, bool) {
+	path, isPath, plain := a.path(w)
 	switch {
-	case word == "claude":
+	case !plain:
+		return Unknown, "", true
+	case w.text == "claude" || a.sh == Zsh && w.equals("claude"):
 		return ByName, "", true
-	case isPath && sameFile(path, link):
+	case isPath && sameFile(path, a.link):
 		return TheLink, "", true
 	case isPath:
 		return APath, redact.Text(path), true
-	case word == "builtin":
+	case w.text == "builtin":
 		return Else, "", true
-	case strings.ContainsAny(word, "$`"):
-		return Unknown, "", true
 	}
 	return 0, "", false
 }
 
-// words splits s, a simple command, into its words, as a shell does before
-// it expands them, quotes and backslashes removed: up to the end of the
-// command, at an unquoted ;, &, |, <, >, ( or ). It fails at a quote that
-// isn't closed.
-func words(s string) ([]string, bool) {
-	var ws []string
-	var w strings.Builder
-	inWord := false
-	end := func() {
-		if inWord {
-			ws = append(ws, w.String())
-		}
-		w.Reset()
-		inWord = false
+// path returns the path w names, absolute or from the home, and whether it
+// names one; and whether it can be read, with no expansion in it but the
+// home it starts from.
+func (a alias) path(w word) (string, bool, bool) {
+	rest, fromHome, plain := w.home()
+	switch {
+	case !plain || w.expands(len(w.text)-len(rest)) || fromHome && !filepath.IsAbs(a.home):
+		return "", false, false
+	case fromHome:
+		return filepath.Join(a.home, rest), true, true
 	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case strings.IndexByte(" \t\n", c) >= 0:
-			end()
-			continue
-		case strings.IndexByte(";&|<>()", c) >= 0:
-			end()
-			return ws, true
-		case c == '\\' && i+1 < len(s):
-			i++
-			w.WriteByte(s[i])
-		case c == '\'':
-			closing := strings.IndexByte(s[i+1:], '\'')
-			if closing < 0 {
-				return nil, false
-			}
-			w.WriteString(s[i+1 : i+1+closing])
-			i += closing + 1
-		case c == '"':
-			n, ok := doubleQuotedWord(s[i+1:], &w)
-			if !ok {
-				return nil, false
-			}
-			i += n + 1
-		default:
-			w.WriteByte(c)
-		}
-		inWord = true
-	}
-	end()
-	return ws, true
-}
-
-// doubleQuotedWord writes to w what s holds up to the double quote that
-// closes it, as a shell reads it, a backslash escaping only $, `, " and \;
-// and returns how far into s that quote is, and whether there's one.
-func doubleQuotedWord(s string, w *strings.Builder) (int, bool) {
-	for i := 0; i < len(s); i++ {
-		switch c := s[i]; {
-		case c == '"':
-			return i, true
-		case c == '\\' && i+1 < len(s) && strings.IndexByte("$`\"\\", s[i+1]) >= 0:
-			i++
-			w.WriteByte(s[i])
-		default:
-			w.WriteByte(c)
-		}
-	}
-	return 0, false
-}
-
-// fromHome returns the path word names, written from the home, as with ~ or
-// $HOME, or absolute; and whether it names one.
-func fromHome(word, home string) (string, bool) {
-	if filepath.IsAbs(word) {
-		return word, true
-	}
-	for _, prefix := range []string{"~/", "$HOME/", "${HOME}/"} {
-		if rest, ok := strings.CutPrefix(word, prefix); ok && filepath.IsAbs(home) {
-			return filepath.Join(home, rest), true
-		}
-	}
-	return "", false
+	return w.text, filepath.IsAbs(w.text), true
 }
