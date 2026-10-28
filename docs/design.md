@@ -884,12 +884,13 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    through the link, and no other answer counts: its `PATH` finds the link, and what stands in front
    of it, an alias or a function named `claude`, doesn't run something else. An alias is read by a
    plain rule, and what it doesn't read gets the hedge a function gets. Its value is read as zsh and
-   bash print it, bare or as one single quoted string, a quote within it written `'\''`, and in any
-   other form isn't read. Its body is split at spaces and tabs, and a word in it is plain where it's
-   made only of letters, digits and `_./:@%+,=-`, or is a path from the home: a bare `~/`, `$HOME/`
-   or `${HOME}/` and plain characters. Its leading `NAME=value` and `NAME+=value` words, where their
-   values are plain, a `~/` at a value's start, and `$PATH`, `${PATH}`, `$HOME` or `${HOME}`
-   anywhere within it, counting as plain, as in `CLAUDE_CONFIG_DIR=~/.claude-work` or
+   bash print it, bare, or as single quoted strings and escaped quotes, `\'`, one after another, as
+   bash writes a quote within it, `'\''`, and zsh does too, leaving out a string that'd be empty; in
+   any other form it isn't read. Its body is split at spaces and tabs, and a word in it is plain
+   where it's made only of letters, digits and `_./:@%+,=-`, or is a path from the home: a bare
+   `~/`, `$HOME/` or `${HOME}/` and plain characters. Its leading `NAME=value` and `NAME+=value`
+   words, where their values are plain, a `~/` at a value's start, and `$PATH`, `${PATH}`, `$HOME`
+   or `${HOME}` anywhere within it, counting as plain, as in `CLAUDE_CONFIG_DIR=~/.claude-work` or
    `PATH=/x:$PATH`, are passed over, and so is a `command` after them. Then the command word
    decides. `claude` or `\claude` runs it by name, so `PATH` decides, whatever follows it, as
    `claude` runs first; but after a variable that sets `PATH`, or in zsh `path`, it isn't done:
@@ -897,57 +898,60 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    out of the alias puts it right. A plain path, absolute or from the home, whose last element is
    `claude`, decides itself, whatever follows it: done where it's the link, and otherwise not, setup
    saying the alias runs that path, and that removing it or pointing it at `claude` puts it right.
-   Any other command word runs something else, as `npx …` does, where every word of the alias is
-   plain and none names `claude`, as the word or as one of its parts between `/`, `=`, `:` and `,`,
-   so `=claude` and `x/claude` name it, and `claude-code` doesn't; otherwise, as with `caffeinate -i
-   claude`, `/usr/bin/env claude`, `cd ~/work && claude` or `GITHUB_TOKEN=$(gh auth token) claude`,
-   it's a wrapper setup doesn't read. An empty alias runs something else. A function, or a wrapper,
-   is taken at `PATH`'s word, and setup says it doesn't read it: it goes through switchboard where
-   it runs `claude` by name. The shell runs in a process group of its own, killed whole once it
-   answers or at its time limit; an interrupt meanwhile kills it, and setup stops, as at any
-   interrupt. A shell that exits without answering may have a startup file start something that
-   needs a terminal, such as tmux, and setup says so. Otherwise, for zsh, bash and fish, it offers
-   to add one line to the end of the startup file a new terminal's shell reads, only where the shell
-   said where it reads it: for zsh, `.zshrc`, read by every interactive shell, in
-   `${ZDOTDIR:-$HOME}`, as zsh says; for bash, the first there of `~/.bash_profile`, `~/.bash_login`
-   and `~/.profile`, else `~/.bash_profile`, read by a login shell, as macOS terminals start one,
-   and only the first it finds, so a `.bash_profile` made beside a `.profile` would stop the
-   `.profile` loading; or for fish, `config.fish`, read by every shell, in `$__fish_config_dir`, as
-   fish says, a relative directory counting for none. zsh is asked once its startup files have run,
-   so the `ZDOTDIR` it reports may not be where a new terminal reads `.zshrc`: one exported in
-   `.zshenv` is, as is one exported in `.zprofile` for a login shell, as macOS terminals start, but
-   one exported in `.zshrc` or after it isn't. So, as a cautious call, where the `.zshrc` it names
-   isn't there and `~/.zshrc` is, setup writes nothing, and shows the line by hand, naming both.
-   Where the shell couldn't be asked, setup writes nothing, as its own `ZDOTDIR` can be a
-   terminal's, which zsh in a new terminal never reads: it shows the line to add by hand, naming the
-   file it usually goes in, `~/.zshrc`, the bash file above, or `~/.config/fish/config.fish`, and
-   asks the shell again. It names the file and shows the line before it asks, and writes through a
-   link to the file as to the file, appending, so the file keeps its inode, mode and links, and
-   after an empty line where the file's last line ends in a backslash that would join the line to
-   it. The line hands off to a file of switchboard's own beside its bin directory, one a shell,
-   written in that shell's own syntax, which puts that directory first on `PATH`, once: `PATH` is
-   left as it was where the directory is first already, and otherwise the directory goes first and
-   every other copy of it is taken off, so sourcing the file again changes nothing more. It loads
-   switchboard's completions, of its commands and flags, where the shell can take them: zsh once
-   `compdef` is defined, bash where the bash-completion package is loaded, and fish always; sourced,
-   it prints nothing, and ends with a status of 0. bash's file is POSIX shell alone, as `~/.profile`
-   is read by `sh`, dash and ksh too: bash's completions are a file of their own beside it,
-   `completion.bash`, which it sources only in bash, outside POSIX mode, where bash-completion is
-   loaded. The line does nothing once that file is gone. So the user's startup file is written once,
-   and everything switchboard does in the shell after that is in its own files: setup writes them,
-   and the router brings them up to date as it starts, as it does the skill, writing one that's
-   missing beside its shell's own file, as a newer switchboard adds one, but never a shell's own
-   file setup didn't write. A comment beside the line marks it as switchboard's, so it's added once
-   and found again. Found there but not taking effect, setup says something after it changes `PATH`,
-   and to move the line to the end of the file, or what changes `PATH` after it to before it; or,
-   where the line is last already, that something read after the file changes `PATH`, such as
-   `.zlogin`, and to put the line after it. Found reading another switchboard shell directory's
-   file, it says so, and shows the line to put in its place. Declined, it shows the same line to add
-   by hand, wherever the user keeps such lines, and the directory alone, written from `$HOME`, to
-   put first on `PATH` wherever it's set, for a `PATH` kept another way. Either way it asks the
-   login shell again, and the step is done only when a `claude` typed there goes through the link.
-   Then, whatever the link step found, it installs the session hook, or puts it right (see The
-   session hook).
+   The link after a variable that sets `PATH` isn't done either, as it starts `claude` by that
+   `PATH`. A path counts only where it's clean, as `filepath.Clean` leaves it, with no trailing `/`
+   and no `.` or `..` in it, the whole of it where it's absolute, and what follows the home where
+   it's from the home; any other path gets the hedge. Any other command word runs something else, as
+   `npx …` does, where every word of the alias is plain and none names `claude`, as the word or as
+   one of its parts between `/`, `=`, `:` and `,`, so `=claude` and `x/claude` name it, and
+   `claude-code` doesn't; otherwise, as with `caffeinate -i claude`, `/usr/bin/env claude`, `cd
+   ~/work && claude` or `GITHUB_TOKEN=$(gh auth token) claude`, it's a wrapper setup doesn't read.
+   An empty alias runs something else. A function, or a wrapper, is taken at `PATH`'s word, and
+   setup says it doesn't read it: it goes through switchboard where it runs `claude` by name. The
+   shell runs in a process group of its own, killed whole once it answers or at its time limit; an
+   interrupt meanwhile kills it, and setup stops, as at any interrupt. A shell that exits without
+   answering may have a startup file start something that needs a terminal, such as tmux, and setup
+   says so. Otherwise, for zsh, bash and fish, it offers to add one line to the end of the startup
+   file a new terminal's shell reads, only where the shell said where it reads it: for zsh,
+   `.zshrc`, read by every interactive shell, in `${ZDOTDIR:-$HOME}`, as zsh says; for bash, the
+   first there of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, else `~/.bash_profile`, read
+   by a login shell, as macOS terminals start one, and only the first it finds, so a `.bash_profile`
+   made beside a `.profile` would stop the `.profile` loading; or for fish, `config.fish`, read by
+   every shell, in `$__fish_config_dir`, as fish says, a relative directory counting for none. zsh
+   is asked once its startup files have run, so the `ZDOTDIR` it reports may not be where a new
+   terminal reads `.zshrc`: one exported in `.zshenv` is, as is one exported in `.zprofile` for a
+   login shell, as macOS terminals start, but one exported in `.zshrc` or after it isn't. So, as a
+   cautious call, where the `.zshrc` it names isn't there and `~/.zshrc` is, setup writes nothing,
+   and shows the line by hand, naming both. Where the shell couldn't be asked, setup writes nothing,
+   as its own `ZDOTDIR` can be a terminal's, which zsh in a new terminal never reads: it shows the
+   line to add by hand, naming the file it usually goes in, `~/.zshrc`, the bash file above, or
+   `~/.config/fish/config.fish`, and asks the shell again. It names the file and shows the line
+   before it asks, and writes through a link to the file as to the file, appending, so the file
+   keeps its inode, mode and links, and after an empty line where the file's last line ends in a
+   backslash that would join the line to it. The line hands off to a file of switchboard's own
+   beside its bin directory, one a shell, written in that shell's own syntax, which puts that
+   directory first on `PATH`, once: `PATH` is left as it was where the directory is first already,
+   and otherwise the directory goes first and every other copy of it is taken off, so sourcing the
+   file again changes nothing more. It loads switchboard's completions, of its commands and flags,
+   where the shell can take them: zsh once `compdef` is defined, bash where the bash-completion
+   package is loaded, and fish always; sourced, it prints nothing, and ends with a status of 0.
+   bash's file is POSIX shell alone, as `~/.profile` is read by `sh`, dash and ksh too: bash's
+   completions are a file of their own beside it, `completion.bash`, which it sources only in bash,
+   outside POSIX mode, where bash-completion is loaded. The line does nothing once that file is
+   gone. So the user's startup file is written once, and everything switchboard does in the shell
+   after that is in its own files: setup writes them, and the router brings them up to date as it
+   starts, as it does the skill, writing one that's missing beside its shell's own file, as a newer
+   switchboard adds one, but never a shell's own file setup didn't write. A comment beside the line
+   marks it as switchboard's, so it's added once and found again. Found there but not taking effect,
+   setup says something after it changes `PATH`, and to move the line to the end of the file, or
+   what changes `PATH` after it to before it; or, where the line is last already, that something
+   read after the file changes `PATH`, such as `.zlogin`, and to put the line after it. Found
+   reading another switchboard shell directory's file, it says so, and shows the line to put in its
+   place. Declined, it shows the same line to add by hand, wherever the user keeps such lines, and
+   the directory alone, written from `$HOME`, to put first on `PATH` wherever it's set, for a `PATH`
+   kept another way. Either way it asks the login shell again, and the step is done only when a
+   `claude` typed there goes through the link. Then, whatever the link step found, it installs the
+   session hook, or puts it right (see The session hook).
 5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Prints `usage`, every account's windows as they stand (see `usage`, the printout).
 

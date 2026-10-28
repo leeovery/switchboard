@@ -68,18 +68,29 @@ func readFront(sh Shell, is, home, link string) Front {
 }
 
 // unquote returns value, an alias's as zsh and bash print it, unquoted: bare,
-// or one single quoted string, a quote within it closing the string, escaped,
-// and opening it again. Any other form it isn't read in.
+// or single quoted strings and escaped quotes, one after another, as bash
+// writes a quote within the value, closing the string, escaping one and
+// opening another, and zsh does too, leaving out a string that'd be empty.
+// Any other form it isn't read in.
 func unquote(value string) (string, bool) {
-	if !strings.HasPrefix(value, "'") {
-		return value, !strings.ContainsAny(value, `'"\`)
+	if !strings.ContainsAny(value, `'"\`) {
+		return value, true
 	}
-	inner, ok := strings.CutSuffix(value[1:], "'")
-	parts := strings.Split(inner, `'\''`)
-	if !ok || slices.ContainsFunc(parts, func(p string) bool { return strings.Contains(p, "'") }) {
-		return "", false
+	var body strings.Builder
+	for value != "" {
+		if rest, ok := strings.CutPrefix(value, `\'`); ok {
+			body.WriteByte('\'')
+			value = rest
+			continue
+		}
+		quoted, rest, ok := strings.Cut(strings.TrimPrefix(value, "'"), "'")
+		if !ok || !strings.HasPrefix(value, "'") {
+			return "", false
+		}
+		body.WriteString(quoted)
+		value = rest
 	}
-	return strings.Join(parts, "'"), true
+	return body.String(), true
 }
 
 const (
@@ -115,10 +126,10 @@ type alias struct {
 // a plain rule. Its words, split at spaces and tabs, are read only in their
 // plain forms. Leading variables are passed over, and command. Then the
 // command word decides where it's claude, by name, though on a PATH of its
-// own where a variable set PATH; or a path to a claude, by itself. Whatever
-// follows either, claude runs first. Anything else runs something else
-// where every word after the variables is plain and none names claude;
-// otherwise setup doesn't read it.
+// own where a variable set PATH; or a clean path to a claude, by itself, as
+// command says. Whatever follows either, claude runs first. Anything else
+// runs something else where every word after the variables is plain and
+// none names claude; otherwise setup doesn't read it.
 func (a alias) runs(body string) (Runs, string) {
 	ws := strings.FieldsFunc(body, func(r rune) bool { return r == ' ' || r == '\t' })
 	setsPath := false
@@ -146,29 +157,35 @@ func (a alias) runs(body string) (Runs, string) {
 }
 
 // command returns what w, an alias's command word, runs, setsPath being
-// whether a variable before it sets PATH; and whether it decides that.
+// whether a variable before it sets PATH; and whether it decides that. The
+// link runs on that PATH too, as it starts claude by it.
 func (a alias) command(w string, setsPath bool) (Runs, string, bool) {
-	path, isPath := a.path(w)
+	path, isPath, clean := a.path(w)
 	switch {
 	case (w == "claude" || w == `\claude`) && setsPath:
 		return SetsPath, "", true
 	case w == "claude" || w == `\claude`:
 		return ByName, "", true
+	case isPath && !clean:
+		return Unknown, "", true
 	case !isPath || filepath.Base(path) != "claude":
 		return 0, "", false
-	case sameFile(path, a.link):
-		return TheLink, "", true
+	case !sameFile(path, a.link):
+		return APath, redact.Text(path), true
+	case setsPath:
+		return SetsPath, "", true
 	}
-	return APath, redact.Text(path), true
+	return TheLink, "", true
 }
 
 // path returns the path w, a plain word, names, absolute or from the home;
-// and whether it names one.
-func (a alias) path(w string) (string, bool) {
+// whether it names one; and whether it's written clean, with no trailing /
+// nor . or .. in it, as the shell runs only what it names.
+func (a alias) path(w string) (string, bool, bool) {
 	if m := homePath.FindStringSubmatch(w); m != nil {
-		return filepath.Join(a.home, m[2]), filepath.IsAbs(a.home)
+		return filepath.Join(a.home, m[2]), filepath.IsAbs(a.home), filepath.Clean(m[2]) == m[2]
 	}
-	return w, filepath.IsAbs(w) && plain.MatchString(w)
+	return w, filepath.IsAbs(w) && plain.MatchString(w), filepath.Clean(w) == w
 }
 
 // claudeToken reports whether w names claude, as one of its parts between

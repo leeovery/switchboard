@@ -204,7 +204,10 @@ func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
 		{name: "bare, the old local installer's", is: "alias claude=~/.claude/local/claude", want: shell.Front{Text: "alias claude=~/.claude/local/claude", Runs: shell.APath, Path: local}},
 		{name: "bare and empty", is: "alias claude=", want: shell.Front{Text: "alias claude=", Runs: shell.Else}},
 		{name: "single quoted and empty", is: "alias claude=''", want: shell.Front{Text: "alias claude=''", Runs: shell.Else}},
-		{name: "single quoted, a quote within it", sh: "/bin/bash", body: "claude --append-system-prompt 'be brief'", runs: shell.ByName},
+		{name: "single quoted, a quote within it, as bash gives it", sh: "/bin/bash", body: "claude --append-system-prompt 'be brief'", runs: shell.ByName},
+		{name: "single quoted, a quote within it, as zsh gives it", body: "claude --append-system-prompt 'be brief'", runs: shell.ByName},
+		{name: "single quoted, and bare text between", is: `alias claude='claude --x '\'b\'`, want: shell.Front{Text: `alias claude='claude --x '\'b\'`, Runs: shell.Unknown}},
+		{name: "an escaped quote alone, read, not plain", is: `alias claude=\'`, want: shell.Front{Text: `alias claude=\'`, Runs: shell.Unknown}},
 		{name: "single quoted, a quote within it, kept", body: "npx 'x'", runs: shell.Unknown},
 		{name: "single quoted, and a quote that isn't one of its joins", is: `alias claude='claude 'x'`, want: shell.Front{Text: `alias claude='claude 'x'`, Runs: shell.Unknown}},
 		{name: "a quote that isn't closed", is: "alias claude='claude", want: shell.Front{Text: "alias claude='claude", Runs: shell.Unknown}},
@@ -247,6 +250,8 @@ func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
 		{name: "a variable set from one whose name starts PATH", body: "FOO=$PATHS claude", runs: shell.Unknown},
 		{name: "a variable set from PATH, braced otherwise", body: "FOO=${PATH:-/usr/bin} claude", runs: shell.Unknown},
 		{name: "PATH set, for a path to claude", body: "PATH=/opt/real/bin " + other, runs: shell.APath, path: other},
+		{name: "PATH set, for the link by its path", body: "PATH=/opt/real/bin ~/.local/share/switchboard/bin/claude", runs: shell.SetsPath},
+		{name: "another variable set, for the link by its path", body: "FOO=1 ~/.local/share/switchboard/bin/claude", runs: shell.TheLink},
 
 		// A path to a claude, whatever follows it.
 		{name: "another claude by its path", body: other + " --verbose", runs: shell.APath, path: other},
@@ -254,6 +259,11 @@ func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
 		{name: "the old local installer's, from $HOME", body: "$HOME/.claude/local/claude", runs: shell.APath, path: local},
 		{name: "the old local installer's, expanded as it was set", body: local, runs: shell.APath, path: local},
 		{name: "the link by its path", body: claudeLink, runs: shell.TheLink},
+		{name: "the link by its path, a / after it", body: claudeLink + "/", runs: shell.Unknown},
+		{name: "the link by its path, through ..", body: filepath.Join(home, "missing") + "/../.local/share/switchboard/bin/claude", runs: shell.Unknown},
+		{name: "the link, from ~, a / after it", body: "~/.local/share/switchboard/bin/claude/", runs: shell.Unknown},
+		{name: "the link, from ~, through .", body: "~/./.local/share/switchboard/bin/claude", runs: shell.Unknown},
+		{name: "another claude by its path, a / after it", body: other + "/", runs: shell.Unknown},
 		{name: "the link, from ~", body: "~/.local/share/switchboard/bin/claude", runs: shell.TheLink},
 		{name: "the link, from $HOME", body: "$HOME/.local/share/switchboard/bin/claude --verbose", runs: shell.TheLink},
 		{name: "the link, from ${HOME}", body: "${HOME}/.local/share/switchboard/bin/claude $(echo x)", runs: shell.TheLink},
@@ -285,7 +295,11 @@ func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			is, want := tt.is, tt.want
 			if is == "" {
-				is = "alias claude='" + strings.ReplaceAll(tt.body, "'", `'\''`) + "'"
+				quote := zshQuoted
+				if tt.sh == "/bin/bash" {
+					quote = bashQuoted
+				}
+				is = "alias claude=" + quote(tt.body)
 				want = shell.Front{Text: is, Runs: tt.runs, Path: tt.path}
 			}
 			var runs []ran
@@ -303,8 +317,9 @@ func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
 
 func FuzzWhatsInFrontOfPATHsClaude(f *testing.F) {
 	for _, body := range []string{
-		"claude --verbose", `FOO=$'\' claude '\' npx`, `"$H""OME"/.local/share/switchboard/bin/claude`,
-		"cd ~/work && claude", "path=(/opt/real/bin $path) claude", "(claude", "FOO=$(", "${", "`", `$'\`, `"\`, "# claude",
+		"'claude --verbose'", "'CLAUDE_CONFIG_DIR=~/.claude-work claude'", "'PATH=/opt/real/bin:$PATH claude'",
+		`'claude -p '\''be brief'\'''`, `'claude -p '\''be brief'\'`, `\''claude'\'`, "'claude\t--verbose'",
+		"'~/.local/share/switchboard/bin/claude/'", "'/opt/x/../bin/claude'", "'\\claude'", "''", "'", `\`,
 	} {
 		f.Add(body)
 	}
@@ -403,6 +418,18 @@ func TestEachShellIsAskedInItsOwnWords(t *testing.T) {
 	}
 }
 
+// bashQuoted is v as bash gives an alias's value: single quoted, a quote
+// within it closing the string, escaped, and opening another.
+func bashQuoted(v string) string {
+	return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'"
+}
+
+// zshQuoted is v as zsh gives an alias's value that needs quoting: as bash
+// does, but for an empty string at either end.
+func zshQuoted(v string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(bashQuoted(v), "''"), "''")
+}
+
 func TestTheQuestionInARealShell(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "switchboard", "bin")
@@ -430,13 +457,13 @@ func TestTheQuestionInARealShell(t *testing.T) {
 		{
 			path: "/bin/zsh", args: []string{"-f", "-i"}, config: home,
 			quoted: func(v string) string {
-				if strings.Contains(v, " ") {
-					return "'" + v + "'"
+				if !strings.ContainsAny(v, " '") {
+					return v
 				}
-				return v
+				return zshQuoted(v)
 			},
 		},
-		{path: "/bin/bash", args: []string{"--noprofile", "--norc", "-i"}, quoted: func(v string) string { return "'" + v + "'" }},
+		{path: "/bin/bash", args: []string{"--noprofile", "--norc", "-i"}, quoted: bashQuoted},
 	}
 	// alias is what's in front, as a shell giving an alias's value as quoted
 	// does.
@@ -461,6 +488,14 @@ func TestTheQuestionInARealShell(t *testing.T) {
 			before: "alias claude='claude --verbose'; ",
 			path:   bin, want: shell.Answer{Kind: shell.Link, ConfigDir: "config"},
 			front: func(q func(string) string) shell.Front { return alias(q, "claude --verbose", shell.ByName, "") },
+		},
+		{
+			name:   "an alias to the name, ending in a quote, in front of the link",
+			before: `alias claude="claude --append-system-prompt 'be brief'"; `,
+			path:   bin, want: shell.Answer{Kind: shell.Link, ConfigDir: "config"},
+			front: func(q func(string) string) shell.Front {
+				return alias(q, "claude --append-system-prompt 'be brief'", shell.ByName, "")
+			},
 		},
 		{
 			name:   "an alias to another claude by its path, in front of the link",

@@ -370,16 +370,17 @@ The steps are:
    within them, as `CLAUDE_CONFIG_DIR=~/.claude-work` or `PATH=/x:$PATH`, and `command`, are passed
    over. Then `claude` leaves it to `PATH`, though after a variable that sets `PATH`, as `PATH=…
    claude`, it doesn't count, as `setup` can't tell which `claude` that `PATH` finds, so it says to
-   take that `PATH` setting out of the alias; and a path to a `claude`, such as Claude Code's old
-   `~/.claude/local/claude`, goes through switchboard only where it's the link, and otherwise
-   `setup` says to remove the alias or point it at `claude`. Another command runs something else, as
-   `npx …` does, where the alias is all plain words and names no `claude`; otherwise, as with
-   `caffeinate -i claude` or `cd ~/work && claude`, it's a wrapper `setup` doesn't read. A function,
-   or a wrapper, `setup` doesn't read, so it says it goes through switchboard where it runs `claude`
-   by name. Ctrl-C while it asks stops `setup`. `setup` asks zsh, bash and fish alone: for another
-   shell, it shows the bin directory, as `$HOME/…`, to put first on `PATH` by hand. Until it's done,
-   for zsh, bash and fish, `setup` offers to add one line to the end of your shell's startup file,
-   naming the file and showing the line first. For zsh, the line is:
+   take that `PATH` setting out of the alias; and a clean path to a `claude`, with no trailing `/`
+   and no `.` or `..` in it, such as Claude Code's old `~/.claude/local/claude`, goes through
+   switchboard only where it's the link, with no `PATH` set before it, and otherwise `setup` says to
+   remove the alias or point it at `claude`. Another command runs something else, as `npx …` does,
+   where the alias is all plain words and names no `claude`; otherwise, as with `caffeinate -i
+   claude` or `cd ~/work && claude`, it's a wrapper `setup` doesn't read. A function, or a wrapper,
+   `setup` doesn't read, so it says it goes through switchboard where it runs `claude` by name.
+   Ctrl-C while it asks stops `setup`. `setup` asks zsh, bash and fish alone: for another shell, it
+   shows the bin directory, as `$HOME/…`, to put first on `PATH` by hand. Until it's done, for zsh,
+   bash and fish, `setup` offers to add one line to the end of your shell's startup file, naming the
+   file and showing the line first. For zsh, the line is:
 
    ```bash
    if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
