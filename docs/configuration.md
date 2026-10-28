@@ -351,9 +351,9 @@ While the router runs, it posts desktop notifications, whether or not a dashboar
 
 It also tells you when an account's token nears the end of its year, whatever the keys say: once
 when 30 days or fewer are left, and again at 7, such as
-`work · Work: token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`. A
-router started with 7 days or fewer left, or past the token's year, tells the 7-day one alone. A
-restart doesn't tell either again, and a new token starts afresh.
+`work · Work: token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`, or
+`token expired …` once it's past. A router started with a token already within either tells only
+the nearest. A restart doesn't tell either again, and a new token starts afresh.
 
 ### How often notifications go out
 

@@ -133,6 +133,22 @@ func TestNoQuietMinuteHoldsATokensYearBackButItStartsOne(t *testing.T) {
 	})
 }
 
+func TestATokensYearQuietsNothingDueAtTheSameLook(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newYearNotifying(t, config.Notifications{Room: true}, localOn(31, 1))
+		// Spent until 10 seconds before local midnight, so the look that
+		// finds it has room again, the first after, is midnight's, which
+		// finds the token's year within 30 days too.
+		h.read("2", h.session(1, 5*time.Hour-10*time.Second), h.week(0.5, 3*day))
+		h.start()
+		h.after(5*time.Hour - time.Second)
+		h.expect()
+
+		h.after(time.Second)
+		h.expect("2 · two has room again", yearSaid("expires 31 Jan 2000 · 30 days left"))
+	})
+}
+
 func TestATokensYearThatFailsToPostCountsAsToldOf(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
