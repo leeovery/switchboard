@@ -91,6 +91,10 @@ wanted):
 
 ### Setup's flow
 
+Designed as a full screen in [design.md's Setup](../docs/design.md#setup), which supersedes this
+flow's line-walk parts: what the flow words as asked in turn, with Enter to keep or leave out, the
+screen asks on its pages and cards instead.
+
 The owner agreed it on 27 October 2026, step by step. Setup's other steps stay as they are, but for
 the service's, below.
 
