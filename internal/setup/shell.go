@@ -2,10 +2,12 @@ package setup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
@@ -19,7 +21,103 @@ type LoginShell interface {
 	Which(ctx context.Context, link string) shell.Answer
 }
 
-// shellFiles writes switchboard's files for the shells, saying which it
+// Situation is where the user's login shell, asked which claude it runs,
+// leaves the claude link step.
+type Situation int
+
+const (
+	// Unreached is a step that stopped before it asked the shell: the link
+	// blocked, or no Claude Code for claude to start, as its Said says.
+	Unreached Situation = iota
+	// Through is a shell where a claude typed in a new terminal goes through
+	// switchboard.
+	Through
+	// UnknownShell is a shell setup doesn't ask, or none: switchboard's bin
+	// directory is to go first on PATH by hand, which setup can't check.
+	UnknownShell
+	// InFront is a shell whose PATH finds the link, but where an alias in
+	// front of it runs something else.
+	InFront
+	// CantLook is a startup file setup can't look in for its line.
+	CantLook
+	// WhichFile is a shell that couldn't be asked, with no line where it
+	// usually reads its startup file, so setup can't tell which file to add
+	// one to.
+	WhichFile
+	// RivalFile is a startup file the shell says it reads that isn't there,
+	// while another a new terminal may read is, so setup adds no line.
+	RivalFile
+	// OfferLine is a startup file without switchboard's line, which setup
+	// offers to add, as AddLine does.
+	OfferLine
+	// OtherLine is switchboard's line in the startup file reading another
+	// switchboard shell directory's file than this one's.
+	OtherLine
+	// NotTaking is switchboard's line in the startup file, not taking
+	// effect, or in a shell that couldn't be asked whether it does.
+	NotTaking
+	// LineAdded is switchboard's line just added, the shell to ask again.
+	LineAdded
+	// CantAdd is switchboard's line offered, which setup couldn't add.
+	CantAdd
+)
+
+// ShellFound is the situation the user's login shell, asked which claude it
+// runs, leaves the claude link step in.
+type ShellFound struct {
+	Situation Situation
+	// Said is the shell's row, labelled "Your shell", and what the line walk
+	// says of it.
+	Said Said
+	// File is the startup file switchboard's line goes in, and Line the line,
+	// where the shell is one setup asks, and the file one it can name.
+	File, Line string
+	// Last is set where switchboard's line, not taking effect, is the last
+	// thing in File that changes PATH.
+	Last bool
+	// ByHand is how to have claude go through switchboard by hand, as the
+	// line walk shows it after Said: the bin directory last, but for a shell
+	// setup doesn't ask, after which it says setup can't check it.
+	ByHand []string
+}
+
+// errNoLine is what AddLine fails with where setup offers no line to add.
+var errNoLine = errors.New("setup offers no line to add")
+
+// AddLine adds switchboard's line, which found offers, to the end of the
+// startup file it offers it for, and returns what that leaves: the line
+// added, the login shell to ask again, as AskAgain does; or, where it can't
+// be added, how to add it by hand. It fails, changing nothing, where found
+// offers no line.
+func (s *Setup) AddLine(found LinkFound) (LinkFound, error) {
+	at := &found.Shell
+	if at.Situation != OfferLine {
+		return found, errNoLine
+	}
+	where := s.fromHome(at.File)
+	if err := shell.AddLine(at.File, at.Line); err != nil {
+		at.Situation = CantAdd
+		at.Said = yourShell(Warning, fmt.Sprintf("setup can't add its line to %s: %v", where, err), fmt.Sprintf("Setup can't add it: %v.", err))
+		return found, nil
+	}
+	logger.Info("added switchboard's line to the shell's startup file", "path", at.File)
+	at.Situation, at.ByHand = LineAdded, nil
+	at.Said = yourShell(Done, "switchboard's line added to the end of "+where, "Added it to "+where+".")
+	return found, nil
+}
+
+// AskAgain asks the user's login shell again which claude it runs, found
+// being what setup found before, and returns what its answer leaves: where a
+// claude typed there goes through switchboard, Through; where an alias in
+// front of the link runs something else, InFront; where switchboard's line
+// was just added, NotTaking; and otherwise found's situation, the shell's row
+// saying what it runs now. It fails with accounts.ErrInterrupted where the
+// user interrupts the asking.
+func (s *Setup) AskAgain(ctx context.Context, found LinkFound) (LinkFound, error) {
+	return (&run{Setup: s}).askAgain(ctx, found)
+}
+
+// shellFiles writes switchboard's files for the shells, telling which it
 // wrote or brought up to date, or that they were up to date already.
 func (r *run) shellFiles() error {
 	files, err := r.Shells.Write()
@@ -37,73 +135,90 @@ func (r *run) shellFiles() error {
 		}
 	}
 	dir := r.fromHome(r.Shells.Dir)
+	var details, sentences []string
 	if wrote := names[shell.Created]; len(wrote) > 0 {
-		r.Terminal.sayf("Wrote switchboard's files for the shells, in %s: %s.", dir, prose.List(wrote))
+		details = append(details, "wrote "+prose.List(wrote))
+		sentences = append(sentences, fmt.Sprintf("Wrote switchboard's files for the shells, in %s: %s.", dir, prose.List(wrote)))
 	}
 	if updated := names[shell.Updated]; len(updated) > 0 {
-		r.Terminal.sayf("Brought switchboard's files for the shells up to date, in %s: %s.", dir, prose.List(updated))
+		details = append(details, "brought "+prose.List(updated)+" up to date")
+		sentences = append(sentences, fmt.Sprintf("Brought switchboard's files for the shells up to date, in %s: %s.", dir, prose.List(updated)))
 	}
 	if len(names[shell.Current]) == len(files) {
-		r.Terminal.sayf("switchboard's files for the shells are up to date, in %s.", dir)
+		details = append(details, "up to date")
+		sentences = append(sentences, fmt.Sprintf("switchboard's files for the shells are up to date, in %s.", dir))
 	}
+	r.tell(Said{Mark: Done, Label: "Shell files", Detail: strings.Join(append(details, dir), " · "), Sentence: strings.Join(sentences, "\n")})
 	return nil
 }
 
-// onPath has claude go through switchboard in a new terminal, which it does
-// once the user's login shell, asked, says a claude typed there goes through
-// switchboard's claude link. Until then, for a shell switchboard knows, it
-// sees to switchboard's line, as startupLine does, or says what's in front
-// of PATH's claude that keeps it from the link; then shows how to put it
-// right by hand, and asks the shell again until it runs the link, or the
-// user leaves it. Another shell it can't ask, so it shows the bin directory,
-// to put on PATH by hand. Leaving it isn't a failure: setup goes on.
-func (r *run) onPath(ctx context.Context) error {
-	answer, err := r.ask(ctx)
-	if err != nil || answer.Through() {
-		return err
-	}
+// onPath is the situation answer, the login shell's, leaves: through
+// switchboard; an alias in front of the link that runs something else; or,
+// for a shell switchboard knows, what keeps switchboard's line from having
+// claude go through it, as startupLine says. Another shell setup can't ask,
+// so it's left with the bin directory, to put on PATH by hand.
+func (r *run) onPath(answer shell.Answer) ShellFound {
 	sh, known := shell.Of(r.Getenv("SHELL"))
 	switch {
+	case answer.Through():
+		return r.through(answer)
 	case !known:
-		r.Terminal.sayf("%s", r.notYet(answer))
-		r.show("To have claude go through switchboard, put this directory first on PATH, wherever your shell sets it:")
-		r.Terminal.sayf("Setup can't check it for this shell: once it's done, claude in a new terminal goes through switchboard.")
-		return nil
+		const cantCheck = "Setup can't check it for this shell: once it's done, claude in a new terminal goes through switchboard."
+		return ShellFound{
+			Situation: UnknownShell,
+			Said:      yourShell(Warning, r.stands(answer)+" · setup can't check it for this shell: put switchboard's bin directory first on PATH by hand", r.notYet(answer)),
+			ByHand:    append(r.byHand("To have claude go through switchboard, put this directory first on PATH, wherever your shell sets it:"), cantCheck),
+		}
 	case answer.Kind == shell.Link:
-		r.Terminal.sayf("%s", r.notYet(answer))
-		return r.checkAgain(ctx)
+		return ShellFound{Situation: InFront, Said: r.notYetSaid(answer)}
 	}
-	return r.startupLine(ctx, sh, answer)
+	return r.startupLine(sh, answer)
 }
 
-// startupLine offers to add switchboard's line for sh to the end of the
-// startup file the login shell, having answered answer, says it reads,
-// unless the shell couldn't be asked or a new terminal may read another, or
-// says what keeps the line there from taking effect; then shows how to put
-// it right by hand, as onPath says.
-func (r *run) startupLine(ctx context.Context, sh shell.Shell, answer shell.Answer) error {
+// startupLine is the situation switchboard's line for sh leaves, in the
+// startup file the login shell, having answered answer, says it reads: none
+// there, to offer, unless the shell couldn't be asked or a new terminal may
+// read another; or what keeps the line there from taking effect.
+func (r *run) startupLine(sh shell.Shell, answer shell.Answer) ShellFound {
 	initFile := shell.InitFile(r.Shells.Dir, sh)
 	line := shell.Line(sh, initFile, r.Home)
 	file := shell.StartupFile(sh, r.Home, answer.ConfigDir)
 	found, err := shell.FindLine(sh, file, r.Home)
 	rival := shell.RivalStartupFile(sh, r.Home, file)
+	where, notYet, stands := r.fromHome(file), r.notYet(answer), r.stands(answer)
+	at := ShellFound{File: file, Line: line, ByHand: r.byHand(addByHand, line, orElsewhere)}
 	switch {
 	case err != nil:
-		r.Terminal.sayf("%s Setup can't look for its line in %s: %v.", r.notYet(answer), r.fromHome(file), err)
-		return r.byHand(ctx, addByHand, line, orElsewhere)
+		at.Situation = CantLook
+		at.Said = yourShell(Warning,
+			fmt.Sprintf("%s · setup can't look for its line in %s: %v", stands, where, err),
+			fmt.Sprintf("%s Setup can't look for its line in %s: %v.", notYet, where, err))
 	case found.Sources == "" && answer.Kind == shell.Unasked:
-		r.Terminal.sayf("%s Setup can't tell which startup file %s reads, so it adds no line.", r.notYet(answer), sh)
-		return r.byHand(ctx, fmt.Sprintf("To have claude go through switchboard by hand, add this line to the end of %s's startup file, usually %s, after anything there that changes PATH:", sh, r.fromHome(file)), line, orElsewhere)
+		at.Situation = WhichFile
+		at.Said = yourShell(Warning,
+			stands+" · setup can't tell which startup file it reads, so it adds no line",
+			fmt.Sprintf("%s Setup can't tell which startup file %s reads, so it adds no line.", notYet, sh))
+		at.ByHand = r.byHand(fmt.Sprintf("To have claude go through switchboard by hand, add this line to the end of %s's startup file, usually %s, after anything there that changes PATH:", sh, where), line, orElsewhere)
 	case found.Sources == "" && rival != "":
-		r.Terminal.sayf("%s %s says it reads %s, which isn't there, but %s is: setup can't tell which a new terminal reads, so it adds no line.", r.notYet(answer), sh, r.fromHome(file), r.fromHome(rival))
-		return r.byHand(ctx, fmt.Sprintf("To have claude go through switchboard by hand, add this line to the end of whichever of %s and %s a new terminal reads, after anything there that changes PATH:", r.fromHome(file), r.fromHome(rival)), line, orElsewhere)
+		other := r.fromHome(rival)
+		at.Situation = RivalFile
+		at.Said = yourShell(Warning,
+			fmt.Sprintf("%s · it says it reads %s, which isn't there, but %s is: setup can't tell which a new terminal reads, so it adds no line", stands, where, other),
+			fmt.Sprintf("%s %s says it reads %s, which isn't there, but %s is: setup can't tell which a new terminal reads, so it adds no line.", notYet, sh, where, other))
+		at.ByHand = r.byHand(fmt.Sprintf("To have claude go through switchboard by hand, add this line to the end of whichever of %s and %s a new terminal reads, after anything there that changes PATH:", where, other), line, orElsewhere)
 	case found.Sources == "":
-		return r.offerLine(ctx, sh, file, line, answer)
+		at.Situation = OfferLine
+		at.Said = yourShell(Warning, stands,
+			fmt.Sprintf("%s This line, at the end of %s, has claude go through switchboard: it reads switchboard's file for %s, which puts %s first on PATH, and loads switchboard's completions.\n%s", notYet, where, sh, r.fromHome(r.Bin), line))
 	case filepath.Clean(found.Sources) != initFile:
-		r.Terminal.sayf("%s switchboard's line in %s reads %s, not this switchboard's file for %s, %s.", r.notYet(answer), r.fromHome(file), r.fromHome(found.Sources), sh, r.fromHome(initFile))
-		return r.byHand(ctx, "Put this line in its place:", line, orElsewhere)
+		reads := fmt.Sprintf("switchboard's line in %s reads %s, not this switchboard's file for %s, %s", where, r.fromHome(found.Sources), sh, r.fromHome(initFile))
+		at.Situation = OtherLine
+		at.Said = yourShell(Warning, stands+" · "+reads, notYet+" "+reads+".")
+		at.ByHand = r.byHand("Put this line in its place:", line, orElsewhere)
+	default:
+		return r.notTakingEffect(file, line, found.Last, answer)
 	}
-	return r.notTakingEffect(ctx, file, found.Last, answer)
+	return at
 }
 
 // addByHand and orElsewhere say how to have claude go through switchboard by
@@ -114,42 +229,12 @@ const (
 	orElsewhere = "Or, where you keep your PATH another way, put this directory first on it:"
 )
 
-// offerLine offers to add line, switchboard's line for sh, to the end of
-// file, the startup file the login shell, having answered answer, says it
-// reads, and asks the shell again once it's added; then, until a claude
-// typed there goes through switchboard, shows how to put it right by hand.
-func (r *run) offerLine(ctx context.Context, sh shell.Shell, file, line string, answer shell.Answer) error {
-	r.Terminal.sayf("%s This line, at the end of %s, has claude go through switchboard: it reads switchboard's file for %s, which puts %s first on PATH, and loads switchboard's completions.", r.notYet(answer), r.fromHome(file), sh, r.fromHome(r.Bin))
-	r.Terminal.sayf("%s", line)
-	add, err := r.Terminal.confirm("Add it?", true)
-	switch {
-	case err != nil:
-		return err
-	case !add:
-		return r.byHand(ctx, addByHand, line, orElsewhere)
-	}
-	if err := shell.AddLine(file, line); err != nil {
-		r.Terminal.sayf("Setup can't add it: %v.", err)
-		return r.byHand(ctx, addByHand, line, orElsewhere)
-	}
-	logger.Info("added switchboard's line to the shell's startup file", "path", file)
-	r.Terminal.sayf("Added it to %s.", r.fromHome(file))
-	if answer, err = r.ask(ctx); err != nil || answer.Through() {
-		return err
-	}
-	if answer.Kind == shell.Link {
-		r.Terminal.sayf("%s", r.notYet(answer))
-		return r.checkAgain(ctx)
-	}
-	return r.notTakingEffect(ctx, file, true, answer)
-}
-
-// notTakingEffect says switchboard's line is in file, the shell's startup
-// file, but the login shell's PATH doesn't find the link, as answer, the
-// shell's, says, or that setup can't tell, as the shell couldn't be asked:
-// something after the line changes PATH, or, where it's last, something
-// read after the file. Then it shows how to have it take effect by hand.
-func (r *run) notTakingEffect(ctx context.Context, file string, last bool, answer shell.Answer) error {
+// notTakingEffect is the situation of switchboard's line, line, in file, the
+// shell's startup file, where the login shell's PATH doesn't find the link,
+// as answer, the shell's, says, or setup can't tell, as the shell couldn't
+// be asked: something after the line changes PATH, or, where it's last,
+// something read after the file.
+func (r *run) notTakingEffect(file, line string, last bool, answer shell.Answer) ShellFound {
 	where := r.fromHome(file)
 	cause := "something after the line changes PATH"
 	fix := fmt.Sprintf("move switchboard's line to the end of %s, or what changes PATH after it to before it.", where)
@@ -157,33 +242,91 @@ func (r *run) notTakingEffect(ctx context.Context, file string, last bool, answe
 		cause = fmt.Sprintf("something read after %s changes PATH", where)
 		fix = "put switchboard's line after what changes PATH, wherever that's read."
 	}
+	at := ShellFound{Situation: NotTaking, File: file, Line: line, Last: last}
 	if answer.Kind == shell.Unasked {
-		r.Terminal.sayf("switchboard's line is in %s, but setup can't ask %s whether it takes effect: %s.", where, r.shellName(), answer.Why)
-		return r.byHand(ctx, fmt.Sprintf("Should it not, %s: %s %s", cause, fix, orElsewhere))
+		at.Said = yourShell(Warning,
+			fmt.Sprintf("switchboard's line is in %s, but setup can't ask it whether it takes effect: %s", where, answer.Why),
+			fmt.Sprintf("switchboard's line is in %s, but setup can't ask %s whether it takes effect: %s.", where, r.shellName(), answer.Why))
+		at.ByHand = r.byHand(fmt.Sprintf("Should it not, %s: %s %s", cause, fix, orElsewhere))
+		return at
 	}
-	r.Terminal.sayf("switchboard's line is in %s, but %s, so %s.", where, r.runs(answer), cause)
-	return r.byHand(ctx, fmt.Sprintf("To have claude go through switchboard, %s %s", fix, orElsewhere))
+	at.Said = yourShell(Warning,
+		fmt.Sprintf("%s · switchboard's line is in %s, but %s", r.stands(answer), where, cause),
+		fmt.Sprintf("switchboard's line is in %s, but %s, so %s.", where, r.runs(answer), cause))
+	at.ByHand = r.byHand(fmt.Sprintf("To have claude go through switchboard, %s %s", fix, orElsewhere))
+	return at
 }
 
-// byHand shows how to have claude go through switchboard by hand, as show
-// does; then asks the login shell again, as checkAgain does.
-func (r *run) byHand(ctx context.Context, how ...string) error {
-	r.show(how...)
-	return r.checkAgain(ctx)
-}
-
-// show shows how to have claude go through switchboard by hand, the lines
+// byHand is how to have claude go through switchboard by hand, the lines
 // how says it, then the bin directory, to put first on PATH.
-func (r *run) show(how ...string) {
-	for _, line := range how {
-		r.Terminal.sayf("%s", line)
-	}
-	r.Terminal.sayf("%s", r.fromHomeVariable(r.Bin))
+func (r *run) byHand(how ...string) []string {
+	return append(how, r.fromHomeVariable(r.Bin))
 }
 
-// checkAgain asks the login shell again, as the user says to, until a claude
-// typed in a new terminal goes through switchboard, or the user leaves it.
-func (r *run) checkAgain(ctx context.Context) error {
+// settle has claude go through switchboard in a new terminal, which it does
+// once the user's login shell, asked, says a claude typed there goes through
+// switchboard's claude link. Until then, it tells the situation found
+// leaves, and, for a shell switchboard knows, offers switchboard's line,
+// where found does, or shows how to put it right by hand, and asks the
+// shell again until it runs the link, or the user leaves it. Another shell
+// it can't ask, so it shows the bin directory, to put on PATH by hand.
+// Leaving it isn't a failure: setup goes on.
+func (r *run) settle(ctx context.Context, found LinkFound) error {
+	at := found.Shell
+	if at.Situation == Unreached {
+		return nil
+	}
+	r.tell(at.Said)
+	switch at.Situation {
+	case Through:
+		return nil
+	case UnknownShell:
+		r.show(at.ByHand)
+		return nil
+	case OfferLine:
+		return r.offer(ctx, found)
+	case LineAdded:
+		again, err := r.askAgain(ctx, found)
+		if err != nil {
+			return err
+		}
+		return r.settle(ctx, again)
+	}
+	r.show(at.ByHand)
+	return r.checkAgain(ctx, found)
+}
+
+// offer asks whether to add switchboard's line, which found offers, and adds
+// it, as AddLine does, where the user says to, settling what that leaves;
+// else it shows how to add it by hand, and asks the shell again, as
+// checkAgain does.
+func (r *run) offer(ctx context.Context, found LinkFound) error {
+	add, err := r.Terminal.confirm("Add it?", true)
+	switch {
+	case err != nil:
+		return err
+	case !add:
+		r.show(found.Shell.ByHand)
+		return r.checkAgain(ctx, found)
+	}
+	added, err := r.AddLine(found)
+	if err != nil {
+		return err
+	}
+	return r.settle(ctx, added)
+}
+
+// show shows lines, how to have claude go through switchboard by hand.
+func (r *run) show(lines []string) {
+	for _, line := range lines {
+		r.Terminal.say(line)
+	}
+}
+
+// checkAgain asks the login shell again, as AskAgain does, found being what
+// setup found before, as the user says to, until a claude typed in a new
+// terminal goes through switchboard, or the user leaves it.
+func (r *run) checkAgain(ctx context.Context, found LinkFound) error {
 	for {
 		again, err := r.Terminal.confirm("Check again?", true)
 		if err != nil {
@@ -193,22 +336,43 @@ func (r *run) checkAgain(ctx context.Context) error {
 			r.Terminal.sayf("Left as it is: until it's done, claude in a new terminal doesn't go through switchboard. Running setup again checks it.")
 			return nil
 		}
-		answer, err := r.ask(ctx)
-		if err != nil || answer.Through() {
+		if found, err = r.askAgain(ctx, found); err != nil {
 			return err
 		}
-		r.Terminal.sayf("%s", r.notYet(answer))
+		r.tell(found.Shell.Said)
+		if found.Shell.Situation == Through {
+			return nil
+		}
 	}
 }
 
-// ask asks the user's login shell which claude it runs, saying so first, as
-// its startup files can take a while, where it's a shell setup asks; and
-// says so where a claude typed there goes through switchboard. An interrupt
-// meanwhile, which the shell, in a session of its own, never sees, ends the
-// asking, and setup with it.
+// askAgain asks the login shell again, as AskAgain says.
+func (r *run) askAgain(ctx context.Context, found LinkFound) (LinkFound, error) {
+	answer, err := r.ask(ctx)
+	if err != nil {
+		return found, err
+	}
+	was := found.Shell
+	switch {
+	case answer.Through():
+		found.Shell = r.through(answer)
+	case answer.Kind == shell.Link:
+		found.Shell = ShellFound{Situation: InFront, Said: r.notYetSaid(answer)}
+	case was.Situation == LineAdded:
+		found.Shell = r.notTakingEffect(was.File, was.Line, true, answer)
+	default:
+		found.Shell.Said = r.notYetSaid(answer)
+	}
+	return found, nil
+}
+
+// ask asks the user's login shell which claude it runs, noting so first, as
+// its startup files can take a while, where it's a shell setup asks. An
+// interrupt meanwhile, which the shell, in a session of its own, never sees,
+// ends the asking, and setup with it.
 func (r *run) ask(ctx context.Context) (shell.Answer, error) {
-	if _, known := shell.Of(r.Getenv("SHELL")); known {
-		r.Terminal.sayf("Asking %s, as a new terminal starts it, which claude it runs.", r.shellName())
+	if _, known := shell.Of(r.Getenv("SHELL")); known && r.note != nil {
+		r.note(fmt.Sprintf("Asking %s, as a new terminal starts it, which claude it runs.", r.shellName()))
 	}
 	interrupt := r.Interrupt
 	if interrupt == nil {
@@ -220,9 +384,6 @@ func (r *run) ask(ctx context.Context) (shell.Answer, error) {
 	if asking.Err() != nil && ctx.Err() == nil {
 		return answer, accounts.ErrInterrupted
 	}
-	if answer.Through() {
-		r.sayLinked(answer)
-	}
 	return answer, nil
 }
 
@@ -231,23 +392,44 @@ func interruptOnSIGINT(ctx context.Context) (context.Context, context.CancelFunc
 	return signal.NotifyContext(ctx, os.Interrupt)
 }
 
-// sayLinked says claude goes through switchboard in a new terminal, as
-// answer, the login shell's, says, and what's in front of PATH's claude
-// there: an alias that runs claude by name, or the link by its path, goes
-// through switchboard; a function, or an alias setup doesn't read, does
-// where it runs claude by name.
-func (r *run) sayLinked(answer shell.Answer) {
-	r.Terminal.sayf("claude goes through switchboard in a new terminal: %s runs %s.", r.shellName(), r.fromHome(r.claudeLink()))
-	front := answer.Front
+// yourShell is the login shell's row.
+func yourShell(mark Mark, detail, sentence string) Said {
+	return Said{Mark: mark, Label: "Your shell", Detail: detail, Sentence: sentence}
+}
+
+// through is the situation of claude going through switchboard in a new
+// terminal, as answer, the login shell's, says, with what's in front of
+// PATH's claude there, as linkedFront says it.
+func (r *run) through(answer shell.Answer) ShellFound {
+	detail := "runs switchboard's claude: asked just now, as a new terminal starts it"
+	sentence := fmt.Sprintf("claude goes through switchboard in a new terminal: %s runs %s.", r.shellName(), r.fromHome(r.claudeLink()))
+	if front := r.linkedFront(answer.Front); front != "" {
+		detail += " · " + front
+		sentence += "\n" + front + "."
+	}
+	return ShellFound{Situation: Through, Said: yourShell(Done, detail, sentence)}
+}
+
+// linkedFront says what's in front of PATH's claude where claude goes
+// through switchboard: an alias that runs claude by name, or the link by its
+// path, goes through switchboard; a function, or an alias setup doesn't
+// read, does where it runs claude by name. It's "" where nothing is.
+func (r *run) linkedFront(front shell.Front) string {
 	switch {
 	case front.Text == "":
+		return ""
 	case front.Runs == shell.ByName:
-		r.Terminal.sayf("%s's claude is %s, which runs claude by name, so goes through switchboard too.", r.shellName(), front.Text)
+		return fmt.Sprintf("%s's claude is %s, which runs claude by name, so goes through switchboard too", r.shellName(), front.Text)
 	case front.Runs == shell.TheLink:
-		r.Terminal.sayf("%s's claude is %s, which runs switchboard's claude link by its path.", r.shellName(), front.Text)
-	default:
-		r.Terminal.sayf("%s's claude is %s, which setup doesn't read: it goes through switchboard where it runs claude by name.", r.shellName(), front.Text)
+		return fmt.Sprintf("%s's claude is %s, which runs switchboard's claude link by its path", r.shellName(), front.Text)
 	}
+	return fmt.Sprintf("%s's claude is %s, which setup doesn't read: it goes through switchboard where it runs claude by name", r.shellName(), front.Text)
+}
+
+// notYetSaid is the login shell's row where claude doesn't go through
+// switchboard in a new terminal yet, as answer, the shell's, says.
+func (r *run) notYetSaid(answer shell.Answer) Said {
+	return yourShell(Warning, r.stands(answer), r.notYet(answer))
 }
 
 // notYet says claude doesn't go through switchboard in a new terminal yet,
@@ -267,6 +449,26 @@ func (r *run) notYet(answer shell.Answer) string {
 		return not + r.runs(answer) + ". " + front + "."
 	}
 	return not + r.runs(answer) + "."
+}
+
+// stands says, as the login shell's row does, what notYet says keeps claude
+// from going through switchboard in a new terminal yet.
+func (r *run) stands(answer shell.Answer) string {
+	if answer.Kind == shell.Unasked {
+		return "setup can't ask it which claude it runs: " + answer.Why
+	}
+	finds := fmt.Sprintf("runs another claude, %s, so its sessions aren't routed", r.fromHome(answer.Claude))
+	if answer.Kind == shell.None {
+		finds = "finds no claude, so claude doesn't go through switchboard"
+	}
+	front := r.inFront(answer.Front)
+	switch {
+	case answer.Kind == shell.Link:
+		return front
+	case front != "":
+		return finds + " · " + front
+	}
+	return finds
 }
 
 // inFront says what an alias in front of PATH's claude runs, where that's
@@ -308,21 +510,21 @@ func (r *run) claudeLink() string {
 }
 
 // fromHome writes path from ~ where it's in the home, as the user reads it.
-func (r *run) fromHome(path string) string {
-	return r.relative(path, "~/")
+func (s *Setup) fromHome(path string) string {
+	return s.relative(path, "~/")
 }
 
 // fromHomeVariable writes path from $HOME where it's in the home, as a shell
 // reads it between double quotes, where it reads no ~.
-func (r *run) fromHomeVariable(path string) string {
-	return r.relative(path, "$HOME/")
+func (s *Setup) fromHomeVariable(path string) string {
+	return s.relative(path, "$HOME/")
 }
 
 // relative writes path from home, written as home says, where it's in the
 // home.
-func (r *run) relative(path, home string) string {
-	rel, err := filepath.Rel(r.Home, path)
-	if r.Home == "" || err != nil || !filepath.IsLocal(rel) {
+func (s *Setup) relative(path, home string) string {
+	rel, err := filepath.Rel(s.Home, path)
+	if s.Home == "" || err != nil || !filepath.IsLocal(rel) {
 		return path
 	}
 	return home + filepath.ToSlash(rel)

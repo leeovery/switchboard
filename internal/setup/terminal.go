@@ -31,9 +31,14 @@ func (t Terminal) sayf(format string, args ...any) {
 	_, _ = fmt.Fprintln(t.Out)
 }
 
+// say tells the user line, as sayf does.
+func (t Terminal) say(line string) {
+	t.sayf("%s", line)
+}
+
 // tell tells the user what a step said, by its sentence.
 func (t Terminal) tell(said Said) {
-	t.sayf("%s", said.Sentence)
+	t.say(said.Sentence)
 }
 
 // heading sets the step numbered n apart, by its title.

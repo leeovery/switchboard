@@ -9,12 +9,11 @@ import (
 // Skill writes the skill where Claude Code reads it, or brings the copy
 // there up to date, and says which it did, if either.
 func (s *Setup) Skill() (Said, error) {
-	r := &run{Setup: s}
 	found, err := skill.Refresh(s.SkillFile)
 	if err != nil {
 		return Said{}, err
 	}
-	at := r.fromHome(s.SkillFile)
+	at := s.fromHome(s.SkillFile)
 	switch {
 	case !found.Installed:
 		if err := skill.Install(s.SkillFile); err != nil {
