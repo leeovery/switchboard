@@ -21,11 +21,12 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   another way, as in a file of your own or a tool that writes it, put switchboard's bin
   directory, `$XDG_DATA_HOME/switchboard/bin`, else `~/.local/share/switchboard/bin`, first on
   it there. `setup` checks again once you have. An alias named `claude` goes through switchboard
-  where its first command is `claude`, or `command claude`, or switchboard's `claude` link by its
-  path, from an unquoted `~` or a `$HOME` in double quotes or none, and it sets no `PATH` of its
-  own, as `PATH=… claude` or `env PATH=… claude` do. A function, or an alias that runs `claude`
-  after another command, such as `caffeinate -i claude` or `cd ~/work && claude`, `setup` doesn't
-  read: it goes through switchboard where it runs `claude` by name.
+  where its first command is `claude`, `command claude`, or in zsh `=claude`, or switchboard's
+  `claude` link by its path, from an unquoted `~` or a `$HOME` in double quotes or none, and it
+  sets no `PATH` of its own, as `PATH=… claude`, `PATH=…; claude` or `env PATH=… claude` do. A
+  function, or an alias that runs `claude` after another command, such as `caffeinate -i claude`,
+  `cd ~/work && claude` or `bash -c 'claude'`, `setup` doesn't read: it goes through switchboard
+  where it runs `claude` by name.
 - **Completions:** switchboard's file for your shell loads them, for commands and flags. zsh takes
   them once `compinit` has run, which a usual `.zshrc` does before switchboard's line at its end;
   bash takes them where the bash-completion package is loaded; fish always does.

@@ -364,22 +364,25 @@ The steps are:
 
    Then `setup` asks your login shell, `$SHELL`, started as a new terminal starts it, which `claude`
    its `PATH` finds. The step is done once a `claude` typed there goes through the link. An alias
-   named `claude` in front of it decides that by its first command, read with its quotes as the
-   shell reads it: `claude`, `command claude`, or zsh's `=claude`, leaves it to `PATH`; a path, such
-   as Claude Code's old `~/.claude/local/claude`, goes through switchboard only where it's the link,
-   and otherwise `setup` says to remove the alias or point it at `claude`, though a quoted `~`, or a
-   single quoted `$HOME`, is no path from your home, as the shell doesn't expand it; `builtin`, or
-   `command` with an option, such as `command -p`, doesn't go through switchboard; and one that sets
-   `PATH` for `claude`, as `PATH=… claude` or `env PATH=… claude`, doesn't count, as `setup` can't
-   tell which `claude` that `PATH` finds, so it says to take `PATH=` out of it. Another command,
-   with `claude`, or a path to one, later in the alias, such as `caffeinate -i claude` or `cd ~/work
-   && claude`, is a wrapper `setup` doesn't read, as is a path with another variable in it; another
-   command, without `claude` later in the alias, as `npx …`, runs something else. A function, or a
-   wrapper, `setup` doesn't read, so it says it goes through switchboard where it runs `claude` by
-   name. Ctrl-C while it asks stops `setup`. `setup` asks zsh, bash and fish alone: for another
-   shell, it shows the bin directory, as `$HOME/…`, to put first on `PATH` by hand. Until it's done,
-   for zsh, bash and fish, `setup` offers to add one line to the end of your shell's startup file,
-   naming the file and showing the line first. For zsh, the line is:
+   named `claude` in front of it is read by two rules, with its quotes as the shell reads them.
+   First, only its first command's word decides for sure, and only in a plain form: `claude`,
+   `command claude`, or zsh's `=claude`, leaves it to `PATH`, though a `PATH=` set for it, as
+   `PATH=… claude`, doesn't count, as `setup` can't tell which `claude` that `PATH` finds, so it
+   says to take `PATH=` out of it; and a path, absolute or from an unquoted `~/` or a `$HOME/`, bare
+   or in double quotes, such as Claude Code's old `~/.claude/local/claude`, goes through switchboard
+   only where it's the link, and otherwise `setup` says to remove the alias or point it at `claude`.
+   A first word in any other form, as with a variable, a glob, or a home split across quotes,
+   `setup` doesn't read. Second, any other first command, such as `builtin`, `command -p` or another
+   command, runs something else only where no `claude` comes later in the alias, as with `npx …`; a
+   `PATH` set before a later `claude`, as `PATH=…; claude` or `env PATH=… claude`, doesn't count;
+   and a later `claude`, as in `caffeinate -i claude`, `cd ~/work && claude` or `bash -c 'claude'`,
+   makes it a wrapper `setup` doesn't read. A quoted `~`, or a single quoted `$HOME`, is no path
+   from your home, as the shell doesn't expand it, and a `#` that starts a word starts a comment. A
+   function, or a wrapper, `setup` doesn't read, so it says it goes through switchboard where it
+   runs `claude` by name. Ctrl-C while it asks stops `setup`. `setup` asks zsh, bash and fish alone:
+   for another shell, it shows the bin directory, as `$HOME/…`, to put first on `PATH` by hand.
+   Until it's done, for zsh, bash and fish, `setup` offers to add one line to the end of your
+   shell's startup file, naming the file and showing the line first. For zsh, the line is:
 
    ```bash
    if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard

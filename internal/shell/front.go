@@ -74,73 +74,92 @@ type alias struct {
 	home, link string
 }
 
-// runs returns what body runs, and the other claude it runs by its path. Its
-// first command decides, as first says; but where that runs something else
-// without deciding it, a later word of the alias, in any of its commands,
-// that's claude or a path to one makes it a wrapper setup doesn't read.
+// runs returns what body runs, and the other claude it runs by its path.
+// Only a first command word read whole, in a plain form, decides it, as
+// first says. Otherwise a PATH set before a later claude, in any of its
+// commands, runs claude where only that PATH tells; and a later claude, or
+// what isn't read whole, makes it a wrapper setup doesn't read. With
+// neither, it runs something else.
 func (a alias) runs(body string) (Runs, string) {
 	cmds, ok := commands(body)
 	if !ok {
 		return Unknown, ""
 	}
-	runs, path, after, decided := a.first(cmds[0])
+	runs, path, decided := a.first(cmds[0])
 	switch {
 	case decided:
 		return runs, path
-	case slices.ContainsFunc(after, namesClaude) || slices.ContainsFunc(slices.Concat(cmds[1:]...), namesClaude):
+	case a.pathBeforeClaude(cmds):
+		return SetsPath, ""
+	case slices.ContainsFunc(later(cmds), mayRunClaude):
 		return Unknown, ""
 	}
 	return Else, ""
 }
 
 // first returns what ws, an alias's first command, runs, the other claude it
-// runs by its path, the words after its command word, and whether that
-// decides what the alias runs. Variables set first are passed over. Then its
-// command word decides: claude, or command claude without an option, by
-// name; a path by itself; builtin, or command with an option or alone, runs
-// no claude, or not the one PATH finds; and one only its expansion tells,
-// setup can't read. A PATH set before claude, by a variable or a word after
-// another command, as env's, runs claude where only that PATH tells.
-func (a alias) first(ws []word) (runs Runs, path string, after []word, decided bool) {
+// runs by its path, and whether that decides what the alias runs.
+// Variables set first are passed over, and command with no option but --.
+// Then its command word decides where it's claude, or zsh's =claude, by
+// name, but with a variable before it that sets PATH, on that PATH; or a
+// path by itself; or one only its expansion tells, setup can't read.
+func (a alias) first(ws []word) (Runs, string, bool) {
+	n := leading(ws)
+	cmd := ws[n:]
+	if len(cmd) > 1 && cmd[0].text == "command" {
+		rest := cmd[1:]
+		if rest[0].text == "--" {
+			rest = rest[1:]
+		}
+		if len(rest) > 0 && !strings.HasPrefix(rest[0].text, "-") {
+			cmd = rest
+		}
+	}
+	if len(cmd) == 0 {
+		return Else, "", false
+	}
+	runs, path, decided := a.command(cmd[0])
+	if decided && runs == ByName && slices.ContainsFunc(ws[:n], a.setsPath) {
+		return SetsPath, "", true
+	}
+	return runs, path, decided
+}
+
+// leading returns how many of ws, a command, are variables set for it.
+func leading(ws []word) int {
 	n := 0
 	for n < len(ws) && ws[n].assigns() {
 		n++
 	}
-	pathSet := slices.ContainsFunc(ws[:n], a.setsPath)
-	cmd := ws[n:]
-	if len(cmd) > 0 && cmd[0].text == "command" {
-		cmd = cmd[1:]
-		if len(cmd) > 0 && cmd[0].text == "--" {
-			cmd = cmd[1:]
-		}
-		if len(cmd) == 0 || strings.HasPrefix(cmd[0].text, "-") {
-			return Else, "", nil, true
-		}
-	}
-	if len(cmd) == 0 {
-		return Else, "", nil, false
-	}
-	runs, path, decided = a.command(cmd[0])
-	if decided && runs == ByName && pathSet || !decided && a.pathBeforeClaude(pathSet, cmd[1:]) {
-		return SetsPath, "", nil, true
-	}
-	return runs, path, cmd[1:], decided
+	return n
 }
 
-// pathBeforeClaude reports whether claude is among ws after a word that sets
-// PATH, or after any where set.
-func (a alias) pathBeforeClaude(set bool, ws []word) bool {
-	for _, w := range ws {
-		if set && w.text == "claude" {
-			return true
+// later returns the words of cmds, an alias's commands, after its first
+// command word.
+func later(cmds [][]word) []word {
+	first := cmds[0]
+	return slices.Concat(first[min(leading(first)+1, len(first)):], slices.Concat(cmds[1:]...))
+}
+
+// pathBeforeClaude reports whether, in cmds, a word that sets PATH comes
+// before a later claude: a variable set for a command, or an argument after
+// it, as env's and export's.
+func (a alias) pathBeforeClaude(cmds [][]word) bool {
+	set := false
+	for _, ws := range cmds {
+		n := leading(ws)
+		for i, w := range ws {
+			if set && namesClaude(w) {
+				return true
+			}
+			set = set || i < n && a.setsPath(w) || i > n && w.setsPATH()
 		}
-		set = set || a.setsPath(w)
 	}
 	return false
 }
 
-// setsPath reports whether w sets PATH, or adds to it, in sh, as zsh's path
-// does too.
+// setsPath reports whether w, a variable set for a command, sets PATH, or
+// adds to it, in sh, as zsh's path does too.
 func (a alias) setsPath(w word) bool {
 	name := strings.TrimSuffix(strings.TrimSuffix(assignment.FindString(w.text), "="), "+")
 	return name == "PATH" || a.sh == Zsh && name == "path"
@@ -160,19 +179,17 @@ func (a alias) command(w word) (Runs, string, bool) {
 		return TheLink, "", true
 	case isPath:
 		return APath, redact.Text(path), true
-	case w.text == "builtin":
-		return Else, "", true
 	}
 	return 0, "", false
 }
 
 // path returns the path w names, absolute or from the home, and whether it
-// names one; and whether it can be read, with no expansion in it but the
-// home it starts from.
+// names one; and whether it's plain, as word.plain says, but for the home
+// it starts from.
 func (a alias) path(w word) (string, bool, bool) {
-	rest, fromHome, plain := w.home()
+	rest, fromHome, readable := w.home()
 	switch {
-	case !plain || w.expands(len(w.text)-len(rest)) || fromHome && !filepath.IsAbs(a.home):
+	case !readable || !w.plain(len(w.text)-len(rest)) || fromHome && !filepath.IsAbs(a.home):
 		return "", false, false
 	case fromHome:
 		return filepath.Join(a.home, rest), true, true
