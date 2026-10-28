@@ -764,11 +764,12 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    answers, its pid, and what launchd has, and fails, naming `service install` once that one's
    stopped. A router that gives no pid, from before routers gave theirs, is credited as launchd's
    only where launchd runs one, as is one that answers where `launchctl print` says launchd runs
-   one but names no pid setup can read; a router handing over keeps its pid, so launchd's own
-   always matches. Setup never sends the user back to setup: where launchd runs a router that
-   doesn't answer where setup looks, it fails saying so, its pid named where it's known, and that
-   if it doesn't answer soon, as `service status` shows, `service install` installs it again, given
-   the `--config` and `--log-level` it ran with, if any, as `service restart` wouldn't, reusing
+   one but names no pid setup can read, or says neither the job's state nor its pid, so whether
+   launchd runs one is unknown; a router handing over keeps its pid, so launchd's own always
+   matches. Setup never sends the user back to setup: where launchd runs a router that doesn't
+   answer where setup looks, it fails saying so, its pid named where it's known, and that if it
+   doesn't answer soon, as `service status` shows, `service install` installs it again, given the
+   `--config` and `--log-level` it ran with, if any, as `service restart` wouldn't, reusing
    launchd's loaded copy. Setup says where the router finds things apart from setup only of a
    router that answers.
    - **The service as its router sees it:** one owner, in `internal/service`, works it out, and
@@ -791,33 +792,36 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    - **Which router answers:** setup asks the router at the plist's state directory and the one at
      the shell's, and takes from `launchctl print` whether launchd has the service loaded, whether
      it runs a router, and its pid: where it says one runs but names no pid setup can read, setup
-     takes it as running all the same, its pid unknown. Where the router at the plist's state
-     directory answers, setup goes on as below, so long as it's launchd's. Where launchd hasn't
-     loaded the service, or runs no router, or runs another pid, but a router answers, run some
-     other way, setup leaves it as it is, as another would clash with it, says so, and fails,
-     naming `service install` once that one's stopped. Where only the one at the shell's answers,
-     as when `launchctl setenv` gave launchd another directory than the plist's, setup can't tell
-     which the service runs: it leaves the service as it is, and says so in one line, naming
-     `service install`, run from the shell the router should use, as what lines them up. Where none
-     answers but launchd runs a router, setup asks again for as long as the launcher waits for one,
-     5 seconds, as a router starting, or handing over in the same process, answers within that. One
-     that still doesn't may be starting, stopping, which after a bootout can take over half a
-     minute, or keeping its state where setup doesn't look, as at a third directory `launchctl
-     setenv` gave it or in a plist edited since launchd loaded it: setup leaves it as it is, says
-     so, and fails, naming `service install` should it not answer soon, as `service status`, which
-     shows launchd's pid, says. Where none answers and none runs, setup goes on as below, checking
-     the router could start before it restarts it, and failing, naming `service install`, where it
-     couldn't. Once setup has started the router afresh, with none answering before, the first that
-     answers at either directory is launchd's, and setup judges where it sees apart from setup, and
-     `service install` which tokens it has, only once it answers, at the directory it answers at.
-     Where that's the shell's, setup says launchd started it there, not where the plist keeps its
-     state, naming `service install`; launchd's log stays where the plist names it, as moving it
-     would take a second reinstall. Neither setup nor `service restart` kickstarts the service
-     while any router answers: `service restart` asks the one answering to restart itself, and
-     where that one, answering at the shell's state directory only, or where there's no plist, or
-     it couldn't be read or placed, can't be asked, it fails rather than signal launchd's job,
-     which may not be it. Setup installs the service again while a router answers only where it
-     answers at the plist's state directory, launchd having the service loaded.
+     takes it as running all the same, its pid unknown; where it says neither the job's state nor
+     its pid, whether launchd runs one is unknown, and a router that answers is credited as
+     launchd's. A `state` line saying anything but `running` reads as running none. Where the
+     router at the plist's state directory answers, setup goes on as below, so long as it's
+     launchd's. Where launchd hasn't loaded the service, or runs no router, or runs another pid,
+     but a router answers, run some other way, setup leaves it as it is, as another would clash
+     with it, says so, and fails, naming `service install` once that one's stopped. Where only the
+     one at the shell's answers, as when `launchctl setenv` gave launchd another directory than the
+     plist's, setup can't tell which the service runs: it leaves the service as it is, and says so
+     in one line, naming `service install`, run from the shell the router should use, as what lines
+     them up. Where none answers but launchd runs a router, setup asks again for as long as the
+     launcher waits for one, 5 seconds, as a router starting, or handing over in the same process,
+     answers within that. One that still doesn't may be starting, stopping, which after a bootout
+     can take over half a minute, or keeping its state where setup doesn't look, as at a third
+     directory `launchctl setenv` gave it or in a plist edited since launchd loaded it: setup
+     leaves it as it is, says so, and fails, naming `service install` should it not answer soon, as
+     `service status`, which shows launchd's pid where it can be read, says. Where none answers and
+     none runs, setup goes on as below, checking the router could start before it restarts it, and
+     failing, naming `service install`, where it couldn't. Once setup has started the router
+     afresh, with none answering before, the first that answers at either directory is launchd's,
+     and setup judges where it sees apart from setup, and `service install` which tokens it has,
+     only once it answers, at the directory it answers at. Where that's the shell's, setup says
+     launchd started it there, not where the plist keeps its state, naming `service install`;
+     launchd's log stays where the plist names it, as moving it would take a second reinstall.
+     Neither setup nor `service restart` kickstarts the service while any router answers: `service
+     restart` asks the one answering to restart itself, and where that one, answering at the
+     shell's state directory only, or where there's no plist, or it couldn't be read or placed,
+     can't be asked, it fails rather than signal launchd's job, which may not be it. Setup installs
+     the service again while a router answers only where it answers at the plist's state directory,
+     launchd having the service loaded.
    - **What it's installed with:** read back from the plist, `--log-level`, and `--config`, which
      a `--config` given to setup replaces only where it names another file than the one the
      router serves; and the whole of `EnvironmentVariables`, those carried and any added by hand.
@@ -846,7 +850,7 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      installs the service afresh from its own options and the shell's environment, once the
      router could start from them, and fails where it couldn't, as above. `service restart` and `service status` say they couldn't read it, and look for the
      router where the shell keeps its state, as they do, saying so, where its places can't be
-     worked out from it; `status` shows launchd's pid, and says when the router answering is the
+     worked out from it; `status` shows launchd's pid where it can be read, and says when the router answering is the
      shell's, not the plist's.
    - **Where they see apart:** setup sets the router's places, as the service is seen, beside its
      own, the token files and the config file of its accounts and the directory it writes the
@@ -7959,7 +7963,7 @@ verbs).
   router it started answers; the router starts all the same, and routes once one has. Whether launchd has the service loaded is `launchctl print`'s to say, which exits
   113 for one it hasn't, and whether it runs the router, the job's own `state = running` line, and its pid, the job's
   own `pid =` line, both there only while one runs; a format that names no pid setup can read
-  still says it runs, its pid unknown: `install` boots out a loaded copy, waits for launchd to let it go,
+  still says it runs, its pid unknown, and one that says neither leaves whether it runs unknown: `install` boots out a loaded copy, waits for launchd to let it go,
   bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router other than any
   running before to answer: with none answering before, at the state directory it writes or the
   shell's, as launchd may give the router either; else at the one it writes alone. `bootout` can return at once, as on macOS 26, while launchd keeps the
