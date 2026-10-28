@@ -494,14 +494,15 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		LoginShell: func(context.Context, string, []string, []string) ([]byte, error) {
 			return nil, errors.New("no test runs a login shell")
 		},
-		Hidden:     cli.HiddenInput,
-		Terminal:   cli.IsTerminal,
-		Background: cli.TerminalBackground,
-		GOOS:       "darwin",
-		UID:        os.Getuid(),
-		PID:        testPID,
-		Pause:      func(time.Duration) {},
-		Patience:   launch.Patience{Answer: launch.AskTimeout},
+		Hidden:        cli.HiddenInput,
+		Terminal:      cli.IsTerminal,
+		TerminalInput: cli.IsTerminalInput,
+		Background:    cli.TerminalBackground,
+		GOOS:          "darwin",
+		UID:           os.Getuid(),
+		PID:           testPID,
+		Pause:         func(time.Duration) {},
+		Patience:      launch.Patience{Answer: launch.AskTimeout},
 	}
 }
 

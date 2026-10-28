@@ -381,6 +381,9 @@ type testTokenFiles struct {
 	*tokenFiles
 	files           *changingFiles
 	kept, replanned int
+	// records are when each token was taken, by the token, as the records
+	// beside the token files say: none of a token without one.
+	records map[string]time.Time
 	// renewed are the accounts heard to go out on another token, in turn,
 	// regained those heard to have a usable token again, and forgone those
 	// heard to have none.
@@ -393,8 +396,11 @@ type testTokenFiles struct {
 func newTestTokenFiles(before, after tokenstest.Files) *testTokenFiles {
 	f := &testTokenFiles{files: &changingFiles{files: after}}
 	f.tokenFiles = &tokenFiles{
-		accounts: resolve(testConfigured, before.Read),
+		accounts: resolve(testConfigured, before.Read, unrecorded),
 		read:     f.files.read,
+		taken: func(id string, token tokens.Token) (time.Time, error) {
+			return recordsOf(f.records)(id, token)
+		},
 		now:      at(start),
 		kept:     func() { f.kept++ },
 		sendable: func() { f.replanned++ },

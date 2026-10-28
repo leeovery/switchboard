@@ -24,6 +24,7 @@ func TestTheProbedDocumentGivesEachAccountsExtraUsageAsItsProbeLeftIt(t *testing
 		Prober: prober,
 		Policy: policy,
 		Token:  tokenstest.Files{"work": "test-token-work", "side": "test-token-side"}.Read,
+		Taken:  tokenstest.Taken{}.Read,
 		Now:    func() time.Time { return now },
 	}
 

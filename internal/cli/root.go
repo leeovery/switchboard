@@ -90,6 +90,10 @@ type Deps struct {
 	// Terminal reports whether out is a terminal, as IsTerminal does: a data
 	// verb prints its form for a person on one, and its JSON elsewhere.
 	Terminal func(out io.Writer) bool
+	// TerminalInput reports whether in is a terminal, as IsTerminalInput
+	// does: the session hook reads no input from one, which would wait for
+	// typing.
+	TerminalInput func(in io.Reader) bool
 	// Background asks the terminal out is what its background is, as
 	// TerminalBackground does: nil where it doesn't say. usage prints its
 	// windows in the theme for it.
@@ -145,7 +149,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.SetFlagErrorFunc(hideTokens)
 	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newDashboardCommand(a), newRequestsCommand(a),
 		newHistoryCommand(a), newSessionsCommand(a), newEventsCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a),
-		newServiceCommand(a), newVersionCommand(a))
+		newServiceCommand(a), newVersionCommand(a), newHookCommand(a))
 	return root
 }
 
@@ -305,6 +309,17 @@ func (a *app) readToken(id string) (tokens.Token, error) {
 	return files.Read(id)
 }
 
+// tokenTaken reads when switchboard took token as the account's with the
+// given id, as its token file's record says, failing where that isn't known,
+// as where the state directory can't be found.
+func (a *app) tokenTaken(id string, token tokens.Token) (time.Time, error) {
+	files, err := a.tokens()
+	if err != nil {
+		return time.Time{}, err
+	}
+	return files.Taken(id, token)
+}
+
 // errRouterDown is what a command that needs the router fails with when the
 // router isn't running, saying how to start it.
 var errRouterDown = fmt.Errorf("%w: start it with switchboard service install (or switchboard serve)", router.ErrNotRunning)
@@ -416,7 +431,7 @@ func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read) (do
 // the same way.
 func (a *app) source(cfg *config.Config, probe bool) usageSource {
 	source := a.routerSource()
-	source.probe = probeSource{deps: a.Deps, readToken: a.readToken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
+	source.probe = probeSource{deps: a.Deps, readToken: a.readToken, tokenTaken: a.tokenTaken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
 	source.ask = !probe
 	return source
 }

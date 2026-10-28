@@ -1,7 +1,8 @@
 // Package setup walks the user at a terminal through setting switchboard up:
 // the accounts and their tokens, which is the primary, priming, the service,
-// the claude link and the skill, then prints usage. Each step says what's done
-// already, and does only what isn't, so setup is safe to run again.
+// the claude link and the session hook, and the skill, then prints usage.
+// Each step says what's done already, and does only what isn't, so setup is
+// safe to run again.
 package setup
 
 import (
@@ -25,7 +26,7 @@ var ErrNoTerminal = errors.New(`setup asks as it goes, so it needs a terminal: r
   1. Accounts: switchboard accounts add <id> --label <label>, with --primary for the one the browser and the Claude apps are signed into, and switchboard accounts token <id> for one without a usable token
   2. Priming, optionally: day = "HH:MM-HH:MM" in the config's [prime] table
   3. The service: switchboard service install, or switchboard service restart once it's installed
-  4. The claude link: a link named claude to "$(command -v switchboard)" in switchboard's bin directory, ~/.local/share/switchboard/bin, or $XDG_DATA_HOME/switchboard/bin, and that directory first on PATH; setup alone writes switchboard's file for the shell, with its completions, and the line in the shell's startup file that reads it
+  4. The claude link: a link named claude to "$(command -v switchboard)" in switchboard's bin directory, ~/.local/share/switchboard/bin, or $XDG_DATA_HOME/switchboard/bin, and that directory first on PATH; setup alone writes switchboard's file for the shell, with its completions, and the line in the shell's startup file that reads it. The session hook: setup alone writes it
   5. The skill: setup alone writes it
   6. Every account's windows as they stand: switchboard usage`)
 
@@ -57,7 +58,7 @@ type Setup struct {
 	Bin, Home string
 	// Shells are switchboard's files for the shells, which put Bin first on
 	// PATH, and Login the user's login shell, asked which claude it runs.
-	// Getenv reads $SHELL, and where the shell's startup file is.
+	// Getenv reads $SHELL.
 	Shells shell.Files
 	Login  LoginShell
 	Getenv func(string) string
@@ -66,8 +67,9 @@ type Setup struct {
 	// asking the login shell, setup takes the interrupt itself, so as to
 	// kill the shell.
 	Interrupt func(context.Context) (context.Context, context.CancelFunc)
-	// Skill is where Claude Code reads the skill.
-	Skill string
+	// Skill is where Claude Code reads the skill, and Settings Claude Code's
+	// settings file, where the session hook goes.
+	Skill, Settings string
 	// Usage prints every account's windows as they stand on out, as
 	// switchboard usage does.
 	Usage func(ctx context.Context, out io.Writer) error

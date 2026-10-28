@@ -11,6 +11,10 @@ Switchboard looks for the config in the first of these places that's set:
 
 To use another file for one command, pass `--config <file>`.
 
+Of Claude Code's settings, `setup` writes one entry in its `settings.json`, the session hook, and
+leaves the rest of the file as it is. There's nothing in it to set. See
+[A session that isn't going through switchboard](how-it-works.md#a-session-that-isnt-going-through-switchboard).
+
 ## Contents
 
 - [Example](#example)
@@ -119,7 +123,7 @@ The config has one `[[account]]` table for each subscription, and at least one.
 | `id` | Required | The account's permanent name. It's also the name of the account's token file. |
 | `label` | The id | What the account is shown as, at most 100 characters. It can't hold anything shaped like a token. |
 | `primary` | The first account | Marks the account the browser and the Claude apps are signed into: [the primary](how-it-works.md#the-primary). At most one account can set it. |
-| `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. See [Reserves](how-it-works.md#reserves). |
+| `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. [`accounts edit <id> --reserve <percent>`](commands.md#accounts) sets it, as a percentage. See [Reserves](how-it-works.md#reserves). |
 | `plan` | None (unknown) | The plan the account's subscription is on: `pro`, `max5x` or `max20x`. |
 
 An `id` must follow these rules:
@@ -130,7 +134,8 @@ An `id` must follow these rules:
 - It holds nothing shaped like a token.
 
 Switchboard can't read an account's plan from Anthropic, so `plan` is the only way it knows the
-plan. Switchboard uses the plan in two places:
+plan. [`accounts edit <id> --plan <plan>`](commands.md#accounts) sets it. Switchboard uses the plan
+in two places:
 
 - It compares what the plan costs with what the account's use was worth at API prices.
 - It sizes the account in [`history`](commands.md#history)'s replay of a week.
@@ -253,6 +258,55 @@ to the file it leads to.
 
 If an account's token file already holds a usable token, switchboard adds the account without
 asking for a token.
+
+### When each token was taken
+
+A setup token is good for a year from when it's made. When switchboard writes a token, it also
+writes when it took it, in `tokens/<id>.taken` beside the token file. The record holds a pair of
+lines for each of the account's latest 8 tokens, the latest first:
+
+```text
+taken 2026-10-27T09:30:00Z
+sha256 <the token's SHA-256 hash, in lowercase hex>
+taken 2026-03-02T14:05:00Z
+sha256 <an earlier token's hash>
+```
+
+A token's year counts from when switchboard took it. Nothing says when a pasted token was made, so
+its year counts from the day you gave it. Giving a token again, even after another, keeps the
+earlier of its two dates. The record keeps the latest 8 tokens alone, so a token given again after
+8 others counts afresh.
+
+The hash ties each date to its token, never holding the token itself. A token written by anything
+else has no known date, unless the record has a date for that same token, as when you restore both
+files together. A missing or damaged record only leaves the date unknown: the token works as
+before.
+
+The record must be yours, and no one else can read or write it, as with the token file. A record
+restored readable by others, but not writable, as a dotfiles checkout often leaves it, counts again
+once it's private. A plain file is made private as the router starts. A record that's a second name
+of a file, or a link to one, keeps its dates when switchboard next writes a token beside it, which
+writes them afresh, private, but only where the file is yours and no one else can write it. A link
+to anything else, such as nothing at all, another account's token file or a file that isn't a
+record, is left as it is, with what it leads to, and a warning in the log: the date stays unknown,
+and the token works as before. So is a record that's another account's token file, or its record,
+however it's reached, as a link from one account's file to another's leaves it, and so is a record's
+path where another account's token file or record is a link leading there.
+
+`accounts remove` deletes the record with the token file, a link alone where either is one. Where
+the token file is a link to the record's own path, and the file there has no other name, it's the
+token's only copy, and it's left; while it's so, a token written is written there, and no record
+over it, with a warning in the log. Once the account's removed, that file still holds the token, and
+switchboard never writes a record over a file holding anything shaped like a token, whatever its
+permissions or owner, nor over one it can't read or one over 1 MiB: a token written for an account
+of that id later leaves it, with a warning, and its date stays unknown until you move the file.
+`accounts remove` leaves such a file too, with a warning, rather than deleting it, unless it's a
+second name of the very token file it removes, or of the file it leads to, as a hard link of it,
+which goes with it: where the token file is a link to the record's own path and the file there has
+another name, the record's path goes with the token, the file's kept under its other name, and
+`accounts remove` says so. Writing a token replaces the token file, so a second name made by hand
+stops being one at the next write, and is then left as any file holding a token at the record's path
+is. `status --json` gives each token's `token_taken`, and its `token_good_until`, 365 days on.
 
 ### When switchboard reads token files
 

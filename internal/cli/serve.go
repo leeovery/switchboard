@@ -161,6 +161,7 @@ func (a *app) startingFrom(path string) (router.Config, tokens.Store, error) {
 	return router.Config{
 		Accounts:      cfg.Accounts,
 		Token:         files.Read,
+		Taken:         files.Taken,
 		Upstream:      cfg.Upstream,
 		Provider:      claude.Provider{},
 		Prober:        installedProber{upstream: cfg.Upstream, version: a.ClaudeVersion},

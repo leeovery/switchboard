@@ -111,6 +111,9 @@ func (r *run) addAccount(ctx context.Context, id string) (bool, error) {
 	switch {
 	case errors.Is(err, accounts.ErrInterrupted):
 		return false, err
+	case errors.Is(err, config.ErrBlankLabel):
+		r.Terminal.sayf("%s isn't added: %v: add it again with a label that shows, or Enter for none, to show it by its id.", id, err)
+		return false, nil
 	case err != nil:
 		r.Terminal.sayf("%s isn't added: %v.", id, err)
 		return false, nil

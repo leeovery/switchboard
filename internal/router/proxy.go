@@ -62,6 +62,8 @@ type proxy struct {
 	// readToken reads an account's token from its file again, as when the
 	// upstream refuses the one the router has.
 	readToken func(id string) (tokens.Token, error)
+	// tokenTaken reads when a token read again was taken.
+	tokenTaken TakenFunc
 	// tokensReplaced hears that an account's token has been replaced, which
 	// the state file is to keep.
 	tokensReplaced func()

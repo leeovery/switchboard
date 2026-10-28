@@ -120,7 +120,7 @@ Run by Claude, these commands print JSON without being asked. See [Claude and sw
 | [`switchboard requests`](docs/commands.md#requests) | The requests the router recorded |
 | [`switchboard history`](docs/commands.md#history) | Your use by day and week: requests, tokens and worth |
 | [`switchboard events`](docs/commands.md#events) | What the router decided and noticed |
-| [`switchboard accounts`](docs/commands.md#accounts) | Lists accounts, adds and removes them, and replaces tokens |
+| [`switchboard accounts`](docs/commands.md#accounts) | Lists accounts, adds, edits and removes them, and replaces tokens |
 | [`switchboard service`](docs/commands.md#service) | Installs, restarts and checks the service that keeps the router running |
 | [`switchboard logs`](docs/commands.md#logs) | Shows and follows the logs |
 

@@ -35,6 +35,35 @@ directly, agents included. Each format is described field by field.
 | switchboard's line | The last line `setup` adds to your shell's startup file, marked `# switchboard`, where the shell says it reads it: `.zshrc` in `$ZDOTDIR` as zsh reports it, else `~/.zshrc`; the first there of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, else `~/.bash_profile`; or `config.fish` in `$__fish_config_dir`, as fish reports it, by default `~/.config/fish` |
 | The LaunchAgent | `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist` |
 | The skill | `skills/switchboard/SKILL.md` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |
+| The session hook | An entry under `hooks.SessionStart` in `settings.json` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |
+
+The session hook's entry is a group of its own, with no matcher:
+
+```json
+{
+  "hooks": [
+    {
+      "type": "command",
+      "command": "[ -x '/opt/homebrew/bin/switchboard' ] && '/opt/homebrew/bin/switchboard' hook session-start || true",
+      "timeout": 5
+    }
+  ]
+}
+```
+
+The path is the one `setup` was run by. `setup` knows the entry by its command's shape: the same
+path in both places, naming a binary called `switchboard`. It puts the entry right where it
+differs, or where it's under a matcher that doesn't run it for every session, as an empty one,
+`null` or `*` do. Without the mark switchboard gives every `claude` it starts, as the session
+starts or is resumed, `switchboard hook session-start` prints one JSON object, which Claude Code
+shows the user. It adds nothing to what Claude is told:
+
+```json
+{"systemMessage": "This session isn't going through switchboard, as the claude that started it isn't switchboard's: from a terminal, switchboard setup puts that right; an app that runs its own Claude Code isn't routed."}
+```
+
+Otherwise it prints nothing. See
+[A session that isn't going through switchboard](how-it-works.md#a-session-that-isnt-going-through-switchboard).
 
 The state directory holds these files:
 
@@ -44,6 +73,7 @@ The state directory holds these files:
 | `control.sock` | The router's control API, which the commands and the dashboard talk to. |
 | `prefs.json` | What the dashboard remembers. See [`dashboard`](dashboard.md) and [Themes](dashboard.md#themes). |
 | `tokens/<id>` | Each account's token. See [Tokens](configuration.md#tokens). |
+| `tokens/<id>.taken` | When switchboard took each of the account's latest tokens, with each token's SHA-256 hash. See [When each token was taken](configuration.md#when-each-token-was-taken). |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting.md#the-logs). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |
@@ -303,6 +333,8 @@ Each entry in `accounts` holds these:
 
 - The account's `id` and `label`, whether it's the `primary`, and its `reserve`.
 - Whether its token is set, and when it was read.
+- `token_taken` and `token_good_until`: when switchboard took its token, and when the token's year,
+  counted from then, is up, 365 days on, each left out where that isn't known.
 - Its `windows`, each with its use, reset and status, its even pace (`pace`) and its `allowance`.
 - `lapsed` and `at_reserve`: the windows that have lapsed, and those at the reserve.
 - Its `extra_usage`.

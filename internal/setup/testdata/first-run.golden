@@ -35,6 +35,7 @@ Add it? [Y/n]
 Added it to ~/.zshrc.
 Asking zsh, as a new terminal starts it, which claude it runs.
 claude goes through switchboard in a new terminal: zsh runs ~/.local/share/switchboard/bin/claude.
+Installed the session hook, which tells a session that doesn't go through switchboard so: <root>/claude/settings.json
 
 5. The skill
 Installed the skill, which tells Claude what switchboard does under claude: <root>/claude/skills/switchboard/SKILL.md

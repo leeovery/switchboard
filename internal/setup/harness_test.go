@@ -23,6 +23,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/sessionhook"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/skill"
@@ -30,6 +31,9 @@ import (
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files with what the tests show")
+
+// tokenTaken is when setup takes a token the user gives, by its clock.
+var tokenTaken = time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
 
 // doneConfig is the config a first run of setup leaves, as the user answers
 // firstRun: work and side, work the primary, and priming over 08:00-23:00.
@@ -60,6 +64,8 @@ type world struct {
 	home   string
 	tmp    string
 	skill  string
+	// settings is Claude Code's settings file, where the session hook goes.
+	settings string
 	// switchboard is the path switchboard is run by, a link to its version.
 	switchboard string
 	// bin is switchboard's own directory for PATH, and realClaude is Claude
@@ -93,6 +99,7 @@ func newWorld(t *testing.T) *world {
 		home:     at("home"),
 		tmp:      at("tmp"),
 		skill:    at("claude", "skills", "switchboard", "SKILL.md"),
+		settings: at("claude", "settings.json"),
 		bin:      at("home", ".local", "share", "switchboard", "bin"),
 		shellDir: at("home", ".local", "share", "switchboard", "shell"),
 		env:      map[string]string{"SHELL": "/bin/zsh"},
@@ -167,7 +174,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 	}
 	return &setup.Setup{
 		Terminal:     u.terminal(),
-		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt},
+		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt, Now: func() time.Time { return tokenTaken }},
 		Service:      svc,
 		Install:      service.InstallOptions{Executable: w.switchboard},
 		Path:         strings.Join(w.path, string(filepath.ListSeparator)),
@@ -179,6 +186,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Getenv:       w.getenv,
 		Interrupt:    w.interruptible,
 		Skill:        w.skill,
+		Settings:     w.settings,
 		Usage: func(_ context.Context, out io.Writer) error {
 			_, err := io.WriteString(out, "(every account's usage)\n")
 			return err
@@ -213,7 +221,7 @@ func (w *world) runs(t *testing.T, answers ...string) string {
 // done lays the world out as the first run of setup leaves it: doneConfig,
 // with both accounts' tokens; the service installed, and its router up;
 // switchboard's claude link, its files for the shells, and its line in
-// .zshrc; and the skill installed.
+// .zshrc; the session hook; and the skill installed.
 func (w *world) done(t *testing.T) {
 	t.Helper()
 	w.writeConfig(t, doneConfig)
@@ -225,6 +233,9 @@ func (w *world) done(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.addLine(t)
+	if _, err := sessionhook.Install(w.settings, w.switchboard); err != nil {
+		t.Fatal(err)
+	}
 	if err := skill.Install(w.skill); err != nil {
 		t.Fatal(err)
 	}

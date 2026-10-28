@@ -33,6 +33,13 @@ const startedEnv = "SWITCHBOARD_STARTED"
 // tmux server, or one running claude again in its own place much later.
 const startedFor = 30 * time.Second
 
+// StartedBy reports whether the environment getenv reads is one switchboard
+// started a claude in, or something that claude started: whether it carries
+// the mark, however old.
+func StartedBy(getenv func(string) string) bool {
+	return getenv(startedEnv) != ""
+}
+
 // setEnv marks the environment of a claude run starts with what run set in
 // it, so a claude started within its session that switchboard steps aside
 // for, or starts unaided, starts as if switchboard weren't there (see

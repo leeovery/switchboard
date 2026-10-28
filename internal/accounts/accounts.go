@@ -1,7 +1,7 @@
-// Package accounts adds switchboard's accounts, replaces their tokens and
-// removes them: an account's [[account]] table in the config file and its
-// token file together. A token the user gives, typed unseen at a terminal or
-// piped in, is checked with the API before it's saved.
+// Package accounts adds switchboard's accounts, edits them, replaces their
+// tokens and removes them: an account's [[account]] table in the config file
+// and its token file together. A token the user gives, typed unseen at a
+// terminal or piped in, is checked with the API before it's saved.
 package accounts
 
 import (
@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
@@ -66,6 +67,9 @@ type Registry struct {
 	// config's.
 	Prober func(upstream string) Prober
 	Input  Input
+	// Now reads the clock, which says when a token the user gives is taken:
+	// nil reads the system's.
+	Now func() time.Time
 }
 
 // Taken is how an account came by its token.
@@ -142,7 +146,7 @@ func (r Registry) Remove(id string) (Removed, error) {
 	if before.Accounts.Primary().ID == id {
 		removed.Primary = draft.Config().Accounts.Primary().ID
 	}
-	logger.Info("removed an account", "account", id, "token_file", file.File, "linked_to", file.LinkedTo, "primary_now", removed.Primary)
+	logger.Info("removed an account", "account", id, "token_file", file.File, "linked_to", file.LinkedTo, "linked_to_gone", file.LinkedToGone, "primary_now", removed.Primary)
 	return removed, nil
 }
 
@@ -166,11 +170,19 @@ func (r Registry) take(ctx context.Context, id, upstream string) (Taken, error) 
 	if err != nil {
 		return Taken{}, err
 	}
-	if err := r.Tokens.Write(id, token); err != nil {
+	if err := r.Tokens.Write(id, token, r.now()); err != nil {
 		return Taken{}, err
 	}
 	logger.Info("saved a token", "account", id, "checked", taken.Unchecked == nil)
 	return taken, nil
+}
+
+// now reads the registry's clock, else the system's.
+func (r Registry) now() time.Time {
+	if r.Now == nil {
+		return time.Now()
+	}
+	return r.Now()
 }
 
 // check asks the API at upstream whether it takes the account's token, by

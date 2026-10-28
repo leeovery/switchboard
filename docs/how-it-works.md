@@ -291,8 +291,9 @@ The service's router restarts itself, once no request is in flight, when any of 
 - `brew upgrade` replaces it.
 - Your Mac's time zone changes.
 
-So `accounts add`, an edit by hand, an upgrade and a new time zone all take effect without a
-command. A router you started by hand with `serve` logs that a restart is due instead.
+So `accounts add`, `accounts edit`, `accounts remove`, an edit by hand, an upgrade and a new time
+zone all take effect without a command. A router you started by hand with `serve` logs that a
+restart is due instead.
 
 The router restarts in place. It runs its new binary in the same process and hands that binary the
 sockets it listens on. A request made meanwhile waits a moment rather than being refused, and a
@@ -327,8 +328,13 @@ restart`. See [`serve`](commands.md#serve).
 
 One account is the primary: the one your browser and the Claude apps are signed into.
 
-- **Choosing it:** to mark an account as the primary, set `primary = true` on it. Without it, the
-  first account is the primary.
+- **Choosing it:** to mark an account as the primary, run
+  `switchboard accounts edit <id> --primary`, or set `primary = true` on it. Without it, the first
+  account is the primary. The sessions running through the router keep the token they started on
+  as Claude Code's own until they restart: the former primary's, pinned or not, or, where it had
+  no usable token, the first account's with one, or a pinned session's pinned account's. So what
+  they send outside the conversation still goes out on that account, as the edit says. Sessions
+  started directly, while the router was down, are untouched by the move.
 - **Removing it:** when you remove the primary, the account marked `primary = true`, or else the
   first account, is the primary from then on, as `accounts remove` says. The sessions already
   running hold the removed account's token. They stay routed while the new primary has a usable
@@ -506,7 +512,11 @@ Claude Code's own token is the primary's, so what isn't routed lands on the prim
 - **Account-bound features:** features such as remote sessions and file uploads pass through
   untouched, on the primary.
 - **Programs whose `PATH` lacks the link's directory:** programs such as launchd jobs and some GUI
-  apps find the real `claude`, and aren't routed.
+  apps find the real `claude`, and aren't routed. The session hook says so as each such session
+  starts: see [A session that isn't going through switchboard](#a-session-that-isnt-going-through-switchboard).
+- **Apps that run a Claude Code of their own:** the Claude desktop app's Code sessions, and an
+  editor's bundled Claude Code, never look on `PATH`, so nothing routes them. The session hook says
+  so as each starts.
 - **Extra usage:** an account with extra usage turned on may serve, and bill, the request that
   crosses its limit, rather than refuse it. The router moves sessions off once the headers show the
   window spent.
@@ -516,6 +526,35 @@ Claude Code's own token is the primary's, so what isn't routed lands on the prim
 - **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude
   Code may use the key rather than an account's token. So `claude` starts without switchboard, and
   its requests go out on the key. See [`claude`](commands.md#claude).
+
+### A session that isn't going through switchboard
+
+`setup` installs a hook in Claude Code's `settings.json` that every session runs as it starts,
+however it was started: by switchboard's `claude`, by the real `claude` found ahead of it or run by
+its path, or by an editor. Every `claude` switchboard starts carries a mark in its environment,
+which the session's hooks inherit. A session without it, as it starts or is resumed, shows:
+
+```
+This session isn't going through switchboard, as the claude that started it isn't switchboard's: from a terminal, switchboard setup puts that right; an app that runs its own Claude Code isn't routed.
+```
+
+Its requests go straight to Anthropic on Claude Code's own login, not spread across your accounts.
+Claude isn't told: what a hook tells Claude goes into every prompt of a headless `claude -p` run,
+such as a script's or cron's.
+
+- **From a terminal:** something has put the real `claude` ahead of switchboard's, such as a
+  startup file changed, a line declined or a Mac restored, and the first session after it says
+  so. Run `switchboard setup`, and start the session again in a new terminal.
+- **From an app:** the Claude desktop app's Code sessions, and an editor that runs a Claude Code
+  it bundles, never look on `PATH`, so `setup` can't route them. See
+  [What doesn't go through the router](#what-doesnt-go-through-the-router).
+
+A session started by `switchboard run --direct` is switchboard's, and says nothing.
+
+The hook routes nothing and changes nothing. It asks nothing of the router or the config, answers
+at once, and always succeeds, so it never holds a session up. It runs switchboard by the path
+`setup` was run by, and does nothing once switchboard is gone. Only `setup` writes it, leaving your
+other settings and hooks as they are.
 
 The full design, including the cache facts it rests on, is in [the design document](design.md).
 

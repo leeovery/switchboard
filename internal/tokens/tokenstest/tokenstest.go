@@ -5,6 +5,7 @@ package tokenstest
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -28,6 +29,21 @@ func (f Files) Read(id string) (tokens.Token, error) {
 		return tokens.Token{}, Empty(id)
 	}
 	return token, err
+}
+
+// Taken are when the accounts' tokens were taken, by account id, as their
+// records say. An account without a time in Taken has none known.
+type Taken map[string]time.Time
+
+// Read returns when the account with the given id took its token, as
+// tokens.Store's Taken does, failing with tokens.ErrUnrecorded where Taken
+// has no time for it, whatever the token.
+func (t Taken) Read(id string, _ tokens.Token) (time.Time, error) {
+	at, ok := t[id]
+	if !ok {
+		return time.Time{}, tokens.ErrUnrecorded
+	}
+	return at, nil
 }
 
 // Missing is the error Read fails with for the account with the given id,

@@ -69,6 +69,25 @@ func TestTarget(t *testing.T) {
 	// leads on from the directory it's really in.
 	symlink(t, at("dotfiles", "linked"), at("state"))
 	symlink(t, filepath.Join("..", "token"), at("dotfiles", "linked", "relative"))
+	// A relative link whose text goes through a linked directory and back
+	// out of it, which the system takes back from where that link leads.
+	write(t, at("elsewhere", "kept"))
+	write(t, at("elsewhere", "deep", "placeholder"))
+	symlink(t, at("elsewhere", "deep"), at("links", "sub"))
+	symlink(t, "sub/../kept", at("links", "through"))
+	// A relative link, in a linked directory, whose ".." leads on to a
+	// directory that isn't there yet.
+	write(t, at("real", "cfgdir", "placeholder"))
+	symlink(t, at("real", "cfgdir"), at("config"))
+	symlink(t, "../sb/config.toml", at("config", "config.toml"))
+	// Links that go back, by "..", out of a directory that isn't there,
+	// which the system can't follow: relative, and not.
+	sep := string(filepath.Separator)
+	symlink(t, "gone"+sep+".."+sep+"token", at("links", "back"))
+	symlink(t, at("dotfiles", "gone")+sep+".."+sep+"token", at("links", "back-whole"))
+	// Links whose whole text goes back, by "..", out of a linked directory.
+	symlink(t, at("state")+sep+".."+sep+"token", at("links", "whole-through"))
+	symlink(t, at("state")+sep+".."+sep+"absent", at("links", "whole-absent"))
 	symlink(t, at("dotfiles", "missing"), at("links", "missing"))
 	symlink(t, at("links", "loop-back"), at("links", "loop"))
 	symlink(t, at("links", "loop"), at("links", "loop-back"))
@@ -83,7 +102,13 @@ func TestTarget(t *testing.T) {
 		{name: "a link, where it leads", path: at("links", "token"), want: token},
 		{name: "a link to a link, where the last leads", path: at("links", "chain"), want: token},
 		{name: "a relative link, through a link to its directory, from where it really is", path: at("state", "relative"), want: token},
+		{name: "a relative link back out of a linked directory, from where that leads", path: at("links", "through"), want: at("elsewhere", "kept")},
 		{name: "a link to a file that isn't there yet, where it would be", path: at("links", "missing"), want: at("dotfiles", "missing")},
+		{name: "a relative link into a directory that isn't there yet, from where its link leads", path: at("config", "config.toml"), want: at("real", "sb", "config.toml")},
+		{name: "a link back out of a linked directory, from where that leads", path: at("links", "whole-through"), want: token},
+		{name: "a link back out of a linked directory to a file not there yet, from where that leads", path: at("links", "whole-absent"), want: at("dotfiles", "absent")},
+		{name: "a relative link back out of a directory that isn't there, nowhere", path: at("links", "back"), wantErr: at("links", "back") + ": leads back out of " + at("links", "gone") + ", which isn't there"},
+		{name: "a link back out of a directory that isn't there, nowhere", path: at("links", "back-whole"), wantErr: at("links", "back-whole") + ": leads back out of " + at("dotfiles", "gone") + ", which isn't there"},
 		{name: "a loop of links, nowhere", path: at("links", "loop"), wantErr: at("links", "loop") + ": too many links"},
 	}
 	for _, tt := range tests {
@@ -158,6 +183,52 @@ func TestWriteFrom(t *testing.T) {
 			}
 			if data, err := os.ReadFile(path); err != nil || string(data) != tt.want {
 				t.Errorf("the file holds %d bytes (%v), want %d", len(data), err, len(tt.want))
+			}
+			if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
+				t.Errorf("the directory holds %v (%v), want the file alone", entries, err)
+			}
+		})
+	}
+}
+
+func TestWriteChecked(t *testing.T) {
+	refused := errors.New("the file changed")
+	for _, checkErr := range []error{nil, refused} {
+		t.Run(errorText(checkErr), func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "file")
+			write(t, path)
+			checked := false
+			check := func() error {
+				checked = true
+				// Checked once the new file is written whole beside the old,
+				// the old still in place.
+				if data, err := os.ReadFile(path); err != nil || string(data) != "old\n" {
+					t.Errorf("at the check, the file holds %q (%v), want the old", data, err)
+				}
+				written, err := filepath.Glob(filepath.Join(dir, ".file.*"))
+				if err != nil || len(written) != 1 {
+					t.Fatalf("at the check, beside the file: %v (%v), want the new one", written, err)
+				}
+				if data, err := os.ReadFile(written[0]); err != nil || string(data) != "new\n" {
+					t.Errorf("at the check, the new file holds %q (%v), want it whole", data, err)
+				}
+				return checkErr
+			}
+
+			err := atomicfile.WriteChecked(path, 0o600, func(w io.Writer) error {
+				_, err := io.WriteString(w, "new\n")
+				return err
+			}, check)
+			if !errors.Is(err, checkErr) || !checked {
+				t.Fatalf("WriteChecked() error = %v, checked %v; want %v, checked", err, checked, checkErr)
+			}
+			want := "new\n"
+			if checkErr != nil {
+				want = "old\n"
+			}
+			if data, err := os.ReadFile(path); err != nil || string(data) != want {
+				t.Errorf("the file holds %q (%v), want %q", data, err, want)
 			}
 			if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
 				t.Errorf("the directory holds %v (%v), want the file alone", entries, err)

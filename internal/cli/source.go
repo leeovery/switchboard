@@ -200,9 +200,12 @@ type probeSource struct {
 	deps Deps
 	// readToken reads an account's token, by its id, from its file.
 	readToken func(id string) (tokens.Token, error)
-	upstream  string
-	accounts  []config.Account
-	prime     config.Prime
+	// tokenTaken reads when an account's token was taken, by its id and the
+	// token.
+	tokenTaken func(id string, token tokens.Token) (time.Time, error)
+	upstream   string
+	accounts   []config.Account
+	prime      config.Prime
 }
 
 // Fetch probes every account, claiming the Claude Code version installed now:
@@ -215,6 +218,7 @@ func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
 		Policy: claude.Policy(),
 		Prime:  s.prime,
 		Token:  s.readToken,
+		Taken:  s.tokenTaken,
 		Now:    s.deps.Now,
 	}
 	doc := collector.Collect(ctx, s.accounts)

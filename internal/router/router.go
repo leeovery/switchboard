@@ -99,6 +99,11 @@ type Config struct {
 	// the upstream refuses the token it has, which may have been replaced
 	// since.
 	Token func(id string) (tokens.Token, error)
+	// Taken reads when switchboard took an account's token, by the account's
+	// id, as the record beside its token file says, failing where that isn't
+	// known, with tokens.ErrUnrecorded where there's no record: whenever the
+	// router reads a token, it reads its record too. Nil knows of none.
+	Taken TakenFunc
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string
 	Provider Provider
@@ -259,7 +264,10 @@ type Router struct {
 func New(cfg Config) (*Router, error) {
 	clock := cfg.Now
 	cfg.Now = wallClock(cfg.Now)
-	accounts := resolve(cfg.Accounts, cfg.Token)
+	if cfg.Taken == nil {
+		cfg.Taken = unrecorded
+	}
+	accounts := resolve(cfg.Accounts, cfg.Token, cfg.Taken)
 	upstream, err := url.Parse(cfg.Upstream)
 	if err != nil {
 		return nil, fmt.Errorf("upstream: %w", err)
@@ -316,6 +324,7 @@ func New(cfg Config) (*Router, error) {
 			transport:      transport,
 			accounts:       accounts,
 			readToken:      cfg.Token,
+			tokenTaken:     cfg.Taken,
 			tokensReplaced: changes.note,
 			state:          state,
 			provider:       cfg.Provider,

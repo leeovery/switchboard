@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
+	"github.com/leeovery/switchboard/internal/sessionhook"
 	"github.com/leeovery/switchboard/internal/shell"
 )
 
@@ -21,6 +22,9 @@ const (
 	asks         = "Asking zsh, as a new terminal starts it, which claude it runs.\n"
 	linkRuns     = "claude goes through switchboard in a new terminal: zsh runs ~/.local/share/switchboard/bin/claude.\n"
 	goesThrough  = asks + linkRuns
+	// hookInPlace is what the step says last, whatever it found, of the
+	// session hook, which a done world has in place.
+	hookInPlace = "The session hook is in place: <root>/claude/settings.json\n"
 )
 
 func TestTheClaudeLinkStep(t *testing.T) {
@@ -109,8 +113,10 @@ func TestTheClaudeLinkStep(t *testing.T) {
 			before := w.snapshot(t)
 
 			shown := w.runs(t, "")
-			if got := section(t, shown, "4. The claude link"); got != tt.want {
-				t.Errorf("the claude link step showed\n%s\nwant\n%s", got, tt.want)
+			// The session hook comes last, whatever the link step found.
+			want := tt.want + hookInPlace
+			if got := section(t, shown, "4. The claude link"); got != want {
+				t.Errorf("the claude link step showed\n%s\nwant\n%s", got, want)
 			}
 			if tt.wantLinked {
 				checkLinked(t, w)
@@ -157,7 +163,7 @@ func TestTheClaudeLinkStepWritesTheShellFiles(t *testing.T) {
 			}
 
 			shown := w.runs(t, "")
-			want := "<root>/home/.local/share/switchboard/bin/claude leads to switchboard, at <root>/brew/bin/switchboard.\n" + tt.want + goesThrough
+			want := "<root>/home/.local/share/switchboard/bin/claude leads to switchboard, at <root>/brew/bin/switchboard.\n" + tt.want + goesThrough + hookInPlace
 			if got := section(t, shown, "4. The claude link"); got != want {
 				t.Errorf("the claude link step showed\n%s\nwant\n%s", got, want)
 			}
@@ -448,7 +454,7 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			if tt.unasked {
 				asking = ""
 			}
-			want := "<root>/home/.local/share/switchboard/bin/claude leads to switchboard, at <root>/brew/bin/switchboard.\n" + filesCurrent + asking + tt.want
+			want := "<root>/home/.local/share/switchboard/bin/claude leads to switchboard, at <root>/brew/bin/switchboard.\n" + filesCurrent + asking + tt.want + hookInPlace
 			if got := section(t, shown, "4. The claude link"); got != want {
 				t.Errorf("the claude link step showed\n%s\nwant\n%s", got, want)
 			}
@@ -495,8 +501,19 @@ func TestSetupStopsWhenItCantMakeTheBinDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	lockedDir(t, filepath.Dir(w.bin))
+	// A session hook to put right, which setup, stopped, leaves as it is.
+	if _, err := sessionhook.Install(w.settings, w.goInstalled(t)); err != nil {
+		t.Fatal(err)
+	}
+	settings, err := os.ReadFile(w.settings)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	shown, err := w.run(t, "")
+	if now, readErr := os.ReadFile(w.settings); readErr != nil || string(now) != string(settings) {
+		t.Errorf("%s holds\n%s\n(%v), want it left as it was\n%s", w.settings, now, readErr, settings)
+	}
 	if err == nil || !strings.HasPrefix(err.Error(), "make switchboard's bin directory: ") {
 		t.Errorf("Run() error = %v, want it to say it couldn't make switchboard's bin directory", err)
 	}

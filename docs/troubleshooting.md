@@ -25,6 +25,24 @@ This page shows where to look when switchboard doesn't do what you expect, and h
 - **Completions:** switchboard's file for your shell loads them, for commands and flags. zsh takes
   them once `compinit` has run, which a usual `.zshrc` does before switchboard's line at its end;
   bash takes them where the bash-completion package is loaded; fish always does.
+- **"This session isn't going through switchboard":** the session was started by a `claude` that
+  isn't switchboard's, so its requests go straight to Anthropic on Claude Code's own login,
+  unrouted and unrecorded. Started from a terminal, something has put the real `claude` ahead of
+  switchboard's on `PATH`, such as a startup file changed: run `switchboard setup`, which puts
+  switchboard's `claude` first, then start the session again in a new terminal. To see which
+  `claude` your shell runs, run `command -v claude`. Started by an app that runs a Claude Code of
+  its own, such as the Claude desktop app's Code sessions or an editor's bundled Claude Code, it
+  can't be routed: `setup` won't change that. See
+  [What doesn't go through the router](how-it-works.md#what-doesnt-go-through-the-router).
+  See [A session that isn't going through switchboard](how-it-works.md#a-session-that-isnt-going-through-switchboard).
+- **`setup` carries on without the session hook:** Claude Code's `settings.json` isn't the JSON
+  object Claude Code reads, or its `hooks` isn't an object, or `hooks.SessionStart` isn't an array.
+  `setup` leaves the file as it is, says what's wrong, with the line and column it can't read, or
+  that the file starts with a byte order mark, and carries on. Put the file right, then run `setup`
+  again. Where it says the file kept changing, Claude Code was writing it as `setup` did: run
+  `setup` again. Where it says `switchboard is running as sb here`, you ran switchboard by
+  another name, such as a link of your own or a build given another name: run `setup` as `switchboard`, by the path
+  you installed it at.
 - **The ledger's digests:** the `ledger/digest-<date>.json.gz`, `ledger/parts-<date>.gz`,
   `ledger/logday-<date>.json.gz` and `ledger/rows-<date>.gz` files are safe to delete. They're
   worked out from the day's lines, and the router writes them again on its next round, or when it

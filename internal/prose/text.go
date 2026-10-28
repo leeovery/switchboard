@@ -26,6 +26,24 @@ func Clean(text string) string {
 	return strings.Join(strings.Fields(text), " ")
 }
 
+// Quoted shows text the user gave, such as a label, in double quotes, set
+// apart from the words around it: as Clean makes it, but for its quote marks
+// and backslashes, escaped by a backslash, so where it ends reads plainly,
+// and each character drawn as nothing, as Unseen has it, that does nothing
+// that shows, as MapUnseen has it, shown as its escape, as \u200B, so what it
+// holds shows. A bidirectional control is among them, so it can't reorder
+// the rest of the line, and so is a direction mark, which a label keeps but
+// whose part in it can't be seen. A private-use character shows as it is,
+// and so does what makes an emoji, a keycap, a variant or a flag, or shapes
+// a joining script, unless an escape stands before it, as an escape owns
+// nothing after it.
+func Quoted(text string) string {
+	return `"` + MapUnseen(quoteEscaper.Replace(Clean(text)), escaped) + `"`
+}
+
+// quoteEscaper escapes the quote marks and backslashes in text Quoted shows.
+var quoteEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+
 // The words that join a list's last item to the rest: And, as List runs
 // items together, "a, b and c"; and Or, as ListOr runs together what's
 // chosen between, "a, b or c".

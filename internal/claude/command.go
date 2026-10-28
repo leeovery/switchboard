@@ -1,5 +1,7 @@
 package claude
 
+import "time"
+
 // Command is the name the Claude Code CLI runs by.
 const Command = "claude"
 
@@ -20,6 +22,11 @@ const (
 	// the request serves; set to 0, it sends them nowhere.
 	HintHeadersEnv = "CLAUDE_CODE_GATEWAY_HINT_HEADERS"
 )
+
+// SetupTokenLifetime is how long a token claude setup-token makes is good
+// for, from when it's made: a year, as its expires_in of 31536000 seconds
+// says. It's never refreshed.
+const SetupTokenLifetime = 365 * 24 * time.Hour
 
 // keyEnvs are the variables holding a key Claude Code may use in place of a
 // subscription's token: an API key, and a token it sends as a bearer token.

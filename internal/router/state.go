@@ -1262,6 +1262,9 @@ func (u *usage) status(a account, policy score.Policy, now time.Time) status.Acc
 		return st
 	}
 	st.TokenSet = true
+	if taken, ok := a.secret.tokenTaken(); ok {
+		st = st.WithTokenTaken(taken)
+	}
 	st.FetchedAt = u.updated
 	st.Windows, st.Extra = u.latest(), u.extra
 	st = st.AsOf(policy, now)

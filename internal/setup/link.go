@@ -17,8 +17,20 @@ import (
 // repairs one there leading anywhere else: the directory is switchboard's.
 // Anything in the link's place that isn't a link is left alone, and said to
 // be. Then it writes switchboard's files for the shells, and has the user's
-// login shell run the link (see onPath).
+// login shell run the link (see onPath). Then, whatever it found, unless it
+// failed or was interrupted, it installs the session hook, which tells a
+// session that didn't start through switchboard so.
 func (r *run) link(ctx context.Context) error {
+	if err := r.linkClaude(ctx); err != nil {
+		return err
+	}
+	r.sessionHook(ctx)
+	return nil
+}
+
+// linkClaude makes switchboard's claude link, writes switchboard's files for
+// the shells, and has the user's login shell run the link, as link says.
+func (r *run) linkClaude(ctx context.Context) error {
 	linked, err := r.makeLink()
 	if err != nil || !linked {
 		return err
