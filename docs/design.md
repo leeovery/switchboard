@@ -887,27 +887,28 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    bash print it, bare or as one single quoted string, a quote within it written `'\''`, and in any
    other form isn't read. Its body is split at spaces and tabs, and a word in it is plain where it's
    made only of letters, digits and `_./:@%+,=-`, or is a path from the home: a bare `~/`, `$HOME/`
-   or `${HOME}/` and plain characters. Its leading `NAME=value` and `NAME+=value` words, where
-   they're plain, a path from the home being plain at the value's start too, as in
-   `CLAUDE_CONFIG_DIR=~/.claude-work`, are passed over, and so is a `command` after them. Then the
-   command word decides. `claude` or `\claude` runs it by name, so `PATH` decides, whatever follows
-   it, as `claude` runs first; but after a variable that sets `PATH`, or in zsh `path`, it isn't
-   done: setup says it can't tell which `claude` that `PATH` finds, and that taking that `PATH`
-   setting out of the alias puts it right. A plain path, absolute or from the home, whose last
-   element is `claude`, decides itself, whatever follows it: done where it's the link, and otherwise
-   not, setup saying the alias runs that path, and that removing it or pointing it at `claude` puts
-   it right. Any other command word runs something else, as `npx …` does, where every word of the
-   alias is plain and none names `claude`, as the word or as one of its parts between `/`, `=`, `:`
-   and `,`, so `=claude` and `x/claude` name it, and `claude-code` doesn't; otherwise, as with
-   `caffeinate -i claude`, `/usr/bin/env claude`, `cd ~/work && claude` or `GITHUB_TOKEN=$(gh auth
-   token) claude`, it's a wrapper setup doesn't read. An empty alias runs something else. A
-   function, or a wrapper, is taken at `PATH`'s word, and setup says it doesn't read it: it goes
-   through switchboard where it runs `claude` by name. The shell runs in a process group of its own,
-   killed whole once it answers or at its time limit; an interrupt meanwhile kills it, and setup
-   stops, as at any interrupt. A shell that exits without answering may have a startup file start
-   something that needs a terminal, such as tmux, and setup says so. Otherwise, for zsh, bash and
-   fish, it offers to add one line to the end of the startup file a new terminal's shell reads, only
-   where the shell said where it reads it: for zsh, `.zshrc`, read by every interactive shell, in
+   or `${HOME}/` and plain characters. Its leading `NAME=value` and `NAME+=value` words, where their
+   values are plain, a `~/` at a value's start, and `$PATH`, `${PATH}`, `$HOME` or `${HOME}`
+   anywhere within it, counting as plain, as in `CLAUDE_CONFIG_DIR=~/.claude-work` or
+   `PATH=/x:$PATH`, are passed over, and so is a `command` after them. Then the command word
+   decides. `claude` or `\claude` runs it by name, so `PATH` decides, whatever follows it, as
+   `claude` runs first; but after a variable that sets `PATH`, or in zsh `path`, it isn't done:
+   setup says it can't tell which `claude` that `PATH` finds, and that taking that `PATH` setting
+   out of the alias puts it right. A plain path, absolute or from the home, whose last element is
+   `claude`, decides itself, whatever follows it: done where it's the link, and otherwise not, setup
+   saying the alias runs that path, and that removing it or pointing it at `claude` puts it right.
+   Any other command word runs something else, as `npx …` does, where every word of the alias is
+   plain and none names `claude`, as the word or as one of its parts between `/`, `=`, `:` and `,`,
+   so `=claude` and `x/claude` name it, and `claude-code` doesn't; otherwise, as with `caffeinate -i
+   claude`, `/usr/bin/env claude`, `cd ~/work && claude` or `GITHUB_TOKEN=$(gh auth token) claude`,
+   it's a wrapper setup doesn't read. An empty alias runs something else. A function, or a wrapper,
+   is taken at `PATH`'s word, and setup says it doesn't read it: it goes through switchboard where
+   it runs `claude` by name. The shell runs in a process group of its own, killed whole once it
+   answers or at its time limit; an interrupt meanwhile kills it, and setup stops, as at any
+   interrupt. A shell that exits without answering may have a startup file start something that
+   needs a terminal, such as tmux, and setup says so. Otherwise, for zsh, bash and fish, it offers
+   to add one line to the end of the startup file a new terminal's shell reads, only where the shell
+   said where it reads it: for zsh, `.zshrc`, read by every interactive shell, in
    `${ZDOTDIR:-$HOME}`, as zsh says; for bash, the first there of `~/.bash_profile`, `~/.bash_login`
    and `~/.profile`, else `~/.bash_profile`, read by a login shell, as macOS terminals start one,
    and only the first it finds, so a `.bash_profile` made beside a `.profile` would stop the

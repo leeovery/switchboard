@@ -87,6 +87,10 @@ const (
 	plainly = `[A-Za-z0-9_./:@%+,=-]`
 	// fromHome is a path from the home, as the shells expand it.
 	fromHome = `(~|\$HOME|\$\{HOME\})/`
+	// valueExpansion is what a variable's value may hold beside plain
+	// characters: PATH or HOME, braced, or bare and ending where a name
+	// can't go on.
+	valueExpansion = `\$\{(?:PATH|HOME)\}|\$(?:PATH|HOME)(?:[./:@%+,=-]|$)`
 )
 
 var (
@@ -95,9 +99,9 @@ var (
 	plain = regexp.MustCompile(`^(` + plainly + `+|` + fromHome + plainly + `*)$`)
 	// homePath is a path from the home, and what follows the home.
 	homePath = regexp.MustCompile(`^` + fromHome + `(` + plainly + `*)$`)
-	// assignment is a plain word that sets a variable, or adds to it, and
-	// the variable's name.
-	assignment = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\+?=(` + fromHome + `)?` + plainly + `*$`)
+	// assignment is a word that sets a variable, or adds to it, to plain
+	// characters, PATH and HOME among them, and the variable's name.
+	assignment = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\+?=(?:~/)?(?:` + plainly + `|` + valueExpansion + `)*$`)
 )
 
 // alias reads an alias's body in sh, home being the user's home and link
@@ -113,8 +117,8 @@ type alias struct {
 // command word decides where it's claude, by name, though on a PATH of its
 // own where a variable set PATH; or a path to a claude, by itself. Whatever
 // follows either, claude runs first. Anything else runs something else
-// where every word is plain and none is claude; otherwise setup doesn't
-// read it.
+// where every word after the variables is plain and none names claude;
+// otherwise setup doesn't read it.
 func (a alias) runs(body string) (Runs, string) {
 	ws := strings.FieldsFunc(body, func(r rune) bool { return r == ' ' || r == '\t' })
 	setsPath := false
@@ -135,7 +139,7 @@ func (a alias) runs(body string) (Runs, string) {
 			return runs, path
 		}
 	}
-	if slices.ContainsFunc(ws, func(w string) bool { return !plain.MatchString(w) || claudeToken(w) }) {
+	if slices.ContainsFunc(ws, claudeToken) || slices.ContainsFunc(ws[n:], func(w string) bool { return !plain.MatchString(w) }) {
 		return Unknown, ""
 	}
 	return Else, ""

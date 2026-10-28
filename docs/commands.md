@@ -366,20 +366,20 @@ The steps are:
    its `PATH` finds. The step is done once a `claude` typed there goes through the link. An alias
    named `claude` in front of it is read by a plain rule: its words are split at spaces and tabs,
    and only plain words are read, made of letters, digits and `_./:@%+,=-`, or a path from an
-   unquoted `~/`, `$HOME/` or `${HOME}/`. Leading variables, as `CLAUDE_CONFIG_DIR=~/.claude-work`,
-   and `command`, are passed over. Then `claude` leaves it to `PATH`, though after a variable that
-   sets `PATH`, as `PATH=… claude`, it doesn't count, as `setup` can't tell which `claude` that
-   `PATH` finds, so it says to take that `PATH` setting out of the alias; and a path to a `claude`,
-   such as Claude Code's old `~/.claude/local/claude`, goes through switchboard only where it's the
-   link, and otherwise `setup` says to remove the alias or point it at `claude`. Another command
-   runs something else, as `npx …` does, where the alias is all plain words and names no `claude`;
-   otherwise, as with `caffeinate -i claude` or `cd ~/work && claude`, it's a wrapper `setup`
-   doesn't read. A function, or a wrapper, `setup` doesn't read, so it says it goes through
-   switchboard where it runs `claude` by name. Ctrl-C while it asks stops `setup`. `setup` asks zsh,
-   bash and fish alone: for another shell, it shows the bin directory, as `$HOME/…`, to put first on
-   `PATH` by hand. Until it's done, for zsh, bash and fish, `setup` offers to add one line to the
-   end of your shell's startup file, naming the file and showing the line first. For zsh, the line
-   is:
+   unquoted `~/`, `$HOME/` or `${HOME}/`. Leading variables, plain but for a `$PATH` or `$HOME`
+   within them, as `CLAUDE_CONFIG_DIR=~/.claude-work` or `PATH=/x:$PATH`, and `command`, are passed
+   over. Then `claude` leaves it to `PATH`, though after a variable that sets `PATH`, as `PATH=…
+   claude`, it doesn't count, as `setup` can't tell which `claude` that `PATH` finds, so it says to
+   take that `PATH` setting out of the alias; and a path to a `claude`, such as Claude Code's old
+   `~/.claude/local/claude`, goes through switchboard only where it's the link, and otherwise
+   `setup` says to remove the alias or point it at `claude`. Another command runs something else, as
+   `npx …` does, where the alias is all plain words and names no `claude`; otherwise, as with
+   `caffeinate -i claude` or `cd ~/work && claude`, it's a wrapper `setup` doesn't read. A function,
+   or a wrapper, `setup` doesn't read, so it says it goes through switchboard where it runs `claude`
+   by name. Ctrl-C while it asks stops `setup`. `setup` asks zsh, bash and fish alone: for another
+   shell, it shows the bin directory, as `$HOME/…`, to put first on `PATH` by hand. Until it's done,
+   for zsh, bash and fish, `setup` offers to add one line to the end of your shell's startup file,
+   naming the file and showing the line first. For zsh, the line is:
 
    ```bash
    if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard

@@ -238,7 +238,14 @@ func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
 		{name: "zsh's path set", body: "path=/opt/real/bin claude", runs: shell.SetsPath},
 		{name: "a variable named path, in bash", sh: "/bin/bash", body: "path=/opt/real/bin claude", runs: shell.ByName},
 		{name: "zsh's path set to an array, not plain", body: "path=(/opt/real/bin) claude", runs: shell.Unknown},
-		{name: "PATH set from PATH, not plain", body: "PATH=/opt/real/bin:$PATH claude", runs: shell.Unknown},
+		{name: "PATH set from PATH", body: "PATH=/opt/real/bin:$PATH claude", runs: shell.SetsPath},
+		{name: "PATH set from HOME and PATH, braced", sh: "/bin/bash", body: "PATH=$HOME/bin:${PATH} claude", runs: shell.SetsPath},
+		{name: "PATH set from PATH, for another command", body: "PATH=/opt/real/bin:$PATH npx", runs: shell.Else},
+		{name: "a variable set from HOME", body: "FOO=$HOME/x claude", runs: shell.ByName},
+		{name: "a variable set from HOME within it", body: "FOO=x:${HOME}:y claude", runs: shell.ByName},
+		{name: "a variable set from another variable", body: "FOO=$USER claude", runs: shell.Unknown},
+		{name: "a variable set from one whose name starts PATH", body: "FOO=$PATHS claude", runs: shell.Unknown},
+		{name: "a variable set from PATH, braced otherwise", body: "FOO=${PATH:-/usr/bin} claude", runs: shell.Unknown},
 		{name: "PATH set, for a path to claude", body: "PATH=/opt/real/bin " + other, runs: shell.APath, path: other},
 
 		// A path to a claude, whatever follows it.
