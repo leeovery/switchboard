@@ -1,0 +1,31 @@
+# switchboard's file for bash, which the line switchboard setup adds to bash's
+# startup file sources. setup writes it, and the router brings it up to date as
+# it starts, so an edit here doesn't last. That startup file can be ~/.profile,
+# which sh, dash and ksh read too, so this is POSIX shell alone.
+
+# switchboard's bin directory, which holds its claude link, goes first on PATH,
+# once: PATH is left as it is when the directory is first already.
+__switchboard_bin={{quote .Bin}}
+if [ -z "${PATH-}" ]; then
+	PATH=$__switchboard_bin
+elif [ "${PATH%%:*}" != "$__switchboard_bin" ]; then
+	__switchboard_rest="$PATH:" __switchboard_kept=
+	while [ -n "$__switchboard_rest" ]; do
+		__switchboard_entry=${__switchboard_rest%%:*}
+		__switchboard_rest=${__switchboard_rest#*:}
+		if [ "$__switchboard_entry" != "$__switchboard_bin" ]; then
+			__switchboard_kept=$__switchboard_kept:$__switchboard_entry
+		fi
+	done
+	PATH=$__switchboard_bin$__switchboard_kept
+fi
+unset __switchboard_bin __switchboard_rest __switchboard_kept __switchboard_entry
+{{with .Completion}}
+# switchboard's completions, which only bash can parse, from a file of their
+# own: in bash, outside POSIX mode, where bash-completion, which they're built
+# on, is loaded.
+if [ -n "${BASH_VERSION-}" ] && ! shopt -oq posix && declare -F _get_comp_words_by_ref >/dev/null 2>&1 && [ -r {{quote $.CompletionFile}} ]; then
+	. {{quote $.CompletionFile}}
+fi
+{{end}}
+true

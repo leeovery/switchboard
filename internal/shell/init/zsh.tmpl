@@ -1,0 +1,32 @@
+# switchboard's file for zsh, which the line switchboard setup adds to .zshrc
+# sources. setup writes it, and the router brings it up to date as it starts,
+# so an edit here doesn't last.
+
+# switchboard's bin directory, which holds its claude link, goes first on PATH,
+# once: PATH is left as it is when the directory is first already.
+() {
+	emulate -L zsh
+	local bin={{quote .Bin}} rest="${PATH-}:" kept= entry
+	if [ -z "${PATH-}" ]; then
+		PATH=$bin
+		return 0
+	fi
+	if [ "${PATH%%:*}" = "$bin" ]; then
+		return 0
+	fi
+	while [ -n "$rest" ]; do
+		entry=${rest%%:*}
+		rest=${rest#*:}
+		if [ "$entry" != "$bin" ]; then
+			kept=$kept:$entry
+		fi
+	done
+	PATH=$bin$kept
+}
+{{with .Completion}}
+# switchboard's completions, once compinit has defined compdef.
+if (( ${+functions[compdef]} )); then
+{{.}}
+fi
+{{end}}
+true

@@ -31,6 +31,8 @@ directly, agents included. Each format is described field by field.
 | The dashboard's themes | `$SWITCHBOARD_THEMES_DIR`, else `$XDG_CONFIG_HOME/switchboard/themes/`, else `~/.config/switchboard/themes/` |
 | The state directory | `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/` |
 | The `claude` link | `$XDG_DATA_HOME/switchboard/bin/claude`, else `~/.local/share/switchboard/bin/claude` |
+| switchboard's files for the shells | `init.zsh`, `init.bash`, `completion.bash` and `init.fish` in `$XDG_DATA_HOME/switchboard/shell/`, else `~/.local/share/switchboard/shell/` |
+| switchboard's line | The last line `setup` adds to your shell's startup file, marked `# switchboard`, where the shell says it reads it: for zsh, `.zshrc` in `$ZDOTDIR` as zsh reports it, else `~/.zshrc`; for bash, the first there of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, the one a login bash reads, as macOS terminals start one, else `~/.bash_profile`; or for fish, `config.fish` in `$__fish_config_dir`, as fish reports it, by default `~/.config/fish` |
 | The LaunchAgent | `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist` |
 | The skill | `skills/switchboard/SKILL.md` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |
 | The session hook | An entry under `hooks.SessionStart` in `settings.json` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |

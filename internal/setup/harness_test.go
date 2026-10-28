@@ -26,6 +26,7 @@ import (
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/sessionhook"
 	"github.com/leeovery/switchboard/internal/setup"
+	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/skill"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -52,10 +53,11 @@ day = "08:00-23:00"
 
 // world is what setup sets up, every part of it under a directory of the
 // test's own: the config file; the state directory, with the token files; a
-// home, where the LaunchAgent's plist and switchboard's bin directory go;
-// Claude Code's config directory; the directories on PATH; Claude Code; and
-// this switchboard, run by a link as Homebrew links it. launchd, the router
-// and the API are fakes.
+// home, where the LaunchAgent's plist, switchboard's bin and shell
+// directories and the shell's startup file go; Claude Code's config
+// directory; the directories on PATH; Claude Code; and this switchboard, run
+// by a link as Homebrew links it. launchd, the router, the API and the
+// user's login shell are fakes.
 type world struct {
 	root   string
 	config string
@@ -75,9 +77,8 @@ type world struct {
 	// configFlag is the config file setup is given, as --config gives it,
 	// "" for none.
 	configFlag string
-	// env is the environment setup is run in, over the world's own: TMPDIR,
-	// and XDG_CONFIG_HOME and XDG_STATE_HOME, finding config and state; a
-	// variable set to "" is unset.
+	// env is the environment setup is run in, over the world's own, as
+	// getenv reads it; a variable set to "" is unset.
 	env map[string]string
 	// unstartable is why a router couldn't start, nil when it could, and
 	// checked what setup checked one would start from, each the state
@@ -88,8 +89,13 @@ type world struct {
 	// through plutil, "" for none, and plutilSays what plutil fails with
 	// reading one it doesn't know, "" for its own words.
 	binary, plutilSays string
-	launchd            *fakeLaunchd
-	api                *fakeAPI
+	// shellDir is switchboard's shell directory.
+	shellDir string
+	login    *fakeLogin
+	// interrupt is the user's interrupting setup as it asks the login shell.
+	interrupt context.CancelFunc
+	launchd   *fakeLaunchd
+	api       *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -108,9 +114,12 @@ func newWorld(t *testing.T) *world {
 		skill:    at("claude", "skills", "switchboard", "SKILL.md"),
 		settings: at("claude", "settings.json"),
 		bin:      at("home", ".local", "share", "switchboard", "bin"),
+		shellDir: at("home", ".local", "share", "switchboard", "shell"),
+		env:      map[string]string{},
 		launchd:  &fakeLaunchd{home: at("home")},
 		api:      &fakeAPI{},
 	}
+	w.login = &fakeLogin{w: w}
 	mkdir(t, w.tmp)
 	version := claudetest.Program(t, at("Cellar", "switchboard", "1.2.3", "bin", "switchboard"))
 	w.switchboard = claudetest.Link(t, version, at("brew", "bin", "switchboard"))
@@ -141,25 +150,56 @@ func (w *world) plutil(_ context.Context, args ...string) ([]byte, error) {
 	return []byte(w.binary), nil
 }
 
-// putBinOnPath puts switchboard's bin directory first on PATH, as the line
-// setup says to add does.
-func (w *world) putBinOnPath() {
-	w.path = append([]string{w.bin}, w.path...)
-}
-
-// setup is setup in the world, at the terminal the user is at.
-func (w *world) setup(t *testing.T, u *user) *setup.Setup {
-	t.Helper()
+// getenv reads the environment setup is run in: the world's own, TMPDIR,
+// XDG_CONFIG_HOME and XDG_STATE_HOME finding config and state, Claude Code's
+// config directory and zsh as $SHELL, with env over it.
+func (w *world) getenv(key string) string {
 	env := map[string]string{
 		"TMPDIR":            w.tmp,
 		"XDG_CONFIG_HOME":   filepath.Join(w.root, "config"),
 		"XDG_STATE_HOME":    filepath.Join(w.root, "state"),
 		"CLAUDE_CONFIG_DIR": filepath.Join(w.root, "claude"),
+		"SHELL":             "/bin/zsh",
 	}
 	maps.Copy(env, w.env)
-	getenv := func(key string) string { return env[key] }
+	return env[key]
+}
+
+// shellFiles are switchboard's files for the shells in the world, each with
+// a completion script naming its shell.
+func (w *world) shellFiles() shell.Files {
+	return shell.Files{Dir: w.shellDir, Bin: w.bin, Completion: func(sh shell.Shell) ([]byte, error) {
+		return []byte("# switchboard's completions for " + string(sh) + "\n"), nil
+	}}
+}
+
+// startupFile is the startup file of the user's shell, as $SHELL names it,
+// where the shell reads it.
+func (w *world) startupFile() string {
+	sh, _ := shell.Of(w.getenv("SHELL"))
+	return shell.StartupFile(sh, w.home, w.login.reads())
+}
+
+// line is switchboard's line for the user's shell, as $SHELL names it.
+func (w *world) line() string {
+	sh, _ := shell.Of(w.getenv("SHELL"))
+	return shell.Line(sh, shell.InitFile(w.shellDir, sh), w.home)
+}
+
+// addLine adds switchboard's line to the user's shell's startup file, as
+// setup does.
+func (w *world) addLine(t *testing.T) {
+	t.Helper()
+	if err := shell.AddLine(w.startupFile(), w.line()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// setup is setup in the world, at the terminal the user is at.
+func (w *world) setup(t *testing.T, u *user) *setup.Setup {
+	t.Helper()
 	// The CLI's state directory, as it finds it.
-	stateDir, err := config.StateDir(getenv, func() (string, error) { return w.home, nil })
+	stateDir, err := config.StateDir(w.getenv, func() (string, error) { return w.home, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +207,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		GOOS:      "darwin",
 		UID:       os.Getuid(),
 		Home:      w.home,
-		Getenv:    getenv,
+		Getenv:    w.getenv,
 		StateDir:  stateDir,
 		Launchctl: w.launchd.run,
 		Plutil:    w.plutil,
@@ -187,6 +227,10 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		InstallPaths: w.installPaths,
 		Bin:          w.bin,
 		Home:         w.home,
+		Shells:       w.shellFiles(),
+		Login:        w.login,
+		Getenv:       w.getenv,
+		Interrupt:    w.interruptible,
 		Skill:        w.skill,
 		Settings:     w.settings,
 		Usage: func(_ context.Context, out io.Writer) error {
@@ -220,10 +264,10 @@ func (w *world) runs(t *testing.T, answers ...string) string {
 	return shown
 }
 
-// done lays the world out as the first run of setup leaves it, once the user
-// has put switchboard's bin directory on PATH as it says: doneConfig, with
-// both accounts' tokens; the service installed, and its router up;
-// switchboard's claude link, and the session hook; and the skill installed.
+// done lays the world out as the first run of setup leaves it: doneConfig,
+// with both accounts' tokens; the service installed, and its router up;
+// switchboard's claude link, its files for the shells, and its line in
+// .zshrc; the session hook; and the skill installed.
 func (w *world) done(t *testing.T) {
 	t.Helper()
 	w.writeConfig(t, doneConfig)
@@ -231,13 +275,87 @@ func (w *world) done(t *testing.T) {
 	w.writeToken(t, "side", "test-token-side")
 	w.installService(t, w.switchboard)
 	claudetest.Link(t, w.switchboard, filepath.Join(w.bin, "claude"))
-	w.putBinOnPath()
+	if _, err := w.shellFiles().Write(); err != nil {
+		t.Fatal(err)
+	}
+	w.addLine(t)
 	if _, err := sessionhook.Install(w.settings, w.switchboard); err != nil {
 		t.Fatal(err)
 	}
 	if err := skill.Install(w.skill); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// fakeLogin is the user's login shell, as a new terminal starts it. Its PATH
+// finds switchboard's claude link where switchboard's line is in its
+// startup file, reading this switchboard's file for it, which is there,
+// unless overridden is set, as something after the line changes PATH; and
+// otherwise the real claude. It reads its startup file from configDir, where
+// that's set, and otherwise as the shell does, which it says; and front,
+// where set, stands in front of PATH's claude. Its answers, while it has
+// some, come first, in turn, as the user puts switchboard's bin directory on
+// PATH by hand meanwhile; and where interrupted is set, the user interrupts
+// its asking. A shell switchboard doesn't know, it doesn't ask.
+type fakeLogin struct {
+	w           *world
+	overridden  bool
+	configDir   string
+	front       shell.Front
+	answers     []shell.Answer
+	interrupted bool
+	// asked are the links it was asked about, in turn.
+	asked []string
+}
+
+func (f *fakeLogin) Which(ctx context.Context, link string) shell.Answer {
+	f.asked = append(f.asked, link)
+	if f.interrupted {
+		f.w.interrupt()
+		return shell.Answer{Why: context.Cause(ctx).Error()}
+	}
+	sh, known := shell.Of(f.w.getenv("SHELL"))
+	switch {
+	case f.w.getenv("SHELL") == "":
+		return shell.Answer{Why: "$SHELL isn't set"}
+	case !known:
+		return shell.Answer{Why: "switchboard asks zsh, bash and fish alone"}
+	case len(f.answers) > 0:
+		answer := f.answers[0]
+		f.answers = f.answers[1:]
+		return answer
+	}
+	answer := shell.Answer{Kind: shell.Other, Claude: f.w.realClaude, Front: f.front, ConfigDir: f.reads()}
+	init := shell.InitFile(f.w.shellDir, sh)
+	_, err := os.Stat(init)
+	if found, _ := shell.FindLine(sh, f.w.startupFile(), f.w.home); found.Sources == init && err == nil && !f.overridden {
+		answer.Kind, answer.Claude = shell.Link, ""
+	}
+	return answer
+}
+
+// reads is where the shell reads its startup file, as it says: configDir,
+// where that's set, and otherwise, for zsh, $ZDOTDIR, else the home, and for
+// fish, fish in $XDG_CONFIG_HOME, else in ~/.config; bash says nothing.
+func (f *fakeLogin) reads() string {
+	getenv := f.w.getenv
+	switch sh, _ := shell.Of(getenv("SHELL")); {
+	case f.configDir != "":
+		return f.configDir
+	case sh == shell.Zsh:
+		return cmp.Or(getenv("ZDOTDIR"), f.w.home)
+	case sh == shell.Fish:
+		return filepath.Join(cmp.Or(getenv("XDG_CONFIG_HOME"), filepath.Join(f.w.home, ".config")), "fish")
+	}
+	return ""
+}
+
+// interruptible is setup's way of taking an interrupt in the world: the
+// user's interrupting, as interrupt does.
+func (w *world) interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx)
+	w.interrupt = cancel
+	return ctx, cancel
 }
 
 // installService installs the LaunchAgent to run the switchboard at binary,

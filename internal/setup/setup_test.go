@@ -15,14 +15,15 @@ import (
 )
 
 // firstRun are the answers of a user setting switchboard up from nothing:
-// work and side, with their tokens, work the primary, and priming over
-// 08:00-23:00.
+// work and side, with their tokens, work the primary, priming over
+// 08:00-23:00, and switchboard's line added to .zshrc.
 var firstRun = []string{
 	"work", "Work", "test-token-work",
 	"y", "side", "Side", "test-token-side",
 	"",            // no more accounts
 	"",            // work, the first, the primary
 	"08:00-23:00", // the day
+	"",            // switchboard's line added
 }
 
 func TestAFirstRunSetsEverythingUp(t *testing.T) {
@@ -52,6 +53,10 @@ func TestAFirstRunSetsEverythingUp(t *testing.T) {
 	if found, err := skill.Refresh(w.skill); err != nil || !found.Installed || found.Rewritten || found.Was != skill.Version() {
 		t.Errorf("the skill at %s: %+v, %v; want this switchboard's installed", w.skill, found, err)
 	}
+	w.checkShellFiles(t)
+	if rc, err := os.ReadFile(filepath.Join(w.home, ".zshrc")); err != nil || string(rc) != w.line()+"\n" {
+		t.Errorf("~/.zshrc reads %q (%v), want switchboard's line alone", rc, err)
+	}
 }
 
 func TestSetupLogsWhatItChangesButNoToken(t *testing.T) {
@@ -67,6 +72,8 @@ func TestSetupLogsWhatItChangesButNoToken(t *testing.T) {
 		{"level=INFO", `msg="set the priming day"`, "component=setup", "day=08:00-23:00"},
 		{"level=INFO", `msg="installed the service"`},
 		{"level=INFO", `msg="linked claude to switchboard"`, "component=setup", "link=" + filepath.Join(w.bin, "claude"), "switchboard=" + w.switchboard},
+		{"level=INFO", `msg="wrote switchboard's file for a shell"`, "component=setup", "path=" + filepath.Join(w.shellDir, "init.zsh")},
+		{"level=INFO", `msg="added switchboard's line to the shell's startup file"`, "component=setup", "path=" + filepath.Join(w.home, ".zshrc")},
 		{"level=INFO", `msg="installed the skill"`, "component=setup", "path=" + w.skill},
 	} {
 		if !log.Has(want...) {
@@ -83,8 +90,6 @@ func TestSetupLogsWhatItChangesButNoToken(t *testing.T) {
 func TestRunningSetupAgainDoesNothingNew(t *testing.T) {
 	w := newWorld(t)
 	w.runs(t, firstRun...)
-	// The user adds the line the first run said to add.
-	w.putBinOnPath()
 	before := w.snapshot(t)
 	w.launchd.calls, w.api.asked = nil, nil
 

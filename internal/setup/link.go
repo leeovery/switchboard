@@ -7,54 +7,49 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/leeovery/switchboard/internal/claude"
 )
 
-// link has every claude started from PATH go through switchboard. It makes
-// switchboard's claude link, in switchboard's own directory, leading to
-// switchboard by the path it was run by, so an upgrade moves it on, or
+// link has every claude a new terminal starts go through switchboard. It
+// makes switchboard's claude link, in switchboard's own directory, leading
+// to switchboard by the path it was run by, so an upgrade moves it on, or
 // repairs one there leading anywhere else: the directory is switchboard's.
-// Then it checks the directory is on PATH ahead of the real claude, and says
-// the line to add to the shell's startup file when it isn't: it never edits
-// one. Anything in the link's place that isn't a link is left alone, and
-// said to be. Then, whatever it found, it installs the session hook, which
-// tells a session that didn't start through switchboard so.
+// Anything in the link's place that isn't a link is left alone, and said to
+// be. Then it writes switchboard's files for the shells, and has the user's
+// login shell run the link (see onPath). Then, whatever it found, unless it
+// failed or was interrupted, it installs the session hook, which tells a
+// session that didn't start through switchboard so.
 func (r *run) link(ctx context.Context) error {
-	if err := r.linkClaude(); err != nil {
+	if err := r.linkClaude(ctx); err != nil {
 		return err
 	}
 	r.sessionHook(ctx)
 	return nil
 }
 
-// linkClaude makes switchboard's claude link, and checks claude on PATH goes
-// through it, as link says.
-func (r *run) linkClaude() error {
+// linkClaude makes switchboard's claude link, writes switchboard's files for
+// the shells, and has the user's login shell run the link, as link says.
+func (r *run) linkClaude(ctx context.Context) error {
 	linked, err := r.makeLink()
 	if err != nil || !linked {
 		return err
 	}
-	realClaude, err := claude.Find(r.Path, r.InstallPaths, func() (string, error) { return r.switchboard, nil })
-	if err != nil {
+	if _, err := claude.Find(r.Path, r.InstallPaths, func() (string, error) { return r.switchboard, nil }); err != nil {
 		r.Terminal.sayf("There's no Claude Code for claude to start: %v. Install it, then run setup again.", err)
 		return nil
 	}
-	ahead, onPath := r.placed(realClaude)
-	if ahead {
-		r.Terminal.sayf("claude on PATH goes through switchboard, from %s.", r.Bin)
-		return nil
+	if err := r.shellFiles(); err != nil {
+		return err
 	}
-	r.sayPathLine(onPath, filepath.Dir(realClaude))
-	return nil
+	return r.onPath(ctx)
 }
 
 // makeLink makes switchboard's claude link, or repairs one leading anywhere
 // else, reporting whether it's there, as it should be. Anything else in its
 // place is left alone, and said to be.
 func (r *run) makeLink() (bool, error) {
-	link := filepath.Join(r.Bin, claude.Command)
+	link := r.claudeLink()
 	info, err := os.Lstat(link)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -95,51 +90,3 @@ func (r *run) putLink(link, done string) error {
 	r.Terminal.sayf("%s", done)
 	return nil
 }
-
-// placed reports whether switchboard's directory is on PATH ahead of the
-// real claude, at realClaude, and whether it's on PATH at all. A directory on
-// PATH that's the same directory, links followed, counts; a relative one
-// doesn't, as claude.Find passes it over.
-func (r *run) placed(realClaude string) (ahead, onPath bool) {
-	mine, err := os.Stat(r.Bin)
-	if err != nil {
-		return false, false
-	}
-	behind := false
-	for _, dir := range filepath.SplitList(r.Path) {
-		if !filepath.IsAbs(dir) {
-			continue
-		}
-		if info, err := os.Stat(dir); err == nil && os.SameFile(info, mine) {
-			return !behind, true
-		}
-		behind = behind || filepath.Clean(dir) == filepath.Dir(realClaude)
-	}
-	return false, false
-}
-
-// sayPathLine says why claude on PATH doesn't go through switchboard yet,
-// the real claude's directory being claudeDir, and the line to add to the
-// shell's startup file that has it do so.
-func (r *run) sayPathLine(onPath bool, claudeDir string) {
-	why := r.Bin + " isn't on PATH"
-	if onPath {
-		why = fmt.Sprintf("%s is on PATH, but after %s, where Claude Code is", r.Bin, claudeDir)
-	}
-	r.Terminal.sayf("claude doesn't go through switchboard yet: %s. Add this line to your shell's startup file, such as ~/.zshrc, after anything else there that changes PATH, so it stays ahead of %s:", why, claudeDir)
-	r.Terminal.sayf("%s", exportLine(r.Bin, r.Home))
-	r.Terminal.sayf("Running setup again, in a new terminal, checks it.")
-}
-
-// exportLine is the line of a shell's startup file that puts dir first on
-// PATH, dir written from $HOME when it's in home.
-func exportLine(dir, home string) string {
-	written := doubleQuoted(dir)
-	if rel, err := filepath.Rel(home, dir); home != "" && err == nil && filepath.IsLocal(rel) {
-		written = "$HOME/" + doubleQuoted(filepath.ToSlash(rel))
-	}
-	return `export PATH="` + written + `:$PATH"`
-}
-
-// doubleQuoted escapes what a shell reads specially between double quotes.
-var doubleQuoted = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", `\$`, "`", "\\`").Replace

@@ -14,7 +14,9 @@ The service is installed, and the router is up: healthy, pid 4242.
 
 4. The claude link
 <root>/home/.local/share/switchboard/bin/claude leads to switchboard, at <root>/brew/bin/switchboard.
-claude on PATH goes through switchboard, from <root>/home/.local/share/switchboard/bin.
+switchboard's files for the shells are up to date, in ~/.local/share/switchboard/shell.
+Asking zsh, as a new terminal starts it, which claude it runs.
+claude goes through switchboard in a new terminal: zsh runs ~/.local/share/switchboard/bin/claude.
 The session hook is in place: <root>/claude/settings.json
 
 5. The skill

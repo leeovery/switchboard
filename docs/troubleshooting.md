@@ -14,6 +14,23 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `status -r`, or press `R` on the dashboard.
 - **Not routed:** some of what Claude Code sends never reaches the router. See
   [What doesn't go through the router](how-it-works.md#what-doesnt-go-through-the-router).
+- **`claude` in a new terminal isn't switchboard's:** run `switchboard setup`. It asks your login
+  shell which `claude` it runs, and says what it found. With switchboard's line in your startup
+  file but another `claude` still run, something after the line changes `PATH`: move the line
+  after it, to the end of the file, or what changes `PATH` to before it. Where you keep `PATH`
+  another way, as in a file of your own or a tool that writes it, put switchboard's bin
+  directory, `$XDG_DATA_HOME/switchboard/bin`, else `~/.local/share/switchboard/bin`, first on
+  it there. `setup` checks again once you have. An alias named `claude` goes through switchboard
+  where its command, after any plain variables, is `claude`, `\claude` or `command claude`, or
+  switchboard's `claude` link by its path, absolute or from an unquoted `~/`, `$HOME/` or
+  `${HOME}/`, with no variable before it that sets `PATH`, by `PATH=` or `PATH+=`, or in zsh
+  `path=` or `path+=`. A function, or an alias `setup` doesn't read, such as one that runs
+  `claude` after another command, as `caffeinate -i claude` or `cd ~/work && claude`, or one with
+  more than plain words, letters, digits and `_./:@%+,=-`, goes through switchboard where it runs
+  `claude` by name.
+- **Completions:** switchboard's file for your shell loads them, for commands and flags. zsh takes
+  them once `compinit` has run, which a usual `.zshrc` does before switchboard's line at its end;
+  bash takes them where the bash-completion package is loaded; fish always does.
 - **"This session isn't going through switchboard":** the session was started by a `claude` that
   isn't switchboard's, so its requests go straight to Anthropic on Claude Code's own login,
   unrouted and unrecorded. Started from a terminal, something has put the real `claude` ahead of
@@ -81,7 +98,8 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `switchboard status` to see whether it did, and pin again if not.
 - **Getting round switchboard:** to start Claude Code on its own login, run
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
-  breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`.
+  breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`: remove
+  the line marked `# switchboard` from your shell's startup file, and open a new terminal.
 
 ## The logs
 

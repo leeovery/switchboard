@@ -37,8 +37,12 @@ counts.
 
 ### How requests reach the router
 
-`setup` puts a link named `claude` in switchboard's own bin directory. You put that directory on
-`PATH` ahead of the real `claude`.
+`setup` puts a link named `claude` in switchboard's own bin directory. It adds one line to your
+shell's startup file, which sources a file of switchboard's own for your shell; that file puts the
+bin directory first on `PATH`, ahead of the real `claude`, and loads switchboard's completions.
+Where you keep `PATH` another way, put the bin directory first on it yourself. `setup` asks your
+login shell which `claude` it runs, and is done with this once that's the link. See
+[`setup`](commands.md#setup).
 
 When switchboard runs by the name `claude`, it starts the real Claude Code connected to the router.
 This works wherever `claude` runs: from a shell, a tmux pane, a script, or a tool that runs

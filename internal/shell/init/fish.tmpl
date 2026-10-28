@@ -1,0 +1,23 @@
+# switchboard's file for fish, which the line switchboard setup adds to
+# config.fish sources. setup writes it, and the router brings it up to date as
+# it starts, so an edit here doesn't last.
+
+# switchboard's bin directory, which holds its claude link, goes first on PATH,
+# once: PATH is left as it is when the directory is first already.
+begin
+	set -l bin {{quote .Bin}}
+	if not set -q PATH[1]; or test "$PATH[1]" != "$bin"
+		set -l kept
+		for entry in $PATH
+			if test "$entry" != "$bin"
+				set -a kept $entry
+			end
+		end
+		set -gx PATH $bin $kept
+	end
+end
+{{with .Completion}}
+# switchboard's completions.
+{{.}}
+{{end}}
+true

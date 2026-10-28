@@ -1,11 +1,13 @@
 package cli_test
 
 import (
+	"context"
 	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -13,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/setup"
+	"github.com/leeovery/switchboard/internal/shell"
 )
 
 func TestSetupNeedsATerminal(t *testing.T) {
@@ -46,10 +49,25 @@ func TestSetup(t *testing.T) {
 	realClaude := claudetest.Program(t, filepath.Join(root, "claude-code", "claude"))
 	claudeConfig := filepath.Join(root, "claude")
 	s.setenv("XDG_DATA_HOME", data)
-	// switchboard's bin directory on PATH ahead of claude's, as the line
-	// setup says to add puts it, before setup has made it.
-	s.setenv("PATH", bin+string(filepath.ListSeparator)+filepath.Dir(realClaude))
+	s.setenv("PATH", filepath.Dir(realClaude))
 	s.setenv("CLAUDE_CONFIG_DIR", claudeConfig)
+	s.setenv("SHELL", "/bin/zsh")
+	s.setenv("LANG", "en_GB.UTF-8")
+	home, err := s.srv.deps.HomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The login shell finds the real claude, then, once switchboard's line is
+	// added, the link; and says it reads .zshrc in the home.
+	var asked [][]string
+	s.srv.deps.LoginShell = func(_ context.Context, path string, args, env []string) ([]byte, error) {
+		asked = append(asked, slices.Concat([]string{path}, args, env))
+		found := realClaude
+		if len(asked) > 1 {
+			found = filepath.Join(bin, "claude")
+		}
+		return []byte("switchboard-asks-which-claude\nis:" + found + "\npath:" + found + "\nconfig:" + home + "\nswitchboard-asked-which-claude\n"), nil
+	}
 	atATerminal(&s.srv.deps)
 	// Setup prints usage as it stands, which the router's first probes may
 	// not have reached: here they have, so it prints them.
@@ -59,6 +77,7 @@ func TestSetup(t *testing.T) {
 		"", // no more accounts
 		"", // work, the first, the primary
 		"", // no priming
+		"", // switchboard's line added to .zshrc
 	}, "\n") + "\n"
 
 	got := runWithInput(t, s.srv.deps, answers, "setup")
@@ -67,6 +86,8 @@ func TestSetup(t *testing.T) {
 	}
 	link := filepath.Join(bin, "claude")
 	skill := filepath.Join(claudeConfig, "skills", "switchboard", "SKILL.md")
+	shellDir := filepath.Join(data, "switchboard", "shell")
+	line := `if [ -r "` + shellDir + `/init.zsh" ]; then . "` + shellDir + `/init.zsh"; fi  # switchboard`
 	for _, want := range []string{
 		"\n1. Accounts\nwork · Work: its token is usable.\npersonal · Personal has no usable token: ",
 		"personal has none still: no token given.",
@@ -75,7 +96,12 @@ func TestSetup(t *testing.T) {
 		"Priming stays off.\n",
 		"\n3. The service\nInstalled " + s.plist + ": ",
 		"The router is up: healthy, pid " + strconv.Itoa(os.Getpid()) + ".\n",
-		"\n4. The claude link\nLinked " + link + " to " + s.binary + ".\nclaude on PATH goes through switchboard, from " + bin + ".\n",
+		"\n4. The claude link\nLinked " + link + " to " + s.binary + ".\n" +
+			"Wrote switchboard's files for the shells, in " + shellDir + ": init.zsh, init.bash, completion.bash and init.fish.\n" +
+			"Asking zsh, as a new terminal starts it, which claude it runs.\n" +
+			"claude doesn't go through switchboard in a new terminal yet: zsh runs another claude, " + realClaude + ". This line, at the end of ~/.zshrc, has claude go through switchboard",
+		"\n" + line + "\nAdd it? [Y/n] Added it to ~/.zshrc.\nAsking zsh, as a new terminal starts it, which claude it runs.\n" +
+			"claude goes through switchboard in a new terminal: zsh runs " + link + ".\n",
 		"\n5. The skill\nInstalled the skill, which tells Claude what switchboard does under claude: " + skill + "\n",
 		"\n6. Usage\n",
 	} {
@@ -101,6 +127,32 @@ func TestSetup(t *testing.T) {
 	}
 	if _, err := os.Stat(skill); err != nil {
 		t.Errorf("the skill: %v, want it installed", err)
+	}
+	for _, sh := range shell.Shells {
+		path := shell.InitFile(shellDir, sh)
+		if got, want := readFile(t, path), string(shellFile(t, s.srv.deps, sh, shellDir, bin)); got != want {
+			t.Errorf("%s reads\n%s\nwant this switchboard's, its completions loaded\n%s", path, got, want)
+		}
+	}
+	if path := shell.CompletionFile(shellDir); readFile(t, path) != string(completion(t, s.srv.deps, shell.Bash)) {
+		t.Errorf("%s reads\n%s\nwant this switchboard's completions for bash", path, readFile(t, path))
+	}
+	if rc := readFile(t, filepath.Join(home, ".zshrc")); rc != line+"\n" {
+		t.Errorf("~/.zshrc reads %q, want switchboard's line alone", rc)
+	}
+	// The question itself is the shell package's to pin: here, that it's
+	// asked of an interactive login zsh, in the environment a new terminal
+	// gives it.
+	env := []string{"LANG=en_GB.UTF-8", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "SHELL=/bin/zsh", "TMPDIR=" + s.srv.deps.Getenv("TMPDIR")}
+	want := slices.Concat([]string{"/bin/zsh", "-l", "-i", "-c", "<question>"}, env)
+	for i := range asked {
+		if len(asked[i]) > 4 && strings.HasPrefix(asked[i][4], "printf '%s\\n' switchboard-asks-which-claude; ") {
+			asked[i][4] = "<question>"
+		}
+		slices.Sort(asked[i][min(5, len(asked[i])):])
+	}
+	if len(asked) != 2 || !slices.Equal(asked[0], want) || !slices.Equal(asked[1], want) {
+		t.Errorf("the login shell was asked %q, want twice, as %q: first, and once the line's added", asked, want)
 	}
 }
 

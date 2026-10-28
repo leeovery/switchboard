@@ -36,9 +36,11 @@ import (
 // XDG_CONFIG_HOME and XDG_STATE_HOME put them as the tests began, a file of
 // its among the real LaunchAgents appeared or changed, its skill in Claude
 // Code's real config directory did, in the real home or wherever
-// CLAUDE_CONFIG_DIR put it, its bin directory did, in the real home or
-// wherever XDG_DATA_HOME put it, or a claude link did in a directory on the
-// real PATH, saying which on stderr. Then it removes the root.
+// CLAUDE_CONFIG_DIR put it, its bin or shell directory did, in the real home
+// or wherever XDG_DATA_HOME put them, a shell's startup file did, in the real
+// home or wherever ZDOTDIR and XDG_CONFIG_HOME put zsh's and fish's, or a
+// claude link did in a directory on the real PATH, saying which on stderr.
+// Then it removes the root.
 func Main(m *testing.M) int {
 	g, err := install()
 	if err != nil {

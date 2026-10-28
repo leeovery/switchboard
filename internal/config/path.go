@@ -46,11 +46,25 @@ func StateDir(getenv func(string) string, homeDir func() (string, error)) (strin
 // link alone: $XDG_DATA_HOME/switchboard/bin, else
 // ~/.local/share/switchboard/bin.
 func BinDir(getenv func(string) string, homeDir func() (string, error)) (string, error) {
+	return dataDir(getenv, homeDir, "bin", "switchboard's bin directory")
+}
+
+// ShellDir returns where switchboard keeps its file for each shell, which the
+// line setup adds to the shell's startup file sources:
+// $XDG_DATA_HOME/switchboard/shell, else ~/.local/share/switchboard/shell.
+func ShellDir(getenv func(string) string, homeDir func() (string, error)) (string, error) {
+	return dataDir(getenv, homeDir, "shell", "switchboard's shell directory")
+}
+
+// dataDir returns switchboard's directory named name among its data, what it
+// is saying which it is: $XDG_DATA_HOME/switchboard/<name>, else
+// ~/.local/share/switchboard/<name>.
+func dataDir(getenv func(string) string, homeDir func() (string, error), name, what string) (string, error) {
 	dir, err := baseDir(getenv, homeDir, "XDG_DATA_HOME", filepath.Join(".local", "share"))
 	if err != nil {
-		return "", fmt.Errorf("locate switchboard's bin directory: %w", err)
+		return "", fmt.Errorf("locate %s: %w", what, err)
 	}
-	return filepath.Join(dir, "switchboard", "bin"), nil
+	return filepath.Join(dir, "switchboard", name), nil
 }
 
 // baseDir returns the XDG base directory the variable names, else its default

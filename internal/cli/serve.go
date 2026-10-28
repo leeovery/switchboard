@@ -48,7 +48,7 @@ It logs to the router's log, and to the terminal when it runs in one.
 				return a.check(cmd)
 			}
 			a.trimLaunchdLog(cmd.OutOrStdout(), cmd.ErrOrStderr())
-			return a.serve(cmd.Context())
+			return a.serve(cmd.Context(), cmd.Root())
 		},
 	}
 	cmd.Flags().Var(levelFlag{&a.logLevel}, "log-level",
@@ -71,11 +71,12 @@ It logs to the router's log, and to the terminal when it runs in one.
 
 // serve runs the router on the config's accounts until it's interrupted or
 // terminated, or restarts itself, having made the tokens directory private
-// and brought the skill up to date. It finds its config file, its binary and
+// and brought the skill and switchboard's files for the shells, of root's
+// completions, up to date. It finds its config file, its binary and
 // the time zone's file as they stand before it reads the config, which the
 // router compares them with while it runs, so a change made as it starts
 // calls for a restart too.
-func (a *app) serve(ctx context.Context) error {
+func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 	path, err := a.configFile()
 	if err != nil {
 		return err
@@ -92,6 +93,7 @@ func (a *app) serve(ctx context.Context) error {
 	cfg.ConfigFile, cfg.Binary, cfg.Zone = configFile, binary, zone
 	tighten(files)
 	a.refreshSkill()
+	a.refreshShellFiles(root)
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return router.Run(ctx, cfg)

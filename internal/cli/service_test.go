@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -426,12 +427,15 @@ func serveRouter(t *testing.T, path string, pid *atomic.Int64, handlers map[stri
 // setenv has the command line, and the router launchd starts, see key set
 // to value.
 func (s *serviceSetup) setenv(key, value string) {
-	getenv := s.srv.deps.Getenv
+	getenv, environ := s.srv.deps.Getenv, s.srv.deps.Environ
 	s.srv.deps.Getenv = func(k string) string {
 		if k == key {
 			return value
 		}
 		return getenv(k)
+	}
+	s.srv.deps.Environ = func() []string {
+		return append(slices.DeleteFunc(environ(), func(kv string) bool { return strings.HasPrefix(kv, key+"=") }), key+"="+value)
 	}
 }
 

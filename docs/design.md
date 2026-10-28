@@ -848,7 +848,7 @@ accounts:
 already done, and does only what's missing. It asks as it goes, a line at a time, so it needs a
 terminal: without one, it fails, saying how each step is taken alone: by the command that takes it,
 where there is one, priming by a line in the config's `[prime]` table, and the `claude` link by
-making it and putting its directory on `PATH`; the skill and the session hook, only setup writes.
+making it and putting its directory first on `PATH`; the skill and the session hook, only setup writes.
 It stops at a step that fails, when its input ends, or at an interrupt; run again, it carries on
 from there. Before it asks
 anything, it refuses a switchboard that won't last, such as `go run`'s, as `service install` does:
@@ -986,28 +986,90 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    setup's changes to the config or a token: the router takes them up itself (see The router
    looking after itself), and setup says so, where the router finds setup's config file and token
    files.
-4. **The `claude` link:** setup writes into no directory but its own. It makes the `claude` link
-   in switchboard's bin directory (see Files), leading to switchboard by the path it was run by,
-   as the LaunchAgent names it, so an upgrade moves the link on; a link there leading anywhere
-   else it replaces, as the directory is switchboard's, and anything there that isn't a link it
-   leaves alone, and says so. Then it asks the user's own login shell, `$SHELL` run as a login
-   and interactive shell, with no input and a time limit, which `claude` it runs: the step is done
-   when it answers with the link, and no other answer counts. Otherwise, for zsh, bash and fish,
-   it offers to add one line to the end of the startup file the shell reads last, `.zshrc` in
-   `$ZDOTDIR`, else the home, `~/.bash_profile`, or `~/.config/fish/config.fish`, naming the file
-   and showing the line before it asks, and writing through a link to the file as to the file.
-   The line hands off to a file of switchboard's own beside its bin directory, one a shell,
-   written in that shell's own syntax, which puts that directory first on `PATH`, unless it's
-   there already, and loads switchboard's completions; the line does nothing once that file is
+4. **The `claude` link:** setup writes into no directory but its own. It makes the `claude` link in
+   switchboard's bin directory (see Files), leading to switchboard by the path it was run by, as the
+   LaunchAgent names it, so an upgrade moves the link on; a link there leading anywhere else it
+   replaces, as the directory is switchboard's, and anything there that isn't a link it leaves
+   alone, and says so. It writes switchboard's files for the shells, below, or brings them up to
+   date. Then, saying so first, it asks the user's own login shell, `$SHELL` run as a login and
+   interactive shell, with no input and a time limit, in the environment a new terminal's shell
+   starts in, `TMUX` among it but not `ZDOTDIR`, which an editor's terminal points at a directory of
+   its own, so setup's own `PATH` can't answer for it, which `claude` its `PATH` finds, what
+   `claude` is to it, and where it reads its startup file. Escape sequences its startup files' hooks
+   print are passed over, and a `PATH` answer that isn't a path is no answer. Only zsh, bash and
+   fish are asked: for any other shell setup says it can't ask it, and shows the bin directory to
+   put first on `PATH` by hand. The step is done when a `claude` typed in a new terminal goes
+   through the link, and no other answer counts: its `PATH` finds the link, and what stands in front
+   of it, an alias or a function named `claude`, doesn't run something else. An alias is read by a
+   plain rule, and what it doesn't read gets the hedge a function gets. Its value is read as zsh and
+   bash print it, bare, or as single quoted strings and escaped quotes, `\'`, one after another, as
+   bash writes a quote within it, `'\''`, and zsh does too, leaving out a string that'd be empty; in
+   any other form it isn't read. Its body is split at spaces and tabs, and a word in it is plain
+   where it's made only of letters, digits and `_./:@%+,=-`, or is a path from the home: a bare
+   `~/`, `$HOME/` or `${HOME}/` and plain characters. Its leading `NAME=value` and `NAME+=value`
+   words, where their values are plain, a `~/` at a value's start, and `$PATH`, `${PATH}`, `$HOME`
+   or `${HOME}` anywhere within it, counting as plain, as in `CLAUDE_CONFIG_DIR=~/.claude-work` or
+   `PATH=/x:$PATH`, are passed over, and so is a `command` after them. Then the command word
+   decides. `claude` or `\claude` runs it by name, so `PATH` decides, whatever follows it, as
+   `claude` runs first; but after a variable that sets `PATH`, or in zsh `path`, it isn't done:
+   setup says it can't tell which `claude` that `PATH` finds, and that taking that `PATH` setting
+   out of the alias puts it right. A plain path, absolute or from the home, whose last element is
+   `claude`, decides itself, whatever follows it: done where it's the link, and otherwise not, setup
+   saying the alias runs that path, and that removing it or pointing it at `claude` puts it right.
+   The link after a variable that sets `PATH` isn't done either, as it starts `claude` by that
+   `PATH`. A path counts only where it's clean, as `filepath.Clean` leaves it, with no trailing `/`
+   and no `.` or `..` in it, the whole of it where it's absolute, and what follows the home where
+   it's from the home; any other path gets the hedge. Any other command word runs something else, as
+   `npx …` does, where every word of the alias is plain and none names `claude`, as the word or as
+   one of its parts between `/`, `=`, `:` and `,`, so `=claude` and `x/claude` name it, and
+   `claude-code` doesn't; otherwise, as with `caffeinate -i claude`, `/usr/bin/env claude`, `cd
+   ~/work && claude` or `GITHUB_TOKEN=$(gh auth token) claude`, it's a wrapper setup doesn't read.
+   An empty alias runs something else. A function, or a wrapper, is taken at `PATH`'s word, and
+   setup says it doesn't read it: it goes through switchboard where it runs `claude` by name. The
+   shell runs in a process group of its own, killed whole once it answers or at its time limit; an
+   interrupt meanwhile kills it, and setup stops, as at any interrupt. A shell that exits without
+   answering may have a startup file start something that needs a terminal, such as tmux, and setup
+   says so. Otherwise, for zsh, bash and fish, it offers to add one line to the end of the startup
+   file a new terminal's shell reads, only where the shell said where it reads it: for zsh,
+   `.zshrc`, read by every interactive shell, in `${ZDOTDIR:-$HOME}`, as zsh says; for bash, the
+   first there of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, else `~/.bash_profile`, read
+   by a login shell, as macOS terminals start one, and only the first it finds, so a `.bash_profile`
+   made beside a `.profile` would stop the `.profile` loading; or for fish, `config.fish`, read by
+   every shell, in `$__fish_config_dir`, as fish says, a relative directory counting for none. zsh
+   is asked once its startup files have run, so the `ZDOTDIR` it reports may not be where a new
+   terminal reads `.zshrc`: one exported in `.zshenv` is, as is one exported in `.zprofile` for a
+   login shell, as macOS terminals start, but one exported in `.zshrc` or after it isn't. So, as a
+   cautious call, where the `.zshrc` it names isn't there and `~/.zshrc` is, setup writes nothing,
+   and shows the line by hand, naming both. Where the shell couldn't be asked, setup writes nothing,
+   as its own `ZDOTDIR` can be a terminal's, which zsh in a new terminal never reads: it shows the
+   line to add by hand, naming the file it usually goes in, `~/.zshrc`, the bash file above, or
+   `~/.config/fish/config.fish`, and asks the shell again. It names the file and shows the line
+   before it asks, and writes through a link to the file as to the file, appending, so the file
+   keeps its inode, mode and links, and after an empty line where the file's last line ends in a
+   backslash that would join the line to it. The line hands off to a file of switchboard's own
+   beside its bin directory, one a shell, written in that shell's own syntax, which puts that
+   directory first on `PATH`, once: `PATH` is left as it was where the directory is first already,
+   and otherwise the directory goes first and every other copy of it is taken off, so sourcing the
+   file again changes nothing more. It loads switchboard's completions, of its commands and flags,
+   where the shell can take them: zsh once `compdef` is defined, bash where the bash-completion
+   package is loaded, and fish always; sourced, it prints nothing, and ends with a status of 0.
+   bash's file is POSIX shell alone, as `~/.profile` is read by `sh`, dash and ksh too: bash's
+   completions are a file of their own beside it, `completion.bash`, which it sources only in bash,
+   outside POSIX mode, where bash-completion is loaded. The line does nothing once that file is
    gone. So the user's startup file is written once, and everything switchboard does in the shell
-   after that is in its own file: setup writes it, and the router brings it up to date as it
-   starts, as it does the skill. A comment beside the line marks it as switchboard's, so it's
-   added once and found again, and found there but not taking effect, setup says something after
-   it changes `PATH`. Declined, it shows the same line to add by hand, wherever the user keeps
-   such lines, and the directory alone, to put first on `PATH` wherever it's set, for a `PATH`
-   kept another way or a shell setup doesn't know. Either way it asks the login shell again, and
-   the step is done only when it answers with the link. Then, whatever the link step found, it
-   installs the session hook, or puts it right (see The session hook).
+   after that is in its own files: setup writes them, and the router brings them up to date as it
+   starts, as it does the skill, writing one that's missing beside its shell's own file, as a newer
+   switchboard adds one, but never a shell's own file setup didn't write. A comment beside the line
+   marks it as switchboard's, so it's added once and found again. Found there but not taking effect,
+   setup says something after it changes `PATH`, and to move the line to the end of the file, or
+   what changes `PATH` after it to before it; or, where the line is last already, that something
+   read after the file changes `PATH`, such as `.zlogin`, and to put the line after it. Found
+   reading another switchboard shell directory's file, it says so, and shows the line to put in its
+   place. Declined, it shows the same line to add by hand, wherever the user keeps such lines, and
+   the directory alone, written from `$HOME`, to put first on `PATH` wherever it's set, for a `PATH`
+   kept another way. Either way it asks the login shell again, and the step is done only when a
+   `claude` typed there goes through the link. Then, whatever the link step found, it installs the
+   session hook, or puts it right (see The session hook).
 5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Prints `usage`, every account's windows as they stand (see `usage`, the printout).
 
@@ -7389,7 +7451,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, working directory, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
 | `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text (`--print`) or in colour (`--ansi`), at its frame's size or one given (`--size`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot; plays a scenario of `internal/capture`'s in real time, for the README's demos (`--scenario`); and writes the frames in `testdata/vhs/reference/` from their fixtures, every one it keeps or those named (`--frames`). Capture's tests hold each fixture to its frame's text and ANSI, cell for cell (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print; a data verb in its form for a person on a terminal, else its JSON (see The data verbs) |
-| `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
+| `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin and shell directories |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, with the record of when each was taken, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/dayfile` | Files a day of JSON lines, as the readings history, the request ledger and the router's events keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included, or a day's file on from where a read of it last ended, as a tail reads it; the days themselves, each from its first instant, and the times of a day, each as the clocks first read it, where they go forward over it, or back over it, too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too, at every round or just before each prune |
@@ -7411,7 +7473,8 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets; and asking the binary first whether it could start (`--check`), telling its refusal apart from a binary that can't answer |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
-| `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, and the line that puts that directory on `PATH` |
+| `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, with switchboard's line in the shell's startup file and the login shell's answer, which it takes from `internal/shell` |
+| `internal/shell` | switchboard in the user's shell: its files for zsh, bash and fish, which put its bin directory first on `PATH` and load its completions, and writing and refreshing them; its line in the shell's startup file, which startup file that is, finding the line there and adding it; and asking the user's login shell which `claude` it runs, in a process group of its own, killed whole once it answers, at its time limit or at an interrupt |
 | `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy; and where Claude Code's config directory is |
 | `internal/sessionhook` | The session hook: what `hook session-start` tells a session that didn't start through switchboard, and switchboard's entry in Claude Code's `settings.json`, installed or put right, the rest of the file left as it is |
 | `internal/service` | The LaunchAgent: its plist, and driving `launchctl` |
@@ -7420,7 +7483,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]`, and telling text that holds one |
 | `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, and text cut short |
-| `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin directory and token files, and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
+| `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 
 Each view's data is built once, in `internal/views`, and drawn by `internal/dashboard` or printed
 by `internal/cli`; neither works out a view's data of its own, so the CLI's JSON doesn't hang on how
@@ -7595,8 +7658,15 @@ hiding it behind the provider would take a wider interface than it's worth:
   plist, 0644, named after its label.
 - **The `claude` link:** a link named `claude` to switchboard, by the path it was run by, alone in
   switchboard's bin directory, `$XDG_DATA_HOME/switchboard/bin`, else
-  `~/.local/share/switchboard/bin`, which `setup` makes, and the user puts on `PATH` ahead of the
-  real `claude`'s directory.
+  `~/.local/share/switchboard/bin`, which `setup` makes, and switchboard's file for the shell
+  puts first on `PATH`, ahead of the real `claude`'s directory.
+- **The shell's files:** `init.zsh`, `init.bash` and `init.fish`, switchboard's file for each
+  shell, and `completion.bash`, bash's completions, which `init.bash` sources, in its shell
+  directory, `$XDG_DATA_HOME/switchboard/shell`, else `~/.local/share/switchboard/shell`, 0644,
+  which `setup` writes whole, and the router, as it starts, rewrites where one's there but isn't as
+  this switchboard writes it, and writes where it's missing beside its shell's own file, never
+  making a shell's own file `setup` didn't; and switchboard's line, the last of the shell's startup file, marked
+  `# switchboard`, which sources its file there (see Setup).
 - **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.
 - **The session hook:** an entry under `hooks.SessionStart` in `settings.json` in Claude Code's
@@ -7982,15 +8052,16 @@ verbs).
 ### Launching
 
 - **The `claude` link:** a link named `claude` to switchboard sits in switchboard's bin directory
-  (see Files), which `setup` makes, and the user puts on `PATH` ahead of the real `claude`'s
-  directory, with the line `setup` says to add to the shell's startup file. `status` says when
-  the `claude` a shell runs from `PATH` isn't switchboard. Run by that name, switchboard behaves
-  as `switchboard run --` with every argument passed through, so `claude --help` is Claude Code's.
-  Everything that runs `claude` from `PATH` is routed: shells, tmux panes, scripts, and tools
-  that run `claude -p`. Programs whose `PATH` lacks the link's directory find the real `claude`,
-  and aren't. The ways round it are `switchboard run --direct`, and the real `claude` by its path.
-  A broken switchboard breaks every `claude` until the directory is taken off `PATH`. `claude
-  doctor` may report the link as a second installation (unverified).
+  (see Files), which `setup` makes, and switchboard's file for the shell puts first on `PATH`, ahead
+  of the real `claude`'s directory, sourced by the line `setup` adds to the shell's startup file, or
+  the user puts there another way. `status` says when the `claude` a shell runs from `PATH` isn't
+  switchboard. Run by that name, switchboard behaves as `switchboard run --` with every argument
+  passed through, so `claude --help` is Claude Code's. Everything that runs `claude` from `PATH` is
+  routed: shells, tmux panes, scripts, and tools that run `claude -p`. Programs whose `PATH` lacks
+  the link's directory find the real `claude`, and aren't. The ways round it are `switchboard run
+  --direct`, and the real `claude` by its path. A broken switchboard breaks every `claude` until the
+  directory is taken off `PATH`. `claude doctor` may report the link as a second installation
+  (unverified).
 - **No shell integration:** switchboard defines no shell function or launcher. Per-account
   launchers are the user's own aliases for `switchboard run --account <id> --`.
 - **Asking the router:** `run` gives the router 5 seconds, from its first ask, to answer `GET

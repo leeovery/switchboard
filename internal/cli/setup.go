@@ -9,10 +9,10 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/sessionhook"
 	"github.com/leeovery/switchboard/internal/setup"
+	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/skill"
 )
 
@@ -40,7 +40,7 @@ func (a *app) setup(cmd *cobra.Command) error {
 	if !ok {
 		return setup.ErrNoTerminal
 	}
-	s, err := a.newSetup(setup.Terminal{In: cmd.InOrStdin(), Out: cmd.OutOrStdout(), Hidden: hidden})
+	s, err := a.newSetup(setup.Terminal{In: cmd.InOrStdin(), Out: cmd.OutOrStdout(), Hidden: hidden}, cmd.Root())
 	if err != nil {
 		return err
 	}
@@ -48,8 +48,10 @@ func (a *app) setup(cmd *cobra.Command) error {
 }
 
 // newSetup returns setup at term, for the config, the state and the Claude
-// Code config directory the CLI finds, this switchboard binary, and PATH.
-func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
+// Code config directory the CLI finds, this switchboard binary, PATH, and
+// the user's login shell; its files for the shells loading the completions
+// of root, the command tree.
+func (a *app) newSetup(term setup.Terminal, root *cobra.Command) (*setup.Setup, error) {
 	path, err := a.configFile()
 	if err != nil {
 		return nil, err
@@ -74,7 +76,7 @@ func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
 	if err != nil {
 		return nil, err
 	}
-	bin, err := config.BinDir(a.Getenv, a.HomeDir)
+	shells, err := a.shellFiles(root)
 	if err != nil {
 		return nil, err
 	}
@@ -88,8 +90,11 @@ func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
 		Startable:    a.startableIn,
 		Path:         a.Getenv("PATH"),
 		InstallPaths: claude.InstallPaths(home),
-		Bin:          bin,
+		Bin:          shells.Bin,
 		Home:         home,
+		Shells:       shells,
+		Login:        shell.Login{Environ: a.Environ(), Run: a.LoginShell},
+		Getenv:       a.Getenv,
 		Skill:        skillPath,
 		Settings:     settings,
 		Usage: func(ctx context.Context, out io.Writer) error {
