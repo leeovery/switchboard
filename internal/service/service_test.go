@@ -1023,6 +1023,24 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestHealthy(t *testing.T) {
+	tests := []struct {
+		name   string
+		health router.Health
+		want   string
+	}{
+		{name: "healthy", health: router.Health{OK: true, PID: 4242}, want: "healthy"},
+		{name: "unhealthy, saying why", health: router.Health{Reason: "failed 5 of 6 requests", PID: 4242}, want: "unhealthy: failed 5 of 6 requests"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := service.Healthy(tt.health); got != tt.want {
+				t.Errorf("Healthy() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAnswered(t *testing.T) {
 	s := newSetup(t, nil, nil)
 

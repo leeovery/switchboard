@@ -140,6 +140,12 @@ type run struct {
 	health *router.Health
 }
 
+// wrote is told by each of setup's writes to the config or a token, which
+// a router that answers takes up on its own.
+func (s *Setup) wrote() {
+	s.changed = true
+}
+
 func (r *run) usage(ctx context.Context) error {
 	return r.Usage(ctx, r.Terminal.Out)
 }
