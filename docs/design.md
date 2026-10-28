@@ -747,8 +747,10 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
 3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
    `service install` does, that the router could start; it fails, saying why, where it couldn't.
    With no plist setup can use, none or one it can't read back, setup never succeeds, nor sends
-   the user back to setup: it installs the service afresh only where launchd hasn't loaded it and
-   no router answers. Otherwise it leaves everything as it is and fails, naming `service
+   the user back to setup: it installs the service afresh only where no router answers and none
+   runs, and launchd hasn't loaded it, or, with no plist at all, has it loaded but runs nothing:
+   there's nothing to swap out. A plist it can't read, loaded, still fails naming `service
+   install`: setup can't keep the options it holds, so the user chooses. Otherwise it leaves everything as it is and fails, naming `service
    install`, which writes the plist afresh, as a plist launchd can't read, or none, can't start
    the router at login. Where the router answering is launchd's, as `launchctl print` names a pid,
    the one the router answers with where it says one, it says so. Where it's a router run some

@@ -347,8 +347,8 @@ The steps are:
    With more than one and none marked, it asks which is the primary.
 2. **Priming.** With no day set, asks for one, as `HH:MM-HH:MM`, and writes it to `[prime]`.
    Pressing Enter leaves priming off.
-3. **The service.** Installs the LaunchAgent when it isn't installed, launchd hasn't loaded it and
-   no router answers. Installs it again when launchd hasn't loaded it and no router answers, when it runs another switchboard
+3. **The service.** Installs the LaunchAgent when it isn't installed and no router answers or
+   runs. Installs it again when launchd hasn't loaded it and no router answers, when it runs another switchboard
    than the one `setup` runs as, when `setup` is given another config file than the one the router
    serves, or when its plist differs from the one `switchboard service install` would write with
    what it was installed with, as after an upgrade that adds a key, and says what differed.
@@ -371,8 +371,9 @@ The steps are:
 
    `setup` watches the router where the service's plist keeps its state, and the one where your
    shell does, and asks launchd whether it runs the router. It leaves the service as it is, saying
-   why. With no plist it can use, none or one it can't read back, `setup` never succeeds while
-   launchd has the service loaded or a router answers, nor sends you back to `setup`: it leaves
+   why. With no plist it can use, none or one it can't read back, `setup` never succeeds while a
+   router answers or runs, or launchd has loaded a plist it can't read, nor sends you back to
+   `setup`: a plist it can't read holds options it can't keep, so you choose. It leaves
    everything as it is and fails, saying to run `switchboard service install`, which writes the
    plist afresh, as no plist, or one launchd can't read, can't start the router at login. Where a
    router run some other way answers, it says to stop that router first, and what launchd has:
