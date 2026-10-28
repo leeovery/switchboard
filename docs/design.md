@@ -6455,7 +6455,8 @@ it posts: see Config.
 - **A token's year:** an account whose token's year is up within 30 days, and again within 7, as
   `status.TokenYear` says: once per token per threshold, which the router keeps across restarts, so
   a restart tells nothing twice. Unlike room again and warnings, it's told of a token already within
-  either as the router starts. A new token starts afresh. It adds no key to `[notifications]`.
+  either as the router starts. A new token starts afresh. It has no key in `[notifications]`: it's
+  posted at most twice in a token's year, and always.
 - **Moves:** each move a limit's notification doesn't tell of, as one its limit forced once the
   limit's notification has gone out, or any while `limits` is off:
   `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`.
