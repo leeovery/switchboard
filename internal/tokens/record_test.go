@@ -102,11 +102,30 @@ func TestRemoveTakesTheRecordUnlessItsTheTokensOnlyCopyOrAnothersToken(t *testin
 		{name: "the token file a link to a second name of the record, spelled in other cases", put: func(t *testing.T, token, record string) string {
 			writeFile(t, record, held, 0o600)
 			upper := filepath.Join(filepath.Dir(record), strings.ToUpper(filepath.Base(record)))
-			if err := os.Link(record, upper); err != nil {
+			switch err := os.Link(record, upper); {
+			case errors.Is(err, fs.ErrExist):
 				t.Skipf("names here aren't told apart by case: %v", err)
+			case err != nil:
+				t.Fatal(err)
 			}
 			symlink(t, upper, token)
 			return upper
+		}},
+		{name: "the token file a link to the record, spelled in other cases, a second name of a file elsewhere", wantGone: true, put: func(t *testing.T, token, record string) string {
+			elsewhere := filepath.Join(t.TempDir(), "secrets", "work")
+			writeFile(t, elsewhere, held, 0o600)
+			if err := os.Link(elsewhere, record); err != nil {
+				t.Fatal(err)
+			}
+			upper := filepath.Join(filepath.Dir(record), strings.ToUpper(filepath.Base(record)))
+			switch _, err := os.Stat(upper); {
+			case errors.Is(err, fs.ErrNotExist):
+				t.Skipf("names here are told apart by case: %v", err)
+			case err != nil:
+				t.Fatal(err)
+			}
+			symlink(t, upper, token)
+			return elsewhere
 		}},
 		{name: "both names of one file", put: func(t *testing.T, token, record string) string {
 			writeFile(t, token, held, 0o600)

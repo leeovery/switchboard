@@ -484,10 +484,10 @@ func (s Store) forgetTaken(id string) {
 }
 
 // removeRecord removes the name at the account's record's own path, never
-// what it leads to where it's a link. Failing to is only logged, as
-// forgetTaken says.
+// what it leads to where it's a link. Failing to is only logged, as a
+// warning, as what's left may be a second name of the token removed.
 func (s Store) removeRecord(id string) {
 	if err := os.Remove(s.takenPath(id)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		logger.Debug("couldn't remove the record of when the token was taken", "account", id, "error", err)
+		logger.Warn("couldn't remove the record of when the token was taken", "account", id, "error", err)
 	}
 }
