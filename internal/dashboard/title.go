@@ -59,6 +59,17 @@ func (f Frame) title(c *canvas, now time.Time) {
 	clocked(c, f.Width, end, now)
 }
 
+// TickSlack sets each tick just past the boundary it waits for, so the
+// clock it reads, which can run a little behind the timer that brings it,
+// has turned over.
+const TickSlack = 50 * time.Millisecond
+
+// TickDelay is how long from now until the clock shows another time: just
+// past the next second, as it shows the time to the second.
+func TickDelay(now time.Time) time.Duration {
+	return now.Truncate(time.Second).Add(time.Second).Sub(now) + TickSlack
+}
+
 // clocked draws the clock at now, ending at the last column of a title row
 // width cells wide, whose own pieces end before the column end: the clock's
 // date and then its time give way where the row is short. It reports whether
