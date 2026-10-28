@@ -86,6 +86,10 @@ type Deps struct {
 	// Terminal reports whether out is a terminal, as IsTerminal does: a data
 	// verb prints its form for a person on one, and its JSON elsewhere.
 	Terminal func(out io.Writer) bool
+	// TerminalInput reports whether in is a terminal, as IsTerminalInput
+	// does: the session hook reads no input from one, which would wait for
+	// typing.
+	TerminalInput func(in io.Reader) bool
 	// Background asks the terminal out is what its background is, as
 	// TerminalBackground does: nil where it doesn't say. usage prints its
 	// windows in the theme for it.
@@ -141,7 +145,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.SetFlagErrorFunc(hideTokens)
 	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newDashboardCommand(a), newRequestsCommand(a),
 		newHistoryCommand(a), newSessionsCommand(a), newEventsCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a),
-		newServiceCommand(a), newVersionCommand(a))
+		newServiceCommand(a), newVersionCommand(a), newHookCommand(a))
 	return root
 }
 

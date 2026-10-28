@@ -334,7 +334,7 @@ switchboard setup
 
 Each step says what's done already, and does only what isn't, so `setup` is safe to run again. It
 asks as it goes, a line at a time, so it needs a terminal. Without one, it lists what takes each
-step alone: a command where there is one, and for the skill, `setup` alone.
+step alone: a command where there is one, and for the skill and the session hook, `setup` alone.
 
 `setup` stops at a step that fails, at an interrupt, or when its input ends. Run it again to carry
 on from there.
@@ -361,6 +361,13 @@ The steps are:
    ```
 
    `setup` never edits the file itself. Run again, in a new terminal, it checks it.
+
+   Then, whatever it found, it installs the session hook in Claude Code's `settings.json`, or puts
+   it right, leaving your other settings and hooks as they are. The hook has a session that didn't
+   start through switchboard say so as it starts. See
+   [A session that isn't going through switchboard](how-it-works.md#a-session-that-isnt-going-through-switchboard).
+   A `settings.json` it can't read as Claude Code does, it leaves as it is, saying what's wrong,
+   and carries on.
 5. **The skill.** Writes a Claude Code skill, or brings it up to date. The skill tells Claude what
    switchboard does under `claude`, so no session needs it explained. It's
    `skills/switchboard/SKILL.md` in `~/.claude`, or in `$CLAUDE_CONFIG_DIR`. Switchboard owns the
