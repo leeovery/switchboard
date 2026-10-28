@@ -150,6 +150,25 @@ func TestSameDayIsInNowsTimeZone(t *testing.T) {
 	}
 }
 
+func TestATokenExpiresOnItsDateInNowsTimeZone(t *testing.T) {
+	until := time.Date(2026, 11, 17, 23, 30, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		now  time.Time
+		want string
+	}{
+		{name: "in UTC", now: time.Date(2026, 10, 27, 17, 42, 0, 0, time.UTC), want: "expires 17 Nov 2026"},
+		{name: "east of UTC, the next day there", now: time.Date(2026, 10, 27, 17, 42, 0, 0, time.FixedZone("UTC+1", 60*60)), want: "expires 18 Nov 2026"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Expires(tt.now, until); got != tt.want {
+				t.Errorf("Expires() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestClock(t *testing.T) {
 	utc := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	tests := []struct {

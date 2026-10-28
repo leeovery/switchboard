@@ -94,10 +94,9 @@ type AccountNow struct {
 	Error          string
 	Failures       []quota.Failure
 	Sessions       int
-	// TokenTaken is when its token was taken, and TokenGoodUntil when its
-	// year is up, as read: each zero where it isn't known. TokenEndsWithin
-	// judges how near that is.
-	TokenTaken, TokenGoodUntil time.Time
+	// TokenYear is its token's year, as read. TokenEndsWithin judges how near
+	// its end is.
+	TokenYear TokenYear
 	// Extra is its extra usage, as the last answer or probe to give it left
 	// it: zero where none has. ExtraSaid says how it stands for it.
 	Extra quota.ExtraUsage
@@ -518,7 +517,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: d.elsewhere(a.ID), InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
-		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, TokenTaken: a.TokenTaken, TokenGoodUntil: a.TokenGoodUntil, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
+		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, TokenYear: a.TokenYear(), Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitMoved: limit.Count,
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapSince: m.ranOn(a.ID, WasCapped, s.capSince(capped, capTold)), CapBack: s.capBack,
 		RefusedSince: refused.At, TokenRefused: s.stood.refused,

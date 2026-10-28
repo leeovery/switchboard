@@ -252,6 +252,12 @@ func DayMonthYear(d time.Time) string {
 	return d.Format(dayMonthYearLayout)
 }
 
+// Expires says when a token's year is up, t, by its date in now's time zone,
+// such as "expires 17 Nov 2026".
+func Expires(now, t time.Time) string {
+	return "expires " + DayMonthYear(t.In(now.Location()))
+}
+
 // Month names the month the day d falls in, as History names a month, such
 // as "Oct", or with its year, "Oct 2026".
 func Month(d time.Time, withYear bool) string {
