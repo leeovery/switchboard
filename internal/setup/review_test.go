@@ -167,7 +167,7 @@ func TestReviewOfFrame3(t *testing.T) {
 	want := []setup.Reviewed{
 		{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking, Organization: "org-work"}},
 		{ID: "personal", Label: "Personal", Token: setup.TokenStanding{State: setup.TokenWorking, Year: personalYear, Organization: "org-personal"}},
-		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenRefused}},
+		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenNotTaken}},
 	}
 	var checked []setup.Reviewed
 	for _, a := range review.Accounts {
@@ -252,7 +252,7 @@ func TestReviewsNotes(t *testing.T) {
 		want  []setup.Note
 	}{
 		{"no token", setup.TokenStanding{}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
-		{"refused", setup.TokenStanding{State: setup.TokenRefused, Year: gone}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
+		{"refused", setup.TokenStanding{State: setup.TokenNotTaken, Year: gone}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
 		{"unreadable", setup.TokenStanding{State: setup.TokenUnreadable, Why: "the token file <path> isn't a file: replace it with one holding the token"}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has a token setup can't read: the token file <path> isn't a file: replace it with one holding the token", Press: "Put that right, or press t to create a new one, approving it in the browser signed in to Work.", Key: "t"}}},
 		{"unchecked, kept", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529"}, nil},
 		{"unchecked, in its last 30 days", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529", Year: lastDay}, []setup.Note{{Need: setup.NeedNewToken, Account: "work", Says: "has a token that expires 27 Oct 2026: last day.", Press: newToken, Key: "t"}}},
@@ -278,7 +278,7 @@ func TestReviewsNotesByAccount(t *testing.T) {
 		{ID: "plain", Label: "Plain", Token: setup.TokenStanding{State: setup.TokenWorking}},
 		{ID: "work", Label: "Work", Token: ending},
 		{ID: "personal", Label: "Personal", Plan: "pro", Token: ending},
-		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenRefused}},
+		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenNotTaken}},
 	}}
 	var got []string
 	for _, note := range review.Notes() {
@@ -399,7 +399,7 @@ func TestReviewOfChecksTheToken(t *testing.T) {
 		why string
 	}{
 		{"working", workToken, setup.TokenWorking, ""},
-		{"refused", sideToken, setup.TokenRefused, ""},
+		{"refused", sideToken, setup.TokenNotTaken, ""},
 		{"a 5xx", downToken, setup.TokenUnchecked, "HTTP 529 · Overloaded, for [redacted]"},
 		{"a timeout", slowToken, setup.TokenUnchecked, "probe with [redacted]: context deadline exceeded"},
 	}
@@ -498,12 +498,12 @@ func TestAccountsPart(t *testing.T) {
 	}{
 		{"one, working", with(setup.TokenWorking), "1 account, working"},
 		{"one, unchecked", with(setup.TokenUnchecked), "1 account, working"},
-		{"one, refused", with(setup.TokenRefused), "1 account, none working"},
+		{"one, refused", with(setup.TokenNotTaken), "1 account, none working"},
 		{"one, checking", with(setup.TokenRead), "1 account, checking…"},
 		{"all working or unchecked", with(setup.TokenWorking, setup.TokenWorking, setup.TokenUnchecked), "3 accounts, all working"},
-		{"one refused", with(setup.TokenWorking, setup.TokenWorking, setup.TokenRefused), "3 accounts, 2 working"},
-		{"one still checking", with(setup.TokenWorking, setup.TokenRead, setup.TokenRefused), "3 accounts, checking…"},
-		{"none working", with(setup.NoToken, setup.TokenRefused, setup.TokenUnreadable), "3 accounts, none working"},
+		{"one refused", with(setup.TokenWorking, setup.TokenWorking, setup.TokenNotTaken), "3 accounts, 2 working"},
+		{"one still checking", with(setup.TokenWorking, setup.TokenRead, setup.TokenNotTaken), "3 accounts, checking…"},
+		{"none working", with(setup.NoToken, setup.TokenNotTaken, setup.TokenUnreadable), "3 accounts, none working"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

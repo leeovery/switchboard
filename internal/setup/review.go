@@ -29,8 +29,8 @@ const (
 	TokenRead
 	// TokenWorking is a token the API takes.
 	TokenWorking
-	// TokenRefused is a token the API refuses, which is kept all the same.
-	TokenRefused
+	// TokenNotTaken is a token the API refuses, which is kept all the same.
+	TokenNotTaken
 	// TokenUnchecked is a token the API didn't answer for, which is kept.
 	TokenUnchecked
 )
@@ -126,7 +126,7 @@ func (s *Setup) ReviewOf(ctx context.Context, id string) (Reviewed, error) {
 	checked, err := s.Accounts.Check(ctx, token)
 	switch {
 	case errors.Is(err, accounts.ErrRefused):
-		row.Token.State = TokenRefused
+		row.Token.State = TokenNotTaken
 	case err != nil:
 		return Reviewed{}, err
 	case checked.Unchecked:
