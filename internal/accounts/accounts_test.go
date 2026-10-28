@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
@@ -31,6 +32,9 @@ const (
 	refusedErr = "the API refused the token (HTTP 401 · Invalid bearer token), so nothing is saved: " +
 		"make another with claude setup-token, run while signed in to that subscription"
 )
+
+// now is when the user gives a token, by the registry's clock.
+var now = time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
 
 // twoAccounts is a config of two accounts, work and personal.
 var twoAccounts = fmt.Sprintf("upstream = %q\n\n[[account]]\nid    = \"work\"\nlabel = \"Work\"\n\n[[account]]\nid = \"personal\"\n", upstream)
@@ -60,6 +64,7 @@ func TestAddTakesTheTokenTheUserGives(t *testing.T) {
 			}
 			w.checkConfig(t, withSide)
 			w.checkToken(t, "side", sideToken)
+			w.checkTaken(t, "side", sideToken, now)
 			if want := []string{upstream + " " + sideToken}; !slices.Equal(api.asked, want) {
 				t.Errorf("the API was asked about %q, want %q", api.asked, want)
 			}
@@ -67,6 +72,21 @@ func TestAddTakesTheTokenTheUserGives(t *testing.T) {
 				t.Errorf("the user was shown %q, want %q", user.shown.String(), want)
 			}
 		})
+	}
+}
+
+func TestARegistryWithoutAClockTakesTheTokenAtTheSystemsTime(t *testing.T) {
+	w := newWorld(t, twoAccounts)
+	registry := w.registry(&user{gives: sideToken}, &fakeAPI{})
+	registry.Now = nil
+	before := time.Now().Truncate(time.Second)
+
+	if _, err := registry.Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"}); err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+	at, err := w.tokens().Taken("side", tokenOf(t, sideToken))
+	if err != nil || at.Before(before) || at.After(time.Now()) {
+		t.Errorf("side's token was taken at %v (%v), want the system's time, from %v", at, err, before)
 	}
 }
 
@@ -98,6 +118,7 @@ func TestAddKeepsAUsableToken(t *testing.T) {
 	}
 	w.checkConfig(t, withSide)
 	w.checkToken(t, "side", sideToken)
+	w.checkTaken(t, "side", sideToken, time.Time{})
 	if user.asked || len(api.asked) > 0 {
 		t.Errorf("the user was asked: %v; the API about %q; want neither", user.asked, api.asked)
 	}
@@ -256,6 +277,7 @@ func TestSetToken(t *testing.T) {
 				t.Fatalf("SetToken() = %+v, %v, want the token taken and checked", taken, err)
 			}
 			w.checkToken(t, "side", sideToken)
+			w.checkTaken(t, "side", sideToken, now)
 			w.checkConfig(t, withSide)
 			if want := []string{upstream + " " + sideToken}; !slices.Equal(api.asked, want) {
 				t.Errorf("the API was asked about %q, want %q", api.asked, want)
@@ -275,9 +297,12 @@ func TestSetTokenWhenTheAPIDoesntSayYes(t *testing.T) {
 		wantTaken accounts.Taken
 		wantErr   string
 		wantToken string
+		// wantAt is when the token in the file was taken, as its record says:
+		// zero where that isn't known.
+		wantAt time.Time
 	}{
 		{name: "refusing the token, which isn't saved", answer: refusal{}, wantErr: refusedErr, wantToken: "test-token-stale"},
-		{name: "not answering, the token saved all the same", answer: unanswered, wantTaken: accounts.Taken{Unchecked: unanswered}, wantToken: sideToken},
+		{name: "not answering, the token saved all the same", answer: unanswered, wantTaken: accounts.Taken{Unchecked: unanswered}, wantToken: sideToken, wantAt: now},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -289,6 +314,7 @@ func TestSetTokenWhenTheAPIDoesntSayYes(t *testing.T) {
 				t.Errorf("SetToken() = %+v, %v, want %+v, %q", taken, err, tt.wantTaken, tt.wantErr)
 			}
 			w.checkToken(t, "side", tt.wantToken)
+			w.checkTaken(t, "side", tt.wantToken, tt.wantAt)
 		})
 	}
 }
@@ -376,7 +402,11 @@ func TestRemoveLeavesWhereATokenFilesLinkLeads(t *testing.T) {
 	w := newWorld(t, withSide)
 	// side's token file, a link to a file kept elsewhere, as by a dotfiles
 	// step.
-	target := filepath.Join(t.TempDir(), "side")
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dir, "side")
 	if err := os.WriteFile(target, []byte(sideToken+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +505,7 @@ func newWorld(t *testing.T, config string) *world {
 // registry returns the world's registry, which takes tokens from user and
 // checks them with api.
 func (w *world) registry(user *user, api *fakeAPI) accounts.Registry {
-	return accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: api.proberAt, Input: user.input()}
+	return accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: api.proberAt, Input: user.input(), Now: func() time.Time { return now }}
 }
 
 func (w *world) tokens() tokens.Store {
@@ -522,6 +552,25 @@ func (w *world) checkToken(t *testing.T, id, want string) {
 	if err != nil || token.Reveal() != want {
 		t.Errorf("%s's token file holds %q (%v), want %q", id, token.Reveal(), err, want)
 	}
+}
+
+// checkTaken checks the account's record says its token, secret, was taken
+// at want: that it says nothing of it where want is zero.
+func (w *world) checkTaken(t *testing.T, id, secret string, want time.Time) {
+	t.Helper()
+	if at, err := w.tokens().Taken(id, tokenOf(t, secret)); !at.Equal(want) || (err == nil) == want.IsZero() {
+		t.Errorf("%s's token was taken at %v (%v), want %v", id, at, err, want)
+	}
+}
+
+// tokenOf is the token secret is.
+func tokenOf(t *testing.T, secret string) tokens.Token {
+	t.Helper()
+	token, err := tokens.Parse(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
 }
 
 func (w *world) checkNoToken(t *testing.T, id string) {

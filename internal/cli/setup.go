@@ -77,7 +77,7 @@ func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
 	home, _ := a.HomeDir()
 	return &setup.Setup{
 		Terminal:     term,
-		Accounts:     accounts.Registry{ConfigPath: path, Tokens: files, Prober: a.prober},
+		Accounts:     accounts.Registry{ConfigPath: path, Tokens: files, Prober: a.prober, Now: a.Now},
 		Service:      svc,
 		Install:      service.InstallOptions{Executable: exe, Config: a.configPath},
 		Path:         a.Getenv("PATH"),

@@ -49,6 +49,7 @@ func TestCollectGivesTheScheduleOverTheAccountsWithTokens(t *testing.T) {
 		Prober: &fakeProber{},
 		Policy: policy,
 		Token:  tokenstest.Files{"work": "test-token-work", "side": "test-token-side"}.Read,
+		Taken:  tokenstest.Taken{}.Read,
 		Now:    func() time.Time { return now },
 	}
 	if doc := collector.Collect(t.Context(), accounts); !reflect.DeepEqual(doc.Prime, status.Prime{}) {

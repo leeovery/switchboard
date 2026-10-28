@@ -61,7 +61,7 @@ var personalMissing = tokenstest.Missing("personal").Error()
 
 // testAccounts are testConfigured's, with their tokens.
 func testAccounts() accounts {
-	return resolve(testConfigured, testTokens.Read)
+	return resolve(testConfigured, testTokens.Read, unrecorded)
 }
 
 // newTestState builds the state of testAccounts on clock's time, knowing

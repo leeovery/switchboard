@@ -223,7 +223,7 @@ func TestTheDocumentGivesEachAccountsPressure(t *testing.T) {
 	configured := slices.Clone(testConfigured)
 	configured[0].Reserve = 0.1
 	clock := &testClock{now: start}
-	s := newState(resolve(configured, testTokens.Read), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+	s := newState(resolve(configured, testTokens.Read, unrecorded), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 	readSessions(s, clock, "work", []sessionReading{{0, 0.5, resets, false}, {20 * time.Minute, 0.6, resets, false}})
 	readSessions(s, clock, "side", []sessionReading{{0, 0.1, resets, false}, {20 * time.Minute, 0.15, resets, false}})
 	now := clock.now
@@ -312,7 +312,7 @@ func TestAnAccountIsUnderPressureOnlyWhileItCanTakeARequestOfSomeModel(t *testin
 			configured := slices.Clone(testConfigured)
 			configured[0].Reserve = 0.1
 			clock := &testClock{now: start}
-			s := newState(resolve(configured, testTokens.Read), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+			s := newState(resolve(configured, testTokens.Read, unrecorded), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 			s.learn(fable, []quota.Window{fableWeek})
 			readSessions(s, clock, "work", []sessionReading{{0, 0.4, start.Add(3 * time.Hour), false}, {20 * time.Minute, 0.5, start.Add(3 * time.Hour), false}})
 			s.record("work", []quota.Window{roomyWeek, fableWeek}, s.mark())

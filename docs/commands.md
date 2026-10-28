@@ -410,8 +410,12 @@ The subcommands do the following:
     the token, and so is a `--label` over 100 characters.
 - **`token`** replaces an account's token.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
-  and deletes its token file.
-  - Of a token file that's a link, it deletes the link alone, and leaves the file it leads to.
+  and deletes its token file, then the record of when its token was taken (see
+  [When each token was taken](configuration.md#when-each-token-was-taken)).
+  - Of a token file or a record that's a link, it deletes the link alone, and leaves the file it
+    leads to, even where that's at the record's own path. Where the token file led to the
+    record's own path, and the file there has another name too, the record's path goes with the
+    token, the file kept under its other name, and it says so.
   - The only account can't be removed.
   - Removing the primary says which account is the primary now: the one marked
     `primary = true`, else the first.
@@ -428,6 +432,11 @@ that subscription.
 - A token the API refuses isn't saved.
 - A token the API doesn't answer for is saved, with a warning.
 - An interrupt while they wait for the token saves nothing.
+
+A saved token's year counts from when it's saved, as nothing says when a pasted token was made.
+Saving a token again, even after another, keeps the earlier of its two dates, unless 8 others
+were saved since, when it counts afresh. A record restored readable by others, but not writable,
+keeps its dates too, written afresh, private.
 
 **The config** is edited as text, keeping its comments and layout. A config that's a link is
 written through, to where it leads. The router takes the change up itself: the service's router

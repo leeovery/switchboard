@@ -657,13 +657,83 @@ accounts:
   neither readable nor writable by anyone else; otherwise the account counts as having no token,
   and `accounts` and `status` say why and how to fix it. Switchboard reads no token from the
   environment.
+- A setup token is good for a year from when it's made, 365 days, and is never refreshed, so
+  switchboard keeps when it took each token: whenever it writes one, it writes beside it
+  `<state dir>/tokens/<id>.taken`, as it writes the token, whole and 0600. It holds a pair of lines
+  for each of the account's latest 8 tokens, the latest given first: the time taken, RFC 3339 in
+  UTC, then the token's SHA-256 hash in lowercase hex, never the token, as
+  `taken 2026-10-27T09:30:00Z` then `sha256 <hash>`. A token's date is the one its hash has there,
+  so a token file replaced by anything else has no known date rather than a wrong one. A token's
+  year counts from when switchboard took it, a pasted token's from the day it was given, as nothing
+  says when it was made, as one setup-token makes each: a token given again, even after others, as
+  one given by mistake, moves to the front keeping the earlier of its two dates, which a clock set
+  wrong when it was first taken can't have moved on. One given again after 8 others counts afresh. A
+  record that's missing leaves the date unknown, saying nothing; one that isn't the user's alone,
+  isn't whole pairs of those lines, from 1 to 8, each well formed, no hash twice, holds a time
+  that's zero or outside the years 1 to 9998 in UTC, so its year's end has a year RFC 3339 can
+  write, or has no date of the token leaves it unknown too, logged at debug, by the router once
+  until why changes. Neither ever makes the token unusable. A record restored readable by others,
+  though no one else can write it, is made the user's alone, as the tokens directory is: as the
+  router starts, and as a token is written beside it; only a file of the user's, by that one name,
+  at an account's record's own path, never through a link. One that's a second name of a file, as a
+  dotfiles checkout may leave it, keeps its dates as a token is written beside it, written afresh,
+  private, as a new file at the record's own path, the file's other name left as it was. One that's
+  a link keeps them too, written afresh, private, where the link leads, but only where what it leads
+  to was read as a record: a file of the user's that no one else can write. A link may lead
+  anywhere, and writing there would replace whatever it leads to, so a link to anything else is left
+  as it is, and what it leads to, with a warning, the date unknown and the token working as before:
+  a link leading nowhere, or to another account's token file, a file that isn't a record, one
+  another user's or others can write, or what isn't a file. A token switchboard keeps rather than
+  takes, as `accounts add` keeps a usable one, keeps whatever record it has, as one restored with
+  it. Writing a token, and reading and rewriting its record, and removing an account's, hold a lock
+  on the tokens directory, so two writes at once both keep their dates, and a write beside a removal
+  can't leave a removed account's record; a write changes nothing of a record where nothing would
+  change. At its own path, not a link, a record that's missing, or was read and can't be gone by, is
+  replaced, and so is what isn't a file, but for a directory, which a file can't be renamed over, so
+  it's left, with a warning. A file that can't be read, whoever's it is, as one written under sudo,
+  is left as it is, as it may hold a token, and so is the record where the time given is one it
+  can't hold, as of a clock gone wrong. Nor is it ever written over a file that's any account's
+  token or another account's record, judged by the file, however it's reached: at its own path,
+  through a link or as a second name, as where a token file is a link to the record's own path, or
+  the record a link to another account's. That's left as it is, with a warning, and so is where the
+  record would go, while nothing's there, where another account's token file or record is a link
+  leading there. The account's own record is the entry named for its id, whatever its case, that's
+  the file at the record's path, so one whose name's case changed with its id, on a file system that
+  doesn't tell case apart, is the account's own, while another account's record that's a second name
+  of it is another's, and left. A failure to write it is logged as a warning, the token saved all
+  the same. `accounts remove` deletes the token file, then the record, a link alone where it's one;
+  a token file it can't remove keeps its record, and a token file that's a link leading to the file
+  at the record's own path, by that one name, leaves that file, the one it led to, however the link
+  spells its path; while the token file leads there, a token written is written there, and no record
+  over it, with a warning. Once it's removed, the file left there holds a token, perhaps that
+  token's only copy, and a record is never written over a file at its own path holding anything
+  shaped like a token, as `redact` recognises one, whatever the file's mode or owner: every file it
+  can read is read for that, whole, up to 1 MiB, before its mode and owner are judged, and it's
+  left, with a warning, never quoting it; so is one larger than that, too large to tell it holds no
+  token. A damaged record of other words is replaced; the dates of one others can write, or another
+  user's, are never gone by. A record that's a link, to the token file or to a file elsewhere, goes
+  as a link, and one that's a second name of the token file, or of the file it leads to, judged by
+  the file before the token file goes, is the token being removed, and its name goes with it,
+  whatever it holds, and `accounts remove` says so where the token file led to that name and it's
+  gone; where how many names the file has can't be told, as on a system that doesn't count them,
+  it's left, with a warning, as it may be the token's only copy. Writing a token replaces the token
+  file, so a second name made by hand stops being one at the next write, and is then left as any
+  file holding a token at the record's path is; a directory in the record's place, empty or not, is
+  left, and so is a file at the record's own path that a write would leave, as it may be a token:
+  one holding a token, too large to tell, or that can't be read, with a warning, but for that second
+  name. The status document gives each account's `token_taken`, and `token_good_until`, 365 days on,
+  the router's as probing's: the router reads the record whenever it reads the token, as it starts,
+  at every look and on a 401, never per request, and holds the date beside the token it was of, so a
+  record that lands a moment after its token counts from the next look.
 - Anything can write the files, such as a password manager's file export or a dotfiles secrets step.
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
   empties the file before it writes the token, as a shell's redirect does, leaves it empty for a
-  moment, which the router can catch (see below). A token file may be a link to one kept
-  elsewhere, as by a dotfiles step: switchboard reads it, and writes a token, through the link, to
-  where it leads, never in its place.
+  moment, which the router can catch (see below). A token file may be a link to one kept elsewhere,
+  as by a dotfiles step: switchboard reads it, and writes a token, through the link, to where it
+  leads, never in its place. A link whose way goes back, by `..`, out of a directory that isn't
+  there leads nowhere the system can follow, so writing through it fails, saying so, as for any file
+  switchboard writes through a link.
 - The router reads the tokens as it starts, every account's file again every 3 seconds, and an
   account's file again when a request on it gets a 401 (see Requests that need special
   handling), so a changed token file needs no restart: an account whose file holds another token
@@ -7106,7 +7176,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text (`--print`) or in colour (`--ansi`), at its frame's size or one given (`--size`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot; plays a scenario of `internal/capture`'s in real time, for the README's demos (`--scenario`); and writes the frames in `testdata/vhs/reference/` from their fixtures, every one it keeps or those named (`--frames`). Capture's tests hold each fixture to its frame's text and ANSI, cell for cell (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print; a data verb in its form for a person on a terminal, else its JSON (see The data verbs) |
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
-| `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
+| `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, with the record of when each was taken, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/dayfile` | Files a day of JSON lines, as the readings history, the request ledger and the router's events keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included, or a day's file on from where a read of it last ended, as a tail reads it; the days themselves, each from its first instant, and the times of a day, each as the clocks first read it, where they go forward over it, or back over it, too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too, at every round or just before each prune |
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; the days' digests, built on a goroutine of their own through the `Digester` seam it declares, each day's builder handed every line its read reads, and their parts files, a gzip member a session pointed at by offset, length and CRC; each day's head, built after the digests, newest first, of exactly the lines `Day` gives the day by the one read both share, its side the views'; when a digest or a head stands, and a session as of a day, on the newest state a digest holds that stands for it, or, for a page, the newest whose chain of parts reads, and the raw lines after, one lookup the writer and the readers share; a line's usage decoded once into what its request spent, which the price table prices as it prices the line, and what a page's requests spent, summed by model and where they were served, priced alike once as the page is built; a window's climb, and its stored form; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
@@ -7298,8 +7368,11 @@ hiding it behind the provider would take a wider interface than it's worth:
   (see Themes).
 - **Themes:** `<slug>.theme` files in `SWITCHBOARD_THEMES_DIR`, else
   `$XDG_CONFIG_HOME/switchboard/themes/`, else `~/.config/switchboard/themes/` (see Themes).
-- **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
-  and tokens.
+- **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory, and beside
+  each token switchboard wrote, `<id>.taken`, 0600: a pair of lines for each of the account's latest
+  8 tokens, the latest first, `taken <RFC 3339 time, UTC>` then `sha256 <the token's hash, lowercase
+  hex>`, saying when it first took each. An account id holds no `.`, so no token file is named so.
+  See Accounts and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
   Logging), and `launchd.log`, where the service's raw stdout and stderr, such as crash output,
   go, cut to its newest 5 MiB as the service starts the router, once past 10 (see Logging).
@@ -7552,6 +7625,8 @@ Each account:
 | `primary` | `true` on the primary; left out otherwise |
 | `reserve` | Its reserve; left out at 0 |
 | `token_set` | Whether its token file is present and usable |
+| `token_taken` | When switchboard took its token, as the record it wrote beside the token says (see Accounts and tokens); left out when that isn't known, as of a token written by anything else |
+| `token_good_until` | When its token's year is up: `token_taken` and 365 days, a setup token's lifetime; left out with `token_taken` |
 | `fetched_at` | When its usage was last read; left out when it never was |
 | `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status, restarted_at, pace, allowance}`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given: a 5-hour window that has lapsed reads 0, with neither. `restarted_at` is *router*: when the window started again, as a reset made by hand that keeps its reset starts it, which its pace and projection measure from until its next reset; left out otherwise, when it runs a whole length before its reset. `pace` is its even pace: the share of its length that has passed since it started, its reset less its length, or its `restarted_at`, so where even use would have put its utilization now, as `usage` marks it; left out where it isn't running, as a 5-hour window that has lapsed, which `usage` says hasn't started, or where its reset isn't known. `allowance` is what can be spent of it and still last to its reset: `{share, per}`, the room left below its cap, where its reserve holds it back, else its limit, as a fraction of the window, divided by the time to its reset: `per` `hour` for a window of a day or less, as the 5-hour, and `day` for a longer one, as a week; and where its reset comes within one `per`, the room itself, `per` left out. Left out where it has no room left, isn't running, or its reset isn't known. A window whose reset has passed since it was read counts from empty, its pace from that reset and its next reset a length after it. Left out when none has been read |
 | `lapsed` | The keys of its windows that have lapsed: the 5-hour window, once its reset has passed with nothing read since, which isn't running, and reads empty, until a request starts it (see Priming). Left out when none has |

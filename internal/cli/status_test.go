@@ -65,6 +65,29 @@ func TestStatusJSON(t *testing.T) {
 	}
 }
 
+func TestStatusJSONGivesWhenATokenSwitchboardSavedWasTaken(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	if got := runWithInput(t, deps, "test-token-work\n", "accounts", "token", "work"); got.code != 0 {
+		t.Fatalf("switchboard accounts token = %+v, want the token saved", got)
+	}
+
+	got := run(t, deps, "status", "--json")
+	var doc status.Document
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil {
+		t.Fatalf("switchboard status --json = %+v: %v", got, err)
+	}
+	taken := testNow
+	for _, a := range doc.Accounts {
+		want := [2]time.Time{}
+		if a.ID == "work" {
+			want = [2]time.Time{taken, taken.Add(365 * 24 * time.Hour)}
+		}
+		if got := [2]time.Time{a.TokenTaken, a.TokenGoodUntil}; !got[0].Equal(want[0]) || !got[1].Equal(want[1]) {
+			t.Errorf("%s's token was taken at %v, good until %v; want %v", a.ID, got[0], got[1], want)
+		}
+	}
+}
+
 // statusDocument is what status prints as JSON of the accounts statusDeps
 // configures.
 func statusDocument(t *testing.T, deps cli.Deps) result {

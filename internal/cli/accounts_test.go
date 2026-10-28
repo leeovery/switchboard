@@ -444,7 +444,11 @@ func TestAccountsRemoveATokenFileThatsALink(t *testing.T) {
 	writeToken(t, deps, "personal", "test-token-work")
 	// side's token file, a link to a file kept elsewhere, as by a dotfiles
 	// step.
-	target := filepath.Join(t.TempDir(), "side")
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dir, "side")
 	if err := os.WriteFile(target, []byte("test-token-side\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -459,6 +463,44 @@ func TestAccountsRemoveATokenFileThatsALink(t *testing.T) {
 	checkNoTokenFile(t, deps, "side")
 	if data, err := os.ReadFile(target); err != nil || string(data) != "test-token-side\n" {
 		t.Errorf("where the link led holds %q (%v), want the token still", data, err)
+	}
+}
+
+func TestAccountsRemoveATokenFileThatsALinkToASecondNameOfIt(t *testing.T) {
+	deps, _ := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+	writeToken(t, deps, "personal", "test-token-work")
+	// side's token file, a link to its record's path, a second name of a
+	// file kept elsewhere.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	elsewhere := filepath.Join(dir, "side")
+	if err := os.WriteFile(elsewhere, []byte("test-token-side\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	record, err := filepath.EvalSymlinks(filepath.Dir(tokenPath(t, deps, "side")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	record = filepath.Join(record, "side.taken")
+	if err := os.Link(elsewhere, record); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(record, tokenPath(t, deps, "side")); err != nil {
+		t.Fatal(err)
+	}
+
+	got := run(t, deps, "accounts", "remove", "side")
+	if want := (result{stdout: "removed side, and its token file, a link, with the name it led to, " + record + ": the file's kept under its other name\n"}); got != want {
+		t.Errorf("switchboard accounts remove = %+v, want %+v", got, want)
+	}
+	checkNoTokenFile(t, deps, "side")
+	if _, err := os.Lstat(record); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the name the link led to: %v, want it gone", err)
+	}
+	if data, err := os.ReadFile(elsewhere); err != nil || string(data) != "test-token-side\n" {
+		t.Errorf("the file elsewhere holds %q (%v), want the token still", data, err)
 	}
 }
 

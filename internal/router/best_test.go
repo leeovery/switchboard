@@ -289,7 +289,7 @@ func TestTheBestOfADocumentBuiltByProbingIsWhereANewSessionGoes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
 			prober := &stubProber{readings: tt.reads}
-			collector := status.Collector{Prober: prober, Policy: testPolicy, Token: threeTokens.Read, Now: clock.read}
+			collector := status.Collector{Prober: prober, Policy: testPolicy, Token: threeTokens.Read, Taken: tokenstest.Taken{}.Read, Now: clock.read}
 			best := collector.Collect(t.Context(), threeAccounts(nil)).Best
 
 			r := newThreeRouter(t, clock, prober, nil)

@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -574,9 +575,18 @@ func UnknownAccount(id string, pinnable []string) error {
 	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), strings.Join(pinnable, " or "))
 }
 
+// writeJSON answers with v as JSON, or, where v can't be given as JSON,
+// with a 500 saying so, logging why: encoded whole before any of it goes,
+// so a failure is never an empty 200.
 func writeJSON(w http.ResponseWriter, v any) {
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(v); err != nil {
+		logger.Error("can't give the answer as JSON", "error", err)
+		writeProblem(w, http.StatusInternalServerError, "the router can't give its answer as JSON: its log says why")
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(body.Bytes())
 }
 
 // writeProblem answers with status, and message saying why.
