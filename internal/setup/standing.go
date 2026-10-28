@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/leeovery/switchboard/internal/launch"
@@ -67,7 +68,7 @@ type RouterStanding struct {
 // launch.AskTimeout is down. It fails only with ctx's error, once ctx is
 // done.
 func (s *Setup) Standing(ctx context.Context) (RouterStanding, error) {
-	asking, cancel := context.WithTimeout(ctx, launch.AskTimeout)
+	asking, cancel := context.WithTimeout(ctx, cmp.Or(s.routerWait, launch.AskTimeout))
 	defer cancel()
 	h := s.readPlist(asking).served(s.LaunchAgent).Answering(asking)
 	switch {

@@ -253,7 +253,7 @@ func TestReviewsNotes(t *testing.T) {
 	}{
 		{"no token", setup.TokenStanding{}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
 		{"refused", setup.TokenStanding{State: setup.TokenRefused, Year: gone}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
-		{"unreadable", setup.TokenStanding{State: setup.TokenUnreadable, Why: "the token file <path> isn't a file: replace it with one holding the token"}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has a token setup can't read: the token file <path> isn't a file: replace it with one holding the token.", Press: "Put that right, or press t to create a new one, approving it in the browser signed in to Work.", Key: "t"}}},
+		{"unreadable", setup.TokenStanding{State: setup.TokenUnreadable, Why: "the token file <path> isn't a file: replace it with one holding the token"}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has a token setup can't read: the token file <path> isn't a file: replace it with one holding the token", Press: "Put that right, or press t to create a new one, approving it in the browser signed in to Work.", Key: "t"}}},
 		{"unchecked, kept", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529"}, nil},
 		{"unchecked, in its last 30 days", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529", Year: lastDay}, []setup.Note{{Need: setup.NeedNewToken, Account: "work", Says: "has a token that expires 27 Oct 2026: last day.", Press: newToken, Key: "t"}}},
 		{"working, its date unknown", working(status.TokenYear{}), nil},
@@ -554,6 +554,12 @@ func TestStanding(t *testing.T) {
 			w.installService(t, w.switchboard)
 			w.env["XDG_STATE_HOME"] = filepath.Join(w.root, "elsewhere")
 		}, healthy},
+		{"the installed plist's router before this shell's, both answering", func(t *testing.T, w *world) {
+			w.installService(t, w.switchboard)
+			w.launchd.unhealthy = "failed 5 of 6 requests"
+			w.env["XDG_STATE_HOME"] = filepath.Join(w.root, "elsewhere")
+			w.launchd.byHand, w.launchd.byHandAt = 4300, filepath.Join(w.root, "elsewhere", "switchboard")
+		}, setup.RouterStanding{State: setup.RouterUnhealthy, Reason: "failed 5 of 6 requests"}},
 		{"this shell's router, with no plist", func(_ *testing.T, w *world) { byHandHere(w) }, healthy},
 		{"this shell's router, the plist unreadable", func(t *testing.T, w *world) {
 			writeFile(t, w.plist(), "not a plist", 0o644)
@@ -588,6 +594,17 @@ func TestStanding(t *testing.T) {
 func byHandHere(w *world) {
 	w.launchd.byHand = 4300
 	w.launchd.byHandAt = w.state
+}
+
+func TestStandingOnceItsLimitPasses(t *testing.T) {
+	w := newWorld(t)
+	w.installService(t, w.switchboard)
+	w.launchd.stuck = true
+	s := w.reviewing(t, &checkingAPI{})
+	s.WaitForRouter(50 * time.Millisecond)
+	if got, err := s.Standing(t.Context()); err != nil || got != (setup.RouterStanding{State: setup.RouterDown}) {
+		t.Errorf("Standing of a router that never answers is %+v (%v), want it down, and no error: the limit passing is setup's, not the caller's", got, err)
+	}
 }
 
 func TestStandingOnceItsContextIsDone(t *testing.T) {
@@ -665,7 +682,9 @@ func TestReviewTellsNoToken(t *testing.T) {
 		t.Errorf("the log has no line of work's record it can't go by, so it wasn't seen:\n%s", logged.String())
 	}
 	if !slices.ContainsFunc(notes, func(n setup.Note) bool { return n.Account == "down" && n.Need == setup.NeedNewToken }) ||
-		!slices.ContainsFunc(notes, func(n setup.Note) bool { return n.Account == "loose" && strings.Contains(n.Says, "chmod 600") }) {
-		t.Errorf("the notes are %+v, want down's year and why loose's token can't be read among them", notes)
+		!slices.ContainsFunc(notes, func(n setup.Note) bool {
+			return n.Account == "loose" && strings.HasSuffix(n.Says, "chmod 600 "+w.tokens().Path("loose"))
+		}) {
+		t.Errorf("the notes are %+v, want down's year among them, and why loose's token can't be read, ending in the command to copy", notes)
 	}
 }

@@ -236,7 +236,9 @@ func (r Review) notesOf(a Reviewed) []Note {
 	var notes []Note
 	switch year := a.Token.Year; {
 	case a.Token.State == TokenUnreadable:
-		newToken.Says, newToken.Press = "has a token setup can't read: "+a.Token.Why+".", "Put that right, or press t to "+approving
+		// No full stop: the why ends in its own advice, often a command to
+		// copy, such as chmod 600 and the file's path.
+		newToken.Says, newToken.Press = "has a token setup can't read: "+a.Token.Why, "Put that right, or press t to "+approving
 		notes = append(notes, newToken)
 	case !a.Token.Working():
 		newToken.Says = "has no working token, so no requests are routed to it."
