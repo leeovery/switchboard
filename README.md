@@ -35,7 +35,7 @@ Every Claude subscription has a 5-hour limit and a weekly one, and when you hit 
 - **Every request on record.** Kept for a year, so you can follow any session and see what your use was worth at API prices against what your plans cost.
 - **Your usage, always in view.** A live dashboard shows what's left in each window, when you'll run out at your pace, and when it resets.
 - **You and Claude both steer.** Pin new sessions to an account, or move running ones, from the command line, the dashboard, or by asking Claude.
-- **Told in time.** Desktop notifications when an account hits a limit, has room again, or passes a share you set.
+- **Told in time.** Desktop notifications when an account hits a limit, has room again, passes a share you set, or its token nears the end of its year.
 - **Never in the way.** If switchboard can't route a session, `claude` starts as it would without it.
 
 **Worth it with one subscription.** Claude paces its work on your live usage and your history, every request goes on record, and the dashboard shows where you stand. The router carries every request on that one account; a session that hits a limit has nowhere else to go until you add a second.

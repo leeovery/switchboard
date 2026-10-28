@@ -36,14 +36,17 @@ type Notifier interface {
 
 // notifications posts desktop notifications of what befalls the accounts, as
 // settings asks: a limit reached, and the sessions it moved; room again; a
-// window passing its warning; and any other move. It hears the router's
-// events without ever holding it up: they queue for run's goroutine, which
-// deals with each, looks at the accounts afresh after each and every
-// lookEvery, and posts.
+// window passing its warning; and any other move; and, whatever settings
+// asks, a token's year ending. It hears the router's events without ever
+// holding it up: they queue for run's goroutine, which deals with each, looks
+// at the accounts afresh after each and every lookEvery, and posts.
 type notifications struct {
 	settings config.Notifications
 	notifier Notifier
 	state    *state
+	// years holds what's been told of the accounts' tokens' years, which the
+	// state file keeps.
+	years *yearsTold
 	// now reads the router's clock, which the accounts are judged by. The
 	// waits notifications time for themselves run on time's own clock.
 	now    func() time.Time
@@ -57,11 +60,12 @@ type notifications struct {
 	posted map[string]time.Time
 }
 
-func newNotifications(settings config.Notifications, notifier Notifier, state *state, now func() time.Time) *notifications {
+func newNotifications(settings config.Notifications, notifier Notifier, state *state, years *yearsTold, now func() time.Time) *notifications {
 	return &notifications{
 		settings: settings,
 		notifier: notifier,
 		state:    state,
+		years:    years,
 		now:      now,
 		events:   make(chan Event, queueSize),
 		limits:   newLimitNotices(),
@@ -88,7 +92,8 @@ func (n *notifications) hear(e Event) {
 
 // run deals with the events heard, and looks at the accounts, posting what
 // they call for, until ctx ends, when it finishes. Its first look calls for
-// nothing, as there's nothing yet to compare the accounts with.
+// no room again or warning, as there's nothing yet to compare the accounts
+// with, but tells of how the tokens' years stand.
 func (n *notifications) run(ctx context.Context) {
 	ticker := time.NewTicker(lookEvery)
 	defer ticker.Stop()
@@ -99,9 +104,9 @@ func (n *notifications) run(ctx context.Context) {
 			n.finish()
 			return
 		case e := <-n.events:
-			accounts := n.standings()
+			accounts, now := n.standings()
 			n.take(e, accounts)
-			n.look(accounts)
+			n.look(accounts, now)
 		case <-ticker.C:
 			n.look(n.standings())
 		case <-n.wake():
@@ -135,16 +140,18 @@ func (n *notifications) takeQueued() {
 	for {
 		select {
 		case e := <-n.events:
-			n.take(e, n.standings())
+			accounts, _ := n.standings()
+			n.take(e, accounts)
 		default:
 			return
 		}
 	}
 }
 
-// standings returns how the accounts stand now.
-func (n *notifications) standings() standings {
-	return n.state.standings(n.now())
+// standings returns how the accounts stand now, and now.
+func (n *notifications) standings() (standings, time.Time) {
+	now := n.now()
+	return n.state.standings(now), now
 }
 
 // take deals with an event: a limit reached starts gathering the sessions it
@@ -165,10 +172,15 @@ func (n *notifications) take(e Event, accounts standings) {
 	}
 }
 
-// look posts what the accounts, as they stand, call for since the last look.
-func (n *notifications) look(accounts standings) {
+// look posts what the accounts, as they stand at now, call for since the last
+// look: a token's year last, whatever went out just before, as no quiet
+// minute holds it back, so it quiets nothing due at the same look.
+func (n *notifications) look(accounts standings, now time.Time) {
 	for _, notice := range n.lookout.look(accounts) {
 		n.post(notice)
+	}
+	for _, notice := range n.years.due(accounts, now) {
+		n.send(notice)
 	}
 }
 
