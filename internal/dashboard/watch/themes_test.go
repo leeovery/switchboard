@@ -116,6 +116,21 @@ func TestOnlyTheAnswerToTheOneQuestionIsTaken(t *testing.T) {
 	}
 }
 
+func TestTheWaitRunningOutAfterALightAnswerKeepsItLight(t *testing.T) {
+	h, _ := themedHarness(t, theme.Choice{})
+	h.start()
+	h.deliver(tea.BackgroundColorMsg{Color: lightBackground})
+	tm, ok := h.pending(backdrop.Unanswered{})
+	if !ok {
+		t.Fatal("no wait armed for the terminal's background")
+	}
+	h.fire(tm)
+
+	if got := h.drawnIn(); got != "tokyo-night-day" {
+		t.Errorf("the wait running out after a light answer has the screen drawn in %s, want tokyo-night-day still", got)
+	}
+}
+
 func TestACanvasOfTheDashboardsOwnIsNeverSetBack(t *testing.T) {
 	nord, _ := theme.Builtin("nord")
 	day, _ := theme.Builtin("tokyo-night-day")

@@ -122,8 +122,16 @@ func TestOnlyTheFirstAnswerCounts(t *testing.T) {
 	if got, want := putBack(b), ansi.SetBackgroundColor(hex(darkBackground)); got != want {
 		t.Errorf("PutBack() writes %q, want the first answer's, %q", got, want)
 	}
-	if _, afresh := b.NoAnswer(); afresh {
-		t.Error("the wait running out after an answer has the screen drawn afresh, want it heard as nothing")
+}
+
+func TestTheWaitRunningOutAfterAnAnswerChangesNothing(t *testing.T) {
+	pair := defaultPair(t)
+	b, _ := backdrop.Backdrop{}.Answered(lightBackground, pair)
+	b = b.DrawIn(b.InForce(pair))
+
+	b, afresh := b.NoAnswer()
+	if afresh || b.InForce(pair).Slug != pair.Light.Slug {
+		t.Errorf("the wait running out after a light answer has the screen drawn afresh %v in %s, want neither, %s still", afresh, b.InForce(pair).Slug, pair.Light.Slug)
 	}
 }
 
@@ -171,6 +179,7 @@ func TestTheBackgroundIsPutBackAsItWas(t *testing.T) {
 	lake := lakeTheme(t)
 	pair := theme.Pair{Light: defaultPair(t).Light, Dark: lake}
 	terminal, _ := theme.Builtin(theme.Terminal)
+	nord, _ := theme.Builtin("nord")
 	tests := []struct {
 		name   string
 		answer color.Color
@@ -181,7 +190,7 @@ func TestTheBackgroundIsPutBackAsItWas(t *testing.T) {
 	}{
 		{name: "set, and the terminal said what it was", answer: darkBackground, drawn: []theme.Theme{lake}, want: ansi.SetBackgroundColor("#1a1b26")},
 		{name: "set, and the terminal didn't say", drawn: []theme.Theme{lake}, want: ansi.ResetBackgroundColor},
-		{name: "set, the terminal saying a built-in's canvas", answer: pair.Light.Colour(theme.Canvas), drawn: []theme.Theme{pair.Light}, want: ansi.ResetBackgroundColor},
+		{name: "set, the terminal saying a canvas of a built-in's not in the pair", answer: nord.Colour(theme.Canvas), drawn: []theme.Theme{lake}, want: ansi.ResetBackgroundColor},
 		{name: "set, the terminal saying the pair's canvas", answer: lake.Colour(theme.Canvas), drawn: []theme.Theme{lake}, want: ansi.ResetBackgroundColor},
 		{name: "never set, drawn in the terminal's own colours", answer: darkBackground, drawn: []theme.Theme{terminal}},
 		{name: "never set, nothing drawn in colour, as under NO_COLOR"},
