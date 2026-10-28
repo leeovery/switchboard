@@ -27,6 +27,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/notify"
@@ -273,7 +274,7 @@ type Model struct {
 	choice   theme.Choice
 	pair     theme.Pair
 	showing  theme.Theme
-	backdrop backdrop
+	backdrop backdrop.Backdrop
 	picker   picker
 
 	// view is the tab shown.
@@ -486,7 +487,7 @@ func after(d time.Duration, msg tea.Msg) tea.Cmd {
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.fetch(m.plan.full()), m.armTick(m.now())}
 	if m.coloured() {
-		cmds = append(cmds, tea.RequestBackgroundColor, m.after(theme.AnswerWithin, unansweredMsg{}))
+		cmds = append(cmds, backdrop.Ask(m.after))
 	}
 	return tea.Batch(cmds...)
 }
@@ -667,9 +668,9 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseWheelMsg:
 		return m.wheeled(msg), nil
 	case tea.BackgroundColorMsg:
-		return m.answered(msg.Color), nil
-	case unansweredMsg:
-		return m.noAnswer(), nil
+		return m.settled(m.backdrop.Answered(msg.Color, m.pair)), nil
+	case backdrop.Unanswered:
+		return m.settled(m.backdrop.NoAnswer()), nil
 	case listedMsg:
 		return m.listed(msg)
 	case askMsg:
@@ -757,7 +758,7 @@ func (m Model) View() tea.View {
 // blank reports whether the screen is blank: in colour, till the terminal
 // has said what its background is, or had its time to.
 func (m Model) blank() bool {
-	return m.coloured() && !m.backdrop.settled
+	return m.coloured() && !m.backdrop.Settled()
 }
 
 // blankView is the screen full and blank.
@@ -769,7 +770,7 @@ func blankView() tea.View {
 
 // viewOf is the screen of the lines drawn in look, full, the theme picker
 // over its right while it's open: in the theme shown, its canvas painted on
-// every cell, and set as the terminal's background too, as background says.
+// every cell, and set as the terminal's background too, as Background says.
 // The mouse is on while it runs, for clicks and the wheel, so the terminal's
 // own selecting takes its modifier.
 func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
@@ -778,7 +779,7 @@ func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
 	}
 	v := blankView()
 	v.SetContent(strings.Join(lines, "\n"))
-	v.BackgroundColor = m.background(look)
+	v.BackgroundColor = m.backdrop.Background(look)
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }

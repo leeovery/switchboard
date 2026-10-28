@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -32,7 +33,7 @@ func TestTheScreenWaitsForTheTerminalToSayWhatItsBackgroundIs(t *testing.T) {
 	if got := h.model.View(); got.Content != "" || got.BackgroundColor != nil {
 		t.Errorf("before the terminal says its background, the screen is %q on %v, want it blank, the background left as it is", got.Content, got.BackgroundColor)
 	}
-	tm, ok := h.pending(unansweredMsg{})
+	tm, ok := h.pending(backdrop.Unanswered{})
 	if !ok || tm.delay != theme.AnswerWithin {
 		t.Fatalf("no wait armed for the terminal to say its background in %v", theme.AnswerWithin)
 	}
@@ -93,8 +94,8 @@ func TestALateAnswerIsTakenAsTheBackgroundFound(t *testing.T) {
 				t.Errorf("the terminal's background is set to %s, want the canvas of the theme it's drawn in", got)
 			}
 			var out strings.Builder
-			h.model.backdrop.putBack(&out)
-			if want := ansi.SetBackgroundColor(rgbHex(tt.answer)); out.String() != want {
+			h.model.backdrop.PutBack(&out)
+			if want := ansi.SetBackgroundColor(strings.ToLower(hexOf(tt.answer))); out.String() != want {
 				t.Errorf("putting the background back writes %q, want %q, the one the terminal said, asked before the canvas was set", out.String(), want)
 			}
 		})
@@ -108,8 +109,25 @@ func TestOnlyTheAnswerToTheOneQuestionIsTaken(t *testing.T) {
 	if got := h.drawnIn(); got != "nord" {
 		t.Errorf("a second report of the background has the screen drawn in %s, want nord still", got)
 	}
-	if got := hexOf(h.model.backdrop.original); got != hexOf(darkBackground) {
-		t.Errorf("the background to put back is %s, want the first answer's, %s", got, hexOf(darkBackground))
+	var out strings.Builder
+	h.model.backdrop.PutBack(&out)
+	if want := ansi.SetBackgroundColor(strings.ToLower(hexOf(darkBackground))); out.String() != want {
+		t.Errorf("putting the background back writes %q, want the first answer's, %q", out.String(), want)
+	}
+}
+
+func TestTheWaitRunningOutAfterALightAnswerKeepsItLight(t *testing.T) {
+	h, _ := themedHarness(t, theme.Choice{})
+	h.start()
+	h.deliver(tea.BackgroundColorMsg{Color: lightBackground})
+	tm, ok := h.pending(backdrop.Unanswered{})
+	if !ok {
+		t.Fatal("no wait armed for the terminal's background")
+	}
+	h.fire(tm)
+
+	if got := h.drawnIn(); got != "tokyo-night-day" {
+		t.Errorf("the wait running out after a light answer has the screen drawn in %s, want tokyo-night-day still", got)
 	}
 }
 
@@ -139,13 +157,10 @@ func TestACanvasOfTheDashboardsOwnIsNeverSetBack(t *testing.T) {
 			if got := h.drawnIn(); got != tt.want {
 				t.Errorf("drawn in %s, want %s, the half of the pair as dark as the colour said", got, tt.want)
 			}
-			if h.model.backdrop.original != nil {
-				t.Errorf("the background to set back is %s, want none, the canvas maybe an exit's the dashboard couldn't catch", hexOf(h.model.backdrop.original))
-			}
 			var out strings.Builder
-			h.model.backdrop.putBack(&out)
+			h.model.backdrop.PutBack(&out)
 			if out.String() != ansi.ResetBackgroundColor {
-				t.Errorf("putting the background back writes %q, want it reset, %q", out.String(), ansi.ResetBackgroundColor)
+				t.Errorf("putting the background back writes %q, want it reset, %q, never set back to the canvas, maybe an exit's the dashboard couldn't catch", out.String(), ansi.ResetBackgroundColor)
 			}
 		})
 	}
@@ -224,8 +239,10 @@ func TestTheTerminalThemeLeavesTheBackgroundAlone(t *testing.T) {
 	if view := h.model.View(); view.BackgroundColor != nil || strings.Contains(view.Content, "48;") {
 		t.Errorf("in the terminal's theme, the background is set to %v, the screen %q, want neither painted", view.BackgroundColor, view.Content)
 	}
-	if h.model.backdrop.set {
-		t.Error("in the terminal's theme, the background is to be put back, want it never set")
+	var out strings.Builder
+	h.model.backdrop.PutBack(&out)
+	if out.Len() > 0 {
+		t.Errorf("in the terminal's theme, putting the background back writes %q, want it never set", out.String())
 	}
 }
 
@@ -233,7 +250,7 @@ func TestNoColour(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	if _, asked := h.pending(unansweredMsg{}); asked {
+	if _, asked := h.pending(backdrop.Unanswered{}); asked {
 		t.Error("without colour, the terminal is asked its background, want nothing asked")
 	}
 	view := h.model.View()
@@ -584,27 +601,6 @@ func TestThePickerWaitsForTheTerminalsBackground(t *testing.T) {
 	}
 }
 
-func TestTheBackgroundIsPutBackAsItWas(t *testing.T) {
-	tests := []struct {
-		name string
-		b    backdrop
-		want string
-	}{
-		{name: "set, and the terminal said what it was", b: backdrop{set: true, original: darkBackground}, want: ansi.SetBackgroundColor("#1a1b26")},
-		{name: "set, and the terminal didn't say", b: backdrop{set: true}, want: ansi.ResetBackgroundColor},
-		{name: "never set", b: backdrop{original: darkBackground}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var out strings.Builder
-			tt.b.putBack(&out)
-			if out.String() != tt.want {
-				t.Errorf("putBack() wrote %q, want %q", out.String(), tt.want)
-			}
-		})
-	}
-}
-
 // themedHarness is a model drawn in colour, in the themes choice draws in,
 // of the built-ins and a broken theme, in a terminal 150 cells wide and 50
 // lines tall, reading calm. It hasn't started.
@@ -638,7 +634,7 @@ func (h *harness) answer(background color.Color) {
 		h.deliver(tea.BackgroundColorMsg{Color: background})
 		return
 	}
-	tm, ok := h.pending(unansweredMsg{})
+	tm, ok := h.pending(backdrop.Unanswered{})
 	if !ok {
 		h.t.Fatal("no wait armed for the terminal's background")
 	}
