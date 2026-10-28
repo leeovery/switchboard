@@ -13,7 +13,7 @@ import (
 func (s *Setup) SessionHook() Said {
 	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
 	if err != nil {
-		logger.Warn("can't install the session hook", "path", s.Settings, "error", err)
+		logger.Warn("can't find switchboard's binary for the session hook", "error", err)
 		return withoutHook(err)
 	}
 	return (&run{Setup: s, switchboard: switchboard}).hook()
