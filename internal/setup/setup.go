@@ -93,7 +93,7 @@ func (s *Setup) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	r := &run{Setup: s, switchboard: switchboard, registry: s.registry(), tell: s.Terminal.tell}
+	r := &run{Setup: s, switchboard: switchboard, registry: s.registry(), tell: s.Terminal.tell, note: s.Terminal.say}
 	r.Terminal.sayf("Setting switchboard up: each step says what's done already, and does only what isn't.")
 	steps := []struct {
 		title string
@@ -131,8 +131,13 @@ type run struct {
 	registry    accounts.Registry
 	// cfg is the config as the steps have left it.
 	cfg *config.Config
-	// tell is where the service step tells what it says.
+	// tell is where the steps tell what they say, and note where the line
+	// walk says what's about to take a while: nil where nothing hears it.
 	tell func(Said)
+	note func(string)
+	// claudeCode is Claude Code's own claude, as the claude link step found
+	// it.
+	claudeCode string
 	// health is the service's router's, where the service step saw it
 	// answer.
 	health *router.Health

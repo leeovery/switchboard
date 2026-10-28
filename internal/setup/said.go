@@ -20,11 +20,14 @@ const (
 // it's told in: a mark, a label of a few words and the detail after it, as
 // setup's screen draws a row, and the sentence the line walk prints.
 type Said struct {
-	Mark  Mark
+	Mark Mark
+	// Label is "" for a Said that's the line walk's alone, which the screen
+	// doesn't draw.
 	Label string
 	// Detail is the rest, which the screen wraps.
 	Detail string
-	// Sentence is the line walk's, as it prints it: a line, or more.
+	// Sentence is the line walk's, as it prints it: a line, or more; "" for a
+	// Said that's the screen's alone, which the line walk doesn't print.
 	Sentence string
 }
 
