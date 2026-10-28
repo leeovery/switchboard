@@ -39,16 +39,19 @@ type NewAccount struct {
 	ID string
 	// Label is the name it's shown by: none shows it by its id.
 	Label string
+	// Plan is the plan its subscription is on, one of Plans: "" leaves it
+	// unknown.
+	Plan string
 	// Primary makes it the primary, in place of any other.
 	Primary bool
 }
 
 // taken returns the account with its label as labelOf takes it, failing,
-// saying why, unless its id and label are ones an account can have.
+// saying why, unless its id, label and plan are ones an account can have.
 func (a NewAccount) taken() (NewAccount, error) {
 	name := accountNamed(a.ID)
 	label, labelErr := labelOf(a.ID, a.Label)
-	if err := errors.Join(checkID(name, a.ID), labelErr); err != nil {
+	if err := errors.Join(checkID(name, a.ID), labelErr, checkPlan(name, a.Plan)); err != nil {
 		return NewAccount{}, err
 	}
 	a.Label = label
@@ -144,7 +147,7 @@ func (d *Draft) AddAccount(given NewAccount) error {
 		doc = doc.without(marks)
 	}
 	doc = doc.insert(doc.newAccountAt(), a.lines())
-	want.Accounts = append(want.Accounts, fileAccount{ID: a.ID, Label: a.Label, Primary: a.Primary})
+	want.Accounts = append(want.Accounts, fileAccount{ID: a.ID, Label: a.Label, Plan: a.Plan, Primary: a.Primary})
 	return d.take(doc, want, change)
 }
 
@@ -167,6 +170,18 @@ func (d *Draft) RemoveAccount(id string) error {
 	want := d.file
 	want.Accounts = slices.Delete(slices.Clone(d.file.Accounts), i, i+1)
 	return d.take(d.doc.cut(tables[i]), want, change)
+}
+
+// Upstream returns the API's base URL the draft gives, its default where it
+// gives none, failing, as a config would, for one a config can't have.
+func (d *Draft) Upstream() (string, error) {
+	if d.cfg != nil {
+		return d.cfg.Upstream, nil
+	}
+	if err := checkUpstream(d.file.Upstream); err != nil {
+		return "", invalid(d.path, err)
+	}
+	return d.file.Upstream, nil
 }
 
 // MarksPrimary reports whether the draft marks an account primary, rather

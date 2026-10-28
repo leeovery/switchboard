@@ -138,6 +138,9 @@ type Probe struct {
 	// Admitted is set when a request of the probe was answered with success:
 	// the account took it, whatever limit it had reached before.
 	Admitted bool `json:"admitted,omitempty"`
+	// Organization is the id of the organization the account is in, as the
+	// API answered: "" where no answer said.
+	Organization string `json:"organization,omitempty"`
 }
 
 // Verdict is what a response to a request says of the account it went out on.

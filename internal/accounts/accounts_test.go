@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -142,7 +145,7 @@ func TestAddSavesATokenTheAPIDidntAnswerFor(t *testing.T) {
 	log := logstest.Capture(t)
 
 	taken, err := w.registry(&user{gives: sideToken}, &fakeAPI{err: unanswered}).Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"})
-	if err != nil || taken != (accounts.Taken{Unchecked: unanswered}) {
+	if err != nil || taken.Kept || errorText(taken.Unchecked) != unanswered.Error() {
 		t.Fatalf("Add() = %+v, %v, want the token taken, unchecked", taken, err)
 	}
 	w.checkConfig(t, withSide)
@@ -292,17 +295,18 @@ func TestSetToken(t *testing.T) {
 func TestSetTokenWhenTheAPIDoesntSayYes(t *testing.T) {
 	unanswered := errors.New("timed out after 5s")
 	tests := []struct {
-		name      string
-		answer    error
-		wantTaken accounts.Taken
-		wantErr   string
-		wantToken string
+		name   string
+		answer error
+		// wantUnchecked is why the token went unchecked, as Taken says.
+		wantUnchecked string
+		wantErr       string
+		wantToken     string
 		// wantAt is when the token in the file was taken, as its record says:
 		// zero where that isn't known.
 		wantAt time.Time
 	}{
 		{name: "refusing the token, which isn't saved", answer: refusal{}, wantErr: refusedErr, wantToken: "test-token-stale"},
-		{name: "not answering, the token saved all the same", answer: unanswered, wantTaken: accounts.Taken{Unchecked: unanswered}, wantToken: sideToken, wantAt: now},
+		{name: "not answering, the token saved all the same", answer: unanswered, wantUnchecked: unanswered.Error(), wantToken: sideToken, wantAt: now},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -310,8 +314,8 @@ func TestSetTokenWhenTheAPIDoesntSayYes(t *testing.T) {
 			w.writeToken(t, "side", "test-token-stale", 0o600)
 
 			taken, err := w.registry(&user{gives: sideToken}, &fakeAPI{err: tt.answer}).SetToken(t.Context(), w.load(t), "side")
-			if taken != tt.wantTaken || errorText(err) != tt.wantErr {
-				t.Errorf("SetToken() = %+v, %v, want %+v, %q", taken, err, tt.wantTaken, tt.wantErr)
+			if taken.Kept || errorText(taken.Unchecked) != tt.wantUnchecked || errorText(err) != tt.wantErr {
+				t.Errorf("SetToken() = %+v, %v, want unchecked %q, %q", taken, err, tt.wantUnchecked, tt.wantErr)
 			}
 			w.checkToken(t, "side", tt.wantToken)
 			w.checkTaken(t, "side", tt.wantToken, tt.wantAt)
@@ -481,6 +485,587 @@ func TestChangesAreLoggedWithoutTheToken(t *testing.T) {
 	}
 }
 
+// organization is a placeholder id of the organization an account is in.
+const organization = "test-org-side"
+
+func TestCheck(t *testing.T) {
+	// echoed is an API error message that quotes the token, as no answer
+	// should, to show none of it gets through.
+	echoed := "bad bearer token " + sideToken
+	tests := []struct {
+		name    string
+		answer  answerWith
+		want    accounts.Checked
+		wantErr string
+		wantIs  error
+	}{
+		{name: "taken, naming its organization", answer: answerWith{status: http.StatusOK, organization: organization}, want: accounts.Checked{Organization: organization}},
+		{name: "taken, naming no organization", answer: answerWith{status: http.StatusOK}, want: accounts.Checked{}},
+		{
+			name:    "refused as a token, answering 401",
+			answer:  answerWith{status: http.StatusUnauthorized, message: echoed},
+			wantErr: "the API refused the token (HTTP 401 · bad bearer token [redacted]), so nothing is saved: make another with claude setup-token, run while signed in to that subscription",
+			wantIs:  accounts.ErrRefused,
+		},
+		{
+			name:    "refused as a request, answering 403",
+			answer:  answerWith{status: http.StatusForbidden, message: echoed},
+			wantErr: "the API refused the token (HTTP 403 · bad bearer token [redacted]), so nothing is saved: make another with claude setup-token, run while signed in to that subscription",
+			wantIs:  accounts.ErrRefused,
+		},
+		{
+			name:   "unanswered, the API failing",
+			answer: answerWith{status: http.StatusInternalServerError, message: echoed},
+			want:   accounts.Checked{Unchecked: true, Why: "HTTP 500 · bad bearer token [redacted]"},
+		},
+		{
+			name:   "unanswered, the API overloaded",
+			answer: answerWith{status: 529},
+			want:   accounts.Checked{Unchecked: true, Why: "HTTP 529"},
+		},
+		{
+			name:   "unanswered, the API taking too long",
+			answer: answerWith{hang: true},
+			want:   accounts.Checked{Unchecked: true, Why: "timed out after 50ms"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, strings.Replace(twoAccounts, upstream, newRealAPI(t, tt.answer), 1))
+			log := logstest.Capture(t)
+
+			got, err := realRegistry(w).Check(t.Context(), tokenOf(t, sideToken))
+			if got != tt.want || errorText(err) != tt.wantErr {
+				t.Errorf("Check() = %+v, %v, want %+v, %q", got, err, tt.want, tt.wantErr)
+			}
+			if tt.wantIs != nil && !errors.Is(err, tt.wantIs) {
+				t.Errorf("Check() error = %v, want one matching %v", err, tt.wantIs)
+			}
+			checkNoneOfTheToken(t, sideToken, got.Why, errorText(err), log.String())
+		})
+	}
+}
+
+func TestCheckWithNoNetwork(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	srv.Close()
+	w := newWorld(t, fmt.Sprintf("upstream = %q\n", srv.URL))
+	log := logstest.Capture(t)
+
+	got, err := realRegistry(w).Check(t.Context(), tokenOf(t, sideToken))
+	if err != nil || !got.Unchecked || got.Why == "" {
+		t.Errorf("Check() = %+v, %v, want it unchecked, saying why", got, err)
+	}
+	checkNoneOfTheToken(t, sideToken, got.Why, log.String())
+}
+
+func TestCheckAsksTheConfigsUpstream(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   string
+	}{
+		{name: "the config's, its accounts set up", config: twoAccounts, want: upstream},
+		{name: "the config's, before any account", config: fmt.Sprintf("upstream = %q\n", upstream), want: upstream},
+		{name: "the default, without a config file", want: "https://api.anthropic.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, tt.config)
+			api := &fakeAPI{}
+
+			if _, err := w.registry(&user{}, api).Check(t.Context(), tokenOf(t, sideToken)); err != nil {
+				t.Fatalf("Check() error = %v", err)
+			}
+			if want := []string{tt.want + " " + sideToken}; !slices.Equal(api.asked, want) {
+				t.Errorf("the API was asked about %q, want %q", api.asked, want)
+			}
+		})
+	}
+}
+
+func TestCheckRefusesAnUpstreamAConfigCantHave(t *testing.T) {
+	w := newWorld(t, "upstream = \"http://192.0.2.1:4700\"\n")
+	api := &fakeAPI{}
+
+	_, err := w.registry(&user{}, api).Check(t.Context(), tokenOf(t, sideToken))
+	if err == nil || !strings.HasPrefix(err.Error(), "invalid config "+w.config+":\nupstream ") {
+		t.Errorf("Check() error = %v, want the upstream refused", err)
+	}
+	if len(api.asked) > 0 {
+		t.Errorf("the API was asked about %q, want nothing", api.asked)
+	}
+}
+
+func TestAddGiven(t *testing.T) {
+	w := newWorld(t, twoAccounts)
+	w.writeToken(t, "side", "test-token-stale", 0o600)
+	user := &user{atTerminal: true}
+	api := &fakeAPI{organization: organization}
+
+	got, err := w.registry(user, api).AddGiven(t.Context(), config.NewAccount{ID: "side", Label: "Side", Plan: "max20x"}, tokenOf(t, sideToken))
+	if want := (accounts.Checked{Organization: organization}); err != nil || got != want {
+		t.Fatalf("AddGiven() = %+v, %v, want %+v", got, err, want)
+	}
+	w.checkConfig(t, twoAccounts+"\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\nplan  = \"max20x\"\n")
+	w.checkToken(t, "side", sideToken)
+	w.checkTaken(t, "side", sideToken, now)
+	if want := []string{upstream + " " + sideToken}; !slices.Equal(api.asked, want) {
+		t.Errorf("the API was asked about %q, want %q", api.asked, want)
+	}
+	if user.asked {
+		t.Error("the user was asked for a token, want the one given taken")
+	}
+}
+
+func TestAddGivenWhenTheAPIDoesntSayYes(t *testing.T) {
+	tests := []struct {
+		name       string
+		answer     error
+		want       accounts.Checked
+		wantErr    string
+		wantConfig string
+	}{
+		{name: "refusing the token, nothing saved", answer: refusal{}, wantErr: refusedErr, wantConfig: twoAccounts},
+		{
+			name:       "not answering, the account and its token saved all the same",
+			answer:     errors.New("timed out after 5s"),
+			want:       accounts.Checked{Unchecked: true, Why: "timed out after 5s"},
+			wantConfig: withSide,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, twoAccounts)
+
+			got, err := w.registry(&user{}, &fakeAPI{err: tt.answer}).AddGiven(t.Context(), config.NewAccount{ID: "side", Label: "Side"}, tokenOf(t, sideToken))
+			if got != tt.want || errorText(err) != tt.wantErr {
+				t.Errorf("AddGiven() = %+v, %v, want %+v, %q", got, err, tt.want, tt.wantErr)
+			}
+			w.checkConfig(t, tt.wantConfig)
+			if tt.wantErr != "" {
+				w.checkNoToken(t, "side")
+				return
+			}
+			w.checkToken(t, "side", sideToken)
+			w.checkTaken(t, "side", sideToken, now)
+		})
+	}
+}
+
+// checkedWrites are the ways to save a token Check has checked: with the
+// account it's added for, or as an account's token in place of the one it
+// had.
+var checkedWrites = []struct {
+	name   string
+	config string
+	write  func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error
+}{
+	{
+		name:   "AddChecked",
+		config: twoAccounts,
+		write: func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error {
+			return r.AddChecked(ctx, config.NewAccount{ID: "side", Label: "Side"}, token, checked)
+		},
+	},
+	{
+		name:   "SetTokenChecked",
+		config: withSide,
+		write: func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error {
+			return r.SetTokenChecked(ctx, "side", token, checked)
+		},
+	},
+}
+
+func TestTheCheckedWritesSaveWithoutAskingTheAPI(t *testing.T) {
+	checks := []struct {
+		name    string
+		checked accounts.Checked
+		// wantWarned is set when the write warns the token went unchecked.
+		wantWarned bool
+	}{
+		{name: "checked", checked: accounts.Checked{Organization: organization}},
+		{name: "unchecked", checked: accounts.Checked{Unchecked: true, Why: "timed out after 5s"}, wantWarned: true},
+	}
+	for _, write := range checkedWrites {
+		for _, c := range checks {
+			t.Run(write.name+", "+c.name, func(t *testing.T) {
+				w := newWorld(t, write.config)
+				w.writeToken(t, "side", "test-token-stale", 0o600)
+				log := logstest.Capture(t)
+				user := &user{atTerminal: true}
+
+				if err := write.write(t.Context(), w.unasked(t, user), tokenOf(t, sideToken), c.checked); err != nil {
+					t.Fatalf("%s() error = %v", write.name, err)
+				}
+				w.checkConfig(t, withSide)
+				w.checkToken(t, "side", sideToken)
+				w.checkTaken(t, "side", sideToken, now)
+				warned := log.Has("level=WARN", `msg="couldn't check a token with the API"`, "account=side", `error="timed out after 5s"`)
+				if warned != c.wantWarned {
+					t.Errorf("the log reads\n%s\nwant the unchecked warning: %v", log, c.wantWarned)
+				}
+				if want := fmt.Sprintf("checked=%t", !c.checked.Unchecked); !log.Has("level=INFO", `msg="saved a token"`, "account=side", want) {
+					t.Errorf("the log reads\n%s\nwant the token saved, %s", log, want)
+				}
+				if user.asked {
+					t.Error("the user was asked for a token, want the one given taken")
+				}
+			})
+		}
+	}
+}
+
+func TestAddCheckedRefusesAnAccountAConfigCantAdd(t *testing.T) {
+	w := newWorld(t, twoAccounts)
+
+	err := w.unasked(t, &user{}).AddChecked(t.Context(), config.NewAccount{ID: "personal"}, tokenOf(t, sideToken), accounts.Checked{})
+	if !errors.Is(err, config.ErrConfigured) {
+		t.Errorf("AddChecked() error = %v, want one matching %v", err, config.ErrConfigured)
+	}
+	w.checkConfig(t, twoAccounts)
+	w.checkNoToken(t, "personal")
+}
+
+func TestSetTokenCheckedRefusesAnAccountNotConfigured(t *testing.T) {
+	for _, given := range []string{twoAccounts, ""} {
+		w := newWorld(t, given)
+
+		err := w.unasked(t, &user{}).SetTokenChecked(t.Context(), "side", tokenOf(t, sideToken), accounts.Checked{})
+		if want := `account "side" is not configured`; err == nil || err.Error() != want || !errors.Is(err, config.ErrNotConfigured) {
+			t.Errorf("SetTokenChecked() with the config %q: error = %v, want %q", given, err, want)
+		}
+		w.checkNoToken(t, "side")
+	}
+}
+
+func TestTheGivenWritesCheckTheAccountBeforeAskingTheAPI(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		give   func(ctx context.Context, r accounts.Registry, token tokens.Token) error
+		wantIs error
+	}{
+		{
+			name:   "AddGiven, an id an account has already",
+			config: twoAccounts,
+			give: func(ctx context.Context, r accounts.Registry, token tokens.Token) error {
+				_, err := r.AddGiven(ctx, config.NewAccount{ID: "personal"}, token)
+				return err
+			},
+			wantIs: config.ErrConfigured,
+		},
+		{
+			name:   "AddGiven, an id that isn't a plain file name",
+			config: twoAccounts,
+			give: func(ctx context.Context, r accounts.Registry, token tokens.Token) error {
+				_, err := r.AddGiven(ctx, config.NewAccount{ID: "../side"}, token)
+				return err
+			},
+		},
+		{
+			name:   "SetTokenGiven, an account not configured",
+			config: twoAccounts,
+			give: func(ctx context.Context, r accounts.Registry, token tokens.Token) error {
+				_, err := r.SetTokenGiven(ctx, "side", token)
+				return err
+			},
+			wantIs: config.ErrNotConfigured,
+		},
+		{
+			name: "SetTokenGiven, without a config file",
+			give: func(ctx context.Context, r accounts.Registry, token tokens.Token) error {
+				_, err := r.SetTokenGiven(ctx, "side", token)
+				return err
+			},
+			wantIs: config.ErrNotConfigured,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, tt.config)
+
+			err := tt.give(t.Context(), w.unasked(t, &user{}), tokenOf(t, sideToken))
+			if err == nil || (tt.wantIs != nil && !errors.Is(err, tt.wantIs)) {
+				t.Errorf("error = %v, want one matching %v", err, tt.wantIs)
+			}
+			if tt.config != "" {
+				w.checkConfig(t, tt.config)
+			}
+			w.checkNoToken(t, "side")
+		})
+	}
+}
+
+// givenWrites are the ways to check and save a token in one: with the
+// account it's added for, or as an account's token in place of the one it
+// had, which is test-token-stale.
+var givenWrites = []struct {
+	name   string
+	config string
+	give   func(ctx context.Context, r accounts.Registry, token tokens.Token) (accounts.Checked, error)
+}{
+	{
+		name:   "AddGiven",
+		config: twoAccounts,
+		give: func(ctx context.Context, r accounts.Registry, token tokens.Token) (accounts.Checked, error) {
+			return r.AddGiven(ctx, config.NewAccount{ID: "side", Label: "Side"}, token)
+		},
+	},
+	{
+		name:   "SetTokenGiven",
+		config: withSide,
+		give: func(ctx context.Context, r accounts.Registry, token tokens.Token) (accounts.Checked, error) {
+			return r.SetTokenGiven(ctx, "side", token)
+		},
+	},
+}
+
+// givingUp are the ways a caller gives up on a check under way: cancelling
+// it once the API is asked, or a deadline sooner than the prober's own.
+var givingUp = []struct {
+	name   string
+	ctx    func(t *testing.T, asked <-chan struct{}) context.Context
+	wantIs error
+}{
+	{
+		name: "cancelled mid-probe",
+		ctx: func(t *testing.T, asked <-chan struct{}) context.Context {
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			go func() {
+				<-asked
+				cancel()
+			}()
+			return ctx
+		},
+		wantIs: context.Canceled,
+	},
+	{
+		name: "a deadline passed",
+		ctx: func(t *testing.T, _ <-chan struct{}) context.Context {
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+			t.Cleanup(cancel)
+			return ctx
+		},
+		wantIs: context.DeadlineExceeded,
+	},
+}
+
+func TestCheckFailsOnceTheCallerGivesUp(t *testing.T) {
+	for _, up := range givingUp {
+		t.Run(up.name, func(t *testing.T) {
+			asked := make(chan struct{}, 1)
+			w := newWorld(t, strings.Replace(twoAccounts, upstream, newRealAPI(t, answerWith{hang: true, asked: asked}), 1))
+
+			got, err := realRegistry(w).Check(up.ctx(t, asked), tokenOf(t, sideToken))
+			if !errors.Is(err, up.wantIs) || !strings.HasPrefix(errorText(err), "check the token with the API: ") || got != (accounts.Checked{}) {
+				t.Errorf("Check() = %+v, %v, want the caller's error, %v", got, err, up.wantIs)
+			}
+		})
+	}
+}
+
+func TestTheGivenWritesWriteNothingOnceTheCallerGivesUp(t *testing.T) {
+	for _, write := range givenWrites {
+		for _, up := range givingUp {
+			t.Run(write.name+", "+up.name, func(t *testing.T) {
+				asked := make(chan struct{}, 1)
+				given := strings.ReplaceAll(write.config, upstream, newRealAPI(t, answerWith{hang: true, asked: asked}))
+				w := newWorld(t, given)
+				w.writeToken(t, "side", "test-token-stale", 0o600)
+
+				got, err := write.give(up.ctx(t, asked), realRegistry(w), tokenOf(t, sideToken))
+				if !errors.Is(err, up.wantIs) || got != (accounts.Checked{}) {
+					t.Errorf("%s() = %+v, %v, want the caller's error, %v", write.name, got, err, up.wantIs)
+				}
+				w.checkConfig(t, given)
+				w.checkToken(t, "side", "test-token-stale")
+			})
+		}
+	}
+}
+
+func TestTheCheckedWritesWriteNothingOnceTheContextIsDone(t *testing.T) {
+	for _, write := range checkedWrites {
+		t.Run(write.name, func(t *testing.T) {
+			w := newWorld(t, write.config)
+			w.writeToken(t, "side", "test-token-stale", 0o600)
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			err := write.write(ctx, w.unasked(t, &user{}), tokenOf(t, sideToken), accounts.Checked{})
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("%s() error = %v, want one matching %v", write.name, err, context.Canceled)
+			}
+			w.checkConfig(t, write.config)
+			w.checkToken(t, "side", "test-token-stale")
+		})
+	}
+}
+
+// unasked returns the world's registry, as registry does, whose prober
+// fails the test if it's asked anything.
+func (w *world) unasked(t *testing.T, user *user) accounts.Registry {
+	r := w.registry(user, nil)
+	r.Prober = func(upstream string) accounts.Prober {
+		t.Errorf("the API at %s was asked about a token, want nothing", upstream)
+		return prober{api: &fakeAPI{}, upstream: upstream}
+	}
+	return r
+}
+
+func TestSetTokenGiven(t *testing.T) {
+	tests := []struct {
+		name      string
+		answer    error
+		want      accounts.Checked
+		wantErr   string
+		wantToken string
+		// wantAt is when the token in the file was taken, as its record says:
+		// zero where that isn't known.
+		wantAt time.Time
+	}{
+		{name: "taken, naming its organization", want: accounts.Checked{Organization: organization}, wantToken: sideToken, wantAt: now},
+		{name: "refusing the token, which isn't saved", answer: refusal{}, wantErr: refusedErr, wantToken: "test-token-stale"},
+		{
+			name:      "not answering, the token saved all the same",
+			answer:    errors.New("timed out after 5s"),
+			want:      accounts.Checked{Unchecked: true, Why: "timed out after 5s"},
+			wantToken: sideToken,
+			wantAt:    now,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, withSide)
+			w.writeToken(t, "side", "test-token-stale", 0o600)
+			user := &user{atTerminal: true}
+			api := &fakeAPI{err: tt.answer, organization: organization}
+
+			got, err := w.registry(user, api).SetTokenGiven(t.Context(), "side", tokenOf(t, sideToken))
+			if got != tt.want || errorText(err) != tt.wantErr {
+				t.Errorf("SetTokenGiven() = %+v, %v, want %+v, %q", got, err, tt.want, tt.wantErr)
+			}
+			w.checkToken(t, "side", tt.wantToken)
+			w.checkTaken(t, "side", tt.wantToken, tt.wantAt)
+			w.checkConfig(t, withSide)
+			if user.asked {
+				t.Error("the user was asked for a token, want the one given taken")
+			}
+		})
+	}
+}
+
+func TestTheTokenGivenNeverShows(t *testing.T) {
+	w := newWorld(t, twoAccounts)
+	log := logstest.Capture(t)
+	quoting := errors.New("HTTP 500 · bad bearer token " + sideToken)
+	registry := w.registry(&user{}, &fakeAPI{err: quoting})
+	token := tokenOf(t, sideToken)
+
+	checked, checkErr := registry.Check(t.Context(), token)
+	added, addErr := registry.AddGiven(t.Context(), config.NewAccount{ID: "side"}, token)
+	set, setErr := registry.SetTokenGiven(t.Context(), "side", token)
+	if err := errors.Join(checkErr, addErr, setErr); err != nil {
+		t.Fatal(err)
+	}
+	typed := w.registry(&user{gives: sideToken}, &fakeAPI{err: quoting})
+	retaken, retakeErr := typed.SetToken(t.Context(), w.load(t), "side")
+	if retakeErr != nil {
+		t.Fatal(retakeErr)
+	}
+	_, refuseErr := w.registry(&user{}, &fakeAPI{err: quotingRefusal{}}).SetTokenGiven(t.Context(), "side", token)
+	if !errors.Is(refuseErr, accounts.ErrRefused) {
+		t.Errorf("SetTokenGiven() error = %v, want the token refused", refuseErr)
+	}
+	for _, why := range []string{checked.Why, added.Why, set.Why, errorText(retaken.Unchecked)} {
+		if !strings.HasPrefix(why, "HTTP 500") {
+			t.Errorf("why the token went unchecked = %q, want the API's failure", why)
+		}
+	}
+	checkNoneOfTheToken(t, sideToken, checked.Why, added.Why, set.Why, errorText(retaken.Unchecked), errorText(refuseErr), log.String())
+}
+
+// checkNoneOfTheToken checks that none of what's shown holds the token, or
+// its first or last characters, as cutting it short from either end would
+// leave them.
+func checkNoneOfTheToken(t *testing.T, token string, shown ...string) {
+	t.Helper()
+	const part = 8
+	for _, s := range shown {
+		for _, piece := range []string{token, token[:part], token[len(token)-part:]} {
+			if strings.Contains(s, piece) {
+				t.Errorf("%q shows the token, or part of it: %q", s, piece)
+			}
+		}
+	}
+}
+
+// quotingRefusal is the API refusing a token, its failure quoting it.
+type quotingRefusal struct{}
+
+func (quotingRefusal) Error() string { return "HTTP 401 · bad bearer token " + sideToken }
+
+func (quotingRefusal) Refused() bool { return true }
+
+// answerWith is how a messages API answers each probe: with a status, and
+// the usage headers of a 200, the organization named, and an API error's
+// message, where given; or, hanging, not until the probe gives up.
+type answerWith struct {
+	status       int
+	organization string
+	message      string
+	hang         bool
+	// asked, where given, is told when the API is first asked, unless it's
+	// told already.
+	asked chan<- struct{}
+}
+
+// newRealAPI serves a messages API over loopback that answers every probe
+// as a says, and returns its URL.
+func newRealAPI(t *testing.T, a answerWith) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		select {
+		case a.asked <- struct{}{}:
+		default:
+		}
+		if a.hang {
+			<-r.Context().Done()
+			return
+		}
+		if a.organization != "" {
+			w.Header().Set("anthropic-organization-id", a.organization)
+		}
+		if a.status == http.StatusOK {
+			for _, key := range []string{"5h", "7d", "7d_oi"} {
+				w.Header().Set("anthropic-ratelimit-unified-"+key+"-utilization", "0.25")
+			}
+		}
+		w.WriteHeader(a.status)
+		if a.message != "" {
+			_, _ = fmt.Fprintf(w, `{"type":"error","error":{"type":"api_error","message":%q}}`, a.message)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+// realRegistry is the world's registry, checking tokens with the Claude
+// provider's prober, which gives up on a probe after 50ms.
+func realRegistry(w *world) accounts.Registry {
+	return accounts.Registry{
+		ConfigPath: w.config,
+		Tokens:     w.tokens(),
+		Prober: func(upstream string) accounts.Prober {
+			return &claude.Prober{Upstream: upstream, Timeout: 50 * time.Millisecond}
+		},
+		Now: func() time.Time { return now },
+	}
+}
+
 // world is where a registry keeps the accounts: a config file and a state
 // directory, the test's own.
 type world struct {
@@ -618,11 +1203,13 @@ func (u *user) Read(p []byte) (int, error) {
 	return u.piped.Read(p)
 }
 
-// fakeAPI answers every probe with err: nil takes the token. It notes each
-// token it's asked about, after the upstream the probe was made for.
+// fakeAPI answers every probe with err: nil takes the token, naming the
+// organization given. It notes each token it's asked about, after the
+// upstream the probe was made for.
 type fakeAPI struct {
-	err   error
-	asked []string
+	err          error
+	organization string
+	asked        []string
 }
 
 func (a *fakeAPI) proberAt(upstream string) accounts.Prober {
@@ -636,7 +1223,10 @@ type prober struct {
 
 func (p prober) Probe(_ context.Context, token string) (quota.Probe, error) {
 	p.api.asked = append(p.api.asked, p.upstream+" "+token)
-	return quota.Probe{}, p.api.err
+	if p.api.err != nil {
+		return quota.Probe{}, p.api.err
+	}
+	return quota.Probe{Organization: p.api.organization}, nil
 }
 
 // refusal is a probe's failure as the API refuses the token, as the Claude

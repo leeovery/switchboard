@@ -28,6 +28,8 @@ const (
 	fableOlder = "claude-fable-5"
 	token      = "test-token-work"
 	version    = "2.1.300"
+	// organization is a placeholder organization id.
+	organization = "test-org-work"
 )
 
 var (
@@ -380,6 +382,48 @@ func TestProbe(t *testing.T) {
 			wantAsked: []string{haiku, fable, fableOlder},
 		},
 		{
+			name: "the organization the answers name",
+			replies: map[string]reply{
+				haiku: withUsage(http.StatusOK, session, week).withOrganization(organization),
+				fable: withUsage(http.StatusOK, session, week, fableWeek).withOrganization(organization),
+			},
+			want: probedIn(
+				organization,
+				quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+				map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}},
+			),
+			wantAsked: []string{haiku, fable},
+		},
+		{
+			name: "the organization from the family whose answer names it",
+			replies: map[string]reply{
+				haiku: withUsage(http.StatusOK, session, week),
+				fable: withUsage(http.StatusOK, session, week, fableWeek).withOrganization(organization),
+			},
+			want: probedIn(
+				organization,
+				quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+				map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}},
+			),
+			wantAsked: []string{haiku, fable},
+		},
+		{
+			name: "no organization from an answer that read no window",
+			replies: map[string]reply{
+				haiku:      withUsage(http.StatusOK, session, week),
+				fable:      apiError(http.StatusNotFound, "model: claude-fable-5-1").withOrganization(organization),
+				fableOlder: apiError(http.StatusNotFound, "model: claude-fable-5"),
+			},
+			want: probed(
+				quota.Usage{
+					Windows:  []quota.Window{session, week},
+					Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 404 · model: claude-fable-5"}},
+				},
+				map[string][]string{"5h": {haiku}, "7d": {haiku}},
+			),
+			wantAsked: []string{haiku, fable, fableOlder},
+		},
+		{
 			name: "every family failing, with the base family's error",
 			replies: map[string]reply{
 				haiku:      apiError(http.StatusUnauthorized, "Invalid bearer token"),
@@ -413,6 +457,14 @@ func TestProbe(t *testing.T) {
 // with models naming, by window key, the models that reported each window.
 func probed(usage quota.Usage, models map[string][]string) quota.Probe {
 	return quota.Probe{Usage: usage, Models: models, Admitted: true}
+}
+
+// probedIn is a probe as probed has it, of an account in the organization
+// given.
+func probedIn(organization string, usage quota.Usage, models map[string][]string) quota.Probe {
+	p := probed(usage, models)
+	p.Organization = organization
+	return p
 }
 
 func TestProbeAsksTheFamiliesAtOnce(t *testing.T) {
@@ -546,6 +598,16 @@ func (r reply) withExtra(e quota.ExtraUsage) reply {
 	h.Set("anthropic-ratelimit-unified-overage-status", string(e.Status))
 	h.Set("anthropic-ratelimit-unified-overage-utilization", strconv.FormatFloat(*e.Utilization, 'f', -1, 64))
 	h.Set("anthropic-ratelimit-unified-overage-reset", strconv.FormatInt(e.ResetsAt.Unix(), 10))
+	r.header = h
+	return r
+}
+
+// withOrganization returns the reply with its headers naming the
+// organization given.
+func (r reply) withOrganization(id string) reply {
+	h := http.Header{}
+	maps.Copy(h, r.header)
+	h.Set("anthropic-organization-id", id)
 	r.header = h
 	return r
 }

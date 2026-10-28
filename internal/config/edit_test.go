@@ -109,6 +109,18 @@ primary = true
 			want:    "listen = \"127.0.0.1:4747\"\n\n[[account]]\nid    = \"work\"\nlabel = \"Work\"\n\n# The day's windows.\n[prime]\nday = \"08:00-23:00\"\n",
 		},
 		{
+			name:    "with a plan, written as the plan key",
+			config:  "[[account]]\nid = \"work\"\n",
+			account: config.NewAccount{ID: "side", Label: "Side", Plan: "max5x", Primary: true},
+			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid      = \"side\"\nlabel   = \"Side\"\nplan    = \"max5x\"\nprimary = true\n",
+		},
+		{
+			name:    "without a plan, writing no plan key",
+			config:  "[[account]]\nid = \"work\"\n",
+			account: config.NewAccount{ID: "side", Label: "Side", Plan: ""},
+			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n",
+		},
+		{
 			name:    "the first, into an empty file",
 			config:  "",
 			account: config.NewAccount{ID: "work", Label: "Work", Primary: true},
@@ -556,6 +568,12 @@ func TestAddAccountRefuses(t *testing.T) {
 			wantErr: `account "side": label isn't UTF-8 text, as a config's text must be`,
 		},
 		{
+			name:    "a plan that isn't one",
+			config:  commented,
+			account: config.NewAccount{ID: "side", Plan: "max10x"},
+			wantErr: `account "side": plan "max10x": must be pro, max5x or max20x, the plan the account's subscription is on`,
+		},
+		{
 			name:    "accounts listed inline, which a table can't follow",
 			config:  "account = [{ id = \"work\" }]\n",
 			account: config.NewAccount{ID: "side"},
@@ -581,6 +599,39 @@ func TestAddAccountRefuses(t *testing.T) {
 
 			err := draft.AddAccount(tt.account)
 			checkRefused(t, path, tt.config, draft, err, tt.wantErr, tt.wantIs)
+		})
+	}
+}
+
+func TestDraftUpstream(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   string
+		// wantErr is the error, %s standing for the config file's path.
+		wantErr string
+	}{
+		{name: "the config's", config: "upstream = \"http://127.0.0.1:4700\"\n\n[[account]]\nid = \"work\"\n", want: "http://127.0.0.1:4700"},
+		{name: "the config's, before any account", config: "upstream = \"http://127.0.0.1:4700\"\n", want: "http://127.0.0.1:4700"},
+		{name: "the default, the config giving none", config: "", want: "https://api.anthropic.com"},
+		{
+			name:    "one a config can't have, before any account",
+			config:  "upstream = \"http://192.0.2.1:4700\"\n",
+			wantErr: "invalid config %s:\nupstream \"http://192.0.2.1:4700\": must use https unless its host is a loopback IP address, such as 127.0.0.1, so account tokens never cross a network in plaintext",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+
+			got, err := edit(t, path).Upstream()
+			gotErr := ""
+			if err != nil {
+				gotErr = err.Error()
+			}
+			if wantErr := strings.ReplaceAll(tt.wantErr, "%s", path); got != tt.want || gotErr != wantErr {
+				t.Errorf("Upstream() = %q, %q, want %q, %q", got, gotErr, tt.want, wantErr)
+			}
 		})
 	}
 }
