@@ -2,6 +2,7 @@ package shell
 
 import (
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -17,8 +18,7 @@ const (
 	// does, or nothing in front at all.
 	ByName Runs = iota
 	// Unknown may run claude by name or not: a function, whose body the
-	// shell doesn't give, a wrapper setup doesn't read, or an alias that
-	// runs what only its expansion tells.
+	// shell doesn't give, or an alias setup doesn't read.
 	Unknown
 	// TheLink runs switchboard's claude link by its path.
 	TheLink
@@ -67,6 +67,39 @@ func readFront(sh Shell, is, home, link string) Front {
 	return f
 }
 
+// unquote returns value, an alias's as zsh and bash print it, unquoted: bare,
+// or one single quoted string, a quote within it closing the string, escaped,
+// and opening it again. Any other form it isn't read in.
+func unquote(value string) (string, bool) {
+	if !strings.HasPrefix(value, "'") {
+		return value, !strings.ContainsAny(value, `'"\`)
+	}
+	inner, ok := strings.CutSuffix(value[1:], "'")
+	parts := strings.Split(inner, `'\''`)
+	if !ok || slices.ContainsFunc(parts, func(p string) bool { return strings.Contains(p, "'") }) {
+		return "", false
+	}
+	return strings.Join(parts, "'"), true
+}
+
+const (
+	// plainly is what a plain word is made of.
+	plainly = `[A-Za-z0-9_./:@%+,=-]`
+	// fromHome is a path from the home, as the shells expand it.
+	fromHome = `(~|\$HOME|\$\{HOME\})/`
+)
+
+var (
+	// plain is a word the shells run as it's written, or a path from the
+	// home.
+	plain = regexp.MustCompile(`^(` + plainly + `+|` + fromHome + plainly + `*)$`)
+	// homePath is a path from the home, and what follows the home.
+	homePath = regexp.MustCompile(`^` + fromHome + `(` + plainly + `*)$`)
+	// assignment is a plain word that sets a variable, or adds to it, and
+	// the variable's name.
+	assignment = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\+?=(` + fromHome + `)?` + plainly + `*$`)
+)
+
 // alias reads an alias's body in sh, home being the user's home and link
 // switchboard's claude link.
 type alias struct {
@@ -74,125 +107,68 @@ type alias struct {
 	home, link string
 }
 
-// runs returns what body runs, and the other claude it runs by its path.
-// Only a first command word read whole, in a plain form, decides it, as
-// first says. Otherwise a PATH set before a later claude, in any of its
-// commands, runs claude where only that PATH tells; and a later claude, or
-// what isn't read whole, makes it a wrapper setup doesn't read. With
-// neither, it runs something else.
+// runs returns what body runs, and the other claude it runs by its path, by
+// a plain rule. Its words, split at spaces and tabs, are read only in their
+// plain forms. Leading variables are passed over, and command. Then the
+// command word decides where it's claude, by name, though on a PATH of its
+// own where a variable set PATH; or a path to a claude, by itself. Whatever
+// follows either, claude runs first. Anything else runs something else
+// where every word is plain and none is claude; otherwise setup doesn't
+// read it.
 func (a alias) runs(body string) (Runs, string) {
-	cmds, ok := commands(body)
-	if !ok {
-		return Unknown, ""
+	ws := strings.FieldsFunc(body, func(r rune) bool { return r == ' ' || r == '\t' })
+	setsPath := false
+	n := 0
+	for ; n < len(ws); n++ {
+		m := assignment.FindStringSubmatch(ws[n])
+		if m == nil {
+			break
+		}
+		setsPath = setsPath || m[1] == "PATH" || a.sh == Zsh && m[1] == "path"
 	}
-	runs, path, decided := a.first(cmds[0])
-	switch {
-	case decided:
-		return runs, path
-	case a.pathBeforeClaude(cmds):
-		return SetsPath, ""
-	case slices.ContainsFunc(later(cmds), mayRunClaude):
+	cmd := ws[n:]
+	if len(cmd) > 1 && cmd[0] == "command" {
+		cmd = cmd[1:]
+	}
+	if len(cmd) > 0 {
+		if runs, path, ok := a.command(cmd[0], setsPath); ok {
+			return runs, path
+		}
+	}
+	if slices.ContainsFunc(ws, func(w string) bool { return !plain.MatchString(w) || claudeToken(w) }) {
 		return Unknown, ""
 	}
 	return Else, ""
 }
 
-// first returns what ws, an alias's first command, runs, the other claude it
-// runs by its path, and whether that decides what the alias runs.
-// Variables set first are passed over, and command with no option but --.
-// Then its command word decides where it's claude, or zsh's =claude, by
-// name, but with a variable before it that sets PATH, on that PATH; or a
-// path by itself; or one only its expansion tells, setup can't read.
-func (a alias) first(ws []word) (Runs, string, bool) {
-	n := leading(ws)
-	cmd := ws[n:]
-	if len(cmd) > 1 && cmd[0].text == "command" {
-		rest := cmd[1:]
-		if rest[0].text == "--" {
-			rest = rest[1:]
-		}
-		if len(rest) > 0 && !strings.HasPrefix(rest[0].text, "-") {
-			cmd = rest
-		}
-	}
-	if len(cmd) == 0 {
-		return Else, "", false
-	}
-	runs, path, decided := a.command(cmd[0])
-	if decided && runs == ByName && slices.ContainsFunc(ws[:n], a.setsPath) {
+// command returns what w, an alias's command word, runs, setsPath being
+// whether a variable before it sets PATH; and whether it decides that.
+func (a alias) command(w string, setsPath bool) (Runs, string, bool) {
+	path, isPath := a.path(w)
+	switch {
+	case (w == "claude" || w == `\claude`) && setsPath:
 		return SetsPath, "", true
-	}
-	return runs, path, decided
-}
-
-// leading returns how many of ws, a command, are variables set for it.
-func leading(ws []word) int {
-	n := 0
-	for n < len(ws) && ws[n].assigns() {
-		n++
-	}
-	return n
-}
-
-// later returns the words of cmds, an alias's commands, after its first
-// command word.
-func later(cmds [][]word) []word {
-	first := cmds[0]
-	return slices.Concat(first[min(leading(first)+1, len(first)):], slices.Concat(cmds[1:]...))
-}
-
-// pathBeforeClaude reports whether, in cmds, a word that sets PATH comes
-// before a later claude: a variable set for a command, or an argument after
-// it, as env's and export's.
-func (a alias) pathBeforeClaude(cmds [][]word) bool {
-	set := false
-	for _, ws := range cmds {
-		n := leading(ws)
-		for i, w := range ws {
-			if set && namesClaude(w) {
-				return true
-			}
-			set = set || i < n && a.setsPath(w) || i > n && w.setsPATH()
-		}
-	}
-	return false
-}
-
-// setsPath reports whether w, a variable set for a command, sets PATH, or
-// adds to it, in sh, as zsh's path does too.
-func (a alias) setsPath(w word) bool {
-	name := strings.TrimSuffix(strings.TrimSuffix(assignment.FindString(w.text), "="), "+")
-	return name == "PATH" || a.sh == Zsh && name == "path"
-}
-
-// command returns what w, the command word an alias runs, is, and the other
-// claude it names by its path, and whether that decides what the alias runs.
-// zsh's =claude is PATH's claude by its path.
-func (a alias) command(w word) (Runs, string, bool) {
-	path, isPath, plain := a.path(w)
-	switch {
-	case !plain:
-		return Unknown, "", true
-	case w.text == "claude" || a.sh == Zsh && w.equals("claude"):
+	case w == "claude" || w == `\claude`:
 		return ByName, "", true
-	case isPath && sameFile(path, a.link):
+	case !isPath || filepath.Base(path) != "claude":
+		return 0, "", false
+	case sameFile(path, a.link):
 		return TheLink, "", true
-	case isPath:
-		return APath, redact.Text(path), true
 	}
-	return 0, "", false
+	return APath, redact.Text(path), true
 }
 
-// path returns the path w names, absolute or from the home, and whether it
-// names one; and whether it's plain, as word.plain says, but for the home
-// it starts from.
-func (a alias) path(w word) (string, bool, bool) {
-	rest, fromHome, readable := w.home()
-	switch {
-	case !readable || !w.plain(len(w.text)-len(rest)) || fromHome && !filepath.IsAbs(a.home):
-		return "", false, false
-	case fromHome:
-		return filepath.Join(a.home, rest), true, true
+// path returns the path w, a plain word, names, absolute or from the home;
+// and whether it names one.
+func (a alias) path(w string) (string, bool) {
+	if m := homePath.FindStringSubmatch(w); m != nil {
+		return filepath.Join(a.home, m[2]), filepath.IsAbs(a.home)
 	}
-	return w.text, filepath.IsAbs(w.text), true
+	return w, filepath.IsAbs(w) && plain.MatchString(w)
+}
+
+// claudeToken reports whether w names claude, as one of its parts between
+// a /, =, : or ,.
+func claudeToken(w string) bool {
+	return slices.Contains(strings.FieldsFunc(w, func(r rune) bool { return strings.ContainsRune("/=:,", r) }), "claude")
 }

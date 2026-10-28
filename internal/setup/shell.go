@@ -280,7 +280,7 @@ func (r *run) inFront(front shell.Front) string {
 	case shell.Else:
 		return fmt.Sprintf("%s's claude is %s, which runs something other than switchboard's claude: %s", r.shellName(), front.Text, fix)
 	case shell.SetsPath:
-		return fmt.Sprintf("%s's claude is %s, which sets PATH for claude, so setup can't tell which claude it runs: taking PATH= out of the alias puts it right", r.shellName(), front.Text)
+		return fmt.Sprintf("%s's claude is %s, which sets PATH for claude, so setup can't tell which claude it runs: taking that PATH setting out of the alias puts it right", r.shellName(), front.Text)
 	}
 	return ""
 }

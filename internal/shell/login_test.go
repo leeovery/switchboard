@@ -177,221 +177,118 @@ func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
 	const other = "/opt/homebrew/bin/claude"
 	// The old local installer's, from the home.
 	local := filepath.Join(home, ".claude", "local", "claude")
-	theLink := func(text string) shell.Front { return shell.Front{Text: text, Runs: shell.TheLink} }
-	byName := func(text string) shell.Front { return shell.Front{Text: text, Runs: shell.ByName} }
-	aPath := func(text, path string) shell.Front { return shell.Front{Text: text, Runs: shell.APath, Path: path} }
-	runsElse := func(text string) shell.Front { return shell.Front{Text: text, Runs: shell.Else} }
-	unknown := func(text string) shell.Front { return shell.Front{Text: text, Runs: shell.Unknown} }
-	setsPath := func(text string) shell.Front { return shell.Front{Text: text, Runs: shell.SetsPath} }
-	// quoted is the alias whose body is body, as bash and zsh give it.
-	quoted := func(body string) string { return "alias claude='" + strings.ReplaceAll(body, "'", `'\''`) + "'" }
 	tests := []struct {
 		name string
 		// sh is the shell asked, zsh where it's not set.
-		sh   string
+		sh string
+		// body is the alias's, as bash and zsh print it, where is isn't set.
+		body string
+		runs shell.Runs
+		path string
+		// is is what the shell says claude is, where it isn't an alias of
+		// body, and want what's wanted of it.
 		is   string
 		want shell.Front
 	}{
 		{name: "nothing", is: claudeLink, want: shell.Front{}},
-		{name: "a function, by its name alone", is: "claude", want: unknown("function claude")},
-		{name: "fish's function", is: "function claude", want: unknown("function claude")},
-
-		// Leading variables: passed over, but for one that sets PATH.
-		{name: "variables set for claude, passed over", is: `alias claude='ANTHROPIC_LOG=debug FOO="a b" claude --verbose'`, want: byName(`alias claude='ANTHROPIC_LOG=debug FOO="a b" claude --verbose'`)},
-		{name: "a variable added to for claude, passed over", is: "alias claude='FOO+=1 claude'", want: byName("alias claude='FOO+=1 claude'")},
+		{name: "a function, by its name alone", is: "claude", want: shell.Front{Text: "function claude", Runs: shell.Unknown}},
+		{name: "fish's function", is: "function claude", want: shell.Front{Text: "function claude", Runs: shell.Unknown}},
 		{
 			name: "a variable holding a token, hidden",
 			is:   "alias claude='ANTHROPIC_API_KEY=sk-ant-oat01-fake_token-shaped claude'",
-			want: byName("alias claude='ANTHROPIC_API_KEY=[redacted] claude'"),
+			want: shell.Front{Text: "alias claude='ANTHROPIC_API_KEY=[redacted] claude'", Runs: shell.ByName},
 		},
-		{name: "PATH set for claude", is: "alias claude='PATH=/opt/real/bin:$PATH claude'", want: setsPath("alias claude='PATH=/opt/real/bin:$PATH claude'")},
-		{name: "PATH set for claude, in bash, after another variable", sh: "/bin/bash", is: "alias claude='FOO=1 PATH=/opt/real/bin:$PATH claude'", want: setsPath("alias claude='FOO=1 PATH=/opt/real/bin:$PATH claude'")},
-		{name: "PATH added to for claude, in bash", sh: "/bin/bash", is: "alias claude='PATH+=:/opt/real/bin claude'", want: setsPath("alias claude='PATH+=:/opt/real/bin claude'")},
-		{name: "PATH added to for claude, in zsh", is: "alias claude='PATH+=:/opt/real/bin claude'", want: setsPath("alias claude='PATH+=:/opt/real/bin claude'")},
-		{name: "zsh's path set for claude", is: "alias claude='path=(/opt/real/bin $path) claude'", want: setsPath("alias claude='path=(/opt/real/bin $path) claude'")},
-		{name: "zsh's path added to for claude", is: "alias claude='path+=/opt/real/bin claude'", want: setsPath("alias claude='path+=/opt/real/bin claude'")},
-		{name: "a variable named path, in bash, passed over", sh: "/bin/bash", is: "alias claude='path=/opt/real/bin claude'", want: byName("alias claude='path=/opt/real/bin claude'")},
-		{name: "variables alone, which run no claude", is: "alias claude='FOO=1'", want: runsElse("alias claude='FOO=1'")},
-		{name: "a variable quoted, which is the command", is: `alias claude='"FOO=1" npx'`, want: runsElse(`alias claude='"FOO=1" npx'`)},
-		{name: "a variable quoted, which is the command, with claude after it", is: `alias claude='"FOO=1" claude'`, want: unknown(`alias claude='"FOO=1" claude'`)},
-		{name: "PATH quoted, which is the command", is: `alias claude='"PATH=/opt/real/bin" claude'`, want: unknown(`alias claude='"PATH=/opt/real/bin" claude'`)},
 
-		// Leading variables: what they're set to read whole, as the shell reads it.
-		{name: "a variable set by a command's output", is: "alias claude='FOO=$(echo a b) claude'", want: byName("alias claude='FOO=$(echo a b) claude'")},
-		{name: "a variable set by a command's output, quoted, a separator within", is: `alias claude='FOO="$(echo "a;b")" claude'`, want: byName(`alias claude='FOO="$(echo "a;b")" claude'`)},
-		{name: "a variable set by arithmetic", is: "alias claude='FOO=$((1 + 2)) claude'", want: byName("alias claude='FOO=$((1 + 2)) claude'")},
-		{name: "a variable set by a parameter", is: "alias claude='FOO=${BAR:-a b} claude'", want: byName("alias claude='FOO=${BAR:-a b} claude'")},
-		{name: "a variable set by backquotes", is: "alias claude='FOO=`echo a b` claude'", want: byName("alias claude='FOO=`echo a b` claude'")},
-		{name: "PATH set by a command's output", is: "alias claude='PATH=$(echo /opt/real/bin) claude'", want: setsPath("alias claude='PATH=$(echo /opt/real/bin) claude'")},
-		{name: "a command's output that isn't closed", is: "alias claude='FOO=$(echo a claude'", want: unknown("alias claude='FOO=$(echo a claude'")},
+		// The value as the shell prints it: bare, or single quoted.
+		{name: "bare", is: "alias claude=claude", want: shell.Front{Text: "alias claude=claude", Runs: shell.ByName}},
+		{name: "bare, the old local installer's", is: "alias claude=~/.claude/local/claude", want: shell.Front{Text: "alias claude=~/.claude/local/claude", Runs: shell.APath, Path: local}},
+		{name: "bare and empty", is: "alias claude=", want: shell.Front{Text: "alias claude=", Runs: shell.Else}},
+		{name: "single quoted and empty", is: "alias claude=''", want: shell.Front{Text: "alias claude=''", Runs: shell.Else}},
+		{name: "single quoted, a quote within it", sh: "/bin/bash", body: "claude --append-system-prompt 'be brief'", runs: shell.ByName},
+		{name: "single quoted, a quote within it, kept", body: "npx 'x'", runs: shell.Unknown},
+		{name: "single quoted, and a quote that isn't one of its joins", is: `alias claude='claude 'x'`, want: shell.Front{Text: `alias claude='claude 'x'`, Runs: shell.Unknown}},
+		{name: "a quote that isn't closed", is: "alias claude='claude", want: shell.Front{Text: "alias claude='claude", Runs: shell.Unknown}},
+		{name: "a body over two lines, as bash gives it", sh: "/bin/bash", is: "alias claude='claude\nnpx'", want: shell.Front{Text: "alias claude='claude", Runs: shell.Unknown}},
+		{name: "zsh's $'…'", is: `alias claude=$'claude\t-v'`, want: shell.Front{Text: `alias claude=$'claude\t-v'`, Runs: shell.Unknown}},
+		{name: "double quoted", is: `alias claude="claude"`, want: shell.Front{Text: `alias claude="claude"`, Runs: shell.Unknown}},
+		{name: "bare, a backslash within it", is: `alias claude=\claude`, want: shell.Front{Text: `alias claude=\claude`, Runs: shell.Unknown}},
 
-		// PATH set by a word after another command, as env's.
-		{name: "env, and PATH", is: "alias claude='env PATH=/opt/real/bin claude'", want: setsPath("alias claude='env PATH=/opt/real/bin claude'")},
-		{name: "env -i, and PATH", sh: "/bin/bash", is: "alias claude='env -i PATH=/opt/real/bin claude'", want: setsPath("alias claude='env -i PATH=/opt/real/bin claude'")},
-		{name: "env, and PATH+=, a variable env names PATH+", is: "alias claude='env PATH+=/opt/real/bin claude'", want: unknown("alias claude='env PATH+=/opt/real/bin claude'")},
-		{name: "env, and zsh's path+=, a variable env names path+", is: "alias claude='env path+=/opt/real/bin claude'", want: unknown("alias claude='env path+=/opt/real/bin claude'")},
-		{name: "env, and a variable named path, in bash", sh: "/bin/bash", is: "alias claude='env path=/opt/real/bin claude'", want: unknown("alias claude='env path=/opt/real/bin claude'")},
-		{name: "env, and PATH quoted", is: `alias claude='env "PATH"=/opt/real/bin claude'`, want: unknown(`alias claude='env "PATH"=/opt/real/bin claude'`)},
-		{name: "env, and PATH after claude, for it", is: "alias claude='env claude PATH=/opt/real/bin'", want: unknown("alias claude='env claude PATH=/opt/real/bin'")},
-		{name: "env, and PATH, without claude", is: "alias claude='env PATH=/opt/real/bin npx'", want: runsElse("alias claude='env PATH=/opt/real/bin npx'")},
+		// claude by name, whatever follows it.
+		{name: "claude", body: "claude --verbose", runs: shell.ByName},
+		{name: "claude, split by tabs", body: "claude\t--verbose", runs: shell.ByName},
+		{name: "claude, escaped", sh: "/bin/bash", body: `\claude --verbose`, runs: shell.ByName},
+		{name: "claude, and a comment", body: "claude --verbose  # don't ask", runs: shell.ByName},
+		{name: "claude, then another command, its ; within the word", body: "claude; echo done", runs: shell.Unknown},
+		{name: "claude, or true", body: "claude || true", runs: shell.ByName},
+		{name: "command claude", body: "command claude", runs: shell.ByName},
+		{name: "claude, quoted", body: `"claude" --verbose`, runs: shell.Unknown},
 
-		// PATH set by a command before claude's.
-		{name: "PATH set, then claude", is: "alias claude='PATH=/opt/real/bin; claude'", want: setsPath("alias claude='PATH=/opt/real/bin; claude'")},
-		{name: "PATH exported, then claude", is: "alias claude='export PATH=/opt/real/bin:$PATH; claude'", want: setsPath("alias claude='export PATH=/opt/real/bin:$PATH; claude'")},
-		{name: "cd, then PATH set for claude", is: "alias claude='cd /opt/work && PATH=/opt/real/bin claude'", want: setsPath("alias claude='cd /opt/work && PATH=/opt/real/bin claude'")},
-		{name: "another variable exported, then claude", is: "alias claude='export FOO=1; claude'", want: unknown("alias claude='export FOO=1; claude'")},
-		{name: "PATH set, then another command", is: "alias claude='PATH=/opt/real/bin; npx'", want: runsElse("alias claude='PATH=/opt/real/bin; npx'")},
-		{name: "claude, then PATH set for another", is: "alias claude='claude; PATH=/opt/real/bin claude'", want: byName("alias claude='claude; PATH=/opt/real/bin claude'")},
+		// Leading variables, plain, passed over.
+		{name: "variables set for claude", body: "ANTHROPIC_LOG=debug FOO+=1 claude --verbose", runs: shell.ByName},
+		{name: "a variable from the home", body: "CLAUDE_CONFIG_DIR=~/.claude-work claude", runs: shell.ByName},
+		{name: "a variable from $HOME", body: "CLAUDE_CONFIG_DIR=$HOME/.claude-work claude", runs: shell.ByName},
+		{name: "a variable set by a command's output", body: "GITHUB_TOKEN=$(gh auth token) claude", runs: shell.Unknown},
+		{name: "a variable quoted", body: `FOO="a b" claude`, runs: shell.Unknown},
+		{name: "a variable named with a dash, a command word", body: "FOO-BAR=1 claude", runs: shell.Unknown},
 
-		// The first command: claude by name.
-		{name: "claude", is: "alias claude='claude --verbose'", want: byName("alias claude='claude --verbose'")},
-		{name: "claude, unquoted", is: "alias claude=claude", want: byName("alias claude=claude")},
-		{name: "claude, escaped", sh: "/bin/bash", is: `alias claude='\claude --verbose'`, want: byName(`alias claude='\claude --verbose'`)},
-		{name: "claude, quoted within", is: `alias claude='"claude" --verbose'`, want: byName(`alias claude='"claude" --verbose'`)},
-		{name: "claude, as bash quotes a quote", sh: "/bin/bash", is: `alias claude='claude --append-system-prompt '\''be brief'\'''`, want: byName(`alias claude='claude --append-system-prompt '\''be brief'\'''`)},
-		{name: "claude, then another command", is: "alias claude='claude; echo done'", want: byName("alias claude='claude; echo done'")},
-		{name: "command claude", is: "alias claude='command claude'", want: byName("alias claude='command claude'")},
-		{name: "command -- claude", sh: "/bin/bash", is: "alias claude='command -- claude'", want: byName("alias claude='command -- claude'")},
-		{name: "zsh's =claude, PATH's claude by its path", is: "alias claude='=claude --verbose'", want: byName("alias claude='=claude --verbose'")},
-		{name: "zsh's =claude, quoted, a name", is: `alias claude='"=claude"'`, want: runsElse(`alias claude='"=claude"'`)},
-		{name: "=claude, in bash, a name", sh: "/bin/bash", is: "alias claude='=claude'", want: runsElse("alias claude='=claude'")},
-		{name: "claude in $'…'", is: "alias claude=$'claude\\t--verbose'", want: byName("alias claude=$'claude\\t--verbose'")},
-		{name: "claude in $'…' within", is: quoted(`$'claude' --verbose`), want: byName(quoted(`$'claude' --verbose`))},
-		{name: "claude in $'…', an escape not decoded", is: quoted(`$'\x63laude'`), want: unknown(quoted(`$'\x63laude'`))},
-		{name: "claude in $'…', as zsh gives it, an escape not decoded", is: `alias claude=$'\x63laude'`, want: unknown(`alias claude=$'\x63laude'`)},
+		// A variable that sets PATH: claude on a PATH of its own.
+		{name: "PATH set", body: "PATH=/opt/real/bin claude", runs: shell.SetsPath},
+		{name: "PATH added to", sh: "/bin/bash", body: "PATH+=:/opt/real/bin claude", runs: shell.SetsPath},
+		{name: "PATH set, after another variable", body: "FOO=1 PATH=/opt/real/bin command claude", runs: shell.SetsPath},
+		{name: "zsh's path set", body: "path=/opt/real/bin claude", runs: shell.SetsPath},
+		{name: "a variable named path, in bash", sh: "/bin/bash", body: "path=/opt/real/bin claude", runs: shell.ByName},
+		{name: "zsh's path set to an array, not plain", body: "path=(/opt/real/bin) claude", runs: shell.Unknown},
+		{name: "PATH set from PATH, not plain", body: "PATH=/opt/real/bin:$PATH claude", runs: shell.Unknown},
+		{name: "PATH set, for a path to claude", body: "PATH=/opt/real/bin " + other, runs: shell.APath, path: other},
 
-		// The first command: a path.
-		{name: "another claude by its path", is: "alias claude=" + other, want: aPath("alias claude="+other, other)},
-		{name: "another claude by its path, quoted", sh: "/bin/bash", is: "alias claude='" + other + " --verbose'", want: aPath("alias claude='"+other+" --verbose'", other)},
-		{name: "the old local installer's alias, from ~", is: "alias claude=~/.claude/local/claude", want: aPath("alias claude=~/.claude/local/claude", local)},
-		{name: "the old local installer's alias, from $HOME", is: `alias claude='$HOME/.claude/local/claude'`, want: aPath(`alias claude='$HOME/.claude/local/claude'`, local)},
-		{name: "the old local installer's alias, expanded as it was set", is: "alias claude=" + local, want: aPath("alias claude="+local, local)},
-		{name: "the link by its path", is: "alias claude=" + claudeLink, want: shell.Front{Text: "alias claude=" + claudeLink, Runs: shell.TheLink}},
-		{name: "command, and another claude by its path", is: "alias claude='command " + other + "'", want: aPath("alias claude='command "+other+"'", other)},
-		{name: "the link, from ~", is: "alias claude='~/.local/share/switchboard/bin/claude'", want: theLink("alias claude='~/.local/share/switchboard/bin/claude'")},
-		{name: "the link, from $HOME", is: "alias claude='$HOME/.local/share/switchboard/bin/claude'", want: theLink("alias claude='$HOME/.local/share/switchboard/bin/claude'")},
-		{name: "the link, from ${HOME}", is: "alias claude='${HOME}/.local/share/switchboard/bin/claude'", want: theLink("alias claude='${HOME}/.local/share/switchboard/bin/claude'")},
-		{name: "the link, from $HOME double quoted", is: `alias claude='"$HOME/.local/share/switchboard/bin/claude"'`, want: theLink(`alias claude='"$HOME/.local/share/switchboard/bin/claude"'`)},
-		{name: "the link, from ${HOME} double quoted, alone", sh: "/bin/bash", is: `alias claude='"${HOME}"/.local/share/switchboard/bin/claude'`, want: theLink(`alias claude='"${HOME}"/.local/share/switchboard/bin/claude'`)},
-		{name: "the link, from $HOME double quoted, alone", is: `alias claude='"$HOME"/.local/share/switchboard/bin/claude'`, want: theLink(`alias claude='"$HOME"/.local/share/switchboard/bin/claude'`)},
-		{name: "the link, from $HOME, an empty quote after it", is: `alias claude='$HOME""/.local/share/switchboard/bin/claude'`, want: theLink(`alias claude='$HOME""/.local/share/switchboard/bin/claude'`)},
-		{name: "the link, the rest quoted", is: `alias claude='~/".local/share/switchboard/bin/claude"'`, want: theLink(`alias claude='~/".local/share/switchboard/bin/claude"'`)},
-		{name: "a path quoted, its glob not one", is: `alias claude='"/opt/homebrew/bin/cl*de"'`, want: aPath(`alias claude='"/opt/homebrew/bin/cl*de"'`, "/opt/homebrew/bin/cl*de")},
+		// A path to a claude, whatever follows it.
+		{name: "another claude by its path", body: other + " --verbose", runs: shell.APath, path: other},
+		{name: "command, and another claude by its path", body: "command " + other, runs: shell.APath, path: other},
+		{name: "the old local installer's, from $HOME", body: "$HOME/.claude/local/claude", runs: shell.APath, path: local},
+		{name: "the old local installer's, expanded as it was set", body: local, runs: shell.APath, path: local},
+		{name: "the link by its path", body: claudeLink, runs: shell.TheLink},
+		{name: "the link, from ~", body: "~/.local/share/switchboard/bin/claude", runs: shell.TheLink},
+		{name: "the link, from $HOME", body: "$HOME/.local/share/switchboard/bin/claude --verbose", runs: shell.TheLink},
+		{name: "the link, from ${HOME}", body: "${HOME}/.local/share/switchboard/bin/claude $(echo x)", runs: shell.TheLink},
+		{name: "the link, from $HOME quoted, not plain", body: `"$HOME/.local/share/switchboard/bin/claude"`, runs: shell.Unknown},
+		{name: "a path from another user's home, not plain", body: "~other/.local/share/switchboard/bin/claude", runs: shell.Unknown},
+		{name: "a path with a variable, not plain", body: "/home/$USER/.local/share/switchboard/bin/claude", runs: shell.Unknown},
+		{name: "a relative path to a claude", body: "bin/claude", runs: shell.Unknown},
 
-		// The first command: a home split across quotes, which the shells
-		// read apart.
-		{name: "$ quoted apart from HOME", is: `alias claude='"$"HOME/.local/share/switchboard/bin/claude'`, want: unknown(`alias claude='"$"HOME/.local/share/switchboard/bin/claude'`)},
-		{name: "$ quoted apart from {HOME}", is: `alias claude='"$"{HOME}/.local/share/switchboard/bin/claude'`, want: unknown(`alias claude='"$"{HOME}/.local/share/switchboard/bin/claude'`)},
-		{name: "HOME quoted apart from $", sh: "/bin/bash", is: `alias claude='$"HOME"/.local/share/switchboard/bin/claude'`, want: unknown(`alias claude='$"HOME"/.local/share/switchboard/bin/claude'`)},
-		{name: "$HOM quoted apart from E", is: `alias claude='"$HOM"E/.local/share/switchboard/bin/claude'`, want: unknown(`alias claude='"$HOM"E/.local/share/switchboard/bin/claude'`)},
-		{name: "$H quoted apart from OME", is: `alias claude='"$H"OME/.local/share/switchboard/bin/claude'`, want: unknown(`alias claude='"$H"OME/.local/share/switchboard/bin/claude'`)},
-		{name: "$HOME in two double quotes", is: `alias claude='"$H""OME"/.local/share/switchboard/bin/claude'`, want: unknown(`alias claude='"$H""OME"/.local/share/switchboard/bin/claude'`)},
-		{name: "~ and an empty quote, which bash reads as it is", sh: "/bin/bash", is: `alias claude='~""/.local/share/switchboard/bin/claude'`, want: unknown(`alias claude='~""/.local/share/switchboard/bin/claude'`)},
-		{name: "~ and its / quoted, which zsh expands", is: `alias claude='~"/.local/share/switchboard/bin/claude"'`, want: unknown(`alias claude='~"/.local/share/switchboard/bin/claude"'`)},
-		{name: "an empty quote, then ~", is: `alias claude='""~/.local/share/switchboard/bin/claude'`, want: unknown(`alias claude='""~/.local/share/switchboard/bin/claude'`)},
-		{name: "the home alone", is: "alias claude='~'", want: unknown("alias claude='~'")},
-
-		// The first command: a glob or a brace, which the shell expands.
-		{name: "a glob in a path", is: "alias claude='~/.local/share/switchboard/bin/cl*de'", want: unknown("alias claude='~/.local/share/switchboard/bin/cl*de'")},
-		{name: "a glob's class in a path", is: "alias claude='/opt/homebrew/bin/[c]laude'", want: unknown("alias claude='/opt/homebrew/bin/[c]laude'")},
-		{name: "a glob in a name", is: "alias claude='cl?ude'", want: unknown("alias claude='cl?ude'")},
-		{name: "a brace in a name", sh: "/bin/bash", is: "alias claude='{claude,x}'", want: unknown("alias claude='{claude,x}'")},
-
-		// The first command: a path quoted, which the shell doesn't expand.
-		{name: "~ double quoted, a relative path", is: `alias claude='"~/.local/share/switchboard/bin/claude"'`, want: runsElse(`alias claude='"~/.local/share/switchboard/bin/claude"'`)},
-		{name: "~ single quoted, a relative path", sh: "/bin/bash", is: `alias claude=''\''~/.local/share/switchboard/bin/claude'\'''`, want: runsElse(`alias claude=''\''~/.local/share/switchboard/bin/claude'\'''`)},
-		{name: "~ escaped, a relative path", is: `alias claude='\~/.local/share/switchboard/bin/claude'`, want: runsElse(`alias claude='\~/.local/share/switchboard/bin/claude'`)},
-		{name: "$HOME single quoted, a relative path", sh: "/bin/bash", is: `alias claude=''\''$HOME/.local/share/switchboard/bin/claude'\'''`, want: runsElse(`alias claude=''\''$HOME/.local/share/switchboard/bin/claude'\'''`)},
-		{name: "$HOME escaped, a relative path", is: `alias claude='\$HOME/.local/share/switchboard/bin/claude'`, want: runsElse(`alias claude='\$HOME/.local/share/switchboard/bin/claude'`)},
-
-		// The first command: a path only its expansion tells.
-		{name: "another user's home", is: "alias claude='~other/.local/share/switchboard/bin/claude'", want: unknown("alias claude='~other/.local/share/switchboard/bin/claude'")},
-		{name: "a variable within a path", is: "alias claude='/home/$USER/.local/share/switchboard/bin/claude'", want: unknown("alias claude='/home/$USER/.local/share/switchboard/bin/claude'")},
-		{name: "a variable after $HOME", is: "alias claude='$HOME/$BIN/claude'", want: unknown("alias claude='$HOME/$BIN/claude'")},
-		{name: "a variable whose name starts HOME", is: "alias claude='$HOMEBIN/claude'", want: unknown("alias claude='$HOMEBIN/claude'")},
-		{name: "backquotes within a path", sh: "/bin/bash", is: "alias claude='/home/`whoami`/.local/share/switchboard/bin/claude'", want: unknown("alias claude='/home/`whoami`/.local/share/switchboard/bin/claude'")},
-
-		// The first command: builtin, or command with an option, another
-		// command, with claude after it.
-		{name: "builtin, in zsh", is: "alias claude='builtin claude'", want: unknown("alias claude='builtin claude'")},
-		{name: "builtin, in bash", sh: "/bin/bash", is: "alias claude='builtin claude'", want: unknown("alias claude='builtin claude'")},
-		{name: "builtin, and another", is: "alias claude='builtin echo hi'", want: runsElse("alias claude='builtin echo hi'")},
-		{name: "command -p, on the system's PATH", sh: "/bin/bash", is: "alias claude='command -p claude'", want: unknown("alias claude='command -p claude'")},
-		{name: "command -v, which prints", is: "alias claude='command -v claude'", want: unknown("alias claude='command -v claude'")},
-		{name: "command -V, which says", sh: "/bin/bash", is: "alias claude='command -V claude'", want: unknown("alias claude='command -V claude'")},
-		{name: "command -v, and another", is: "alias claude='command -v npx'", want: runsElse("alias claude='command -v npx'")},
-		{name: "command alone", is: "alias claude=command", want: runsElse("alias claude=command")},
-
-		// The first command: a wrapper, with claude after it, setup doesn't read.
-		{name: "time -p, in bash", sh: "/bin/bash", is: "alias claude='time -p claude'", want: unknown("alias claude='time -p claude'")},
-		{name: "time -p, in zsh", is: "alias claude='time -p claude'", want: unknown("alias claude='time -p claude'")},
-		{name: "noglob nocorrect, in zsh", is: "alias claude='noglob nocorrect claude'", want: unknown("alias claude='noglob nocorrect claude'")},
-		{name: "noglob, in bash", sh: "/bin/bash", is: "alias claude='noglob claude'", want: unknown("alias claude='noglob claude'")},
-		{name: "caffeinate -i", is: "alias claude='caffeinate -i claude'", want: unknown("alias claude='caffeinate -i claude'")},
-		{name: "nohup", is: "alias claude='nohup claude'", want: unknown("alias claude='nohup claude'")},
-		{name: "exec", sh: "/bin/bash", is: "alias claude='exec claude'", want: unknown("alias claude='exec claude'")},
-		{name: "env, and a variable", is: "alias claude='env FOO=1 claude'", want: unknown("alias claude='env FOO=1 claude'")},
-		{name: "what only its expansion tells", is: `alias claude='$CLAUDE_BIN'`, want: unknown(`alias claude='$CLAUDE_BIN'`)},
-		{name: "a quote that isn't closed", is: `alias claude='"claude'`, want: unknown(`alias claude='"claude'`)},
-		{name: "a wrapper, and another claude by its path", is: "alias claude='caffeinate -i " + other + "'", want: unknown("alias claude='caffeinate -i " + other + "'")},
-		{name: "a wrapper, and the link from ~", is: "alias claude='caffeinate -i ~/.local/share/switchboard/bin/claude'", want: unknown("alias claude='caffeinate -i ~/.local/share/switchboard/bin/claude'")},
-
-		// A compound alias, or a subshell, its first command another, and
-		// claude later.
-		{name: "cd, and claude", is: "alias claude='cd ~/work && claude'", want: unknown("alias claude='cd ~/work && claude'")},
-		{name: "clear, and claude", is: "alias claude='clear; claude'", want: unknown("alias claude='clear; claude'")},
-		{name: "a pipe into claude", sh: "/bin/bash", is: "alias claude='true | claude'", want: unknown("alias claude='true | claude'")},
-		{name: "another, or claude by its path", is: "alias claude='false || " + other + "'", want: unknown("alias claude='false || " + other + "'")},
-		{name: "claude in a subshell", is: "alias claude='(claude)'", want: unknown("alias claude='(claude)'")},
-		{name: "a variable alone, and claude", is: "alias claude='FOO=1; claude'", want: unknown("alias claude='FOO=1; claude'")},
-		{name: "builtin, and claude", is: "alias claude='builtin claude; claude'", want: unknown("alias claude='builtin claude; claude'")},
-		{name: "command -v, and claude", is: "alias claude='command -v claude && claude'", want: unknown("alias claude='command -v claude && claude'")},
-		{name: "claude, or true", is: "alias claude='claude || true'", want: byName("alias claude='claude || true'")},
-		{name: "a redirect first, which ends the command", is: "alias claude='>/dev/null claude'", want: unknown("alias claude='>/dev/null claude'")},
-		{name: "claude, a redirect after it", is: "alias claude='claude 2>/dev/null'", want: byName("alias claude='claude 2>/dev/null'")},
-
-		// A claude within a word, in a group or quotes, after another command.
-		{name: "a command's output", is: "alias claude='echo $(claude)'", want: unknown("alias claude='echo $(claude)'")},
-		{name: "a wrapper, and claude's path by which", is: "alias claude='caffeinate -i $(which claude)'", want: unknown("alias claude='caffeinate -i $(which claude)'")},
-		{name: "a wrapper, and claude's path by command -v, quoted", is: `alias claude='nohup "$(command -v claude)"'`, want: unknown(`alias claude='nohup "$(command -v claude)"'`)},
-		{name: "a wrapper, and claude in its own quotes within the group", is: `alias claude='nohup $(command -v cl"aude")'`, want: unknown(`alias claude='nohup $(command -v cl"aude")'`)},
-		{name: "bash -c", is: quoted(`bash -c 'claude --verbose'`), want: unknown(quoted(`bash -c 'claude --verbose'`))},
-		{name: "tmux new", is: quoted(`tmux new 'claude --verbose'`), want: unknown(quoted(`tmux new 'claude --verbose'`))},
-		{name: "a wrapper, and claude in $'…'", is: quoted(`bash -c $'claude'`), want: unknown(quoted(`bash -c $'claude'`))},
-		{name: "a wrapper, and $'…' not decoded", is: quoted(`bash -c $'\x63laude'`), want: unknown(quoted(`bash -c $'\x63laude'`))},
-		{name: "a wrapper, and claude-code, another name", is: "alias claude='nohup claude-code'", want: runsElse("alias claude='nohup claude-code'")},
-		{name: "a wrapper, and .claude, a directory", is: "alias claude='cd ~/.claude && npx @anthropic-ai/claude-code'", want: runsElse("alias claude='cd ~/.claude && npx @anthropic-ai/claude-code'")},
-
-		// A comment, from a # that starts a word.
-		{name: "claude, and a comment", is: quoted(`claude --verbose  # don't ask`), want: byName(quoted(`claude --verbose  # don't ask`))},
-		{name: "another, and claude in a comment", is: "alias claude='npx foo # claude'", want: runsElse("alias claude='npx foo # claude'")},
-		{name: "another, and a # within a word", is: "alias claude='npx foo#claude'", want: unknown("alias claude='npx foo#claude'")},
-
-		// The quotes within a word, read as the shell reads them.
-		{name: `\$ within double quotes`, is: `alias claude='"\$HOME/.local/share/switchboard/bin/claude"'`, want: runsElse(`alias claude='"\$HOME/.local/share/switchboard/bin/claude"'`)},
-		{name: `\" within double quotes`, is: `alias claude='FOO="a\"b" claude'`, want: byName(`alias claude='FOO="a\"b" claude'`)},
-		{name: "a backslash within single quotes", is: quoted(`FOO='a\' claude`), want: byName(quoted(`FOO='a\' claude`))},
-		{name: `\' within $'…'`, is: quoted(`FOO=$'a\'b' claude`), want: byName(quoted(`FOO=$'a\'b' claude`))},
-		{name: `$'…' holding claude between \'`, is: quoted(`FOO=$'\' claude '\' npx`), want: runsElse(quoted(`FOO=$'\' claude '\' npx`))},
-		{name: "a parameter that isn't closed", is: "alias claude='FOO=${BAR claude'", want: unknown("alias claude='FOO=${BAR claude'")},
-
-		// The first command: something else, with no claude after it.
-		{name: "npx", is: "alias claude='npx @anthropic-ai/claude-code'", want: runsElse("alias claude='npx @anthropic-ai/claude-code'")},
-		{name: "another name", is: "alias claude=claude-code", want: runsElse("alias claude=claude-code")},
-		{name: "a wrapper, and another name by its path", is: "alias claude='caffeinate -i /opt/homebrew/bin/claude-code'", want: runsElse("alias claude='caffeinate -i /opt/homebrew/bin/claude-code'")},
-		{name: "cd, and another command", is: "alias claude='cd ~/work && npx @anthropic-ai/claude-code'", want: runsElse("alias claude='cd ~/work && npx @anthropic-ai/claude-code'")},
-		{name: "an empty alias", is: "alias claude=''", want: runsElse("alias claude=''")},
+		// Anything else: something else where it's all plain and names no
+		// claude, and otherwise not read.
+		{name: "npx", body: "npx @anthropic-ai/claude-code", runs: shell.Else},
+		{name: "another name", body: "claude-code --verbose", runs: shell.Else},
+		{name: "variables alone", body: "FOO=1", runs: shell.Else},
+		{name: "command alone", body: "command", runs: shell.Else},
+		{name: "a path to another command", body: "/usr/local/bin/npx @anthropic-ai/claude-code", runs: shell.Else},
+		{name: "a wrapper", body: "caffeinate -i claude", runs: shell.Unknown},
+		{name: "a wrapper by its path", body: "/usr/bin/env claude", runs: shell.Unknown},
+		{name: "a wrapper, and claude by its path", body: "nohup " + other, runs: shell.Unknown},
+		{name: "builtin", body: "builtin claude", runs: shell.Unknown},
+		{name: "command -v", body: "command -v claude", runs: shell.Unknown},
+		{name: "zsh's =claude", body: "=claude", runs: shell.Unknown},
+		{name: "claude set as a variable", body: "FOO=claude npx", runs: shell.Unknown},
+		{name: "claude among a list", body: "npx --tools=a,claude", runs: shell.Unknown},
+		{name: "cd, and claude", body: "cd ~/work && claude", runs: shell.Unknown},
+		{name: "something not plain", body: "npx $(echo x)", runs: shell.Unknown},
+		{name: "what only its expansion tells", body: "$CLAUDE_BIN", runs: shell.Unknown},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			is, want := tt.is, tt.want
+			if is == "" {
+				is = "alias claude='" + strings.ReplaceAll(tt.body, "'", `'\''`) + "'"
+				want = shell.Front{Text: is, Runs: tt.runs, Path: tt.path}
+			}
 			var runs []ran
 			env := slices.Clone(environ)
 			env[slices.Index(env, "SHELL=/bin/zsh")] = "SHELL=" + cmp.Or(tt.sh, "/bin/zsh")
 			env[slices.Index(env, "HOME=/home/tester")] = "HOME=" + home
-			login := shell.Login{Environ: env, Run: fakeShell(said(tt.is, claudeLink, ""), nil, &runs)}
+			login := shell.Login{Environ: env, Run: fakeShell(said(is, claudeLink, ""), nil, &runs)}
 
-			if got := login.Which(t.Context(), claudeLink); got.Front != tt.want {
-				t.Errorf("Which().Front = %+v, want %+v", got.Front, tt.want)
+			if got := login.Which(t.Context(), claudeLink); got.Front != want {
+				t.Errorf("Which().Front = %+v, want %+v", got.Front, want)
 			}
 		})
 	}

@@ -405,10 +405,10 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			name: "there already, PATH's the link, but an alias in front sets PATH for claude: not done, the alias to put right",
 			lay: func(t *testing.T, w *world) {
 				w.addLine(t)
-				w.login.front = shell.Front{Text: "alias claude='PATH=/opt/real/bin:$PATH claude'", Runs: shell.SetsPath}
+				w.login.front = shell.Front{Text: "alias claude='PATH=/opt/real/bin claude'", Runs: shell.SetsPath}
 			},
 			answers: []string{"n"},
-			want: "claude doesn't go through switchboard in a new terminal yet: zsh's claude is alias claude='PATH=/opt/real/bin:$PATH claude', which sets PATH for claude, so setup can't tell which claude it runs: taking PATH= out of the alias puts it right.\n" +
+			want: "claude doesn't go through switchboard in a new terminal yet: zsh's claude is alias claude='PATH=/opt/real/bin claude', which sets PATH for claude, so setup can't tell which claude it runs: taking that PATH setting out of the alias puts it right.\n" +
 				left,
 			wantFile: ".zshrc", wantText: "<line>\n",
 		},
