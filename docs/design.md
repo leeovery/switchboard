@@ -832,12 +832,14 @@ accounts:
   the line it follows; a replaced value keeps the comment beside it, and a key taken out, such as
   the former primary's mark, goes with its comment. The flags are read into the values its
   action, `accounts.Registry.Edit`, takes, so a form can give it the same.
-- `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
-  removes the account from the config, and deletes its token file: of one that's a link, the link
-  alone, saying where it led, as the file there isn't switchboard's. Of the primary, it says which
-  account is the primary now, and that the sessions running on the removed account's token stay
-  routed, as the new primary's, for a week from when the router takes the change up, or, when the
-  new primary has no usable token, that they aren't routed until it has one.
+- `accounts token <id>` replaces an account's token, under the same rules: today, typed hidden, or
+  read from stdin. Designed: it makes the token as setup does, running `claude setup-token` by the
+  opener rule (see Setup), or takes one pasted or on stdin. `accounts remove <id>` removes the
+  account from the config, and deletes its token file: of one that's a link, the link alone, saying
+  where it led, as the file there isn't switchboard's. Of the primary, it says which account is the
+  primary now, and that the sessions running on the removed account's token stay routed, as the new
+  primary's, for a week from when the router takes the change up, or, when the new primary has no
+  usable token, that they aren't routed until it has one.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
   config file that's a link is written through, never replaced. The router picks the change up
   itself (see The router looking after itself).
@@ -854,15 +856,30 @@ approved that evening. They're 160 columns by 37, in the `nord` theme at Tue 27 
 placeholder accounts `work`, `personal` and `side`. The calls the frames left open were approved by
 the owner on 28 October 2026, and are written here as decided. Where the frames and this section
 differ, this section holds: frame 4 says only what the service step can know (see Service, below);
-frame 5's `PATH` line is the shell step's line, and is to be drawn again in Paper; and the status
-line, the clock and where a card sits follow the rules below. The primary's reserve card and the
-Accounts tab's token-year line are still to be drawn in Paper.
+frame 5's `PATH` line is the shell step's line, and is to be drawn again in Paper; setup's cards are
+the dashboard's card as it's drawn everywhere, their line and title in `text.subtle`, where the
+frames draw the line in `border` and the title bold `text.secondary`; and the status line, the clock
+and where a card sits follow the rules below. The primary's reserve card and the Accounts tab's
+token-year line are still to be drawn in Paper.
 
-**Until the screen is built,** `switchboard setup` runs the line walk it replaces: it asks a line at
-a time, a token typed hidden as `accounts token` asks for one, stops when its input ends, and ends
-by printing `usage`, every account's windows as they stand (see `usage`, the printout). The steps
-below do what they do in either; the screen changes how they're asked and shown. Once it's built the
-line walk goes.
+**The line walk, until the cut-over.** Until the screen is built, `switchboard setup` runs the line
+walk it replaces, and once the screen runs in its place the line walk is removed. It asks a line at
+a time, and stops when its input ends. Its Service, `claude` link and Skill do what steps 3 to 5
+below say, asked and told a line at a time. Its Accounts, Priming and end are its own, far less than
+the screen's, which steps 1, 2 and 6 describe:
+
+- **Accounts:** lists the accounts, each with whether its token file holds a usable token, read from
+  the file, with no check with the API, and asks for a missing token, typed hidden, as `accounts
+  token` does (`accounts.Registry.SetToken`); Enter leaves it for later. It offers to add accounts,
+  one at a time, asking each one's id and label, and its token where its token file holds none
+  usable, as `accounts add` does, and with none configured, asks for the first straight away. It
+  asks no plan or reserve, makes no token, runs no duplicate check, and edits and removes nothing.
+  With more than one and none marked, it asks which is the primary, the one the browser and the
+  Claude apps are signed into, Enter giving the first, and marks it.
+- **Priming:** with no day set, asks for one, `HH:MM-HH:MM`, and writes it to `[prime]`, Enter
+  leaving priming off; with a day set, it says so, and asks nothing, so it never clears one.
+- **Its end:** it prints `usage`, every account's windows as they stand (see `usage`, the printout),
+  where the screen ends at Done.
 
 Setup needs a terminal: without one, it fails (`setup.ErrNoTerminal`), saying how each step is taken
 alone: by the command that takes it, where there is one, priming by a line in the config's `[prime]`
@@ -896,38 +913,44 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
   `text.secondary`; at column 26 what's said of it, in `text.muted`.
 - **The key line,** the last row: the page's own keys at the left, and at the right `enter` and
   where it goes, as `enter next: Priming`, then `q quit`, each key bold `accent.key` and its word
-  `text.muted`, three cells apart.
+  `text.muted`, three cells apart. While a card is open the key line is empty, as in frames 1, 2, 6,
+  8 and 10: the card's keys are its own.
 - **Forward only.** `enter` moves on to the next step once this one is done, and there's no going
-  back. `q`, at any step but Done, leaves with a status of 0, saying `run setup again to carry on`;
-  run again, setup carries on as each step finds things. A step that fails stops setup there: its
-  page says why, and setup leaves failing.
+  back. `q`, at any step but Done, leaves with a status of 0, saying `run setup again to carry on`,
+  and at Done leaves with a status of 0 without opening the dashboard; run again, setup carries on
+  as each step finds things. A step that fails stops setup there: its page says why, and setup
+  leaves failing.
 - **Cards** are placed by the dashboard's one rule for a card (see Routing by hand, "The card"):
   their natural width, or the screen's less a cell either side, centred across the page and down it;
-  their title in the top edge; their keys right-aligned on the last row but one, three cells in.
+  their title in the top edge; their keys right-aligned on the last row but one, two cells in.
   Setup's cards don't fade the page behind them, as the frames show. While one is open, its keys
   alone act, and `esc` closes it.
 - **Fields:** a card's or a page's form row, its name in `text.subtle`, and 10 cells on its value,
   in `text.secondary`, or, while it's the one typed in, bold `text.primary` on `bg.subtle`, with a
-  cursor, and a hint after it in `text.faint`. A choice is its options in a row, `■` in `accent.key`
-  before the chosen and `□` before the rest, `←` and `→` moving it. `tab` goes to the next field.
+  cursor, and a hint after it in `text.faint`. A choice is its options in a row, four cells apart,
+  `■` in `accent.key` before the chosen, in `text.primary`, bold while the field is the one chosen,
+  and `□` in `accent.key` before the rest, in `text.muted`, `←` and `→` moving it. `tab` goes to the
+  next field.
 - **Sizes:** every page is laid by flex, as the dashboard's are, down to a least size, under which
   setup says only to make the terminal larger. More accounts than the page holds scroll, the chosen
   row kept in view.
-- **Copying:** what a page offers to copy, as the `PATH` line, `c` and `d` copy by OSC 52. A
+- **Copying:** what a page offers to copy, as the shell step's line, `c` and `d` copy by OSC 52. A
   terminal without it has the scrollback summary.
 - **Leaving,** whether by `q`, a step that failed or Done, setup prints to the scrollback each
   step's line, as Done says it, and the line to add by hand where the `claude` link isn't done.
 
 ### The steps
 
-1. **Accounts:** every account as a table, ACCOUNTS heading it, and `3 accounts` at its right.
+1. **Accounts,** the screen's (the line walk's is above): every account as a table, ACCOUNTS heading
+   it, and the accounts counted at its right, `1 account`, `3 accounts`, or nothing with none.
    - **The table:** its heads on row 8, ACCOUNT, LABEL, PLAN, RESERVE and TOKEN in `text.subtle`,
      then from row 10 a row an account, two rows apart, in the config's order: its number in
      `text.subtle`; its id, bold `text.primary`, and `◆` in `text.muted` after the primary's; its
      label in `text.muted`; its plan in `text.secondary`, or `not set` in `text.faint`; its reserve,
      `5%`, or `none` in `text.faint`; and its token (below). Then `+ add an account`, `+` bold
-     `accent.key`. The chosen row is `bg.selection` across the width, `▌` in `accent.key` at column
-     0; `↑` and `↓` choose.
+     `accent.key`, and `add an account` in `text.muted`, or `text.primary` while it's chosen. The
+     chosen row is `bg.selection` across the width, `▌` in `accent.key` at column 0; `↑` and `↓`
+     choose. `enter` on `+ add an account` opens the add card.
    - **TOKEN:** a token whose date is known has its year as a bar of 24 cells, the days gone filled
      along the ramp and the rest the track, then `expires` in `text.muted`, the date in
      `text.secondary`, `·` and the days left, `expires 17 Nov 2026  ·  21 days left`: the days left
@@ -936,15 +959,17 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
      unknown`; one the API refuses, `✗` in bold `state.destructive` and `rejected: revoked or
      expired`. While its check runs, it says `checking…`; a token the API didn't answer for,
      `unchecked`, kept; and an account with none, `no token`, each in `text.muted`.
-   - **Notes,** under the table, a blank row apart: each account missing something, its id bold
-     `text.primary`, what it's missing and the key that sees to it: `side has no working token, so
-     no requests are routed to it.`, then `Press t to create a new one, approving it in the browser
-     signed in to Side.`; `personal has no plan set, so History can't value its usage. Press e to
-     set one.`; a token's year within 30 days, with `t`. With two accounts or more, and none the
-     primary, a note says one must be, and `p` marks it: `enter` waits for one.
+   - **Notes,** two blank rows under `+ add an account`, a blank row apart: each account missing
+     something, its id bold `text.primary`, what it's missing and the key that sees to it: `side has
+     no working token, so no requests are routed to it.`, then `Press t to create a new one,
+     approving it in the browser signed in to Side.`; `personal has no plan set, so History can't
+     value its usage. Press e to set one.`; a token's year within 30 days, with `t`. With two
+     accounts or more, and none the primary, a note says one must be, and `p` marks it: `enter`
+     waits for one.
    - **A first run,** with no account: `No accounts yet. Add each Claude subscription you want
      switchboard to route across.`, and the add card open at once (frame 1). There's nothing to set
-     up without an account, so `enter` waits for one.
+     up without an account, so `enter` waits for one. Once there's one, the line is `Add each Claude
+     subscription you want switchboard to route across.` (frame 2).
    - **Adding** (`+ add an account`, then `enter`), the card `ADD AN ACCOUNT`: `Each account is one
      Claude subscription: a Pro or Max plan.`; then ID, under it `letters, numbers, - and _ · can't
      be changed later`; Label, `shown in the dashboard`; and Plan, `Pro`, `Max 5x`, `Max 20x` or
@@ -962,23 +987,23 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
      remove`, `p make primary`. `enter` all the way through changes nothing.
    - **Edit** (`e`, frame 6), the card `EDIT PERSONAL`: Label; Plan, `used by History to value
      usage`; Primary, `no` or `yes`, `the account the Claude apps are signed in to`; and Reserve,
-     `usage kept back for the Claude apps`, a percentage, as `accounts edit` takes it, empty for
-     none. Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
+     `usage kept back for the Claude apps`, a percentage, as `accounts edit` takes it, or `none`.
+     Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
      `accounts.Registry.Edit`, as `accounts edit` does.
    - **The primary,** the account the browser and the Claude apps are signed in to: `p` marks the
      chosen account, taking the mark off the one that had it.
    - **The primary's reserve,** on a first run, once the accounts are added: a small card, as the
      edit card's Reserve field, the share of the primary's windows the router leaves for the Claude
-     apps, empty for none. Other accounts' reserves are set with `e`, or `accounts edit`.
-   - **Remove** (`r`) asks first, in a card laid as frame 6's, naming the account; `enter` removes
-     it as `accounts remove` does, and `esc` keeps it.
+     apps, or `none`. Other accounts' reserves are set with `e`, or `accounts edit`.
+   - **Remove** (`r`) asks first, in a card laid as frame 6's, naming the account, and removes it as
+     `accounts remove` does.
    - **A new token** (`t`) makes the chosen account's token in the token card, and saves it in the
      old one's place once it's checked, as `accounts token` does.
-2. **Priming** (frame 7): `Priming starts each account's 5-hour window on a schedule, so their
-   resets are spread through your day instead of all arriving at once. It's optional.`, then the
-   field `Your day`, holding the day set, if any, `start and end, as HH:MM-HH:MM`, and `Leave it
-   empty to keep priming off.` `enter` writes the day to `[prime]` where it changed; a field left
-   empty leaves priming off, and one cleared turns it off.
+2. **Priming,** the screen's (frame 7; the line walk's is above): `Priming starts each account's
+   5-hour window on a schedule, so their resets are spread through your day instead of all arriving
+   at once. It's optional.`, then the field `Your day`, holding the day set, if any, `start and end,
+   as HH:MM-HH:MM`, and `Leave it empty to keep priming off.` `enter` writes the day to `[prime]`
+   where it changed; a field left empty leaves priming off, and one cleared turns it off.
 3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
    `service install` does, that the router could start; it fails, saying why, where it couldn't.
    With no plist setup can use, none or one it can't read back, setup never succeeds, nor sends the
@@ -1199,9 +1224,9 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
    **Its page,** CLAUDE LINK: `The claude command starts Claude Code through switchboard, so every
    session is routed.`, then a row a fact: Link, `~/.local/share/switchboard/bin/claude →
    switchboard`; Your shell, what a `claude` typed in a new terminal runs, asked as the page opens,
-   saying so; and, once the shell's asked, Session hook. What the step says of the link, the line or
-   the shell, as a line found but not taking effect, or a shell it can't ask, is said on Your
-   shell's row.
+   saying so; and Session hook, once the link step ends, whatever it found, as when `enter` leaves
+   the by-hand page. What the step says of the link, the line or the shell, as a line found but not
+   taking effect, or a shell it can't ask, is said on Your shell's row.
    - **The offer** (frame 8), where the shell runs another `claude`: `!` on Your shell's row, as
      `runs Claude Code's own claude, ~/.local/bin/claude, so its sessions aren't routed`, and a card
      naming the file, `ADD A LINE TO ~/.zshrc`: `Setup can add one line to the end of ~/.zshrc, so
@@ -1213,7 +1238,8 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
      startup file yourself, after anything else there that changes PATH:` and the line; `Or, where
      you keep your PATH another way, put this directory first on it:` and the directory; then `Then
      press r: setup asks your shell again, as a new terminal would start it.` Its keys: `c copy the
-     line`, `d copy the directory`, `r check again`, and `enter leave it for now`.
+     line`, `d copy the directory`, `r check again`, and `enter leave it for now`. Setup asks the
+     shell again only on `r`.
    - **Done** (frame 12): Your shell `✓`, `runs switchboard's claude: asked just now, as a new
      terminal starts it`, and Session hook `✓`, `Claude Code says so when a session doesn't start
      through switchboard · ~/.claude/settings.json`. Its key: `enter next: Skill`.
@@ -1222,19 +1248,22 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
    and sessions.`, and Installed, with its path. Its key: `enter finish`.
 6. **Done** (frame 5): SWITCHBOARD IS SET UP, then a row a step, as it stands: Accounts, `3, all
    working · primary: work, with 5% reserved for the Claude apps`; Priming, `on, 08:00–23:00`;
-   Service, `installed and updated · router healthy`; claude link, `!` where it isn't done, and
-   under it, in `accent.mode`, the shell step's line to add by hand; Skill, `up to date`. Then NEXT:
-   `claude`, `start Claude Code as usual: its sessions route through switchboard`, and
-   `switchboard`, `open the dashboard: every account's windows, sessions and history`. Its keys: `c
-   copy the line`, where the link isn't done, and `enter open the dashboard`, `q quit`. `enter`
-   leaves setup for the dashboard; there's no `usage` printout.
+   Service, `installed and updated · router healthy`; claude link, where it isn't done, `!` and
+   `created, but it isn't first on your PATH. Add this line to ~/.zshrc:`, naming the startup file,
+   and under it, in `accent.mode`, the shell step's line; Skill, `up to date`. Then NEXT: `claude`,
+   `start Claude Code as usual: its sessions route through switchboard`, and `switchboard`, `open
+   the dashboard: every account's windows, sessions and history`. Its keys: `c copy the line`, where
+   the link isn't done, and `enter open the dashboard`, `q quit`. `enter` leaves setup for the
+   dashboard; there's no `usage` printout.
 
 ### The token card
 
 Setup makes each token: there are no logins. It runs `claude setup-token` through
 `internal/setuptoken` on a pseudo-terminal of its own, wide enough that the token is drawn whole,
-with `BROWSER` set to switchboard for that run, so switchboard is handed the sign-in address. It
-never touches setup's terminal, which stays on the full screen throughout. The card, `NEW TOKEN ·
+with `BROWSER` set, for that run, to `internal/setuptoken`'s shim: a script in a private directory
+of its own in the temporary directory, which setup-token runs with the sign-in address, and which
+writes the address to a file there that setuptoken reads. It never runs switchboard as the browser.
+It never touches setup's terminal, which stays on the full screen throughout. The card, `NEW TOKEN ·
 PERSONAL`, the account's id in capitals, says where it's got, from column 8, its mark in the 5 cells
 before:
 
@@ -1244,9 +1273,9 @@ before:
   private window, `Your browser is signed in to Work, so setup opened a private Firefox window. Sign
   in to Personal there, then approve.`, the browser named as setuptoken reports it, and in
   `accent.attention`, `Close any other private window first: they all share one sign-in.`; or not
-  opened, the address shown to paste into a private window, and `c` copying it. Then `Setup saves
-  the token automatically. There's nothing to copy.` Its keys: `o reopen window`, `p paste a token`,
-  `esc cancel`.
+  opened, the address shown to paste into a private window. Then `Setup saves the token
+  automatically. There's nothing to copy.` Its keys: `o reopen window`, `p paste a token`, `esc
+  cancel`.
 - **Starting and checking:** the card says so, in frame 2's layout with words of its own, while
   setup-token starts, before it shows the address, and once it says the token's made, while setup
   reads it off its screen, checks it with the API, runs the duplicate check and saves it with its
@@ -1258,11 +1287,12 @@ before:
   setup-token.` Its keys: `enter try again`, `p paste a token`, `esc cancel`. A token the API
   refuses is told the same way, in its own words. Where reading the screen fails, the card shows
   setup-token's own, and `p` pastes the token.
-- **Paste** (`p`): the card asks for a token made with `claude setup-token`, pasted, showing it as
-  dots, never the token, then checks and saves it as a made one; its year counts from the day it was
-  given, as nothing says when it was made.
+- **Paste** (`p`): the card asks for a token made with `claude setup-token`, pasted, then checks and
+  saves it as a made one; its year counts from the day it was given, as nothing says when it was
+  made.
 - **Same account:** the duplicate check (see Rules) found the token's subscription is another
   account's already, which the card names, laid as frame 10's, with its keys; nothing is saved.
+  `enter try again` opens the token card again, to sign in as the other account.
 
 `esc` stops setup-token, and saves nothing. Cards with no frame of their own, paste, same account,
 not opened, starting and checking, and remove, take frame 2's, frame 10's or frame 6's layout, with
@@ -1272,20 +1302,43 @@ their own words.
 
 - **The opener rule:** the first account's token on a first run, and the primary's on a run again,
   opens in the browser as it is, as it's signed in to that subscription; every other's opens in a
-  private window, where the default browser allows it, the Chrome family and Firefox; otherwise, as
-  for Safari, the address is shown to paste into one.
+  private window, where the default browser's command line can open one, as the Chrome family's,
+  Brave and Vivaldi among it, Edge's and Firefox's can; otherwise, as for Safari, the address is
+  shown to paste into one.
 - **The duplicate check:** an account added twice is caught by the organization id the API answers a
   token's check with, its `anthropic-organization-id` header, compared with every other account's
   this run has read. Where either isn't known, as where the header is missing or the API didn't
   answer, nothing is done: the token is saved. That setup tokens' answers carry the header is
   unverified.
-- **A token's year,** one owner: `status.TokenYear`, the time the token was taken and when its year
-  is up (`Taken`, `GoodUntil`), with whether it ends within a span (`EndsWithin`), its days left
-  (`DaysLeft`) and the share of its year gone (`Gone`). Setup's TOKEN column, its notes, the
-  Accounts tab's line and the router's notifications all read it there (see Accounts and tokens for
-  where the time is kept).
+- **A token's year,** one owner, designed: `internal/status` works out when it was taken, when it's
+  up, whether it's up within a span, its days left and the share of it gone, and setup's TOKEN
+  column and notes, the Accounts tab's line, the router's notifications and `usage` all read it
+  there (see Accounts and tokens for where the time is kept). The status document carries the date
+  already, as `token_good_until`; `usage` showing it is designed.
+
+### The build's calls
+
+Where the frames and the owner's calls leave it open, the build settled these; they're its calls,
+not the owner's decisions:
+
+- **A pasted token** shows as dots, never the token.
+- **`esc` closes a card,** saving nothing; on the offer card (frame 8), `esc` is `n`.
+- **The not-opened token card,** where no private window can be opened: `c` copies the address, and
+  there's no `o reopen window`.
+- **The remove card's keys:** `enter remove`, `esc keep it`.
+- **The edit card's Primary:** on an account that isn't the primary, `no` or `yes`, as frame 6 draws
+  it, and `yes` makes it the primary; on the primary it shows `yes` and doesn't change, as the
+  primary moves by making another account the primary (`accounts.Registry.Edit` only makes one).
+- **Two notes of one account,** as frame 3's `personal`, with no plan and a token's year within 30
+  days: a line each, the token's year first.
+- **`+ add an account` chosen,** with no card open: the key line's left has `↑↓ select` alone, and
+  its right `enter add an account`, `q quit`.
+- **The token-year notifications' rules** (see Notifications): no key, no quiet minute, the nearest
+  threshold told at start, and what's told kept in `state.json`.
 
 ### How it's built
+
+All of it is designed, but `internal/setuptoken`, built (#187), which nothing calls yet.
 
 - **`internal/setup` decides.** It keeps every step's logic, and gives the screen actions that
   return typed outcomes rather than print: a step finds a situation, the screen asks, and an action
@@ -1293,7 +1346,8 @@ their own words.
   adding, editing and removing an account, and marking the primary, through `accounts.Registry`;
   `Priming` and `SetDay`; `Service`; `Link`, `AddLine` and `AskAgain`; `SessionHook` and `Skill`;
   and `Standing`, whether a router answers, for the status line. Each outcome carries the sentence
-  the line walk prints, so the two say the same.
+  the line walk prints, so the line walk's tests and goldens don't move before the cut-over; the
+  screen draws its own words.
 - **`internal/dashboard` draws.** `dashboard.Setup` is a page of its own, pure: its data, and
   `Draw(width, height, look)`, which returns its lines. It reads setup's outcome types, and setup
   never imports the dashboard. It draws with the dashboard's canvas, inks, pills, tabs, flex,
@@ -3074,9 +3128,9 @@ session. The key lines, where the frames draw the keys from before the sweep of 
   line stands (see Routing by hand).
 - On a phone: `tab views   [ ] view   ? keys   q quit`.
 
-**A token's year.** Accounts shows a line for an account whose token's year is up within 30 days,
-as `status.TokenYear` says. Its words and where it sits are to be drawn in Paper, a small follow-up
-to setup's frames.
+**A token's year: designed.** Accounts shows a line for an account whose token's year is up within
+30 days, as `internal/status`, its one owner, works it out. Its words and where it sits are to be
+drawn in Paper, a small follow-up to setup's frames.
 
 **`?` help** (see The page), `HELP · ACCOUNTS`, lists the page's keys first, `t`, `R`, `j`/`k` and
 the wheel among them; then it explains each part in turn: Compare's groups and how each row is
@@ -6431,8 +6485,8 @@ where it listens, stops a launch, or has it go direct where it's told to.
 ## Notifications
 
 The router sees each limit, move and return as it happens, whether or not a dashboard is open, so
-while it runs, the desktop notifications are its own. `[notifications]` in the config says which
-it posts: see Config.
+while it runs, the desktop notifications are its own. `[notifications]` in the config says which it
+posts, but for a token's year, which has no key: see Config.
 
 - **Limits:** a limit's notification waits 5 seconds for the sessions the limit moves off its
   account, as it holds their next requests back there, then tells of them together:
@@ -6452,24 +6506,28 @@ it posts: see Config.
   looks at the accounts on every event and every 15 seconds, so a limit lifting or a window
   resetting with no traffic is noticed.
 - **Warnings:** a window passing the share given, once a reset: `work · Work: Week at 91%`.
-- **A token's year:** an account whose token's year is up within 30 days, and again within 7, as
-  `status.TokenYear` says: once per token per threshold, which the router keeps across restarts, so
-  a restart tells nothing twice. Unlike room again and warnings, it's told of a token already within
-  either as the router starts. A new token starts afresh. It has no key in `[notifications]`: it's
-  posted at most twice in a token's year, and always.
+- **A token's year,** designed: an account whose token's year is up within 30 days, and again within
+  7, as `internal/status` works it out, once per token per threshold. It has no key in
+  `[notifications]`: it's posted at most twice in a token's year, and always. Its rules are the
+  build's calls (see Setup, "The build's calls"): no quiet minute holds it back, as none holds a
+  limit's back; unlike room again and warnings, it tells of how the tokens stood as the router
+  started, only the nearest threshold a token has passed posted, and any earlier counting as told;
+  and what's told is kept in `state.json`, an account's against the token it was told for, so a
+  restart tells nothing twice and a new token starts afresh.
 - **Moves:** each move a limit's notification doesn't tell of, as one its limit forced once the
   limit's notification has gone out, or any while `limits` is off:
   `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`.
 
 Room again and warnings compare an account with how it last stood, so neither tells of how the
 accounts stood as the router started, nor of an account's first reading. A limit's notification
-always goes out: as the router stops, those still gathering go out at once, within 3 seconds.
-Any other goes out only a minute or more after the last posted about its account, a limit's
-included: one due sooner is dropped, and the log says so at debug. One that fails to post is logged
-at warn, and dropped too; not having gone out, it starts no quiet minute. The log names accounts by
-id alone. Notifications never hold a request up: the router queues the limits and moves it tells
-of, 256 at most, dropping any past that with a warning in the log, finds room again and warnings
-at its looks, and posts from a goroutine of its own.
+always goes out: as the router stops, those still gathering go out at once, within 3 seconds. So
+does a token's year's, which no quiet minute holds back. Any other goes out only a minute or more
+after the last posted about its account, a limit's included: one due sooner is dropped, and the log
+says so at debug. One that fails to post is logged at warn, and dropped too; not having gone out, it
+starts no quiet minute. The log names accounts by id alone. Notifications never hold a request up:
+the router queues the limits and moves it tells of, 256 at most, dropping any past that with a
+warning in the log, finds room again and warnings at its looks, and posts from a goroutine of its
+own.
 
 The dashboard posts its own only while it probes because the router isn't there to:
 of an account with room again and a window passing the warning, as `room` and `warning` say, and
@@ -7705,17 +7763,18 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, and a line's limits kept small, as the views hold them, with their stored form, as a day's digest keeps the windows a page's points hold, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, the headers that name the prompt a request serves, its class and its agent, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, a window's rate of use, the allowance, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
-| `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words |
+| `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and, designed, a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, the router's notifications and `usage` read |
 | `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find reads of it (see The request ledger). It opens nothing itself; it reads through the readers it's given |
-| `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
+| `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and, designed, setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
-| `internal/capture` | The capture harness's fixtures, a fixture a frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens. Imported by `cmd/capturetool` alone |
+| `internal/capture` | The capture harness's fixtures, a fixture a frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens; and, designed, setup's full screen's fixtures, a moment of it each, built through `internal/setup/screen` with its `Steps` faked. Imported by `cmd/capturetool` alone |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets; and asking the binary first whether it could start (`--check`), telling its refusal apart from a binary that can't answer |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
-| `internal/setup` | `setup`'s steps and what each decides, the `claude` link in switchboard's bin directory among them, with switchboard's line in the shell's startup file and the login shell's answer, which it takes from `internal/shell`: the situation each step finds, and the actions that act on an answer, each returning a typed outcome with the sentence the line walk prints; and the line walk, asked a line at a time at a terminal, until the full screen replaces it (see Setup) |
-| `internal/setup/screen` | setup's full screen (Bubble Tea), shaped as `internal/dashboard/watch` is: the screen's state alone, the step it's on, its cards and fields, keys and copying; the steps called through the `Steps` interface it declares, which `*setup.Setup` satisfies and `internal/capture` fakes; and long work, making a token, asking the login shell and the service step, on goroutines it owns, cancelled and waited for before it returns |
+| `internal/setup` | `setup`'s steps, the `claude` link in switchboard's bin directory among them, with switchboard's line in the shell's startup file and the login shell's answer, which it takes from `internal/shell`, asked a line at a time at a terminal: the line walk `switchboard setup` runs until the full screen replaces it. Designed, for the full screen: the situation each step finds, and the actions that act on an answer, each returning a typed outcome carrying the line walk's sentence (see Setup) |
+| `internal/setup/screen` | Designed: setup's full screen (Bubble Tea), shaped as `internal/dashboard/watch` is: the screen's state alone, the step it's on, its cards and fields, keys and copying; the steps called through the `Steps` interface it declares, which `*setup.Setup` satisfies and `internal/capture` fakes; and long work, making a token, asking the login shell and the service step, on goroutines it owns, cancelled and waited for before it returns |
+| `internal/setuptoken` | Making an account's setup token (#187): running `claude setup-token` on a pseudo-terminal of its own, wide enough that the token is drawn whole; its shim, the script `BROWSER` names, in a private directory of its own, which writes the sign-in address to a file there for it to read, so switchboard is never run as the browser; opening the address as its caller chooses, in the default browser as it is or in a private window of one whose command line can open one; and taking the token from what setup-token draws once it says it's made. It draws nothing itself: its caller words each step it reports. Nothing calls it yet: setup's full screen and `accounts token` are designed to |
 | `internal/shell` | switchboard in the user's shell: its files for zsh, bash and fish, which put its bin directory first on `PATH` and load its completions, and writing and refreshing them; its line in the shell's startup file, which startup file that is, finding the line there and adding it; and asking the user's login shell which `claude` it runs, in a process group of its own, killed whole once it answers, at its time limit or at an interrupt |
 | `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy; and where Claude Code's config directory is |
 | `internal/sessionhook` | The session hook: what `hook session-start` tells a session that didn't start through switchboard, and switchboard's entry in Claude Code's `settings.json`, installed or put right, the rest of the file left as it is |
@@ -7778,7 +7837,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   window was last read, and when a window started again, as its reading's `restarted_at`, so a
   restart doesn't scatter sessions or need a probe, and beside them how its probes went, `probed`,
   `probe_error` and `misses` (see The router's rounds), and the hashes of every configured account's
-  tokens, with a usable token or not: see Accounts and tokens), `control.sock`, `tokens/`, `logs/`,
+  tokens, with a usable token or not: see Accounts and tokens; and, designed, the token-year
+  notifications told, an account's against the token they were told for: see Notifications),
+  `control.sock`, `tokens/`, `logs/`,
   `history/` and `ledger/`. `state.json` is versioned, the version changing only when a router
   couldn't read what another wrote: an older file, without readings, loads as having none, one
   whose readings lack `restarted_at` as windows that run a whole length before their resets, which
