@@ -3,6 +3,8 @@ package prose
 import (
 	"time"
 	"unicode/utf8"
+
+	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 // The layouts times and days are told in. A time is told in the time zone of
@@ -63,9 +65,6 @@ func ToTheSecond(now, t time.Time) string {
 func Reading(now, t time.Time) string {
 	return t.In(now.Location()).Format(readingLayout)
 }
-
-// day is a day's length.
-const day = 24 * time.Hour
 
 // Dated shows t in now's time zone as a card does, and as every time of an
 // event is said: its time of day, such as "16:05", on now's day; on any
@@ -210,11 +209,7 @@ func WithinWeek(now, t time.Time) bool {
 // daysBetween counts the days from the one t falls on to the one now does,
 // in now's time zone, however long the days between ran.
 func daysBetween(t, now time.Time) int {
-	noon := func(t time.Time) time.Time {
-		y, m, d := t.In(now.Location()).Date()
-		return time.Date(y, m, d, 12, 0, 0, 0, time.UTC)
-	}
-	return int(noon(now).Sub(noon(t)).Round(day) / day)
+	return dayfile.DaysBetween(t, now, now.Location())
 }
 
 // Day names the day d by its weekday, date and month, as History and the
@@ -252,10 +247,14 @@ func DayMonthYear(d time.Time) string {
 	return d.Format(dayMonthYearLayout)
 }
 
-// Expires says when a token's year is up, t, by its date in now's time zone,
-// such as "expires 17 Nov 2026".
+// Expires says when a token's year is up, t, by its date in now's time zone:
+// "expires 17 Nov 2026", or "expired 17 Nov 2026" from t on.
 func Expires(now, t time.Time) string {
-	return "expires " + DayMonthYear(t.In(now.Location()))
+	verb := "expires "
+	if !now.Before(t) {
+		verb = "expired "
+	}
+	return verb + DayMonthYear(t.In(now.Location()))
 }
 
 // Month names the month the day d falls in, as History names a month, such

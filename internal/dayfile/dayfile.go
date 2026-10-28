@@ -104,8 +104,20 @@ func Civil(date string) (time.Time, bool) {
 
 // CivilOf is the local day t falls on, as Civil gives a day.
 func CivilOf(t time.Time) time.Time {
-	y, m, d := t.Local().Date()
+	return civilIn(t, time.Local)
+}
+
+// civilIn is the day t falls on in loc, as Civil gives a day.
+func civilIn(t time.Time, loc *time.Location) time.Time {
+	y, m, d := t.In(loc).Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+// DaysBetween counts the days from the one from falls on to the one to falls
+// on, both in loc, however long the days between ran, as where the clocks
+// change: negative where to's day is before from's.
+func DaysBetween(from, to time.Time, loc *time.Location) int {
+	return int(civilIn(to, loc).Sub(civilIn(from, loc)) / (24 * time.Hour))
 }
 
 // MonthOf is the month the day, as Civil gives one, falls in, as a date

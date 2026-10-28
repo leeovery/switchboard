@@ -256,6 +256,44 @@ func TestTheDayATimeFallsOnIsItsLocalDay(t *testing.T) {
 	}
 }
 
+// The days between two times are counted by the dates each has in the zone
+// asked of, however long the days between ran.
+func TestTheDaysBetweenAreCountedByTheirDatesInTheZoneAskedOf(t *testing.T) {
+	london, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatalf("loading Europe/London: %v", err)
+	}
+	tests := []struct {
+		name     string
+		from, to time.Time
+		loc      *time.Location
+		want     int
+	}{
+		{name: "the same day", from: time.Date(2026, 9, 28, 0, 5, 0, 0, time.UTC), to: time.Date(2026, 9, 28, 23, 55, 0, 0, time.UTC), loc: time.UTC},
+		{name: "a minute apart, across midnight", from: time.Date(2026, 9, 28, 23, 59, 30, 0, time.UTC), to: time.Date(2026, 9, 29, 0, 0, 30, 0, time.UTC), loc: time.UTC, want: 1},
+		{name: "backwards", from: time.Date(2026, 9, 29, 9, 0, 0, 0, time.UTC), to: time.Date(2026, 9, 26, 18, 0, 0, 0, time.UTC), loc: time.UTC, want: -3},
+		{
+			name: "in the zone asked of, not either time's own", from: time.Date(2026, 9, 28, 23, 30, 0, 0, time.UTC), to: time.Date(2026, 9, 30, 22, 30, 0, 0, time.UTC),
+			loc: time.FixedZone("UTC+1", 60*60), want: 1,
+		},
+		{
+			name: "the clocks going back between, over three days in hours", from: time.Date(2026, 10, 24, 0, 30, 0, 0, london), to: time.Date(2026, 10, 26, 23, 45, 0, 0, london),
+			loc: london, want: 2,
+		},
+		{
+			name: "the clocks going forward between, under a day in hours", from: time.Date(2026, 3, 28, 23, 30, 0, 0, london), to: time.Date(2026, 3, 30, 0, 15, 0, 0, london),
+			loc: london, want: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := DaysBetween(tt.from, tt.to, tt.loc); got != tt.want {
+				t.Errorf("DaysBetween(%v, %v) = %d, want %d", tt.from, tt.to, got, tt.want)
+			}
+		})
+	}
+}
+
 // A month is named as a date leads with it, and starts on its first day, a
 // day as Civil gives one.
 func TestAMonthIsNamedAsADateLeadsWithIt(t *testing.T) {

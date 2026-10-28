@@ -95,36 +95,47 @@ func TestATokenIsGoodForAYearOfDaysFromWhenItWasTaken(t *testing.T) {
 	}
 }
 
-func TestTokenEndsWithin(t *testing.T) {
+// A moment judges each account's token's year at its own now.
+func TestAMomentJudgesEachTokensYearAtItsNow(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	tests := []struct {
 		name string
-		// left is how long the token has left at now; unknown has its year's
-		// end not known.
-		left    time.Duration
-		unknown bool
-		span    time.Duration
-		want    bool
+		// left is how many days the token has left at now, to the instant;
+		// unknown has its year's end not known.
+		left               int
+		unknown            bool
+		warned, lastWarned bool
+		days               int
+		counted            bool
+		gone               float64
 	}{
-		{name: "not known", unknown: true, span: status.TokenWarning},
-		{name: "more than the span left", left: status.TokenWarning + time.Second, span: status.TokenWarning},
-		{name: "the span left, to the instant", left: status.TokenWarning, span: status.TokenWarning},
-		{name: "a moment less than the span left", left: status.TokenWarning - time.Nanosecond, span: status.TokenWarning, want: true},
-		{name: "a week left, within the warning", left: 7 * 24 * time.Hour, span: status.TokenWarning, want: true},
-		{name: "a week left, not within the last warning", left: 7 * 24 * time.Hour, span: status.TokenLastWarning},
-		{name: "a day left, within the last warning", left: 24 * time.Hour, span: status.TokenLastWarning, want: true},
-		{name: "up at now", span: status.TokenLastWarning, want: true},
-		{name: "past its year", left: -24 * time.Hour, span: status.TokenLastWarning, want: true},
+		{name: "not known", unknown: true},
+		{name: "31 days left", left: 31, days: 31, counted: true, gone: 334.0 / 365},
+		{name: "30 days left", left: 30, warned: true, days: 30, counted: true, gone: 335.0 / 365},
+		{name: "8 days left", left: 8, warned: true, days: 8, counted: true, gone: 357.0 / 365},
+		{name: "7 days left", left: 7, warned: true, lastWarned: true, days: 7, counted: true, gone: 358.0 / 365},
+		{name: "up at now", warned: true, lastWarned: true, gone: 1},
+		{name: "past its year", left: -1, warned: true, lastWarned: true, gone: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := status.Account{ID: "work", TokenSet: true}
 			if !tt.unknown {
-				a = a.WithTokenTaken(now.Add(tt.left).Add(-365 * 24 * time.Hour))
+				a = a.WithTokenTaken(now.AddDate(0, 0, tt.left).Add(-claude.SetupTokenLifetime))
 			}
 			doc := status.Document{GeneratedAt: now, Source: status.SourceProbe, Accounts: []status.Account{a}}
-			if got := doc.At(now, policy).Accounts[0].TokenEndsWithin(tt.span); got != tt.want {
-				t.Errorf("TokenEndsWithin(%v) with %v left = %v, want %v", tt.span, tt.left, got, tt.want)
+			work := doc.At(now, policy).Accounts[0]
+			if got := work.TokenEndsWithin(status.TokenWarning); got != tt.warned {
+				t.Errorf("TokenEndsWithin(TokenWarning) = %v, want %v", got, tt.warned)
+			}
+			if got := work.TokenEndsWithin(status.TokenLastWarning); got != tt.lastWarned {
+				t.Errorf("TokenEndsWithin(TokenLastWarning) = %v, want %v", got, tt.lastWarned)
+			}
+			if days, counted := work.TokenDaysLeft(); days != tt.days || counted != tt.counted {
+				t.Errorf("TokenDaysLeft() = %d, %v; want %d, %v", days, counted, tt.days, tt.counted)
+			}
+			if got := work.TokenGone(); math.Abs(got-tt.gone) > 1e-9 {
+				t.Errorf("TokenGone() = %v, want %v", got, tt.gone)
 			}
 		})
 	}
@@ -154,10 +165,16 @@ func TestATokensYearIsJudgedAtNow(t *testing.T) {
 	}
 	noon := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
 	frame := time.Date(2026, 10, 27, 17, 42, 0, 0, london)
+	// Before the clocks go back on 25 Oct, a month ahead and a week.
+	monthBefore, weekBefore := time.Date(2026, 10, 1, 0, 30, 0, 0, london), time.Date(2026, 10, 20, 0, 30, 0, 0, london)
 	// endingAt is the year of a token whose year is up at until, as it's
 	// read, in UTC.
 	endingAt := func(until time.Time) status.TokenYear {
 		return status.TokenYearFrom(until.Add(-claude.SetupTokenLifetime))
+	}
+	// daysOn is the time days after noon, to the second.
+	daysOn := func(days int, seconds time.Duration) time.Time {
+		return noon.AddDate(0, 0, days).Add(seconds * time.Second)
 	}
 	// goneWith is the share of a year gone with hours of it left.
 	goneWith := func(hours float64) float64 { return 1 - hours/(365*24) }
@@ -167,40 +184,55 @@ func TestATokensYearIsJudgedAtNow(t *testing.T) {
 		now  time.Time
 		// warned and lastWarned are whether it ends within TokenWarning and
 		// TokenLastWarning, and days and counted what DaysLeft gives.
-		warned, lastWarned, up bool
-		days                   int
-		counted                bool
-		gone                   float64
+		known, warned, lastWarned, up bool
+		days                          int
+		counted                       bool
+		gone                          float64
 	}{
-		{name: "just taken", year: status.TokenYearFrom(frame), now: frame, days: 365, counted: true},
-		{name: "a second more than 30 days left", year: endingAt(noon.Add(status.TokenWarning + time.Second)), now: noon, days: 30, counted: true, gone: goneWith(30 * 24)},
-		{name: "30 days left, to the instant", year: endingAt(noon.Add(status.TokenWarning)), now: noon, days: 30, counted: true, gone: goneWith(30 * 24)},
-		{name: "a second less than 30 days left", year: endingAt(noon.Add(status.TokenWarning - time.Second)), now: noon, warned: true, days: 30, counted: true, gone: goneWith(30 * 24)},
-		{name: "a second more than 7 days left", year: endingAt(noon.Add(status.TokenLastWarning + time.Second)), now: noon, warned: true, days: 7, counted: true, gone: goneWith(7 * 24)},
-		{name: "7 days left, to the instant", year: endingAt(noon.Add(status.TokenLastWarning)), now: noon, warned: true, days: 7, counted: true, gone: goneWith(7 * 24)},
-		{name: "a second less than 7 days left", year: endingAt(noon.Add(status.TokenLastWarning - time.Second)), now: noon, warned: true, lastWarned: true, days: 7, counted: true, gone: goneWith(7 * 24)},
-		{name: "the year's last day", year: endingAt(noon.Add(time.Hour)), now: noon, warned: true, lastWarned: true, counted: true, gone: goneWith(1)},
-		{name: "up at now, to the instant", year: endingAt(noon), now: noon, warned: true, lastWarned: true, up: true, gone: 1},
-		{name: "past its year", year: endingAt(noon.Add(-24 * time.Hour)), now: noon, warned: true, lastWarned: true, up: true, gone: 1},
+		{name: "just taken", year: status.TokenYearFrom(frame), now: frame, known: true, days: 365, counted: true},
+		{name: "a second before it's taken", year: status.TokenYearFrom(noon), now: noon.Add(-time.Second), known: true, days: 365, counted: true},
+		{name: "a day before it's taken", year: status.TokenYearFrom(noon), now: noon.AddDate(0, 0, -1), known: true, days: 366, counted: true},
+		{name: "31 days left", year: endingAt(daysOn(31, 0)), now: noon, known: true, days: 31, counted: true, gone: goneWith(31 * 24)},
+		{name: "30 days left and a second", year: endingAt(daysOn(30, 1)), now: noon, known: true, warned: true, days: 30, counted: true, gone: goneWith(30 * 24)},
+		{name: "30 days left less a second", year: endingAt(daysOn(30, -1)), now: noon, known: true, warned: true, days: 30, counted: true, gone: goneWith(30 * 24)},
+		{name: "8 days left", year: endingAt(daysOn(8, 0)), now: noon, known: true, warned: true, days: 8, counted: true, gone: goneWith(8 * 24)},
+		{name: "7 days left and a second", year: endingAt(daysOn(7, 1)), now: noon, known: true, warned: true, lastWarned: true, days: 7, counted: true, gone: goneWith(7 * 24)},
+		{name: "7 days left less a second", year: endingAt(daysOn(7, -1)), now: noon, known: true, warned: true, lastWarned: true, days: 7, counted: true, gone: goneWith(7 * 24)},
+		{name: "the year's last day", year: endingAt(noon.Add(time.Hour)), now: noon, known: true, warned: true, lastWarned: true, counted: true, gone: goneWith(1)},
+		{name: "up at now, to the instant", year: endingAt(noon), now: noon, known: true, warned: true, lastWarned: true, up: true, gone: 1},
+		{name: "past its year", year: endingAt(noon.Add(-24 * time.Hour)), now: noon, known: true, warned: true, lastWarned: true, up: true, gone: 1},
 		{name: "not known", year: status.TokenYear{}, now: noon},
-		{name: "27 Oct to 17 Nov, frame 3's", year: endingAt(time.Date(2026, 11, 17, 9, 0, 0, 0, london)), now: frame, warned: true, days: 21, counted: true, gone: goneWith(20*24 + 15.3)},
+		{name: "taken known, its end not", year: status.TokenYear{Taken: noon}, now: noon},
+		{name: "its end known, when it was taken not", year: status.TokenYear{GoodUntil: daysOn(10, 0)}, now: noon, known: true, warned: true, days: 10, counted: true},
+		{name: "of no length, before its end", year: status.TokenYear{Taken: noon, GoodUntil: noon}, now: noon.Add(-time.Hour), known: true, warned: true, lastWarned: true, counted: true},
+		{name: "of no length, at its end", year: status.TokenYear{Taken: noon, GoodUntil: noon}, now: noon, known: true, warned: true, lastWarned: true, up: true, gone: 1},
+		{name: "27 Oct to 17 Nov, frame 3's", year: endingAt(time.Date(2026, 11, 17, 9, 0, 0, 0, london)), now: frame, known: true, warned: true, days: 21, counted: true, gone: goneWith(20*24 + 15.3)},
 		{
 			// Counted in UTC, now is a day earlier, and in hours the span is
 			// 3 days and a quarter, an hour longer for the clocks going back
 			// on 25 Oct.
 			name: "the clocks going back between", year: endingAt(time.Date(2026, 10, 26, 23, 45, 0, 0, london)), now: time.Date(2026, 10, 24, 0, 30, 0, 0, london),
-			warned: true, lastWarned: true, days: 2, counted: true, gone: goneWith(3*24 + 0.25),
+			known: true, warned: true, lastWarned: true, days: 2, counted: true, gone: goneWith(3*24 + 0.25),
 		},
 		{
 			// In hours the span is under a day, an hour shorter for the
 			// clocks going forward on 29 Mar.
 			name: "the clocks going forward between", year: endingAt(time.Date(2026, 3, 30, 0, 15, 0, 0, london)), now: time.Date(2026, 3, 28, 23, 30, 0, 0, london),
-			warned: true, lastWarned: true, days: 2, counted: true, gone: goneWith(23.75),
+			known: true, warned: true, lastWarned: true, days: 2, counted: true, gone: goneWith(23.75),
 		},
+		// Each a day longer in hours than in dates, for the clocks going
+		// back between: the warnings go by the dates.
+		{name: "31 days left, the clocks going back", year: endingAt(time.Date(2026, 11, 1, 23, 30, 0, 0, london)), now: monthBefore, known: true, days: 31, counted: true, gone: goneWith(32 * 24)},
+		{name: "30 days left, the clocks going back", year: endingAt(time.Date(2026, 10, 31, 23, 30, 0, 0, london)), now: monthBefore, known: true, warned: true, days: 30, counted: true, gone: goneWith(31 * 24)},
+		{name: "8 days left, the clocks going back", year: endingAt(time.Date(2026, 10, 28, 23, 30, 0, 0, london)), now: weekBefore, known: true, warned: true, days: 8, counted: true, gone: goneWith(9 * 24)},
+		{name: "7 days left, the clocks going back", year: endingAt(time.Date(2026, 10, 27, 23, 30, 0, 0, london)), now: weekBefore, known: true, warned: true, lastWarned: true, days: 7, counted: true, gone: goneWith(8 * 24)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			y := tt.year
+			if got := y.Known(); got != tt.known {
+				t.Errorf("Known() = %v, want %v", got, tt.known)
+			}
 			if got := y.EndsWithin(tt.now, status.TokenWarning); got != tt.warned {
 				t.Errorf("EndsWithin(TokenWarning) = %v, want %v", got, tt.warned)
 			}
@@ -220,15 +252,6 @@ func TestATokensYearIsJudgedAtNow(t *testing.T) {
 	}
 }
 
-func TestATokensYearIsKnownWhereItsEndIs(t *testing.T) {
-	if (status.TokenYear{}).Known() {
-		t.Error("a year with neither end known is known, want not")
-	}
-	if !status.TokenYearFrom(time.Date(2026, 3, 2, 9, 30, 0, 0, time.UTC)).Known() {
-		t.Error("a year from when its token was taken isn't known, want known")
-	}
-}
-
 func TestAnAccountsTokenYearIsAsItsTokenWasTaken(t *testing.T) {
 	taken := time.Date(2026, 3, 2, 9, 30, 0, 0, time.FixedZone("west", -5*60*60))
 	if got, want := (status.Account{ID: "work"}).WithTokenTaken(taken).TokenYear(), status.TokenYearFrom(taken); got != want {
@@ -240,7 +263,7 @@ func TestAnAccountsTokenYearIsAsItsTokenWasTaken(t *testing.T) {
 }
 
 func TestTheWarningsComeAMonthAndAWeekAhead(t *testing.T) {
-	if status.TokenWarning != 30*24*time.Hour || status.TokenLastWarning != 7*24*time.Hour {
-		t.Errorf("the warnings come %v and %v ahead, want 30 days and 7", status.TokenWarning, status.TokenLastWarning)
+	if status.TokenWarning != 30 || status.TokenLastWarning != 7 {
+		t.Errorf("the warnings come %d and %d days ahead, want 30 and 7", status.TokenWarning, status.TokenLastWarning)
 	}
 }

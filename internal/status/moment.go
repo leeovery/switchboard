@@ -94,8 +94,8 @@ type AccountNow struct {
 	Error          string
 	Failures       []quota.Failure
 	Sessions       int
-	// TokenYear is its token's year, as read. TokenEndsWithin judges how near
-	// its end is.
+	// TokenYear is its token's year, as read. TokenEndsWithin, TokenDaysLeft
+	// and TokenGone judge it at Now.
 	TokenYear TokenYear
 	// Extra is its extra usage, as the last answer or probe to give it left
 	// it: zero where none has. ExtraSaid says how it stands for it.

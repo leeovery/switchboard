@@ -150,6 +150,8 @@ func TestSameDayIsInNowsTimeZone(t *testing.T) {
 	}
 }
 
+// A token's year expires on its date in now's time zone, and has expired
+// from its instant on.
 func TestATokenExpiresOnItsDateInNowsTimeZone(t *testing.T) {
 	until := time.Date(2026, 11, 17, 23, 30, 0, 0, time.UTC)
 	tests := []struct {
@@ -157,8 +159,11 @@ func TestATokenExpiresOnItsDateInNowsTimeZone(t *testing.T) {
 		now  time.Time
 		want string
 	}{
-		{name: "in UTC", now: time.Date(2026, 10, 27, 17, 42, 0, 0, time.UTC), want: "expires 17 Nov 2026"},
-		{name: "east of UTC, the next day there", now: time.Date(2026, 10, 27, 17, 42, 0, 0, time.FixedZone("UTC+1", 60*60)), want: "expires 18 Nov 2026"},
+		{name: "ahead, in UTC", now: time.Date(2026, 10, 27, 17, 42, 0, 0, time.UTC), want: "expires 17 Nov 2026"},
+		{name: "ahead, east of UTC, the next day there", now: time.Date(2026, 10, 27, 17, 42, 0, 0, time.FixedZone("UTC+1", 60*60)), want: "expires 18 Nov 2026"},
+		{name: "a second ahead", now: until.Add(-time.Second), want: "expires 17 Nov 2026"},
+		{name: "at its instant", now: until, want: "expired 17 Nov 2026"},
+		{name: "gone by", now: time.Date(2026, 12, 2, 9, 0, 0, 0, time.UTC), want: "expired 17 Nov 2026"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
