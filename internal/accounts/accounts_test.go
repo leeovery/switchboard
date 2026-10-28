@@ -555,9 +555,6 @@ func TestCheckWithNoNetwork(t *testing.T) {
 	if err != nil || !got.Unchecked || got.Why == "" {
 		t.Errorf("Check() = %+v, %v, want it unchecked, saying why", got, err)
 	}
-	if !log.Has("level=WARN", `msg="couldn't check a token with the API"`) {
-		t.Errorf("the log reads\n%s\nwant a warning that the token went unchecked", log)
-	}
 	checkNoneOfTheToken(t, sideToken, got.Why, log.String())
 }
 
@@ -655,19 +652,101 @@ func TestAddGivenWhenTheAPIDoesntSayYes(t *testing.T) {
 	}
 }
 
-func TestAddGivenRefusesAnAccountBeforeAskingTheAPI(t *testing.T) {
-	w := newWorld(t, twoAccounts)
-	api := &fakeAPI{}
+// checkedWrites are the ways to save a token Check has checked: with the
+// account it's added for, or as an account's token in place of the one it
+// had.
+var checkedWrites = []struct {
+	name   string
+	config string
+	write  func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error
+}{
+	{
+		name:   "AddChecked",
+		config: twoAccounts,
+		write: func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error {
+			return r.AddChecked(ctx, config.NewAccount{ID: "side", Label: "Side"}, token, checked)
+		},
+	},
+	{
+		name:   "SetTokenChecked",
+		config: withSide,
+		write: func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error {
+			return r.SetTokenChecked(ctx, "side", token, checked)
+		},
+	},
+}
 
-	_, err := w.registry(&user{}, api).AddGiven(t.Context(), config.NewAccount{ID: "personal"}, tokenOf(t, sideToken))
-	if !errors.Is(err, config.ErrConfigured) {
-		t.Errorf("AddGiven() error = %v, want one matching %v", err, config.ErrConfigured)
+func TestTheCheckedWritesSaveWithoutAskingTheAPI(t *testing.T) {
+	checks := []struct {
+		name    string
+		checked accounts.Checked
+		// wantWarned is set when the write warns the token went unchecked.
+		wantWarned bool
+	}{
+		{name: "checked", checked: accounts.Checked{Organization: organization}},
+		{name: "unchecked", checked: accounts.Checked{Unchecked: true, Why: "timed out after 5s"}, wantWarned: true},
 	}
-	if len(api.asked) > 0 {
-		t.Errorf("the API was asked about %q, want nothing", api.asked)
+	for _, write := range checkedWrites {
+		for _, c := range checks {
+			t.Run(write.name+", "+c.name, func(t *testing.T) {
+				w := newWorld(t, write.config)
+				w.writeToken(t, "side", "test-token-stale", 0o600)
+				log := logstest.Capture(t)
+				user := &user{atTerminal: true}
+
+				if err := write.write(t.Context(), w.unasked(t, user), tokenOf(t, sideToken), c.checked); err != nil {
+					t.Fatalf("%s() error = %v", write.name, err)
+				}
+				w.checkConfig(t, withSide)
+				w.checkToken(t, "side", sideToken)
+				w.checkTaken(t, "side", sideToken, now)
+				warned := log.Has("level=WARN", `msg="couldn't check a token with the API"`, "account=side", `error="timed out after 5s"`)
+				if warned != c.wantWarned {
+					t.Errorf("the log reads\n%s\nwant the unchecked warning: %v", log, c.wantWarned)
+				}
+				if want := fmt.Sprintf("checked=%t", !c.checked.Unchecked); !log.Has("level=INFO", `msg="saved a token"`, "account=side", want) {
+					t.Errorf("the log reads\n%s\nwant the token saved, %s", log, want)
+				}
+				if user.asked {
+					t.Error("the user was asked for a token, want the one given taken")
+				}
+			})
+		}
+	}
+}
+
+func TestAddCheckedRefusesAnAccountAConfigCantAdd(t *testing.T) {
+	w := newWorld(t, twoAccounts)
+
+	err := w.unasked(t, &user{}).AddChecked(t.Context(), config.NewAccount{ID: "personal"}, tokenOf(t, sideToken), accounts.Checked{})
+	if !errors.Is(err, config.ErrConfigured) {
+		t.Errorf("AddChecked() error = %v, want one matching %v", err, config.ErrConfigured)
 	}
 	w.checkConfig(t, twoAccounts)
 	w.checkNoToken(t, "personal")
+}
+
+func TestSetTokenCheckedRefusesAnAccountNotConfigured(t *testing.T) {
+	for _, given := range []string{twoAccounts, ""} {
+		w := newWorld(t, given)
+
+		err := w.unasked(t, &user{}).SetTokenChecked(t.Context(), "side", tokenOf(t, sideToken), accounts.Checked{})
+		if want := `account "side" is not configured`; err == nil || err.Error() != want || !errors.Is(err, config.ErrNotConfigured) {
+			t.Errorf("SetTokenChecked() with the config %q: error = %v, want %q", given, err, want)
+		}
+		w.checkNoToken(t, "side")
+	}
+}
+
+// unasked returns the world's registry, as registry does, whose prober
+// fails the test if it's asked anything.
+func (w *world) unasked(t *testing.T, user *user) accounts.Registry {
+	r := w.registry(user, nil)
+	r.Prober = func(upstream string) accounts.Prober {
+		t.Errorf("the API at %s was asked about a token, want nothing", upstream)
+		return prober{api: &fakeAPI{}, upstream: upstream}
+	}
+	return r
 }
 
 func TestSetTokenGiven(t *testing.T) {
@@ -709,22 +788,6 @@ func TestSetTokenGiven(t *testing.T) {
 				t.Error("the user was asked for a token, want the one given taken")
 			}
 		})
-	}
-}
-
-func TestSetTokenGivenRefusesAnAccountNotConfigured(t *testing.T) {
-	for _, given := range []string{twoAccounts, ""} {
-		w := newWorld(t, given)
-		api := &fakeAPI{}
-
-		_, err := w.registry(&user{}, api).SetTokenGiven(t.Context(), "side", tokenOf(t, sideToken))
-		if want := `account "side" is not configured`; err == nil || err.Error() != want || !errors.Is(err, config.ErrNotConfigured) {
-			t.Errorf("SetTokenGiven() with the config %q: error = %v, want %q", given, err, want)
-		}
-		if len(api.asked) > 0 {
-			t.Errorf("the API was asked about %q, want nothing", api.asked)
-		}
-		w.checkNoToken(t, "side")
 	}
 }
 
