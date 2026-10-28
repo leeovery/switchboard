@@ -20,12 +20,14 @@ import (
 const maxMessage = 100
 
 // standing is how an account stands, as notifications judge it: its status;
+// the hash of the token whose year its status gives, "" where it gives none;
 // whether its quota leaves it room for a request of any model, which is known
 // once its usage has been read or a limit has barred it, and the keys of the
 // windows that leave it none, where it has none; and whether its token was
 // refused too lately for anything to go out on it.
 type standing struct {
 	status.Account
+	yearOf                string
 	quota, known, refused bool
 	held                  []string
 }
@@ -266,6 +268,18 @@ func (t limitText) say(name func(id string) string) string {
 		b.WriteString(" — no other account has room")
 	}
 	return b.String()
+}
+
+// yearNotice is the notification of the account's token's year ending within
+// the days warned of at now, or up: when it's up, and the days left of it,
+// as setup's review says them, and that setup makes a new token.
+func yearNotice(s standing, now time.Time) notify.Notice {
+	year := s.TokenYear()
+	news := "token " + prose.Expires(now, year.GoodUntil, year.Up(now))
+	if left, counted := year.DaysLeft(now); counted {
+		news += " · " + prose.DaysLeft(left)
+	}
+	return notify.Notice{Account: s.ID, News: news, Message: s.Title() + ": " + news + " — switchboard setup makes a new one"}
 }
 
 // moveNotice is the notification of a session's move, which is about the

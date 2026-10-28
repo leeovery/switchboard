@@ -676,7 +676,7 @@ func TestNothingWithEverythingOff(t *testing.T) {
 	})
 }
 
-func TestARouterPostsNotificationsOnlyWhenAskedTo(t *testing.T) {
+func TestARouterPostsNotificationsWithANotifier(t *testing.T) {
 	tests := []struct {
 		name     string
 		notifier Notifier
@@ -684,7 +684,7 @@ func TestARouterPostsNotificationsOnlyWhenAskedTo(t *testing.T) {
 		want     bool
 	}{
 		{name: "with a notifier and some asked for", notifier: &noting{}, settings: config.Notifications{Moves: true}, want: true},
-		{name: "with none asked for", notifier: &noting{}},
+		{name: "with none asked for, as a token's year is told of all the same", notifier: &noting{}, want: true},
 		{name: "without a notifier", settings: config.Notifications{Limits: true, Room: true, Warning: 0.9}},
 	}
 	for _, tt := range tests {
@@ -734,7 +734,7 @@ func TestANotifierThatHangsNeverHoldsUpTheListener(t *testing.T) {
 
 func TestNotificationsQueueTheEventsTheyTellOfAlone(t *testing.T) {
 	log := logstest.Capture(t)
-	n := newNotifications(config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true}, &noting{}, newTestState(&testClock{now: start}), at(start))
+	n := newNotifications(config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true}, &noting{}, newTestState(&testClock{now: start}), newYearsTold(func() {}), at(start))
 	// With nothing dealing with the queue, the router tells of more than it
 	// holds of every other kind.
 	for range queueSize + 1 {
@@ -861,8 +861,8 @@ var numbered = []config.Account{
 var numberedTokens = tokenstest.Files{"1": "test-token-1", "2": "test-token-2", "3": "test-token-3"}
 
 // notifying is notifications at work in a synctest bubble, over the state of
-// the numbered accounts, on the bubble's clock read in UTC, which begins on a
-// Saturday at midnight.
+// the numbered accounts, on the bubble's clock, which begins on a Saturday at
+// midnight in UTC, read in UTC unless it's built to read it in another zone.
 type notifying struct {
 	t        *testing.T
 	state    *state
@@ -886,10 +886,18 @@ func newNotifying(t *testing.T, settings config.Notifications) *notifying {
 // the numbered accounts' tokens.
 func newNotifyingOver(t *testing.T, settings config.Notifications, configured []config.Account) *notifying {
 	t.Helper()
-	now := func() time.Time { return time.Now().UTC() }
-	s := newState(resolve(configured, numberedTokens.Read, unrecorded), testPolicy, claude.Provider{}.Family, now, unkept, unkept)
+	return newNotifyingIn(t, settings, resolve(configured, numberedTokens.Read, unrecorded), time.UTC, newYearsTold(func() {}))
+}
+
+// newNotifyingIn is newNotifying over the accounts given, on the bubble's
+// clock read in zone, keeping what's been told of their tokens' years in
+// years.
+func newNotifyingIn(t *testing.T, settings config.Notifications, as accounts, zone *time.Location, years *yearsTold) *notifying {
+	t.Helper()
+	now := func() time.Time { return time.Now().In(zone) }
+	s := newState(as, testPolicy, claude.Provider{}.Family, now, unkept, unkept)
 	notifier := &noting{}
-	return &notifying{t: t, state: s, n: newNotifications(settings, notifier, s, now), notifier: notifier, began: now()}
+	return &notifying{t: t, state: s, n: newNotifications(settings, notifier, s, years, now), notifier: notifier, began: now()}
 }
 
 // start runs notifications until the test ends or stops them, returning once

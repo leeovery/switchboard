@@ -73,7 +73,7 @@ func TestATokensDateIsReadAgainWithTheToken(t *testing.T) {
 			f.records = tt.then.records
 			f.look()
 			work, _ := f.accounts.byID("work")
-			if got, ok := work.secret.tokenTaken(); !got.Equal(tt.want) || ok == tt.want.IsZero() {
+			if got, _, ok := work.secret.tokenTaken(); !got.Equal(tt.want) || ok == tt.want.IsZero() {
 				t.Errorf("work's token was taken at %v (%v), want %v", got, ok, tt.want)
 			}
 		})
@@ -85,7 +85,7 @@ func TestAnAccountsDateIsReadWithItsTokenAsTheRouterStarts(t *testing.T) {
 	as := resolve(testConfigured, testTokens.Read, recordsOf(map[string]time.Time{workToken: taken}))
 	for _, a := range as {
 		want := map[string]time.Time{"work": taken}[a.ID]
-		if got, ok := a.secret.tokenTaken(); !got.Equal(want) || ok == want.IsZero() {
+		if got, _, ok := a.secret.tokenTaken(); !got.Equal(want) || ok == want.IsZero() {
 			t.Errorf("%s's token was taken at %v (%v), want %v", a.ID, got, ok, want)
 		}
 	}
@@ -101,7 +101,7 @@ func TestATokensDateCountsOnlyForTheTokenItWasReadWith(t *testing.T) {
 
 	// Replaced, as a 401 or a look replaces it, before its record is read.
 	work.secret.replace(renewed, takenNote{}, start)
-	if at, ok := work.secret.tokenTaken(); ok {
+	if at, _, ok := work.secret.tokenTaken(); ok {
 		t.Errorf("work's new token was taken at %v, want it not known: the date was its old token's", at)
 	}
 }
@@ -125,8 +125,8 @@ func TestANoteOfATokenNotHeldIsPassedOver(t *testing.T) {
 	work.secret.replace(renewed, work.takenOf(renewed, records), start)
 
 	work.secret.noteHeld(old)
-	if at, ok := work.secret.tokenTaken(); !ok || !at.Equal(renewedAt) {
-		t.Errorf("work's token was taken at %v (%v), want %v: the new token's date, the old one's note passed over", at, ok, renewedAt)
+	if at, of, ok := work.secret.tokenTaken(); !ok || !at.Equal(renewedAt) || of != renewedHash {
+		t.Errorf("work's token was taken at %v (%v), of the token hashed %s; want %v, of the new token: its date, the old one's note passed over", at, ok, of, renewedAt)
 	}
 }
 

@@ -349,10 +349,17 @@ While the router runs, it posts desktop notifications, whether or not a dashboar
   `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`. These are
   off unless you turn them on.
 
+It also tells you when an account's token nears the end of its year, whatever the keys say: once
+when 30 days or fewer are left, and again at 7, such as
+`work · Work: token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`, or
+`token expired …` once it's past. A router started with a token already within either tells only
+the nearest. A restart doesn't tell either again, and a new token starts afresh.
+
 ### How often notifications go out
 
-A limit's notification always goes out. Any other notification goes out only when a minute or more
-has passed since the last one posted about its account. Otherwise, it's dropped.
+A limit's notification and a token's year's always go out. Any other notification goes out only
+when a minute or more has passed since the last one posted about its account. Otherwise, it's
+dropped.
 
 Notifications never hold a request up.
 

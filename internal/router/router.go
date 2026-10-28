@@ -117,7 +117,8 @@ type Config struct {
 	// the router primes them on its schedule, and its status gives it.
 	Prime config.Prime
 	// Now reads the clock as time.Now does: the wall clock, which the router
-	// goes by, and the monotonic, which it tells the Mac's sleeps by.
+	// goes by, and the monotonic, which it tells the Mac's sleeps by; in the
+	// local time zone, which the days left of a token's year are counted in.
 	Now func() time.Time
 	// Version is switchboard's, which the control API reports.
 	Version string
@@ -126,8 +127,9 @@ type Config struct {
 	// router, but can hand an event on to be dealt with elsewhere. Nil hears
 	// nothing.
 	Events func(Event)
-	// Notifier posts the desktop notifications Notifications asks for, while
-	// Run runs. Nil posts none.
+	// Notifier posts the desktop notifications Notifications asks for, and
+	// those of the tokens' years, which it has no say in, while Run runs. Nil
+	// posts none.
 	Notifier      Notifier
 	Notifications config.Notifications
 	// History says how long the readings history is kept: a zero Keep keeps
@@ -202,12 +204,6 @@ type Config struct {
 	DrainFor time.Duration
 }
 
-// notifying reports whether the router posts notifications: it has a
-// notifier, and some to post.
-func (c Config) notifying() bool {
-	return c.Notifier != nil && c.Notifications != (config.Notifications{})
-}
-
 // Router is switchboard's router: the proxy, the scheduler that chooses the
 // account each request goes out on, the live state of every account's usage,
 // the primes and the rounds that read the accounts with no traffic to read
@@ -280,9 +276,10 @@ func New(cfg Config) (*Router, error) {
 	sessions.bound = cfg.Provider.ThinkingBound
 	recent := newRecent(state, sessions, cfg.Now)
 	listeners := []func(Event){cfg.Events, recent.hear}
+	told := newYearsTold(changes.note)
 	var notices *notifications
-	if cfg.notifying() {
-		notices = newNotifications(cfg.Notifications, cfg.Notifier, state, cfg.Now)
+	if cfg.Notifier != nil {
+		notices = newNotifications(cfg.Notifications, cfg.Notifier, state, told, cfg.Now)
 		listeners = append(listeners, notices.hear)
 	}
 	emit := hearing(listeners...)
@@ -314,7 +311,7 @@ func New(cfg Config) (*Router, error) {
 		recent:    recent,
 		emit:      emit,
 		stream:    stream,
-		file:      newStateFile(cfg.Now, changes, sessions, accounts, state),
+		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told),
 		history:   history,
 		ledger:    requests,
 		probes:    probes,

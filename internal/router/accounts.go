@@ -130,15 +130,16 @@ func (a account) logUntaken(why string) {
 	}
 }
 
-// tokenTaken returns when the token the account holds was taken, reporting
-// false where that isn't known, as where it was noted of another.
-func (s *secret) tokenTaken() (time.Time, bool) {
+// tokenTaken returns when the token the account holds was taken, and the
+// token's hash, reporting false where when isn't known, as where it was noted
+// of another.
+func (s *secret) tokenTaken() (taken time.Time, of string, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.taken.IsZero() || s.takenOf != s.held {
-		return time.Time{}, false
+		return time.Time{}, "", false
 	}
-	return s.taken, true
+	return s.taken, s.held, true
 }
 
 func (s *secret) get() tokens.Token {

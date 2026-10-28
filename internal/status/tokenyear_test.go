@@ -246,6 +246,16 @@ func TestATokensYearIsJudgedAtNow(t *testing.T) {
 			if got := y.EndsWithin(tt.now, status.TokenLastWarning); got != tt.lastWarned {
 				t.Errorf("EndsWithin(TokenLastWarning) = %v, want %v", got, tt.lastWarned)
 			}
+			wantDays := 0
+			switch {
+			case tt.lastWarned:
+				wantDays = status.TokenLastWarning
+			case tt.warned:
+				wantDays = status.TokenWarning
+			}
+			if days, warned := y.Warned(tt.now); days != wantDays || warned != (wantDays > 0) {
+				t.Errorf("Warned() = %d, %v; want %d, %v: the nearest warning it's within", days, warned, wantDays, wantDays > 0)
+			}
 			if got := y.Up(tt.now); got != tt.up {
 				t.Errorf("Up() = %v, want %v", got, tt.up)
 			}

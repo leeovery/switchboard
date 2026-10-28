@@ -40,10 +40,11 @@ const (
 // assignments, the pins they were given while they ran and the global pin, so
 // a restart doesn't scatter sessions and cost their caches; what it knows of
 // the accounts' tokens, so a token replaced before a restart still counts as
-// its account's after; and each account's last readings, so a restart needs
-// no probe, which, being a request, could start a window, and how its probes
+// its account's after; each account's last readings, so a restart needs no
+// probe, which, being a request, could start a window, and how its probes
 // went, so a restart neither probes it sooner than they allow nor forgets why
-// it can't be read.
+// it can't be read; and what's been told of each account's token's year, so a
+// restart tells nothing twice.
 type stateFile struct {
 	// path is where the file is: "" until it's loaded, and nothing is kept.
 	path string
@@ -51,14 +52,16 @@ type stateFile struct {
 	write   func(path string, data []byte) error
 	now     func() time.Time
 	changes *changes
-	// sessions, accounts and state are what the file keeps what's known of.
+	// sessions, accounts, state and told are what the file keeps what's
+	// known of.
 	sessions *sessions
 	accounts accounts
 	state    *state
+	told     *yearsTold
 }
 
-func newStateFile(now func() time.Time, changes *changes, sessions *sessions, accounts accounts, state *state) *stateFile {
-	return &stateFile{write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state}
+func newStateFile(now func() time.Time, changes *changes, sessions *sessions, accounts accounts, state *state, told *yearsTold) *stateFile {
+	return &stateFile{write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state, told: told}
 }
 
 // changes are the changes the state file lacks. Noting one never blocks, and
@@ -96,6 +99,9 @@ type savedState struct {
 	// Tokens are what's kept of each account's tokens, by the account's id.
 	Tokens map[string]savedTokens `json:"tokens,omitempty"`
 	savedUsage
+	// TokenYears are what's been told of each account's token's year, by the
+	// account's id.
+	TokenYears map[string]toldYear `json:"token_years,omitempty"`
 }
 
 // savedSessions is what the state file holds of the sessions.
@@ -163,7 +169,8 @@ func (f *stateFile) load(path string) {
 	tokens := f.accounts.recall(saved.Tokens, now)
 	sessions := f.sessions.recall(saved.savedSessions, f.accounts, now)
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
-	if tokens || sessions || usage {
+	told := f.told.recall(saved.TokenYears, f.accounts.includes)
+	if tokens || sessions || usage || told {
 		f.changes.note()
 	}
 	held := f.snapshot()
@@ -273,6 +280,7 @@ func (f *stateFile) snapshot() savedState {
 		savedSessions: f.sessions.saved(),
 		Tokens:        f.accounts.kept(),
 		savedUsage:    f.state.saved(),
+		TokenYears:    f.told.saved(),
 	}
 }
 
