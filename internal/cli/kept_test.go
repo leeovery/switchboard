@@ -110,7 +110,7 @@ func TestServiceRestartReadsABinaryPlistBack(t *testing.T) {
 
 func TestSetupChecksTheRouterCouldStartFromWhatThePlistKeeps(t *testing.T) {
 	s := newServiceSetup(t)
-	s.launchd.loaded = true
+	s.launchd.loaded, s.launchd.pid = true, 100
 	kept := s.keptRouter(t)
 	// From before ProcessType, as a hand edit gave it a log level serve
 	// can't parse.

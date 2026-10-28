@@ -102,10 +102,6 @@ func (r *run) service(ctx context.Context) error {
 	return nil
 }
 
-// errLeftUnanswered is how the service step fails where it leaves the
-// service as it is with no router answering.
-var errLeftUnanswered = errors.New("setup left the service as it is, and no router answers: run switchboard setup again once one does")
-
 // status is how svc stands, as Status says; but where launchd runs a router
 // that doesn't answer, asked again for as long as the launcher waits for one,
 // as a router starting under launchd, or handing over in the same process,
@@ -119,45 +115,60 @@ func (r *run) status(ctx context.Context, svc *service.Service) (service.Status,
 }
 
 // leaves reports whether setup leaves the service, standing as st says, as
-// it is, having said why, failing where no router answers: where launchd
-// hasn't loaded it but a router run some other way answers, which another
-// would clash with; where the router that answers may not be the one the
-// service runs, as Status's Elsewhere says; and where launchd runs a router
-// that doesn't answer.
+// it is, having said why: where a router answers that isn't launchd's, as
+// handRun says, failing; where the router that answers may not be the one
+// the service runs, as Status's Elsewhere says; and where launchd runs a
+// router that doesn't answer, failing.
 func (r *run) leaves(st service.Status) (bool, error) {
 	switch {
-	case !st.Loaded && st.Router != nil:
-		r.Terminal.sayf("Launchd hasn't loaded the service, but a router run some other way answers, and another would clash with it, so setup leaves it as it is: once that one's stopped, %s, installs it.", installAdvice)
+	case st.Router != nil && !launchdAnswers(st):
+		return true, r.handRun(st, "", "")
 	case st.Elsewhere:
 		r.Terminal.sayf("No router answers where the service's plist keeps its state, but one answers where this shell keeps it, so which the service runs can't be told, and setup leaves it as it is: %s, lines them up.", installAdvice)
+		return true, nil
 	case st.Router == nil && st.PID != 0:
-		r.leftRunning(st.PID)
-		return true, errLeftUnanswered
-	default:
-		return false, nil
+		r.Terminal.sayf("Launchd runs the service's router, pid %d, but it doesn't answer here: it may be starting, or stopping, which can take over half a minute after a bootout, "+
+			"or keeping its state somewhere setup doesn't look. Setup leaves it as it is: if it doesn't answer soon, as switchboard service status shows, "+
+			"switchboard service install starts it again from its plist.", st.PID)
+		return true, fmt.Errorf("launchd's router, pid %d, doesn't answer: if it doesn't soon, run switchboard service install", st.PID)
 	}
-	return true, nil
+	return false, nil
 }
 
-// leftRunning says setup leaves the service as it is, launchd running its
-// router, pid, which doesn't answer.
-func (r *run) leftRunning(pid int) {
-	r.Terminal.sayf("Launchd runs the service's router, pid %d, but it doesn't answer here: it may be starting, or stopping, which can take over half a minute after a bootout, "+
-		"or keeping its state somewhere setup doesn't look. Setup leaves it as it is: switchboard service status says how it stands.", pid)
+// noService is how setup says there's no service, its plist gone and launchd
+// not having loaded it.
+const noService = "No service is installed"
+
+// handRun says a router run some other way answers, as st says, after
+// lead, the plist's state where setup can't use it, and what launchd has of
+// the service, where lead doesn't say it, as noService does; and fails, short naming the plist's
+// state, as no router could start beside it, and only service install, once
+// it's stopped, puts the service right.
+func (r *run) handRun(st service.Status, lead, short string) error {
+	said, failed := "A router run some other way answers", "a router run by hand answers"
+	if lead != "" {
+		said, failed = lead+", and a router run some other way answers", short+", and a router run by hand answers"
+	}
+	while := ", while " + launchdHas(st)
+	if lead == noService {
+		while = ""
+	}
+	r.Terminal.sayf("%s, %s%s: setup leaves them as they are. Stop the router run by hand, then run switchboard service install.", said, pidOf(st.Router.PID), while)
+	return fmt.Errorf("%s: stop it, then run switchboard service install", failed)
 }
 
 // placeless says where the service's router finds its state or its config
-// file can't be worked out from its plist, as err says, and leaves the
-// service as it is while a router svc may run answers, or fails while none
-// does, naming service install.
+// file can't be worked out from its plist, as err says, leaves the service
+// as it is while a router svc may run answers, which can't be launchd's, and
+// fails all the same, naming service install.
 func (r *run) placeless(ctx context.Context, svc *service.Service, err error) error {
 	why := fmt.Sprintf("Where the service's router finds its state or its config can't be worked out from its plist (%s)", redact.Text(err.Error()))
 	if svc.Answering(ctx) != nil {
 		r.Terminal.sayf("%s, but a router answers, so the service is left as it is: %s, installs it afresh.", why, installAdvice)
-		return nil
+	} else {
+		r.Terminal.sayf("%s, and no router answers: %s, installs it afresh.", why, installAdvice)
 	}
-	r.Terminal.sayf("%s, and no router answers: %s, installs it afresh.", why, installAdvice)
-	return fmt.Errorf("the service's plist: %w", err)
+	return fmt.Errorf("the service's plist: %w: run switchboard service install", err)
 }
 
 // installFirst installs the LaunchAgent, which isn't installed, as setup's
@@ -180,10 +191,11 @@ func (r *run) installFirst(ctx context.Context) error {
 // unusable judges the service where setup has no plist it can use: none, or
 // one it can't read back, as unread says. Where launchd runs a router, or
 // one answers, or launchd has loaded a plist it can't read back, it leaves
-// both as they are, saying truly what runs, and fails: a plist launchd can't read, or none, can't start the
-// router at login, so the step isn't done, and only service install, which
-// writes the plist afresh, puts that right. It reports whether it left the
-// service so; where it didn't, setup installs it afresh.
+// both as they are, saying truly what runs, and fails: a plist launchd can't
+// read, or none, can't start the router at login, so the step isn't done,
+// and only service install, which writes the plist afresh, puts that right.
+// It reports whether it left the service so; where it didn't, setup installs
+// it afresh.
 func (r *run) unusable(ctx context.Context, unread error) (bool, error) {
 	st, err := r.status(ctx, r.Service)
 	switch {
@@ -200,16 +212,14 @@ func (r *run) unusable(ctx context.Context, unread error) (bool, error) {
 		plist = fmt.Sprintf("The service's plist can't be read back (%s)", redact.Text(unread.Error()))
 		short = "the service's plist can't be read back"
 	case !st.Loaded:
-		plist, short = "No service is installed", "no service is installed"
+		plist, short = noService, "no service is installed"
 	}
 	switch {
 	case launchdAnswers(st):
 		r.Terminal.sayf("%s, though launchd runs its router, %s, which answers: setup leaves it as it is, and switchboard service install writes the plist afresh.", plist, pidOf(st.PID))
 		return true, fmt.Errorf("%s: run switchboard service install", short)
 	case st.Router != nil:
-		r.Terminal.sayf("%s, and a router run some other way answers, %s, while %s: setup leaves them as they are. Stop the router run by hand, then run switchboard service install.",
-			plist, pidOf(st.Router.PID), launchdHas(st))
-		return true, fmt.Errorf("%s, and a router run by hand answers: stop it, then run switchboard service install", short)
+		return true, r.handRun(st, plist, short)
 	}
 	r.Terminal.sayf("%s, and no router answers, while %s: setup leaves it as it is, and switchboard service install writes the plist afresh.", plist, launchdHas(st))
 	return true, fmt.Errorf("%s, and no router answers: run switchboard service install", short)
