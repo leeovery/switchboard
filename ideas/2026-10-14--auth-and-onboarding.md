@@ -91,6 +91,8 @@ wanted):
 
 ### Setup's flow
 
+Designed as a full screen in [design.md's Setup](../docs/design.md#setup).
+
 The owner agreed it on 27 October 2026, step by step. Setup's other steps stay as they are, but for
 the service's, below.
 
