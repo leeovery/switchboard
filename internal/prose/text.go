@@ -13,6 +13,15 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
+// Version words a release's version as it's shown, such as v0.2.10: a
+// version that isn't a release's number, such as a build's "dev", as it is.
+func Version(version string) string {
+	if version == "" || version[0] < '0' || version[0] > '9' {
+		return version
+	}
+	return "v" + version
+}
+
 // Clean makes text safe to show on one line of a terminal: control
 // characters, which would move the cursor or restyle what follows, become
 // spaces, and each run of spaces becomes one.

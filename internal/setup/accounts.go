@@ -51,7 +51,7 @@ func (r *run) token(ctx context.Context, cfg *config.Config, a config.Account) e
 		r.Terminal.sayf("%s has none still: %v. Run setup again, or switchboard accounts token %s, to give it one.", a.ID, err, a.ID)
 		return nil
 	}
-	r.changed = true
+	r.wrote()
 	r.Terminal.sayf("Saved %s's token.%s", a.ID, unchecked(taken))
 	return nil
 }
@@ -118,7 +118,7 @@ func (r *run) addAccount(ctx context.Context, id string) (bool, error) {
 		r.Terminal.sayf("%s isn't added: %v.", id, err)
 		return false, nil
 	}
-	r.changed = true
+	r.wrote()
 	kept := ""
 	if taken.Kept {
 		kept = ", keeping the token in " + r.registry.Tokens.Path(id)
@@ -154,7 +154,8 @@ func (r *run) primary() error {
 	if err := draft.Save(); err != nil {
 		return err
 	}
-	r.cfg, r.changed = draft.Config(), true
+	r.cfg = draft.Config()
+	r.wrote()
 	logger.Info("marked the primary", "account", id)
 	r.Terminal.sayf("The primary is %s.", title(r.cfg.Accounts.Primary()))
 	return nil

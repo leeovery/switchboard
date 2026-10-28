@@ -2,6 +2,7 @@ package setup_test
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -135,19 +136,49 @@ func TestServiceSaysEachOutcomeAsTheLineWalkDoes(t *testing.T) {
 			want: []said{{setup.Failed, "Router run by hand", "a router run some other way answers, pid 5000, while launchd has the service loaded, but runs no router: " +
 				"setup leaves them as they are; stop the router run by hand, then run switchboard service install"}},
 		},
+		{
+			name: "a plist that can't be read back, a router run by hand answering: failed, saying why, redacted",
+			lay: func(t *testing.T, w *world) {
+				writeFile(t, w.plist(), "bplist00\xd1\x01\x02", 0o644)
+				w.launchd.pid, w.launchd.byHand = 0, 5000
+			},
+			want: []said{{setup.Failed, "Router run by hand", "the service's plist can't be read back (" + unreadBinary + "), and a router run some other way answers, pid 5000, " +
+				"while launchd has the service loaded, but runs no router: setup leaves them as they are; stop the router run by hand, then run switchboard service install"}},
+		},
+		{
+			name: "where the router finds its state can't be worked out, a router run by hand answering: failed, as one clause",
+			lay: func(t *testing.T, w *world) {
+				setsHomeEmpty(t, w, "XDG_STATE_HOME", "state")
+				w.launchd.pid, w.launchd.byHand = 0, 5000
+			},
+			want: []said{{setup.Failed, "Router run by hand", "where the service's router finds its state or its config can't be worked out from its plist " +
+				"(locate state directory: the service's plist sets HOME empty, where the router finds no home directory), and a router run some other way answers, pid 5000, " +
+				"while launchd has the service loaded, but runs no router: setup leaves them as they are; stop the router run by hand, then run switchboard service install"}},
+		},
+	}
+	// laid is a world, done, as lay changes it.
+	laid := func(t *testing.T, lay func(t *testing.T, w *world)) *world {
+		w := newWorld(t)
+		w.done(t)
+		if lay != nil {
+			lay(t, w)
+		}
+		return w
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := newWorld(t)
-			w.done(t)
-			if tt.lay != nil {
-				tt.lay(t, w)
-			}
+			w := laid(t, tt.lay)
 
 			got, _ := w.setup(t, &user{}).Service(t.Context())
 			var marked []said
+			var sentences strings.Builder
 			for _, s := range w.rootedSaid(got.Said) {
 				marked = append(marked, said{s.Mark, s.Label, s.Detail})
+				sentences.WriteString(s.Sentence + "\n")
+			}
+			walked, _ := laid(t, tt.lay).run(t, "")
+			if printed := section(t, walked, "3. The service"); sentences.String() != printed {
+				t.Errorf("Service() said the sentences\n%s\nbut the line walk printed\n%s", sentences.String(), printed)
 			}
 			if !reflect.DeepEqual(marked, tt.want) {
 				t.Errorf("Service() said\n%+v\nwant\n%+v", marked, tt.want)
@@ -215,6 +246,58 @@ func dayOf(day config.Day) string {
 		return ""
 	}
 	return day.String()
+}
+
+func TestSetDayTellsTheServiceOfAChangedDayAlone(t *testing.T) {
+	const takesUp = " · takes up setup's changes on its own"
+	tests := []struct {
+		name, day   string
+		wantTakesUp bool
+	}{
+		{name: "a day changed", day: "07:00-22:00", wantTakesUp: true},
+		{name: "a day left as it was", day: "08:00-23:00"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			s := w.setup(t, &user{})
+
+			if _, err := s.SetDay(tt.day); err != nil {
+				t.Fatalf("SetDay(%q) error = %v", tt.day, err)
+			}
+			got, err := s.Service(t.Context())
+			if err != nil || len(got.Said) != 1 {
+				t.Fatalf("Service() = %+v, %v; want the router alone", got, err)
+			}
+			if takes := strings.HasSuffix(got.Said[0].Detail, takesUp); takes != tt.wantTakesUp {
+				t.Errorf("Service() said %q, want the router taking up setup's changes: %v", got.Said[0].Detail, tt.wantTakesUp)
+			}
+		})
+	}
+}
+
+func TestSetDayNeverMakesTheConfigFile(t *testing.T) {
+	tests := []struct {
+		name, day string
+		wantErr   bool
+	}{
+		{name: "a day cleared: nothing to do", day: ""},
+		{name: "a day set: no account to prime", day: "08:00-23:00", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+
+			_, err := w.setup(t, &user{}).SetDay(tt.day)
+			if (err != nil) != tt.wantErr || (err != nil && !strings.HasPrefix(err.Error(), "no account is configured")) {
+				t.Errorf("SetDay(%q) error = %v, want no account configured: %v", tt.day, err, tt.wantErr)
+			}
+			if _, err := os.Stat(w.config); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("the config file: %v, want none made", err)
+			}
+		})
+	}
 }
 
 func TestSetDayRefusesADayThatIsntOne(t *testing.T) {
@@ -299,11 +382,11 @@ func TestSessionHookSays(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			want: setup.Said{Mark: setup.Done, Label: "Session hook", Detail: "put right · " + does, Sentence: "Put the session hook right: " + at},
+			want: setup.Said{Mark: setup.Done, Label: "Session hook", Detail: "put right: " + does, Sentence: "Put the session hook right: " + at},
 		},
 		{
 			name: "in place",
-			want: setup.Said{Mark: setup.Done, Label: "Session hook", Detail: does, Sentence: "The session hook is in place: " + at},
+			want: setup.Said{Mark: setup.Done, Label: "Session hook", Detail: "in place: " + does, Sentence: "The session hook is in place: " + at},
 		},
 		{
 			name: "settings that aren't an object: a warning, carrying on",
