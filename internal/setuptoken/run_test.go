@@ -356,19 +356,17 @@ func TestRunTakesNoTokenCutShortFromADrawingThatHasntEnded(t *testing.T) {
 // drain ends, as one does that draws as fast as Make reads.
 func TestRunDrawsAFewReadsAtMostOnceItsDrainIsOver(t *testing.T) {
 	const waiting = 100
-	output, drained := make(chan []byte, waiting), make(chan time.Time, 1)
+	output := make(chan []byte, waiting)
 	for range waiting {
 		output <- []byte(redrawn)
 	}
-	drained <- time.Now()
 	r := newTestRun(t, func() {}, waitsLong)
-	r.draw(t.Context(), []byte(madeFrame()), true)
-	r.output, r.drained = output, drained
+	r.output = output
 
-	conclusion(t, t.Context(), r)
+	r.drawWaiting(t.Context())
 
-	if len(output) == 0 || r.token.Reveal() != madeToken {
-		t.Errorf("Make read %d of the %d reads waiting, and has the token %q (%v); want the token, a few read at most", waiting-len(output), waiting, r.token.Reveal(), r.err)
+	if drawn := waiting - len(output); drawn != readsAtDrain {
+		t.Errorf("Make drew %d of the %d reads waiting, want %d", drawn, waiting, readsAtDrain)
 	}
 }
 
