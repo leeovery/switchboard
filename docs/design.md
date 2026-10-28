@@ -848,8 +848,9 @@ accounts:
 already done, and does only what's missing. It asks as it goes, a line at a time, so it needs a
 terminal: without one, it fails, saying how each step is taken alone: by the command that takes it,
 where there is one, priming by a line in the config's `[prime]` table, and the `claude` link by
-making it and putting its directory on `PATH`; the skill and the session hook, only setup writes. It stops at a step that
-fails, when its input ends, or at an interrupt; run again, it carries on from there. Before it asks
+making it and putting its directory on `PATH`; the skill and the session hook, only setup writes.
+It stops at a step that fails, when its input ends, or at an interrupt; run again, it carries on
+from there. Before it asks
 anything, it refuses a switchboard that won't last, such as `go run`'s, as `service install` does:
 the service and the `claude` link both run the one setup was run by. An answer shaped like a token,
 pasted where it shows, is never taken: setup asks for tokens where they don't show.
@@ -887,8 +888,8 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    it changes `PATH`. Declined, it shows the same line to add by hand, wherever the user keeps
    such lines, and the directory alone, to put first on `PATH` wherever it's set, for a `PATH`
    kept another way or a shell setup doesn't know. Either way it asks the login shell again, and
-   the step is done only when it answers with the link. Then it installs the session hook, or
-   puts it right (see The session hook).
+   the step is done only when it answers with the link. Then, whatever the link step found, it
+   installs the session hook, or puts it right (see The session hook).
 5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Prints `usage`, every account's windows as they stand (see `usage`, the printout).
 
@@ -923,6 +924,9 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent; restart the router in place, letting it finish its requests in flight; report the plist, whether launchd has it loaded, and the router's health: see Launching |
 | `version` | Print the version, as `--version` does |
 | `help [command]` | List the commands, or print a command's help, as `-h` does |
+
+`hook session-start`, which the help leaves out, as only Claude Code runs it, is the session hook
+(see The session hook).
 
 The plain text `requests`, `history`, `sessions` and `events` print on a terminal is a first cut,
 to be designed with their owner, as `status`'s text is (see Backlog); agents read their JSON, which
@@ -7181,18 +7185,58 @@ was started: by switchboard's `claude`, by the real `claude` found ahead of it o
 or by an editor. The hook routes nothing and changes nothing: it notices. The launcher marks the
 environment of every Claude Code it starts (see Launching), which a session's hooks inherit; a
 session without the mark hears as it starts that it isn't going through switchboard, as the
-`claude` that started it isn't switchboard's, and what to run: `switchboard setup`. So whatever
+`claude` that started it isn't switchboard's: from a terminal, `switchboard setup` puts that right,
+and an app that runs a Claude Code of its own, never looking on `PATH`, such as the Claude desktop
+app's Code sessions or an editor's bundled binary, isn't routed. So whatever
 puts the real `claude` ahead again, a startup file changed, a line declined or a Mac restored, the
 first session after it says so.
 
 - **It runs `switchboard hook session-start`** by the path setup was run by, as the `claude` link
   does, and does nothing when that path leads nowhere, so switchboard removed leaves no hook
-  failing.
-- **It never holds up or fails a session:** it answers at once, and always succeeds.
+  failing. Its command is `[ -x '<path>' ] && '<path>' hook session-start || true`, the path
+  quoted for `sh`, a quote in it written `'\''`, with a `timeout` of 5 seconds, far more than it
+  takes. `hook` is a hidden command group: only Claude Code runs it.
+- **It never holds up or fails a session:** it answers at once, and always succeeds. It asks
+  nothing of the router, reads no config and touches no network. It reads Claude Code's hook
+  input, a JSON object on stdin, up to 64 KiB, for its `source`, and reads nothing when stdin is a
+  terminal, so run by hand it doesn't wait for typing. Whatever goes wrong, input it can't read
+  or output it can't write, is logged in `cli.log`, and it exits 0.
+- **What it says:** nothing in a session with the mark, whatever it was started as. Without it,
+  as the session starts or is resumed, or where the source is missing or can't be read, it prints
+  one line of JSON, `{"systemMessage": "…"}`, which Claude Code shows the user: `This session
+  isn't going through switchboard, as the claude that started it isn't switchboard's: from a
+  terminal, switchboard setup puts that right; an app that runs its own Claude Code isn't
+  routed.` It tells Claude nothing: context it added would go into every prompt of a headless run
+  that doesn't go through switchboard, such as a script's or cron's `claude -p`, costing tokens
+  and steering its output. A session cleared or compacted says nothing, as it said so as it
+  started.
 - **Switchboard's own entry:** it lives in `settings.json` in Claude Code's config directory,
-  `$CLAUDE_CONFIG_DIR`, else `~/.claude`. Setup adds it, or puts it right, and leaves every other
-  setting and hook as it is; only setup writes it. Taking it away is the uninstall's
-  (`ideas/2026-10-27--uninstall.md`).
+  `$CLAUDE_CONFIG_DIR`, else `~/.claude`, as `{"type": "command", "command": "…", "timeout": 5}`
+  in a group of its own under `hooks.SessionStart`, with no matcher, so it runs for every
+  session. It's known by its command's shape, the same path in both places, whatever it is, so
+  long as it names a binary called `switchboard`: anything else, a hook of the user's that merely
+  mentions switchboard included, isn't it. Of two keys alike in an object, the last is read, as
+  Claude Code reads it. Setup adds it where there's none, making `hooks` and `SessionStart` as
+  needed; corrects one with another path, type or timeout in place, keeping its other keys; takes
+  one out of a group whose matcher doesn't run it for every session, as none, an empty one, `null`
+  or `*` do, removing the group if that empties it; and of several, keeps the first in a group
+  that runs for every session, corrected, removing the rest and any group they leave empty. A group or hook not shaped as Claude Code reads one is the
+  user's, and left as it is. Already right, it writes nothing. Run by a name other than
+  `switchboard`, as through a link of the user's named `sb`, or a build given another name, setup
+  writes nothing, and says `switchboard is running as sb here, so the session hook isn't
+  installed: run setup as switchboard`: an entry by that name couldn't be known again, and would
+  be added at every run. It follows no link to find the name, as a Homebrew path leads into a
+  versioned directory an upgrade removes. It leaves every other setting and hook as it is, in its
+  order, and writes the file whole, indented by two spaces as Claude Code writes it, keeping its
+  mode, and through a link to it, as dotfiles keep it, to the file the link leads to. Once the new
+  file is written beside it, synced and closed, just before it's renamed into place, it reads the
+  file again, and where Claude Code has written it meanwhile, starts again from what it holds
+  then, up to three times, then fails saying the file kept changing, as `config`'s saves refuse a changed
+  file. A missing file, or one of only spaces, is `{}`; one that isn't a JSON object, where it
+  says the line and column it can't read, or that the file starts with a byte order mark, or
+  whose `hooks` isn't an object or `SessionStart` an array, it leaves as it is, saying what's
+  wrong, and setup carries on. Only setup writes it. Taking it away is the
+  uninstall's (`ideas/2026-10-27--uninstall.md`).
 
 ## What doesn't go through the router
 
@@ -7210,6 +7254,9 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
   but the request that crossed the limit is billed. The accounts tested read extra usage as off.
 - **Programs whose `PATH` lacks the link's directory**, such as launchd jobs and some GUI apps,
   find the real `claude`, and aren't routed; the session hook says so as each session starts.
+- **Apps that run a Claude Code of their own**, never looking on `PATH`, such as the Claude
+  desktop app's Code sessions or an editor's bundled binary, aren't routed, and setup can't change
+  that; the session hook says so as each session starts.
 - **A direct launch**, without the router, can spend the reserve of the account it goes out on.
 - **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude
   Code may use the key in place of an account's token, so `claude` starts it as if switchboard
@@ -7231,7 +7278,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; the days' digests, built on a goroutine of their own through the `Digester` seam it declares, each day's builder handed every line its read reads, and their parts files, a gzip member a session pointed at by offset, length and CRC; each day's head, built after the digests, newest first, of exactly the lines `Day` gives the day by the one read both share, its side the views'; when a digest or a head stands, and a session as of a day, on the newest state a digest holds that stands for it, or, for a page, the newest whose chain of parts reads, and the raw lines after, one lookup the writer and the readers share; a line's usage decoded once into what its request spent, which the price table prices as it prices the line, and what a page's requests spent, summed by model and where they were served, priced alike once as the page is built; a window's climb, and its stored form; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
 | `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read |
 | `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept as long, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
-| `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced; and setting a corrupt file aside, keeping the newest 3 of its name |
+| `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place, unless a check its caller gives, just before the rename, says otherwise; and where writing through a link leads, so a file that's a link is written where it leads, never replaced; and setting a corrupt file aside, keeping the newest 3 of its name |
 | `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's, the readings history's and the router's events' files are read back and an answer's stream of events is counted |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, and a line's limits kept small, as the views hold them, with their stored form, as a day's digest keeps the windows a page's points hold, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, the headers that name the prompt a request serves, its class and its agent, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
@@ -7247,7 +7294,8 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets; and asking the binary first whether it could start (`--check`), telling its refusal apart from a binary that can't answer |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
 | `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, and the line that puts that directory on `PATH` |
-| `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy |
+| `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy; and where Claude Code's config directory is |
+| `internal/sessionhook` | The session hook: what `hook session-start` tells a session that didn't start through switchboard, and switchboard's entry in Claude Code's `settings.json`, installed or put right, the rest of the file left as it is |
 | `internal/service` | The LaunchAgent: its plist, and driving `launchctl` |
 | `internal/notify` | Posting desktop notifications, and the wording and warning threshold the router's and the dashboard's share |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
@@ -7433,6 +7481,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   real `claude`'s directory.
 - **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.
+- **The session hook:** an entry under `hooks.SessionStart` in `settings.json` in Claude Code's
+  config directory, `$CLAUDE_CONFIG_DIR`, else `~/.claude`, which `setup` adds or puts right,
+  leaving the rest of the file as it is (see The session hook).
 - **The capture harness,** in the repository: `testdata/vhs/`, where the dashboard is checked
   against its frames. `reference/` keeps them, 82 of them, named by their
   stems: `usage-*` (9), `overview-*` (15), `accounts-*` (11), `history-*` (10), `routing-*` (5),

@@ -24,8 +24,9 @@ verbs that print JSON for agents, and through a skill that tells Claude about it
   request stream, and the recorded files: one function a view, read alike by the dashboard and the
   verbs. `prose` words every plain value.
 - **Showing it:** `dashboard` draws (Lip Gloss), `dashboard/watch` runs it (Bubble Tea), and
-  `theme` colours it. `cli` holds the commands, kept thin. `setup`, `accounts`, `service` and
-  `skill` install and manage.
+  `theme` colours it. `cli` holds the commands, kept thin. `setup`, `accounts`, `service`,
+  `skill` and `sessionhook` install and manage; `sessionhook` also answers Claude Code's
+  SessionStart hook, telling a session that didn't start through switchboard.
 - **One owner per fact.** Each fact is worked out once, in `status` or `views`, and every tab and
   verb reads it there, never again in a drawing package or a command. The guards hold it
   (`status/guard_test.go`, `views/guard_test.go`, `prose/guard_test.go`, built on

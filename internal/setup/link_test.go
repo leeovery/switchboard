@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
+	"github.com/leeovery/switchboard/internal/sessionhook"
 )
 
 func TestTheClaudeLinkStep(t *testing.T) {
@@ -151,8 +152,10 @@ func TestTheClaudeLinkStep(t *testing.T) {
 			before := w.snapshot(t)
 
 			shown := w.runs(t, "")
-			if got := section(t, shown, "4. The claude link"); got != tt.want {
-				t.Errorf("the claude link step showed\n%s\nwant\n%s", got, tt.want)
+			// The session hook comes last, whatever the link step found.
+			want := tt.want + "The session hook is in place: <root>/claude/settings.json\n"
+			if got := section(t, shown, "4. The claude link"); got != want {
+				t.Errorf("the claude link step showed\n%s\nwant\n%s", got, want)
 			}
 			if tt.wantLinked {
 				checkLinked(t, w)
@@ -197,8 +200,19 @@ func TestSetupStopsWhenItCantMakeTheBinDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	lockedDir(t, filepath.Dir(w.bin))
+	// A session hook to put right, which setup, stopped, leaves as it is.
+	if _, err := sessionhook.Install(w.settings, w.goInstalled(t)); err != nil {
+		t.Fatal(err)
+	}
+	settings, err := os.ReadFile(w.settings)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	shown, err := w.run(t, "")
+	if now, readErr := os.ReadFile(w.settings); readErr != nil || string(now) != string(settings) {
+		t.Errorf("%s holds\n%s\n(%v), want it left as it was\n%s", w.settings, now, readErr, settings)
+	}
 	if err == nil || !strings.HasPrefix(err.Error(), "make switchboard's bin directory: ") {
 		t.Errorf("Run() error = %v, want it to say it couldn't make switchboard's bin directory", err)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/sessionhook"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/skill"
 )
@@ -20,11 +21,11 @@ func newSetupCommand(a *app) *cobra.Command {
 		Use:   "setup",
 		Short: "Walk through setting switchboard up, or what's left of it",
 		Long: `Walk through setting switchboard up: the accounts, each one's token, and which
-is the primary; priming; the service; the claude link; and the skill; then
-print usage, every account's windows as they stand. Each step says what's
-done already, and does only what isn't, so setup is safe to run again. It
-asks as it goes, so it needs a terminal: without one, it says which command
-takes each step alone.`,
+is the primary; priming; the service; the claude link and the session hook;
+and the skill; then print usage, every account's windows as they stand. Each
+step says what's done already, and does only what isn't, so setup is safe to
+run again. It asks as it goes, so it needs a terminal: without one, it says
+which command takes each step alone.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.setup(cmd)
@@ -69,6 +70,10 @@ func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
 	if err != nil {
 		return nil, err
 	}
+	settings, err := sessionhook.Path(a.Getenv, a.HomeDir)
+	if err != nil {
+		return nil, err
+	}
 	bin, err := config.BinDir(a.Getenv, a.HomeDir)
 	if err != nil {
 		return nil, err
@@ -85,6 +90,7 @@ func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
 		Bin:          bin,
 		Home:         home,
 		Skill:        skillPath,
+		Settings:     settings,
 		Usage: func(ctx context.Context, out io.Writer) error {
 			return a.printUsage(ctx, out, usageOptions{})
 		},

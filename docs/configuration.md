@@ -11,6 +11,10 @@ Switchboard looks for the config in the first of these places that's set:
 
 To use another file for one command, pass `--config <file>`.
 
+Of Claude Code's settings, `setup` writes one entry in its `settings.json`, the session hook, and
+leaves the rest of the file as it is. There's nothing in it to set. See
+[A session that isn't going through switchboard](how-it-works.md#a-session-that-isnt-going-through-switchboard).
+
 ## Contents
 
 - [Example](#example)

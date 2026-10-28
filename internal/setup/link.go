@@ -19,8 +19,19 @@ import (
 // Then it checks the directory is on PATH ahead of the real claude, and says
 // the line to add to the shell's startup file when it isn't: it never edits
 // one. Anything in the link's place that isn't a link is left alone, and
-// said to be.
-func (r *run) link(context.Context) error {
+// said to be. Then, whatever it found, it installs the session hook, which
+// tells a session that didn't start through switchboard so.
+func (r *run) link(ctx context.Context) error {
+	if err := r.linkClaude(); err != nil {
+		return err
+	}
+	r.sessionHook(ctx)
+	return nil
+}
+
+// linkClaude makes switchboard's claude link, and checks claude on PATH goes
+// through it, as link says.
+func (r *run) linkClaude() error {
 	linked, err := r.makeLink()
 	if err != nil || !linked {
 		return err

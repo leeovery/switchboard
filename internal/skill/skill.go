@@ -48,16 +48,25 @@ func versionOf(skill []byte) int {
 	return version
 }
 
+// ConfigDir returns Claude Code's config directory: $CLAUDE_CONFIG_DIR, else
+// ~/.claude.
+func ConfigDir(getenv func(string) string, homeDir func() (string, error)) (string, error) {
+	if dir := getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+		return dir, nil
+	}
+	home, err := homeDir()
+	if err != nil {
+		return "", fmt.Errorf("locate Claude Code's config directory: %w", err)
+	}
+	return filepath.Join(home, ".claude"), nil
+}
+
 // Path returns where Claude Code reads the skill: skills/switchboard/SKILL.md
-// in its config directory, which is $CLAUDE_CONFIG_DIR, else ~/.claude.
+// in its config directory.
 func Path(getenv func(string) string, homeDir func() (string, error)) (string, error) {
-	dir := getenv("CLAUDE_CONFIG_DIR")
-	if dir == "" {
-		home, err := homeDir()
-		if err != nil {
-			return "", fmt.Errorf("locate Claude Code's config directory: %w", err)
-		}
-		dir = filepath.Join(home, ".claude")
+	dir, err := ConfigDir(getenv, homeDir)
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(dir, "skills", "switchboard", "SKILL.md"), nil
 }
