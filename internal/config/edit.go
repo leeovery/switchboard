@@ -179,7 +179,7 @@ func (d *Draft) Upstream() (string, error) {
 		return d.cfg.Upstream, nil
 	}
 	if err := checkUpstream(d.file.Upstream); err != nil {
-		return "", fmt.Errorf("invalid config %s:\n%w", d.path, err)
+		return "", invalid(d.path, err)
 	}
 	return d.file.Upstream, nil
 }
