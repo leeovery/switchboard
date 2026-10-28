@@ -448,7 +448,8 @@ The subcommands do the following:
     and given tidily is saved tidily, and `edit` says it was written untidily. A label written by
     hand is said as it holds: a character drawn as nothing that `add` would drop, a
     bidirectional control, or a direction mark, which `add` keeps, shows as its escape, such as
-    `\u200B`.
+    `\u200B`. What `add` keeps in an emoji, a keycap, a variant, a flag or a joining script shows
+    as it is, unless an escape stands before it.
   - `--primary=false` is refused: to move the primary, give `--primary` to another account.
   - An id no account has is said before anything wrong with a flag's value. Errors in the flags
     themselves, such as a flag without its value or an unknown flag, come first.
