@@ -4,9 +4,10 @@
 # scripts/isolation.sb: no network beyond this machine, no unix socket outside
 # the temporary directory, nothing on the router's port, no writes into the
 # home directory but Go's caches, nor into switchboard's real config, themes,
-# state, preferences and bin directory, or Claude Code's config directory,
-# wherever they are, nor a theme wherever its link leads, nor the directories
-# on PATH, and none of the real programs tests must never run.
+# state, preferences, bin directory and shell directory, or Claude Code's
+# config directory, wherever they are, nor a theme wherever its link leads,
+# nor the directories on PATH, and none of the real programs tests must never
+# run.
 # Arguments go on to go test, as in: scripts/test-isolated -run TestStatus;
 # packages named, as ./internal/views/..., are run in place of every package.
 #
@@ -90,13 +91,14 @@ absolute() {
 	esac
 }
 
-# switchboard's real config, themes, state, preferences and bin directory,
-# where it finds them, and Claude Code's config directory, where it reads
+# switchboard's real config, themes, state, preferences, bin directory and
+# shell directory, where it finds them, and Claude Code's config directory, where it reads
 # switchboard's skill: read before scrub unsets SWITCHBOARD_CONFIG,
 # SWITCHBOARD_THEMES_DIR and CLAUDE_CONFIG_DIR.
 config_dir=$(resolved "$(absolute "${XDG_CONFIG_HOME-}" "$HOME/.config")/switchboard")
 state_dir=$(resolved "$(absolute "${XDG_STATE_HOME-}" "$HOME/.local/state")/switchboard")
 bin_dir=$(resolved "$(absolute "${XDG_DATA_HOME-}" "$HOME/.local/share")/switchboard/bin")
+shell_dir=$(resolved "$(absolute "${XDG_DATA_HOME-}" "$HOME/.local/share")/switchboard/shell")
 config=$(resolved "$(absolute "${SWITCHBOARD_CONFIG-}" "$config_dir/config.toml")")
 themes_dir=$(resolved "$(absolute "${SWITCHBOARD_THEMES_DIR-}" "$config_dir/themes")")
 prefs=$(resolved "$state_dir/prefs.json")
@@ -171,6 +173,7 @@ sandboxed() {
 		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" \
 		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D THEMES_DIR="$themes_dir" \
 		-D THEME_FILES="$theme_files" -D STATE_DIR="$state_dir" -D PREFS="$prefs" -D BIN_DIR="$bin_dir" \
+		-D SHELL_DIR="$shell_dir" \
 		-D CLAUDE_DIR="$claude_dir" -D PATH_DIRS="$path_dirs" "$@"
 }
 
@@ -384,6 +387,7 @@ self_check() {
 	denies_writing_in "real themes directory" "$themes_dir" || status=1
 	denies_writing_in "real state directory" "$state_dir" || status=1
 	denies_writing_in "real bin directory" "$bin_dir" || status=1
+	denies_writing_in "real shell directory" "$shell_dir" || status=1
 	denies_writing_in "real Claude Code config directory" "$claude_dir" || status=1
 	denies_writing_on_path || status=1
 	denies_writing_to "real config file" "$config" || status=1

@@ -484,8 +484,8 @@ func TestChangesToTheRealSkillThroughLinks(t *testing.T) {
 	}
 }
 
-func TestChangesToTheRealBinDirectory(t *testing.T) {
-	link := filepath.Join(binDir, "claude")
+func TestChangesToTheRealDataDirectories(t *testing.T) {
+	link := filepath.Join(dataDir, "bin", "claude")
 	tests := []struct {
 		name string
 		// before lays out the home, at home, before the tests begin.
@@ -528,6 +528,21 @@ func TestChangesToTheRealBinDirectory(t *testing.T) {
 			during: func(t *testing.T, home string) {
 				write(t, filepath.Join(home, "brew", "switchboard"), "#!/bin/sh\nexit 0\n")
 			},
+		},
+		{
+			name:   "a file for the shells written beside it",
+			during: func(t *testing.T, home string) { write(t, filepath.Join(home, dataDir, "shell", "init.zsh"), "true\n") },
+			want:   []string{"the real ~/.local/share/switchboard/shell was created", "the real ~/.local/share/switchboard/shell/init.zsh was created"},
+		},
+		{
+			name: "a file for the shells rewritten",
+			before: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, dataDir, "shell", "init.zsh"), "true\n")
+			},
+			during: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, dataDir, "shell", "init.zsh"), "# rewritten, and longer\ntrue\n")
+			},
+			want: []string{"the real ~/.local/share/switchboard/shell/init.zsh was modified"},
 		},
 		{
 			name: "other programs' data beside it",
@@ -941,6 +956,13 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 				symlink(t, filepath.Join(elsewhere, "switchboard"), filepath.Join(elsewhere, "data", "switchboard", "bin", "claude"))
 			},
 			want: []string{"the real %[1]s/data/switchboard/bin was created", "the real %[1]s/data/switchboard/bin/claude was created"},
+		},
+		{
+			name: "a file for the shells written in the shell directory where XDG_DATA_HOME puts it",
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "data", "switchboard", "shell", "init.fish"), "true\n")
+			},
+			want: []string{"the real %[1]s/data/switchboard/shell was created", "the real %[1]s/data/switchboard/shell/init.fish was created"},
 		},
 	}
 	for _, tt := range tests {

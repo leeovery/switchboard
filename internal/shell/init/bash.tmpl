@@ -1,0 +1,34 @@
+# switchboard's file for bash, which the line switchboard setup adds to bash's
+# startup file sources. setup writes it, and the router brings it up to date as
+# it starts, so an edit here doesn't last.
+
+# switchboard's bin directory, which holds its claude link, goes first on PATH,
+# once: PATH is left as it is when the directory is first already.
+__switchboard_path() {
+	local bin={{quote .Bin}} rest="${PATH-}:" kept= entry
+	if [ -z "${PATH-}" ]; then
+		PATH=$bin
+		return 0
+	fi
+	if [ "${PATH%%:*}" = "$bin" ]; then
+		return 0
+	fi
+	while [ -n "$rest" ]; do
+		entry=${rest%%:*}
+		rest=${rest#*:}
+		if [ "$entry" != "$bin" ]; then
+			kept=$kept:$entry
+		fi
+	done
+	PATH=$bin$kept
+}
+__switchboard_path
+unset -f __switchboard_path
+{{with .Completion}}
+# switchboard's completions, where bash-completion, which they're built on, is
+# loaded.
+if declare -F _get_comp_words_by_ref >/dev/null 2>&1; then
+{{.}}
+fi
+{{end}}
+true

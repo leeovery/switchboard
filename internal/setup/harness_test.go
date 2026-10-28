@@ -23,6 +23,7 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/setup"
+	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/skill"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -46,10 +47,11 @@ day = "08:00-23:00"
 
 // world is what setup sets up, every part of it under a directory of the
 // test's own: the config file; the state directory, with the token files; a
-// home, where the LaunchAgent's plist and switchboard's bin directory go;
-// Claude Code's config directory; the directories on PATH; Claude Code; and
-// this switchboard, run by a link as Homebrew links it. launchd, the router
-// and the API are fakes.
+// home, where the LaunchAgent's plist, switchboard's bin and shell
+// directories and the shell's startup file go; Claude Code's config
+// directory; the directories on PATH; Claude Code; and this switchboard, run
+// by a link as Homebrew links it. launchd, the router, the API and the
+// user's login shell are fakes.
 type world struct {
 	root   string
 	config string
@@ -64,8 +66,14 @@ type world struct {
 	bin, realClaude string
 	path            []string
 	installPaths    []string
-	launchd         *fakeLaunchd
-	api             *fakeAPI
+	// shellDir is switchboard's shell directory, and env the environment
+	// setup reads where the shell's startup file is from: $SHELL, zsh, among
+	// it.
+	shellDir string
+	env      map[string]string
+	login    *fakeLogin
+	launchd  *fakeLaunchd
+	api      *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -76,16 +84,19 @@ func newWorld(t *testing.T) *world {
 	}
 	at := func(parts ...string) string { return filepath.Join(append([]string{root}, parts...)...) }
 	w := &world{
-		root:    root,
-		config:  at("config", "switchboard", "config.toml"),
-		state:   at("state", "switchboard"),
-		home:    at("home"),
-		tmp:     at("tmp"),
-		skill:   at("claude", "skills", "switchboard", "SKILL.md"),
-		bin:     at("home", ".local", "share", "switchboard", "bin"),
-		launchd: &fakeLaunchd{},
-		api:     &fakeAPI{},
+		root:     root,
+		config:   at("config", "switchboard", "config.toml"),
+		state:    at("state", "switchboard"),
+		home:     at("home"),
+		tmp:      at("tmp"),
+		skill:    at("claude", "skills", "switchboard", "SKILL.md"),
+		bin:      at("home", ".local", "share", "switchboard", "bin"),
+		shellDir: at("home", ".local", "share", "switchboard", "shell"),
+		env:      map[string]string{"SHELL": "/bin/zsh"},
+		launchd:  &fakeLaunchd{},
+		api:      &fakeAPI{},
 	}
+	w.login = &fakeLogin{w: w}
 	mkdir(t, w.tmp)
 	version := claudetest.Program(t, at("Cellar", "switchboard", "1.2.3", "bin", "switchboard"))
 	w.switchboard = claudetest.Link(t, version, at("brew", "bin", "switchboard"))
@@ -101,10 +112,37 @@ func (w *world) goInstalled(t *testing.T) string {
 	return claudetest.Program(t, filepath.Join(w.root, "go", "bin", "switchboard"))
 }
 
-// putBinOnPath puts switchboard's bin directory first on PATH, as the line
-// setup says to add does.
-func (w *world) putBinOnPath() {
-	w.path = append([]string{w.bin}, w.path...)
+func (w *world) getenv(key string) string {
+	return w.env[key]
+}
+
+// shellFiles are switchboard's files for the shells in the world, each with
+// a completion script naming its shell.
+func (w *world) shellFiles() shell.Files {
+	return shell.Files{Dir: w.shellDir, Bin: w.bin, Completion: func(sh shell.Shell) ([]byte, error) {
+		return []byte("# switchboard's completions for " + string(sh) + "\n"), nil
+	}}
+}
+
+// startupFile is the startup file of the user's shell, as $SHELL names it.
+func (w *world) startupFile() string {
+	sh, _ := shell.Of(w.env["SHELL"])
+	return shell.StartupFile(sh, w.getenv, w.home)
+}
+
+// line is switchboard's line for the user's shell, as $SHELL names it.
+func (w *world) line() string {
+	sh, _ := shell.Of(w.env["SHELL"])
+	return shell.Line(sh, shell.InitFile(w.shellDir, sh), w.home)
+}
+
+// addLine adds switchboard's line to the user's shell's startup file, as
+// setup does.
+func (w *world) addLine(t *testing.T) {
+	t.Helper()
+	if err := shell.AddLine(w.startupFile(), w.line()); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // setup is setup in the world, at the terminal the user is at.
@@ -132,6 +170,9 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		InstallPaths: w.installPaths,
 		Bin:          w.bin,
 		Home:         w.home,
+		Shells:       w.shellFiles(),
+		Login:        w.login,
+		Getenv:       w.getenv,
 		Skill:        w.skill,
 		Usage: func(_ context.Context, out io.Writer) error {
 			_, err := io.WriteString(out, "(every account's usage)\n")
@@ -164,10 +205,10 @@ func (w *world) runs(t *testing.T, answers ...string) string {
 	return shown
 }
 
-// done lays the world out as the first run of setup leaves it, once the user
-// has put switchboard's bin directory on PATH as it says: doneConfig, with
-// both accounts' tokens; the service installed, and its router up;
-// switchboard's claude link; and the skill installed.
+// done lays the world out as the first run of setup leaves it: doneConfig,
+// with both accounts' tokens; the service installed, and its router up;
+// switchboard's claude link, its files for the shells, and its line in
+// .zshrc; and the skill installed.
 func (w *world) done(t *testing.T) {
 	t.Helper()
 	w.writeConfig(t, doneConfig)
@@ -175,10 +216,43 @@ func (w *world) done(t *testing.T) {
 	w.writeToken(t, "side", "test-token-side")
 	w.installService(t, w.switchboard)
 	claudetest.Link(t, w.switchboard, filepath.Join(w.bin, "claude"))
-	w.putBinOnPath()
+	if _, err := w.shellFiles().Write(); err != nil {
+		t.Fatal(err)
+	}
+	w.addLine(t)
 	if err := skill.Install(w.skill); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// fakeLogin is the user's login shell, as a new terminal starts it. It runs
+// switchboard's claude link where switchboard's line is in its startup
+// file, and the file the line reads is there, unless overridden is set, as
+// something after the line changes PATH; and otherwise the real claude. Its
+// answers, while it has some, come first, in turn, as the user puts
+// switchboard's bin directory on PATH by hand meanwhile.
+type fakeLogin struct {
+	w          *world
+	overridden bool
+	answers    []shell.Answer
+	// asked are the links it was asked about, in turn.
+	asked []string
+}
+
+func (f *fakeLogin) Which(_ context.Context, link string) shell.Answer {
+	f.asked = append(f.asked, link)
+	if len(f.answers) > 0 {
+		answer := f.answers[0]
+		f.answers = f.answers[1:]
+		return answer
+	}
+	if sh, known := shell.Of(f.w.env["SHELL"]); known && !f.overridden {
+		_, err := os.Stat(shell.InitFile(f.w.shellDir, sh))
+		if has, _ := shell.HasLine(sh, f.w.startupFile()); has && err == nil {
+			return shell.Answer{Kind: shell.Link}
+		}
+	}
+	return shell.Answer{Kind: shell.Other, Claude: f.w.realClaude}
 }
 
 // installService installs the LaunchAgent to run the switchboard at binary,

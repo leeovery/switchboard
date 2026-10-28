@@ -38,6 +38,9 @@ var processStarters = []string{
 	// launchctl, by name, for the service: main passes it to the CLI, and
 	// tests pass a fake that notes each call.
 	"internal/service/launchctl.go:Launchctl",
+	// The user's login shell, asked which claude it runs: main passes it to
+	// the CLI, and tests pass a fake that answers as they need.
+	"internal/shell/run_unix.go:Run",
 }
 
 const (

@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -24,7 +25,7 @@ var ErrNoTerminal = errors.New(`setup asks as it goes, so it needs a terminal: r
   1. Accounts: switchboard accounts add <id> --label <label>, with --primary for the one the browser and the Claude apps are signed into, and switchboard accounts token <id> for one without a usable token
   2. Priming, optionally: day = "HH:MM-HH:MM" in the config's [prime] table
   3. The service: switchboard service install, or switchboard service restart once it's installed
-  4. The claude link: a link named claude to "$(command -v switchboard)" in switchboard's bin directory, ~/.local/share/switchboard/bin, or $XDG_DATA_HOME/switchboard/bin, and that directory on PATH ahead of claude's
+  4. The claude link: a link named claude to "$(command -v switchboard)" in switchboard's bin directory, ~/.local/share/switchboard/bin, or $XDG_DATA_HOME/switchboard/bin, and that directory first on PATH; setup alone writes switchboard's file for the shell, with its completions, and the line in the shell's startup file that reads it
   5. The skill: setup alone writes it
   6. Every account's windows as they stand: switchboard usage`)
 
@@ -51,9 +52,15 @@ type Setup struct {
 	Path         string
 	InstallPaths []string
 	// Bin is switchboard's own directory for PATH, which holds the claude
-	// link alone, and Home the home directory, which the line that puts Bin
-	// on PATH writes as $HOME.
+	// link alone, and Home the home directory, which switchboard's line in
+	// the shell's startup file writes as $HOME.
 	Bin, Home string
+	// Shells are switchboard's files for the shells, which put Bin first on
+	// PATH, and Login the user's login shell, asked which claude it runs.
+	// Getenv reads $SHELL, and where the shell's startup file is.
+	Shells shell.Files
+	Login  LoginShell
+	Getenv func(string) string
 	// Skill is where Claude Code reads the skill.
 	Skill string
 	// Usage prints every account's windows as they stand on out, as

@@ -247,8 +247,8 @@ the router.
 claude [<claude args>]
 ```
 
-The link is a link named `claude` in switchboard's bin directory, ahead of the real `claude` on
-`PATH`. Run by that name, switchboard hands Claude Code every argument, so `claude --help` is
+The link is a link named `claude` in switchboard's bin directory, which switchboard's file for your
+shell puts first on `PATH`, ahead of the real `claude`. Run by that name, switchboard hands Claude Code every argument, so `claude --help` is
 Claude Code's.
 
 The real `claude` is the first `claude` on `PATH`, else where its installers put it, that doesn't
@@ -352,15 +352,36 @@ The steps are:
    answer. The router takes up `setup`'s changes to the config and the tokens itself.
 4. **The `claude` link.** Makes `claude` in switchboard's bin directory, leading to the switchboard
    `setup` was run by. The bin directory is `$XDG_DATA_HOME/switchboard/bin`, else
-   `~/.local/share/switchboard/bin`. Then `setup` checks the directory is on `PATH` ahead of the
-   real `claude`. When it isn't, `setup` gives the one line to add to your shell's startup file,
-   after anything else there that changes `PATH`:
+   `~/.local/share/switchboard/bin`.
+
+   Then it writes switchboard's own file for each shell, `init.zsh`, `init.bash` and `init.fish`,
+   in its shell directory, `$XDG_DATA_HOME/switchboard/shell`, else
+   `~/.local/share/switchboard/shell`. Each puts the bin directory first on `PATH`, once, and loads
+   switchboard's completions, for its commands and flags. Sourcing one prints nothing, and sourcing
+   it again changes nothing more. `setup` writes them, and the router brings them up to date as it
+   starts, so an edit to one doesn't last.
+
+   Then `setup` asks your login shell, `$SHELL`, started as a new terminal starts it, which
+   `claude` it runs. The step is done once that's the link. Until then, for zsh, bash and fish,
+   `setup` offers to add one line to the end of your shell's startup file, naming the file and
+   showing the line first. For zsh, the line is:
 
    ```bash
-   export PATH="$HOME/.local/share/switchboard/bin:$PATH"
+   if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
    ```
 
-   `setup` never edits the file itself. Run again, in a new terminal, it checks it.
+   The file is `.zshrc` in `$ZDOTDIR`, else in your home; for bash, the first there of
+   `~/.bash_profile`, `~/.bash_login` and `~/.profile`, the one a login bash reads, else a new
+   `~/.bash_profile`; and for fish, `fish/config.fish` in `$XDG_CONFIG_HOME`, else in `~/.config`.
+   A startup file that's a link, as to your dotfiles, is written where it leads. The line is added
+   once, ever: everything else switchboard does in your shell is in its own file. Should the
+   file go, the line does nothing.
+
+   When the line's there but the shell still runs another `claude`, something after the line
+   changes `PATH`, and `setup` says so. Declined, or for another shell, `setup` shows the line to
+   add by hand, and the bin directory alone, to put first on `PATH` wherever you keep it another
+   way. Then it asks your login shell again, as often as you like, until it runs the link. Leaving
+   it isn't a failure: `setup` carries on.
 5. **The skill.** Writes a Claude Code skill, or brings it up to date. The skill tells Claude what
    switchboard does under `claude`, so no session needs it explained. It's
    `skills/switchboard/SKILL.md` in `~/.claude`, or in `$CLAUDE_CONFIG_DIR`. Switchboard owns the
