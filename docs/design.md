@@ -1294,7 +1294,8 @@ before:
   account's already, which the card names, laid as frame 10's, with its keys; nothing is saved.
   `enter try again` opens the token card again, to sign in as the other account.
 
-`esc` stops setup-token, and saves nothing. Cards with no frame of their own, paste, same account,
+`esc` stops setup-token, and saves nothing, until setup-token has made the token (see The build's
+calls). Cards with no frame of their own, paste, same account,
 not opened, starting and checking, and remove, take frame 2's, frame 10's or frame 6's layout, with
 their own words.
 
@@ -1335,6 +1336,12 @@ not the owner's decisions:
   its right `enter add an account`, `q quit`.
 - **The token-year notifications' rules** (see Notifications): no key, no quiet minute, the nearest
   threshold told at start, and what's told kept in `state.json`.
+- **A token made is kept.** `esc` and an interrupt stop setup-token and save nothing only until
+  setup-token says it has made the token. After that, as the token lasts a year on the account,
+  setup checks and saves it whatever stops it, the API given its own time limit, saving it
+  unchecked where it doesn't answer. Where its screen can't be read, the card says it was made
+  and to copy it from what setup-token showed, then paste it with `p`. Made is what setup-token
+  says, so a stop that lands as it makes the token keeps it too.
 - **The least size is 95×25,** the title row's least: every page reflows to the width it's given,
   the shell step's line wrapping rather than cut, and scrolls where it's taller than its body.
   Below 95 columns, as on a phone, setup says to make the terminal larger.
