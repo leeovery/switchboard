@@ -96,7 +96,7 @@ const (
 
 // leastSetupBody is the fewest rows a step's page has, from its heading,
 // which with the chrome makes setup 25 rows at the least. A page taller
-// than the rows it's given scrolls, as setupPage.paged pages it.
+// than the rows it's given scrolls, as setupPage.draw pages it.
 const leastSetupBody = 19
 
 // tooSmall is all setup says on a terminal smaller than its least.

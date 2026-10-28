@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -392,6 +393,42 @@ func TestAPageTallerThanItsRowsScrolls(t *testing.T) {
 				t.Errorf("it scrolls %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+// A Skill page whose fact says 200 words of six cells, at setup's least,
+// 95×25: its purpose wraps onto two rows, then a blank row, then the fact,
+// its detail eleven words a row in its 69 cells, 19 rows; 22 rows under the
+// heading, in 17, so 16 a page over the line saying what's out of view.
+func TestTheScreenScrollsItsPageAsItSaysItDoes(t *testing.T) {
+	words := make([]string, 200)
+	for i := range words {
+		words[i] = fmt.Sprintf("w%04d", i+1)
+	}
+	said := setup.Said{Mark: setup.Done, Label: "Installed", Detail: strings.Join(words, " ")}
+	s := setupScreen(func(s *Setup) { s.Skill, s.Scroll = &said, 3 })
+	scrolling := s.Scrolling(95, 25)
+	if want := (Scrolling{Most: 6, Page: 16}); scrolling != want {
+		t.Fatalf("the page scrolls %+v, want %+v", scrolling, want)
+	}
+	rows := textOf(s.Draw(95, 25, Look{}))
+	// Scrolled 3 rows, past the purpose and the blank row under it: the
+	// fact's first row on row 6, each row of its detail eleven words on.
+	for i := range scrolling.Page {
+		lead := []string{words[i*11]}
+		if i == 0 {
+			lead = []string{"✓", "Installed", words[0]}
+		}
+		row := rows[6+i]
+		if fields := strings.Fields(row); len(fields) < len(lead) || !slices.Equal(fields[:len(lead)], lead) {
+			t.Errorf("row %d reads %q, want it to start %q", 6+i, row, lead)
+		}
+	}
+	if got, want := rows[6+scrolling.Page], "▲ 3 more above   ·   ▼ 3 more below   ·   j/k to scroll"; got != want {
+		t.Errorf("row %d reads %q, want %q", 6+scrolling.Page, got, want)
+	}
+	if !strings.HasSuffix(rows[24], "enter finish   q quit") {
+		t.Errorf("row 24 reads %q, want the key line", rows[24])
 	}
 }
 
