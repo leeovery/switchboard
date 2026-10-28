@@ -905,7 +905,7 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
   the words `text.secondary`. The accounts' part counts them and their working tokens, `3 accounts,
   2 working`, or `all working`, in `text.muted`.
 - **The heading row,** row 4, as the dashboard heads a section: the step's heading in `text.subtle`,
-  a rule in `text.faint` to the edge, and at its right what's said of it, as `3 accounts`, in
+  a rule in `border` to the edge, and at its right what's said of it, as `3 accounts`, in
   `text.muted`. A line under it, from column 2, says what the step is for.
 - **A row a fact:** a page says what its step found and did a row each, two rows apart, from column
   2: its mark, bold, `✓` in `state.positive` for done, `!` in `accent.attention` for done but for
@@ -1335,6 +1335,11 @@ not the owner's decisions:
   its right `enter add an account`, `q quit`.
 - **The token-year notifications' rules** (see Notifications): no key, no quiet minute, the nearest
   threshold told at start, and what's told kept in `state.json`.
+- **The least size is 95×25,** the title row's least: every page reflows to the width it's given,
+  the shell step's line wrapping rather than cut, and scrolls where it's taller than its body.
+  Below 95 columns, as on a phone, setup says to make the terminal larger.
+- **The heading's rule is `border`,** the dashboard's own, where the frames' nord draws `border`
+  and `text.faint` alike.
 
 ### How it's built
 

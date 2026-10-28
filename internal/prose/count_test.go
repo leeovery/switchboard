@@ -34,6 +34,20 @@ func TestACountedNounIsOneOrMany(t *testing.T) {
 	}
 }
 
+func TestDaysLeftAreCountedOrSayTheLastDay(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 0, want: "last day"}, {n: 1, want: "1 day left"}, {n: 21, want: "21 days left"}, {n: 365, want: "365 days left"},
+	}
+	for _, tt := range tests {
+		if got := prose.DaysLeft(tt.n); got != tt.want {
+			t.Errorf("DaysLeft(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
 func TestANumberGroupedSetsItsThousandsApart(t *testing.T) {
 	tests := []struct {
 		n    int

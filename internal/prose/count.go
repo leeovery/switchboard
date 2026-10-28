@@ -109,6 +109,16 @@ func Counted(n int, noun string) string {
 	return Grouped(n) + " " + noun + "s"
 }
 
+// DaysLeft says how many days are left of a token's year, as its calendar
+// days are counted: "21 days left", "1 day left", or "last day" on the day
+// it's up.
+func DaysLeft(n int) string {
+	if n == 0 {
+		return "last day"
+	}
+	return Counted(n, "day") + " left"
+}
+
 // CountedWithin counts n of the thing a noun names as Counted counts it, n
 // held to most, as GroupedWithin holds it: past it, "99,999+ requests".
 func CountedWithin(n, most int, noun string) string {
