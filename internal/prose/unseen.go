@@ -17,8 +17,6 @@ const (
 	firstTag           = '\U000e0020'
 	lastTag            = '\U000e007e'
 	cancelTag          = '\U000e007f'
-	firstModifier      = '\U0001f3fb'
-	lastModifier       = '\U0001f3ff'
 	// mostFlagTags is the most tags a subdivision's flag names it by.
 	mostFlagTags = 8
 )
@@ -64,11 +62,12 @@ func DirectionMark(r rune) bool {
 // An unseen character is kept only where it does something that shows,
 // judged left to right on what's kept, so the character before one is the
 // last kept, never one dropped, and after text shown in one's place, nothing
-// is owned:
-//   - a zero-width joiner between two pictographs, after a symbol, an emoji
-//     modifier or an emoji presentation selector kept after one, and before
-//     a symbol; and, as a non-joiner is, between two letters or marks of a
-//     script that shapes with joiners;
+// is owned; the character after one is the first seen, passing over the
+// unseen:
+//   - a zero-width joiner between two pictographs, symbols beyond ASCII,
+//     after one or an emoji presentation selector kept after one; and, as a
+//     non-joiner is, between two letters or marks of a script that shapes
+//     with joiners;
 //   - a variation selector after a symbol, punctuation beyond ASCII, a
 //     letter outside Latin, Greek and Cyrillic, such as an ideograph, or a
 //     keycap's #, * or digit, as the keycap follows;
@@ -76,11 +75,11 @@ func DirectionMark(r rune) bool {
 //     that cancels them, whole.
 func MapUnseen(text string, replace func(r rune) string) string {
 	runes := []rune(text)
-	flagged := flagTags(runes)
+	flagged, next := flagTags(runes), seenAfter(runes)
 	var b strings.Builder
 	var kept recent
 	for i, r := range runes {
-		if !Unseen(r) || flagged[i] || kept.owns(r, after(runes, i)) {
+		if !Unseen(r) || flagged[i] || kept.owns(r, next[i]) {
 			b.WriteRune(r)
 			kept.add(r)
 			continue
@@ -115,11 +114,11 @@ func (k *recent) add(r rune) {
 }
 
 // owns reports whether the unseen r, kept after k's characters and before
-// next, does something that shows.
+// next, the first seen character after it, does something that shows.
 func (k recent) owns(r, next rune) bool {
 	switch {
 	case r == zeroWidthJoiner:
-		return k.afterPictograph() && unicode.IsSymbol(next) || joins(k.last) && joins(next)
+		return k.afterPictograph() && pictograph(next) || joins(k.last) && joins(next)
 	case r == zeroWidthNonJoiner:
 		return joins(k.last) && joins(next)
 	case selector(r):
@@ -128,13 +127,16 @@ func (k recent) owns(r, next rune) bool {
 	return false
 }
 
-// afterPictograph reports whether k's last kept ends a pictograph: a symbol
-// or an emoji modifier, or an emoji presentation selector kept after one.
+// afterPictograph reports whether k's last kept ends a pictograph: one, or
+// an emoji presentation selector kept after one.
 func (k recent) afterPictograph() bool {
-	pictograph := func(r rune) bool {
-		return unicode.IsSymbol(r) || (r >= firstModifier && r <= lastModifier)
-	}
 	return pictograph(k.last) || k.last == emojiPresentation && pictograph(k.before)
+}
+
+// pictograph reports whether r is a symbol beyond ASCII, such as an emoji or
+// an emoji modifier: ASCII's, such as + and =, join nothing.
+func pictograph(r rune) bool {
+	return unicode.IsSymbol(r) && r > unicode.MaxASCII
 }
 
 // joins reports whether r is a letter or a mark of a script that shapes
@@ -188,12 +190,18 @@ func flagTags(runes []rune) []bool {
 	return flagged
 }
 
-// after is the character after the one at i of runes, 0 at the end.
-func after(runes []rune, i int) rune {
-	if i+1 < len(runes) {
-		return runes[i+1]
+// seenAfter is, for each of runes, the first seen character after it,
+// passing over the unseen ones between, 0 where there's none.
+func seenAfter(runes []rune) []rune {
+	next := make([]rune, len(runes))
+	var seen rune
+	for i := len(runes) - 1; i >= 0; i-- {
+		next[i] = seen
+		if !Unseen(runes[i]) {
+			seen = runes[i]
+		}
 	}
-	return 0
+	return next
 }
 
 // escaped is r as an escape, as \u200B, so it shows as what it is.

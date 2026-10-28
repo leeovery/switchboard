@@ -34,8 +34,9 @@ func Clean(text string) string {
 // holds shows. A bidirectional control is among them, so it can't reorder
 // the rest of the line, and so is a direction mark, which a label keeps but
 // whose part in it can't be seen. What makes an emoji, a keycap, a variant
-// or a flag, or shapes a joining script, shows as it is, and so does a
-// private-use character.
+// or a flag, or shapes a joining script, shows as it is, unless an escape
+// stands before it, which owns nothing after it, and so does a private-use
+// character.
 func Quoted(text string) string {
 	return `"` + MapUnseen(quoteEscaper.Replace(Clean(text)), escaped) + `"`
 }
