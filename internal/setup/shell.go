@@ -400,11 +400,7 @@ func (r *run) ask(ctx context.Context) (shell.Answer, error) {
 	if _, known := shell.Of(r.Getenv("SHELL")); known && r.note != nil {
 		r.note(fmt.Sprintf("Asking %s, as a new terminal starts it, which claude it runs.", r.shellName()))
 	}
-	interrupt := r.Interrupt
-	if interrupt == nil {
-		interrupt = interruptOnSIGINT
-	}
-	asking, stop := interrupt(ctx)
+	asking, stop := r.interruptible(ctx)
 	defer stop()
 	answer := r.Login.Which(asking, r.claudeLink())
 	if asking.Err() != nil && ctx.Err() == nil {
@@ -413,8 +409,12 @@ func (r *run) ask(ctx context.Context) (shell.Answer, error) {
 	return answer, nil
 }
 
-// interruptOnSIGINT ends the context it returns at an interrupt.
-func interruptOnSIGINT(ctx context.Context) (context.Context, context.CancelFunc) {
+// interruptible returns a context that ends with ctx, or at an interrupt,
+// as setup's Interrupt says.
+func (s *Setup) interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
+	if s.Interrupt != nil {
+		return s.Interrupt(ctx)
+	}
 	return signal.NotifyContext(ctx, os.Interrupt)
 }
 

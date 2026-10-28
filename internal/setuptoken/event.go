@@ -25,6 +25,15 @@ const (
 // Opened is how the sign-in address was opened.
 type Opened int
 
+// Opening is how an Opener opened the sign-in address, and in which browser,
+// where it opened a private window.
+type Opening struct {
+	Opened Opened
+	// Browser is the name of the browser whose private window it opened, as
+	// its application has it, such as Firefox: "" for any other Opened.
+	Browser string
+}
+
 // The ways the sign-in address opens. The zero Opened is the caller's to
 // show.
 const (
@@ -44,10 +53,10 @@ type Event struct {
 	Step Step
 	// Address is the sign-in address, at StepAddress.
 	Address Address
-	// Opened is how Address was opened, at StepAddress. Where it's
+	// Opening is how Address was opened, at StepAddress. Where it's
 	// NotOpened, Unopened says why the Opener couldn't open it, such as a
 	// *NoPrivateWindowError.
-	Opened   Opened
+	Opening
 	Unopened error
 }
 
@@ -59,10 +68,10 @@ type Address struct {
 	url *string
 }
 
-// newAddress returns raw as a sign-in address, as setup-token hands one over:
-// an https address. Anything else, which open would open as a file or an
-// application, isn't one.
-func newAddress(raw string) (Address, bool) {
+// ParseAddress returns raw as a sign-in address, as setup-token hands one
+// over: an https address. Anything else, which open would open as a file or
+// an application, isn't one.
+func ParseAddress(raw string) (Address, bool) {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "https" || u.Host == "" {
 		return Address{}, false

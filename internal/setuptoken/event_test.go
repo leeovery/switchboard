@@ -10,9 +10,9 @@ import (
 const signIn = "https://claude.example/oauth/authorize?code_challenge=test-challenge&state=test-state-work"
 
 func TestAddressNeverShowsItselfButRevealed(t *testing.T) {
-	address, ok := newAddress(signIn)
+	address, ok := ParseAddress(signIn)
 	if !ok {
-		t.Fatalf("newAddress(%q) refused it, want an address", signIn)
+		t.Fatalf("ParseAddress(%q) refused it, want an address", signIn)
 	}
 	var logged strings.Builder
 	slog.New(slog.NewTextHandler(&logged, nil)).Info("opened", "address", address, "event", Event{Step: StepAddress, Address: address})
@@ -42,8 +42,8 @@ func TestNewAddressTakesAnHTTPSAddressAlone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, got := newAddress(tt.raw); got != tt.want {
-				t.Errorf("newAddress(%q) took it %v, want %v", tt.raw, got, tt.want)
+			if _, got := ParseAddress(tt.raw); got != tt.want {
+				t.Errorf("ParseAddress(%q) took it %v, want %v", tt.raw, got, tt.want)
 			}
 		})
 	}
