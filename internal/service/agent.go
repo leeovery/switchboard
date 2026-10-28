@@ -2,8 +2,9 @@ package service
 
 import (
 	"bytes"
-	"encoding/xml"
+	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"text/template"
@@ -23,11 +24,22 @@ const (
 	saveMargin = 7 * time.Second
 )
 
+// configFlag and logLevelFlag are serve's flags for the config file and the
+// level the router logs at, which the service is installed with.
+const (
+	configFlag   = "--config"
+	logLevelFlag = "--log-level"
+)
+
+// valueFlags are serve's flags that take a value: given without one after
+// =, the argument after the flag is its value, whatever it reads.
+var valueFlags = []string{configFlag, logLevelFlag}
+
 // carried are the variables the service is given as they're set where it's
 // installed, so it finds its config and its state where the CLI does, and
 // Claude Code's config directory, where setup puts the skill, and logs as
 // much as it would.
-var carried = []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", "SWITCHBOARD_CONFIG", "SWITCHBOARD_LOG_LEVEL", "CLAUDE_CONFIG_DIR"}
+var carried = []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_DATA_HOME", "SWITCHBOARD_CONFIG", "SWITCHBOARD_LOG_LEVEL", "CLAUDE_CONFIG_DIR"}
 
 // madeAbsolute are the variables carried that name a file or a directory,
 // which can be named relative to where the service is installed: they're
@@ -57,10 +69,11 @@ type variable struct {
 }
 
 // agent describes the LaunchAgent that serves as opts says, with the
-// switchboard binary as prepare finds it, and the config file and the log
-// level given, when they are. launchd runs switchboard itself: the router
-// reads the tokens from their files, so it needs nothing of the user's
-// environment but the variables carried.
+// switchboard binary as describe finds it, the config file and the log level
+// given, when they are, the environment opts keep, else the variables
+// carried, and its log in the state directory. launchd runs switchboard
+// itself: the router reads the tokens from their files, so it needs nothing
+// of the user's environment but the variables carried.
 func (s *Service) agent(opts InstallOptions) (agent, error) {
 	program := []string{opts.Executable, "serve"}
 	config, err := absolute(opts.Config)
@@ -68,24 +81,49 @@ func (s *Service) agent(opts InstallOptions) (agent, error) {
 		return agent{}, fmt.Errorf("find the config file: %w", err)
 	}
 	if config != "" {
-		program = append(program, "--config", config)
+		program = append(program, configFlag, config)
 	}
 	if opts.LogLevel != "" {
-		program = append(program, "--log-level", opts.LogLevel)
+		program = append(program, logLevelFlag, opts.LogLevel)
 	}
-	environment, err := s.environment()
+	environment, err := s.variables(opts)
 	if err != nil {
 		return agent{}, err
 	}
 	return agent{Label: Label, Program: program, Environment: environment, Log: s.Log(), ExitTimeOut: int(exitTimeout / time.Second)}, nil
 }
 
-// environment is the variables carried that are set where the service is
-// installed, those naming a file or a directory made absolute.
-func (s *Service) environment() ([]variable, error) {
+// variables are what launchd is to set in the router's environment: those
+// opts keep, whole, as Options read them back, the variables carried first;
+// else the variables carried, as they're set where the service is installed.
+func (s *Service) variables(opts InstallOptions) ([]variable, error) {
+	if opts.environment == nil {
+		return carry(s.cfg.Getenv)
+	}
+	names := slices.Sorted(maps.Keys(opts.environment))
+	slices.SortStableFunc(names, func(a, b string) int { return cmp.Compare(carriedRank(a), carriedRank(b)) })
+	environment := make([]variable, len(names))
+	for i, name := range names {
+		environment[i] = variable{Name: name, Value: opts.environment[name]}
+	}
+	return environment, nil
+}
+
+// carriedRank is where name comes among the variables carried, those that
+// aren't after them all.
+func carriedRank(name string) int {
+	if i := slices.Index(carried, name); i >= 0 {
+		return i
+	}
+	return len(carried)
+}
+
+// carry is the variables carried that getenv says are set, those naming a
+// file or a directory made absolute.
+func carry(getenv func(string) string) ([]variable, error) {
 	var environment []variable
 	for _, name := range carried {
-		value := s.cfg.Getenv(name)
+		value := getenv(name)
 		if value == "" {
 			continue
 		}
@@ -98,32 +136,6 @@ func (s *Service) environment() ([]variable, error) {
 		environment = append(environment, variable{Name: name, Value: value})
 	}
 	return environment, nil
-}
-
-// binaryOf returns the program a LaunchAgent's plist has launchd run, as the
-// first of its ProgramArguments names it: "" for a plist that names none, or
-// isn't XML, as a binary one isn't.
-func binaryOf(plist []byte) string {
-	var doc struct {
-		Dict struct {
-			Entries []struct {
-				XMLName xml.Name
-				Text    string   `xml:",chardata"`
-				Strings []string `xml:"string"`
-			} `xml:",any"`
-		} `xml:"dict"`
-	}
-	if xml.Unmarshal(plist, &doc) != nil {
-		return ""
-	}
-	entries := doc.Dict.Entries
-	for i := 1; i < len(entries); i++ {
-		key, value := entries[i-1], entries[i]
-		if key.XMLName.Local == "key" && key.Text == "ProgramArguments" && len(value.Strings) > 0 {
-			return value.Strings[0]
-		}
-	}
-	return ""
 }
 
 // plist is the agent's plist, which launchd loads it from: it runs the

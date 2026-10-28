@@ -106,6 +106,8 @@
   (literal "/usr/bin/osascript")
   (literal "/bin/launchctl")
   (literal "/usr/bin/open")
+  ;; plutil, which the service runs by its path, past PATH's stubs.
+  (literal "/usr/bin/plutil")
   ;; tmux: the system's, or Homebrew's, linked into its Cellar.
   (literal "/usr/bin/tmux")
   (literal "/usr/local/bin/tmux")

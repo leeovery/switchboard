@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -279,6 +280,7 @@ func TestServiceRestartRestartsTheRouterInPlace(t *testing.T) {
 func TestServiceRestartOfARouterFromBeforeRoutersRestartedWhenAsked(t *testing.T) {
 	s := newServiceSetup(t)
 	s.launchd.loaded = true
+	s.putKeptPlist(t, filepath.Dir(s.srv.state))
 	// A router from before routers restarted when asked, at pid 100, which
 	// launchd, once it's signalled the router to stop, starts again at pid
 	// 4242.
@@ -326,7 +328,7 @@ func TestServiceStatus(t *testing.T) {
 		t.Fatalf("switchboard service install = %+v, want exit status 0", got)
 	}
 	got = run(t, s.srv.deps, "service", "status")
-	want = result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded\nrouter       healthy, pid " + strconv.Itoa(os.Getpid()) + "\n"}
+	want = result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded, running pid " + strconv.Itoa(os.Getpid()) + "\nrouter       healthy, pid " + strconv.Itoa(os.Getpid()) + "\n"}
 	if got != want {
 		t.Errorf("once installed, switchboard service status = %+v, want %+v", got, want)
 	}
@@ -461,7 +463,13 @@ type fakeLaunchd struct {
 	starts bool
 	probed bool
 	loaded bool
-	calls  [][]string
+	// pid is the router's process id, which print names while it's not 0,
+	// as it is once launchd starts one; pidless has print say one runs
+	// without naming its pid, and stateUnread say neither its state nor its
+	// pid, as formats setup can't read wholly might.
+	pid                  int
+	pidless, stateUnread bool
+	calls                [][]string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -475,15 +483,33 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 	case !f.loaded:
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
 	case args[0] == "bootout":
-		f.loaded = false
+		f.loaded, f.pid = false, 0
 	case args[0] == "kickstart":
 		f.start()
+	case args[0] == "print":
+		return f.printed(args[1]), nil
 	}
 	return nil, nil
 }
 
+// printed is what launchctl print prints of the job target, trimmed to
+// what matters: whether the router runs, and its pid, as the formats set.
+func (f *fakeLaunchd) printed(target string) []byte {
+	state := "\tstate = not running\n"
+	switch {
+	case f.stateUnread:
+		state = ""
+	case f.pid != 0 && f.pidless:
+		state = "\tstate = running\n"
+	case f.pid != 0:
+		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
+	}
+	return []byte(target + " = {\n" + state + "}\n")
+}
+
 // start starts srv's router, and with probed set, waits for its probes.
 func (f *fakeLaunchd) start() {
+	f.pid = os.Getpid()
 	f.srv.start(f.t)
 	if f.probed {
 		f.srv.waitForProbes(f.t)

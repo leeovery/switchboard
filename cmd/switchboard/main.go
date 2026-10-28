@@ -35,6 +35,7 @@ func main() {
 		Exec:          launch.Exec,
 		Check:         handover.Run,
 		Launchctl:     service.Launchctl,
+		Plutil:        service.Plutil,
 		Hidden:        cli.HiddenInput,
 		Terminal:      cli.IsTerminal,
 		TerminalInput: cli.IsTerminalInput,

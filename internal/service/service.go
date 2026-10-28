@@ -97,15 +97,35 @@ type Config struct {
 	// StateDir is switchboard's state directory, where launchd's log goes,
 	// and the router reads the accounts' tokens.
 	StateDir string
-	// Launchctl runs launchctl.
-	Launchctl Runner
-	// Router asks the router the service runs whether it's alive.
+	// Launchctl runs launchctl, and Plutil plutil, which reads a binary
+	// plist back as XML.
+	Launchctl, Plutil Runner
+	// Router asks the router the service runs whether it's alive: the one
+	// whose state is in StateDir.
 	Router Router
+	// RouterAt returns the router whose state is in the directory given, for
+	// For to ask the one an environment kept puts elsewhere.
+	RouterAt func(stateDir string) Router
 }
 
 // Service is the LaunchAgent.
 type Service struct {
 	cfg Config
+	// home is the home directory the router runs in, where the environment
+	// the service is seen in names one other than the user's.
+	home string
+	// emptyHome is whether the environment the service is seen in sets
+	// HOME empty, as launchd passes it.
+	emptyHome bool
+	// unplaced is whether the service is seen without its plist, which
+	// couldn't be read back or placed, so the router that answers may not be
+	// the one launchd runs.
+	unplaced bool
+	// also are the routers the service may run besides cfg.Router's, as one
+	// seen in another environment keeps the one at the state directory it's
+	// asked from, and base the service as it's asked about.
+	also []Router
+	base *Service
 }
 
 // New returns the LaunchAgent, failing with ErrUnsupported on a system other
@@ -147,6 +167,16 @@ type InstallOptions struct {
 	// Accounts are the config's accounts, whose tokens the router serves
 	// with.
 	Accounts config.Accounts
+	// environment is what launchd is to set in the router's environment, as
+	// Options reads it back from the plist in place, or Planned works it out:
+	// nil for Install to work it out as Planned does. It's theirs to give, as
+	// the variables decide where the router keeps its state, its tokens with
+	// it.
+	environment map[string]string
+	// unread is why Planned couldn't read back the plist in place, whose
+	// variables added by hand are then gone, nil where it could or there's
+	// none.
+	unread error
 }
 
 // Installed is what installing the service did.
@@ -157,6 +187,10 @@ type Installed struct {
 	// Router is the answer of the router launchd started, or nil when none
 	// answered within StartWait.
 	Router *router.Health
+	// Unread is why the plist in place couldn't be read back, whose
+	// variables added by hand are then gone, nil where it could or there was
+	// none.
+	Unread error
 }
 
 // Install writes the LaunchAgent's plist, has launchd load it, in place of
@@ -164,14 +198,18 @@ type Installed struct {
 // the router to answer. It refuses a switchboard binary that won't last,
 // such as go run's.
 func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, error) {
-	a, warnings, err := s.prepare(opts)
+	s, opts, err := s.Planned(ctx, opts)
+	if err != nil {
+		return Installed{}, err
+	}
+	a, err := s.describe(opts)
 	if err != nil {
 		return Installed{}, err
 	}
 	if err := s.write(a); err != nil {
 		return Installed{}, err
 	}
-	before := s.current(ctx)
+	before, i, _ := s.answering(ctx)
 	if err := s.unload(ctx); err != nil {
 		return Installed{}, err
 	}
@@ -179,25 +217,31 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	logger.Info("installed the service", "plist", s.Plist(), "program", strings.Join(a.Program, " "))
-	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, before, StartWait)}, nil
-}
-
-// prepare checks what the service is to run, and describes the LaunchAgent
-// that runs it, with what's worth the user's attention: the router having no
-// token to serve with.
-func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
-	binary, err := s.Binary(opts.Executable)
-	if err != nil {
-		return agent{}, nil, err
+	// With none answering before, one that answers now is launchd's,
+	// wherever it is; with one answering, it may be one run otherwise.
+	waitFor := s.routers()
+	if i >= 0 {
+		waitFor = waitFor[:1]
 	}
-	var warnings []string
-	if s.tokenless(opts.Accounts) {
-		warnings = append(warnings, "no account has a usable token, so the router will have nothing to route to: switchboard accounts says why")
+	h, at := s.waitForRouter(ctx, waitFor, before, StartWait)
+	installed := Installed{Router: h, Unread: opts.unread}
+	// Judged where the router answered, whose token files it reads.
+	if s.seenAt(at).tokenless(opts.Accounts) {
+		installed.Warnings = append(installed.Warnings, "no account has a usable token, so the router will have nothing to route to: switchboard accounts says why")
 		logger.Warn("no account has a usable token")
 	}
+	return installed, nil
+}
+
+// describe describes the LaunchAgent Install writes for opts, with the
+// switchboard binary as Binary finds it.
+func (s *Service) describe(opts InstallOptions) (agent, error) {
+	binary, err := s.Binary(opts.Executable)
+	if err != nil {
+		return agent{}, err
+	}
 	opts.Executable = binary
-	a, err := s.agent(opts)
-	return a, warnings, err
+	return s.agent(opts)
 }
 
 // tokenless reports whether the router looks set to start with none of the
@@ -250,24 +294,30 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 	case !loaded:
 		return nil, ErrNotLoaded
 	}
-	answering := s.current(ctx)
-	if answering.PID == 0 {
+	answering, i, _ := s.answering(ctx)
+	if i < 0 {
 		return s.startAfresh(ctx)
 	}
-	how, before, err := s.restart(ctx, answering)
+	rt := s.routers()[i]
+	how, before, err := s.restart(ctx, answering, rt, i > 0 || s.unplaced)
 	if err != nil {
 		return nil, err
 	}
 	draining(how)
-	return s.waitForRouter(ctx, before, exitTimeout+StartWait), nil
+	h, _ := s.waitForRouter(ctx, []Router{rt}, before, exitTimeout+StartWait)
+	return h, nil
 }
 
-// restart has the router answering restart, and returns how, with the router
-// whose replacement to wait for: the one that took the request, which may
-// have restarted since it answered as answering, or, one that can't be
+// restart has the router rt, answering, restart, and returns how, with the
+// router whose replacement to wait for: the one that took the request, which
+// may have restarted since it answered as answering, or, one that can't be
 // asked, answering, which launchd starts again once SIGTERM stops it.
-func (s *Service) restart(ctx context.Context, answering router.Health) (Restarting, router.Health, error) {
-	asked, err := s.cfg.Router.Restart(ctx)
+//
+// Where rt, elsewhere says, isn't known to be the one launchd runs, as it
+// answers at the state directory the service is asked from rather than its
+// own, or the service is Unplaced, it fails rather than signal launchd's.
+func (s *Service) restart(ctx context.Context, answering router.Health, rt Router, elsewhere bool) (Restarting, router.Health, error) {
+	asked, err := rt.Restart(ctx)
 	switch {
 	case err == nil && asked.InPlace:
 		logger.Info("restarting the router in place", "pid", asked.PID)
@@ -277,6 +327,8 @@ func (s *Service) restart(ctx context.Context, answering router.Health) (Restart
 		return ByLaunchd, asked.Health, nil
 	case !errors.Is(err, router.ErrNoRestart):
 		return 0, router.Health{}, err
+	case elsewhere:
+		return 0, router.Health{}, fmt.Errorf("%w, and it isn't known to be the one launchd runs, as it answers where this shell keeps its state, not where the service's plist does, or the plist couldn't say: launchd's job is left alone", err)
 	}
 	if killed := s.launchctl(ctx, "kill", "SIGTERM", s.target()); killed != nil {
 		return 0, router.Health{}, killed
@@ -287,13 +339,15 @@ func (s *Service) restart(ctx context.Context, answering router.Health) (Restart
 
 // startAfresh has launchd start the service afresh, stopping any process of
 // it at once, and returns the answer of the router it starts, or nil when
-// none answers within StartWait.
+// none answers within StartWait. None answered before, so any of the routers
+// the service may run that answers now is the one launchd started.
 func (s *Service) startAfresh(ctx context.Context) (*router.Health, error) {
 	if err := s.launchctl(ctx, "kickstart", "-k", s.target()); err != nil {
 		return nil, err
 	}
 	logger.Info("started the service afresh")
-	return s.waitForRouter(ctx, router.Health{}, StartWait), nil
+	h, _ := s.waitForRouter(ctx, s.routers(), router.Health{}, StartWait)
+	return h, nil
 }
 
 // Status is how the service stands.
@@ -301,39 +355,37 @@ type Status struct {
 	// Installed is whether its plist is in place, and Loaded whether launchd
 	// has loaded it.
 	Installed, Loaded bool
-	// Binary is the switchboard binary its plist has launchd run, as the
-	// plist names it: "" when there's no plist, or it names none.
-	Binary string
-	// Router is the router's answer to its health check, or nil when it
-	// didn't answer, and RouterErr then says why.
+	// Running is whether launchd runs a router, as launchctl print says, and
+	// PID its process id, 0 where none runs or it can't be read; StateUnread
+	// is whether print said neither, so whether one runs is unknown.
+	Running, StateUnread bool
+	PID                  int
+	// Router is the answer of the first router to answer its health check,
+	// or nil when none did, and RouterErr then says why the one at its state
+	// directory didn't. Elsewhere is whether the one that answered isn't
+	// that one, but the one at the state directory the service is asked
+	// from, so that which the service runs can't be told.
 	Router    *router.Health
 	RouterErr error
+	Elsewhere bool
 }
 
-// Status reports whether the service is installed, which switchboard binary
-// it runs, whether launchd has loaded it, and how the router answers.
+// Status reports whether the service is installed, whether launchd has
+// loaded it, and how the router answers.
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	_, err := os.Stat(s.Plist())
-	st := Status{Installed: err == nil, Binary: s.installedBinary()}
-	if st.Loaded, err = s.loaded(ctx); err != nil {
+	st := Status{Installed: err == nil}
+	j, err := s.job(ctx)
+	if err != nil {
 		return Status{}, err
 	}
-	if h, err := s.cfg.Router.Health(ctx); err == nil {
-		st.Router = &h
+	st.Loaded, st.Running, st.StateUnread, st.PID = j.loaded, j.running, j.unread, j.pid
+	if h, i, err := s.answering(ctx); i >= 0 {
+		st.Router, st.Elsewhere = &h, i > 0
 	} else {
 		st.RouterErr = err
 	}
 	return st, nil
-}
-
-// installedBinary is the switchboard binary the plist in place has launchd
-// run, as it names it: "" when there's no plist to read, or it names none.
-func (s *Service) installedBinary() string {
-	plist, err := os.ReadFile(s.Plist())
-	if err != nil {
-		return ""
-	}
-	return binaryOf(plist)
 }
 
 // Answered fails, saying where to find out why, when the router launchd
@@ -483,31 +535,67 @@ func (s *Service) unload(ctx context.Context) error {
 	}
 }
 
-// current is the answer of the router answering now, or the zero Health when
-// none is.
-func (s *Service) current(ctx context.Context) router.Health {
-	h, err := s.cfg.Router.Health(ctx)
-	if err != nil {
-		return router.Health{}
+// Answering is the answer of the router the service runs, if one answers,
+// else nil.
+func (s *Service) Answering(ctx context.Context) *router.Health {
+	if h, i, _ := s.answering(ctx); i >= 0 {
+		return &h
 	}
+	return nil
+}
+
+// answering is the answer of the first of the routers the service may run
+// that answers, with its index among them, or, when none does, -1, and why
+// the first didn't.
+func (s *Service) answering(ctx context.Context) (router.Health, int, error) {
+	return answeringOf(ctx, s.routers())
+}
+
+// answeringOf is the answer of the first of routers that answers, with its
+// index, or, when none does, -1, and why the first didn't.
+func answeringOf(ctx context.Context, routers []Router) (router.Health, int, error) {
+	var first error
+	for i, rt := range routers {
+		h, err := rt.Health(ctx)
+		if err == nil {
+			return h, i, nil
+		}
+		if i == 0 {
+			first = err
+		}
+	}
+	return router.Health{}, -1, first
+}
+
+// routers are those the service may run: the one at its state directory,
+// then those For keeps.
+func (s *Service) routers() []Router {
+	return append([]Router{s.cfg.Router}, s.also...)
+}
+
+// Await waits up to wait for any of the routers the service may run to
+// answer, and returns its answer, or nil when none does.
+func (s *Service) Await(ctx context.Context, wait time.Duration) *router.Health {
+	h, _ := s.waitForRouter(ctx, s.routers(), router.Health{}, wait)
 	return h
 }
 
-// waitForRouter waits up to wait for a router to answer other than before,
-// which may not have stopped yet, and returns its answer, or nil when none
-// does.
-func (s *Service) waitForRouter(ctx context.Context, before router.Health, wait time.Duration) *router.Health {
+// waitForRouter waits up to wait for the first of routers to answer as
+// another router than before, which may not have stopped yet, and returns
+// its answer, with its index among them, or nil and -1 when none does: no
+// other router stands in for them.
+func (s *Service) waitForRouter(ctx context.Context, routers []Router, before router.Health, wait time.Duration) (*router.Health, int) {
 	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	for {
-		if h, err := s.cfg.Router.Health(ctx); err == nil && !h.Same(before) {
+		if h, i, _ := answeringOf(ctx, routers); i >= 0 && !h.Same(before) {
 			logger.Info("the router answered", "pid", h.PID, "ok", h.OK)
-			return &h
+			return &h, i
 		}
 		select {
 		case <-ctx.Done():
 			logger.Warn("the router didn't answer", "within", wait)
-			return nil
+			return nil, -1
 		case <-time.After(startPoll):
 		}
 	}

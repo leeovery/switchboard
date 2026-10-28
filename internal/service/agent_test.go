@@ -27,6 +27,7 @@ func TestPlist(t *testing.T) {
 			env: map[string]string{
 				"XDG_CONFIG_HOME":       "/Users/tester/.config",
 				"XDG_STATE_HOME":        "/Users/tester/.local/state",
+				"XDG_DATA_HOME":         "/Users/tester/.local/share",
 				"SWITCHBOARD_CONFIG":    "/Users/tester/.config/switchboard/work.toml",
 				"SWITCHBOARD_LOG_LEVEL": "warn",
 				"CLAUDE_CONFIG_DIR":     "/Users/tester/.config/claude",

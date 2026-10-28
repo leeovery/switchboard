@@ -85,6 +85,7 @@ func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
 		Accounts:     accounts.Registry{ConfigPath: path, Tokens: files, Prober: a.prober, Now: a.Now},
 		Service:      svc,
 		Install:      service.InstallOptions{Executable: exe, Config: a.configPath},
+		Startable:    a.startableIn,
 		Path:         a.Getenv("PATH"),
 		InstallPaths: claude.InstallPaths(home),
 		Bin:          bin,

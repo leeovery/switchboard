@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
@@ -70,8 +72,24 @@ type world struct {
 	bin, realClaude string
 	path            []string
 	installPaths    []string
-	launchd         *fakeLaunchd
-	api             *fakeAPI
+	// configFlag is the config file setup is given, as --config gives it,
+	// "" for none.
+	configFlag string
+	// env is the environment setup is run in, over the world's own: TMPDIR,
+	// and XDG_CONFIG_HOME and XDG_STATE_HOME, finding config and state; a
+	// variable set to "" is unset.
+	env map[string]string
+	// unstartable is why a router couldn't start, nil when it could, and
+	// checked what setup checked one would start from, each the state
+	// directory's XDG_STATE_HOME, the config file and any log level.
+	unstartable error
+	checked     []string
+	// binary is the XML a binary plist in the service's place reads as,
+	// through plutil, "" for none, and plutilSays what plutil fails with
+	// reading one it doesn't know, "" for its own words.
+	binary, plutilSays string
+	launchd            *fakeLaunchd
+	api                *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -90,7 +108,7 @@ func newWorld(t *testing.T) *world {
 		skill:    at("claude", "skills", "switchboard", "SKILL.md"),
 		settings: at("claude", "settings.json"),
 		bin:      at("home", ".local", "share", "switchboard", "bin"),
-		launchd:  &fakeLaunchd{},
+		launchd:  &fakeLaunchd{home: at("home")},
 		api:      &fakeAPI{},
 	}
 	mkdir(t, w.tmp)
@@ -108,6 +126,21 @@ func (w *world) goInstalled(t *testing.T) string {
 	return claudetest.Program(t, filepath.Join(w.root, "go", "bin", "switchboard"))
 }
 
+// startable checks a router could start from start, as unstartable says,
+// noting what it checked.
+func (w *world) startable(start service.Start) error {
+	w.checked = append(w.checked, strings.TrimSpace(start.StateDir+" "+start.ConfigFile+" "+start.LogLevel))
+	return w.unstartable
+}
+
+// plutil reads the binary plist in the service's place as binary has it.
+func (w *world) plutil(_ context.Context, args ...string) ([]byte, error) {
+	if w.binary == "" || args[len(args)-1] != w.plist() {
+		return nil, errors.New(cmp.Or(w.plutilSays, "plutil: not a binary plist the world knows"))
+	}
+	return []byte(w.binary), nil
+}
+
 // putBinOnPath puts switchboard's bin directory first on PATH, as the line
 // setup says to add does.
 func (w *world) putBinOnPath() {
@@ -117,15 +150,29 @@ func (w *world) putBinOnPath() {
 // setup is setup in the world, at the terminal the user is at.
 func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 	t.Helper()
-	env := map[string]string{"TMPDIR": w.tmp}
+	env := map[string]string{
+		"TMPDIR":            w.tmp,
+		"XDG_CONFIG_HOME":   filepath.Join(w.root, "config"),
+		"XDG_STATE_HOME":    filepath.Join(w.root, "state"),
+		"CLAUDE_CONFIG_DIR": filepath.Join(w.root, "claude"),
+	}
+	maps.Copy(env, w.env)
+	getenv := func(key string) string { return env[key] }
+	// The CLI's state directory, as it finds it.
+	stateDir, err := config.StateDir(getenv, func() (string, error) { return w.home, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
 	svc, err := service.New(service.Config{
 		GOOS:      "darwin",
 		UID:       os.Getuid(),
 		Home:      w.home,
-		Getenv:    func(key string) string { return env[key] },
-		StateDir:  w.state,
+		Getenv:    getenv,
+		StateDir:  stateDir,
 		Launchctl: w.launchd.run,
-		Router:    w.launchd,
+		Plutil:    w.plutil,
+		Router:    w.launchd.at(stateDir),
+		RouterAt:  func(dir string) service.Router { return w.launchd.at(dir) },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +181,8 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Terminal:     u.terminal(),
 		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt, Now: func() time.Time { return tokenTaken }},
 		Service:      svc,
-		Install:      service.InstallOptions{Executable: w.switchboard},
+		Install:      service.InstallOptions{Executable: w.switchboard, Config: w.configFlag},
+		Startable:    w.startable,
 		Path:         strings.Join(w.path, string(filepath.ListSeparator)),
 		InstallPaths: w.installPaths,
 		Bin:          w.bin,
@@ -197,10 +245,27 @@ func (w *world) done(t *testing.T) {
 // forgets the launchctl runs it took.
 func (w *world) installService(t *testing.T, binary string) {
 	t.Helper()
-	if _, err := w.setup(t, &user{}).Service.Install(t.Context(), service.InstallOptions{Executable: binary}); err != nil {
+	w.installServiceWith(t, service.InstallOptions{Executable: binary})
+}
+
+// installServiceWith installs the LaunchAgent as installService does, as
+// opts says.
+func (w *world) installServiceWith(t *testing.T, opts service.InstallOptions) {
+	t.Helper()
+	if _, err := w.setup(t, &user{}).Service.Install(t.Context(), opts); err != nil {
 		t.Fatal(err)
 	}
 	w.launchd.calls = nil
+}
+
+// editPlist rewrites the LaunchAgent's plist in place as edit says.
+func (w *world) editPlist(t *testing.T, edit func(plist string) string) {
+	t.Helper()
+	plist, err := os.ReadFile(w.plist())
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, w.plist(), edit(string(plist)), 0o644)
 }
 
 func (w *world) plist() string {
@@ -411,7 +476,7 @@ func (u *user) typeUnseen() ([]byte, error) {
 }
 
 // fakeLaunchd stands in for launchctl, and launchd and the router behind it.
-// Bootstrapping the service loads it and starts a router, kickstarting it
+// Printing the service names its router's pid while one runs. Bootstrapping the service loads it and starts a router, kickstarting it
 // starts another, as does signalling the router, which stops it for launchd
 // to start again, and booting it out stops it; printing the service exits
 // 113 while it isn't loaded, as launchctl does. Each router started answers
@@ -421,9 +486,25 @@ func (u *user) typeUnseen() ([]byte, error) {
 // pid, unless old is set, when it can't be asked, as one from before routers
 // restarted when asked can't.
 type fakeLaunchd struct {
-	loaded bool
-	dead   bool
-	old    bool
+	// home is the user's, and stateDir the state directory of the router
+	// the plist launchd loaded runs, as its XDG_STATE_HOME and its HOME find
+	// it, else as setenv's do, as launchctl setenv gives launchd them.
+	home, stateDir string
+	setenv         map[string]string
+	loaded         bool
+	dead           bool
+	// byHand is the pid of a router run by hand, answering with its state
+	// in byHandAt, else where the router launchd runs would have it, in its
+	// place, which print doesn't name; 0 for none. anonymous has the
+	// routers answer without their pids. pidless has print say launchd runs
+	// one without naming its pid, and stateUnread say neither its state nor
+	// its pid, as formats setup can't read wholly might; printFails has
+	// print fail, as launchctl erring does.
+	byHand                           int
+	byHandAt                         string
+	anonymous                        bool
+	pidless, stateUnread, printFails bool
+	old                              bool
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
 	pid        int
@@ -438,6 +519,7 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 	switch {
 	case args[0] == "bootstrap":
 		f.loaded = true
+		f.stateDir = f.stateDirOf(args[2])
 		f.start()
 	case !f.loaded:
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
@@ -445,8 +527,27 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 		f.loaded, f.pid = false, 0
 	case args[0] == "kickstart", args[0] == "kill":
 		f.start()
+	case args[0] == "print" && f.printFails:
+		return []byte("Could not print: Input/output error\n"), exitStatus(5)
+	case args[0] == "print":
+		return f.printed(args[1]), nil
 	}
 	return nil, nil
+}
+
+// printed is what launchctl print prints of the job target, trimmed to
+// what matters: whether the router runs, and its pid, as the formats set.
+func (f *fakeLaunchd) printed(target string) []byte {
+	state := "\tstate = not running\n"
+	switch {
+	case f.stateUnread:
+		state = ""
+	case f.pid != 0 && f.pidless:
+		state = "\tstate = running\n"
+	case f.pid != 0:
+		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
+	}
+	return []byte(target + " = {\n" + state + "}\n")
 }
 
 func (f *fakeLaunchd) start() {
@@ -455,6 +556,64 @@ func (f *fakeLaunchd) start() {
 		f.pid = 4242 + f.started
 		f.started++
 	}
+}
+
+// stateHome is how a plist names its router's XDG_STATE_HOME.
+var stateHome = regexp.MustCompile(`<key>XDG_STATE_HOME</key>\s*<string>([^<]*)</string>`)
+
+// homeOf is how a plist names its router's HOME, where it names one.
+var homeOf = regexp.MustCompile(`<key>HOME</key>\s*<string>([^<]*)</string>`)
+
+// stateDirOf is the state directory of the router the plist at path runs.
+func (f *fakeLaunchd) stateDirOf(path string) string {
+	plist, _ := os.ReadFile(path)
+	value, home := f.setenv["XDG_STATE_HOME"], cmp.Or(f.setenv["HOME"], f.home)
+	if m := stateHome.FindSubmatch(plist); m != nil {
+		value = string(m[1])
+	}
+	if m := homeOf.FindSubmatch(plist); m != nil {
+		home = string(m[1])
+	}
+	dir, _ := config.StateDir(func(string) string { return value }, func() (string, error) { return home, nil })
+	return dir
+}
+
+// at is the router a client of the control socket in dir reaches:
+// launchd's, when its router's state is there, else none.
+func (f *fakeLaunchd) at(dir string) service.Router {
+	return routerAt{f, dir}
+}
+
+// routerAt is the router a client of the control socket in dir reaches.
+type routerAt struct {
+	launchd *fakeLaunchd
+	dir     string
+}
+
+// errNoRouterThere is how a client fails with no router's socket where it
+// dials.
+var errNoRouterThere = fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning)
+
+func (r routerAt) Health(ctx context.Context) (router.Health, error) {
+	f := r.launchd
+	if f.byHand != 0 && r.dir == cmp.Or(f.byHandAt, f.stateDir) {
+		h := f.router()
+		if !f.anonymous {
+			h.PID = f.byHand
+		}
+		return h, nil
+	}
+	if r.dir != f.stateDir {
+		return router.Health{}, errNoRouterThere
+	}
+	return f.Health(ctx)
+}
+
+func (r routerAt) Restart(ctx context.Context) (router.Restart, error) {
+	if r.dir != r.launchd.stateDir {
+		return router.Restart{}, errNoRouterThere
+	}
+	return r.launchd.Restart(ctx)
 }
 
 // ran returns the launchctl subcommands run, in turn.
@@ -477,8 +636,12 @@ func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 
 // router is how the running router answers.
 func (f *fakeLaunchd) router() router.Health {
-	startedAt := time.Date(2026, 9, 28, 13, 0, f.restarts, 0, time.UTC)
-	return router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", StartedAt: startedAt}
+	startedAt := time.Date(2026, 9, 28, 13, f.started, f.restarts, 0, time.UTC)
+	h := router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", StartedAt: startedAt}
+	if f.anonymous {
+		h.PID = 0
+	}
+	return h
 }
 
 func (f *fakeLaunchd) Restart(context.Context) (router.Restart, error) {

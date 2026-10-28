@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -401,7 +400,7 @@ func TestInstallCarriesTheVariablesNamingAFileOrADirectoryAbsolute(t *testing.T)
 }
 
 func TestInstallServesTheConfigGiven(t *testing.T) {
-	env := map[string]string{"XDG_CONFIG_HOME": "/elsewhere/config", "XDG_STATE_HOME": "/elsewhere/state"}
+	env := map[string]string{"XDG_CONFIG_HOME": "<root>/elsewhere/config", "XDG_STATE_HOME": "<root>/elsewhere/state"}
 	s := newSetup(t, env, upOnceStarted(4242))
 	t.Chdir(s.root)
 
@@ -868,6 +867,11 @@ func TestStatus(t *testing.T) {
 		name      string
 		installed bool
 		loaded    bool
+		pid       int
+		pidless   bool
+		stateless bool
+		unread    bool
+		waiting   bool
 		answer    func(asked int) (router.Health, error)
 		want      service.Status
 	}{
@@ -879,6 +883,54 @@ func TestStatus(t *testing.T) {
 			want:      service.Status{Installed: true, Loaded: true, Router: &router.Health{OK: true, Version: "1.2.3", PID: 4242}},
 		},
 		{
+			name:      "loaded, its router running but not answering",
+			installed: true,
+			loaded:    true,
+			pid:       4242,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, Running: true, PID: 4242, RouterErr: errNotRunning},
+		},
+		{
+			name:      "loaded, launchd saying its router runs, but naming no pid",
+			installed: true,
+			loaded:    true,
+			pidless:   true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, Running: true, RouterErr: errNotRunning},
+		},
+		{
+			name:      "loaded, launchd naming its router's pid, but not saying it runs",
+			installed: true,
+			loaded:    true,
+			pid:       4242,
+			stateless: true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, Running: true, PID: 4242, RouterErr: errNotRunning},
+		},
+		{
+			name:      "loaded, launchd saying neither its state nor its router's pid",
+			installed: true,
+			loaded:    true,
+			unread:    true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, StateUnread: true, RouterErr: errNotRunning},
+		},
+		{
+			name:      "loaded, launchd saying its router waits",
+			installed: true,
+			loaded:    true,
+			waiting:   true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, RouterErr: errNotRunning},
+		},
+		{
+			name:      "loaded, none running",
+			installed: true,
+			loaded:    true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, RouterErr: errNotRunning},
+		},
+		{
 			name:   "none of them",
 			answer: func(int) (router.Health, error) { return router.Health{}, errNotRunning },
 			want:   service.Status{RouterErr: errNotRunning},
@@ -887,7 +939,9 @@ func TestStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSetup(t, nil, tt.answer)
-			s.launchctl.loaded = tt.loaded
+			s.launchctl.loaded, s.launchctl.pid = tt.loaded, tt.pid
+			s.launchctl.pidless, s.launchctl.stateless, s.launchctl.stateUnread = tt.pidless, tt.stateless, tt.unread
+			s.launchctl.waiting = tt.waiting
 			if tt.installed {
 				s.putPlist(t, "<plist/>\n")
 			}
@@ -906,38 +960,18 @@ func TestStatus(t *testing.T) {
 	}
 }
 
-func TestStatusNamesTheBinaryThePlistRuns(t *testing.T) {
+func TestOptionsReadsTheBinaryThePlistRunsAsItNamesIt(t *testing.T) {
 	// A path holding what XML escapes.
 	const binary = "/Users/tester/it's <mine> & co/bin/switchboard"
-	written, err := newService(t, service.Config{Home: "/Users/tester", StateDir: "/Users/tester/.local/state/switchboard", Getenv: func(string) string { return "" }}).
-		PlistOf(service.InstallOptions{Executable: binary, Config: "/Users/tester/work.toml", LogLevel: "debug"})
+	s := newSetup(t, nil, nil)
+	written, err := s.svc.PlistOf(service.InstallOptions{Executable: binary, Config: "/Users/tester/work.toml", LogLevel: "debug"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	tests := []struct {
-		name string
-		// plist is what's in the plist's place, "" for nothing.
-		plist string
-		want  string
-	}{
-		{name: "one as install writes it", plist: string(written), want: binary},
-		{name: "none"},
-		{name: "one naming no program", plist: "<plist/>\n"},
-		{name: "one whose program has no arguments", plist: "<plist><dict><key>ProgramArguments</key><array/></dict></plist>\n"},
-		{name: "one that isn't XML, as a binary one isn't", plist: "bplist00\xd1\x01\x02"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := newSetup(t, nil, func(int) (router.Health, error) { return up(4242) })
-			if tt.plist != "" {
-				s.putPlist(t, tt.plist)
-			}
+	s.putPlist(t, string(written))
 
-			st, err := s.svc.Status(t.Context())
-			if err != nil || st.Binary != tt.want {
-				t.Errorf("Status() = %+v, %v; want the binary %q", st, err, tt.want)
-			}
-		})
+	if opts, err := s.svc.Options(t.Context()); err != nil || opts.Executable != binary {
+		t.Errorf("Options() = %+v, %v; want the binary %q", opts, err, binary)
 	}
 }
 
@@ -1109,15 +1143,24 @@ func newSetup(t *testing.T, env map[string]string, answer func(asked int) (route
 	}
 	s.binary = writeBinary(t, filepath.Join(root, "bin", "switchboard"))
 	vars := map[string]string{"TMPDIR": s.tmp}
-	maps.Copy(vars, env)
+	for key, value := range env {
+		vars[key] = strings.ReplaceAll(value, "<root>", root)
+	}
 	home := filepath.Join(root, "home")
+	getenv := func(key string) string { return vars[key] }
+	// The state directory the CLI finds.
+	stateDir, err := config.StateDir(getenv, func() (string, error) { return home, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
 	s.cfg = service.Config{
 		UID:       501,
 		Home:      home,
-		StateDir:  filepath.Join(home, ".local", "state", "switchboard"),
-		Getenv:    func(key string) string { return vars[key] },
+		StateDir:  stateDir,
+		Getenv:    getenv,
 		Launchctl: s.launchctl.run,
 		Router:    s.router,
+		RouterAt:  func(string) service.Router { return s.router },
 	}
 	s.svc = newService(t, s.cfg)
 	s.plist = filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
@@ -1194,7 +1237,14 @@ type fakeLaunchctl struct {
 	exits   map[string]int
 	fails   map[string]int
 	cantRun error
-	calls   [][]string
+	// pid is the router's process id, which print names while it's not 0;
+	// pidless has print say a router runs without naming its pid, and
+	// stateless name its pid without saying it runs, and stateUnread say
+	// neither, as formats setup can't read wholly might; waiting has it say
+	// the job waits.
+	pid                                      int
+	pidless, stateless, stateUnread, waiting bool
+	calls                                    [][]string
 }
 
 // exit is the status this run of subcommand exits with, as exits and fails
@@ -1235,6 +1285,7 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 		if !f.has() {
 			return []byte("Bad request.\nCould not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
 		}
+		return f.printed(args[1]), nil
 	case "bootstrap":
 		if f.has() {
 			return []byte("Bootstrap failed: 5: Input/output error\n"), exitStatus(5)
@@ -1244,6 +1295,26 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 		f.gone = time.Now().Add(f.lingers)
 	}
 	return nil, nil
+}
+
+// printed is what launchctl print prints of the job target, trimmed to
+// what matters.
+func (f *fakeLaunchctl) printed(target string) []byte {
+	state := "\tstate = not running\n"
+	switch {
+	case f.pidless:
+		state = "\tstate = running\n"
+	case f.stateless:
+		state = fmt.Sprintf("\tpid = %d\n", f.pid)
+	case f.stateUnread:
+		state = ""
+	case f.waiting:
+		state = "\tstate = waiting\n"
+	case f.pid != 0:
+		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
+	}
+	return []byte(target + " = {\n\tactive count = 1\n" + state +
+		"\tspawn = {\n\t\tpid = 1\n\t}\n\tlast exit code = (never exited)\n}\n")
 }
 
 // has reports whether launchd has the service loaded now.

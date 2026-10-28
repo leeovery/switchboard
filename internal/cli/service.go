@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 )
@@ -83,7 +85,7 @@ it does at a signal, and launchd starts it again. With no router answering,
 there's nothing to finish, and launchd starts the service afresh at once.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.restartService(cmd.Context(), cmd.OutOrStdout())
+			return a.restartService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 }
@@ -94,7 +96,7 @@ func newServiceStatusCommand(a *app) *cobra.Command {
 		Short: "Show whether the LaunchAgent is installed and loaded, and the router's health",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.serviceStatus(cmd.Context(), cmd.OutOrStdout())
+			return a.serviceStatus(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 }
@@ -117,31 +119,75 @@ func (a *app) service() (*service.Service, error) {
 		Getenv:    a.Getenv,
 		StateDir:  stateDir,
 		Launchctl: a.Launchctl,
+		Plutil:    a.Plutil,
 		Router:    router.NewClient(router.SocketPath(stateDir)),
+		RouterAt: func(dir string) service.Router {
+			return router.NewClient(router.SocketPath(dir))
+		},
 	})
 }
 
+// installedService returns the LaunchAgent as the router it runs sees it,
+// in the environment its plist keeps, where its state directory, and its
+// router, may be other than this shell's; or, where there's no plist, as
+// service sees it, and where it can't be read back, so too, saying so on
+// errOut.
+func (a *app) installedService(ctx context.Context, errOut io.Writer) (*service.Service, error) {
+	svc, err := a.service()
+	if err != nil {
+		return nil, err
+	}
+	opts, err := svc.Options(ctx)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return svc.Unplaced(), nil
+	case err != nil:
+		launch.Notice(errOut, "the service's plist can't be read back, so the router is looked for where this shell keeps its state ("+redact.Text(err.Error())+")")
+		return svc.Unplaced(), nil
+	}
+	installed, err := svc.For(opts)
+	if err != nil {
+		launch.Notice(errOut, "where the service's router keeps its state can't be worked out from its plist, so it's looked for where this shell keeps its state ("+redact.Text(err.Error())+")")
+		return svc.Unplaced(), nil
+	}
+	return installed, nil
+}
+
 // installService installs the LaunchAgent to run this switchboard binary as
-// opts says, serving the config the CLI finds, once it has checked what the
-// router would start from, as serve's check does, so a router that couldn't
-// start never replaces one that runs, and says how the router it starts
-// answers.
+// opts says, serving the config given, else the one its router finds, once
+// it has checked what the router would start from, as serve's check does, so
+// a router that couldn't start never replaces one that runs, and says how
+// the router it starts answers. It's seen as the router it installs sees it,
+// in the environment it writes, which keeps the variables added to the plist
+// in place by hand.
 func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts service.InstallOptions) error {
 	svc, err := a.service()
 	if err != nil {
 		return err
 	}
-	cfg, err := a.startable()
+	opts.Config = a.configPath
+	svc, opts, err = svc.Planned(ctx, opts)
+	if err != nil {
+		return err
+	}
+	start, err := svc.StartsFrom(opts)
+	if err != nil {
+		return err
+	}
+	cfg, err := a.startableAt(start)
 	if err != nil {
 		return err
 	}
 	if opts.Executable, err = a.Executable(); err != nil {
 		return fmt.Errorf("find this switchboard binary: %w", err)
 	}
-	opts.Config, opts.Accounts = a.configPath, cfg.Accounts
+	opts.Accounts = cfg.Accounts
 	installed, err := svc.Install(ctx, opts)
 	if err != nil {
 		return err
+	}
+	if installed.Unread != nil {
+		launch.Notice(errOut, "the plist in place couldn't be read back, so any variable added to it by hand is gone ("+redact.Text(installed.Unread.Error())+")")
 	}
 	for _, warning := range installed.Warnings {
 		launch.Notice(errOut, warning)
@@ -172,8 +218,8 @@ func (a *app) uninstallService(ctx context.Context, out io.Writer) error {
 
 // restartService restarts the router, saying how while a router finishes its
 // requests in flight first, and says how the one it becomes answers.
-func (a *app) restartService(ctx context.Context, out io.Writer) error {
-	svc, err := a.service()
+func (a *app) restartService(ctx context.Context, out, errOut io.Writer) error {
+	svc, err := a.installedService(ctx, errOut)
 	if err != nil {
 		return err
 	}
@@ -194,8 +240,8 @@ func (a *app) restartService(ctx context.Context, out io.Writer) error {
 
 // serviceStatus prints whether the LaunchAgent is installed and loaded, and
 // how the router answers.
-func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
-	svc, err := a.service()
+func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
+	svc, err := a.installedService(ctx, errOut)
 	if err != nil {
 		return err
 	}
@@ -207,11 +253,20 @@ func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
 	if st.Installed {
 		installed = svc.Plist()
 	}
-	if st.Loaded {
-		loaded = "loaded"
+	switch {
+	case st.PID != 0:
+		loaded = fmt.Sprintf("loaded, running pid %d", st.PID)
+	case st.Running:
+		loaded = "loaded, running"
+	case st.StateUnread:
+		loaded = "loaded, its state unread"
+	case st.Loaded:
+		loaded = "loaded, not running"
 	}
 	answer := "not running"
 	switch {
+	case st.Elsewhere:
+		answer = service.Health(*st.Router) + ", where this shell keeps its state, not where the plist does"
 	case st.Router != nil:
 		answer = service.Health(*st.Router)
 	case !router.IsNotRunning(st.RouterErr):
