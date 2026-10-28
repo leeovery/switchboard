@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"unicode"
 
 	"github.com/leeovery/switchboard/internal/accounts"
@@ -132,6 +133,10 @@ const (
 	// TokenNotMade is setup-token giving no token: Tokened's Shown is what it
 	// showed.
 	TokenNotMade
+	// TokenUnread is setup-token saying it made the token, which lasts a
+	// year on the account, without showing it whole: Tokened's Shown is what
+	// it showed, the token in it, to copy and paste.
+	TokenUnread
 	// NoClaudeCode is there being no Claude Code to run setup-token with.
 	NoClaudeCode
 	// TokenNotGiven is what was pasted being no token.
@@ -153,9 +158,9 @@ type Tokened struct {
 	// SameAs is the id of the account the token's subscription is already,
 	// at TokenSameAccount.
 	SameAs string
-	// Shown is what setup-token showed, at TokenNotMade, a line each, the
-	// blank lines left out: for the person alone, never a log, as where
-	// setup-token said it made the token, it holds it, to copy.
+	// Shown is what setup-token showed, at TokenNotMade and TokenUnread, a
+	// line each, the blank lines left out: for the person alone, never a
+	// log, as at TokenUnread it holds the token.
 	Shown []string
 }
 
@@ -165,18 +170,20 @@ type Tokened struct {
 // at a time, setup-token's on a goroutine of their own (see
 // setuptoken.Signing's Report), so report must return without waiting on
 // MakeToken: nil hears nothing. An interrupt, taken as setup's Interrupt
-// says, stops the making. It makes nothing where the token couldn't be saved
-// for the account, not configured, or one the config can't add, and fails;
-// and fails with what's no outcome of the making, as PasteToken does.
+// says, or the end of ctx, stops the making until setup-token says it has
+// made the token; from then on the token is kept, as it lasts a year on the
+// account: it's checked and saved however ctx ends, or, unread, given back
+// to copy. It makes nothing where the token couldn't be saved for the
+// account, and fails as PasteToken does.
 func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) (Tokened, error) {
 	if s.TokenMaker == nil {
 		return Tokened{}, errNoTokenMaker
 	}
-	asItIs, err := s.opensAsItIs(f)
+	cfg, err := s.takes(f)
 	if err != nil {
 		return Tokened{}, err
 	}
-	opener, err := s.opener(asItIs)
+	opener, err := s.opener(opensAsItIs(cfg, f))
 	if err != nil {
 		return Tokened{}, err
 	}
@@ -185,28 +192,41 @@ func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) 
 			report(m)
 		}
 	}
-	token, err := s.make(ctx, opener, tell)
-	if err != nil {
-		return notMade(ctx, f, err)
+	a := s.make(ctx, opener, tell)
+	if a.err != nil {
+		return notMade(ctx, f, a)
 	}
 	tell(Making{Step: CheckingToken})
-	return s.save(ctx, f, token)
+	// The prober bounds its own wait on the API, which, not answering, leaves
+	// the token saved unchecked.
+	return s.save(context.WithoutCancel(ctx), f, a.token)
+}
+
+// attempt is how a run of setup-token ended: its token, or err saying why
+// there's none. made says it said it made the token, and interrupted that
+// an interrupt came before it ended.
+type attempt struct {
+	token             tokens.Token
+	err               error
+	made, interrupted bool
 }
 
 // make makes a token with the TokenMaker, its sign-in address opened by
-// opener, telling tell each step, while ctx lasts. It fails with
-// accounts.ErrInterrupted at an interrupt.
-func (s *Setup) make(ctx context.Context, opener setuptoken.Opener, tell func(Making)) (tokens.Token, error) {
+// opener, telling tell each step, while ctx lasts, and until an interrupt.
+func (s *Setup) make(ctx context.Context, opener setuptoken.Opener, tell func(Making)) attempt {
 	asked, stop := s.interruptible(ctx)
 	defer stop()
+	var made atomic.Bool
 	token, err := s.TokenMaker.Make(asked, setuptoken.Signing{
 		Opener: opener,
-		Report: func(e setuptoken.Event) { tell(making(e)) },
+		Report: func(e setuptoken.Event) {
+			if e.Step == setuptoken.StepMade {
+				made.Store(true)
+			}
+			tell(making(e))
+		},
 	})
-	if asked.Err() != nil && ctx.Err() == nil {
-		return tokens.Token{}, accounts.ErrInterrupted
-	}
-	return token, err
+	return attempt{token: token, err: err, made: made.Load(), interrupted: asked.Err() != nil && ctx.Err() == nil}
 }
 
 // screened is setup-token's own failure, which says what it showed, as a
@@ -218,33 +238,41 @@ type screened interface {
 
 var _ screened = (*setuptoken.ScreenError)(nil)
 
-// notMade is how making the token for f ended without one, err saying why.
-// A failure once ctx has ended is the cancel's.
-func notMade(ctx context.Context, f TokenFor, err error) (Tokened, error) {
-	screen, isScreen := errors.AsType[screened](err)
-	_, noClaude := errors.AsType[*claude.NotFoundError](err)
+// notMade is how making the token for f ended without one, as a says. A
+// token made, but unread, is given back however it ended; otherwise, a
+// failure once ctx has ended, or at an interrupt, is theirs.
+func notMade(ctx context.Context, f TokenFor, a attempt) (Tokened, error) {
+	screen, isScreen := errors.AsType[screened](a.err)
+	_, noClaude := errors.AsType[*claude.NotFoundError](a.err)
 	switch {
+	case isScreen && a.made:
+		logger.Warn("claude setup-token made a token switchboard couldn't read", "account", f.Account.ID, "error", a.err)
+		return Tokened{Result: TokenUnread, Why: a.err.Error(), Shown: shownLines(screen.Screen())}, nil
 	case ctx.Err() != nil:
 		return Tokened{Result: TokenCancelled}, nil
-	case errors.Is(err, accounts.ErrInterrupted):
+	case a.interrupted:
 		return Tokened{Result: TokenInterrupted}, nil
 	case isScreen:
-		logger.Warn("claude setup-token made no token", "account", f.Account.ID, "error", err)
-		return Tokened{Result: TokenNotMade, Why: err.Error(), Shown: shownLines(screen.Screen())}, nil
+		logger.Warn("claude setup-token made no token", "account", f.Account.ID, "error", a.err)
+		return Tokened{Result: TokenNotMade, Why: a.err.Error(), Shown: shownLines(screen.Screen())}, nil
 	case noClaude:
-		return Tokened{Result: NoClaudeCode, Why: err.Error()}, nil
+		return Tokened{Result: NoClaudeCode, Why: a.err.Error()}, nil
 	}
-	return Tokened{}, err
+	return Tokened{}, a.err
 }
 
 // PasteToken checks the token pasted with the API, compares the organization
 // it names it in with the other accounts', and saves it, with its year from
 // today, as nothing says when it was made: in the account's place, or with
 // the account, added. It saves nothing where the API refuses it, it's
-// another account's, or ctx ends before it's saved, and fails with what's no
-// outcome of the check, as where the config can't be read or the token
-// written.
+// another account's, or ctx ends before it's saved. It fails, asking the API
+// nothing, where the token couldn't be saved for the account, not
+// configured, or one the config can't add; and with what's no outcome of the
+// check, as where the config can't be read or the token written.
 func (s *Setup) PasteToken(ctx context.Context, f TokenFor, pasted string) (Tokened, error) {
+	if _, err := s.takes(f); err != nil {
+		return Tokened{}, err
+	}
 	token, err := tokens.Parse(pasted)
 	if err != nil {
 		return Tokened{Result: TokenNotGiven, Why: err.Error()}, nil
@@ -259,7 +287,7 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token) (Token
 	switch {
 	case errors.Is(err, accounts.ErrRefused):
 		return Tokened{Result: TokenRefused, Why: err.Error()}, nil
-	case err != nil && ctx.Err() != nil:
+	case cancelledBy(ctx, err):
 		return Tokened{Result: TokenCancelled}, nil
 	case err != nil:
 		return Tokened{}, err
@@ -275,7 +303,7 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token) (Token
 		err = s.Accounts.SetTokenChecked(ctx, id, token, checked)
 	}
 	switch {
-	case err != nil && ctx.Err() != nil:
+	case cancelledBy(ctx, err):
 		return Tokened{Result: TokenCancelled}, nil
 	case err != nil:
 		return Tokened{}, err
@@ -284,24 +312,38 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token) (Token
 	return Tokened{Result: TokenSaved, Checked: checked}, nil
 }
 
-// opensAsItIs is the opener rule: it reports whether the sign-in address for
-// f's token opens in the browser as it is, as for the account it's signed in
-// to, the first, and the primary on a run again; every other's opens in a
-// private window. It fails where the token couldn't be saved for f's
-// account, as MakeToken says.
-func (s *Setup) opensAsItIs(f TokenFor) (bool, error) {
+// cancelledBy reports whether err is ctx's ending.
+func cancelledBy(ctx context.Context, err error) bool {
+	return ctx.Err() != nil && errors.Is(err, ctx.Err())
+}
+
+// takes returns the config, nil where it has no account, failing where a
+// token couldn't be saved for f's account: one not configured, or, to add,
+// one the config can't add.
+func (s *Setup) takes(f TokenFor) (*config.Config, error) {
 	draft, err := config.Edit(s.Accounts.ConfigPath)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	cfg, id := draft.Config(), f.Account.ID
 	switch {
 	case f.Add:
-		return cfg == nil, draft.AddAccount(f.Account)
+		return cfg, draft.AddAccount(f.Account)
 	case cfg == nil || !slices.Contains(cfg.Accounts.IDs(), id):
-		return false, config.NotConfigured(id)
+		return nil, config.NotConfigured(id)
 	}
-	return cfg.Accounts.Primary().ID == id, nil
+	return cfg, nil
+}
+
+// opensAsItIs is the opener rule: it reports whether the sign-in address for
+// f's token opens in the browser as it is, cfg configuring the accounts, as
+// for the account it's signed in to, the first, and the primary on a run
+// again; every other's opens in a private window.
+func opensAsItIs(cfg *config.Config, f TokenFor) bool {
+	if f.Add {
+		return cfg == nil
+	}
+	return cfg.Accounts.Primary().ID == f.Account.ID
 }
 
 // opener returns what opens a sign-in address: the browser as it is, where

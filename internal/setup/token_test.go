@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,29 +37,50 @@ const (
 // fakeMaker is setup-token, as a TokenMaker. It has the Opener it's given
 // open the sign-in address, reporting it, then reports its wait on the
 // approval, then gives what it's set to: madeToken, or token where that's
-// set, reporting it made; or it fails with err; or, blocking, waits till
-// its context ends. It counts the times it's asked.
+// set, reporting it made; or it fails with err, before it says it made the
+// token, or after, where madeFirst is set. Blocking, it waits till its
+// context ends before it says it made the token, and fails with the cancel;
+// holding, it waits till then once it has said so, then gives what it's set
+// to, as setup-token reads on for a token made. It reports on a goroutine of
+// its own, which it waits for before it returns, as setup-token does, and
+// counts the times it's asked.
 type fakeMaker struct {
-	token string
-	err   error
-	block bool
-	asked int
+	token       string
+	err         error
+	madeFirst   bool
+	block, hold bool
+	asked       int
 }
 
 func (m *fakeMaker) Make(ctx context.Context, s setuptoken.Signing) (tokens.Token, error) {
 	m.asked++
+	reports := make(chan setuptoken.Event, 3)
+	var told sync.WaitGroup
+	told.Go(func() {
+		for e := range reports {
+			s.Report(e)
+		}
+	})
+	defer told.Wait()
+	defer close(reports)
 	address, _ := setuptoken.ParseAddress(signIn)
 	opening, err := s.Opener.Open(ctx, address)
-	s.Report(setuptoken.Event{Step: setuptoken.StepAddress, Address: address, Opening: opening, Unopened: err})
-	s.Report(setuptoken.Event{Step: setuptoken.StepWaiting})
+	reports <- setuptoken.Event{Step: setuptoken.StepAddress, Address: address, Opening: opening, Unopened: err}
+	reports <- setuptoken.Event{Step: setuptoken.StepWaiting}
 	switch {
 	case m.block:
 		<-ctx.Done()
 		return tokens.Token{}, fmt.Errorf("make a setup token: %w", context.Cause(ctx))
-	case m.err != nil:
+	case m.err != nil && !m.madeFirst:
 		return tokens.Token{}, m.err
 	}
-	s.Report(setuptoken.Event{Step: setuptoken.StepMade})
+	reports <- setuptoken.Event{Step: setuptoken.StepMade}
+	if m.hold {
+		<-ctx.Done()
+	}
+	if m.err != nil {
+		return tokens.Token{}, m.err
+	}
 	return tokens.Parse(cmp.Or(m.token, madeToken))
 }
 
@@ -332,6 +354,17 @@ func TestMakeTokenSavesNothingWhereItFails(t *testing.T) {
 			want:          setup.Tokened{Result: setup.TokenSameAccount, SameAs: "side"},
 		},
 		{
+			name:  "the same subscription as several other accounts: the first by id",
+			maker: &fakeMaker{},
+			organizations: setup.Organizations{
+				"work": "org-work", "side": "org-work", "team-1": "org-work", "team-2": "org-work",
+				"team-3": "org-work", "team-4": "org-work", "team-5": "org-work", "team-6": "org-work",
+			},
+			api:   map[string]string{madeToken: "org-work"},
+			asked: true,
+			want:  setup.Tokened{Result: setup.TokenSameAccount, SameAs: "side"},
+		},
+		{
 			name:  "setup-token failing, with what it showed but its blank lines",
 			maker: &fakeMaker{err: screenFailure{screen: "Claude Code\n\nOAuth error: Request failed with status code 400   \n\n  Press Enter to retry.\n\n"}},
 			want: setup.Tokened{
@@ -396,32 +429,28 @@ func TestMakeTokenComparesOnlyOrganizationsKnown(t *testing.T) {
 	}
 }
 
-func TestMakeTokenStoppedSavesNothing(t *testing.T) {
-	tests := []struct {
-		name string
-		// stop stops the making as setup-token waits on the approval, by the
-		// cancel, or the world's interrupt, where it's set; else the cancel
-		// comes as the API is asked.
-		stop func(w *world, cancel context.CancelFunc)
-		want setup.TokenResult
-	}{
-		{name: "cancelled during the making", stop: func(_ *world, cancel context.CancelFunc) { cancel() }, want: setup.TokenCancelled},
-		{name: "interrupted during the making", stop: func(w *world, _ context.CancelFunc) { w.interrupt() }, want: setup.TokenInterrupted},
-		{name: "cancelled during the check", want: setup.TokenCancelled},
-	}
-	for _, tt := range tests {
+// stops are the ways the making is stopped: the cancel, and the world's
+// interrupt.
+var stops = []struct {
+	name string
+	stop func(w *world, cancel context.CancelFunc)
+	want setup.TokenResult
+}{
+	{name: "cancelled", stop: func(_ *world, cancel context.CancelFunc) { cancel() }, want: setup.TokenCancelled},
+	{name: "interrupted", stop: func(w *world, _ context.CancelFunc) { w.interrupt() }, want: setup.TokenInterrupted},
+}
+
+func TestMakeTokenStoppedBeforeItsMadeSavesNothing(t *testing.T) {
+	for _, tt := range stops {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t)
 			w.done(t)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			r := w.tokenRig(t, &fakeMaker{block: tt.stop != nil})
-			if tt.stop == nil {
-				w.api.probing = cancel
-			}
+			r := w.tokenRig(t, &fakeMaker{block: true})
 			before := w.snapshot(t)
 			report := func(m setup.Making) {
-				if m.Step == setup.AwaitingApproval && tt.stop != nil {
+				if m.Step == setup.AwaitingApproval {
 					tt.stop(w, cancel)
 				}
 			}
@@ -430,13 +459,85 @@ func TestMakeTokenStoppedSavesNothing(t *testing.T) {
 
 			checkTokened(t, got, err, setup.Tokened{Result: tt.want})
 			w.checkUnchanged(t, before)
+			if len(w.api.asked) > 0 {
+				t.Errorf("the API was asked about %q, want nothing asked", w.api.asked)
+			}
 		})
 	}
 }
 
+// Once setup-token says it has made the token, which lasts a year on the
+// account, the token is kept however the making's stopped: checked and saved
+// where setup-token shows it whole, and given back to copy where it doesn't.
+func TestMakeTokenKeepsATokenMadeThroughAStop(t *testing.T) {
+	unread := screenFailure{screen: "Your OAuth token (valid for 1 year):\n\n" + madeToken + "\n"}
+	wantUnread := setup.Tokened{
+		Result: setup.TokenUnread,
+		Why:    "setup-token showed an error",
+		Shown:  []string{"Your OAuth token (valid for 1 year):", madeToken},
+	}
+	for _, stop := range stops {
+		tests := []struct {
+			name  string
+			maker *fakeMaker
+			want  setup.Tokened
+		}{
+			{name: "shown whole: saved", maker: &fakeMaker{hold: true}, want: setup.Tokened{Result: setup.TokenSaved}},
+			{name: "unread: given back", maker: &fakeMaker{hold: true, madeFirst: true, err: unread}, want: wantUnread},
+		}
+		for _, tt := range tests {
+			t.Run(stop.name+" once it's made, "+tt.name, func(t *testing.T) {
+				w := newWorld(t)
+				w.done(t)
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				r := w.tokenRig(t, tt.maker)
+				before := w.snapshot(t)
+				report := func(m setup.Making) {
+					if m.Step == setup.TokenMade {
+						stop.stop(w, cancel)
+					}
+				}
+
+				got, err := r.s.MakeToken(ctx, adding, report)
+
+				checkTokened(t, got, err, tt.want)
+				if tt.want.Result == setup.TokenSaved {
+					w.checkTakenToday(t, "personal", madeToken)
+					return
+				}
+				w.checkUnchanged(t, before)
+			})
+		}
+	}
+	t.Run("unread, unstopped: given back", func(t *testing.T) {
+		w := newWorld(t)
+		w.done(t)
+		r := w.tokenRig(t, &fakeMaker{madeFirst: true, err: unread})
+
+		got, err := r.s.MakeToken(t.Context(), adding, nil)
+
+		checkTokened(t, got, err, wantUnread)
+	})
+	t.Run("cancelled as the API is asked: saved", func(t *testing.T) {
+		w := newWorld(t)
+		w.done(t)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		w.api.probing = cancel
+		r := w.tokenRig(t, &fakeMaker{})
+
+		got, err := r.s.MakeToken(ctx, adding, nil)
+
+		checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved})
+		w.checkTakenToday(t, "personal", madeToken)
+	})
+}
+
 // A cancel that lands once the save has passed its own look at the context
 // saves all the same, so the outcome says it's saved.
-func TestMakeTokenCancelledAsItSavesIsSaved(t *testing.T) {
+func TestPasteTokenCancelledAsItSavesIsSaved(t *testing.T) {
+	const pasted = "test-token-pasted"
 	for _, f := range []setup.TokenFor{adding, replacing("side")} {
 		t.Run(f.Account.ID, func(t *testing.T) {
 			w := newWorld(t)
@@ -449,35 +550,79 @@ func TestMakeTokenCancelledAsItSavesIsSaved(t *testing.T) {
 				return tokenTaken
 			}
 
-			got, err := r.s.MakeToken(ctx, f, nil)
+			got, err := r.s.PasteToken(ctx, f, pasted)
 
 			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved})
 			if ctx.Err() == nil {
 				t.Fatal("the save took no cancel, want one as it saves")
 			}
-			w.checkTakenToday(t, f.Account.ID, madeToken)
+			w.checkTakenToday(t, f.Account.ID, pasted)
 		})
+	}
+}
+
+// A save that fails as ctx ends, for a reason of its own, fails with it,
+// rather than saying it's cancelled.
+func TestPasteTokenFailingToSaveAsItsCancelledFails(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	writeFile(t, filepath.Join(w.tokens().Path("personal"), "in-the-way"), "", 0o600)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	r := w.tokenRig(t, &fakeMaker{})
+	r.s.Accounts.Now = func() time.Time {
+		cancel()
+		return tokenTaken
+	}
+
+	got, err := r.s.PasteToken(ctx, adding, "test-token-pasted")
+
+	if err == nil || errors.Is(err, context.Canceled) {
+		t.Errorf("PasteToken() = %+v, %v; want the token file's failure", got, err)
 	}
 }
 
 func TestMakeTokenTellsTheServiceOfASaveAlone(t *testing.T) {
 	const takesUp = " · takes up setup's changes on its own"
 	tests := []struct {
-		name        string
-		maker       *fakeMaker
+		name  string
+		maker *fakeMaker
+		// organizations are the other accounts' setup has read, and api the
+		// organizations the API names tokens in.
+		organizations setup.Organizations
+		api           map[string]string
+		// stopped cancels the making before it's made.
+		stopped     bool
 		wantTakesUp bool
 	}{
 		{name: "saved", maker: &fakeMaker{}, wantTakesUp: true},
 		{name: "refused", maker: &fakeMaker{token: refusedToken}},
 		{name: "not made", maker: &fakeMaker{err: screenFailure{}}},
+		{
+			name:          "the same subscription as another account",
+			maker:         &fakeMaker{},
+			organizations: setup.Organizations{"work": "org-work"},
+			api:           map[string]string{madeToken: "org-work"},
+		},
+		{name: "cancelled before it's made", maker: &fakeMaker{block: true}, stopped: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t)
 			w.done(t)
+			w.api.organizations = tt.api
 			r := w.tokenRig(t, tt.maker)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			report := func(m setup.Making) {
+				if tt.stopped && m.Step == setup.AwaitingApproval {
+					cancel()
+				}
+			}
+			f := replacing("side")
+			f.Organizations = tt.organizations
 
-			if _, err := r.s.MakeToken(t.Context(), replacing("side"), nil); err != nil {
+			if _, err := r.s.MakeToken(ctx, f, report); err != nil {
 				t.Fatalf("MakeToken() error = %v", err)
 			}
 			got, err := r.s.Service(t.Context())
@@ -552,9 +697,12 @@ func TestPasteTokenSavesItAsAMadeOne(t *testing.T) {
 		paste         string
 		organizations setup.Organizations
 		api           map[string]string
-		want          setup.Tokened
+		// cancelled cancels as the API is asked.
+		cancelled bool
+		want      setup.Tokened
 	}{
 		{name: "saved, with its year from today", paste: "  " + pasted + "\n", want: setup.Tokened{Result: setup.TokenSaved}},
+		{name: "cancelled during the check", paste: pasted, cancelled: true, want: setup.Tokened{Result: setup.TokenCancelled}},
 		{name: "nothing pasted", paste: " \n", want: setup.Tokened{Result: setup.TokenNotGiven, Why: tokens.ErrMissing.Error()}},
 		{name: "more than a token pasted", paste: pasted + " " + pasted, want: setup.Tokened{Result: setup.TokenNotGiven, Why: tokens.ErrNotAToken.Error()}},
 		{name: "refused", paste: refusedToken, want: setup.Tokened{Result: setup.TokenRefused, Why: "the API refused the token (HTTP 401 · Invalid bearer token), so nothing is saved: make another with claude setup-token, run while signed in to that subscription"}},
@@ -571,12 +719,17 @@ func TestPasteTokenSavesItAsAMadeOne(t *testing.T) {
 			w := newWorld(t)
 			w.done(t)
 			w.api.organizations = tt.api
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tt.cancelled {
+				w.api.probing = cancel
+			}
 			r := w.tokenRig(t, &fakeMaker{})
 			before := w.snapshot(t)
 			f := replacing("side")
 			f.Organizations = tt.organizations
 
-			got, err := r.s.PasteToken(t.Context(), f, tt.paste)
+			got, err := r.s.PasteToken(ctx, f, tt.paste)
 
 			checkTokened(t, got, err, tt.want)
 			if r.maker.asked > 0 {
@@ -585,6 +738,32 @@ func TestPasteTokenSavesItAsAMadeOne(t *testing.T) {
 			if tt.want.Result == setup.TokenSaved {
 				w.checkTakenToday(t, "side", pasted)
 				return
+			}
+			w.checkUnchanged(t, before)
+		})
+	}
+}
+
+func TestPasteTokenTakesNothingForAnAccountThatCantTakeIt(t *testing.T) {
+	tests := []struct {
+		name string
+		f    setup.TokenFor
+		want error
+	}{
+		{name: "one not configured", f: replacing("personal"), want: config.ErrNotConfigured},
+		{name: "one to add that's configured", f: setup.TokenFor{Account: config.NewAccount{ID: "side"}, Add: true}, want: config.ErrConfigured},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			r := w.tokenRig(t, &fakeMaker{})
+			before := w.snapshot(t)
+
+			_, err := r.s.PasteToken(t.Context(), tt.f, "test-token-pasted")
+
+			if !errors.Is(err, tt.want) || len(w.api.asked) > 0 {
+				t.Errorf("PasteToken() error = %v, the API asked about %q; want %v, with nothing asked", err, w.api.asked, tt.want)
 			}
 			w.checkUnchanged(t, before)
 		})
@@ -663,15 +842,18 @@ func TestMakingATokenNeverTellsTheTokenOrTheAddress(t *testing.T) {
 	r.private.opening = setuptoken.Opening{}
 	outcome(r.s.MakeToken(t.Context(), replacing("side"), report))
 	r.maker.err = screenFailure{screen: shown}
-	got, err := r.s.MakeToken(t.Context(), replacing("side"), report)
-	if !slices.Contains(got.Shown, madeToken) {
-		t.Errorf("the outcome showed %q, want what setup-token showed, the token in it, to copy", got.Shown)
+	for _, madeFirst := range []bool{false, true} {
+		r.maker.madeFirst = madeFirst
+		got, err := r.s.MakeToken(t.Context(), replacing("side"), report)
+		if !slices.Contains(got.Shown, madeToken) {
+			t.Errorf("the outcome showed %q, want what setup-token showed, the token in it, to copy", got.Shown)
+		}
+		outcome(got, err)
 	}
-	outcome(got, err)
 	outcome(r.s.PasteToken(t.Context(), replacing("side"), refusedToken))
 	outcome(r.s.PasteToken(t.Context(), replacing("side"), madeToken+" "+madeToken))
 
-	for _, logLine := range []string{"saved a token", "couldn't check a token with the API", "claude setup-token made no token"} {
+	for _, logLine := range []string{"saved a token", "couldn't check a token with the API", "claude setup-token made no token", "claude setup-token made a token switchboard couldn't read"} {
 		if !strings.Contains(logged.String(), logLine) {
 			t.Errorf("the log reads\n%s\nwant a line saying %q", logged.String(), logLine)
 		}
