@@ -81,7 +81,11 @@ func (a *app) serve(ctx context.Context) error {
 		return err
 	}
 	configFile, binary, zone := router.Watch(path), router.Watch(a.binary()), router.Watch(a.ZoneFile)
-	cfg, files, err := a.startingFrom(path)
+	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return err
+	}
+	cfg, files, err := a.startingFrom(stateDir, path)
 	if err != nil {
 		return err
 	}
@@ -113,11 +117,33 @@ func (a *app) startable() (router.Config, error) {
 	if err != nil {
 		return router.Config{}, err
 	}
-	cfg, _, err := a.startingFrom(path)
+	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return router.Config{}, err
+	}
+	return a.startableAt(service.Start{StateDir: stateDir, ConfigFile: path})
+}
+
+// startableAt returns what serve would start a router from, as start says,
+// as the service would run it, failing, saying why, as startable does, and
+// where serve couldn't parse its flags.
+func (a *app) startableAt(start service.Start) (router.Config, error) {
+	if start.LogLevel != "" {
+		if _, err := logs.ParseLevel(start.LogLevel); err != nil {
+			return router.Config{}, fmt.Errorf("--log-level: %w", err)
+		}
+	}
+	cfg, _, err := a.startingFrom(start.StateDir, start.ConfigFile)
 	if err != nil {
 		return router.Config{}, err
 	}
 	return cfg, router.Startable(cfg)
+}
+
+// startableIn fails, saying why, as startableAt does.
+func (a *app) startableIn(start service.Start) error {
+	_, err := a.startableAt(start)
+	return err
 }
 
 // refuse answers a router asking with handover.CheckFlag that the router
@@ -141,17 +167,13 @@ func (r refusal) Unwrap() error {
 	return r.error
 }
 
-// startingFrom reads what serve starts the router from, given its config
-// file's path: the router's config, but for the files it watches, which serve
-// finds before it reads the config file, and the token files it reads. It
-// fails where the config file doesn't make a valid config, or the state
-// directory can't be found.
-func (a *app) startingFrom(path string) (router.Config, tokens.Store, error) {
+// startingFrom reads what serve starts the router from, given its state
+// directory and its config file's path: the router's config, but for the
+// files it watches, which serve finds before it reads the config file, and
+// the token files it reads. It fails where the config file doesn't make a
+// valid config.
+func (a *app) startingFrom(stateDir, path string) (router.Config, tokens.Store, error) {
 	cfg, err := a.loadConfigAt(path)
-	if err != nil {
-		return router.Config{}, tokens.Store{}, err
-	}
-	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
 		return router.Config{}, tokens.Store{}, err
 	}

@@ -19,6 +19,8 @@
 		<string>/Users/tester/.config</string>
 		<key>XDG_STATE_HOME</key>
 		<string>/Users/tester/.local/state</string>
+		<key>XDG_DATA_HOME</key>
+		<string>/Users/tester/.local/share</string>
 		<key>SWITCHBOARD_CONFIG</key>
 		<string>/Users/tester/.config/switchboard/work.toml</string>
 		<key>SWITCHBOARD_LOG_LEVEL</key>

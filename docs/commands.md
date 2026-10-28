@@ -347,9 +347,61 @@ The steps are:
    With more than one and none marked, it asks which is the primary.
 2. **Priming.** With no day set, asks for one, as `HH:MM-HH:MM`, and writes it to `[prime]`.
    Pressing Enter leaves priming off.
-3. **The service.** Installs the LaunchAgent when it isn't installed or loaded, or when it runs
-   another switchboard than the one `setup` runs as. Restarts the router only when it doesn't
-   answer. The router takes up `setup`'s changes to the config and the tokens itself.
+3. **The service.** Installs the LaunchAgent when it isn't installed and no router answers or runs.
+   Installs it again when launchd hasn't loaded it and no router answers, when it runs another
+   switchboard than the one `setup` runs as, when `setup` is given another config file than the one
+   the router serves, or when its plist differs from the one `switchboard service install` would
+   write with what it was installed with, as after an upgrade that adds a key, and says what
+   differed. Installing it again keeps the `--log-level`, `--config` and environment it was
+   installed with, every variable in it, a `HOME` too, as the environment decides where the router
+   keeps its state, tokens included. A `--config` given to `setup` takes the place of the kept one
+   only where it names another file than the one the router serves. Before it touches a running
+   service, `setup` checks the router could start from what it keeps, its flags included. Where it
+   couldn't, `setup` leaves the service as it is while a router answers, saying why, and fails
+   while none does, saying how to install it once that's put right. A plist `setup` can't read
+   back, or one that names no program, is installed afresh from `setup`'s own options and your
+   shell's environment, once the router could start from them, only where launchd hasn't loaded the
+   service and no router answers, as the next paragraph says. A plist that isn't XML, as the binary
+   one `defaults write` leaves, is read back through `plutil`. A plist that sets `HOME` empty,
+   where the router's state directory or config file is found under it, can't start a router again:
+   `setup` fails, naming `switchboard service install`, and leaves a router that answers as it is,
+   saying to stop it first where it isn't launchd's own, as the next paragraph says. A `--config`
+   given to `setup` stands in for the config file. Where only Claude Code's config directory is
+   under it, `setup` says the router won't keep the skill up to date, and carries on.
+
+   `setup` watches the router where the service's plist keeps its state, and the one where your
+   shell does, and asks launchd whether it runs the router. It leaves the service as it is, saying
+   why. With no plist it can use, none or one it can't read back, `setup` never succeeds while a
+   router answers or runs, or launchd has loaded a plist it can't read, nor sends you back to
+   `setup`: a plist it can't read holds options it can't keep, so you choose. It leaves everything
+   as it is and fails, saying to run `switchboard service install`, which writes the plist afresh,
+   as no plist, or one launchd can't read, can't start the router at login. Where a router run some
+   other way answers, it says to stop that router first, and what launchd has: the service not
+   loaded, loaded but running no router, or running one, its pid named, that doesn't answer where
+   `setup` looks. With a plist it can read, it leaves the service where a router answers that isn't
+   launchd's own, run some other way, as another would clash with it, and fails the same way: stop
+   that router, then run `switchboard service install`. A router that gives no pid, from before
+   routers gave theirs, counts as launchd's only where launchd runs one; and where launchd says it
+   runs one but `setup` can't read its pid, the router that answers counts as launchd's too, as it
+   does where `launchctl print` says neither whether launchd runs one nor its pid. It leaves the
+   service too where only the one at your shell's answers, so it can't tell which the service runs;
+   and where launchd runs a router that answers at neither within 5 seconds, which may be starting,
+   stopping, or keeping its state where `setup` doesn't look. Then the step fails, naming its pid
+   where it's known: if it doesn't answer soon, as `switchboard service status` shows, `switchboard
+   service install` installs it again: give it the `--config` and `--log-level` it ran with, if
+   any. `setup` never sends you back to `setup`. It says where the router finds things apart from
+   `setup` only once a router answers. Run `switchboard service install` from the shell the router
+   should use to line them up. It restarts the router only when none answers and none runs, once it
+   has checked the router could start, and fails where it couldn't, saying how to install it. A
+   router started so is judged where it answers, once it does: where that's where your shell keeps
+   its state, not where the plist does, `setup` says so. It never starts the service afresh while
+   any router answers, and installs it again while one answers only where that one answers where
+   the plist keeps its state, launchd having it loaded. When the router uses another state
+   directory, config file or Claude Code config directory than `setup`, `setup` says which, never
+   where: run `switchboard service install` from the shell the router should use to line them up,
+   or, for the config file, `switchboard setup --config` naming the router's, after which `setup`
+   finds them the same and changes nothing. Where the router reads the config and the tokens
+   `setup` writes, it takes up their changes itself.
 4. **The `claude` link.** Makes `claude` in switchboard's bin directory, leading to the switchboard
    `setup` was run by. The bin directory is `$XDG_DATA_HOME/switchboard/bin`, else
    `~/.local/share/switchboard/bin`. Then `setup` checks the directory is on `PATH` ahead of the
@@ -544,12 +596,16 @@ in flight, and waits up to 5 seconds for the router to answer.
 - **The binary.** The LaunchAgent runs switchboard by the path you ran it by, so a Homebrew link
   stays the link `brew upgrade` moves on. A temporary build, such as `go run`'s, is refused.
 - **The environment.** The LaunchAgent carries `--config`, and these variables where they're set:
-  `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`, `SWITCHBOARD_LOG_LEVEL` and
-  `CLAUDE_CONFIG_DIR`. It makes `--config`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`
+  `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_DATA_HOME`, `SWITCHBOARD_CONFIG`,
+  `SWITCHBOARD_LOG_LEVEL` and `CLAUDE_CONFIG_DIR`. It makes `--config`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`
   absolute, so the router finds what the CLI does. The tokens are files, so the router needs
-  nothing else of your environment.
-- **The tokens.** `install` warns when no account has a usable token. The router starts all the
-  same, and routes as soon as a token file holds one.
+  nothing else of your environment. Any other variable the LaunchAgent in place sets, such as an
+  `HTTPS_PROXY` you added to it by hand, even with `defaults write`, `install` keeps, saying so
+  where it can't read the LaunchAgent in place and they're gone. A `HOME` it sets `install`
+  drops, as launchd gives the router yours. It waits for the router where the environment it
+  writes keeps its state, and for no other.
+- **The tokens.** `install` warns when no account has a usable token, where the router it started
+  answers. The router starts all the same, and routes as soon as a token file holds one.
 
 #### `service restart`
 
@@ -565,7 +621,7 @@ on the router:
 | Answering, with a binary that refuses to start | The router asks the binary it would become first. Where that refuses, as a newer version can refuse a config the running one takes, the router refuses too, and `restart` says why, in the binary's words. |
 | Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the router checks whether it could restart, the router refuses, and `restart` names what changed and says to try again. |
 | From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
-| Not answering | launchd starts the service afresh at once. |
+| Not answering | launchd starts the service afresh at once. `restart` asks the router where the LaunchAgent keeps its state, and the one where your shell does, and starts the service afresh only when neither answers; the first to answer then, at either, is the one launchd started. |
 
 When the router restarts, `restart` says so,
 `the router is finishing its requests in flight, then it restarts in place`, or, for a router that
@@ -581,7 +637,14 @@ put the config right as it says.
 
 - **`uninstall`** stops the router, once it has finished its requests in flight, and removes the
   LaunchAgent.
-- **`status`** shows whether the LaunchAgent is installed and loaded, and the router's health.
+- **`status`** shows whether the LaunchAgent is installed and loaded, whether launchd runs a
+  router, and its pid where `launchctl print` names one, or that its state is unread where it says
+  neither, and the health of the router where the LaunchAgent keeps its state, else of the one
+  where your shell does, saying so. Where it can't read the LaunchAgent's plist back, or work out
+  from it where the router keeps its state, `status` and `restart` say so, and look for the router
+  where your shell keeps its state. Where only the one at your shell's answers, or there's no
+  plist, or it couldn't be read or placed, and the router can't be asked to restart, `restart`
+  fails rather than signal launchd's, which may not be it.
 
 When the router doesn't answer in time, `install` and `restart` fail, with the LaunchAgent left in
 place. They point to `switchboard logs router` and `launchd.log` for why.

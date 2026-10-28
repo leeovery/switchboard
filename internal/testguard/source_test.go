@@ -45,6 +45,9 @@ var processStarters = []string{
 	// browser a sign-in opens in, as the Runner setuptoken.Programs gives:
 	// tests pass a fake that notes each call.
 	"internal/setuptoken/browser.go:runCommand",
+	// /usr/bin/plutil, by its path, converting a binary plist the service
+	// reads back to XML: main passes it to the CLI, and tests pass a fake.
+	"internal/service/plutil.go:Plutil",
 }
 
 const (

@@ -76,8 +76,9 @@ type Deps struct {
 	// standard output, as handover.Run does. The router serve runs uses it to
 	// ask its binary whether it could start, before restarting into it.
 	Check handover.Runner
-	// Launchctl runs launchctl, as service.Launchctl does.
-	Launchctl service.Runner
+	// Launchctl runs launchctl, as service.Launchctl does, and Plutil
+	// plutil, as service.Plutil does.
+	Launchctl, Plutil service.Runner
 	// Hidden returns what reads a line typed at the terminal stdin is,
 	// without showing it, or false when stdin isn't a terminal, as
 	// HiddenInput does: a token is typed there unseen, and setup asks there
