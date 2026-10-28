@@ -6,6 +6,43 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 )
 
+// Priming is the day priming spreads the 5-hour windows' resets over: the
+// zero Day where the config sets none, and priming is off.
+func (s *Setup) Priming() (config.Day, error) {
+	draft, err := config.Edit(s.Accounts.ConfigPath)
+	if err != nil || draft.Config() == nil {
+		return config.Day{}, err
+	}
+	return draft.Config().Prime.Day, nil
+}
+
+// SetDay has priming spread the resets over day, in the config, and returns
+// the day as it's set, leaving a config that sets it already as it is. It
+// fails, as ParseDay does, for a day that isn't one, changing nothing. A day
+// of "" turns priming off, taking the day out of the config.
+func (s *Setup) SetDay(day string) (config.Day, error) {
+	parsed, err := config.ParseDay(day)
+	if err != nil {
+		return config.Day{}, err
+	}
+	draft, err := config.Edit(s.Accounts.ConfigPath)
+	switch {
+	case err != nil:
+		return config.Day{}, err
+	case draft.Config() != nil && draft.Config().Prime.Day == parsed:
+		return parsed, nil
+	}
+	if err := draft.SetPrimeDay(day); err != nil {
+		return config.Day{}, err
+	}
+	if err := draft.Save(); err != nil {
+		return config.Day{}, err
+	}
+	s.changed = true
+	logger.Info("set the priming day", "day", day)
+	return parsed, nil
+}
+
 // priming says the day priming spreads the 5-hour windows' resets over, or,
 // with none set, asks for one, which the user may leave out.
 func (r *run) priming(context.Context) error {
@@ -27,24 +64,11 @@ func (r *run) priming(context.Context) error {
 			r.Terminal.sayf("%v.", err)
 			continue
 		}
-		return r.setDay(day)
+		set, err := r.SetDay(day)
+		if err != nil {
+			return err
+		}
+		r.Terminal.sayf("Priming is on, over %s.", set)
+		return nil
 	}
-}
-
-// setDay has priming spread the resets over day, in the config.
-func (r *run) setDay(day string) error {
-	draft, err := config.Edit(r.registry.ConfigPath)
-	if err != nil {
-		return err
-	}
-	if err := draft.SetPrimeDay(day); err != nil {
-		return err
-	}
-	if err := draft.Save(); err != nil {
-		return err
-	}
-	r.cfg, r.changed = draft.Config(), true
-	logger.Info("set the priming day", "day", day)
-	r.Terminal.sayf("Priming is on, over %s.", r.cfg.Prime.Day)
-	return nil
 }

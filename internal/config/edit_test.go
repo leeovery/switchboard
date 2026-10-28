@@ -856,6 +856,69 @@ func TestSetPrimeDay(t *testing.T) {
 	}
 }
 
+func TestSetPrimeDayClears(t *testing.T) {
+	const work = "[[account]]\nid = \"work\"\n"
+	tests := []struct {
+		name   string
+		config string
+		want   string
+	}{
+		{
+			name:   "the day given, with the comment beside it, leaving the table",
+			config: "[prime]\nday = \"08:00-23:00\"  # the working day\n\n" + work,
+			want:   "[prime]\n\n" + work,
+		},
+		{
+			name:   "a day given as a literal string, leaving the table's comments",
+			config: work + "\n[prime]\n# Local time.\n'day'='06:00-21:00'\n",
+			want:   work + "\n[prime]\n# Local time.\n",
+		},
+		{
+			name:   "no [prime] table: left as it is",
+			config: work,
+			want:   work,
+		},
+		{
+			name:   "a [prime] table without a day: left as it is",
+			config: work + "\n[prime]\n# Local time.\n",
+			want:   work + "\n[prime]\n# Local time.\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			if err := draft.SetPrimeDay(""); err != nil {
+				t.Fatalf("SetPrimeDay() error = %v", err)
+			}
+			save(t, draft)
+			if got := readFile(t, path); got != tt.want {
+				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.want)
+			}
+			cfg, err := config.Load(path)
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.Prime.On() {
+				t.Errorf("the day loads as %v, want priming off", cfg.Prime.Day)
+			}
+			if !reflect.DeepEqual(draft.Config(), cfg) {
+				t.Errorf("Config() = %+v, want what the file saved loads as, %+v", draft.Config(), cfg)
+			}
+		})
+	}
+}
+
+func TestSetPrimeDayRefusesToClearADottedDay(t *testing.T) {
+	const config = "prime.day = \"08:00-23:00\"\n\n[[account]]\nid = \"work\"\n"
+	path := writeConfig(t, config)
+	draft := edit(t, path)
+
+	err := draft.SetPrimeDay("")
+	checkRefused(t, path, config, draft, err, `editing %s as text wouldn't make exactly the change meant, so it's left as it was: take prime.day out by hand`, nil)
+}
+
 func TestSetPrimeDayRefuses(t *testing.T) {
 	const work = "[[account]]\nid = \"work\"\n"
 	tests := []struct {

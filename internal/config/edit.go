@@ -220,14 +220,19 @@ func (d *Draft) SetPrimary(id string) error {
 
 // SetPrimeDay sets the day [prime] gives, which turns priming on: in place of
 // the day it gives, else as the first key of its table, else in a [prime]
-// table made at the end. It fails, as ParseDay does, for a day that isn't one.
+// table made at the end. "" takes the day out, turning priming off, and
+// leaves the table. It fails, as ParseDay does, for a day that isn't one.
 func (d *Draft) SetPrimeDay(day string) error {
 	if _, err := ParseDay(day); err != nil {
 		return err
 	}
 	want := d.file
 	want.Prime.Day = day
-	return d.take(d.doc.withPrimeDay(day), want, fmt.Sprintf("set prime.day to %q", day))
+	change := fmt.Sprintf("set prime.day to %q", day)
+	if day == "" {
+		change = "take prime.day out"
+	}
+	return d.take(d.doc.withPrimeDay(day), want, change)
 }
 
 // SetLabel sets the label of the account with the given id, as setAccountKey
