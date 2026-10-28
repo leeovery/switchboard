@@ -8,7 +8,7 @@ const skillPurpose = "The skill tells Claude about switchboard, so it can answer
 // skillPage is the Skill step's page: SKILL, what the skill is for, what the
 // step did of it, once it has, and enter to finish.
 func (s Setup) skillPage() setupPage {
-	p := setupPage{name: "SKILL", purpose: line{{skillPurpose, secondaryInk}}, onward: onward("finish")}
+	p := setupPage{name: "SKILL", purpose: []line{{{skillPurpose, secondaryInk}}}, onward: onward("finish")}
 	if s.Skill != nil {
 		p.facts = []setup.Said{*s.Skill}
 	}

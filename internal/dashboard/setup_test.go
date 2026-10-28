@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -33,8 +34,25 @@ func inkAt(c *canvas, x, y int) ink {
 	return c.cells[y][x].ink
 }
 
+// setupDrawn is the screen drawn width cells wide and height tall.
+func setupDrawn(s Setup, width, height int) *canvas {
+	c, _ := s.page(width, height)
+	return c
+}
+
+// inksFrom says where the n cells from x along row y aren't all in k: "" where
+// they are.
+func inksFrom(c *canvas, x, y, n int, k ink) string {
+	for i := range n {
+		if got := inkAt(c, x+i, y); got != k {
+			return fmt.Sprintf("column %d is in %+v, want %+v", x+i, got, k)
+		}
+	}
+	return ""
+}
+
 func TestSetupsTitleRowNamesItsStepsAsTabs(t *testing.T) {
-	c := setupScreen().page(160, 37)
+	c := setupDrawn(setupScreen(), 160, 37)
 	want := " SWITCHBOARD   setup     ✓ Accounts   ✓ Priming   ✓ Service   ✓ claude link   5 Skill   Done " + blanks(47) + "Mon 28 Sep  13:12:00"
 	if got := rowOf(c, 0); got != want {
 		t.Errorf("the title row reads\n%q\nwant\n%q: setup's name, its steps a cell apart, Done unnumbered, and the dashboard's clock", got, want)
@@ -65,7 +83,7 @@ func TestSetupsTabsTellEachStepsState(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := setupScreen(func(s *Setup) { s.Step, s.Passed = tt.step, tt.passed }).page(160, 37)
+			c := setupDrawn(setupScreen(func(s *Setup) { s.Step, s.Passed = tt.step, tt.passed }), 160, 37)
 			row := []rune(rowOf(c, 0))
 			if got := string(row[tt.at : tt.at+len([]rune(tt.want))]); got != tt.want {
 				t.Errorf("the tab reads %q, want %q", got, tt.want)
@@ -75,6 +93,9 @@ func TestSetupsTabsTellEachStepsState(t *testing.T) {
 			}
 			if got := inkAt(c, tt.at+1, 0); got != tt.numeral {
 				t.Errorf("its number is in %+v, want %+v", got, tt.numeral)
+			}
+			if says := inksFrom(c, tt.at+2, 0, len([]rune(tt.want))-2, tt.ink); says != "" {
+				t.Errorf("its name and the space after: %s", says)
 			}
 		})
 	}
@@ -98,7 +119,7 @@ func TestSetupsStatusLineSaysItsPartsApart(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := setupScreen(func(s *Setup) { s.Status = tt.status }).page(160, 37)
+			c := setupDrawn(setupScreen(func(s *Setup) { s.Status = tt.status }), 160, 37)
 			if got := rowOf(c, 2); got != tt.want {
 				t.Errorf("the status line reads %q, want %q", got, tt.want)
 			}
@@ -164,6 +185,8 @@ func TestSetupsKeyLineHasThePagesKeysLeftAndOnwardRight(t *testing.T) {
 	}{
 		{name: "the page's keys from the first column, three apart; enter and q quit ending at the last", width: 100,
 			want: "c copy the line   d copy the directory   r check again" + blanks(15) + right},
+		{name: "the page's keys just fitting, exactly three clear of the right", width: 88,
+			want: "c copy the line   d copy the directory   r check again" + blanks(3) + right},
 		{name: "the page's keys that don't fit whole left off, keeping three clear of the right", width: 87,
 			want: "c copy the line   d copy the directory" + blanks(18) + right},
 	}
@@ -180,12 +203,26 @@ func TestSetupsKeyLineHasThePagesKeysLeftAndOnwardRight(t *testing.T) {
 			if got := inkAt(c, 1, 0); got != mutedInk {
 				t.Errorf("its word is in %+v, want muted", got)
 			}
+			enter := tt.width - len(right)
+			for _, run := range []struct {
+				from, n int
+				k       ink
+			}{
+				{from: enter, n: len("enter"), k: keyInk},
+				{from: enter + len("enter"), n: len(" leave it for now"), k: mutedInk},
+				{from: tt.width - len("q quit"), n: 1, k: keyInk},
+				{from: tt.width - len(" quit"), n: len(" quit"), k: mutedInk},
+			} {
+				if says := inksFrom(c, run.from, 0, run.n, run.k); says != "" {
+					t.Errorf("the right's keys: %s", says)
+				}
+			}
 		})
 	}
 }
 
 // The least: the title row's name and tabs whole, two cells clear of the
-// edge, 95 columns; and Done's rows under the chrome, 25.
+// edge, 95 columns; and leastSetupBody rows under the chrome, 25.
 func TestSetupBelowItsLeastSaysToMakeTheTerminalLarger(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -226,6 +263,144 @@ func TestTheSkillPageSaysWhatTheSkillIsForAndWhatTheStepDid(t *testing.T) {
 		if _, said := want[y]; !said && y > 2 && rows[y] != "" {
 			t.Errorf("row %d reads %q, want it blank", y, rows[y])
 		}
+	}
+}
+
+func TestTheSkillPagesInks(t *testing.T) {
+	c := setupDrawn(setupScreen(), 160, 37)
+	for _, run := range []struct {
+		what    string
+		x, y, n int
+		k       ink
+	}{
+		{what: "the heading's name, text.subtle", x: 0, y: 4, n: len("SKILL"), k: dimInk},
+		{what: "the heading's rule, the dashboard's border", x: 7, y: 4, n: 153, k: borderInk},
+		{what: "what the step is for, text.secondary", x: 2, y: 6, n: len([]rune(skillPurpose)), k: secondaryInk},
+	} {
+		if says := inksFrom(c, run.x, run.y, run.n, run.k); says != "" {
+			t.Errorf("%s: %s", run.what, says)
+		}
+	}
+}
+
+func TestASetupHeadingsTailEndsItsRow(t *testing.T) {
+	page := setupPage{name: "ACCOUNTS", tail: "3 accounts"}
+	t.Run("muted at the right, the rule ending two cells before it", func(t *testing.T) {
+		c := newCanvas(40, 25)
+		page.draw(c, 0, 19, 40, 0)
+		if got, want := rowOf(c, 0), "ACCOUNTS  "+strings.Repeat("─", 18)+"  3 accounts"; got != want {
+			t.Errorf("the heading reads %q, want %q", got, want)
+		}
+		if says := inksFrom(c, 30, 0, len("3 accounts"), mutedInk); says != "" {
+			t.Errorf("the tail: %s", says)
+		}
+	})
+	t.Run("left off whole where it doesn't fit beside the name", func(t *testing.T) {
+		c := newCanvas(19, 25)
+		page.draw(c, 0, 19, 19, 0)
+		if got, want := rowOf(c, 0), "ACCOUNTS  "+strings.Repeat("─", 9); got != want {
+			t.Errorf("the heading reads %q, want %q", got, want)
+		}
+	})
+}
+
+func TestAPurposeKeepsTheLinesThePageBreaksItInto(t *testing.T) {
+	page := setupPage{name: "PRIMING", purpose: []line{
+		{{"Priming starts each window on a schedule, so their resets are spread through your day", secondaryInk}},
+		{{"instead of all arriving at once.", secondaryInk}},
+	}}
+	tests := []struct {
+		name  string
+		width int
+		want  []string
+	}{
+		{name: "each line its own row where it fits", width: 160, want: []string{
+			"  Priming starts each window on a schedule, so their resets are spread through your day",
+			"  instead of all arriving at once.",
+		}},
+		{name: "a line wider than the page wrapped further", width: 62, want: []string{
+			"  Priming starts each window on a schedule, so their resets",
+			"  are spread through your day",
+			"  instead of all arriving at once.",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newCanvas(tt.width, 25)
+			page.draw(c, 0, 19, tt.width, 0)
+			var got []string
+			for y := 2; y < 2+len(tt.want); y++ {
+				got = append(got, rowOf(c, y))
+			}
+			if strings.Join(got, "\n") != strings.Join(tt.want, "\n") {
+				t.Errorf("the purpose reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+		})
+	}
+}
+
+// tallPage is a page of 20 facts, each a row and a blank row after it: 39
+// rows under its heading.
+func tallPage() setupPage {
+	page := setupPage{name: "TALL", onward: onward("finish")}
+	for i := range 20 {
+		page.facts = append(page.facts, setup.Said{Mark: setup.Done, Label: fmt.Sprintf("fact %d", i+1), Detail: "said"})
+	}
+	return page
+}
+
+// A page taller than its rows, at setup's least, 25 rows: its heading on
+// row 4, then 17 rows under it, from row 6 to 22, the last saying what's
+// out of view while it scrolls; the key line on row 24, whatever's
+// scrolled.
+func TestAPageTallerThanItsRowsScrolls(t *testing.T) {
+	tests := []struct {
+		name   string
+		scroll int
+		// first is the first fact shown, on row at, and out what row 22 says.
+		at    int
+		first string
+		out   string
+		want  Scrolling
+	}{
+		{name: "at the top, saying what's below", scroll: 0, at: 6, first: "fact 1",
+			out: "▼ 23 more below   ·   j/k to scroll", want: Scrolling{Most: 23, Page: 16}},
+		{name: "scrolled, saying what's either side", scroll: 6, at: 6, first: "fact 4",
+			out: "▲ 6 more above   ·   ▼ 17 more below   ·   j/k to scroll", want: Scrolling{Most: 23, Page: 16}},
+		{name: "at the end, no further than shows the last", scroll: 40, at: 7, first: "fact 13",
+			out: "▲ 23 more above   ·   j/k to scroll", want: Scrolling{Most: 23, Page: 16}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newCanvas(95, 25)
+			page := tallPage()
+			got := page.draw(c, 4, 19, 95, tt.scroll)
+			page.keyLine(c, 24, 95)
+			if !strings.HasPrefix(rowOf(c, 4), "TALL  ─") {
+				t.Errorf("row 4 reads %q, want the heading, kept as the page scrolls", rowOf(c, 4))
+			}
+			if row := rowOf(c, tt.at); !strings.Contains(row, tt.first+" ") {
+				t.Errorf("row %d reads %q, want %s", tt.at, row, tt.first)
+			}
+			if row := rowOf(c, 22); row != tt.out {
+				t.Errorf("row 22 reads %q, want %q", row, tt.out)
+			}
+			if row := rowOf(c, 24); !strings.HasSuffix(row, "enter finish   q quit") {
+				t.Errorf("row 24 reads %q, want the key line", row)
+			}
+			if got != tt.want {
+				t.Errorf("it scrolls %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTheScreenSaysHowFarItsPageScrolls(t *testing.T) {
+	if got := setupScreen().Scrolling(160, 37); got.Most != 0 {
+		t.Errorf("the Skill page scrolls %+v, want none: it fits", got)
+	}
+	if got := setupScreen().Scrolling(94, 25); got != (Scrolling{}) {
+		t.Errorf("below the least, the page scrolls %+v, want none", got)
 	}
 }
 

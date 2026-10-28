@@ -89,19 +89,24 @@ func (p SetupPart) line() line {
 
 // setupPage is a step's page, under the status line: its heading, and
 // what's said at the heading's right, where anything is; what the step is
-// for, where it says; what it found and did, a fact a row; and its keys, at
-// the key line's left, and onward, at its right.
+// for, where it says, in the lines the page breaks it into; what it found
+// and did, a fact a row; and its keys, at the key line's left, and onward,
+// at its right.
 type setupPage struct {
 	name, tail   string
-	purpose      line
+	purpose      []line
 	facts        []setup.Said
 	keys, onward []Key
 }
 
-// draw draws the page from row top, width cells wide: its heading row, as
-// the dashboard heads a section; two rows on, from setupIndent, what the
-// step is for, wrapped; then a row on, its facts, a blank row between each.
-func (p setupPage) draw(c *canvas, top, width int) {
+// underHeading is the rows from a page's heading row to its first under it.
+const underHeading = 2
+
+// draw draws the page from row top, rows tall and width cells wide, and
+// says how far it scrolls: its heading row, as the dashboard heads a
+// section; and from underHeading rows on, what's under it, as content draws
+// it, scrolled scroll rows down, as paged pages it.
+func (p setupPage) draw(c *canvas, top, rows, width, scroll int) Scrolling {
 	h := heading{name: p.name}
 	if p.tail != "" {
 		h.right = line{{p.tail, mutedInk}}
@@ -109,17 +114,32 @@ func (p setupPage) draw(c *canvas, top, width int) {
 	for _, piece := range h.pieces(top, width, false) {
 		c.line(piece.x, piece.y, piece.line)
 	}
-	y := top + 2
-	if p.purpose != nil {
-		for _, l := range p.purpose.wrap(width - setupIndent) {
+	whole := p.content(width)
+	paged := rowsPaged{rows: rows - underHeading, content: whole.height(), says: true}
+	paged.paste(c, whole, top+underHeading, scroll, width, historyRowsOut...)
+	return paged.scrolling(scroll)
+}
+
+// content is what's under the page's heading, drawn whole width cells wide:
+// from setupIndent, what the step is for, each of its lines wrapped further
+// where it's wider than the page; then a row on, its facts, a blank row
+// between each.
+func (p setupPage) content(width int) *canvas {
+	c := growing(width)
+	y := 0
+	for _, said := range p.purpose {
+		for _, l := range said.wrap(width - setupIndent) {
 			c.line(setupIndent, y, l)
 			y++
 		}
+	}
+	if p.purpose != nil {
 		y++
 	}
 	for _, said := range p.facts {
 		y = fact(c, y, width, said) + 1
 	}
+	return c
 }
 
 // The parts of a fact's row, as factParts lays them out.

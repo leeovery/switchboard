@@ -63,6 +63,8 @@ type Setup struct {
 	Status []SetupPart
 	// Skill is what the skill step did: nil until it's done it.
 	Skill *setup.Said
+	// Scroll is how many rows the page under its heading is scrolled down.
+	Scroll int
 }
 
 // SetupStanding is how a part of setup's status line stands, which marks it
@@ -92,9 +94,9 @@ const (
 	setupKeyRow
 )
 
-// leastSetupBody is the fewest rows a step's page has, from its heading:
-// Done's, from its heading to its last line, as the tallest page that
-// doesn't scroll. With the chrome, setup takes 25 rows at the least.
+// leastSetupBody is the fewest rows a step's page has, from its heading,
+// which with the chrome makes setup 25 rows at the least. A page taller
+// than the rows it's given scrolls, as setupPage.paged pages it.
 const leastSetupBody = 19
 
 // tooSmall is all setup says on a terminal smaller than its least.
@@ -103,29 +105,39 @@ const tooSmall = "Make the terminal larger."
 // Draw draws the screen width cells wide and height tall, in look: a string
 // for each of its rows.
 func (s Setup) Draw(width, height int, look Look) []string {
-	return s.page(width, height).rows(look)
+	c, _ := s.page(width, height)
+	return c.rows(look)
 }
 
-// page draws the screen on a canvas width cells wide and height tall: its
-// title row; its status line; the page of the step showing, in the rows
-// between the status line and the key line; and the key line, the last row.
-// Where the title row's own pieces don't fit across it, or its rows down it,
-// as setupRows lays them, it's tooSmall alone.
-func (s Setup) page(width, height int) *canvas {
+// Scrolling is how far the page of the step showing scrolls in a screen
+// width cells wide and height tall, scrolled as the screen has it: none on a
+// screen smaller than setup's least.
+func (s Setup) Scrolling(width, height int) Scrolling {
+	_, scrolling := s.page(width, height)
+	return scrolling
+}
+
+// page draws the screen on a canvas width cells wide and height tall, and
+// says how far its page scrolls: its title row; its status line; the page
+// of the step showing, scrolled Scroll rows down, in the rows between the
+// status line and the key line; and the key line, the last row. Where the
+// title row's own pieces don't fit across it, or its rows down it, as
+// setupRows lays them, it's tooSmall alone.
+func (s Setup) page(width, height int) (*canvas, Scrolling) {
 	c := newCanvas(width, height)
 	wide := s.title(c, width)
 	rows, tall := setupRows(height)
 	if !wide || !tall {
 		c = newCanvas(width, height)
 		c.line(0, 0, line{{tooSmall, secondaryInk}}.fit(width))
-		return c
+		return c, Scrolling{}
 	}
 	s.statusLine(c, rows[setupStatusRow].At, width)
 	shown := s.shown()
 	body := rows[setupBodyRows]
-	shown.draw(c.within(bounds{y: body.At, width: width, rows: body.Size}), body.At, width)
+	scrolling := shown.draw(c, body.At, body.Size, width, s.Scroll)
 	shown.keyLine(c, rows[setupKeyRow].At, width)
-	return c
+	return c, scrolling
 }
 
 // setupRows lays the screen's rows out down height rows: the title row; a
