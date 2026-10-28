@@ -27,6 +27,18 @@ func Run[S Screen](screen S, out io.Writer, opts ...tea.ProgramOption) (S, error
 	return last, err
 }
 
+// Heeded is msg, for a screen to take, but for the mouse moving, or a
+// button let go, which nothing on a screen acts on: a filter dropping them
+// before the screen takes them, so a drag, which tells of every cell it
+// crosses, never has the screen laid out and drawn again for each.
+func Heeded(_ tea.Model, msg tea.Msg) tea.Msg {
+	switch msg.(type) {
+	case tea.MouseMotionMsg, tea.MouseReleaseMsg:
+		return nil
+	}
+	return msg
+}
+
 // tracked is the screen as Bubble Tea runs it, each step it takes noted in
 // last: Bubble Tea gives back no model from a panic it recovers from, and
 // the background the screen set is put back all the same.

@@ -18,12 +18,13 @@ var ErrNotTerminal = errors.New("output isn't a terminal")
 // Run shows setup's screen full on out, which must be a terminal, until the
 // user leaves it, and says how they left it. The screen is drawn in full
 // colour and brought down to what the terminal shows, judged by out and
-// environ.
+// environ. The mouse moving, or a button let go, never reaches the model, as
+// backdrop.Heeded has it.
 func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) (Left, error) {
 	if f, ok := out.(term.File); !ok || !term.IsTerminal(f.Fd()) {
 		return Left{}, ErrNotTerminal
 	}
-	return run(ctx, cfg, out, tea.WithEnvironment(environ))
+	return run(ctx, cfg, out, tea.WithEnvironment(environ), tea.WithFilter(backdrop.Heeded))
 }
 
 // run shows setup's screen on out until the user leaves it, putting back the

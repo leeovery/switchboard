@@ -2,10 +2,14 @@ package screen
 
 import (
 	"context"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 )
 
 // overlap is how long a test gives a job it holds back to start all the
@@ -26,16 +30,85 @@ func TestAJobsOutcomeComesBackAsAMessage(t *testing.T) {
 	}
 }
 
+// endedUnheard is a context that ends once end is called, but never says so
+// on Done, so a select waiting on it always takes what else comes: only Err
+// says it's ended.
+type endedUnheard struct {
+	context.Context
+	ended atomic.Bool
+}
+
+func (c *endedUnheard) Done() <-chan struct{} { return nil }
+
+func (c *endedUnheard) Err() error {
+	if c.ended.Load() {
+		return context.Canceled
+	}
+	return nil
+}
+
 func TestAnOutcomeOnceTheContextIsDoneIsDropped(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx := &endedUnheard{Context: t.Context()}
 	js := newJobs(ctx)
 	t.Cleanup(js.wait)
 	answered := func(context.Context) tea.Msg {
-		cancel()
+		ctx.ended.Store(true)
 		return done{"answered as its context ended"}
 	}
 	if got := js.read(answered)(); got != nil {
 		t.Errorf("a job answering once its context is done gives %v, want nothing", got)
+	}
+}
+
+func TestAWriteWaitingItsTurnAsTheContextEndsNeverRuns(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	js := newJobs(ctx)
+	js.writing.Lock()
+	var ran atomic.Bool
+	go js.write(func(context.Context) tea.Msg {
+		ran.Store(true)
+		return nil
+	})()
+	// Time for the write to reach the lock, so the context ends as it waits
+	// there: a check before the lock alone would let it run.
+	time.Sleep(overlap)
+	cancel()
+	js.writing.Unlock()
+	js.wait()
+	if ran.Load() {
+		t.Error("a write whose context ended as it waited its turn ran, want it never run")
+	}
+}
+
+func TestAJobsPanicIsPanickedAgainByItsCommand(t *testing.T) {
+	js := newJobs(t.Context())
+	t.Cleanup(js.wait)
+	defer func() {
+		p, ok := recover().(jobPanic)
+		if !ok || p.value != "a bug" || !strings.Contains(p.String(), "a bug") {
+			t.Errorf("the command panicked with %v, want the job's panic, a bug", p)
+		}
+	}()
+	js.read(func(context.Context) tea.Msg { panic("a bug") })()
+	t.Error("the command returned, want it to panic as the job did")
+}
+
+func TestAJobsPanicOnceTheContextIsDoneIsLogged(t *testing.T) {
+	log := logstest.Capture(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	js := newJobs(ctx)
+	started, panicking := make(chan struct{}), make(chan struct{})
+	go js.read(func(context.Context) tea.Msg {
+		close(started)
+		<-panicking
+		panic("a bug")
+	})()
+	<-started
+	cancel()
+	close(panicking)
+	js.wait()
+	if !log.Has("level=ERROR", "panicked", "panic=") {
+		t.Errorf("the log reads\n%s\nwant the job's panic", log)
 	}
 }
 

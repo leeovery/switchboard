@@ -51,8 +51,10 @@ var actions = map[dashboard.SetupStep]func(Steps) job{
 	dashboard.SetupSkill: skill,
 }
 
-// openingOn is the walk opening on step, the steps before it passed through.
+// openingOn is the walk opening on step, the steps before it passed
+// through: a step before the first is the first, and one past Done is Done.
 func openingOn(step dashboard.SetupStep) walk {
+	step = min(max(step, dashboard.SetupAccounts), dashboard.SetupDone)
 	return walk{step: step, passed: dashboard.SetupSteps()[:step]}.reached(step)
 }
 

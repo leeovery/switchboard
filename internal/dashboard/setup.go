@@ -61,9 +61,10 @@ type Setup struct {
 	Passed []SetupStep
 	// Status are the status line's parts, in order, as setup decides them.
 	Status []setup.Part
-	// Failed is set where the step showing failed, which stops setup there:
-	// its page says why, and its key line's right has q quit alone.
-	Failed bool
+	// UnderWay is set while the step showing does what it does, and Failed
+	// where it failed, which stops setup there, its page saying why: either
+	// way, its key line's right has q quit alone.
+	UnderWay, Failed bool
 	// Skill is what the skill step did: nil until it's done it.
 	Skill *setup.Said
 	// Scroll is how many rows the page under its heading is scrolled down.
@@ -118,7 +119,7 @@ func (s Setup) page(width, height int) (*canvas, Scrolling) {
 	}
 	s.statusLine(c, rows[setupStatusRow].At, width)
 	shown := s.shown()
-	if s.Failed {
+	if s.UnderWay || s.Failed {
 		shown.onward = []Key{Quit}
 	}
 	body := rows[setupBodyRows]

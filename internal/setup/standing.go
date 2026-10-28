@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 )
@@ -32,9 +33,14 @@ type Part struct {
 }
 
 // StatusLine is setup's status line: the router's part, then the accounts'
-// wherever there are any.
-func StatusLine(rt RouterStanding, review Review) []Part {
-	parts := []Part{rt.Part(len(review.Accounts))}
+// wherever there are any. review is nil where the accounts couldn't be read:
+// the router's part alone, which, as there may be accounts, never says
+// there's nothing set up.
+func StatusLine(rt RouterStanding, review *Review) []Part {
+	if review == nil {
+		return []Part{rt.Part(false)}
+	}
+	parts := []Part{rt.Part(len(review.Accounts) == 0)}
 	if len(review.Accounts) > 0 {
 		parts = append(parts, review.part())
 	}
@@ -57,8 +63,8 @@ const (
 // it.
 type RouterStanding struct {
 	State RouterState
-	// Reason is why a router that answers is unhealthy, as it says: ""
-	// otherwise.
+	// Reason is why a router that answers is unhealthy, as it says, made
+	// safe to show on one line: "" otherwise.
 	Reason string
 }
 
@@ -77,21 +83,21 @@ func (s *Setup) Standing(ctx context.Context) (RouterStanding, error) {
 	case h == nil:
 		return RouterStanding{State: RouterDown}, nil
 	case !h.OK:
-		return RouterStanding{State: RouterUnhealthy, Reason: h.Reason}, nil
+		return RouterStanding{State: RouterUnhealthy, Reason: prose.Clean(h.Reason)}, nil
 	}
 	return RouterStanding{State: RouterHealthy}, nil
 }
 
-// Part is the router's part of setup's status line, of configured accounts:
-// "router up, healthy", or unhealthy, saying why; "router not running yet";
-// or, with no account and no router, "nothing set up yet".
-func (r RouterStanding) Part(configured int) Part {
+// Part is the router's part of setup's status line: "router up, healthy",
+// or unhealthy, saying why; "router not running yet"; or, with no router,
+// and noAccount set, as where none is configured, "nothing set up yet".
+func (r RouterStanding) Part(noAccount bool) Part {
 	switch {
 	case r.State == RouterHealthy:
 		return Part{Standing: PartUp, Words: r.up()}
 	case r.State == RouterUnhealthy:
 		return Part{Standing: PartWarning, Words: r.up()}
-	case configured == 0:
+	case noAccount:
 		return Part{Standing: PartDown, Words: "nothing set up yet"}
 	}
 	return Part{Standing: PartDown, Words: "router not running yet"}

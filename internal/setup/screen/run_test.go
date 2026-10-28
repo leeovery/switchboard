@@ -3,6 +3,7 @@ package screen
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -79,6 +80,26 @@ func TestRunPutsTheBackgroundBackAndSaysHowSetupWasLeft(t *testing.T) {
 	left, out, err := runUntil(t, cfg, "\x1b]11;rgb:1a1a/1b1b/2626\x07", "q", nil)
 	if err != nil || left != (Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", left, err)
+	}
+	if want := ansi.SetBackgroundColor("#1a1b26"); !strings.HasSuffix(out, want) {
+		t.Errorf("the screen's output ends %q, want the background put back with %q", out[max(len(out)-80, 0):], want)
+	}
+}
+
+// skillPanicking is setup's steps whose Skill panics.
+type skillPanicking struct {
+	*fakeSteps
+}
+
+func (skillPanicking) Skill() (setup.Said, error) {
+	panic("a bug")
+}
+
+func TestAStepsPanicStopsTheScreenAndPutsTheBackgroundBack(t *testing.T) {
+	cfg := Config{Steps: skillPanicking{newFakeSteps()}, Step: dashboard.SetupLink, Pair: nord(t)}
+	_, out, err := runUntil(t, cfg, "\x1b]11;rgb:1a1a/1b1b/2626\x07", "\r", nil)
+	if !errors.Is(err, tea.ErrProgramPanic) {
+		t.Errorf("run() error = %v, want the panic Bubble Tea recovered from", err)
 	}
 	if want := ansi.SetBackgroundColor("#1a1b26"); !strings.HasSuffix(out, want) {
 		t.Errorf("the screen's output ends %q, want the background put back with %q", out[max(len(out)-80, 0):], want)

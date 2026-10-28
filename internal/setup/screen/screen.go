@@ -158,7 +158,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // pressed acts on a key: q and ctrl+c leave, enter moves on, as entered
-// has it, and the rest scroll the page, as scrollKey has them.
+// has it, and the rest scroll the page, as dashboard.ScrollKey has them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); k {
 	case "q", "ctrl+c":
@@ -166,8 +166,8 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m.entered()
 	default:
-		if by, ok := scrollKey(k); ok {
-			return m.scrolled(by), nil
+		if rows, pages, ok := dashboard.ScrollKey(k); ok {
+			return m.scrolled(rows, pages), nil
 		}
 	}
 	return m, nil
@@ -191,18 +191,11 @@ func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 // tickMsg wakes the screen to move its clock on.
 type tickMsg struct{}
 
-// tickSlack sets a tick just past the second it waits for, so the wall
-// clock it reads, which can run a little behind the timer that brings it,
-// has turned over.
-const tickSlack = 50 * time.Millisecond
-
-// armTick arms the clock's next tick, just past the next second, as the
-// dashboard's clock shows the time to the second. Ticks never come as one
-// long timer, as a timer's clock stops while a Mac sleeps: each reads the
-// wall clock instead.
+// armTick arms the clock's next tick, as dashboard.TickDelay has it. Ticks
+// never come as one long timer, as a timer's clock stops while a Mac
+// sleeps: each reads the wall clock instead.
 func (m Model) armTick() tea.Cmd {
-	now := m.now()
-	return m.after(now.Truncate(time.Second).Add(time.Second).Sub(now)+tickSlack, tickMsg{})
+	return m.after(dashboard.TickDelay(m.now()), tickMsg{})
 }
 
 // View draws the screen full, as dashboard.Setup draws it, at the clock's
@@ -227,7 +220,7 @@ func (m Model) View() tea.View {
 func (m Model) page() dashboard.Setup {
 	return dashboard.Setup{
 		Now: m.now(), Step: m.walk.step, Passed: m.walk.passed, Status: m.status.line(),
-		Failed: m.walk.failed != nil, Skill: m.skill, Scroll: m.scroll,
+		UnderWay: !m.walk.done, Failed: m.walk.failed != nil, Skill: m.skill, Scroll: m.scroll,
 	}
 }
 

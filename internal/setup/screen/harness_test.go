@@ -26,6 +26,8 @@ var (
 	upToDate   = setup.Said{Mark: setup.Done, Label: "Up to date", Detail: "~/.claude/skills/switchboard/SKILL.md"}
 	errNoSkill = errors.New("create the skill's directory: mkdir ~/.claude: not a directory")
 	notWritten = setup.Said{Mark: setup.Failed, Label: "Not installed", Detail: errNoSkill.Error()}
+	// errNoConfig is why Review fails, where a test has it.
+	errNoConfig = errors.New("read the config: the config doesn't parse")
 )
 
 // harness drives a model as Bubble Tea would, on a clock the test moves. It
@@ -165,11 +167,12 @@ func (c *fakeClock) Now() time.Time {
 }
 
 // fakeSteps answers as setup's steps do: Standing with standing, Review with
-// review, and Skill with said, failing with skillErr where it's set; each
-// counted as it's asked.
+// review, failing with reviewErr where it's set, and Skill with said,
+// failing with skillErr where it's set; each counted as it's asked.
 type fakeSteps struct {
 	standing  setup.RouterStanding
 	review    setup.Review
+	reviewErr error
 	said      setup.Said
 	skillErr  error
 	standings int
@@ -199,6 +202,9 @@ func (s *fakeSteps) Standing(context.Context) (setup.RouterStanding, error) {
 
 func (s *fakeSteps) Review() (setup.Review, error) {
 	s.reviews++
+	if s.reviewErr != nil {
+		return setup.Review{}, s.reviewErr
+	}
 	return s.review, nil
 }
 

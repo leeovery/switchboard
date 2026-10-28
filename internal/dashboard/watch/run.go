@@ -18,24 +18,13 @@ var ErrNotTerminal = errors.New("output isn't a terminal")
 
 // Run shows the dashboard full screen on out, which must be a terminal, until
 // the user quits. The frame is drawn in full colour and brought down to what
-// the terminal shows, judged by out and environ.
+// the terminal shows, judged by out and environ. The mouse moving, or a
+// button let go, never reaches the model, as backdrop.Heeded has it.
 func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) error {
 	if f, ok := out.(term.File); !ok || !term.IsTerminal(f.Fd()) {
 		return ErrNotTerminal
 	}
-	return run(ctx, cfg, out, tea.WithEnvironment(environ), tea.WithFilter(heeded))
-}
-
-// heeded is msg, for the model to take, but for the mouse moving, or a
-// button let go, which nothing on the page acts on: dropped before the
-// model takes them, so a drag, which tells of every cell it crosses, never
-// has the page laid out and drawn again for each.
-func heeded(_ tea.Model, msg tea.Msg) tea.Msg {
-	switch msg.(type) {
-	case tea.MouseMotionMsg, tea.MouseReleaseMsg:
-		return nil
-	}
-	return msg
+	return run(ctx, cfg, out, tea.WithEnvironment(environ), tea.WithFilter(backdrop.Heeded))
 }
 
 // run shows the dashboard on out until the user quits, noting in the log when

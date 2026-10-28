@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -53,6 +54,13 @@ func TestTheWalkGoesForwardAStepAtATimeEachPassedTicked(t *testing.T) {
 	}
 }
 
+func TestAStepPastDoneOpensOnDone(t *testing.T) {
+	h := newHarness(t, dashboard.SetupDone+1)
+	if got := h.model.page(); got.Step != dashboard.SetupDone || !slices.Equal(got.Passed, dashboard.SetupSteps()[:dashboard.SetupDone]) {
+		t.Errorf("the screen opens on %s, %v passed; want Done, every step before it passed", got.Step.Title(), got.Passed)
+	}
+}
+
 func TestTheScreenOpensOnALaterStepThoseBeforeItPassed(t *testing.T) {
 	h := newHarness(t, dashboard.SetupSkill)
 	h.start()
@@ -76,11 +84,17 @@ func TestEnterWaitsForTheStepShowingToBeDone(t *testing.T) {
 		h.deliver(msg)
 	}
 
+	if got := h.rows()[keyRow]; strings.TrimLeft(got, " ") != "q quit" {
+		t.Errorf("while Skill runs, the key line reads %q, want q quit alone at its right", got)
+	}
 	h.pressAndDeliver("enter")
 	if got := h.model.page().Step; got != dashboard.SetupSkill {
 		t.Fatalf("enter before Skill has answered shows %s, want Skill", got.Title())
 	}
 	h.deliver(skilled...)
+	if got := h.rows()[keyRow]; strings.TrimLeft(got, " ") != "enter finish   q quit" {
+		t.Errorf("once Skill has answered, the key line reads %q, want enter finish, then q quit", got)
+	}
 	h.pressAndDeliver("enter")
 	if got := h.model.page().Step; got != dashboard.SetupDone {
 		t.Errorf("enter once Skill has answered shows %s, want Done", got.Title())
@@ -101,6 +115,7 @@ func TestLeaving(t *testing.T) {
 		{name: "ctrl+c mid-way: paused", at: dashboard.SetupService, keys: []string{"ctrl+c"}, want: Left{Ending: Paused}},
 		{name: "q at Skill, done: paused", at: dashboard.SetupSkill, keys: []string{"q"}, want: Left{Ending: Paused}},
 		{name: "q at Done: finished, without the dashboard", at: dashboard.SetupSkill, keys: []string{"enter", "q"}, want: Left{Ending: Finished}},
+		{name: "ctrl+c at Done: finished", at: dashboard.SetupSkill, keys: []string{"enter", "ctrl+c"}, want: Left{Ending: Finished}},
 		{name: "enter at Done: to the dashboard", at: dashboard.SetupSkill, keys: []string{"enter", "enter"}, want: Left{Ending: ToDashboard}},
 		{name: "q at a step that failed: failing, carrying its error", at: dashboard.SetupSkill, failing: true, keys: []string{"q"}, want: Left{Ending: Failed, Err: errNoSkill}},
 		{name: "ctrl+c at a step that failed: failing", at: dashboard.SetupSkill, failing: true, keys: []string{"ctrl+c"}, want: Left{Ending: Failed, Err: errNoSkill}},
@@ -185,23 +200,57 @@ func TestADetailIsMadeSafeToShowAsItArrives(t *testing.T) {
 	}
 }
 
-func TestTheStatusLineIsBlankTillStandingAnswers(t *testing.T) {
+func TestTheStatusLineIsBlankTillStandingAndReviewHaveBothAnswered(t *testing.T) {
 	h := newHarness(t, dashboard.SetupSkill)
-	var standing []tea.Msg
+	h.steps.standing = setup.RouterStanding{State: setup.RouterDown}
+	var standing, review []tea.Msg
 	for _, msg := range h.run(h.model.Init()) {
-		if _, ok := msg.(standingMsg); ok {
+		switch msg.(type) {
+		case standingMsg:
 			standing = append(standing, msg)
-			continue
+		case reviewMsg:
+			review = append(review, msg)
+		default:
+			h.deliver(msg)
 		}
-		h.deliver(msg)
 	}
 	if got := h.rows()[statusRow]; got != "" {
-		t.Errorf("before Standing answers, the status line reads %q, want it blank", got)
+		t.Errorf("before either answers, the status line reads %q, want it blank", got)
+	}
+	h.deliver(standing...)
+	if got := h.rows()[statusRow]; got != "" {
+		t.Errorf("before Review answers, the status line reads %q, want it blank, not a router's part that can't know the accounts", got)
 	}
 
-	h.deliver(standing...)
+	h.deliver(review...)
+	if got, want := h.rows()[statusRow], "○ router not running yet  ·  3 accounts, all working"; got != want {
+		t.Errorf("once both answer, the status line reads %q, want %q", got, want)
+	}
+}
+
+func TestAReviewThatFailsKeepsTheAccountsReadBefore(t *testing.T) {
+	log := logstest.Capture(t)
+	h := newHarness(t, dashboard.SetupSkill)
+	h.start()
+	h.steps.reviewErr = errNoConfig
+
+	var cmd tea.Cmd
+	h.model, cmd = h.model.askAgain()
+	h.deliver(h.run(cmd)...)
 	if got, want := h.rows()[statusRow], "● router up, healthy  ·  3 accounts, all working"; got != want {
-		t.Errorf("once Standing answers, the status line reads %q, want %q", got, want)
+		t.Errorf("Review failing, the status line reads %q, want %q, the accounts as read before", got, want)
+	}
+	if !log.Has("level=WARN", "couldn't read the accounts", "the config doesn't parse") {
+		t.Errorf("the log reads\n%s\nwant why Review failed", log)
+	}
+}
+
+func TestAReviewThatFailsFirstLeavesTheRoutersPartAlone(t *testing.T) {
+	h := newHarness(t, dashboard.SetupSkill)
+	h.steps.standing, h.steps.reviewErr = setup.RouterStanding{State: setup.RouterDown}, errNoConfig
+	h.start()
+	if got, want := h.rows()[statusRow], "○ router not running yet"; got != want {
+		t.Errorf("Review failing, the status line reads %q, want %q, never that nothing's set up", got, want)
 	}
 }
 
@@ -222,17 +271,20 @@ func TestTheStatusLineIsAskedAgain(t *testing.T) {
 	}
 }
 
-func TestAnAnswerToAnEarlierAskIsDropped(t *testing.T) {
+func TestAnAnswerToAnAskBeforeTheLastIsDropped(t *testing.T) {
 	h := newHarness(t, dashboard.SetupSkill)
 	h.start()
 	h.model, _ = h.model.askAgain()
 	h.model, _ = h.model.askAgain()
-	now := setup.RouterStanding{State: setup.RouterUnhealthy, Reason: "no account can take a request"}
-	h.deliver(standingMsg{ask: 3, standing: now}, reviewMsg{ask: 3})
-	h.deliver(standingMsg{ask: 2, standing: setup.RouterStanding{State: setup.RouterHealthy}}, reviewMsg{ask: 2, review: h.steps.review})
+	h.deliver(standingMsg{ask: 2, standing: setup.RouterStanding{State: setup.RouterDown}}, reviewMsg{ask: 2})
+	if got, want := h.rows()[statusRow], "● router up, healthy  ·  3 accounts, all working"; got != want {
+		t.Errorf("an earlier ask answering, the status line reads %q, want %q, kept till the last ask answers", got, want)
+	}
 
+	unhealthy := setup.RouterStanding{State: setup.RouterUnhealthy, Reason: "no account can take a request"}
+	h.deliver(standingMsg{ask: 3, standing: unhealthy}, reviewMsg{ask: 3})
 	if got, want := h.rows()[statusRow], "● router up, unhealthy: no account can take a request"; got != want {
-		t.Errorf("the status line reads %q, want %q, the latest ask's answers", got, want)
+		t.Errorf("the last ask answering, the status line reads %q, want %q", got, want)
 	}
 }
 
@@ -325,7 +377,7 @@ func TestTheClockMovesOnEachSecond(t *testing.T) {
 
 	h.clock.now = start.Add(time.Minute + time.Second)
 	h.deliver(tickMsg{})
-	if len(h.timers) != 2 || h.timers[1] != (timer{delay: time.Second + tickSlack, msg: tickMsg{}}) {
+	if len(h.timers) != 2 || h.timers[1] != (timer{delay: time.Second + dashboard.TickSlack, msg: tickMsg{}}) {
 		t.Errorf("a tick arms %+v, want the next, just past the next second", h.timers[1:])
 	}
 	if got := h.rows()[titleRow]; !strings.HasSuffix(got, "Tue 27 Oct  17:43:01") {

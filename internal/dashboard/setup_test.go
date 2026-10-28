@@ -461,3 +461,10 @@ func TestTheSkillPageBeforeTheStepHasDoneItSaysNoFact(t *testing.T) {
 		t.Errorf("row 8 reads %q, want it blank until the step has said what it did", rows[8])
 	}
 }
+
+func TestAStepUnderWaysKeyLineLeavesEnterOff(t *testing.T) {
+	c := setupDrawn(setupScreen(func(s *Setup) { s.Skill, s.UnderWay = nil, true }), 160, 37)
+	if got, want := rowOf(c, 36), blanks(154)+"q quit"; got != want {
+		t.Errorf("the key line reads\n%q\nwant\n%q: enter waits for the step to be done", got, want)
+	}
+}
