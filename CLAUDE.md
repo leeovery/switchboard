@@ -26,7 +26,9 @@ verbs that print JSON for agents, and through a skill that tells Claude about it
 - **Showing it:** `dashboard` draws (Lip Gloss), `dashboard/watch` runs it (Bubble Tea), and
   `theme` colours it. `cli` holds the commands, kept thin. `setup`, `accounts`, `service`,
   `skill` and `sessionhook` install and manage; `sessionhook` also answers Claude Code's
-  SessionStart hook, telling a session that didn't start through switchboard.
+  SessionStart hook, telling a session that didn't start through switchboard. `setuptoken` makes
+  an account's token by running `claude setup-token` on a terminal of its own and reading it off
+  the screen.
 - **One owner per fact.** Each fact is worked out once, in `status` or `views`, and every tab and
   verb reads it there, never again in a drawing package or a command. The guards hold it
   (`status/guard_test.go`, `views/guard_test.go`, `prose/guard_test.go`, built on
