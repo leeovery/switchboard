@@ -25,6 +25,9 @@ const (
 	drainFor = 2 * time.Second
 	// readSize is how much of what setup-token draws is read at a time.
 	readSize = 32 << 10
+	// readsAtDrain bounds the reads Make draws once the drain is over (see
+	// drawWaiting), so what draws as fast as Make reads can't hold it there.
+	readsAtDrain = 4
 	// reportsHeld is how many events Make can report before the Signing's
 	// Report hears the first: Make reports each step once (see report).
 	reportsHeld = int(StepMade)
@@ -246,11 +249,13 @@ func (r *run) next(ctx context.Context) {
 }
 
 // drawWaiting draws what's been read of setup-token's drawing and waits on
-// Make as its drain ends: the select the drain won could have taken that
-// instead, and it can hold the rest of a token Make would otherwise conclude
-// on cut short.
+// Make as its drain ends, readsAtDrain reads at most: the select the drain
+// won could have taken that instead, and it can hold the rest of a token.
 func (r *run) drawWaiting(ctx context.Context) {
-	for r.output != nil && !r.over {
+	for range readsAtDrain {
+		if r.output == nil || r.over {
+			return
+		}
 		select {
 		case drawn, ok := <-r.output:
 			r.draw(ctx, drawn, ok)
