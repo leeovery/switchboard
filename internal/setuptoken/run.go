@@ -138,8 +138,9 @@ func (r *run) start(ctx context.Context, path string, env environ) error {
 
 // exitOf waits on cmd's exit, then kills what it left running in its group,
 // so nothing of it holds its terminal open, and returns how it exited (see
-// waitOn). The group's id stays its own while anything's left in it, as
-// close says.
+// waitOn). Its leader reaped just before, the group's id could be another's
+// only were it empty, and the system to hand out every other id, in turn,
+// in between (see close).
 func exitOf(cmd *exec.Cmd) error {
 	err := waitOn(cmd)
 	_ = killGroup(cmd.Process.Pid)
@@ -198,15 +199,18 @@ func (r *run) close() {
 		// What setup-token left running goes too, before Make waits on
 		// anything, as what's deaf to the hang-up setup-token's exit sent
 		// could hold its terminal open. Killing a group whose leader may be
-		// gone looks unsafe, but no new process takes the group's id while
-		// anything's left in it, and with nothing left there's nothing to
-		// kill: the id comes round again only once the system has handed out
-		// every other.
+		// gone looks unsafe: no new process takes the group's id while
+		// anything's left in it, but once nothing is, a new group leader
+		// could. exitOf kills the group as its leader's reaped, and Make gets
+		// here within the drain of hearing so, so a new group would need the
+		// system to hand out every other id, in turn, in that window.
 		_ = killGroup(r.group)
 	}
 	close(r.done)
 	close(r.reports)
 	if r.master != nil {
+		// Before the wait: a killed setup-token's exit waits till what it
+		// drew is read, or closed unread, so exitOf would hang.
 		_ = r.master.Close()
 	}
 	r.wg.Wait()
