@@ -847,14 +847,16 @@ accounts:
 **The full screen: designed.** `switchboard setup` walks through a first run, and is safe to run
 again: each step says what's already done, and does only what's missing. It's a full screen in the
 dashboard's chrome, a page a step, the flow its owner agreed on 27 October 2026 (see
-[auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md), "Setup's flow"), drawn in the
-Paper file *Switchboard · Setup*, frames 1 to 12: 160 columns by 37, in the `nord` theme at Tue 27
-Oct 17:42, with the placeholder accounts `work`, `personal` and `side`. The calls the frames left
-open were approved by the owner on 28 October 2026, and are written here as decided. Where the
-frames and this section differ, this section holds: frame 4 says only what the service step can know
-(see Service, below); frame 5's `PATH` line is the shell step's line, and is to be drawn again in
-Paper; and the status line, the clock and where a card sits follow the rules below. The primary's
-reserve card and the Accounts tab's token-year line are still to be drawn in Paper.
+[auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md), "Setup's flow"). Its frames are
+in the Paper file *Switchboard · Setup*, on its page **round 2 · setup in the dashboard's chrome**,
+signed off 27 Oct 2026: frames 1 to 12, the claude link's, frames 8, 11 and 12, drawn again and
+approved that evening. They're 160 columns by 37, in the `nord` theme at Tue 27 Oct 17:42, with the
+placeholder accounts `work`, `personal` and `side`. The calls the frames left open were approved by
+the owner on 28 October 2026, and are written here as decided. Where the frames and this section
+differ, this section holds: frame 4 says only what the service step can know (see Service, below);
+frame 5's `PATH` line is the shell step's line, and is to be drawn again in Paper; and the status
+line, the clock and where a card sits follow the rules below. The primary's reserve card and the
+Accounts tab's token-year line are still to be drawn in Paper.
 
 **Until the screen is built,** `switchboard setup` runs the line walk it replaces: it asks a line at
 a time, a token typed hidden as `accounts token` asks for one, stops when its input ends, and ends
@@ -1224,7 +1226,7 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
    under it, in `accent.mode`, the shell step's line to add by hand; Skill, `up to date`. Then NEXT:
    `claude`, `start Claude Code as usual: its sessions route through switchboard`, and
    `switchboard`, `open the dashboard: every account's windows, sessions and history`. Its keys: `c
-   copy the PATH line`, where the link isn't done, and `enter open the dashboard`, `q quit`. `enter`
+   copy the line`, where the link isn't done, and `enter open the dashboard`, `q quit`. `enter`
    leaves setup for the dashboard; there's no `usage` printout.
 
 ### The token card
@@ -6453,8 +6455,7 @@ it posts: see Config.
 - **A token's year:** an account whose token's year is up within 30 days, and again within 7, as
   `status.TokenYear` says: once per token per threshold, which the router keeps across restarts, so
   a restart tells nothing twice. Unlike room again and warnings, it's told of a token already within
-  either as the router starts. A new token starts afresh. It needs no key in `[notifications]`: it's
-  always posted.
+  either as the router starts. A new token starts afresh. It adds no key to `[notifications]`.
 - **Moves:** each move a limit's notification doesn't tell of, as one its limit forced once the
   limit's notification has gone out, or any while `limits` is off:
   `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`.
@@ -9156,7 +9157,7 @@ why.
 | A scheduled review of switchboard's records, raising what it finds as an issue or a pull request | open: to discuss with its owner | [scheduled-review](../ideas/2026-10-14--scheduled-review.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
-| Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | chosen by the owner on 27 October 2026, with setup's flow step by step: setup tokens alone, which setup makes itself by running `claude setup-token`; each account's plan, the primary's reserve, a review of each account on a run again, `accounts edit`, and a warning before a token's year is up; to build next | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
+| Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | chosen by the owner on 27 October 2026, with setup's flow step by step: setup tokens alone, which setup makes itself by running `claude setup-token`; each account's plan, the primary's reserve, a review of each account on a run again, `accounts edit`, and a warning before a token's year is up; designed as setup's full screen, its calls approved on 28 October 2026, and being built (see Setup) | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
 | History kept beyond one Mac: each day's finished files copied to iCloud Drive, a folder a Mac, and `setup` offering to bring a Mac's history back | agreed by the owner on 27 October 2026 that switchboard keeps it itself; the design to settle, before the owner's next Mac arrives in about four weeks | [history-beyond-one-mac](../ideas/2026-10-27--history-beyond-one-mac.md) |
 | An uninstall: everything switchboard put on the Mac taken away, the service, the shell's startup line, the session hook, the skill and the `claude` link | asked for by the owner on 27 October 2026, as setup took on the startup line and the hook; what goes of the config, tokens and history to settle | [uninstall](../ideas/2026-10-27--uninstall.md) |
 | Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
