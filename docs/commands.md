@@ -362,18 +362,21 @@ The steps are:
    too. Sourcing one prints nothing, and sourcing it again changes nothing more. `setup` writes
    them, and the router brings them up to date as it starts, so an edit to one doesn't last.
 
-   Then `setup` asks your login shell, `$SHELL`, started as a new terminal starts it, which
-   `claude` its `PATH` finds. The step is done once a `claude` typed there goes through the link.
-   An alias named `claude` in front of it decides that by what it runs: `claude` by name leaves it
-   to `PATH`; a path, such as Claude Code's old `~/.claude/local/claude`, goes through switchboard
-   only where it's the link, and otherwise `setup` says to remove the alias or point it at
-   `claude`; and one that sets `PATH` for `claude` doesn't count, as `setup` can't tell which
-   `claude` that `PATH` finds, so it says to take `PATH=` out of it. A function `setup` can't
-   read, so it says the function goes through switchboard where it runs `claude` by name. Ctrl-C
-   while it asks stops `setup`. `setup` asks zsh, bash and fish alone: for another shell, it shows
-   the bin directory, as `$HOME/…`, to put first on `PATH` by hand. Until it's done, for zsh, bash
-   and fish, `setup` offers to add one line to the end of your shell's startup file, naming the
-   file and showing the line first. For zsh, the line is:
+   Then `setup` asks your login shell, `$SHELL`, started as a new terminal starts it, which `claude`
+   its `PATH` finds. The step is done once a `claude` typed there goes through the link. An alias
+   named `claude` in front of it decides that by its first command: `claude`, or `command claude`,
+   leaves it to `PATH`; a path, such as Claude Code's old `~/.claude/local/claude`, goes through
+   switchboard only where it's the link, and otherwise `setup` says to remove the alias or point it
+   at `claude`; `builtin`, or `command` with an option, such as `command -p`, doesn't go through
+   switchboard; and one that sets `PATH` for `claude` doesn't count, as `setup` can't tell which
+   `claude` that `PATH` finds, so it says to take `PATH=` out of it. Another command, with `claude`
+   later in the alias, such as `caffeinate -i claude`, is a wrapper `setup` doesn't read; without
+   one, as `npx …`, it runs something else. A function, or a wrapper, `setup` doesn't read, so it
+   says it goes through switchboard where it runs `claude` by name. Ctrl-C while it asks stops
+   `setup`. `setup` asks zsh, bash and fish alone: for another shell, it shows the bin directory, as
+   `$HOME/…`, to put first on `PATH` by hand. Until it's done, for zsh, bash and fish, `setup`
+   offers to add one line to the end of your shell's startup file, naming the file and showing the
+   line first. For zsh, the line is:
 
    ```bash
    if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
@@ -385,8 +388,9 @@ The steps are:
    `$__fish_config_dir`. Where your shell couldn't be asked, `setup` writes nothing: it shows the
    line to add by hand, naming the file it usually goes in. Nor does it where zsh names a
    `$ZDOTDIR` without a `.zshrc` while your home has one, as that `.zshrc` may not be the one a
-   new terminal reads, where `.zshrc` itself or a file after it sets `ZDOTDIR`: it shows the line
-   by hand, naming both. A startup file that's a link, as to your dotfiles, is written where it
+   new terminal reads: a `ZDOTDIR` set in `.zshenv` is, as is one set in `.zprofile` for a login
+   shell, as macOS terminals start, but one set in `.zshrc` or after it isn't. It shows the line by
+   hand, naming both. A startup file that's a link, as to your dotfiles, is written where it
    leads. The line is added once, ever: everything else switchboard does in your shell is in its
    own file. Should the file go, the line does nothing.
 

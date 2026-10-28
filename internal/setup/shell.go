@@ -234,7 +234,8 @@ func interruptOnSIGINT(ctx context.Context) (context.Context, context.CancelFunc
 // sayLinked says claude goes through switchboard in a new terminal, as
 // answer, the login shell's, says, and what's in front of PATH's claude
 // there: an alias that runs claude by name, or the link by its path, goes
-// through switchboard; a function does where it runs claude by name.
+// through switchboard; a function, or an alias setup doesn't read, does
+// where it runs claude by name.
 func (r *run) sayLinked(answer shell.Answer) {
 	r.Terminal.sayf("claude goes through switchboard in a new terminal: %s runs %s.", r.shellName(), r.fromHome(r.claudeLink()))
 	front := answer.Front
@@ -245,7 +246,7 @@ func (r *run) sayLinked(answer shell.Answer) {
 	case front.Runs == shell.TheLink:
 		r.Terminal.sayf("%s's claude is %s, which runs switchboard's claude link by its path.", r.shellName(), front.Text)
 	default:
-		r.Terminal.sayf("%s's claude is %s, which goes through switchboard where it runs claude by name.", r.shellName(), front.Text)
+		r.Terminal.sayf("%s's claude is %s, which setup doesn't read: it goes through switchboard where it runs claude by name.", r.shellName(), front.Text)
 	}
 }
 

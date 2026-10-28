@@ -418,7 +418,16 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 				w.addLine(t)
 				w.login.front = shell.Front{Text: "function claude", Runs: shell.Unknown}
 			},
-			want:     linkRuns + "zsh's claude is function claude, which goes through switchboard where it runs claude by name.\n",
+			want:     linkRuns + "zsh's claude is function claude, which setup doesn't read: it goes through switchboard where it runs claude by name.\n",
+			wantFile: ".zshrc", wantText: "<line>\n",
+		},
+		{
+			name: "there already, and run, a wrapper alias in front, which setup doesn't read",
+			lay: func(t *testing.T, w *world) {
+				w.addLine(t)
+				w.login.front = shell.Front{Text: "alias claude='caffeinate -i claude'", Runs: shell.Unknown}
+			},
+			want:     linkRuns + "zsh's claude is alias claude='caffeinate -i claude', which setup doesn't read: it goes through switchboard where it runs claude by name.\n",
 			wantFile: ".zshrc", wantText: "<line>\n",
 		},
 		{

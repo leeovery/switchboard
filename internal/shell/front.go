@@ -18,8 +18,8 @@ const (
 	// does, or nothing in front at all.
 	ByName Runs = iota
 	// Unknown may run claude by name or not: a function, whose body the
-	// shell doesn't give, or an alias that runs what only its expansion
-	// tells.
+	// shell doesn't give, a wrapper setup doesn't read, or an alias that
+	// runs what only its expansion tells.
 	Unknown
 	// TheLink runs switchboard's claude link by its path.
 	TheLink
@@ -68,35 +68,6 @@ func readFront(sh Shell, is, home, link string) Front {
 	return f
 }
 
-// precommand is a word that runs the command after it, in the shells it
-// names, every shell where it names none. It takes options in the shells
-// options names, the letters of those that take a word of their own after
-// them being withArg; and variables set for the command after it where
-// assignments is set, as only a reserved word does.
-type precommand struct {
-	shells      []Shell
-	options     []Shell
-	withArg     string
-	assignments bool
-}
-
-// precommands run the command after them. builtin isn't one: it runs only
-// the shell's own commands, which claude isn't.
-var precommands = map[string]precommand{
-	"command":    {options: Shells},
-	"exec":       {options: Shells, withArg: "a"},
-	"time":       {options: []Shell{Bash}, assignments: true},
-	"nohup":      {},
-	"caffeinate": {options: Shells, withArg: "tw"},
-	"noglob":     {shells: []Shell{Zsh}},
-	"nocorrect":  {shells: []Shell{Zsh}, assignments: true},
-}
-
-// in reports whether p is a precommand in sh.
-func (p precommand) in(sh Shell) bool {
-	return p.shells == nil || slices.Contains(p.shells, sh)
-}
-
 // assignment is a word that sets a variable, or adds to it, for the command
 // after it.
 var assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*\+?=`)
@@ -109,61 +80,62 @@ func setsPath(sh Shell, w string) bool {
 }
 
 // aliasRuns returns what body, an alias's in sh, runs, and the other claude
-// it runs by its path: its command, its first word, past any variables set
-// for it, and any precommand sh has, with its options. One that sets PATH
-// runs claude where only that PATH tells; command -p looks on the system's
-// PATH, and -v and -V print rather than run; and after a precommand that
-// takes none, an assignment is the command.
+// it runs by its path. Variables set first are passed over, but one that
+// sets PATH runs claude where only that PATH tells. Then its first command
+// decides: claude, or command claude without an option, by name; a path by
+// itself; builtin, or command with an option, runs no claude, or not the one
+// PATH finds; and one only its expansion tells, setup can't read. Any other
+// command is a wrapper setup doesn't read where a later word is claude, and
+// otherwise runs something else.
 func aliasRuns(sh Shell, body, home, link string) (Runs, string) {
 	ws, ok := words(body)
 	if !ok {
 		return Unknown, ""
 	}
-	pre, takesArg := "", false
-	for _, w := range ws {
-		p, after := precommands[pre]
-		switch {
-		case takesArg:
-			takesArg = false
-		case assignment.MatchString(w) && (!after || p.assignments):
-			if setsPath(sh, w) {
-				return SetsPath, ""
-			}
-		case assignment.MatchString(w):
+	for len(ws) > 0 && assignment.MatchString(ws[0]) {
+		if setsPath(sh, ws[0]) {
+			return SetsPath, ""
+		}
+		ws = ws[1:]
+	}
+	if len(ws) == 0 {
+		return Else, ""
+	}
+	if ws[0] == "command" {
+		ws = ws[1:]
+		if len(ws) > 0 && ws[0] == "--" {
+			ws = ws[1:]
+		}
+		if len(ws) == 0 || strings.HasPrefix(ws[0], "-") {
 			return Else, ""
-		case after && slices.Contains(p.options, sh) && len(w) > 1 && strings.HasPrefix(w, "-"):
-			if pre == "command" && strings.ContainsAny(w, "pvV") {
-				return Else, ""
-			}
-			takesArg = strings.ContainsRune(p.withArg, rune(w[len(w)-1]))
-		default:
-			if q, ok := precommands[w]; ok && q.in(sh) {
-				pre = w
-				continue
-			}
-			return command(w, home, link)
 		}
 	}
-	return Unknown, ""
-}
-
-// command returns what word, the command an alias runs, is, and the other
-// claude it names by its path.
-func command(word, home, link string) (Runs, string) {
-	path, isPath := fromHome(word, home)
-	switch {
-	case word == "claude":
-		return ByName, ""
-	case isPath && sameFile(path, link):
-		return TheLink, ""
-	case isPath:
-		return APath, redact.Text(path)
-	case strings.ContainsAny(word, "$`") || word == "env":
-		// env's options can take words of their own, so what it runs is
-		// left undecided.
+	if runs, path, decided := command(ws[0], home, link); decided {
+		return runs, path
+	}
+	if slices.Contains(ws[1:], "claude") {
 		return Unknown, ""
 	}
 	return Else, ""
+}
+
+// command returns what word, the command an alias runs, is, and the other
+// claude it names by its path, and whether that decides what the alias runs.
+func command(word, home, link string) (Runs, string, bool) {
+	path, isPath := fromHome(word, home)
+	switch {
+	case word == "claude":
+		return ByName, "", true
+	case isPath && sameFile(path, link):
+		return TheLink, "", true
+	case isPath:
+		return APath, redact.Text(path), true
+	case word == "builtin":
+		return Else, "", true
+	case strings.ContainsAny(word, "$`"):
+		return Unknown, "", true
+	}
+	return 0, "", false
 }
 
 // words splits s, a simple command, into its words, as a shell does before
