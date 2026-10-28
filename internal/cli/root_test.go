@@ -491,6 +491,9 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		Launchctl: func(context.Context, ...string) ([]byte, error) {
 			return nil, errors.New("no test runs launchctl")
 		},
+		LoginShell: func(context.Context, string, []string, []string) ([]byte, error) {
+			return nil, errors.New("no test runs a login shell")
+		},
 		Hidden:        cli.HiddenInput,
 		Terminal:      cli.IsTerminal,
 		TerminalInput: cli.IsTerminalInput,

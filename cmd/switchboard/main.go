@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/shell"
 )
 
 // version is set at build time with -ldflags "-X main.version=…".
@@ -36,6 +37,7 @@ func main() {
 		Check:         handover.Run,
 		Launchctl:     service.Launchctl,
 		Plutil:        service.Plutil,
+		LoginShell:    shell.Run,
 		Hidden:        cli.HiddenInput,
 		Terminal:      cli.IsTerminal,
 		TerminalInput: cli.IsTerminalInput,

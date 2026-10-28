@@ -48,6 +48,9 @@ var processStarters = []string{
 	// /usr/bin/plutil, by its path, converting a binary plist the service
 	// reads back to XML: main passes it to the CLI, and tests pass a fake.
 	"internal/service/plutil.go:Plutil",
+	// The user's login shell, asked which claude it runs: main passes it to
+	// the CLI, and tests pass a fake that answers as they need.
+	"internal/shell/run_unix.go:Run",
 }
 
 const (

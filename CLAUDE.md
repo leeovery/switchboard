@@ -25,10 +25,11 @@ verbs that print JSON for agents, and through a skill that tells Claude about it
   verbs. `prose` words every plain value.
 - **Showing it:** `dashboard` draws (Lip Gloss), `dashboard/watch` runs it (Bubble Tea), and
   `theme` colours it. `cli` holds the commands, kept thin. `setup`, `accounts`, `service`,
-  `skill` and `sessionhook` install and manage; `sessionhook` also answers Claude Code's
+  `skill`, `sessionhook` and `shell` install and manage; `sessionhook` also answers Claude Code's
   SessionStart hook, telling a session that didn't start through switchboard. `setuptoken` makes
   an account's token by running `claude setup-token` on a terminal of its own and reading it off
-  the screen.
+  the screen. `shell` writes switchboard's file for each shell and the line that loads it, and
+  asks the user's login shell which `claude` it runs.
 - **One owner per fact.** Each fact is worked out once, in `status` or `views`, and every tab and
   verb reads it there, never again in a drawing package or a command. The guards hold it
   (`status/guard_test.go`, `views/guard_test.go`, `prose/guard_test.go`, built on
@@ -101,7 +102,9 @@ notifications. Ever.
   `scripts/`: read them before changing either.
 - **A known false failure:** Claude Code's updater re-creates `~/.local/bin/claude` during long
   runs, and testguard then fails a run whose tests all passed. If that link is its only complaint
-  and there's no `--- FAIL`, the run passed.
+  and there's no `--- FAIL`, the run passed. testguard also fails a run where a real startup file
+  (`~/.zshrc`, `~/.bash_profile`, `~/.bash_login`, `~/.profile` or fish's `config.fish`) changes
+  during it, as when you edit your dotfiles mid-run: with no `--- FAIL`, that run passed too.
 - **Never loosen a guard to make a test pass.** A test that needs what a guard blocks is a finding:
   inject it instead.
 

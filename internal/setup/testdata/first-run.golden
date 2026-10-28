@@ -27,9 +27,14 @@ The router is up: healthy, pid 4242.
 
 4. The claude link
 Linked <root>/home/.local/share/switchboard/bin/claude to <root>/brew/bin/switchboard.
-claude doesn't go through switchboard yet: <root>/home/.local/share/switchboard/bin isn't on PATH. Add this line to your shell's startup file, such as ~/.zshrc, after anything else there that changes PATH, so it stays ahead of <root>/claude-code/bin:
-export PATH="$HOME/.local/share/switchboard/bin:$PATH"
-Running setup again, in a new terminal, checks it.
+Wrote switchboard's files for the shells, in ~/.local/share/switchboard/shell: init.zsh, init.bash, completion.bash and init.fish.
+Asking zsh, as a new terminal starts it, which claude it runs.
+claude doesn't go through switchboard in a new terminal yet: zsh runs another claude, <root>/claude-code/bin/claude. This line, at the end of ~/.zshrc, has claude go through switchboard: it reads switchboard's file for zsh, which puts ~/.local/share/switchboard/bin first on PATH, and loads switchboard's completions.
+if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
+Add it? [Y/n] 
+Added it to ~/.zshrc.
+Asking zsh, as a new terminal starts it, which claude it runs.
+claude goes through switchboard in a new terminal: zsh runs ~/.local/share/switchboard/bin/claude.
 Installed the session hook, which tells a session that doesn't go through switchboard so: <root>/claude/settings.json
 
 5. The skill

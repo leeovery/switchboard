@@ -28,6 +28,7 @@ import (
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -79,6 +80,9 @@ type Deps struct {
 	// Launchctl runs launchctl, as service.Launchctl does, and Plutil
 	// plutil, as service.Plutil does.
 	Launchctl, Plutil service.Runner
+	// LoginShell runs the user's login shell, as shell.Run does: setup asks
+	// it which claude it runs.
+	LoginShell shell.Runner
 	// Hidden returns what reads a line typed at the terminal stdin is,
 	// without showing it, or false when stdin isn't a terminal, as
 	// HiddenInput does: a token is typed there unseen, and setup asks there
