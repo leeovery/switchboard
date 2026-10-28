@@ -256,6 +256,8 @@ func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
 	switch {
 	case st.PID != 0:
 		loaded = fmt.Sprintf("loaded, running pid %d", st.PID)
+	case st.Running:
+		loaded = "loaded, running"
 	case st.Loaded:
 		loaded = "loaded, not running"
 	}

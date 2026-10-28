@@ -484,11 +484,13 @@ type fakeLaunchd struct {
 	dead           bool
 	// byHand is the pid of a router run by hand, answering with its state
 	// in byHandAt, else where the router launchd runs would have it, in its
-	// place, which print doesn't name; 0 for none. anonymous has launchd's
-	// router answer without its pid.
+	// place, which print doesn't name; 0 for none. anonymous has the
+	// routers answer without their pids, and pidless has print say launchd runs
+	// one without naming its pid, as a format setup can't read might.
 	byHand    int
 	byHandAt  string
 	anonymous bool
+	pidless   bool
 	old       bool
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
@@ -512,6 +514,8 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 		f.loaded, f.pid = false, 0
 	case args[0] == "kickstart", args[0] == "kill":
 		f.start()
+	case args[0] == "print" && f.pid != 0 && f.pidless:
+		return fmt.Appendf(nil, "%s = {\n\tstate = running\n}\n", args[1]), nil
 	case args[0] == "print" && f.pid != 0:
 		return fmt.Appendf(nil, "%s = {\n\tstate = running\n\tpid = %d\n}\n", args[1], f.pid), nil
 	}
@@ -566,7 +570,9 @@ func (r routerAt) Health(ctx context.Context) (router.Health, error) {
 	f := r.launchd
 	if f.byHand != 0 && r.dir == cmp.Or(f.byHandAt, f.stateDir) {
 		h := f.router()
-		h.PID = f.byHand
+		if !f.anonymous {
+			h.PID = f.byHand
+		}
 		return h, nil
 	}
 	if r.dir != f.stateDir {
@@ -602,7 +608,7 @@ func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 
 // router is how the running router answers.
 func (f *fakeLaunchd) router() router.Health {
-	startedAt := time.Date(2026, 9, 28, 13, 0, f.restarts, 0, time.UTC)
+	startedAt := time.Date(2026, 9, 28, 13, f.started, f.restarts, 0, time.UTC)
 	h := router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", StartedAt: startedAt}
 	if f.anonymous {
 		h.PID = 0

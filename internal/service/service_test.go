@@ -868,6 +868,8 @@ func TestStatus(t *testing.T) {
 		installed bool
 		loaded    bool
 		pid       int
+		pidless   bool
+		stateless bool
 		answer    func(asked int) (router.Health, error)
 		want      service.Status
 	}{
@@ -884,7 +886,24 @@ func TestStatus(t *testing.T) {
 			loaded:    true,
 			pid:       4242,
 			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
-			want:      service.Status{Installed: true, Loaded: true, PID: 4242, RouterErr: errNotRunning},
+			want:      service.Status{Installed: true, Loaded: true, Running: true, PID: 4242, RouterErr: errNotRunning},
+		},
+		{
+			name:      "loaded, launchd saying its router runs, but naming no pid",
+			installed: true,
+			loaded:    true,
+			pidless:   true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, Running: true, RouterErr: errNotRunning},
+		},
+		{
+			name:      "loaded, launchd naming its router's pid, but not saying it runs",
+			installed: true,
+			loaded:    true,
+			pid:       4242,
+			stateless: true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, Running: true, PID: 4242, RouterErr: errNotRunning},
 		},
 		{
 			name:      "loaded, none running",
@@ -903,6 +922,7 @@ func TestStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSetup(t, nil, tt.answer)
 			s.launchctl.loaded, s.launchctl.pid = tt.loaded, tt.pid
+			s.launchctl.pidless, s.launchctl.stateless = tt.pidless, tt.stateless
 			if tt.installed {
 				s.putPlist(t, "<plist/>\n")
 			}
@@ -1198,9 +1218,13 @@ type fakeLaunchctl struct {
 	exits   map[string]int
 	fails   map[string]int
 	cantRun error
-	// pid is the router's process id, which print names while it's not 0.
-	pid   int
-	calls [][]string
+	// pid is the router's process id, which print names while it's not 0;
+	// pidless has print say a router runs without naming its pid, and
+	// stateless name its pid without saying it runs, as formats setup can't
+	// read wholly might.
+	pid                int
+	pidless, stateless bool
+	calls              [][]string
 }
 
 // exit is the status this run of subcommand exits with, as exits and fails
@@ -1241,7 +1265,7 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 		if !f.has() {
 			return []byte("Bad request.\nCould not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
 		}
-		return printed(args[1], f.pid), nil
+		return f.printed(args[1]), nil
 	case "bootstrap":
 		if f.has() {
 			return []byte("Bootstrap failed: 5: Input/output error\n"), exitStatus(5)
@@ -1253,12 +1277,17 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 	return nil, nil
 }
 
-// printed is what launchctl print prints of the job target, its router's
-// process id pid, 0 for none running, trimmed to what matters.
-func printed(target string, pid int) []byte {
+// printed is what launchctl print prints of the job target, trimmed to
+// what matters.
+func (f *fakeLaunchctl) printed(target string) []byte {
 	state := "\tstate = not running\n"
-	if pid != 0 {
-		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", pid)
+	switch {
+	case f.pidless:
+		state = "\tstate = running\n"
+	case f.stateless:
+		state = fmt.Sprintf("\tpid = %d\n", f.pid)
+	case f.pid != 0:
+		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
 	}
 	return []byte(target + " = {\n\tactive count = 1\n" + state +
 		"\tspawn = {\n\t\tpid = 1\n\t}\n\tlast exit code = (never exited)\n}\n")

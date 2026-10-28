@@ -108,7 +108,7 @@ func (r *run) service(ctx context.Context) error {
 // answers within that.
 func (r *run) status(ctx context.Context, svc *service.Service) (service.Status, error) {
 	st, err := svc.Status(ctx)
-	if err != nil || st.Router != nil || st.PID == 0 || svc.Await(ctx, launch.AskTimeout) == nil {
+	if err != nil || st.Router != nil || !st.Running || svc.Await(ctx, launch.AskTimeout) == nil {
 		return st, err
 	}
 	return svc.Status(ctx)
@@ -126,11 +126,11 @@ func (r *run) leaves(st service.Status) (bool, error) {
 	case st.Elsewhere:
 		r.Terminal.sayf("No router answers where the service's plist keeps its state, but one answers where this shell keeps it, so which the service runs can't be told, and setup leaves it as it is: %s, lines them up.", installAdvice)
 		return true, nil
-	case st.Router == nil && st.PID != 0:
-		r.Terminal.sayf("Launchd runs the service's router, pid %d, but it doesn't answer here: it may be starting, or stopping, which can take over half a minute after a bootout, "+
+	case st.Router == nil && st.Running:
+		r.Terminal.sayf("Launchd runs the service's router, %s, but it doesn't answer here: it may be starting, or stopping, which can take over half a minute after a bootout, "+
 			"or keeping its state somewhere setup doesn't look. Setup leaves it as it is: if it doesn't answer soon, as switchboard service status shows, "+
-			"switchboard service install starts it again from its plist.", st.PID)
-		return true, fmt.Errorf("launchd's router, pid %d, doesn't answer: if it doesn't soon, run switchboard service install", st.PID)
+			"switchboard service install installs it again: give it the --config and --log-level it ran with, if any.", pidOf(st.PID))
+		return true, fmt.Errorf("launchd's router, %s, doesn't answer: if it doesn't soon, run switchboard service install", pidOf(st.PID))
 	}
 	return false, nil
 }
@@ -149,26 +149,35 @@ func (r *run) handRun(st service.Status, lead, short string) error {
 	if lead != "" {
 		said, failed = lead+", and a router run some other way answers", short+", and a router run by hand answers"
 	}
-	while := ", while " + launchdHas(st)
+	while, left := ", while "+launchdHas(st), "them as they are"
 	if lead == noService {
-		while = ""
+		while, left = "", "it as it is"
 	}
-	r.Terminal.sayf("%s, %s%s: setup leaves them as they are. Stop the router run by hand, then run switchboard service install.", said, pidOf(st.Router.PID), while)
+	r.Terminal.sayf("%s, %s%s: setup leaves %s. Stop the router run by hand, then run switchboard service install.", said, pidOf(st.Router.PID), while, left)
 	return fmt.Errorf("%s: stop it, then run switchboard service install", failed)
 }
 
 // placeless says where the service's router finds its state or its config
-// file can't be worked out from its plist, as err says, leaves the service
-// as it is while a router svc may run answers, which can't be launchd's, and
-// fails all the same, naming service install.
+// file can't be worked out from its plist, as err says, and fails, as the
+// plist can't start a router again: leaving a router that answers as it
+// is, as handRun says where it isn't launchd's, and naming service install.
 func (r *run) placeless(ctx context.Context, svc *service.Service, err error) error {
-	why := fmt.Sprintf("Where the service's router finds its state or its config can't be worked out from its plist (%s)", redact.Text(err.Error()))
-	if svc.Answering(ctx) != nil {
-		r.Terminal.sayf("%s, but a router answers, so the service is left as it is: %s, installs it afresh.", why, installAdvice)
-	} else {
+	st, serr := r.status(ctx, svc)
+	if serr != nil {
+		return serr
+	}
+	unplaced := redact.Text(err.Error())
+	why := fmt.Sprintf("Where the service's router finds its state or its config can't be worked out from its plist (%s)", unplaced)
+	short := "the service's plist: " + unplaced
+	switch {
+	case st.Router != nil && !launchdAnswers(st):
+		return r.handRun(st, why, short)
+	case st.Router != nil:
+		r.Terminal.sayf("%s, though launchd runs its router, %s, which answers: setup leaves it as it is, but the plist can't start a router again, so %s, installs it afresh.", why, pidOf(st.PID), installAdvice)
+	default:
 		r.Terminal.sayf("%s, and no router answers: %s, installs it afresh.", why, installAdvice)
 	}
-	return fmt.Errorf("the service's plist: %w: run switchboard service install", err)
+	return fmt.Errorf("%s: run switchboard service install", short)
 }
 
 // installFirst installs the LaunchAgent, which isn't installed, as setup's
@@ -203,7 +212,7 @@ func (r *run) unusable(ctx context.Context, unread error) (bool, error) {
 		return true, err
 	// Nothing answers and nothing runs, so there's nothing to swap out; but
 	// with a plist it can't read, setup can't keep the options it holds.
-	case st.Router == nil && st.PID == 0 && (!st.Loaded || unread == nil):
+	case st.Router == nil && !st.Running && (!st.Loaded || unread == nil):
 		return false, nil
 	}
 	plist, short := "The service's plist is gone", "the service's plist is gone"
@@ -226,18 +235,18 @@ func (r *run) unusable(ctx context.Context, unread error) (bool, error) {
 }
 
 // launchdAnswers reports whether the router that answers, as st says, is
-// launchd's: launchd runs one, and, where the router says its pid, it's
-// that one.
+// launchd's: launchd runs one, and, where both the router and launchd say
+// its pid, it's that one.
 func launchdAnswers(st service.Status) bool {
-	return st.Router != nil && st.PID != 0 && (st.Router.PID == 0 || st.Router.PID == st.PID)
+	return st.Router != nil && st.Running && (st.Router.PID == 0 || st.PID == 0 || st.Router.PID == st.PID)
 }
 
 // launchdHas says what launchd has of the service, as st says, of a router
 // that doesn't answer where setup looks.
 func launchdHas(st service.Status) string {
 	switch {
-	case st.PID != 0:
-		return fmt.Sprintf("launchd runs a router, pid %d, which doesn't answer where setup looks", st.PID)
+	case st.Running:
+		return fmt.Sprintf("launchd runs a router, %s, which doesn't answer where setup looks", pidOf(st.PID))
 	case st.Loaded:
 		return "launchd has the service loaded, but runs no router"
 	}

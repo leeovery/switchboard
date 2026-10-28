@@ -464,9 +464,11 @@ type fakeLaunchd struct {
 	probed bool
 	loaded bool
 	// pid is the router's process id, which print names while it's not 0,
-	// as it is once launchd starts one.
-	pid   int
-	calls [][]string
+	// as it is once launchd starts one; pidless has print say one runs
+	// without naming its pid, as a format setup can't read might.
+	pid     int
+	pidless bool
+	calls   [][]string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -483,6 +485,8 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 		f.loaded, f.pid = false, 0
 	case args[0] == "kickstart":
 		f.start()
+	case args[0] == "print" && f.pid != 0 && f.pidless:
+		return fmt.Appendf(nil, "%s = {\n\tstate = running\n}\n", args[1]), nil
 	case args[0] == "print" && f.pid != 0:
 		return fmt.Appendf(nil, "%s = {\n\tstate = running\n\tpid = %d\n}\n", args[1], f.pid), nil
 	}
