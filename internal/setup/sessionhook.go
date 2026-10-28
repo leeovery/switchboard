@@ -13,6 +13,7 @@ import (
 func (s *Setup) SessionHook() Said {
 	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
 	if err != nil {
+		logger.Warn("can't install the session hook", "path", s.Settings, "error", err)
 		return withoutHook(err)
 	}
 	return (&run{Setup: s, switchboard: switchboard}).hook()
@@ -37,9 +38,9 @@ func (r *run) hook() Said {
 		return Said{Mark: Done, Label: "Session hook", Detail: does, Sentence: "Installed the session hook, which tells a session that doesn't go through switchboard so: " + r.Settings}
 	case outcome == sessionhook.PutRight:
 		logger.Info("put the session hook right", "path", r.Settings)
-		return Said{Mark: Done, Label: "Session hook", Detail: "put right · " + does, Sentence: "Put the session hook right: " + r.Settings}
+		return Said{Mark: Done, Label: "Session hook", Detail: "put right: " + does, Sentence: "Put the session hook right: " + r.Settings}
 	}
-	return Said{Mark: Done, Label: "Session hook", Detail: does, Sentence: "The session hook is in place: " + r.Settings}
+	return Said{Mark: Done, Label: "Session hook", Detail: "in place: " + does, Sentence: "The session hook is in place: " + r.Settings}
 }
 
 // withoutHook is what setup says of carrying on without the session hook,

@@ -156,7 +156,7 @@ func (r *run) status(ctx context.Context, svc *service.Service) (service.Status,
 func (r *run) leaves(st service.Status) (bool, error) {
 	switch {
 	case st.Router != nil && !launchdAnswers(st):
-		return true, r.handRun(st, "", "")
+		return true, r.handRun(st, reason{}, "")
 	case st.Elsewhere:
 		const untold = "no router answers where the service's plist keeps its state, but one answers where this shell keeps it, so which the service runs can't be told"
 		const lineUp = installAdvice + ", lines them up"
@@ -186,18 +186,18 @@ func (r *run) leaves(st service.Status) (bool, error) {
 const noService = "No service is installed"
 
 // handRun says a router run some other way answers, as st says, after
-// lead, the plist's state where setup can't use it, and what launchd has of
-// the service, where lead doesn't say it, as noService does; and fails, short naming the plist's
-// state, as no router could start beside it, and only service install, once
-// it's stopped, puts the service right.
-func (r *run) handRun(st service.Status, lead, short string) error {
+// why, the plist's state where setup can't use it, and what launchd has of
+// the service, where why doesn't say it, as noService does; and fails, short
+// naming the plist's state, as no router could start beside it, and only
+// service install, once it's stopped, puts the service right.
+func (r *run) handRun(st service.Status, why reason, short string) error {
 	const answers = "a router run some other way answers"
 	said, detail, failed := capital(answers), answers, "a router run by hand answers"
-	if lead != "" {
-		said, detail, failed = lead+", and "+answers, short+", and "+answers, short+", and a router run by hand answers"
+	if why.lead != "" {
+		said, detail, failed = why.lead+", and "+answers, why.detail+", and "+answers, short+", and a router run by hand answers"
 	}
 	while, left := ", while "+launchdHas(st), "them as they are"
-	if lead == noService {
+	if why.lead == noService {
 		while, left = "", "it as it is"
 	}
 	const stop = "stop the router run by hand, then run switchboard service install"
@@ -216,7 +216,10 @@ func (r *run) handRun(st service.Status, lead, short string) error {
 // is, as handRun says where it isn't launchd's, and naming service install.
 func (r *run) placeless(ctx context.Context, svc *service.Service, err error) error {
 	unplaced := redact.Text(err.Error())
-	why := fmt.Sprintf("Where the service's router finds its state or its config can't be worked out from its plist (%s)", unplaced)
+	why := reason{
+		lead:   fmt.Sprintf("Where the service's router finds its state or its config can't be worked out from its plist (%s)", unplaced),
+		detail: fmt.Sprintf("where the service's router finds its state or its config can't be worked out from its plist (%s)", unplaced),
+	}
 	short := "the service's plist: " + unplaced
 	const afresh = installAdvice + ", installs it afresh"
 	// placeless tells of the plist, what follows why being stands.
@@ -224,8 +227,8 @@ func (r *run) placeless(ctx context.Context, svc *service.Service, err error) er
 		r.tell(Said{
 			Mark:     Failed,
 			Label:    "Plist",
-			Detail:   fmt.Sprintf("where its router finds its state or its config can't be worked out from it (%s)%s", unplaced, stands),
-			Sentence: why + stands + ".",
+			Detail:   why.detail + stands,
+			Sentence: why.lead + stands + ".",
 		})
 	}
 	st, err := r.status(ctx, svc)
@@ -235,8 +238,8 @@ func (r *run) placeless(ctx context.Context, svc *service.Service, err error) er
 		r.tell(Said{
 			Mark:     Failed,
 			Label:    "Plist",
-			Detail:   fmt.Sprintf("where its router finds its state or its config can't be worked out from it (%s): %s · launchd couldn't be asked about the service: %s", unplaced, afresh, unasked),
-			Sentence: fmt.Sprintf("%s: %s. Launchd couldn't be asked about the service: %s", why, afresh, unasked),
+			Detail:   fmt.Sprintf("%s: %s · launchd couldn't be asked about the service: %s", why.detail, afresh, unasked),
+			Sentence: fmt.Sprintf("%s: %s. Launchd couldn't be asked about the service: %s", why.lead, afresh, unasked),
 		})
 		return fmt.Errorf("%s: run switchboard service install: %s", short, unasked)
 	case st.Router != nil && !launchdAnswers(st):
@@ -308,7 +311,7 @@ func (r *run) unusable(ctx context.Context, unread error) (bool, error) {
 		unusable(fmt.Sprintf(", though launchd runs its router, %s, which answers", pidOf(st.PID)))
 		return true, fmt.Errorf("%s: run switchboard service install", short)
 	case st.Router != nil:
-		return true, r.handRun(st, plist, short)
+		return true, r.handRun(st, reason{lead: plist, detail: detail}, short)
 	}
 	unusable(", and no router answers, while " + launchdHas(st))
 	return true, fmt.Errorf("%s, and no router answers: run switchboard service install", short)
@@ -566,7 +569,7 @@ func (r *run) install(ctx context.Context, svc *service.Service, opts service.In
 func (r *run) restart(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
 	h, err := svc.Restart(ctx, func(how service.Restarting) {
 		finishing := fmt.Sprintf("finishing its requests in flight, then %s", how)
-		r.tell(Said{Mark: Done, Label: "Restarting", Detail: finishing, Sentence: "The router is " + finishing + "."})
+		r.tell(Said{Mark: Warning, Label: "Restarting", Detail: finishing, Sentence: "The router is " + finishing + "."})
 	})
 	if err != nil {
 		return err
@@ -623,19 +626,11 @@ func routerUp(h router.Health) Said {
 // stands, the address it listens on and its version, each where it says
 // one, such as "healthy · 127.0.0.1:4747 · v0.2.10".
 func routerDetail(h router.Health) string {
-	parts := []string{"healthy"}
-	if !h.OK {
-		parts[0] = "unhealthy: " + h.Reason
-	}
-	if h.Listen != "" {
-		parts = append(parts, h.Listen)
-	}
-	switch {
-	case h.Version == "":
-	case h.Version[0] >= '0' && h.Version[0] <= '9':
-		parts = append(parts, "v"+h.Version)
-	default:
-		parts = append(parts, h.Version)
+	parts := []string{service.Healthy(h)}
+	for _, part := range []string{h.Listen, prose.Version(h.Version)} {
+		if part != "" {
+			parts = append(parts, part)
+		}
 	}
 	return strings.Join(parts, " · ")
 }

@@ -17,30 +17,45 @@ func (s *Setup) Priming() (config.Day, error) {
 }
 
 // SetDay has priming spread the resets over day, in the config, and returns
-// the day as it's set, leaving a config that sets it already as it is. It
-// fails, as ParseDay does, for a day that isn't one, changing nothing. A day
-// of "" turns priming off, taking the day out of the config.
+// the day as it's set. A day of "" turns priming off, taking the day out of
+// the config. It writes nothing where the day doesn't change, and fails,
+// changing nothing, as ParseDay does for a day that isn't one, and with
+// errNoAccount for a day to set where no account is configured: it never
+// makes the config file.
 func (s *Setup) SetDay(day string) (config.Day, error) {
+	_, set, err := s.setDay(day)
+	return set, err
+}
+
+// setDay sets the day as SetDay does, and returns the config as it leaves
+// it too: nil where no account is configured.
+func (s *Setup) setDay(day string) (*config.Config, config.Day, error) {
 	parsed, err := config.ParseDay(day)
 	if err != nil {
-		return config.Day{}, err
+		return nil, config.Day{}, err
 	}
 	draft, err := config.Edit(s.Accounts.ConfigPath)
+	if err != nil {
+		return nil, config.Day{}, err
+	}
+	cfg := draft.Config()
 	switch {
-	case err != nil:
-		return config.Day{}, err
-	case draft.Config() != nil && draft.Config().Prime.Day == parsed:
-		return parsed, nil
+	case cfg == nil && parsed == config.Day{}:
+		return nil, parsed, nil
+	case cfg == nil:
+		return nil, config.Day{}, errNoAccount
+	case cfg.Prime.Day == parsed:
+		return cfg, parsed, nil
 	}
 	if err := draft.SetPrimeDay(day); err != nil {
-		return config.Day{}, err
+		return nil, config.Day{}, err
 	}
 	if err := draft.Save(); err != nil {
-		return config.Day{}, err
+		return nil, config.Day{}, err
 	}
-	s.changed = true
+	s.wrote()
 	logger.Info("set the priming day", "day", day)
-	return parsed, nil
+	return draft.Config(), parsed, nil
 }
 
 // priming says the day priming spreads the 5-hour windows' resets over, or,
@@ -64,10 +79,11 @@ func (r *run) priming(context.Context) error {
 			r.Terminal.sayf("%v.", err)
 			continue
 		}
-		set, err := r.SetDay(day)
+		cfg, set, err := r.setDay(day)
 		if err != nil {
 			return err
 		}
+		r.cfg = cfg
 		r.Terminal.sayf("Priming is on, over %s.", set)
 		return nil
 	}
