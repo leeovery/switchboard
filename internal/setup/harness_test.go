@@ -482,11 +482,14 @@ type fakeLaunchd struct {
 	setenv         map[string]string
 	loaded         bool
 	dead           bool
-	// byHand is the pid of a router run by hand where the router launchd
-	// runs would be, answering in its place, which print doesn't name; 0 for
-	// none.
-	byHand int
-	old    bool
+	// byHand is the pid of a router run by hand, answering with its state
+	// in byHandAt, else where the router launchd runs would have it, in its
+	// place, which print doesn't name; 0 for none. anonymous has launchd's
+	// router answer without its pid.
+	byHand    int
+	byHandAt  string
+	anonymous bool
+	old       bool
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
 	pid        int
@@ -560,10 +563,16 @@ type routerAt struct {
 var errNoRouterThere = fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning)
 
 func (r routerAt) Health(ctx context.Context) (router.Health, error) {
-	if r.dir != r.launchd.stateDir {
+	f := r.launchd
+	if f.byHand != 0 && r.dir == cmp.Or(f.byHandAt, f.stateDir) {
+		h := f.router()
+		h.PID = f.byHand
+		return h, nil
+	}
+	if r.dir != f.stateDir {
 		return router.Health{}, errNoRouterThere
 	}
-	return r.launchd.Health(ctx)
+	return f.Health(ctx)
 }
 
 func (r routerAt) Restart(ctx context.Context) (router.Restart, error) {
@@ -585,11 +594,6 @@ func (f *fakeLaunchd) ran() []string {
 func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 	unanswered := f.unanswered > 0
 	f.unanswered = max(f.unanswered-1, 0)
-	if f.byHand != 0 && !unanswered {
-		h := f.router()
-		h.PID = f.byHand
-		return h, nil
-	}
 	if f.pid == 0 || unanswered {
 		return router.Health{}, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning)
 	}
@@ -599,7 +603,11 @@ func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 // router is how the running router answers.
 func (f *fakeLaunchd) router() router.Health {
 	startedAt := time.Date(2026, 9, 28, 13, 0, f.restarts, 0, time.UTC)
-	return router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", StartedAt: startedAt}
+	h := router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", StartedAt: startedAt}
+	if f.anonymous {
+		h.PID = 0
+	}
+	return h
 }
 
 func (f *fakeLaunchd) Restart(context.Context) (router.Restart, error) {

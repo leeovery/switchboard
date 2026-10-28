@@ -134,6 +134,9 @@ func TestSetupChecksTheRouterCouldStartFromWhatThePlistKeeps(t *testing.T) {
 	if strings.Contains(step, "Installed ") {
 		t.Errorf("setup's service step printed\n%s\nwant the service left as it is", step)
 	}
+	if strings.Contains(step, "The router uses another") {
+		t.Errorf("setup's service step printed\n%s\nwant nothing said of places, the router left before they're judged", step)
+	}
 	if got := readFile(t, s.plist); got != written {
 		t.Errorf("the plist reads\n%s\nwant it left as it was\n%s", got, written)
 	}
