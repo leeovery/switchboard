@@ -347,8 +347,8 @@ The steps are:
    With more than one and none marked, it asks which is the primary.
 2. **Priming.** With no day set, asks for one, as `HH:MM-HH:MM`, and writes it to `[prime]`.
    Pressing Enter leaves priming off.
-3. **The service.** Installs the LaunchAgent when it isn't installed and no router answers. Installs
-   it again when launchd hasn't loaded it and no router answers, when it runs another switchboard
+3. **The service.** Installs the LaunchAgent when it isn't installed, launchd hasn't loaded it and
+   no router answers. Installs it again when launchd hasn't loaded it and no router answers, when it runs another switchboard
    than the one `setup` runs as, when `setup` is given another config file than the one the router
    serves, or when its plist differs from the one `switchboard service install` would write with
    what it was installed with, as after an upgrade that adds a key, and says what differed.
@@ -359,9 +359,9 @@ The steps are:
    `setup` checks the router could start from what it keeps, its flags included. Where it
    couldn't, `setup` leaves the service as it is while a router answers, saying why, and fails
    while none does, saying how to install it once that's put right. A plist `setup` can't read
-   back, or one that names no program, is left as it is while launchd has the service loaded or a
-   router answers, saying so; otherwise it's installed afresh from `setup`'s own options and your
-   shell's environment, once the router could start from them. A plist that isn't XML, as the
+   back, or one that names no program, is installed afresh from `setup`'s own options and your
+   shell's environment, once the router could start from them, only where launchd hasn't loaded
+   the service and no router answers, as the next paragraph says. A plist that isn't XML, as the
    binary one `defaults write` leaves, is read back through `plutil`. A plist that sets `HOME`
    empty, where the router's state directory or config file is found under it, is left as it is
    while a router answers, and otherwise `setup` fails, naming `switchboard service install`; a
@@ -371,19 +371,21 @@ The steps are:
 
    `setup` watches the router where the service's plist keeps its state, and the one where your
    shell does, and asks launchd whether it runs the router. It leaves the service as it is, saying
-   why: where there's no plist but a router answers, failing, as nothing would bring it back
-   after a restart, saying to run `switchboard service install` to write the plist again where
-   launchd runs the router that answers, or to stop a router run some other way and run `setup`
-   again; where launchd
-   hasn't loaded it but a router run some other way answers, as another would clash with it;
-   where only the one at your shell's answers, so it can't tell which the service runs; and where
-   launchd runs a router that answers at neither within 5 seconds, which may be starting,
+   why. With no plist it can use, none or one it can't read back, `setup` never succeeds while
+   launchd has the service loaded or a router answers, nor sends you back to `setup`: it leaves
+   everything as it is and fails, saying to run `switchboard service install`, which writes the
+   plist afresh, as no plist, or one launchd can't read, can't start the router at login. Where a
+   router run some other way answers, it says to stop that router first, and what launchd has:
+   the service not loaded, loaded but running no router, or running one, its pid named, that
+   doesn't answer where `setup` looks. With a plist it can read, it leaves the service where
+   launchd hasn't loaded it but a router run some other way answers, as another would clash with
+   it; where only the one at your shell's answers, so it can't tell which the service runs; and
+   where launchd runs a router that answers at neither within 5 seconds, which may be starting,
    stopping, or keeping its state where `setup` doesn't look, and `switchboard service status`
-   shows launchd's pid for. Where it leaves the service with no router answering, the step fails:
-   run `setup` again once the router answers, or, for a plist it can't read,
-   `switchboard service install`. It says where the router finds things apart from `setup` only
-   once a router answers. Run `switchboard service install` from the shell
-   the router should use to line them up. It restarts the router only when none answers and none
+   shows launchd's pid for. Where it leaves that service with no router answering, the step
+   fails: run `setup` again once the router answers. It says where the router finds things apart
+   from `setup` only once a router answers. Run `switchboard service install` from the shell the
+   router should use to line them up. It restarts the router only when none answers and none
    runs, once it has checked the router could start, and fails where it couldn't, saying how to
    install it. A router started so is judged where it answers, once it does: where that's where
    your shell keeps its state, not where the plist does, `setup` says so. It never starts the
@@ -520,8 +522,8 @@ in flight, and waits up to 5 seconds for the router to answer.
 - **The binary.** The LaunchAgent runs switchboard by the path you ran it by, so a Homebrew link
   stays the link `brew upgrade` moves on. A temporary build, such as `go run`'s, is refused.
 - **The environment.** The LaunchAgent carries `--config`, and these variables where they're set:
-  `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`, `SWITCHBOARD_LOG_LEVEL` and
-  `CLAUDE_CONFIG_DIR`. It makes `--config`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`
+  `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_DATA_HOME`, `SWITCHBOARD_CONFIG`,
+  `SWITCHBOARD_LOG_LEVEL` and `CLAUDE_CONFIG_DIR`. It makes `--config`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`
   absolute, so the router finds what the CLI does. The tokens are files, so the router needs
   nothing else of your environment. Any other variable the LaunchAgent in place sets, such as an
   `HTTPS_PROXY` you added to it by hand, even with `defaults write`, `install` keeps, saying so

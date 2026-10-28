@@ -746,14 +746,20 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    leaves priming off.
 3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
    `service install` does, that the router could start; it fails, saying why, where it couldn't.
-   With no plist but a router answering, it leaves it as it is and fails, as nothing would bring
-   the router back after a restart: where launchd runs it, as `launchctl print` names a pid, the
-   one the router answers with where it says one, saying the plist is gone and `service install`
-   writes it again; otherwise, as it runs some other way, saying no service is installed, and to
-   stop that router and run setup again. Wherever setup leaves the service as
-   it is with no router answering, the step fails too, saying what it left and why, and what
-   helps: setup again once the router answers, or, for a plist it can't read, `service install`.
-   Setup says where the router finds things apart from setup only of a router that answers.
+   With no plist setup can use, none or one it can't read back, setup never succeeds, nor sends
+   the user back to setup: it installs the service afresh only where launchd hasn't loaded it and
+   no router answers. Otherwise it leaves everything as it is and fails, naming `service
+   install`, which writes the plist afresh, as a plist launchd can't read, or none, can't start
+   the router at login. Where the router answering is launchd's, as `launchctl print` names a pid,
+   the one the router answers with where it says one, it says so. Where it's a router run some
+   other way, it says to stop that router first, and what launchd truly has: the service not
+   loaded, loaded but running no router, or running one, its pid named, that doesn't answer where
+   setup looks; it says no service is installed only where launchd hasn't loaded it. Where none
+   answers, it names launchd's pid where launchd runs one. One function in setup decides this,
+   for a plist missing and one it can't read alike. Where setup leaves a service whose plist it
+   can read with no router answering, the step fails too, saying what it left and why: setup
+   again once that router answers. Setup says where the router finds things apart from setup
+   only of a router that answers.
    - **The service as its router sees it:** one owner, in `internal/service`, works it out, and
      setup, its startable check, `service install`'s wait and token warning, `service restart` and
      `service status` all take it from there. It's the environment read back from the plist, over
@@ -824,13 +830,10 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
      the same and fails, saying why.
    - **A plist it can't read back:** one that can't be read, isn't a plist, names no program, or
      that `plutil` fails on or doesn't finish reading in time. While launchd has the service
-     loaded, or a router answers, either of which may run as the plist says, setup leaves the
-     service as it is, saying so, why redacted, and that `service install` installs it afresh,
-     failing where no router answers: where launchd runs one that doesn't, naming its pid, as
-     above, else naming `service install`.
-     Otherwise setup says so, and installs the service afresh from its own options and the
-     shell's environment, once the router could start from them, and fails where it couldn't, as
-     above. `service restart` and `service status` say they couldn't read it, and look for the
+     loaded, or a router answers, setup leaves both as they are and fails, as the opening of this
+     step says for a plist it can't use, saying why, redacted. Otherwise setup says so, and
+     installs the service afresh from its own options and the shell's environment, once the
+     router could start from them, and fails where it couldn't, as above. `service restart` and `service status` say they couldn't read it, and look for the
      router where the shell keeps its state, as they do, saying so, where its places can't be
      worked out from it; `status` shows launchd's pid, and says when the router answering is the
      shell's, not the plist's.
@@ -7932,8 +7935,8 @@ verbs).
   request waits on the router) to run this binary by the path it was run by, so a Homebrew link
   stays the link an upgrade moves on, with `serve`, any `--config` given, made absolute, and any
   `--log-level`. It refuses a temporary build, such as `go run`'s, judged by where the binary's
-  links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG` and
-  `CLAUDE_CONFIG_DIR`, those two made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're set, so the
+  links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_DATA_HOME`, where switchboard's
+  shell files are, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`, those two made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're set, so the
   service finds what the CLI does, and brings the skill up to date where `setup` wrote it. Any other
   variable a plist in place sets, as one added by hand, such as `HTTPS_PROXY`, it keeps, reading
   a plist that isn't XML through `/usr/bin/plutil`, and says so where it can't read the plist in
