@@ -94,6 +94,17 @@ func TestServiceStatusSaysLaunchdRunsARouterWhosePidItCantRead(t *testing.T) {
 	}
 }
 
+func TestServiceStatusSaysLaunchdsStateUnreadWhereItSaysNeitherStateNorPid(t *testing.T) {
+	s := newServiceSetup(t)
+	s.launchd.loaded, s.launchd.pid, s.launchd.stateUnread = true, 100, true
+	s.putKeptPlist(t, s.keptRouter(t))
+
+	got := run(t, s.srv.deps, "service", "status")
+	if want := (result{stdout: "LaunchAgent  " + s.plist + "\nlaunchd      loaded, its state unread\nrouter       healthy, pid 100\n"}); got != want {
+		t.Errorf("switchboard service status = %+v, want %+v", got, want)
+	}
+}
+
 func TestServiceRestartReadsABinaryPlistBack(t *testing.T) {
 	s := newServiceSetup(t)
 	s.launchd.loaded = true

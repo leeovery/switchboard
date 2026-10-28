@@ -162,18 +162,21 @@ func (r *run) handRun(st service.Status, lead, short string) error {
 // plist can't start a router again: leaving a router that answers as it
 // is, as handRun says where it isn't launchd's, and naming service install.
 func (r *run) placeless(ctx context.Context, svc *service.Service, err error) error {
-	st, serr := r.status(ctx, svc)
-	if serr != nil {
-		return serr
-	}
 	unplaced := redact.Text(err.Error())
 	why := fmt.Sprintf("Where the service's router finds its state or its config can't be worked out from its plist (%s)", unplaced)
 	short := "the service's plist: " + unplaced
+	st, err := r.status(ctx, svc)
 	switch {
+	case err != nil:
+		unasked := redact.Text(err.Error())
+		r.Terminal.sayf("%s: %s, installs it afresh. Launchd couldn't be asked about the service: %s", why, installAdvice, unasked)
+		return fmt.Errorf("%s: run switchboard service install: %s", short, unasked)
 	case st.Router != nil && !launchdAnswers(st):
 		return r.handRun(st, why, short)
 	case st.Router != nil:
 		r.Terminal.sayf("%s, though launchd runs its router, %s, which answers: setup leaves it as it is, but the plist can't start a router again, so %s, installs it afresh.", why, pidOf(st.PID), installAdvice)
+	case st.Running:
+		r.Terminal.sayf("%s, and no router answers, while %s: %s, installs it afresh.", why, launchdHas(st), installAdvice)
 	default:
 		r.Terminal.sayf("%s, and no router answers: %s, installs it afresh.", why, installAdvice)
 	}
@@ -235,10 +238,10 @@ func (r *run) unusable(ctx context.Context, unread error) (bool, error) {
 }
 
 // launchdAnswers reports whether the router that answers, as st says, is
-// launchd's: launchd runs one, and, where both the router and launchd say
-// its pid, it's that one.
+// launchd's: launchd runs one, or print didn't say whether it does, and,
+// where both the router and launchd say its pid, it's that one.
 func launchdAnswers(st service.Status) bool {
-	return st.Router != nil && st.Running && (st.Router.PID == 0 || st.PID == 0 || st.Router.PID == st.PID)
+	return st.Router != nil && (st.Running || st.StateUnread) && (st.Router.PID == 0 || st.PID == 0 || st.Router.PID == st.PID)
 }
 
 // launchdHas says what launchd has of the service, as st says, of a router

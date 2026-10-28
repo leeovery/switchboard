@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -855,6 +856,7 @@ func TestTheServiceStepTakesARouterWithoutAPidForLaunchds(t *testing.T) {
 	}{
 		{name: "the router saying no pid", lay: func(w *world) { w.launchd.anonymous = true }},
 		{name: "launchd naming no pid", lay: func(w *world) { w.launchd.pidless = true }},
+		{name: "launchd saying neither its state nor its pid", lay: func(w *world) { w.launchd.stateUnread = true }},
 	}
 	for _, tt := range tests {
 		for name, drifted := range map[string]bool{"as written": false, "its plist differing": true} {
@@ -1079,6 +1081,7 @@ func TestTheServiceStepCantWorkOutThePlacesOfAnEmptyHome(t *testing.T) {
 		installs = "switchboard service install, run from the shell the router should use, installs it afresh.\n"
 		state    = "locate state directory"
 	)
+	unprinted := "launchctl print gui/" + strconv.Itoa(os.Getuid()) + "/io.github.leeovery.switchboard: Could not print: Input/output error (exit status 5)"
 	tests := []struct {
 		name string
 		// key and dir are the variable the plist sets HOME empty in place
@@ -1107,6 +1110,28 @@ func TestTheServiceStepCantWorkOutThePlacesOfAnEmptyHome(t *testing.T) {
 			wantErr: ", and a router run by hand answers: stop it, then run switchboard service install",
 		},
 		{
+			// Launchd's router at a third state directory.
+			name: "the state directory, a router run by hand answering, launchd running another", key: "XDG_STATE_HOME", dir: "state", place: state,
+			lay: func(w *world) {
+				w.launchd.stateDir, w.launchd.byHand, w.launchd.byHandAt = filepath.Join(w.root, "third", "switchboard"), 5000, filepath.Join(w.root, "state", "switchboard")
+			},
+			want: ", and a router run some other way answers, pid 5000, while launchd runs a router, pid 4242, which doesn't answer where setup looks: setup leaves them as they are. " +
+				"Stop the router run by hand, then run switchboard service install.\n",
+			wantErr: ", and a router run by hand answers: stop it, then run switchboard service install",
+		},
+		{
+			name: "the state directory, none answering, launchd running one at a third state directory", key: "XDG_STATE_HOME", dir: "state", place: state,
+			lay:     func(w *world) { w.launchd.stateDir = filepath.Join(w.root, "third", "switchboard") },
+			want:    ", and no router answers, while launchd runs a router, pid 4242, which doesn't answer where setup looks: " + installs,
+			wantErr: ": run switchboard service install",
+		},
+		{
+			name: "the state directory, launchd not to be asked", key: "XDG_STATE_HOME", dir: "state", place: state,
+			lay:     func(w *world) { w.launchd.printFails = true },
+			want:    ": " + strings.TrimSuffix(installs, "\n") + " Launchd couldn't be asked about the service: " + unprinted + "\n",
+			wantErr: ": run switchboard service install: " + unprinted,
+		},
+		{
 			name: "the state directory, none answering", key: "XDG_STATE_HOME", dir: "state", place: state,
 			lay:     func(w *world) { w.launchd.pid = 0 },
 			want:    ", and no router answers: " + installs,
@@ -1127,13 +1152,15 @@ func TestTheServiceStepCantWorkOutThePlacesOfAnEmptyHome(t *testing.T) {
 			tt.lay(w)
 			w.launchd.calls = nil
 
-			shown, err := w.run(t, "")
-			if want := fmt.Sprintf(short, tt.place) + tt.wantErr; err == nil || err.Error() != want {
-				t.Errorf("Run() error = %v, want %q", err, want)
-			}
-			if got, want := section(t, shown, "3. The service"), fmt.Sprintf(why, tt.place)+tt.want; got != want {
-				t.Errorf("the service step showed\n%s\nwant\n%s", got, want)
-			}
+			synctest.Test(t, func(t *testing.T) {
+				shown, err := w.run(t, "")
+				if want := fmt.Sprintf(short, tt.place) + tt.wantErr; err == nil || err.Error() != want {
+					t.Errorf("Run() error = %v, want %q", err, want)
+				}
+				if got, want := section(t, shown, "3. The service"), fmt.Sprintf(why, tt.place)+tt.want; got != want {
+					t.Errorf("the service step showed\n%s\nwant\n%s", got, want)
+				}
+			})
 			if ran := w.launchd.ran(); !slices.Equal(ran, untouched) {
 				t.Errorf("ran launchctl %q, want %q: the service left alone", ran, untouched)
 			}

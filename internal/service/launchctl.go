@@ -85,23 +85,26 @@ func (s *Service) launchctlOutput(ctx context.Context, limit time.Duration, args
 type job struct {
 	// loaded is whether launchd has loaded it, running whether it runs a
 	// router, and pid that router's process id, 0 where none runs or it
-	// can't be read.
-	loaded, running bool
-	pid             int
+	// can't be read; unread is whether print said neither whether one runs
+	// nor its pid, so whether one runs is unknown.
+	loaded, running, unread bool
+	pid                     int
 }
 
-// jobPID and jobRunning are how launchctl print names the process of the
-// job it prints, and says it runs: lines of the job's own, one tab in, which
-// it prints only while one runs.
+// jobPID, jobState and jobRunning are how launchctl print names the process
+// of the job it prints, says its state, and says it runs: lines of the job's
+// own, one tab in, the pid printed only while one runs.
 var (
 	jobPID     = regexp.MustCompile(`(?m)^\tpid = (\d+)$`)
+	jobState   = regexp.MustCompile(`(?m)^\tstate = `)
 	jobRunning = regexp.MustCompile(`(?m)^\tstate = running$`)
 )
 
 // job is the service as launchctl print says launchd has it: loaded where it
 // knows the service, not where it exits unknownService; running where it
 // says the job runs, or names the job's process, as a format it doesn't read
-// may still say one of them.
+// may still say one of them; unread where it says neither its state nor its
+// process.
 func (s *Service) job(ctx context.Context) (job, error) {
 	out, err := s.launchctlOutput(ctx, launchctlTimeout, "print", s.target())
 	if exit, ok := errors.AsType[exitError](err); ok && exit.ExitCode() == unknownService {
@@ -115,6 +118,7 @@ func (s *Service) job(ctx context.Context) (job, error) {
 		j.pid, _ = strconv.Atoi(string(m[1]))
 	}
 	j.running = j.running || j.pid != 0
+	j.unread = j.pid == 0 && !jobState.Match(out)
 	return j, nil
 }
 

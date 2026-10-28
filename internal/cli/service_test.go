@@ -465,10 +465,11 @@ type fakeLaunchd struct {
 	loaded bool
 	// pid is the router's process id, which print names while it's not 0,
 	// as it is once launchd starts one; pidless has print say one runs
-	// without naming its pid, as a format setup can't read might.
-	pid     int
-	pidless bool
-	calls   [][]string
+	// without naming its pid, and stateUnread say neither its state nor its
+	// pid, as formats setup can't read wholly might.
+	pid                  int
+	pidless, stateUnread bool
+	calls                [][]string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -485,12 +486,25 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 		f.loaded, f.pid = false, 0
 	case args[0] == "kickstart":
 		f.start()
-	case args[0] == "print" && f.pid != 0 && f.pidless:
-		return fmt.Appendf(nil, "%s = {\n\tstate = running\n}\n", args[1]), nil
-	case args[0] == "print" && f.pid != 0:
-		return fmt.Appendf(nil, "%s = {\n\tstate = running\n\tpid = %d\n}\n", args[1], f.pid), nil
+	case args[0] == "print":
+		return f.printed(args[1]), nil
 	}
 	return nil, nil
+}
+
+// printed is what launchctl print prints of the job target, trimmed to
+// what matters: whether the router runs, and its pid, as the formats set.
+func (f *fakeLaunchd) printed(target string) []byte {
+	state := "\tstate = not running\n"
+	switch {
+	case f.stateUnread:
+		state = ""
+	case f.pid != 0 && f.pidless:
+		state = "\tstate = running\n"
+	case f.pid != 0:
+		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
+	}
+	return []byte(target + " = {\n" + state + "}\n")
 }
 
 // start starts srv's router, and with probed set, waits for its probes.

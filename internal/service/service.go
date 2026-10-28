@@ -356,9 +356,10 @@ type Status struct {
 	// has loaded it.
 	Installed, Loaded bool
 	// Running is whether launchd runs a router, as launchctl print says, and
-	// PID its process id, 0 where none runs or it can't be read.
-	Running bool
-	PID     int
+	// PID its process id, 0 where none runs or it can't be read; StateUnread
+	// is whether print said neither, so whether one runs is unknown.
+	Running, StateUnread bool
+	PID                  int
 	// Router is the answer of the first router to answer its health check,
 	// or nil when none did, and RouterErr then says why the one at its state
 	// directory didn't. Elsewhere is whether the one that answered isn't
@@ -378,7 +379,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	st.Loaded, st.Running, st.PID = j.loaded, j.running, j.pid
+	st.Loaded, st.Running, st.StateUnread, st.PID = j.loaded, j.running, j.unread, j.pid
 	if h, i, err := s.answering(ctx); i >= 0 {
 		st.Router, st.Elsewhere = &h, i > 0
 	} else {

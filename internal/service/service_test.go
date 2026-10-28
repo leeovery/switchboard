@@ -870,6 +870,8 @@ func TestStatus(t *testing.T) {
 		pid       int
 		pidless   bool
 		stateless bool
+		unread    bool
+		waiting   bool
 		answer    func(asked int) (router.Health, error)
 		want      service.Status
 	}{
@@ -906,6 +908,22 @@ func TestStatus(t *testing.T) {
 			want:      service.Status{Installed: true, Loaded: true, Running: true, PID: 4242, RouterErr: errNotRunning},
 		},
 		{
+			name:      "loaded, launchd saying neither its state nor its router's pid",
+			installed: true,
+			loaded:    true,
+			unread:    true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, StateUnread: true, RouterErr: errNotRunning},
+		},
+		{
+			name:      "loaded, launchd saying its router waits",
+			installed: true,
+			loaded:    true,
+			waiting:   true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, RouterErr: errNotRunning},
+		},
+		{
 			name:      "loaded, none running",
 			installed: true,
 			loaded:    true,
@@ -922,7 +940,8 @@ func TestStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSetup(t, nil, tt.answer)
 			s.launchctl.loaded, s.launchctl.pid = tt.loaded, tt.pid
-			s.launchctl.pidless, s.launchctl.stateless = tt.pidless, tt.stateless
+			s.launchctl.pidless, s.launchctl.stateless, s.launchctl.stateUnread = tt.pidless, tt.stateless, tt.unread
+			s.launchctl.waiting = tt.waiting
 			if tt.installed {
 				s.putPlist(t, "<plist/>\n")
 			}
@@ -1220,11 +1239,12 @@ type fakeLaunchctl struct {
 	cantRun error
 	// pid is the router's process id, which print names while it's not 0;
 	// pidless has print say a router runs without naming its pid, and
-	// stateless name its pid without saying it runs, as formats setup can't
-	// read wholly might.
-	pid                int
-	pidless, stateless bool
-	calls              [][]string
+	// stateless name its pid without saying it runs, and stateUnread say
+	// neither, as formats setup can't read wholly might; waiting has it say
+	// the job waits.
+	pid                                      int
+	pidless, stateless, stateUnread, waiting bool
+	calls                                    [][]string
 }
 
 // exit is the status this run of subcommand exits with, as exits and fails
@@ -1286,6 +1306,10 @@ func (f *fakeLaunchctl) printed(target string) []byte {
 		state = "\tstate = running\n"
 	case f.stateless:
 		state = fmt.Sprintf("\tpid = %d\n", f.pid)
+	case f.stateUnread:
+		state = ""
+	case f.waiting:
+		state = "\tstate = waiting\n"
 	case f.pid != 0:
 		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
 	}

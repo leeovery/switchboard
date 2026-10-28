@@ -485,13 +485,15 @@ type fakeLaunchd struct {
 	// byHand is the pid of a router run by hand, answering with its state
 	// in byHandAt, else where the router launchd runs would have it, in its
 	// place, which print doesn't name; 0 for none. anonymous has the
-	// routers answer without their pids, and pidless has print say launchd runs
-	// one without naming its pid, as a format setup can't read might.
-	byHand    int
-	byHandAt  string
-	anonymous bool
-	pidless   bool
-	old       bool
+	// routers answer without their pids. pidless has print say launchd runs
+	// one without naming its pid, and stateUnread say neither its state nor
+	// its pid, as formats setup can't read wholly might; printFails has
+	// print fail, as launchctl erring does.
+	byHand                           int
+	byHandAt                         string
+	anonymous                        bool
+	pidless, stateUnread, printFails bool
+	old                              bool
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
 	pid        int
@@ -514,12 +516,27 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 		f.loaded, f.pid = false, 0
 	case args[0] == "kickstart", args[0] == "kill":
 		f.start()
-	case args[0] == "print" && f.pid != 0 && f.pidless:
-		return fmt.Appendf(nil, "%s = {\n\tstate = running\n}\n", args[1]), nil
-	case args[0] == "print" && f.pid != 0:
-		return fmt.Appendf(nil, "%s = {\n\tstate = running\n\tpid = %d\n}\n", args[1], f.pid), nil
+	case args[0] == "print" && f.printFails:
+		return []byte("Could not print: Input/output error\n"), exitStatus(5)
+	case args[0] == "print":
+		return f.printed(args[1]), nil
 	}
 	return nil, nil
+}
+
+// printed is what launchctl print prints of the job target, trimmed to
+// what matters: whether the router runs, and its pid, as the formats set.
+func (f *fakeLaunchd) printed(target string) []byte {
+	state := "\tstate = not running\n"
+	switch {
+	case f.stateUnread:
+		state = ""
+	case f.pid != 0 && f.pidless:
+		state = "\tstate = running\n"
+	case f.pid != 0:
+		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
+	}
+	return []byte(target + " = {\n" + state + "}\n")
 }
 
 func (f *fakeLaunchd) start() {

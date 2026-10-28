@@ -258,6 +258,8 @@ func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
 		loaded = fmt.Sprintf("loaded, running pid %d", st.PID)
 	case st.Running:
 		loaded = "loaded, running"
+	case st.StateUnread:
+		loaded = "loaded, its state unread"
 	case st.Loaded:
 		loaded = "loaded, not running"
 	}
