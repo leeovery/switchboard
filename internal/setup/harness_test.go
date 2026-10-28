@@ -626,6 +626,9 @@ type fakeLaunchd struct {
 	// version is the version the routers answer with, and unhealthy why
 	// they answer unhealthy: "" for healthy.
 	version, unhealthy string
+	// slow is how long the running router takes to answer: an ask given
+	// less time, as its context's deadline says, goes unanswered at once.
+	slow time.Duration
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
 	pid        int
@@ -746,7 +749,10 @@ func (f *fakeLaunchd) ran() []string {
 	return subcommands
 }
 
-func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
+func (f *fakeLaunchd) Health(ctx context.Context) (router.Health, error) {
+	if deadline, ok := ctx.Deadline(); f.slow > 0 && (!ok || time.Until(deadline) < f.slow) {
+		return router.Health{}, fmt.Errorf("ask the router: %w", context.DeadlineExceeded)
+	}
 	unanswered := f.unanswered > 0
 	f.unanswered = max(f.unanswered-1, 0)
 	if f.pid == 0 || unanswered {

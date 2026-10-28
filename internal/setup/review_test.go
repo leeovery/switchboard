@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/setup"
@@ -159,6 +161,8 @@ func TestReviewOfFrame3(t *testing.T) {
 	if asked := api.askedOf(); len(asked) != 0 {
 		t.Errorf("the review asked the API about %d tokens, want none: it shows at once", len(asked))
 	}
+	healthy := setup.RouterStanding{State: setup.RouterHealthy}
+	checkLine(t, healthy, review, setup.Part{Standing: setup.PartUp, Words: "router up, healthy"}, setup.Part{Standing: setup.PartTold, Words: "3 accounts, checking…"})
 
 	want := []setup.Reviewed{
 		{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking, Organization: "org-work"}},
@@ -185,8 +189,14 @@ func TestReviewOfFrame3(t *testing.T) {
 	if got := review.Notes(); !slices.Equal(got, notes) {
 		t.Errorf("the notes are\n%+v\nwant\n%+v", got, notes)
 	}
-	if got, want := review.Part(), (setup.Part{Standing: setup.PartTold, Words: "3 accounts, 2 working"}); got != want {
-		t.Errorf("the accounts' part is %+v, want %+v", got, want)
+	checkLine(t, healthy, review, setup.Part{Standing: setup.PartUp, Words: "router up, healthy"}, setup.Part{Standing: setup.PartTold, Words: "3 accounts, 2 working"})
+}
+
+// checkLine checks the status line of the router and the review is want.
+func checkLine(t *testing.T, rt setup.RouterStanding, review setup.Review, want ...setup.Part) {
+	t.Helper()
+	if got := setup.StatusLine(rt, review); !slices.Equal(got, want) {
+		t.Errorf("the status line is %+v, want %+v", got, want)
 	}
 }
 
@@ -243,7 +253,9 @@ func TestReviewsNotes(t *testing.T) {
 	}{
 		{"no token", setup.TokenStanding{}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
 		{"refused", setup.TokenStanding{State: setup.TokenRefused, Year: gone}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
+		{"unreadable", setup.TokenStanding{State: setup.TokenUnreadable, Why: "the token file <path> isn't a file: replace it with one holding the token"}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has a token setup can't read: the token file <path> isn't a file: replace it with one holding the token.", Press: "Put that right, or press t to create a new one, approving it in the browser signed in to Work.", Key: "t"}}},
 		{"unchecked, kept", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529"}, nil},
+		{"unchecked, in its last 30 days", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529", Year: lastDay}, []setup.Note{{Need: setup.NeedNewToken, Account: "work", Says: "has a token that expires 27 Oct 2026: last day.", Press: newToken, Key: "t"}}},
 		{"working, its date unknown", working(status.TokenYear{}), nil},
 		{"31 days left", working(ample), nil},
 		{"30 days left", working(status.TokenYear{GoodUntil: frameClock.AddDate(0, 0, 30)}), []setup.Note{{Need: setup.NeedNewToken, Account: "work", Says: "has a token that expires 26 Nov 2026: 30 days left.", Press: newToken, Key: "t"}}},
@@ -255,6 +267,73 @@ func TestReviewsNotes(t *testing.T) {
 			review := setup.Review{At: frameClock, Accounts: []setup.Reviewed{{ID: "work", Label: "Work", Plan: "pro", Primary: true, Token: tt.token}}}
 			if got := review.Notes(); !slices.Equal(got, tt.want) {
 				t.Errorf("the notes are\n%+v\nwant\n%+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReviewsNotesByAccount(t *testing.T) {
+	ending := setup.TokenStanding{State: setup.TokenWorking, Year: status.TokenYear{GoodUntil: frameClock.AddDate(0, 0, 21)}}
+	review := setup.Review{At: frameClock, Unmarked: true, Accounts: []setup.Reviewed{
+		{ID: "plain", Label: "Plain", Token: setup.TokenStanding{State: setup.TokenWorking}},
+		{ID: "work", Label: "Work", Token: ending},
+		{ID: "personal", Label: "Personal", Plan: "pro", Token: ending},
+		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenRefused}},
+	}}
+	var got []string
+	for _, note := range review.Notes() {
+		got = append(got, fmt.Sprintf("%s %d", note.Account, note.Need))
+	}
+	want := []string{
+		fmt.Sprintf(" %d", setup.NeedPrimary),
+		fmt.Sprintf("side %d", setup.NeedToken),
+		fmt.Sprintf("work %d", setup.NeedNewToken),
+		fmt.Sprintf("work %d", setup.NeedPlan),
+		fmt.Sprintf("personal %d", setup.NeedNewToken),
+		fmt.Sprintf("plain %d", setup.NeedPlan),
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("the notes go %q, want %q: the primary's first, then each account's together, by its most pressing", got, want)
+	}
+}
+
+func TestReviewOfAnUnreadableToken(t *testing.T) {
+	tests := []struct {
+		name  string
+		place func(w *world)
+		// state is how the token stands, and why says, in part, why.
+		state setup.TokenState
+		why   string
+	}{
+		{"others can read it", func(w *world) { writeFile(t, w.tokens().Path("work"), workToken+"\n", 0o644) }, setup.TokenUnreadable, "chmod 600"},
+		{"a directory", func(w *world) { mkdir(t, w.tokens().Path("work")) }, setup.TokenUnreadable, "isn't a file"},
+		{"empty", func(w *world) { writeFile(t, w.tokens().Path("work"), "", 0o600) }, setup.NoToken, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.writeConfig(t, "[[account]]\nid = \"work\"\n")
+			tt.place(w)
+			api := &checkingAPI{}
+			s := w.reviewing(t, api)
+			review, err := s.Review()
+			if err != nil {
+				t.Fatal(err)
+			}
+			row, err := s.ReviewOf(t.Context(), "work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, got := range []setup.TokenStanding{review.Accounts[0].Token, row.Token} {
+				if got.State != tt.state || !strings.Contains(got.Why, tt.why) || (tt.why == "") != (got.Why == "") {
+					t.Errorf("the token stands %d, why %q, want %d, why with %q", got.State, got.Why, tt.state, tt.why)
+				}
+			}
+			if row.Token.Working() {
+				t.Error("a token that can't be read is working")
+			}
+			if asked := api.askedOf(); len(asked) != 0 {
+				t.Errorf("asked the API about %d tokens, want none, with none read", len(asked))
 			}
 		})
 	}
@@ -417,16 +496,19 @@ func TestAccountsPart(t *testing.T) {
 		review setup.Review
 		want   string
 	}{
-		{"one, working", with(setup.TokenWorking), "1 account, all working"},
-		{"all working, or read, or unchecked", with(setup.TokenWorking, setup.TokenRead, setup.TokenUnchecked), "3 accounts, all working"},
+		{"one, working", with(setup.TokenWorking), "1 account, working"},
+		{"one, unchecked", with(setup.TokenUnchecked), "1 account, working"},
+		{"one, refused", with(setup.TokenRefused), "1 account, none working"},
+		{"one, checking", with(setup.TokenRead), "1 account, checking…"},
+		{"all working or unchecked", with(setup.TokenWorking, setup.TokenWorking, setup.TokenUnchecked), "3 accounts, all working"},
 		{"one refused", with(setup.TokenWorking, setup.TokenWorking, setup.TokenRefused), "3 accounts, 2 working"},
-		{"none working", with(setup.NoToken, setup.TokenRefused), "2 accounts, 0 working"},
+		{"one still checking", with(setup.TokenWorking, setup.TokenRead, setup.TokenRefused), "3 accounts, checking…"},
+		{"none working", with(setup.NoToken, setup.TokenRefused, setup.TokenUnreadable), "3 accounts, none working"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, want := tt.review.Part(), (setup.Part{Standing: setup.PartTold, Words: tt.want}); got != want {
-				t.Errorf("the accounts' part is %+v, want %+v", got, want)
-			}
+			down := setup.RouterStanding{}
+			checkLine(t, down, tt.review, setup.Part{Standing: setup.PartDown, Words: "router not running yet"}, setup.Part{Standing: setup.PartTold, Words: tt.want})
 		})
 	}
 }
@@ -441,47 +523,80 @@ func TestStatusLine(t *testing.T) {
 		want   []setup.Part
 	}{
 		{"healthy", setup.RouterStanding{State: setup.RouterHealthy}, two, []setup.Part{{Standing: setup.PartUp, Words: "router up, healthy"}, accountsPart}},
-		{"unhealthy", setup.RouterStanding{State: setup.RouterUnhealthy, Reason: "failed 5 of 6 requests"}, two, []setup.Part{{Standing: setup.PartUp, Words: "router up, unhealthy: failed 5 of 6 requests"}, accountsPart}},
+		{"unhealthy", setup.RouterStanding{State: setup.RouterUnhealthy, Reason: "failed 5 of 6 requests"}, two, []setup.Part{{Standing: setup.PartWarning, Words: "router up, unhealthy: failed 5 of 6 requests"}, accountsPart}},
 		{"not running", setup.RouterStanding{}, two, []setup.Part{{Standing: setup.PartDown, Words: "router not running yet"}, accountsPart}},
 		{"up, with no account", setup.RouterStanding{State: setup.RouterHealthy}, setup.Review{}, []setup.Part{{Standing: setup.PartUp, Words: "router up, healthy"}}},
 		{"nothing", setup.RouterStanding{}, setup.Review{}, []setup.Part{{Standing: setup.PartDown, Words: "nothing set up yet"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := setup.StatusLine(tt.router, tt.review); !slices.Equal(got, tt.want) {
-				t.Errorf("the status line is %+v, want %+v", got, tt.want)
-			}
+			checkLine(t, tt.router, tt.review, tt.want...)
 		})
 	}
 }
 
 func TestStanding(t *testing.T) {
+	healthy := setup.RouterStanding{State: setup.RouterHealthy}
+	down := setup.RouterStanding{State: setup.RouterDown}
 	tests := []struct {
 		name string
-		// running starts the service's router, answering unhealthy why it
-		// says: "" for healthy.
-		running   bool
-		unhealthy string
-		want      setup.RouterStanding
+		// arrange sets the world up before setup is made in it.
+		arrange func(t *testing.T, w *world)
+		want    setup.RouterStanding
 	}{
-		{"not running", false, "", setup.RouterStanding{State: setup.RouterDown}},
-		{"healthy", true, "", setup.RouterStanding{State: setup.RouterHealthy}},
-		{"unhealthy", true, "failed 5 of 6 requests", setup.RouterStanding{State: setup.RouterUnhealthy, Reason: "failed 5 of 6 requests"}},
+		{"not running", func(*testing.T, *world) {}, down},
+		{"healthy", func(t *testing.T, w *world) { w.installService(t, w.switchboard) }, healthy},
+		{"unhealthy", func(t *testing.T, w *world) {
+			w.launchd.unhealthy = "failed 5 of 6 requests"
+			w.installService(t, w.switchboard)
+		}, setup.RouterStanding{State: setup.RouterUnhealthy, Reason: "failed 5 of 6 requests"}},
+		{"the installed plist's router, its state elsewhere than this shell's", func(t *testing.T, w *world) {
+			w.installService(t, w.switchboard)
+			w.env["XDG_STATE_HOME"] = filepath.Join(w.root, "elsewhere")
+		}, healthy},
+		{"this shell's router, with no plist", func(_ *testing.T, w *world) { byHandHere(w) }, healthy},
+		{"this shell's router, the plist unreadable", func(t *testing.T, w *world) {
+			writeFile(t, w.plist(), "not a plist", 0o644)
+			byHandHere(w)
+		}, healthy},
+		{"slower than 2s, within launch's wait", func(t *testing.T, w *world) {
+			w.installService(t, w.switchboard)
+			w.launchd.slow = launch.AskTimeout - time.Second
+		}, healthy},
+		{"slower than launch waits", func(t *testing.T, w *world) {
+			w.installService(t, w.switchboard)
+			w.launchd.slow = launch.AskTimeout + time.Second
+		}, down},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t)
-			w.launchd.unhealthy = tt.unhealthy
-			if tt.running {
-				w.installService(t, w.switchboard)
-			}
-			if got := w.reviewing(t, &checkingAPI{}).Standing(t.Context()); got != tt.want {
-				t.Errorf("Standing is %+v, want %+v", got, tt.want)
+			tt.arrange(t, w)
+			got, err := w.reviewing(t, &checkingAPI{}).Standing(t.Context())
+			if err != nil || got != tt.want {
+				t.Errorf("Standing is %+v (%v), want %+v", got, err, tt.want)
 			}
 			if ran := w.launchd.ran(); len(ran) != 0 {
 				t.Errorf("Standing ran launchctl %q, want nothing: it only asks the router", ran)
 			}
 		})
+	}
+}
+
+// byHandHere has a router run by hand answer where this shell keeps its
+// state, as no plist puts it.
+func byHandHere(w *world) {
+	w.launchd.byHand = 4300
+	w.launchd.byHandAt = w.state
+}
+
+func TestStandingOnceItsContextIsDone(t *testing.T) {
+	w := newWorld(t)
+	w.installService(t, w.switchboard)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if got, err := w.reviewing(t, &checkingAPI{}).Standing(ctx); !errors.Is(err, context.Canceled) {
+		t.Errorf("Standing once its context is done is %+v (%v), want %v", got, err, context.Canceled)
 	}
 }
 
@@ -509,9 +624,12 @@ func TestReviewTellsNoToken(t *testing.T) {
 	t.Cleanup(func() { logs.Close(0) })
 
 	w := frame3(t)
-	w.writeConfig(t, frameConfig+"\n[[account]]\nid = \"down\"\n\n[[account]]\nid = \"slow\"\n")
-	w.writeToken(t, "down", downToken)
+	w.writeConfig(t, frameConfig+"\n[[account]]\nid = \"down\"\n\n[[account]]\nid = \"slow\"\n\n[[account]]\nid = \"loose\"\n")
+	// down's token is unchecked, in its last 30 days, so its note tells its
+	// year; loose's, others can read, so its note tells why it can't be read.
+	w.writeTokenTaken(t, "down", downToken, personalUntil.Add(-claude.SetupTokenLifetime))
 	w.writeToken(t, "slow", slowToken)
+	writeFile(t, w.tokens().Path("loose"), slowToken+"\n", 0o644)
 	writeFile(t, w.tokens().Path("work")+".taken", "taken "+workToken+"\n", 0o600)
 	s := w.reviewing(t, &checkingAPI{})
 
@@ -521,10 +639,17 @@ func TestReviewTellsNoToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	told = append(told, fmt.Sprintf("%+v", review))
-	for _, id := range []string{"work", "personal", "side", "down", "slow", "elsewhere"} {
+	var checked []setup.Reviewed
+	for _, id := range []string{"work", "personal", "side", "down", "slow", "loose", "elsewhere"} {
 		row, err := s.ReviewOf(t.Context(), id)
 		told = append(told, fmt.Sprintf("%+v %v", row, err))
+		if err == nil {
+			checked = append(checked, row)
+		}
 	}
+	review.Accounts = checked
+	notes := review.Notes()
+	told = append(told, fmt.Sprintf("%+v", notes), fmt.Sprintf("%+v", setup.StatusLine(setup.RouterStanding{}, review)))
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err = s.ReviewOf(ctx, "down")
@@ -535,5 +660,12 @@ func TestReviewTellsNoToken(t *testing.T) {
 				t.Errorf("the review told a token, %s, in %q", token, said)
 			}
 		}
+	}
+	if !strings.Contains(logged.String(), "not going by the record of when the token was taken") {
+		t.Errorf("the log has no line of work's record it can't go by, so it wasn't seen:\n%s", logged.String())
+	}
+	if !slices.ContainsFunc(notes, func(n setup.Note) bool { return n.Account == "down" && n.Need == setup.NeedNewToken }) ||
+		!slices.ContainsFunc(notes, func(n setup.Note) bool { return n.Account == "loose" && strings.Contains(n.Says, "chmod 600") }) {
+		t.Errorf("the notes are %+v, want down's year and why loose's token can't be read among them", notes)
 	}
 }

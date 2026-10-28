@@ -60,17 +60,16 @@ func (s *Setup) Service(ctx context.Context) (Serviced, error) {
 // the router the service runs, as leaves says, it leaves the service as it
 // is.
 func (r *run) service(ctx context.Context) error {
-	installed, err := r.LaunchAgent.Options(ctx)
+	plist := r.readPlist(ctx)
 	switch {
-	case errors.Is(err, fs.ErrNotExist):
+	case errors.Is(plist.unread, fs.ErrNotExist):
 		return r.installFirst(ctx)
-	case err != nil:
-		return r.reinstallUnread(ctx, err)
+	case plist.unread != nil:
+		return r.reinstallUnread(ctx, plist.unread)
+	case plist.placeless != nil:
+		return r.placeless(ctx, r.LaunchAgent, plist.placeless)
 	}
-	svc, err := r.LaunchAgent.For(installed)
-	if err != nil {
-		return r.placeless(ctx, r.LaunchAgent, err)
-	}
+	svc, installed := plist.svc, plist.options
 	opts, given, err := r.configured(svc, installed)
 	if err != nil {
 		return err

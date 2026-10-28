@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -17,8 +19,12 @@ import (
 type TokenState int
 
 const (
-	// NoToken is an account whose token file holds no usable token.
+	// NoToken is an account without a token: its token file is missing, or
+	// holds nothing.
 	NoToken TokenState = iota
+	// TokenUnreadable is a token file there that can't be read, as one others
+	// can read, or one holding more than a token.
+	TokenUnreadable
 	// TokenRead is a token read from its file, not yet checked with the API.
 	TokenRead
 	// TokenWorking is a token the API takes.
@@ -33,20 +39,21 @@ const (
 type TokenStanding struct {
 	State TokenState
 	// Year is the token's year, as its record says: zero where there's no
-	// token, or no record of when it was taken.
+	// token read, or no record of when it was taken.
 	Year status.TokenYear
-	// Why is why the API didn't answer for it, with nothing shaped like a
-	// token in it: "" but for TokenUnchecked.
+	// Why is why its file can't be read, or why the API didn't answer for
+	// it, with nothing shaped like a token in it: "" but for TokenUnreadable
+	// and TokenUnchecked.
 	Why string
 	// Organization is the id of the organization the API's answer named the
 	// token's account in: "" where it named none, or wasn't asked.
 	Organization string
 }
 
-// Working reports whether the account has a token the API hasn't refused:
-// one read and not yet checked, or one it didn't answer for, counts.
+// Working reports whether the account has a token read that the API hasn't
+// refused: one not yet checked, or one it didn't answer for, counts.
 func (t TokenStanding) Working() bool {
-	return t.State != NoToken && t.State != TokenRefused
+	return t.State == TokenRead || t.State == TokenWorking || t.State == TokenUnchecked
 }
 
 // Reviewed is an account as setup's review shows it, a row of its table.
@@ -113,7 +120,7 @@ func (s *Setup) ReviewOf(ctx context.Context, id string) (Reviewed, error) {
 		return Reviewed{}, config.NotConfigured(id)
 	}
 	row, token := s.reviewed(cfg.Accounts[i], len(cfg.Accounts) > 1 && !draft.MarksPrimary())
-	if row.Token.State == NoToken {
+	if row.Token.State != TokenRead {
 		return row, nil
 	}
 	checked, err := s.Accounts.Check(ctx, token)
@@ -136,7 +143,11 @@ func (s *Setup) ReviewOf(ctx context.Context, id string) (Reviewed, error) {
 func (s *Setup) reviewed(a config.Account, unmarked bool) (Reviewed, tokens.Token) {
 	row := Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Reserve: a.Reserve, Primary: a.Primary && !unmarked}
 	token, err := s.Accounts.Tokens.Read(a.ID)
-	if err != nil {
+	switch {
+	case errors.Is(err, tokens.ErrMissing):
+		return row, tokens.Token{}
+	case err != nil:
+		row.Token = TokenStanding{State: TokenUnreadable, Why: redact.Text(err.Error())}
 		return row, tokens.Token{}
 	}
 	row.Token = TokenStanding{State: TokenRead, Year: s.yearOf(a.ID, token)}
@@ -166,7 +177,8 @@ func (s *Setup) now() time.Time {
 	return s.Accounts.Now()
 }
 
-// Need is what an account is missing, which a note under the review says.
+// Need is what an account is missing, which a note under the review says,
+// the most pressing first.
 type Need int
 
 const (
@@ -194,8 +206,9 @@ type Note struct {
 }
 
 // Notes are what the review's accounts are missing: the primary first, then
-// each kind of need in turn, by the accounts' order, so an account's token's
-// year comes before its plan.
+// each account's notes together, its token's before its plan's. Accounts go
+// by their most pressing need, so those without a working token come first,
+// and then in the config's order.
 func (r Review) Notes() []Note {
 	var notes []Note
 	if r.Unmarked {
@@ -206,29 +219,36 @@ func (r Review) Notes() []Note {
 			Key:   "p",
 		})
 	}
-	for _, need := range []Need{NeedToken, NeedNewToken, NeedPlan} {
-		for _, a := range r.Accounts {
-			if note, ok := r.note(a, need); ok {
-				notes = append(notes, note)
-			}
+	var each [][]Note
+	for _, a := range r.Accounts {
+		if its := r.notesOf(a); len(its) > 0 {
+			each = append(each, its)
 		}
 	}
-	return notes
+	slices.SortStableFunc(each, func(a, b []Note) int { return cmp.Compare(a[0].Need, b[0].Need) })
+	return append(notes, slices.Concat(each...)...)
 }
 
-// note is the note of the account's need, reporting whether it has it.
-func (r Review) note(a Reviewed, need Need) (Note, bool) {
-	newToken := "Press t to create a new one, approving it in the browser signed in to " + a.Label + "."
-	year := a.Token.Year
-	switch {
-	case need == NeedToken && !a.Token.Working():
-		return Note{Need: need, Account: a.ID, Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}, true
-	case need == NeedNewToken && a.Token.Working() && year.EndsWithin(r.At, status.TokenWarning):
-		return Note{Need: need, Account: a.ID, Says: "has a token that " + yearEnding(year, r.At) + ".", Press: newToken, Key: "t"}, true
-	case need == NeedPlan && a.Plan == "":
-		return Note{Need: need, Account: a.ID, Says: "has no plan set, so History can't value its usage.", Press: "Press e to set one.", Key: "e"}, true
+// notesOf are the account's notes, its token's first.
+func (r Review) notesOf(a Reviewed) []Note {
+	approving := "create a new one, approving it in the browser signed in to " + a.Label + "."
+	newToken := Note{Need: NeedToken, Account: a.ID, Press: "Press t to " + approving, Key: "t"}
+	var notes []Note
+	switch year := a.Token.Year; {
+	case a.Token.State == TokenUnreadable:
+		newToken.Says, newToken.Press = "has a token setup can't read: "+a.Token.Why+".", "Put that right, or press t to "+approving
+		notes = append(notes, newToken)
+	case !a.Token.Working():
+		newToken.Says = "has no working token, so no requests are routed to it."
+		notes = append(notes, newToken)
+	case year.EndsWithin(r.At, status.TokenWarning):
+		newToken.Need, newToken.Says = NeedNewToken, "has a token that "+yearEnding(year, r.At)+"."
+		notes = append(notes, newToken)
 	}
-	return Note{}, false
+	if a.Plan == "" {
+		notes = append(notes, Note{Need: NeedPlan, Account: a.ID, Says: "has no plan set, so History can't value its usage.", Press: "Press e to set one.", Key: "e"})
+	}
+	return notes
 }
 
 // yearEnding says when a token's year ends, at now, and the days left of it
@@ -241,19 +261,33 @@ func yearEnding(year status.TokenYear, now time.Time) string {
 	return ends
 }
 
-// Part is the accounts' part of setup's status line: how many there are, and
-// how many have working tokens, such as "3 accounts, 2 working", or "3
-// accounts, all working".
-func (r Review) Part() Part {
+// part is the accounts' part of setup's status line, of one account or
+// more: how many there are, and how many have working tokens, as working
+// says, such as "3 accounts, 2 working".
+func (r Review) part() Part {
+	return Part{Standing: PartTold, Words: prose.Counted(len(r.Accounts), "account") + ", " + r.working()}
+}
+
+// working says how many of the accounts have working tokens: "checking…"
+// while any is read but not yet checked; else "all working", or "working"
+// of one; "none working"; or how many, as "2 working".
+func (r Review) working() string {
+	if slices.ContainsFunc(r.Accounts, func(a Reviewed) bool { return a.Token.State == TokenRead }) {
+		return "checking…"
+	}
 	working := 0
 	for _, a := range r.Accounts {
 		if a.Token.Working() {
 			working++
 		}
 	}
-	words := prose.Grouped(working) + " working"
-	if working == len(r.Accounts) {
-		words = "all working"
+	switch {
+	case working == 0:
+		return "none working"
+	case working < len(r.Accounts):
+		return prose.Grouped(working) + " working"
+	case working == 1:
+		return "working"
 	}
-	return Part{Standing: PartTold, Words: prose.Counted(len(r.Accounts), "account") + ", " + words}
+	return "all working"
 }
