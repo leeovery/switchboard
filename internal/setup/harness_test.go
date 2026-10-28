@@ -72,8 +72,10 @@ type world struct {
 	shellDir string
 	env      map[string]string
 	login    *fakeLogin
-	launchd  *fakeLaunchd
-	api      *fakeAPI
+	// interrupt is the user's interrupting setup as it asks the login shell.
+	interrupt context.CancelFunc
+	launchd   *fakeLaunchd
+	api       *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -124,10 +126,11 @@ func (w *world) shellFiles() shell.Files {
 	}}
 }
 
-// startupFile is the startup file of the user's shell, as $SHELL names it.
+// startupFile is the startup file of the user's shell, as $SHELL names it,
+// where the shell reads it.
 func (w *world) startupFile() string {
 	sh, _ := shell.Of(w.env["SHELL"])
-	return shell.StartupFile(sh, w.getenv, w.home)
+	return shell.StartupFile(sh, w.getenv, w.home, w.login.configDir)
 }
 
 // line is switchboard's line for the user's shell, as $SHELL names it.
@@ -173,6 +176,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Shells:       w.shellFiles(),
 		Login:        w.login,
 		Getenv:       w.getenv,
+		Interrupt:    w.interruptible,
 		Skill:        w.skill,
 		Usage: func(_ context.Context, out io.Writer) error {
 			_, err := io.WriteString(out, "(every account's usage)\n")
@@ -225,34 +229,54 @@ func (w *world) done(t *testing.T) {
 	}
 }
 
-// fakeLogin is the user's login shell, as a new terminal starts it. It runs
-// switchboard's claude link where switchboard's line is in its startup
-// file, and the file the line reads is there, unless overridden is set, as
-// something after the line changes PATH; and otherwise the real claude. Its
-// answers, while it has some, come first, in turn, as the user puts
-// switchboard's bin directory on PATH by hand meanwhile.
+// fakeLogin is the user's login shell, as a new terminal starts it. Its PATH
+// finds switchboard's claude link where switchboard's line is in its
+// startup file, reading this switchboard's file for it, which is there,
+// unless overridden is set, as something after the line changes PATH; and
+// otherwise the real claude. It reads its startup file from configDir, where
+// that's set, which it says, and front, where set, stands in front of
+// PATH's claude. Its answers, while it has some, come first, in turn, as the
+// user puts switchboard's bin directory on PATH by hand meanwhile; and where
+// interrupted is set, the user interrupts its asking.
 type fakeLogin struct {
-	w          *world
-	overridden bool
-	answers    []shell.Answer
+	w           *world
+	overridden  bool
+	configDir   string
+	front       string
+	answers     []shell.Answer
+	interrupted bool
 	// asked are the links it was asked about, in turn.
 	asked []string
 }
 
-func (f *fakeLogin) Which(_ context.Context, link string) shell.Answer {
+func (f *fakeLogin) Which(ctx context.Context, link string) shell.Answer {
 	f.asked = append(f.asked, link)
+	if f.interrupted {
+		f.w.interrupt()
+		return shell.Answer{Why: context.Cause(ctx).Error()}
+	}
 	if len(f.answers) > 0 {
 		answer := f.answers[0]
 		f.answers = f.answers[1:]
 		return answer
 	}
+	answer := shell.Answer{Kind: shell.Other, Claude: f.w.realClaude, Front: f.front, ConfigDir: f.configDir}
 	if sh, known := shell.Of(f.w.env["SHELL"]); known && !f.overridden {
-		_, err := os.Stat(shell.InitFile(f.w.shellDir, sh))
-		if has, _ := shell.HasLine(sh, f.w.startupFile()); has && err == nil {
-			return shell.Answer{Kind: shell.Link}
+		init := shell.InitFile(f.w.shellDir, sh)
+		_, err := os.Stat(init)
+		if reads, _ := shell.FindLine(sh, f.w.startupFile(), f.w.home); reads == init && err == nil {
+			answer.Kind, answer.Claude = shell.Link, ""
 		}
 	}
-	return shell.Answer{Kind: shell.Other, Claude: f.w.realClaude}
+	return answer
+}
+
+// interruptible is setup's way of taking an interrupt in the world: the
+// user's interrupting, as interrupt does.
+func (w *world) interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx)
+	w.interrupt = cancel
+	return ctx, cancel
 }
 
 // installService installs the LaunchAgent to run the switchboard at binary,

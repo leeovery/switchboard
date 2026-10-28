@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -16,15 +15,19 @@ import (
 // mark ends switchboard's line in a startup file, so it's found again.
 const mark = "# switchboard"
 
+// homeVariable begins a path written from the home.
+const homeVariable = "$HOME/"
+
 // Line returns switchboard's line for sh's startup file, which sources
 // initFile, sh's file of switchboard's, when it's there: initFile is written
-// from $HOME when it's in home. The line leaves the status as it was when the
-// file isn't there, as the last line of .zshrc sets the first prompt's.
+// from $HOME when it's in home. Where the file isn't there, the line ends
+// with a status of 0, not the failed test's, as the last line of .zshrc sets
+// the first prompt's.
 func Line(sh Shell, initFile, home string) string {
 	quote := doubleQuoted(sh)
 	written := quote(initFile)
 	if rel, err := filepath.Rel(home, initFile); home != "" && err == nil && filepath.IsLocal(rel) {
-		written = "$HOME/" + quote(filepath.ToSlash(rel))
+		written = homeVariable + quote(filepath.ToSlash(rel))
 	}
 	if sh == Fish {
 		return fmt.Sprintf(`if test -r "%[1]s"; source "%[1]s"; end  %[2]s`, written, mark)
@@ -39,32 +42,48 @@ var (
 	fishLine  = regexp.MustCompile(`^\s*if test -r "((?:[^"\\]|\\.)*)"; source "((?:[^"\\]|\\.)*)"; end\s+` + mark + `\s*$`)
 )
 
-// ours reports whether line is switchboard's line for sh: of its shape,
-// reading and sourcing the one file, sh's of switchboard's, from any path,
-// and ending with its mark. A comment of the user's that's the mark alone,
-// or a line of their own that puts switchboard's bin directory on PATH,
-// isn't.
-func ours(sh Shell, line string) bool {
+// escaped is a character escaped between double quotes.
+var escaped = regexp.MustCompile(`\\(.)`)
+
+// sources returns the file line sources, $HOME in it standing for home,
+// where it's switchboard's line for sh: of its shape, reading and sourcing
+// the one file, sh's of switchboard's, from any path, and ending with its
+// mark. A comment of the user's that's the mark alone, or a line of their
+// own that puts switchboard's bin directory on PATH, isn't, and sources "".
+func sources(sh Shell, line, home string) string {
 	shape := posixLine
 	if sh == Fish {
 		shape = fishLine
 	}
 	m := shape.FindStringSubmatch(line)
-	return m != nil && m[1] == m[2] && strings.HasSuffix(m[1], "switchboard/shell/init."+string(sh))
+	if m == nil || m[1] != m[2] || !strings.HasSuffix(m[1], "switchboard/shell/init."+string(sh)) {
+		return ""
+	}
+	written, fromHome := strings.CutPrefix(m[1], homeVariable)
+	path := escaped.ReplaceAllString(written, "$1")
+	if fromHome {
+		return filepath.Join(home, path)
+	}
+	return path
 }
 
 // StartupFile returns the startup file of sh's that switchboard's line goes
-// at the end of, the user's home being home: for zsh, .zshrc in $ZDOTDIR,
-// else the home; for bash, the first there of ~/.bash_profile,
-// ~/.bash_login and ~/.profile, as a login bash reads only the first it
-// finds, else ~/.bash_profile; and for fish, fish/config.fish in
-// $XDG_CONFIG_HOME, else ~/.config.
-func StartupFile(sh Shell, getenv func(string) string, home string) string {
+// at the end of, the user's home being home: for zsh, .zshrc in configDir,
+// where the shell said it reads it from, else $ZDOTDIR, else the home; for
+// bash, the first there of ~/.bash_profile, ~/.bash_login and ~/.profile, as
+// a login bash reads only the first it finds, else ~/.bash_profile; and for
+// fish, config.fish in configDir, else fish/config.fish in $XDG_CONFIG_HOME,
+// else ~/.config. A directory that isn't absolute is passed over, as the XDG
+// spec says of its own.
+func StartupFile(sh Shell, getenv func(string) string, home, configDir string) string {
 	switch sh {
 	case Zsh:
-		return filepath.Join(cmp.Or(getenv("ZDOTDIR"), home), ".zshrc")
+		return filepath.Join(absolute(configDir, getenv("ZDOTDIR"), home), ".zshrc")
 	case Fish:
-		return filepath.Join(cmp.Or(getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config")), "fish", "config.fish")
+		if filepath.IsAbs(configDir) {
+			return filepath.Join(configDir, "config.fish")
+		}
+		return filepath.Join(absolute(getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config")), "fish", "config.fish")
 	}
 	for _, name := range []string{".bash_profile", ".bash_login", ".profile"} {
 		if _, err := os.Stat(filepath.Join(home, name)); err == nil {
@@ -74,22 +93,33 @@ func StartupFile(sh Shell, getenv func(string) string, home string) string {
 	return filepath.Join(home, ".bash_profile")
 }
 
-// HasLine reports whether the startup file at file holds switchboard's line
-// for sh: one that isn't there holds none.
-func HasLine(sh Shell, file string) (bool, error) {
-	data, err := os.ReadFile(file)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("read %s: %w", file, err)
-	}
-	for line := range strings.Lines(string(data)) {
-		if ours(sh, line) {
-			return true, nil
+// absolute returns the first of dirs that's absolute, else the last.
+func absolute(dirs ...string) string {
+	for _, dir := range dirs {
+		if filepath.IsAbs(dir) {
+			return dir
 		}
 	}
-	return false, nil
+	return dirs[len(dirs)-1]
+}
+
+// FindLine returns the file switchboard's line for sh in the startup file at
+// file sources, $HOME in it standing for home: "" where there's no such line,
+// or no such file.
+func FindLine(sh Shell, file, home string) (string, error) {
+	data, err := os.ReadFile(file)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", file, err)
+	}
+	for line := range strings.Lines(string(data)) {
+		if path := sources(sh, line, home); path != "" {
+			return path, nil
+		}
+	}
+	return "", nil
 }
 
 // AddLine adds line to the end of the startup file at file, after a newline

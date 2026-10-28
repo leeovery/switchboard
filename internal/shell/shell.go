@@ -40,3 +40,10 @@ func Of(path string) (Shell, bool) {
 func InitFile(dir string, sh Shell) string {
 	return filepath.Join(dir, "init."+string(sh))
 }
+
+// CompletionFile returns where bash's completion script is in dir,
+// switchboard's shell directory, beside bash's file, which sources it:
+// completion.bash.
+func CompletionFile(dir string) string {
+	return filepath.Join(dir, "completion.bash")
+}

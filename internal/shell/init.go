@@ -13,11 +13,13 @@ import (
 //go:embed init/*.tmpl
 var inits embed.FS
 
-// Init returns sh's file of switchboard's, whole: it puts bin, switchboard's
-// bin directory, first on PATH, once, and loads completion, switchboard's
-// completion script for sh, where sh can take it. Sourced, it prints nothing,
-// and ends with a status of 0.
-func Init(sh Shell, bin string, completion []byte) ([]byte, error) {
+// Init returns sh's file of switchboard's, in dir, its shell directory,
+// whole: it puts bin, switchboard's bin directory, first on PATH, once, and
+// loads completion, switchboard's completion script for sh, where sh can take
+// it. bash's sources the script from CompletionFile, beside it, which holds
+// it as it is, as sh, which can read bash's startup file, can't parse it.
+// Sourced, the file prints nothing, and ends with a status of 0.
+func Init(sh Shell, dir, bin string, completion []byte) ([]byte, error) {
 	name := string(sh) + ".tmpl"
 	tmpl, err := template.New(name).Funcs(template.FuncMap{"quote": singleQuoted(sh)}).ParseFS(inits, "init/"+name)
 	if err != nil {
@@ -25,8 +27,8 @@ func Init(sh Shell, bin string, completion []byte) ([]byte, error) {
 	}
 	var b bytes.Buffer
 	err = tmpl.Execute(&b, struct {
-		Bin, Completion string
-	}{Bin: bin, Completion: strings.TrimRight(string(completion), "\n")})
+		Bin, Completion, CompletionFile string
+	}{Bin: bin, Completion: strings.TrimRight(string(completion), "\n"), CompletionFile: CompletionFile(dir)})
 	if err != nil {
 		return nil, fmt.Errorf("write switchboard's file for %s: %w", sh, err)
 	}

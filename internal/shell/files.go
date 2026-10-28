@@ -12,7 +12,8 @@ import (
 
 // Files are switchboard's files for the shells, one each, in Dir, its shell
 // directory: each puts Bin, switchboard's bin directory, first on PATH, and
-// loads the script Completion gives for its shell.
+// loads the script Completion gives for its shell; bash's from a file of the
+// script's own beside it (see Init).
 type Files struct {
 	Dir, Bin   string
 	Completion func(Shell) ([]byte, error)
@@ -40,7 +41,7 @@ type File struct {
 	State State
 }
 
-// Write writes each shell's file that isn't as this switchboard writes it,
+// Write writes each of the files that isn't as this switchboard writes it,
 // whole or not at all, making the directory, and reports what became of each.
 // It stops at a file it can't write.
 func (f Files) Write() ([]File, error) {
@@ -50,7 +51,7 @@ func (f Files) Write() ([]File, error) {
 	return f.each(true)
 }
 
-// Refresh rewrites each shell's file that's there but isn't as this
+// Refresh rewrites each of the files that's there but isn't as this
 // switchboard writes it, and reports what became of each: it never writes
 // one that isn't there, as setup didn't, or the user removed it. It stops at
 // a file it can't write.
@@ -58,12 +59,16 @@ func (f Files) Refresh() ([]File, error) {
 	return f.each(false)
 }
 
-// each brings each shell's file to this switchboard's, writing one that isn't
-// there when create is set.
+// each brings each of the files to this switchboard's, writing one that
+// isn't there when create is set.
 func (f Files) each(create bool) ([]File, error) {
+	wanted, err := f.wanted()
+	if err != nil {
+		return nil, err
+	}
 	var files []File
-	for _, sh := range Shells {
-		file, err := f.bring(sh, create)
+	for _, w := range wanted {
+		file, err := bring(w.File, w.text, create)
 		if err != nil {
 			return files, err
 		}
@@ -72,14 +77,36 @@ func (f Files) each(create bool) ([]File, error) {
 	return files, nil
 }
 
-// bring brings sh's file to this switchboard's, writing it when it isn't
-// there only when create is set.
-func (f Files) bring(sh Shell, create bool) (File, error) {
-	file := File{Shell: sh, Path: InitFile(f.Dir, sh)}
-	want, err := f.text(sh)
-	if err != nil {
-		return file, err
+// wanted is a file, and what this switchboard writes in it.
+type wanted struct {
+	File
+	text []byte
+}
+
+// wanted are the files, in turn, and what this switchboard writes in each:
+// each shell's, and bash's completion script after bash's.
+func (f Files) wanted() ([]wanted, error) {
+	var files []wanted
+	for _, sh := range Shells {
+		completion, err := f.Completion(sh)
+		if err != nil {
+			return nil, fmt.Errorf("make switchboard's completions for %s: %w", sh, err)
+		}
+		text, err := Init(sh, f.Dir, f.Bin, completion)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, wanted{File{Shell: sh, Path: InitFile(f.Dir, sh)}, text})
+		if sh == Bash {
+			files = append(files, wanted{File{Shell: sh, Path: CompletionFile(f.Dir)}, completion})
+		}
 	}
+	return files, nil
+}
+
+// bring brings the file to want, writing it when it isn't there only when
+// create is set.
+func bring(file File, want []byte, create bool) (File, error) {
 	have, err := os.ReadFile(file.Path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist) && !create:
@@ -95,16 +122,7 @@ func (f Files) bring(sh Shell, create bool) (File, error) {
 		file.State = Updated
 	}
 	if err := atomicfile.Write(file.Path, want, 0o644); err != nil {
-		return file, fmt.Errorf("write switchboard's file for %s: %w", sh, err)
+		return file, fmt.Errorf("write switchboard's file %s: %w", file.Path, err)
 	}
 	return file, nil
-}
-
-// text is sh's file as this switchboard writes it.
-func (f Files) text(sh Shell) ([]byte, error) {
-	completion, err := f.Completion(sh)
-	if err != nil {
-		return nil, fmt.Errorf("make switchboard's completions for %s: %w", sh, err)
-	}
-	return Init(sh, f.Bin, completion)
 }

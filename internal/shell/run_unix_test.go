@@ -48,6 +48,28 @@ func TestRunKillsEverythingTheProgramStartedOnceItsTimeIsUp(t *testing.T) {
 	if took := time.Since(started); took > 10*time.Second {
 		t.Errorf("Run() took %s, want it to return once its time's up", took)
 	}
+	checkKilled(t, pidFile)
+}
+
+func TestRunKillsEverythingTheProgramStartedOnceItExits(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "pid")
+	started := time.Now()
+
+	// The sleep holds the output open, as something a startup file starts
+	// can.
+	out, err := shell.Run(t.Context(), "/bin/sh", []string{"-c", `sleep 30 & echo $! >"$PID_FILE"; echo answered`}, []string{"PID_FILE=" + pidFile})
+	if err != nil || string(out) != "answered\n" {
+		t.Errorf("Run() = %q, %v; want %q", out, err, "answered\n")
+	}
+	if took := time.Since(started); took > 10*time.Second {
+		t.Errorf("Run() took %s, want it to return once the program exits", took)
+	}
+	checkKilled(t, pidFile)
+}
+
+// checkKilled checks the program whose pid is in pidFile was killed.
+func checkKilled(t *testing.T, pidFile string) {
+	t.Helper()
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
 		t.Fatal(err)

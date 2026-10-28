@@ -15,31 +15,40 @@ import (
 
 func TestTheInitFileText(t *testing.T) {
 	const bin = `/data/it's "$x"/switchboard/bin`
+	const completion = "# the completion script\n"
 	tests := []struct {
 		sh shell.Shell
 		// bin is how the file holds the bin directory, quoted for its shell.
 		bin string
-		// guard is what the completions are loaded within, where the shell
-		// can take them; none where they're loaded as they are.
-		guard string
+		// loads is how the completions are loaded, within a guard where the
+		// shell can take them: bash's from a file of their own, which sh,
+		// reading bash's startup file, needn't parse.
+		loads string
 	}{
-		{sh: shell.Zsh, bin: `local bin='/data/it'\''s "$x"/switchboard/bin'`, guard: "if (( ${+functions[compdef]} )); then\n"},
-		{sh: shell.Bash, bin: `local bin='/data/it'\''s "$x"/switchboard/bin'`, guard: "if declare -F _get_comp_words_by_ref >/dev/null 2>&1; then\n"},
-		{sh: shell.Fish, bin: `set -l bin '/data/it\'s "$x"/switchboard/bin'`},
+		{sh: shell.Zsh, bin: `	local bin='/data/it'\''s "$x"/switchboard/bin'`, loads: "if (( ${+functions[compdef]} )); then\n" + completion},
+		{
+			sh:  shell.Bash,
+			bin: `__switchboard_bin='/data/it'\''s "$x"/switchboard/bin'`,
+			loads: `if [ -n "${BASH_VERSION-}" ] && ! shopt -oq posix && declare -F _get_comp_words_by_ref >/dev/null 2>&1 && [ -r '/data/switchboard/shell/completion.bash' ]; then` +
+				"\n\t. '/data/switchboard/shell/completion.bash'\nfi\n",
+		},
+		{sh: shell.Fish, bin: `	set -l bin '/data/it\'s "$x"/switchboard/bin'`, loads: "\n" + completion},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.sh), func(t *testing.T) {
-			const completion = "# the completion script\n"
-			text, err := shell.Init(tt.sh, bin, []byte(completion))
+			text, err := shell.Init(tt.sh, "/data/switchboard/shell", bin, []byte(completion))
 			if err != nil {
 				t.Fatal(err)
 			}
 			got := string(text)
-			if !strings.Contains(got, "\t"+tt.bin) {
+			if !strings.Contains(got, "\n"+tt.bin) {
 				t.Errorf("the file reads\n%s\nwant it to hold the bin directory as %s", got, tt.bin)
 			}
-			if !strings.Contains(got, tt.guard+completion) {
-				t.Errorf("the file reads\n%s\nwant the completion script within %q", got, tt.guard)
+			if !strings.Contains(got, tt.loads) {
+				t.Errorf("the file reads\n%s\nwant it to load the completions as\n%s", got, tt.loads)
+			}
+			if tt.sh == shell.Bash && strings.Contains(got, completion) {
+				t.Errorf("the file reads\n%s\nwant the completion script in a file of its own", got)
 			}
 			if !strings.HasSuffix(got, "\ntrue\n") {
 				t.Errorf("the file reads\n%s\nwant it to end with true, so sourcing it ends with a status of 0", got)
@@ -49,7 +58,7 @@ func TestTheInitFileText(t *testing.T) {
 }
 
 func TestInitFailsForAShellSwitchboardDoesntKnow(t *testing.T) {
-	if _, err := shell.Init("tcsh", "/bin", nil); err == nil {
+	if _, err := shell.Init("tcsh", "/data/switchboard/shell", "/bin", nil); err == nil {
 		t.Error("Init(tcsh) succeeded, want it to fail: switchboard has no file for tcsh")
 	}
 }
@@ -247,6 +256,39 @@ func TestTheInitFileLoadsCompletionsOnlyWhereTheShellCanTakeThem(t *testing.T) {
 	}
 }
 
+func TestBashsFileIsPOSIXShellWhichLoadsNoCompletions(t *testing.T) {
+	// The completion script, here, says it's loaded, where bash's would fail
+	// to parse in sh, and stop it reading ~/.profile.
+	const completion = "switchboard_completion_loaded=yes\n"
+	shells := []realShell{
+		{sh: shell.Bash, path: "/bin/sh", args: []string{"-c"}},
+		{sh: shell.Bash, path: "/bin/bash", args: []string{"--posix", "--noprofile", "--norc", "-c"}},
+		{sh: shell.Bash, path: "/bin/dash", args: []string{"-c"}},
+		{sh: shell.Bash, path: "/bin/ksh", args: []string{"-c"}},
+	}
+	for _, s := range shells {
+		t.Run(s.path+" "+strings.Join(s.args[:len(s.args)-1], " "), func(t *testing.T) {
+			if _, err := os.Stat(s.path); err != nil {
+				t.Skipf("%s isn't installed: %v", s.path, err)
+			}
+			dir := t.TempDir()
+			bin := filepath.Join(dir, `it's "$x" here`, "bin")
+			init := writeInit(t, shell.Bash, dir, bin, []byte(completion))
+			out := filepath.Join(dir, "out")
+			// bash-completion, as it's loaded, so it's POSIX alone that keeps
+			// the completions out.
+			script := "_get_comp_words_by_ref() { :; }\n" + s.sourceInit() + s.statusAndPath() + "echo \"${switchboard_completion_loaded-no}\"\n"
+
+			printed := s.source(t, script, "/a:"+bin+":/b", filepath.Join(dir, "home"), init, out)
+
+			if want := "0\n" + bin + ":/a:/b\nno\n"; printed != want {
+				t.Errorf("sourcing it ended with the status, PATH and whether the completions loaded\n%s\nwant\n%s", printed, want)
+			}
+			checkSaidNothing(t, out)
+		})
+	}
+}
+
 func TestTheStartupLineSourcesTheFileOnlyWhereItsThere(t *testing.T) {
 	for _, s := range realShells(t) {
 		for _, there := range []bool{true, false} {
@@ -278,17 +320,20 @@ func TestTheStartupLineSourcesTheFileOnlyWhereItsThere(t *testing.T) {
 	}
 }
 
-// writeInit writes sh's file for bin, with completion, in dir, making it,
-// and returns where it is.
+// writeInit writes switchboard's files for bin in dir, making it, sh's with
+// completion, the others with none, and returns where sh's is.
 func writeInit(t *testing.T, sh shell.Shell, dir, bin string, completion []byte) string {
 	t.Helper()
-	text, err := shell.Init(sh, bin, completion)
-	if err != nil {
+	files := shell.Files{Dir: dir, Bin: bin, Completion: func(s shell.Shell) ([]byte, error) {
+		if s != sh {
+			return nil, nil
+		}
+		return completion, nil
+	}}
+	if _, err := files.Write(); err != nil {
 		t.Fatal(err)
 	}
-	path := shell.InitFile(dir, sh)
-	write(t, path, string(text))
-	return path
+	return shell.InitFile(dir, sh)
 }
 
 // checkSaidNothing checks sourcing the file wrote nothing to out, where its

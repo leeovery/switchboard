@@ -17,9 +17,11 @@ This page shows where to look when switchboard doesn't do what you expect, and h
 - **`claude` in a new terminal isn't switchboard's:** run `switchboard setup`. It asks your login
   shell which `claude` it runs, and says what it found. With switchboard's line in your startup
   file but another `claude` still run, something after the line changes `PATH`: move the line
-  after it, to the end of the file. Where you keep `PATH` another way, as in a file of your own
-  or a tool that writes it, put switchboard's bin directory, `~/.local/share/switchboard/bin`,
-  else `$XDG_DATA_HOME/switchboard/bin`, first on it there. `setup` checks again once you have.
+  after it, to the end of the file, or what changes `PATH` to before it. Where you keep `PATH`
+  another way, as in a file of your own or a tool that writes it, put switchboard's bin
+  directory, `$XDG_DATA_HOME/switchboard/bin`, else `~/.local/share/switchboard/bin`, first on
+  it there. `setup` checks again once you have. An alias or function named `claude` goes through
+  switchboard only where it runs `claude` by name, not a path.
 - **Completions:** switchboard's file for your shell loads them, for commands and flags. zsh takes
   them once `compinit` has run, which a usual `.zshrc` does before switchboard's line at its end;
   bash takes them where the bash-completion package is loaded; fish always does.

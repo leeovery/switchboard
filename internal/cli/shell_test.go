@@ -19,13 +19,16 @@ func TestServeBringsTheShellFilesUpToDate(t *testing.T) {
 	dir := filepath.Join(data, "switchboard", "shell")
 	bin := filepath.Join(data, "switchboard", "bin")
 	zsh, bash, fish := shell.InitFile(dir, shell.Zsh), shell.InitFile(dir, shell.Bash), shell.InitFile(dir, shell.Fish)
+	bashCompletion := shell.CompletionFile(dir)
 	writeShellFile(t, zsh, "# an older switchboard's\n")
-	writeShellFile(t, bash, string(shellFile(t, srv.deps, shell.Bash, bin)))
+	writeShellFile(t, bash, string(shellFile(t, srv.deps, shell.Bash, dir, bin)))
+	writeShellFile(t, bashCompletion, "# an older switchboard's\n")
 
 	srv.start(t)
 	for _, want := range [][]string{
 		{"level=INFO", `msg="brought switchboard's file for the shell up to date"`, "path=" + zsh},
 		{"level=INFO", `msg="switchboard's file for the shell is up to date"`, "path=" + bash},
+		{"level=INFO", `msg="brought switchboard's file for the shell up to date"`, "path=" + bashCompletion},
 		{"level=INFO", `msg="no file of switchboard's for the shell to bring up to date; setup writes it"`, "path=" + fish},
 	} {
 		if log := srv.routerLog(t); !hasLine(log, want...) {
@@ -34,9 +37,12 @@ func TestServeBringsTheShellFilesUpToDate(t *testing.T) {
 	}
 	for _, sh := range []shell.Shell{shell.Zsh, shell.Bash} {
 		path := shell.InitFile(dir, sh)
-		if got, want := readFile(t, path), string(shellFile(t, srv.deps, sh, bin)); got != want {
+		if got, want := readFile(t, path), string(shellFile(t, srv.deps, sh, dir, bin)); got != want {
 			t.Errorf("%s reads\n%s\nwant this switchboard's\n%s", path, got, want)
 		}
+	}
+	if got, want := readFile(t, bashCompletion), string(completion(t, srv.deps, shell.Bash)); got != want {
+		t.Errorf("%s reads\n%s\nwant this switchboard's completions for bash\n%s", bashCompletion, got, want)
 	}
 	if _, err := os.Lstat(fish); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("%s: %v, want it not written, as setup didn't", fish, err)
@@ -45,14 +51,20 @@ func TestServeBringsTheShellFilesUpToDate(t *testing.T) {
 
 func TestTheShellFilesLoadSwitchboardsCompletions(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
+	const dir, bin = "/data/switchboard/shell", "/data/switchboard/bin"
 	for sh, want := range map[shell.Shell]string{
 		shell.Zsh:  "compdef _switchboard switchboard",
-		shell.Bash: "complete -o default -F __start_switchboard switchboard",
 		shell.Fish: "complete -c switchboard -e",
 	} {
-		if text := string(shellFile(t, deps, sh, "/data/switchboard/bin")); !strings.Contains(text, want) {
+		if text := string(shellFile(t, deps, sh, dir, bin)); !strings.Contains(text, want) {
 			t.Errorf("switchboard's file for %s reads\n%s\nwant it to load switchboard's completions, with %q", sh, text, want)
 		}
+	}
+	if text, want := string(shellFile(t, deps, shell.Bash, dir, bin)), "\t. '/data/switchboard/shell/completion.bash'\n"; !strings.Contains(text, want) {
+		t.Errorf("switchboard's file for bash reads\n%s\nwant it to load switchboard's completions from their file, with %q", text, want)
+	}
+	if text, want := string(completion(t, deps, shell.Bash)), "complete -o default -F __start_switchboard switchboard"; !strings.Contains(text, want) {
+		t.Errorf("switchboard's completions for bash read\n%s\nwant %q", text, want)
 	}
 }
 
@@ -86,9 +98,21 @@ func TestTheCompletionsCompleteCommandsAndFlags(t *testing.T) {
 	}
 }
 
-// shellFile is switchboard's file for sh, bin its bin directory, as a
-// command tree from deps writes it, its completions loaded.
-func shellFile(t *testing.T, deps cli.Deps, sh shell.Shell, bin string) []byte {
+// shellFile is switchboard's file for sh, in dir, its shell directory, bin
+// its bin directory, as a command tree from deps writes it, its completions
+// loaded.
+func shellFile(t *testing.T, deps cli.Deps, sh shell.Shell, dir, bin string) []byte {
+	t.Helper()
+	text, err := shell.Init(sh, dir, bin, completion(t, deps, sh))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return text
+}
+
+// completion is switchboard's completion script for sh, as a command tree
+// from deps writes it.
+func completion(t *testing.T, deps cli.Deps, sh shell.Shell) []byte {
 	t.Helper()
 	root := cli.NewRootCommand(deps)
 	var b bytes.Buffer
@@ -104,11 +128,7 @@ func shellFile(t *testing.T, deps cli.Deps, sh shell.Shell, bin string) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text, err := shell.Init(sh, bin, b.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return text
+	return b.Bytes()
 }
 
 // writeShellFile writes text to the file at path, making its directory.

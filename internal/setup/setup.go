@@ -61,6 +61,11 @@ type Setup struct {
 	Shells shell.Files
 	Login  LoginShell
 	Getenv func(string) string
+	// Interrupt returns a context that ends at an interrupt, as
+	// signal.NotifyContext does for SIGINT, which it is unless it's set:
+	// asking the login shell, setup takes the interrupt itself, so as to
+	// kill the shell.
+	Interrupt func(context.Context) (context.Context, context.CancelFunc)
 	// Skill is where Claude Code reads the skill.
 	Skill string
 	// Usage prints every account's windows as they stand on out, as

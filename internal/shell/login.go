@@ -47,40 +47,54 @@ const defaultLimit = 15 * time.Second
 // new terminal's shell, before its startup files change it.
 const launchdPath = "/usr/bin:/bin:/usr/sbin:/sbin"
 
-// sentinel comes before the shell's answer, which is the line after it, as
-// startup files print banners and escape codes of their own first.
-const sentinel = "switchboard-asks-which-claude"
+// The sentinels the shell's answers are printed between: startup files print
+// banners and escape codes of their own first, which needn't end a line, and
+// logout files and traps can print after.
+const (
+	startSentinel = "switchboard-asks-which-claude"
+	endSentinel   = "switchboard-asked-which-claude"
+)
 
-// Kind is what the login shell answered.
+// Kind is what the login shell's PATH finds for claude.
 type Kind int
 
 const (
 	// Unasked is a login shell that couldn't be asked.
 	Unasked Kind = iota
-	// Link is a login shell that runs switchboard's claude link.
+	// Link is a login shell whose PATH finds switchboard's claude link.
 	Link
-	// Other is a login shell that runs another claude.
+	// Other is a login shell whose PATH finds another claude.
 	Other
-	// None is a login shell that finds no claude.
+	// None is a login shell whose PATH finds no claude.
 	None
 )
 
-// Answer is which claude the login shell runs.
+// Answer is which claude the login shell runs, and where it reads its
+// startup file.
 type Answer struct {
+	// Kind is what the shell's PATH finds for claude.
 	Kind Kind
-	// Claude is the other claude the shell runs, as it gives it: its path,
-	// or an alias or function.
+	// Claude is the other claude the shell's PATH finds.
 	Claude string
+	// Front is an alias or function named claude that stands in front of
+	// PATH's, as the shell gives it, any token in it hidden: it goes where
+	// PATH's claude does only where it runs claude by name.
+	Front string
+	// ConfigDir is where the shell reads its startup file from, as it says
+	// itself: zsh's $ZDOTDIR, else the home, and fish's configuration
+	// directory. It's empty for bash, which isn't asked, and where it isn't
+	// absolute.
+	ConfigDir string
 	// Why is why the shell couldn't be asked.
 	Why string
 }
 
-// Which asks the login shell which claude it runs, and whether that's link,
-// switchboard's claude link. The shell's started as a new terminal's is,
-// login and interactive, in the environment one starts in, so the PATH
-// setup runs with can't answer for it: HOME, USER, LOGNAME, SHELL, TMPDIR,
-// TERM and the locale's variables from Environ, PATH as launchd sets it,
-// and nothing else.
+// Which asks the login shell which claude it runs, whether PATH's is link,
+// switchboard's claude link, and where it reads its startup file. The
+// shell's started as a new terminal's is, login and interactive, in the
+// environment one starts in, so the PATH setup runs with can't answer for
+// it: HOME, USER, LOGNAME, SHELL, TMPDIR, TERM, TMUX and the locale's
+// variables from Environ, PATH as launchd sets it, and nothing else.
 func (l Login) Which(ctx context.Context, link string) Answer {
 	path := lookup(l.Environ, "SHELL")
 	if path == "" {
@@ -90,20 +104,33 @@ func (l Login) Which(ctx context.Context, link string) Answer {
 	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	out, err := l.Run(ctx, path, []string{"-l", "-i", "-c", question(path)}, loginEnv(l.Environ))
-	if answer, ok := after(out); ok {
-		return read(answer, link)
+	if said, ok := between(out); ok {
+		return read(said, link)
 	}
 	return Answer{Why: why(ctx, err, limit)}
 }
 
-// question is what the shell at path is asked: the sentinel, then which
-// claude it runs.
+// question is what the shell at path is asked, between the sentinels, a
+// line each: what claude is, which claude PATH finds, and where the shell
+// reads its startup file.
 func question(path string) string {
-	which := "command -v claude"
-	if sh, _ := Of(path); sh == Fish {
-		which = "command --search claude"
+	is, found, config := `"$(command -v claude)"`, `"$(command -v claude)"`, `""`
+	switch sh, _ := Of(path); sh {
+	case Bash:
+		found = `"$(type -P claude)"`
+	case Zsh:
+		found, config = `"$(whence -p claude)"`, `"${ZDOTDIR:-$HOME}"`
+	case Fish:
+		is = "(functions -q claude; and echo function claude; or command --search claude)"
+		found, config = "(command --search claude)", "$__fish_config_dir"
 	}
-	return "printf '%s\\n' " + sentinel + "; " + which
+	return strings.Join([]string{
+		`printf '%s\n' ` + startSentinel,
+		`printf 'is:%s\n' ` + is,
+		`printf 'path:%s\n' ` + found,
+		`printf 'config:%s\n' ` + config,
+		`printf '%s\n' ` + endSentinel,
+	}, "; ")
 }
 
 // loginEnv is the environment a new terminal's shell starts in, taken from
@@ -119,8 +146,10 @@ func loginEnv(environ []string) []string {
 }
 
 // carried are the variables a new terminal's shell starts with that setup's
-// own environment gives the login shell, with the locale's LC_ ones.
-var carried = []string{"HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "TERM", "LANG"}
+// own environment gives the login shell, with the locale's LC_ ones. TMUX is
+// among them: a startup file that starts tmux where it's unset would start
+// it in the shell's place, and the shells claude runs in inside tmux have it.
+var carried = []string{"HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "TERM", "TMUX", "LANG"}
 
 // lookup returns the value of the variable key in environ.
 func lookup(environ []string, key string) string {
@@ -132,34 +161,56 @@ func lookup(environ []string, key string) string {
 	return ""
 }
 
-// after returns the first line out holds after the sentinel's last line,
-// trimmed, and whether the sentinel's there.
-func after(out []byte) (string, bool) {
+// answers are what the shell said between the sentinels, by name.
+type answers map[string]string
+
+// between returns the shell's answers, from out: what's between the last
+// start sentinel, found anywhere, and the end sentinel after it; and whether
+// both are there.
+func between(out []byte) (answers, bool) {
 	text := strings.ReplaceAll(string(out), "\r", "")
-	at := strings.LastIndex("\n"+text, "\n"+sentinel+"\n")
+	at := strings.LastIndex(text, startSentinel+"\n")
 	if at < 0 {
-		return "", false
+		return nil, false
 	}
-	rest := text[at+len(sentinel)+1:]
-	for line := range strings.Lines(rest) {
-		if line = strings.TrimSpace(line); line != "" {
-			return line, true
+	text, _, ended := strings.Cut(text[at+len(startSentinel)+1:], endSentinel+"\n")
+	if !ended {
+		return nil, false
+	}
+	said := make(answers)
+	for line := range strings.Lines(text) {
+		name, value, ok := strings.Cut(strings.TrimSuffix(line, "\n"), ":")
+		if _, given := said[name]; ok && !given {
+			said[name] = strings.TrimSpace(value)
 		}
 	}
-	return "", true
+	return said, true
 }
 
-// read is the shell's answer, answer, link being switchboard's claude link.
-func read(answer, link string) Answer {
-	switch {
-	case answer == "":
-		return Answer{Kind: None}
-	case !filepath.IsAbs(answer):
-		return Answer{Kind: Other, Claude: redact.Text(answer)}
-	case sameFile(answer, link):
-		return Answer{Kind: Link}
+// read is the shell's answer, from what it said, link being switchboard's
+// claude link.
+func read(said answers, link string) Answer {
+	var a Answer
+	if dir := said["config"]; filepath.IsAbs(dir) {
+		a.ConfigDir = dir
 	}
-	return Answer{Kind: Other, Claude: answer}
+	switch is := said["is"]; {
+	case is == "claude":
+		// command -v gives a function by its name alone, as fish is asked
+		// to give it.
+		a.Front = "function claude"
+	case is != "" && !filepath.IsAbs(is):
+		a.Front = redact.Text(is)
+	}
+	switch found := said["path"]; {
+	case found == "":
+		a.Kind = None
+	case sameFile(found, link):
+		a.Kind = Link
+	default:
+		a.Kind, a.Claude = Other, redact.Text(found)
+	}
+	return a
 }
 
 // sameFile reports whether a and b are the one file, neither's last link
@@ -176,6 +227,10 @@ func sameFile(a, b string) bool {
 	return err == nil && os.SameFile(ai, bi)
 }
 
+// mayNeedATerminal is why a shell may exit without answering, as one does
+// whose startup file runs tmux in its place, which needs a terminal.
+const mayNeedATerminal = ": a startup file may start something that needs a terminal, such as tmux"
+
 // why is why the shell, run until ctx ended, given limit, and failing with
 // err, gave no answer.
 func why(ctx context.Context, err error, limit time.Duration) string {
@@ -186,9 +241,9 @@ func why(ctx context.Context, err error, limit time.Duration) string {
 	case ctx.Err() != nil:
 		return ctx.Err().Error()
 	case exited:
-		return fmt.Sprintf("it exited with status %d without answering", exit.ExitCode())
+		return fmt.Sprintf("it exited with status %d without answering%s", exit.ExitCode(), mayNeedATerminal)
 	case err != nil:
 		return redact.Text(err.Error())
 	}
-	return "it exited without answering"
+	return "it exited without answering" + mayNeedATerminal
 }

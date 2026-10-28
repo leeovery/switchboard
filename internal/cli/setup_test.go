@@ -92,9 +92,10 @@ func TestSetup(t *testing.T) {
 		"\n3. The service\nInstalled " + s.plist + ": ",
 		"The router is up: healthy, pid " + strconv.Itoa(os.Getpid()) + ".\n",
 		"\n4. The claude link\nLinked " + link + " to " + s.binary + ".\n" +
-			"Wrote switchboard's files for the shells, in " + shellDir + ": init.zsh, init.bash and init.fish.\n" +
+			"Wrote switchboard's files for the shells, in " + shellDir + ": init.zsh, init.bash, completion.bash and init.fish.\n" +
+			"Asking zsh, as a new terminal starts it, which claude it runs.\n" +
 			"Setup can't ask zsh which claude it runs: no test runs a login shell. This line, at the end of ~/.zshrc, has claude go through switchboard",
-		"\n" + line + "\nAdd it? [Y/n] Added it to ~/.zshrc.\n",
+		"\n" + line + "\nAdd it? [Y/n] Added it to ~/.zshrc.\nAsking zsh, as a new terminal starts it, which claude it runs.\n",
 		"\nCheck again? [Y/n] Left as it is: ",
 		"\n5. The skill\nInstalled the skill, which tells Claude what switchboard does under claude: " + skill + "\n",
 		"\n6. Usage\n",
@@ -124,20 +125,28 @@ func TestSetup(t *testing.T) {
 	}
 	for _, sh := range shell.Shells {
 		path := shell.InitFile(shellDir, sh)
-		if got, want := readFile(t, path), string(shellFile(t, s.srv.deps, sh, bin)); got != want {
+		if got, want := readFile(t, path), string(shellFile(t, s.srv.deps, sh, shellDir, bin)); got != want {
 			t.Errorf("%s reads\n%s\nwant this switchboard's, its completions loaded\n%s", path, got, want)
 		}
+	}
+	if path := shell.CompletionFile(shellDir); readFile(t, path) != string(completion(t, s.srv.deps, shell.Bash)) {
+		t.Errorf("%s reads\n%s\nwant this switchboard's completions for bash", path, readFile(t, path))
 	}
 	if rc := readFile(t, filepath.Join(home, ".zshrc")); rc != line+"\n" {
 		t.Errorf("~/.zshrc reads %q, want switchboard's line alone", rc)
 	}
-	question := []string{"-l", "-i", "-c", "printf '%s\\n' switchboard-asks-which-claude; command -v claude"}
+	// The question itself is the shell package's to pin: here, that it's
+	// asked of an interactive login zsh, in the environment a new terminal
+	// gives it.
 	env := []string{"LANG=en_GB.UTF-8", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "SHELL=/bin/zsh", "TMPDIR=" + s.srv.deps.Getenv("TMPDIR")}
-	want := slices.Concat([]string{"/bin/zsh"}, question, env)
+	want := slices.Concat([]string{"/bin/zsh", "-l", "-i", "-c", "<question>"}, env)
 	for i := range asked {
-		slices.Sort(asked[i][len(question)+1:])
+		if len(asked[i]) > 4 && strings.HasPrefix(asked[i][4], "printf '%s\\n' switchboard-asks-which-claude; ") {
+			asked[i][4] = "<question>"
+		}
+		slices.Sort(asked[i][min(5, len(asked[i])):])
 	}
-	if len(asked) != 2 || !slices.Equal(asked[0], want) {
+	if len(asked) != 2 || !slices.Equal(asked[0], want) || !slices.Equal(asked[1], want) {
 		t.Errorf("the login shell was asked %q, want twice, as %q: first, and once the line's added", asked, want)
 	}
 }

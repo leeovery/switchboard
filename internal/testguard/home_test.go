@@ -569,6 +569,84 @@ func TestChangesToTheRealDataDirectories(t *testing.T) {
 	}
 }
 
+func TestChangesToTheRealStartupFiles(t *testing.T) {
+	const line = "if [ -r \"$HOME/.local/share/switchboard/shell/init.zsh\" ]; then . \"$HOME/.local/share/switchboard/shell/init.zsh\"; fi  # switchboard\n"
+	tests := []struct {
+		name string
+		// before lays out the home, at home, before the tests begin.
+		before func(t *testing.T, home string)
+		// during changes it as the tests run.
+		during func(t *testing.T, home string)
+		want   []string
+	}{
+		{
+			name:   "nothing",
+			before: func(t *testing.T, home string) { write(t, filepath.Join(home, ".zshrc"), "export EDITOR=vi\n") },
+			during: func(*testing.T, string) {},
+		},
+		{
+			name:   "switchboard's line added to zsh's",
+			before: func(t *testing.T, home string) { write(t, filepath.Join(home, ".zshrc"), "export EDITOR=vi\n") },
+			during: func(t *testing.T, home string) { write(t, filepath.Join(home, ".zshrc"), "export EDITOR=vi\n"+line) },
+			want:   []string{"the real ~/.zshrc was modified"},
+		},
+		{
+			name:   "zsh's written where there was none",
+			during: func(t *testing.T, home string) { write(t, filepath.Join(home, ".zshrc"), line) },
+			want:   []string{"the real ~/.zshrc was created"},
+		},
+		{
+			name: "each of bash's written where there was none",
+			during: func(t *testing.T, home string) {
+				for _, name := range []string{".bash_profile", ".bash_login", ".profile"} {
+					write(t, filepath.Join(home, name), line)
+				}
+			},
+			want: []string{"the real ~/.bash_profile was created", "the real ~/.bash_login was created", "the real ~/.profile was created"},
+		},
+		{
+			name:   "fish's written where there was none",
+			during: func(t *testing.T, home string) { write(t, filepath.Join(home, ".config", "fish", "config.fish"), line) },
+			want:   []string{"the real ~/.config/fish/config.fish was created"},
+		},
+		{
+			name: "zsh's, kept elsewhere and linked in, changed there",
+			before: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, "dotfiles", "zshrc"), "export EDITOR=vi\n")
+				symlink(t, filepath.Join(home, "dotfiles", "zshrc"), filepath.Join(home, ".zshrc"))
+			},
+			during: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, "dotfiles", "zshrc"), "export EDITOR=vi\n"+line)
+			},
+			want: []string{"the real ~/.zshrc was modified"},
+		},
+		{
+			name:   "the shell's other files beside them",
+			before: func(t *testing.T, home string) { write(t, filepath.Join(home, ".zshrc"), "export EDITOR=vi\n") },
+			during: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, ".zsh_history"), ": 1:0;claude\n")
+				write(t, filepath.Join(home, ".config", "fish", "fish_variables"), "SETUVAR x:y\n")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			if tt.before != nil {
+				tt.before(t, home)
+			}
+			backdate(t, home)
+			watched := watchReal(home, noEnv)
+
+			tt.during(t, home)
+
+			if got := watched.changes(); !slices.Equal(got, tt.want) {
+				t.Errorf("changes() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestALinkIsNotedAsALinkWithWhereItLeads(t *testing.T) {
 	dir := t.TempDir()
 	link := filepath.Join(dir, "claude")
@@ -964,6 +1042,23 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 			},
 			want: []string{"the real %[1]s/data/switchboard/shell was created", "the real %[1]s/data/switchboard/shell/init.fish was created"},
 		},
+		{
+			name: "switchboard's line added to zsh's startup file where ZDOTDIR puts it",
+			before: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "zsh", ".zshrc"), "export EDITOR=vi\n")
+			},
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "zsh", ".zshrc"), "export EDITOR=vi\n# switchboard\n")
+			},
+			want: []string{"the real %[1]s/zsh/.zshrc was modified"},
+		},
+		{
+			name: "fish's startup file written where XDG_CONFIG_HOME puts it",
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "config", "fish", "config.fish"), "# switchboard\n")
+			},
+			want: []string{"the real %[1]s/config/fish/config.fish was created"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -979,6 +1074,7 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 				"XDG_STATE_HOME":         filepath.Join(elsewhere, "state"),
 				"XDG_DATA_HOME":          filepath.Join(elsewhere, "data"),
 				"CLAUDE_CONFIG_DIR":      filepath.Join(elsewhere, "claude"),
+				"ZDOTDIR":                filepath.Join(elsewhere, "zsh"),
 			}
 			watched := watchReal(t.TempDir(), func(key string) string { return env[key] })
 
@@ -1008,6 +1104,7 @@ func TestWhatsWatchedIsWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
 		{name: "the skill", variable: "CLAUDE_CONFIG_DIR", file: filepath.Join(skillDir, "SKILL.md")},
 		{name: "claude on PATH", variable: "PATH", file: "claude"},
 		{name: "switchboard's bin directory", variable: "XDG_DATA_HOME", file: filepath.Join("switchboard", "bin", "claude")},
+		{name: "zsh's startup file", variable: "ZDOTDIR", file: ".zshrc"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1041,6 +1138,7 @@ func TestRelativePlacesAreNoneTestguardCanKnow(t *testing.T) {
 		"XDG_STATE_HOME":         "state",
 		"XDG_DATA_HOME":          "data",
 		"CLAUDE_CONFIG_DIR":      "claude",
+		"ZDOTDIR":                "zsh",
 		"PATH":                   strings.Join([]string{"bin", "", "."}, string(os.PathListSeparator)),
 	}
 	if got := watchReal("", func(key string) string { return env[key] }); len(got) > 0 {

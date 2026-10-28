@@ -62,10 +62,12 @@ func (ws watchers) changes() []string {
 // default in home, and wherever CLAUDE_CONFIG_DIR puts it; its bin
 // directory, which holds its claude link, and its shell directory, which
 // holds its files for the shells, by default in home, and wherever
-// XDG_DATA_HOME puts them; and what's named claude in each directory on
-// PATH. Nothing live writes the config, a theme, a LaunchAgent, the skill, a
-// token file, a file for the shells or a claude link as it runs, so any
-// change to one is a test's. A live router writes the rest of its state as
+// XDG_DATA_HOME puts them; the shells' startup files, which setup adds its
+// line to, in home, and wherever ZDOTDIR and XDG_CONFIG_HOME put zsh's and
+// fish's; and what's named claude in each directory on PATH. Nothing live
+// writes the config, a theme, a LaunchAgent, the skill, a token file, a file
+// for the shells, a startup file or a claude link as it runs, so any change
+// to one is a test's. A live router writes the rest of its state as
 // it runs, its logs, state.json and readings history among it, and a live
 // dashboard its preferences file, as it's used, so of that, only a state
 // directory appearing is a test's; and the OS sandbox denies a test any
@@ -85,7 +87,7 @@ func watchReal(home string, getenv func(string) string) watchers {
 	if home != "" {
 		ws = append(ws, watchContents(inHome(home, launchAgentsDir), mentionsSwitchboard, followed))
 	}
-	for _, p := range skillPlaces(home, getenv) {
+	for _, p := range slices.Concat(skillPlaces(home, getenv), startupPlaces(home, getenv)) {
 		ws = append(ws, watchContents(p, nil, followed))
 	}
 	for _, p := range slices.Concat(dataPlaces(home, getenv), claudeLinkPlaces(getenv)) {
@@ -180,6 +182,30 @@ func dataPlaces(home string, getenv func(string) string) []place {
 		if dir := getenv("XDG_DATA_HOME"); filepath.IsAbs(dir) {
 			places = append(places, named(filepath.Join(dir, "switchboard", name)))
 		}
+	}
+	return places
+}
+
+// startupFiles are the shells' startup files in a home, which switchboard
+// setup adds its line to: zsh's, bash's, which is the first of its three
+// there, and fish's.
+var startupFiles = []string{".zshrc", ".bash_profile", ".bash_login", ".profile", filepath.Join(".config", "fish", "config.fish")}
+
+// startupPlaces are where the shells' startup files are: by default in home,
+// and where ZDOTDIR says zsh's is, and XDG_CONFIG_HOME fish's. A relative
+// directory names none the shells read, as setup reads them.
+func startupPlaces(home string, getenv func(string) string) []place {
+	var places []place
+	if home != "" {
+		for _, file := range startupFiles {
+			places = append(places, inHome(home, file))
+		}
+	}
+	if dir := getenv("ZDOTDIR"); filepath.IsAbs(dir) {
+		places = append(places, named(filepath.Join(dir, ".zshrc")))
+	}
+	if dir := getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
+		places = append(places, named(filepath.Join(dir, "fish", "config.fish")))
 	}
 	return places
 }
