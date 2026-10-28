@@ -50,6 +50,18 @@ func (y TokenYear) EndsWithin(now time.Time, days int) bool {
 	return y.Up(now) || counted && left <= days
 }
 
+// Warned returns the nearest of the warnings, TokenLastWarning then
+// TokenWarning, whose days the year ends within at now, as EndsWithin judges
+// it, reporting false where it ends within neither's.
+func (y TokenYear) Warned(now time.Time) (days int, warned bool) {
+	for _, days := range []int{TokenLastWarning, TokenWarning} {
+		if y.EndsWithin(now, days) {
+			return days, true
+		}
+	}
+	return 0, false
+}
+
 // DaysLeft counts the calendar days from now's date to the date the year is
 // up, both in now's time zone, however long the days between ran: 0 on its
 // last day. counted is false where the year is up at now, or isn't known.

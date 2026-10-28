@@ -1234,9 +1234,10 @@ func (s *state) standings(now time.Time) standings {
 // it back, the limit's first.
 func (u *usage) standing(a account, policy score.Policy, now time.Time) standing {
 	limited := u.limited.holds(now, policy.IsShared)
-	st := u.status(a, policy, now)
+	st, yearOf := u.statusOf(a, policy, now)
 	s := standing{
 		Account: st,
+		yearOf:  yearOf,
 		quota:   !limited && score.Available(st.Windows, a.Reserve, policy.IsShared, now),
 		known:   limited || len(st.Windows) > 0,
 		refused: u.refused.inForce(now),
@@ -1256,14 +1257,21 @@ func (u *usage) standing(a account, policy score.Policy, now time.Time) standing
 // as it does at now as policy judges, or why there's none, and the limit and
 // the refusal in force on it then, if any are.
 func (u *usage) status(a account, policy score.Policy, now time.Time) status.Account {
-	st := status.Configured(a.Account)
+	st, _ := u.statusOf(a, policy, now)
+	return st
+}
+
+// statusOf is status, and the hash of the token whose year it gives: "" where
+// it gives none.
+func (u *usage) statusOf(a account, policy score.Policy, now time.Time) (st status.Account, yearOf string) {
+	st = status.Configured(a.Account)
 	if !a.hasToken() {
 		st.Error = a.problem()
-		return st
+		return st, ""
 	}
 	st.TokenSet = true
-	if taken, ok := a.secret.tokenTaken(); ok {
-		st = st.WithTokenTaken(taken)
+	if taken, of, ok := a.secret.tokenTaken(); ok {
+		st, yearOf = st.WithTokenTaken(taken), of
 	}
 	st.FetchedAt = u.updated
 	st.Windows, st.Extra = u.latest(), u.extra
@@ -1274,7 +1282,7 @@ func (u *usage) status(a account, policy score.Policy, now time.Time) status.Acc
 		st.Limit = status.Limit{ID: u.limited.id, Windows: slices.Clone(u.limited.windows), Until: u.limited.until}
 	}
 	st.Refused = u.refusedStatus(now)
-	return st
+	return st, yearOf
 }
 
 // refusedStatus is the refusal the status document gives the account at now,

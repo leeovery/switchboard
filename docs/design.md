@@ -1335,7 +1335,11 @@ not the owner's decisions:
 - **`+ add an account` chosen,** with no card open: the key line's left has `↑↓ select` alone, and
   its right `enter add an account`, `q quit`.
 - **The token-year notifications' rules** (see Notifications): no key, no quiet minute, the nearest
-  threshold told at start, and what's told kept in `state.json`.
+  threshold told at start, and what's told kept in `state.json`. Their words:
+  `work · Work: token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`,
+  `· last day` on its last, and `token expired 17 Nov 2026` once it's past. One that fails to post
+  counts as told, as any notification that fails is dropped. Each look tells the token's year after
+  room again and warnings, so the quiet minute it starts holds none of those back.
 - **A token made is kept.** `esc` and an interrupt stop setup-token and save nothing only until
   setup-token says it has made the token. After that, as the token lasts a year on the account,
   setup checks and saves it whatever stops it, the API given its own time limit, saving it
