@@ -304,17 +304,25 @@ func (d document) replaced(i int, line string) document {
 
 // withPrimeDay returns the document with [prime]'s day set to day: in place
 // of the day the line that sets it gives, else directly below the table's
-// header, else in a [prime] table put at the end.
+// header, else in a [prime] table put at the end; or, for "", without the
+// line that sets it.
 func (d document) withPrimeDay(day string) document {
-	value := quote(day)
 	h := d.header(primeHeaderLine)
-	if h < 0 {
-		return d.insert(len(d.lines), []string{"[prime]", "day = " + value})
+	switch {
+	case h < 0 && day == "":
+		return d
+	case h < 0:
+		return d.insert(len(d.lines), []string{"[prime]", "day = " + quote(day)})
 	}
-	if i := d.keyAt(span{start: h + 1, end: d.nextTable(h)}, "day"); i >= 0 {
-		return d.replaced(i, withValue(d.lines[i], value))
+	table := span{start: h + 1, end: d.nextTable(h)}
+	i := d.keyAt(table, "day")
+	switch {
+	case day == "":
+		return d.withKey(table, "day", "")
+	case i >= 0:
+		return d.replaced(i, withValue(d.lines[i], quote(day)))
 	}
-	return d.put(h+1, "day = "+value)
+	return d.put(h+1, "day = "+quote(day))
 }
 
 // withKey returns the document with key, in the table within s, set to

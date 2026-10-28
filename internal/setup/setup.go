@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/status"
@@ -43,11 +44,11 @@ type Setup struct {
 	// added and tokens taken. Setup takes tokens at the terminal, whatever
 	// its Input.
 	Accounts accounts.Registry
-	// Service is the LaunchAgent, which Install says how to run: this
+	// LaunchAgent is the service, which Install says how to run: this
 	// switchboard binary, as the path it was run by names it, and the config
 	// file given, if one was.
-	Service *service.Service
-	Install service.InstallOptions
+	LaunchAgent *service.Service
+	Install     service.InstallOptions
 	// Startable fails, saying why, where a router couldn't start from
 	// start, as serve's check says: setup checks it before it installs the
 	// service, so a router that couldn't start never replaces one that runs.
@@ -71,12 +72,15 @@ type Setup struct {
 	// asking the login shell, setup takes the interrupt itself, so as to
 	// kill the shell.
 	Interrupt func(context.Context) (context.Context, context.CancelFunc)
-	// Skill is where Claude Code reads the skill, and Settings Claude Code's
-	// settings file, where the session hook goes.
-	Skill, Settings string
+	// SkillFile is where Claude Code reads the skill, and Settings Claude
+	// Code's settings file, where the session hook goes.
+	SkillFile, Settings string
 	// Usage prints every account's windows as they stand on out, as
 	// switchboard usage does.
 	Usage func(ctx context.Context, out io.Writer) error
+
+	// changed is set once setup changes the config or a token.
+	changed bool
 }
 
 // Run takes each step in turn, stopping at one that fails, or when the
@@ -85,11 +89,11 @@ type Setup struct {
 // last, such as go run's, before it asks anything: the service and the
 // claude link both run this one.
 func (s *Setup) Run(ctx context.Context) error {
-	switchboard, err := s.Service.Binary(s.Install.Executable)
+	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
 	if err != nil {
 		return err
 	}
-	r := &run{Setup: s, switchboard: switchboard, registry: s.registry()}
+	r := &run{Setup: s, switchboard: switchboard, registry: s.registry(), tell: s.Terminal.tell}
 	r.Terminal.sayf("Setting switchboard up: each step says what's done already, and does only what isn't.")
 	steps := []struct {
 		title string
@@ -127,8 +131,17 @@ type run struct {
 	registry    accounts.Registry
 	// cfg is the config as the steps have left it.
 	cfg *config.Config
-	// changed is set once a step changes the config or a token.
-	changed bool
+	// tell is where the service step tells what it says.
+	tell func(Said)
+	// health is the service's router's, where the service step saw it
+	// answer.
+	health *router.Health
+}
+
+// wrote is told by each of setup's writes to the config or a token, which
+// a router that answers takes up on its own.
+func (s *Setup) wrote() {
+	s.changed = true
 }
 
 func (r *run) usage(ctx context.Context) error {

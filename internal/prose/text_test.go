@@ -6,6 +6,20 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
+func TestVersion(t *testing.T) {
+	tests := []struct{ version, want string }{
+		{"0.2.10", "v0.2.10"},
+		{"1.0.0-rc.1", "v1.0.0-rc.1"},
+		{"dev", "dev"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := prose.Version(tt.version); got != tt.want {
+			t.Errorf("Version(%q) = %q, want %q", tt.version, got, tt.want)
+		}
+	}
+}
+
 func TestList(t *testing.T) {
 	tests := []struct {
 		items []string

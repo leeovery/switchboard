@@ -220,7 +220,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 	return &setup.Setup{
 		Terminal:     u.terminal(),
 		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt, Now: func() time.Time { return tokenTaken }},
-		Service:      svc,
+		LaunchAgent:  svc,
 		Install:      service.InstallOptions{Executable: w.switchboard, Config: w.configFlag},
 		Startable:    w.startable,
 		Path:         strings.Join(w.path, string(filepath.ListSeparator)),
@@ -231,7 +231,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Login:        w.login,
 		Getenv:       w.getenv,
 		Interrupt:    w.interruptible,
-		Skill:        w.skill,
+		SkillFile:    w.skill,
 		Settings:     w.settings,
 		Usage: func(_ context.Context, out io.Writer) error {
 			_, err := io.WriteString(out, "(every account's usage)\n")
@@ -370,7 +370,7 @@ func (w *world) installService(t *testing.T, binary string) {
 // opts says.
 func (w *world) installServiceWith(t *testing.T, opts service.InstallOptions) {
 	t.Helper()
-	if _, err := w.setup(t, &user{}).Service.Install(t.Context(), opts); err != nil {
+	if _, err := w.setup(t, &user{}).LaunchAgent.Install(t.Context(), opts); err != nil {
 		t.Fatal(err)
 	}
 	w.launchd.calls = nil
@@ -623,6 +623,8 @@ type fakeLaunchd struct {
 	anonymous                        bool
 	pidless, stateUnread, printFails bool
 	old                              bool
+	// version is the version the routers answer with.
+	version string
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
 	pid        int
@@ -755,7 +757,7 @@ func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 // router is how the running router answers.
 func (f *fakeLaunchd) router() router.Health {
 	startedAt := time.Date(2026, 9, 28, 13, f.started, f.restarts, 0, time.UTC)
-	h := router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", StartedAt: startedAt}
+	h := router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", Version: f.version, StartedAt: startedAt}
 	if f.anonymous {
 		h.PID = 0
 	}
