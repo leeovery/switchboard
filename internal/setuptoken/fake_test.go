@@ -252,12 +252,12 @@ func (f fake) hasNoted(name string) bool {
 // opener is an Opener that opens nothing, noting each address it's asked to
 // open, and answering as it's set to.
 type opener struct {
-	opened setuptoken.Opened
+	opened setuptoken.Opening
 	err    error
 	asked  []string
 }
 
-func (o *opener) Open(_ context.Context, address setuptoken.Address) (setuptoken.Opened, error) {
+func (o *opener) Open(_ context.Context, address setuptoken.Address) (setuptoken.Opening, error) {
 	o.asked = append(o.asked, address.Reveal())
 	return o.opened, o.err
 }

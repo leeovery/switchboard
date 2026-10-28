@@ -68,6 +68,9 @@ func TestFind(t *testing.T) {
 		selfErr error
 		want    string
 		wantErr string
+		// notFound is set where the error is that there's no claude, a
+		// *claude.NotFoundError.
+		notFound bool
 	}{
 		{name: "on PATH, before any install path", path: []string{at("real")}, installs: []string{native}, want: claudeCode},
 		{name: "on PATH, by the link its installer made", path: []string{at("native")}, want: native},
@@ -108,10 +111,11 @@ func TestFind(t *testing.T) {
 		},
 		{name: "at an install path, past another build of switchboard", installs: []string{otherBuild, native}, self: thisBuild, want: native},
 		{
-			name:    "nowhere, another build of switchboard never taken for it",
-			path:    []string{at("builds")},
-			self:    thisBuild,
-			wantErr: "can't find claude past another switchboard, at " + otherBuild + ": it isn't on PATH, nor at ",
+			name:     "nowhere, another build of switchboard never taken for it",
+			path:     []string{at("builds")},
+			self:     thisBuild,
+			wantErr:  "can't find claude past another switchboard, at " + otherBuild + ": it isn't on PATH, nor at ",
+			notFound: true,
 		},
 		{
 			name: "on PATH, a Go program, when switchboard isn't one to compare it with",
@@ -130,6 +134,7 @@ func TestFind(t *testing.T) {
 			path:     []string{at("links")},
 			installs: []string{missing, claudeLink},
 			wantErr:  "can't find claude past switchboard's own link: it isn't on PATH, nor at " + missing + ", " + claudeLink,
+			notFound: true,
 		},
 		{
 			name:    "without switchboard's own executable",
@@ -152,6 +157,9 @@ func TestFind(t *testing.T) {
 			if tt.wantErr != "" {
 				if err == nil || err.Error() != tt.wantErr {
 					t.Errorf("Find() = %q, %v; want the error %q", got, err, tt.wantErr)
+				}
+				if _, notFound := errors.AsType[*claude.NotFoundError](err); notFound != tt.notFound {
+					t.Errorf("Find() = %v, a *claude.NotFoundError %t; want %t", err, notFound, tt.notFound)
 				}
 				return
 			}

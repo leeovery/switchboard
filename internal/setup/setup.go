@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -69,9 +70,14 @@ type Setup struct {
 	Getenv func(string) string
 	// Interrupt returns a context that ends at an interrupt, as
 	// signal.NotifyContext does for SIGINT, which it is unless it's set:
-	// asking the login shell, setup takes the interrupt itself, so as to
-	// kill the shell.
+	// asking the login shell, or making a token, setup takes the interrupt
+	// itself, so as to stop the shell, or setup-token.
 	Interrupt func(context.Context) (context.Context, context.CancelFunc)
+	// TokenMaker makes an account's token, and Browser and PrivateWindow
+	// open its sign-in address, in the browser as it is, and in a private
+	// window, as setuptoken's Browser and PrivateWindow do.
+	TokenMaker             TokenMaker
+	Browser, PrivateWindow setuptoken.Opener
 	// SkillFile is where Claude Code reads the skill, and Settings Claude
 	// Code's settings file, where the session hook goes.
 	SkillFile, Settings string

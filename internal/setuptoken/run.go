@@ -405,16 +405,16 @@ func (r *run) lookForAddress(ctx context.Context) {
 		return
 	}
 	r.looking, r.handOver = nil, nil
-	address, ok := newAddress(raw)
+	address, ok := ParseAddress(raw)
 	if !ok {
 		r.judge(ctx, notAnAddress(r.screen.drawing().text()))
 		return
 	}
-	opened, err := r.signing.Opener.Open(ctx, address)
+	opening, err := r.signing.Opener.Open(ctx, address)
 	if ctx.Err() != nil {
 		return
 	}
-	r.report(Event{Step: StepAddress, Address: address, Opened: opened, Unopened: err})
+	r.report(Event{Step: StepAddress, Address: address, Opening: opening, Unopened: err})
 	r.report(Event{Step: StepWaiting})
 }
 

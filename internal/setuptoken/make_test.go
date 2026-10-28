@@ -22,7 +22,7 @@ import (
 func TestMakeTakesTheTokenOnceTheBrowserApprovesTheSignIn(t *testing.T) {
 	f := newFake(t, "", "FAKE_EXIT_AFTER=0.5")
 	leaks := watchLeaks(t)
-	open := &opener{opened: setuptoken.OpenedInBrowser}
+	open := &opener{opened: setuptoken.Opening{Opened: setuptoken.OpenedInBrowser}}
 	var events []setuptoken.Event
 
 	token, err := f.maker.Make(t.Context(), setuptoken.Signing{Opener: open, Report: approving(t, f, &events)})
@@ -70,13 +70,13 @@ func TestMakeReportsHowTheAddressOpened(t *testing.T) {
 	failed := errors.New("open the sign-in address: exit status 1")
 	tests := []struct {
 		name   string
-		opened setuptoken.Opened
+		opened setuptoken.Opening
 		err    error
 	}{
-		{name: "in the browser", opened: setuptoken.OpenedInBrowser},
-		{name: "in a private window", opened: setuptoken.OpenedPrivately},
-		{name: "not, the browser having no private window", opened: setuptoken.NotOpened, err: refused},
-		{name: "not, open failing", opened: setuptoken.NotOpened, err: failed},
+		{name: "in the browser", opened: setuptoken.Opening{Opened: setuptoken.OpenedInBrowser}},
+		{name: "in a private window, naming the browser", opened: setuptoken.Opening{Opened: setuptoken.OpenedPrivately, Browser: "Firefox"}},
+		{name: "not, the browser having no private window", err: refused},
+		{name: "not, open failing", err: failed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,8 +92,8 @@ func TestMakeReportsHowTheAddressOpened(t *testing.T) {
 			if len(events) == 0 || events[0].Step != setuptoken.StepAddress {
 				t.Fatalf("Make reported %v first, want the address", steps(events))
 			}
-			if e := events[0]; e.Opened != tt.opened || !errors.Is(e.Unopened, tt.err) || e.Address.Reveal() != fakeAddress {
-				t.Errorf("Make reported the address opened %v (%v), want %v (%v), with the address to show", e.Opened, e.Unopened, tt.opened, tt.err)
+			if e := events[0]; e.Opening != tt.opened || !errors.Is(e.Unopened, tt.err) || e.Address.Reveal() != fakeAddress {
+				t.Errorf("Make reported the address opened %+v (%v), want %+v (%v), with the address to show", e.Opening, e.Unopened, tt.opened, tt.err)
 			}
 		})
 	}
@@ -549,13 +549,13 @@ type exitedFirst struct {
 	cancel context.CancelFunc
 }
 
-func (o exitedFirst) Open(context.Context, setuptoken.Address) (setuptoken.Opened, error) {
+func (o exitedFirst) Open(context.Context, setuptoken.Address) (setuptoken.Opening, error) {
 	o.f.mark(o.t, "opened")
 	if pid, err := strconv.Atoi(o.f.noted(o.t, "pid")); err != nil || !gone(pid) {
 		o.t.Errorf("the fake setup-token, %d, never exited by itself (%v)", pid, err)
 	}
 	o.cancel()
-	return setuptoken.NotOpened, nil
+	return setuptoken.Opening{}, nil
 }
 
 // Each attempt ends ctx a while later than the last, from before setup-token
@@ -670,9 +670,9 @@ func TestMakeStartsNothingWhenItsContextHasEnded(t *testing.T) {
 // asked to open the address.
 type cancelling struct{ cancel context.CancelFunc }
 
-func (c cancelling) Open(ctx context.Context, _ setuptoken.Address) (setuptoken.Opened, error) {
+func (c cancelling) Open(ctx context.Context, _ setuptoken.Address) (setuptoken.Opening, error) {
 	c.cancel()
-	return setuptoken.NotOpened, ctx.Err()
+	return setuptoken.Opening{}, ctx.Err()
 }
 
 // The exit status a ScreenError carries is setup-token's own.
