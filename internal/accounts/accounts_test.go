@@ -858,7 +858,7 @@ func TestCheckFailsOnceTheCallerGivesUp(t *testing.T) {
 			asked := make(chan struct{}, 1)
 			w := newWorld(t, strings.Replace(twoAccounts, upstream, newRealAPI(t, answerWith{hang: true, asked: asked}), 1))
 
-			got, err := realRegistry(w).Check(up.ctx(t, asked), tokenOf(t, sideToken))
+			got, err := patientRegistry(w).Check(up.ctx(t, asked), tokenOf(t, sideToken))
 			if !errors.Is(err, up.wantIs) || !strings.HasPrefix(errorText(err), "check the token with the API: ") || got != (accounts.Checked{}) {
 				t.Errorf("Check() = %+v, %v, want the caller's error, %v", got, err, up.wantIs)
 			}
@@ -875,7 +875,7 @@ func TestTheGivenWritesWriteNothingOnceTheCallerGivesUp(t *testing.T) {
 				w := newWorld(t, given)
 				w.writeToken(t, "side", "test-token-stale", 0o600)
 
-				got, err := write.give(up.ctx(t, asked), realRegistry(w), tokenOf(t, sideToken))
+				got, err := write.give(up.ctx(t, asked), patientRegistry(w), tokenOf(t, sideToken))
 				if !errors.Is(err, up.wantIs) || got != (accounts.Checked{}) {
 					t.Errorf("%s() = %+v, %v, want the caller's error, %v", write.name, got, err, up.wantIs)
 				}
@@ -1056,11 +1056,21 @@ func newRealAPI(t *testing.T, a answerWith) string {
 // realRegistry is the world's registry, checking tokens with the Claude
 // provider's prober, which gives up on a probe after 50ms.
 func realRegistry(w *world) accounts.Registry {
+	return registryProbingWithin(w, 50*time.Millisecond)
+}
+
+// patientRegistry is realRegistry with a prober that waits a minute, so the
+// caller gives up first however slowly a loaded machine runs its cancel.
+func patientRegistry(w *world) accounts.Registry {
+	return registryProbingWithin(w, time.Minute)
+}
+
+func registryProbingWithin(w *world, limit time.Duration) accounts.Registry {
 	return accounts.Registry{
 		ConfigPath: w.config,
 		Tokens:     w.tokens(),
 		Prober: func(upstream string) accounts.Prober {
-			return &claude.Prober{Upstream: upstream, Timeout: 50 * time.Millisecond}
+			return &claude.Prober{Upstream: upstream, Timeout: limit}
 		},
 		Now: func() time.Time { return now },
 	}
