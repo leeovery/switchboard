@@ -368,11 +368,12 @@ The steps are:
    to `PATH`; a path, such as Claude Code's old `~/.claude/local/claude`, goes through switchboard
    only where it's the link, and otherwise `setup` says to remove the alias or point it at
    `claude`; and one that sets `PATH` for `claude` doesn't count, as `setup` can't tell which
-   `claude` that `PATH` finds, so it says to take `PATH=` out of it. A function `setup` can't read, so it says the function goes through switchboard where
-   it runs `claude` by name. Ctrl-C while it asks stops `setup`. `setup` asks zsh, bash and fish
-   alone: for another shell, it shows the bin directory, as `$HOME/…`, to put first on `PATH` by
-   hand. Until it's done, for zsh, bash and fish, `setup` offers to add one line to the end of your
-   shell's startup file, naming the file and showing the line first. For zsh, the line is:
+   `claude` that `PATH` finds, so it says to take `PATH=` out of it. A function `setup` can't
+   read, so it says the function goes through switchboard where it runs `claude` by name. Ctrl-C
+   while it asks stops `setup`. `setup` asks zsh, bash and fish alone: for another shell, it shows
+   the bin directory, as `$HOME/…`, to put first on `PATH` by hand. Until it's done, for zsh, bash
+   and fish, `setup` offers to add one line to the end of your shell's startup file, naming the
+   file and showing the line first. For zsh, the line is:
 
    ```bash
    if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
@@ -383,10 +384,11 @@ The steps are:
    a new `~/.bash_profile`; and for fish, `config.fish` where fish says it reads it, as
    `$__fish_config_dir`. Where your shell couldn't be asked, `setup` writes nothing: it shows the
    line to add by hand, naming the file it usually goes in. Nor does it where zsh names a
-   `$ZDOTDIR` without a `.zshrc` while your home has one, as a `ZDOTDIR` set in a startup file
-   isn't the one a new terminal starts with: it shows the line by hand, naming both. A startup file that's a link, as to
-   your dotfiles, is written where it leads. The line is added once, ever: everything else
-   switchboard does in your shell is in its own file. Should the file go, the line does nothing.
+   `$ZDOTDIR` without a `.zshrc` while your home has one, as that `.zshrc` may not be the one a
+   new terminal reads, where `.zshrc` itself or a file after it sets `ZDOTDIR`: it shows the line
+   by hand, naming both. A startup file that's a link, as to your dotfiles, is written where it
+   leads. The line is added once, ever: everything else switchboard does in your shell is in its
+   own file. Should the file go, the line does nothing.
 
    When the line's there but the shell still runs another `claude`, something after the line
    changes `PATH`: `setup` says so, and to move the line to the end of the file, or what changes

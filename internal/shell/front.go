@@ -69,33 +69,51 @@ func readFront(sh Shell, is, home, link string) Front {
 }
 
 // precommand is a word that runs the command after it, in the shells it
-// names, every shell where it names none; the letters of its options that
-// take a word of their own after them are withArg.
+// names, every shell where it names none. It takes options in the shells
+// options names, the letters of those that take a word of their own after
+// them being withArg; and variables set for the command after it where
+// assignments is set, as only a reserved word does.
 type precommand struct {
-	shells  []Shell
-	withArg string
+	shells      []Shell
+	options     []Shell
+	withArg     string
+	assignments bool
 }
 
-// precommands run the command after them.
+// precommands run the command after them. builtin isn't one: it runs only
+// the shell's own commands, which claude isn't.
 var precommands = map[string]precommand{
-	"command":    {},
-	"builtin":    {},
-	"exec":       {withArg: "a"},
-	"time":       {},
+	"command":    {options: Shells},
+	"exec":       {options: Shells, withArg: "a"},
+	"time":       {options: []Shell{Bash}, assignments: true},
 	"nohup":      {},
-	"caffeinate": {withArg: "tw"},
+	"caffeinate": {options: Shells, withArg: "tw"},
 	"noglob":     {shells: []Shell{Zsh}},
-	"nocorrect":  {shells: []Shell{Zsh}},
+	"nocorrect":  {shells: []Shell{Zsh}, assignments: true},
 }
 
-// assignment is a word that sets a variable for the command after it.
-var assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+// in reports whether p is a precommand in sh.
+func (p precommand) in(sh Shell) bool {
+	return p.shells == nil || slices.Contains(p.shells, sh)
+}
+
+// assignment is a word that sets a variable, or adds to it, for the command
+// after it.
+var assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*\+?=`)
+
+// setsPath reports whether w, an assignment, sets PATH in sh, as zsh's path
+// does too.
+func setsPath(sh Shell, w string) bool {
+	name, _, _ := strings.Cut(strings.Replace(w, "+=", "=", 1), "=")
+	return name == "PATH" || sh == Zsh && name == "path"
+}
 
 // aliasRuns returns what body, an alias's in sh, runs, and the other claude
 // it runs by its path: its command, its first word, past any variables set
 // for it, and any precommand sh has, with its options. One that sets PATH
 // runs claude where only that PATH tells; command -p looks on the system's
-// PATH, and -v and -V print rather than run.
+// PATH, and -v and -V print rather than run; and after a precommand that
+// takes none, an assignment is the command.
 func aliasRuns(sh Shell, body, home, link string) (Runs, string) {
 	ws, ok := words(body)
 	if !ok {
@@ -103,19 +121,23 @@ func aliasRuns(sh Shell, body, home, link string) (Runs, string) {
 	}
 	pre, takesArg := "", false
 	for _, w := range ws {
+		p, after := precommands[pre]
 		switch {
 		case takesArg:
 			takesArg = false
-		case strings.HasPrefix(w, "PATH="):
-			return SetsPath, ""
+		case assignment.MatchString(w) && (!after || p.assignments):
+			if setsPath(sh, w) {
+				return SetsPath, ""
+			}
 		case assignment.MatchString(w):
-		case pre != "" && len(w) > 1 && strings.HasPrefix(w, "-"):
+			return Else, ""
+		case after && slices.Contains(p.options, sh) && len(w) > 1 && strings.HasPrefix(w, "-"):
 			if pre == "command" && strings.ContainsAny(w, "pvV") {
 				return Else, ""
 			}
-			takesArg = strings.ContainsRune(precommands[pre].withArg, rune(w[len(w)-1]))
+			takesArg = strings.ContainsRune(p.withArg, rune(w[len(w)-1]))
 		default:
-			if p, ok := precommands[w]; ok && (p.shells == nil || slices.Contains(p.shells, sh)) {
+			if q, ok := precommands[w]; ok && q.in(sh) {
 				pre = w
 				continue
 			}

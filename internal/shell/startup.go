@@ -97,8 +97,9 @@ func StartupFile(sh Shell, home, configDir string) string {
 // of file, sh's as the shell said it reads it, the user's home being home:
 // for zsh, ~/.zshrc, where file, .zshrc in the ZDOTDIR the shell reported,
 // isn't there and the home's is. The shell's asked once its startup files
-// have run, so a ZDOTDIR one of them exports names a directory whose .zshrc
-// a new terminal never reads. It returns "" where there's no rival.
+// have run, so the ZDOTDIR it reports may not be where a new terminal reads
+// .zshrc: one exported in .zshrc or after it isn't, though one exported in
+// .zshenv or .zprofile is. It returns "" where there's no rival.
 func RivalStartupFile(sh Shell, home, file string) string {
 	usual := filepath.Join(home, ".zshrc")
 	if sh != Zsh || file == usual || there(file) || !there(usual) {
