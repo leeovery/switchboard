@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
@@ -87,6 +88,9 @@ type Setup struct {
 
 	// changed is set once setup changes the config or a token.
 	changed bool
+	// routerWait is how long Standing waits for a router to answer: zero
+	// for launch.AskTimeout.
+	routerWait time.Duration
 }
 
 // Run takes each step in turn, stopping at one that fails, or when the

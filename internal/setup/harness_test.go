@@ -625,8 +625,15 @@ type fakeLaunchd struct {
 	anonymous                        bool
 	pidless, stateUnread, printFails bool
 	old                              bool
-	// version is the version the routers answer with.
-	version string
+	// version is the version the routers answer with, and unhealthy why
+	// the router launchd runs answers unhealthy: "" for healthy. One run by
+	// hand answers healthy.
+	version, unhealthy string
+	// slow is how long the running router takes to answer: an ask given
+	// less time, as its context's deadline says, goes unanswered at once.
+	// stuck has it never answer, the ask held until its context ends.
+	slow  time.Duration
+	stuck bool
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
 	pid        int
@@ -720,6 +727,7 @@ func (r routerAt) Health(ctx context.Context) (router.Health, error) {
 	f := r.launchd
 	if f.byHand != 0 && r.dir == cmp.Or(f.byHandAt, f.stateDir) {
 		h := f.router()
+		h.OK, h.Reason = true, ""
 		if !f.anonymous {
 			h.PID = f.byHand
 		}
@@ -747,7 +755,14 @@ func (f *fakeLaunchd) ran() []string {
 	return subcommands
 }
 
-func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
+func (f *fakeLaunchd) Health(ctx context.Context) (router.Health, error) {
+	if f.stuck {
+		<-ctx.Done()
+		return router.Health{}, fmt.Errorf("ask the router: %w", ctx.Err())
+	}
+	if deadline, ok := ctx.Deadline(); f.slow > 0 && (!ok || time.Until(deadline) < f.slow) {
+		return router.Health{}, fmt.Errorf("ask the router: %w", context.DeadlineExceeded)
+	}
 	unanswered := f.unanswered > 0
 	f.unanswered = max(f.unanswered-1, 0)
 	if f.pid == 0 || unanswered {
@@ -759,7 +774,7 @@ func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 // router is how the running router answers.
 func (f *fakeLaunchd) router() router.Health {
 	startedAt := time.Date(2026, 9, 28, 13, f.started, f.restarts, 0, time.UTC)
-	h := router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", Version: f.version, StartedAt: startedAt}
+	h := router.Health{OK: f.unhealthy == "", Reason: f.unhealthy, PID: f.pid, Listen: "127.0.0.1:4747", Version: f.version, StartedAt: startedAt}
 	if f.anonymous {
 		h.PID = 0
 	}
