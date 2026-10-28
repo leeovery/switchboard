@@ -240,7 +240,12 @@ func (f fake) noted(t *testing.T, name string) string {
 
 // ran reports whether the fake setup-token ran at all.
 func (f fake) ran() bool {
-	_, err := os.Stat(filepath.Join(f.dir, "pid"))
+	return f.hasNoted("pid")
+}
+
+// hasNoted reports whether the fake has noted name yet.
+func (f fake) hasNoted(name string) bool {
+	_, err := os.Stat(filepath.Join(f.dir, name))
 	return err == nil
 }
 

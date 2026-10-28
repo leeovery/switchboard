@@ -475,12 +475,11 @@ func TestMakeReadsOnWhileReportTakesItsTime(t *testing.T) {
 	leaks := watchLeaks(t)
 	var events []setuptoken.Event
 	approve := approving(t, f, &events)
-	heard := false
+	drawnAsReportWaits := false
 	report := func(e setuptoken.Event) {
 		approve(e)
 		if e.Step == setuptoken.StepMade {
-			f.noted(t, "drawn")
-			heard = true
+			drawnAsReportWaits = settles(func() bool { return f.hasNoted("drawn") })
 		}
 	}
 
@@ -489,8 +488,11 @@ func TestMakeReadsOnWhileReportTakesItsTime(t *testing.T) {
 	if err != nil || token.Reveal() != fakeToken {
 		t.Errorf("Make() = %q, %v; want the token made", token.Reveal(), err)
 	}
-	if !heard {
-		t.Errorf("Make returned before Report had heard the token made, want it to have heard every step (%v)", steps(events))
+	if got := steps(events); !slices.Contains(got, setuptoken.StepMade) {
+		t.Fatalf("Make reported %v, want the token made", got)
+	}
+	if !drawnAsReportWaits {
+		t.Error("setup-token didn't draw the token as Report waited on it, hearing it made, want Make reading on meanwhile")
 	}
 	leaks.check(t, f)
 }
