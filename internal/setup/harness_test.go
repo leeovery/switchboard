@@ -784,9 +784,15 @@ func (e exitStatus) ExitCode() int { return int(e) }
 // refusedToken is the one token the fake API refuses.
 const refusedToken = "test-token-refused"
 
-// fakeAPI takes every token but refusedToken, noting each it's asked about.
+// fakeAPI takes every token but refusedToken, noting each it's asked about,
+// and names each in the organization organizations gives it, none where
+// that's "". Where down is set, it answers for none, failing with it; and
+// probing, where set, is called as it's asked.
 type fakeAPI struct {
-	asked []string
+	asked         []string
+	organizations map[string]string
+	down          error
+	probing       func()
 }
 
 func (a *fakeAPI) proberAt(string) accounts.Prober {
@@ -795,10 +801,16 @@ func (a *fakeAPI) proberAt(string) accounts.Prober {
 
 func (a *fakeAPI) Probe(_ context.Context, token string) (quota.Probe, error) {
 	a.asked = append(a.asked, token)
-	if token == refusedToken {
+	if a.probing != nil {
+		a.probing()
+	}
+	switch {
+	case a.down != nil:
+		return quota.Probe{}, a.down
+	case token == refusedToken:
 		return quota.Probe{}, refusal{}
 	}
-	return quota.Probe{}, nil
+	return quota.Probe{Organization: a.organizations[token]}, nil
 }
 
 // refusal is a probe's failure as the API refuses the token.

@@ -166,9 +166,9 @@ func TestRunAsksTheOpenerNothingOnceItsContextHasEnded(t *testing.T) {
 // askedOpener is an Opener that opens nothing, counting the times it's asked.
 type askedOpener struct{ asked int }
 
-func (o *askedOpener) Open(context.Context, Address) (Opened, error) {
+func (o *askedOpener) Open(context.Context, Address) (Opening, error) {
 	o.asked++
-	return NotOpened, nil
+	return Opening{}, nil
 }
 
 // The end of ctx comes with what Make judges a failure by, ready in the same

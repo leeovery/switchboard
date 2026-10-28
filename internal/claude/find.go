@@ -58,7 +58,17 @@ func FindAfter(after, pathList string, installPaths []string, executable func() 
 	if passed != "" {
 		what += " past " + passed
 	}
-	return "", fmt.Errorf("can't find %s: it isn't on PATH, nor at %s", what, strings.Join(installPaths, ", "))
+	return "", &NotFoundError{message: fmt.Sprintf("can't find %s: it isn't on PATH, nor at %s", what, strings.Join(installPaths, ", "))}
+}
+
+// NotFoundError is what Find and FindAfter fail with where they find no
+// claude but switchboard: Claude Code isn't installed where they look.
+type NotFoundError struct {
+	message string
+}
+
+func (e *NotFoundError) Error() string {
+	return e.message
 }
 
 // thisSwitchboard is this switchboard, as Find tells it from claude.

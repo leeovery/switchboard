@@ -18,7 +18,7 @@ const openFor = 10 * time.Second
 
 // Opener opens a sign-in address in a browser on this machine, saying how.
 type Opener interface {
-	Open(ctx context.Context, address Address) (Opened, error)
+	Open(ctx context.Context, address Address) (Opening, error)
 }
 
 // program is a program an Opener runs: macOS's own, by its path, so nothing
@@ -73,13 +73,13 @@ type Browser struct {
 }
 
 // Open opens address in the default browser.
-func (b Browser) Open(ctx context.Context, address Address) (Opened, error) {
+func (b Browser) Open(ctx context.Context, address Address) (Opening, error) {
 	ctx, cancel := context.WithTimeout(ctx, openFor)
 	defer cancel()
 	if _, err := b.Run(ctx, openProgram, address.Reveal()); err != nil {
-		return NotOpened, fmt.Errorf("open the sign-in address: %w", err)
+		return Opening{}, fmt.Errorf("open the sign-in address: %w", err)
 	}
-	return OpenedInBrowser, nil
+	return Opening{Opened: OpenedInBrowser}, nil
 }
 
 // PrivateWindow opens an address in a private window of the default browser,
@@ -127,25 +127,25 @@ app.isNil() ? "" : app.path.js;`
 // opens https addresses.
 var errNoDefaultBrowser = errors.New("there's no default browser")
 
-// Open opens address in a private window of the default browser: a new one,
-// as open -n starts it, given the flag that opens one, which a browser
-// running already takes from it.
-func (p PrivateWindow) Open(ctx context.Context, address Address) (Opened, error) {
+// Open opens address in a private window of the default browser, which it
+// names: a new one, as open -n starts it, given the flag that opens one,
+// which a browser running already takes from it.
+func (p PrivateWindow) Open(ctx context.Context, address Address) (Opening, error) {
 	ctx, cancel := context.WithTimeout(ctx, openFor)
 	defer cancel()
 	app, err := p.defaultBrowser(ctx)
 	if err != nil {
-		return NotOpened, err
+		return Opening{}, err
 	}
 	name := strings.TrimSuffix(filepath.Base(app), ".app")
 	flag, ok := privateFlag(name)
 	if !ok {
-		return NotOpened, &NoPrivateWindowError{Browser: name}
+		return Opening{}, &NoPrivateWindowError{Browser: name}
 	}
 	if _, err := p.Run(ctx, openProgram, "-na", app, "--args", flag, address.Reveal()); err != nil {
-		return NotOpened, fmt.Errorf("open the sign-in address in a private window of %s: %w", name, err)
+		return Opening{}, fmt.Errorf("open the sign-in address in a private window of %s: %w", name, err)
 	}
-	return OpenedPrivately, nil
+	return Opening{Opened: OpenedPrivately, Browser: name}, nil
 }
 
 // defaultBrowser returns the path of the default browser's application.
