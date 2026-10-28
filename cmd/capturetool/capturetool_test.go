@@ -33,6 +33,28 @@ func TestPrintsAFixturesFrameAsTextAtItsSize(t *testing.T) {
 	}
 }
 
+func TestPrintsSetupsScreenAndListsIt(t *testing.T) {
+	out := capturing(t, "--fixture", "setup-skill-160", "--print", "--size", "160x37")
+
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if len(lines) != 37 {
+		t.Errorf("printed %d lines, want 37", len(lines))
+	}
+	for y, want := range map[int]string{0: " SWITCHBOARD   setup ", 4: "SKILL  ─", 8: "  ✓  Installed"} {
+		if !strings.HasPrefix(lines[y], want) {
+			t.Errorf("line %d reads %q, want it to start %q, as setup's Skill page does", y+1, lines[y], want)
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"--help"}, &stdout, &stderr, noEnv); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr.String(), "setup-skill-160") {
+		t.Errorf("--help says\n%s\nwant setup-skill-160 among the fixtures", stderr.String())
+	}
+}
+
 func TestPrintsItsColoursWithAnsi(t *testing.T) {
 	out := capturing(t, "--fixture", "overview-default-160", "--print", "--ansi")
 

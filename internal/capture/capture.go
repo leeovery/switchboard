@@ -1,17 +1,18 @@
 // Package capture is the visual capture harness's: the named, deterministic
-// fixtures of the dashboard that cmd/capturetool draws, the scenarios it
-// plays for the README's demos, and the fakes it draws them through. A
-// fixture is a moment of the dashboard as a signed-off frame draws it, on a
-// terminal of the frame's size, over the specs' worlds, each its accounts as
-// the router stands with them and its records, a year of days, today's lines
-// and the router's events, served through fake readers. A scenario is a
-// stretch of the router's life, played in real time from one of those
-// worlds. Both are drawn by the
-// dashboard's own watch model, built through watch.New, with every seam
-// faked; a printout of usage, through a path of its own, from the fake
-// router's status document, read as usage reads it. So a capture never
-// dials the router, probes, touches the network, reads or writes the real
-// config, state, prefs or tokens, or runs another process.
+// fixtures of the dashboard, and of setup's screen, that cmd/capturetool
+// draws, the scenarios it plays for the README's demos, and the fakes it
+// draws them through. A fixture is a moment of the dashboard as a signed-off
+// frame draws it, on a terminal of the frame's size, over the specs' worlds,
+// each its accounts as the router stands with them and its records, a year
+// of days, today's lines and the router's events, served through fake
+// readers. A scenario is a stretch of the router's life, played in real time
+// from one of those worlds. Both are drawn by the dashboard's own watch
+// model, built through watch.New, with every seam faked; a printout of
+// usage, through a path of its own, from the fake router's status document,
+// read as usage reads it; and setup's screen by its own model, built through
+// screen.New, its steps faked. So a capture never dials the router, probes,
+// touches the network, reads or writes the real config, state, prefs or
+// tokens, or runs another process.
 //
 // Only cmd/capturetool imports it: switchboard itself never does.
 package capture
@@ -35,7 +36,7 @@ import (
 
 // Fixture is a named moment of the dashboard: what the router gives at that
 // moment, the terminal it's drawn on, the theme it's drawn in, and the keys
-// pressed once its document is read.
+// pressed once its document is read; or of setup's screen.
 type Fixture struct {
 	// Name is what the capture tool's --fixture calls it.
 	Name string
@@ -76,6 +77,9 @@ type Fixture struct {
 	// printout has neither, and a watch drawn of it reads none.
 	records  *records
 	accounts config.Accounts
+	// setup is set for a fixture of setup's screen, drawn by its own model
+	// rather than the watch.
+	setup *setupShown
 }
 
 // InTheme is the fixture drawn in t, as the one theme chosen.
@@ -104,7 +108,7 @@ func ByName(name string) (Fixture, error) {
 
 // local is every fixture, drawn in the local time zone over the worlds at
 // localMoment, built once.
-var local = sync.OnceValue(func() fixtureSet { return setOf(overWorlds(), worldsNow) })
+var local = sync.OnceValue(func() fixtureSet { return setOf(makers(), worldsNow) })
 
 // fixtureSet is every fixture drawn in a time zone, by name, each built the
 // first time it's asked for: usage's printouts and the pages are drawn over
@@ -112,36 +116,40 @@ var local = sync.OnceValue(func() fixtureSet { return setOf(overWorlds(), worlds
 // asked for.
 type fixtureSet map[string]func() Fixture
 
-// overWorld is a fixture drawn over the accounts' worlds, built as it's asked
-// for: its name, and the fixture over the worlds given.
-type overWorld interface {
+// maker makes a fixture as it's asked for: its name, and the fixture, over
+// the worlds worlds gives where it's drawn over them.
+type maker interface {
 	called() string
-	fixture(worlds accountWorlds) Fixture
+	made(worlds func() accountWorlds) Fixture
 }
 
-// overWorlds are the fixtures drawn over the accounts' worlds: usage's
-// printouts, and the pages the watch draws.
-func overWorlds() []overWorld {
-	var over []overWorld
+// makers make every fixture: usage's printouts and the pages the watch
+// draws, over the accounts' worlds, and setup's screens, over none.
+func makers() []maker {
+	var all []maker
 	for _, p := range printouts {
-		over = append(over, p)
+		all = append(all, p)
 	}
 	for _, p := range pages {
-		over = append(over, p)
+		all = append(all, p)
 	}
-	return over
+	for _, s := range setupScreens {
+		all = append(all, s)
+	}
+	return all
 }
 
-// setOf is the fixtures given over the worlds, by name, each drawn over what
-// worlds gives the first time it's asked for, and only then. It panics on a
-// name given twice, as the second would hide the first.
-func setOf(over []overWorld, worlds func() accountWorlds) fixtureSet {
-	set := make(fixtureSet, len(over))
-	for _, o := range over {
-		if _, ok := set[o.called()]; ok {
-			panic(fmt.Sprintf("capture: two fixtures named %q", o.called()))
+// setOf is the fixtures the makers make, by name, each made the first time
+// it's asked for, and only then, over the worlds worlds gives where it's
+// drawn over them. It panics on a name given twice, as the second would
+// hide the first.
+func setOf(all []maker, worlds func() accountWorlds) fixtureSet {
+	set := make(fixtureSet, len(all))
+	for _, m := range all {
+		if _, ok := set[m.called()]; ok {
+			panic(fmt.Sprintf("capture: two fixtures named %q", m.called()))
 		}
-		set[o.called()] = sync.OnceValue(func() Fixture { return o.fixture(worlds()) })
+		set[m.called()] = sync.OnceValue(func() Fixture { return m.made(worlds) })
 	}
 	return set
 }
@@ -226,6 +234,11 @@ func (p printout) called() string {
 	return p.name
 }
 
+// made is the printout over the worlds worlds gives.
+func (p printout) made(worlds func() accountWorlds) Fixture {
+	return p.fixture(worlds())
+}
+
 // fixture is the printout of its world of worlds, read at their moment, in
 // the frames' theme.
 func (p printout) fixture(worlds accountWorlds) Fixture {
@@ -272,6 +285,11 @@ type looked struct {
 // called is the page's name.
 func (p page) called() string {
 	return p.name
+}
+
+// made is the page over the worlds worlds gives.
+func (p page) made(worlds func() accountWorlds) Fixture {
+	return p.fixture(worlds())
 }
 
 // fixture is the page drawn over its world of worlds, at its moment, as a
