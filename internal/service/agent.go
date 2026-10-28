@@ -39,7 +39,7 @@ var valueFlags = []string{configFlag, logLevelFlag}
 // installed, so it finds its config and its state where the CLI does, and
 // Claude Code's config directory, where setup puts the skill, and logs as
 // much as it would.
-var carried = []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", "SWITCHBOARD_CONFIG", "SWITCHBOARD_LOG_LEVEL", "CLAUDE_CONFIG_DIR"}
+var carried = []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_DATA_HOME", "SWITCHBOARD_CONFIG", "SWITCHBOARD_LOG_LEVEL", "CLAUDE_CONFIG_DIR"}
 
 // madeAbsolute are the variables carried that name a file or a directory,
 // which can be named relative to where the service is installed: they're
