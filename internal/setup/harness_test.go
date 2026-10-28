@@ -623,8 +623,9 @@ type fakeLaunchd struct {
 	anonymous                        bool
 	pidless, stateUnread, printFails bool
 	old                              bool
-	// version is the version the routers answer with.
-	version string
+	// version is the version the routers answer with, and unhealthy why
+	// they answer unhealthy: "" for healthy.
+	version, unhealthy string
 	// pid is the running router's, 0 when none is, and restarts how many
 	// times it has restarted in place.
 	pid        int
@@ -757,7 +758,7 @@ func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 // router is how the running router answers.
 func (f *fakeLaunchd) router() router.Health {
 	startedAt := time.Date(2026, 9, 28, 13, f.started, f.restarts, 0, time.UTC)
-	h := router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", Version: f.version, StartedAt: startedAt}
+	h := router.Health{OK: f.unhealthy == "", Reason: f.unhealthy, PID: f.pid, Listen: "127.0.0.1:4747", Version: f.version, StartedAt: startedAt}
 	if f.anonymous {
 		h.PID = 0
 	}
