@@ -85,7 +85,7 @@ func (a *app) newSetup(term setup.Terminal, root *cobra.Command) (*setup.Setup, 
 	return &setup.Setup{
 		Terminal:     term,
 		Accounts:     accounts.Registry{ConfigPath: path, Tokens: files, Prober: a.prober, Now: a.Now},
-		Service:      svc,
+		LaunchAgent:  svc,
 		Install:      service.InstallOptions{Executable: exe, Config: a.configPath},
 		Startable:    a.startableIn,
 		Path:         a.Getenv("PATH"),
@@ -95,7 +95,7 @@ func (a *app) newSetup(term setup.Terminal, root *cobra.Command) (*setup.Setup, 
 		Shells:       shells,
 		Login:        shell.Login{Environ: a.Environ(), Run: a.LoginShell},
 		Getenv:       a.Getenv,
-		Skill:        skillPath,
+		SkillFile:    skillPath,
 		Settings:     settings,
 		Usage: func(ctx context.Context, out io.Writer) error {
 			return a.printUsage(ctx, out, usageOptions{})

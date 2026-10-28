@@ -8,7 +8,9 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+	"strings"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
@@ -20,6 +22,29 @@ import (
 // installAdvice is how setup says to install the service from the shell the
 // router should use.
 const installAdvice = "switchboard service install, run from the shell the router should use"
+
+// Service takes the service step, as the line walk's does, and returns what
+// it said and the router's health. It fails as the step does, and with
+// errNoAccount where no account is configured, as there's nothing to serve.
+func (s *Setup) Service(ctx context.Context) (Serviced, error) {
+	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
+	if err != nil {
+		return Serviced{}, err
+	}
+	registry := s.registry()
+	draft, err := config.Edit(registry.ConfigPath)
+	switch {
+	case err != nil:
+		return Serviced{}, err
+	case draft.Config() == nil:
+		return Serviced{}, errNoAccount
+	}
+	var out Serviced
+	r := &run{Setup: s, switchboard: switchboard, registry: registry, cfg: draft.Config(), tell: func(said Said) { out.Said = append(out.Said, said) }}
+	err = r.service(ctx)
+	out.Router = r.health
+	return out, err
+}
 
 // service installs the LaunchAgent, which starts the router, when it isn't
 // installed. Installed, it's seen as the router it runs sees it, through its
@@ -35,16 +60,16 @@ const installAdvice = "switchboard service install, run from the shell the route
 // the router the service runs, as leaves says, it leaves the service as it
 // is.
 func (r *run) service(ctx context.Context) error {
-	installed, err := r.Service.Options(ctx)
+	installed, err := r.LaunchAgent.Options(ctx)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return r.installFirst(ctx)
 	case err != nil:
 		return r.reinstallUnread(ctx, err)
 	}
-	svc, err := r.Service.For(installed)
+	svc, err := r.LaunchAgent.For(installed)
 	if err != nil {
-		return r.placeless(ctx, r.Service, err)
+		return r.placeless(ctx, r.LaunchAgent, err)
 	}
 	opts, given, err := r.configured(svc, installed)
 	if err != nil {
@@ -72,7 +97,13 @@ func (r *run) service(ctx context.Context) error {
 	case stale && refused != nil:
 		return r.unstartable(ctx, svc, why, refused)
 	case st.Router == nil && refused != nil:
-		r.Terminal.sayf("Launchd has the service loaded, but no router runs, and one couldn't start as the service runs it: %s, installs it once what stops it is put right.", installAdvice)
+		const refusedStart = "one couldn't start as the service runs it: " + installAdvice + ", installs it once what stops it is put right"
+		r.tell(Said{
+			Mark:     Failed,
+			Label:    "Router",
+			Detail:   "not running, and " + refusedStart,
+			Sentence: "Launchd has the service loaded, but no router runs, and " + refusedStart + ".",
+		})
 		return fmt.Errorf("the router couldn't start: %w", refused)
 	}
 	// Places are said only of a router that answers: a router started with
@@ -87,18 +118,21 @@ func (r *run) service(ctx context.Context) error {
 	}
 	switch {
 	case stale:
-		if why != "" {
-			r.Terminal.sayf("%s, so it's installed afresh.", why)
+		if why != (reason{}) {
+			r.tell(why.afresh(kept(opts, given)))
 		}
 		return r.install(ctx, svc, opts, afresh)
 	case afresh:
 		return r.restart(ctx, svc, opts)
 	}
-	up := "The service is installed, and the router is up: " + service.Health(*st.Router) + "."
+	r.health = st.Router
+	said := routerUp(*st.Router)
+	said.Sentence = "The service is installed, and the router is up: " + service.Health(*st.Router) + "."
 	if r.changed && shared {
-		up += " It takes up setup's changes on its own."
+		said.Detail += " · takes up setup's changes on its own"
+		said.Sentence += " It takes up setup's changes on its own."
 	}
-	r.Terminal.sayf("%s", up)
+	r.tell(said)
 	return nil
 }
 
@@ -122,14 +156,26 @@ func (r *run) status(ctx context.Context, svc *service.Service) (service.Status,
 func (r *run) leaves(st service.Status) (bool, error) {
 	switch {
 	case st.Router != nil && !launchdAnswers(st):
-		return true, r.handRun(st, "", "")
+		return true, r.handRun(st, reason{}, "")
 	case st.Elsewhere:
-		r.Terminal.sayf("No router answers where the service's plist keeps its state, but one answers where this shell keeps it, so which the service runs can't be told, and setup leaves it as it is: %s, lines them up.", installAdvice)
+		const untold = "no router answers where the service's plist keeps its state, but one answers where this shell keeps it, so which the service runs can't be told"
+		const lineUp = installAdvice + ", lines them up"
+		r.tell(Said{
+			Mark:     Warning,
+			Label:    "Left as it is",
+			Detail:   untold + ": " + lineUp,
+			Sentence: capital(untold) + ", and setup leaves it as it is: " + lineUp + ".",
+		})
 		return true, nil
 	case st.Router == nil && st.Running:
-		r.Terminal.sayf("Launchd runs the service's router, %s, but it doesn't answer here: it may be starting, or stopping, which can take over half a minute after a bootout, "+
-			"or keeping its state somewhere setup doesn't look. Setup leaves it as it is: if it doesn't answer soon, as switchboard service status shows, "+
-			"switchboard service install installs it again: give it the --config and --log-level it ran with, if any.", pidOf(st.PID))
+		const unanswered = "it may be starting, or stopping, which can take over half a minute after a bootout, or keeping its state somewhere setup doesn't look"
+		const again = "if it doesn't answer soon, as switchboard service status shows, switchboard service install installs it again: give it the --config and --log-level it ran with, if any"
+		r.tell(Said{
+			Mark:     Failed,
+			Label:    "Router",
+			Detail:   fmt.Sprintf("launchd runs it, %s, but it doesn't answer here: %s; setup leaves it as it is: %s", pidOf(st.PID), unanswered, again),
+			Sentence: fmt.Sprintf("Launchd runs the service's router, %s, but it doesn't answer here: %s. Setup leaves it as it is: %s.", pidOf(st.PID), unanswered, again),
+		})
 		return true, fmt.Errorf("launchd's router, %s, doesn't answer: if it doesn't soon, run switchboard service install", pidOf(st.PID))
 	}
 	return false, nil
@@ -140,20 +186,27 @@ func (r *run) leaves(st service.Status) (bool, error) {
 const noService = "No service is installed"
 
 // handRun says a router run some other way answers, as st says, after
-// lead, the plist's state where setup can't use it, and what launchd has of
-// the service, where lead doesn't say it, as noService does; and fails, short naming the plist's
-// state, as no router could start beside it, and only service install, once
-// it's stopped, puts the service right.
-func (r *run) handRun(st service.Status, lead, short string) error {
-	said, failed := "A router run some other way answers", "a router run by hand answers"
-	if lead != "" {
-		said, failed = lead+", and a router run some other way answers", short+", and a router run by hand answers"
+// why, the plist's state where setup can't use it, and what launchd has of
+// the service, where why doesn't say it, as noService does; and fails, short
+// naming the plist's state, as no router could start beside it, and only
+// service install, once it's stopped, puts the service right.
+func (r *run) handRun(st service.Status, why reason, short string) error {
+	const answers = "a router run some other way answers"
+	said, detail, failed := capital(answers), answers, "a router run by hand answers"
+	if why.lead != "" {
+		said, detail, failed = why.lead+", and "+answers, why.detail+", and "+answers, short+", and a router run by hand answers"
 	}
 	while, left := ", while "+launchdHas(st), "them as they are"
-	if lead == noService {
+	if why.lead == noService {
 		while, left = "", "it as it is"
 	}
-	r.Terminal.sayf("%s, %s%s: setup leaves %s. Stop the router run by hand, then run switchboard service install.", said, pidOf(st.Router.PID), while, left)
+	const stop = "stop the router run by hand, then run switchboard service install"
+	r.tell(Said{
+		Mark:     Failed,
+		Label:    "Router run by hand",
+		Detail:   fmt.Sprintf("%s, %s%s: setup leaves %s; %s", detail, pidOf(st.Router.PID), while, left, stop),
+		Sentence: fmt.Sprintf("%s, %s%s: setup leaves %s. %s.", said, pidOf(st.Router.PID), while, left, capital(stop)),
+	})
 	return fmt.Errorf("%s: stop it, then run switchboard service install", failed)
 }
 
@@ -163,22 +216,41 @@ func (r *run) handRun(st service.Status, lead, short string) error {
 // is, as handRun says where it isn't launchd's, and naming service install.
 func (r *run) placeless(ctx context.Context, svc *service.Service, err error) error {
 	unplaced := redact.Text(err.Error())
-	why := fmt.Sprintf("Where the service's router finds its state or its config can't be worked out from its plist (%s)", unplaced)
+	why := reason{
+		lead:   fmt.Sprintf("Where the service's router finds its state or its config can't be worked out from its plist (%s)", unplaced),
+		detail: fmt.Sprintf("where the service's router finds its state or its config can't be worked out from its plist (%s)", unplaced),
+	}
 	short := "the service's plist: " + unplaced
+	const afresh = installAdvice + ", installs it afresh"
+	// placeless tells of the plist, what follows why being stands.
+	placeless := func(stands string) {
+		r.tell(Said{
+			Mark:     Failed,
+			Label:    "Plist",
+			Detail:   why.detail + stands,
+			Sentence: why.lead + stands + ".",
+		})
+	}
 	st, err := r.status(ctx, svc)
 	switch {
 	case err != nil:
 		unasked := redact.Text(err.Error())
-		r.Terminal.sayf("%s: %s, installs it afresh. Launchd couldn't be asked about the service: %s", why, installAdvice, unasked)
+		r.tell(Said{
+			Mark:     Failed,
+			Label:    "Plist",
+			Detail:   fmt.Sprintf("%s: %s · launchd couldn't be asked about the service: %s", why.detail, afresh, unasked),
+			Sentence: fmt.Sprintf("%s: %s. Launchd couldn't be asked about the service: %s", why.lead, afresh, unasked),
+		})
 		return fmt.Errorf("%s: run switchboard service install: %s", short, unasked)
 	case st.Router != nil && !launchdAnswers(st):
 		return r.handRun(st, why, short)
 	case st.Router != nil:
-		r.Terminal.sayf("%s, though launchd runs its router, %s, which answers: setup leaves it as it is, but the plist can't start a router again, so %s, installs it afresh.", why, pidOf(st.PID), installAdvice)
+		r.health = st.Router
+		placeless(fmt.Sprintf(", though launchd runs its router, %s, which answers: setup leaves it as it is, but the plist can't start a router again, so %s", pidOf(st.PID), afresh))
 	case st.Running:
-		r.Terminal.sayf("%s, and no router answers, while %s: %s, installs it afresh.", why, launchdHas(st), installAdvice)
+		placeless(fmt.Sprintf(", and no router answers, while %s: %s", launchdHas(st), afresh))
 	default:
-		r.Terminal.sayf("%s, and no router answers: %s, installs it afresh.", why, installAdvice)
+		placeless(", and no router answers: " + afresh)
 	}
 	return fmt.Errorf("%s: run switchboard service install", short)
 }
@@ -190,7 +262,7 @@ func (r *run) installFirst(ctx context.Context) error {
 	if left, err := r.unusable(ctx, nil); left {
 		return err
 	}
-	svc, opts, err := r.Service.Planned(ctx, r.Install)
+	svc, opts, err := r.LaunchAgent.Planned(ctx, r.Install)
 	if err != nil {
 		return err
 	}
@@ -209,7 +281,7 @@ func (r *run) installFirst(ctx context.Context) error {
 // It reports whether it left the service so; where it didn't, setup installs
 // it afresh.
 func (r *run) unusable(ctx context.Context, unread error) (bool, error) {
-	st, err := r.status(ctx, r.Service)
+	st, err := r.status(ctx, r.LaunchAgent)
 	switch {
 	case err != nil:
 		return true, err
@@ -219,21 +291,29 @@ func (r *run) unusable(ctx context.Context, unread error) (bool, error) {
 		return false, nil
 	}
 	plist, short := "The service's plist is gone", "the service's plist is gone"
+	detail := short
 	switch {
 	case unread != nil:
 		plist = fmt.Sprintf("The service's plist can't be read back (%s)", redact.Text(unread.Error()))
 		short = "the service's plist can't be read back"
+		detail = fmt.Sprintf("the service's plist can't be read back (%s)", redact.Text(unread.Error()))
 	case !st.Loaded:
-		plist, short = noService, "no service is installed"
+		plist, short, detail = noService, "no service is installed", "no service is installed"
+	}
+	// unusable tells of the plist, what follows plist being stands.
+	unusable := func(stands string) {
+		const leaves = ": setup leaves it as it is, and switchboard service install writes the plist afresh"
+		r.tell(Said{Mark: Failed, Label: "Plist", Detail: detail + stands + leaves, Sentence: plist + stands + leaves + "."})
 	}
 	switch {
 	case launchdAnswers(st):
-		r.Terminal.sayf("%s, though launchd runs its router, %s, which answers: setup leaves it as it is, and switchboard service install writes the plist afresh.", plist, pidOf(st.PID))
+		r.health = st.Router
+		unusable(fmt.Sprintf(", though launchd runs its router, %s, which answers", pidOf(st.PID)))
 		return true, fmt.Errorf("%s: run switchboard service install", short)
 	case st.Router != nil:
-		return true, r.handRun(st, plist, short)
+		return true, r.handRun(st, reason{lead: plist, detail: detail}, short)
 	}
-	r.Terminal.sayf("%s, and no router answers, while %s: setup leaves it as it is, and switchboard service install writes the plist afresh.", plist, launchdHas(st))
+	unusable(", and no router answers, while " + launchdHas(st))
 	return true, fmt.Errorf("%s, and no router answers: run switchboard service install", short)
 }
 
@@ -272,15 +352,19 @@ func (r *run) reinstallUnread(ctx context.Context, unread error) error {
 	if left, err := r.unusable(ctx, unread); left {
 		return err
 	}
-	why := fmt.Sprintf("The service's plist can't be read back (%s)", redact.Text(unread.Error()))
-	svc, opts, err := r.Service.Planned(ctx, r.Install)
+	unreadable := redact.Text(unread.Error())
+	why := reason{
+		lead:   fmt.Sprintf("The service's plist can't be read back (%s)", unreadable),
+		detail: fmt.Sprintf("its plist couldn't be read back (%s)", unreadable),
+	}
+	svc, opts, err := r.LaunchAgent.Planned(ctx, r.Install)
 	if err != nil {
 		return err
 	}
 	if err := r.startable(svc, opts); err != nil {
 		return r.unstartable(ctx, svc, why, err)
 	}
-	r.Terminal.sayf("%s, so it's installed afresh.", why)
+	r.tell(why.afresh(""))
 	return r.install(ctx, svc, opts, false)
 }
 
@@ -288,15 +372,23 @@ func (r *run) reinstallUnread(ctx context.Context, unread error) error {
 // afresh, as the router couldn't start so, err saying why, and how to
 // install it once that's put right; and leaves it as it is while its router
 // answers, or fails while none does.
-func (r *run) unstartable(ctx context.Context, svc *service.Service, why string, err error) error {
-	why = cmp.Or(why, "Launchd hasn't loaded the service")
-	if svc.Answering(ctx) == nil {
-		r.Terminal.sayf("%s, but the router couldn't start installed afresh, and none is running: %s, installs it once what stops it is put right.", why, installAdvice)
+func (r *run) unstartable(ctx context.Context, svc *service.Service, why reason, err error) error {
+	why = cmp.Or(why, reason{lead: "Launchd hasn't loaded the service", detail: "launchd hasn't loaded it"})
+	h := svc.Answering(ctx)
+	if h == nil {
+		const none = ", but the router couldn't start installed afresh, and none is running: " + installAdvice + ", installs it once what stops it is put right"
+		r.tell(Said{Mark: Failed, Label: "Router", Detail: why.detail + none, Sentence: why.lead + none + "."})
 		return fmt.Errorf("the router couldn't start: %w", err)
 	}
-	r.Terminal.sayf("%s, but the router couldn't start installed afresh, so the service is left as it is, its router running: "+
-		"%s, installs it afresh once what stops it is put right. It couldn't start as:", why, installAdvice)
-	r.Terminal.sayf("%s", redact.Text(err.Error()))
+	r.health = h
+	const left = ", but the router couldn't start installed afresh, so the service is left as it is, its router running: " + installAdvice + ", installs it afresh once what stops it is put right"
+	refused := redact.Text(err.Error())
+	r.tell(Said{
+		Mark:     Warning,
+		Label:    "Left as it is",
+		Detail:   why.detail + left + " · it couldn't start as: " + refused,
+		Sentence: why.lead + left + ". It couldn't start as:\n" + refused,
+	})
 	return nil
 }
 
@@ -340,7 +432,7 @@ func (r *run) places() (service.Places, error) {
 	if err != nil {
 		return service.Places{}, fmt.Errorf("find the config file: %w", err)
 	}
-	return service.Places{Tokens: r.Accounts.Tokens.Dir(), ConfigFile: file, ClaudeDir: skill.ConfigDirOf(r.Skill)}, nil
+	return service.Places{Tokens: r.Accounts.Tokens.Dir(), ConfigFile: file, ClaudeDir: skill.ConfigDirOf(r.SkillFile)}, nil
 }
 
 // apart says where the router the service, installed with opts, and seen as
@@ -357,15 +449,19 @@ func (r *run) apart(svc *service.Service, opts service.InstallOptions) (bool, er
 		return false, err
 	}
 	if routers.ClaudeDir == "" {
-		r.Terminal.sayf("The router finds no Claude Code config directory, as its plist sets HOME empty, so it won't keep the skill up to date: %s, lines that up.", installAdvice)
+		const skillless = "the router finds no Claude Code config directory, as its plist sets HOME empty, so it won't keep the skill up to date: " + installAdvice + ", lines that up"
+		r.tell(Said{Mark: Warning, Label: "Skill", Detail: skillless, Sentence: capital(skillless) + "."})
 	}
 	apart := routers.Apart(setups)
 	if len(apart) > 0 {
-		advice := installAdvice + ", lines them up."
+		detail := fmt.Sprintf("the router uses another %s than setup: %s, lines them up", prose.List(apart), installAdvice)
+		sentence := capital(detail) + "."
 		if slices.Contains(apart, "config file") {
-			advice += " For the config file, switchboard setup --config, naming the router's, does too."
+			const named = "for the config file, switchboard setup --config, naming the router's, does too"
+			detail += " · " + named
+			sentence += " " + capital(named) + "."
 		}
-		r.Terminal.sayf("The router uses another %s than setup: %s", prose.List(apart), advice)
+		r.tell(Said{Mark: Warning, Label: "Elsewhere", Detail: detail, Sentence: sentence})
 	}
 	return routers.Shared(setups), nil
 }
@@ -375,21 +471,60 @@ func (r *run) apart(svc *service.Service, opts service.InstallOptions) (bool, er
 // than this one, setup is given another config file than the router serves,
 // as given says, or its plist differs from the one this switchboard writes;
 // or, saying nothing, when launchd hasn't loaded it.
-func (r *run) stale(ctx context.Context, svc *service.Service, opts service.InstallOptions, given bool, st service.Status) (string, bool, error) {
+func (r *run) stale(ctx context.Context, svc *service.Service, opts service.InstallOptions, given bool, st service.Status) (reason, bool, error) {
 	if opts.Executable != r.switchboard {
-		return fmt.Sprintf("The service runs %s, not this switchboard, %s", opts.Executable, r.switchboard), true, nil
+		return reason{
+			lead:   fmt.Sprintf("The service runs %s, not this switchboard, %s", opts.Executable, r.switchboard),
+			detail: fmt.Sprintf("it ran %s, not this switchboard, %s", opts.Executable, r.switchboard),
+		}, true, nil
 	}
 	if given {
-		return "Setup is given another config file than the one the router serves", true, nil
+		return reason{
+			lead:   "Setup is given another config file than the one the router serves",
+			detail: "setup is given another config file than the one the router served",
+		}, true, nil
 	}
 	drift, err := svc.Drift(ctx, opts)
 	switch {
 	case err != nil:
-		return "", false, err
+		return reason{}, false, err
 	case len(drift) > 0:
-		return "The service's plist differs from the one this switchboard writes, with " + prose.List(drift), true, nil
+		return reason{
+			lead:   "The service's plist differs from the one this switchboard writes, with " + prose.List(drift),
+			detail: "its plist had " + prose.List(drift),
+		}, true, nil
 	}
-	return "", !st.Loaded, nil
+	return reason{}, !st.Loaded, nil
+}
+
+// reason is why the service is installed afresh: as the line walk's
+// sentence leads with it, and as a Said's detail words it.
+type reason struct {
+	lead, detail string
+}
+
+// afresh says the service is installed afresh, as why says, keeping the
+// router's flags kept names, "" for none.
+func (why reason) afresh(kept string) Said {
+	detail := "reinstalled: " + why.detail
+	if kept != "" {
+		detail += " · kept its " + kept
+	}
+	return Said{Mark: Warning, Label: "Updated", Detail: detail, Sentence: why.lead + ", so it's installed afresh."}
+}
+
+// kept names the router's flags the service, installed afresh with opts,
+// keeps from its plist, never their values: the config file, but for one
+// setup is given in its place, as given says, and the log level.
+func kept(opts service.InstallOptions, given bool) string {
+	var flags []string
+	if opts.Config != "" && !given {
+		flags = append(flags, "--config")
+	}
+	if opts.LogLevel != "" {
+		flags = append(flags, "--log-level")
+	}
+	return prose.List(flags)
 }
 
 // install installs svc's LaunchAgent as opts says, to run this switchboard,
@@ -414,9 +549,14 @@ func (r *run) install(ctx context.Context, svc *service.Service, opts service.In
 	if err != nil {
 		return err
 	}
-	r.Terminal.sayf("Installed %s: launchd starts the router now, at every login, and whenever it stops.", svc.Plist())
+	r.tell(Said{
+		Mark:     Done,
+		Label:    "Installed",
+		Detail:   r.fromHome(svc.Plist()),
+		Sentence: fmt.Sprintf("Installed %s: launchd starts the router now, at every login, and whenever it stops.", svc.Plist()),
+	})
 	for _, warning := range installed.Warnings {
-		r.Terminal.sayf("Warning: %s.", warning)
+		r.tell(Said{Mark: Warning, Label: "Warning", Detail: warning, Sentence: fmt.Sprintf("Warning: %s.", warning)})
 	}
 	return r.up(ctx, svc, opts, installed.Router, placesAfter)
 }
@@ -428,12 +568,13 @@ func (r *run) install(ctx context.Context, svc *service.Service, opts service.In
 // saying first that it's finishing its requests in flight.
 func (r *run) restart(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
 	h, err := svc.Restart(ctx, func(how service.Restarting) {
-		r.Terminal.sayf("The router is finishing its requests in flight, then %s.", how)
+		finishing := fmt.Sprintf("finishing its requests in flight, then %s", how)
+		r.tell(Said{Mark: Warning, Label: "Restarting", Detail: finishing, Sentence: "The router is " + finishing + "."})
 	})
 	if err != nil {
 		return err
 	}
-	r.Terminal.sayf("Restarted the router, as it didn't answer.")
+	r.tell(Said{Mark: Warning, Label: "Restarted", Detail: "the router didn't answer", Sentence: "Restarted the router, as it didn't answer."})
 	return r.up(ctx, svc, opts, h, true)
 }
 
@@ -444,7 +585,8 @@ func (r *run) restart(ctx context.Context, svc *service.Service, opts service.In
 func (r *run) placesOfStarted(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
 	running, elsewhere := svc.Found(ctx)
 	if elsewhere {
-		r.Terminal.sayf("Launchd started the router where this shell keeps its state, not where the service's plist does: %s, lines them up.", installAdvice)
+		const started = "launchd started the router where this shell keeps its state, not where the service's plist does: " + installAdvice + ", lines them up"
+		r.tell(Said{Mark: Warning, Label: "Elsewhere", Detail: started, Sentence: capital(started) + "."})
 	}
 	_, err := r.apart(running, opts)
 	return err
@@ -463,6 +605,32 @@ func (r *run) up(ctx context.Context, svc *service.Service, opts service.Install
 			return err
 		}
 	}
-	r.Terminal.sayf("The router is up: %s.", service.Health(*h))
+	r.health = h
+	said := routerUp(*h)
+	said.Sentence = "The router is up: " + service.Health(*h) + "."
+	r.tell(said)
 	return nil
+}
+
+// routerUp is the Said, but for its sentence, of the service's router up,
+// answering as h says.
+func routerUp(h router.Health) Said {
+	said := Said{Mark: Done, Label: "Router", Detail: routerDetail(h)}
+	if !h.OK {
+		said.Mark = Warning
+	}
+	return said
+}
+
+// routerDetail words a router's answer as the service page shows it: how it
+// stands, the address it listens on and its version, each where it says
+// one, such as "healthy · 127.0.0.1:4747 · v0.2.10".
+func routerDetail(h router.Health) string {
+	parts := []string{service.Healthy(h)}
+	for _, part := range []string{h.Listen, prose.Version(h.Version)} {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, " · ")
 }
