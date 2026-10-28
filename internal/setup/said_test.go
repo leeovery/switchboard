@@ -358,6 +358,25 @@ func TestSkillSays(t *testing.T) {
 	}
 }
 
+func TestSkillSaysWhyItFailed(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	claudeDir := filepath.Join(w.root, "claude")
+	if err := os.RemoveAll(claudeDir); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, claudeDir, "not a directory\n", 0o644)
+
+	got, err := w.setup(t, &user{}).Skill()
+	if err == nil {
+		t.Fatal("Skill() error = nil, want why the skill couldn't be written")
+	}
+	want := setup.Said{Mark: setup.Failed, Label: "Not installed", Detail: err.Error()}
+	if got != want {
+		t.Errorf("Skill() = %+v, want %+v: failed, the error's words its detail, and no sentence for the line walk", got, want)
+	}
+}
+
 func TestSessionHookSays(t *testing.T) {
 	const at = "<root>/claude/settings.json"
 	const does = "Claude Code says so when a session doesn't start through switchboard · " + at

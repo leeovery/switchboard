@@ -9,6 +9,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
+
+	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
 )
 
 // ErrNotTerminal is what Run returns when its output isn't a terminal.
@@ -38,15 +40,11 @@ func heeded(_ tea.Model, msg tea.Msg) tea.Msg {
 
 // run shows the dashboard on out until the user quits, noting in the log when
 // it starts and stops, and puts back the terminal's background as it stops,
-// however it stops that Bubble Tea catches: a quit, an interrupt, a
-// terminate signal, which it takes as a quit, or a panic it recovers from.
+// however it stops, as backdrop.Run has it.
 func run(ctx context.Context, cfg Config, out io.Writer, opts ...tea.ProgramOption) error {
-	last := New(ctx, cfg)
-	var program runner = tea.NewProgram(tracked{Model: last, last: &last}, append(opts, tea.WithContext(ctx), tea.WithOutput(out))...)
 	logger.Info("watch started", "interval", cfg.Interval)
 	started := time.Now()
-	_, err := program.Run()
-	last.backdrop.PutBack(out)
+	_, err := backdrop.Run(New(ctx, cfg), out, append(opts, tea.WithContext(ctx))...)
 	logger.Info("watch stopped", "ran", time.Since(started).Round(time.Second))
 	// In raw mode ctrl+c arrives as a key, so an interrupt comes from outside
 	// the terminal, and ends a watch as q does.
@@ -54,26 +52,4 @@ func run(ctx context.Context, cfg Config, out io.Writer, opts ...tea.ProgramOpti
 		return fmt.Errorf("run the dashboard: %w", err)
 	}
 	return nil
-}
-
-// runner is a program Bubble Tea runs until it stops: declared here, as the
-// source guards can't see Bubble Tea's own types to judge what's called of
-// them.
-type runner interface {
-	Run() (tea.Model, error)
-}
-
-// tracked is the model as Bubble Tea runs it, each step it takes noted in
-// last: Bubble Tea gives back no model from a panic it recovers from, and the
-// background the model set is put back all the same.
-type tracked struct {
-	Model
-	last *Model
-}
-
-// Update takes in a message as the model does, noting where it leaves it.
-func (t tracked) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	next, cmd := t.Model.Update(msg)
-	*t.last = next.(Model)
-	return tracked{Model: *t.last, last: t.last}, cmd
 }

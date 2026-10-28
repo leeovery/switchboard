@@ -69,19 +69,22 @@ func (s Setup) tab(step SetupStep) line {
 func (s Setup) statusLine(c *canvas, y, width int) {
 	parts := make([]line, len(s.Status))
 	for i, p := range s.Status {
-		parts[i] = p.line()
+		parts[i] = partLine(p)
 	}
 	c.line(0, y, joined(setupApart, parts...).fit(width))
 }
 
-// line is the part as the status line says it: a part that's up, ● in
-// state.positive, and one that's not up yet, ○ in text.subtle, each before
-// its words in text.secondary; a part told alone, its words muted.
-func (p SetupPart) line() line {
+// partLine is the part as the status line says it: a part that's up, ● in
+// state.positive; one that's up but not well, ● in accent.attention; and one
+// that's not up yet, ○ in text.subtle; each before its words in
+// text.secondary. A part told alone is its words, muted.
+func partLine(p setup.Part) line {
 	switch p.Standing {
-	case SetupUp:
+	case setup.PartUp:
 		return line{{"● ", positiveInk}, {p.Words, secondaryInk}}
-	case SetupDown:
+	case setup.PartWarning:
+		return line{{"● ", warningInk}, {p.Words, secondaryInk}}
+	case setup.PartDown:
 		return line{{"○ ", dimInk}, {p.Words, secondaryInk}}
 	}
 	return line{{p.Words, mutedInk}}

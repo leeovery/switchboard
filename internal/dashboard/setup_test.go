@@ -21,7 +21,7 @@ func setupScreen(changes ...func(*Setup)) Setup {
 		Now:    now,
 		Step:   SetupSkill,
 		Passed: []SetupStep{SetupAccounts, SetupPriming, SetupService, SetupLink},
-		Status: []SetupPart{{Standing: SetupUp, Words: "router up, healthy"}, {Words: "3 accounts, all working"}},
+		Status: []setup.Part{{Standing: setup.PartUp, Words: "router up, healthy"}, {Words: "3 accounts, all working"}},
 		Skill:  &said,
 	}
 	for _, change := range changes {
@@ -105,15 +105,18 @@ func TestSetupsTabsTellEachStepsState(t *testing.T) {
 func TestSetupsStatusLineSaysItsPartsApart(t *testing.T) {
 	tests := []struct {
 		name   string
-		status []SetupPart
+		status []setup.Part
 		want   string
 		// inks are the inks of the cells at their columns.
 		inks map[int]ink
 	}{
-		{name: "a part that's up, then one told alone, a faint dot between", status: []SetupPart{{Standing: SetupUp, Words: "router up, healthy"}, {Words: "3 accounts, 2 working"}},
+		{name: "a part that's up, then one told alone, a faint dot between", status: []setup.Part{{Standing: setup.PartUp, Words: "router up, healthy"}, {Words: "3 accounts, 2 working"}},
 			want: "● router up, healthy  ·  3 accounts, 2 working",
 			inks: map[int]ink{0: positiveInk, 2: secondaryInk, 20: faintInk, 22: faintInk, 25: mutedInk}},
-		{name: "a part not up yet, alone", status: []SetupPart{{Standing: SetupDown, Words: "nothing set up yet"}},
+		{name: "a part that's up but not well, its dot in accent.attention", status: []setup.Part{{Standing: setup.PartWarning, Words: "router up, unhealthy: no account can take a request"}},
+			want: "● router up, unhealthy: no account can take a request",
+			inks: map[int]ink{0: warningInk, 2: secondaryInk}},
+		{name: "a part not up yet, alone", status: []setup.Part{{Standing: setup.PartDown, Words: "nothing set up yet"}},
 			want: "○ nothing set up yet",
 			inks: map[int]ink{0: dimInk, 2: secondaryInk}},
 		{name: "no parts, nothing", want: ""},
@@ -438,6 +441,17 @@ func TestTheScreenSaysHowFarItsPageScrolls(t *testing.T) {
 	}
 	if got := setupScreen().Scrolling(94, 25); got != (Scrolling{}) {
 		t.Errorf("below the least, the page scrolls %+v, want none", got)
+	}
+}
+
+func TestAFailedStepsKeyLineHasQQuitAlone(t *testing.T) {
+	failed := setup.Said{Mark: setup.Failed, Label: "Not installed", Detail: "create the skill's directory: not a directory"}
+	c := setupDrawn(setupScreen(func(s *Setup) { s.Skill, s.Failed = &failed, true }), 160, 37)
+	if got, want := rowOf(c, 36), blanks(154)+"q quit"; got != want {
+		t.Errorf("the key line reads\n%q\nwant\n%q: setup stops at a step that failed", got, want)
+	}
+	if got, want := rowOf(c, 8), textsAt(160, map[int]string{2: "✗", 5: "Not installed", 26: failed.Detail}); got != want {
+		t.Errorf("row 8 reads\n%q\nwant\n%q: the failure's row", got, want)
 	}
 }
 
