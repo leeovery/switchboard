@@ -17,7 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
-func TestRemoveTakesTheRecordUnlessItsATokensOnlyCopy(t *testing.T) {
+func TestRemoveTakesTheRecordUnlessItsTheTokensOnlyCopyOrAnothersToken(t *testing.T) {
 	// held is what the token's file holds: shaped like a token, as a token
 	// at the record's path, but for the token being removed, is left.
 	const held = "sk-ant-oat01-fake_token-shaped\n"
@@ -98,6 +98,15 @@ func TestRemoveTakesTheRecordUnlessItsATokensOnlyCopy(t *testing.T) {
 			}
 			symlink(t, record, token)
 			return elsewhere
+		}},
+		{name: "the token file a link to a second name of the record, spelled in other cases", put: func(t *testing.T, token, record string) string {
+			writeFile(t, record, held, 0o600)
+			upper := filepath.Join(filepath.Dir(record), strings.ToUpper(filepath.Base(record)))
+			if err := os.Link(record, upper); err != nil {
+				t.Skipf("names here aren't told apart by case: %v", err)
+			}
+			symlink(t, upper, token)
+			return upper
 		}},
 		{name: "both names of one file", put: func(t *testing.T, token, record string) string {
 			writeFile(t, token, held, 0o600)

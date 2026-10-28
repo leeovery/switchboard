@@ -242,46 +242,73 @@ type Removed struct {
 // step, and isn't switchboard's to delete. As tokenAtRecord judges it before
 // the token file goes: a record that's the token's file, the one it leads to,
 // by that one name, is the token's only copy, and is left; one that's a
-// second name of it is the token being removed, and its name goes with it.
-// Anything else at the record's path goes as forgetTaken says. It holds the
-// tokens directory's lock, as Write does.
+// second name of it is the token being removed, and its name goes with it;
+// one whose names can't be counted is left, with a warning. Anything else at
+// the record's path goes as forgetTaken says. It holds the tokens
+// directory's lock, as Write does.
 func (s Store) Remove(id string) (Removed, error) {
 	defer lockDir(s.dir)()
-	same, only := s.tokenAtRecord(id)
+	at := s.tokenAtRecord(id)
 	removed, err := s.removeToken(id)
 	if err != nil {
 		return Removed{}, err
 	}
-	switch {
-	case only:
-	case same:
-		gone := s.removeRecord(id)
-		removed.LinkedToGone = gone && removed.LinkedTo != "" && sameName(removed.LinkedTo, s.takenPath(id))
+	switch at {
+	case onlyName:
+	case uncounted:
+		logger.Warn("left what's where the record of when the token was taken goes", "account", id,
+			"error", "it's the token file's, by a number of names that can't be told, so it may be its only copy")
+	case secondName:
+		s.removeRecord(id)
+		removed.LinkedToGone = removed.LinkedTo != "" && gone(removed.LinkedTo)
 	default:
 		s.forgetTaken(id)
 	}
 	return removed, nil
 }
 
-// tokenAtRecord reports whether the file at the account's record's own path,
+// tokenAt is what the file at an account's record's own path is of its
+// token's file, as tokenAtRecord judges it.
+type tokenAt int
+
+const (
+	// notTokens is anything else, or nothing.
+	notTokens tokenAt = iota
+	// onlyName is the token's file, by that one name.
+	onlyName
+	// secondName is the token's file, by that name among others.
+	secondName
+	// uncounted is the token's file, by a number of names that can't be told.
+	uncounted
+)
+
+// tokenAtRecord judges whether the file at the account's record's own path,
 // by that name, not followed where it's a link, is the token file's, or the
-// one the token file leads to, by the file, however a path to it is spelled;
-// and whether that's its only name. Where it can't tell how many names the
-// file has, it reports neither, so the record goes as forgetTaken says.
-func (s Store) tokenAtRecord(id string) (same, only bool) {
+// one the token file leads to, by the file, however a path to it is spelled,
+// and by how many names.
+func (s Store) tokenAtRecord(id string) tokenAt {
 	record, err := os.Lstat(s.takenPath(id))
 	if err != nil || !record.Mode().IsRegular() {
-		return false, false
+		return notTokens
 	}
 	token, err := os.Stat(s.Path(id))
 	if err != nil || !os.SameFile(record, token) {
-		return false, false
+		return notTokens
 	}
-	n, ok := links(record)
-	if !ok {
-		return false, false
+	switch n, ok := links(record); {
+	case !ok:
+		return uncounted
+	case n == 1:
+		return onlyName
 	}
-	return true, n == 1
+	return secondName
+}
+
+// gone reports whether there's nothing at path, not followed where it's a
+// link.
+func gone(path string) bool {
+	_, err := os.Lstat(path)
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 // removeToken deletes the account's token file, if it has one, as Remove
