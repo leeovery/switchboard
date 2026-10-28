@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -124,7 +125,7 @@ func watchUntil(t *testing.T, cfg Config, answer, key string, as func() tea.Msg)
 	settled := make(chan struct{})
 	filter := func(_ tea.Model, msg tea.Msg) tea.Msg {
 		switch msg := msg.(type) {
-		case tea.BackgroundColorMsg, unansweredMsg:
+		case tea.BackgroundColorMsg, backdrop.Unanswered:
 			settle.Do(func() { close(settled) })
 		case tea.KeyPressMsg:
 			if msg.String() == key && as != nil {
@@ -135,7 +136,7 @@ func watchUntil(t *testing.T, cfg Config, answer, key string, as func() tea.Msg)
 	}
 	if answer == "" {
 		cfg.After = func(_ time.Duration, msg tea.Msg) tea.Cmd {
-			if _, ok := msg.(unansweredMsg); ok {
+			if _, ok := msg.(backdrop.Unanswered); ok {
 				return func() tea.Msg { return msg }
 			}
 			return nil

@@ -46,7 +46,7 @@ func run(ctx context.Context, cfg Config, out io.Writer, opts ...tea.ProgramOpti
 	logger.Info("watch started", "interval", cfg.Interval)
 	started := time.Now()
 	_, err := program.Run()
-	last.backdrop.putBack(out)
+	last.backdrop.PutBack(out)
 	logger.Info("watch stopped", "ran", time.Since(started).Round(time.Second))
 	// In raw mode ctrl+c arrives as a key, so an interrupt comes from outside
 	// the terminal, and ends a watch as q does.

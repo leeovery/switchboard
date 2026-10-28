@@ -1,15 +1,12 @@
 package watch
 
 import (
-	"fmt"
-	"image/color"
-	"io"
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -31,52 +28,6 @@ type Themes interface {
 // tooSmall is what the key line says where the theme picker doesn't fit.
 const tooSmall = "the terminal's too small for the theme picker"
 
-// unansweredMsg says the terminal has had its time to say what its
-// background is.
-type unansweredMsg struct{}
-
-// backdrop is the terminal's background: whether it's dark, as the terminal
-// said, what it was before the dashboard set its own, and whether it has.
-type backdrop struct {
-	// settled is set once the terminal has said what its background is, or
-	// had its time to: the dashboard is drawn from then on.
-	settled bool
-	// heard is set once the terminal has answered the one question the
-	// dashboard asks it, which it may do after its time.
-	heard bool
-	// dark is whether the terminal's background is dark: a terminal that
-	// didn't say is taken for dark.
-	dark bool
-	// original is the terminal's background as it said before the dashboard
-	// set its own, to set back: nil where it hasn't said, or said a canvas of
-	// the dashboard's own.
-	original color.Color
-	// set is set once the dashboard has set the terminal's background, which
-	// is put back as the dashboard stops.
-	set bool
-}
-
-// putBack puts back the terminal's background as the dashboard found it,
-// once the dashboard has set its own: the colour the terminal said it was,
-// or, where it didn't say, the terminal's own default, which OSC 111
-// restores.
-func (b backdrop) putBack(w io.Writer) {
-	switch {
-	case !b.set:
-		return
-	case b.original == nil:
-		_, _ = io.WriteString(w, ansi.ResetBackgroundColor)
-	default:
-		_, _ = io.WriteString(w, ansi.SetBackgroundColor(rgbHex(b.original)))
-	}
-}
-
-// rgbHex is c written #rrggbb.
-func rgbHex(c color.Color) string {
-	r, g, b, _ := c.RGBA()
-	return fmt.Sprintf("#%02x%02x%02x", r>>8, g>>8, b>>8)
-}
-
 // coloured reports whether the dashboard is drawn in colour, as it is but
 // under NO_COLOR, which gives it no themes.
 func (m Model) coloured() bool {
@@ -92,88 +43,29 @@ func (m Model) look() dashboard.Look {
 	return dashboard.Screen(m.showing)
 }
 
-// background is what the screen sets the terminal's background to: the
-// look's canvas, where it paints one; else, once the dashboard has set its
-// own, the background the terminal said it found, as the reset nil has Bubble
-// Tea write (OSC 111) restores the terminal profile's own, not one set since;
-// and nil where the terminal didn't say, or nothing was set.
-func (m Model) background(look dashboard.Look) color.Color {
-	if canvas := look.Canvas(); canvas != nil || !m.backdrop.set {
-		return canvas
-	}
-	return m.backdrop.original
-}
-
 // inForce is the theme the dashboard is drawn in, by the user's choice and
 // the terminal's background.
 func (m Model) inForce() theme.Theme {
-	return m.pair.For(m.backdrop.dark)
+	return m.backdrop.InForce(m.pair)
 }
 
 // drawIn draws the screen in t from now on: should t paint its canvas, the
 // terminal's background is set to it, and so is to be put back.
 func (m Model) drawIn(t theme.Theme) Model {
 	m.showing = t
-	m.backdrop.set = m.backdrop.set || t.Paints()
+	m.backdrop = m.backdrop.DrawIn(t)
 	return m
 }
 
-// answered takes in the terminal's answer to the one question the dashboard
-// asks it, its background, whenever it comes: as the dashboard asks before
-// it sets its own, it's the background the dashboard found, and the half of
-// the pair goes by how dark it is. One that's a canvas the dashboard paints
-// may be one an exit it couldn't catch left, so it's never set back: OSC 111
-// resets the terminal's instead. Should the answer come once the dashboard
-// is drawn, and give the other half of the pair, the dashboard is drawn in
-// that from then on.
-func (m Model) answered(background color.Color) Model {
-	if m.backdrop.heard {
-		return m
-	}
-	painted := m.painted(background)
-	m.backdrop.heard, m.backdrop.original = true, background
-	if painted {
-		m.backdrop.original = nil
-	}
-	logger.Debug("terminal background", "answered", background != nil, "painted", painted, "late", m.backdrop.settled)
-	return m.settle(theme.Dark(background))
-}
-
-// noAnswer takes the terminal for dark, having had its time to say what its
-// background is, unless it has said.
-func (m Model) noAnswer() Model {
-	if m.backdrop.settled {
-		return m
-	}
-	return m.settle(theme.Dark(nil))
-}
-
-// settle has the dashboard drawn, from now on, as on a terminal whose
-// background is dark, or light, in the theme for it: but for one the picker
-// shows.
-func (m Model) settle(dark bool) Model {
-	if m.backdrop.settled && m.backdrop.dark == dark {
-		return m
-	}
-	m.backdrop.settled, m.backdrop.dark = true, dark
-	if m.picker.open {
+// settled has the dashboard drawn, from now on, as b says the terminal's
+// background is, in the theme in force, should afresh say so: but for one
+// the picker shows.
+func (m Model) settled(b backdrop.Backdrop, afresh bool) Model {
+	m.backdrop = b
+	if !afresh || m.picker.open {
 		return m
 	}
 	return m.drawIn(m.inForce())
-}
-
-// painted reports whether background is a canvas the dashboard paints: a
-// built-in theme's, or one of those it's drawn in.
-func (m Model) painted(background color.Color) bool {
-	if background == nil {
-		return false
-	}
-	for _, t := range append(theme.Builtins(), m.pair.Light, m.pair.Dark) {
-		if canvas := t.Colour(theme.Canvas); canvas != nil && rgbHex(canvas) == rgbHex(background) {
-			return true
-		}
-	}
-	return false
 }
 
 // picker is the theme picker, while it's open.
@@ -246,7 +138,7 @@ type keptMsg struct {
 // it does nothing; on a terminal too small for it, it says so.
 func (m Model) openPicker() (Model, tea.Cmd) {
 	switch {
-	case !m.coloured() || !m.backdrop.settled || m.picker.opening:
+	case !m.coloured() || !m.backdrop.Settled() || m.picker.opening:
 		return m, nil
 	case !dashboard.PickerFits(m.size.Width, m.size.Height):
 		return m.noting(tooSmall)
