@@ -471,6 +471,9 @@ func (a NewAccount) lines() []string {
 	if a.Label != "" {
 		keys = append(keys, [2]string{"label", quote(a.Label)})
 	}
+	if a.Plan != "" {
+		keys = append(keys, [2]string{"plan", quote(a.Plan)})
+	}
 	if a.Primary {
 		keys = append(keys, [2]string{"primary", "true"})
 	}

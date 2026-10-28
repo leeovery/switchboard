@@ -9,12 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -78,39 +78,166 @@ type Taken struct {
 	// keeps.
 	Kept bool
 	// Unchecked is why the API didn't answer whether it takes the token the
-	// user gave, which is saved all the same: nil when it did.
+	// user gave, which is saved all the same, as Checked.Why says: nil when
+	// it did.
 	Unchecked error
+}
+
+// Checked is what the API answered of a token it didn't refuse.
+type Checked struct {
+	// Unchecked is set when the API didn't answer whether it takes the token.
+	Unchecked bool
+	// Why is why it didn't, with nothing shaped like a token in it: "" when
+	// it did.
+	Why string
+	// Organization is the id of the organization the API's answer named the
+	// token's account in: "" where it named none.
+	Organization string
+}
+
+// taken is how an account came by the token the user gave, which the API
+// answered for as checked says.
+func taken(checked Checked) Taken {
+	if !checked.Unchecked {
+		return Taken{}
+	}
+	return Taken{Unchecked: errors.New(checked.Why)}
+}
+
+// Check asks the API at the config's upstream whether it takes the token, as
+// Add and SetToken do, saving nothing. It fails, wrapping ErrRefused, when
+// the API refuses the token, and with ctx's error once ctx is done; and says
+// why when the API doesn't answer.
+func (r Registry) Check(ctx context.Context, token tokens.Token) (Checked, error) {
+	draft, err := config.Edit(r.ConfigPath)
+	if err != nil {
+		return Checked{}, err
+	}
+	upstream, err := draft.Upstream()
+	if err != nil {
+		return Checked{}, err
+	}
+	return r.check(ctx, upstream, token)
 }
 
 // Add registers an account: its [[account]] table in the config file, made
 // when there's none, and, when its token file holds no usable token, the
 // token the user gives, unless the API refuses it, when nothing is saved.
 func (r Registry) Add(ctx context.Context, account config.NewAccount) (Taken, error) {
+	var t Taken
+	err := r.add(account, func(upstream string) (err error) {
+		t, err = r.keepOrTake(ctx, account.ID, upstream)
+		return err
+	})
+	if err != nil {
+		return Taken{}, err
+	}
+	logAdded(account, t.Kept)
+	return t, nil
+}
+
+// AddGiven registers an account as AddChecked does, the token given checked
+// first, as Check checks it, once the account is shown to be one the config
+// can add: nothing is saved where the API refuses the token.
+func (r Registry) AddGiven(ctx context.Context, account config.NewAccount, token tokens.Token) (Checked, error) {
+	var checked Checked
+	err := r.add(account, func(upstream string) (err error) {
+		if checked, err = r.check(ctx, upstream, token); err != nil {
+			return err
+		}
+		return r.write(ctx, account.ID, token, checked)
+	})
+	if err != nil {
+		return Checked{}, err
+	}
+	logAdded(account, false)
+	return checked, nil
+}
+
+// AddChecked registers an account as Add does, with the token given, which
+// Check has checked, as checked says, saving it whatever its token file
+// holds. It doesn't ask the API, and saves nothing once ctx is done.
+// checked must be what Check gave for this token: nothing ties the two.
+func (r Registry) AddChecked(ctx context.Context, account config.NewAccount, token tokens.Token, checked Checked) error {
+	err := r.add(account, func(string) error {
+		return r.write(ctx, account.ID, token, checked)
+	})
+	if err != nil {
+		return err
+	}
+	logAdded(account, false)
+	return nil
+}
+
+// add adds the account's [[account]] table to the config file once give has
+// given it its token, checked with the API at the config's upstream: nothing
+// is saved where give fails.
+func (r Registry) add(account config.NewAccount, give func(upstream string) error) error {
 	draft, err := config.Edit(r.ConfigPath)
 	if err != nil {
-		return Taken{}, err
+		return err
 	}
 	if err := draft.AddAccount(account); err != nil {
-		return Taken{}, err
+		return err
 	}
-	taken, err := r.keepOrTake(ctx, account.ID, draft.Config().Upstream)
+	upstream, err := draft.Upstream()
 	if err != nil {
-		return Taken{}, err
+		return err
 	}
-	if err := draft.Save(); err != nil {
-		return Taken{}, err
+	if err := give(upstream); err != nil {
+		return err
 	}
-	logger.Info("added an account", "account", account.ID, "primary", account.Primary, "token_kept", taken.Kept)
-	return taken, nil
+	return draft.Save()
+}
+
+func logAdded(account config.NewAccount, kept bool) {
+	logger.Info("added an account", "account", account.ID, "primary", account.Primary, "token_kept", kept)
 }
 
 // SetToken replaces the token of the account with the given id, which cfg
 // configures, with the one the user gives, unless the API refuses it.
 func (r Registry) SetToken(ctx context.Context, cfg *config.Config, id string) (Taken, error) {
-	if !slices.Contains(cfg.Accounts.IDs(), id) {
-		return Taken{}, config.NotConfigured(id)
+	if _, err := configured(cfg, id); err != nil {
+		return Taken{}, err
 	}
 	return r.take(ctx, id, cfg.Upstream)
+}
+
+// SetTokenGiven replaces the token of the account with the given id as
+// SetTokenChecked does, the token given checked first, as Check checks it,
+// once the account is shown to be configured: nothing is saved where the API
+// refuses the token.
+func (r Registry) SetTokenGiven(ctx context.Context, id string, token tokens.Token) (Checked, error) {
+	draft, err := config.Edit(r.ConfigPath)
+	if err != nil {
+		return Checked{}, err
+	}
+	if _, err := configured(draft.Config(), id); err != nil {
+		return Checked{}, err
+	}
+	upstream, err := draft.Upstream()
+	if err != nil {
+		return Checked{}, err
+	}
+	checked, err := r.check(ctx, upstream, token)
+	if err != nil {
+		return Checked{}, err
+	}
+	if err := r.write(ctx, id, token, checked); err != nil {
+		return Checked{}, err
+	}
+	return checked, nil
+}
+
+// SetTokenChecked replaces the token of the account with the given id, which
+// the config file configures, with the one given, which Check has checked,
+// as checked says. It doesn't ask the API, and saves nothing once ctx is
+// done. checked must be what Check gave for this token: nothing ties the two.
+func (r Registry) SetTokenChecked(ctx context.Context, id string, token tokens.Token, checked Checked) error {
+	if err := r.Configured(id); err != nil {
+		return err
+	}
+	return r.write(ctx, id, token, checked)
 }
 
 // Removed is what removing an account removed of its token file, as
@@ -160,21 +287,37 @@ func (r Registry) keepOrTake(ctx context.Context, id, upstream string) (Taken, e
 }
 
 // take has the user give the account's token, and saves it to the account's
-// token file unless the API at upstream refuses it.
+// token file, with its record, unless the API at upstream refuses it.
 func (r Registry) take(ctx context.Context, id, upstream string) (Taken, error) {
 	token, err := r.Input.read(id)
 	if err != nil {
 		return Taken{}, err
 	}
-	taken, err := r.check(ctx, id, upstream, token)
+	checked, err := r.check(ctx, upstream, token)
 	if err != nil {
 		return Taken{}, err
 	}
-	if err := r.Tokens.Write(id, token, r.now()); err != nil {
+	if err := r.write(ctx, id, token, checked); err != nil {
 		return Taken{}, err
 	}
-	logger.Info("saved a token", "account", id, "checked", taken.Unchecked == nil)
-	return taken, nil
+	return taken(checked), nil
+}
+
+// write writes the token to the account's token file, with its record,
+// warning where checked says the API didn't answer for it. It writes nothing
+// once ctx is done.
+func (r Registry) write(ctx context.Context, id string, token tokens.Token, checked Checked) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("save the token: %w", err)
+	}
+	if checked.Unchecked {
+		logger.Warn("couldn't check a token with the API", "account", id, "error", checked.Why)
+	}
+	if err := r.Tokens.Write(id, token, r.now()); err != nil {
+		return err
+	}
+	logger.Info("saved a token", "account", id, "checked", !checked.Unchecked)
+	return nil
 }
 
 // now reads the registry's clock, else the system's.
@@ -185,19 +328,23 @@ func (r Registry) now() time.Time {
 	return r.Now()
 }
 
-// check asks the API at upstream whether it takes the account's token, by
-// probing with it. It fails, wrapping ErrRefused, when the API refuses the
-// token, and says why when the API doesn't answer.
-func (r Registry) check(ctx context.Context, id, upstream string, token tokens.Token) (Taken, error) {
-	_, err := r.Prober(upstream).Probe(ctx, token.Reveal())
+// check asks the API at upstream whether it takes the token, by probing with
+// it. It fails, wrapping ErrRefused, when the API refuses the token, and with
+// ctx's error once ctx is done, whatever the probe made of it; and says why
+// when the API doesn't answer.
+func (r Registry) check(ctx context.Context, upstream string, token tokens.Token) (Checked, error) {
+	probed, err := r.Prober(upstream).Probe(ctx, token.Reveal())
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return Checked{}, fmt.Errorf("check the token with the API: %w", ctxErr)
+	}
 	if err == nil {
-		return Taken{}, nil
+		return Checked{Organization: probed.Organization}, nil
 	}
+	why := redact.Text(err.Error(), token.Reveal())
 	if refused, ok := errors.AsType[refusal](err); ok && refused.Refused() {
-		return Taken{}, fmt.Errorf("%w (%v), so nothing is saved: make another with claude setup-token, run while signed in to that subscription", ErrRefused, err)
+		return Checked{}, fmt.Errorf("%w (%s), so nothing is saved: make another with claude setup-token, run while signed in to that subscription", ErrRefused, why)
 	}
-	logger.Warn("couldn't check a token with the API", "account", id, "error", err)
-	return Taken{Unchecked: err}, nil
+	return Checked{Unchecked: true, Why: why}, nil
 }
 
 // read takes the account's token from the user: typed at their terminal,

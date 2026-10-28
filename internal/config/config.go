@@ -328,9 +328,14 @@ func decode(text string) (file, toml.MetaData, error) {
 func (f file) check(path string, meta toml.MetaData) (*Config, error) {
 	cfg, err := f.config(meta.Undecoded())
 	if err != nil {
-		return nil, fmt.Errorf("invalid config %s:\n%w", path, err)
+		return nil, invalid(path, err)
 	}
 	return cfg, nil
+}
+
+// invalid is the error of the config file at path, which err says is wrong.
+func invalid(path string, err error) error {
+	return fmt.Errorf("invalid config %s:\n%w", path, err)
 }
 
 // config returns the Config the file describes, with its defaults filled in,

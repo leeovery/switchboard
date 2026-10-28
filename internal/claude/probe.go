@@ -64,13 +64,14 @@ type Prober struct {
 }
 
 // reading is what probing one family found: the usage its model reported,
-// its windows and its extra usage, or why none did, and whether its request
-// was answered with success.
+// its windows and its extra usage, or why none did, whether its request was
+// answered with success, and the organization its answer named.
 type reading struct {
-	model    string
-	usage    quota.Usage
-	admitted bool
-	err      error
+	model        string
+	usage        quota.Usage
+	admitted     bool
+	organization string
+	err          error
 }
 
 // Probe reads an account's usage: it probes the model families concurrently
@@ -101,7 +102,7 @@ func (p *Prober) probeFamily(ctx context.Context, token string, f family) readin
 }
 
 // combine merges readings, which are in families' order, into an account's
-// usage, its extra usage the first that gives any.
+// usage, its extra usage and its organization the first that gives any.
 func combine(readings []reading) (quota.Probe, error) {
 	probe := quota.Probe{Models: make(map[string][]string)}
 	for _, r := range readings {
@@ -110,6 +111,7 @@ func combine(readings []reading) (quota.Probe, error) {
 			probe.Extra = r.usage.Extra
 		}
 		probe.Admitted = probe.Admitted || r.admitted
+		probe.Organization = cmp.Or(probe.Organization, r.organization)
 		for _, w := range r.usage.Windows {
 			probe.Models[w.Key] = append(probe.Models[w.Key], r.model)
 		}
@@ -139,41 +141,48 @@ func (p *Prober) ProbeModel(ctx context.Context, token, model string) ([]quota.W
 	return r.usage.Windows, r.err
 }
 
-// read probes model as ProbeModel does, and says what it read, and whether
-// the request was answered with success.
+// read probes model as ProbeModel does, and says what it read, whether the
+// request was answered with success, and the organization the answer named.
 func (p *Prober) read(ctx context.Context, token, model string) reading {
-	usage, status, err := p.probeModel(ctx, token, model)
+	got, err := p.probeModel(ctx, token, model)
 	if err != nil {
 		// Not wrapped: the cause's own text can carry the token, as a transport
 		// error quotes the URL.
-		return reading{model: model, err: &probeError{text: redact.Text(err.Error(), token), status: status}}
+		return reading{model: model, err: &probeError{text: redact.Text(err.Error(), token), status: got.status}}
 	}
-	return reading{model: model, usage: usage, admitted: status >= 200 && status < 300}
+	return reading{model: model, usage: got.usage, admitted: got.status >= 200 && got.status < 300, organization: got.organization}
 }
 
-// probeModel returns the usage the response to the probe reports, its
-// windows and its extra usage, and its status, or the status of a response
-// that reports no window, which is 0 when there's no response.
-func (p *Prober) probeModel(ctx context.Context, token, model string) (quota.Usage, int, error) {
+// answer is what the response to a probe gave: the usage it reports, the
+// organization it names, and its status, which is 0 when there's no response.
+type answer struct {
+	usage        quota.Usage
+	organization string
+	status       int
+}
+
+// probeModel returns what the response to the probe gave, or, failing, the
+// status of a response that reports no window.
+func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, error) {
 	timeout := cmp.Or(p.Timeout, defaultTimeout)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := p.newRequest(ctx, token, model)
 	if err != nil {
-		return quota.Usage{}, 0, err
+		return answer{}, err
 	}
 	resp, err := probeClient.Do(req)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return quota.Usage{}, 0, fmt.Errorf("timed out after %s", timeout)
+			return answer{}, fmt.Errorf("timed out after %s", timeout)
 		}
-		return quota.Usage{}, 0, err
+		return answer{}, err
 	}
 	defer drainAndClose(resp.Body)
 	if usage := ParseUsage(resp.Header); len(usage.Windows) > 0 {
-		return usage, resp.StatusCode, nil
+		return answer{usage: usage, organization: organizationOf(resp.Header), status: resp.StatusCode}, nil
 	}
-	return quota.Usage{}, resp.StatusCode, errors.New(noUsageReason(resp, token))
+	return answer{status: resp.StatusCode}, errors.New(noUsageReason(resp, token))
 }
 
 // probeError is why a probe read no usage, never holding the token.
