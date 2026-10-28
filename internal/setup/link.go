@@ -55,7 +55,7 @@ func (r *run) link(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := r.settle(ctx, LinkFound{Shell: found}); err != nil {
+	if err := r.settle(ctx, LinkFound{Shell: found, claudeCode: r.claudeCode}); err != nil {
 		return err
 	}
 	r.sessionHook(ctx)

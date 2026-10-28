@@ -293,6 +293,29 @@ func TestLinkFindsWhereTheLoginShellLeavesIt(t *testing.T) {
 			wantFile:     ".zshrc", wantLine: true,
 		},
 		{
+			name: "no line, Claude Code's own claude run, by a path written untidily: offered, named so",
+			lay: func(_ *testing.T, w *world) {
+				w.login.answers = []shell.Answer{{Kind: shell.Other, Claude: filepath.Dir(w.realClaude) + "//claude"}}
+			},
+			want:         setup.OfferLine,
+			wantRow:      row{setup.Warning, "Your shell", "runs Claude Code's own claude, <root>/claude-code/bin//claude, so its sessions aren't routed"},
+			wantSentence: "claude doesn't go through switchboard in a new terminal yet: zsh runs another claude, <root>/claude-code/bin//claude." + offer,
+			wantByHand:   lineByHand(addByHand),
+			wantFile:     ".zshrc", wantLine: true,
+		},
+		{
+			name: "no line, Claude Code's own claude run, found where its installer puts it, written untidily: offered, named so",
+			lay: func(_ *testing.T, w *world) {
+				w.path = nil
+				w.installPaths = []string{filepath.Dir(w.realClaude) + "/../bin/claude"}
+			},
+			want:         setup.OfferLine,
+			wantRow:      row{setup.Warning, "Your shell", runsOwn},
+			wantSentence: notYet + offer,
+			wantByHand:   lineByHand(addByHand),
+			wantFile:     ".zshrc", wantLine: true,
+		},
+		{
 			name:         "no line, and no claude on PATH: offered",
 			lay:          func(_ *testing.T, w *world) { w.login.answers = []shell.Answer{{Kind: shell.None}} },
 			want:         setup.OfferLine,
@@ -458,6 +481,13 @@ func TestAddLineAddsTheLineOnce(t *testing.T) {
 		wantLast bool
 	}{
 		{
+			name:     "this switchboard's, last: found there",
+			text:     "export EDITOR=vi\n<line>\n",
+			want:     setup.LineAdded,
+			wantSaid: setup.Said{Mark: setup.Done, Label: "Your shell", Detail: "switchboard's line is in ~/.zshrc already", Sentence: "switchboard's line is in ~/.zshrc already."},
+			wantLast: true,
+		},
+		{
 			name:     "this switchboard's, not last: found there",
 			text:     "<line>\nexport PATH=/opt/claude-code/bin:$PATH\n",
 			want:     setup.LineAdded,
@@ -522,6 +552,28 @@ func TestAddLineThatCantBeAddedLeavesItByHand(t *testing.T) {
 	}
 }
 
+func TestAddLineThatCantLookInTheFileLeavesItByHand(t *testing.T) {
+	w, found := offered(t)
+	mkdir(t, found.Shell.File)
+	before := w.snapshot(t)
+
+	added, err := w.setup(t, &user{}).AddLine(found)
+	if err != nil {
+		t.Fatalf("AddLine() error = %v", err)
+	}
+	got := w.rootedSaid([]setup.Said{added.Shell.Said})[0]
+	want := setup.Said{
+		Mark:     setup.Warning,
+		Label:    "Your shell",
+		Detail:   "setup can't add its line to ~/.zshrc: read <root>/home/.zshrc: read <root>/home/.zshrc: is a directory",
+		Sentence: "Setup can't add it: read <root>/home/.zshrc: read <root>/home/.zshrc: is a directory.",
+	}
+	if added.Shell.Situation != setup.CantAdd || got != want {
+		t.Errorf("AddLine() left the shell %v, saying %+v; want it not added, saying %+v", added.Shell.Situation, got, want)
+	}
+	w.checkUnchanged(t, before)
+}
+
 func TestAddLineRefusesWhereNoLineIsOffered(t *testing.T) {
 	w := newWorld(t)
 	w.done(t)
@@ -539,11 +591,12 @@ func TestAskAgainSortsTheSituationAfresh(t *testing.T) {
 	tests := []struct {
 		name string
 		// lay changes the world, which is done but for switchboard's line in
-		// .zshrc, before the step; then again before the shell is asked
-		// again, after add, where it's set, adds the line as AddLine does.
-		lay, again func(t *testing.T, w *world)
-		add        bool
-		was, want  setup.Situation
+		// .zshrc, before the step; meanwhile after it; then again before the
+		// shell is asked again, after add, where it's set, adds the line as
+		// AddLine does.
+		lay, meanwhile, again func(t *testing.T, w *world)
+		add                   bool
+		was, want             setup.Situation
 		// wantSaid is the shell's row and what the line walk says of it, and
 		// wantFile its startup file, from the home, "" for none.
 		wantSaid setup.Said
@@ -596,6 +649,64 @@ func TestAskAgainSortsTheSituationAfresh(t *testing.T) {
 				Sentence: "claude doesn't go through switchboard in a new terminal yet: zsh's claude is alias claude='npx @anthropic-ai/claude-code', " +
 					"which runs something other than switchboard's claude: removing the alias, or pointing it at claude, puts it right.",
 			},
+		},
+		{
+			name: "offered, the line found there as it was to be added, not last, not taking effect: not last",
+			meanwhile: func(t *testing.T, w *world) {
+				writeFile(t, w.startupFile(), w.line()+"\nexport PATH=/opt/claude-code/bin:$PATH\n", 0o644)
+			},
+			add:   true,
+			again: func(_ *testing.T, w *world) { w.login.overridden = true },
+			was:   setup.OfferLine, want: setup.NotTaking,
+			wantSaid: setup.Said{
+				Mark: setup.Warning, Label: "Your shell",
+				Detail:   "runs Claude Code's own claude, <root>/claude-code/bin/claude, so its sessions aren't routed · switchboard's line is in ~/.zshrc, but something after the line changes PATH",
+				Sentence: "switchboard's line is in ~/.zshrc, but zsh runs another claude, <root>/claude-code/bin/claude, so something after the line changes PATH.",
+			},
+			wantFile: ".zshrc",
+		},
+		{
+			name: "which file it reads untold, the shell answering now: offered",
+			lay:  func(_ *testing.T, w *world) { w.login.answers = []shell.Answer{{Why: "it didn't answer within 15s"}} },
+			was:  setup.WhichFile, want: setup.OfferLine,
+			wantSaid: setup.Said{
+				Mark: setup.Warning, Label: "Your shell",
+				Detail:   "runs Claude Code's own claude, <root>/claude-code/bin/claude, so its sessions aren't routed",
+				Sentence: notYetOther,
+			},
+			wantFile: ".zshrc",
+		},
+		{
+			name: "the file it says it reads not there, but another is, the shell saying it reads that one now: offered",
+			lay: func(t *testing.T, w *world) {
+				writeFile(t, filepath.Join(w.home, ".zshrc"), "export EDITOR=vi\n", 0o644)
+				w.login.configDir = filepath.Join(w.home, ".config", "zsh")
+			},
+			again: func(_ *testing.T, w *world) { w.login.configDir = "" },
+			was:   setup.RivalFile, want: setup.OfferLine,
+			wantSaid: setup.Said{
+				Mark: setup.Warning, Label: "Your shell",
+				Detail:   "runs Claude Code's own claude, <root>/claude-code/bin/claude, so its sessions aren't routed",
+				Sentence: notYetOther,
+			},
+			wantFile: ".zshrc",
+		},
+		{
+			name: "a line reading another shell directory's file, put in its place, not taking effect",
+			lay: func(t *testing.T, w *world) {
+				writeFile(t, filepath.Join(w.home, ".zshrc"), shell.Line(shell.Zsh, filepath.Join(w.root, "old", "switchboard", "shell", "init.zsh"), w.home)+"\n", 0o644)
+			},
+			again: func(t *testing.T, w *world) {
+				writeFile(t, w.startupFile(), w.line()+"\nexport PATH=/opt/claude-code/bin:$PATH\n", 0o644)
+				w.login.overridden = true
+			},
+			was: setup.OtherLine, want: setup.NotTaking,
+			wantSaid: setup.Said{
+				Mark: setup.Warning, Label: "Your shell",
+				Detail:   "runs Claude Code's own claude, <root>/claude-code/bin/claude, so its sessions aren't routed · switchboard's line is in ~/.zshrc, but something after the line changes PATH",
+				Sentence: notYetOther,
+			},
+			wantFile: ".zshrc",
 		},
 		{
 			name:  "offered, the line added by hand, and run",
@@ -688,6 +799,9 @@ func TestAskAgainSortsTheSituationAfresh(t *testing.T) {
 			found := w.link(t)
 			if found.Shell.Situation != tt.was {
 				t.Fatalf("Link() left the shell %v, want %v", found.Shell.Situation, tt.was)
+			}
+			if tt.meanwhile != nil {
+				tt.meanwhile(t, w)
 			}
 			if tt.add {
 				var err error
