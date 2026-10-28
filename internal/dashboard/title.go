@@ -56,6 +56,14 @@ func (f Frame) title(c *canvas, now time.Time) {
 	if !f.Clock.IsZero() {
 		now = f.Clock
 	}
+	clocked(c, f.Width, end, now)
+}
+
+// clocked draws the clock at now, ending at the last column of a title row
+// width cells wide, whose own pieces end before the column end: the clock's
+// date and then its time give way where the row is short. It reports whether
+// the row's own pieces fit, titleGap clear of its edge.
+func clocked(c *canvas, width, end int, now time.Time) bool {
 	pieces := []titlePiece{
 		{part: flex.Part{Least: end, Natural: end}},
 		{part: flex.Part{Least: titleGap, Grows: true}},
@@ -66,12 +74,13 @@ func (f Frame) title(c *canvas, now time.Time) {
 	for i, p := range pieces {
 		parts[i] = p.part
 	}
-	spans, _ := flex.Lay(f.Width, parts...)
+	spans, fits := flex.Lay(width, parts...)
 	for i, p := range pieces {
 		if p.words != nil && !spans[i].Left {
 			c.line(spans[i].At, 0, p.words)
 		}
 	}
+	return fits
 }
 
 // titleRows is how many rows the title row takes: its own, and those its
