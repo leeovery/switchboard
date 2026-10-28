@@ -714,16 +714,17 @@ accounts:
   user's, are never gone by. A record that's a link, to the token file or to a file elsewhere, goes
   as a link, and one that's a second name of the token file, or of the file it leads to, judged by
   the file before the token file goes, is the token being removed, and its name goes with it,
-  whatever it holds, and `accounts remove` says so where the token file led to that name. Writing a
-  token replaces the token file, so a second name made by hand stops being one at the next write,
-  and is then left as any file holding a token at the record's path is; a directory in the record's
-  place, empty or not, is left, and so is a file at the record's own path that a write would leave,
-  as it may be a token: one holding a token, too large to tell, or that can't be read, with a
-  warning, but for that second name. The status document gives each account's `token_taken`, and
-  `token_good_until`, 365 days on, the router's as probing's: the router reads the record whenever
-  it reads the token, as it starts, at every look and on a 401, never per request, and holds the
-  date beside the token it was of, so a record that lands a moment after its token counts from the
-  next look.
+  whatever it holds, and `accounts remove` says so where the token file led to that name and it's
+  gone; where how many names the file has can't be told, as on a system that doesn't count them,
+  it's left, with a warning, as it may be the token's only copy. Writing a token replaces the token
+  file, so a second name made by hand stops being one at the next write, and is then left as any
+  file holding a token at the record's path is; a directory in the record's place, empty or not, is
+  left, and so is a file at the record's own path that a write would leave, as it may be a token:
+  one holding a token, too large to tell, or that can't be read, with a warning, but for that second
+  name. The status document gives each account's `token_taken`, and `token_good_until`, 365 days on,
+  the router's as probing's: the router reads the record whenever it reads the token, as it starts,
+  at every look and on a 401, never per request, and holds the date beside the token it was of, so a
+  record that lands a moment after its token counts from the next look.
 - Anything can write the files, such as a password manager's file export or a dotfiles secrets step.
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
