@@ -44,10 +44,11 @@ func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
 func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
 	tests := []struct {
 		name string
-		over []overWorld
+		over []maker
 	}{
-		{name: "two printouts", over: []overWorld{printout{name: "sessions-1"}, printout{name: "usage-160"}, printout{name: "sessions-1"}}},
-		{name: "a printout, and a page", over: []overWorld{printout{name: "sessions-1"}, page{name: "log-requests-160"}, page{name: "sessions-1"}}},
+		{name: "two printouts", over: []maker{printout{name: "sessions-1"}, printout{name: "usage-160"}, printout{name: "sessions-1"}}},
+		{name: "a printout, and a page", over: []maker{printout{name: "sessions-1"}, page{name: "log-requests-160"}, page{name: "sessions-1"}}},
+		{name: "a page, and setup's screen", over: []maker{page{name: "sessions-1"}, setupScreen{name: "sessions-1"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -60,19 +61,25 @@ func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
 
 func TestTheWorldsAreBuiltForAFixtureAskedForAndNoSooner(t *testing.T) {
 	built := 0
-	set := setOf(overWorlds(), func() accountWorlds {
+	set := setOf(makers(), func() accountWorlds {
 		built++
 		return worldsNow()
 	})
 
 	names := set.names()
-	for _, name := range []string{"usage-160", "page-routing"} {
+	for _, name := range []string{"usage-160", "page-routing", "setup-skill-160"} {
 		if !slices.Contains(names, name) {
 			t.Fatalf("names() = %v, want %s among them", names, name)
 		}
 	}
 	if built != 0 {
 		t.Errorf("having listed the fixtures, the worlds were built %d times, want none", built)
+	}
+	if _, err := set.named("setup-skill-160"); err != nil {
+		t.Fatal(err)
+	}
+	if built != 0 {
+		t.Errorf("having asked for setup's screen, drawn over no world, the worlds were built %d times, want none", built)
 	}
 	for i, name := range []string{"usage-160", "page-routing"} {
 		if _, err := set.named(name); err != nil {
@@ -130,7 +137,7 @@ func TestFramesAreDeterministic(t *testing.T) {
 	// local's set is over worldsNow, whose worlds, once built, are kept: the
 	// second set is over worlds of its own, so the year and each world are
 	// built twice.
-	again := setOf(overWorlds(), sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) }))
+	again := setOf(makers(), sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) }))
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -211,20 +218,26 @@ func TestAFixturesKeysArePressedOnceItsDocumentIsRead(t *testing.T) {
 
 func TestAFixtureIsDrawnInItsTheme(t *testing.T) {
 	amber, _ := theme.Builtin("amber")
-	f := fixture(t, "overview-default-160")
+	dashboard, setup := fixture(t, "overview-default-160"), fixture(t, "setup-skill-160")
 	tests := []struct {
 		name    string
 		fixture Fixture
 		// want is the canvas the frame is painted on, "" for none.
 		want string
 	}{
-		{name: "nord, the frames', unless given", fixture: f, want: "48;2;46;52;64"},
-		{name: "the theme given", fixture: f.InTheme(amber), want: "48;2;14;11;6"},
-		{name: "without colour", fixture: f.WithoutColour()},
+		{name: "nord, the frames', unless given", fixture: dashboard, want: "48;2;46;52;64"},
+		{name: "the theme given", fixture: dashboard.InTheme(amber), want: "48;2;14;11;6"},
+		{name: "without colour", fixture: dashboard.WithoutColour()},
+		{name: "setup's screen, in nord, the frames', unless given", fixture: setup, want: "48;2;46;52;64"},
+		{name: "setup's screen, in the theme given", fixture: setup.InTheme(amber), want: "48;2;14;11;6"},
+		{name: "setup's screen, without colour", fixture: setup.WithoutColour()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			frame := tt.fixture.Frame(tt.fixture.Size)
+			if !strings.Contains(frame, "SWITCHBOARD") {
+				t.Fatalf("the frame draws no title row: %q", frame)
+			}
 			if tt.want == "" {
 				if strings.Contains(frame, "38;") || strings.Contains(frame, "48;") {
 					t.Errorf("the frame is in colour: %q", frame)
@@ -382,11 +395,11 @@ func TestNoFixtureKeyOrWidthPanics(t *testing.T) {
 				}
 				return
 			}
-			m := f.settle(f.Size)
+			m := f.atMoment(f.Size)
 			for width := 1; width <= 240; width++ {
 				m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height})
 			}
-			m = f.settle(f.Size)
+			m = f.atMoment(f.Size)
 			for i, width := 0, 1; width <= 240; i, width = i+1, width+4 {
 				input := everyInput[i%len(everyInput)]
 				m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height}, input)
@@ -398,7 +411,7 @@ func TestNoFixtureKeyOrWidthPanics(t *testing.T) {
 // drawnAt is m once the inputs given are taken and the terminal resized to
 // size, drawn, failing the test where taking them, resizing or drawing
 // panics.
-func drawnAt(t *testing.T, m watch.Model, size watch.Size, inputs ...tea.Msg) watch.Model {
+func drawnAt(t *testing.T, m tea.Model, size watch.Size, inputs ...tea.Msg) tea.Model {
 	t.Helper()
 	defer func() {
 		if r := recover(); r != nil {
@@ -424,18 +437,22 @@ func printedAt(t *testing.T, f Fixture, width int) {
 }
 
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {
-	f := fixture(t, "overview-default-160")
-	m := f.Model()
+	for _, name := range []string{"overview-default-160", "setup-skill-160"} {
+		t.Run(name, func(t *testing.T) {
+			f := fixture(t, name)
+			m := f.Model()
 
-	if cmd := m.Init(); cmd != nil {
-		t.Errorf("starting the model returned a command, sending %#v, want none: its first read is taken", cmd())
-	}
-	if got, want := m.View().Content, f.settle(f.Size).View().Content; got != want {
-		t.Errorf("the model starts on\n%s\nwant the fixture's frame\n%s", got, want)
-	}
-	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	if _, ok := next.(settled); !ok {
-		t.Errorf("after a message, the model is a %T, want it settled still", next)
+			if cmd := m.Init(); cmd != nil {
+				t.Errorf("starting the model returned a command, sending %#v, want none: its first read is taken", cmd())
+			}
+			if got, want := m.View().Content+"\n", f.Frame(f.Size); got != want {
+				t.Errorf("the model starts on\n%s\nwant the fixture's frame\n%s", got, want)
+			}
+			next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+			if _, ok := next.(settled); !ok {
+				t.Errorf("after a message, the model is a %T, want it settled still", next)
+			}
+		})
 	}
 }
 

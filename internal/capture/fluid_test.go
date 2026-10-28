@@ -374,14 +374,14 @@ func sizeName(s watch.Size) string {
 	return fmt.Sprintf("%dx%d", s.Width, s.Height)
 }
 
-// sweptFixtures are every fixture the watch draws, but usage's printouts,
-// which have no view, then longNamesViews, each settled at 160 by 37, as most
-// frames are, before the sweep sizes it.
+// sweptFixtures are every fixture the watch draws, neither usage's
+// printouts, which have no view, nor setup's screen, then longNamesViews,
+// each settled at 160 by 37, as most frames are, before the sweep sizes it.
 func sweptFixtures(t *testing.T) []Fixture {
 	t.Helper()
 	var swept []Fixture
 	for _, name := range Names() {
-		if f := fixture(t, name); !f.Printout {
+		if f := fixture(t, name); f.watched() {
 			swept = append(swept, f)
 		}
 	}
