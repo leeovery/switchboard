@@ -43,10 +43,16 @@ func (m Model) look() dashboard.Look {
 	return dashboard.Screen(m.showing)
 }
 
-// inForce is the theme the dashboard is drawn in, by the user's choice and
-// the terminal's background.
-func (m Model) inForce() theme.Theme {
-	return m.backdrop.InForce(m.pair)
+// Backdrop is the terminal's background as the dashboard has it.
+func (m Model) Backdrop() backdrop.Backdrop {
+	return m.backdrop
+}
+
+// drawInForce draws the screen from now on in the theme in force, by the
+// user's choice and the terminal's background, as drawIn has it.
+func (m Model) drawInForce() Model {
+	m.backdrop, m.showing = m.backdrop.DrawInForce(m.pair)
+	return m
 }
 
 // drawIn draws the screen in t from now on: should t paint its canvas, the
@@ -65,7 +71,7 @@ func (m Model) settled(b backdrop.Backdrop, afresh bool) Model {
 	if !afresh || m.picker.open {
 		return m
 	}
-	return m.drawIn(m.inForce())
+	return m.drawInForce()
 }
 
 // picker is the theme picker, while it's open.
@@ -163,7 +169,7 @@ func (m Model) listed(msg listedMsg) (Model, tea.Cmd) {
 		return m.noting(tooSmall)
 	}
 	m.pair = msg.listing.Pair(m.choice)
-	m = m.drawIn(m.inForce())
+	m = m.drawInForce()
 	m.picker = picker{open: true, listing: msg.listing, rows: msg.listing.Rows(m.choice)}
 	m.picker.cursor = m.picker.find(m.showing.Slug)
 	return m, nil
@@ -311,7 +317,7 @@ func (m Model) kept(msg keptMsg) Model {
 func (m Model) chosen(choice theme.Choice, pair theme.Pair) Model {
 	m.choice, m.pair = choice, pair
 	if !m.picker.open {
-		return m.drawIn(m.inForce())
+		return m.drawInForce()
 	}
 	slug, _ := m.cursorTheme()
 	m.picker.rows = m.picker.listing.Rows(choice)
@@ -323,7 +329,7 @@ func (m Model) chosen(choice theme.Choice, pair theme.Pair) Model {
 // choice as it stands.
 func (m Model) closePicker() Model {
 	m.picker = picker{}
-	return m.drawIn(m.inForce())
+	return m.drawInForce()
 }
 
 // fitPicker closes the picker on a terminal now too small for it, saying so.

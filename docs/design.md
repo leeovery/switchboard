@@ -1346,6 +1346,12 @@ not the owner's decisions:
   unchecked where it doesn't answer. Where its screen can't be read, the card says it was made
   and to copy it from what setup-token showed, then paste it with `p`. Made is what setup-token
   says, so a stop that lands as it makes the token keeps it too.
+- **The status line waits** until both the router and the accounts have answered, blank till then,
+  so it never says `nothing set up yet` of accounts not yet read; where the config can't be read,
+  it shows the router's part alone.
+- **The key line while a step is under way,** and on a step that failed, holds `q quit` alone at
+  its right: `enter` shows once the step is done. A failed step's row is `✗`, its detail why, as
+  the skill's `Not installed`.
 - **The least size is 95×25,** the title row's least: every page reflows to the width it's given,
   the shell step's line wrapping rather than cut, and scrolls where it's taller than its body.
   Below 95 columns, as on a phone, setup says to make the terminal larger.

@@ -11,7 +11,7 @@ import (
 
 // wheelRows is how many rows a turn of the wheel scrolls help, and a view
 // that scrolls by rows.
-const wheelRows = 3
+const wheelRows = dashboard.WheelRows
 
 // scrollStep is how far a key or a turn of the wheel scrolls, down where more
 // than zero, up where less: rows, and pages, as many rows as show at once.
@@ -19,20 +19,10 @@ type scrollStep struct {
 	rows, pages int
 }
 
-// scrollKey is how far the key scrolls, reporting false for a key that
-// doesn't: j and k a row, PgDn and PgUp a page.
+// scrollKey is how far the key scrolls, as dashboard.ScrollKey has it.
 func scrollKey(key string) (scrollStep, bool) {
-	switch key {
-	case "j":
-		return scrollStep{rows: 1}, true
-	case "k":
-		return scrollStep{rows: -1}, true
-	case "pgdown":
-		return scrollStep{pages: 1}, true
-	case "pgup":
-		return scrollStep{pages: -1}, true
-	}
-	return scrollStep{}, false
+	rows, pages, ok := dashboard.ScrollKey(key)
+	return scrollStep{rows: rows, pages: pages}, ok
 }
 
 // wheelTurn is the way the wheel turned, 1 down and -1 up, reporting false
@@ -47,15 +37,10 @@ func wheelTurn(button tea.MouseButton) (int, bool) {
 	return 0, false
 }
 
-// from is where what's scrolled at, and scrolls as s says, is scrolled to:
-// its rows on, or its pages, as s pages them; no further either way than it
-// goes as it stands now, which may be less than when it was last scrolled.
+// from is where what's scrolled at, and scrolls as s says, is scrolled to,
+// as Scrolling.ScrolledTo has it.
 func (by scrollStep) from(at int, s dashboard.Scrolling) int {
-	at = min(at, s.Most)
-	if by.pages != 0 {
-		return s.Paged(at, by.pages)
-	}
-	return min(max(at+by.rows, 0), s.Most)
+	return s.ScrolledTo(at, by.rows, by.pages)
 }
 
 // wheeled scrolls what the wheel turns under the pointer, as the screen

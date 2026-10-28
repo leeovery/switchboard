@@ -60,30 +60,15 @@ type Setup struct {
 	Step   SetupStep
 	Passed []SetupStep
 	// Status are the status line's parts, in order, as setup decides them.
-	Status []SetupPart
+	Status []setup.Part
+	// UnderWay is set while the step showing does what it does, and Failed
+	// where it failed, which stops setup there, its page saying why: either
+	// way, its key line's right has q quit alone.
+	UnderWay, Failed bool
 	// Skill is what the skill step did: nil until it's done it.
 	Skill *setup.Said
 	// Scroll is how many rows the page under its heading is scrolled down.
 	Scroll int
-}
-
-// SetupStanding is how a part of setup's status line stands, which marks it
-// and inks its words.
-type SetupStanding int
-
-const (
-	// SetupTold is a part told alone, unmarked, its words muted.
-	SetupTold SetupStanding = iota
-	// SetupUp is a part that's up, as a router that answers.
-	SetupUp
-	// SetupDown is a part that's not up yet, as a router not running.
-	SetupDown
-)
-
-// SetupPart is a part of setup's status line: how it stands, and its words.
-type SetupPart struct {
-	Standing SetupStanding
-	Words    string
 }
 
 // The page's rows, as setupRows lays them out.
@@ -134,6 +119,9 @@ func (s Setup) page(width, height int) (*canvas, Scrolling) {
 	}
 	s.statusLine(c, rows[setupStatusRow].At, width)
 	shown := s.shown()
+	if s.UnderWay || s.Failed {
+		shown.onward = []Key{Quit}
+	}
 	body := rows[setupBodyRows]
 	scrolling := shown.draw(c, body.At, body.Size, width, s.Scroll)
 	shown.keyLine(c, rows[setupKeyRow].At, width)

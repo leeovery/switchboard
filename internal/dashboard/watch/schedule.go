@@ -1,14 +1,18 @@
 package watch
 
-import "time"
+import (
+	"time"
+
+	"github.com/leeovery/switchboard/internal/dashboard"
+)
 
 const (
 	// retryReadAfter is how soon to read again after a read failed, in whole
 	// or in part: after a wake, the network may not be back yet.
 	retryReadAfter = 2 * time.Minute
-	// tickSlack sets each tick just past the boundary it waits for, so the
-	// clock it reads has turned over.
-	tickSlack = 50 * time.Millisecond
+	// tickSlack sets each tick just past the boundary it waits for, as
+	// dashboard.TickSlack has it.
+	tickSlack = dashboard.TickSlack
 )
 
 // backoff counts a read into the reads that failed in a row before it, and
@@ -31,7 +35,7 @@ func backoff(failures int, failed bool, interval time.Duration) (int, time.Durat
 
 // tickDelay is how long from now until the next tick: just past the next
 // second, as the clock on screen shows it, and how long ago the document was
-// read.
+// read, as dashboard.TickDelay has it.
 func tickDelay(now time.Time) time.Duration {
-	return now.Truncate(time.Second).Add(time.Second).Sub(now) + tickSlack
+	return dashboard.TickDelay(now)
 }

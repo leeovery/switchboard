@@ -116,6 +116,13 @@ func (b Backdrop) DrawIn(t theme.Theme) Backdrop {
 	return b
 }
 
+// DrawInForce is b once the screen is drawn in the theme of pair in force,
+// as DrawIn has it, and that theme.
+func (b Backdrop) DrawInForce(pair theme.Pair) (Backdrop, theme.Theme) {
+	t := b.InForce(pair)
+	return b.DrawIn(t), t
+}
+
 // Background is what the screen sets the terminal's background to, drawn in
 // look: the look's canvas, where it paints one; else, once the screen has
 // set its own, the background the terminal said it found, as the reset nil

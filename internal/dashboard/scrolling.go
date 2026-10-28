@@ -35,6 +35,38 @@ func (s Scrolling) Paged(at, pages int) int {
 	return s.clamped(s.clamped(at) + pages*page)
 }
 
+// ScrolledTo is where what's scrolled at, and scrolls as s says, is
+// scrolled to, rows on, or pages on, as Paged pages it, down where more than
+// zero and up where less: no further either way than it goes as it stands
+// now, which may be less than when it was last scrolled.
+func (s Scrolling) ScrolledTo(at, rows, pages int) int {
+	at = min(at, s.Most)
+	if pages != 0 {
+		return s.Paged(at, pages)
+	}
+	return s.clamped(at + rows)
+}
+
+// WheelRows is how many rows a turn of the wheel scrolls what scrolls a row
+// at a time.
+const WheelRows = 3
+
+// ScrollKey is how far the key scrolls, reporting false for a key that
+// doesn't: j and k a row, PgDn and PgUp a page.
+func ScrollKey(key string) (rows, pages int, ok bool) {
+	switch key {
+	case "j":
+		return 1, 0, true
+	case "k":
+		return -1, 0, true
+	case "pgdown":
+		return 0, 1, true
+	case "pgup":
+		return 0, -1, true
+	}
+	return 0, 0, false
+}
+
 // clamped is offset as far as what scrolls as s says goes: none before the
 // first, and no further than Most.
 func (s Scrolling) clamped(offset int) int {

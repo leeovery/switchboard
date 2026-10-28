@@ -195,7 +195,7 @@ func TestReviewOfFrame3(t *testing.T) {
 // checkLine checks the status line of the router and the review is want.
 func checkLine(t *testing.T, rt setup.RouterStanding, review setup.Review, want ...setup.Part) {
 	t.Helper()
-	if got := setup.StatusLine(rt, review); !slices.Equal(got, want) {
+	if got := setup.StatusLine(rt, &review); !slices.Equal(got, want) {
 		t.Errorf("the status line is %+v, want %+v", got, want)
 	}
 }
@@ -228,7 +228,7 @@ func TestReviewOfAFirstRun(t *testing.T) {
 	if notes := review.Notes(); len(notes) != 0 {
 		t.Errorf("a first run's notes are %+v, want none", notes)
 	}
-	line := setup.StatusLine(setup.RouterStanding{State: setup.RouterDown}, review)
+	line := setup.StatusLine(setup.RouterStanding{State: setup.RouterDown}, &review)
 	if want := []setup.Part{{Standing: setup.PartDown, Words: "nothing set up yet"}}; !slices.Equal(line, want) {
 		t.Errorf("a first run's status line is %+v, want %+v", line, want)
 	}
@@ -535,6 +535,24 @@ func TestStatusLine(t *testing.T) {
 	}
 }
 
+func TestStatusLineOfAccountsNotRead(t *testing.T) {
+	tests := []struct {
+		name   string
+		router setup.RouterStanding
+		want   setup.Part
+	}{
+		{"not running: never nothing set up", setup.RouterStanding{}, setup.Part{Standing: setup.PartDown, Words: "router not running yet"}},
+		{"healthy", setup.RouterStanding{State: setup.RouterHealthy}, setup.Part{Standing: setup.PartUp, Words: "router up, healthy"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := setup.StatusLine(tt.router, nil); !slices.Equal(got, []setup.Part{tt.want}) {
+				t.Errorf("the status line is %+v, want the router's part alone, %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStanding(t *testing.T) {
 	healthy := setup.RouterStanding{State: setup.RouterHealthy}
 	down := setup.RouterStanding{State: setup.RouterDown}
@@ -550,6 +568,10 @@ func TestStanding(t *testing.T) {
 			w.launchd.unhealthy = "failed 5 of 6 requests"
 			w.installService(t, w.switchboard)
 		}, setup.RouterStanding{State: setup.RouterUnhealthy, Reason: "failed 5 of 6 requests"}},
+		{"unhealthy, why made safe to show", func(t *testing.T, w *world) {
+			w.launchd.unhealthy = "failed 5\x1b[2J of\t 6\nrequests"
+			w.installService(t, w.switchboard)
+		}, setup.RouterStanding{State: setup.RouterUnhealthy, Reason: "failed 5 [2J of 6 requests"}},
 		{"the installed plist's router, its state elsewhere than this shell's", func(t *testing.T, w *world) {
 			w.installService(t, w.switchboard)
 			w.env["XDG_STATE_HOME"] = filepath.Join(w.root, "elsewhere")
@@ -666,7 +688,7 @@ func TestReviewTellsNoToken(t *testing.T) {
 	}
 	review.Accounts = checked
 	notes := review.Notes()
-	told = append(told, fmt.Sprintf("%+v", notes), fmt.Sprintf("%+v", setup.StatusLine(setup.RouterStanding{}, review)))
+	told = append(told, fmt.Sprintf("%+v", notes), fmt.Sprintf("%+v", setup.StatusLine(setup.RouterStanding{}, &review)))
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err = s.ReviewOf(ctx, "down")
