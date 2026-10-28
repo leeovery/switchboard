@@ -27,6 +27,9 @@ const (
 	APath
 	// Else runs something else than claude.
 	Else
+	// SetsPath runs claude by name on a PATH of its own, which the alias
+	// sets, so which claude it runs can't be told.
+	SetsPath
 )
 
 // Front is an alias or function named claude, standing in front of PATH's
@@ -42,10 +45,10 @@ type Front struct {
 	Path string
 }
 
-// readFront reads is, what the shell says claude is, home being the user's
-// home and link switchboard's claude link. An alias is text, so it's
-// decided by the command it runs; a function isn't.
-func readFront(is, home, link string) Front {
+// readFront reads is, what sh says claude is, home being the user's home and
+// link switchboard's claude link. An alias is text, so it's decided by the
+// command it runs; a function isn't.
+func readFront(sh Shell, is, home, link string) Front {
 	switch {
 	case is == "" || filepath.IsAbs(is):
 		return Front{}
@@ -59,54 +62,86 @@ func readFront(is, home, link string) Front {
 	if !isAlias {
 		return f
 	}
-	body, ok := words(value)
-	if !ok {
-		return f
-	}
-	word, ok := commandWord(strings.Join(body, " "))
-	if !ok {
-		return f
-	}
-	path, isPath := fromHome(word, home)
-	switch {
-	case word == "claude":
-		f.Runs = ByName
-	case isPath && sameFile(path, link):
-		f.Runs = TheLink
-	case isPath:
-		f.Runs, f.Path = APath, redact.Text(path)
-	case !strings.ContainsAny(word, "$`") && word != "env":
-		// env's options can take words of their own, so what it runs is
-		// left undecided.
-		f.Runs = Else
+	if body, ok := words(value); ok {
+		f.Runs, f.Path = aliasRuns(sh, strings.Join(body, " "), home, link)
 	}
 	return f
 }
 
+// precommand is a word that runs the command after it, in the shells it
+// names, every shell where it names none; the letters of its options that
+// take a word of their own after them are withArg.
+type precommand struct {
+	shells  []Shell
+	withArg string
+}
+
 // precommands run the command after them.
-var precommands = []string{"command", "builtin", "noglob", "nocorrect"}
+var precommands = map[string]precommand{
+	"command":    {},
+	"builtin":    {},
+	"exec":       {withArg: "a"},
+	"time":       {},
+	"nohup":      {},
+	"caffeinate": {withArg: "tw"},
+	"noglob":     {shells: []Shell{Zsh}},
+	"nocorrect":  {shells: []Shell{Zsh}},
+}
 
 // assignment is a word that sets a variable for the command after it.
 var assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
 
-// commandWord returns the command body runs, its first word, quotes removed,
-// past any variables set for it and any precommand; and whether it has one.
-func commandWord(body string) (string, bool) {
+// aliasRuns returns what body, an alias's in sh, runs, and the other claude
+// it runs by its path: its command, its first word, past any variables set
+// for it, and any precommand sh has, with its options. One that sets PATH
+// runs claude where only that PATH tells; command -p looks on the system's
+// PATH, and -v and -V print rather than run.
+func aliasRuns(sh Shell, body, home, link string) (Runs, string) {
 	ws, ok := words(body)
 	if !ok {
-		return "", false
+		return Unknown, ""
 	}
-	pre := false
+	pre, takesArg := "", false
 	for _, w := range ws {
 		switch {
-		case assignment.MatchString(w), pre && strings.HasPrefix(w, "-"):
-		case slices.Contains(precommands, w):
-			pre = true
+		case takesArg:
+			takesArg = false
+		case strings.HasPrefix(w, "PATH="):
+			return SetsPath, ""
+		case assignment.MatchString(w):
+		case pre != "" && len(w) > 1 && strings.HasPrefix(w, "-"):
+			if pre == "command" && strings.ContainsAny(w, "pvV") {
+				return Else, ""
+			}
+			takesArg = strings.ContainsRune(precommands[pre].withArg, rune(w[len(w)-1]))
 		default:
-			return w, true
+			if p, ok := precommands[w]; ok && (p.shells == nil || slices.Contains(p.shells, sh)) {
+				pre = w
+				continue
+			}
+			return command(w, home, link)
 		}
 	}
-	return "", false
+	return Unknown, ""
+}
+
+// command returns what word, the command an alias runs, is, and the other
+// claude it names by its path.
+func command(word, home, link string) (Runs, string) {
+	path, isPath := fromHome(word, home)
+	switch {
+	case word == "claude":
+		return ByName, ""
+	case isPath && sameFile(path, link):
+		return TheLink, ""
+	case isPath:
+		return APath, redact.Text(path)
+	case strings.ContainsAny(word, "$`") || word == "env":
+		// env's options can take words of their own, so what it runs is
+		// left undecided.
+		return Unknown, ""
+	}
+	return Else, ""
 }
 
 // words splits s, a simple command, into its words, as a shell does before

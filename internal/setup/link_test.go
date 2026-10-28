@@ -3,6 +3,7 @@ package setup_test
 import (
 	"cmp"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -211,6 +212,8 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 		// wantFile is the startup file, from the home, and wantText what it
 		// reads, <line> standing for switchboard's line.
 		wantFile, wantText string
+		// unmade is a startup file, from the home, never made.
+		unmade string
 	}{
 		{
 			name:     "offered, and added: it runs the link",
@@ -234,6 +237,19 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			answers:  []string{""},
 			want:     notYet + offer + "\nAdded it to ~/.zshrc.\n" + goesThrough,
 			wantFile: ".zshrc", wantText: "export EDITOR=vi\n<line>\n",
+		},
+		{
+			name: "zsh says .zshrc is in a ZDOTDIR without one, but the home has one: none written, both named by hand",
+			lay: func(t *testing.T, w *world) {
+				writeFile(t, filepath.Join(w.home, ".zshrc"), "export EDITOR=vi\n", 0o644)
+				w.login.configDir = filepath.Join(w.home, ".config", "zsh")
+			},
+			answers: []string{"n"},
+			want: notYet + " zsh says it reads ~/.config/zsh/.zshrc, which isn't there, but ~/.zshrc is: setup can't tell which a new terminal reads, so it adds no line.\n" +
+				"To have claude go through switchboard by hand, add this line to the end of whichever of ~/.config/zsh/.zshrc and ~/.zshrc a new terminal reads, after anything there that changes PATH:\n" +
+				zshLine + "\n" + orElsewhere + left,
+			wantFile: ".zshrc", wantText: "export EDITOR=vi\n",
+			unmade: ".config/zsh/.zshrc",
 		},
 		{
 			name:     "offered, in $ZDOTDIR, as zsh says",
@@ -386,6 +402,17 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			want: linkRuns + "zsh's claude is alias claude=~/.local/share/switchboard/bin/claude, which runs switchboard's claude link by its path.\n",
 		},
 		{
+			name: "there already, PATH's the link, but an alias in front sets PATH for claude: not done, the alias to put right",
+			lay: func(t *testing.T, w *world) {
+				w.addLine(t)
+				w.login.front = shell.Front{Text: "alias claude='PATH=/opt/real/bin:$PATH claude'", Runs: shell.SetsPath}
+			},
+			answers: []string{"n"},
+			want: "claude doesn't go through switchboard in a new terminal yet: zsh's claude is alias claude='PATH=/opt/real/bin:$PATH claude', which sets PATH for claude, so setup can't tell which claude it runs: taking PATH= out of the alias puts it right.\n" +
+				left,
+			wantFile: ".zshrc", wantText: "<line>\n",
+		},
+		{
 			name: "there already, and run, a function in front, never blamed on PATH",
 			lay: func(t *testing.T, w *world) {
 				w.addLine(t)
@@ -413,7 +440,7 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 			want: "Setup can't ask zsh which claude it runs: it didn't answer within 15s. Setup can't tell which startup file zsh reads, so it adds no line.\n" +
 				"To have claude go through switchboard by hand, add this line to the end of zsh's startup file, usually ~/.zshrc, after anything there that changes PATH:\n" +
 				zshLine + "\n" + orElsewhere + left,
-			wantFile: ".zshrc", wantText: "",
+			unmade: ".zshrc",
 		},
 		{
 			name: "can't be added, as .zshrc is a link that leads nowhere: by hand",
@@ -463,6 +490,12 @@ func TestTheClaudeLinkStepHasTheLoginShellRunTheLink(t *testing.T) {
 				text, _ := os.ReadFile(file)
 				if want := strings.ReplaceAll(tt.wantText, "<line>", w.line()); string(text) != want {
 					t.Errorf("%s reads %q, want %q", file, text, want)
+				}
+			}
+			if tt.unmade != "" {
+				file := filepath.Join(w.home, filepath.FromSlash(tt.unmade))
+				if _, err := os.Lstat(file); !errors.Is(err, fs.ErrNotExist) {
+					t.Errorf("%s: %v, want it never made", file, err)
 				}
 			}
 			for _, link := range w.login.asked {

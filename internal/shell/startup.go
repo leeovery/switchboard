@@ -86,11 +86,31 @@ func StartupFile(sh Shell, home, configDir string) string {
 		return filepath.Join(absolute(configDir, filepath.Join(home, ".config", "fish")), "config.fish")
 	}
 	for _, name := range []string{".bash_profile", ".bash_login", ".profile"} {
-		if _, err := os.Stat(filepath.Join(home, name)); err == nil {
-			return filepath.Join(home, name)
+		if path := filepath.Join(home, name); there(path) {
+			return path
 		}
 	}
 	return filepath.Join(home, ".bash_profile")
+}
+
+// RivalStartupFile returns the startup file a new terminal may read in place
+// of file, sh's as the shell said it reads it, the user's home being home:
+// for zsh, ~/.zshrc, where file, .zshrc in the ZDOTDIR the shell reported,
+// isn't there and the home's is. The shell's asked once its startup files
+// have run, so a ZDOTDIR one of them exports names a directory whose .zshrc
+// a new terminal never reads. It returns "" where there's no rival.
+func RivalStartupFile(sh Shell, home, file string) string {
+	usual := filepath.Join(home, ".zshrc")
+	if sh != Zsh || file == usual || there(file) || !there(usual) {
+		return ""
+	}
+	return usual
+}
+
+// there reports whether there's a file at path, links followed.
+func there(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // absolute returns dir where it's absolute, else otherwise.

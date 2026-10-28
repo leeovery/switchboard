@@ -115,6 +115,40 @@ func TestBashsStartupFileIsOneThatLeadsSomewhere(t *testing.T) {
 	}
 }
 
+func TestARivalStartupFile(t *testing.T) {
+	tests := []struct {
+		name string
+		sh   shell.Shell
+		// file is the startup file, as the shell said, from the home, and
+		// there the files there, by their names from the home.
+		file  string
+		there []string
+		// want is the rival, from the home, "" for none.
+		want string
+	}{
+		{name: "zsh's in ZDOTDIR, not there, the home's there", sh: shell.Zsh, file: ".config/zsh/.zshrc", there: []string{".zshrc"}, want: ".zshrc"},
+		{name: "zsh's in ZDOTDIR, there", sh: shell.Zsh, file: ".config/zsh/.zshrc", there: []string{".config/zsh/.zshrc", ".zshrc"}},
+		{name: "zsh's in ZDOTDIR, neither there", sh: shell.Zsh, file: ".config/zsh/.zshrc"},
+		{name: "zsh's in the home", sh: shell.Zsh, file: ".zshrc", there: []string{".zshrc"}},
+		{name: "fish's, never", sh: shell.Fish, file: "xdg/fish/config.fish", there: []string{".zshrc"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			for _, name := range tt.there {
+				write(t, filepath.Join(home, name), "")
+			}
+			want := ""
+			if tt.want != "" {
+				want = filepath.Join(home, tt.want)
+			}
+			if got := shell.RivalStartupFile(tt.sh, home, filepath.Join(home, tt.file)); got != want {
+				t.Errorf("RivalStartupFile() = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestFindingTheLine(t *testing.T) {
 	ours := map[shell.Shell]string{
 		shell.Zsh:  `if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard`,

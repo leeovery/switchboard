@@ -1,6 +1,7 @@
 package shell_test
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"path/filepath"
@@ -178,8 +179,11 @@ func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
 	const local = "/home/tester/.claude/local/claude"
 	byName := func(text string) shell.Front { return shell.Front{Text: text, Runs: shell.ByName} }
 	aPath := func(text, path string) shell.Front { return shell.Front{Text: text, Runs: shell.APath, Path: path} }
+	runsElse := func(text string) shell.Front { return shell.Front{Text: text, Runs: shell.Else} }
 	tests := []struct {
 		name string
+		// sh is the shell asked, zsh where it's not set.
+		sh   string
 		is   string
 		want shell.Front
 	}{
@@ -211,13 +215,38 @@ func TestWhatsInFrontOfPATHsClaudeIsDecidedByWhatItRuns(t *testing.T) {
 		{name: "an alias to what only its expansion tells", is: `alias claude='$CLAUDE_BIN'`, want: shell.Front{Text: `alias claude='$CLAUDE_BIN'`, Runs: shell.Unknown}},
 		{name: "an alias that runs nothing but variables", is: "alias claude='FOO=1'", want: shell.Front{Text: "alias claude='FOO=1'", Runs: shell.Unknown}},
 		{name: "an alias with a quote that isn't closed", is: `alias claude='"claude'`, want: shell.Front{Text: `alias claude='"claude'`, Runs: shell.Unknown}},
+		{
+			name: "an alias that sets PATH for claude",
+			is:   "alias claude='PATH=/opt/real/bin:$PATH claude'",
+			want: shell.Front{Text: "alias claude='PATH=/opt/real/bin:$PATH claude'", Runs: shell.SetsPath},
+		},
+		{
+			name: "an alias that sets PATH for claude, in bash, after another variable",
+			sh:   "/bin/bash", is: "alias claude='FOO=1 PATH=/opt/real/bin:$PATH claude'",
+			want: shell.Front{Text: "alias claude='FOO=1 PATH=/opt/real/bin:$PATH claude'", Runs: shell.SetsPath},
+		},
+		{name: "an alias that runs claude on the system's PATH", sh: "/bin/bash", is: "alias claude='command -p claude'", want: runsElse("alias claude='command -p claude'")},
+		{name: "an alias that prints where claude is", is: "alias claude='command -v claude'", want: runsElse("alias claude='command -v claude'")},
+		{name: "an alias that says what claude is", sh: "/bin/bash", is: "alias claude='command -V claude'", want: runsElse("alias claude='command -V claude'")},
+		{name: "noglob, a command of its own in bash", sh: "/bin/bash", is: "alias claude='noglob claude'", want: runsElse("alias claude='noglob claude'")},
+		{name: "nocorrect, a command of its own in bash", sh: "/bin/bash", is: "alias claude='nocorrect claude'", want: runsElse("alias claude='nocorrect claude'")},
+		{name: "noglob, zsh's precommand", is: "alias claude='noglob claude'", want: byName("alias claude='noglob claude'")},
+		{name: "exec, and its name for it", sh: "/bin/bash", is: "alias claude='exec -a cc claude'", want: byName("alias claude='exec -a cc claude'")},
+		{name: "time, and its option", sh: "/bin/bash", is: "alias claude='time -p claude'", want: byName("alias claude='time -p claude'")},
+		{name: "nohup, then caffeinate and its flags", is: "alias claude='nohup caffeinate -dims claude'", want: byName("alias claude='nohup caffeinate -dims claude'")},
+		{name: "caffeinate, and a flag taking a word", is: "alias claude='caffeinate -t 3600 claude'", want: byName("alias claude='caffeinate -t 3600 claude'")},
+		{name: "caffeinate, and flags, the last taking a word", is: "alias claude='caffeinate -iw 4242 claude'", want: byName("alias claude='caffeinate -iw 4242 claude'")},
+		{name: "caffeinate, running another claude by its path", is: "alias claude='caffeinate -i " + other + "'", want: aPath("alias claude='caffeinate -i "+other+"'", other)},
+		{name: "a compound alias, its first command another", is: "alias claude='cd ~/work; claude'", want: runsElse("alias claude='cd ~/work; claude'")},
 		{name: "a function, by its name alone", is: "claude", want: shell.Front{Text: "function claude", Runs: shell.Unknown}},
 		{name: "fish's function", is: "function claude", want: shell.Front{Text: "function claude", Runs: shell.Unknown}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var runs []ran
-			login := shell.Login{Environ: environ, Run: fakeShell(said(tt.is, claudeLink, ""), nil, &runs)}
+			env := slices.Clone(environ)
+			env[slices.Index(env, "SHELL=/bin/zsh")] = "SHELL=" + cmp.Or(tt.sh, "/bin/zsh")
+			login := shell.Login{Environ: env, Run: fakeShell(said(tt.is, claudeLink, ""), nil, &runs)}
 
 			if got := login.Which(t.Context(), claudeLink); got.Front != tt.want {
 				t.Errorf("Which().Front = %+v, want %+v", got.Front, tt.want)
@@ -242,6 +271,7 @@ func TestWhetherClaudeGoesThroughSwitchboard(t *testing.T) {
 		{name: "PATH's another, an alias to the link's path in front", answer: shell.Answer{Kind: shell.Other, Front: shell.Front{Runs: shell.TheLink}}, want: true},
 		{name: "PATH's the link, an alias to another path in front", answer: shell.Answer{Kind: shell.Link, Front: shell.Front{Runs: shell.APath}}},
 		{name: "PATH's the link, an alias to something else in front", answer: shell.Answer{Kind: shell.Link, Front: shell.Front{Runs: shell.Else}}},
+		{name: "PATH's the link, an alias in front that sets PATH for claude", answer: shell.Answer{Kind: shell.Link, Front: shell.Front{Runs: shell.SetsPath}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

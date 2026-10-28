@@ -21,7 +21,8 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   another way, as in a file of your own or a tool that writes it, put switchboard's bin
   directory, `$XDG_DATA_HOME/switchboard/bin`, else `~/.local/share/switchboard/bin`, first on
   it there. `setup` checks again once you have. An alias or function named `claude` goes through
-  switchboard only where it runs `claude` by name, not a path.
+  switchboard where it runs `claude` by name, or switchboard's `claude` link by its path, and
+  where it sets no `PATH` of its own.
 - **Completions:** switchboard's file for your shell loads them, for commands and flags. zsh takes
   them once `compinit` has run, which a usual `.zshrc` does before switchboard's line at its end;
   bash takes them where the bash-completion package is loaded; fish always does.

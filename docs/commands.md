@@ -367,7 +367,8 @@ The steps are:
    An alias named `claude` in front of it decides that by what it runs: `claude` by name leaves it
    to `PATH`; a path, such as Claude Code's old `~/.claude/local/claude`, goes through switchboard
    only where it's the link, and otherwise `setup` says to remove the alias or point it at
-   `claude`. A function `setup` can't read, so it says the function goes through switchboard where
+   `claude`; and one that sets `PATH` for `claude` doesn't count, as `setup` can't tell which
+   `claude` that `PATH` finds, so it says to take `PATH=` out of it. A function `setup` can't read, so it says the function goes through switchboard where
    it runs `claude` by name. Ctrl-C while it asks stops `setup`. `setup` asks zsh, bash and fish
    alone: for another shell, it shows the bin directory, as `$HOME/…`, to put first on `PATH` by
    hand. Until it's done, for zsh, bash and fish, `setup` offers to add one line to the end of your
@@ -381,7 +382,9 @@ The steps are:
    there of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, the one a login bash reads, else
    a new `~/.bash_profile`; and for fish, `config.fish` where fish says it reads it, as
    `$__fish_config_dir`. Where your shell couldn't be asked, `setup` writes nothing: it shows the
-   line to add by hand, naming the file it usually goes in. A startup file that's a link, as to
+   line to add by hand, naming the file it usually goes in. Nor does it where zsh names a
+   `$ZDOTDIR` without a `.zshrc` while your home has one, as a `ZDOTDIR` set in a startup file
+   isn't the one a new terminal starts with: it shows the line by hand, naming both. A startup file that's a link, as to
    your dotfiles, is written where it leads. The line is added once, ever: everything else
    switchboard does in your shell is in its own file. Should the file go, the line does nothing.
 

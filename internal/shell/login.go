@@ -97,7 +97,7 @@ func (a Answer) Through() bool {
 	switch a.Front.Runs {
 	case TheLink:
 		return true
-	case APath, Else:
+	case APath, Else, SetsPath:
 		return false
 	}
 	return a.Kind == Link
@@ -124,7 +124,7 @@ func (l Login) Which(ctx context.Context, link string) Answer {
 	defer cancel()
 	out, err := l.Run(ctx, path, []string{"-l", "-i", "-c", question(sh)}, loginEnv(l.Environ))
 	if said, ok := between(out); ok {
-		return read(said, lookup(l.Environ, "HOME"), link)
+		return read(sh, said, lookup(l.Environ, "HOME"), link)
 	}
 	return Answer{Why: why(ctx, err, limit)}
 }
@@ -211,15 +211,15 @@ func between(out []byte) (answers, bool) {
 	return said, true
 }
 
-// read is the shell's answer, from what it said, home being the user's home
-// and link switchboard's claude link. A path for PATH's claude that isn't
-// one is no answer.
-func read(said answers, home, link string) Answer {
+// read is sh's answer, from what it said, home being the user's home and
+// link switchboard's claude link. A path for PATH's claude that isn't one is
+// no answer.
+func read(sh Shell, said answers, home, link string) Answer {
 	found := said["path"]
 	if found != "" && !filepath.IsAbs(found) {
 		return Answer{Why: fmt.Sprintf("it answered %q for the claude on its PATH, which isn't a path", redact.Text(found))}
 	}
-	a := Answer{Front: readFront(said["is"], home, link)}
+	a := Answer{Front: readFront(sh, said["is"], home, link)}
 	if dir := said["config"]; filepath.IsAbs(dir) {
 		a.ConfigDir = dir
 	}

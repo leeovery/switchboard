@@ -881,24 +881,33 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    hooks print are passed over, and a `PATH` answer that isn't a path is no answer. Only zsh, bash
    and fish are asked: for any other shell setup says it can't ask it, and shows the bin directory
    to put first on `PATH` by hand. The step is done when a `claude` typed in a new terminal goes
-   through the link, and no other answer counts: its `PATH` finds the link, and nothing in front of
-   it runs anything else. An alias named `claude` is text, so it's decided by its first command
-   word, past any `VAR=value` words, `command`, `builtin`, `noglob`, `nocorrect` and a leading `\`:
-   `claude` runs it by name, so `PATH` decides; an absolute path, or one from `~` or `$HOME`,
-   decides itself, done where it's the link, and otherwise not, setup saying the alias runs that
-   path, and that removing it or pointing it at `claude` puts it right; anything else, such as
-   `npx …`, runs something else, and setup says so. A function, or an alias that runs only what its
-   expansion tells, can't be decided: setup says it goes through switchboard where it runs `claude`
-   by name. The shell runs in a process group of its own, killed whole once it answers or at its
+   through the link, and no other answer counts: its `PATH` finds the link, and what stands in
+   front of it, an alias or a function named `claude`, doesn't run something else. An alias is
+   read as text, by its first command word, past any `VAR=value` words, a leading `\`, and the
+   precommands the shell has, with their options: `command`, `builtin`, `exec`, `time`, `nohup` and
+   `caffeinate` in every shell, and `noglob` and `nocorrect` in zsh alone. `claude` runs it by
+   name, so `PATH` decides; an absolute path, or one from `~` or `$HOME`, decides itself, done
+   where it's the link, and otherwise not, setup saying the alias runs that path, and that removing
+   it or pointing it at `claude` puts it right; anything else, such as `npx …`, a compound alias
+   whose first command is another, `command -p`, which looks on the system's `PATH`, or `command
+   -v`, which prints rather than runs, runs something else, and setup says so. An alias that sets
+   `PATH` for `claude` isn't done either: setup says it can't tell which `claude` that `PATH`
+   finds, and that taking `PATH=` out of the alias puts it right. A function, or an alias it can't
+   read, as one that runs only what its expansion tells, is taken at `PATH`'s word: setup says it
+   goes through switchboard where it runs `claude` by name. The shell runs in a process group of its own, killed whole once it answers or at its
    time limit; an interrupt meanwhile kills it, and setup stops, as at any interrupt. A shell that
    exits without answering may have a startup file start something that needs a terminal, such as
    tmux, and setup says so. Otherwise, for zsh, bash and fish, it offers to add one line to the end
-   of the startup file it reads for every interactive shell, only where the shell said where it
-   reads it: `.zshrc` in `${ZDOTDIR:-$HOME}`, as zsh says; for bash, the first there of
-   `~/.bash_profile`, `~/.bash_login` and `~/.profile`, else `~/.bash_profile`, as a login bash
-   reads only the first it finds, so a `.bash_profile` made beside a `.profile` would stop the
-   `.profile` loading; or `config.fish` in `$__fish_config_dir`, as fish says, a relative
-   directory counting for none. Where the shell couldn't be asked, setup writes nothing, as its own
+   of the startup file a new terminal's shell reads, only where the shell said where it reads it:
+   for zsh, `.zshrc`, read by every interactive shell, in `${ZDOTDIR:-$HOME}`, as zsh says; for
+   bash, the first there of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, else
+   `~/.bash_profile`, read by a login shell, as macOS terminals start one, and only the first it
+   finds, so a `.bash_profile` made beside a `.profile` would stop the `.profile` loading; or for
+   fish, `config.fish`, read by every shell, in `$__fish_config_dir`, as fish says, a relative
+   directory counting for none. zsh is asked once its startup files have run, so a `ZDOTDIR` one of
+   them exports names a directory whose `.zshrc` a new terminal never reads: where the `.zshrc`
+   it names isn't there and `~/.zshrc` is, setup writes nothing, and shows the line by hand,
+   naming both. Where the shell couldn't be asked, setup writes nothing, as its own
    `ZDOTDIR` can be a terminal's, which zsh in a new terminal never reads: it shows the line to add
    by hand, naming the file it usually goes in, `~/.zshrc`, the bash file above, or
    `~/.config/fish/config.fish`, and asks the shell again. It names the file and shows the line

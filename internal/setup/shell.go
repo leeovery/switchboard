@@ -52,12 +52,11 @@ func (r *run) shellFiles() error {
 // onPath has claude go through switchboard in a new terminal, which it does
 // once the user's login shell, asked, says a claude typed there goes through
 // switchboard's claude link. Until then, for a shell switchboard knows, it
-// offers to add switchboard's line to the end of the startup file the shell
-// says it reads, or says what keeps the line there, or what's in front of
-// it, from taking effect; then shows how to put it right by hand, and asks
-// the shell again until it runs the link, or the user leaves it. Another
-// shell it can't ask, so it shows the bin directory, to put on PATH by
-// hand. Leaving it isn't a failure: setup goes on.
+// sees to switchboard's line, as startupLine does, or says what's in front
+// of PATH's claude that keeps it from the link; then shows how to put it
+// right by hand, and asks the shell again until it runs the link, or the
+// user leaves it. Another shell it can't ask, so it shows the bin directory,
+// to put on PATH by hand. Leaving it isn't a failure: setup goes on.
 func (r *run) onPath(ctx context.Context) error {
 	answer, err := r.ask(ctx)
 	if err != nil || answer.Through() {
@@ -74,10 +73,20 @@ func (r *run) onPath(ctx context.Context) error {
 		r.Terminal.sayf("%s", r.notYet(answer))
 		return r.checkAgain(ctx)
 	}
+	return r.startupLine(ctx, sh, answer)
+}
+
+// startupLine offers to add switchboard's line for sh to the end of the
+// startup file the login shell, having answered answer, says it reads,
+// unless the shell couldn't be asked or a new terminal may read another, or
+// says what keeps the line there from taking effect; then shows how to put
+// it right by hand, as onPath says.
+func (r *run) startupLine(ctx context.Context, sh shell.Shell, answer shell.Answer) error {
 	initFile := shell.InitFile(r.Shells.Dir, sh)
 	line := shell.Line(sh, initFile, r.Home)
 	file := shell.StartupFile(sh, r.Home, answer.ConfigDir)
 	found, err := shell.FindLine(sh, file, r.Home)
+	rival := shell.RivalStartupFile(sh, r.Home, file)
 	switch {
 	case err != nil:
 		r.Terminal.sayf("%s Setup can't look for its line in %s: %v.", r.notYet(answer), r.fromHome(file), err)
@@ -85,6 +94,9 @@ func (r *run) onPath(ctx context.Context) error {
 	case found.Sources == "" && answer.Kind == shell.Unasked:
 		r.Terminal.sayf("%s Setup can't tell which startup file %s reads, so it adds no line.", r.notYet(answer), sh)
 		return r.byHand(ctx, fmt.Sprintf("To have claude go through switchboard by hand, add this line to the end of %s's startup file, usually %s, after anything there that changes PATH:", sh, r.fromHome(file)), line, orElsewhere)
+	case found.Sources == "" && rival != "":
+		r.Terminal.sayf("%s %s says it reads %s, which isn't there, but %s is: setup can't tell which a new terminal reads, so it adds no line.", r.notYet(answer), sh, r.fromHome(file), r.fromHome(rival))
+		return r.byHand(ctx, fmt.Sprintf("To have claude go through switchboard by hand, add this line to the end of whichever of %s and %s a new terminal reads, after anything there that changes PATH:", r.fromHome(file), r.fromHome(rival)), line, orElsewhere)
 	case found.Sources == "":
 		return r.offerLine(ctx, sh, file, line, answer)
 	case filepath.Clean(found.Sources) != initFile:
@@ -266,6 +278,8 @@ func (r *run) inFront(front shell.Front) string {
 		return fmt.Sprintf("%s's claude is %s, which runs %s, not switchboard's claude: %s", r.shellName(), front.Text, front.Path, fix)
 	case shell.Else:
 		return fmt.Sprintf("%s's claude is %s, which runs something other than switchboard's claude: %s", r.shellName(), front.Text, fix)
+	case shell.SetsPath:
+		return fmt.Sprintf("%s's claude is %s, which sets PATH for claude, so setup can't tell which claude it runs: taking PATH= out of the alias puts it right", r.shellName(), front.Text)
 	}
 	return ""
 }
