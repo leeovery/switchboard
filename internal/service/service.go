@@ -400,11 +400,16 @@ func (s *Service) Answered(h *router.Health) error {
 // Health says how a router answered its health check, such as "healthy, pid
 // 4242".
 func Health(h router.Health) string {
-	state := "healthy"
+	return fmt.Sprintf("%s, pid %d", Healthy(h), h.PID)
+}
+
+// Healthy says whether a router answered its health check healthy, and why
+// not where it didn't, such as "unhealthy: failed 5 of 6 requests".
+func Healthy(h router.Health) string {
 	if !h.OK {
-		state = "unhealthy: " + h.Reason
+		return "unhealthy: " + h.Reason
 	}
-	return fmt.Sprintf("%s, pid %d", state, h.PID)
+	return "healthy"
 }
 
 // domain is the user's GUI session, which the service runs in.
