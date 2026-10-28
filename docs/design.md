@@ -6520,14 +6520,14 @@ posts, but for a token's year, which has no key: see Config.
 
 Room again and warnings compare an account with how it last stood, so neither tells of how the
 accounts stood as the router started, nor of an account's first reading. A limit's notification
-always goes out: as the router stops, those still gathering go out at once, within 3 seconds. So
-does a token's year's, which no quiet minute holds back. Any other goes out only a minute or more
-after the last posted about its account, a limit's included: one due sooner is dropped, and the log
-says so at debug. One that fails to post is logged at warn, and dropped too; not having gone out, it
-starts no quiet minute. The log names accounts by id alone. Notifications never hold a request up:
-the router queues the limits and moves it tells of, 256 at most, dropping any past that with a
-warning in the log, finds room again and warnings at its looks, and posts from a goroutine of its
-own.
+always goes out, and so does a token's year's: no quiet minute holds either back. As the router
+stops, the limits' still gathering go out at once, within 3 seconds. Any other goes out only a
+minute or more after the last posted about its account, a limit's included: one due sooner is
+dropped, and the log says so at debug. One that fails to post is logged at warn, and dropped too;
+not having gone out, it starts no quiet minute. The log names accounts by id alone. Notifications
+never hold a request up: the router queues the limits and moves it tells of, 256 at most, dropping
+any past that with a warning in the log, finds room again and warnings at its looks, and posts from
+a goroutine of its own.
 
 The dashboard posts its own only while it probes because the router isn't there to:
 of an account with room again and a window passing the warning, as `room` and `warning` say, and
