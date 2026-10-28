@@ -70,9 +70,12 @@ type run struct {
 	waits                                 waits
 
 	// made says setup-token has said it made the token, and shown that it
-	// has shown it whole since, as token. madeScreen is the fullest drawing
-	// that said it's made (see drawnSinceMade), madeDrawn as full.
+	// has shown it whole since, as token; showBy is when it must have shown
+	// it by, the waits' show after it said it made it. madeScreen is the
+	// fullest drawing that said it's made (see drawnSinceMade), madeDrawn as
+	// full.
 	made, shown bool
+	showBy      time.Time
 	madeScreen  string
 	madeDrawn   int
 	// exit is how setup-token exited, once it has: nil where it exited 0.
@@ -321,18 +324,28 @@ func (r *run) draw(ctx context.Context, drawn []byte, ok bool) {
 
 // pace sets setup-token's grace as it draws, once it has made the token,
 // wasShown saying it had shown the token whole before. While ctx lasts, the
-// grace runs afresh from each thing it draws, up to the token shown whole, and
-// on from there however it draws on, so a setup-token that never stops
-// drawing is stopped all the same. Once ctx has ended, what it draws gives it
-// no more grace, and it's stopped as soon as it has shown the token.
+// grace runs afresh from each thing it draws, up to the token shown whole, but
+// never past its show-by (see grace), and on from there however it draws on,
+// so a setup-token that never stops drawing is stopped all the same. Once
+// ctx has ended, what it draws gives it no more grace, and it's stopped as
+// soon as it has shown the token.
 func (r *run) pace(ctx context.Context, wasShown bool) {
 	switch {
 	case !r.made || r.over || r.drained != nil || wasShown:
 	case ctx.Err() == nil:
-		r.graceOver = time.After(r.waits.grace)
+		r.graceOver = time.After(r.grace())
 	case r.shown:
 		r.halt()
 	}
+}
+
+// grace returns how long setup-token's grace runs from now: the waits'
+// grace, but, till it has shown the token whole, no later than its show-by.
+func (r *run) grace() time.Duration {
+	if r.shown {
+		return r.waits.grace
+	}
+	return min(r.waits.grace, time.Until(r.showBy))
 }
 
 // follow follows what setup-token's screen says: that it has made the token,
@@ -342,10 +355,10 @@ func (r *run) pace(ctx context.Context, wasShown bool) {
 func (r *run) follow(ctx context.Context) {
 	d := r.screen.drawing()
 	if !r.made && d.made() {
-		r.made = true
+		r.made, r.showBy = true, time.Now().Add(r.waits.show)
 		r.looking, r.handOver = nil, nil
 		if r.drained == nil {
-			r.graceOver = time.After(r.waits.grace)
+			r.graceOver = time.After(r.grace())
 		}
 		r.report(Event{Step: StepMade})
 	}

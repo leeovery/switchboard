@@ -24,13 +24,14 @@ func eraseLines(count int) string {
 }
 
 // newTestRun returns a run of no setup-token, as begin makes one, but for
-// stop, which it stops setup-token with, and w, how long it waits.
+// stop, which it stops setup-token with, and w, how long it waits, the
+// defaults where 0.
 func newTestRun(t *testing.T, stop func(), w waits) *run {
-	return &run{screen: newScreen(columns, rows), shim: shim{dir: t.TempDir()}, reports: make(chan Event, reportsHeld), stop: stop, waits: w}
+	return &run{screen: newScreen(columns, rows), shim: shim{dir: t.TempDir()}, reports: make(chan Event, reportsHeld), stop: stop, waits: w.orDefaults()}
 }
 
 // waitsLong are waits no test waits out.
-var waitsLong = waits{grace: time.Minute, handOver: time.Minute, drain: time.Minute}
+var waitsLong = waits{grace: time.Minute, show: time.Minute, handOver: time.Minute, drain: time.Minute}
 
 // conclusion takes what happens next to r till Make has its answer, failing
 // the test where it has none within ten seconds.
@@ -317,6 +318,20 @@ func TestRunGivesSetupTokenThatDrawsOnNoMoreGrace(t *testing.T) {
 				t.Errorf("Make has the token %q (%v), want it: %v, failing with %v", r.token.Reveal(), r.err, tt.wantToken, tt.wantErr)
 			}
 		})
+	}
+}
+
+// Setup-token says it has made the token, then draws on, more often than its
+// grace, and never shows it.
+func TestRunStopsSetupTokenThatNeverShowsTheTokenItMade(t *testing.T) {
+	output, exited, stop := drawsEvery(t, 100*time.Millisecond, true, frame(madeRows("")[:4]), redrawn)
+	r := newTestRun(t, stop, waits{grace: 500 * time.Millisecond, show: 1500 * time.Millisecond})
+	r.output, r.exited = output, exited
+
+	conclusion(t, t.Context(), r)
+
+	if _, ok := errors.AsType[*ScreenError](r.err); !ok || !r.stopped {
+		t.Errorf("Make fails with %v, stopping setup-token: %v; want a *ScreenError, once it has stopped it", r.err, r.stopped)
 	}
 }
 

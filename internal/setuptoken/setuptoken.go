@@ -30,6 +30,10 @@ const (
 	// the token, from the last it draws till it has shown the token whole,
 	// to exit by itself, as it does half a second later, before it's stopped.
 	exitGrace = 5 * time.Second
+	// showWithin bounds the wait for setup-token to show the token whole,
+	// from when it says it has made it, however it draws meanwhile: it shows
+	// both in the same frame.
+	showWithin = 30 * time.Second
 	// handOverWithin bounds the wait for setup-token to hand its sign-in
 	// address over, which it does as it starts, a moment after it's run,
 	// seconds on a machine hard at work.
@@ -37,16 +41,22 @@ const (
 )
 
 // waits are how long Make waits on setup-token: grace to exit once it says it
-// has made the token, handOver to hand its sign-in address over, and drain to
-// exit once it's stopped, and to finish drawing once it has exited.
+// has made the token, show to show the token whole once it says so, handOver
+// to hand its sign-in address over, and drain to exit once it's stopped, and
+// to finish drawing once it has exited.
 type waits struct {
-	grace, handOver, drain time.Duration
+	grace, show, handOver, drain time.Duration
 }
 
-// orDefaults returns the waits, exitGrace, handOverWithin and drainFor for
-// those that are 0.
+// orDefaults returns the waits, exitGrace, showWithin, handOverWithin and
+// drainFor for those that are 0.
 func (w waits) orDefaults() waits {
-	return waits{grace: cmp.Or(w.grace, exitGrace), handOver: cmp.Or(w.handOver, handOverWithin), drain: cmp.Or(w.drain, drainFor)}
+	return waits{
+		grace:    cmp.Or(w.grace, exitGrace),
+		show:     cmp.Or(w.show, showWithin),
+		handOver: cmp.Or(w.handOver, handOverWithin),
+		drain:    cmp.Or(w.drain, drainFor),
+	}
 }
 
 // What Make fails with, given no way to tell switchboard's own claude link
