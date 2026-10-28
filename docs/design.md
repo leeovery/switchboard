@@ -707,9 +707,11 @@ accounts:
   by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
   default ignorables, the format characters and the variation selectors, but for whitespace and
   the prepended concatenation marks, such as the Arabic number signs, which draw) kept only
-  where one makes an emoji, a symbol's or ideograph's variant, a flag, or shapes a joining
-  script (`prose.MapUnseen`, judged left to right on what's kept), and dropped everywhere else;
-  direction marks are kept within it. Then each run of whitespace within it is one space, and
+  where one makes an emoji or a flag, or shapes a joining script, and a variation selector only
+  after a symbol, non-ASCII punctuation, or a letter outside Latin, Greek and Cyrillic, or in a
+  keycap (`prose.MapUnseen`, judged left to right on what's kept: a character dropped is passed
+  over, and one shown escaped owns nothing after it), and dropped everywhere else; direction
+  marks are kept within it. Then each run of whitespace within it is one space, and
   the whitespace and direction marks at its edges trimmed. One that's the id is no label. It
   refuses an id, or a `--label`, holding anything shaped like a token, or a `--label` over 100
   characters as it shows, holding a control character, such as a newline or a tab, or a
@@ -740,24 +742,26 @@ accounts:
   every value given is the account's already, that nothing changed, writing nothing. A label
   written by hand can't go through `add`'s rules, so `prose.Quoted` shows what it holds: a
   character drawn as nothing that `add` would drop, a bidirectional control among them, as its
-  `\u` escape, so it can't reorder the line, while one `add` keeps, and private use, show as
-  they are. Moving the primary, it says what the sessions running through the router keep as
-  Claude Code's own until they restart, as launch chose it from the config the edit read, the
-  tokens as they stand now: the former primary's token, pinned or not; or, where it has no
-  usable token, the first account's with one, or a pinned session's pinned account's token, and,
-  where the first is the new primary, that the pinned sessions keep their pinned account's
-  token, said only where another account has a usable token, as otherwise none can be pinned
-  elsewhere; and nothing where no account has a usable token. Sessions started directly, while
-  the router was down, are untouched by the move. It warns on stderr when the new primary has no
-  usable token. A label the config writes over several lines, as a multi-line string, can't be
-  edited as text: a label edit of that
-  account is refused, to be made by hand, writing nothing, while a plan, reserve or primary edit
-  is made, a key the account has replaced where it stands, and one it hasn't put below the line
-  that closes the label; a line within the string reads as part of it, whatever it looks like.
-  Edits keep the file's line endings, byte order mark and indentation, a line put in ending as
-  the line it follows; a replaced value keeps the comment beside it, and a key taken out, such as
-  the former primary's mark, goes with its comment. The flags are read into the values its
-  action, `accounts.Registry.Edit`, takes, so a form can give it the same.
+  `\u` escape, so it can't reorder the line, and a direction mark too, which `add` keeps but
+  whose part can't be seen, while what `add` keeps in an emoji, a keycap, a variant, a flag or
+  a joining script, and private use, show as they are. Moving the primary, it says what the
+  sessions running through the router keep as Claude Code's own until they restart, as launch
+  chose it from the config the edit read, the tokens as they stand now: the former primary's
+  token, pinned or not; or, where it has no usable token, the first account's with one, or a
+  pinned session's pinned account's token, and, where the first is the new primary, that the
+  pinned sessions keep their pinned account's token. The pinned sessions are said only where an
+  account other than the first with a usable token has one, as otherwise none can be pinned
+  elsewhere; and nothing is said where no account has a usable token. Sessions started directly,
+  while the router was down, are untouched by the move. It warns on stderr when the new primary
+  has no usable token. A label the config writes over several lines, as a multi-line string,
+  can't be edited as text: a label edit of that account is refused, to be made by hand, writing
+  nothing, while a plan, reserve or primary edit is made, a key the account has replaced where
+  it stands, and one it hasn't put below the line that closes the label; a line within the
+  string reads as part of it, whatever it looks like. Edits keep the file's line endings, byte
+  order mark and indentation, a line put in ending as the line it follows; a replaced value keeps
+  the comment beside it, and a key taken out, such as the former primary's mark, goes with its
+  comment. The flags are read into the values its action, `accounts.Registry.Edit`, takes, so a
+  form can give it the same.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file: of one that's a link, the link
   alone, saying where it led, as the file there isn't switchboard's. Of the primary, it says which
