@@ -35,7 +35,10 @@ import (
 //	stall        nothing at all, waiting
 //	on-hold      exit 1 at once, saying the account's on hold
 //	refused      exit 1 once it has run $BROWSER, and FAKE_DIR/opened is
-//	             written, saying the account's on hold
+//	             written, drawing nothing more: a session leader's exit
+//	             waits till what it drew is read, and Make reads none of it
+//	             while its Opener runs, so a frame drawn then could hold the
+//	             exit up till the Opener returns
 //	no-browser   no running of $BROWSER, waiting
 //	oauth-error  an OAuth error where the token would be, waiting at it
 //	broken       the token broken across two rows
@@ -83,7 +86,6 @@ fi
 "$BROWSER" "$FAKE_ADDRESS"
 if [ "$FAKE_MODE" = refused ]; then
 	while [ ! -e "$d/opened" ]; do /bin/sleep 0.05; done
-	frame ' \033[31mThis account is on hold.\033[39m\n'
 	exit 1
 fi
 frame ' Opening browser to sign in…\n\n \033[2mBrowser didn'"'"'t open? Use the url below to sign in\033[22m\n\n \033]8;;'"$FAKE_MANUAL"'\a\033[2m'"$FAKE_MANUAL"'\033[22m\033]8;;\a\n\n Paste code here if prompted > \n'
