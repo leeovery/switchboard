@@ -148,6 +148,10 @@ type run struct {
 	// claudeCode is Claude Code's own claude, as the claude link step found
 	// it.
 	claudeCode string
+	// made is what the claude link step did to the claude link, and led,
+	// where it repaired one, where it led before, from the home.
+	made LinkMade
+	led  string
 	// health is the service's router's, where the service step saw it
 	// answer.
 	health *router.Health

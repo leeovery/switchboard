@@ -126,8 +126,8 @@ func TestEnterAtPriming(t *testing.T) {
 			if !slices.Equal(h.steps.set, tt.set) {
 				t.Errorf("SetDay was given %q, want %q", h.steps.set, tt.set)
 			}
-			if got := h.model.page(); got.Step != dashboard.SetupService || !slices.Contains(got.Passed, dashboard.SetupPriming) {
-				t.Errorf("enter shows %s, %v passed; want the Service, Priming passed", got.Step.Title(), got.Passed)
+			if got := h.model.page(); got.At != dashboard.SetupService || !slices.Contains(got.Passed, dashboard.SetupPriming) {
+				t.Errorf("enter shows %s, %v passed; want the Service, Priming passed", got.At.Title(), got.Passed)
 			}
 		})
 	}
@@ -142,8 +142,8 @@ func TestADayRefusedIsSaidAndSetupStaysOnThePage(t *testing.T) {
 	if len(h.steps.set) != 0 {
 		t.Errorf("SetDay was given %q, want nothing: the day isn't one", h.steps.set)
 	}
-	if got := h.model.page(); got.Step != dashboard.SetupPriming || got.Failed {
-		t.Fatalf("enter on a day refused shows %s, failed %v; want Priming, not failed", got.Step.Title(), got.Failed)
+	if got := h.model.page(); got.At != dashboard.SetupPriming || got.Failure != "" {
+		t.Fatalf("enter on a day refused shows %s, failed %v; want Priming, not failed", got.At.Title(), got.Failure != "")
 	}
 	// Why alone, as config says it, the day it quotes typed above it.
 	if got, want := h.rows()[underRow], strings.Repeat(" ", 12)+"must be two times of day, HH:MM, joined by -, such as 08:00-23:00"; got != want {
@@ -165,8 +165,8 @@ func TestADayRefusedIsSaidAndSetupStaysOnThePage(t *testing.T) {
 	h.clear()
 	h.typeIn("08:00-20:00")
 	h.pressAndDeliver("enter")
-	if !slices.Equal(h.steps.set, []string{"08:00-20:00"}) || h.model.page().Step != dashboard.SetupService {
-		t.Errorf("a day put right: SetDay given %q, showing %s; want 08:00-20:00, then the Service", h.steps.set, h.model.page().Step.Title())
+	if !slices.Equal(h.steps.set, []string{"08:00-20:00"}) || h.model.page().At != dashboard.SetupService {
+		t.Errorf("a day put right: SetDay given %q, showing %s; want 08:00-20:00, then the Service", h.steps.set, h.model.page().At.Title())
 	}
 }
 
@@ -189,8 +189,8 @@ func TestADaySetUnderWayTakesNoKeysTillItsSet(t *testing.T) {
 		t.Errorf("a paste while the day's set leaves the field holding %q, want 07:00-22:00", got)
 	}
 	h.deliver(set...)
-	if len(h.steps.set) != 1 || h.model.page().Step != dashboard.SetupService {
-		t.Errorf("SetDay ran %d times, showing %s; want once, then the Service", len(h.steps.set), h.model.page().Step.Title())
+	if len(h.steps.set) != 1 || h.model.page().At != dashboard.SetupService {
+		t.Errorf("SetDay ran %d times, showing %s; want once, then the Service", len(h.steps.set), h.model.page().At.Title())
 	}
 }
 
@@ -346,8 +346,8 @@ func TestTheKeysWithTheFieldTypedIn(t *testing.T) {
 		h.typeIn("09:00-18:00")
 		h.pressAndDeliver("esc")
 		h.pressAndDeliver("enter")
-		if !slices.Equal(h.steps.set, []string{"09:00-18:00"}) || h.model.page().Step != dashboard.SetupService {
-			t.Errorf("SetDay was given %q, showing %s; want 09:00-18:00, then the Service", h.steps.set, h.model.page().Step.Title())
+		if !slices.Equal(h.steps.set, []string{"09:00-18:00"}) || h.model.page().At != dashboard.SetupService {
+			t.Errorf("SetDay was given %q, showing %s; want 09:00-18:00, then the Service", h.steps.set, h.model.page().At.Title())
 		}
 	})
 	t.Run("a paste goes in at the cursor, its line breaks left out", func(t *testing.T) {

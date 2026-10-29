@@ -19,7 +19,7 @@ func setupScreen(changes ...func(*Setup)) Setup {
 	said := installed
 	s := Setup{
 		Now:    now,
-		Step:   SetupSkill,
+		At:     SetupSkill,
 		Passed: []SetupStep{SetupAccounts, SetupPriming, SetupService, SetupLink},
 		Status: []setup.Part{{Standing: setup.PartUp, Words: "router up, healthy"}, {Words: "3 accounts, all working"}},
 		Skill:  &said,
@@ -84,7 +84,7 @@ func TestSetupsTabsTellEachStepsState(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := setupDrawn(setupScreen(func(s *Setup) { s.Step, s.Passed = tt.step, tt.passed }), 160, 37)
+			c := setupDrawn(setupScreen(func(s *Setup) { s.At, s.Passed = tt.step, tt.passed }), 160, 37)
 			row := []rune(rowOf(c, 0))
 			if got := string(row[tt.at : tt.at+len([]rune(tt.want))]); got != tt.want {
 				t.Errorf("the tab reads %q, want %q", got, tt.want)
@@ -446,7 +446,7 @@ func TestTheScreenSaysHowFarItsPageScrolls(t *testing.T) {
 
 func TestAFailedStepsKeyLineHasQQuitAlone(t *testing.T) {
 	failed := setup.Said{Mark: setup.Failed, Label: "Not installed", Detail: "create the skill's directory: not a directory"}
-	c := setupDrawn(setupScreen(func(s *Setup) { s.Skill, s.Failed = &failed, true }), 160, 37)
+	c := setupDrawn(setupScreen(func(s *Setup) { s.Skill, s.Failure = &failed, failed.Detail }), 160, 37)
 	if got, want := rowOf(c, 36), blanks(154)+"q quit"; got != want {
 		t.Errorf("the key line reads\n%q\nwant\n%q: setup stops at a step that failed", got, want)
 	}

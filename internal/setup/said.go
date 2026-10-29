@@ -46,3 +46,13 @@ func capital(text string) string {
 	first, size := utf8.DecodeRuneInString(text)
 	return string(unicode.ToUpper(first)) + text[size:]
 }
+
+// lowered is text with its first letter a small one, as a label reads
+// within a sentence.
+func lowered(text string) string {
+	if text == "" {
+		return text
+	}
+	first, size := utf8.DecodeRuneInString(text)
+	return string(unicode.ToLower(first)) + text[size:]
+}

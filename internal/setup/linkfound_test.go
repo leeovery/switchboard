@@ -64,17 +64,22 @@ func TestLinkSaysTheLinkOnItsRowAndTheShellFilesToTheLineWalkAlone(t *testing.T)
 		// the shell files, "" where they're not written.
 		want      row
 		wantFiles string
+		// made is what the step did to the link, and led where a link it
+		// repaired led.
+		made setup.LinkMade
+		led  string
 		// wantShell is the shell's row, and wantSentence what the line walk
 		// says of it, where the step stops before it asks the shell.
 		wantShell    *row
 		wantSentence string
 	}{
-		{name: "made", want: row{setup.Done, "Link", leads}, wantFiles: filesUpToDate},
+		{name: "made", want: row{setup.Done, "Link", leads}, wantFiles: filesUpToDate, made: setup.LinkCreated},
 		{
 			name:      "there already",
 			lay:       func(t *testing.T, w *world) { claudetest.Link(t, w.switchboard, filepath.Join(w.bin, "claude")) },
 			want:      row{setup.Done, "Link", leads},
 			wantFiles: filesUpToDate,
+			made:      setup.LinkInPlace,
 		},
 		{
 			name: "repaired",
@@ -83,6 +88,8 @@ func TestLinkSaysTheLinkOnItsRowAndTheShellFilesToTheLineWalkAlone(t *testing.T)
 			},
 			want:      row{setup.Done, "Link", leads + " · repaired: it led to ~/go/bin/switchboard"},
 			wantFiles: filesUpToDate,
+			made:      setup.LinkRepaired,
+			led:       "~/go/bin/switchboard",
 		},
 		{
 			name:      "blocked by a file in its place: the shell not asked",
@@ -99,6 +106,7 @@ func TestLinkSaysTheLinkOnItsRowAndTheShellFilesToTheLineWalkAlone(t *testing.T)
 				w.installPaths = []string{filepath.Join(w.home, ".local", "bin", "claude")}
 			},
 			want: row{setup.Done, "Link", leads},
+			made: setup.LinkCreated,
 			wantShell: &row{setup.Warning, "Your shell", "not asked, as there's no Claude Code for claude to start: " +
 				"can't find claude: it isn't on PATH, nor at <root>/home/.local/bin/claude: install it, then run setup again"},
 			wantSentence: "There's no Claude Code for claude to start: can't find claude: it isn't on PATH, nor at <root>/home/.local/bin/claude. Install it, then run setup again.",
@@ -114,6 +122,7 @@ func TestLinkSaysTheLinkOnItsRowAndTheShellFilesToTheLineWalkAlone(t *testing.T)
 				}
 			},
 			want: row{setup.Done, "Link", leads},
+			made: setup.LinkCreated,
 			wantFiles: "Wrote switchboard's files for the shells, in ~/.local/share/switchboard/shell: init.bash and init.fish.\n" +
 				"Brought switchboard's files for the shells up to date, in ~/.local/share/switchboard/shell: init.zsh.",
 		},
@@ -130,6 +139,9 @@ func TestLinkSaysTheLinkOnItsRowAndTheShellFilesToTheLineWalkAlone(t *testing.T)
 			}
 
 			found := w.link(t)
+			if found.Made != tt.made || found.Led != tt.led {
+				t.Errorf("Link() did %v to the link, which led to %q, want %v, %q", found.Made, found.Led, tt.made, tt.led)
+			}
 			want := []row{tt.want}
 			if tt.wantFiles != "" {
 				want = append(want, row{setup.Done, "", ""})
@@ -196,6 +208,8 @@ func TestLinkFindsWhereTheLoginShellLeavesIt(t *testing.T) {
 		wantFile     string
 		wantLine     bool
 		wantLast     bool
+		// wantUnasked is set where the shell couldn't be asked.
+		wantUnasked bool
 	}{
 		{
 			name:         "through",
@@ -228,6 +242,7 @@ func TestLinkFindsWhereTheLoginShellLeavesIt(t *testing.T) {
 				binByHand,
 				"Setup can't check it for this shell: once it's done, claude in a new terminal goes through switchboard.",
 			},
+			wantUnasked: true,
 		},
 		{
 			name: "the link on PATH, an alias in front running another claude by its path, from the home",
@@ -258,7 +273,7 @@ func TestLinkFindsWhereTheLoginShellLeavesIt(t *testing.T) {
 			wantSentence: "Setup can't ask zsh which claude it runs: " + didntAnswer + ". " +
 				"Setup can't tell which startup file zsh reads, so it adds no line.",
 			wantByHand: lineByHand("To have claude go through switchboard by hand, add this line to the end of zsh's startup file, usually ~/.zshrc, after anything there that changes PATH:"),
-			wantFile:   ".zshrc", wantLine: true,
+			wantFile:   ".zshrc", wantLine: true, wantUnasked: true,
 		},
 		{
 			name: "the file it says it reads not there, but another is",
@@ -373,7 +388,7 @@ func TestLinkFindsWhereTheLoginShellLeavesIt(t *testing.T) {
 			wantRow:      row{setup.Warning, "Your shell", "switchboard's line is in ~/.zshrc, but setup can't ask it whether it takes effect: " + didntAnswer},
 			wantSentence: "switchboard's line is in ~/.zshrc, but setup can't ask zsh whether it takes effect: " + didntAnswer + ".",
 			wantByHand:   []string{"Should it not, something read after ~/.zshrc changes PATH: " + putAfter, binByHand},
-			wantFile:     ".zshrc", wantLine: true, wantLast: true,
+			wantFile:     ".zshrc", wantLine: true, wantLast: true, wantUnasked: true,
 		},
 	}
 	for _, tt := range tests {
@@ -390,6 +405,9 @@ func TestLinkFindsWhereTheLoginShellLeavesIt(t *testing.T) {
 			got := w.link(t).Shell
 			if got.Situation != tt.want {
 				t.Errorf("Link() left the shell %v, want %v", got.Situation, tt.want)
+			}
+			if got.Unasked != tt.wantUnasked {
+				t.Errorf("Link() left the shell unasked: %v, want %v", got.Unasked, tt.wantUnasked)
 			}
 			if rows := w.rows([]setup.Said{got.Said}); rows[0] != tt.wantRow {
 				t.Errorf("Link() said of the shell\n%#v\nwant\n%#v", rows[0], tt.wantRow)
@@ -420,15 +438,16 @@ func (w *world) checkByHand(t *testing.T, found setup.ShellFound, want []string)
 }
 
 // checkLineFound checks found names file, from the home, as its startup
-// file, "" for none, and switchboard's line where line is set.
+// file, written from ~ as Where, "" for none, and switchboard's line where
+// line is set.
 func (w *world) checkLineFound(t *testing.T, found setup.ShellFound, file string, line bool) {
 	t.Helper()
-	wantFile := ""
+	wantFile, wantWhere := "", ""
 	if file != "" {
-		wantFile = filepath.Join(w.home, filepath.FromSlash(file))
+		wantFile, wantWhere = filepath.Join(w.home, filepath.FromSlash(file)), "~/"+file
 	}
-	if found.File != wantFile {
-		t.Errorf("found the startup file %q, want %q", found.File, wantFile)
+	if found.File != wantFile || found.Where != wantWhere {
+		t.Errorf("found the startup file %q, written %q; want %q, written %q", found.File, found.Where, wantFile, wantWhere)
 	}
 	if wantLine := w.line(); line && found.Line != wantLine || !line && found.Line != "" {
 		t.Errorf("found the line %q, want it: %v", found.Line, line)
@@ -602,6 +621,8 @@ func TestAskAgainSortsTheSituationAfresh(t *testing.T) {
 		wantSaid setup.Said
 		wantFile string
 		wantLast bool
+		// wantFront is what an alias in front runs, as the step words it.
+		wantFront string
 	}{
 		{
 			name: "offered, the line added, and run",
@@ -649,6 +670,7 @@ func TestAskAgainSortsTheSituationAfresh(t *testing.T) {
 				Sentence: "claude doesn't go through switchboard in a new terminal yet: zsh's claude is alias claude='npx @anthropic-ai/claude-code', " +
 					"which runs something other than switchboard's claude: removing the alias, or pointing it at claude, puts it right.",
 			},
+			wantFront: "zsh's claude is alias claude='npx @anthropic-ai/claude-code', which runs something other than switchboard's claude: removing the alias, or pointing it at claude, puts it right",
 		},
 		{
 			name: "offered, the line found there as it was to be added, not last, not taking effect: not last",
@@ -730,6 +752,25 @@ func TestAskAgainSortsTheSituationAfresh(t *testing.T) {
 				Sentence: notYetOther,
 			},
 			wantFile: ".zshrc",
+		},
+		{
+			name: "offered, the line added, not taking effect, an alias in front running another claude: the alias said",
+			add:  true,
+			again: func(_ *testing.T, w *world) {
+				w.login.overridden = true
+				w.login.front = shell.Front{Text: "alias claude=~/.claude/local/claude", Runs: shell.APath, Path: filepath.Join(w.home, ".claude", "local", "claude")}
+			},
+			was: setup.OfferLine, want: setup.NotTaking,
+			wantSaid: setup.Said{
+				Mark: setup.Warning, Label: "Your shell",
+				Detail: "runs Claude Code's own claude, <root>/claude-code/bin/claude, so its sessions aren't routed · zsh's claude is alias claude=~/.claude/local/claude, " +
+					"which runs ~/.claude/local/claude, not switchboard's claude: removing the alias, or pointing it at claude, puts it right · " +
+					"switchboard's line is in ~/.zshrc, but something read after ~/.zshrc changes PATH",
+				Sentence: "switchboard's line is in ~/.zshrc, but zsh runs another claude, <root>/claude-code/bin/claude, so something read after ~/.zshrc changes PATH.",
+			},
+			wantFile: ".zshrc", wantLast: true,
+			wantFront: "zsh's claude is alias claude=~/.claude/local/claude, which runs ~/.claude/local/claude, not switchboard's claude: " +
+				"removing the alias, or pointing it at claude, puts it right",
 		},
 		{
 			name: "offered, another claude run now: still offered, saying so",
@@ -830,7 +871,13 @@ func TestAskAgainSortsTheSituationAfresh(t *testing.T) {
 			if got.Shell.Last != tt.wantLast {
 				t.Errorf("AskAgain() found the line last: %v, want %v", got.Shell.Last, tt.wantLast)
 			}
+			if got.Shell.Front != tt.wantFront {
+				t.Errorf("AskAgain() found in front %q, want %q", got.Shell.Front, tt.wantFront)
+			}
 			w.checkLineFound(t, got.Shell, tt.wantFile, tt.wantFile != "")
+			if got.Shell.Dir != binByHand {
+				t.Errorf("AskAgain() found the bin directory to put first %q, want %q", got.Shell.Dir, binByHand)
+			}
 			if !reflect.DeepEqual(got.Said, found.Said) {
 				t.Errorf("AskAgain() said %+v of the link, want what Link said, %+v", got.Said, found.Said)
 			}

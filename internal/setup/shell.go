@@ -71,8 +71,21 @@ type ShellFound struct {
 	// says of it.
 	Said Said
 	// File is the startup file switchboard's line goes in, and Line the line,
-	// where the shell is one setup asks, and the file one it can name.
-	File, Line string
+	// where the shell is one setup asks, and the file one it can name; Where
+	// is File written from ~, as the user reads it.
+	File, Line, Where string
+	// Rival is the other startup file a new terminal may read, from ~, where
+	// setup can't tell which it reads: "" elsewhere.
+	Rival string
+	// Front is what an alias in front of the claude the shell's PATH finds
+	// runs, where that's not switchboard's claude, and how to put it right:
+	// "" where nothing else stands in front.
+	Front string
+	// Unasked is set where the shell couldn't be asked which claude it runs.
+	Unasked bool
+	// Dir is switchboard's bin directory, written from $HOME, to put first on
+	// PATH by hand, once the shell's been asked.
+	Dir string
 	// Last is set where switchboard's line, not taking effect or just added,
 	// is the last thing in File that changes PATH.
 	Last bool
@@ -177,8 +190,16 @@ func (r *run) shellFiles() error {
 // claude go through it, as startupLine says. Another shell setup can't ask,
 // so it's left with the bin directory, to put on PATH by hand.
 func (r *run) onPath(answer shell.Answer) ShellFound {
-	at := r.sorted(answer)
-	at.answer = answer
+	return r.answered(r.sorted(answer), answer)
+}
+
+// answered is at, the situation answer, the login shell's, leaves, with
+// what the answer says beside it: whether the shell couldn't be asked, the
+// alias in front of PATH's claude, where it runs something else, and the
+// bin directory to put first on PATH by hand.
+func (r *run) answered(at ShellFound, answer shell.Answer) ShellFound {
+	at.answer, at.Unasked, at.Dir = answer, answer.Kind == shell.Unasked, r.binDir()
+	at.Front = r.inFront(answer.Front, r.fromHome(answer.Front.Path))
 	return at
 }
 
@@ -212,7 +233,7 @@ func (r *run) startupLine(sh shell.Shell, answer shell.Answer) ShellFound {
 	found, err := shell.FindLine(sh, file, r.Home)
 	rival := shell.RivalStartupFile(sh, r.Home, file)
 	where, notYet, stands := r.fromHome(file), r.notYet(answer), r.stands(answer)
-	at := ShellFound{File: file, Line: line, ByHand: r.byHand(addByHand, line, orElsewhere)}
+	at := ShellFound{File: file, Line: line, Where: where, ByHand: r.byHand(addByHand, line, orElsewhere)}
 	switch {
 	case err != nil:
 		at.Situation = CantLook
@@ -227,7 +248,7 @@ func (r *run) startupLine(sh shell.Shell, answer shell.Answer) ShellFound {
 		at.ByHand = r.byHand(fmt.Sprintf("To have claude go through switchboard by hand, add this line to the end of %s's startup file, usually %s, after anything there that changes PATH:", sh, where), line, orElsewhere)
 	case found.Sources == "" && rival != "":
 		other := r.fromHome(rival)
-		at.Situation = RivalFile
+		at.Situation, at.Rival = RivalFile, other
 		at.Said = yourShell(Warning,
 			fmt.Sprintf("%s · it says it reads %s, which isn't there, but %s is: setup can't tell which a new terminal reads, so it adds no line", stands, where, other),
 			fmt.Sprintf("%s %s says it reads %s, which isn't there, but %s is: setup can't tell which a new terminal reads, so it adds no line.", notYet, sh, where, other))
@@ -268,7 +289,7 @@ func (r *run) notTakingEffect(file, line string, last bool, answer shell.Answer)
 		cause = fmt.Sprintf("something read after %s changes PATH", where)
 		fix = "put switchboard's line after what changes PATH, wherever that's read."
 	}
-	at := ShellFound{Situation: NotTaking, File: file, Line: line, Last: last}
+	at := ShellFound{Situation: NotTaking, File: file, Line: line, Where: where, Last: last}
 	if answer.Kind == shell.Unasked {
 		at.Said = yourShell(Warning,
 			fmt.Sprintf("switchboard's line is in %s, but setup can't ask it whether it takes effect: %s", where, answer.Why),
@@ -286,7 +307,13 @@ func (r *run) notTakingEffect(file, line string, last bool, answer shell.Answer)
 // byHand is how to have claude go through switchboard by hand, the lines
 // how says it, then the bin directory, to put first on PATH.
 func (r *run) byHand(how ...string) []string {
-	return append(how, r.fromHomeVariable(r.Bin))
+	return append(how, r.binDir())
+}
+
+// binDir is switchboard's bin directory, written from $HOME, to put first on
+// PATH by hand.
+func (r *run) binDir() string {
+	return r.fromHomeVariable(r.Bin)
 }
 
 // settle has claude go through switchboard in a new terminal, which it does
@@ -381,8 +408,7 @@ func (r *run) askAgain(ctx context.Context, found LinkFound) (LinkFound, error) 
 	}
 	switch {
 	case was.Situation == LineAdded && !answer.Through() && answer.Kind != shell.Link:
-		found.Shell = r.notTakingEffect(was.File, was.Line, was.Last, answer)
-		found.Shell.answer = answer
+		found.Shell = r.answered(r.notTakingEffect(was.File, was.Line, was.Last, answer), answer)
 	default:
 		found.Shell = r.onPath(answer)
 		if found.Shell.Situation != Through {

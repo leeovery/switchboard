@@ -59,7 +59,7 @@ func TestReachingTheServiceStepRunsItAndShowsWhatItSaid(t *testing.T) {
 		t.Errorf("the page holds %+v, want the router's health the step saw", got)
 	}
 	h.pressAndDeliver("enter")
-	if got := h.model.page().Step; got != dashboard.SetupLink {
+	if got := h.model.page().At; got != dashboard.SetupLink {
 		t.Errorf("enter once the service step is done shows %s, want the claude link", got.Title())
 	}
 }
@@ -111,7 +111,7 @@ func TestWhileTheServiceStepRunsItsPageSaysSoAndEnterWaits(t *testing.T) {
 		t.Errorf("while Service runs, the key line reads %q, want q quit alone at its right", got)
 	}
 	h.pressAndDeliver("enter")
-	if got := h.model.page().Step; got != dashboard.SetupService {
+	if got := h.model.page().At; got != dashboard.SetupService {
 		t.Fatalf("enter while Service runs shows %s, want the service step", got.Title())
 	}
 

@@ -48,12 +48,12 @@ func (s Setup) title(c *canvas, width int) bool {
 func (s Setup) tab(step SetupStep) line {
 	k := tabInk
 	switch {
-	case step == s.Step:
+	case step == s.At:
 		k = shownTabInk
 	case s.passed(step):
 		k = mutedInk
 	}
-	if !step.numbered() {
+	if !stepNumbered(step) {
 		return line{{" " + step.Title() + " ", k}}
 	}
 	number := span{strconv.Itoa(int(step) + 1), k}
@@ -96,8 +96,8 @@ func partLine(p setup.Part) line {
 // for, where it says, in the lines the page breaks it into; what it found
 // and did, a fact a row, or in their place, what it says while its step is
 // under way; its form's fields; its table, and the notes under it, where it
-// has one; its notes; and its keys, at the key line's left, and
-// onward, at its right.
+// has one; its notes; at Done, each step's line, and the commands to run
+// next; and its keys, at the key line's left, and onward, at its right.
 type setupPage struct {
 	name, tail   string
 	purpose      []line
@@ -106,6 +106,8 @@ type setupPage struct {
 	fields       []textField
 	table        *reviewTable
 	notes        []line
+	steps        []setup.StepLine
+	next         []command
 	keys, onward []Key
 }
 
@@ -123,9 +125,7 @@ func (p setupPage) draw(c *canvas, top, rows, width, scroll int) Scrolling {
 	if p.tail != "" {
 		h.right = line{{p.tail, mutedInk}}
 	}
-	for _, piece := range h.pieces(top, width, false) {
-		c.line(piece.x, piece.y, piece.line)
-	}
+	h.draw(c, top, width)
 	laid := p.content(width)
 	paged := laid.paged(rows - underHeading)
 	paged.paste(c, laid.whole, top+underHeading, scroll, width, p.rowsOut()...)
@@ -190,7 +190,10 @@ func (l laidPage) paged(rows int) rowsPaged {
 // says while its step is under way, cut where it's wider than the page; then
 // its facts, but those with no label, which are the line walk's alone, then
 // its fields, a blank row after each; then its table and the notes under it;
-// then its notes, wrapped as its purpose is.
+// then its notes, wrapped as its purpose is; then each step's line, as
+// stepLine draws it, a blank row after each; then two rows on, where it has
+// any, the commands to run next, under their heading, a blank row after
+// each.
 func (p setupPage) content(width int) laidPage {
 	c := growing(width)
 	laid := laidPage{whole: c, chosen: -1}
@@ -225,7 +228,25 @@ func (p setupPage) content(width int) laidPage {
 			y++
 		}
 	}
+	for _, l := range p.steps {
+		y = stepLine(c, y, width, l) + 1
+	}
+	if p.next != nil {
+		heading{name: nextHeading}.draw(c, y+1, width)
+		y += 1 + underHeading
+		for _, cmd := range p.next {
+			y = cmd.draw(c, y, width) + 1
+		}
+	}
 	return laid
+}
+
+// draw draws the heading along row y, width cells wide, as the dashboard
+// heads a section.
+func (h heading) draw(c *canvas, y, width int) {
+	for _, piece := range h.pieces(y, width, false) {
+		c.line(piece.x, piece.y, piece.line)
+	}
 }
 
 // The parts of a fact's row, as factParts lays them out.
@@ -259,9 +280,16 @@ func fact(c *canvas, y, width int, said setup.Said) int {
 	c.line(spans[factMark].At, y, line{markOf(said.Mark)})
 	label, detail := spans[factLabel], spans[factDetail]
 	c.line(label.At, y, line{{said.Label, secondaryInk}}.fit(label.Size))
+	return wrapAlong(c, detail, y, line{{said.Detail, mutedInk}})
+}
+
+// wrapAlong draws l from row y along the span's cells, wrapped onto the rows
+// under it, and returns the row after the last it drew on: the one after y,
+// where l is empty.
+func wrapAlong(c *canvas, along flex.Span, y int, l line) int {
 	next := y + 1
-	for i, l := range (line{{said.Detail, mutedInk}}).wrap(detail.Size) {
-		c.line(detail.At, y+i, l)
+	for i, part := range l.wrap(along.Size) {
+		c.line(along.At, y+i, part)
 		next = y + i + 1
 	}
 	return next

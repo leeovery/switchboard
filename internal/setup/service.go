@@ -20,6 +20,16 @@ import (
 	"github.com/leeovery/switchboard/internal/skill"
 )
 
+// The labels of the service step's rows that tell what it did of the
+// service and its router, never anything left for the user to do, as
+// Serviced.said reads them.
+const (
+	updatedLabel    = "Updated"
+	restartingLabel = "Restarting"
+	restartedLabel  = "Restarted"
+	routerLabel     = "Router"
+)
+
 // installAdvice is how setup says to install the service from the shell the
 // router should use.
 const installAdvice = "switchboard service install, run from the shell the router should use"
@@ -122,7 +132,7 @@ func (r *run) service(ctx context.Context) error {
 		const refusedStart = "one couldn't start as the service runs it: " + installAdvice + ", installs it once what stops it is put right"
 		r.tell(Said{
 			Mark:     Failed,
-			Label:    "Router",
+			Label:    routerLabel,
 			Detail:   "not running, and " + refusedStart,
 			Sentence: "Launchd has the service loaded, but no router runs, and " + refusedStart + ".",
 		})
@@ -194,7 +204,7 @@ func (r *run) leaves(st service.Status) (bool, error) {
 		const again = "if it doesn't answer soon, as switchboard service status shows, switchboard service install installs it again: give it the --config and --log-level it ran with, if any"
 		r.tell(Said{
 			Mark:     Failed,
-			Label:    "Router",
+			Label:    routerLabel,
 			Detail:   fmt.Sprintf("launchd runs it, %s, but it doesn't answer here: %s; setup leaves it as it is: %s", pidOf(st.PID), unanswered, again),
 			Sentence: fmt.Sprintf("Launchd runs the service's router, %s, but it doesn't answer here: %s. Setup leaves it as it is: %s.", pidOf(st.PID), unanswered, again),
 		})
@@ -399,7 +409,7 @@ func (r *run) unstartable(ctx context.Context, svc *service.Service, why reason,
 	h := svc.Answering(ctx)
 	if h == nil {
 		const none = ", but the router couldn't start installed afresh, and none is running: " + installAdvice + ", installs it once what stops it is put right"
-		r.tell(Said{Mark: Failed, Label: "Router", Detail: why.detail + none, Sentence: why.lead + none + "."})
+		r.tell(Said{Mark: Failed, Label: routerLabel, Detail: why.detail + none, Sentence: why.lead + none + "."})
 		return fmt.Errorf("the router couldn't start: %w", err)
 	}
 	r.health = h
@@ -532,7 +542,7 @@ func (why reason) afresh(kept string) Said {
 	if kept != "" {
 		detail += " · kept its " + kept
 	}
-	return Said{Mark: Warning, Label: "Updated", Detail: detail, Sentence: why.lead + ", so it's installed afresh."}
+	return Said{Mark: Warning, Label: updatedLabel, Detail: detail, Sentence: why.lead + ", so it's installed afresh."}
 }
 
 // kept names the router's flags the service, installed afresh with opts,
@@ -591,12 +601,12 @@ func (r *run) install(ctx context.Context, svc *service.Service, opts service.In
 func (r *run) restart(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
 	h, err := svc.Restart(ctx, func(how service.Restarting) {
 		finishing := fmt.Sprintf("finishing its requests in flight, then %s", how)
-		r.tell(Said{Mark: Warning, Label: "Restarting", Detail: finishing, Sentence: "The router is " + finishing + "."})
+		r.tell(Said{Mark: Warning, Label: restartingLabel, Detail: finishing, Sentence: "The router is " + finishing + "."})
 	})
 	if err != nil {
 		return err
 	}
-	r.tell(Said{Mark: Warning, Label: "Restarted", Detail: "the router didn't answer", Sentence: "Restarted the router, as it didn't answer."})
+	r.tell(Said{Mark: Warning, Label: restartedLabel, Detail: "the router didn't answer", Sentence: "Restarted the router, as it didn't answer."})
 	return r.up(ctx, svc, opts, h, true)
 }
 
@@ -637,7 +647,7 @@ func (r *run) up(ctx context.Context, svc *service.Service, opts service.Install
 // routerUp is the Said, but for its sentence, of the service's router up,
 // answering as h says.
 func routerUp(h router.Health) Said {
-	said := Said{Mark: Done, Label: "Router", Detail: routerDetail(h)}
+	said := Said{Mark: Done, Label: routerLabel, Detail: routerDetail(h)}
 	if !h.OK {
 		said.Mark = Warning
 	}

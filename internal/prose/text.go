@@ -26,13 +26,19 @@ func Version(version string) string {
 // characters, which would move the cursor or restyle what follows, become
 // spaces, and each run of spaces becomes one.
 func Clean(text string) string {
-	text = strings.Map(func(r rune) rune {
+	return strings.Join(strings.Fields(Visible(text)), " ")
+}
+
+// Visible is text made safe to show on one line of a terminal, each control
+// character a space, as Clean makes it, but with its spacing kept, so text
+// to copy, such as a line for a startup file, shows as it is copied.
+func Visible(text string) string {
+	return strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
 			return ' '
 		}
 		return r
 	}, text)
-	return strings.Join(strings.Fields(text), " ")
 }
 
 // Quoted shows text the user gave, such as a label, in double quotes, set

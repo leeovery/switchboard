@@ -9,44 +9,29 @@ import (
 	"github.com/leeovery/switchboard/internal/setup"
 )
 
-// SetupStep is a step of setup, as its tabs name them, in their order.
-type SetupStep int
+// SetupStep is a step of setup, as setup names them, its tab named by its
+// Title.
+type SetupStep = setup.Step
 
+// Setup's steps, in their order.
 const (
-	SetupAccounts SetupStep = iota
-	SetupPriming
-	SetupService
-	SetupLink
-	SetupSkill
-	SetupDone
+	SetupAccounts = setup.StepAccounts
+	SetupPriming  = setup.StepPriming
+	SetupService  = setup.StepService
+	SetupLink     = setup.StepLink
+	SetupSkill    = setup.StepSkill
+	SetupDone     = setup.StepDone
 )
 
 // SetupSteps are setup's steps, in their order.
 func SetupSteps() []SetupStep {
-	return []SetupStep{SetupAccounts, SetupPriming, SetupService, SetupLink, SetupSkill, SetupDone}
+	return setup.Steps()
 }
 
-// Title is the step's name, as its tab has it.
-func (s SetupStep) Title() string {
-	switch s {
-	case SetupAccounts:
-		return "Accounts"
-	case SetupPriming:
-		return "Priming"
-	case SetupService:
-		return "Service"
-	case SetupLink:
-		return "claude link"
-	case SetupSkill:
-		return "Skill"
-	}
-	return "Done"
-}
-
-// numbered reports whether the step's tab carries its number: every step's
+// stepNumbered reports whether the step's tab carries its number: every step's
 // but Done's, which isn't one to take.
-func (s SetupStep) numbered() bool {
-	return s != SetupDone
+func stepNumbered(step SetupStep) bool {
+	return step != SetupDone
 }
 
 // Setup is setup's screen in the dashboard's chrome, a page a step: the
@@ -55,25 +40,23 @@ func (s SetupStep) numbered() bool {
 type Setup struct {
 	// Now is the time the clock shows.
 	Now time.Time
-	// Step is the step showing, and Passed the steps passed through, each
-	// ticked, whatever it left for later.
-	Step   SetupStep
+	// Summary is how setup stands: At, the step showing; Failure, why it
+	// failed, where it did, which stops setup there, its page saying why;
+	// and what each step told, which its page draws, and Done a line a step.
+	setup.Summary
+	// Passed are the steps passed through, each ticked, whatever it left for
+	// later.
 	Passed []SetupStep
 	// Status are the status line's parts, in order, as setup decides them.
 	Status []setup.Part
-	// UnderWay is set while the step showing does what it does, and Failed
-	// where it failed, which stops setup there, its page saying why: either
-	// way, its key line's right has q quit alone.
-	UnderWay, Failed bool
-	// Accounts is the Accounts step's page: nil on every other step.
+	// UnderWay is set while the step showing does what it does: then, as
+	// where it failed, its key line's right has q quit alone.
+	UnderWay bool
+	// Accounts is what the Accounts step's page has of its own: nil on every
+	// other step.
 	Accounts *SetupAccountsPage
 	// Priming is the Priming step's page: nil until its day is read.
 	Priming *SetupPrimingPage
-	// Service is what the service step told, and its router's health: nil
-	// until it's told it.
-	Service *setup.Serviced
-	// Skill is what the skill step did: nil until it's done it.
-	Skill *setup.Said
 	// Scroll is how many rows the page under its heading is scrolled down.
 	Scroll int
 }
@@ -148,7 +131,7 @@ func (s Setup) page(width, height int, look Look) (*canvas, Scrolling) {
 	}
 	s.statusLine(c, rows[setupStatusRow].At, width)
 	shown := s.shown(look)
-	if s.UnderWay || s.Failed {
+	if s.UnderWay || s.Failure != "" {
 		shown.onward = []Key{Quit}
 	}
 	body := rows[setupBodyRows]
@@ -178,10 +161,10 @@ func (s Setup) passed(step SetupStep) bool {
 
 // shown is the page of the step showing, drawn in look: the Accounts', as
 // accountsPage has it; the Priming's, as primingPage has it; the Service's,
-// as servicePage has it; the Skill's, as skillPage has it; else, until it's
-// drawn, its name in capitals alone.
+// as servicePage has it; the Skill's, as skillPage has it; Done's, as
+// donePage has it; else, until it's drawn, its name in capitals alone.
 func (s Setup) shown(look Look) setupPage {
-	switch s.Step {
+	switch s.At {
 	case SetupAccounts:
 		return s.accountsPage(look)
 	case SetupPriming:
@@ -190,6 +173,8 @@ func (s Setup) shown(look Look) setupPage {
 		return s.servicePage()
 	case SetupSkill:
 		return s.skillPage()
+	case SetupDone:
+		return s.donePage()
 	}
-	return setupPage{name: strings.ToUpper(s.Step.Title())}
+	return setupPage{name: strings.ToUpper(s.At.Title())}
 }

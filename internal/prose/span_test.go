@@ -293,6 +293,21 @@ func TestOverSaysTheSpanARecentRateIsMeasuredOver(t *testing.T) {
 	}
 }
 
+func TestClockSpanShowsAPartOfADayAsItsClocksAnEnDashBetween(t *testing.T) {
+	tests := []struct {
+		start, end time.Duration
+		want       string
+	}{
+		{start: 8 * time.Hour, end: 23 * time.Hour, want: "08:00–23:00"},
+		{start: 22*time.Hour + 30*time.Minute, end: 6 * time.Hour, want: "22:30–06:00"},
+	}
+	for _, tt := range tests {
+		if got := prose.ClockSpan(tt.start, tt.end); got != tt.want {
+			t.Errorf("ClockSpan(%v, %v) = %q, want %q", tt.start, tt.end, got, tt.want)
+		}
+	}
+}
+
 func TestClockOfShowsATimeSinceMidnightAsHoursAndMinutes(t *testing.T) {
 	tests := []struct {
 		since time.Duration

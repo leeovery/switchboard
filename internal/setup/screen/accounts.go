@@ -4,7 +4,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // reviewed takes in what Review answered, as status.reviewAnswered has it:
@@ -83,14 +82,9 @@ func (m Model) accountsEntered() (tea.Model, tea.Cmd) {
 	return m.movedOn()
 }
 
-// accountsPage is the Accounts page as dashboard.Setup draws it: the
-// accounts as the status line has them, each token as checked so far, and
-// the row chosen; or why the accounts couldn't be read, where the step
-// failed.
+// accountsPage is what the Accounts page has of its own, as dashboard.Setup
+// draws it: the row chosen. Its accounts, as the status line has them, and
+// why they couldn't be read, where the step failed, are the summary's.
 func (m Model) accountsPage() *dashboard.SetupAccountsPage {
-	p := &dashboard.SetupAccountsPage{Review: m.status.review, Chosen: m.chosen}
-	if m.walk.failed != nil {
-		p.Failure = prose.Clean(m.walk.failed.Error())
-	}
-	return p
+	return &dashboard.SetupAccountsPage{Chosen: m.chosen}
 }

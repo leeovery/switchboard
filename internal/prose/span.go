@@ -186,3 +186,9 @@ func Hours(d time.Duration) string {
 func ClockOf(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d", int(d/time.Hour), int(d%time.Hour/time.Minute))
 }
+
+// ClockSpan shows a part of a day, from start until end, each the time since
+// midnight, as ClockOf shows them, an en dash between: "08:00–23:00".
+func ClockSpan(start, end time.Duration) string {
+	return ClockOf(start) + "–" + ClockOf(end)
+}
