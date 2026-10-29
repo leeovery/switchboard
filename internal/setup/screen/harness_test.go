@@ -1,8 +1,10 @@
 package screen
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // start is when every test's clock starts: a Tuesday, 17:42 an hour east of
@@ -99,11 +102,19 @@ func (h *harness) update(msg tea.Msg) []tea.Msg {
 	return h.run(cmd)
 }
 
+// mostDelivered is the most messages deliver gives the model before it takes
+// them for a loop that never ends: far more than any test's model sends back.
+const mostDelivered = 10_000
+
 // deliver gives the model msgs, and whatever they send back, until they're
-// all delivered.
+// all delivered, failing the test where they're past mostDelivered, as the
+// model keeps on sending more.
 func (h *harness) deliver(msgs ...tea.Msg) {
 	h.t.Helper()
-	for len(msgs) > 0 {
+	for delivered := 0; len(msgs) > 0; delivered++ {
+		if delivered == mostDelivered {
+			h.t.Fatalf("delivered %d messages and the model sends more, the next %T: a loop that never ends", delivered, msgs[0])
+		}
 		msgs = append(msgs[1:], h.update(msgs[0])...)
 	}
 }
@@ -195,18 +206,28 @@ func (c *fakeClock) Now() time.Time {
 }
 
 // fakeSteps answers as setup's steps do: Standing with standing, Review with
-// review, failing with reviewErr where it's set; Priming with day, failing
-// with primingErr where it's set; SetDay as config.ParseDay does, keeping
-// each day it's given in set, failing with setErr where it's set; Service
-// with serviced, failing with serviceErr where it's set; and Skill with
-// said, failing with skillErr where it's set; each counted as it's asked.
-// Its answers are read, and its counts kept, under mu, as jobs ask it at
-// once: a test sets what it answers while no job runs.
+// review, each token of the account's own, as tokenOf has it, failing with
+// reviewErr where it's set; ReviewOf with the review's row, its token as
+// checked has it, where it has it, of the account's own, failing with
+// checkErr where it's set, keeping each id it's asked of in checks; Priming
+// with day, failing with primingErr where it's set; SetDay as
+// config.ParseDay does, keeping each day it's given in set, failing with
+// setErr where it's set; Service with serviced, failing with serviceErr
+// where it's set; and Skill with said, failing with skillErr where it's set;
+// each counted as it's asked. Its answers are read, and its counts kept,
+// under mu, as jobs ask it at once: a test sets what it answers while no job
+// runs.
 type fakeSteps struct {
-	mu         sync.Mutex
-	standing   setup.RouterStanding
-	review     setup.Review
-	reviewErr  error
+	mu        sync.Mutex
+	standing  setup.RouterStanding
+	review    setup.Review
+	reviewErr error
+	// replaced are the accounts whose token has been replaced, as replace
+	// has it, and how many times.
+	replaced   map[string]int
+	checked    map[string]setup.TokenStanding
+	checkErr   error
+	checks     []string
 	day        config.Day
 	primingErr error
 	set        []string
@@ -252,7 +273,46 @@ func (s *fakeSteps) Review() (setup.Review, error) {
 	if s.reviewErr != nil {
 		return setup.Review{}, s.reviewErr
 	}
-	return s.review, nil
+	review := s.review
+	review.Accounts = slices.Clone(review.Accounts)
+	for i, a := range review.Accounts {
+		review.Accounts[i].Token = a.Token.Of(s.tokenOf(a.ID))
+	}
+	return review, nil
+}
+
+func (s *fakeSteps) ReviewOf(_ context.Context, id string) (setup.Reviewed, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.checks = append(s.checks, id)
+	i := slices.IndexFunc(s.review.Accounts, func(a setup.Reviewed) bool { return a.ID == id })
+	if s.checkErr != nil || i < 0 {
+		return setup.Reviewed{}, cmp.Or(s.checkErr, config.NotConfigured(id))
+	}
+	row := s.review.Accounts[i]
+	if token, ok := s.checked[id]; ok {
+		row.Token = token
+	}
+	row.Token = row.Token.Of(s.tokenOf(id))
+	return row, nil
+}
+
+// tokenOf is the token the account's file holds: test-token- and its id,
+// and how many times it's been replaced, where it has been.
+func (s *fakeSteps) tokenOf(id string) tokens.Token {
+	token, _ := tokens.Parse("test-token-" + id + strings.Repeat("-new", s.replaced[id]))
+	return token
+}
+
+// replace replaces the account's token with another, as the screen's steps
+// would find it read again.
+func (s *fakeSteps) replace(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.replaced == nil {
+		s.replaced = map[string]int{}
+	}
+	s.replaced[id]++
 }
 
 func (s *fakeSteps) Priming() (config.Day, error) {

@@ -57,9 +57,10 @@ type taking struct {
 //	sha256 <the token's hash>
 type record []taking
 
-// sum is the SHA-256 hash of token, in hex.
-func sum(token Token) string {
-	s := sha256.Sum256([]byte(token.Reveal()))
+// Sum is the token's SHA-256 hash, in hex: never the token, but what tells
+// it from another, as the record of when it was taken keeps it.
+func (t Token) Sum() string {
+	s := sha256.Sum256([]byte(t.Reveal()))
 	return hex.EncodeToString(s[:])
 }
 
@@ -176,7 +177,7 @@ func (s Store) Taken(id string, token Token) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	taken, ok := r.of(sum(token))
+	taken, ok := r.of(token.Sum())
 	if !ok {
 		return time.Time{}, fmt.Errorf("the record %s is of other tokens", s.takenPath(id))
 	}
@@ -291,7 +292,7 @@ func (s Store) writeTaken(id string, token Token, taken time.Time) error {
 	if err := leaveFor(path, linked, err); err != nil {
 		return err
 	}
-	next := was.with(sum(token), taken)
+	next := was.with(token.Sum(), taken)
 	if !exposed && bytes.Equal(next.bytes(), was.bytes()) {
 		return nil
 	}

@@ -252,6 +252,24 @@ func (p rowsPaged) shows(offset, r int) bool {
 	return p.top(from, to) <= r && r < to
 }
 
+// revealing is how far the rows, scrolled at, are scrolled to show the
+// content's row r: where they are, where they show it; else as little
+// further up or down as shows it, as shows has it, a row a heading kept
+// takes counting as not shown; where they are where nothing does.
+func (p rowsPaged) revealing(at, r int) int {
+	from, _ := p.shown(at)
+	step := 1
+	if r < from {
+		step = -1
+	}
+	for offset := from; offset >= 0 && offset <= p.content; offset += step {
+		if p.shows(offset, r) {
+			return offset
+		}
+	}
+	return from
+}
+
 // down is where a page down from the page shown from row from up to to
 // starts: at the first row it didn't show, or as little short of it as
 // shows it, where a heading kept would take its place, as pageDown has it; a

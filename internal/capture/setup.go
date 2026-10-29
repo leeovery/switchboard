@@ -2,6 +2,7 @@ package capture
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -12,25 +13,31 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/setup/screen"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // setupScreen is a fixture of setup's screen, named after the frame it
 // draws, at that frame's size: opening on its step, every step before it
 // passed through, its steps answering as steps has them at the moment
-// drawn. It's drawn over no world, at the frames' moment.
+// drawn, then its keys pressed. It's drawn over no world, at the frames'
+// moment.
 type setupScreen struct {
 	name  string
 	size  watch.Size
 	step  dashboard.SetupStep
 	steps func(now time.Time) setupSteps
+	keys  []tea.KeyPressMsg
 }
 
-// setupScreens are setup's screen's fixtures: the Priming page, its day
-// read, typed in, as frame 7 has it; the Service page, the service installed
-// again and its router healthy, as frame 4 has it; and the Skill page, the
-// skill installed, as frame 9 has it.
+// setupScreens are setup's screen's fixtures: the Accounts page run again,
+// each token checked, side chosen, as frame 3 has it; the Priming page, its
+// day read, typed in, as frame 7 has it; the Service page, the service
+// installed again and its router healthy, as frame 4 has it; and the Skill
+// page, the skill installed, as frame 9 has it.
 var setupScreens = []setupScreen{
+	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
 	{name: "setup-service-160", size: wide(37), step: dashboard.SetupService, steps: everyStepPassed},
 	{name: "setup-skill-160", size: wide(37), step: dashboard.SetupSkill, steps: everyStepPassed},
@@ -48,19 +55,26 @@ func (s setupScreen) called() string {
 	return s.name
 }
 
-// made is the fixture at the frames' moment, in the frames' theme: it reads
-// none of the worlds.
+// setupMoment is when setup's screen's fixtures are drawn, in the machine's
+// own zone: the moment of setup's signed-off frames, which their clock
+// shows and their tokens' years count from.
+func setupMoment() time.Time {
+	return time.Date(2026, time.October, 27, 17, 42, 0, 0, time.Local)
+}
+
+// made is the fixture at setupMoment, in the frames' theme: it reads none of
+// the worlds.
 func (s setupScreen) made(func() accountWorlds) Fixture {
-	now := localMoment()
-	return Fixture{Name: s.name, Size: s.size, now: now, theme: framesTheme(), setup: &setupShown{step: s.step, steps: s.steps(now)}}
+	now := setupMoment()
+	return Fixture{Name: s.name, Size: s.size, now: now, theme: framesTheme(), keys: s.keys, setup: &setupShown{step: s.step, steps: s.steps(now)}}
 }
 
 // settleSetup builds setup's screen of the fixture, through screen.New, on a
 // terminal of the given size, and brings it to the fixture's moment: its
-// clock standing there, it asks for the status line's parts and runs its
-// step's action, each answered, then the terminal says what its background
-// is. Its timers never fire, so nothing moves from there but what a key
-// does.
+// clock standing there, it asks for the status line's parts, checks each
+// account's token and runs its step's action, each answered, then the
+// terminal says what its background is, and the fixture's keys are pressed.
+// Its timers never fire, so nothing moves from there but what a key does.
 func (f Fixture) settleSetup(size watch.Size) screen.Model {
 	cfg := screen.Config{
 		Steps: f.setup.steps,
@@ -77,33 +91,66 @@ func (f Fixture) settleSetup(size watch.Size) screen.Model {
 	if !f.colourless {
 		m = deliver(m, tea.BackgroundColorMsg{Color: terminalBackground})
 	}
+	for _, key := range f.keys {
+		m = deliver(m, tea.Msg(key))
+	}
 	return m
 }
 
 // setupSteps are setup's steps as a capture fakes them, answering at once
-// as given: they read, run and write nothing.
+// as given: they read, run and write nothing. Review reads each token, and
+// ReviewOf checks it as checked has it.
 type setupSteps struct {
 	standing setup.RouterStanding
 	review   setup.Review
+	checked  map[string]setup.TokenStanding
 	day      config.Day
 	service  setup.Serviced
 	skill    setup.Said
 }
 
+// read is a token read but not yet checked, its year as given.
+func read(year status.TokenYear) setup.TokenStanding {
+	return setup.TokenStanding{State: setup.TokenRead, Year: year}
+}
+
+// reviewed are the steps as they stand on a run again, at now, as frame 3
+// has them: a router up and healthy; work, the primary, on Max 20x, 5%
+// reserved, its token working, its year unknown; personal, its plan not
+// set, its token working, 21 days left of its year; and side, on Pro, its
+// token refused.
+func reviewed(now time.Time) setupSteps {
+	until := now.AddDate(0, 0, 21)
+	year := status.TokenYear{Taken: until.AddDate(-1, 0, 0), GoodUntil: until}
+	return setupSteps{
+		standing: setup.RouterStanding{State: setup.RouterHealthy},
+		review: setup.Review{At: now, Accounts: []setup.Reviewed{
+			{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: read(status.TokenYear{})},
+			{ID: "personal", Label: "Personal", Token: read(year)},
+			{ID: "side", Label: "Side", Plan: "pro", Token: read(status.TokenYear{})},
+		}},
+		checked: map[string]setup.TokenStanding{
+			"work":     {State: setup.TokenWorking},
+			"personal": {State: setup.TokenWorking, Year: year},
+			"side":     {State: setup.TokenNotTaken},
+		},
+	}
+}
+
 // accountsPassed are the steps as they stand once the Accounts have passed,
 // at now: no router running yet; three accounts, work the primary, each
-// token checked and working, as the Accounts page leaves them; and priming
-// over 08:00-23:00.
+// token working once checked; and priming over 08:00-23:00.
 func accountsPassed(now time.Time) setupSteps {
 	working := setup.TokenStanding{State: setup.TokenWorking}
 	return setupSteps{
 		standing: setup.RouterStanding{State: setup.RouterDown},
 		review: setup.Review{At: now, Accounts: []setup.Reviewed{
-			{ID: "work", Label: "Work", Primary: true, Token: working},
-			{ID: "personal", Label: "Personal", Token: working},
-			{ID: "side", Label: "Side", Token: working},
+			{ID: "work", Label: "Work", Primary: true, Token: read(status.TokenYear{})},
+			{ID: "personal", Label: "Personal", Token: read(status.TokenYear{})},
+			{ID: "side", Label: "Side", Token: read(status.TokenYear{})},
 		}},
-		day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour},
+		checked: map[string]setup.TokenStanding{"work": working, "personal": working, "side": working},
+		day:     config.Day{Start: 8 * time.Hour, End: 23 * time.Hour},
 	}
 }
 
@@ -132,9 +179,33 @@ func (s setupSteps) Standing(context.Context) (setup.RouterStanding, error) {
 	return s.standing, nil
 }
 
-// Review is the accounts as given.
+// Review is the accounts as given, each token read, as testToken has it.
 func (s setupSteps) Review() (setup.Review, error) {
-	return s.review, nil
+	review := s.review
+	review.Accounts = slices.Clone(review.Accounts)
+	for i, a := range review.Accounts {
+		review.Accounts[i].Token = a.Token.Of(testToken(a.ID))
+	}
+	return review, nil
+}
+
+// ReviewOf is the account's row as given, its token, as testToken has it,
+// as checked has it.
+func (s setupSteps) ReviewOf(_ context.Context, id string) (setup.Reviewed, error) {
+	i := slices.IndexFunc(s.review.Accounts, func(a setup.Reviewed) bool { return a.ID == id })
+	if i < 0 {
+		return setup.Reviewed{}, config.NotConfigured(id)
+	}
+	row := s.review.Accounts[i]
+	row.Token = s.checked[id].Of(testToken(id))
+	return row, nil
+}
+
+// testToken is the token the account's file holds, as capture fakes it: a
+// placeholder of its own, never shown.
+func testToken(id string) tokens.Token {
+	token, _ := tokens.Parse("test-token-" + id)
+	return token
 }
 
 // Priming is the day as given.

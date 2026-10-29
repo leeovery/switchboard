@@ -65,6 +65,8 @@ type Setup struct {
 	// where it failed, which stops setup there, its page saying why: either
 	// way, its key line's right has q quit alone.
 	UnderWay, Failed bool
+	// Accounts is the Accounts step's page: nil on every other step.
+	Accounts *SetupAccountsPage
 	// Priming is the Priming step's page: nil until its day is read.
 	Priming *SetupPrimingPage
 	// Service is what the service step told, and its router's health: nil
@@ -95,7 +97,7 @@ const tooSmall = "Make the terminal larger."
 // Draw draws the screen width cells wide and height tall, in look: a string
 // for each of its rows.
 func (s Setup) Draw(width, height int, look Look) []string {
-	c, _ := s.page(width, height)
+	c, _ := s.page(width, height, look)
 	return c.rows(look)
 }
 
@@ -103,27 +105,39 @@ func (s Setup) Draw(width, height int, look Look) []string {
 // width cells wide and height tall, scrolled as the screen has it: none on a
 // screen smaller than setup's least.
 func (s Setup) Scrolling(width, height int) Scrolling {
-	_, scrolling := s.page(width, height)
+	_, scrolling := s.page(width, height, Look{})
 	return scrolling
+}
+
+// ScrolledToChosen is how far the page of the step showing is scrolled to
+// keep its row chosen in view in a screen width cells wide and height tall:
+// from Scroll, no further than it must go; Scroll where the page has no row
+// chosen, or none of it shows, as on a screen smaller than setup's least.
+func (s Setup) ScrolledToChosen(width, height int) int {
+	if s.Scrolling(width, height).Page == 0 {
+		return s.Scroll
+	}
+	rows, _ := setupRows(height)
+	return s.shown(Look{}).revealing(rows[setupBodyRows].Size, width, s.Scroll)
 }
 
 // SpinDelay is how long from the screen's time until the spinner of the
 // page showing moves on, as spinDelay has it. It reports false where the
 // page shows no spinner.
 func (s Setup) SpinDelay() (time.Duration, bool) {
-	if s.shown().underWay == nil {
+	if s.shown(Look{}).underWay == nil {
 		return 0, false
 	}
 	return spinDelay(s.Now), true
 }
 
-// page draws the screen on a canvas width cells wide and height tall, and
-// says how far its page scrolls: its title row; its status line; the page
-// of the step showing, scrolled Scroll rows down, in the rows between the
-// status line and the key line; and the key line, the last row. Where the
-// title row's own pieces don't fit across it, or its rows down it, as
-// setupRows lays them, it's tooSmall alone.
-func (s Setup) page(width, height int) (*canvas, Scrolling) {
+// page draws the screen on a canvas width cells wide and height tall, in
+// look, and says how far its page scrolls: its title row; its status line;
+// the page of the step showing, scrolled Scroll rows down, in the rows
+// between the status line and the key line; and the key line, the last row.
+// Where the title row's own pieces don't fit across it, or its rows down it,
+// as setupRows lays them, it's tooSmall alone.
+func (s Setup) page(width, height int, look Look) (*canvas, Scrolling) {
 	c := newCanvas(width, height)
 	wide := s.title(c, width)
 	rows, tall := setupRows(height)
@@ -133,7 +147,7 @@ func (s Setup) page(width, height int) (*canvas, Scrolling) {
 		return c, Scrolling{}
 	}
 	s.statusLine(c, rows[setupStatusRow].At, width)
-	shown := s.shown()
+	shown := s.shown(look)
 	if s.UnderWay || s.Failed {
 		shown.onward = []Key{Quit}
 	}
@@ -162,11 +176,14 @@ func (s Setup) passed(step SetupStep) bool {
 	return slices.Contains(s.Passed, step)
 }
 
-// shown is the page of the step showing: the Priming's, as primingPage has
-// it; the Service's, as servicePage has it; the Skill's, as skillPage has
-// it; else, until it's drawn, its name in capitals alone.
-func (s Setup) shown() setupPage {
+// shown is the page of the step showing, drawn in look: the Accounts', as
+// accountsPage has it; the Priming's, as primingPage has it; the Service's,
+// as servicePage has it; the Skill's, as skillPage has it; else, until it's
+// drawn, its name in capitals alone.
+func (s Setup) shown(look Look) setupPage {
 	switch s.Step {
+	case SetupAccounts:
+		return s.accountsPage(look)
 	case SetupPriming:
 		return s.primingPage()
 	case SetupService:

@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
@@ -48,12 +49,68 @@ type TokenStanding struct {
 	// Organization is the id of the organization the API's answer named the
 	// token's account in: "" where it named none, or wasn't asked.
 	Organization string
+	// sum is the token's hash, as tokens.Token.Sum has it, which tells the
+	// token read from another read later: "" where none was read.
+	sum string
+}
+
+// Of is the standing, of the token given: its hash kept, never the token,
+// as what tells it from a token read later, which Keeping goes by.
+func (t TokenStanding) Of(token tokens.Token) TokenStanding {
+	t.sum = token.Sum()
+	return t
+}
+
+// answered reports whether the API answered for the token: it took it, or
+// refused it.
+func (t TokenStanding) answered() bool {
+	return t.State == TokenWorking || t.State == TokenNotTaken
 }
 
 // Working reports whether the account has a token read that the API hasn't
 // refused: one not yet checked, or one it didn't answer for, counts.
 func (t TokenStanding) Working() bool {
 	return t.State == TokenRead || t.State == TokenWorking || t.State == TokenUnchecked
+}
+
+// TokenTold is how the review's TOKEN column tells a token.
+type TokenTold int
+
+const (
+	// ToldByYear is a working token whose year is known, told by its year.
+	ToldByYear TokenTold = iota
+	// ToldUndated is a working token whose year isn't known.
+	ToldUndated
+	// ToldRefused is a token the API refuses.
+	ToldRefused
+	// ToldInWords is a token told by its words alone: one being checked,
+	// unchecked, missing or unreadable.
+	ToldInWords
+)
+
+// checking is what's said of a token read but not yet checked, and of the
+// accounts while any is.
+const checking = "checking…"
+
+// Told is how the review's TOKEN column tells the token, and its words: none
+// for one told by its year.
+func (t TokenStanding) Told() (TokenTold, string) {
+	switch t.State {
+	case TokenWorking:
+		if t.Year.Known() {
+			return ToldByYear, ""
+		}
+		return ToldUndated, "working · expiry date unknown"
+	case TokenNotTaken:
+		return ToldRefused, "rejected: revoked or expired"
+	case TokenRead:
+		return ToldInWords, checking
+	case TokenUnchecked:
+		return ToldInWords, "unchecked"
+	case TokenUnreadable:
+		return ToldInWords, "can't read"
+	}
+	return ToldInWords, "no token"
 }
 
 // Reviewed is an account as setup's review shows it, a row of its table.
@@ -67,6 +124,15 @@ type Reviewed struct {
 	// account. With two or more and none marked, none is.
 	Primary bool
 	Token   TokenStanding
+}
+
+// PlanName is the account's plan as the price table names it, such as
+// "Max 20x": "" where its plan isn't set, or the table doesn't know it.
+func (r Reviewed) PlanName() string {
+	if plan, ok := ledger.Pricing.Plan(r.Plan); ok {
+		return plan.Name
+	}
+	return ""
 }
 
 // Review is every configured account, in the config's order, as read from
@@ -137,6 +203,51 @@ func (s *Setup) ReviewOf(ctx context.Context, id string) (Reviewed, error) {
 	return row, nil
 }
 
+// Checked is the review with what ReviewOf answered of the account id, asked
+// once the review was read, folded in, where the review read its token and
+// hasn't checked it: the token as checked, read since where it's been
+// replaced; or, where ReviewOf failed, or answered with the token unchecked
+// still, kept unchecked, saying why where it failed. An answer of an account
+// the review doesn't have changes nothing. One asked before the review was
+// read is Keeping's to fold, as its token may since have been replaced.
+func (r Review) Checked(id string, row Reviewed, err error) Review {
+	i := slices.IndexFunc(r.Accounts, func(a Reviewed) bool { return a.ID == id })
+	if i < 0 || r.Accounts[i].Token.State != TokenRead {
+		return r
+	}
+	token := row.Token
+	switch {
+	case err != nil:
+		token = r.Accounts[i].Token
+		token.State, token.Why = TokenUnchecked, redact.Text(err.Error())
+	case token.State == TokenRead:
+		token.State = TokenUnchecked
+	}
+	r.Accounts = slices.Clone(r.Accounts)
+	r.Accounts[i].Token = token
+	return r
+}
+
+// Keeping is the review, read afresh, with each token it read and hasn't
+// checked that earlier has the API's answer for, the same token, as the API
+// answered: working, its organization named, or refused. Its year is as
+// read afresh, as the record of when it was taken may have changed. A token
+// earlier has unchecked is checked again.
+func (r Review) Keeping(earlier Review) Review {
+	r.Accounts = slices.Clone(r.Accounts)
+	for i, a := range r.Accounts {
+		j := slices.IndexFunc(earlier.Accounts, func(e Reviewed) bool { return e.ID == a.ID })
+		if a.Token.State != TokenRead || j < 0 {
+			continue
+		}
+		if was := earlier.Accounts[j].Token; was.answered() && was.sum == a.Token.sum {
+			kept := &r.Accounts[i].Token
+			kept.State, kept.Organization, kept.Why = was.State, was.Organization, was.Why
+		}
+	}
+	return r
+}
+
 // reviewed is the account's row, its token read but unchecked, and the token
 // read, for checking. unmarked says no account is marked the primary, of
 // two or more.
@@ -150,7 +261,7 @@ func (s *Setup) reviewed(a config.Account, unmarked bool) (Reviewed, tokens.Toke
 		row.Token = TokenStanding{State: TokenUnreadable, Why: redact.Text(err.Error())}
 		return row, tokens.Token{}
 	}
-	row.Token = TokenStanding{State: TokenRead, Year: s.yearOf(a.ID, token)}
+	row.Token = TokenStanding{State: TokenRead, Year: s.yearOf(a.ID, token)}.Of(token)
 	return row, token
 }
 
@@ -275,7 +386,7 @@ func (r Review) part() Part {
 // of one; "none working"; or how many, as "2 working".
 func (r Review) working() string {
 	if slices.ContainsFunc(r.Accounts, func(a Reviewed) bool { return a.Token.State == TokenRead }) {
-		return "checking…"
+		return checking
 	}
 	working := 0
 	for _, a := range r.Accounts {

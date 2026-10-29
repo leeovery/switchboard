@@ -60,10 +60,12 @@ func openingOn(step dashboard.SetupStep) walk {
 	return walk{step: step, passed: dashboard.SetupSteps()[:step]}.reached(step)
 }
 
-// reached is w at step, which is done on reaching it where it does nothing.
+// reached is w at step, which is done on reaching it where it does nothing:
+// Accounts does, as it reads the accounts the status line reads, as
+// reviewed has it.
 func (w walk) reached(step dashboard.SetupStep) walk {
 	_, acts := actions[step]
-	w.step, w.done, w.failed = step, !acts, nil
+	w.step, w.done, w.failed = step, !acts && step != dashboard.SetupAccounts, nil
 	return w
 }
 
@@ -115,8 +117,9 @@ func (m Model) action() tea.Cmd {
 }
 
 // entered moves on, once the step showing is done, unless it failed: at
-// Done, leaving to open the dashboard; at Priming, once its day is set, as
-// dayEntered has it; else as movedOn has it.
+// Done, leaving to open the dashboard; at Accounts, as accountsEntered has
+// it; at Priming, once its day is set, as dayEntered has it; else as movedOn
+// has it.
 func (m Model) entered() (tea.Model, tea.Cmd) {
 	switch w := m.walk; {
 	case !w.done || w.failed != nil:
@@ -124,6 +127,8 @@ func (m Model) entered() (tea.Model, tea.Cmd) {
 	case w.step == dashboard.SetupDone:
 		m.walk.toDashboard = true
 		return m, tea.Quit
+	case w.step == dashboard.SetupAccounts:
+		return m.accountsEntered()
 	case w.step == dashboard.SetupPriming:
 		return m.dayEntered()
 	}

@@ -95,14 +95,16 @@ func partLine(p setup.Part) line {
 // what's said at the heading's right, where anything is; what the step is
 // for, where it says, in the lines the page breaks it into; what it found
 // and did, a fact a row, or in their place, what it says while its step is
-// under way; its form's fields; its notes, under them; and its keys, at the
-// key line's left, and onward, at its right.
+// under way; its form's fields; its table, and the notes under it, where it
+// has one; its notes; and its keys, at the key line's left, and
+// onward, at its right.
 type setupPage struct {
 	name, tail   string
 	purpose      []line
 	facts        []setup.Said
 	underWay     line
 	fields       []textField
+	table        *reviewTable
 	notes        []line
 	keys, onward []Key
 }
@@ -113,8 +115,9 @@ const underHeading = 2
 // draw draws the page from row top, rows tall and width cells wide, and
 // says how far it scrolls: its heading row, as the dashboard heads a
 // section; and from underHeading rows on, what's under it, as content draws
-// it, scrolled scroll rows down, as paged pages it, saying what's out of
-// view as rowsOut has it.
+// it, scrolled scroll rows down, as paged pages it, its table's heads kept
+// on the first row while it's scrolled into the table's rows, saying what's
+// out of view as rowsOut has it.
 func (p setupPage) draw(c *canvas, top, rows, width, scroll int) Scrolling {
 	h := heading{name: p.name}
 	if p.tail != "" {
@@ -123,17 +126,32 @@ func (p setupPage) draw(c *canvas, top, rows, width, scroll int) Scrolling {
 	for _, piece := range h.pieces(top, width, false) {
 		c.line(piece.x, piece.y, piece.line)
 	}
-	whole := p.content(width)
-	paged := rowsPaged{rows: rows - underHeading, content: whole.height(), says: true}
-	paged.paste(c, whole, top+underHeading, scroll, width, p.rowsOut()...)
+	laid := p.content(width)
+	paged := laid.paged(rows - underHeading)
+	paged.paste(c, laid.whole, top+underHeading, scroll, width, p.rowsOut()...)
+	if at, ok := paged.keeps(paged.shown(scroll)); ok {
+		c.paste(laid.whole, at, top+underHeading, 1)
+	}
 	return paged.scrolling(scroll)
 }
 
+// revealing is how far the page, rows tall and width cells wide, scrolled
+// scroll rows down, is scrolled to show its row chosen, as
+// rowsPaged.revealing has it: where it is, where it has none.
+func (p setupPage) revealing(rows, width, scroll int) int {
+	laid := p.content(width)
+	if laid.chosen < 0 {
+		return scroll
+	}
+	return laid.paged(rows-underHeading).revealing(scroll, laid.chosen)
+}
+
 // rowsOut are the forms of the line saying how many of the page's rows are
-// out of view, as History's rows say it; but while a field of the page's is
-// typed in, without its keys, as j and k type into the field.
+// out of view, as History's rows say it; but without its keys while a field
+// of the page's is typed in, as j and k type into the field, and on a page
+// with a table, whose rows they choose.
 func (p setupPage) rowsOut() []outForm {
-	if !p.typing() {
+	if !p.typing() && p.table == nil {
 		return historyRowsOut
 	}
 	forms := make([]outForm, len(historyRowsOut))
@@ -148,15 +166,34 @@ func (p setupPage) typing() bool {
 	return slices.ContainsFunc(p.fields, func(f textField) bool { return f.field.Typing })
 }
 
+// laidPage is what's under a page's heading, drawn whole: the table's heads,
+// kept on the page's first row while it's scrolled into the table's rows;
+// and the row to show the row chosen, -1 where none is.
+type laidPage struct {
+	whole  *canvas
+	kept   []keptHeading
+	chosen int
+}
+
+// paged is how the page, laid out whole, pages in rows rows, a row at a
+// time, saying what's out of view: each heading marked on it shown with its
+// first row, and each kept heading kept.
+func (l laidPage) paged(rows int) rowsPaged {
+	p := pagedWhole(l.whole, rows)
+	p.kept, p.says = l.kept, true
+	return p
+}
+
 // content is what's under the page's heading, drawn whole width cells wide:
 // from setupIndent, what the step is for, each of its lines wrapped further
 // where it's wider than the page; then a row on, from setupIndent, what it
 // says while its step is under way, cut where it's wider than the page; then
 // its facts, but those with no label, which are the line walk's alone, then
-// its fields, a blank row after each; then its notes, wrapped as its purpose
-// is.
-func (p setupPage) content(width int) *canvas {
+// its fields, a blank row after each; then its table and the notes under it;
+// then its notes, wrapped as its purpose is.
+func (p setupPage) content(width int) laidPage {
 	c := growing(width)
+	laid := laidPage{whole: c, chosen: -1}
 	y := 0
 	for _, said := range p.purpose {
 		for _, l := range said.wrap(width - setupIndent) {
@@ -179,13 +216,16 @@ func (p setupPage) content(width int) *canvas {
 	for _, f := range p.fields {
 		y = f.draw(c, setupIndent, y, width-setupIndent) + 1
 	}
+	if p.table != nil {
+		y, laid.kept, laid.chosen = p.table.draw(c, y, width)
+	}
 	for _, note := range p.notes {
 		for _, l := range note.wrap(width - setupIndent) {
 			c.line(setupIndent, y, l)
 			y++
 		}
 	}
-	return c
+	return laid
 }
 
 // The parts of a fact's row, as factParts lays them out.
