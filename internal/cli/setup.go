@@ -40,7 +40,7 @@ func (a *app) setup(cmd *cobra.Command) error {
 	if !ok {
 		return setup.ErrNoTerminal
 	}
-	s, err := a.newSetup(setup.Terminal{In: cmd.InOrStdin(), Out: cmd.OutOrStdout(), Hidden: hidden}, cmd.Root())
+	s, err := a.newSetup(setup.Terminal{In: cmd.InOrStdin(), Out: cmd.OutOrStdout(), Hidden: hidden}, cmd.ErrOrStderr(), cmd.Root())
 	if err != nil {
 		return err
 	}
@@ -50,8 +50,9 @@ func (a *app) setup(cmd *cobra.Command) error {
 // newSetup returns setup at term, for the config, the state and the Claude
 // Code config directory the CLI finds, this switchboard binary, PATH, and
 // the user's login shell; its files for the shells loading the completions
-// of root, the command tree.
-func (a *app) newSetup(term setup.Terminal, root *cobra.Command) (*setup.Setup, error) {
+// of root, the command tree; saying on errOut where an interrupt waits for
+// the service's install.
+func (a *app) newSetup(term setup.Terminal, errOut io.Writer, root *cobra.Command) (*setup.Setup, error) {
 	path, err := a.configFile()
 	if err != nil {
 		return nil, err
@@ -60,7 +61,7 @@ func (a *app) newSetup(term setup.Terminal, root *cobra.Command) (*setup.Setup, 
 	if err != nil {
 		return nil, err
 	}
-	svc, err := a.service()
+	svc, err := a.service(errOut)
 	if err != nil {
 		return nil, err
 	}

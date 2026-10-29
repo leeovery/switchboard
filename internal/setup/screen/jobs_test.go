@@ -63,7 +63,7 @@ func TestAnOutcomeOnceTheContextIsDoneIsDropped(t *testing.T) {
 func TestAWriteWaitingItsTurnAsTheContextEndsNeverRuns(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	js := newJobs(ctx)
-	js.writing.Lock()
+	js.writing <- struct{}{}
 	var ran atomic.Bool
 	go js.write(func(context.Context) tea.Msg {
 		ran.Store(true)
@@ -73,8 +73,39 @@ func TestAWriteWaitingItsTurnAsTheContextEndsNeverRuns(t *testing.T) {
 	// there: a check before the lock alone would let it run.
 	time.Sleep(overlap)
 	cancel()
-	js.writing.Unlock()
+	<-js.writing
 	js.wait()
+	if ran.Load() {
+		t.Error("a write whose context ended as it waited its turn ran, want it never run")
+	}
+}
+
+func TestAWriteWaitingItsTurnStopsWaitingAsTheContextEnds(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	js := newJobs(ctx)
+	// The turn is taken and never given back, as by a writing action that
+	// hangs.
+	js.writing <- struct{}{}
+	var ran atomic.Bool
+	go js.write(func(context.Context) tea.Msg {
+		ran.Store(true)
+		return nil
+	})()
+	// Time for the write to reach its turn, so the context ends as it waits
+	// there.
+	time.Sleep(overlap)
+	cancel()
+
+	waited := make(chan struct{})
+	go func() {
+		js.wait()
+		close(waited)
+	}()
+	select {
+	case <-waited:
+	case <-time.After(time.Second):
+		t.Fatal("wait waited on a write still waiting its turn once the context ended, want the write to stop waiting")
+	}
 	if ran.Load() {
 		t.Error("a write whose context ended as it waited its turn ran, want it never run")
 	}

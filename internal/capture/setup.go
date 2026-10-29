@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/setup/screen"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -26,10 +27,12 @@ type setupScreen struct {
 }
 
 // setupScreens are setup's screen's fixtures: the Priming page, its day
-// read, typed in, as frame 7 has it; and the Skill page, the skill
-// installed, as frame 9 has it.
+// read, typed in, as frame 7 has it; the Service page, the service installed
+// again and its router healthy, as frame 4 has it; and the Skill page, the
+// skill installed, as frame 9 has it.
 var setupScreens = []setupScreen{
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
+	{name: "setup-service-160", size: wide(37), step: dashboard.SetupService, steps: everyStepPassed},
 	{name: "setup-skill-160", size: wide(37), step: dashboard.SetupSkill, steps: everyStepPassed},
 }
 
@@ -83,6 +86,7 @@ type setupSteps struct {
 	standing setup.RouterStanding
 	review   setup.Review
 	day      config.Day
+	service  setup.Serviced
 	skill    setup.Said
 }
 
@@ -105,11 +109,20 @@ func accountsPassed(now time.Time) setupSteps {
 
 // everyStepPassed are the steps as they stand once each before the Skill
 // has passed, at now: as the Accounts left them, but for a router up and
-// healthy; and the skill installed, written from the home as setup writes
-// it.
+// healthy; the service installed again, its plist out of date, and its
+// router healthy, as frame 4 says it in the words setup says; and the skill
+// installed; each place written from the home as setup writes it.
 func everyStepPassed(now time.Time) setupSteps {
 	steps := accountsPassed(now)
 	steps.standing = setup.RouterStanding{State: setup.RouterHealthy}
+	steps.service = setup.Serviced{
+		Said: []setup.Said{
+			{Mark: setup.Done, Label: "Installed", Detail: "~/Library/LaunchAgents/io.github.leeovery.switchboard.plist"},
+			{Mark: setup.Warning, Label: "Updated", Detail: "reinstalled: its plist had no ProcessType · kept its --log-level"},
+			{Mark: setup.Done, Label: "Router", Detail: "healthy · 127.0.0.1:4747 · v0.2.10"},
+		},
+		Router: &router.Health{OK: true, Listen: "127.0.0.1:4747", Version: "0.2.10"},
+	}
 	steps.skill = setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/.claude/skills/switchboard/SKILL.md"}
 	return steps
 }
@@ -132,6 +145,11 @@ func (s setupSteps) Priming() (config.Day, error) {
 // SetDay parses the day as setup does, writing nothing.
 func (s setupSteps) SetDay(day string) (config.Day, error) {
 	return config.ParseDay(day)
+}
+
+// Service is what the service step did, as given.
+func (s setupSteps) Service(context.Context) (setup.Serviced, error) {
+	return s.service, nil
 }
 
 // Skill is what the skill step did, as given.

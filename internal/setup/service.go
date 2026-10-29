@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -26,7 +27,29 @@ const installAdvice = "switchboard service install, run from the shell the route
 // Service takes the service step, as the line walk's does, and returns what
 // it said and the router's health. It fails as the step does, and with
 // errNoAccount where no account is configured, as there's nothing to serve.
+// Where it fails, it says so as failedRow has it.
 func (s *Setup) Service(ctx context.Context) (Serviced, error) {
+	out, err := s.serviced(ctx)
+	return failedRow(out, err), err
+}
+
+// failedRow is what the service step told, out, and where err says it failed
+// without a failed row of its own that the screen draws, one with a label,
+// one more, which the line walk doesn't print: Not set up, and why. An
+// interrupt isn't a failure of the step's, so it gets none.
+func failedRow(out Serviced, err error) Serviced {
+	if err == nil || errors.Is(err, accounts.ErrInterrupted) {
+		return out
+	}
+	if !slices.ContainsFunc(out.Said, func(said Said) bool { return said.Mark == Failed && said.Label != "" }) {
+		out.Said = append(out.Said, Said{Mark: Failed, Label: "Not set up", Detail: redact.Text(err.Error())})
+	}
+	return out
+}
+
+// serviced takes the service step, as Service does, saying what the step
+// says alone.
+func (s *Setup) serviced(ctx context.Context) (Serviced, error) {
 	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
 	if err != nil {
 		return Serviced{}, err

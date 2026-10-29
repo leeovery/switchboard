@@ -26,13 +26,15 @@ type jobs struct {
 	mu      sync.Mutex
 	stopped bool
 	running sync.WaitGroup
-	// writing holds setup's writing actions to one at a time.
-	writing sync.Mutex
+	// writing holds setup's writing actions to one at a time: the write
+	// running holds its one place. It's a channel, not a mutex, so a write
+	// waiting its turn can stop waiting once the context is done.
+	writing chan struct{}
 }
 
 // newJobs is jobs run under ctx.
 func newJobs(ctx context.Context) *jobs {
-	return &jobs{ctx: ctx}
+	return &jobs{ctx: ctx, writing: make(chan struct{}, 1)}
 }
 
 // read is a command that runs j, beside whatever else runs, and waits for
@@ -69,16 +71,27 @@ func (js *jobs) given(msg tea.Msg) tea.Msg {
 }
 
 // write is a command that runs j once no other writing action runs, as read
-// runs it: none where the jobs' context is done before its turn.
+// runs it: none where the jobs' context is done before its turn, which it
+// stops waiting for then, so a writing action that hangs holds up no other
+// once the context is done.
 func (js *jobs) write(j job) tea.Cmd {
 	return js.read(func(ctx context.Context) tea.Msg {
-		js.writing.Lock()
-		defer js.writing.Unlock()
+		select {
+		case js.writing <- struct{}{}:
+		case <-ctx.Done():
+			return nil
+		}
+		defer func() { <-js.writing }()
 		if ctx.Err() != nil {
 			return nil
 		}
 		return j(ctx)
 	})
+}
+
+// writes reports whether a writing action runs now.
+func (js *jobs) writes() bool {
+	return len(js.writing) > 0
 }
 
 // start runs j on a goroutine wait waits for, its outcome given on the

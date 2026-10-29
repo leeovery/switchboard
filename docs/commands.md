@@ -653,6 +653,10 @@ in flight, and waits up to 5 seconds for the router to answer.
   writes keeps its state, and for no other.
 - **The tokens.** `install` warns when no account has a usable token, where the router it started
   answers. The router starts all the same, and routes as soon as a token file holds one.
+- **Once it has begun.** From writing the file to launchd loading it, nothing stops `install`, a
+  Ctrl-C included, so the router is never left with nothing to start it: a Ctrl-C then says it's
+  finishing first, which can take a minute or two while the old router finishes its requests, and
+  `install` stops once launchd has the new copy.
 
 #### `service restart`
 

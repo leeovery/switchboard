@@ -65,7 +65,7 @@ func newServiceUninstallCommand(a *app) *cobra.Command {
 		Short: "Stop the router, and remove the LaunchAgent",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.uninstallService(cmd.Context(), cmd.OutOrStdout())
+			return a.uninstallService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 }
@@ -101,9 +101,13 @@ func newServiceStatusCommand(a *app) *cobra.Command {
 	}
 }
 
+// finishingInstall is what the CLI says of an interrupt held while it
+// installs the service, which it finishes first.
+const finishingInstall = "interrupted: finishing installing the service first, so the router isn't left down; it can take a minute or two"
+
 // service returns the LaunchAgent, whose router's control socket is in the
-// state directory.
-func (a *app) service() (*service.Service, error) {
+// state directory, saying on errOut where an interrupt waits for its install.
+func (a *app) service(errOut io.Writer) (*service.Service, error) {
 	home, err := a.HomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("locate the home directory: %w", err)
@@ -124,6 +128,7 @@ func (a *app) service() (*service.Service, error) {
 		RouterAt: func(dir string) service.Router {
 			return router.NewClient(router.SocketPath(dir))
 		},
+		Finishing: func() { launch.Notice(errOut, finishingInstall) },
 	})
 }
 
@@ -133,7 +138,7 @@ func (a *app) service() (*service.Service, error) {
 // service sees it, and where it can't be read back, so too, saying so on
 // errOut.
 func (a *app) installedService(ctx context.Context, errOut io.Writer) (*service.Service, error) {
-	svc, err := a.service()
+	svc, err := a.service(errOut)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +166,7 @@ func (a *app) installedService(ctx context.Context, errOut io.Writer) (*service.
 // in the environment it writes, which keeps the variables added to the plist
 // in place by hand.
 func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts service.InstallOptions) error {
-	svc, err := a.service()
+	svc, err := a.service(errOut)
 	if err != nil {
 		return err
 	}
@@ -199,8 +204,8 @@ func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts se
 }
 
 // uninstallService stops the router and removes the LaunchAgent.
-func (a *app) uninstallService(ctx context.Context, out io.Writer) error {
-	svc, err := a.service()
+func (a *app) uninstallService(ctx context.Context, out, errOut io.Writer) error {
+	svc, err := a.service(errOut)
 	if err != nil {
 		return err
 	}

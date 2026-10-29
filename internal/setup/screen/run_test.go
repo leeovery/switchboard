@@ -208,12 +208,17 @@ const darkAnswer = "\x1b]11;rgb:1a1a/1b1b/2626\x07"
 // none, and once the screen has settled, closing settled, where it's set,
 // and once ready, where it's set, it types keys; then once thenReady, where
 // it's set, it types then. It tells saw, where it's set, each message the
-// screen takes in, before it does.
+// screen takes in, before it does. Once the screen has gone, the moment to
+// say what setup's finishing comes as moment, given the jobs run waits for,
+// has it, never where it's nil;
+// and wrote, where it's set, is told of each write to the terminal.
 type terminal struct {
 	answer, keys, then string
 	ready, thenReady   <-chan struct{}
 	settled            chan struct{}
 	saw                func(tea.Msg)
+	moment             func(*jobs) <-chan time.Time
+	wrote              func(p []byte)
 }
 
 // runUntil runs setup's screen of cfg on a terminal acting as term does,
@@ -225,7 +230,7 @@ func runUntil(t *testing.T, cfg Config, term terminal) (Left, string, error) {
 	// log of a panic it recovers from in the working directory.
 	t.Setenv("TEA_TRACE", "")
 	t.Setenv("TEA_DEBUG", "")
-	var out lockedBuffer
+	out := lockedBuffer{wrote: term.wrote}
 	in, typing := io.Pipe()
 	t.Cleanup(func() { _ = typing.Close() })
 	var settle sync.Once
@@ -258,19 +263,30 @@ func runUntil(t *testing.T, cfg Config, term terminal) (Left, string, error) {
 			_, _ = io.WriteString(typing, term.then)
 		}
 	}()
-	left, err := run(t.Context(), cfg, &out, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter))
+	moment := func(js *jobs) <-chan time.Time {
+		if term.moment == nil {
+			return nil
+		}
+		return term.moment(js)
+	}
+	left, err := run(t.Context(), cfg, &out, moment, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter))
 	return left, out.String(), err
 }
 
-// lockedBuffer is a buffer Bubble Tea's goroutines can all write to.
+// lockedBuffer is a buffer Bubble Tea's goroutines can all write to,
+// telling wrote, where it's set, of each write.
 type lockedBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
+	mu    sync.Mutex
+	buf   bytes.Buffer
+	wrote func(p []byte)
 }
 
 func (b *lockedBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.wrote != nil {
+		b.wrote(p)
+	}
 	return b.buf.Write(p)
 }
 

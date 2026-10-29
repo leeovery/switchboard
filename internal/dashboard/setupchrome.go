@@ -94,12 +94,14 @@ func partLine(p setup.Part) line {
 // setupPage is a step's page, under the status line: its heading, and
 // what's said at the heading's right, where anything is; what the step is
 // for, where it says, in the lines the page breaks it into; what it found
-// and did, a fact a row; its form's fields; its notes, under them; and its
-// keys, at the key line's left, and onward, at its right.
+// and did, a fact a row, or in their place, what it says while its step is
+// under way; its form's fields; its notes, under them; and its keys, at the
+// key line's left, and onward, at its right.
 type setupPage struct {
 	name, tail   string
 	purpose      []line
 	facts        []setup.Said
+	underWay     line
 	fields       []textField
 	notes        []line
 	keys, onward []Key
@@ -148,8 +150,11 @@ func (p setupPage) typing() bool {
 
 // content is what's under the page's heading, drawn whole width cells wide:
 // from setupIndent, what the step is for, each of its lines wrapped further
-// where it's wider than the page; then a row on, its facts, then its
-// fields, a blank row after each; then its notes, wrapped as its purpose is.
+// where it's wider than the page; then a row on, from setupIndent, what it
+// says while its step is under way, cut where it's wider than the page; then
+// its facts, but those with no label, which are the line walk's alone, then
+// its fields, a blank row after each; then its notes, wrapped as its purpose
+// is.
 func (p setupPage) content(width int) *canvas {
 	c := growing(width)
 	y := 0
@@ -162,8 +167,14 @@ func (p setupPage) content(width int) *canvas {
 	if p.purpose != nil {
 		y++
 	}
+	if p.underWay != nil {
+		c.line(setupIndent, y, p.underWay.fit(width-setupIndent))
+		y += 2
+	}
 	for _, said := range p.facts {
-		y = fact(c, y, width, said) + 1
+		if said.Label != "" {
+			y = fact(c, y, width, said) + 1
+		}
 	}
 	for _, f := range p.fields {
 		y = f.draw(c, setupIndent, y, width-setupIndent) + 1

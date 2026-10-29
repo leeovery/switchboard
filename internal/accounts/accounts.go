@@ -23,9 +23,10 @@ var logger = logs.For("accounts")
 var (
 	// ErrRefused is what taking a token the API refuses fails with, wrapped.
 	ErrRefused = errors.New("the API refused the token")
-	// ErrInterrupted is what Input.Hidden fails with, wrapped or not, when
-	// the user interrupts it, having put the terminal back as it was, and so
-	// what taking the token fails with.
+	// ErrInterrupted is switchboard's interrupt, wrapped or not, which the
+	// CLI exits 130 for: what Input.Hidden fails with when the user
+	// interrupts it, having put the terminal back as it was, and so taking
+	// a token; and installing the service, interrupted.
 	ErrInterrupted = errors.New("interrupted")
 )
 
