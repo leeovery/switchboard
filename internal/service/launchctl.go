@@ -38,10 +38,13 @@ type Runner func(ctx context.Context, args ...string) ([]byte, error)
 // Launchctl runs launchctl with args, by name, so the one on PATH runs, and
 // returns what it printed, its output and its errors together. It runs in no
 // more of this process's environment than it needs, which can hold a token,
-// as a Claude Code session's does.
+// as a Claude Code session's does, and in a process group of its own, so an
+// interrupt typed at the terminal reaches switchboard, which holds it while
+// it swaps the service, but never launchctl mid-swap.
 func Launchctl(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "launchctl", args...)
 	cmd.Env = childenv.Minimal(os.Getenv)
+	cmd.SysProcAttr = groupOfItsOwn()
 	return cmd.CombinedOutput()
 }
 

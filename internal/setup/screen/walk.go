@@ -49,6 +49,7 @@ type walk struct {
 // something: any other is done on reaching it.
 var actions = map[dashboard.SetupStep]func(Steps) job{
 	dashboard.SetupPriming: readDay,
+	dashboard.SetupService: service,
 	dashboard.SetupSkill:   skill,
 }
 
@@ -76,6 +77,17 @@ func (w walk) onward() walk {
 func (w walk) finished(err error) walk {
 	w.done, w.failed = true, err
 	return w
+}
+
+// finishingSaid is what setup says, once its screen has gone, while the
+// service step's swap runs on, waiting as long as the router it replaces
+// takes to end its requests.
+var finishingSaid = "Setup is finishing the " + dashboard.SetupService.Title() + " step: the router it replaces ends its requests first, which can take a minute or two."
+
+// finishingService reports whether w stands at the service step while it's
+// under way.
+func (w walk) finishingService() bool {
+	return w.step == dashboard.SetupService && !w.done
 }
 
 // left is how setup is left from where w stands: failing, at a step that
@@ -118,10 +130,41 @@ func (m Model) entered() (tea.Model, tea.Cmd) {
 	return m.movedOn()
 }
 
-// movedOn is m at the next step, its page from the top, running its action.
+// movedOn is m at the next step, its page from the top, running its action,
+// its spinner moving while it runs.
 func (m Model) movedOn() (tea.Model, tea.Cmd) {
-	m.walk, m.scroll = m.walk.onward(), 0
-	return m, m.action()
+	m.walk, m.scroll, m.spins = m.walk.onward(), 0, m.spins+1
+	return m, tea.Batch(m.action(), m.armSpin())
+}
+
+// servicedMsg is what the service step told, and the router's health, or why
+// it failed.
+type servicedMsg struct {
+	serviced setup.Serviced
+	err      error
+}
+
+// service is the service step's action: Service, stopping once its context
+// is done.
+func service(steps Steps) job {
+	return func(ctx context.Context) tea.Msg {
+		serviced, err := steps.Service(ctx)
+		return servicedMsg{serviced: serviced, err: err}
+	}
+}
+
+// serviced takes in what the service step told, each detail made safe to
+// show, as done, or failed as its error says; and asks for the status line
+// again, as the step may have started the router.
+func (m Model) serviced(msg servicedMsg) (Model, tea.Cmd) {
+	serviced := msg.serviced
+	serviced.Said = slices.Clone(serviced.Said)
+	for i := range serviced.Said {
+		serviced.Said[i].Detail = prose.Clean(serviced.Said[i].Detail)
+	}
+	m.service = &serviced
+	m.walk = m.walk.finished(msg.err)
+	return m.askAgain()
 }
 
 // skilledMsg is what the skill step did, or why it failed.

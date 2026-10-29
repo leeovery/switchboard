@@ -67,6 +67,9 @@ type Setup struct {
 	UnderWay, Failed bool
 	// Priming is the Priming step's page: nil until its day is read.
 	Priming *SetupPrimingPage
+	// Service is what the service step told, and its router's health: nil
+	// until it's told it.
+	Service *setup.Serviced
 	// Skill is what the skill step did: nil until it's done it.
 	Skill *setup.Said
 	// Scroll is how many rows the page under its heading is scrolled down.
@@ -102,6 +105,16 @@ func (s Setup) Draw(width, height int, look Look) []string {
 func (s Setup) Scrolling(width, height int) Scrolling {
 	_, scrolling := s.page(width, height)
 	return scrolling
+}
+
+// SpinDelay is how long from the screen's time until the spinner of the
+// page showing moves on, as spinDelay has it. It reports false where the
+// page shows no spinner.
+func (s Setup) SpinDelay() (time.Duration, bool) {
+	if s.shown().underWay == nil {
+		return 0, false
+	}
+	return spinDelay(s.Now), true
 }
 
 // page draws the screen on a canvas width cells wide and height tall, and
@@ -150,12 +163,14 @@ func (s Setup) passed(step SetupStep) bool {
 }
 
 // shown is the page of the step showing: the Priming's, as primingPage has
-// it; the Skill's, as skillPage has it; else, until it's drawn, its name in
-// capitals alone.
+// it; the Service's, as servicePage has it; the Skill's, as skillPage has
+// it; else, until it's drawn, its name in capitals alone.
 func (s Setup) shown() setupPage {
 	switch s.Step {
 	case SetupPriming:
 		return s.primingPage()
+	case SetupService:
+		return s.servicePage()
 	case SetupSkill:
 		return s.skillPage()
 	}

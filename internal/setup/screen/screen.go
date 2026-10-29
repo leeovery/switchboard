@@ -40,6 +40,11 @@ type Steps interface {
 	// SetDay sets the day priming spreads the resets over, "" turning
 	// priming off, writing nothing where it doesn't change.
 	SetDay(day string) (config.Day, error)
+	// Service takes the service step, installing the service, or starting
+	// its router, where it must, and says what it found and did, and the
+	// router's health: on a failure, it says so too, as the screen draws it.
+	// It stops once ctx is done.
+	Service(ctx context.Context) (setup.Serviced, error)
 	// Skill writes the skill, or brings it up to date, and says which: on a
 	// failure, it says so too, as the screen draws it.
 	Skill() (setup.Said, error)
@@ -98,10 +103,17 @@ type Model struct {
 	status status
 	// priming is the Priming page as it stands: nil until its day's read.
 	priming *primingForm
+	// service is what the service step told, and its router's health: nil
+	// until it has.
+	service *setup.Serviced
 	// skill is what the skill step said it did: nil until it has.
 	skill *setup.Said
 	// scroll is how many rows the page under its heading is scrolled down.
 	scroll int
+	// spins numbers the steps reached, whose spinner's moves each is armed
+	// for: a move armed for one before is dropped, so no step's spinner
+	// moves on two chains of moves.
+	spins int
 }
 
 // New returns the screen of cfg, opening on cfg's step, its jobs run under
@@ -127,11 +139,11 @@ func after(d time.Duration, msg tea.Msg) tea.Cmd {
 }
 
 // Init starts the clock's ticks, asks for the status line's parts, and runs
-// the action of the step the screen opens on; and in colour, asks the
-// terminal what its background is, the screen staying blank till it says or
-// has had its time to.
+// the action of the step the screen opens on, its spinner moving while it
+// runs; and in colour, asks the terminal what its background is, the screen
+// staying blank till it says or has had its time to.
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.armTick(), m.ask(), m.action()}
+	cmds := []tea.Cmd{m.armTick(), m.ask(), m.action(), m.armSpin()}
 	if m.coloured {
 		cmds = append(cmds, backdrop.Ask(m.after))
 	}
@@ -156,6 +168,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.settled(m.backdrop.NoAnswer()), nil
 	case tickMsg:
 		return m, m.armTick()
+	case spinMsg:
+		if msg.spins != m.spins {
+			return m, nil
+		}
+		return m, m.armSpin()
 	case standingMsg:
 		m.status = m.status.standingAnswered(msg)
 		return m, nil
@@ -166,6 +183,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.primed(msg), nil
 	case daySetMsg:
 		return m.daySet(msg)
+	case servicedMsg:
+		return m.serviced(msg)
 	case skilledMsg:
 		return m.skilled(msg), nil
 	}
@@ -220,6 +239,21 @@ func (m Model) armTick() tea.Cmd {
 	return m.after(dashboard.TickDelay(m.now()), tickMsg{})
 }
 
+// spinMsg wakes the screen to move the spinner of the page showing on, armed
+// for the step reached as spins numbers it.
+type spinMsg struct {
+	spins int
+}
+
+// armSpin arms the spinner's next move, as Setup.SpinDelay has it, where
+// the page showing has one.
+func (m Model) armSpin() tea.Cmd {
+	if d, spins := m.page().SpinDelay(); spins {
+		return m.after(d, spinMsg{spins: m.spins})
+	}
+	return nil
+}
+
 // View draws the screen full, as dashboard.Setup draws it, at the clock's
 // time: in colour, once the terminal has said what its background is, or
 // had its time to, its canvas painted on every cell and set as the
@@ -242,7 +276,7 @@ func (m Model) View() tea.View {
 func (m Model) page() dashboard.Setup {
 	s := dashboard.Setup{
 		Now: m.now(), Step: m.walk.step, Passed: m.walk.passed, Status: m.status.line(),
-		UnderWay: !m.walk.done, Failed: m.walk.failed != nil, Skill: m.skill, Scroll: m.scroll,
+		UnderWay: !m.walk.done, Failed: m.walk.failed != nil, Service: m.service, Skill: m.skill, Scroll: m.scroll,
 	}
 	if m.priming != nil {
 		s.Priming = m.priming.page()

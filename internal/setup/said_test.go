@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/sessionhook"
 	"github.com/leeovery/switchboard/internal/setup"
@@ -174,7 +176,9 @@ func TestServiceSaysEachOutcomeAsTheLineWalkDoes(t *testing.T) {
 			var sentences strings.Builder
 			for _, s := range w.rootedSaid(got.Said) {
 				marked = append(marked, said{s.Mark, s.Label, s.Detail})
-				sentences.WriteString(s.Sentence + "\n")
+				if s.Sentence != "" {
+					sentences.WriteString(s.Sentence + "\n")
+				}
 			}
 			walked, _ := laid(t, tt.lay).run(t, "")
 			if printed := section(t, walked, "3. The service"); sentences.String() != printed {
@@ -192,9 +196,66 @@ func TestServiceSaysEachOutcomeAsTheLineWalkDoes(t *testing.T) {
 
 func TestServiceNeedsAnAccount(t *testing.T) {
 	w := newWorld(t)
-	_, err := w.setup(t, &user{}).Service(t.Context())
+	got, err := w.setup(t, &user{}).Service(t.Context())
 	if err == nil || !strings.HasPrefix(err.Error(), "no account is configured") {
-		t.Errorf("Service() error = %v, want no account configured", err)
+		t.Fatalf("Service() error = %v, want no account configured", err)
+	}
+	want := []setup.Said{{Mark: setup.Failed, Label: "Not set up", Detail: err.Error()}}
+	if !reflect.DeepEqual(got.Said, want) {
+		t.Errorf("Service() said %+v, want %+v: a failure the step said nothing of, as the screen draws it, the line walk printing none", got.Said, want)
+	}
+}
+
+func TestServiceEndsAFailureWithAFailedRow(t *testing.T) {
+	tests := []struct {
+		name string
+		lay  func(t *testing.T, w *world)
+		// want are the marks and labels said, in turn, and wantDetail what the
+		// last one's detail says, and never what's token-shaped.
+		want       []string
+		wantDetail string
+	}{
+		{
+			name: "failing after a warning: the warning, then Not set up, why redacted",
+			lay: func(t *testing.T, w *world) {
+				w.editPlist(t, withoutProcessType)
+				w.launchd.bootoutSays = "Boot-out failed: " + tokenShaped
+			},
+			want:       []string{"! Updated", "✗ Not set up"},
+			wantDetail: "io.github.leeovery.switchboard: Boot-out failed: " + redact.Placeholder,
+		},
+		{
+			name:       "failing as a row of its own says: that row alone",
+			lay:        func(_ *testing.T, w *world) { w.launchd.pid, w.launchd.byHand = 0, 5000 },
+			want:       []string{"✗ Router run by hand"},
+			wantDetail: "a router run some other way answers, pid 5000",
+		},
+	}
+	marks := map[setup.Mark]string{setup.Done: "✓", setup.Warning: "!", setup.Failed: "✗"}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			tt.lay(t, w)
+
+			got, err := w.setup(t, &user{}).Service(t.Context())
+			if err == nil {
+				t.Fatal("Service() error = nil, want it to fail")
+			}
+			var said []string
+			for _, s := range got.Said {
+				said = append(said, marks[s.Mark]+" "+s.Label)
+				if strings.Contains(s.Detail, tokenShaped) {
+					t.Errorf("Service() said %+v, want what's token-shaped redacted", s)
+				}
+			}
+			if !slices.Equal(said, tt.want) {
+				t.Errorf("Service() said %q, want %q", said, tt.want)
+			}
+			if last := got.Said[len(got.Said)-1]; !strings.Contains(last.Detail, tt.wantDetail) {
+				t.Errorf("Service()'s last row says %q, want it to hold %q", last.Detail, tt.wantDetail)
+			}
+		})
 	}
 }
 

@@ -5,16 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
@@ -153,19 +156,20 @@ func TestInstallFailsWhenLaunchctlDoes(t *testing.T) {
 		want func(plist string) (string, [][]string)
 	}{
 		{
-			name:  "asking whether the service is loaded",
+			name:  "asking whether launchd has the service: nothing written",
 			exits: map[string]int{"print": 5},
 			want: func(string) (string, [][]string) {
 				return "launchctl print " + target + ": print failed: 5: Input/output error (exit status 5)", [][]string{{"print", target}}
 			},
 		},
 		{
-			name:   "booting the service out",
+			name:   "bootstrapping the service once launchd has let the one before go: 5 tries, nothing to wait out",
 			loaded: true,
-			exits:  map[string]int{"bootout": 5},
-			want: func(string) (string, [][]string) {
-				return "launchctl bootout " + target + ": bootout failed: 5: Input/output error (exit status 5)",
-					[][]string{{"print", target}, {"bootout", target}}
+			exits:  map[string]int{"bootstrap": 5},
+			want: func(plist string) (string, [][]string) {
+				bootstrap := []string{"bootstrap", "gui/501", plist}
+				return "launchctl bootstrap gui/501 " + plist + ": bootstrap failed: 5: Input/output error (exit status 5)",
+					[][]string{{"print", target}, {"bootout", target}, {"print", target}, bootstrap, bootstrap, bootstrap, bootstrap, bootstrap}
 			},
 		},
 		{
@@ -178,7 +182,7 @@ func TestInstallFailsWhenLaunchctlDoes(t *testing.T) {
 			},
 		},
 		{
-			name:    "without a launchctl to run",
+			name:    "without a launchctl to run: nothing written",
 			cantRun: notFound,
 			want: func(string) (string, [][]string) {
 				return "launchctl print " + target + `: exec: "launchctl": executable file not found in $PATH`, [][]string{{"print", target}}
@@ -198,6 +202,78 @@ func TestInstallFailsWhenLaunchctlDoes(t *testing.T) {
 				}
 				if !reflect.DeepEqual(s.launchctl.calls, wantCalls) {
 					t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, wantCalls)
+				}
+				if len(wantCalls) == 1 {
+					if _, err := os.Stat(s.plist); !errors.Is(err, fs.ErrNotExist) {
+						t.Errorf("the plist is there (%v), want none written before launchd answers", err)
+					}
+				}
+			})
+		})
+	}
+}
+
+// stillLoaded is how bootstrapping the service at plist fails while launchd
+// still has it loaded.
+func stillLoaded(plist string) string {
+	return "launchctl bootstrap gui/501 " + plist + ": Bootstrap failed: 5: Input/output error (exit status 5)"
+}
+
+func TestInstallBootstrapsWhateverBootingOutDid(t *testing.T) {
+	tests := []struct {
+		name string
+		// lay sets launchd up, its service loaded, before the install.
+		lay func(s *setup)
+		// wantErr is the error Install fails with, "" for none, the service
+		// loaded.
+		wantErr func(s *setup) string
+	}{
+		{
+			name: "bootout failing as launchd lets it go 30s on: bootstrapped till it does",
+			lay: func(s *setup) {
+				s.launchctl.exits, s.launchctl.lingers = map[string]int{"bootout": 5}, 30*time.Second
+			},
+			wantErr: func(*setup) string { return "" },
+		},
+		{
+			name:    "launchctl bootout killed at its limit, launchd letting it go a second on: loaded at a later try",
+			lay:     func(s *setup) { s.launchctl.takes = map[string]time.Duration{"bootout": 56 * time.Second} },
+			wantErr: func(*setup) string { return "" },
+		},
+		{
+			name:    "launchd letting it go just past its time: loaded at a later try",
+			lay:     func(s *setup) { s.launchctl.lingers = 56 * time.Second },
+			wantErr: func(*setup) string { return "" },
+		},
+		{
+			name: "bootout failing as launchd keeps it on: failed, saying both",
+			lay: func(s *setup) {
+				s.launchctl.exits, s.launchctl.lingers = map[string]int{"bootout": 5}, time.Hour
+			},
+			wantErr: func(s *setup) string {
+				return "launchctl bootout " + target + ": bootout failed: 5: Input/output error (exit status 5)\n" + stillLoaded(s.plist)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := newSetup(t, nil, upOnceStarted(4242))
+				s.launchctl.loaded = true
+				tt.lay(s)
+
+				_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+				switch want := tt.wantErr(s); {
+				case want == "" && err != nil:
+					t.Errorf("Install() error = %v, want none", err)
+				case want != "" && (err == nil || err.Error() != want):
+					t.Errorf("Install() error = %v, want %q", err, want)
+				}
+				if bootstrap := []string{"bootstrap", "gui/501", s.plist}; !slices.ContainsFunc(s.launchctl.calls, func(call []string) bool { return slices.Equal(call, bootstrap) }) {
+					t.Errorf("ran launchctl %q, want the bootstrap tried", s.launchctl.calls)
+				}
+				if loaded := tt.wantErr(s) == ""; loaded && !s.launchctl.has() {
+					t.Error("launchd hasn't the service loaded, want the new one loaded")
 				}
 			})
 		})
@@ -221,6 +297,7 @@ func TestInstallTriesBootstrappingAgain(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
 				s := newSetup(t, nil, upOnceStarted(4242))
 				s.launchctl.loaded = true
 				s.launchctl.exits = map[string]int{"bootstrap": 5}
@@ -241,29 +318,180 @@ func TestInstallTriesBootstrappingAgain(t *testing.T) {
 				if waited, want := time.Since(began), time.Duration(tt.wantTries-1)*500*time.Millisecond; waited != want {
 					t.Errorf("took %v, want %v, half a second between tries", waited, want)
 				}
+				var refusals, loads int
+				for _, line := range log.Lines() {
+					refusals += strings.Count(line, "trying again")
+					loads += strings.Count(line, "launchd loaded the service")
+				}
+				if retried := min(tt.fails, 1); refusals != retried || loads != retried {
+					t.Errorf("logged %d refusals and %d loads, want %d of each: the first refusal, and the load after it, never each try", refusals, loads, retried)
+				}
 			})
 		})
 	}
 }
 
-func TestInstallGivenUpWhileItWaitsToBootstrapAgainFailsAsTheTryDid(t *testing.T) {
+func TestInstallGivenUpWhileItWaitsToBootstrapAgainTriesEveryTime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		log := logstest.Capture(t)
 		s := newSetup(t, nil, upOnceStarted(4242))
 		s.launchctl.exits = map[string]int{"bootstrap": 5}
+		s.launchctl.fails = map[string]int{"bootstrap": 2}
 		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 		defer cancel()
 
-		_, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
-		want := "launchctl bootstrap gui/501 " + s.plist + ": bootstrap failed: 5: Input/output error (exit status 5)"
-		if err == nil || err.Error() != want {
-			t.Errorf("Install() error = %v, want %q", err, want)
+		if _, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary}); !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("Install() error = %v, want the context's, once the service loaded at the third try", err)
 		}
-		if want := [][]string{{"print", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchctl.calls, want) {
-			t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
+		bootstrap := []string{"bootstrap", "gui/501", s.plist}
+		if want := [][]string{{"print", target}, bootstrap, bootstrap, bootstrap}; !reflect.DeepEqual(s.launchctl.calls, want) {
+			t.Errorf("ran launchctl %q, want %q: bootstrapped till launchd loads it, whatever the context does", s.launchctl.calls, want)
 		}
-		if log.Has("trying again") {
-			t.Errorf("log reads\n%s\nwant no try again noted, the failure being Install's to report", log)
+	})
+}
+
+func TestInstallGivenUpWhileLaunchdLetsTheOldServiceGoLoadsTheNewOne(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSetup(t, nil, upOnceStarted(4242))
+		s.launchctl.loaded = true
+		s.launchctl.lingers = 10 * time.Second
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		time.AfterFunc(5*time.Second, cancel)
+
+		if _, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary}); !errors.Is(err, context.Canceled) {
+			t.Errorf("Install() error = %v, want it cancelled, once the new service is loaded", err)
+		}
+		if want := [][]string{{"print", target}, {"bootout", target}}; len(s.launchctl.calls) < 2 || !reflect.DeepEqual(s.launchctl.calls[:2], want) {
+			t.Fatalf("ran launchctl %q, want it to start %q", s.launchctl.calls, want)
+		}
+		if last := s.launchctl.calls[len(s.launchctl.calls)-1]; !slices.Equal(last, []string{"bootstrap", "gui/501", s.plist}) || !s.launchctl.has() {
+			t.Errorf("ran launchctl %q, want it to end loading the new service", s.launchctl.calls)
+		}
+	})
+}
+
+func TestInstallGivenUpBeforeTheWriteDoesNothing(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	s.launchctl.loaded = true
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if _, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary}); !errors.Is(err, context.Canceled) {
+		t.Errorf("Install() error = %v, want it cancelled", err)
+	}
+	if len(s.launchctl.calls) > 0 {
+		t.Errorf("ran launchctl %q, want the service left loaded as it was", s.launchctl.calls)
+	}
+	if _, err := os.Stat(s.plist); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the plist is there (%v), want none written", err)
+	}
+}
+
+func TestInstallGivenUpOnceItHasWrittenRunsThrough(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSetup(t, nil, upOnceStarted(4242))
+		s.launchctl.loaded = true
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		// Nothing runs between the write and the bootout: cancelled as the
+		// bootout starts, it runs only where it's run through.
+		s.launchctl.ran = func(args []string) {
+			if args[0] == "bootout" {
+				cancel()
+			}
+		}
+
+		if _, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary}); !errors.Is(err, context.Canceled) {
+			t.Errorf("Install() error = %v, want it cancelled, once the new service is loaded", err)
+		}
+		bootstrap := []string{"bootstrap", "gui/501", s.plist}
+		if want := [][]string{{"print", target}, {"bootout", target}, {"print", target}, bootstrap}; !reflect.DeepEqual(s.launchctl.calls, want) {
+			t.Errorf("ran launchctl %q, want %q: the swap run through", s.launchctl.calls, want)
+		}
+		if !s.launchctl.has() {
+			t.Error("launchd hasn't the service loaded, want the new one loaded")
+		}
+		s.checkPlist(t, s.binary, "")
+	})
+}
+
+func TestAnInterruptAsTheServiceIsSwappedWaitsForTheSwap(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var asked, askedAtBootstrap, told int
+		s := newSetup(t, nil, func(n int) (router.Health, error) {
+			asked++
+			return upAfter(n, 1, 4242)
+		})
+		s.cfg.Finishing = func() { told++ }
+		s.svc = newService(t, s.cfg)
+		s.launchctl.loaded = true
+		s.launchctl.ran = func(args []string) {
+			switch args[0] {
+			case "bootout":
+				s.interrupts.interrupt()
+			case "bootstrap":
+				// Another, as a second Ctrl-C, held as the first.
+				s.interrupts.interrupt()
+				askedAtBootstrap = asked
+			}
+		}
+
+		_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+		if want := "the service is installed, but interrupted before its router answered"; err == nil || err.Error() != want || !errors.Is(err, accounts.ErrInterrupted) {
+			t.Errorf("Install() error = %v, want %q, an interrupt", err, want)
+		}
+		if told != 1 {
+			t.Errorf("told the swap is finished first %d times, want once, as the first interrupt came", told)
+		}
+		if !s.launchctl.has() {
+			t.Error("launchd hasn't the service loaded, want the swap done first")
+		}
+		if asked != askedAtBootstrap {
+			t.Errorf("the router was asked %d times once the service was loaded, want none: interrupted, Install returns at once", asked-askedAtBootstrap)
+		}
+	})
+}
+
+func TestAnInterruptBeforeTheWriteDoesNothing(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	s.launchctl.loaded = true
+	s.interrupts.atHold = os.Interrupt
+
+	_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+	if want := "the service wasn't installed: interrupted"; err == nil || err.Error() != want || !errors.Is(err, accounts.ErrInterrupted) {
+		t.Errorf("Install() error = %v, want %q, an interrupt", err, want)
+	}
+	if len(s.launchctl.calls) > 0 {
+		t.Errorf("ran launchctl %q, want the service left loaded as it was", s.launchctl.calls)
+	}
+	if _, err := os.Stat(s.plist); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the plist is there (%v), want none written", err)
+	}
+}
+
+func TestInterruptsAreHeldForTheSwapAlone(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var heldWhileAsked bool
+		s := newSetup(t, nil, nil)
+		s.router = &fakeRouter{t: t, answer: func(n int) (router.Health, error) {
+			heldWhileAsked = heldWhileAsked || s.interrupts.held()
+			// Not held, it never reaches Install.
+			s.interrupts.interrupt()
+			return upAfter(n, 1, 4242)
+		}}
+		s.cfg.Router = s.router
+		s.cfg.RouterAt = func(string) service.Router { return s.router }
+		s.svc = newService(t, s.cfg)
+		heldOnEveryRun := true
+		s.launchctl.ran = func([]string) { heldOnEveryRun = heldOnEveryRun && s.interrupts.held() }
+
+		installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+		if err != nil || installed.Router == nil {
+			t.Errorf("Install() = %+v, %v; want it installed, the router answering", installed, err)
+		}
+		if s.interrupts.holds != 1 || !heldOnEveryRun || heldWhileAsked || s.interrupts.held() {
+			t.Errorf("interrupts held %d times, on every launchctl run: %v, while the router was asked: %v, at the end: %v; want once, for the swap alone",
+				s.interrupts.holds, heldOnEveryRun, heldWhileAsked, s.interrupts.held())
 		}
 	})
 }
@@ -842,26 +1070,6 @@ func TestBootingTheServiceOutWaitsForTheRouterToStop(t *testing.T) {
 	}
 }
 
-func TestInstallGivesUpWhenLaunchdKeepsTheServiceTooLong(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		s := newSetup(t, nil, upOnceStarted(4242))
-		s.launchctl.loaded = true
-		s.launchctl.lingers = time.Minute
-		began := time.Now()
-
-		_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
-		if want := "launchd didn't let the service go within 55s of booting it out"; err == nil || err.Error() != want {
-			t.Errorf("Install() error = %v, want %q", err, want)
-		}
-		if waited := time.Since(began); waited != 55*time.Second {
-			t.Errorf("gave up after %v, want 55s, the 45 launchd gives the router to stop and 10 more", waited)
-		}
-		if slices.ContainsFunc(s.launchctl.calls, func(call []string) bool { return call[0] == "bootstrap" }) {
-			t.Errorf("ran launchctl %q, want no bootstrap while launchd has the service", s.launchctl.calls)
-		}
-	})
-}
-
 func TestStatus(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1144,6 +1352,53 @@ type setup struct {
 	binary, plist string
 	launchctl     *fakeLaunchctl
 	router        *fakeRouter
+	interrupts    *fakeInterrupts
+}
+
+// fakeInterrupts stands in for the process's interrupts, held as Install
+// holds them: one sent reaches Install only while they're held, and none is
+// ever a real signal. atHold, where it's set, is sent as they're held, and
+// atRelease as they're released.
+type fakeInterrupts struct {
+	atHold, atRelease os.Signal
+	caught            chan<- os.Signal
+	holds             int
+}
+
+func (f *fakeInterrupts) hold(caught chan<- os.Signal) func() {
+	f.caught = caught
+	f.holds++
+	if f.atHold != nil {
+		f.send(f.atHold)
+	}
+	return func() {
+		if f.atRelease != nil {
+			f.send(f.atRelease)
+		}
+		f.caught = nil
+	}
+}
+
+// interrupt sends an interrupt, which reaches Install only while it holds
+// them.
+func (f *fakeInterrupts) interrupt() {
+	f.send(os.Interrupt)
+}
+
+// send sends sig, which reaches Install only while it holds them.
+func (f *fakeInterrupts) send(sig os.Signal) {
+	if f.caught == nil {
+		return
+	}
+	select {
+	case f.caught <- sig:
+	default:
+	}
+}
+
+// held reports whether Install holds the interrupts now.
+func (f *fakeInterrupts) held() bool {
+	return f.caught != nil
 }
 
 // newSetup sets the service up for the user 501, with env added to its
@@ -1155,7 +1410,7 @@ func newSetup(t *testing.T, env map[string]string, answer func(asked int) (route
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &setup{root: root, tmp: filepath.Join(root, "tmp"), launchctl: &fakeLaunchctl{t: t}, router: &fakeRouter{t: t, answer: answer, refuse: answer == nil}}
+	s := &setup{root: root, tmp: filepath.Join(root, "tmp"), launchctl: &fakeLaunchctl{t: t}, router: &fakeRouter{t: t, answer: answer, refuse: answer == nil}, interrupts: &fakeInterrupts{}}
 	if err := os.Mkdir(s.tmp, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -1179,6 +1434,7 @@ func newSetup(t *testing.T, env map[string]string, answer func(asked int) (route
 		Launchctl: s.launchctl.run,
 		Router:    s.router,
 		RouterAt:  func(string) service.Router { return s.router },
+		Hold:      s.interrupts.hold,
 	}
 	s.svc = newService(t, s.cfg)
 	s.plist = filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
@@ -1238,14 +1494,18 @@ func writeBinary(t *testing.T, path string) string {
 // fakeLaunchctl stands in for launchctl, and launchd behind it, noting each
 // run. Printing the service succeeds while it's loaded, and exits 113 when
 // it isn't, as launchctl does; bootstrapping loads it, failing while it's
-// loaded, and booting it out unloads it, lingers later. A subcommand takes
-// as long as takes gives it, killed as exec.CommandContext kills it when its
-// context ends first, and exits with the status exits gives it, saying why
-// as launchctl does: its first runs alone, as many as fails gives, when
-// fails gives it any. cantRun fails every run, as when there's no launchctl
-// to run, and refuse fails the test on any.
+// loaded; and booting it out has launchd let it go once bootout's takes and
+// lingers have passed, whatever launchctl answers, as the request reaches
+// launchd as it starts. A subcommand takes as long as takes gives it, killed
+// as exec.CommandContext kills it when its context has ended or ends first,
+// and exits with the status exits gives it, saying why as launchctl does:
+// its first runs alone, as many as fails gives, when fails gives it any.
+// cantRun fails every run, as when there's no launchctl to run, and refuse
+// fails the test on any. ran, where it's set, is told of each run as it
+// starts.
 type fakeLaunchctl struct {
 	t       *testing.T
+	ran     func(args []string)
 	refuse  bool
 	loaded  bool
 	lingers time.Duration
@@ -1287,8 +1547,17 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 		return nil, errors.New("launchctl mustn't run here")
 	}
 	f.calls = append(f.calls, args)
+	if f.ran != nil {
+		f.ran(args)
+	}
 	if f.cantRun != nil {
 		return nil, f.cantRun
+	}
+	if args[0] == "bootout" && f.has() {
+		f.gone = time.Now().Add(f.takes["bootout"] + f.lingers)
+	}
+	if ctx.Err() != nil {
+		return nil, errors.New("signal: killed")
 	}
 	select {
 	case <-time.After(f.takes[args[0]]):
@@ -1309,8 +1578,6 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 			return []byte("Bootstrap failed: 5: Input/output error\n"), exitStatus(5)
 		}
 		f.loaded, f.gone = true, time.Time{}
-	case "bootout":
-		f.gone = time.Now().Add(f.lingers)
 	}
 	return nil, nil
 }
@@ -1390,3 +1657,189 @@ func (r *fakeRouter) Restart(context.Context) (router.Restart, error) {
 // errOldRouter is what asking a router from before routers restarted when
 // asked to restart fails with.
 var errOldRouter = fmt.Errorf("%w: the router answered POST /restart with 404 Not Found", router.ErrNoRestart)
+
+func TestAFailedAskWhetherLaunchdHasLetTheServiceGoIsAskedAgainTillItMustHave(t *testing.T) {
+	install := func(ctx context.Context, s *setup) error {
+		_, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
+		return err
+	}
+	uninstall := func(ctx context.Context, s *setup) error {
+		_, err := s.svc.Uninstall(ctx)
+		return err
+	}
+	tests := []struct {
+		name    string
+		bootOut func(ctx context.Context, s *setup) error
+		// wantErr is the error it fails with, "" for none.
+		wantErr string
+	}{
+		{name: "Install: then loaded", bootOut: install},
+		{name: "Uninstall: failing as the last ask did", bootOut: uninstall, wantErr: "launchctl print " + target + ": print failed: 5: Input/output error (exit status 5)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := newSetup(t, nil, upOnceStarted(4242))
+				s.launchctl.loaded, s.launchctl.lingers = true, 30*time.Second
+				began := time.Now()
+				var bootedOut bool
+				var asked int
+				var bootstrapped time.Duration
+				s.launchctl.ran = func(args []string) {
+					switch {
+					case args[0] == "bootout":
+						bootedOut = true
+						s.launchctl.exits = map[string]int{"print": 5}
+					case args[0] == "print" && bootedOut:
+						asked++
+					case args[0] == "bootstrap" && bootstrapped == 0:
+						bootstrapped = time.Since(began)
+					}
+				}
+
+				err := tt.bootOut(t.Context(), s)
+				switch {
+				case tt.wantErr == "" && err != nil:
+					t.Errorf("error = %v, want none", err)
+				case tt.wantErr != "" && (err == nil || err.Error() != tt.wantErr):
+					t.Errorf("error = %v, want %q", err, tt.wantErr)
+				}
+				if want := int(55*time.Second/(250*time.Millisecond)) + 1; asked != want {
+					t.Errorf("asked launchd %d times once it was booted out, want %d: every quarter second till 55s on, as the asks fail", asked, want)
+				}
+				if tt.wantErr == "" && (bootstrapped != 55*time.Second || !s.launchctl.has()) {
+					t.Errorf("bootstrapped first %v on, loaded: %v; want 55s on, once launchd must have let the service go, then loaded", bootstrapped, s.launchctl.has())
+				}
+			})
+		})
+	}
+}
+
+func TestAnInterruptAsLaunchdIsAskedWhetherItHasTheServiceStopsTheInstall(t *testing.T) {
+	tests := []struct {
+		name  string
+		exits map[string]int
+	}{
+		{name: "launchd answering"},
+		{name: "asking it failing: interrupted all the same", exits: map[string]int{"print": 5}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, upOnceStarted(4242))
+			s.launchctl.loaded, s.launchctl.exits = true, tt.exits
+			s.launchctl.ran = func([]string) { s.interrupts.interrupt() }
+
+			_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+			if want := "the service wasn't installed: interrupted"; err == nil || err.Error() != want || !errors.Is(err, accounts.ErrInterrupted) {
+				t.Errorf("Install() error = %v, want %q, an interrupt", err, want)
+			}
+			if want := [][]string{{"print", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
+				t.Errorf("ran launchctl %q, want %q alone", s.launchctl.calls, want)
+			}
+			if _, err := os.Stat(s.plist); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("the plist is there (%v), want none written", err)
+			}
+		})
+	}
+}
+
+func TestABrokenPipeAsTheServiceIsSwappedIsNoInterrupt(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var told int
+		s := newSetup(t, nil, upOnceStarted(4242))
+		s.cfg.Finishing = func() { told++ }
+		s.svc = newService(t, s.cfg)
+		s.launchctl.loaded = true
+		s.launchctl.ran = func(args []string) {
+			if args[0] == "bootout" {
+				s.interrupts.send(syscall.SIGPIPE)
+			}
+		}
+
+		installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+		if err != nil || installed.Router == nil {
+			t.Errorf("Install() = %+v, %v; want it installed, the router answering", installed, err)
+		}
+		if told != 0 || !s.launchctl.has() {
+			t.Errorf("told the install is finished first %d times, loaded: %v; want none told, the service loaded", told, s.launchctl.has())
+		}
+	})
+}
+
+func TestABrokenPipeAsTheInterruptsAreHeldOrLetGoIsNoInterrupt(t *testing.T) {
+	tests := []struct {
+		name              string
+		atHold, atRelease os.Signal
+	}{
+		{name: "as they're held, before the swap", atHold: syscall.SIGPIPE},
+		{name: "as they're let go, once the swap's watching has stopped", atRelease: syscall.SIGPIPE},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var told int
+				s := newSetup(t, nil, upOnceStarted(4242))
+				s.cfg.Finishing = func() { told++ }
+				s.svc = newService(t, s.cfg)
+				s.launchctl.loaded = true
+				s.interrupts.atHold, s.interrupts.atRelease = tt.atHold, tt.atRelease
+
+				installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+				if err != nil || installed.Router == nil {
+					t.Errorf("Install() = %+v, %v; want it installed, the router answering", installed, err)
+				}
+				if told != 0 || !s.launchctl.has() {
+					t.Errorf("told the install is finished first %d times, loaded: %v; want none told, the service loaded", told, s.launchctl.has())
+				}
+			})
+		})
+	}
+}
+
+func TestAnInterruptAsTheInterruptsAreLetGoIsCaughtAllTheSame(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var told int
+		s := newSetup(t, nil, upOnceStarted(4242))
+		s.cfg.Finishing = func() { told++ }
+		s.svc = newService(t, s.cfg)
+		s.launchctl.loaded = true
+		s.interrupts.atRelease = os.Interrupt
+
+		_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+		if want := "the service is installed, but interrupted before its router answered"; err == nil || err.Error() != want || !errors.Is(err, accounts.ErrInterrupted) {
+			t.Errorf("Install() error = %v, want %q, an interrupt", err, want)
+		}
+		if told != 0 || !s.launchctl.has() {
+			t.Errorf("told the install is finished first %d times, loaded: %v; want none told, as the swap was done, the service loaded", told, s.launchctl.has())
+		}
+	})
+}
+
+func TestThePanickingSwapLetsTheInterruptsGo(t *testing.T) {
+	tests := []struct {
+		name, panicsAt string
+	}{
+		{name: "before the swap, as launchd is first asked whether it has the service", panicsAt: "print"},
+		{name: "as the swap runs", panicsAt: "bootout"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, upOnceStarted(4242))
+			s.launchctl.loaded = true
+			s.launchctl.ran = func(args []string) {
+				if args[0] == tt.panicsAt {
+					panic("a bug")
+				}
+			}
+			defer func() {
+				if recover() == nil {
+					t.Errorf("Install() returned, want it to panic as launchctl's %s did", tt.panicsAt)
+				}
+				if s.interrupts.holds != 1 || s.interrupts.held() {
+					t.Errorf("interrupts held %d times, held still: %v; want held once, as the swap began, then let go however it ends", s.interrupts.holds, s.interrupts.held())
+				}
+			}()
+			_, _ = s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+		})
+	}
+}

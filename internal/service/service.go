@@ -37,8 +37,8 @@ const (
 	// startPoll is how often it asks.
 	startPoll = 100 * time.Millisecond
 	// bootstrapTries is how many times installing the service has launchd
-	// load it before it gives up, and bootstrapPause how long it waits
-	// between them.
+	// load it before it gives up, once launchd must have let the service
+	// before it go, and bootstrapPause how long it waits between tries.
 	bootstrapTries = 5
 	bootstrapPause = 500 * time.Millisecond
 	// unloadPoll is how often booting the service out asks launchd whether
@@ -106,7 +106,31 @@ type Config struct {
 	// RouterAt returns the router whose state is in the directory given, for
 	// For to ask the one an environment kept puts elsewhere.
 	RouterAt func(stateDir string) Router
+	// Hold holds the process's interrupts, SIGINT, SIGTERM and SIGHUP, while
+	// Install swaps the service, and SIGPIPE, which isn't one, so a write to
+	// an output whose reader has gone fails rather than ending the process:
+	// it sends each on caught in place of what it would do, until the
+	// release it returns is called. nil holds them through os/signal.
+	// Finishing is told of the first interrupt held, for the caller to say
+	// the install is finished first: nil tells none.
+	Hold      func(caught chan<- os.Signal) (release func())
+	Finishing func()
+	// Clock is what booting the service out and bootstrapping it wait for
+	// launchd on: nil waits on the system's.
+	Clock Clock
 }
+
+// Clock reads the time, and waits, moving the time it reads on as it does.
+type Clock interface {
+	Now() time.Time
+	Sleep(d time.Duration)
+}
+
+// systemClock is the system's clock.
+type systemClock struct{}
+
+func (systemClock) Now() time.Time        { return time.Now() }
+func (systemClock) Sleep(d time.Duration) { time.Sleep(d) }
 
 // Service is the LaunchAgent.
 type Service struct {
@@ -196,7 +220,9 @@ type Installed struct {
 // Install writes the LaunchAgent's plist, has launchd load it, in place of
 // the one it had loaded if it had, which starts the router, and waits for
 // the router to answer. It refuses a switchboard binary that won't last,
-// such as go run's.
+// such as go run's. Once it begins the swap, as swap has it, it finishes it
+// whatever ctx does, which can take about two minutes at the worst: what it does
+// before and after heeds ctx, failing with its cause once it's done.
 func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, error) {
 	s, opts, err := s.Planned(ctx, opts)
 	if err != nil {
@@ -206,17 +232,10 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if err != nil {
 		return Installed{}, err
 	}
-	if err := s.write(a); err != nil {
-		return Installed{}, err
-	}
 	before, i, _ := s.answering(ctx)
-	if err := s.unload(ctx); err != nil {
+	if err := s.swap(ctx, a); err != nil {
 		return Installed{}, err
 	}
-	if err := s.bootstrap(ctx); err != nil {
-		return Installed{}, err
-	}
-	logger.Info("installed the service", "plist", s.Plist(), "program", strings.Join(a.Program, " "))
 	// With none answering before, one that answers now is launchd's,
 	// wherever it is; with one answering, it may be one run otherwise.
 	waitFor := s.routers()
@@ -224,6 +243,9 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		waitFor = waitFor[:1]
 	}
 	h, at := s.waitForRouter(ctx, waitFor, before, StartWait)
+	if err := context.Cause(ctx); err != nil {
+		return Installed{}, err
+	}
 	installed := Installed{Router: h, Unread: opts.unread}
 	// Judged where the router answered, whose token files it reads.
 	if s.seenAt(at).tokenless(opts.Accounts) {
@@ -483,61 +505,53 @@ func (s *Service) write(a agent) error {
 	if err != nil {
 		return fmt.Errorf("find where the service's plist goes: %w", err)
 	}
+	if err := logs.MakeDir(filepath.Dir(a.Log)); err != nil {
+		return err
+	}
 	if err := atomicfile.Write(target, data, 0o644); err != nil {
 		return fmt.Errorf("write the service's plist: %w", err)
 	}
-	return logs.MakeDir(filepath.Dir(a.Log))
+	return nil
 }
 
 // bootstrap has launchd load the service from its plist, trying again,
-// bootstrapPause apart, bootstrapTries times in all, while launchctl
-// fails: launchd refuses to load a service it hasn't finished letting go, as
-// with "5: Input/output error". It fails as the last try did.
-func (s *Service) bootstrap(ctx context.Context) error {
+// bootstrapPause apart, while launchctl fails, as launchd refuses to load a
+// service it hasn't finished letting go, with "5: Input/output error": till
+// until, when launchd must have let it go, then bootstrapTries times more.
+// It fails as the last try did, logging the first refusal and a load that
+// follows one. It's run through, as swap runs it, so it waits out its pauses
+// whatever ctx does.
+func (s *Service) bootstrap(ctx context.Context, until time.Time) error {
+	late := 0
 	for try := 1; ; try++ {
 		err := s.launchctl(ctx, "bootstrap", s.domain(), s.Plist())
-		if err == nil || try == bootstrapTries {
-			return err
+		switch {
+		case err == nil && try > 1:
+			logger.Info("launchd loaded the service", "tries", try)
+			return nil
+		case err == nil:
+			return nil
+		case try == 1:
+			logger.Info("launchd didn't load the service; trying again", "error", err)
 		}
-		select {
-		case <-ctx.Done():
-			return err
-		case <-time.After(bootstrapPause):
+		if !s.clock().Now().Before(until) {
+			if late++; late == bootstrapTries {
+				return err
+			}
 		}
-		logger.Info("launchd didn't load the service; trying again", "try", try, "error", err)
+		s.clock().Sleep(bootstrapPause)
 	}
 }
 
 // unload has launchd stop the service and forget it, when it has loaded it,
-// and waits until it has: launchctl bootout can return at once, as on macOS
-// 26, while launchd keeps the service until its router has finished its
-// requests in flight. It gives up bootoutTimeout after booting it out.
+// and waits until it has, as bootOut does.
 func (s *Service) unload(ctx context.Context) error {
 	loaded, err := s.loaded(ctx)
 	if err != nil || !loaded {
 		return err
 	}
-	ctx, cancel := context.WithTimeoutCause(ctx, bootoutTimeout, fmt.Errorf("launchd didn't let the service go within %v of booting it out", bootoutTimeout))
-	defer cancel()
-	if err := s.launchctlWithin(ctx, bootoutTimeout, "bootout", s.target()); err != nil {
-		return err
-	}
-	for {
-		loaded, err := s.loaded(ctx)
-		switch {
-		case err == nil && !loaded:
-			return nil
-		case ctx.Err() != nil:
-			return context.Cause(ctx)
-		case err != nil:
-			return err
-		}
-		select {
-		case <-ctx.Done():
-			return context.Cause(ctx)
-		case <-time.After(unloadPoll):
-		}
-	}
+	_, err = s.bootOut(ctx)
+	return err
 }
 
 // Answering is the answer of the router the service runs, if one answers,
@@ -599,7 +613,9 @@ func (s *Service) waitForRouter(ctx context.Context, routers []Router, before ro
 		}
 		select {
 		case <-ctx.Done():
-			logger.Warn("the router didn't answer", "within", wait)
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				logger.Warn("the router didn't answer", "within", wait)
+			}
 			return nil, -1
 		case <-time.After(startPoll):
 		}

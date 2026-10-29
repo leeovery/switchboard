@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -20,6 +22,14 @@ import (
 // UTC.
 var start = time.Date(2026, 10, 27, 17, 42, 0, 0, time.FixedZone("UTC+1", 60*60))
 
+// The service step's outcomes, as setup says them.
+var (
+	serviceInstalled = setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/Library/LaunchAgents/io.github.leeovery.switchboard.plist"}
+	routerHealthy    = setup.Said{Mark: setup.Done, Label: "Router", Detail: "healthy · 127.0.0.1:4747 · v0.2.10"}
+	health           = router.Health{OK: true, Listen: "127.0.0.1:4747", Version: "0.2.10"}
+	routerUnstarted  = setup.Said{Mark: setup.Failed, Label: "Router", Detail: "not running, and one couldn't start as the service runs it"}
+)
+
 // The skill step's outcomes, as setup says them.
 var (
 	installed  = setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/.claude/skills/switchboard/SKILL.md"}
@@ -27,6 +37,8 @@ var (
 	upToDate   = setup.Said{Mark: setup.Done, Label: "Up to date", Detail: "~/.claude/skills/switchboard/SKILL.md"}
 	errNoSkill = errors.New("create the skill's directory: mkdir ~/.claude: not a directory")
 	notWritten = setup.Said{Mark: setup.Failed, Label: "Not installed", Detail: errNoSkill.Error()}
+	// errNoService is why the service step fails, where a test has it.
+	errNoService = errors.New("the router couldn't start: the config doesn't parse")
 	// errNoConfig is why Review fails, where a test has it.
 	errNoConfig = errors.New("read the config: the config doesn't parse")
 )
@@ -185,10 +197,13 @@ func (c *fakeClock) Now() time.Time {
 // fakeSteps answers as setup's steps do: Standing with standing, Review with
 // review, failing with reviewErr where it's set; Priming with day, failing
 // with primingErr where it's set; SetDay as config.ParseDay does, keeping
-// each day it's given in set, failing with setErr where it's set; and Skill
-// with said, failing with skillErr where it's set; each counted as it's
-// asked.
+// each day it's given in set, failing with setErr where it's set; Service
+// with serviced, failing with serviceErr where it's set; and Skill with
+// said, failing with skillErr where it's set; each counted as it's asked.
+// Its answers are read, and its counts kept, under mu, as jobs ask it at
+// once: a test sets what it answers while no job runs.
 type fakeSteps struct {
+	mu         sync.Mutex
 	standing   setup.RouterStanding
 	review     setup.Review
 	reviewErr  error
@@ -196,16 +211,19 @@ type fakeSteps struct {
 	primingErr error
 	set        []string
 	setErr     error
+	serviced   setup.Serviced
+	serviceErr error
 	said       setup.Said
 	skillErr   error
 	standings  int
 	reviews    int
 	primings   int
+	services   int
 	skills     int
 }
 
 // newFakeSteps is the steps of a router up and healthy, three accounts
-// working, and a skill installed.
+// working, the service installed, and a skill installed.
 func newFakeSteps() *fakeSteps {
 	working := setup.TokenStanding{State: setup.TokenWorking}
 	return &fakeSteps{
@@ -215,16 +233,21 @@ func newFakeSteps() *fakeSteps {
 			{ID: "personal", Label: "Personal", Token: working},
 			{ID: "side", Label: "Side", Token: working},
 		}},
-		said: installed,
+		serviced: setup.Serviced{Said: []setup.Said{serviceInstalled, routerHealthy}, Router: &health},
+		said:     installed,
 	}
 }
 
 func (s *fakeSteps) Standing(context.Context) (setup.RouterStanding, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.standings++
 	return s.standing, nil
 }
 
 func (s *fakeSteps) Review() (setup.Review, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.reviews++
 	if s.reviewErr != nil {
 		return setup.Review{}, s.reviewErr
@@ -233,11 +256,15 @@ func (s *fakeSteps) Review() (setup.Review, error) {
 }
 
 func (s *fakeSteps) Priming() (config.Day, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.primings++
 	return s.day, s.primingErr
 }
 
 func (s *fakeSteps) SetDay(day string) (config.Day, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.set = append(s.set, day)
 	if s.setErr != nil {
 		return config.Day{}, s.setErr
@@ -245,7 +272,16 @@ func (s *fakeSteps) SetDay(day string) (config.Day, error) {
 	return config.ParseDay(day)
 }
 
+func (s *fakeSteps) Service(context.Context) (setup.Serviced, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.services++
+	return s.serviced, s.serviceErr
+}
+
 func (s *fakeSteps) Skill() (setup.Said, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.skills++
 	return s.said, s.skillErr
 }

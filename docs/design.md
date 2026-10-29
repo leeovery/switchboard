@@ -1357,6 +1357,12 @@ not the owner's decisions:
   Below 95 columns, as on a phone, setup says to make the terminal larger.
 - **The heading's rule is `border`,** the dashboard's own, where the frames' nord draws `border`
   and `text.faint` alike.
+- **The service step while it runs:** a spinner, as the token card's, and `Seeing to the service
+  and its router`, then its rows as they come. A step that fails with no row of its own saying why
+  ends with `✗ Not set up` and the error. `q` while the service's install swaps it leaves once the
+  swap is done (see Service, `install`); where that takes more than a moment, setup says `Setup is
+  finishing the Service step: the router it replaces ends its requests first, which can take a
+  minute or two.`
 - **A page's field is typed in as the page opens,** as Priming's day is, and takes every key that
   types, `q`, `j` and `k` among them: `pgup`, `pgdown` and the wheel scroll it, and the line saying
   what's out of view names no keys. `esc` gives the field up, after which `q` quits and `j` and `k`
@@ -8580,7 +8586,18 @@ verbs).
   service until its router has finished its requests in flight, and launchd refuses to load it
   again until then (`5: Input/output error`), so after a bootout, `print` is asked every quarter
   second until it exits 113. `install` then tries bootstrapping 5 times, half a second apart,
-  before it fails as the last try did. launchd reads the plist only as it loads the service, so an
+  before it fails as the last try did. `install` is all or nothing once it writes the plist, so
+  the router is never left with no service to start it: it asks `print` whether launchd has the
+  service, then writes the plist, and from the write to the bootstrap's end nothing stops it. Not a
+  cancel; not an interrupt, a SIGTERM, a hangup or a broken pipe, which it holds till then (one the
+  process ignores, as under `nohup`, it leaves ignored); and not a bootout that fails: after any
+  bootout it tries bootstrapping until launchd must have let the old service go, 55 seconds from
+  the bootout, then its 5 tries, so a router draining as the bootout fails never ends with nothing
+  loaded after it. An interrupt it holds says so, `switchboard: interrupted: finishing installing
+  the service first, so the router isn't left down; it can take a minute or two`, and `install`
+  stops once the swap is done, exiting 130 as any interrupt does. `launchctl` runs in a process
+  group of its own, so a Ctrl-C at the terminal reaches switchboard, which holds it, never
+  `launchctl`. launchd reads the plist only as it loads the service, so an
   upgrade or a restart, in place or by launchd, keeps what it said: a key a newer switchboard
   writes, as `ProcessType` was, reaches an install through `install`, restarting the router, or
   through `setup`, which reinstalls where the plist differs from the one `install` would write,
@@ -8607,8 +8624,8 @@ verbs).
   loaded, and the router's health. When no router answers in time, `install` and `restart` fail, the
   LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why. Each run of
   `launchctl` is cut off after 10 seconds, but a bootout, with the wait for launchd to let the
-  service go, after 55: the 45 and 10 more, failing `install` or `uninstall` when launchd still has
-  it then. Any other failure of `launchctl` is an error that quotes it.
+  service go, after 55: the 45 and 10 more, failing `uninstall` when launchd still has it then, and
+  `install` once its bootstraps have been refused past then. Any other failure of `launchctl` is an error that quotes it.
 
 ## Milestones
 

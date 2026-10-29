@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -213,6 +214,11 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Plutil:    w.plutil,
 		Router:    w.launchd.at(stateDir),
 		RouterAt:  func(dir string) service.Router { return w.launchd.at(dir) },
+		// The process's own interrupts are left alone: no test sends one.
+		Hold: func(chan<- os.Signal) func() { return func() {} },
+		// Waiting for launchd moves a clock of the service's own on, never
+		// the test's.
+		Clock: &waitedClock{at: tokenTaken},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -596,7 +602,7 @@ func (u *user) typeUnseen() ([]byte, error) {
 }
 
 // fakeLaunchd stands in for launchctl, and launchd and the router behind it.
-// Printing the service names its router's pid while one runs. Bootstrapping the service loads it and starts a router, kickstarting it
+// Printing the service names its router's pid while one runs. Bootstrapping the service loads it and starts a router, failing while it's loaded, kickstarting it
 // starts another, as does signalling the router, which stops it for launchd
 // to start again, and booting it out stops it; printing the service exits
 // 113 while it isn't loaded, as launchctl does. Each router started answers
@@ -619,11 +625,13 @@ type fakeLaunchd struct {
 	// routers answer without their pids. pidless has print say launchd runs
 	// one without naming its pid, and stateUnread say neither its state nor
 	// its pid, as formats setup can't read wholly might; printFails has
-	// print fail, as launchctl erring does.
+	// print fail, as launchctl erring does, and bootoutSays has bootout fail,
+	// printing what it says, where it's set.
 	byHand                           int
 	byHandAt                         string
 	anonymous                        bool
 	pidless, stateUnread, printFails bool
+	bootoutSays                      string
 	old                              bool
 	// version is the version the routers answer with, and unhealthy why
 	// the router launchd runs answers unhealthy: "" for healthy. One run by
@@ -646,12 +654,16 @@ type fakeLaunchd struct {
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 	f.calls = append(f.calls, args)
 	switch {
+	case args[0] == "bootstrap" && f.loaded:
+		return []byte("Bootstrap failed: 5: Input/output error\n"), exitStatus(5)
 	case args[0] == "bootstrap":
 		f.loaded = true
 		f.stateDir = f.stateDirOf(args[2])
 		f.start()
 	case !f.loaded:
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
+	case args[0] == "bootout" && f.bootoutSays != "":
+		return []byte(f.bootoutSays + "\n"), exitStatus(5)
 	case args[0] == "bootout":
 		f.loaded, f.pid = false, 0
 	case args[0] == "kickstart", args[0] == "kill":
@@ -855,4 +867,22 @@ func writeFile(t *testing.T, path, content string, perm fs.FileMode) {
 	if err := os.Chmod(path, perm); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// waitedClock is a clock a wait moves on at once, by as long as it waits.
+type waitedClock struct {
+	mu sync.Mutex
+	at time.Time
+}
+
+func (c *waitedClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.at
+}
+
+func (c *waitedClock) Sleep(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.at = c.at.Add(d)
 }

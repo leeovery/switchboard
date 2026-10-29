@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     ✓ Accounts   ✓ Priming   3 Service   4 claude link   5 Skill   Done                                                 Thu 1 Oct  14:42:07
+
+● router up, healthy  ·  3 accounts, all working
+
+THE SERVICE  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  launchd keeps the router running: it starts at login, and restarts it if it stops.
+
+  ✓  Installed            ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist
+
+  !  Updated              reinstalled: its plist had no ProcessType · kept its --log-level
+
+  ✓  Router               healthy · 127.0.0.1:4747 · v0.2.10
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                                enter next: claude link   q quit
