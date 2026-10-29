@@ -10,12 +10,14 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// Field is a value of an account its edit card gives, as a refusal names it.
+// Field is a value of an account its add card or its edit card gives, as a
+// refusal names it.
 type Field int
 
 const (
 	// NoField is a refusal of no value alone, as of an account's removal.
 	NoField Field = iota
+	IDField
 	LabelField
 	PlanField
 	PrimaryField
@@ -53,8 +55,8 @@ func (r Reviewed) PlanChosen() string {
 	return cmp.Or(r.Plan, config.PlanNone)
 }
 
-// Refused is the error of an account's edit, or its removal, that config
-// refuses: of the value of Field, where it's a value's, and why, as config
+// Refused is the error of an account to add, its edit, or its removal, that
+// config refuses: of the value of Field, where it's a value's, and why, as config
 // words it, for a form showing the value to say alone. It matches what
 // config refused it with.
 type Refused struct {
@@ -96,10 +98,19 @@ func (s *Setup) EditAccount(id string, edit Edit) (accounts.Edited, error) {
 		change.Reserve = &reserve
 	}
 	edited, err := s.Accounts.Edit(id, change)
-	if wrong, ok := errors.AsType[*config.WrongLabel](err); ok {
-		return accounts.Edited{}, &Refused{Field: LabelField, Why: wrong.Why, err: err}
+	if err != nil {
+		return accounts.Edited{}, refusedLabel(err)
 	}
-	return edited, err
+	return edited, nil
+}
+
+// refusedLabel is err, as config refused an account's label: a Refused of
+// Label, why as config words it alone; else err as it is.
+func refusedLabel(err error) error {
+	if wrong, ok := errors.AsType[*config.WrongLabel](err); ok {
+		return &Refused{Field: LabelField, Why: wrong.Why, err: err}
+	}
+	return err
 }
 
 // refusedValue is the Refused of the value of field that config refused with

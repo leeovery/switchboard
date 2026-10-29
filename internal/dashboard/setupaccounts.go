@@ -16,16 +16,19 @@ import (
 )
 
 // SetupAccountsPage is what the Accounts step's page has of its own, beside
-// the review and why the step failed, which are the Summary's: the row
-// chosen, an account's by its place among them, or past the last, + add an
-// account; the card open over it, the chosen account's edit card, or the
-// card asking before it's removed, where either is; and what the step
-// failed at, where it did.
+// the review and why the step failed, which are the Summary's: whether it's
+// a first run, setup having first read no account; the row chosen, an
+// account's by its place among them, or past the last, + add an account;
+// the card open over it, the card adding an account, the chosen account's
+// edit card, or the card asking before it's removed, where one is; and what
+// the step failed at, where it did.
 type SetupAccountsPage struct {
-	Chosen int
-	Edit   *SetupEditCard
-	Remove *SetupRemoveCard
-	Failed AccountsFailed
+	FirstRun bool
+	Chosen   int
+	Add      *SetupAddCard
+	Edit     *SetupEditCard
+	Remove   *SetupRemoveCard
+	Failed   AccountsFailed
 }
 
 // AccountsFailed is what the Accounts step failed at.
@@ -39,6 +42,9 @@ const (
 	// AccountsNotDeleted is deleting a removed account's token file, the
 	// account taken out of the config.
 	AccountsNotDeleted
+	// AccountsNotChecked is checking an account to add, as accounts add
+	// would, for a reason no field's value gives.
+	AccountsNotChecked
 )
 
 // accountsFailedLabels are the labels of the failed fact, by what the step
@@ -47,13 +53,15 @@ var accountsFailedLabels = map[AccountsFailed]string{
 	AccountsNotRead:    "Not read",
 	AccountsNotSaved:   "Not saved",
 	AccountsNotDeleted: "Not deleted",
+	AccountsNotChecked: "Not checked",
 }
 
-// What the Accounts page says: what the review is, or with no account, what
-// to add; and the row that adds one.
+// What the Accounts page says: what the review is, or on a first run, what
+// to add, saying so where there's no account yet; and the row that adds one.
 const (
 	reviewIntro     = "Each token was checked with the API just now."
-	noAccountsIntro = "No accounts yet. Add each Claude subscription you want switchboard to route across."
+	firstRunIntro   = "Add each Claude subscription you want switchboard to route across."
+	noAccountsIntro = "No accounts yet. " + firstRunIntro
 	addAccount      = "add an account"
 	// notSet is what's said of a plan that isn't set.
 	notSet = "not set"
@@ -68,12 +76,12 @@ var (
 )
 
 // accountsPage is the Accounts step's page, drawn in look: ACCOUNTS, the
-// accounts counted at its right; once they're read, what the review is,
-// muted, and the table of them, the notes under it; or, where the step
-// failed, what it failed at, as its page says, and why. With an account
-// chosen, its keys, and enter moving on to Priming, but where two accounts
-// or more have none the primary, which enter waits for; with + add an
-// account chosen, select alone, and enter adding one.
+// accounts counted at its right; once they're read, what's said over them,
+// as accountsIntro has it, muted, and the table of them, the notes under it;
+// or, where the step failed, what it failed at, as its page says, and why.
+// With an account chosen, its keys, and enter moving on to Priming, but
+// where two accounts or more have none the primary, which enter waits for;
+// with + add an account chosen, select alone, and enter adding one.
 func (s Setup) accountsPage(look Look) setupPage {
 	p := setupPage{name: "ACCOUNTS"}
 	switch {
@@ -85,16 +93,26 @@ func (s Setup) accountsPage(look Look) setupPage {
 		p.facts = []setup.Said{{Mark: setup.Failed, Label: accountsFailedLabels[failed], Detail: s.Failure}}
 	case s.Review != nil:
 		t := reviewTable{review: *s.Review, chosen: min(max(s.chosen(), 0), len(s.Review.Accounts)), look: look}
-		intro := reviewIntro
-		if len(t.review.Accounts) == 0 {
-			intro = noAccountsIntro
-		} else {
+		if len(t.review.Accounts) > 0 {
 			p.tail = prose.Counted(len(t.review.Accounts), "account")
 		}
-		p.purpose, p.table = []line{{{intro, mutedInk}}}, &t
+		p.purpose, p.table = []line{{{s.accountsIntro(len(t.review.Accounts)), mutedInk}}}, &t
 		p.keys, p.onward = t.keys()
 	}
 	return p
+}
+
+// accountsIntro is what the Accounts page says over its table of accounts,
+// as many as given: with none, that there are none yet, and what to add; on
+// a first run, what to add; else what the review is.
+func (s Setup) accountsIntro(accounts int) string {
+	switch {
+	case accounts == 0:
+		return noAccountsIntro
+	case s.Accounts != nil && s.Accounts.FirstRun:
+		return firstRunIntro
+	}
+	return reviewIntro
 }
 
 // chosen is the Accounts page's row chosen: the first, where it has no page.

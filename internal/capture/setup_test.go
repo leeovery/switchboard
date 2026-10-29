@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -25,9 +26,10 @@ const (
 // the key line on its last row, read as those of the same screen drawn as
 // tall as anything fits, so no page draws on them, and its page's heading
 // on its row; and where the page has a row chosen, it shows it; but where a
-// card is open over the page, the card whole, and the key line empty, as
-// the card's keys are its own; smaller either way, it says only to make the
-// terminal larger.
+// card is open over the page, the card whole, placed by the dashboard
+// Card's rule, and the key line empty, as the card's keys are its own, the
+// rows down to the heading held but for the cells under the card; smaller
+// either way, it says only to make the terminal larger.
 func TestSetupsScreenIsWholeOrSaysToMakeTheTerminalLarger(t *testing.T) {
 	widths := []int{30, 52, 80, 94, 95, 96, 120, 160, 230}
 	heights := []int{8, 16, 24, 25, 26, 37, tallest}
@@ -50,8 +52,21 @@ func TestSetupsScreenIsWholeOrSaysToMakeTheTerminalLarger(t *testing.T) {
 						}
 						continue
 					}
+					var card *setupCard
+					if f.setup.card != "" {
+						found, wrong := cardOn(rows, height, f.setup.card)
+						if wrong != "" {
+							t.Errorf("at %d×%d, %s:\n%s", width, height, wrong, strings.Join(rows, "\n"))
+							continue
+						}
+						card = &found
+					}
 					for y := range setupHeadingRow + 1 {
-						if rows[y] != tall[y] {
+						got, want := rows[y], tall[y]
+						if card != nil && y >= card.top {
+							got, want = card.outside(got), card.outside(want)
+						}
+						if got != want {
 							t.Errorf("at %d×%d, row %d reads\n%q\nwant it as at %d rows\n%q", width, height, y+1, rows[y], tallest, tall[y])
 						}
 					}
@@ -60,8 +75,7 @@ func TestSetupsScreenIsWholeOrSaysToMakeTheTerminalLarger(t *testing.T) {
 							t.Errorf("at %d×%d, row %d is %d cells wide:\n%q", width, height, y+1, cells, row)
 						}
 					}
-					if f.setup.card != "" {
-						checkCardWhole(t, width, height, rows, f.setup.card)
+					if card != nil {
 						continue
 					}
 					if key := rows[height-1]; key == "" || key != tall[tallest-1] {
@@ -79,22 +93,62 @@ func TestSetupsScreenIsWholeOrSaysToMakeTheTerminalLarger(t *testing.T) {
 	}
 }
 
-// checkCardWhole checks the card titled title is drawn whole over setup's
-// screen, drawn width cells wide and height tall, as rows: its top edge,
-// titled, under the status line; its keys, on its last row but one; and its
-// bottom edge, over the key line, which is empty.
-func checkCardWhole(t *testing.T, width, height int, rows []string, title string) {
-	t.Helper()
+// setupCard is a card drawn over setup's screen, as cardOn finds it: the
+// rows of its top edge and its bottom edge, and the cells it takes across,
+// from x, w wide.
+type setupCard struct {
+	top, bottom, x, w int
+}
+
+// cardOn finds the card titled title drawn over setup's screen, height rows
+// tall, as rows, and says what's wrong with it, "" where nothing is: its top
+// edge where the dashboard Card's one rule places it, centred down the
+// screen, and so under the status line; its keys on its last row but one;
+// its bottom edge over the key line; and the key line empty, as its keys
+// are its own.
+func cardOn(rows []string, height int, title string) (setupCard, string) {
 	top := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "╭─ "+title+" ─") })
-	bottom := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "╰─") })
-	switch {
-	case top <= setupStatusRow || bottom <= top+2 || bottom >= height-1:
-		t.Errorf("at %d×%d, the card %s isn't whole between the status line and the key line:\n%s", width, height, title, strings.Join(rows, "\n"))
-	case !strings.Contains(rows[bottom-1], " esc "):
-		t.Errorf("at %d×%d, the card's last row but one reads %q, want its keys", width, height, rows[bottom-1])
+	if top < 0 {
+		return setupCard{}, "the card " + title + " isn't drawn"
 	}
-	if key := strings.TrimSpace(rows[height-1]); key != "" {
-		t.Errorf("at %d×%d, the key line reads %q, want it empty while the card's open", width, height, key)
+	bottom := top + slices.IndexFunc(rows[top:], func(row string) bool { return strings.Contains(row, "╰─") })
+	left, right := strings.Index(rows[top], "╭"), strings.Index(rows[top], "╮")
+	if bottom < top+2 || right < 0 {
+		return setupCard{}, "the card " + title + " isn't whole"
+	}
+	c := setupCard{top: top, bottom: bottom, x: ansi.StringWidth(rows[top][:left])}
+	c.w = ansi.StringWidth(rows[top][:right]) + 1 - c.x
+	switch placed := max((height-(bottom-top+1))/2, 0); {
+	case top != placed:
+		return c, fmt.Sprintf("the card %s's top edge is on row %d, want it on row %d, as the dashboard Card's rule places it", title, top+1, placed+1)
+	case top <= setupStatusRow || bottom >= height-1:
+		return c, "the card " + title + " isn't between the status line and the key line"
+	case !strings.Contains(rows[bottom-1], " esc "):
+		return c, fmt.Sprintf("the card's last row but one reads %q, want its keys", rows[bottom-1])
+	case strings.TrimSpace(rows[height-1]) != "":
+		return c, fmt.Sprintf("the key line reads %q, want it empty while the card's open", rows[height-1])
+	}
+	return c, ""
+}
+
+// outside is row without the cells the card takes across: those before it,
+// and those after it, the blanks at the end trimmed.
+func (c setupCard) outside(row string) string {
+	return ansi.Cut(row, 0, c.x) + "│" + strings.TrimRight(ansi.Cut(row, c.x+c.w, ansi.StringWidth(row)), " ")
+}
+
+// The card check holds a card's place to the dashboard Card's rule: the add
+// card's fixture, its card moved a row up at 37 rows, is caught.
+func TestTheCardCheckHoldsTheCardsPlace(t *testing.T) {
+	f := fixture(t, "setup-add-first-160")
+	rows := setupRows(t, f, 160, 37)
+	card, wrong := cardOn(rows, 37, f.setup.card)
+	if wrong != "" {
+		t.Fatalf("as drawn, %s", wrong)
+	}
+	raised := slices.Concat(rows[:card.top-1], rows[card.top:card.bottom+1], rows[card.top-1:card.top], rows[card.bottom+1:])
+	if _, wrong := cardOn(raised, 37, f.setup.card); !strings.Contains(wrong, "as the dashboard Card's rule places it") {
+		t.Errorf("a row up, the card check says %q, want it caught as placed wrong", wrong)
 	}
 }
 

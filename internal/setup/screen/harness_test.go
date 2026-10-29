@@ -238,6 +238,10 @@ type fakeSteps struct {
 	serviceErr error
 	said       setup.Said
 	skillErr   error
+	// adds are the accounts CheckAdding is asked to check, each passing, but
+	// where addErr fails it.
+	adds   []setup.Adding
+	addErr error
 	// edits are the edits EditAccount is given, and removes the accounts
 	// RemoveAccount is asked to remove, each made to review, but where
 	// editErr or removeErr fails it.
@@ -353,6 +357,19 @@ func (s *fakeSteps) Skill() (setup.Said, error) {
 	defer s.mu.Unlock()
 	s.skills++
 	return s.said, s.skillErr
+}
+
+// CheckAdding keeps the account, and gives it as setup does, its plan read
+// as config.ParsePlan reads it, adding nothing.
+func (s *fakeSteps) CheckAdding(adding setup.Adding) (config.NewAccount, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.adds = append(s.adds, adding)
+	if s.addErr != nil {
+		return config.NewAccount{}, s.addErr
+	}
+	plan, err := config.ParsePlan(adding.Plan)
+	return config.NewAccount{ID: adding.ID, Label: adding.Label, Plan: plan}, err
 }
 
 // fakeEdit is an edit EditAccount was given, of the account id.

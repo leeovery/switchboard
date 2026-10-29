@@ -13,7 +13,9 @@ import (
 // the accounts read again, where a change was waiting on it: at Accounts,
 // the step done once the accounts are first read, failed where they
 // couldn't be, and its chosen row following the account it was on each
-// time they're read, as following has it.
+// time they're read, as following has it; read first with no account, a
+// first run, the add card open at once, as there's nothing to set up
+// without one.
 func (m Model) reviewed(msg reviewMsg) Model {
 	was := m.status.review
 	m.status = m.status.reviewAnswered(msg)
@@ -27,6 +29,9 @@ func (m Model) reviewed(msg reviewMsg) Model {
 			err = msg.err
 		}
 		m.walk = m.walk.finished(err)
+	}
+	if was == nil && m.status.review != nil && len(m.status.review.Accounts) == 0 {
+		m.firstRun, m.add = true, addOpened()
 	}
 	return m.following(was)
 }
@@ -116,23 +121,31 @@ func (m Model) chosenInView() Model {
 }
 
 // accountsEntered acts on enter at the Accounts page, once its accounts are
-// read: on an account's row, it moves on, changing nothing, but where two
-// accounts or more have none the primary, which waits for one, and while a
-// change is settling, which waits for that; on + add an account, it does
-// nothing yet.
+// read, but while a change is settling, which it waits for: on + add an
+// account, it opens the add card, so it never moves on with no account; on
+// an account's row, it moves on, changing nothing, but where two accounts or
+// more have none the primary, which waits for one.
 func (m Model) accountsEntered() (tea.Model, tea.Cmd) {
-	if m.adding() || m.status.review.Unmarked || m.settling() {
-		return m, nil
+	switch {
+	case m.settling():
+	case m.adding():
+		m.add = addOpened()
+	case !m.status.review.Unmarked:
+		return m.movedOn()
 	}
-	return m.movedOn()
+	return m, nil
 }
 
 // accountsPage is what the Accounts page has of its own, as dashboard.Setup
-// draws it: the row chosen, the card open over it, where one is, and what
-// the step failed at, where it did. Its accounts, as the status line has
-// them, and why the step failed are the summary's.
+// draws it: whether it's a first run, the row chosen, the card open over
+// it, where one is, and what the step failed at, where it did. Its
+// accounts, as the status line has them, and why the step failed are the
+// summary's.
 func (m Model) accountsPage() *dashboard.SetupAccountsPage {
-	p := &dashboard.SetupAccountsPage{Chosen: m.chosen, Failed: m.accountsFailed}
+	p := &dashboard.SetupAccountsPage{FirstRun: m.firstRun, Chosen: m.chosen, Failed: m.accountsFailed}
+	if m.add != nil {
+		p.Add = m.add.drawn()
+	}
 	if m.edit != nil {
 		p.Edit = m.edit.drawn()
 	}

@@ -54,6 +54,10 @@ type Steps interface {
 	// Skill writes the skill, or brings it up to date, and says which: on a
 	// failure, it says so too, as the screen draws it.
 	Skill() (setup.Said, error)
+	// CheckAdding checks the account adding gives, as it would be added,
+	// writing nothing, failing with a setup.Refused where config refuses a
+	// value.
+	CheckAdding(adding setup.Adding) (config.NewAccount, error)
 	// EditAccount changes the account id as edit says, failing with a
 	// setup.Refused where config refuses a value.
 	EditAccount(id string, edit setup.Edit) (accounts.Edited, error)
@@ -116,12 +120,15 @@ type Model struct {
 
 	walk   walk
 	status status
+	// firstRun is set where the Accounts step first read no account.
+	firstRun bool
 	// chosen is the Accounts page's row chosen: an account's, by its place
 	// in the review, or past the last, + add an account.
 	chosen int
-	// edit and remove are the cards open over the Accounts page, the chosen
-	// account's edit card, or the card asking before it's removed: nil where
-	// neither is.
+	// add, edit and remove are the cards open over the Accounts page, the
+	// card adding an account, the chosen account's edit card, or the card
+	// asking before it's removed: nil where none is.
+	add    *addCard
 	edit   *editCard
 	remove *removeCard
 	// marking counts the accounts p is making the primary, not yet answered;
@@ -130,7 +137,8 @@ type Model struct {
 	marking   int
 	rereading bool
 	// accountsFailed is what the Accounts step failed at, where it did:
-	// reading the accounts, the zero, unless a change to them failed.
+	// reading the accounts, the zero, unless a change to them, or the check
+	// of an account to add, failed.
 	accountsFailed dashboard.AccountsFailed
 	// priming is the Priming page as it stands: nil until its day's read.
 	priming *primingForm
@@ -222,6 +230,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.serviced(msg)
 	case skilledMsg:
 		return m.skilled(msg), nil
+	case addCheckedMsg:
+		return m.addChecked(msg)
 	case editedMsg:
 		return m.editSaved(msg)
 	case removedMsg:
