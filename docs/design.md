@@ -1381,6 +1381,45 @@ not the owner's decisions:
   unchecked where it doesn't answer. Where its screen can't be read, the card says it was made
   and to copy it from what setup-token showed, then paste it with `p`. Made is what setup-token
   says, so a stop that lands as it makes the token keeps it too.
+- **The token card as it's stopped:** `esc` before the token's made shows `Stopping claude
+  setup-token`, `Nothing is saved, unless it had already created the token.`, its keys none, till
+  setup-token has stopped, when the card closes, back to the page, the add card not reopened. Once
+  setup-token says it's made the token, the card shows checking, its keys none, and `esc` changes
+  nothing: it closes once the token's saved, or says why it isn't. `ctrl+c` leaves at any stage,
+  and setup returns only once the token's saved, or setup-token has stopped. From the token made,
+  leaving setup no longer ends the making: setup-token is read within its own time limits, then
+  the token's checked and saved, the process's interrupts held throughout, the first told to
+  setup's caller (`Saving`) to say it saves the token first. One held, however late, is said in
+  the outcome (`InterruptHeld`): the screen leaves once the making's ended, and its `Run` says so
+  (`Left.Interrupted`), for its caller to end as an interrupt has it. A token made but unread, or
+  not saved, once the screen has gone, or on the card as it goes, is given back by `Run`
+  (`Left.Unsaved`) for its caller to show.
+- **The duplicate check waits for the checks:** `t` and the add card's `enter` do nothing while
+  any account's token is still being checked, so a token made is compared with every organization
+  the run will know.
+- **The token card's own words:** starting, `Starting claude setup-token`, then `Setup opens its
+  sign-in page in the browser once it's ready.`; checking, `Checking the token and saving it`,
+  `claude setup-token created it. Setup checks it with the API, then saves it, a year from
+  today.`, then, muted, `It's saved however you leave setup now, as it lasts a year on the
+  account.`; refused, `The token was refused` and `The API refused the token, so it isn't saved.`;
+  same account, `The token is for work's subscription`, `work has that subscription already, so
+  the token isn't saved.` and `Try again, signed in to the other subscription, or paste a token you
+  made with claude setup-token.`; no Claude Code, `There's no Claude Code to create the token
+  with`, why, and `Install Claude Code, then try again, or paste a token you made with claude
+  setup-token.`; and not opened, `Setup couldn't open your browser. Open this address in it,
+  signed in to Personal, then approve:`, or, for a private window, `Your browser is signed in to
+  Work, and setup couldn't open a private Safari window. Open this address in one, sign in to
+  Personal there, then approve:`, the address under it in `accent.mode`. The failed card shows
+  setup-token's last 4 lines.
+- **A token made but unread:** `!`, a warning's mark, `The token was created, but setup couldn't
+  read it`, `It lasts a year on the account, so copy it from what claude setup-token showed:`,
+  every line it showed after `│`, then `Then press p to paste it.`; its keys `p paste a token` and
+  `esc cancel`, with no `enter try again`, as the token made lasts a year.
+- **A token made but not saved,** as where the config can't be read, the account was added
+  meanwhile, or its token file can't be written: as the unread card, `The token was created, but
+  setup couldn't save it`, why, the token after `│`, then `It lasts a year on the account, so copy
+  it, then press p to paste it once that's put right.`, the accounts read again; where setup never
+  read the token, why alone, and `enter try again`.
 - **The status line waits** until both the router and the accounts have answered, blank till then,
   so it never says `nothing set up yet` of accounts not yet read; where the config can't be read,
   it shows the router's part alone.
@@ -7879,6 +7918,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy; and where Claude Code's config directory is |
 | `internal/sessionhook` | The session hook: what `hook session-start` tells a session that didn't start through switchboard, and switchboard's entry in Claude Code's `settings.json`, installed or put right, the rest of the file left as it is |
 | `internal/service` | The LaunchAgent: its plist, and driving `launchctl` |
+| `internal/interrupts` | Holding the process's interrupts, SIGINT, SIGTERM and SIGHUP, with SIGPIPE, through work that must run to its end once begun: the service's swap, and a made token's save. One the process ignores, as under `nohup`, stays ignored |
 | `internal/notify` | Posting desktop notifications, and the wording and warning threshold the router's and the dashboard's share |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |

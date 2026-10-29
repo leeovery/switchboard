@@ -128,6 +128,12 @@ func (s status) checkAnswered(msg checkedMsg) status {
 	return s
 }
 
+// checksOut reports whether any account's token is still to be checked, or
+// being checked, so its organization isn't known yet.
+func (s status) checksOut() bool {
+	return len(s.checking) > 0 || len(s.unchecked()) > 0
+}
+
 // unchecked are the ids of the review's accounts whose tokens are read but
 // not yet checked, nor being checked.
 func (s status) unchecked() []string {

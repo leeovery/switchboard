@@ -7,11 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -40,16 +43,19 @@ const (
 // set, reporting it made; or it fails with err, before it says it made the
 // token, or after, where madeFirst is set. Blocking, it waits till its
 // context ends before it says it made the token, and fails with the cancel;
-// holding, it waits till then once it has said so, then gives what it's set
-// to, as setup-token reads on for a token made. It reports on a goroutine of
-// its own, which it waits for before it returns, as setup-token does, and
-// counts the times it's asked.
+// holding, once it has said so, it waits till held is closed, noting in
+// ended whether its context ends within endsWithin, then gives what it's
+// set to, as setup-token reads on for a token made. It reports on a
+// goroutine of its own, which it waits for before it returns, as setup-token
+// does, and counts the times it's asked.
 type fakeMaker struct {
-	token       string
-	err         error
-	madeFirst   bool
-	block, hold bool
-	asked       int
+	token     string
+	err       error
+	madeFirst bool
+	block     bool
+	held      chan struct{}
+	ended     bool
+	asked     int
 }
 
 func (m *fakeMaker) Make(ctx context.Context, s setuptoken.Signing) (tokens.Token, error) {
@@ -75,13 +81,29 @@ func (m *fakeMaker) Make(ctx context.Context, s setuptoken.Signing) (tokens.Toke
 		return tokens.Token{}, m.err
 	}
 	reports <- setuptoken.Event{Step: setuptoken.StepMade}
-	if m.hold {
-		<-ctx.Done()
+	if m.held != nil {
+		<-m.held
+		m.ended = endsSoon(ctx)
 	}
 	if m.err != nil {
 		return tokens.Token{}, m.err
 	}
 	return tokens.Parse(cmp.Or(m.token, madeToken))
+}
+
+// endsWithin is how long a test waits on a context it holds to end, where it
+// wrongly would: a cancel can reach it on a goroutine of its own, as
+// context.AfterFunc runs one, a moment after what cancelled it returns.
+const endsWithin = 500 * time.Millisecond
+
+// endsSoon reports whether ctx ends within endsWithin.
+func endsSoon(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	case <-time.After(endsWithin):
+		return false
+	}
 }
 
 // fakeOpener opens nothing, noting each address it's asked to open, and
@@ -188,33 +210,39 @@ func TestMakeTokenOpensTheSignInAddressByTheOpenerRule(t *testing.T) {
 			name:   "the first account, on a first run: in the browser as it is",
 			f:      setup.TokenFor{Account: config.NewAccount{ID: "work", Label: "Work"}, Add: true},
 			asItIs: true,
-			want:   setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser},
+			want:   setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: "Work"},
 		},
 		{
-			name:     "the primary, on a run again: in the browser as it is",
+			name:     "the primary, on a run again: in the browser as it is, named by its label",
 			runAgain: true,
 			f:        replacing("work"),
 			asItIs:   true,
-			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser},
+			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: "Work"},
 		},
 		{
-			name:     "another account: in a private window, the browser named",
+			name:     "another account: in a private window, the browser named, and the primary it's signed in to",
 			runAgain: true,
 			f:        replacing("side"),
-			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox"},
+			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Side", SignedIn: "Work"},
 		},
 		{
 			name:     "an account added once there's one: in a private window",
 			runAgain: true,
 			f:        adding,
-			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox"},
+			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work"},
+		},
+		{
+			name:     "an account added with no label: named by its id",
+			runAgain: true,
+			f:        setup.TokenFor{Account: config.NewAccount{ID: "team"}, Add: true},
+			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "team", SignedIn: "Work"},
 		},
 		{
 			name:     "another account, the browser opening no private window: the address to show, saying why",
 			runAgain: true,
 			f:        replacing("side"),
 			private:  &fakeOpener{err: noPrivate},
-			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.NotOpened, Browser: "Safari", Why: noPrivate.Error()},
+			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.NotOpened, Browser: "Safari", Why: noPrivate.Error(), For: "Side", SignedIn: "Work"},
 		},
 	}
 	for _, tt := range tests {
@@ -467,8 +495,9 @@ func TestMakeTokenStoppedBeforeItsMadeSavesNothing(t *testing.T) {
 }
 
 // Once setup-token says it has made the token, which lasts a year on the
-// account, the token is kept however the making's stopped: checked and saved
-// where setup-token shows it whole, and given back to copy where it doesn't.
+// account, the token is kept however the making's stopped, setup-token read
+// on under a context the stop never ends: checked and saved where it shows
+// the token whole, and given back to copy where it doesn't.
 func TestMakeTokenKeepsATokenMadeThroughAStop(t *testing.T) {
 	unread := screenFailure{screen: "Your OAuth token (valid for 1 year):\n\n" + madeToken + "\n"}
 	wantUnread := setup.Tokened{
@@ -482,8 +511,8 @@ func TestMakeTokenKeepsATokenMadeThroughAStop(t *testing.T) {
 			maker *fakeMaker
 			want  setup.Tokened
 		}{
-			{name: "shown whole: saved", maker: &fakeMaker{hold: true}, want: setup.Tokened{Result: setup.TokenSaved}},
-			{name: "unread: given back", maker: &fakeMaker{hold: true, madeFirst: true, err: unread}, want: wantUnread},
+			{name: "shown whole: saved", maker: &fakeMaker{held: make(chan struct{})}, want: setup.Tokened{Result: setup.TokenSaved}},
+			{name: "unread: given back", maker: &fakeMaker{held: make(chan struct{}), madeFirst: true, err: unread}, want: wantUnread},
 		}
 		for _, tt := range tests {
 			t.Run(stop.name+" once it's made, "+tt.name, func(t *testing.T) {
@@ -496,12 +525,16 @@ func TestMakeTokenKeepsATokenMadeThroughAStop(t *testing.T) {
 				report := func(m setup.Making) {
 					if m.Step == setup.TokenMade {
 						stop.stop(w, cancel)
+						close(tt.maker.held)
 					}
 				}
 
 				got, err := r.s.MakeToken(ctx, adding, report)
 
 				checkTokened(t, got, err, tt.want)
+				if tt.maker.ended {
+					t.Error("the stop ended what setup-token was read under, want it read on within its own time limits")
+				}
 				if tt.want.Result == setup.TokenSaved {
 					w.checkTakenToday(t, "personal", madeToken)
 					return
@@ -532,6 +565,213 @@ func TestMakeTokenKeepsATokenMadeThroughAStop(t *testing.T) {
 		checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved})
 		w.checkTakenToday(t, "personal", madeToken)
 	})
+}
+
+// From the moment setup-token says it has made the token till it's saved,
+// or given back, the process's interrupts are held, and let go however the
+// making ends; before then, they're left alone, as an interrupt then stops
+// setup-token.
+func TestMakeTokenHoldsTheInterruptsFromTheTokenMadeThroughItsSave(t *testing.T) {
+	unread := screenFailure{screen: "Your OAuth token (valid for 1 year):\n\n" + madeToken + "\n"}
+	before := map[setup.MakingStep]bool{setup.AddressReady: false, setup.AwaitingApproval: false}
+	made := map[setup.MakingStep]bool{setup.AddressReady: false, setup.AwaitingApproval: false, setup.TokenMade: true}
+	saving := map[setup.MakingStep]bool{setup.AddressReady: false, setup.AwaitingApproval: false, setup.TokenMade: true, setup.CheckingToken: true}
+	tests := []struct {
+		name  string
+		maker *fakeMaker
+		// heldAt is whether they're held as each step is told, and holds how
+		// many times they're held.
+		heldAt map[setup.MakingStep]bool
+		holds  int
+	}{
+		{name: "saved", maker: &fakeMaker{}, heldAt: saving, holds: 1},
+		{name: "refused", maker: &fakeMaker{token: refusedToken}, heldAt: saving, holds: 1},
+		{name: "unread", maker: &fakeMaker{madeFirst: true, err: unread}, heldAt: made, holds: 1},
+		{name: "not made", maker: &fakeMaker{err: screenFailure{}}, heldAt: before},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			r := w.tokenRig(t, tt.maker)
+			heldAt := map[setup.MakingStep]bool{}
+			report := func(m setup.Making) { heldAt[m.Step], _ = w.interrupts.held() }
+			var heldAsked bool
+			w.api.probing = func() { heldAsked, _ = w.interrupts.held() }
+
+			if _, err := r.s.MakeToken(t.Context(), adding, report); err != nil {
+				t.Fatalf("MakeToken() error = %v", err)
+			}
+
+			if !maps.Equal(heldAt, tt.heldAt) {
+				t.Errorf("the interrupts held as each step was told: %v, want %v", heldAt, tt.heldAt)
+			}
+			if asked := len(w.api.asked) > 0; asked && !heldAsked {
+				t.Error("the interrupts weren't held as the API was asked, want them held through the save")
+			}
+			if held, holds := w.interrupts.held(); held || holds != tt.holds {
+				t.Errorf("the interrupts held %d times, held still: %t; want held %d times, then let go", holds, held, tt.holds)
+			}
+		})
+	}
+}
+
+// An interrupt as a token made is saved, as a second Ctrl-C once setup's
+// screen has gone, is told to Saving, the first alone, and the token's saved
+// all the same, the outcome saying one was held; a SIGPIPE, which isn't one,
+// tells nothing, and nor does one as the interrupts are let go, the save
+// done, though the outcome says it was held.
+func TestAnInterruptAsATokenMadeIsSavedWaitsForTheSave(t *testing.T) {
+	tests := []struct {
+		name string
+		// asked are sent as the API is asked, and atRelease as the
+		// interrupts are let go; told is how many times Saving is told, and
+		// held whether the outcome says one was held.
+		asked     []os.Signal
+		atRelease os.Signal
+		told      int
+		held      bool
+	}{
+		{name: "an interrupt, then another", asked: []os.Signal{os.Interrupt, syscall.SIGTERM}, told: 1, held: true},
+		{name: "a SIGPIPE", asked: []os.Signal{syscall.SIGPIPE}},
+		{name: "a SIGHUP as they're let go", atRelease: syscall.SIGHUP, held: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			r := w.tokenRig(t, &fakeMaker{})
+			saving := make(chan struct{}, 2)
+			r.s.Saving = func() { saving <- struct{}{} }
+			w.interrupts.atRelease = tt.atRelease
+			told := 0
+			w.api.probing = func() {
+				for _, sig := range tt.asked {
+					w.interrupts.send(sig)
+				}
+				if tt.told == 0 {
+					return
+				}
+				select {
+				case <-saving:
+					told++
+				case <-time.After(time.Minute):
+					t.Error("a minute on, Saving hadn't been told of the interrupt")
+				}
+			}
+
+			got, err := r.s.MakeToken(t.Context(), adding, nil)
+
+			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, InterruptHeld: tt.held})
+			w.checkTakenToday(t, "personal", madeToken)
+			if told += len(saving); told != tt.told {
+				t.Errorf("Saving was told %d times, want %d", told, tt.told)
+			}
+		})
+	}
+}
+
+// Saving is told on a goroutine of its own, so MakeToken returns while a
+// Saving that takes its time runs on.
+func TestMakeTokenNeverWaitsOnSaving(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	r := w.tokenRig(t, &fakeMaker{})
+	told, release := make(chan struct{}), make(chan struct{})
+	defer close(release)
+	r.s.Saving = func() {
+		close(told)
+		<-release
+	}
+	w.api.probing = func() {
+		w.interrupts.send(os.Interrupt)
+		<-told
+	}
+	type made struct {
+		tokened setup.Tokened
+		err     error
+	}
+	returned := make(chan made, 1)
+	go func() {
+		got, err := r.s.MakeToken(t.Context(), adding, nil)
+		returned <- made{got, err}
+	}()
+	select {
+	case got := <-returned:
+		checkTokened(t, got.tokened, got.err, setup.Tokened{Result: setup.TokenSaved, InterruptHeld: true})
+	case <-time.After(time.Minute):
+		t.Fatal("a minute on, MakeToken waited on Saving still, want it returned")
+	}
+}
+
+// A token made that setup can't save, which lasts a year on the account, is
+// given back to copy, why with it, never logged: where the config can't be
+// read to check it, where the account it's added for was added meanwhile, or
+// where its token file can't be written; and where setup-token fails
+// otherwise once it's made, why alone, as setup never read the token.
+func TestMakeTokenGivesBackATokenMadeItCantSave(t *testing.T) {
+	tests := []struct {
+		name  string
+		f     setup.TokenFor
+		maker *fakeMaker
+		// atMade breaks what the save needs as the token's made; why is in
+		// the outcome's Why, and shown is what it gives back.
+		atMade func(t *testing.T, w *world)
+		why    string
+		shown  []string
+	}{
+		{
+			name: "the config unreadable", f: replacing("side"), maker: &fakeMaker{},
+			atMade: func(t *testing.T, w *world) { w.writeConfig(t, "[[account]\n") },
+			why:    "config", shown: []string{madeToken},
+		},
+		{
+			name: "the account added meanwhile", f: adding, maker: &fakeMaker{},
+			atMade: func(t *testing.T, w *world) {
+				w.writeConfig(t, doneConfig+"\n[[account]]\nid = \"personal\"\n")
+			},
+			why: "personal", shown: []string{madeToken},
+		},
+		{
+			name: "its token file unwritable", f: replacing("side"), maker: &fakeMaker{},
+			atMade: func(t *testing.T, w *world) {
+				w.removeToken(t, "side")
+				mkdir(t, filepath.Join(w.tokens().Path("side"), "kept"))
+			},
+			why: "side", shown: []string{madeToken},
+		},
+		{
+			name: "setup-token failing otherwise once it's made", f: replacing("side"),
+			maker:  &fakeMaker{madeFirst: true, err: errors.New("read setup-token's terminal: input/output error")},
+			atMade: func(*testing.T, *world) {},
+			why:    "input/output error",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logged bytes.Buffer
+			logs.Init(logs.Options{Level: slog.LevelDebug, Mirror: &logged})
+			defer logs.Close(0)
+			w := newWorld(t)
+			w.done(t)
+			r := w.tokenRig(t, tt.maker)
+			report := func(m setup.Making) {
+				if m.Step == setup.TokenMade {
+					tt.atMade(t, w)
+				}
+			}
+
+			got, err := r.s.MakeToken(t.Context(), tt.f, report)
+
+			if err != nil || got.Result != setup.TokenNotSaved || !strings.Contains(got.Why, tt.why) || !slices.Equal(got.Shown, tt.shown) {
+				t.Errorf("MakeToken() = %v, %v, why %q, giving back the token made: %t; want it not saved, why naming %q, giving back the token made: %t",
+					got.Result, err, got.Why, slices.Contains(got.Shown, madeToken), tt.why, tt.shown != nil)
+			}
+			if strings.Contains(got.Why, madeToken) || strings.Contains(logged.String(), madeToken) {
+				t.Error("the token made is in why it isn't saved, or the log, want it given back alone")
+			}
+		})
+	}
 }
 
 // A cancel that lands once the save has passed its own look at the context

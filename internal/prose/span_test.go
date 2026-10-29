@@ -222,6 +222,28 @@ func TestSecondsAreToATenthUnderAMinuteThenMinutesAndSeconds(t *testing.T) {
 	}
 }
 
+func TestAStopwatchShowsMinutesAndSecondsThenHoursFirst(t *testing.T) {
+	tests := []struct {
+		waited time.Duration
+		want   string
+	}{
+		{waited: -time.Second, want: "0:00"},
+		{waited: 0, want: "0:00"},
+		{waited: 21*time.Second + 900*time.Millisecond, want: "0:21"},
+		{waited: 59 * time.Second, want: "0:59"},
+		{waited: time.Minute, want: "1:00"},
+		{waited: 12*time.Minute + 5*time.Second, want: "12:05"},
+		{waited: time.Hour - time.Second, want: "59:59"},
+		{waited: time.Hour, want: "1:00:00"},
+		{waited: time.Hour + 2*time.Minute + 5*time.Second, want: "1:02:05"},
+	}
+	for _, tt := range tests {
+		if got := prose.Stopwatch(tt.waited); got != tt.want {
+			t.Errorf("Stopwatch(%v) = %q, want %q", tt.waited, got, tt.want)
+		}
+	}
+}
+
 func TestResets(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	tests := []struct {

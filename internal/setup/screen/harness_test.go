@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -18,6 +19,8 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/setup"
+	"github.com/leeovery/switchboard/internal/setuptoken"
+	switchstatus "github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -56,6 +59,9 @@ type harness struct {
 	clock  *fakeClock
 	steps  *fakeSteps
 	timers []timer
+	// waits are the model's waits on what a token's making tells next, held
+	// till the test hears them.
+	waits []tea.Cmd
 }
 
 // timer is one the model armed: msg, due after delay.
@@ -79,13 +85,48 @@ func newHarness(t *testing.T, step dashboard.SetupStep) *harness {
 // config is the screen's config the harness's models are made of, opening
 // on step.
 func (h *harness) config(step dashboard.SetupStep) Config {
-	return Config{Steps: h.steps, Step: step, Now: h.clock.Now, After: h.arm, Size: Size{Width: 80, Height: 24}}
+	return Config{Steps: h.steps, Step: step, Now: h.clock.Now, After: h.arm, Await: h.hold, Size: Size{Width: 80, Height: 24}}
 }
 
 // arm records a timer instead of starting one.
 func (h *harness) arm(d time.Duration, msg tea.Msg) tea.Cmd {
 	h.timers = append(h.timers, timer{delay: d, msg: msg})
 	return nil
+}
+
+// hold holds a wait on what a token's making tells next, instead of running
+// it, till the test hears it.
+func (h *harness) hold(wait tea.Cmd) tea.Cmd {
+	h.waits = append(h.waits, wait)
+	return nil
+}
+
+// hear runs the first wait held on a making, which waits till the making
+// tells something, and delivers what it tells, failing the test where
+// nothing waits, or the making tells nothing a minute on.
+func (h *harness) hear() {
+	h.t.Helper()
+	if len(h.waits) == 0 {
+		h.t.Fatal("nothing waits on a token's making")
+	}
+	wait := h.waits[0]
+	h.waits = h.waits[1:]
+	heard := make(chan []tea.Msg, 1)
+	go func() { heard <- h.run(wait) }()
+	select {
+	case msgs := <-heard:
+		h.deliver(msgs...)
+	case <-time.After(time.Minute):
+		h.t.Fatal("a minute on, the token's making had told nothing more")
+	}
+}
+
+// hearAll hears what the making tells, n things in turn.
+func (h *harness) hearAll(n int) {
+	h.t.Helper()
+	for range n {
+		h.hear()
+	}
 }
 
 // start starts the model, and delivers what its first commands send back.
@@ -249,11 +290,145 @@ type fakeSteps struct {
 	editErr   error
 	removes   []string
 	removeErr error
+	// making is how MakeToken makes each token, as fakeMaking has it; asked
+	// tells whose token it's asked to make, each time; reopens are the steps
+	// Reopen is asked to open again, failing with reopenErr where it's set.
+	making    fakeMaking
+	asked     chan setup.TokenFor
+	reopens   []setup.Making
+	reopenErr error
 	standings int
 	reviews   int
 	primings  int
 	services  int
 	skills    int
+}
+
+// fakeMaking is how fakeSteps makes a token: it reports each of steps in
+// turn, closing reported, where it's set, once it has; then fails with err,
+// where it's set, or ends with ends, where it's set; else holds till its
+// context ends, or release is closed, telling ended, where it's set,
+// whether its context had ended by then, then ends as setup does, cancelled
+// where its context ended before it reported the token made, else as kept
+// has it, saved where it's nil, the token kept, as it lasts a year on the
+// account, once saving, where it's set, is closed. A token saved is the
+// review's: the account added, its token working, a year from start, or its
+// token replaced so.
+type fakeMaking struct {
+	steps                     []setup.Making
+	err                       error
+	ends                      *setup.Tokened
+	kept                      *setup.Tokened
+	reported, release, saving chan struct{}
+	ended                     chan bool
+}
+
+// The steps a making reports: the address ready, opened in a private
+// Firefox window; then setup-token waiting on its approval; then saying
+// it's made the token; then the token being checked.
+var (
+	privately = setup.Making{Step: setup.AddressReady, Address: signIn, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work"}
+	approving = setup.Making{Step: setup.AwaitingApproval}
+	madeIt    = setup.Making{Step: setup.TokenMade}
+	checkIt   = setup.Making{Step: setup.CheckingToken}
+	// signIn is the sign-in address setup-token hands over, a placeholder.
+	signIn, _ = setuptoken.ParseAddress("https://claude.example/oauth/authorize?state=test-state-personal")
+)
+
+// saved is a making's end, the token saved.
+var saved = setup.Tokened{Result: setup.TokenSaved}
+
+func (s *fakeSteps) MakeToken(ctx context.Context, f setup.TokenFor, report func(setup.Making)) (setup.Tokened, error) {
+	s.mu.Lock()
+	making := s.making
+	s.mu.Unlock()
+	select {
+	case s.asked <- f:
+	default:
+	}
+	made := false
+	for _, at := range making.steps {
+		report(at)
+		made = made || at.Step == setup.TokenMade
+	}
+	if making.reported != nil {
+		close(making.reported)
+	}
+	switch {
+	case making.err != nil:
+		return setup.Tokened{}, making.err
+	case making.ends != nil:
+		return s.ended(f, *making.ends), nil
+	}
+	select {
+	case <-ctx.Done():
+		if !made {
+			return setup.Tokened{Result: setup.TokenCancelled}, nil
+		}
+	case <-making.release:
+	}
+	if making.ended != nil {
+		making.ended <- ctx.Err() != nil
+	}
+	if making.saving != nil {
+		<-making.saving
+	}
+	kept := saved
+	if making.kept != nil {
+		kept = *making.kept
+	}
+	return s.ended(f, kept), nil
+}
+
+// ended is the making for f ended as tokened says: where it's saved, the
+// account added, its token working, a year from start, or its token
+// replaced so.
+func (s *fakeSteps) ended(f setup.TokenFor, tokened setup.Tokened) setup.Tokened {
+	if tokened.Result != setup.TokenSaved {
+		return tokened
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	year := switchstatus.TokenYearFrom(start)
+	token := setup.TokenStanding{State: setup.TokenRead, Year: year}
+	s.review.Accounts = slices.Clone(s.review.Accounts)
+	if i := slices.IndexFunc(s.review.Accounts, func(a setup.Reviewed) bool { return a.ID == f.Account.ID }); i >= 0 {
+		if s.replaced == nil {
+			s.replaced = map[string]int{}
+		}
+		s.replaced[f.Account.ID]++
+		s.review.Accounts[i].Token = token
+	} else {
+		a := f.Account
+		s.review.Accounts = append(s.review.Accounts, setup.Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Primary: len(s.review.Accounts) == 0, Token: token})
+	}
+	s.checked = maps.Clone(s.checked)
+	if s.checked == nil {
+		s.checked = map[string]setup.TokenStanding{}
+	}
+	s.checked[f.Account.ID] = setup.TokenStanding{State: setup.TokenWorking, Year: year}
+	return tokened
+}
+
+// nextMake is whose token MakeToken is next asked to make, once it's asked,
+// as it's asked on a goroutine of the runner's: failing the test where it
+// isn't a minute on.
+func (s *fakeSteps) nextMake(t *testing.T) setup.TokenFor {
+	t.Helper()
+	select {
+	case f := <-s.asked:
+		return f
+	case <-time.After(time.Minute):
+		t.Fatal("a minute on, MakeToken hadn't been asked to make a token")
+	}
+	return setup.TokenFor{}
+}
+
+func (s *fakeSteps) Reopen(_ context.Context, at setup.Making) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reopens = append(s.reopens, at)
+	return s.reopenErr
 }
 
 // newFakeSteps is the steps of a router up and healthy, three accounts
@@ -269,6 +444,7 @@ func newFakeSteps() *fakeSteps {
 		}},
 		serviced: setup.Serviced{Said: []setup.Said{serviceInstalled, routerHealthy}, Router: &health},
 		said:     installed,
+		asked:    make(chan setup.TokenFor, 16),
 	}
 }
 
@@ -315,6 +491,13 @@ func (s *fakeSteps) ReviewOf(_ context.Context, id string) (setup.Reviewed, erro
 func (s *fakeSteps) tokenOf(id string) tokens.Token {
 	token, _ := tokens.Parse("test-token-" + id + strings.Repeat("-new", s.replaced[id]))
 	return token
+}
+
+// replacedOf is how many times the account's token has been replaced.
+func (s *fakeSteps) replacedOf(id string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.replaced[id]
 }
 
 // replace replaces the account's token with another, as the screen's steps

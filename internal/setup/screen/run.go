@@ -31,9 +31,10 @@ func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) (Left
 // run shows setup's screen on out until the user leaves it, putting back the
 // terminal's background however it stops, as backdrop.Run has it, and only
 // once every job of setup's still running has been cancelled and has ended,
-// says how it was left: as the screen last stood, whatever stopped it. Where
-// the service step's own job runs on once moment, given the jobs it waits
-// for, has come, it says on out that setup is finishing it.
+// says how it was left: as the screen last stood, whatever stopped it, with
+// how the token card's making left it, as Model.tokenLeft has it. Where the
+// service step's own job runs on once moment, given the jobs it waits for,
+// has come, it says on out that setup is finishing it.
 func run(ctx context.Context, cfg Config, out io.Writer, moment func(*jobs) <-chan time.Time, opts ...tea.ProgramOption) (Left, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -47,6 +48,7 @@ func run(ctx context.Context, cfg Config, out io.Writer, moment func(*jobs) <-ch
 		}
 	})
 	left := last.walk.left()
+	left.Unsaved, left.Interrupted = last.tokenLeft()
 	logger.Info("setup's screen stopped", "step", last.walk.step.Title(), "failed", left.Ending == Failed)
 	// In raw mode ctrl+c arrives as a key, so an interrupt comes from outside
 	// the terminal, and leaves setup as q does.

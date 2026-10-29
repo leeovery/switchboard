@@ -95,8 +95,10 @@ type world struct {
 	login    *fakeLogin
 	// interrupt is the user's interrupting setup as it asks the login shell.
 	interrupt context.CancelFunc
-	launchd   *fakeLaunchd
-	api       *fakeAPI
+	// interrupts are the process's, as setup holds them for a token made.
+	interrupts *fakeInterrupts
+	launchd    *fakeLaunchd
+	api        *fakeAPI
 }
 
 func newWorld(t *testing.T) *world {
@@ -107,18 +109,19 @@ func newWorld(t *testing.T) *world {
 	}
 	at := func(parts ...string) string { return filepath.Join(append([]string{root}, parts...)...) }
 	w := &world{
-		root:     root,
-		config:   at("config", "switchboard", "config.toml"),
-		state:    at("state", "switchboard"),
-		home:     at("home"),
-		tmp:      at("tmp"),
-		skill:    at("claude", "skills", "switchboard", "SKILL.md"),
-		settings: at("claude", "settings.json"),
-		bin:      at("home", ".local", "share", "switchboard", "bin"),
-		shellDir: at("home", ".local", "share", "switchboard", "shell"),
-		env:      map[string]string{},
-		launchd:  &fakeLaunchd{home: at("home")},
-		api:      &fakeAPI{},
+		root:       root,
+		config:     at("config", "switchboard", "config.toml"),
+		state:      at("state", "switchboard"),
+		home:       at("home"),
+		tmp:        at("tmp"),
+		skill:      at("claude", "skills", "switchboard", "SKILL.md"),
+		settings:   at("claude", "settings.json"),
+		bin:        at("home", ".local", "share", "switchboard", "bin"),
+		shellDir:   at("home", ".local", "share", "switchboard", "shell"),
+		env:        map[string]string{},
+		launchd:    &fakeLaunchd{home: at("home")},
+		api:        &fakeAPI{},
+		interrupts: &fakeInterrupts{},
 	}
 	w.login = &fakeLogin{w: w}
 	mkdir(t, w.tmp)
@@ -237,6 +240,7 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Login:        w.login,
 		Getenv:       w.getenv,
 		Interrupt:    w.interruptible,
+		Hold:         w.interrupts.hold,
 		SkillFile:    w.skill,
 		Settings:     w.settings,
 		Usage: func(_ context.Context, out io.Writer) error {
@@ -840,6 +844,59 @@ func (a *fakeAPI) Probe(_ context.Context, token string) (quota.Probe, error) {
 		return quota.Probe{}, refusal{}
 	}
 	return quota.Probe{Organization: a.organizations[token]}, nil
+}
+
+// fakeInterrupts stands in for the process's interrupts, held as setup holds
+// them for a token made: one sent reaches setup only while they're held, and
+// none is ever a real signal. atRelease, where it's set, is sent as they're
+// released. They're held on setup-token's goroutine, and asked of on
+// setup's, so under mu.
+type fakeInterrupts struct {
+	mu        sync.Mutex
+	caught    chan<- os.Signal
+	atRelease os.Signal
+	holds     int
+}
+
+func (f *fakeInterrupts) hold(caught chan<- os.Signal) func() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.caught = caught
+	f.holds++
+	return func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.atRelease != nil {
+			f.sendHeld(f.atRelease)
+		}
+		f.caught = nil
+	}
+}
+
+// send sends sig, which reaches setup only while it holds the interrupts.
+func (f *fakeInterrupts) send(sig os.Signal) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sendHeld(sig)
+}
+
+// sendHeld sends sig, as send does, under mu.
+func (f *fakeInterrupts) sendHeld(sig os.Signal) {
+	if f.caught == nil {
+		return
+	}
+	select {
+	case f.caught <- sig:
+	default:
+	}
+}
+
+// held reports whether setup holds the interrupts now, and how many times
+// it has held them.
+func (f *fakeInterrupts) held() (bool, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.caught != nil, f.holds
 }
 
 // refusal is a probe's failure as the API refuses the token.

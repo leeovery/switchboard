@@ -13,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/interrupts"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
@@ -79,6 +80,16 @@ type Setup struct {
 	// window, as setuptoken's Browser and PrivateWindow do.
 	TokenMaker             TokenMaker
 	Browser, PrivateWindow setuptoken.Opener
+	// Hold holds the process's interrupts from the moment setup-token says
+	// it has made a token till the token's saved, as it lasts a year on the
+	// account: nil holds them through os/signal. Saving is told of the first
+	// interrupt held, on a goroutine of its own, so MakeToken never waits on
+	// it, for the caller to say setup saves the token first: nil tells none.
+	// It may run after MakeToken has returned, so it keeps its own output in
+	// order with whatever the caller says next. Tokened's InterruptHeld says
+	// one came, however it's told.
+	Hold   interrupts.Holder
+	Saving func()
 	// SkillFile is where Claude Code reads the skill, and Settings Claude
 	// Code's settings file, where the session hook goes.
 	SkillFile, Settings string

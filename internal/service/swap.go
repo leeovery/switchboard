@@ -5,14 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
-	"slices"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
+	"github.com/leeovery/switchboard/internal/interrupts"
 )
 
 // swap writes a's plist and has launchd load it in place of the service it
@@ -20,14 +17,14 @@ import (
 // where ctx is done, the process is interrupted, or launchd can't be asked
 // whether it has the service, before then, it does nothing; from the write
 // to the bootstrap's end, none of them stops it, the process's interrupts
-// held, as hold has them, each launchctl run bounded by its own limit alone.
-// Interrupted as it swaps, it says so as Config.Finishing does, and once it
-// has swapped, fails with accounts.ErrInterrupted. The interrupts are let go
-// however it ends, a panic among its ends.
+// held, as Config.Hold has them, each launchctl run bounded by its own limit
+// alone. Interrupted as it swaps, it says so as Config.Finishing does, and
+// once it has swapped, fails with accounts.ErrInterrupted. The interrupts are
+// let go however it ends, a panic among its ends.
 func (s *Service) swap(ctx context.Context, a agent) (err error) {
-	h := s.holdInterrupts()
+	h := interrupts.Hold(s.cfg.Hold)
 	defer func() {
-		if interrupted := h.end(); interrupted && err == nil {
+		if interrupted := h.End(); interrupted && err == nil {
 			err = fmt.Errorf("the service is installed, but %w before its router answered", accounts.ErrInterrupted)
 		}
 	}()
@@ -35,19 +32,19 @@ func (s *Service) swap(ctx context.Context, a agent) (err error) {
 	if err != nil {
 		return err
 	}
-	h.watch(s.cfg.Finishing)
+	h.Watch(s.cfg.Finishing)
 	return s.swapThrough(context.WithoutCancel(ctx), a, loaded)
 }
 
 // beforeSwap is whether launchd has the service loaded, unless the swap is
 // stopped, as stopped has it, before it's asked or once it has answered,
 // whatever it answered.
-func (s *Service) beforeSwap(ctx context.Context, h *held) (bool, error) {
-	if err := h.stopped(ctx); err != nil {
+func (s *Service) beforeSwap(ctx context.Context, h *interrupts.Held) (bool, error) {
+	if err := stopped(ctx, h); err != nil {
 		return false, err
 	}
 	loaded, err := s.loaded(ctx)
-	if stop := h.stopped(ctx); stop != nil {
+	if stop := stopped(ctx, h); stop != nil {
 		return false, stop
 	}
 	return loaded, err
@@ -113,117 +110,11 @@ func (s *Service) clock() Clock {
 	return systemClock{}
 }
 
-// held is the process's interrupts as swap holds them: caught on a channel
-// of their own, and, once watch has begun, told of as the first comes.
-// SIGPIPE, held with them, is never one.
-type held struct {
-	signals chan os.Signal
-	release func()
-	stop    chan struct{}
-	// watched is made as watch begins, and closed once it has ended, got set
-	// where it caught an interrupt.
-	watched chan struct{}
-	got     bool
-}
-
-// holdInterrupts holds the process's interrupts, as Config.Hold does.
-func (s *Service) holdInterrupts() *held {
-	// Room for a SIGPIPE or two beside an interrupt, which os/signal drops
-	// where the channel is full.
-	h := &held{signals: make(chan os.Signal, 4), stop: make(chan struct{})}
-	hold := s.cfg.Hold
-	if hold == nil {
-		hold = signalHold
-	}
-	h.release = hold(h.signals)
-	return h
-}
-
-// stopped is why the swap stops before it begins: an interrupt caught, or
-// ctx done, nil for neither.
-func (h *held) stopped(ctx context.Context) error {
-	if h.caught() {
+// stopped is why the swap stops before it begins: an interrupt caught, as
+// h has it, or ctx done, nil for neither.
+func stopped(ctx context.Context, h *interrupts.Held) error {
+	if h.Caught() {
 		return fmt.Errorf("the service wasn't installed: %w", accounts.ErrInterrupted)
 	}
 	return context.Cause(ctx)
-}
-
-// caught reports whether an interrupt waits on the channel, while nothing
-// watches it, taking what waits there.
-func (h *held) caught() bool {
-	for {
-		select {
-		case sig := <-h.signals:
-			if interrupt(sig) {
-				return true
-			}
-		default:
-			return false
-		}
-	}
-}
-
-// watch tells told, where it's set, of the first interrupt caught from now,
-// as it comes, till end.
-func (h *held) watch(told func()) {
-	h.watched = make(chan struct{})
-	go func() {
-		defer close(h.watched)
-		for {
-			select {
-			case sig := <-h.signals:
-				if !interrupt(sig) {
-					continue
-				}
-				h.got = true
-				if told != nil {
-					told()
-				}
-				return
-			case <-h.stop:
-				return
-			}
-		}
-	}()
-}
-
-// end stops watching, where watch began, and releases the interrupts, then
-// reports whether one was caught since watch began: one coming once watching
-// has stopped, or as they're released, is caught all the same.
-func (h *held) end() bool {
-	close(h.stop)
-	if h.watched != nil {
-		<-h.watched
-	}
-	h.release()
-	return h.got || h.caught()
-}
-
-// interrupt reports whether sig is an interrupt: any held but SIGPIPE.
-func interrupt(sig os.Signal) bool {
-	return sig != syscall.SIGPIPE
-}
-
-// heldSignals are the signals swap holds.
-var heldSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGPIPE}
-
-// signalHold holds heldSignals, as holdSignals has it, for the process.
-func signalHold(caught chan<- os.Signal) (release func()) {
-	return holdSignals(caught, signal.Ignored, signal.Notify, signal.Stop)
-}
-
-// holdSignals holds heldSignals but those the process ignores, as ignored
-// says, sending each on caught in place of what it would do, until the
-// release it returns is called: it notifies caught, and stops notifying it,
-// alone, leaving any other handler of them as it was. One ignored stays
-// ignored, as holding it would have it handled from then on, as a nohup's
-// SIGHUP.
-func holdSignals(caught chan<- os.Signal, ignored func(os.Signal) bool, notify func(chan<- os.Signal, ...os.Signal), stop func(chan<- os.Signal)) (release func()) {
-	held := slices.DeleteFunc(slices.Clone(heldSignals), ignored)
-	if len(held) == 0 {
-		// notify with no signals would send every signal on caught.
-		return func() {}
-	}
-	notify(caught, held...)
-	return func() { stop(caught) }
 }

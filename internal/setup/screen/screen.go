@@ -64,6 +64,15 @@ type Steps interface {
 	// RemoveAccount removes the account id, failing with a setup.Refused
 	// where it's the only one.
 	RemoveAccount(id string) (accounts.Removed, error)
+	// MakeToken makes the token f says with claude setup-token, and saves it,
+	// telling report each step as it comes, so report must never wait on it.
+	// The end of ctx stops it, saving nothing, until setup-token says it has
+	// made the token; from then, it's saved however ctx ends, or, unread,
+	// given back to copy.
+	MakeToken(ctx context.Context, f setup.TokenFor, report func(setup.Making)) (setup.Tokened, error)
+	// Reopen opens the sign-in address at its AddressReady again, the way it
+	// opened first.
+	Reopen(ctx context.Context, at setup.Making) error
 }
 
 // Config is what the screen is given.
@@ -77,6 +86,10 @@ type Config struct {
 	// After delivers msg once d has passed on the clock, for the ticks that
 	// move the clock on: nil takes a real timer.
 	After func(d time.Duration, msg tea.Msg) tea.Cmd
+	// Await has wait run, the command that waits for what a token's making
+	// tells next, which blocks until it tells something: nil runs it as any
+	// command is run. A test holds it, to hear the making's steps in turn.
+	Await func(wait tea.Cmd) tea.Cmd
 	// Pair is the themes the screen is drawn in, by the terminal's
 	// background: nil draws it without colour, as NO_COLOR asks.
 	Pair *theme.Pair
@@ -104,6 +117,7 @@ type Model struct {
 	steps Steps
 	now   func() time.Time
 	after func(d time.Duration, msg tea.Msg) tea.Cmd
+	await func(wait tea.Cmd) tea.Cmd
 	jobs  *jobs
 
 	// size is what the screen is drawn at: the terminal's, as far as it's
@@ -125,17 +139,25 @@ type Model struct {
 	// chosen is the Accounts page's row chosen: an account's, by its place
 	// in the review, or past the last, + add an account.
 	chosen int
-	// add, edit and remove are the cards open over the Accounts page, the
-	// card adding an account, the chosen account's edit card, or the card
-	// asking before it's removed: nil where none is.
+	// add, edit, remove and token are the cards open over the Accounts page,
+	// the card adding an account, the chosen account's edit card, the card
+	// asking before it's removed, or the token card: nil where none is.
 	add    *addCard
 	edit   *editCard
 	remove *removeCard
+	token  *tokenCard
+	// makings numbers the tokens' makings begun, each the token card's; and
+	// interrupted is set once one ends with an interrupt held as its token
+	// was saved, which the screen leaves at.
+	makings     int
+	interrupted bool
 	// marking counts the accounts p is making the primary, not yet answered;
 	// and rereading is set once a change to the accounts is made, till
-	// they're read again, as settling has them.
+	// they're read again, as settling has them, the row chosen then moved to
+	// the account madeFor names, where it's set, as a token was saved for it.
 	marking   int
 	rereading bool
+	madeFor   string
 	// accountsFailed is what the Accounts step failed at, where it did:
 	// reading the accounts, the zero, unless a change to them, or the check
 	// of an account to add, failed.
@@ -151,21 +173,25 @@ type Model struct {
 	skill *setup.Said
 	// scroll is how many rows the page under its heading is scrolled down.
 	scroll int
-	// spins numbers the steps reached, whose spinner's moves each is armed
-	// for: a move armed for one before is dropped, so no step's spinner
-	// moves on two chains of moves.
+	// spins numbers the spinners started, a step's as it's reached, and the
+	// token card's as a making begins, each move armed for the last: a move
+	// armed for one before is dropped, so no spinner moves on two chains of
+	// moves.
 	spins int
 }
 
 // New returns the screen of cfg, opening on cfg's step, its jobs run under
 // ctx: once ctx is done, no outcome of theirs is taken in.
 func New(ctx context.Context, cfg Config) Model {
-	m := Model{steps: cfg.Steps, now: cfg.Now, after: cfg.After, jobs: newJobs(ctx), size: cfg.Size, walk: openingOn(cfg.Step), link: cleanLink(cfg.Link)}
+	m := Model{steps: cfg.Steps, now: cfg.Now, after: cfg.After, await: cfg.Await, jobs: newJobs(ctx), size: cfg.Size, walk: openingOn(cfg.Step), link: cleanLink(cfg.Link)}
 	if m.now == nil {
 		m.now = time.Now
 	}
 	if m.after == nil {
 		m.after = after
+	}
+	if m.await == nil {
+		m.await = func(wait tea.Cmd) tea.Cmd { return wait }
 	}
 	if cfg.Pair != nil {
 		m.coloured, m.pair = true, *cfg.Pair
@@ -238,6 +264,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.removed(msg)
 	case primaryMsg:
 		return m.marked(msg)
+	case makingMsg:
+		return m.madeStep(msg)
+	case tokenedMsg:
+		return m.tokened(msg)
+	case reopenedMsg:
+		return m.reopened(msg), nil
 	}
 	return m, nil
 }

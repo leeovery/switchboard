@@ -27,9 +27,17 @@ const (
 )
 
 // Left is how setup's screen was left, and for Failed, why the step failed.
+// Unsaved is how the token card's making ended, where the card was open as
+// the screen went, and it saved nothing, nor was stopped, as
+// Model.tokenLeft has it: above all a token made but unread, or not saved,
+// which lasts a year on the account, for the caller to show, as the screen
+// can't. Interrupted says an interrupt was held as a token made was saved,
+// for the caller to end as an interrupt has it.
 type Left struct {
-	Ending Ending
-	Err    error
+	Ending      Ending
+	Err         error
+	Unsaved     *setup.Tokened
+	Interrupted bool
 }
 
 // walk is where setup stands in its steps: the step showing, the steps

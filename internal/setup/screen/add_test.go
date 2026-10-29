@@ -2,7 +2,7 @@ package screen
 
 import (
 	"errors"
-	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -172,9 +172,9 @@ func TestTheAddCardsTabAndArrows(t *testing.T) {
 }
 
 // enter with every field passing hands the account, as setup checked it, on
-// to have its token made: till the token card takes it, the card holds it,
-// waiting, and stays open, adding nothing; esc closes the card, the account
-// dropped.
+// to have its token made: the add card gives way to the token card, which
+// makes the token to add the account with, compared with the accounts read,
+// adding nothing till it's saved.
 func TestEnterHandsTheAccountOnToHaveItsTokenMade(t *testing.T) {
 	h := firstRun(t)
 	h.typeIn("work")
@@ -186,18 +186,18 @@ func TestEnterHandsTheAccountOnToHaveItsTokenMade(t *testing.T) {
 	if want := []setup.Adding{{ID: "work", Label: "Work", Plan: "max20x"}}; !slices.Equal(h.steps.adds, want) {
 		t.Fatalf("CheckAdding was asked %+v, want %+v", h.steps.adds, want)
 	}
-	if card := h.model.add; card == nil || card.checking || card.waiting == nil || *card.waiting != (config.NewAccount{ID: "work", Label: "Work", Plan: "max20x"}) {
-		t.Fatalf("the add card is %+v, want it open, holding work, waiting for its token", card)
-	}
-	if title, _ := h.card(); title != "ADD AN ACCOUNT" {
-		t.Errorf("the card open reads %q, want the add card kept open", title)
-	}
-	if h.model.status.review == nil || len(h.model.status.review.Accounts) != 0 || len(h.steps.edits) != 0 {
-		t.Errorf("an account was added: the review is %+v", h.model.status.review)
-	}
-	h.pressAndDeliver("esc")
 	if h.model.add != nil {
-		t.Error("esc left the add card open")
+		t.Errorf("the add card is %+v, want it given way to the token card", h.model.add)
+	}
+	if title, _ := h.card(); title != "NEW TOKEN · WORK" {
+		t.Errorf("the card open reads %q, want work's token card", title)
+	}
+	want := setup.TokenFor{Account: config.NewAccount{ID: "work", Label: "Work", Plan: "max20x"}, Add: true, Organizations: setup.Organizations{}}
+	if got := h.steps.nextMake(t); !reflect.DeepEqual(got, want) {
+		t.Errorf("MakeToken was asked %+v, want %+v", got, want)
+	}
+	if h.model.status.review == nil || len(h.model.status.review.Accounts) != 0 {
+		t.Errorf("an account was added before its token's saved: the review is %+v", h.model.status.review)
 	}
 }
 
@@ -275,8 +275,8 @@ func TestTheAddCardsRefusals(t *testing.T) {
 			if at < 0 || at+1 >= len(rows) || !strings.HasPrefix(rows[at+1], "            ") || !strings.HasPrefix(tt.why, strings.TrimSpace(rows[at+1])) {
 				t.Fatalf("the card reads\n%s\nwant why under %s: %q", strings.Join(rows, "\n"), names[tt.field], tt.why)
 			}
-			if card := h.model.add; card.refused != tt.field || card.why != tt.why || card.waiting != nil {
-				t.Errorf("the card says %q of field %d, holding %v, want it saying %q, holding nothing", card.why, card.refused, card.waiting, tt.why)
+			if card := h.model.add; card.refused != tt.field || card.why != tt.why || h.model.token != nil {
+				t.Errorf("the card says %q of field %d, the token card %+v; want it saying %q, no token made", card.why, card.refused, h.model.token, tt.why)
 			}
 
 			for h.model.add.chosen != tt.field {
@@ -308,69 +308,12 @@ func TestTheAddCardsCheckFailingFailsTheStep(t *testing.T) {
 	}
 }
 
-// work checked and waiting, a later check refused, or any field changed,
-// drops it, so the account waiting is only ever the one the card shows.
-func TestTheAccountWaitingIsTheOneTheCardShows(t *testing.T) {
-	waitingWork := func(t *testing.T) *harness {
-		t.Helper()
-		h := firstRun(t)
-		h.typeIn("work")
-		h.pressAndDeliver("enter")
-		if h.model.add.waiting == nil {
-			t.Fatal("work checked, nothing waits")
-		}
-		return h
-	}
-	t.Run("a later check refused", func(t *testing.T) {
-		h, steps := addingTo(t, "[[account]]\nid = \"work\"\n", 1)
-		h.typeIn("side")
-		h.pressAndDeliver("enter")
-		if h.model.add.waiting == nil {
-			t.Fatal("side checked, nothing waits")
-		}
-		if err := os.WriteFile(steps.setup.Accounts.ConfigPath, []byte("[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		h.pressAndDeliver("enter")
-		if card := h.model.add; card.waiting != nil || card.why != "is already configured" {
-			t.Errorf("refused, the card holds %v, saying %q; want nothing waiting, and why", card.waiting, card.why)
-		}
-	})
-	for _, keys := range [][]string{{"x"}, {"backspace"}, {"tab", "x"}, {"tab", "tab", "left"}} {
-		t.Run("changed by "+strings.Join(keys, " "), func(t *testing.T) {
-			h := waitingWork(t)
-			for _, k := range keys {
-				h.pressAndDeliver(k)
-			}
-			if h.model.add.waiting != nil {
-				t.Errorf("the card changed, and holds %v waiting", h.model.add.waiting)
-			}
-		})
-	}
-	t.Run("changed by a paste", func(t *testing.T) {
-		h := waitingWork(t)
-		h.deliver(tea.PasteMsg{Content: "-2"})
-		if h.model.add.waiting != nil {
-			t.Errorf("the card changed, and holds %v waiting", h.model.add.waiting)
-		}
-	})
-	t.Run("not changed by tab, a key a field takes that changes nothing, or one no field takes", func(t *testing.T) {
-		h := waitingWork(t)
-		// left moves ID's cursor; right on Plan, at its last choice, stays.
-		for _, k := range []string{"left", "tab", "tab", "right", "pgdown"} {
-			h.pressAndDeliver(k)
-		}
-		if h.model.add.waiting == nil {
-			t.Error("nothing changed, and work no longer waits")
-		}
-	})
-}
-
 // While the card's account is being checked, the card takes no key: keys,
-// esc and a paste change nothing, the card open; once the check answers, it
-// takes them again.
+// esc and a paste change nothing, the card open; once the check answers,
+// refusing it, it takes them again.
 func TestTheAddCardTakesNoKeyWhileItsChecked(t *testing.T) {
 	h := firstRun(t)
+	h.steps.addErr = &setup.Refused{Field: setup.IDField, Why: "is already configured"}
 	h.typeIn("work")
 	answered := h.press("enter")
 	if !h.model.add.checking {

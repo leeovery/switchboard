@@ -48,10 +48,17 @@ func (s Setup) donePage() setupPage {
 	return p
 }
 
-// Copies is what the page showing offers to copy: at Done, what the claude
+// Copies is what the page showing offers to copy: the sign-in address the
+// token card shows, waiting, where it didn't open; at Done, what the claude
 // link step leaves to put in place by hand, as its line has it; "" where it
 // offers nothing.
 func (s Setup) Copies() string {
+	if card := s.tokenCard(); card != nil {
+		if card.Stage != TokenWaiting || !card.Unopened {
+			return ""
+		}
+		return card.Address
+	}
 	l, _ := s.offered()
 	return l.Add
 }

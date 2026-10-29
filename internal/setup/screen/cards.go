@@ -182,14 +182,15 @@ func (c removeCard) drawn() *dashboard.SetupRemoveCard {
 
 // carded reports whether a card is open over the page, taking every key.
 func (m Model) carded() bool {
-	return m.add != nil || m.edit != nil || m.remove != nil
+	return m.add != nil || m.edit != nil || m.remove != nil || m.token != nil
 }
 
 // cardPressed acts on a key while a card is open: ctrl+c leaves; else, while
 // it isn't being checked or saved, the add card's keys, as addPressed has
 // them, the edit card's, as editPressed has them, or the remove card's, as
-// removePressed has them. No other key acts, q among them, as the key line,
-// empty while a card's open, offers none.
+// removePressed has them; or the token card's, as tokenPressed has them. No
+// other key acts, q among them, as the key line, empty while a card's open,
+// offers none.
 func (m Model) cardPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.String() == "ctrl+c":
@@ -200,6 +201,8 @@ func (m Model) cardPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.editPressed(key)
 	case m.remove != nil && !m.remove.removing:
 		return m.removePressed(key)
+	case m.token != nil:
+		return m.tokenPressed(key)
 	}
 	return m, nil
 }

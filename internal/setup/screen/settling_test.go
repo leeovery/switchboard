@@ -1,6 +1,7 @@
 package screen
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -18,9 +19,11 @@ import (
 )
 
 // registered are steps whose accounts are setup's own, in a config file and
-// a state directory of the test's: Review, EditAccount and RemoveAccount
-// answer as setup does, through the registry, and every other step as
-// fakeSteps does. No account has a token, so none is checked.
+// a state directory of the test's: Review, ReviewOf, CheckAdding,
+// EditAccount, RemoveAccount, MakeToken and Reopen answer as setup does,
+// through the registry, and every other step as fakeSteps does. No account
+// has a token, so none is checked, unless a test gives it one, and the
+// registry what checks it.
 type registered struct {
 	*fakeSteps
 	setup *setup.Setup
@@ -39,7 +42,9 @@ func newRegistered(t *testing.T, config string) *registered {
 		Tokens:     tokens.NewStore(filepath.Join(dir, "state"), os.Getuid()),
 		Now:        func() time.Time { return start },
 	}
-	return &registered{fakeSteps: newFakeSteps(), setup: &setup.Setup{Accounts: registry}}
+	// The process's own interrupts are left alone: no test sends one.
+	hold := func(chan<- os.Signal) func() { return func() {} }
+	return &registered{fakeSteps: newFakeSteps(), setup: &setup.Setup{Accounts: registry, Hold: hold}}
 }
 
 func (s *registered) Review() (setup.Review, error) {
@@ -56,6 +61,18 @@ func (s *registered) EditAccount(id string, edit setup.Edit) (accounts.Edited, e
 
 func (s *registered) RemoveAccount(id string) (accounts.Removed, error) {
 	return s.setup.RemoveAccount(id)
+}
+
+func (s *registered) ReviewOf(ctx context.Context, id string) (setup.Reviewed, error) {
+	return s.setup.ReviewOf(ctx, id)
+}
+
+func (s *registered) MakeToken(ctx context.Context, f setup.TokenFor, report func(setup.Making)) (setup.Tokened, error) {
+	return s.setup.MakeToken(ctx, f, report)
+}
+
+func (s *registered) Reopen(ctx context.Context, at setup.Making) error {
+	return s.setup.Reopen(ctx, at)
 }
 
 // config is what the config file reads.
