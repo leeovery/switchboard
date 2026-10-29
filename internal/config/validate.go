@@ -75,11 +75,25 @@ func unknownKey(key string) error {
 	return fmt.Errorf("unknown key %q", redact.Text(key))
 }
 
+// WrongValue is the error of a value the config gives a key, wrong as Why
+// says: its key and value, anything in either that looks like a token
+// hidden, quoted before why.
+type WrongValue struct {
+	key, value string
+	// Why is what's wrong with the value, for a screen that shows the value
+	// itself to say alone.
+	Why string
+}
+
+// Error is the key, the value quoted, and why it's wrong.
+func (e *WrongValue) Error() string {
+	return fmt.Sprintf("%s %q: %s", e.key, e.value, e.Why)
+}
+
 // wrongValue is the error of the value the config gives key, wrong as why
-// says, which it quotes, anything in it, or in the key, that looks like a
-// token hidden.
+// says, as WrongValue has it.
 func wrongValue(key, value, why string) error {
-	return fmt.Errorf("%s %q: %s", redact.Text(key), redact.Text(value), why)
+	return &WrongValue{key: redact.Text(key), value: redact.Text(value), Why: why}
 }
 
 // checkListen keeps the proxy on loopback, at an address: it adds account

@@ -14,6 +14,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
 	"github.com/leeovery/switchboard/internal/logs"
@@ -33,6 +34,12 @@ type Steps interface {
 	// Review is every configured account, read but unchecked, for the
 	// status line.
 	Review() (setup.Review, error)
+	// Priming is the day priming spreads the 5-hour windows' resets over:
+	// the zero Day where priming is off.
+	Priming() (config.Day, error)
+	// SetDay sets the day priming spreads the resets over, "" turning
+	// priming off, writing nothing where it doesn't change.
+	SetDay(day string) (config.Day, error)
 	// Skill writes the skill, or brings it up to date, and says which: on a
 	// failure, it says so too, as the screen draws it.
 	Skill() (setup.Said, error)
@@ -89,6 +96,8 @@ type Model struct {
 
 	walk   walk
 	status status
+	// priming is the Priming page as it stands: nil until its day's read.
+	priming *primingForm
 	// skill is what the skill step said it did: nil until it has.
 	skill *setup.Said
 	// scroll is how many rows the page under its heading is scrolled down.
@@ -129,12 +138,14 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// Update takes in a message: a key, the wheel, a resize, the terminal's
-// background, a tick, or an outcome of setup's.
+// Update takes in a message: a key, a paste, the wheel, a resize, the
+// terminal's background, a tick, or an outcome of setup's.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		return m.pressed(msg)
+	case tea.PasteMsg:
+		return m.pasted(msg.Content), nil
 	case tea.MouseWheelMsg:
 		return m.wheeled(msg), nil
 	case tea.WindowSizeMsg:
@@ -151,20 +162,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case reviewMsg:
 		m.status = m.status.reviewAnswered(msg)
 		return m, nil
+	case primedMsg:
+		return m.primed(msg), nil
+	case daySetMsg:
+		return m.daySet(msg)
 	case skilledMsg:
 		return m.skilled(msg), nil
 	}
 	return m, nil
 }
 
-// pressed acts on a key: q and ctrl+c leave, enter moves on, as entered
-// has it, and the rest scroll the page, as dashboard.ScrollKey has them.
+// pressed acts on a key: while a field is typed in, as typedIn has it;
+// else q and ctrl+c leave, enter moves on, as entered has it, tab types in
+// the Priming page's field, and the rest scroll the page, as
+// dashboard.ScrollKey has them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.typing() {
+		return m.typedIn(key)
+	}
 	switch k := key.String(); k {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "enter":
 		return m.entered()
+	case "tab":
+		return m.focused(true), nil
 	default:
 		if rows, pages, ok := dashboard.ScrollKey(k); ok {
 			return m.scrolled(rows, pages), nil
@@ -218,10 +240,14 @@ func (m Model) View() tea.View {
 
 // page is the screen as dashboard.Setup draws it, at the clock's time.
 func (m Model) page() dashboard.Setup {
-	return dashboard.Setup{
+	s := dashboard.Setup{
 		Now: m.now(), Step: m.walk.step, Passed: m.walk.passed, Status: m.status.line(),
 		UnderWay: !m.walk.done, Failed: m.walk.failed != nil, Skill: m.skill, Scroll: m.scroll,
 	}
+	if m.priming != nil {
+		s.Priming = m.priming.page()
+	}
+	return s
 }
 
 // Backdrop is the terminal's background as the screen has it.

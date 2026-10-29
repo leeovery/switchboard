@@ -47,6 +47,16 @@ func TestTextIsDrawnACellAGlyph(t *testing.T) {
 	}
 }
 
+// Every span of every frame is drawn so: splitting it into glyphs mustn't
+// cost a frame anything.
+func TestDrawingTextAllocatesNothing(t *testing.T) {
+	c := newCanvas(80, 1)
+	const text = "work · Work  session 64% · resets 14:42 漢字"
+	if allocs := testing.AllocsPerRun(20, func() { c.text(0, 0, text, secondaryInk) }); allocs != 0 {
+		t.Errorf("drawing %q made %v allocations, want none", text, allocs)
+	}
+}
+
 func TestDrawingOverHalfAWideGlyphBlanksItsOtherHalf(t *testing.T) {
 	tests := []struct {
 		name string
@@ -178,13 +188,15 @@ func TestASurfaceShowsInALookThatCantBlendUntilHalfFaded(t *testing.T) {
 	}
 }
 
-func TestWithoutColourASurfaceShowsOnlyOnBgSelectionAndThereReversed(t *testing.T) {
+// The surfaces that show without colour: a selected row's, bg.selection,
+// and a field's cursor's, text.primary.
+func TestWithoutColourASurfaceShowsOnlyOnBgSelectionAndTheCursorAndThereReversed(t *testing.T) {
 	for tok := theme.TextPrimary; tok.String() != ""; tok++ {
 		c := newCanvas(4, 1)
 		c.text(0, 0, "ab", ink{})
 		c.surface(0, 0, 2, hue{token: tok})
 		want := "ab"
-		if tok == theme.BgSelection {
+		if tok == theme.BgSelection || tok == theme.TextPrimary {
 			want = "\x1b[7mab\x1b[m"
 		}
 		if got := c.rows(NoColour())[0]; got != want {

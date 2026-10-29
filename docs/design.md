@@ -1357,6 +1357,14 @@ not the owner's decisions:
   Below 95 columns, as on a phone, setup says to make the terminal larger.
 - **The heading's rule is `border`,** the dashboard's own, where the frames' nord draws `border`
   and `text.faint` alike.
+- **A page's field is typed in as the page opens,** as Priming's day is, and takes every key that
+  types, `q`, `j` and `k` among them: `pgup`, `pgdown` and the wheel scroll it, and the line saying
+  what's out of view names no keys. `esc` gives the field up, after which `q` quits and `j` and `k`
+  scroll; `tab` takes it again; `ctrl+c` always leaves. A day the config refuses is said under the
+  field, why alone, and setup stays on the page. The field keeps whatever's typed or pasted but
+  controls, line separators and the controls that turn the text's direction: what a value may hold
+  besides is the value's own rule, the day's `ParseDay`'s, a label's its own. Without colour, the
+  cursor is reversed.
 
 ### How it's built
 

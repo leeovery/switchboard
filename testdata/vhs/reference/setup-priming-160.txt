@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     ✓ Accounts   2 Priming   3 Service   4 claude link   5 Skill   Done                                                 Thu 1 Oct  14:42:07
+
+○ router not running yet  ·  3 accounts, all working
+
+PRIMING  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Priming starts each account's 5-hour window on a schedule, so their resets are spread through your day
+  instead of all arriving at once. It's optional.
+
+  Your day  08:00-23:00               start and end, as HH:MM-HH:MM
+
+  Leave it empty to keep priming off.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                                    enter next: Service   q quit

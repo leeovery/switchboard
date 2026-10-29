@@ -179,8 +179,9 @@ func (t Theme) Faint(tok Token) bool {
 
 // Reversed reports whether the theme draws the surface tok by swapping the
 // terminal's own foreground and background, rather than in a colour of its
-// own: the terminal theme's selection and attention, as of the terminal's
-// sixteen colours none shows behind its own foreground on every terminal.
+// own: the terminal theme's selection, attention and a field's cursor, as
+// of the terminal's sixteen colours none shows behind its own foreground on
+// every terminal.
 func (t Theme) Reversed(tok Token) bool {
 	return tok > 0 && tok < tokens && t.reversed[tok]
 }

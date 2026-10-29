@@ -66,7 +66,8 @@ func TestTheTerminalThemeLeansOnNoColourThatsDimOnlySomewhere(t *testing.T) {
 			t.Errorf("the terminal theme's %s is %v, faint: %v; want it faint, in the terminal's own foreground", tok, term.Colour(tok), term.Faint(tok))
 		}
 	}
-	for _, tok := range []theme.Token{theme.BgSelection, theme.BgAttention} {
+	// text.primary as a surface is a field's cursor.
+	for _, tok := range []theme.Token{theme.BgSelection, theme.BgAttention, theme.TextPrimary} {
 		if !term.Reversed(tok) || term.Colour(tok) != nil {
 			t.Errorf("the terminal theme's %s is %v, reversed: %v; want it the terminal's own colours reversed", tok, term.Colour(tok), term.Reversed(tok))
 		}

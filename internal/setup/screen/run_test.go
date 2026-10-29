@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -54,7 +55,7 @@ func TestRunEndsEveryJobBeforeItReturns(t *testing.T) {
 	}
 	returned := make(chan ran, 1)
 	go func() {
-		left, _, err := runUntil(t, Config{Steps: steps, Step: dashboard.SetupPriming}, terminal{keys: "q", ready: steps.started})
+		left, _, err := runUntil(t, Config{Steps: steps, Step: dashboard.SetupLink}, terminal{keys: "q", ready: steps.started})
 		returned <- ran{left: left, err: err}
 	}()
 
@@ -70,6 +71,70 @@ func TestRunEndsEveryJobBeforeItReturns(t *testing.T) {
 	case <-steps.ended:
 	default:
 		t.Error("run() returned before Standing ended")
+	}
+	if got.err != nil || got.left != (Left{Ending: Paused}) {
+		t.Errorf("run() = %+v, %v; want setup paused, no error", got.left, got.err)
+	}
+}
+
+// settingTillReleased is setup's steps whose SetDay says it's started, and
+// ends only once it's let go, saying it has.
+type settingTillReleased struct {
+	*fakeSteps
+	started, release, ended chan struct{}
+}
+
+func (s *settingTillReleased) SetDay(day string) (config.Day, error) {
+	close(s.started)
+	<-s.release
+	defer close(s.ended)
+	return config.ParseDay(day)
+}
+
+func TestQWhileTheDayIsSetLeavesOnceTheWriteHasEnded(t *testing.T) {
+	steps := &settingTillReleased{
+		fakeSteps: newFakeSteps(),
+		started:   make(chan struct{}), release: make(chan struct{}), ended: make(chan struct{}),
+	}
+	primed := make(chan struct{})
+	var once sync.Once
+	term := terminal{
+		keys: "09:00-18:00\r", ready: primed,
+		then: "q", thenReady: steps.started,
+		saw: func(msg tea.Msg) {
+			if _, ok := msg.(primedMsg); ok {
+				once.Do(func() { close(primed) })
+			}
+		},
+	}
+	type ran struct {
+		left Left
+		err  error
+	}
+	returned := make(chan ran, 1)
+	go func() {
+		left, _, err := runUntil(t, Config{Steps: steps, Step: dashboard.SetupPriming}, term)
+		returned <- ran{left: left, err: err}
+	}()
+
+	select {
+	case <-steps.started:
+	case got := <-returned:
+		t.Fatalf("run() = %+v, %v before SetDay started, want the day typed and entered to set it", got.left, got.err)
+	case <-time.After(time.Minute):
+		t.Fatal("SetDay hadn't started a minute on, want the day typed and entered to set it")
+	}
+	select {
+	case <-returned:
+		t.Fatal("run() returned while SetDay ran on, want it to wait for the write to end")
+	case <-time.After(overlap):
+	}
+	close(steps.release)
+	got := <-returned
+	select {
+	case <-steps.ended:
+	default:
+		t.Error("run() returned before SetDay ended")
 	}
 	if got.err != nil || got.left != (Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", got.left, got.err)
@@ -141,11 +206,14 @@ const darkAnswer = "\x1b]11;rgb:1a1a/1b1b/2626\x07"
 // terminal is how a test's terminal acts as setup's screen runs on it: it
 // answers the screen's question of its background with answer, "" for
 // none, and once the screen has settled, closing settled, where it's set,
-// and once ready, where it's set, it types keys.
+// and once ready, where it's set, it types keys; then once thenReady, where
+// it's set, it types then. It tells saw, where it's set, each message the
+// screen takes in, before it does.
 type terminal struct {
-	answer, keys string
-	ready        <-chan struct{}
-	settled      chan struct{}
+	answer, keys, then string
+	ready, thenReady   <-chan struct{}
+	settled            chan struct{}
+	saw                func(tea.Msg)
 }
 
 // runUntil runs setup's screen of cfg on a terminal acting as term does,
@@ -166,6 +234,9 @@ func runUntil(t *testing.T, cfg Config, term terminal) (Left, string, error) {
 		settled = make(chan struct{})
 	}
 	filter := func(_ tea.Model, msg tea.Msg) tea.Msg {
+		if term.saw != nil {
+			term.saw(msg)
+		}
 		switch msg.(type) {
 		case tea.BackgroundColorMsg, backdrop.Unanswered:
 			settle.Do(func() { close(settled) })
@@ -182,6 +253,10 @@ func runUntil(t *testing.T, cfg Config, term terminal) (Left, string, error) {
 			<-term.ready
 		}
 		_, _ = io.WriteString(typing, term.keys)
+		if term.thenReady != nil {
+			<-term.thenReady
+			_, _ = io.WriteString(typing, term.then)
+		}
 	}()
 	left, err := run(t.Context(), cfg, &out, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter))
 	return left, out.String(), err

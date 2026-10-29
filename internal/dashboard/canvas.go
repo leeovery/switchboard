@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unique"
 
-	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/switchboard/internal/dashboard/graphemes"
 )
 
 // canvas is a frame of the dashboard as a grid of cells, each a glyph in its
@@ -135,20 +135,17 @@ func (c *canvas) emboldened(x, y, width int) {
 // for a wide one, and returns the column after it. A grapheme that takes no
 // cell, such as a stray combining mark, isn't drawn.
 func (c *canvas) text(x, y int, text string, k ink) int {
-	for text != "" {
-		cluster, width := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
-		text = text[len(cluster):]
-		if width > 0 {
-			g := grapheme{text: cluster, cells: min(width, 2)}
-			c.put(x, y, g, k)
-			x += g.width()
+	for g, cells := range graphemes.In(text) {
+		if cells > 0 {
+			c.put(x, y, grapheme{text: g, cells: cells}, k)
+			x += cells
 		}
 	}
 	return x
 }
 
 // grapheme is a glyph as the canvas puts it: its text, and the cells it
-// takes, one, or two where it's wide.
+// takes, one, or two where it's wide, or none, as a stray combining mark.
 type grapheme struct {
 	text  string
 	cells int
