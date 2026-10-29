@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/setup/screen"
+	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -28,19 +29,24 @@ type setupScreen struct {
 	size  watch.Size
 	step  dashboard.SetupStep
 	steps func(now time.Time) setupSteps
-	keys  []tea.KeyPressMsg
+	// keys are pressed once the screen has opened, each step's action
+	// answered before the next.
+	keys []tea.KeyPressMsg
 }
 
 // setupScreens are setup's screen's fixtures: the Accounts page run again,
 // each token checked, side chosen, as frame 3 has it; the Priming page, its
 // day read, typed in, as frame 7 has it; the Service page, the service
-// installed again and its router healthy, as frame 4 has it; and the Skill
-// page, the skill installed, as frame 9 has it.
+// installed again and its router healthy, as frame 4 has it; the Skill
+// page, the skill installed, as frame 9 has it; and Done, every step walked
+// through from Priming, the claude link made but not first on PATH, as
+// frame 5 has it.
 var setupScreens = []setupScreen{
 	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
 	{name: "setup-service-160", size: wide(37), step: dashboard.SetupService, steps: everyStepPassed},
 	{name: "setup-skill-160", size: wide(37), step: dashboard.SetupSkill, steps: everyStepPassed},
+	{name: "setup-done-160", size: wide(37), step: dashboard.SetupPriming, steps: linkLeft, keys: repeated(enterKey, 4)},
 }
 
 // setupShown is setup's screen as a fixture draws it: the step it opens on,
@@ -82,6 +88,7 @@ func (f Fixture) settleSetup(size watch.Size) screen.Model {
 		Now:   func() time.Time { return f.now },
 		After: held,
 		Size:  screen.Size{Width: size.Width, Height: size.Height},
+		Link:  f.setup.steps.link,
 	}
 	if !f.colourless {
 		cfg.Pair = &theme.Pair{Light: f.theme, Dark: f.theme}
@@ -99,7 +106,8 @@ func (f Fixture) settleSetup(size watch.Size) screen.Model {
 
 // setupSteps are setup's steps as a capture fakes them, answering at once
 // as given: they read, run and write nothing. Review reads each token, and
-// ReviewOf checks it as checked has it.
+// ReviewOf checks it as checked has it. link is what the claude link step
+// found, which the screen is given, as it doesn't take the step itself yet.
 type setupSteps struct {
 	standing setup.RouterStanding
 	review   setup.Review
@@ -107,6 +115,7 @@ type setupSteps struct {
 	day      config.Day
 	service  setup.Serviced
 	skill    setup.Said
+	link     *setup.LinkFound
 }
 
 // read is a token read but not yet checked, its year as given.
@@ -138,14 +147,14 @@ func reviewed(now time.Time) setupSteps {
 }
 
 // accountsPassed are the steps as they stand once the Accounts have passed,
-// at now: no router running yet; three accounts, work the primary, each
-// token working once checked; and priming over 08:00-23:00.
+// at now: no router running yet; three accounts, work the primary with 5%
+// reserved, each token working once checked; and priming over 08:00-23:00.
 func accountsPassed(now time.Time) setupSteps {
 	working := setup.TokenStanding{State: setup.TokenWorking}
 	return setupSteps{
 		standing: setup.RouterStanding{State: setup.RouterDown},
 		review: setup.Review{At: now, Accounts: []setup.Reviewed{
-			{ID: "work", Label: "Work", Primary: true, Token: read(status.TokenYear{})},
+			{ID: "work", Label: "Work", Primary: true, Reserve: 0.05, Token: read(status.TokenYear{})},
 			{ID: "personal", Label: "Personal", Token: read(status.TokenYear{})},
 			{ID: "side", Label: "Side", Token: read(status.TokenYear{})},
 		}},
@@ -171,6 +180,28 @@ func everyStepPassed(now time.Time) setupSteps {
 		Router: &router.Health{OK: true, Listen: "127.0.0.1:4747", Version: "0.2.10"},
 	}
 	steps.skill = setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/.claude/skills/switchboard/SKILL.md"}
+	return steps
+}
+
+// linkLeft are the steps as they stand once each has passed, at now: as
+// everyStepPassed has them, but for the skill up to date; and the claude
+// link made, but zsh running Claude Code's own claude, the line setup
+// offered left to add to ~/.zshrc by hand, as frame 5 has it.
+func linkLeft(now time.Time) setupSteps {
+	steps := everyStepPassed(now)
+	steps.skill = setup.Said{Mark: setup.Done, Label: "Up to date", Detail: "~/.claude/skills/switchboard/SKILL.md"}
+	const home = "/home/user"
+	steps.link = &setup.LinkFound{
+		Made: setup.LinkCreated,
+		Said: []setup.Said{{Mark: setup.Done, Label: "Link", Detail: "~/.local/share/switchboard/bin/claude → switchboard"}},
+		Shell: setup.ShellFound{
+			Situation: setup.OfferLine,
+			Said:      setup.Said{Mark: setup.Warning, Label: "Your shell", Detail: "runs Claude Code's own claude, ~/.local/bin/claude, so its sessions aren't routed"},
+			File:      home + "/.zshrc",
+			Where:     "~/.zshrc",
+			Line:      shell.Line(shell.Zsh, shell.InitFile(home+"/.local/share/switchboard/shell", shell.Zsh), home),
+		},
+	}
 	return steps
 }
 

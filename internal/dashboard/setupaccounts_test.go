@@ -42,9 +42,10 @@ func frame3Review() setup.Review {
 func accountsScreen(review setup.Review, chosen int) Setup {
 	return Setup{
 		Now:      now,
-		Step:     SetupAccounts,
+		At:       SetupAccounts,
+		Review:   &review,
 		Status:   []setup.Part{{Standing: setup.PartUp, Words: "router up, healthy"}, {Words: "3 accounts, 2 working"}},
-		Accounts: &SetupAccountsPage{Review: &review, Chosen: chosen},
+		Accounts: &SetupAccountsPage{Chosen: chosen},
 	}
 }
 
@@ -261,7 +262,7 @@ func TestTheAccountsPagesKeys(t *testing.T) {
 
 func TestTheAccountsPageBeforeItsAccountsAreRead(t *testing.T) {
 	s := accountsScreen(frame3Review(), 0)
-	s.Accounts.Review, s.UnderWay = nil, true
+	s.Review, s.UnderWay = nil, true
 	rows := textOf(s.Draw(160, 37, Look{}))
 	if rows[4] != "ACCOUNTS  "+strings.Repeat("─", 150) || rows[6] != "" {
 		t.Errorf("before the accounts are read, the page reads\n%s\nwant its heading alone", strings.Join(rows[4:8], "\n"))
@@ -273,7 +274,7 @@ func TestTheAccountsPageBeforeItsAccountsAreRead(t *testing.T) {
 
 func TestAccountsThatCouldntBeReadSayWhy(t *testing.T) {
 	s := accountsScreen(frame3Review(), 0)
-	s.Accounts.Review, s.Accounts.Failure, s.Failed = nil, "read the config: it doesn't parse", true
+	s.Review, s.Failure = nil, "read the config: it doesn't parse"
 	c := setupDrawn(s, 160, 37)
 	if got, want := rowOf(c, 6), textsAt(160, map[int]string{2: "✗", 5: "Not read", 26: "read the config: it doesn't parse"}); got != want {
 		t.Errorf("row 6 reads\n%q\nwant\n%q", got, want)

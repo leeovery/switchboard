@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     ✓ Accounts   ✓ Priming   ✓ Service   ✓ claude link   ✓ Skill   Done                                                Tue 27 Oct  17:42:00
+
+● router up, healthy  ·  3 accounts, all working
+
+SWITCHBOARD IS SET UP  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ✓  Accounts             3, all working · primary: work, with 5% reserved for the Claude apps
+
+  ✓  Priming              on, 08:00–23:00
+
+  ✓  Service              installed and updated · router healthy
+
+  !  claude link          created, but it isn't first on your PATH. Add this line to ~/.zshrc:
+                          if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
+
+  ✓  Skill                up to date
+
+
+NEXT  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  claude                  start Claude Code as usual: its sessions route through switchboard
+
+  switchboard             open the dashboard: every account's windows, sessions and history
+
+
+
+
+
+
+
+
+
+
+
+
+
+c copy the line                                                                                                                enter open the dashboard   q quit

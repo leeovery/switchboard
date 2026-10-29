@@ -15,15 +15,11 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// SetupAccountsPage is the Accounts step's page as it stands: the accounts
-// as setup's review has them, each token as checked so far, nil until
-// they're read; the row chosen, an account's by its place among them, or
-// past the last, + add an account; and why the accounts couldn't be read,
-// where the step failed.
+// SetupAccountsPage is what the Accounts step's page has of its own, beside
+// the review and the failure, which are the Summary's: the row chosen, an
+// account's by its place among them, or past the last, + add an account.
 type SetupAccountsPage struct {
-	Review  *setup.Review
-	Chosen  int
-	Failure string
+	Chosen int
 }
 
 // What the Accounts page says: what the review is, or with no account, what
@@ -53,12 +49,11 @@ var (
 // adding one.
 func (s Setup) accountsPage(look Look) setupPage {
 	p := setupPage{name: "ACCOUNTS"}
-	switch a := s.Accounts; {
-	case a == nil:
-	case a.Failure != "":
-		p.facts = []setup.Said{{Mark: setup.Failed, Label: accountsNotRead, Detail: a.Failure}}
-	case a.Review != nil:
-		t := reviewTable{review: *a.Review, chosen: min(max(a.Chosen, 0), len(a.Review.Accounts)), look: look}
+	switch {
+	case s.Failure != "":
+		p.facts = []setup.Said{{Mark: setup.Failed, Label: accountsNotRead, Detail: s.Failure}}
+	case s.Review != nil:
+		t := reviewTable{review: *s.Review, chosen: min(max(s.chosen(), 0), len(s.Review.Accounts)), look: look}
 		intro := reviewIntro
 		if len(t.review.Accounts) == 0 {
 			intro = noAccountsIntro
@@ -69,6 +64,14 @@ func (s Setup) accountsPage(look Look) setupPage {
 		p.keys, p.onward = t.keys()
 	}
 	return p
+}
+
+// chosen is the Accounts page's row chosen: the first, where it has no page.
+func (s Setup) chosen() int {
+	if s.Accounts == nil {
+		return 0
+	}
+	return s.Accounts.Chosen
 }
 
 // reviewTable is the Accounts page's table of the review's accounts, the

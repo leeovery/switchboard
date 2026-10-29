@@ -1388,6 +1388,19 @@ not the owner's decisions:
   to `LABEL`, the ids to `ACCOUNT`, each cut with `…` and the primary's ` ◆` kept, and the words
   last. A token's year that can't say it all keeps its days left, `21 days left`, and nothing said
   of a token is cut while an id or label could narrow.
+- **Done's rows, and the scrollback's,** are one summary, worked out once, of the steps up to the
+  one setup stands at: before it, what each told, or `✓` and its name where setup passed through;
+  at it, a step that failed reads `✗` and why, its own failed row's where it has one, `failed`
+  where its error says nothing; after it, no row. Priming reads `on, 08:00–23:00`, the day's span
+  with an en dash, or `off`.
+- **The claude link's row** says what the step did to the link, `created`, `repaired: it led to`
+  where it led, or nothing for one found in place, then what the step found, in words of its own
+  for each situation the step can leave: `your shell runs it` where a new terminal's claude goes
+  through it; else `!`, what keeps it from it and how to put it right, an alias in front of PATH's
+  claude first where one runs something else, and under it the line to add, or for a shell setup
+  can't check, the bin directory, `c copy the directory`. A line added but not yet asked of the
+  shell again is `!`. "It" is the link the row's label names, but where an alias, or where a
+  repaired link led, stands between, the row names the claude link.
 
 ### How it's built
 

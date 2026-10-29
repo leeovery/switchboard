@@ -33,8 +33,8 @@ func TestTheWalkGoesForwardAStepAtATimeEachPassedTicked(t *testing.T) {
 	h.start()
 	steps := dashboard.SetupSteps()
 	for i, step := range steps {
-		if got := h.model.page(); got.Step != step || !slices.Equal(got.Passed, steps[:i]) {
-			t.Fatalf("at %s, the screen shows %s, %v passed; want %s, %v passed", step.Title(), got.Step.Title(), got.Passed, step.Title(), steps[:i])
+		if got := h.model.page(); got.At != step || !slices.Equal(got.Passed, steps[:i]) {
+			t.Fatalf("at %s, the screen shows %s, %v passed; want %s, %v passed", step.Title(), got.At.Title(), got.Passed, step.Title(), steps[:i])
 		}
 		if step == dashboard.SetupDone {
 			break
@@ -66,8 +66,8 @@ func TestAStepOutsideTheStepsOpensOnTheNearest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t, tt.step)
-			if got := h.model.page(); got.Step != tt.want || !slices.Equal(got.Passed, dashboard.SetupSteps()[:tt.want]) {
-				t.Errorf("the screen opens on %s, %v passed; want %s, %v passed", got.Step.Title(), got.Passed, tt.want.Title(), dashboard.SetupSteps()[:tt.want])
+			if got := h.model.page(); got.At != tt.want || !slices.Equal(got.Passed, dashboard.SetupSteps()[:tt.want]) {
+				t.Errorf("the screen opens on %s, %v passed; want %s, %v passed", got.At.Title(), got.Passed, tt.want.Title(), dashboard.SetupSteps()[:tt.want])
 			}
 		})
 	}
@@ -77,8 +77,8 @@ func TestTheScreenOpensOnALaterStepThoseBeforeItPassed(t *testing.T) {
 	h := newHarness(t, dashboard.SetupSkill)
 	h.start()
 	got := h.model.page()
-	if want := dashboard.SetupSteps()[:dashboard.SetupSkill]; got.Step != dashboard.SetupSkill || !slices.Equal(got.Passed, want) {
-		t.Errorf("the screen opens on %s, %v passed; want Skill, %v passed", got.Step.Title(), got.Passed, want)
+	if want := dashboard.SetupSteps()[:dashboard.SetupSkill]; got.At != dashboard.SetupSkill || !slices.Equal(got.Passed, want) {
+		t.Errorf("the screen opens on %s, %v passed; want Skill, %v passed", got.At.Title(), got.Passed, want)
 	}
 	if h.steps.skills != 1 || got.Skill == nil || *got.Skill != installed {
 		t.Errorf("opening on Skill ran it %d times, saying %v; want once, saying %+v", h.steps.skills, got.Skill, installed)
@@ -100,7 +100,7 @@ func TestEnterWaitsForTheStepShowingToBeDone(t *testing.T) {
 		t.Errorf("while Skill runs, the key line reads %q, want q quit alone at its right", got)
 	}
 	h.pressAndDeliver("enter")
-	if got := h.model.page().Step; got != dashboard.SetupSkill {
+	if got := h.model.page().At; got != dashboard.SetupSkill {
 		t.Fatalf("enter before Skill has answered shows %s, want Skill", got.Title())
 	}
 	h.deliver(skilled...)
@@ -108,7 +108,7 @@ func TestEnterWaitsForTheStepShowingToBeDone(t *testing.T) {
 		t.Errorf("once Skill has answered, the key line reads %q, want enter finish, then q quit", got)
 	}
 	h.pressAndDeliver("enter")
-	if got := h.model.page().Step; got != dashboard.SetupDone {
+	if got := h.model.page().At; got != dashboard.SetupDone {
 		t.Errorf("enter once Skill has answered shows %s, want Done", got.Title())
 	}
 }
@@ -200,8 +200,8 @@ func TestAStepThatFailedStopsSetupThere(t *testing.T) {
 	if msgs := h.press("enter"); quits(msgs) || len(msgs) > 0 {
 		t.Errorf("enter at a step that failed sends %v, want nothing", msgs)
 	}
-	if got := h.model.page(); got.Step != dashboard.SetupSkill || len(got.Passed) != int(dashboard.SetupSkill) {
-		t.Errorf("enter at a step that failed shows %s, %v passed; want it where it stopped", got.Step.Title(), got.Passed)
+	if got := h.model.page(); got.At != dashboard.SetupSkill || len(got.Passed) != int(dashboard.SetupSkill) {
+		t.Errorf("enter at a step that failed shows %s, %v passed; want it where it stopped", got.At.Title(), got.Passed)
 	}
 }
 

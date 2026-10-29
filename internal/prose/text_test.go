@@ -239,6 +239,21 @@ func TestClean(t *testing.T) {
 	}
 }
 
+func TestVisible(t *testing.T) {
+	tests := []struct {
+		text string
+		want string
+	}{
+		{text: "fi  # switchboard", want: "fi  # switchboard"},
+		{text: "a\tb\x1b[31m c\n", want: "a b [31m c "},
+	}
+	for _, tt := range tests {
+		if got := prose.Visible(tt.text); got != tt.want {
+			t.Errorf("Visible(%q) = %q, want %q", tt.text, got, tt.want)
+		}
+	}
+}
+
 // england is England's flag: a black flag, then the tags that name the
 // subdivision, then the tag that ends them.
 const england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"

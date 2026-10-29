@@ -13,11 +13,13 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// primingForm is the Priming page as the screen holds it: the day as it was
-// read, as its field shows it; the field Your day, and whether it's typed
-// in; why setup refused the day typed, where it did; and why the step
-// failed, where it did.
+// primingForm is the Priming page as the screen holds it: the day priming
+// is on over, as it was last read or set; the day as it was read, as its
+// field first shows it; the field Your day, and whether it's typed in; why
+// setup refused the day typed, where it did; and why the step failed, where
+// it did.
 type primingForm struct {
+	set     config.Day
 	read    string
 	day     textfield.Text
 	typing  bool
@@ -29,6 +31,15 @@ type primingForm struct {
 func (f primingForm) page() *dashboard.SetupPrimingPage {
 	day := dashboard.Field{Value: f.day.Value(), Cursor: f.day.Cursor(), Typing: f.typing}
 	return &dashboard.SetupPrimingPage{Day: day, Refused: f.refused, Failure: f.failure}
+}
+
+// primed is the day priming is on over, as it was last read or set: nil
+// where the step failed.
+func (f primingForm) primed() *config.Day {
+	if f.failure != "" {
+		return nil
+	}
+	return &f.set
 }
 
 // typed is what's typed in the field, without the blanks round it, as a
@@ -63,7 +74,7 @@ func (m Model) primed(msg primedMsg) Model {
 	if msg.day != (config.Day{}) {
 		read = msg.day.String()
 	}
-	m.priming = &primingForm{read: read, day: textfield.Of(read), typing: true}
+	m.priming = &primingForm{set: msg.day, read: read, day: textfield.Of(read), typing: true}
 	m.walk = m.walk.finished(nil)
 	return m
 }
@@ -75,7 +86,7 @@ func (m Model) primingFailed(err error) Model {
 	if m.priming != nil {
 		f = *m.priming
 	}
-	f.typing, f.failure = false, prose.Clean(err.Error())
+	f.typing, f.failure = false, failure(err)
 	m.priming = &f
 	m.walk = m.walk.finished(err)
 	return m
@@ -110,24 +121,29 @@ func refusal(err error) string {
 	return prose.Clean(err.Error())
 }
 
-// daySetMsg is why SetDay failed: nil where it set the day.
+// daySetMsg is the day SetDay set, or why it failed.
 type daySetMsg struct {
+	day config.Day
 	err error
 }
 
 // setDay is the day set with SetDay, as dayEntered has it.
 func setDay(steps Steps, day string) job {
 	return func(context.Context) tea.Msg {
-		_, err := steps.SetDay(day)
-		return daySetMsg{err: err}
+		set, err := steps.SetDay(day)
+		return daySetMsg{day: set, err: err}
 	}
 }
 
-// daySet moves on once the day is set; where SetDay failed, the step failed.
+// daySet moves on once the day is set, holding it; where SetDay failed, the
+// step failed.
 func (m Model) daySet(msg daySetMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.primingFailed(msg.err), nil
 	}
+	f := *m.priming
+	f.set = msg.day
+	m.priming = &f
 	return m.movedOn()
 }
 

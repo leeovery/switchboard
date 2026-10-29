@@ -18,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -70,6 +71,9 @@ type Config struct {
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
+	// Link is what the claude link step found, for Done to say, as the
+	// screen doesn't take the step itself yet: nil passes it through.
+	Link *setup.LinkFound
 }
 
 // Size is a terminal's size in cells.
@@ -112,6 +116,8 @@ type Model struct {
 	// service is what the service step told, and its router's health: nil
 	// until it has.
 	service *setup.Serviced
+	// link is what the claude link step found: nil where it's passed through.
+	link *setup.LinkFound
 	// skill is what the skill step said it did: nil until it has.
 	skill *setup.Said
 	// scroll is how many rows the page under its heading is scrolled down.
@@ -125,7 +131,7 @@ type Model struct {
 // New returns the screen of cfg, opening on cfg's step, its jobs run under
 // ctx: once ctx is done, no outcome of theirs is taken in.
 func New(ctx context.Context, cfg Config) Model {
-	m := Model{steps: cfg.Steps, now: cfg.Now, after: cfg.After, jobs: newJobs(ctx), size: cfg.Size, walk: openingOn(cfg.Step)}
+	m := Model{steps: cfg.Steps, now: cfg.Now, after: cfg.After, jobs: newJobs(ctx), size: cfg.Size, walk: openingOn(cfg.Step), link: cleanLink(cfg.Link)}
 	if m.now == nil {
 		m.now = time.Now
 	}
@@ -201,9 +207,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // pressed acts on a key: while a field is typed in, as typedIn has it;
 // else q and ctrl+c leave, enter moves on, as entered has it, tab types in
-// the Priming page's field, the Accounts page's keys choose its rows, as
-// choosing has them, and the rest scroll the page, as dashboard.ScrollKey
-// has them.
+// the Priming page's field, c copies the line the page offers, where it
+// offers one, the Accounts page's keys choose its rows, as choosing has
+// them, and the rest scroll the page, as dashboard.ScrollKey has them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.typing() {
 		return m.typedIn(key)
@@ -215,6 +221,8 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.entered()
 	case "tab":
 		return m.focused(true), nil
+	case "c":
+		return m, copied(m.page().Copies())
 	default:
 		if by, ok := m.choosing(k); ok {
 			return m.chose(by), nil
@@ -288,8 +296,8 @@ func (m Model) View() tea.View {
 // page is the screen as dashboard.Setup draws it, at the clock's time.
 func (m Model) page() dashboard.Setup {
 	s := dashboard.Setup{
-		Now: m.now(), Step: m.walk.step, Passed: m.walk.passed, Status: m.status.line(),
-		UnderWay: !m.walk.done, Failed: m.walk.failed != nil, Service: m.service, Skill: m.skill, Scroll: m.scroll,
+		Now: m.now(), Summary: m.summary(), Passed: m.walk.passed, Status: m.status.line(),
+		UnderWay: !m.walk.done, Scroll: m.scroll,
 	}
 	if m.walk.step == dashboard.SetupAccounts {
 		s.Accounts = m.accountsPage()
@@ -298,6 +306,35 @@ func (m Model) page() dashboard.Setup {
 		s.Priming = m.priming.page()
 	}
 	return s
+}
+
+// failure is why a step failed, as err says, made safe to show: "failed"
+// where that leaves nothing, as it must still read as a failure.
+func failure(err error) string {
+	return cmp.Or(prose.Clean(err.Error()), "failed")
+}
+
+// summary is how setup stands, as the walk leaves it: the step it stands
+// at, why that step failed, made safe to show, where it did, and what each
+// step told.
+func (m Model) summary() setup.Summary {
+	s := setup.Summary{At: m.walk.step, Review: m.status.review, Service: m.service, Link: m.link, Skill: m.skill}
+	if m.walk.failed != nil {
+		s.Failure = failure(m.walk.failed)
+	}
+	if m.priming != nil {
+		s.Day = m.priming.primed()
+	}
+	return s
+}
+
+// copied is the command that copies text to the terminal's clipboard, by
+// OSC 52: none where there's no text.
+func copied(text string) tea.Cmd {
+	if text == "" {
+		return nil
+	}
+	return tea.SetClipboard(text)
 }
 
 // Backdrop is the terminal's background as the screen has it.

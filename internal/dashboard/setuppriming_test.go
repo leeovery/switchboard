@@ -14,7 +14,7 @@ import (
 func primingScreen(changes ...func(*Setup)) Setup {
 	s := Setup{
 		Now:     now,
-		Step:    SetupPriming,
+		At:      SetupPriming,
 		Passed:  []SetupStep{SetupAccounts},
 		Status:  []setup.Part{{Standing: setup.PartDown, Words: "router not running yet"}, {Words: "3 accounts, all working"}},
 		Priming: &SetupPrimingPage{Day: Field{Value: "08:00-23:00", Cursor: 11, Typing: true}},
@@ -102,7 +102,7 @@ func TestADayRefusedIsSaidUnderTheField(t *testing.T) {
 func TestAPrimingStepThatFailedSaysWhyInPlaceOfTheField(t *testing.T) {
 	const why = "read the config: the config doesn't parse"
 	rows := textOf(primingScreen(func(s *Setup) {
-		s.Priming, s.Failed = &SetupPrimingPage{Failure: why}, true
+		s.Priming, s.Failure = &SetupPrimingPage{Failure: why}, why
 	}).Draw(160, 37, Look{}))
 	if got, want := rows[9], textsAt(160, map[int]string{2: "✗", 5: "Not set", 26: why}); got != want {
 		t.Errorf("row 9 reads\n%q\nwant\n%q", got, want)

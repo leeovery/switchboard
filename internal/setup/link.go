@@ -19,9 +19,28 @@ type LinkFound struct {
 	Said []Said
 	// Shell is the situation the login shell's answer leaves.
 	Shell ShellFound
+	// Made is what the step did to the claude link, and Led, where it
+	// repaired one, where it led before, from the home.
+	Made LinkMade
+	Led  string
 	// claudeCode is Claude Code's own claude, as claude.Find found it.
 	claudeCode string
 }
+
+// LinkMade is what the claude link step did to the claude link.
+type LinkMade int
+
+const (
+	// LinkNotMade is the link not made, as something else is in its place,
+	// left alone.
+	LinkNotMade LinkMade = iota
+	// LinkCreated is the link made where there was none.
+	LinkCreated
+	// LinkInPlace is the link found leading to switchboard already.
+	LinkInPlace
+	// LinkRepaired is the link made in place of one leading elsewhere.
+	LinkRepaired
+)
 
 // Link makes switchboard's claude link, or repairs it, writes switchboard's
 // files for the shells, and asks the user's login shell which claude it
@@ -37,7 +56,7 @@ func (s *Setup) Link(ctx context.Context) (LinkFound, error) {
 	var found LinkFound
 	r := &run{Setup: s, switchboard: switchboard, tell: func(said Said) { found.Said = append(found.Said, said) }}
 	found.Shell, err = r.linkClaude(ctx)
-	found.claudeCode = r.claudeCode
+	found.claudeCode, found.Made, found.Led = r.claudeCode, r.made, r.led
 	return found, err
 }
 
@@ -68,13 +87,13 @@ func (r *run) link(ctx context.Context) error {
 // the shell's row saying why it wasn't asked, where the link is blocked, or
 // there's no Claude Code for it to start.
 func (r *run) linkClaude(ctx context.Context) (ShellFound, error) {
-	linked, err := r.makeLink()
-	switch {
-	case err != nil:
+	if err := r.makeLink(); err != nil {
 		return ShellFound{}, err
-	case !linked:
+	}
+	if r.made == LinkNotMade {
 		return ShellFound{Situation: Unreached, Said: yourShell(Warning, "not asked, as the claude link isn't made", "")}, nil
 	}
+	var err error
 	if r.claudeCode, err = claude.Find(r.Path, r.InstallPaths, func() (string, error) { return r.switchboard, nil }); err != nil {
 		return ShellFound{Situation: Unreached, Said: yourShell(Warning,
 			fmt.Sprintf("not asked, as there's no Claude Code for claude to start: %v: install it, then run setup again", err),
@@ -91,17 +110,17 @@ func (r *run) linkClaude(ctx context.Context) (ShellFound, error) {
 }
 
 // makeLink makes switchboard's claude link, or repairs one leading anywhere
-// else, reporting whether it's there, as it should be. Anything else in its
-// place is left alone, and said to be.
-func (r *run) makeLink() (bool, error) {
+// else, keeping what it did in made, and where a link it repaired led in
+// led. Anything else in its place is left alone, and said to be.
+func (r *run) makeLink() error {
 	link := r.claudeLink()
 	leads := r.fromHome(link) + " → switchboard"
 	info, err := os.Lstat(link)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return true, r.putLink(link, Said{Mark: Done, Label: "Link", Detail: leads, Sentence: fmt.Sprintf("Linked %s to %s.", link, r.switchboard)})
+		return r.putLink(link, LinkCreated, Said{Mark: Done, Label: "Link", Detail: leads, Sentence: fmt.Sprintf("Linked %s to %s.", link, r.switchboard)})
 	case err != nil:
-		return false, fmt.Errorf("look at switchboard's claude link: %w", err)
+		return fmt.Errorf("look at switchboard's claude link: %w", err)
 	case info.Mode()&fs.ModeSymlink == 0:
 		r.tell(Said{
 			Mark:     Warning,
@@ -109,28 +128,31 @@ func (r *run) makeLink() (bool, error) {
 			Detail:   fmt.Sprintf("not made: %s is there already, and isn't a link, so it's left alone: move it aside, then run setup again", r.fromHome(link)),
 			Sentence: fmt.Sprintf("%s is there already, and isn't a link, so it's left alone, and claude isn't linked: move it aside, then run setup again.", link),
 		})
-		return false, nil
+		return nil
 	}
 	target, err := os.Readlink(link)
 	switch {
 	case err != nil:
-		return false, fmt.Errorf("look at switchboard's claude link: %w", err)
+		return fmt.Errorf("look at switchboard's claude link: %w", err)
 	case target == r.switchboard:
+		r.made = LinkInPlace
 		r.tell(Said{Mark: Done, Label: "Link", Detail: leads, Sentence: fmt.Sprintf("%s leads to switchboard, at %s.", link, r.switchboard)})
-		return true, nil
+		return nil
 	}
-	return true, r.putLink(link, Said{
+	r.led = r.fromHome(target)
+	return r.putLink(link, LinkRepaired, Said{
 		Mark:     Done,
 		Label:    "Link",
-		Detail:   leads + " · repaired: it led to " + r.fromHome(target),
+		Detail:   leads + " · repaired: it led to " + r.led,
 		Sentence: fmt.Sprintf("%s led to %s: it leads to switchboard, at %s, now.", link, target, r.switchboard),
 	})
 }
 
 // putLink puts the link at link to switchboard, making its directory, and
-// tells done. It's made beside where it goes, then renamed there, so a
-// claude run meanwhile finds the one there before, or this one.
-func (r *run) putLink(link string, done Said) error {
+// once it's there, keeps did as what the step did, and tells done. It's made
+// beside where it goes, then renamed there, so a claude run meanwhile finds
+// the one there before, or this one.
+func (r *run) putLink(link string, did LinkMade, done Said) error {
 	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
 		return fmt.Errorf("make switchboard's bin directory: %w", err)
 	}
@@ -143,6 +165,7 @@ func (r *run) putLink(link string, done Said) error {
 		return fmt.Errorf("link claude to switchboard: %w", err)
 	}
 	logger.Info("linked claude to switchboard", "link", link, "switchboard", r.switchboard)
+	r.made = did
 	r.tell(done)
 	return nil
 }

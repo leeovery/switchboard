@@ -273,7 +273,7 @@ func TestTheChosenRowIsKeptAmongTheAccountsReadAgain(t *testing.T) {
 		t.Errorf("read again with an account fewer, row %d is chosen, want 2, + add an account", got)
 	}
 	h.pressAndDeliver("enter")
-	if got := h.model.page().Step; got != dashboard.SetupAccounts {
+	if got := h.model.page().At; got != dashboard.SetupAccounts {
 		t.Errorf("enter on + add an account shows %s, want nothing done yet", got.Title())
 	}
 }
@@ -382,7 +382,7 @@ func TestEnterAtAccounts(t *testing.T) {
 				h.pressAndDeliver("down")
 			}
 			h.pressAndDeliver("enter")
-			if got := h.model.page().Step; got != tt.want {
+			if got := h.model.page().At; got != tt.want {
 				t.Errorf("enter shows %s, want %s", got.Title(), tt.want.Title())
 			}
 			if len(steps.set) > 0 {
@@ -413,7 +413,7 @@ func TestEnterWaitsForTheAccountsToBeRead(t *testing.T) {
 		}
 	}
 	h.pressAndDeliver("enter")
-	if got := h.model.page().Step; got != dashboard.SetupAccounts {
+	if got := h.model.page().At; got != dashboard.SetupAccounts {
 		t.Errorf("enter before the accounts are read shows %s, want Accounts", got.Title())
 	}
 	if got := h.rows()[keyRow]; strings.TrimLeft(got, " ") != "q quit" {
@@ -433,7 +433,7 @@ func TestAccountsThatCantBeReadStopSetupThere(t *testing.T) {
 		t.Errorf("setup would be left %+v, want failing at Accounts", got)
 	}
 	h.pressAndDeliver("enter")
-	if got := h.model.page().Step; got != dashboard.SetupAccounts {
+	if got := h.model.page().At; got != dashboard.SetupAccounts {
 		t.Errorf("enter shows %s, want setup stopped at Accounts", got.Title())
 	}
 }

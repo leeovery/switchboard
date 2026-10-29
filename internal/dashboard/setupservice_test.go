@@ -24,7 +24,7 @@ func serviceScreen(changes ...func(*Setup)) Setup {
 		Router: &router.Health{OK: true, Listen: "127.0.0.1:4747", Version: "0.2.10"},
 	}
 	return setupScreen(append([]func(*Setup){func(s *Setup) {
-		s.Step, s.Passed, s.Skill, s.Service = SetupService, []SetupStep{SetupAccounts, SetupPriming}, nil, &serviced
+		s.At, s.Passed, s.Skill, s.Service = SetupService, []SetupStep{SetupAccounts, SetupPriming}, nil, &serviced
 	}}, changes...)...)
 }
 
@@ -128,7 +128,7 @@ func TestTheSpinnerMovesOnJustPastItsDotsNextPlace(t *testing.T) {
 		{name: "under way, on a place", screen: serviceScreen(underWay(now)), want: 250*time.Millisecond + TickSlack, spins: true},
 		{name: "under way, between places", screen: serviceScreen(underWay(now.Add(100 * time.Millisecond))), want: 150*time.Millisecond + TickSlack, spins: true},
 		{name: "done: none", screen: serviceScreen()},
-		{name: "failed: none", screen: serviceScreen(func(s *Setup) { s.Failed = true })},
+		{name: "failed: none", screen: serviceScreen(func(s *Setup) { s.Failure = "the router couldn't start" })},
 		{name: "a step under way whose page has no spinner: none", screen: setupScreen(func(s *Setup) { s.Skill, s.UnderWay = nil, true })},
 	}
 	for _, tt := range tests {
