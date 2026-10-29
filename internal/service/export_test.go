@@ -2,13 +2,6 @@ package service
 
 import "context"
 
-// HeldSignals are the signals Install holds as it swaps.
-var HeldSignals = heldSignals
-
-// HoldSignals holds HeldSignals but those ignored says the process ignores,
-// as Install does, through notify and stop in place of os/signal's.
-var HoldSignals = holdSignals
-
 // PlistOf returns the plist of the LaunchAgent that serves as opts says, its
 // binary as it's found, for tests to compare with what Install writes.
 func (s *Service) PlistOf(opts InstallOptions) ([]byte, error) {

@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     1 Accounts   2 Priming   3 Service   4 claude link   5 Skill   Done                                                Tue 27 Oct  17:42:00
+
+○ router not running yet  ·  1 account, working
+
+ACCOUNTS  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  1 account
+
+  Add each Claude subscription you want switchboard to route across.
+
+     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN
+
+  1  work ◆          Work          Max 20x    none                                 expires 27 Oct 2027  ·  365 days left
+
+▌ +  add an account                     ╭─ NEW TOKEN · PERSONAL ───────────────────────────────────────────────────────╮
+                                        │                                                                              │
+                                        │  ✗    The token wasn't created                                               │
+                                        │       claude setup-token stopped with an error. What it showed:              │
+                                        │                                                                              │
+                                        │       │ OAuth error: Request failed with status code 400                     │
+                                        │       │ Press Enter to retry.                                                │
+                                        │                                                                              │
+                                        │       Try again, or paste a token you made with claude setup-token.          │
+                                        │                                                                              │
+                                        │                              enter try again   p paste a token   esc cancel  │
+                                        ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+

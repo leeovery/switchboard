@@ -17,15 +17,13 @@ var addFields = []setup.Field{setup.IDField, setup.LabelField, setup.PlanField}
 
 // addCard is the card adding an account, as the screen holds it: its
 // fields, the plan chosen by its place among config.PlanChoices; where it
-// stands among them; whether the account it gives is being checked, when it
-// takes no key; and the account as setup last checked it, waiting for its
-// token, as tokenFor leaves it.
+// stands among them; and whether the account it gives is being checked,
+// when it takes no key.
 type addCard struct {
 	form
 	id, label entry
 	plan      int
 	checking  bool
-	waiting   *config.NewAccount
 }
 
 // addOpened is the add card as it opens: its fields empty, its plan not set,
@@ -49,34 +47,24 @@ func (c addCard) account() setup.Adding {
 
 // pressed is the card once key is pressed in its field chosen, reporting
 // false for a key it doesn't take: a text field's, as entry has them; Plan's,
-// ← and → moving its choice, no further than its first or last. The account
-// waiting is dropped where the key changes the account the card gives.
+// ← and → moving its choice, no further than its first or last.
 func (c addCard) pressed(key tea.KeyPressMsg) (addCard, bool) {
-	was := c.account()
-	ok := false
 	if field := c.typedIn(); field != nil {
-		ok = c.typed(field, key)
-	} else if by, moves := moved(key); moves {
-		c.plan, ok = planMoved(c.plan, by), true
+		ok := c.typed(field, key)
+		return c, ok
 	}
-	return c.changedFrom(was), ok
+	by, ok := moved(key)
+	if ok {
+		c.plan = planMoved(c.plan, by)
+	}
+	return c, ok
 }
 
 // pasted is the card with text pasted into its field chosen, where it's a
-// text field, the account waiting dropped where that changes it.
+// text field.
 func (c addCard) pasted(text string) addCard {
-	was := c.account()
 	if field := c.typedIn(); field != nil {
 		c.retyped(field, field.pasted(text))
-	}
-	return c.changedFrom(was)
-}
-
-// changedFrom is c, the account waiting dropped where the account c gives
-// isn't was, so the one waiting is only ever the one the card shows.
-func (c addCard) changedFrom(was setup.Adding) addCard {
-	if c.account() != was {
-		c.waiting = nil
 	}
 	return c
 }
@@ -102,6 +90,9 @@ func (m Model) addPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.add = nil
 		return m, nil
 	case "enter":
+		if m.status.checksOut() {
+			return m, nil
+		}
 		card := *m.add
 		card.checking = true
 		m.add = &card
@@ -136,9 +127,9 @@ func checkAdding(steps Steps, adding setup.Adding) job {
 
 // addChecked takes in what CheckAdding answered, while the add card is
 // open: where setup refused a value, why, said under its field, the card
-// staying open, no account waiting; where it failed otherwise, the step
-// failed, not checked, the card closed; else the account goes on to have
-// its token made, as tokenFor has it.
+// staying open; where it failed otherwise, the step failed, not checked,
+// the card closed; else the account goes on to have its token made, as
+// tokenFor has it.
 func (m Model) addChecked(msg addCheckedMsg) (Model, tea.Cmd) {
 	if m.add == nil {
 		return m, nil
@@ -146,26 +137,21 @@ func (m Model) addChecked(msg addCheckedMsg) (Model, tea.Cmd) {
 	card := *m.add
 	card.checking = false
 	if refused, ok := errors.AsType[*setup.Refused](msg.err); ok {
-		card.form, card.waiting = card.refusing(refused), nil
+		card.form = card.refusing(refused)
 		m.add = &card
 		return m, nil
 	}
+	m.add = nil
 	if msg.err != nil {
-		m.add = nil
 		m.walk, m.accountsFailed = m.walk.finished(msg.err), dashboard.AccountsNotChecked
 		return m, nil
 	}
-	m.add = &card
 	return m.tokenFor(msg.account)
 }
 
 // tokenFor hands the account the add card has checked on to have its token
-// made, in the token card, and be added once it's saved. Until there's a
-// token card, the add card holds the account, waiting, and stays open,
-// adding nothing; esc closes it, as ever, the account dropped.
+// made, the add card closed for the token card, to be added once the token's
+// saved, compared with the accounts read, as making has it.
 func (m Model) tokenFor(account config.NewAccount) (Model, tea.Cmd) {
-	card := *m.add
-	card.waiting = &account
-	m.add = &card
-	return m, nil
+	return m.making(setup.TokenFor{Account: account, Add: true, Organizations: m.organizations()})
 }

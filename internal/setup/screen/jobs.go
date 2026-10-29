@@ -44,8 +44,8 @@ func newJobs(ctx context.Context) *jobs {
 // as it can't from a goroutine of the jobs' own.
 func (js *jobs) read(j job) tea.Cmd {
 	return func() tea.Msg {
-		outcome, started := js.start(j)
-		if !started {
+		outcome := make(chan tea.Msg, 1)
+		if !js.start(j, outcome) {
 			return nil
 		}
 		select {
@@ -70,23 +70,52 @@ func (js *jobs) given(msg tea.Msg) tea.Msg {
 	return msg
 }
 
-// write is a command that runs j once no other writing action runs, as read
-// runs it: none where the jobs' context is done before its turn, which it
-// stops waiting for then, so a writing action that hangs holds up no other
-// once the context is done.
+// write is a command that runs j as a writing action, as held has it, as
+// read runs it.
 func (js *jobs) write(j job) tea.Cmd {
-	return js.read(func(ctx context.Context) tea.Msg {
-		select {
-		case js.writing <- struct{}{}:
-		case <-ctx.Done():
+	return js.read(js.held(j))
+}
+
+// held is j run once no other writing action runs, as turn has it: not at
+// all where the jobs' context is done before its turn.
+func (js *jobs) held(j job) job {
+	return func(ctx context.Context) tea.Msg {
+		done, ok := js.turn(ctx)
+		if !ok {
 			return nil
 		}
-		defer func() { <-js.writing }()
-		if ctx.Err() != nil {
-			return nil
-		}
+		defer done()
 		return j(ctx)
-	})
+	}
+}
+
+// turn waits till no other writing action runs, then takes the writing
+// actions' one place, which done gives back, while ctx, the jobs' own or one
+// of theirs, lasts: where it's done before its turn, it stops waiting,
+// reporting false, holding nothing, so a writing action that hangs holds up
+// no other once ctx is done.
+func (js *jobs) turn(ctx context.Context) (done func(), ok bool) {
+	select {
+	case js.writing <- struct{}{}:
+	case <-ctx.Done():
+		return nil, false
+	}
+	if ctx.Err() != nil {
+		<-js.writing
+		return nil, false
+	}
+	return func() { <-js.writing }, true
+}
+
+// begin is a command that starts j, beside whatever else runs, as read
+// does, but waits for nothing, giving nothing back itself: j's outcome, or
+// its panic, is given on ended, which holds one, for whatever listens for
+// it. Nothing is, where wait has begun before it starts.
+func (js *jobs) begin(j job, ended chan<- tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		js.start(j, ended)
+		return nil
+	}
 }
 
 // writes reports whether a writing action runs now.
@@ -94,18 +123,17 @@ func (js *jobs) writes() bool {
 	return len(js.writing) > 0
 }
 
-// start runs j on a goroutine wait waits for, its outcome given on the
-// channel it returns, reporting false where wait has begun. A panic of j's
-// is logged as it's recovered from, whatever comes of it after, as Bubble
-// Tea writes one it recovers from where the screen hides it, and it's j's
-// outcome.
-func (js *jobs) start(j job) (<-chan tea.Msg, bool) {
+// start runs j on a goroutine wait waits for, its outcome given on
+// outcome, which must hold it, reporting false where wait has begun. A
+// panic of j's is logged as it's recovered from, whatever comes of it
+// after, as Bubble Tea writes one it recovers from where the screen hides
+// it, and it's j's outcome.
+func (js *jobs) start(j job, outcome chan<- tea.Msg) bool {
 	js.mu.Lock()
 	defer js.mu.Unlock()
 	if js.stopped {
-		return nil, false
+		return false
 	}
-	outcome := make(chan tea.Msg, 1)
 	js.running.Go(func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -116,7 +144,7 @@ func (js *jobs) start(j job) (<-chan tea.Msg, bool) {
 		}()
 		outcome <- j(js.ctx)
 	})
-	return outcome, true
+	return true
 }
 
 // wait waits for every job still running to end, starting none after: the

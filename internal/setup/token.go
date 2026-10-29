@@ -1,17 +1,21 @@
 package setup
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"unicode"
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/interrupts"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -47,6 +51,19 @@ type TokenFor struct {
 // Organizations are accounts' organizations, by account id: "" where one
 // isn't known.
 type Organizations map[string]string
+
+// Organizations are the organizations of the review's accounts, as the API
+// named them checking each token: those known alone, which a token made or
+// pasted is compared with.
+func (r Review) Organizations() Organizations {
+	o := Organizations{}
+	for _, a := range r.Accounts {
+		if a.Token.Organization != "" {
+			o[a.ID] = a.Token.Organization
+		}
+	}
+	return o
+}
 
 // holder returns the id of the account other than except whose organization
 // is organization, "" where there's none, or organization isn't known.
@@ -102,6 +119,12 @@ type Making struct {
 	// as Safari.
 	Browser string
 	Why     string
+	// For is the account whose token it is, and SignedIn the account the
+	// browser is signed in to, where Address is to open in a private window,
+	// as the opener rule has it, "" where it's to open in the browser as it
+	// is: each by its label, else its id, at AddressReady, as Opening says
+	// them.
+	For, SignedIn string
 }
 
 // making is setuptoken's event e, as MakeToken reports it.
@@ -137,6 +160,10 @@ const (
 	// year on the account, without showing it whole: Tokened's Shown is what
 	// it showed, the token in it, to copy and paste.
 	TokenUnread
+	// TokenNotSaved is setup-token saying it made the token, which lasts a
+	// year on the account, and setup failing to save it, as Tokened's Why
+	// says: Shown is the token, where setup read it, to copy and paste.
+	TokenNotSaved
 	// NoClaudeCode is there being no Claude Code to run setup-token with.
 	NoClaudeCode
 	// TokenNotGiven is what was pasted being no token.
@@ -159,9 +186,13 @@ type Tokened struct {
 	// at TokenSameAccount.
 	SameAs string
 	// Shown is what setup-token showed, at TokenNotMade and TokenUnread, a
-	// line each, the blank lines left out: for the person alone, never a
-	// log, as at TokenUnread it holds the token.
+	// line each, the blank lines left out, and the token, at TokenNotSaved:
+	// for the person alone, never a log, as it can hold the token.
 	Shown []string
+	// InterruptHeld says an interrupt came while the token made was held
+	// through its save, as Setup.Hold has it, for the caller to end once it
+	// has ended, as the interrupt asked.
+	InterruptHeld bool
 }
 
 // MakeToken makes the account's token with claude setup-token, its sign-in
@@ -172,10 +203,13 @@ type Tokened struct {
 // MakeToken: nil hears nothing. An interrupt, taken as setup's Interrupt
 // says, or the end of ctx, stops the making until setup-token says it has
 // made the token; from then on the token is kept, as it lasts a year on the
-// account: it's checked and saved however ctx ends, or, unread, given back
-// to copy. It makes nothing where the token couldn't be saved for the
-// account, and fails as PasteToken does.
-func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) (Tokened, error) {
+// account: setup-token is read within its own time limits, however ctx
+// ends, then the token's checked and saved, or, unread or not saved, given
+// back to copy, the process's interrupts held throughout, as setup's Hold
+// has them, and Tokened's InterruptHeld saying where one came. It makes
+// nothing where the token couldn't be saved for the account, and fails as
+// PasteToken does, but for a token made.
+func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) (tokened Tokened, err error) {
 	if s.TokenMaker == nil {
 		return Tokened{}, errNoTokenMaker
 	}
@@ -183,23 +217,43 @@ func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) 
 	if err != nil {
 		return Tokened{}, err
 	}
-	opener, err := s.opener(opensAsItIs(cfg, f))
+	asItIs := opensAsItIs(cfg, f)
+	opener, err := s.opener(asItIs)
 	if err != nil {
 		return Tokened{}, err
 	}
+	forName, signedIn := named(cfg, f, asItIs)
 	tell := func(m Making) {
+		if m.Step == AddressReady {
+			m.For, m.SignedIn = forName, signedIn
+		}
 		if report != nil {
 			report(m)
 		}
 	}
-	a := s.make(ctx, opener, tell)
+	kept := &madeHold{hold: s.Hold, saving: s.Saving}
+	defer func() { tokened.InterruptHeld = kept.end() }()
+	a := s.make(ctx, opener, tell, kept)
 	if a.err != nil {
 		return notMade(ctx, f, a)
 	}
+	kept.begin()
 	tell(Making{Step: CheckingToken})
 	// The prober bounds its own wait on the API, which, not answering, leaves
 	// the token saved unchecked.
-	return s.save(context.WithoutCancel(ctx), f, a.token)
+	saved, err := s.save(context.WithoutCancel(ctx), f, a.token)
+	if err != nil {
+		return notSaved(f, err, a.token), nil
+	}
+	return saved, nil
+}
+
+// notSaved is the token made for f, which lasts a year on the account, not
+// saved, as err says, given back to copy.
+func notSaved(f TokenFor, err error, token tokens.Token) Tokened {
+	why := redact.Text(err.Error(), token.Reveal())
+	logger.Warn("claude setup-token made a token switchboard couldn't save", "account", f.Account.ID, "error", why)
+	return Tokened{Result: TokenNotSaved, Why: why, Shown: []string{token.Reveal()}}
 }
 
 // attempt is how a run of setup-token ended: its token, or err saying why
@@ -212,21 +266,66 @@ type attempt struct {
 }
 
 // make makes a token with the TokenMaker, its sign-in address opened by
-// opener, telling tell each step, while ctx lasts, and until an interrupt.
-func (s *Setup) make(ctx context.Context, opener setuptoken.Opener, tell func(Making)) attempt {
+// opener, telling tell each step, while ctx lasts, and until an interrupt,
+// till setup-token says it has made the token: from then on, neither ends
+// what the TokenMaker reads under, and kept holds the interrupts.
+func (s *Setup) make(ctx context.Context, opener setuptoken.Opener, tell func(Making), kept *madeHold) attempt {
 	asked, stop := s.interruptible(ctx)
 	defer stop()
+	reading, cancel := context.WithCancel(context.WithoutCancel(asked))
+	defer cancel()
 	var made atomic.Bool
-	token, err := s.TokenMaker.Make(asked, setuptoken.Signing{
+	defer context.AfterFunc(asked, func() {
+		if !made.Load() {
+			cancel()
+		}
+	})()
+	token, err := s.TokenMaker.Make(reading, setuptoken.Signing{
 		Opener: opener,
 		Report: func(e setuptoken.Event) {
 			if e.Step == setuptoken.StepMade {
 				made.Store(true)
+				kept.begin()
 			}
 			tell(making(e))
 		},
 	})
 	return attempt{token: token, err: err, made: made.Load(), interrupted: asked.Err() != nil && ctx.Err() == nil}
+}
+
+// madeHold is the process's interrupts held for a token made, from begin
+// till end, as hold has them, the first told to saving, on a goroutine of
+// its own, so nothing waits on it.
+type madeHold struct {
+	hold   interrupts.Holder
+	saving func()
+	mu     sync.Mutex
+	held   *interrupts.Held
+}
+
+// begin holds the interrupts, where they aren't held already.
+func (k *madeHold) begin() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.held == nil {
+		k.held = interrupts.Hold(k.hold)
+		k.held.Watch(k.told)
+	}
+}
+
+// told tells saving, where it's set, of an interrupt held.
+func (k *madeHold) told() {
+	if k.saving != nil {
+		go k.saving()
+	}
+}
+
+// end lets the interrupts go, where they're held, reporting whether one was
+// held, as interrupts.Held's End has it.
+func (k *madeHold) end() bool {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.held != nil && k.held.End()
 }
 
 // screened is setup-token's own failure, which says what it showed, as a
@@ -239,8 +338,9 @@ type screened interface {
 var _ screened = (*setuptoken.ScreenError)(nil)
 
 // notMade is how making the token for f ended without one, as a says. A
-// token made, but unread, is given back however it ended; otherwise, a
-// failure once ctx has ended, or at an interrupt, is theirs.
+// token made, but unread, is given back however it ended, and one made that
+// failed otherwise says why; otherwise, a failure once ctx has ended, or at
+// an interrupt, is theirs.
 func notMade(ctx context.Context, f TokenFor, a attempt) (Tokened, error) {
 	screen, isScreen := errors.AsType[screened](a.err)
 	_, noClaude := errors.AsType[*claude.NotFoundError](a.err)
@@ -248,6 +348,9 @@ func notMade(ctx context.Context, f TokenFor, a attempt) (Tokened, error) {
 	case isScreen && a.made:
 		logger.Warn("claude setup-token made a token switchboard couldn't read", "account", f.Account.ID, "error", a.err)
 		return Tokened{Result: TokenUnread, Why: a.err.Error(), Shown: shownLines(screen.Screen())}, nil
+	case a.made:
+		logger.Warn("claude setup-token made a token switchboard couldn't read", "account", f.Account.ID, "error", a.err)
+		return Tokened{Result: TokenNotSaved, Why: redact.Text(a.err.Error())}, nil
 	case ctx.Err() != nil:
 		return Tokened{Result: TokenCancelled}, nil
 	case a.interrupted:
@@ -344,6 +447,25 @@ func opensAsItIs(cfg *config.Config, f TokenFor) bool {
 		return cfg == nil
 	}
 	return cfg.Accounts.Primary().ID == f.Account.ID
+}
+
+// named is the account the token for f is for, as f gives it, or cfg
+// configures it; and, where its sign-in address isn't to open in the browser
+// as it is, the account the browser is signed in to, the primary, as the
+// opener rule has it: each by its label, else its id.
+func named(cfg *config.Config, f TokenFor, asItIs bool) (forName, signedIn string) {
+	forName = cmp.Or(f.Account.Label, f.Account.ID)
+	if cfg == nil {
+		return forName, ""
+	}
+	if i := slices.IndexFunc(cfg.Accounts, func(a config.Account) bool { return a.ID == f.Account.ID }); i >= 0 {
+		forName = cmp.Or(cfg.Accounts[i].Label, f.Account.ID)
+	}
+	if !asItIs {
+		primary := cfg.Accounts.Primary()
+		signedIn = cmp.Or(primary.Label, primary.ID)
+	}
+	return forName, signedIn
 }
 
 // opener returns what opens a sign-in address: the browser as it is, where

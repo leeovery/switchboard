@@ -102,7 +102,8 @@ type cardField struct {
 }
 
 // card is the card open over the page of the step showing: the Accounts
-// page's add card, its edit card, or its remove card; nil where none is.
+// page's add card, its edit card, its remove card, or its token card, at
+// the screen's time; nil where none is.
 func (s Setup) card(width int) *setupCard {
 	if s.At != SetupAccounts || s.Accounts == nil {
 		return nil
@@ -115,8 +116,19 @@ func (s Setup) card(width int) *setupCard {
 		return a.Edit.card(cardWidth)
 	case a.Remove != nil:
 		return a.Remove.card(cardWidth)
+	case a.Token != nil:
+		return a.Token.card(cardWidth, s.Now)
 	}
 	return nil
+}
+
+// tokenCard is the token card open over the page of the step showing: nil
+// where none is.
+func (s Setup) tokenCard() *SetupTokenCard {
+	if s.At != SetupAccounts || s.Accounts == nil {
+		return nil
+	}
+	return s.Accounts.Token
 }
 
 // draw draws the card over what's drawn on c, as Card.draw draws it, then

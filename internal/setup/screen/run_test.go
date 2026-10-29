@@ -222,9 +222,16 @@ type terminal struct {
 }
 
 // runUntil runs setup's screen of cfg on a terminal acting as term does,
-// until it stops. It returns how setup was left, what the screen wrote, and
-// how it stopped.
+// until it stops, as runIn has it, under the test's context.
 func runUntil(t *testing.T, cfg Config, term terminal) (Left, string, error) {
+	t.Helper()
+	return runIn(t, t.Context(), cfg, term)
+}
+
+// runIn runs setup's screen of cfg under ctx on a terminal acting as term
+// does, until it stops. It returns how setup was left, what the screen
+// wrote, and how it stopped.
+func runIn(t *testing.T, ctx context.Context, cfg Config, term terminal) (Left, string, error) {
 	t.Helper()
 	// Bubble Tea reads these itself: set, they have it write a trace, or a
 	// log of a panic it recovers from in the working directory.
@@ -269,7 +276,7 @@ func runUntil(t *testing.T, cfg Config, term terminal) (Left, string, error) {
 		}
 		return term.moment(js)
 	}
-	left, err := run(t.Context(), cfg, &out, moment, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter))
+	left, err := run(ctx, cfg, &out, moment, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter))
 	return left, out.String(), err
 }
 

@@ -76,6 +76,18 @@ func Seconds(d time.Duration) string {
 	return fmt.Sprintf("%dm %02ds", seconds/60, seconds%60)
 }
 
+// Stopwatch says how long something's been waited for, as a stopwatch shows
+// it, whole seconds gone: minutes and seconds, the seconds two digits, as
+// "0:21" or "12:05"; from an hour, hours first, as "1:02:05"; "0:00" for
+// none.
+func Stopwatch(d time.Duration) string {
+	seconds := int(max(d, 0) / time.Second)
+	if seconds >= 60*60 {
+		return fmt.Sprintf("%d:%02d:%02d", seconds/(60*60), seconds/60%60, seconds%60)
+	}
+	return fmt.Sprintf("%d:%02d", seconds/60, seconds%60)
+}
+
 // withRest follows a count with what's left over in the next unit down, as
 // the format given writes it, unless nothing is: "5d 12h", but "6d".
 func withRest(count string, rest int, format string) string {

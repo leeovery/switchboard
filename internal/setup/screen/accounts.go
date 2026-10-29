@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/setup"
 )
@@ -33,7 +34,27 @@ func (m Model) reviewed(msg reviewMsg) Model {
 	if was == nil && m.status.review != nil && len(m.status.review.Accounts) == 0 {
 		m.firstRun, m.add = true, addOpened()
 	}
-	return m.following(was)
+	return m.following(was).madeChosen(msg)
+}
+
+// madeChosen is m, once the accounts are read again since a token was saved,
+// as msg reads them, the account it was saved for forgotten, and, where
+// they're read, its row chosen, kept in view: the account added, or the one
+// whose token was replaced.
+func (m Model) madeChosen(msg reviewMsg) Model {
+	if m.madeFor == "" || m.rereading {
+		return m
+	}
+	id := m.madeFor
+	m.madeFor = ""
+	if msg.err != nil || m.status.review == nil {
+		return m
+	}
+	if i := slices.IndexFunc(m.status.review.Accounts, func(a setup.Reviewed) bool { return a.ID == id }); i >= 0 {
+		m.chosen = i
+		m = m.chosenInView()
+	}
+	return m
 }
 
 // settling reports whether a change to the accounts is outstanding: p's,
@@ -152,12 +173,15 @@ func (m Model) accountsPage() *dashboard.SetupAccountsPage {
 	if m.remove != nil {
 		p.Remove = m.remove.drawn()
 	}
+	if m.token != nil {
+		p.Token = m.token.drawn(m.now())
+	}
 	return p
 }
 
 // accountKeys are the keys that act on the account chosen, as accountKey
 // has them.
-var accountKeys = []string{"e", "r", "p"}
+var accountKeys = []string{"e", "r", "p", "t"}
 
 // chosenAccount is the account whose row is chosen, once the Accounts step
 // has read them, while it hasn't failed and no change is settling: false
@@ -171,8 +195,10 @@ func (m Model) chosenAccount() (setup.Reviewed, bool) {
 }
 
 // accountKey acts on the account a, chosen, as key says: e opens its edit
-// card; r, the card asking before it's removed; and p makes it the primary,
-// as madePrimary has it.
+// card; r, the card asking before it's removed; p makes it the primary, as
+// madePrimary has it; and t makes it a new token, saved in its old one's
+// place, compared with the accounts read, as making has it, once no
+// account's check is out.
 func (m Model) accountKey(key string, a setup.Reviewed) (tea.Model, tea.Cmd) {
 	switch key {
 	case "e":
@@ -181,6 +207,22 @@ func (m Model) accountKey(key string, a setup.Reviewed) (tea.Model, tea.Cmd) {
 		m.remove = &removeCard{id: a.ID}
 	case "p":
 		return m.madePrimary(a)
+	case "t":
+		if m.status.checksOut() {
+			return m, nil
+		}
+		return m.making(setup.TokenFor{Account: config.NewAccount{ID: a.ID}, Organizations: m.organizations()})
 	}
 	return m, nil
+}
+
+// organizations are those of the accounts read, as setup has them, which a
+// token made is compared with: none where none are read. A token's making
+// waits while any account's check is out (see checksOut), so it's compared
+// with every one the run will know.
+func (m Model) organizations() setup.Organizations {
+	if m.status.review == nil {
+		return nil
+	}
+	return m.status.review.Organizations()
 }
