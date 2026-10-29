@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
@@ -93,12 +94,14 @@ func partLine(p setup.Part) line {
 // setupPage is a step's page, under the status line: its heading, and
 // what's said at the heading's right, where anything is; what the step is
 // for, where it says, in the lines the page breaks it into; what it found
-// and did, a fact a row; and its keys, at the key line's left, and onward,
-// at its right.
+// and did, a fact a row; its form's fields; its notes, under them; and its
+// keys, at the key line's left, and onward, at its right.
 type setupPage struct {
 	name, tail   string
 	purpose      []line
 	facts        []setup.Said
+	fields       []textField
+	notes        []line
 	keys, onward []Key
 }
 
@@ -108,7 +111,8 @@ const underHeading = 2
 // draw draws the page from row top, rows tall and width cells wide, and
 // says how far it scrolls: its heading row, as the dashboard heads a
 // section; and from underHeading rows on, what's under it, as content draws
-// it, scrolled scroll rows down, as paged pages it.
+// it, scrolled scroll rows down, as paged pages it, saying what's out of
+// view as rowsOut has it.
 func (p setupPage) draw(c *canvas, top, rows, width, scroll int) Scrolling {
 	h := heading{name: p.name}
 	if p.tail != "" {
@@ -119,14 +123,33 @@ func (p setupPage) draw(c *canvas, top, rows, width, scroll int) Scrolling {
 	}
 	whole := p.content(width)
 	paged := rowsPaged{rows: rows - underHeading, content: whole.height(), says: true}
-	paged.paste(c, whole, top+underHeading, scroll, width, historyRowsOut...)
+	paged.paste(c, whole, top+underHeading, scroll, width, p.rowsOut()...)
 	return paged.scrolling(scroll)
+}
+
+// rowsOut are the forms of the line saying how many of the page's rows are
+// out of view, as History's rows say it; but while a field of the page's is
+// typed in, without its keys, as j and k type into the field.
+func (p setupPage) rowsOut() []outForm {
+	if !p.typing() {
+		return historyRowsOut
+	}
+	forms := make([]outForm, len(historyRowsOut))
+	for i, form := range historyRowsOut {
+		forms[i] = form.keyless()
+	}
+	return forms
+}
+
+// typing reports whether a field of the page's is typed in.
+func (p setupPage) typing() bool {
+	return slices.ContainsFunc(p.fields, func(f textField) bool { return f.field.Typing })
 }
 
 // content is what's under the page's heading, drawn whole width cells wide:
 // from setupIndent, what the step is for, each of its lines wrapped further
-// where it's wider than the page; then a row on, its facts, a blank row
-// between each.
+// where it's wider than the page; then a row on, its facts, then its
+// fields, a blank row after each; then its notes, wrapped as its purpose is.
 func (p setupPage) content(width int) *canvas {
 	c := growing(width)
 	y := 0
@@ -141,6 +164,15 @@ func (p setupPage) content(width int) *canvas {
 	}
 	for _, said := range p.facts {
 		y = fact(c, y, width, said) + 1
+	}
+	for _, f := range p.fields {
+		y = f.draw(c, setupIndent, y, width-setupIndent) + 1
+	}
+	for _, note := range p.notes {
+		for _, l := range note.wrap(width - setupIndent) {
+			c.line(setupIndent, y, l)
+			y++
+		}
 	}
 	return c
 }

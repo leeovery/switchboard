@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -115,20 +116,35 @@ func (h *harness) run(cmd tea.Cmd) []tea.Msg {
 	}
 }
 
-// press presses key, returning what the model sends back, undelivered.
+// named are the keys press presses by name, as Bubble Tea names them.
+var named = map[string]tea.KeyPressMsg{
+	"ctrl+c":    {Code: 'c', Mod: tea.ModCtrl},
+	"enter":     {Code: tea.KeyEnter},
+	"esc":       {Code: tea.KeyEscape},
+	"tab":       {Code: tea.KeyTab},
+	"backspace": {Code: tea.KeyBackspace},
+	"left":      {Code: tea.KeyLeft},
+	"end":       {Code: tea.KeyEnd},
+	"pgdown":    {Code: tea.KeyPgDown},
+	"pgup":      {Code: tea.KeyPgUp},
+}
+
+// press presses key, by its name, or one that types it, returning what the
+// model sends back, undelivered.
 func (h *harness) press(key string) []tea.Msg {
 	h.t.Helper()
-	switch key {
-	case "ctrl+c":
-		return h.update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
-	case "enter":
-		return h.update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	case "pgdown":
-		return h.update(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	case "pgup":
-		return h.update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	if k, ok := named[key]; ok {
+		return h.update(k)
 	}
 	return h.update(tea.KeyPressMsg{Code: []rune(key)[0], Text: key})
+}
+
+// typeIn presses a key for each character of text, as typing it does.
+func (h *harness) typeIn(text string) {
+	h.t.Helper()
+	for _, r := range text {
+		h.pressAndDeliver(string(r))
+	}
 }
 
 // pressAndDeliver presses key, and delivers what the model sends back.
@@ -167,17 +183,25 @@ func (c *fakeClock) Now() time.Time {
 }
 
 // fakeSteps answers as setup's steps do: Standing with standing, Review with
-// review, failing with reviewErr where it's set, and Skill with said,
-// failing with skillErr where it's set; each counted as it's asked.
+// review, failing with reviewErr where it's set; Priming with day, failing
+// with primingErr where it's set; SetDay as config.ParseDay does, keeping
+// each day it's given in set, failing with setErr where it's set; and Skill
+// with said, failing with skillErr where it's set; each counted as it's
+// asked.
 type fakeSteps struct {
-	standing  setup.RouterStanding
-	review    setup.Review
-	reviewErr error
-	said      setup.Said
-	skillErr  error
-	standings int
-	reviews   int
-	skills    int
+	standing   setup.RouterStanding
+	review     setup.Review
+	reviewErr  error
+	day        config.Day
+	primingErr error
+	set        []string
+	setErr     error
+	said       setup.Said
+	skillErr   error
+	standings  int
+	reviews    int
+	primings   int
+	skills     int
 }
 
 // newFakeSteps is the steps of a router up and healthy, three accounts
@@ -206,6 +230,19 @@ func (s *fakeSteps) Review() (setup.Review, error) {
 		return setup.Review{}, s.reviewErr
 	}
 	return s.review, nil
+}
+
+func (s *fakeSteps) Priming() (config.Day, error) {
+	s.primings++
+	return s.day, s.primingErr
+}
+
+func (s *fakeSteps) SetDay(day string) (config.Day, error) {
+	s.set = append(s.set, day)
+	if s.setErr != nil {
+		return config.Day{}, s.setErr
+	}
+	return config.ParseDay(day)
 }
 
 func (s *fakeSteps) Skill() (setup.Said, error) {

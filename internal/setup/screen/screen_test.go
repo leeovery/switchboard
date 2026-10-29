@@ -123,7 +123,9 @@ func TestLeaving(t *testing.T) {
 		keys    []string
 		want    Left
 	}{
-		{name: "q mid-way: paused", at: dashboard.SetupPriming, keys: []string{"q"}, want: Left{Ending: Paused}},
+		{name: "q mid-way: paused", at: dashboard.SetupLink, keys: []string{"q"}, want: Left{Ending: Paused}},
+		{name: "q at Priming, its field given up: paused", at: dashboard.SetupPriming, keys: []string{"esc", "q"}, want: Left{Ending: Paused}},
+		{name: "ctrl+c at Priming, its field typed in: paused", at: dashboard.SetupPriming, keys: []string{"ctrl+c"}, want: Left{Ending: Paused}},
 		{name: "ctrl+c mid-way: paused", at: dashboard.SetupService, keys: []string{"ctrl+c"}, want: Left{Ending: Paused}},
 		{name: "q at Skill, done: paused", at: dashboard.SetupSkill, keys: []string{"q"}, want: Left{Ending: Paused}},
 		{name: "q at Done: finished, without the dashboard", at: dashboard.SetupSkill, keys: []string{"enter", "q"}, want: Left{Ending: Finished}},

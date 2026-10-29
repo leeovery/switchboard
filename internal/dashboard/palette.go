@@ -13,8 +13,8 @@ import (
 // Look is how a frame is drawn: in a theme's colours, with its blends worked
 // out against the colour beneath them, and its canvas painted on every cell
 // where the dashboard fills the screen; or, as NO_COLOR asks, without colour,
-// state told by its glyphs and bold, and a selected row in reverse video. The
-// zero Look draws text alone, without escapes.
+// state told by its glyphs and bold, and a selected row and a field's cursor
+// in reverse video. The zero Look draws text alone, without escapes.
 type Look struct {
 	theme theme.Theme
 	// ground is what blends are worked out against: the canvas the look
@@ -43,8 +43,8 @@ func Print(t theme.Theme, background color.Color) Look {
 	return Look{theme: t, ground: background, styled: true, coloured: true}
 }
 
-// NoColour is the look NO_COLOR asks for: no canvas and no colour, bold and a
-// selected row's reverse video alone.
+// NoColour is the look NO_COLOR asks for: no canvas and no colour, bold, and
+// the reverse video of a selected row and a field's cursor alone.
 func NoColour() Look {
 	return Look{styled: true}
 }
@@ -216,10 +216,11 @@ func (l Look) reversed(k ink) bool {
 
 // reverses reports whether the look draws the surface tok by swapping the
 // terminal's own foreground and background: as its theme draws it, or,
-// without colour, a selected row's, as the terminal theme draws it.
+// without colour, a selected row's and a field's cursor's, text.primary, as
+// the terminal theme draws them.
 func (l Look) reverses(tok theme.Token) bool {
 	if !l.coloured {
-		return l.styled && tok == theme.BgSelection
+		return l.styled && (tok == theme.BgSelection || tok == theme.TextPrimary)
 	}
 	return l.theme.Reversed(tok)
 }

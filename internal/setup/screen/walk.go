@@ -48,7 +48,8 @@ type walk struct {
 // actions are what a step does as it's reached, of the steps that do
 // something: any other is done on reaching it.
 var actions = map[dashboard.SetupStep]func(Steps) job{
-	dashboard.SetupSkill: skill,
+	dashboard.SetupPriming: readDay,
+	dashboard.SetupSkill:   skill,
 }
 
 // openingOn is the walk opening on step, the steps before it passed
@@ -102,8 +103,8 @@ func (m Model) action() tea.Cmd {
 }
 
 // entered moves on, once the step showing is done, unless it failed: at
-// Done, leaving to open the dashboard; else to the next step, its page from
-// the top, running its action.
+// Done, leaving to open the dashboard; at Priming, once its day is set, as
+// dayEntered has it; else as movedOn has it.
 func (m Model) entered() (tea.Model, tea.Cmd) {
 	switch w := m.walk; {
 	case !w.done || w.failed != nil:
@@ -111,7 +112,14 @@ func (m Model) entered() (tea.Model, tea.Cmd) {
 	case w.step == dashboard.SetupDone:
 		m.walk.toDashboard = true
 		return m, tea.Quit
+	case w.step == dashboard.SetupPriming:
+		return m.dayEntered()
 	}
+	return m.movedOn()
+}
+
+// movedOn is m at the next step, its page from the top, running its action.
+func (m Model) movedOn() (tea.Model, tea.Cmd) {
 	m.walk, m.scroll = m.walk.onward(), 0
 	return m, m.action()
 }

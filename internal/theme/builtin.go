@@ -72,10 +72,11 @@ func Builtins() []Theme {
 
 // terminal is the theme for a terminal whose background is transparent or an
 // image: its text in the terminal's own foreground, dim text, borders and a
-// bar's track faint in it, its selection and what's picked out for attention
-// in reverse, and its colours the terminal's own sixteen, on the terminal's
-// own background, so it paints no canvas, and, its colours being whatever
-// the terminal makes them, blends nothing. A bar's ramp steps from colour to
+// bar's track faint in it, its selection, what's picked out for attention and
+// a field's cursor, a surface of text.primary, in reverse, and its colours
+// the terminal's own sixteen, on the terminal's own background, so it paints
+// no canvas, and, its colours being whatever the terminal makes them, blends
+// nothing. A bar's ramp steps from colour to
 // colour rather than through them, a ramp of shades stays at its hue, and an
 // older version is drawn faint in its family's colour.
 func terminal() Theme {
@@ -98,7 +99,7 @@ func terminal() Theme {
 	for i, slot := range versionSlots {
 		t.faint[VizVersion1+Token(i)] = slot.older
 	}
-	t.reversed[BgSelection], t.reversed[BgAttention] = true, true
+	t.reversed[BgSelection], t.reversed[BgAttention], t.reversed[TextPrimary] = true, true, true
 	t.derive()
 	return t
 }

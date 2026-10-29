@@ -65,6 +65,8 @@ type Setup struct {
 	// where it failed, which stops setup there, its page saying why: either
 	// way, its key line's right has q quit alone.
 	UnderWay, Failed bool
+	// Priming is the Priming step's page: nil until its day is read.
+	Priming *SetupPrimingPage
 	// Skill is what the skill step did: nil until it's done it.
 	Skill *setup.Said
 	// Scroll is how many rows the page under its heading is scrolled down.
@@ -147,10 +149,14 @@ func (s Setup) passed(step SetupStep) bool {
 	return slices.Contains(s.Passed, step)
 }
 
-// shown is the page of the step showing: the Skill's, as skillPage has it;
-// else, until it's drawn, its name in capitals alone.
+// shown is the page of the step showing: the Priming's, as primingPage has
+// it; the Skill's, as skillPage has it; else, until it's drawn, its name in
+// capitals alone.
 func (s Setup) shown() setupPage {
-	if s.Step == SetupSkill {
+	switch s.Step {
+	case SetupPriming:
+		return s.primingPage()
+	case SetupSkill:
 		return s.skillPage()
 	}
 	return setupPage{name: strings.ToUpper(s.Step.Title())}

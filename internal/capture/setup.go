@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/setup"
@@ -24,9 +25,11 @@ type setupScreen struct {
 	steps func(now time.Time) setupSteps
 }
 
-// setupScreens are setup's screen's fixtures: the Skill page, the skill
+// setupScreens are setup's screen's fixtures: the Priming page, its day
+// read, typed in, as frame 7 has it; and the Skill page, the skill
 // installed, as frame 9 has it.
 var setupScreens = []setupScreen{
+	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
 	{name: "setup-skill-160", size: wide(37), step: dashboard.SetupSkill, steps: everyStepPassed},
 }
 
@@ -79,24 +82,36 @@ func (f Fixture) settleSetup(size watch.Size) screen.Model {
 type setupSteps struct {
 	standing setup.RouterStanding
 	review   setup.Review
+	day      config.Day
 	skill    setup.Said
 }
 
-// everyStepPassed are the steps as they stand once each before the Skill
-// has passed, at now: a router up and healthy; three accounts, work the
-// primary, each token checked and working, as the Accounts page leaves
-// them; and the skill installed, written from the home as setup writes it.
-func everyStepPassed(now time.Time) setupSteps {
+// accountsPassed are the steps as they stand once the Accounts have passed,
+// at now: no router running yet; three accounts, work the primary, each
+// token checked and working, as the Accounts page leaves them; and priming
+// over 08:00-23:00.
+func accountsPassed(now time.Time) setupSteps {
 	working := setup.TokenStanding{State: setup.TokenWorking}
 	return setupSteps{
-		standing: setup.RouterStanding{State: setup.RouterHealthy},
+		standing: setup.RouterStanding{State: setup.RouterDown},
 		review: setup.Review{At: now, Accounts: []setup.Reviewed{
 			{ID: "work", Label: "Work", Primary: true, Token: working},
 			{ID: "personal", Label: "Personal", Token: working},
 			{ID: "side", Label: "Side", Token: working},
 		}},
-		skill: setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/.claude/skills/switchboard/SKILL.md"},
+		day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour},
 	}
+}
+
+// everyStepPassed are the steps as they stand once each before the Skill
+// has passed, at now: as the Accounts left them, but for a router up and
+// healthy; and the skill installed, written from the home as setup writes
+// it.
+func everyStepPassed(now time.Time) setupSteps {
+	steps := accountsPassed(now)
+	steps.standing = setup.RouterStanding{State: setup.RouterHealthy}
+	steps.skill = setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/.claude/skills/switchboard/SKILL.md"}
+	return steps
 }
 
 // Standing is the router as given.
@@ -107,6 +122,16 @@ func (s setupSteps) Standing(context.Context) (setup.RouterStanding, error) {
 // Review is the accounts as given.
 func (s setupSteps) Review() (setup.Review, error) {
 	return s.review, nil
+}
+
+// Priming is the day as given.
+func (s setupSteps) Priming() (config.Day, error) {
+	return s.day, nil
+}
+
+// SetDay parses the day as setup does, writing nothing.
+func (s setupSteps) SetDay(day string) (config.Day, error) {
+	return config.ParseDay(day)
 }
 
 // Skill is what the skill step did, as given.

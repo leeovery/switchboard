@@ -446,6 +446,33 @@ func TestADayReadsAsPrimeGivesIt(t *testing.T) {
 	}
 }
 
+func TestADayRefusedSaysWhyApartFromItsKeyAndValue(t *testing.T) {
+	tests := []struct {
+		text, why string
+	}{
+		{text: "8-9", why: "must be two times of day, HH:MM, joined by -, such as 08:00-23:00"},
+		{text: "08:00-08:00", why: "must end at another time than it starts; an end before the start is past midnight"},
+	}
+	for _, tt := range tests {
+		_, err := config.ParseDay(tt.text)
+		wrong, ok := errors.AsType[*config.WrongValue](err)
+		if !ok || wrong.Why != tt.why {
+			t.Errorf("ParseDay(%q) fails with %v, want a WrongValue saying %q", tt.text, err, tt.why)
+			continue
+		}
+		if want := fmt.Sprintf("prime.day %q: %s", tt.text, tt.why); err.Error() != want {
+			t.Errorf("ParseDay(%q) fails saying %q, want %q, the key and the value before why", tt.text, err, want)
+		}
+	}
+}
+
+func TestAWrongValueHidesATokenInItsValue(t *testing.T) {
+	_, err := config.ParseDay("sk-ant-oat01-" + strings.Repeat("x", 40))
+	if err == nil || strings.Contains(err.Error(), "sk-ant-oat01-") {
+		t.Errorf("ParseDay of a token fails saying %v, want the token hidden", err)
+	}
+}
+
 func TestAccountsIDs(t *testing.T) {
 	accounts := config.Accounts{{ID: "work", Label: "Work"}, {ID: "side", Label: "Side"}}
 	if got, want := accounts.IDs(), []string{"work", "side"}; !slices.Equal(got, want) {
