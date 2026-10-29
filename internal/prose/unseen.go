@@ -2,6 +2,7 @@ package prose
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -17,9 +18,14 @@ const (
 	firstTag           = '\U000e0020'
 	lastTag            = '\U000e007e'
 	cancelTag          = '\U000e007f'
-	// mostFlagTags is the most tags a subdivision's flag names it by.
-	mostFlagTags = 8
 )
+
+// subdivisionFlags are the subdivisions whose flags Unicode recommends,
+// England's, Scotland's and Wales's, as their tags spell them, a tag for
+// each ASCII character. A black flag before any other run of tags draws as
+// the black flag alone, the tags as nothing, so they could carry text
+// unseen.
+var subdivisionFlags = []string{"gbeng", "gbsct", "gbwls"}
 
 // unjoined are the scripts that never shape with joiners: a joiner between
 // two of their letters does nothing that shows.
@@ -71,8 +77,8 @@ func DirectionMark(r rune) bool {
 //   - a variation selector after a symbol, punctuation beyond ASCII, a
 //     letter outside Latin, Greek and Cyrillic, such as an ideograph, or a
 //     keycap's #, * or digit, as the keycap follows;
-//   - a subdivision flag's tags: a black flag, one to eight tags and the tag
-//     that cancels them, whole.
+//   - a subdivision flag's tags: a black flag, the tags spelling one of
+//     subdivisionFlags and the tag that cancels them, whole.
 func MapUnseen(text string, replace func(r rune) string) string {
 	runes := []rune(text)
 	flagged, next := flagTags(runes), seenAfter(runes)
@@ -168,8 +174,8 @@ func selects(last, next rune) bool {
 }
 
 // flagTags marks the tags of runes, and the tags that cancel them, that
-// make a subdivision's flag: after a black flag, one to mostFlagTags tags,
-// then the cancel tag.
+// make a subdivision's flag: after a black flag, the tags spelling one of
+// subdivisionFlags, then the cancel tag.
 func flagTags(runes []rune) []bool {
 	flagged := make([]bool, len(runes))
 	for i, r := range runes {
@@ -180,7 +186,7 @@ func flagTags(runes []rune) []bool {
 		for end < len(runes) && runes[end] >= firstTag && runes[end] <= lastTag {
 			end++
 		}
-		if tags := end - i - 1; tags < 1 || tags > mostFlagTags || end == len(runes) || runes[end] != cancelTag {
+		if end == len(runes) || runes[end] != cancelTag || !slices.Contains(subdivisionFlags, spelt(runes[i+1:end])) {
 			continue
 		}
 		for j := i + 1; j <= end; j++ {
@@ -188,6 +194,15 @@ func flagTags(runes []rune) []bool {
 		}
 	}
 	return flagged
+}
+
+// spelt is what tags spell: each tag's ASCII character.
+func spelt(tags []rune) string {
+	ascii := make([]rune, len(tags))
+	for i, t := range tags {
+		ascii[i] = t - firstTag + ' '
+	}
+	return string(ascii)
 }
 
 // seenAfter is, for each of runes, the first seen character after it,

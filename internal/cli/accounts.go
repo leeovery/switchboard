@@ -382,8 +382,11 @@ func editedSays(e accounts.Edited) string {
 	if e.Was.Plan != e.Now.Plan {
 		changed = append(changed, nowAndWas("plan", planSaid(e.Now.Plan), planSaid(e.Was.Plan)))
 	}
-	if e.FormerPrimary != "" {
+	switch {
+	case e.FormerPrimary != "":
 		changed = append(changed, "the primary in place of "+e.FormerPrimary)
+	case e.Marked:
+		changed = append(changed, "marked the primary, which it was as the first with none marked")
 	}
 	if e.Was.Reserve != e.Now.Reserve {
 		changed = append(changed, nowAndWas("reserve", reserveSaid(e.Now.Reserve), reserveSaid(e.Was.Reserve)))

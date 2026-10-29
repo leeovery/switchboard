@@ -117,9 +117,10 @@ func (s Setup) SpinDelay() (time.Duration, bool) {
 // page draws the screen on a canvas width cells wide and height tall, in
 // look, and says how far its page scrolls: its title row; its status line;
 // the page of the step showing, scrolled Scroll rows down, in the rows
-// between the status line and the key line; and the key line, the last row.
-// Where the title row's own pieces don't fit across it, or its rows down it,
-// as setupRows lays them, it's tooSmall alone.
+// between the status line and the key line; and the key line, the last row,
+// but where a card is open over the page: then the card, its keys its own,
+// and the key line empty. Where the title row's own pieces don't fit across
+// it, or its rows down it, as setupRows lays them, it's tooSmall alone.
 func (s Setup) page(width, height int, look Look) (*canvas, Scrolling) {
 	c := newCanvas(width, height)
 	wide := s.title(c, width)
@@ -136,6 +137,10 @@ func (s Setup) page(width, height int, look Look) (*canvas, Scrolling) {
 	}
 	body := rows[setupBodyRows]
 	scrolling := shown.draw(c, body.At, body.Size, width, s.Scroll)
+	if card := s.card(width); card != nil {
+		card.draw(c)
+		return c, scrolling
+	}
 	shown.keyLine(c, rows[setupKeyRow].At, width)
 	return c, scrolling
 }

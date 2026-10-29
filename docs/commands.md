@@ -518,18 +518,19 @@ The subcommands do the following:
   - A `--label` is taken as it shows: without the characters Unicode draws as nothing (its
     default ignorables, such as zero-width spaces and joiners, variation selectors and tags),
     each run of whitespace within it one space, and the whitespace and direction marks at its
-    edges trimmed. Such a character is kept only where it makes an emoji or a flag, or shapes a
-    joining script, such as Persian or Devanagari, and a variation selector only after a symbol,
-    as in ❤️, non-ASCII punctuation, or a letter outside Latin, Greek and Cyrillic, or in a
-    keycap, as in 1️⃣; it's dropped everywhere else. Direction marks within it are kept, and so
-    is every other character, such as an Arabic number sign. One that's the id is no label, as it
-    shows the same.
+    edges trimmed. Such a character is kept only where it makes an emoji or a flag, England's,
+    Scotland's or Wales's among them, or shapes a joining script, such as Persian or Devanagari,
+    and a variation selector only after a symbol, as in ❤️, non-ASCII punctuation, or a letter
+    outside Latin, Greek and Cyrillic, or in a keycap, as in 1️⃣; it's dropped everywhere else,
+    the tags after a black flag that name no other flag with them. Direction marks within it are
+    kept, and so is every other character. One that's the id is no label, as it shows the same.
   - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
     the token, and so is a `--label` over 100 characters as it shows, one that holds a control
     character, such as a newline or a tab, or a bidirectional embedding, override or isolate,
-    which could reorder the row it's shown in, one that would show as nothing, such as spaces or
-    zero-width characters alone, and one that isn't UTF-8 text. Private-use glyphs, such as Nerd
-    Font icons, show.
+    which could reorder the row it's shown in, one that holds a sign that joins the character
+    after it, such as an Arabic number sign, which can hide that character, one that would show
+    as nothing, such as spaces or zero-width characters alone, and one that isn't UTF-8 text.
+    Private-use glyphs, such as Nerd Font icons, show.
 - **`edit`** changes an account's label, plan, primary or reserve, in its table in the config.
   - It takes one or more of `--label`, `--plan`, `--primary` and `--reserve`, and leaves what it
     isn't given as it is.
@@ -547,6 +548,8 @@ The subcommands do the following:
     where no account has one, it says nothing. Sessions started
     directly, while the router was down, are untouched by the move. It warns on stderr when the
     new primary has no usable token, as new sessions then start on another account's.
+  - Where the config marks no account the primary, the first is the primary for want of one:
+    `--primary` on it marks it so, and `edit` says it did.
   - A reserve written as a number alone, such as `5` or `0.05`, is refused, as either could mean
     the other: write it as a percentage. So is one past two decimal places.
   - A `--label` is taken and refused as `add` takes and refuses one; `--label ""`, or the id,
@@ -574,6 +577,8 @@ The subcommands do the following:
     record's own path, and the file there has another name too, the record's path goes with the
     token, the file kept under its other name, and it says so.
   - The only account can't be removed.
+  - Where the token file can't be deleted, `remove` fails, saying the account is taken out of the
+    config, and the token file's path, and why it isn't deleted.
   - Removing the primary says which account is the primary now: the one marked
     `primary = true`, else the first.
   - Every session holds the primary's token. Sessions running on a removed account's token stay

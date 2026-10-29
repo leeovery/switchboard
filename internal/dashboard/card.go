@@ -102,12 +102,20 @@ func (f Frame) cardWidth(natural int) int {
 // where the frame has it a cardMargin clear either side, else the frame's
 // width less those margins.
 func (f Frame) cardOn(natural int) (width int, whole bool) {
+	return cardAcross(f.Width, natural)
+}
+
+// cardAcross is how wide a card of the natural width given is drawn across
+// a page width cells wide, its edges included, and whether that's its
+// natural: its natural where the page has it a cardMargin clear either
+// side, else the page's width less those margins.
+func cardAcross(width, natural int) (int, bool) {
 	card := flex.Part{Least: natural, Natural: natural}
-	if s, fits := flex.Lay(f.Width, cardMargin, card, cardMargin); fits {
+	if s, fits := flex.Lay(width, cardMargin, card, cardMargin); fits {
 		return s[1].Size, true
 	}
 	card.Least = 0
-	s, _ := flex.Lay(f.Width, cardMargin, card, cardMargin)
+	s, _ := flex.Lay(width, cardMargin, card, cardMargin)
 	return s[1].Size, false
 }
 

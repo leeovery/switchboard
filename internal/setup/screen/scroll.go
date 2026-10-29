@@ -7,8 +7,11 @@ import (
 )
 
 // wheeled scrolls the page dashboard.WheelRows rows the way the wheel
-// turned.
+// turned, but while a card is open over it, which holds it still.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
+	if m.carded() {
+		return m
+	}
 	switch msg.Button {
 	case tea.MouseWheelDown:
 		return m.scrolled(dashboard.WheelRows, 0)

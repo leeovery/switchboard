@@ -35,13 +35,18 @@ type Edited struct {
 	// FormerPrimary is the id of the account that was the primary before the
 	// edit made this one so: "" when it didn't.
 	FormerPrimary string
+	// Marked is set where the edit marked the account the primary in the
+	// config, which didn't before: so too where it was the primary already,
+	// only as the first with none marked, where FormerPrimary is "".
+	Marked bool
 	// Before is the config the edit read, as it was before the edit.
 	Before *config.Config
 }
 
-// Changed reports whether the edit changed the account.
+// Changed reports whether the edit changed the account, as the config reads
+// it or as it marks it.
 func (e Edited) Changed() bool {
-	return e.Was != e.Now
+	return e.Was != e.Now || e.Marked
 }
 
 // Configured fails, matching config.ErrNotConfigured, when no account in the
@@ -58,8 +63,8 @@ func (r Registry) Configured(id string) error {
 
 // Edit changes the account with the given id as change says, in its
 // [[account]] table in the config file. A change that leaves the account as
-// it was, as the config reads it, writes nothing. It fails, matching
-// config.ErrNotConfigured, when no account has the id.
+// it was, as the config reads it and marks it, writes nothing. It fails,
+// matching config.ErrNotConfigured, when no account has the id.
 func (r Registry) Edit(id string, change Change) (Edited, error) {
 	draft, err := config.Edit(r.ConfigPath)
 	if err != nil {
@@ -70,7 +75,7 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	if err != nil {
 		return Edited{}, err
 	}
-	wasLabelled := draft.Labelled(id)
+	wasLabelled, wasMarked := draft.Labelled(id), draft.MarksPrimaryOf(id)
 	if err := change.apply(draft, was); err != nil {
 		return Edited{}, err
 	}
@@ -78,7 +83,12 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	if err != nil {
 		return Edited{}, err
 	}
-	edited := Edited{Was: was, Now: now, WasLabelled: wasLabelled, NowLabelled: draft.Labelled(id), Before: before}
+	edited := Edited{
+		Was: was, Now: now,
+		WasLabelled: wasLabelled, NowLabelled: draft.Labelled(id),
+		Marked: !wasMarked && draft.MarksPrimaryOf(id),
+		Before: before,
+	}
 	if !edited.Changed() {
 		return edited, nil
 	}
@@ -104,7 +114,7 @@ func (c Change) apply(draft *config.Draft, was config.Account) error {
 			return err
 		}
 	}
-	if c.Primary && !was.Primary {
+	if c.Primary {
 		if err := draft.SetPrimary(was.ID); err != nil {
 			return err
 		}

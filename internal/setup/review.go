@@ -126,11 +126,17 @@ type Reviewed struct {
 	Token   TokenStanding
 }
 
-// PlanName is the account's plan as the price table names it, such as
-// "Max 20x": "" where its plan isn't set, or the table doesn't know it.
+// PlanName is the account's plan as the price table names it, as PlanName
+// has it.
 func (r Reviewed) PlanName() string {
-	if plan, ok := ledger.Pricing.Plan(r.Plan); ok {
-		return plan.Name
+	return PlanName(r.Plan)
+}
+
+// PlanName is the plan, one of config.Plans, as the price table names it,
+// such as "Max 20x": "" for "", none, or one the table doesn't know.
+func PlanName(plan string) string {
+	if p, ok := ledger.Pricing.Plan(plan); ok {
+		return p.Name
 	}
 	return ""
 }

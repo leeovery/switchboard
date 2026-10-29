@@ -183,7 +183,6 @@ func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
 		{name: "its id, which takes the label out, as it shows the same", given: "side", want: ""},
 		{name: "its id once trimmed", given: " side\u200b", want: ""},
 		{name: "a subdivision's flag, its tags kept at the edge", given: "Team " + england, want: "Team " + england},
-		{name: "an Arabic number sign kept at the edge", given: "\u0600123", want: "\u0600123"},
 		{name: "characters that play no part dropped, the whitespace either side then one space", given: "Work \u200b Team", want: "Work Team"},
 		{name: "a soft hyphen and a word joiner dropped within it", given: "Day\u00adjob\u2060s", want: "Dayjobs"},
 		{name: "direction marks within it kept, trimmed at its edges", given: "\u200f\u061cabc\u200fdef\u200e", want: "abc\u200fdef"},

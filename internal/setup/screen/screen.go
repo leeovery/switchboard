@@ -9,11 +9,13 @@ package screen
 import (
 	"cmp"
 	"context"
+	"slices"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
@@ -52,6 +54,12 @@ type Steps interface {
 	// Skill writes the skill, or brings it up to date, and says which: on a
 	// failure, it says so too, as the screen draws it.
 	Skill() (setup.Said, error)
+	// EditAccount changes the account id as edit says, failing with a
+	// setup.Refused where config refuses a value.
+	EditAccount(id string, edit setup.Edit) (accounts.Edited, error)
+	// RemoveAccount removes the account id, failing with a setup.Refused
+	// where it's the only one.
+	RemoveAccount(id string) (accounts.Removed, error)
 }
 
 // Config is what the screen is given.
@@ -111,6 +119,19 @@ type Model struct {
 	// chosen is the Accounts page's row chosen: an account's, by its place
 	// in the review, or past the last, + add an account.
 	chosen int
+	// edit and remove are the cards open over the Accounts page, the chosen
+	// account's edit card, or the card asking before it's removed: nil where
+	// neither is.
+	edit   *editCard
+	remove *removeCard
+	// marking counts the accounts p is making the primary, not yet answered;
+	// and rereading is set once a change to the accounts is made, till
+	// they're read again, as settling has them.
+	marking   int
+	rereading bool
+	// accountsFailed is what the Accounts step failed at, where it did:
+	// reading the accounts, the zero, unless a change to them failed.
+	accountsFailed dashboard.AccountsFailed
 	// priming is the Priming page as it stands: nil until its day's read.
 	priming *primingForm
 	// service is what the service step told, and its router's health: nil
@@ -201,17 +222,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.serviced(msg)
 	case skilledMsg:
 		return m.skilled(msg), nil
+	case editedMsg:
+		return m.editSaved(msg)
+	case removedMsg:
+		return m.removed(msg)
+	case primaryMsg:
+		return m.marked(msg)
 	}
 	return m, nil
 }
 
-// pressed acts on a key: while a field is typed in, as typedIn has it;
-// else q and ctrl+c leave, enter moves on, as entered has it, tab types in
-// the Priming page's field, c copies the line the page offers, where it
-// offers one, the Accounts page's keys choose its rows, as choosing has
-// them, and the rest scroll the page, as dashboard.ScrollKey has them.
+// pressed acts on a key: while a card is open, as cardPressed has it;
+// while a field is typed in, as typedIn has it; else q and ctrl+c leave,
+// enter moves on, as entered has it, tab types in the Priming page's field,
+// c copies the line the page offers, where it offers one, the Accounts
+// page's keys choose its rows, as choosing has them, and act on the account
+// chosen, as accountKey has them, and the rest scroll the page, as
+// dashboard.ScrollKey has them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.typing() {
+	switch {
+	case m.carded():
+		return m.cardPressed(key)
+	case m.typing():
 		return m.typedIn(key)
 	}
 	switch k := key.String(); k {
@@ -226,6 +258,9 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	default:
 		if by, ok := m.choosing(k); ok {
 			return m.chose(by), nil
+		}
+		if a, ok := m.chosenAccount(); ok && slices.Contains(accountKeys, k) {
+			return m.accountKey(k, a)
 		}
 		if rows, pages, ok := dashboard.ScrollKey(k); ok {
 			return m.scrolled(rows, pages), nil

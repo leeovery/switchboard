@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
@@ -147,6 +148,7 @@ var named = map[string]tea.KeyPressMsg{
 	"tab":       {Code: tea.KeyTab},
 	"backspace": {Code: tea.KeyBackspace},
 	"left":      {Code: tea.KeyLeft},
+	"right":     {Code: tea.KeyRight},
 	"end":       {Code: tea.KeyEnd},
 	"pgdown":    {Code: tea.KeyPgDown},
 	"pgup":      {Code: tea.KeyPgUp},
@@ -236,11 +238,18 @@ type fakeSteps struct {
 	serviceErr error
 	said       setup.Said
 	skillErr   error
-	standings  int
-	reviews    int
-	primings   int
-	services   int
-	skills     int
+	// edits are the edits EditAccount is given, and removes the accounts
+	// RemoveAccount is asked to remove, each made to review, but where
+	// editErr or removeErr fails it.
+	edits     []fakeEdit
+	editErr   error
+	removes   []string
+	removeErr error
+	standings int
+	reviews   int
+	primings  int
+	services  int
+	skills    int
 }
 
 // newFakeSteps is the steps of a router up and healthy, three accounts
@@ -344,6 +353,67 @@ func (s *fakeSteps) Skill() (setup.Said, error) {
 	defer s.mu.Unlock()
 	s.skills++
 	return s.said, s.skillErr
+}
+
+// fakeEdit is an edit EditAccount was given, of the account id.
+type fakeEdit struct {
+	id   string
+	edit setup.Edit
+}
+
+// EditAccount keeps the edit, and makes it to the review's row of the
+// account: its label, its plan, as config.ParsePlan reads it, its reserve,
+// none or a percentage as config.ParseReserve reads it, and the primary,
+// taken off any other.
+func (s *fakeSteps) EditAccount(id string, edit setup.Edit) (accounts.Edited, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.edits = append(s.edits, fakeEdit{id: id, edit: edit})
+	if s.editErr != nil {
+		return accounts.Edited{}, s.editErr
+	}
+	s.review.Accounts = slices.Clone(s.review.Accounts)
+	for i := range s.review.Accounts {
+		a := &s.review.Accounts[i]
+		if a.ID != id {
+			a.Primary = a.Primary && !edit.Primary
+			continue
+		}
+		if edit.Label != nil {
+			a.Label = *edit.Label
+		}
+		if edit.Plan != nil {
+			a.Plan, _ = config.ParsePlan(*edit.Plan)
+		}
+		if edit.Reserve != nil {
+			a.Reserve, _ = config.ParseReserve(strings.ReplaceAll(*edit.Reserve, "none", "0"))
+		}
+		a.Primary = a.Primary || edit.Primary
+	}
+	s.review.Unmarked = s.review.Unmarked && !edit.Primary
+	return accounts.Edited{}, nil
+}
+
+// RemoveAccount keeps the id, and takes the account out of the review: where
+// it was the primary, two or more left have none marked, and one left is
+// the primary.
+func (s *fakeSteps) RemoveAccount(id string) (accounts.Removed, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.removes = append(s.removes, id)
+	if s.removeErr != nil {
+		return accounts.Removed{}, s.removeErr
+	}
+	i := slices.IndexFunc(s.review.Accounts, func(a setup.Reviewed) bool { return a.ID == id })
+	primary := s.review.Accounts[i].Primary
+	s.review.Accounts = slices.Delete(slices.Clone(s.review.Accounts), i, i+1)
+	if primary {
+		s.review.Unmarked = len(s.review.Accounts) > 1
+		if len(s.review.Accounts) == 1 {
+			s.review.Accounts[0].Primary = true
+		}
+	}
+	return accounts.Removed{}, nil
 }
 
 // nord is the pair of the nord theme alone, which paints its canvas.
