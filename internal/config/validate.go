@@ -177,7 +177,11 @@ func checkAccounts(accounts []fileAccount) error {
 // first, only in case: macOS ignores case in file names, so the two would
 // share a token file.
 func caseClash(first, id string) error {
-	return fmt.Errorf("account ids %q and %q differ only in case, so they'd share a token file, as macOS ignores case in file names", first, id)
+	const shared = "so they'd share a token file, as macOS ignores case in file names"
+	return &WrongID{
+		said: fmt.Sprintf("account ids %q and %q differ only in case, %s", first, id, shared),
+		Why:  fmt.Sprintf("differs from %q only in case, %s", first, shared),
+	}
 }
 
 // check reports what's wrong with the account at index i of the file.
@@ -206,7 +210,8 @@ func accountNamed(id string) string {
 	return fmt.Sprintf("account %q", redact.Text(id))
 }
 
-// CheckID fails, saying why, unless id is one an account can have.
+// CheckID fails with a WrongID, saying why, unless id is one an account can
+// have.
 func CheckID(id string) error {
 	return checkID(accountNamed(id), id)
 }
@@ -214,15 +219,51 @@ func CheckID(id string) error {
 func checkID(account, id string) error {
 	switch {
 	case id == "":
-		return fmt.Errorf("%s: id is required", account)
+		return wrongID(account, "is required")
 	case redact.HoldsToken(id):
-		return fmt.Errorf("%s: id looks like a token, which an id mustn't, as it shows wherever the account does", account)
+		return wrongID(account, "looks like a token, which an id mustn't, as it shows wherever the account does")
 	case !idPattern.MatchString(id):
-		return fmt.Errorf("%s: id must start with a letter or digit and contain only letters, digits, '-' and '_'", account)
+		return wrongID(account, "must start with a letter or digit and contain only letters, digits, '-' and '_'")
 	case strings.EqualFold(id, ReservedID):
-		return fmt.Errorf("%s: id is reserved for switchboard pin %s", account, ReservedID)
+		return wrongID(account, "is reserved for switchboard pin "+ReservedID)
 	}
 	return nil
+}
+
+// WrongID is the error of an id an account can't be given, wrong as Why
+// says: one no account can have, or one another account has, in its case or
+// in another.
+type WrongID struct {
+	said string
+	// Why is what's wrong with the id, for a screen that shows the id itself
+	// to say alone.
+	Why string
+	// is is the error it matches, ErrConfigured for an id an account has
+	// already: nil where it matches none.
+	is error
+}
+
+// Error is the account named, or the two ids, and why the id is wrong.
+func (e *WrongID) Error() string {
+	return e.said
+}
+
+// Unwrap is the error it matches, as ErrConfigured.
+func (e *WrongID) Unwrap() error {
+	return e.is
+}
+
+// wrongID is the error of the account's id, wrong as why says, as WrongID
+// has it.
+func wrongID(account, why string) error {
+	return &WrongID{said: account + ": id " + why, Why: why}
+}
+
+// configured is the error of adding an account with the given id, which an
+// account has already, as WrongID has it, matching ErrConfigured.
+func configured(id string) error {
+	why := "is " + ErrConfigured.Error()
+	return &WrongID{said: accountNamed(id) + " " + why, Why: why, is: ErrConfigured}
 }
 
 // mostLabelCharacters is the longest a label may be, in runes.

@@ -1338,19 +1338,22 @@ not the owner's decisions:
   it, and `yes` makes it the primary; on the primary it shows `yes` and doesn't change, as the
   primary moves by making another account the primary (`accounts.Registry.Edit` only makes one).
 - **A card's fields:** the edit card opens on Label, typed in, its cursor after the label, and
-  `tab` goes on to the next field, Label's after Reserve; on a choice, `←` and `→` move it no
-  further than its first option or its last. While a card is open, its keys alone act: in a
-  field typed in, `q`, `j` and `k` type, and elsewhere do nothing, as the key line, empty,
-  offers none; `ctrl+c` always leaves. `enter` saves only what's changed from what the card
-  opened on, and where nothing has, closes it, writing nothing. A reserve typed `none`, or
-  cleared, is none.
+  the add card on ID, its fields empty and its Plan `not set`; `tab` goes on to the next field,
+  the first after the last; on a choice, `←` and `→` move it no further than its first option or
+  its last. While a card is open, its keys alone act: in a field typed in, `q`, `j` and `k` type,
+  and elsewhere do nothing, as the key line, empty, offers none; `ctrl+c` always leaves. The
+  edit card's `enter` saves only what's changed from what the card opened on, and where nothing
+  has, closes it, writing nothing. A reserve typed `none`, or cleared, is none.
 - **A refusal and a failure:** a value config refuses is said under its field, why alone, the
-  card staying open, and unsaid once the value changes; removing the only account is refused,
-  as a config needs one, and the remove card says so. Any other failure of a change, as a
-  config changed since setup read it, fails the step, its row `✗ Not saved` and why. A removal
-  that takes the account out of the config but can't delete its token file fails the step too,
-  its row `✗ Not deleted`, saying so, the token file's path and why, and the accounts are read
-  again, without it.
+  card staying open, and unsaid once the value changes. The add card's `enter` checks its id and
+  label as `accounts add` would, before any token is made, writing nothing, and says one refusal
+  at a time: the id's form, then the label, then an id an account has already, in its case or
+  another; a check that fails otherwise, as a config setup can't read, fails the step, its row
+  `✗ Not checked` and why. Removing the only account is refused, as a config needs one, and the
+  remove card says so. Any other failure of a change, as a config changed since setup read it,
+  fails the step, its row `✗ Not saved` and why. A removal that takes the account out of the
+  config but can't delete its token file fails the step too, its row `✗ Not deleted`, saying so,
+  the token file's path and why, and the accounts are read again, without it.
 - **The remove card's words:** `side is taken out of the config, and its token file deleted, so
   no requests are routed to it.`, the id bold `text.primary` and the rest `text.secondary`, then
   `Its Claude subscription is left as it is.`, muted.

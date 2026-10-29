@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/accounts"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -43,6 +44,10 @@ func newRegistered(t *testing.T, config string) *registered {
 
 func (s *registered) Review() (setup.Review, error) {
 	return s.setup.Review()
+}
+
+func (s *registered) CheckAdding(adding setup.Adding) (config.NewAccount, error) {
+	return s.setup.CheckAdding(adding)
 }
 
 func (s *registered) EditAccount(id string, edit setup.Edit) (accounts.Edited, error) {

@@ -24,6 +24,18 @@ type SetupEditCard struct {
 	Why            string
 }
 
+// SetupAddCard is the card adding an account, open over the Accounts page,
+// as it stands: its fields, ID and Label as typed, and Plan the plan chosen,
+// one of config.PlanChoices; the field chosen; and where setup refused a
+// value, why, as Why says, under the field Refused names.
+type SetupAddCard struct {
+	ID, Label Field
+	Plan      string
+	Chosen    setup.Field
+	Refused   setup.Field
+	Why       string
+}
+
 // SetupRemoveCard is the card asking before an account is removed, open over
 // the Accounts page: the account's id, and why setup refused to remove it,
 // where it did.
@@ -35,9 +47,13 @@ type SetupRemoveCard struct {
 // edges included.
 const setupCardWidth = 80
 
-// What the edit card says: its fields' names and their hints.
+// What the edit card and the add card say: their fields' names and their
+// hints.
 const (
+	idName      = "ID"
+	idHint      = "letters, numbers, - and _ · can't be changed later"
 	labelName   = "Label"
+	labelHint   = "shown in the dashboard"
 	planName    = "Plan"
 	planHint    = "used by History to value usage"
 	primaryName = "Primary"
@@ -46,10 +62,22 @@ const (
 	reserveHint = "usage kept back for the Claude apps"
 )
 
-// Primary's choices, and the edit card's keys and the remove card's.
+// What the add card says: what an account is, over its fields.
+const addCardIntro = "Each account is one Claude subscription: a Pro or Max plan."
+
+// addTokenSays is what the add card says of the token setup makes next, in
+// text.secondary, in the lines the card breaks it into.
+var addTokenSays = []line{
+	{{"Setup then creates a token with claude setup-token. You approve it in", secondaryInk}},
+	{{"the browser while signed in to this subscription. Tokens last a year.", secondaryInk}},
+}
+
+// Primary's choices, and the edit card's keys, the add card's and the
+// remove card's.
 var (
 	primaryChoices = []string{"no", "yes"}
 	editKeys       = []Key{{Key: "tab", Does: "next"}, {Key: "←→", Does: "select"}, {Key: "enter", Does: "save"}, {Key: "esc", Does: "cancel"}}
+	addKeys        = []Key{{Key: "tab", Does: "next"}, {Key: "enter", Does: "create token"}, {Key: "esc", Does: "cancel"}}
 	removeKeys     = []Key{{Key: "enter", Does: "remove"}, {Key: "esc", Does: "keep it"}}
 )
 
@@ -74,13 +102,15 @@ type cardField struct {
 }
 
 // card is the card open over the page of the step showing: the Accounts
-// page's edit card, or its remove card; nil where none is.
+// page's add card, its edit card, or its remove card; nil where none is.
 func (s Setup) card(width int) *setupCard {
 	if s.At != SetupAccounts || s.Accounts == nil {
 		return nil
 	}
 	cardWidth, _ := cardAcross(width, setupCardWidth)
 	switch a := s.Accounts; {
+	case a.Add != nil:
+		return a.Add.card(cardWidth)
 	case a.Edit != nil:
 		return a.Edit.card(cardWidth)
 	case a.Remove != nil:
@@ -108,35 +138,71 @@ func (k setupCard) draw(c *canvas) {
 // the field it's of; and its keys.
 func (e SetupEditCard) card(width int) *setupCard {
 	content := width - 2*cardInset
+	focus := cardFocus{chosen: e.Chosen, refused: e.Refused, why: e.Why}
 	k := &setupCard{card: Card{title: "EDIT " + strings.ToUpper(e.ID), width: width, keys: editKeys}}
-	k.text(e.textField(setup.LabelField, labelName, "", e.Label), content)
-	k.card.body = append(k.card.body, nil)
-	plans, primary := config.PlanChoices(), 0
+	k.text(focus.textField(setup.LabelField, labelName, "", e.Label), content)
+	primary := 0
 	if e.Primary {
 		primary = 1
 	}
 	k.card.body = append(k.card.body,
-		optionsRow(content, planName, planNames(plans), slices.Index(plans, e.Plan), e.Chosen == setup.PlanField),
-		underChoice(content, planHint),
+		nil,
+		focus.planRow(content, e.Plan),
+		hintUnder(content, planHint),
 		nil,
 		optionsRow(content, primaryName, primaryChoices, primary, e.Chosen == setup.PrimaryField),
-		underChoice(content, primaryHint),
+		hintUnder(content, primaryHint),
 		nil,
 	)
-	k.text(e.textField(setup.ReserveField, reserveName, reserveHint, e.Reserve), content)
+	k.text(focus.textField(setup.ReserveField, reserveName, reserveHint, e.Reserve), content)
 	return k
+}
+
+// card is the add card, width cells wide: ADD AN ACCOUNT in its top edge;
+// what an account is, muted; then a blank row apart, its fields, ID and its
+// hint under it, Label, its hint after it, and Plan, each refusal under the
+// field it's of; what setup does next, making the account's token; and its
+// keys.
+func (a SetupAddCard) card(width int) *setupCard {
+	content := width - 2*cardInset
+	focus := cardFocus{chosen: a.Chosen, refused: a.Refused, why: a.Why}
+	k := &setupCard{card: Card{title: "ADD AN ACCOUNT", width: width, keys: addKeys}}
+	k.card.body = append(line{{addCardIntro, mutedInk}}.wrap(content), nil)
+	k.text(focus.textField(setup.IDField, idName, "", a.ID), content)
+	k.card.body = append(k.card.body, hintUnder(content, idHint), nil)
+	k.text(focus.textField(setup.LabelField, labelName, labelHint, a.Label), content)
+	k.card.body = append(k.card.body, nil, focus.planRow(content, a.Plan), nil)
+	for _, l := range addTokenSays {
+		k.card.body = append(k.card.body, l.wrap(content)...)
+	}
+	return k
+}
+
+// cardFocus is where a card of setup's stands among its fields: the field
+// chosen; and where setup refused a value, why, under the field refused
+// names.
+type cardFocus struct {
+	chosen, refused setup.Field
+	why             string
 }
 
 // textField is the card's text field of the field given, named and hinted as
 // given, typed in where it's the one chosen, saying why setup refused its
 // value, where it did.
-func (e SetupEditCard) textField(of setup.Field, name, hint string, f Field) textField {
-	field := textField{name: name, hint: hint, field: f}
-	field.field.Typing = e.Chosen == of
-	if e.Refused == of {
-		field.wrong = e.Why
+func (f cardFocus) textField(of setup.Field, name, hint string, value Field) textField {
+	field := textField{name: name, hint: hint, field: value}
+	field.field.Typing = f.chosen == of
+	if f.refused == of {
+		field.wrong = f.why
 	}
 	return field
+}
+
+// planRow is the card's Plan, width cells wide, its options config.PlanChoices,
+// plan the one chosen, bold where Plan is the field chosen.
+func (f cardFocus) planRow(width int, plan string) line {
+	plans := config.PlanChoices()
+	return optionsRow(width, planName, planNames(plans), slices.Index(plans, plan), f.chosen == setup.PlanField)
 }
 
 // text puts f on the card's next row of its body, content cells wide, and
@@ -187,9 +253,9 @@ func optionsRow(width int, name string, options []string, chosen int, active boo
 // choicesApart is the cells between a choice's options.
 const choicesApart = 4
 
-// underChoice is a choice's hint, on the row under it, width cells wide,
-// from its value's column, faint.
-func underChoice(width int, hint string) line {
+// hintUnder is a field's hint, on the row under it, width cells wide, from
+// its value's column, faint.
+func hintUnder(width int, hint string) line {
 	return line{spaces(valueAt(width)), {hint, faintInk}}
 }
 

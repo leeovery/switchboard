@@ -117,17 +117,17 @@ func (d *Draft) Config() *Config {
 
 // AddAccount adds an [[account]] table for the account: after the last
 // account's, else before the first table, else at the end. As the primary,
-// it takes primary off every other account. It fails, matching ErrConfigured,
-// when an account has its id already, and fails too when one has it in
-// another case, as the two would share a token file. Its label is taken as
-// labelOf takes it.
+// it takes primary off every other account. It fails with a WrongID where
+// the id is one no account can have; where an account has it already,
+// matching ErrConfigured; and where one has it in another case, as the two
+// would share a token file. Its label is taken as labelOf takes it.
 func (d *Draft) AddAccount(given NewAccount) error {
 	a, err := given.taken()
 	if err != nil {
 		return err
 	}
 	if d.index(a.ID) >= 0 {
-		return fmt.Errorf("account %q is %w", a.ID, ErrConfigured)
+		return configured(a.ID)
 	}
 	if i := slices.IndexFunc(d.file.Accounts, func(b fileAccount) bool { return strings.EqualFold(b.ID, a.ID) }); i >= 0 {
 		return caseClash(d.file.Accounts[i].ID, a.ID)

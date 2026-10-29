@@ -38,8 +38,11 @@ type setupScreen struct {
 	card string
 }
 
-// setupScreens are setup's screen's fixtures: the Accounts page run again,
-// each token checked, side chosen, as frame 3 has it; the same, personal
+// setupScreens are setup's screen's fixtures: the Accounts page on a first
+// run, no router running and no account, its add card open as it opens at
+// once, work's ID and Label typed and Max 20x chosen, then tab round to
+// Label again, as frame 1 has it; the Accounts page run again, each token
+// checked, side chosen, as frame 3 has it; the same, personal
 // chosen, its edit card open, its Plan chosen and moved to Max 5x, as frame
 // 6 has it; the Priming page, its day read, typed in, as frame 7 has it;
 // the Service page, the service installed again and its router healthy, as
@@ -47,6 +50,7 @@ type setupScreen struct {
 // and Done, every step walked through from Priming, the claude link made
 // but not first on PATH, as frame 5 has it.
 var setupScreens = []setupScreen{
+	{name: "setup-add-first-160", size: wide(37), step: dashboard.SetupAccounts, steps: firstRun, keys: slices.Concat(keysOf("w", "o", "r", "k"), []tea.KeyPressMsg{tabKey}, keysOf("W", "o", "r", "k"), []tea.KeyPressMsg{tabKey, leftKey, tabKey, tabKey}), card: "ADD AN ACCOUNT"},
 	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
 	{name: "setup-edit-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: slices.Concat(keysOf("j", "e"), []tea.KeyPressMsg{tabKey, leftKey, leftKey}), card: "EDIT PERSONAL"},
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
@@ -129,6 +133,12 @@ type setupSteps struct {
 // read is a token read but not yet checked, its year as given.
 func read(year status.TokenYear) setup.TokenStanding {
 	return setup.TokenStanding{State: setup.TokenRead, Year: year}
+}
+
+// firstRun are the steps as they stand on a first run, at now, as frame 1
+// has them: no router running, and no account.
+func firstRun(now time.Time) setupSteps {
+	return setupSteps{standing: setup.RouterStanding{State: setup.RouterDown}, review: setup.Review{At: now}}
 }
 
 // reviewed are the steps as they stand on a run again, at now, as frame 3
@@ -265,6 +275,11 @@ func (s setupSteps) Service(context.Context) (setup.Serviced, error) {
 // Skill is what the skill step did, as given.
 func (s setupSteps) Skill() (setup.Said, error) {
 	return s.skill, nil
+}
+
+// CheckAdding checks nothing, as no fixture checks an account to add.
+func (s setupSteps) CheckAdding(setup.Adding) (config.NewAccount, error) {
+	return config.NewAccount{}, nil
 }
 
 // EditAccount changes nothing, as no fixture saves an edit.

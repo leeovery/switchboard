@@ -184,6 +184,7 @@ func TestAFailedChangeToTheAccountsSaysWhatFailed(t *testing.T) {
 	}{
 		{failed: AccountsNotSaved, label: "Not saved"},
 		{failed: AccountsNotDeleted, label: "Not deleted"},
+		{failed: AccountsNotChecked, label: "Not checked"},
 		{failed: AccountsNotRead, label: "Not read"},
 	} {
 		t.Run(tt.label, func(t *testing.T) {
@@ -208,5 +209,119 @@ func TestACardIsWholeAtSetupsLeast(t *testing.T) {
 		if row := string([]rune(rowOf(c, tt.y))[x:]); !strings.Contains(row, tt.want) {
 			t.Errorf("at 95×25, row %d reads %q, want %q in it", tt.y, row, tt.want)
 		}
+	}
+}
+
+// firstRunScreen is the Accounts page of a first run, no account read, the
+// add card open as card is.
+func firstRunScreen(card SetupAddCard) Setup {
+	s := accountsScreen(setup.Review{At: now}, 0)
+	s.Status = []setup.Part{{Standing: setup.PartDown, Words: "nothing set up yet"}}
+	s.Accounts.FirstRun, s.Accounts.Add = true, &card
+	return s
+}
+
+// frame1Card is the add card as frame 1 has it: work's ID and Label typed,
+// Max 20x chosen, Label typed in.
+func frame1Card() SetupAddCard {
+	return SetupAddCard{ID: Field{Value: "work", Cursor: 4}, Label: Field{Value: "Work", Cursor: 4}, Plan: "max20x", Chosen: setup.LabelField}
+}
+
+// addCardTop is the add card's top row at 160×37, the card 16 rows tall,
+// centred down the screen by the dashboard Card's one rule.
+const addCardTop = (37 - 16) / 2
+
+func TestTheAddCardIsFrame1s(t *testing.T) {
+	c := setupDrawn(firstRunScreen(frame1Card()), 160, 37)
+	want := map[int]string{
+		addCardTop:      "╭─ ADD AN ACCOUNT " + strings.Repeat("─", 61) + "╮",
+		addCardTop + 1:  "│" + blanks(78) + "│",
+		addCardTop + 2:  "│  Each account is one Claude subscription: a Pro or Max plan." + blanks(17) + "│",
+		addCardTop + 3:  "│" + blanks(78) + "│",
+		addCardTop + 4:  "│  ID        work" + blanks(62) + "│",
+		addCardTop + 5:  "│            letters, numbers, - and _ · can't be changed later" + blanks(16) + "│",
+		addCardTop + 7:  "│  Label     Work                      shown in the dashboard" + blanks(18) + "│",
+		addCardTop + 9:  "│  Plan      □ Pro    □ Max 5x    ■ Max 20x    □ not set" + blanks(23) + "│",
+		addCardTop + 11: "│  Setup then creates a token with claude setup-token. You approve it in" + blanks(7) + "│",
+		addCardTop + 12: "│  the browser while signed in to this subscription. Tokens last a year." + blanks(7) + "│",
+		addCardTop + 13: "│" + blanks(78) + "│",
+		addCardTop + 14: "│" + blanks(34) + "tab next   enter create token   esc cancel  │",
+		addCardTop + 15: "╰" + strings.Repeat("─", 78) + "╯",
+	}
+	for y, w := range want {
+		if got := setupCardRow(c, y); got != w {
+			t.Errorf("row %d reads\n%q\nwant\n%q", y, got, w)
+		}
+	}
+}
+
+func TestTheAddCardsInks(t *testing.T) {
+	c := setupDrawn(firstRunScreen(frame1Card()), 160, 37)
+	value := editCardContent + 10
+	tests := []struct {
+		name string
+		x, y int
+		want ink
+	}{
+		{name: "its title, as every card's", x: editCardX + 3, y: addCardTop, want: dimInk},
+		{name: "what an account is", x: editCardContent, y: addCardTop + 2, want: mutedInk},
+		{name: "the id not typed in", x: value, y: addCardTop + 4, want: secondaryInk},
+		{name: "the id's hint, under it", x: value, y: addCardTop + 5, want: faintInk},
+		{name: "the label typed in", x: value, y: addCardTop + 7, want: typingInk},
+		{name: "the cursor after it", x: value + 4, y: addCardTop + 7, want: caretInk},
+		{name: "the label's hint, after it", x: editCardContent + 36, y: addCardTop + 7, want: faintInk},
+		{name: "the plan chosen, not bold, its field not chosen", x: value + 23, y: addCardTop + 9, want: ink{token: theme.TextPrimary}},
+		{name: "what setup does next", x: editCardContent, y: addCardTop + 11, want: secondaryInk},
+	}
+	for _, tt := range tests {
+		if got := inkAt(c, tt.x, tt.y); got != tt.want {
+			t.Errorf("%s, at %d,%d, is in %+v, want %+v", tt.name, tt.x, tt.y, got, tt.want)
+		}
+	}
+}
+
+// An id refused is said under ID, why alone, before its hint, the card grown
+// by the row.
+func TestAnIDsRefusalIsSaidUnderIt(t *testing.T) {
+	const why = "is already configured"
+	card := frame1Card()
+	card.Chosen, card.Refused, card.Why = setup.IDField, setup.IDField, why
+	c := setupDrawn(firstRunScreen(card), 160, 37)
+	top := (37 - 17) / 2
+	if got, want := setupCardRow(c, top+5), "│            "+why+blanks(78-12-len(why))+"│"; got != want {
+		t.Errorf("the row under ID reads\n%q\nwant\n%q", got, want)
+	}
+	if got := inkAt(c, editCardContent+10, top+5); got != errorInk {
+		t.Errorf("why is in %+v, want state.destructive", got)
+	}
+	if got := setupCardRow(c, top+6); !strings.HasPrefix(got, "│            letters, numbers") {
+		t.Errorf("the row under why reads %q, want ID's hint", got)
+	}
+}
+
+// What the Accounts page says over its table: with no account, that there
+// are none yet, and what to add; on a first run with an account, what to
+// add; and on a run again, that each token was checked.
+func TestTheAccountsPagesLine(t *testing.T) {
+	const none = "No accounts yet. Add each Claude subscription you want switchboard to route across."
+	one := setup.Review{At: now, Accounts: frame3Review().Accounts[:1]}
+	for _, tt := range []struct {
+		name     string
+		review   setup.Review
+		firstRun bool
+		want     string
+	}{
+		{name: "no account, on a first run", review: setup.Review{At: now}, firstRun: true, want: none},
+		{name: "no account", review: setup.Review{At: now}, want: none},
+		{name: "an account, on a first run", review: one, firstRun: true, want: "Add each Claude subscription you want switchboard to route across."},
+		{name: "an account, run again", review: one, want: "Each token was checked with the API just now."},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := accountsScreen(tt.review, 0)
+			s.Accounts.FirstRun = tt.firstRun
+			if got := rowOf(setupDrawn(s, 160, 37), 6); got != "  "+tt.want {
+				t.Errorf("the page's line reads %q, want %q", got, "  "+tt.want)
+			}
+		})
 	}
 }

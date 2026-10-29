@@ -18,19 +18,75 @@ import (
 // them.
 var editFields = []setup.Field{setup.LabelField, setup.PlanField, setup.PrimaryField, setup.ReserveField}
 
+// form is where a card of setup's stands among its fields, as the screen
+// holds it: the field chosen; and why setup refused a value, and of which
+// field, where it did.
+type form struct {
+	chosen, refused setup.Field
+	why             string
+}
+
+// next is f with the field after the one chosen of fields, in the order tab
+// goes through them, chosen, the first after the last.
+func (f form) next(fields []setup.Field) form {
+	f.chosen = fields[(slices.Index(fields, f.chosen)+1)%len(fields)]
+	return f
+}
+
+// typed has field, the text field chosen, take key, as entry has it, why
+// setup refused its value unsaid once that's changed. It reports false for
+// a key the field doesn't take.
+func (f *form) typed(field *entry, key tea.KeyPressMsg) bool {
+	now, ok := field.pressed(key)
+	f.retyped(field, now)
+	return ok
+}
+
+// retyped has field, the text field chosen, holding now, why setup refused
+// its value unsaid once that's changed.
+func (f *form) retyped(field *entry, now entry) {
+	if f.refused == f.chosen && now.value() != field.value() {
+		f.refused, f.why = setup.NoField, ""
+	}
+	*field = now
+}
+
+// refusing is f saying why setup refused a value, as refused has it, made
+// safe to show, under the field it's of.
+func (f form) refusing(refused *setup.Refused) form {
+	f.refused, f.why = refused.Field, prose.Clean(refused.Why)
+	return f
+}
+
+// moved is how far key moves a choice: ← an option back, → one on; false
+// for any other key.
+func moved(key tea.KeyPressMsg) (by int, ok bool) {
+	switch key.String() {
+	case "left":
+		return -1, true
+	case "right":
+		return 1, true
+	}
+	return 0, false
+}
+
+// planMoved is the plan by options on from plan, by their places among
+// config.PlanChoices, no further than the first or the last.
+func planMoved(plan, by int) int {
+	return min(max(plan+by, 0), len(config.PlanChoices())-1)
+}
+
 // editCard is an account's edit card as the screen holds it: the account as
 // the card opened on it, which says what's changed; its fields, the plan
 // chosen by its place among config.PlanChoices, and whether Primary's yes is
-// chosen; the field chosen; why setup refused a value, and of which field,
-// where it did; and whether it's being saved, when it takes no key.
+// chosen; where it stands among them; and whether it's being saved, when it
+// takes no key.
 type editCard struct {
+	form
 	opened         setup.Reviewed
 	label, reserve entry
 	plan           int
 	primary        bool
-	chosen         setup.Field
-	refused        setup.Field
-	why            string
 	saving         bool
 }
 
@@ -42,7 +98,7 @@ func editing(a setup.Reviewed) *editCard {
 	if plan < 0 {
 		plan = len(plans) - 1
 	}
-	return &editCard{opened: a, label: entryOf(a.Label), reserve: entryOf(a.ReserveTyped()), plan: plan, primary: a.Primary, chosen: setup.LabelField}
+	return &editCard{chosen: setup.LabelField, opened: a, label: entryOf(a.Label), reserve: entryOf(a.ReserveTyped()), plan: plan, primary: a.Primary}
 }
 
 // drawn is the card as dashboard.Setup draws it.
@@ -71,39 +127,24 @@ func (c editCard) edit() (setup.Edit, bool) {
 	return e, e.Label != nil || e.Plan != nil || e.Reserve != nil || e.Primary
 }
 
-// next is the card with the field after the one chosen chosen, the first
-// after the last.
-func (c editCard) next() editCard {
-	c.chosen = editFields[(slices.Index(editFields, c.chosen)+1)%len(editFields)]
-	return c
-}
-
 // pressed is the card once key is pressed in its field chosen, reporting
 // false for a key it doesn't take: a text field's, as entry has them; a
 // choice's, ← and → moving its choice, no further than its first or last,
 // but for Primary on the primary, which doesn't change.
 func (c editCard) pressed(key tea.KeyPressMsg) (editCard, bool) {
 	if field := c.typedIn(); field != nil {
-		now, ok := field.pressed(key)
-		c.retyped(field, now)
+		ok := c.typed(field, key)
 		return c, ok
 	}
-	var by int
-	switch key.String() {
-	case "left":
-		by = -1
-	case "right":
-		by = 1
-	default:
-		return c, false
-	}
+	by, ok := moved(key)
 	switch {
+	case !ok:
 	case c.chosen == setup.PlanField:
-		c.plan = min(max(c.plan+by, 0), len(config.PlanChoices())-1)
+		c.plan = planMoved(c.plan, by)
 	case !c.opened.Primary:
 		c.primary = by > 0
 	}
-	return c, true
+	return c, ok
 }
 
 // pasted is the card with text pasted into its field chosen, where it's a
@@ -126,15 +167,6 @@ func (c *editCard) typedIn() *entry {
 	return nil
 }
 
-// retyped has field, the text field chosen, holding now, why setup refused
-// its value unsaid once that's changed.
-func (c *editCard) retyped(field *entry, now entry) {
-	if c.refused == c.chosen && now.value() != field.value() {
-		c.refused, c.why = setup.NoField, ""
-	}
-	*field = now
-}
-
 // removeCard is the card asking before an account is removed, as the screen
 // holds it: the account's id; why setup refused to remove it, where it did;
 // and whether it's being removed, when it takes no key.
@@ -150,17 +182,20 @@ func (c removeCard) drawn() *dashboard.SetupRemoveCard {
 
 // carded reports whether a card is open over the page, taking every key.
 func (m Model) carded() bool {
-	return m.edit != nil || m.remove != nil
+	return m.add != nil || m.edit != nil || m.remove != nil
 }
 
 // cardPressed acts on a key while a card is open: ctrl+c leaves; else, while
-// it isn't being saved, the edit card's keys, as editPressed has them, or the
-// remove card's, as removePressed has them. No other key acts, q among
-// them, as the key line, empty while a card's open, offers none.
+// it isn't being checked or saved, the add card's keys, as addPressed has
+// them, the edit card's, as editPressed has them, or the remove card's, as
+// removePressed has them. No other key acts, q among them, as the key line,
+// empty while a card's open, offers none.
 func (m Model) cardPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.String() == "ctrl+c":
 		return m, tea.Quit
+	case m.add != nil && !m.add.checking:
+		return m.addPressed(key)
 	case m.edit != nil && !m.edit.saving:
 		return m.editPressed(key)
 	case m.remove != nil && !m.remove.removing:
@@ -180,7 +215,8 @@ func (m Model) editPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m.saved()
 	case "tab":
-		card := m.edit.next()
+		card := *m.edit
+		card.form = card.next(editFields)
 		m.edit = &card
 		return m, nil
 	}
@@ -226,7 +262,7 @@ func editAccount(steps Steps, id string, edit setup.Edit) job {
 func (m Model) editSaved(msg editedMsg) (Model, tea.Cmd) {
 	if refused, ok := errors.AsType[*setup.Refused](msg.err); ok && m.edit != nil {
 		card := *m.edit
-		card.saving, card.refused, card.why = false, refused.Field, prose.Clean(refused.Why)
+		card.saving, card.form = false, card.refusing(refused)
 		m.edit = &card
 		return m, nil
 	}
