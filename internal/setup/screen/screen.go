@@ -32,8 +32,11 @@ type Steps interface {
 	// only with ctx's error once ctx is done.
 	Standing(ctx context.Context) (setup.RouterStanding, error)
 	// Review is every configured account, read but unchecked, for the
-	// status line.
+	// status line and the Accounts page.
 	Review() (setup.Review, error)
+	// ReviewOf is the account's row, its token checked with the API, failing
+	// with ctx's error once ctx is done.
+	ReviewOf(ctx context.Context, id string) (setup.Reviewed, error)
 	// Priming is the day priming spreads the 5-hour windows' resets over:
 	// the zero Day where priming is off.
 	Priming() (config.Day, error)
@@ -101,6 +104,9 @@ type Model struct {
 
 	walk   walk
 	status status
+	// chosen is the Accounts page's row chosen: an account's, by its place
+	// in the review, or past the last, + add an account.
+	chosen int
 	// priming is the Priming page as it stands: nil until its day's read.
 	priming *primingForm
 	// service is what the service step told, and its router's health: nil
@@ -177,8 +183,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = m.status.standingAnswered(msg)
 		return m, nil
 	case reviewMsg:
-		m.status = m.status.reviewAnswered(msg)
-		return m, nil
+		return m.reviewed(msg).check()
+	case checkedMsg:
+		m.status = m.status.checkAnswered(msg)
+		return m.check()
 	case primedMsg:
 		return m.primed(msg), nil
 	case daySetMsg:
@@ -193,8 +201,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // pressed acts on a key: while a field is typed in, as typedIn has it;
 // else q and ctrl+c leave, enter moves on, as entered has it, tab types in
-// the Priming page's field, and the rest scroll the page, as
-// dashboard.ScrollKey has them.
+// the Priming page's field, the Accounts page's keys choose its rows, as
+// choosing has them, and the rest scroll the page, as dashboard.ScrollKey
+// has them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.typing() {
 		return m.typedIn(key)
@@ -207,6 +216,9 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "tab":
 		return m.focused(true), nil
 	default:
+		if by, ok := m.choosing(k); ok {
+			return m.chose(by), nil
+		}
 		if rows, pages, ok := dashboard.ScrollKey(k); ok {
 			return m.scrolled(rows, pages), nil
 		}
@@ -219,6 +231,7 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	given := Size{Width: msg.Width, Height: msg.Height}
 	m.size = given.or(m.size)
+	m = m.chosenInView()
 	if m.size == given {
 		return m, nil
 	}
@@ -277,6 +290,9 @@ func (m Model) page() dashboard.Setup {
 	s := dashboard.Setup{
 		Now: m.now(), Step: m.walk.step, Passed: m.walk.passed, Status: m.status.line(),
 		UnderWay: !m.walk.done, Failed: m.walk.failed != nil, Service: m.service, Skill: m.skill, Scroll: m.scroll,
+	}
+	if m.walk.step == dashboard.SetupAccounts {
+		s.Accounts = m.accountsPage()
 	}
 	if m.priming != nil {
 		s.Priming = m.priming.page()

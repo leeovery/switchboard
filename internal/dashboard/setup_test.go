@@ -37,7 +37,7 @@ func inkAt(c *canvas, x, y int) ink {
 
 // setupDrawn is the screen drawn width cells wide and height tall.
 func setupDrawn(s Setup, width, height int) *canvas {
-	c, _ := s.page(width, height)
+	c, _ := s.page(width, height, Look{})
 	return c
 }
 

@@ -2,26 +2,33 @@ package screen
 
 import (
 	"context"
+	"slices"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/setup"
 )
 
-// status is what the status line is said of: whether a router answers and
-// the accounts, as Standing and Review last answered, each asked together,
-// as the screen starts and whenever askAgain asks. An answer to an ask
-// before the last is dropped, so the line says what it says until the last
-// ask answers.
+// status is what the status line, and the Accounts page, are said of:
+// whether a router answers and the accounts, as Standing and Review last
+// answered, each asked together, as the screen starts and whenever askAgain
+// asks, and each account's token as ReviewOf has checked it. An answer to an
+// ask before the last is dropped, so the line says what it says until the
+// last ask answers.
 type status struct {
 	// asked numbers the asks made.
 	asked int
 	// standing is nil until Standing first answers; reviewed is set once
-	// Review first answers, and review is the accounts it read, nil where
-	// it's read none.
+	// Review first answers, and review is the accounts it read, each token
+	// as checked so far, nil where it's read none.
 	standing *setup.RouterStanding
 	reviewed bool
 	review   *setup.Review
+	// read is the ask the review was read in answer to.
+	read int
+	// checking are the ids of the accounts whose tokens ReviewOf is
+	// checking.
+	checking []string
 }
 
 // standingMsg is what Standing answered to the ask numbered ask.
@@ -36,6 +43,15 @@ type reviewMsg struct {
 	ask    int
 	review setup.Review
 	err    error
+}
+
+// checkedMsg is what ReviewOf answered of the account id, asked of the
+// review read in the ask numbered read.
+type checkedMsg struct {
+	read int
+	id   string
+	row  setup.Reviewed
+	err  error
 }
 
 // asking is s with an ask more made.
@@ -66,8 +82,10 @@ func (s status) standingAnswered(msg standingMsg) status {
 }
 
 // reviewAnswered takes in what Review answered, but for an answer to an ask
-// before the last; one failing leaves the accounts as they were read before,
-// where they were, noting why in the log.
+// before the last, each token checked before kept as it was checked while
+// it's the same token, as setup.Review.Keeping has it; one failing leaves
+// the accounts as they were read before, where they were, noting why in the
+// log.
 func (s status) reviewAnswered(msg reviewMsg) status {
 	if msg.ask < s.asked {
 		return s
@@ -77,8 +95,52 @@ func (s status) reviewAnswered(msg reviewMsg) status {
 		logger.Warn("couldn't read the accounts for setup's status line", "error", msg.err)
 		return s
 	}
-	s.review = &msg.review
+	review := msg.review
+	if s.review != nil {
+		review = review.Keeping(*s.review)
+	}
+	s.review, s.read = &review, msg.ask
 	return s
+}
+
+// checkAnswered takes in what ReviewOf answered, noting why in the log where
+// it failed: asked of the review as it was read, folded in as
+// setup.Review.Checked has it; asked of one read before, as
+// setup.Review.Keeping has it, which keeps it only where it's of the token
+// read since, and drops a failure, so the token read since is checked.
+func (s status) checkAnswered(msg checkedMsg) status {
+	s.checking = slices.DeleteFunc(slices.Clone(s.checking), func(id string) bool { return id == msg.id })
+	if msg.err != nil {
+		logger.Warn("couldn't check an account's token", "account", msg.id, "error", msg.err)
+	}
+	var review setup.Review
+	switch {
+	case s.review == nil:
+		return s
+	case msg.read == s.read:
+		review = s.review.Checked(msg.id, msg.row, msg.err)
+	case msg.err == nil:
+		review = s.review.Keeping(setup.Review{Accounts: []setup.Reviewed{msg.row}})
+	default:
+		return s
+	}
+	s.review = &review
+	return s
+}
+
+// unchecked are the ids of the review's accounts whose tokens are read but
+// not yet checked, nor being checked.
+func (s status) unchecked() []string {
+	if s.review == nil {
+		return nil
+	}
+	var ids []string
+	for _, a := range s.review.Accounts {
+		if a.Token.State == setup.TokenRead && !slices.Contains(s.checking, a.ID) {
+			ids = append(ids, a.ID)
+		}
+	}
+	return ids
 }
 
 // ask is the command that asks Standing and Review, beside whatever else
@@ -102,4 +164,23 @@ func (m Model) ask() tea.Cmd {
 func (m Model) askAgain() (Model, tea.Cmd) {
 	m.status = m.status.asking()
 	return m, m.ask()
+}
+
+// check is m with every account whose token is read but not yet checked,
+// nor being checked, being checked, and the command that checks them with
+// ReviewOf, all at once, beside whatever else runs.
+func (m Model) check() (Model, tea.Cmd) {
+	ids, read, steps := m.status.unchecked(), m.status.read, m.steps
+	if len(ids) == 0 {
+		return m, nil
+	}
+	cmds := make([]tea.Cmd, len(ids))
+	for i, id := range ids {
+		cmds[i] = m.jobs.read(func(ctx context.Context) tea.Msg {
+			row, err := steps.ReviewOf(ctx, id)
+			return checkedMsg{read: read, id: id, row: row, err: err}
+		})
+	}
+	m.status.checking = append(slices.Clip(m.status.checking), ids...)
+	return m, tea.Batch(cmds...)
 }

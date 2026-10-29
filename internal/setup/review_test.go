@@ -208,11 +208,12 @@ func checkRows(t *testing.T, what string, got, want []setup.Reviewed) {
 }
 
 // sameRow reports whether two rows are alike, their tokens' years to the
-// instant.
+// instant, whichever tokens they were read from.
 func sameRow(a, b setup.Reviewed) bool {
-	ay, by := a.Token.Year, b.Token.Year
-	a.Token.Year, b.Token.Year = status.TokenYear{}, status.TokenYear{}
-	return a == b && ay.Taken.Equal(by.Taken) && ay.GoodUntil.Equal(by.GoodUntil)
+	at, bt := a.Token, b.Token
+	a.Token, b.Token = setup.TokenStanding{}, setup.TokenStanding{}
+	return a == b && at.State == bt.State && at.Why == bt.Why && at.Organization == bt.Organization &&
+		at.Year.Taken.Equal(bt.Year.Taken) && at.Year.GoodUntil.Equal(bt.Year.GoodUntil)
 }
 
 func TestReviewOfAFirstRun(t *testing.T) {

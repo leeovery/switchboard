@@ -954,7 +954,8 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
    - **TOKEN:** a token whose date is known has its year as a bar of 24 cells, the days gone filled
      along the ramp and the rest the track, then `expires` in `text.muted`, the date in
      `text.secondary`, `·` and the days left, `expires 17 Nov 2026  ·  21 days left`: the days left
-     in `text.muted`, bold `accent.attention` under 30 days and bold `state.destructive` under 7.
+     in `text.muted`, bold `accent.attention` at 30 days left or fewer and bold `state.destructive`
+     at 7 or fewer, as the token-year warnings have them (see Notifications).
      One working whose date isn't known has a bar of `╌` in `text.faint` and `working · expiry date
      unknown`; one the API refuses, `✗` in bold `state.destructive` and `rejected: revoked or
      expired`. While its check runs, it says `checking…`; a token the API didn't answer for,
@@ -1371,6 +1372,22 @@ not the owner's decisions:
   controls, line separators and the controls that turn the text's direction: what a value may hold
   besides is the value's own rule, the day's `ParseDay`'s, a label's its own. Without colour, the
   cursor is reversed.
+- **Every account's token is checked at once** as setup opens, each on its own. An answer the API
+  gave, working or refused, is kept while the account's token is the same, its year read afresh;
+  one it didn't answer is asked again on the next read of the accounts. The first account is
+  chosen as the page opens, at its top.
+- **TOKEN's other words:** a token setup can't read says `can't read`, muted; one whose year is up,
+  `expired 17 Nov 2026`, with no days left.
+- **The notes' forms:** a token setup can't read, `has a token setup can't read:` and why, then
+  `Put that right, or press t to create a new one…`; a token's year within 30 days, `has a token
+  that expires 17 Nov 2026: 21 days left.`, then `Press t to create a new one…`. A note of what
+  stops an account's requests, and the primary's, is `text.secondary`, its key on a line of its
+  own, muted; any other is muted, its key after its words. Accounts' notes go by their most
+  pressing need, those without a working token first, then in the config's order.
+- **The table narrows** as the terminal does: the pads first, then the bar to 12 cells, the labels
+  to `LABEL`, the ids to `ACCOUNT`, each cut with `…` and the primary's ` ◆` kept, and the words
+  last. A token's year that can't say it all keeps its days left, `21 days left`, and nothing said
+  of a token is cut while an id or label could narrow.
 
 ### How it's built
 

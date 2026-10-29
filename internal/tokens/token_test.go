@@ -118,3 +118,21 @@ func TestTokenNeverPrintsItsSecret(t *testing.T) {
 		t.Errorf("slog output = %q and %q, want the token shown as [redacted]", text.String(), json.String())
 	}
 }
+
+func TestASumTellsOneTokenFromAnotherNeverShowingIt(t *testing.T) {
+	work, err := tokens.Parse("test-token-work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, _ := tokens.Parse(" test-token-work\n")
+	personal, _ := tokens.Parse("test-token-personal")
+	if work.Sum() != again.Sum() {
+		t.Error("one token read twice sums two ways, want one")
+	}
+	if work.Sum() == personal.Sum() {
+		t.Error("two tokens sum alike, want each its own")
+	}
+	if strings.Contains(work.Sum(), "test-token-work") {
+		t.Errorf("the sum %q holds the token", work.Sum())
+	}
+}

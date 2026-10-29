@@ -162,8 +162,12 @@ func TestEveryFixtureIsDrawnAtTheFramesMomentInTheMachinesZone(t *testing.T) {
 }
 
 // framesMoment is the moment the frame with the given stem is drawn at, in
-// the machine's zone: the frames', but where a page's later look has its own.
+// the machine's zone: the frames', but where a page's later look has its own,
+// and setup's screen's, which have setup's.
 func framesMoment(stem string) time.Time {
+	if slices.ContainsFunc(setupScreens, func(s setupScreen) bool { return s.name == stem }) {
+		return setupMoment()
+	}
 	if i := slices.IndexFunc(pages, func(p page) bool { return p.name == stem && p.looked != nil }); i >= 0 {
 		return localMoment().Add(pages[i].looked.after)
 	}
@@ -437,7 +441,7 @@ func printedAt(t *testing.T, f Fixture, width int) {
 }
 
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {
-	for _, name := range []string{"overview-default-160", "setup-skill-160"} {
+	for _, name := range []string{"overview-default-160", "setup-skill-160", "setup-review-160"} {
 		t.Run(name, func(t *testing.T) {
 			f := fixture(t, name)
 			m := f.Model()
