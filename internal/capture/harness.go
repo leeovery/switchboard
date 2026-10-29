@@ -47,7 +47,7 @@ func (f Fixture) Frame(size watch.Size) string {
 	if f.Printout {
 		return f.printout(size.Width)
 	}
-	lines := strings.Split(f.settle(size).View().Content, "\n")
+	lines := strings.Split(f.atMoment(size).View().Content, "\n")
 	lines = lines[:min(len(lines), size.Height)]
 	for len(lines) < size.Height {
 		lines = append(lines, "")
@@ -58,9 +58,25 @@ func (f Fixture) Frame(size watch.Size) string {
 // Model is the fixture as Bubble Tea runs it, full screen in a terminal of
 // whatever size: brought to the fixture's moment, its first read taken, so
 // starting it reads nothing more, and from there it takes keys as the
-// dashboard does.
+// dashboard, or setup's screen, does.
 func (f Fixture) Model() tea.Model {
-	return settled{f.settle(f.Size)}
+	return settled{f.atMoment(f.Size)}
+}
+
+// atMoment is the fixture's model on a terminal of the given size, brought to
+// its moment: setup's screen, as settleSetup brings it there, or the
+// dashboard's watch, as settle does.
+func (f Fixture) atMoment(size watch.Size) tea.Model {
+	if f.setup != nil {
+		return f.settleSetup(size)
+	}
+	return f.settle(size)
+}
+
+// watched reports whether the dashboard's watch draws the fixture: neither a
+// printout of usage nor setup's screen.
+func (f Fixture) watched() bool {
+	return !f.Printout && f.setup == nil
 }
 
 // settle builds the dashboard's watch model of the fixture, as watch.New
@@ -226,10 +242,10 @@ func listing(t theme.Theme) theme.Listing {
 
 // deliver gives the model each message, and each that the commands it
 // returns send back, until none is left, as Bubble Tea would, but at once.
-func deliver(m watch.Model, msgs ...tea.Msg) watch.Model {
+func deliver[M tea.Model](m M, msgs ...tea.Msg) M {
 	for len(msgs) > 0 {
 		next, cmd := m.Update(msgs[0])
-		m = next.(watch.Model)
+		m = next.(M)
 		msgs = append(msgs[1:], run(cmd)...)
 	}
 	return m
@@ -309,10 +325,10 @@ func (quiet) Notify(string) error {
 // as a tick would.
 type reached struct{}
 
-// settled is a watch model brought to its fixture's moment, as Bubble Tea
-// runs it: starting it reads nothing, its first read taken already.
+// settled is a fixture's model brought to its moment, as Bubble Tea runs it:
+// starting it reads nothing, its first read taken already.
 type settled struct {
-	watch.Model
+	tea.Model
 }
 
 // Init starts nothing.
@@ -320,8 +336,8 @@ func (settled) Init() tea.Cmd {
 	return nil
 }
 
-// Update takes in a message as the watch model does.
+// Update takes in a message as the fixture's model does.
 func (s settled) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := s.Model.Update(msg)
-	return settled{next.(watch.Model)}, cmd
+	return settled{next}, cmd
 }

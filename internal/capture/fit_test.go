@@ -31,16 +31,17 @@ var (
 // enough that every view fits.
 const tallest = 60
 
-// Every fixture, with nothing open over its page, at a grid of widths and
-// heights: its title rows, its status line and the row between, and its key
-// line read as those of the same fixture drawn as tall as anything fits, as
-// the height changes none of them, so no view draws on them; and where
-// History's Weeks or Days say how many more accounts are out of view, as
-// drawn and scrolled a row, they show one at least.
+// Every fixture the watch draws, with nothing open over its page, at a grid
+// of widths and heights: its title rows, its status line and the row
+// between, and its key line read as those of the same fixture drawn as tall
+// as anything fits, as the height changes none of them, so no view draws on
+// them; and where History's Weeks or Days say how many more accounts are out
+// of view, as drawn and scrolled a row, they show one at least. Setup's
+// screen has a rule of its own, held in setup_test.go.
 func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
 	for _, name := range Names() {
 		f := fixture(t, name)
-		if f.Printout {
+		if !f.watched() {
 			continue
 		}
 		t.Run(name, func(t *testing.T) {
@@ -156,9 +157,9 @@ var (
 	pagedHeights = []int{14, 16, 18, 20, 22, 24, 26, 30, 36}
 )
 
-// Every fixture's view, at a grid of sizes above the floor, paged down from
-// the top as far as it goes, then back up: no window or section heading is
-// drawn without its first row; and where it pages, no line the paging
+// Every view the watch draws, at a grid of sizes above the floor, paged down
+// from the top as far as it goes, then back up: no window or section heading
+// is drawn without its first row; and where it pages, no line the paging
 // changes says more lies beyond either end. History's views, the Overview's
 // USAGE, Accounts' views and a phone's Switchboard, once they have two rows
 // to page, reach every row they draw as tall as everything fits, paged down
@@ -179,7 +180,7 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 	var walked sync.Map
 	for _, name := range Names() {
 		f := fixture(t, name)
-		if f.Printout {
+		if !f.watched() {
 			continue
 		}
 		log := strings.HasPrefix(name, "log-") || strings.HasPrefix(name, "page-log-")

@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     ✓ Accounts   ✓ Priming   ✓ Service   ✓ claude link   5 Skill   Done                                                 Thu 1 Oct  14:42:07
+
+● router up, healthy  ·  3 accounts, all working
+
+SKILL  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  The skill tells Claude about switchboard, so it can answer questions about your accounts, usage and sessions.
+
+  ✓  Installed            ~/.claude/skills/switchboard/SKILL.md
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                                           enter finish   q quit

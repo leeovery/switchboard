@@ -2,8 +2,9 @@
 // visual capture harness in testdata/vhs: a named, deterministic moment, drawn
 // by the dashboard's own watch model, built through watch.New with every seam
 // faked (internal/capture), or a printout of usage, drawn through the path
-// usage prints through. Or it plays a scenario through the same model in
-// real time, for the README's demos in demo/: the clock running, the timers
+// usage prints through, or setup's screen, by its own model, its steps
+// faked. Or it plays a scenario through the watch model in real time, for
+// the README's demos in demo/: the clock running, the timers
 // firing, and the fake router telling of what its cues have it do. It never
 // dials the router, probes, touches the network, reads or writes the real
 // config, state, prefs or tokens, looks in the themes directory, or runs
