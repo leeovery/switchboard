@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
@@ -32,28 +33,35 @@ type setupScreen struct {
 	// keys are pressed once the screen has opened, each step's action
 	// answered before the next.
 	keys []tea.KeyPressMsg
+	// card is the title of the card the keys leave open over the page: ""
+	// where they leave none.
+	card string
 }
 
 // setupScreens are setup's screen's fixtures: the Accounts page run again,
-// each token checked, side chosen, as frame 3 has it; the Priming page, its
-// day read, typed in, as frame 7 has it; the Service page, the service
-// installed again and its router healthy, as frame 4 has it; the Skill
-// page, the skill installed, as frame 9 has it; and Done, every step walked
-// through from Priming, the claude link made but not first on PATH, as
-// frame 5 has it.
+// each token checked, side chosen, as frame 3 has it; the same, personal
+// chosen, its edit card open, its Plan chosen and moved to Max 5x, as frame
+// 6 has it; the Priming page, its day read, typed in, as frame 7 has it;
+// the Service page, the service installed again and its router healthy, as
+// frame 4 has it; the Skill page, the skill installed, as frame 9 has it;
+// and Done, every step walked through from Priming, the claude link made
+// but not first on PATH, as frame 5 has it.
 var setupScreens = []setupScreen{
 	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
+	{name: "setup-edit-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: slices.Concat(keysOf("j", "e"), []tea.KeyPressMsg{tabKey, leftKey, leftKey}), card: "EDIT PERSONAL"},
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
 	{name: "setup-service-160", size: wide(37), step: dashboard.SetupService, steps: everyStepPassed},
 	{name: "setup-skill-160", size: wide(37), step: dashboard.SetupSkill, steps: everyStepPassed},
 	{name: "setup-done-160", size: wide(37), step: dashboard.SetupPriming, steps: linkLeft, keys: repeated(enterKey, 4)},
 }
 
-// setupShown is setup's screen as a fixture draws it: the step it opens on,
-// and what its steps answer.
+// setupShown is setup's screen as a fixture draws it: the step it opens on;
+// what its steps answer; and the title of the card left open over its page,
+// "" for none.
 type setupShown struct {
 	step  dashboard.SetupStep
 	steps setupSteps
+	card  string
 }
 
 // called is the fixture's name.
@@ -72,7 +80,7 @@ func setupMoment() time.Time {
 // the worlds.
 func (s setupScreen) made(func() accountWorlds) Fixture {
 	now := setupMoment()
-	return Fixture{Name: s.name, Size: s.size, now: now, theme: framesTheme(), keys: s.keys, setup: &setupShown{step: s.step, steps: s.steps(now)}}
+	return Fixture{Name: s.name, Size: s.size, now: now, theme: framesTheme(), keys: s.keys, setup: &setupShown{step: s.step, steps: s.steps(now), card: s.card}}
 }
 
 // settleSetup builds setup's screen of the fixture, through screen.New, on a
@@ -257,4 +265,14 @@ func (s setupSteps) Service(context.Context) (setup.Serviced, error) {
 // Skill is what the skill step did, as given.
 func (s setupSteps) Skill() (setup.Said, error) {
 	return s.skill, nil
+}
+
+// EditAccount changes nothing, as no fixture saves an edit.
+func (s setupSteps) EditAccount(string, setup.Edit) (accounts.Edited, error) {
+	return accounts.Edited{}, nil
+}
+
+// RemoveAccount removes nothing, as no fixture removes an account.
+func (s setupSteps) RemoveAccount(string) (accounts.Removed, error) {
+	return accounts.Removed{}, nil
 }

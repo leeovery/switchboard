@@ -9,7 +9,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/dashboard/textfield"
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
@@ -21,7 +20,7 @@ import (
 type primingForm struct {
 	set     config.Day
 	read    string
-	day     textfield.Text
+	day     entry
 	typing  bool
 	refused string
 	failure string
@@ -29,8 +28,7 @@ type primingForm struct {
 
 // page is the Priming page as dashboard.Setup draws it.
 func (f primingForm) page() *dashboard.SetupPrimingPage {
-	day := dashboard.Field{Value: f.day.Value(), Cursor: f.day.Cursor(), Typing: f.typing}
-	return &dashboard.SetupPrimingPage{Day: day, Refused: f.refused, Failure: f.failure}
+	return &dashboard.SetupPrimingPage{Day: f.day.field(f.typing), Refused: f.refused, Failure: f.failure}
 }
 
 // primed is the day priming is on over, as it was last read or set: nil
@@ -45,7 +43,7 @@ func (f primingForm) primed() *config.Day {
 // typed is what's typed in the field, without the blanks round it, as a
 // field of blanks is left empty.
 func (f primingForm) typed() string {
-	return strings.TrimSpace(f.day.Value())
+	return strings.TrimSpace(f.day.value())
 }
 
 // primedMsg is the day priming spreads the resets over, as the step read it
@@ -74,7 +72,7 @@ func (m Model) primed(msg primedMsg) Model {
 	if msg.day != (config.Day{}) {
 		read = msg.day.String()
 	}
-	m.priming = &primingForm{set: msg.day, read: read, day: textfield.Of(read), typing: true}
+	m.priming = &primingForm{set: msg.day, read: read, day: entryOf(read), typing: true}
 	m.walk = m.walk.finished(nil)
 	return m
 }
@@ -168,7 +166,7 @@ func (m Model) typedIn(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		return m.focused(false), nil
 	}
-	if day, ok := m.priming.day.Pressed(key); ok {
+	if day, ok := m.priming.day.pressed(key); ok {
 		return m.edited(day), nil
 	}
 	if rows, pages, ok := dashboard.ScrollKey(key.String()); ok {
@@ -177,19 +175,24 @@ func (m Model) typedIn(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// pasted is m with text pasted into the field where it's typed in.
+// pasted is m with text pasted into the field typed in: the edit card's,
+// where it's open, as editCard.pasted has it; or the Priming page's.
 func (m Model) pasted(text string) Model {
-	if !m.typing() {
-		return m
+	switch {
+	case m.edit != nil && !m.edit.saving:
+		card := m.edit.pasted(text)
+		m.edit = &card
+	case m.typing():
+		return m.edited(m.priming.day.pasted(text))
 	}
-	return m.edited(m.priming.day.Pasted(text))
+	return m
 }
 
 // edited is m with the field holding day, the day it refused unsaid once
 // it's changed.
-func (m Model) edited(day textfield.Text) Model {
+func (m Model) edited(day entry) Model {
 	f := *m.priming
-	if day.Value() != f.day.Value() {
+	if day.value() != f.day.value() {
 		f.refused = ""
 	}
 	f.day = day

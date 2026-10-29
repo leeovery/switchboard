@@ -460,6 +460,26 @@ func TestRemoveRefuses(t *testing.T) {
 	}
 }
 
+func TestRemoveThatCantDeleteTheTokenFileSaysTheAccountIsTakenOut(t *testing.T) {
+	w := newWorld(t, withSide)
+	// A directory, with something in it, where the token file goes.
+	file := w.tokens().Path("side")
+	if err := os.MkdirAll(file, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(file, "kept"), []byte("kept"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := w.registry(&user{}, &fakeAPI{}).Remove("side")
+	left, ok := errors.AsType[*accounts.TokenFileLeft](err)
+	want := "side is taken out of the config, but its token file, " + file + ", isn't deleted: directory not empty"
+	if !ok || left.ID != "side" || err.Error() != want {
+		t.Fatalf("Remove() error = %v, want a TokenFileLeft saying %q", err, want)
+	}
+	w.checkConfig(t, twoAccounts)
+}
+
 func TestChangesAreLoggedWithoutTheToken(t *testing.T) {
 	w := newWorld(t, twoAccounts)
 	log := logstest.Capture(t)

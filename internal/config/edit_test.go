@@ -848,6 +848,28 @@ func TestMarksPrimary(t *testing.T) {
 	}
 }
 
+func TestMarksPrimaryOf(t *testing.T) {
+	const unmarked = "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n"
+	tests := []struct {
+		name   string
+		config string
+		id     string
+		want   bool
+	}{
+		{name: "the account marked", config: commented, id: "work", want: true},
+		{name: "another than the one marked", config: commented, id: "personal"},
+		{name: "the first, the primary with none marked", config: unmarked, id: "work"},
+		{name: "an account not configured", config: commented, id: "side"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := edit(t, writeConfig(t, tt.config)).MarksPrimaryOf(tt.id); got != tt.want {
+				t.Errorf("MarksPrimaryOf(%q) = %v, want %v", tt.id, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSetPrimeDay(t *testing.T) {
 	const work = "[[account]]\nid = \"work\"\n"
 	tests := []struct {

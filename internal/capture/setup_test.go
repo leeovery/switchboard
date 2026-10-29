@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -23,8 +24,10 @@ const (
 // it, its chrome, the title row, the status line, the rows round them and
 // the key line on its last row, read as those of the same screen drawn as
 // tall as anything fits, so no page draws on them, and its page's heading
-// on its row; and where the page has a row chosen, it shows it; smaller
-// either way, it says only to make the terminal larger.
+// on its row; and where the page has a row chosen, it shows it; but where a
+// card is open over the page, the card whole, and the key line empty, as
+// the card's keys are its own; smaller either way, it says only to make the
+// terminal larger.
 func TestSetupsScreenIsWholeOrSaysToMakeTheTerminalLarger(t *testing.T) {
 	widths := []int{30, 52, 80, 94, 95, 96, 120, 160, 230}
 	heights := []int{8, 16, 24, 25, 26, 37, tallest}
@@ -52,13 +55,17 @@ func TestSetupsScreenIsWholeOrSaysToMakeTheTerminalLarger(t *testing.T) {
 							t.Errorf("at %d×%d, row %d reads\n%q\nwant it as at %d rows\n%q", width, height, y+1, rows[y], tallest, tall[y])
 						}
 					}
-					if key := rows[height-1]; key == "" || key != tall[tallest-1] {
-						t.Errorf("at %d×%d, the last row reads\n%q\nwant the key line, as at %d rows\n%q", width, height, key, tallest, tall[tallest-1])
-					}
 					for y, row := range rows {
 						if cells := ansi.StringWidth(row); cells > width {
 							t.Errorf("at %d×%d, row %d is %d cells wide:\n%q", width, height, y+1, cells, row)
 						}
+					}
+					if f.setup.card != "" {
+						checkCardWhole(t, width, height, rows, f.setup.card)
+						continue
+					}
+					if key := rows[height-1]; key == "" || key != tall[tallest-1] {
+						t.Errorf("at %d×%d, the last row reads\n%q\nwant the key line, as at %d rows\n%q", width, height, key, tallest, tall[tallest-1])
 					}
 					if chosen := chosenRow(tall); chosen != "" && chosenRow(rows) != chosen {
 						t.Errorf("at %d×%d, the page reads\n%s\nwant its row chosen in view, %q", width, height, strings.Join(rows, "\n"), chosen)
@@ -69,6 +76,25 @@ func TestSetupsScreenIsWholeOrSaysToMakeTheTerminalLarger(t *testing.T) {
 	}
 	if swept == 0 {
 		t.Fatal("no fixture draws setup's screen: the rule above holds nothing")
+	}
+}
+
+// checkCardWhole checks the card titled title is drawn whole over setup's
+// screen, drawn width cells wide and height tall, as rows: its top edge,
+// titled, under the status line; its keys, on its last row but one; and its
+// bottom edge, over the key line, which is empty.
+func checkCardWhole(t *testing.T, width, height int, rows []string, title string) {
+	t.Helper()
+	top := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "╭─ "+title+" ─") })
+	bottom := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "╰─") })
+	switch {
+	case top <= setupStatusRow || bottom <= top+2 || bottom >= height-1:
+		t.Errorf("at %d×%d, the card %s isn't whole between the status line and the key line:\n%s", width, height, title, strings.Join(rows, "\n"))
+	case !strings.Contains(rows[bottom-1], " esc "):
+		t.Errorf("at %d×%d, the card's last row but one reads %q, want its keys", width, height, rows[bottom-1])
+	}
+	if key := strings.TrimSpace(rows[height-1]); key != "" {
+		t.Errorf("at %d×%d, the key line reads %q, want it empty while the card's open", width, height, key)
 	}
 }
 
@@ -83,9 +109,11 @@ func chosenRow(rows []string) string {
 	return ""
 }
 
-// The rows of setup's screen: its page's heading's; the first under it; and
-// those after its page's last, the blank row and the key line.
+// The rows of setup's screen: its status line's; its page's heading's; the
+// first under it; and those after its page's last, the blank row and the key
+// line.
 const (
+	setupStatusRow  = 2
 	setupHeadingRow = 4
 	setupFirstRow   = 6
 	setupUnderPage  = 2
@@ -104,12 +132,13 @@ var (
 // without the row under them, but kept on the page's first row; the line
 // saying what's out of view names no keys where the page chooses its rows;
 // and between them, the pages show every row the page draws as tall as it
-// all fits.
+// all fits. A fixture with a card open is passed over: the card takes every
+// key, and covers what's under it, which the page's own fixture pages.
 func TestSetupsPagesShowEveryRowTheyDraw(t *testing.T) {
 	var swept int
 	for _, name := range Names() {
 		f := fixture(t, name)
-		if f.setup == nil {
+		if f.setup == nil || f.setup.card != "" {
 			continue
 		}
 		swept++

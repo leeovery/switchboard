@@ -777,18 +777,21 @@ accounts:
   by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
   default ignorables, the format characters and the variation selectors, but for whitespace and
   the prepended concatenation marks, such as the Arabic number signs, which draw) kept only
-  where one makes an emoji or a flag, or shapes a joining script, and a variation selector only
-  after a symbol, non-ASCII punctuation, or a letter outside Latin, Greek and Cyrillic, or in a
-  keycap (`prose.MapUnseen`, judged left to right on what's kept: a character dropped is passed
-  over, one shown escaped owns nothing after it, and the character after one is the first seen),
-  and dropped everywhere else; a joiner's pictographs are symbols beyond ASCII, so one between
-  `+` and `=` goes. Direction marks are kept within it. Then each run of whitespace within it is
-  one space, and the whitespace and direction marks at its edges trimmed. One that's the id is
-  no label. It refuses an id, or a `--label`, holding anything shaped like a token, or a
-  `--label` over 100 characters as it shows, holding a control character, such as a newline or a
-  tab, or a bidirectional embedding, override or isolate, drawing as nothing (spaces, characters
-  drawn as nothing, marks on their own or blank braille alone; a private-use glyph shows) or
-  that isn't UTF-8, before it asks for the token, saving nothing, and shows the id as
+  where one makes an emoji or a flag, a subdivision's only where it's England's, Scotland's or
+  Wales's, the three Unicode recommends, as any other draws as a black flag, its tags hidden; or
+  shapes a joining script; and a variation selector only after a symbol, non-ASCII punctuation,
+  or a letter outside Latin, Greek and Cyrillic, or in a keycap (`prose.MapUnseen`, judged left
+  to right on what's kept: a character dropped is passed over, one shown escaped owns nothing
+  after it, and the character after one is the first seen), and dropped everywhere else; a
+  joiner's pictographs are symbols beyond ASCII, so one between `+` and `=` goes. Direction marks
+  are kept within it. Then each run of whitespace within it is one space, and the whitespace and
+  direction marks at its edges trimmed. One that's the id is no label. It refuses an id, or a
+  `--label`, holding anything shaped like a token, or a `--label` over 100 characters as it
+  shows, holding a control character, such as a newline or a tab, a bidirectional embedding,
+  override or isolate, or a prepended concatenation mark, which joins the character after it, so
+  that character can draw as nothing, drawing as nothing (spaces, characters drawn as nothing,
+  marks on their own or blank braille alone; a private-use glyph shows) or that isn't UTF-8,
+  before it asks for the token, saving nothing, and shows the id as
   `[redacted]`. A label written in the config by hand is read as it is. When the account's token
   file holds no usable token, it asks for the token, hidden, pointing to `claude setup-token` run
   while signed in to that subscription, or reads it from stdin when stdin isn't a terminal, and
@@ -806,8 +809,9 @@ accounts:
   moves by giving `--primary` to another account. An id no account has is said before anything
   wrong with the flags' values (cobra's own errors, such as a flag without its value or an
   unknown flag, come first). A label given that's the id takes the label out, as it shows the
-  same. It writes only what changes the account as the config reads it, and says what it
-  changed, each value now and as it was, labels quoted (`prose.Quoted`) and none, where the
+  same. It writes only what changes the account as the config reads it or marks it, so
+  `--primary` on the first account, the primary only for want of a mark, marks it; and says what
+  it changed, each value now and as it was, labels quoted (`prose.Quoted`) and none, where the
   config writes no label, said so, and a label written untidily and tidied said so; or, when
   every value given is the account's already, that nothing changed, writing nothing. A label
   written by hand can't go through `add`'s rules, so `prose.Quoted` shows what it holds: a
@@ -839,7 +843,9 @@ accounts:
   where it led, as the file there isn't switchboard's. Of the primary, it says which account is the
   primary now, and that the sessions running on the removed account's token stay routed, as the new
   primary's, for a week from when the router takes the change up, or, when the new primary has no
-  usable token, that they aren't routed until it has one.
+  usable token, that they aren't routed until it has one. Where it takes the account out of the
+  config but can't delete the token file, it fails saying so: the account taken out, the token
+  file's path, and why it isn't deleted.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
   config file that's a link is written through, never replaced. The router picks the change up
   itself (see The router looking after itself).
@@ -1331,6 +1337,31 @@ not the owner's decisions:
 - **The edit card's Primary:** on an account that isn't the primary, `no` or `yes`, as frame 6 draws
   it, and `yes` makes it the primary; on the primary it shows `yes` and doesn't change, as the
   primary moves by making another account the primary (`accounts.Registry.Edit` only makes one).
+- **A card's fields:** the edit card opens on Label, typed in, its cursor after the label, and
+  `tab` goes on to the next field, Label's after Reserve; on a choice, `←` and `→` move it no
+  further than its first option or its last. While a card is open, its keys alone act: in a
+  field typed in, `q`, `j` and `k` type, and elsewhere do nothing, as the key line, empty,
+  offers none; `ctrl+c` always leaves. `enter` saves only what's changed from what the card
+  opened on, and where nothing has, closes it, writing nothing. A reserve typed `none`, or
+  cleared, is none.
+- **A refusal and a failure:** a value config refuses is said under its field, why alone, the
+  card staying open, and unsaid once the value changes; removing the only account is refused,
+  as a config needs one, and the remove card says so. Any other failure of a change, as a
+  config changed since setup read it, fails the step, its row `✗ Not saved` and why. A removal
+  that takes the account out of the config but can't delete its token file fails the step too,
+  its row `✗ Not deleted`, saying so, the token file's path and why, and the accounts are read
+  again, without it.
+- **The remove card's words:** `side is taken out of the config, and its token file deleted, so
+  no requests are routed to it.`, the id bold `text.primary` and the rest `text.secondary`, then
+  `Its Claude subscription is left as it is.`, muted.
+- **After a change,** the accounts are read again, and the chosen row stays on its account, or
+  the one after a removed one, else the last, so `+ add an account` is chosen only where it was,
+  or where no account is left; the page scrolls to the chosen row only where its row moved.
+  While a change is outstanding, `p`'s being written, or any made but not yet read again, `e`,
+  `r`, `p` and `enter` wait, doing nothing, so none acts on a row the change has taken out.
+- **A field's view:** a value wider than its box holds still while the cursor moves within it,
+  moves as little as shows the cursor where it leaves, and back as far as the value then fills
+  the box; an ellipsis marks what's cut at either end.
 - **Two notes of one account,** as frame 3's `personal`, with no plan and a token's year within 30
   days: a line each, the token's year first.
 - **`+ add an account` chosen,** with no card open: the key line's left has `↑↓ select` alone, and

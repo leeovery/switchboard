@@ -228,36 +228,72 @@ func checkID(account, id string) error {
 // mostLabelCharacters is the longest a label may be, in runes.
 const mostLabelCharacters = 100
 
+// blankWhy is why a label that would show as nothing is wrong.
+const blankWhy = "is blank, showing nothing"
+
 // ErrBlankLabel is what giving an account a label that would show as nothing
 // fails with, wrapped: each command says how to give one, as it asks for it.
-var ErrBlankLabel = errors.New("label is blank, showing nothing")
+var ErrBlankLabel = errors.New("label " + blankWhy)
+
+// WrongLabel is the error of a label no account can have, wrong as Why says:
+// the account it's of, named before why, never the label, which could be
+// anything.
+type WrongLabel struct {
+	account string
+	// Why is what's wrong with the label, for a screen that shows the label
+	// itself to say alone.
+	Why string
+	// is is the error it matches, ErrBlankLabel for a blank one: nil where
+	// it matches none.
+	is error
+}
+
+// Error is the account named, then the label, and why it's wrong.
+func (e *WrongLabel) Error() string {
+	return e.account + ": label " + e.Why
+}
+
+// Unwrap is the error it matches, as ErrBlankLabel.
+func (e *WrongLabel) Unwrap() error {
+	return e.is
+}
+
+// wrongLabel is the error of the account's label, wrong as why says, as
+// WrongLabel has it.
+func wrongLabel(account, why string) error {
+	return &WrongLabel{account: account, Why: why}
+}
 
 // takeLabel returns a label given to put in the file as it shows, so what's
 // saved is what's shown: without the characters drawn as nothing, as
 // prose.Unseen has them, but for those prose.MapUnseen keeps, as they make
 // an emoji, a keycap, a variant or a flag, or shape a joining script, and
 // the direction marks within it; each run of whitespace within it one space;
-// and the whitespace and direction marks at its edges trimmed. Every other character is kept,
-// such as the Arabic number signs, which draw. It's checked as it shows, and
-// refused, as a label in the file isn't: when it isn't UTF-8, as TOML's text
-// must be; when it holds a control character, such as a newline or a tab,
-// which can't show, or a bidirectional embedding, override or isolate, which
-// can reorder the rest of the row it's shown in; and when nothing of it would
-// show but it isn't "", which shows the account by its id, matching
-// ErrBlankLabel. Then it's checked as checkLabel checks one.
+// and the whitespace and direction marks at its edges trimmed. Every other
+// character is kept. It's checked as it shows, and refused, as a label in
+// the file isn't: when it isn't UTF-8, as TOML's text must be; when it holds
+// a control character, such as a newline or a tab, which can't show, or a
+// bidirectional embedding, override or isolate, which can reorder the rest
+// of the row it's shown in; when it holds a prepended concatenation mark,
+// such as an Arabic number sign, which joins the character after it, so
+// that character can draw as nothing; and when nothing of it would show but
+// it isn't "", which shows the account by its id, matching ErrBlankLabel.
+// Then it's checked as checkLabel checks one.
 func takeLabel(account, given string) (string, error) {
 	switch {
 	case !utf8.ValidString(given):
-		return "", fmt.Errorf("%s: label isn't UTF-8 text, as a config's text must be", account)
+		return "", wrongLabel(account, "isn't UTF-8 text, as a config's text must be")
 	case strings.ContainsFunc(given, unicode.IsControl):
-		return "", fmt.Errorf("%s: label holds a control character, such as a newline or a tab, which can't show", account)
+		return "", wrongLabel(account, "holds a control character, such as a newline or a tab, which can't show")
 	case strings.ContainsFunc(given, prose.Reorders):
-		return "", fmt.Errorf("%s: label holds a bidirectional embedding, override or isolate, which could reorder the rest of what it's shown in", account)
+		return "", wrongLabel(account, "holds a bidirectional embedding, override or isolate, which could reorder the rest of what it's shown in")
+	case strings.ContainsFunc(given, prepends):
+		return "", wrongLabel(account, "holds a sign that joins the character after it, such as an Arabic number sign, which can hide that character")
 	}
 	kept := prose.MapUnseen(given, keptIfAMark)
 	label := strings.TrimFunc(strings.Join(strings.Fields(kept), " "), spaceOrMark)
 	if given != "" && !strings.ContainsFunc(label, shows) {
-		return "", fmt.Errorf("%s: %w", account, ErrBlankLabel)
+		return "", &WrongLabel{account: account, Why: blankWhy, is: ErrBlankLabel}
 	}
 	if err := checkLabel(account, label); err != nil {
 		return "", err
@@ -300,11 +336,19 @@ func shows(r rune) bool {
 func checkLabel(account, label string) error {
 	switch length := utf8.RuneCountInString(label); {
 	case redact.HoldsToken(label):
-		return fmt.Errorf("%s: label looks like a token, which a label mustn't, as it shows wherever the account does", account)
+		return wrongLabel(account, "looks like a token, which a label mustn't, as it shows wherever the account does")
 	case length > mostLabelCharacters:
-		return fmt.Errorf("%s: label is %d characters: must be at most %d", account, length, mostLabelCharacters)
+		return wrongLabel(account, fmt.Sprintf("is %d characters: must be at most %d", length, mostLabelCharacters))
 	}
 	return nil
+}
+
+// prepends reports whether r is a prepended concatenation mark, such as an
+// Arabic number sign, which joins the character after it into one, and the
+// two, as the dashboard measures what it draws, take no cells, so that
+// character never shows.
+func prepends(r rune) bool {
+	return unicode.Is(unicode.Prepended_Concatenation_Mark, r)
 }
 
 // checkReserve keeps a reserve a share of each window short of the whole of

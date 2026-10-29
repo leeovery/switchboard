@@ -264,6 +264,7 @@ func TestAccountsAddRefusesABlankLabel(t *testing.T) {
 		{name: "spaces alone", label: "   ", wantErr: blank},
 		{name: "a zero-width joiner alone", label: "\u2060", wantErr: blank},
 		{name: "text that isn't UTF-8", label: "a\xffb", wantErr: `account "work": label isn't UTF-8 text, as a config's text must be`},
+		{name: "a sign that hides the character after it", label: "Work\u06dd1", wantErr: `account "work": label holds a sign that joins the character after it, such as an Arabic number sign, which can hide that character`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -543,6 +544,24 @@ func TestAccountsRemoveATokenFileThatsALinkToASecondNameOfIt(t *testing.T) {
 	}
 }
 
+func TestAccountsRemoveThatCantDeleteTheTokenFileSaysTheAccountIsTakenOut(t *testing.T) {
+	deps, path := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+	// Where side's token file goes, a directory with something in it, which
+	// the token file's removal can't delete.
+	where := tokenPath(t, deps, "side")
+	if err := os.MkdirAll(filepath.Join(where, "kept"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	got := run(t, deps, "accounts", "remove", "side")
+	if want := (result{stderr: "Error: side is taken out of the config, but its token file, " + where + ", isn't deleted: directory not empty\n", code: 1}); got != want {
+		t.Errorf("switchboard accounts remove = %+v, want %+v", got, want)
+	}
+	if strings.Contains(readFile(t, path), `"side"`) {
+		t.Errorf("the config reads\n%s\nwant side taken out", readFile(t, path))
+	}
+}
+
 func TestAccountsRemoveRefuses(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -690,6 +709,22 @@ func TestAccountsEdit(t *testing.T) {
 			wantOut: "edited side: label \"Side\" (was \"side\")\n",
 			old:     `label = "side"`,
 			new:     `label = "Side"`,
+		},
+		{
+			name:    "a label with a fake flag, its tags hiding text dropped",
+			config:  personalAndSide,
+			args:    []string{"--label", "Side \U0001f3f4\U000e0068\U000e0069\U000e0064\U000e0065\U000e007f"},
+			wantOut: "edited side: label \"Side \U0001f3f4\" (was \"Side\")\n",
+			old:     `label = "Side"`,
+			new:     "label = \"Side \U0001f3f4\"",
+		},
+		{
+			name:    "a label with Wales's flag, kept whole",
+			config:  personalAndSide,
+			args:    []string{"--label", "Side \U0001f3f4\U000e0067\U000e0062\U000e0077\U000e006c\U000e0073\U000e007f"},
+			wantOut: "edited side: label \"Side \U0001f3f4\U000e0067\U000e0062\U000e0077\U000e006c\U000e0073\U000e007f\" (was \"Side\")\n",
+			old:     `label = "Side"`,
+			new:     "label = \"Side \U0001f3f4\U000e0067\U000e0062\U000e0077\U000e006c\U000e0073\U000e007f\"",
 		},
 		{
 			name:    "a label with an emoji sequence's joiner and a private-use glyph, said as it shows",
@@ -925,6 +960,21 @@ func TestAccountsRemoveNamesAnIDConfiguredInAnotherCase(t *testing.T) {
 	}
 }
 
+func TestAccountsEditMarksTheFirstThePrimaryWhereNoneIsMarked(t *testing.T) {
+	deps, path := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+	writeToken(t, deps, "personal", "test-token-personal")
+	before := readFile(t, path)
+
+	got := run(t, deps, "accounts", "edit", "personal", "--primary")
+	if want := (result{stdout: "edited personal: marked the primary, which it was as the first with none marked\n"}); got != want {
+		t.Errorf("switchboard accounts edit personal --primary = %+v, want %+v", got, want)
+	}
+	want := strings.Replace(before, "label = \"Personal\"\n", "label = \"Personal\"\nprimary = true\n", 1)
+	if readFile(t, path) != want {
+		t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
+	}
+}
+
 func TestAccountsEditChangesNothingGivenWhatTheAccountHas(t *testing.T) {
 	deps, path := accountsDeps(t, newClaudeAPI(t).URL, sideOnAPlan)
 	before := readFile(t, path)
@@ -1035,6 +1085,11 @@ func TestAccountsEditRefuses(t *testing.T) {
 			name:    "a label shaped like a token, never shown",
 			args:    []string{"side", "--label", tokenShaped},
 			wantErr: `account "side": label looks like a token, which a label mustn't, as it shows wherever the account does`,
+		},
+		{
+			name:    "a label holding a sign that hides the character after it",
+			args:    []string{"side", "--label", "Side \u0600123"},
+			wantErr: `account "side": label holds a sign that joins the character after it, such as an Arabic number sign, which can hide that character`,
 		},
 	}
 	for _, tt := range tests {

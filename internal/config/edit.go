@@ -24,6 +24,9 @@ var (
 	// ErrNotConfigured is what acting on an account fails with, wrapped, when
 	// no account has its id.
 	ErrNotConfigured = errors.New("not configured")
+	// ErrOnlyAccount is what removing an account fails with, wrapped, when
+	// it's the only one.
+	ErrOnlyAccount = errors.New("a config needs one at least")
 )
 
 // NotConfigured is the error of acting on the account with the given id,
@@ -153,14 +156,15 @@ func (d *Draft) AddAccount(given NewAccount) error {
 
 // RemoveAccount removes the account's [[account]] table, and the comments
 // directly above it. It fails, matching ErrNotConfigured, when no account has
-// the id, and for the only account, as a config needs one.
+// the id, and matching ErrOnlyAccount for the only account, as a config needs
+// one.
 func (d *Draft) RemoveAccount(id string) error {
 	i := d.index(id)
 	switch {
 	case i < 0:
 		return NotConfigured(id)
 	case len(d.file.Accounts) == 1:
-		return fmt.Errorf("account %q is the only one, and a config needs one at least", id)
+		return fmt.Errorf("account %q is the only one, and %w", id, ErrOnlyAccount)
 	}
 	change := fmt.Sprintf("remove account %q", id)
 	tables, err := d.accountTables(change)
@@ -188,6 +192,13 @@ func (d *Draft) Upstream() (string, error) {
 // than leaving the first to be the primary for want of one.
 func (d *Draft) MarksPrimary() bool {
 	return slices.ContainsFunc(d.file.Accounts, func(a fileAccount) bool { return a.Primary })
+}
+
+// MarksPrimaryOf reports whether the draft marks the account with the given
+// id primary: never where it's the primary only as the first, none marked.
+func (d *Draft) MarksPrimaryOf(id string) bool {
+	i := d.index(id)
+	return i >= 0 && d.file.Accounts[i].Primary
 }
 
 // Labelled reports whether the draft writes a label for the account with

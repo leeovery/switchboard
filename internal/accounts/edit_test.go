@@ -90,6 +90,7 @@ func TestEdit(t *testing.T) {
 				Was:           personal,
 				Now:           with(personal, func(a *config.Account) { a.Primary = true }),
 				FormerPrimary: "work",
+				Marked:        true,
 			},
 		},
 		{
@@ -118,6 +119,7 @@ func TestEdit(t *testing.T) {
 				NowLabelled:   true,
 				Now:           config.Account{ID: "personal", Label: "Personal", Plan: "max5x", Primary: true, Reserve: 0.025},
 				FormerPrimary: "work",
+				Marked:        true,
 			},
 		},
 	}
@@ -144,7 +146,6 @@ func TestEdit(t *testing.T) {
 }
 
 func TestEditWritesNothingWhenEveryValueGivenIsTheAccounts(t *testing.T) {
-	const unmarked = "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"personal\"\n"
 	tests := []struct {
 		name   string
 		config string
@@ -157,7 +158,6 @@ func TestEditWritesNothingWhenEveryValueGivenIsTheAccounts(t *testing.T) {
 		{name: "no plan, having none", config: laidOut, id: "work", change: accounts.Change{Plan: new("")}},
 		{name: "its reserve", config: laidOut, id: "work", change: accounts.Change{Reserve: new(0.1)}},
 		{name: "the primary, being it", config: laidOut, id: "work", change: accounts.Change{Primary: true}},
-		{name: "the primary, being the first, with none marked", config: unmarked, id: "work", change: accounts.Change{Primary: true}},
 		{
 			name:   "everything together",
 			config: laidOut,
@@ -181,6 +181,33 @@ func TestEditWritesNothingWhenEveryValueGivenIsTheAccounts(t *testing.T) {
 			if info, err := os.Stat(w.config); err != nil || !info.ModTime().Equal(then) {
 				t.Errorf("the config was written: %v, %v", info.ModTime(), err)
 			}
+		})
+	}
+}
+
+func TestEditMarksThePrimaryWhereNoneIsMarked(t *testing.T) {
+	const unmarked = "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"personal\"\n"
+	tests := []struct {
+		name       string
+		id         string
+		wantFormer string
+	}{
+		{name: "the first, the primary already", id: "work"},
+		{name: "the second, in place of the first", id: "personal", wantFormer: "work"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, unmarked)
+
+			edited, err := w.registry(&user{}, &fakeAPI{}).Edit(tt.id, accounts.Change{Primary: true})
+			if err != nil {
+				t.Fatalf("Edit(%q) error = %v", tt.id, err)
+			}
+			if !edited.Changed() || !edited.Marked || edited.FormerPrimary != tt.wantFormer || !edited.Now.Primary {
+				t.Errorf("Edit(%q) = %+v; want it changed, marked, the primary in place of %q", tt.id, edited, tt.wantFormer)
+			}
+			at := "id = \"" + tt.id + "\"\n"
+			w.checkConfig(t, strings.Replace(unmarked, at, at+"primary = true\n", 1))
 		})
 	}
 }

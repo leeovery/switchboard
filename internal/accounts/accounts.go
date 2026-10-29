@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -251,9 +252,32 @@ type Removed struct {
 	Primary string
 }
 
+// TokenFileLeft is Remove's error where it took the account out of the
+// config file, but couldn't delete its token file.
+type TokenFileLeft struct {
+	ID  string
+	err error
+}
+
+// Error says the account is taken out of the config, and why its token file
+// isn't deleted: its path and why, where that's the failure's.
+func (e *TokenFileLeft) Error() string {
+	left := e.ID + " is taken out of the config, but its token file"
+	if path, ok := errors.AsType[*fs.PathError](e.err); ok {
+		return left + ", " + path.Path + ", isn't deleted: " + path.Err.Error()
+	}
+	return left + " isn't deleted: " + e.err.Error()
+}
+
+// Unwrap is why the token file isn't deleted.
+func (e *TokenFileLeft) Unwrap() error {
+	return e.err
+}
+
 // Remove removes the account with the given id: its [[account]] table from
 // the config file, then its token file, saying what it removed of that, and
-// which account is the primary now, when it removed the primary.
+// which account is the primary now, when it removed the primary. It fails
+// with a TokenFileLeft where it removed the table but not the token file.
 func (r Registry) Remove(id string) (Removed, error) {
 	draft, err := config.Edit(r.ConfigPath)
 	if err != nil {
@@ -268,7 +292,7 @@ func (r Registry) Remove(id string) (Removed, error) {
 	}
 	file, err := r.Tokens.Remove(id)
 	if err != nil {
-		return Removed{}, err
+		return Removed{}, &TokenFileLeft{ID: id, err: err}
 	}
 	removed := Removed{Removed: file}
 	if before.Accounts.Primary().ID == id {

@@ -44,6 +44,10 @@ func TestMapUnseen(t *testing.T) {
 		{name: "a digit's selector without a keycap replaced", text: "1\ufe0f", replace: marked, want: "1<FE0F>"},
 		{name: "a flag's tags owned whole", text: england, replace: marked, want: england},
 		{name: "an unfinished flag's tags replaced", text: "\U0001f3f4\U000e0067", replace: marked, want: "\U0001f3f4<E0067>"},
+		{name: "Scotland's flag's tags owned whole", text: scotland, replace: marked, want: scotland},
+		{name: "Wales's flag's tags owned whole", text: wales, replace: marked, want: wales},
+		{name: "a flag's tags naming no subdivision Unicode recommends replaced, as they draw as nothing", text: "\U0001f3f4\U000e0075\U000e0073\U000e0074\U000e0078\U000e007f", replace: marked, want: "\U0001f3f4<E0075><E0073><E0074><E0078><E007F>"},
+		{name: "a flag's tags spelling hidden text replaced", text: "\U0001f3f4\U000e0068\U000e0069\U000e0064\U000e0065\U000e007f", replace: dropped, want: "\U0001f3f4"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

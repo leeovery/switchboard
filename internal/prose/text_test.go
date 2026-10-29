@@ -258,6 +258,12 @@ func TestVisible(t *testing.T) {
 // subdivision, then the tag that ends them.
 const england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"
 
+// Scotland's and Wales's flags, as england is England's.
+const (
+	scotland = "\U0001f3f4\U000e0067\U000e0062\U000e0073\U000e0063\U000e0074\U000e007f"
+	wales    = "\U0001f3f4\U000e0067\U000e0062\U000e0077\U000e006c\U000e0073\U000e007f"
+)
+
 func TestQuoted(t *testing.T) {
 	tests := []struct {
 		name string
@@ -272,6 +278,8 @@ func TestQuoted(t *testing.T) {
 		{name: "an emoji sequence's joiner as it is", text: "Team \U0001f469\u200d\U0001f4bb", want: "\"Team \U0001f469\u200d\U0001f4bb\""},
 		{name: "a private-use glyph as it is", text: "\ue0a0 main", want: "\"\ue0a0 main\""},
 		{name: "a subdivision's flag as it is", text: england, want: `"` + england + `"`},
+		{name: "Wales's flag as it is", text: wales, want: `"` + wales + `"`},
+		{name: "a fake flag's tags escaped", text: "Side \U0001f3f4\U000e0068\U000e0069\U000e0064\U000e0065\U000e007f", want: "\"Side \U0001f3f4\\U000E0068\\U000E0069\\U000E0064\\U000E0065\\U000E007F\""},
 		{name: "a variation selector as it is", text: "Home \u2764\uFE0F", want: "\"Home \u2764\uFE0F\""},
 		{name: "a zero-width space escaped", text: "Day job\u200B", want: `"Day job\u200B"`},
 		{name: "a joiner standing alone escaped", text: "Day \u200D job", want: `"Day \u200D job"`},

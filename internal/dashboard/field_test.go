@@ -121,10 +121,13 @@ func TestAValueWiderThanItsRoom(t *testing.T) {
 		cursor int
 	}{
 		{name: "not typed in: cut, its end an ellipsis", field: Field{Value: wide}, value: "abcdefghijklmnopqrstuv…", cursor: -1},
-		{name: "typed in, its cursor at the end: its last 22 cells, then the cursor", field: Field{Value: wide, Cursor: 30, Typing: true}, value: "ijklmnopqrstuvwxyz0123 ", cursor: 22},
-		{name: "typed in, its cursor at the start: its first 23 cells, the cursor on the first", field: Field{Value: wide, Cursor: 0, Typing: true}, value: "abcdefghijklmnopqrstuvw", cursor: 0},
-		{name: "typed in, its cursor mid-way and in view from the start", field: Field{Value: wide, Cursor: 10, Typing: true}, value: "abcdefghijklmnopqrstuvw", cursor: 10},
-		{name: "typed in, its cursor past the first 23: scrolled to it, it the last", field: Field{Value: wide, Cursor: 25, Typing: true}, value: "defghijklmnopqrstuvwxyz", cursor: 22},
+		{name: "typed in, its cursor at the end: its start cut and marked, its last 21 cells, then the cursor", field: Field{Value: wide, Cursor: 30, Typing: true}, value: "…jklmnopqrstuvwxyz0123 ", cursor: 22},
+		{name: "typed in, its cursor at the start: its first 22 cells, the cursor on the first, its end cut and marked", field: Field{Value: wide, Cursor: 0, Typing: true}, value: "abcdefghijklmnopqrstuv…", cursor: 0},
+		{name: "typed in, its cursor mid-way and in view from the start", field: Field{Value: wide, Cursor: 10, Typing: true}, value: "abcdefghijklmnopqrstuv…", cursor: 10},
+		{name: "typed in, its cursor past the view from the start: moved on as little as shows it, either end marked", field: Field{Value: wide, Cursor: 25, Typing: true}, value: "…fghijklmnopqrstuvwxyz…", cursor: 21},
+		{name: "typed in, its view from the tenth, its cursor within it: held where it was", field: Field{Value: wide, Cursor: 12, From: 9, Typing: true}, value: "…jklmnopqrstuvwxyz0123 ", cursor: 4},
+		{name: "typed in, its view from the tenth, its cursor before it: moved back to the cursor", field: Field{Value: wide, Cursor: 4, From: 9, Typing: true}, value: "…efghijklmnopqrstuvwxy…", cursor: 1},
+		{name: "typed in, its view from past the cursor's end: moved back to show it", field: Field{Value: "abc", Cursor: 3, From: 9, Typing: true}, value: "abc                    ", cursor: 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -140,6 +143,37 @@ func TestAValueWiderThanItsRoom(t *testing.T) {
 				if got := inkAt(c, 12+tt.cursor, 0); got != caretInk {
 					t.Errorf("cell %d of the value is in %+v, want the cursor", tt.cursor, got)
 				}
+			}
+		})
+	}
+}
+
+// InView moves a field's view as little as shows its cursor: held still
+// while the cursor moves within it; on, where the cursor's past its end;
+// back to the cursor, where it's before its start; and back as far as the
+// value from there to its end fits, so no room's left blank that it could
+// fill.
+func TestAFieldsViewHoldsStillWhileItsCursorMovesWithinIt(t *testing.T) {
+	const wide = "abcdefghijklmnopqrstuvwxyz0123"
+	tests := []struct {
+		name  string
+		field Field
+		from  int
+	}{
+		{name: "a value that fits, from its first", field: Field{Value: "08:00-23:00", Cursor: 11}, from: 0},
+		{name: "the cursor at the end of a wide value: moved on to show it", field: Field{Value: wide, Cursor: 30}, from: 9},
+		{name: "the cursor moved back within the view: held", field: Field{Value: wide, Cursor: 9, From: 9}, from: 9},
+		{name: "the cursor a glyph before the view: moved back a glyph", field: Field{Value: wide, Cursor: 8, From: 9}, from: 8},
+		{name: "the cursor at the start: from it", field: Field{Value: wide, Cursor: 0, From: 9}, from: 0},
+		{name: "the cursor moved on within the view: held", field: Field{Value: wide, Cursor: 21, From: 0}, from: 0},
+		{name: "the cursor moved on past the view: on as little as shows it", field: Field{Value: wide, Cursor: 22, From: 0}, from: 2},
+		{name: "the value cut short, its view past it: moved back to fill the box", field: Field{Value: wide[:24], Cursor: 24, From: 9}, from: 3},
+		{name: "a From past the cursor, as of a value cleared: from the cursor, its first", field: Field{From: 9}, from: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.field.InView().From; got != tt.from {
+				t.Errorf("InView().From = %d, want %d", got, tt.from)
 			}
 		})
 	}
