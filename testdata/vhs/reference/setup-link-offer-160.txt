@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     ✓ Accounts   ✓ Priming   ✓ Service   4 claude link   5 Skill   Done                                                Tue 27 Oct  17:42:00
+
+● router up, healthy  ·  3 accounts, all working
+
+CLAUDE LINK  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  The claude command starts Claude Code through switchboard, so every session is routed.
+
+  ✓  Link                 ~/.local/share/switchboard/bin/claude → switchboard
+
+  !  Your shell           runs Claude Code's own claude, ~/.local/bin/claude, so its sessions aren't routed
+
+                ╭─ ADD A LINE TO ~/.zshrc ─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+                │                                                                                                                              │
+                │   Setup can add one line to the end of ~/.zshrc, so your shell finds switchboard's claude first:                             │
+                │                                                                                                                              │
+                │     if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi    │
+                │     # switchboard                                                                                                            │
+                │                                                                                                                              │
+                │   The line hands off to a file of switchboard's own, which puts its claude first and loads its completions.                  │
+                │   It does nothing once switchboard is gone, and nothing else in ~/.zshrc changes.                                            │
+                │                                                                                                                              │
+                │                                                                                         enter add it   n I'll add it myself  │
+                ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+

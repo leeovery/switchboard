@@ -259,10 +259,11 @@ func (c *fakeClock) Now() time.Time {
 // where it's set; Link with found, failing with linkErr where it's set;
 // AskAgain with the first of again, each once, else what it's given,
 // keeping each found it's given in askedOf, failing with againErr where
-// it's set; SessionHook with hookSaid; and Skill with said, failing with
-// skillErr where it's set; each counted as it's asked. Its answers are
-// read, and its counts kept, under mu, as jobs ask it at once: a test sets
-// what it answers while no job runs.
+// it's set; AddLine with lineAdded, keeping each found it's given in
+// addedOf, failing with lineErr where it's set; SessionHook with hookSaid;
+// and Skill with said, failing with skillErr where it's set; each counted
+// as it's asked. Its answers are read, and its counts kept, under mu, as
+// jobs ask it at once: a test sets what it answers while no job runs.
 type fakeSteps struct {
 	mu        sync.Mutex
 	standing  setup.RouterStanding
@@ -287,6 +288,9 @@ type fakeSteps struct {
 	again      []setup.LinkFound
 	askedOf    []setup.LinkFound
 	againErr   error
+	lineAdded  setup.LinkFound
+	addedOf    []setup.LinkFound
+	lineErr    error
 	hookSaid   setup.Said
 	// adds are the accounts CheckAdding is asked to check, each passing, but
 	// where addErr fails it.
@@ -603,6 +607,13 @@ func (s *fakeSteps) AskAgain(_ context.Context, found setup.LinkFound) (setup.Li
 	again := s.again[0]
 	s.again = s.again[1:]
 	return again, nil
+}
+
+func (s *fakeSteps) AddLine(found setup.LinkFound) (setup.LinkFound, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.addedOf = append(s.addedOf, found)
+	return s.lineAdded, s.lineErr
 }
 
 func (s *fakeSteps) SessionHook() setup.Said {

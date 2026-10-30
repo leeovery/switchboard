@@ -73,6 +73,18 @@ func linkHarness(t *testing.T, found setup.LinkFound) *harness {
 	return h
 }
 
+// byHandHarness is a harness opening on the claude link step, which finds
+// found, started, at its by-hand page: where Link offers the line, the offer
+// declined with n.
+func byHandHarness(t *testing.T, found setup.LinkFound) *harness {
+	t.Helper()
+	h := linkHarness(t, found)
+	if h.model.offer != nil {
+		h.pressAndDeliver("n")
+	}
+	return h
+}
+
 // fact is a fact's row as the page draws it, without colour: its mark, its
 // label and what's said of it, in their columns.
 func fact(said setup.Said) string {
@@ -144,7 +156,7 @@ func TestWhileTheShellIsAskedThePageSaysSo(t *testing.T) {
 }
 
 func TestWhileTheShellIsAskedAgainThePageSaysSoUnderTheLinksRow(t *testing.T) {
-	h := linkHarness(t, linkLeft)
+	h := byHandHarness(t, linkLeft)
 	h.steps.again = []setup.LinkFound{linkThrough}
 	pending := h.press("r")
 	wantRows(t, h.rows(), map[int]string{
@@ -229,7 +241,7 @@ func TestByHandTheShellsRowSaysTheSituationInSetupsWords(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			found := situated(tt.situation, "setup's words for "+tt.name)
-			h := linkHarness(t, found)
+			h := byHandHarness(t, found)
 			want := map[int]string{6: linkPurpose, 8: fact(linkRow), 10: fact(found.Shell.Said)}
 			maps.Copy(want, tt.want)
 			wantRows(t, h.rows(), want)
@@ -308,7 +320,7 @@ func TestRAsksTheShellAgain(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := linkHarness(t, linkLeft)
+			h := byHandHarness(t, linkLeft)
 			h.steps.again = []setup.LinkFound{tt.again}
 			h.pressAndDeliver("r")
 			tt.want[6] = linkPurpose
@@ -336,7 +348,7 @@ func TestCAndDCopyTheLineAndTheDirectoryWhole(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := linkHarness(t, tt.found)
+			h := byHandHarness(t, tt.found)
 			for key, want := range map[string]string{"c": tt.c, "d": tt.d} {
 				msgs := h.press(key)
 				switch {
@@ -373,7 +385,7 @@ func TestEnterLeavesTheClaudeLinkStepInstallingTheSessionHookOnceBeforeTheSkill(
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := linkHarness(t, tt.found)
+			h := byHandHarness(t, tt.found)
 			h.steps.again = tt.again
 			for _, key := range tt.keys {
 				h.pressAndDeliver(key)
@@ -405,7 +417,7 @@ func TestLeavingByHandEndsTheStepTheSessionHooksRowUnderTheShells(t *testing.T) 
 	notInstalled := setup.Said{Mark: setup.Warning, Label: "Session hook", Detail: "setup carries on without it, so a session that doesn't go through switchboard won't say so: settings.json doesn't parse"}
 	for _, hook := range []setup.Said{hookInstalled, notInstalled} {
 		t.Run(hook.Detail, func(t *testing.T) {
-			h := linkHarness(t, linkLeft)
+			h := byHandHarness(t, linkLeft)
 			h.steps.hookSaid = hook
 			hooking := h.press("enter")
 			wantRows(t, h.rows(), map[int]string{
@@ -468,7 +480,7 @@ func TestLinkFailingFailsTheStepWordingNothingOfWhatItFound(t *testing.T) {
 }
 
 func TestAskingAgainFailingFailsTheStep(t *testing.T) {
-	h := linkHarness(t, linkLeft)
+	h := byHandHarness(t, linkLeft)
 	h.steps.againErr = errNoLink
 	h.pressAndDeliver("r")
 	wantRows(t, h.rows(), map[int]string{
@@ -491,6 +503,7 @@ func TestAnInterruptAsTheShellIsAskedLeavesSetupAsQDoes(t *testing.T) {
 		}},
 		{name: "as AskAgain asks", interrupt: func(h *harness) []tea.Msg {
 			h.start()
+			h.pressAndDeliver("n")
 			h.steps.againErr = accounts.ErrInterrupted
 			return h.press("r")
 		}},
@@ -559,8 +572,8 @@ func TestLeavingAsTheSessionHookInstallsWaitsForIt(t *testing.T) {
 	}{
 		{name: "the shell running switchboard's claude, q", found: linkThrough, quit: "q"},
 		{name: "the shell running switchboard's claude, ctrl+c", found: linkThrough, quit: "\x03"},
-		{name: "left by hand, q", found: linkLeft, leave: "\r", quit: "q"},
-		{name: "left by hand, ctrl+c", found: linkLeft, leave: "\r", quit: "\x03"},
+		{name: "left by hand, q", found: linkLeft, leave: "n\r", quit: "q"},
+		{name: "left by hand, ctrl+c", found: linkLeft, leave: "n\r", quit: "\x03"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

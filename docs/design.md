@@ -1524,6 +1524,15 @@ not the owner's decisions:
     with a warning where it couldn't be installed, and `enter next: Skill`: leaving by hand takes
     a second `enter`.
   - Skill's write waits for the hook.
+- **The offer card:**
+  - It opens once, on the step's first answer, as the line walk offers once. An answer to `r`
+    never opens it again.
+  - While it adds the line, its first row is the spinner and `Adding the line to the end of
+    ~/.zshrc`, its keys `q quit` alone. The line is written whole or not at all, never once the
+    screen has gone, and setup leaves only once it's written.
+  - A line just added has the shell asked again at once, with no `r`. Another switchboard's line,
+    or one setup couldn't add, shows by hand with its remedy. `AddLine` failing fails the step.
+  - `n` and `esc` close it onto by hand.
 
 ### How it's built
 

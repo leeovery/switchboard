@@ -125,8 +125,8 @@ func (t SetupTokenCard) waiting(b *tokenBody, now time.Time) {
 		b.says(line{{tokenPrivate, warningInk}}).gap()
 	}
 	if t.Unopened {
-		for part := range strings.SplitSeq(ansi.Wrap(prose.Visible(t.Address), b.width-tokenSaysAt, ""), "\n") {
-			b.said(line{{part, accentInk}})
+		for _, l := range wholeLines(prose.Visible(t.Address), b.width-tokenSaysAt) {
+			b.said(l)
 		}
 		b.gap()
 	}

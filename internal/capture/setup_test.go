@@ -54,7 +54,7 @@ func TestSetupsScreenIsWholeOrSaysToMakeTheTerminalLarger(t *testing.T) {
 					}
 					var card *setupCard
 					if f.setup.card != "" {
-						found, wrong := cardOn(rows, height, f.setup.card)
+						found, wrong := cardOn(rows, height, f.setup.card, f.setup.cardKeys)
 						if wrong != "" {
 							t.Errorf("at %d×%d, %s:\n%s", width, height, wrong, strings.Join(rows, "\n"))
 							continue
@@ -100,13 +100,14 @@ type setupCard struct {
 	top, bottom, x, w int
 }
 
-// cardOn finds the card titled title drawn over setup's screen, height rows
-// tall, as rows, and says what's wrong with it, "" where nothing is: its top
-// edge where the dashboard Card's one rule places it, centred down the
-// screen, and so under the status line; its keys on its last row but one;
-// its bottom edge over the key line; and the key line empty, as its keys
-// are its own.
-func cardOn(rows []string, height int, title string) (setupCard, string) {
+// cardOn finds the card titled title, its keys keys, drawn over setup's
+// screen, height rows tall, as rows, and says what's wrong with it, ""
+// where nothing is: its top edge where the dashboard Card's one rule places
+// it, centred down the screen, and so under the status line; its last row
+// but one blanks, then its keys, then the two blanks to its line, as the
+// dashboard Card right-aligns them; its bottom edge over the key line; and
+// the key line empty, as its keys are its own.
+func cardOn(rows []string, height int, title, keys string) (setupCard, string) {
 	top := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "╭─ "+title+" ─") })
 	if top < 0 {
 		return setupCard{}, "the card " + title + " isn't drawn"
@@ -123,8 +124,8 @@ func cardOn(rows []string, height int, title string) (setupCard, string) {
 		return c, fmt.Sprintf("the card %s's top edge is on row %d, want it on row %d, as the dashboard Card's rule places it", title, top+1, placed+1)
 	case top <= setupStatusRow || bottom >= height-1:
 		return c, "the card " + title + " isn't between the status line and the key line"
-	case !strings.Contains(rows[bottom-1], " esc "):
-		return c, fmt.Sprintf("the card's last row but one reads %q, want its keys", rows[bottom-1])
+	case ansi.Cut(rows[bottom-1], c.x+1, c.x+c.w-1) != strings.Repeat(" ", c.w-4-ansi.StringWidth(keys))+keys+"  ":
+		return c, fmt.Sprintf("the card's last row but one reads %q, want its keys, %q, right-aligned two cells in from its line", rows[bottom-1], keys)
 	case strings.TrimSpace(rows[height-1]) != "":
 		return c, fmt.Sprintf("the key line reads %q, want it empty while the card's open", rows[height-1])
 	}
@@ -142,12 +143,12 @@ func (c setupCard) outside(row string) string {
 func TestTheCardCheckHoldsTheCardsPlace(t *testing.T) {
 	f := fixture(t, "setup-add-first-160")
 	rows := setupRows(t, f, 160, 37)
-	card, wrong := cardOn(rows, 37, f.setup.card)
+	card, wrong := cardOn(rows, 37, f.setup.card, f.setup.cardKeys)
 	if wrong != "" {
 		t.Fatalf("as drawn, %s", wrong)
 	}
 	raised := slices.Concat(rows[:card.top-1], rows[card.top:card.bottom+1], rows[card.top-1:card.top], rows[card.bottom+1:])
-	if _, wrong := cardOn(raised, 37, f.setup.card); !strings.Contains(wrong, "as the dashboard Card's rule places it") {
+	if _, wrong := cardOn(raised, 37, f.setup.card, f.setup.cardKeys); !strings.Contains(wrong, "as the dashboard Card's rule places it") {
 		t.Errorf("a row up, the card check says %q, want it caught as placed wrong", wrong)
 	}
 }
