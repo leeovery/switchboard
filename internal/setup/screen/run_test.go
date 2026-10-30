@@ -163,7 +163,14 @@ func (skillPanicking) Skill() (setup.Said, error) {
 
 func TestAStepsPanicStopsTheScreenAndPutsTheBackgroundBack(t *testing.T) {
 	cfg := Config{Steps: skillPanicking{newFakeSteps()}, Step: dashboard.SetupLink, Pair: nord(t)}
-	_, out, err := runUntil(t, cfg, terminal{answer: darkAnswer, keys: "\r"})
+	hooked := make(chan struct{})
+	var once sync.Once
+	saw := func(msg tea.Msg) {
+		if _, ok := msg.(hookedMsg); ok {
+			once.Do(func() { close(hooked) })
+		}
+	}
+	_, out, err := runUntil(t, cfg, terminal{answer: darkAnswer, keys: "\r", ready: hooked, saw: saw})
 	if !errors.Is(err, tea.ErrProgramPanic) {
 		t.Errorf("run() error = %v, want the panic Bubble Tea recovered from", err)
 	}

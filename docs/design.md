@@ -1499,6 +1499,31 @@ not the owner's decisions:
   can't check, the bin directory, `c copy the directory`. A line added but not yet asked of the
   shell again is `!`. "It" is the link the row's label names, but where an alias, or where a
   repaired link led, stands between, the row names the claude link.
+- **The claude link page as it asks:** the step runs `Link` as it's reached. While it asks, the page
+  shows its purpose and `Asking your shell, as a new terminal starts it, which claude it runs`
+  with the service step's spinner, `q quit` alone. The Link row comes with the answer, as `Link`
+  makes the link and asks the shell in one go. `r` asks again (`AskAgain`), the spinner under the
+  Link row. `Link` or `AskAgain` failing fails the step, its row `✗ Not set up` and why, nothing
+  worded from what it found.
+- **What's left to put right by hand** is `Remedy`'s, setup's one owner, which the page, Done's
+  row and the line walk read:
+  - Declined, or where setup writes nothing (which file, a rival file, a file it can't look in,
+    a line it couldn't add): frame 11's words, the line and the directory.
+  - Another switchboard's line: `Put this line in its place:` and the line.
+  - A line not taking effect: how to move it, and the directory, with no line to copy.
+  - A shell setup doesn't ask: `Put this directory first on PATH, wherever your shell sets it:`
+    and the directory, with no `r`.
+  - An alias in front, or a line just added: `r` alone.
+
+  `Then press r: …` shows wherever `r` can check. `c` copies the line and `d` the directory. The
+  directory is written from `$HOME`, as it goes on `PATH`.
+- **The step ends with the session hook:**
+  - It runs at once where the shell runs switchboard's claude, or where the step stopped before
+    asking. From by hand, it runs on `enter leave it for now`.
+  - The step is under way, `q quit` alone, until the hook answers. Then the page shows its row,
+    with a warning where it couldn't be installed, and `enter next: Skill`: leaving by hand takes
+    a second `enter`.
+  - Skill's write waits for the hook.
 
 ### How it's built
 

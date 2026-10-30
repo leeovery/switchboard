@@ -51,7 +51,10 @@ type setupScreen struct {
 // chosen, its edit card open, its Plan chosen and moved to Max 5x, as frame
 // 6 has it; the Priming page, its day read, typed in, as frame 7 has it;
 // the Service page, the service installed again and its router healthy, as
-// frame 4 has it; the Skill page, the skill installed, as frame 9 has it;
+// frame 4 has it; the claude link page, zsh running Claude Code's own
+// claude, the line shown by hand, as frame 11 has it, or zsh running
+// switchboard's, the session hook installed, as frame 12 has it; the Skill
+// page, the skill installed, as frame 9 has it;
 // Done, every step walked through from Priming, the claude link made but
 // not first on PATH, as frame 5 has it; and on a first run, work added, its
 // token made, then personal, its token being made in a private Firefox
@@ -69,7 +72,9 @@ var setupScreens = []setupScreen{
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
 	{name: "setup-service-160", size: wide(37), step: dashboard.SetupService, steps: everyStepPassed},
 	{name: "setup-skill-160", size: wide(37), step: dashboard.SetupSkill, steps: everyStepPassed},
-	{name: "setup-done-160", size: wide(37), step: dashboard.SetupPriming, steps: linkLeft, keys: repeated(enterKey, 4)},
+	{name: "setup-link-by-hand-160", size: wide(37), step: dashboard.SetupLink, steps: linkLeft},
+	{name: "setup-link-done-160", size: wide(37), step: dashboard.SetupLink, steps: linkThrough},
+	{name: "setup-done-160", size: wide(37), step: dashboard.SetupPriming, steps: linkLeft, keys: repeated(enterKey, 5)},
 }
 
 // setupShown is setup's screen as a fixture draws it: the step it opens on;
@@ -145,7 +150,6 @@ func (f Fixture) settleSetup(size watch.Size) screen.Model {
 			return wait
 		},
 		Size: screen.Size{Width: size.Width, Height: size.Height},
-		Link: steps.link,
 	}
 	if !f.colourless {
 		cfg.Pair = &theme.Pair{Light: f.theme, Dark: f.theme}
@@ -166,8 +170,8 @@ func (f Fixture) settleSetup(size watch.Size) screen.Model {
 // as given: they read, run and write nothing. Review reads each token, and
 // ReviewOf checks it as checked has it, each account saved among them.
 // makings are how each account's token is made, by its id. link is what the
-// claude link step found, which the screen is given, as it doesn't take the
-// step itself yet.
+// claude link step finds, asked first or again, and hook what the session
+// hook's install says.
 type setupSteps struct {
 	standing setup.RouterStanding
 	review   setup.Review
@@ -175,7 +179,8 @@ type setupSteps struct {
 	day      config.Day
 	service  setup.Serviced
 	skill    setup.Said
-	link     *setup.LinkFound
+	link     setup.LinkFound
+	hook     setup.Said
 	makings  map[string]setupMaking
 	// saved are the accounts added once their tokens are saved, a settle's
 	// own, as settleSetup gives it.
@@ -344,24 +349,52 @@ func everyStepPassed(now time.Time) setupSteps {
 // linkLeft are the steps as they stand once each has passed, at now: as
 // everyStepPassed has them, but for the skill up to date; and the claude
 // link made, but zsh running Claude Code's own claude, the line setup
-// offered left to add to ~/.zshrc by hand, as frame 5 has it.
+// offers to add to ~/.zshrc shown by hand, as frames 5 and 11 have it, and
+// the session hook installed once the step's left.
 func linkLeft(now time.Time) setupSteps {
 	steps := everyStepPassed(now)
 	steps.skill = setup.Said{Mark: setup.Done, Label: "Up to date", Detail: "~/.claude/skills/switchboard/SKILL.md"}
 	const home = "/home/user"
-	steps.link = &setup.LinkFound{
+	steps.link = setup.LinkFound{
 		Made: setup.LinkCreated,
-		Said: []setup.Said{{Mark: setup.Done, Label: "Link", Detail: "~/.local/share/switchboard/bin/claude → switchboard"}},
+		Said: []setup.Said{linkMade},
 		Shell: setup.ShellFound{
 			Situation: setup.OfferLine,
 			Said:      setup.Said{Mark: setup.Warning, Label: "Your shell", Detail: "runs Claude Code's own claude, ~/.local/bin/claude, so its sessions aren't routed"},
 			File:      home + "/.zshrc",
 			Where:     "~/.zshrc",
 			Line:      shell.Line(shell.Zsh, shell.InitFile(home+"/.local/share/switchboard/shell", shell.Zsh), home),
+			Dir:       "$HOME/.local/share/switchboard/bin",
 		},
 	}
+	steps.hook = hookInstalled
 	return steps
 }
+
+// linkMade is the claude link's row, made in switchboard's bin directory,
+// as setup says it.
+var linkMade = setup.Said{Mark: setup.Done, Label: "Link", Detail: "~/.local/share/switchboard/bin/claude → switchboard"}
+
+// linkThrough are the steps as they stand once the Service has passed, at
+// now: as everyStepPassed has them; and the claude link made, zsh running
+// it, and the session hook installed, as frame 12 has it, in the words setup
+// says.
+func linkThrough(now time.Time) setupSteps {
+	steps := everyStepPassed(now)
+	steps.link = setup.LinkFound{
+		Made: setup.LinkCreated,
+		Said: []setup.Said{linkMade},
+		Shell: setup.ShellFound{
+			Situation: setup.Through,
+			Said:      setup.Said{Mark: setup.Done, Label: "Your shell", Detail: "runs switchboard's claude: asked just now, as a new terminal starts it"},
+		},
+	}
+	steps.hook = hookInstalled
+	return steps
+}
+
+// hookInstalled is the session hook installed, as setup says it.
+var hookInstalled = setup.Said{Mark: setup.Done, Label: "Session hook", Detail: "Claude Code says so when a session doesn't start through switchboard · ~/.claude/settings.json"}
 
 // Standing is the router as given.
 func (s setupSteps) Standing(context.Context) (setup.RouterStanding, error) {
@@ -423,6 +456,24 @@ func (s setupSteps) Service(context.Context) (setup.Serviced, error) {
 // Skill is what the skill step did, as given.
 func (s setupSteps) Skill() (setup.Said, error) {
 	return s.skill, nil
+}
+
+// Link is what the claude link step found, as given: it makes no link,
+// writes no file and asks no shell.
+func (s setupSteps) Link(context.Context) (setup.LinkFound, error) {
+	return s.link, nil
+}
+
+// AskAgain is what the claude link step found, as given, as no fixture asks
+// the shell again.
+func (s setupSteps) AskAgain(context.Context, setup.LinkFound) (setup.LinkFound, error) {
+	return s.link, nil
+}
+
+// SessionHook is what the session hook's install said, as given: it writes
+// no settings.
+func (s setupSteps) SessionHook() setup.Said {
+	return s.hook
 }
 
 // CheckAdding gives the account as setup does, its plan read as

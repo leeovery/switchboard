@@ -111,8 +111,11 @@ func TestDoneOffersTheLineToCopyOnlyWhereTheLinkWantsIt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := doneScreen(func(s *Setup) { s.Link = tt.link })
-			if got := s.Copies(); got != tt.want {
-				t.Errorf("Done offers %q to copy, want %q", got, tt.want)
+			if got := s.Copies("c"); got != tt.want {
+				t.Errorf("Done offers %q to copy at c, want %q", got, tt.want)
+			}
+			if got := s.Copies("d"); got != "" {
+				t.Errorf("Done offers %q to copy at d, want nothing", got)
 			}
 			const right = "enter open the dashboard   q quit"
 			want := tt.key + blanks(160-len(tt.key)-len(right)) + right
@@ -125,7 +128,7 @@ func TestDoneOffersTheLineToCopyOnlyWhereTheLinkWantsIt(t *testing.T) {
 
 func TestOnlyDoneOffersALineToCopy(t *testing.T) {
 	s := doneScreen(func(s *Setup) { s.At, s.Passed = SetupSkill, SetupSteps()[:SetupSkill] })
-	if got := s.Copies(); got != "" {
+	if got := s.Copies("c"); got != "" {
 		t.Errorf("the Skill page offers %q to copy, want nothing", got)
 	}
 }

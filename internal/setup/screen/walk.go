@@ -58,6 +58,7 @@ type walk struct {
 var actions = map[dashboard.SetupStep]func(Steps) job{
 	dashboard.SetupPriming: readDay,
 	dashboard.SetupService: service,
+	dashboard.SetupLink:    linkClaude,
 	dashboard.SetupSkill:   skill,
 }
 
@@ -126,8 +127,8 @@ func (m Model) action() tea.Cmd {
 
 // entered moves on, once the step showing is done, unless it failed: at
 // Done, leaving to open the dashboard; at Accounts, as accountsEntered has
-// it; at Priming, once its day is set, as dayEntered has it; else as movedOn
-// has it.
+// it; at Priming, once its day is set, as dayEntered has it; at the claude
+// link, as linkEntered has it; else as movedOn has it.
 func (m Model) entered() (tea.Model, tea.Cmd) {
 	switch w := m.walk; {
 	case !w.done || w.failed != nil:
@@ -139,6 +140,8 @@ func (m Model) entered() (tea.Model, tea.Cmd) {
 		return m.accountsEntered()
 	case w.step == dashboard.SetupPriming:
 		return m.dayEntered()
+	case w.step == dashboard.SetupLink:
+		return m.linkEntered()
 	}
 	return m.movedOn()
 }
@@ -178,25 +181,6 @@ func (m Model) serviced(msg servicedMsg) (Model, tea.Cmd) {
 	m.service = &serviced
 	m.walk = m.walk.finished(msg.err)
 	return m.askAgain()
-}
-
-// cleanLink is found, what the claude link step found, what it shows made
-// safe to show, what it offers to copy keeping its spacing, as copied: nil
-// where it's nil. File is left as it is, as setup writes to it.
-func cleanLink(found *setup.LinkFound) *setup.LinkFound {
-	if found == nil {
-		return nil
-	}
-	cleaned := *found
-	cleaned.Led = prose.Clean(found.Led)
-	cleaned.Said = slices.Clone(found.Said)
-	for i := range cleaned.Said {
-		cleaned.Said[i].Detail = prose.Clean(cleaned.Said[i].Detail)
-	}
-	sh := &cleaned.Shell
-	sh.Said.Detail, sh.Where, sh.Rival, sh.Front = prose.Clean(sh.Said.Detail), prose.Clean(sh.Where), prose.Clean(sh.Rival), prose.Clean(sh.Front)
-	sh.Line, sh.Dir = prose.Visible(sh.Line), prose.Visible(sh.Dir)
-	return &cleaned
 }
 
 // skilledMsg is what the skill step did, or why it failed.

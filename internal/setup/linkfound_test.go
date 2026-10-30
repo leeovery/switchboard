@@ -167,6 +167,7 @@ func TestLinkSaysTheLinkOnItsRowAndTheShellFilesToTheLineWalkAlone(t *testing.T)
 			if len(w.login.asked) > 0 {
 				t.Errorf("the login shell was asked %d times, want never", len(w.login.asked))
 			}
+			checkRemedyAgreesWithTheWalk(t, found)
 		})
 	}
 }
@@ -402,10 +403,12 @@ func TestLinkFindsWhereTheLoginShellLeavesIt(t *testing.T) {
 				tt.lay(t, w)
 			}
 
-			got := w.link(t).Shell
+			found := w.link(t)
+			got := found.Shell
 			if got.Situation != tt.want {
 				t.Errorf("Link() left the shell %v, want %v", got.Situation, tt.want)
 			}
+			checkRemedyAgreesWithTheWalk(t, found)
 			if got.Unasked != tt.wantUnasked {
 				t.Errorf("Link() left the shell unasked: %v, want %v", got.Unasked, tt.wantUnasked)
 			}
@@ -481,6 +484,7 @@ func TestAddLineAddsTheLineOffered(t *testing.T) {
 	if added.Shell.Situation != setup.LineAdded || added.Shell.Said != want || added.Shell.ByHand != nil || !added.Shell.Last {
 		t.Errorf("AddLine() left the shell %+v, want the line added, last, saying %+v, with nothing by hand", added.Shell, want)
 	}
+	checkRemedyAgreesWithTheWalk(t, added)
 	if !reflect.DeepEqual(added.Said, found.Said) {
 		t.Errorf("AddLine() said %+v of the link, want what Link said, %+v", added.Said, found.Said)
 	}
@@ -541,6 +545,7 @@ func TestAddLineAddsTheLineOnce(t *testing.T) {
 				t.Errorf("AddLine() left the shell %v, saying %+v, last: %v; want %v, saying %+v, last: %v",
 					added.Shell.Situation, said, added.Shell.Last, tt.want, tt.wantSaid, tt.wantLast)
 			}
+			checkRemedyAgreesWithTheWalk(t, added)
 			if now, err := os.ReadFile(found.Shell.File); err != nil || string(now) != text {
 				t.Errorf("%s reads %q (%v), want it as the user left it, %q", found.Shell.File, now, err, text)
 			}
@@ -569,6 +574,7 @@ func TestAddLineThatCantBeAddedLeavesItByHand(t *testing.T) {
 	if !reflect.DeepEqual(added.Shell.ByHand, found.Shell.ByHand) {
 		t.Errorf("AddLine() left %q by hand, want the offer's, %q", added.Shell.ByHand, found.Shell.ByHand)
 	}
+	checkRemedyAgreesWithTheWalk(t, added)
 }
 
 func TestAddLineThatCantLookInTheFileLeavesItByHand(t *testing.T) {
@@ -881,6 +887,7 @@ func TestAskAgainSortsTheSituationAfresh(t *testing.T) {
 			if !reflect.DeepEqual(got.Said, found.Said) {
 				t.Errorf("AskAgain() said %+v of the link, want what Link said, %+v", got.Said, found.Said)
 			}
+			checkRemedyAgreesWithTheWalk(t, got)
 		})
 	}
 }

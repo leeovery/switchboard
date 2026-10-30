@@ -256,10 +256,13 @@ func (c *fakeClock) Now() time.Time {
 // with day, failing with primingErr where it's set; SetDay as
 // config.ParseDay does, keeping each day it's given in set, failing with
 // setErr where it's set; Service with serviced, failing with serviceErr
-// where it's set; and Skill with said, failing with skillErr where it's set;
-// each counted as it's asked. Its answers are read, and its counts kept,
-// under mu, as jobs ask it at once: a test sets what it answers while no job
-// runs.
+// where it's set; Link with found, failing with linkErr where it's set;
+// AskAgain with the first of again, each once, else what it's given,
+// keeping each found it's given in askedOf, failing with againErr where
+// it's set; SessionHook with hookSaid; and Skill with said, failing with
+// skillErr where it's set; each counted as it's asked. Its answers are
+// read, and its counts kept, under mu, as jobs ask it at once: a test sets
+// what it answers while no job runs.
 type fakeSteps struct {
 	mu        sync.Mutex
 	standing  setup.RouterStanding
@@ -279,6 +282,12 @@ type fakeSteps struct {
 	serviceErr error
 	said       setup.Said
 	skillErr   error
+	found      setup.LinkFound
+	linkErr    error
+	again      []setup.LinkFound
+	askedOf    []setup.LinkFound
+	againErr   error
+	hookSaid   setup.Said
 	// adds are the accounts CheckAdding is asked to check, each passing, but
 	// where addErr fails it.
 	adds   []setup.Adding
@@ -308,6 +317,8 @@ type fakeSteps struct {
 	primings       int
 	services       int
 	skills         int
+	links          int
+	hooks          int
 }
 
 // fakeMaking is how fakeSteps makes a token: it reports each of steps in
@@ -466,7 +477,8 @@ func (s *fakeSteps) Reopen(_ context.Context, at setup.Making) error {
 }
 
 // newFakeSteps is the steps of a router up and healthy, three accounts
-// working, the service installed, and a skill installed.
+// working, the service installed, the claude link made and run by the
+// shell, the session hook installed, and a skill installed.
 func newFakeSteps() *fakeSteps {
 	working := setup.TokenStanding{State: setup.TokenWorking}
 	return &fakeSteps{
@@ -477,6 +489,8 @@ func newFakeSteps() *fakeSteps {
 			{ID: "side", Label: "Side", Token: working},
 		}},
 		serviced: setup.Serviced{Said: []setup.Said{serviceInstalled, routerHealthy}, Router: &health},
+		found:    linkThrough,
+		hookSaid: hookInstalled,
 		said:     installed,
 		asked:    make(chan setup.TokenFor, 16),
 	}
@@ -567,6 +581,35 @@ func (s *fakeSteps) Service(context.Context) (setup.Serviced, error) {
 	defer s.mu.Unlock()
 	s.services++
 	return s.serviced, s.serviceErr
+}
+
+func (s *fakeSteps) Link(context.Context) (setup.LinkFound, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.links++
+	return s.found, s.linkErr
+}
+
+func (s *fakeSteps) AskAgain(_ context.Context, found setup.LinkFound) (setup.LinkFound, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.askedOf = append(s.askedOf, found)
+	if s.againErr != nil {
+		return found, s.againErr
+	}
+	if len(s.again) == 0 {
+		return found, nil
+	}
+	again := s.again[0]
+	s.again = s.again[1:]
+	return again, nil
+}
+
+func (s *fakeSteps) SessionHook() setup.Said {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hooks++
+	return s.hookSaid
 }
 
 func (s *fakeSteps) Skill() (setup.Said, error) {

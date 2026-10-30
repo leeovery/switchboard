@@ -94,15 +94,17 @@ func partLine(p setup.Part) line {
 // setupPage is a step's page, under the status line: its heading, and
 // what's said at the heading's right, where anything is; what the step is
 // for, where it says, in the lines the page breaks it into; what it found
-// and did, a fact a row, or in their place, what it says while its step is
-// under way; its form's fields; its table, and the notes under it, where it
-// has one; its notes; at Done, each step's line, and the commands to run
-// next; and its keys, at the key line's left, and onward, at its right.
+// and did, a fact a row, then what it says while its step is under way;
+// what's left to put right by hand; its form's fields; its table, and the
+// notes under it, where it has one; its notes; at Done, each step's line,
+// and the commands to run next; and its keys, at the key line's left, and
+// onward, at its right.
 type setupPage struct {
 	name, tail   string
 	purpose      []line
 	facts        []setup.Said
 	underWay     line
+	byHand       []handPart
 	fields       []textField
 	table        *reviewTable
 	notes        []line
@@ -186,10 +188,12 @@ func (l laidPage) paged(rows int) rowsPaged {
 
 // content is what's under the page's heading, drawn whole width cells wide:
 // from setupIndent, what the step is for, each of its lines wrapped further
-// where it's wider than the page; then a row on, from setupIndent, what it
+// where it's wider than the page; then a row on, its facts, but those with
+// no label, which are the line walk's alone, then from setupIndent, what it
 // says while its step is under way, cut where it's wider than the page; then
-// its facts, but those with no label, which are the line walk's alone, then
-// its fields, a blank row after each; then its table and the notes under it;
+// a row further on, what's left to put right by hand, as handPart draws it;
+// then its fields; a blank row after each fact, part and field; then its
+// table and the notes under it;
 // then its notes, wrapped as its purpose is; then each step's line, as
 // stepLine draws it, a blank row after each; then two rows on, where it has
 // any, the commands to run next, under their heading, a blank row after
@@ -207,14 +211,20 @@ func (p setupPage) content(width int) laidPage {
 	if p.purpose != nil {
 		y++
 	}
-	if p.underWay != nil {
-		c.line(setupIndent, y, p.underWay.fit(width-setupIndent))
-		y += 2
-	}
 	for _, said := range p.facts {
 		if said.Label != "" {
 			y = fact(c, y, width, said) + 1
 		}
+	}
+	if p.underWay != nil {
+		c.line(setupIndent, y, p.underWay.fit(width-setupIndent))
+		y += 2
+	}
+	if p.byHand != nil {
+		y++
+	}
+	for _, part := range p.byHand {
+		y = part.draw(c, y, width) + 1
 	}
 	for _, f := range p.fields {
 		y = f.draw(c, setupIndent, y, width-setupIndent) + 1

@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
@@ -57,6 +56,8 @@ type Setup struct {
 	Accounts *SetupAccountsPage
 	// Priming is the Priming step's page: nil until its day is read.
 	Priming *SetupPrimingPage
+	// Linking is what the claude link step's page has of its own.
+	Linking SetupLinkPage
 	// Scroll is how many rows the page under its heading is scrolled down.
 	Scroll int
 }
@@ -166,8 +167,8 @@ func (s Setup) passed(step SetupStep) bool {
 
 // shown is the page of the step showing, drawn in look: the Accounts', as
 // accountsPage has it; the Priming's, as primingPage has it; the Service's,
-// as servicePage has it; the Skill's, as skillPage has it; Done's, as
-// donePage has it; else, until it's drawn, its name in capitals alone.
+// as servicePage has it; the claude link's, as linkPage has it; the Skill's,
+// as skillPage has it; else Done's, as donePage has it.
 func (s Setup) shown(look Look) setupPage {
 	switch s.At {
 	case SetupAccounts:
@@ -176,10 +177,10 @@ func (s Setup) shown(look Look) setupPage {
 		return s.primingPage()
 	case SetupService:
 		return s.servicePage()
+	case SetupLink:
+		return s.linkPage()
 	case SetupSkill:
 		return s.skillPage()
-	case SetupDone:
-		return s.donePage()
 	}
-	return setupPage{name: strings.ToUpper(s.At.Title())}
+	return s.donePage()
 }

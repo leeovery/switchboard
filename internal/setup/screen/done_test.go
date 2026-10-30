@@ -3,6 +3,7 @@ package screen
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,36 +15,18 @@ import (
 	"github.com/leeovery/switchboard/internal/setup"
 )
 
-// shellLine is the line the claude link step leaves to add by hand.
-const shellLine = `if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard`
-
-// The claude link step's outcomes, as setup finds them.
-var (
-	linkLeft = &setup.LinkFound{
-		Made:  setup.LinkCreated,
-		Said:  []setup.Said{{Mark: setup.Done, Label: "Link", Detail: "~/.local/share/switchboard/bin/claude → switchboard"}},
-		Shell: setup.ShellFound{Situation: setup.OfferLine, Line: shellLine, Where: "~/.zshrc"},
-	}
-	linkDone = &setup.LinkFound{
-		Made:  setup.LinkCreated,
-		Said:  []setup.Said{{Mark: setup.Done, Label: "Link", Detail: "~/.local/share/switchboard/bin/claude → switchboard"}},
-		Shell: setup.ShellFound{Situation: setup.Through},
-	}
-)
-
-// walkedToDone is a harness given link as what the claude link step found,
-// opening on Priming, its day day, and walked through each step to Done.
-func walkedToDone(t *testing.T, link *setup.LinkFound, day config.Day) *harness {
+// walkedToDone is a harness whose claude link step finds found, opening on
+// Priming, its day day, and walked through each step to Done, enter pressed
+// till it's there.
+func walkedToDone(t *testing.T, found setup.LinkFound, day config.Day) *harness {
 	t.Helper()
 	h := newHarness(t, dashboard.SetupPriming)
-	cfg := h.config(dashboard.SetupPriming)
-	cfg.Link = link
-	h.steps.day = day
-	h.model = New(t.Context(), cfg)
-	t.Cleanup(h.model.jobs.wait)
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
+	h.steps.found, h.steps.day = found, day
 	h.start()
-	for range dashboard.SetupDone - dashboard.SetupPriming {
+	for range 2 * (dashboard.SetupDone - dashboard.SetupPriming) {
+		if h.model.page().At == dashboard.SetupDone {
+			break
+		}
 		h.pressAndDeliver("enter")
 	}
 	if got := h.model.page().At; got != dashboard.SetupDone {
@@ -124,16 +107,22 @@ func TestDoneSaysTheDayAsItWasSet(t *testing.T) {
 func TestCCopiesTheLineOnlyWhereTheLinkIsntDone(t *testing.T) {
 	tests := []struct {
 		name string
-		link *setup.LinkFound
-		copy bool
+		// walked is the harness walked to Done.
+		walked func(t *testing.T) *harness
+		copy   bool
 	}{
-		{name: "not first on PATH: the line copied", link: linkLeft, copy: true},
-		{name: "done: nothing", link: linkDone},
-		{name: "passed through: nothing", link: nil},
+		{name: "not first on PATH: the line copied", walked: func(t *testing.T) *harness { return walkedToDone(t, linkLeft, config.Day{}) }, copy: true},
+		{name: "done: nothing", walked: func(t *testing.T) *harness { return walkedToDone(t, linkThrough, config.Day{}) }},
+		{name: "passed through: nothing", walked: func(t *testing.T) *harness {
+			h := newHarness(t, dashboard.SetupSkill)
+			h.start()
+			h.pressAndDeliver("enter")
+			return h
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := walkedToDone(t, tt.link, config.Day{})
+			h := tt.walked(t)
 			msgs := h.press("c")
 			if got := clipboard(msgs, shellLine); got != tt.copy {
 				t.Errorf("c at Done sends %v: the line copied %v, want %v", msgs, got, tt.copy)
@@ -149,12 +138,14 @@ func TestCCopiesTheLineOnlyWhereTheLinkIsntDone(t *testing.T) {
 }
 
 func TestCCopiesNothingBeforeDone(t *testing.T) {
-	h := newHarness(t, dashboard.SetupSkill)
-	cfg := h.config(dashboard.SetupSkill)
-	cfg.Link = linkLeft
-	h.model = New(t.Context(), cfg)
-	t.Cleanup(h.model.jobs.wait)
+	h := newHarness(t, dashboard.SetupLink)
+	h.steps.found = linkLeft
 	h.start()
+	h.pressAndDeliver("enter")
+	h.pressAndDeliver("enter")
+	if got := h.model.page().At; got != dashboard.SetupSkill {
+		t.Fatalf("enter at the claude link reaches %s, want the Skill", got.Title())
+	}
 	if msgs := h.press("c"); len(msgs) != 0 {
 		t.Errorf("c at Skill sends %v, want nothing", msgs)
 	}
@@ -186,6 +177,7 @@ func TestTheSummaryIsWhereTheWalkStands(t *testing.T) {
 		accounts = "Accounts 3, all working · primary: work"
 		priming  = "Priming on, 08:00–23:00"
 		service  = "Service installed · router healthy"
+		link     = "claude link created · your shell runs it"
 	)
 	tests := []struct {
 		name string
@@ -207,11 +199,13 @@ func TestTheSummaryIsWhereTheWalkStands(t *testing.T) {
 		{name: "Service failed", fail: func(s *fakeSteps) {
 			s.serviced, s.serviceErr = setup.Serviced{Said: []setup.Said{routerUnstarted}}, errNoService
 		}, enters: 2, want: []string{accounts, priming, "Service router: " + routerUnstarted.Detail}},
-		{name: "at the claude link, which has told nothing", enters: 3, want: []string{accounts, priming, service}},
-		{name: "at Skill", enters: 4, want: []string{accounts, priming, service, "claude link ", "Skill installed"}},
+		{name: "at the claude link", enters: 3, want: []string{accounts, priming, service, link}},
+		{name: "the claude link failed", fail: func(s *fakeSteps) { s.linkErr = errNoLink }, enters: 3,
+			want: []string{accounts, priming, service, "claude link " + errNoLink.Error()}},
+		{name: "at Skill", enters: 4, want: []string{accounts, priming, service, link, "Skill installed"}},
 		{name: "Skill failed", fail: func(s *fakeSteps) { s.said, s.skillErr = notWritten, errNoSkill }, enters: 4,
-			want: []string{accounts, priming, service, "claude link ", "Skill not installed: " + errNoSkill.Error()}},
-		{name: "at Done", enters: 5, want: []string{accounts, priming, service, "claude link ", "Skill installed"}},
+			want: []string{accounts, priming, service, link, "Skill not installed: " + errNoSkill.Error()}},
+		{name: "at Done", enters: 5, want: []string{accounts, priming, service, link, "Skill installed"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -242,9 +236,8 @@ func TestTheSummaryIsWhereTheWalkStands(t *testing.T) {
 }
 
 func TestTheLinkFoundIsMadeSafeToShowAsItEntersTheScreen(t *testing.T) {
-	h := newHarness(t, dashboard.SetupDone)
-	cfg := h.config(dashboard.SetupDone)
-	cfg.Link = &setup.LinkFound{
+	h := newHarness(t, dashboard.SetupLink)
+	given := setup.LinkFound{
 		Made: setup.LinkRepaired, Led: "~/old\x1b[2J/switchboard",
 		Said: []setup.Said{{Mark: setup.Done, Label: "Link", Detail: "~/bin/claude\x1b[2J → switchboard"}},
 		Shell: setup.ShellFound{
@@ -253,25 +246,31 @@ func TestTheLinkFoundIsMadeSafeToShowAsItEntersTheScreen(t *testing.T) {
 			Line: "if [ -r \"$HOME/x\x1b[2J\" ]; then . \"$HOME/x\x1b[2J\"; fi  # switchboard", Dir: "$HOME/bin\x1b[2J",
 		},
 	}
-	h.model = New(t.Context(), cfg)
-	t.Cleanup(h.model.jobs.wait)
-	given, got := cfg.Link.Shell, h.model.link.Shell
+	h.steps.found = given
+	h.start()
+	got := h.model.link.Shell
 	for _, tt := range []struct{ what, got, want string }{
-		{what: "the link's row", got: h.model.link.Said[0].Detail, want: prose.Clean(cfg.Link.Said[0].Detail)},
-		{what: "where the link led", got: h.model.link.Led, want: prose.Clean(cfg.Link.Led)},
-		{what: "the shell's row", got: got.Said.Detail, want: prose.Clean(given.Said.Detail)},
-		{what: "the startup file shown", got: got.Where, want: prose.Clean(given.Where)},
-		{what: "the other startup file", got: got.Rival, want: prose.Clean(given.Rival)},
-		{what: "the alias in front", got: got.Front, want: prose.Clean(given.Front)},
-		{what: "the line to copy, its spacing kept", got: got.Line, want: prose.Visible(given.Line)},
-		{what: "the directory to copy", got: got.Dir, want: prose.Visible(given.Dir)},
-		{what: "the startup file written to, left as it is", got: got.File, want: given.File},
+		{what: "the link's row", got: h.model.link.Said[0].Detail, want: prose.Clean(given.Said[0].Detail)},
+		{what: "where the link led", got: h.model.link.Led, want: prose.Clean(given.Led)},
+		{what: "the shell's row", got: got.Said.Detail, want: prose.Clean(given.Shell.Said.Detail)},
+		{what: "the startup file shown", got: got.Where, want: prose.Clean(given.Shell.Where)},
+		{what: "the other startup file", got: got.Rival, want: prose.Clean(given.Shell.Rival)},
+		{what: "the alias in front", got: got.Front, want: prose.Clean(given.Shell.Front)},
+		{what: "the line to copy, its spacing kept", got: got.Line, want: prose.Visible(given.Shell.Line)},
+		{what: "the directory to copy", got: got.Dir, want: prose.Visible(given.Shell.Dir)},
+		{what: "the startup file written to, left as it is", got: got.File, want: given.Shell.File},
 	} {
 		if tt.got != tt.want {
 			t.Errorf("%s reads %q, want %q", tt.what, tt.got, tt.want)
 		}
 	}
-	if cfg.Link.Said[0].Detail != "~/bin/claude\x1b[2J → switchboard" {
-		t.Errorf("the link given was changed to %q, want it left as it was", cfg.Link.Said[0].Detail)
+	for y, row := range h.rows() {
+		if strings.ContainsAny(row, "\x1b\x07") {
+			t.Errorf("row %d draws a control: %q", y, row)
+		}
+	}
+	h.pressAndDeliver("r")
+	if asked := h.steps.askedOf; len(asked) != 1 || asked[0].Shell.Line != given.Shell.Line || asked[0].Said[0].Detail != given.Said[0].Detail {
+		t.Errorf("AskAgain was given %+v, want what Link found, as setup gave it", asked)
 	}
 }

@@ -164,15 +164,23 @@ func news(label string) bool {
 	return label == updatedLabel || label == restartingLabel || label == restartedLabel || label == routerLabel
 }
 
-// line is the claude link's line, as the situation the step left says it,
+// line is the claude link's line, as stated has it, and under it what the
+// situation's remedy puts in place first, to copy, where it puts anything:
+// the line, or the bin directory.
+func (f LinkFound) line() StepLine {
+	l := f.stated()
+	l.Add, l.Directory = f.Shell.Remedy().first()
+	return l
+}
+
+// stated is the claude link's line, as the situation the step left says it,
 // each in words of its own, after what the step did to the link: ✓ where a
 // new terminal's claude goes through it; else ! and what keeps it from it,
 // an alias in front of PATH's claude first, where one runs something else,
-// and where there's something to put in place by hand, the line, or the bin
-// directory, under it. "it" is the link, as the line's label names it; but
-// where the alias leads, or where the link led before its repair, standing
-// between the label and the link, the link is named.
-func (f LinkFound) line() StepLine {
+// and how to put it right. "it" is the link, as the line's label names it;
+// but where the alias leads, or where the link led before its repair,
+// standing between the label and the link, the link is named.
+func (f LinkFound) stated() StepLine {
 	sh := f.Shell
 	if f.Made == LinkNotMade {
 		l := StepLine{Mark: Warning, Detail: "not made"}
@@ -195,8 +203,8 @@ func (f LinkFound) line() StepLine {
 		}
 		return detail
 	}
-	warning := func(detail, add string) StepLine {
-		return StepLine{Mark: Warning, Detail: f.after(", but ", fronted(detail)), Add: add}
+	warning := func(detail string) StepLine {
+		return StepLine{Mark: Warning, Detail: f.after(", but ", fronted(detail))}
 	}
 	switch sh.Situation {
 	case Through:
@@ -205,27 +213,25 @@ func (f LinkFound) line() StepLine {
 		added := f.after(", and ", "switchboard's line is added to "+sh.Where)
 		return StepLine{Mark: Warning, Detail: added + ", but " + fronted("setup hasn't asked your shell again whether a new terminal's claude goes through "+it)}
 	case Unreached:
-		return warning("there's no Claude Code for "+it+" to start: install Claude Code, then run setup again", "")
+		return warning("there's no Claude Code for " + it + " to start: install Claude Code, then run setup again")
 	case OfferLine:
-		return warning(first+". Add this line to "+sh.Where+":", sh.Line)
+		return warning(first + ". Add this line to " + sh.Where + ":")
 	case CantAdd:
-		return warning(first+", and setup couldn't add its line to "+sh.Where+". Add this line to it yourself:", sh.Line)
+		return warning(first + ", and setup couldn't add its line to " + sh.Where + ". Add this line to it yourself:")
 	case WhichFile:
-		return warning(first+". Add this line to your shell's startup file, usually "+sh.Where+":", sh.Line)
+		return warning(first + ". Add this line to your shell's startup file, usually " + sh.Where + ":")
 	case RivalFile:
-		return warning(first+". Add this line to the end of whichever of "+sh.Where+" and "+sh.Rival+" a new terminal reads:", sh.Line)
+		return warning(first + ". Add this line to the end of whichever of " + sh.Where + " and " + sh.Rival + " a new terminal reads:")
 	case CantLook:
-		return warning(first+", and setup can't look in "+sh.Where+" for its line. Add this line to the end of it, if it isn't there:", sh.Line)
+		return warning(first + ", and setup can't look in " + sh.Where + " for its line. Add this line to the end of it, if it isn't there:")
 	case OtherLine:
-		return warning("switchboard's line in "+sh.Where+" reads another switchboard's file. Put this line in its place:", sh.Line)
+		return warning("switchboard's line in " + sh.Where + " reads another switchboard's file. " + inItsPlace)
 	case NotTaking:
-		return warning(f.notTaking(), "")
+		return warning(f.notTaking())
 	case InFront:
 		return StepLine{Mark: Warning, Detail: f.after(", but ", sh.Front)}
 	}
-	l := warning("setup can't check "+it+" for your shell. Put this directory first on your PATH:", sh.Dir)
-	l.Directory = true
-	return l
+	return warning("setup can't check " + it + " for your shell. Put this directory first on your PATH:")
 }
 
 // notTaking says what keeps switchboard's line, there in its startup file,

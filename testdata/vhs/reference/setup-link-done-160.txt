@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     ✓ Accounts   ✓ Priming   ✓ Service   4 claude link   5 Skill   Done                                                Tue 27 Oct  17:42:00
+
+● router up, healthy  ·  3 accounts, all working
+
+CLAUDE LINK  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  The claude command starts Claude Code through switchboard, so every session is routed.
+
+  ✓  Link                 ~/.local/share/switchboard/bin/claude → switchboard
+
+  ✓  Your shell           runs switchboard's claude: asked just now, as a new terminal starts it
+
+  ✓  Session hook         Claude Code says so when a session doesn't start through switchboard · ~/.claude/settings.json
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                                      enter next: Skill   q quit
