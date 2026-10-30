@@ -102,11 +102,24 @@ type cardField struct {
 	field   textField
 }
 
-// card is the card open over the page of the step showing: the Accounts
-// page's add card, its edit card, its remove card, its token card, or its
-// paste card, at the screen's time; nil where none is.
+// card is the card open over the page of the step showing, at the screen's
+// time: the Accounts page's, as accountsCard has it, or the claude link
+// page's offer card; nil where none is.
 func (s Setup) card(width int) *setupCard {
-	if s.At != SetupAccounts || s.Accounts == nil {
+	switch s.At {
+	case SetupAccounts:
+		return s.accountsCard(width)
+	case SetupLink:
+		return s.offerCard(width)
+	}
+	return nil
+}
+
+// accountsCard is the card open over the Accounts page: its add card, its
+// edit card, its remove card, its token card, or its paste card, at the
+// screen's time; nil where none is.
+func (s Setup) accountsCard(width int) *setupCard {
+	if s.Accounts == nil {
 		return nil
 	}
 	cardWidth, _ := cardAcross(width, setupCardWidth)
@@ -127,9 +140,13 @@ func (s Setup) card(width int) *setupCard {
 
 // cardSpins reports whether the card open over the page of the step
 // showing has its spinner moving: the token card, but at its making's end,
-// and the paste card while it checks the token.
+// the paste card while it checks the token, and the offer card while it adds
+// the line.
 func (s Setup) cardSpins() bool {
-	if s.At != SetupAccounts || s.Accounts == nil {
+	switch {
+	case s.At == SetupLink:
+		return s.Linking.Offer != nil && s.Linking.Offer.Adding
+	case s.At != SetupAccounts || s.Accounts == nil:
 		return false
 	}
 	switch a := s.Accounts; {

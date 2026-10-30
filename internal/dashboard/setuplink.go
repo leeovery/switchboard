@@ -1,8 +1,10 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -14,10 +16,20 @@ import (
 // what the step found, which the summary holds: whether the step asks the
 // user's login shell now which claude it runs; whether the step has ended,
 // installing the session hook, which it does once, whatever it found; and
-// the session hook's row, once it's installed.
+// the session hook's row, once it's installed; and the card offering to add
+// switchboard's line to the startup file, where it's open.
 type SetupLinkPage struct {
 	Asking, Ended bool
 	Hook          *setup.Said
+	Offer         *SetupOfferCard
+}
+
+// SetupOfferCard is the card offering to add switchboard's line to the end
+// of the startup file the claude link step found without it, open over the
+// claude link page, as it stands: whether the line's being added, when it
+// takes no key but q.
+type SetupOfferCard struct {
+	Adding bool
 }
 
 // What the claude link page says of its own: what the claude command is
@@ -77,10 +89,10 @@ func (s Setup) linkPage() setupPage {
 
 // remedy is what the claude link step leaves to put right by hand, and
 // whether its page offers it: once the step has found the shell runs
-// another claude, till the step ends, while it isn't asking again, and
-// hasn't failed.
+// another claude, till the step ends, while it isn't asking again, nor
+// offering to add the line, and hasn't failed.
 func (s Setup) remedy() (setup.Remedy, bool) {
-	if s.Link == nil || s.Linking.Asking || s.Linking.Ended || s.Failure != "" {
+	if s.Link == nil || s.Linking.Asking || s.Linking.Ended || s.Linking.Offer != nil || s.Failure != "" {
 		return setup.Remedy{}, false
 	}
 	r := s.Link.Shell.Remedy()
@@ -180,9 +192,86 @@ func (h handPart) draw(c *canvas, y, width int) int {
 	}
 	put := handParts(width)[handPut]
 	y++
-	for part := range strings.SplitSeq(ansi.Wrap(h.put, put.Size, ""), "\n") {
-		c.line(put.At, y, line{{part, accentInk}})
+	for _, l := range wholeLines(h.put, put.Size) {
+		c.line(put.At, y, l)
 		y++
 	}
 	return y
+}
+
+// wholeLines are what's to put in place, to copy, in accent.mode, wrapped
+// width cells wide, words wider than that broken, never cut, as it's to be
+// copied whole.
+func wholeLines(put string, width int) []line {
+	var lines []line
+	for part := range strings.SplitSeq(ansi.Wrap(put, width, ""), "\n") {
+		lines = append(lines, line{{part, accentInk}})
+	}
+	return lines
+}
+
+// indented are lines, each set in by cells.
+func indented(lines []line, by int) []line {
+	in := make([]line, len(lines))
+	for i, l := range lines {
+		in[i] = append(line{spaces(by)}, l...)
+	}
+	return in
+}
+
+// offerCardWidth is the natural width of the offer card, frame 8's, its
+// edges included.
+const offerCardWidth = 128
+
+// How far into the offer card's content what it says is set in, and the line
+// it offers to add, as frame 8 has them.
+const (
+	offerSaysAt = 1
+	offerLineAt = 3
+)
+
+// What the offer card says, the startup file named where each %s is: its
+// title; what setup can do; what the line does, and what it leaves; and
+// while it's added, that it is.
+const (
+	offerTitle    = "ADD A LINE TO %s"
+	offerCan      = "Setup can add one line to the end of %s, so your shell finds switchboard's claude first:"
+	offerHandsOff = "The line hands off to a file of switchboard's own, which puts its claude first and loads its completions."
+	offerLeaves   = "It does nothing once switchboard is gone, and nothing else in %s changes."
+	offerAdding   = "Adding the line to the end of %s"
+)
+
+// offerKeys are the offer card's keys.
+var offerKeys = []Key{{Key: "enter", Does: "add it"}, {Key: "n", Does: "I'll add it myself"}}
+
+// offerCard is the offer card open over the claude link page, at the
+// screen's time, width cells wide as the dashboard Card's rule has it: nil
+// where none is.
+func (s Setup) offerCard(width int) *setupCard {
+	if s.Linking.Offer == nil || s.Link == nil {
+		return nil
+	}
+	cardWidth, _ := cardAcross(width, offerCardWidth)
+	return s.Linking.Offer.card(cardWidth, s.Now, s.Link.Shell)
+}
+
+// card is the offer card at now, width cells wide, of the startup file and
+// the line sh names: ADD A LINE TO and the file in its top edge; what setup
+// can do, in text.secondary, or while the line's added, the spinner and that
+// it is; a row on, the line, in accent.mode, wrapped whole; a row on, what
+// the line does, and what it leaves, muted; and its keys, but q quit alone
+// while the line's added.
+func (o SetupOfferCard) card(width int, now time.Time, sh setup.ShellFound) *setupCard {
+	content := width - 2*cardInset
+	says := func(text string, k ink) []line {
+		return indented(line{{text, k}}.wrap(content-offerSaysAt), offerSaysAt)
+	}
+	body, keys := says(fmt.Sprintf(offerCan, sh.Where), secondaryInk), offerKeys
+	if o.Adding {
+		body, keys = indented([]line{waiting(now, fmt.Sprintf(offerAdding, sh.Where))}, offerSaysAt), []Key{Quit}
+	}
+	body = append(append(body, nil), indented(wholeLines(sh.Line, content-offerLineAt), offerLineAt)...)
+	body = append(append(body, nil), says(offerHandsOff, mutedInk)...)
+	body = append(body, says(fmt.Sprintf(offerLeaves, sh.Where), mutedInk)...)
+	return &setupCard{card: Card{title: fmt.Sprintf(offerTitle, sh.Where), width: width, body: body, keys: keys}}
 }

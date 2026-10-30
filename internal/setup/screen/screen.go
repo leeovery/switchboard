@@ -87,6 +87,12 @@ type Steps interface {
 	// being what the claude link step found before, and says what it finds
 	// now, failing as Link does.
 	AskAgain(ctx context.Context, found setup.LinkFound) (setup.LinkFound, error)
+	// AddLine adds switchboard's line, which found offers, to the end of the
+	// startup file it offers it for, once, and says what that leaves: the
+	// line added, the shell to ask again; a line there reading another
+	// switchboard's file; or, where it can't be added, how to add it by
+	// hand. It fails, changing nothing, where found offers no line.
+	AddLine(found setup.LinkFound) (setup.LinkFound, error)
 	// SessionHook installs the session hook, or puts it right, and says
 	// which it did, never failing: a hook it can't install, it says so.
 	SessionHook() setup.Said
@@ -185,11 +191,13 @@ type Model struct {
 	service *setup.Serviced
 	// found is what the claude link step found, as setup gave it, for setup
 	// to be given again; link is the same, made safe to show; both nil until
-	// it has found anything. linkEnded is set once the step has ended, its
-	// session hook installing, and hook is what the install said: nil until
-	// it has.
+	// it has found anything. offer is the card offering to add switchboard's
+	// line, open over the page: nil where none is. linkEnded is set once the
+	// step has ended, its session hook installing, and hook is what the
+	// install said: nil until it has.
 	found     *setup.LinkFound
 	link      *setup.LinkFound
+	offer     *offerCard
 	linkEnded bool
 	hook      *setup.Said
 	// skill is what the skill step said it did: nil until it has.
@@ -279,6 +287,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.serviced(msg)
 	case linkedMsg:
 		return m.linked(msg)
+	case addedMsg:
+		return m.added(msg)
 	case hookedMsg:
 		return m.hooked(msg), nil
 	case skilledMsg:
@@ -407,7 +417,7 @@ func (m Model) View() tea.View {
 func (m Model) page() dashboard.Setup {
 	s := dashboard.Setup{
 		Now: m.now(), Summary: m.summary(), Passed: m.walk.passed, Status: m.status.line(),
-		UnderWay: !m.walk.done, Scroll: m.scroll, Linking: dashboard.SetupLinkPage{Asking: m.asking(), Ended: m.linkEnded, Hook: m.hook},
+		UnderWay: !m.walk.done, Scroll: m.scroll, Linking: dashboard.SetupLinkPage{Asking: m.asking(), Ended: m.linkEnded, Hook: m.hook, Offer: m.offer.drawn()},
 	}
 	if m.walk.step == dashboard.SetupAccounts {
 		s.Accounts = m.accountsPage()

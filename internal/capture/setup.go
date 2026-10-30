@@ -39,8 +39,9 @@ type setupScreen struct {
 	keys   []tea.KeyPressMsg
 	waited time.Duration
 	// card is the title of the card the keys leave open over the page: ""
-	// where they leave none.
-	card string
+	// where they leave none; and cardKeys are its keys, as its keys row
+	// reads them.
+	card, cardKeys string
 }
 
 // setupScreens are setup's screen's fixtures: the Accounts page on a first
@@ -52,39 +53,42 @@ type setupScreen struct {
 // 6 has it; the Priming page, its day read, typed in, as frame 7 has it;
 // the Service page, the service installed again and its router healthy, as
 // frame 4 has it; the claude link page, zsh running Claude Code's own
-// claude, the line shown by hand, as frame 11 has it, or zsh running
-// switchboard's, the session hook installed, as frame 12 has it; the Skill
-// page, the skill installed, as frame 9 has it;
-// Done, every step walked through from Priming, the claude link made but
-// not first on PATH, as frame 5 has it; and on a first run, work added, its
-// token made, then personal, its token being made in a private Firefox
-// window, setup-token waiting on its approval for 21 seconds, as frame 2
-// has it, or stopped with an error, as frame 10 has it; and from there, p
-// pressed, the card pasting personal's token, a token typed in, as no frame
-// has it, laid out as frame 2.
+// claude, the card offering to add the line to ~/.zshrc open, as frame 8 has
+// it, or the offer declined with n, the line shown by hand, as frame 11 has
+// it, or zsh running switchboard's, the session hook installed, as frame 12
+// has it; the Skill page, the skill installed, as frame 9 has it; Done,
+// every step walked through from Priming, the claude link made but not
+// first on PATH, the offer declined, as frame 5 has it; and on a first run,
+// work added, its token made, then personal, its token being made in a
+// private Firefox window, setup-token waiting on its approval for 21
+// seconds, as frame 2 has it, or stopped with an error, as frame 10 has it;
+// and from there, p pressed, the card pasting personal's token, a token
+// typed in, as no frame has it, laid out as frame 2.
 var setupScreens = []setupScreen{
-	{name: "setup-add-first-160", size: wide(37), step: dashboard.SetupAccounts, steps: firstRun, keys: slices.Concat(typingWork(), []tea.KeyPressMsg{tabKey, tabKey}), card: "ADD AN ACCOUNT"},
-	{name: "setup-token-waiting-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(nil), keys: addingPersonal(), waited: 21 * time.Second, card: "NEW TOKEN · PERSONAL"},
-	{name: "setup-token-failed-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: addingPersonal(), card: "NEW TOKEN · PERSONAL"},
-	{name: "setup-token-paste-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: slices.Concat(addingPersonal(), keysOf("p"), keysOf(strings.Split("test-token-personal", "")...)), card: "PASTE A TOKEN · PERSONAL"},
+	{name: "setup-add-first-160", size: wide(37), step: dashboard.SetupAccounts, steps: firstRun, keys: slices.Concat(typingWork(), []tea.KeyPressMsg{tabKey, tabKey}), card: "ADD AN ACCOUNT", cardKeys: "tab next   enter create token   esc cancel"},
+	{name: "setup-token-waiting-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(nil), keys: addingPersonal(), waited: 21 * time.Second, card: "NEW TOKEN · PERSONAL", cardKeys: "o reopen window   p paste a token   esc cancel"},
+	{name: "setup-token-failed-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: addingPersonal(), card: "NEW TOKEN · PERSONAL", cardKeys: "enter try again   p paste a token   esc cancel"},
+	{name: "setup-token-paste-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: slices.Concat(addingPersonal(), keysOf("p"), keysOf(strings.Split("test-token-personal", "")...)), card: "PASTE A TOKEN · PERSONAL", cardKeys: "enter save   esc cancel"},
 	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
-	{name: "setup-edit-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: slices.Concat(keysOf("j", "e"), []tea.KeyPressMsg{tabKey, leftKey, leftKey}), card: "EDIT PERSONAL"},
+	{name: "setup-edit-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: slices.Concat(keysOf("j", "e"), []tea.KeyPressMsg{tabKey, leftKey, leftKey}), card: "EDIT PERSONAL", cardKeys: "tab next   ←→ select   enter save   esc cancel"},
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
 	{name: "setup-service-160", size: wide(37), step: dashboard.SetupService, steps: everyStepPassed},
 	{name: "setup-skill-160", size: wide(37), step: dashboard.SetupSkill, steps: everyStepPassed},
-	{name: "setup-link-by-hand-160", size: wide(37), step: dashboard.SetupLink, steps: linkLeft},
+	{name: "setup-link-offer-160", size: wide(37), step: dashboard.SetupLink, steps: linkLeft, card: "ADD A LINE TO ~/.zshrc", cardKeys: "enter add it   n I'll add it myself"},
+	{name: "setup-link-by-hand-160", size: wide(37), step: dashboard.SetupLink, steps: linkLeft, keys: keysOf("n")},
 	{name: "setup-link-done-160", size: wide(37), step: dashboard.SetupLink, steps: linkThrough},
-	{name: "setup-done-160", size: wide(37), step: dashboard.SetupPriming, steps: linkLeft, keys: repeated(enterKey, 5)},
+	{name: "setup-done-160", size: wide(37), step: dashboard.SetupPriming, steps: linkLeft, keys: slices.Concat(repeated(enterKey, 2), keysOf("n"), repeated(enterKey, 3))},
 }
 
 // setupShown is setup's screen as a fixture draws it: the step it opens on;
 // what its steps answer; how long before its moment its keys are pressed;
-// and the title of the card left open over its page, "" for none.
+// and the title of the card left open over its page, "" for none, and its
+// keys.
 type setupShown struct {
-	step   dashboard.SetupStep
-	steps  setupSteps
-	waited time.Duration
-	card   string
+	step           dashboard.SetupStep
+	steps          setupSteps
+	waited         time.Duration
+	card, cardKeys string
 }
 
 // typingWork are the keys that type work into the add card, as frame 1 has
@@ -120,7 +124,7 @@ func setupMoment() time.Time {
 // the worlds.
 func (s setupScreen) made(func() accountWorlds) Fixture {
 	now := setupMoment()
-	return Fixture{Name: s.name, Size: s.size, now: now, theme: framesTheme(), keys: s.keys, setup: &setupShown{step: s.step, steps: s.steps(now), waited: s.waited, card: s.card}}
+	return Fixture{Name: s.name, Size: s.size, now: now, theme: framesTheme(), keys: s.keys, setup: &setupShown{step: s.step, steps: s.steps(now), waited: s.waited, card: s.card, cardKeys: s.cardKeys}}
 }
 
 // settleSetup builds setup's screen of the fixture, through screen.New, on a
@@ -348,9 +352,10 @@ func everyStepPassed(now time.Time) setupSteps {
 
 // linkLeft are the steps as they stand once each has passed, at now: as
 // everyStepPassed has them, but for the skill up to date; and the claude
-// link made, but zsh running Claude Code's own claude, the line setup
-// offers to add to ~/.zshrc shown by hand, as frames 5 and 11 have it, and
-// the session hook installed once the step's left.
+// link made, but zsh running Claude Code's own claude, setup offering to
+// add its line to ~/.zshrc, as frame 8 has it, shown by hand once declined,
+// as frames 5 and 11 have it, and the session hook installed once the
+// step's left.
 func linkLeft(now time.Time) setupSteps {
 	steps := everyStepPassed(now)
 	steps.skill = setup.Said{Mark: setup.Done, Label: "Up to date", Detail: "~/.claude/skills/switchboard/SKILL.md"}
@@ -468,6 +473,12 @@ func (s setupSteps) Link(context.Context) (setup.LinkFound, error) {
 // the shell again.
 func (s setupSteps) AskAgain(context.Context, setup.LinkFound) (setup.LinkFound, error) {
 	return s.link, nil
+}
+
+// AddLine adds nothing, as no fixture adds the line: it gives found back as
+// it is, writing no startup file.
+func (s setupSteps) AddLine(found setup.LinkFound) (setup.LinkFound, error) {
+	return found, nil
 }
 
 // SessionHook is what the session hook's install said, as given: it writes

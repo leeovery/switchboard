@@ -17,7 +17,7 @@ import (
 
 // walkedToDone is a harness whose claude link step finds found, opening on
 // Priming, its day day, and walked through each step to Done, enter pressed
-// till it's there.
+// till it's there, the line declined with n where it's offered.
 func walkedToDone(t *testing.T, found setup.LinkFound, day config.Day) *harness {
 	t.Helper()
 	h := newHarness(t, dashboard.SetupPriming)
@@ -26,6 +26,9 @@ func walkedToDone(t *testing.T, found setup.LinkFound, day config.Day) *harness 
 	for range 2 * (dashboard.SetupDone - dashboard.SetupPriming) {
 		if h.model.page().At == dashboard.SetupDone {
 			break
+		}
+		if h.model.offer != nil {
+			h.pressAndDeliver("n")
 		}
 		h.pressAndDeliver("enter")
 	}
@@ -141,6 +144,7 @@ func TestCCopiesNothingBeforeDone(t *testing.T) {
 	h := newHarness(t, dashboard.SetupLink)
 	h.steps.found = linkLeft
 	h.start()
+	h.pressAndDeliver("n")
 	h.pressAndDeliver("enter")
 	h.pressAndDeliver("enter")
 	if got := h.model.page().At; got != dashboard.SetupSkill {
@@ -269,6 +273,7 @@ func TestTheLinkFoundIsMadeSafeToShowAsItEntersTheScreen(t *testing.T) {
 			t.Errorf("row %d draws a control: %q", y, row)
 		}
 	}
+	h.pressAndDeliver("n")
 	h.pressAndDeliver("r")
 	if asked := h.steps.askedOf; len(asked) != 1 || asked[0].Shell.Line != given.Shell.Line || asked[0].Said[0].Detail != given.Said[0].Detail {
 		t.Errorf("AskAgain was given %+v, want what Link found, as setup gave it", asked)
