@@ -943,9 +943,9 @@ func TestPasteTokenSavesItAsAMadeOne(t *testing.T) {
 	}{
 		{name: "saved, with its year from today", paste: "  " + pasted + "\n", want: setup.Tokened{Result: setup.TokenSaved}},
 		{name: "cancelled during the check", paste: pasted, cancelled: true, want: setup.Tokened{Result: setup.TokenCancelled}},
-		{name: "nothing pasted", paste: " \n", want: setup.Tokened{Result: setup.TokenNotGiven, Why: tokens.ErrMissing.Error()}},
-		{name: "more than a token pasted", paste: pasted + " " + pasted, want: setup.Tokened{Result: setup.TokenNotGiven, Why: tokens.ErrNotAToken.Error()}},
-		{name: "refused", paste: refusedToken, want: setup.Tokened{Result: setup.TokenRefused, Why: "the API refused the token (HTTP 401 · Invalid bearer token), so nothing is saved: make another with claude setup-token, run while signed in to that subscription"}},
+		{name: "nothing pasted", paste: " \n", want: setup.Tokened{Result: setup.TokenNotGiven, Why: nothingPasted}},
+		{name: "more than a token pasted", paste: pasted + " " + pasted, want: setup.Tokened{Result: setup.TokenNotGiven, Why: moreThanToken}},
+		{name: "refused", paste: refusedToken, want: setup.Tokened{Result: setup.TokenRefused, Why: "the API refused the token (HTTP 401 · Invalid bearer token), so it isn't saved: check it was copied whole"}},
 		{
 			name:          "another account's",
 			paste:         pasted,
@@ -981,6 +981,141 @@ func TestPasteTokenSavesItAsAMadeOne(t *testing.T) {
 			}
 			w.checkUnchanged(t, before)
 		})
+	}
+}
+
+// What PasteToken says of a paste that holds no token it takes.
+const (
+	nothingPasted = "nothing's pasted: paste the token claude setup-token created"
+	moreThanToken = "what's pasted holds more than the token: paste the token alone, as claude setup-token showed it"
+)
+
+// pastedWhole is a setup token, as setup-token makes one, pasted whole, and
+// pastedStart and pastedRest the two parts the unread card breaks it into,
+// wrapping it at its width.
+const (
+	pastedWhole = pastedStart + pastedRest
+	pastedStart = "sk-ant-oat01-test-token-pasted-"
+	pastedRest  = "side_0123456789"
+)
+
+// A token is taken from what's pasted where it's unambiguous, whether its
+// line breaks reach setup or not, as the screen's field leaves them out.
+// Text with no box-drawing character in it is the token, one word as it
+// is, or words broken by whitespace, joined where they make a setup token
+// whole. Text with one was copied off the token card: its segments between
+// box-drawing characters with whitespace inside are left out; copied a line
+// at a time, only the segment the token starts in and those right after
+// the blank before the card's gutter are its parts, the words beside the
+// card left out; and the parts are taken only where they make a setup token
+// whole. Anything else is refused, never quoted, the API asked nothing,
+// nothing saved: nothing left; more than one token; or parts that make no
+// setup token, as words, punctuation or text round the token do.
+func TestAPastedTokenIsTakenOnlyWhereItsUnambiguous(t *testing.T) {
+	tests := []struct {
+		name, paste string
+		// want is the token saved: "" where the paste is refused, as why says.
+		want, why string
+	}{
+		{name: "whole, blanks round it", paste: "\t " + pastedWhole + " \r\n", want: pastedWhole},
+		{name: "across lines", paste: pastedStart + "\n" + pastedRest + "\n", want: pastedWhole},
+		{name: "with spaces between its parts", paste: pastedStart + "   " + pastedRest, want: pastedWhole},
+		{name: "a no-break space between its parts", paste: pastedStart + " " + pastedRest, want: pastedWhole},
+		{name: "one word of another shape, as it is", paste: "  test-token-pasted \n", want: "test-token-pasted"},
+		{name: "a block copied from the card's gutter", paste: "│ " + pastedStart + "\n│ " + pastedRest + "\n", want: pastedWhole},
+		{
+			name:  "a line at a time, from its start to its end, the page beside the card blank",
+			paste: pastedStart + "      │\n│       │ " + pastedRest,
+			want:  pastedWhole,
+		},
+		{
+			name:  "a line at a time, from its start to its end, a word of the page each side of the card",
+			paste: pastedStart + "      │ Personal\n  personal│       │ " + pastedRest,
+			want:  pastedWhole,
+		},
+		{
+			name:  "a line at a time, whole rows, the page's words beside the card, its blanks kept",
+			paste: "  personal│       │ " + pastedStart + "      │ sidehasnoworking   \n  side has│       │ " + pastedRest + "                   │ Personal   ",
+			want:  pastedWhole,
+		},
+		{
+			name: "a line at a time, the card's own words above and below it",
+			paste: "  work│       │ Your OAuth token (valid for 1 year):       │\n" +
+				"  personal│       │ " + pastedStart + "      │ token\n" +
+				"  side│       │ " + pastedRest + "                   │\n" +
+				"  personal│       │ Store this token securely.       │",
+			want: pastedWhole,
+		},
+		{name: "nothing", paste: "", why: nothingPasted},
+		{name: "nothing but blanks and edges", paste: " \n│ ─ │\t", why: nothingPasted},
+		{name: "two tokens", paste: pastedWhole + "\n" + pastedWhole, why: moreThanToken},
+		{name: "two tokens off the card", paste: "│ " + pastedWhole + "\n│ " + pastedWhole, why: moreThanToken},
+		{name: "words before the token", paste: "personal " + pastedWhole, why: moreThanToken},
+		{name: "punctuation after it", paste: pastedStart + " " + pastedRest + ".", why: moreThanToken},
+		{name: "two words of another shape", paste: "test-token-pasted test-token-pasted", why: moreThanToken},
+		{name: "one word of another shape, off the card", paste: "│ test-token-pasted │", why: moreThanToken},
+		{name: "the card's words alone", paste: "│       │ Your OAuth token (valid for 1 year):       │", why: moreThanToken},
+		{name: "a control in it", paste: "test-token-\x07pasted", why: moreThanToken},
+	}
+	for _, tt := range tests {
+		for _, through := range []struct{ name, paste string }{
+			{name: "as pasted", paste: tt.paste},
+			{name: "its line breaks left out", paste: strings.NewReplacer("\r", "", "\n", "").Replace(tt.paste)},
+		} {
+			t.Run(tt.name+", "+through.name, func(t *testing.T) {
+				w := newWorld(t)
+				w.done(t)
+				r := w.tokenRig(t, &fakeMaker{})
+				before := w.snapshot(t)
+
+				got, err := r.s.PasteToken(t.Context(), replacing("side"), through.paste)
+
+				if tt.want != "" {
+					checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved})
+					w.checkTakenToday(t, "side", tt.want)
+					return
+				}
+				checkTokened(t, got, err, setup.Tokened{Result: setup.TokenNotGiven, Why: tt.why})
+				if len(w.api.asked) > 0 {
+					t.Errorf("the API was asked about %d tokens, want nothing asked of a paste refused", len(w.api.asked))
+				}
+				for _, part := range []string{pastedStart, pastedRest, "test-token-pasted"} {
+					if strings.Contains(got.Why, part) {
+						t.Errorf("why reads %q, want nothing of what's pasted", got.Why)
+					}
+				}
+				w.checkUnchanged(t, before)
+			})
+		}
+	}
+}
+
+// Where the API doesn't answer for a pasted token, it isn't saved, whatever
+// its shape, setup saying why: a token cut short, as a copy of its first
+// row alone, has a setup token's shape, and saved unchecked would take a
+// working token's place, or add an account with none. Adding and replacing
+// alike.
+func TestAPasteTheAPIDoesntAnswerForIsntSaved(t *testing.T) {
+	for _, f := range []setup.TokenFor{adding, replacing("side")} {
+		for _, tt := range []struct{ name, paste string }{
+			{name: "a setup token whole", paste: pastedWhole},
+			{name: "a setup token cut short", paste: pastedWhole[:len(pastedWhole)-5]},
+			{name: "a word of another shape", paste: "test-token-pasted"},
+		} {
+			t.Run(f.Account.ID+", "+tt.name, func(t *testing.T) {
+				w := newWorld(t)
+				w.done(t)
+				w.api.down = errors.New("HTTP 529 · overloaded")
+				r := w.tokenRig(t, &fakeMaker{})
+				before := w.snapshot(t)
+
+				got, err := r.s.PasteToken(t.Context(), f, tt.paste)
+
+				want := setup.Tokened{Result: setup.TokenUnanswered, Why: "the API didn't answer (HTTP 529 · overloaded), so it isn't saved: paste it again in a moment"}
+				checkTokened(t, got, err, want)
+				w.checkUnchanged(t, before)
+			})
+		}
 	}
 }
 

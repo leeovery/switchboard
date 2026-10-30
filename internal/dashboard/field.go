@@ -11,15 +11,20 @@ import (
 
 // Field is a form's text field as it's drawn: what's typed in it, and while
 // it's the one typed in, as Typing has it, where its cursor is, in glyphs
-// from its start, as a terminal draws them; and From, the first glyph its
-// box shows of a value wider than it, as InView last left it, so the view
-// holds still while the cursor moves within it.
+// from its start, as a terminal draws them; From, the first glyph its box
+// shows of a value wider than it, as InView last left it, so the view holds
+// still while the cursor moves within it; and Hidden, set where its value
+// is drawn as a dot a glyph, never itself, as a token is.
 type Field struct {
 	Value  string
 	Cursor int
 	From   int
 	Typing bool
+	Hidden bool
 }
+
+// hiddenGlyph is the dot a hidden field draws for each glyph of its value.
+var hiddenGlyph = grapheme{text: "•", cells: 1}
 
 // textField is a form's row of a text field: its name; the field; the hint
 // after it; and what's wrong with what's typed in it, said under it, where
@@ -80,7 +85,7 @@ func (f textField) draw(c *canvas, x, y, width int) int {
 		c.surface(x+box.At, y, box.Size, typingInk.on)
 		c.line(at, y, f.field.typed(room))
 	} else {
-		c.line(at, y, line{{f.field.Value, secondaryInk}}.fit(room))
+		c.line(at, y, line{{spelt(f.field.glyphs()), secondaryInk}}.fit(room))
 	}
 	if !hint.Left {
 		c.line(x+hint.At, y, line{{f.hint, faintInk}}.fit(hint.Size))
@@ -125,12 +130,23 @@ func (f Field) InView() Field {
 // typedView is the field as typed draws it: its glyphs, and its cursor and
 // From, each kept within them.
 func (f Field) typedView() fieldView {
-	var gs []grapheme
-	for g, cells := range graphemes.In(f.Value) {
-		gs = append(gs, grapheme{text: g, cells: cells})
-	}
+	gs := f.glyphs()
 	cursor := min(max(f.Cursor, 0), len(gs))
 	return fieldView{glyphs: gs, cursor: cursor, from: min(max(f.From, 0), cursor)}
+}
+
+// glyphs are the field's value's glyphs as they're drawn: each a dot, where
+// it's hidden.
+func (f Field) glyphs() []grapheme {
+	var gs []grapheme
+	for g, cells := range graphemes.In(f.Value) {
+		if f.Hidden {
+			gs = append(gs, hiddenGlyph)
+			continue
+		}
+		gs = append(gs, grapheme{text: g, cells: cells})
+	}
+	return gs
 }
 
 // fieldView is a field's value as it's drawn typed in: its glyphs; where its

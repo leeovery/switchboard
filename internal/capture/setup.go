@@ -56,11 +56,14 @@ type setupScreen struct {
 // not first on PATH, as frame 5 has it; and on a first run, work added, its
 // token made, then personal, its token being made in a private Firefox
 // window, setup-token waiting on its approval for 21 seconds, as frame 2
-// has it, or stopped with an error, as frame 10 has it.
+// has it, or stopped with an error, as frame 10 has it; and from there, p
+// pressed, the card pasting personal's token, a token typed in, as no frame
+// has it, laid out as frame 2.
 var setupScreens = []setupScreen{
 	{name: "setup-add-first-160", size: wide(37), step: dashboard.SetupAccounts, steps: firstRun, keys: slices.Concat(typingWork(), []tea.KeyPressMsg{tabKey, tabKey}), card: "ADD AN ACCOUNT"},
 	{name: "setup-token-waiting-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(nil), keys: addingPersonal(), waited: 21 * time.Second, card: "NEW TOKEN · PERSONAL"},
 	{name: "setup-token-failed-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: addingPersonal(), card: "NEW TOKEN · PERSONAL"},
+	{name: "setup-token-paste-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: slices.Concat(addingPersonal(), keysOf("p"), keysOf(strings.Split("test-token-personal", "")...)), card: "PASTE A TOKEN · PERSONAL"},
 	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
 	{name: "setup-edit-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: slices.Concat(keysOf("j", "e"), []tea.KeyPressMsg{tabKey, leftKey, leftKey}), card: "EDIT PERSONAL"},
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
@@ -446,6 +449,12 @@ func (s setupSteps) MakeToken(_ context.Context, f setup.TokenFor, report func(s
 		s.saved.add(f, s.review.At, len(s.review.Accounts)+len(s.saved.added()) == 0)
 	}
 	return *making.ends, nil
+}
+
+// PasteToken saves nothing, as no fixture saves a pasted token: it answers
+// as a paste does whose context ends before it's saved.
+func (s setupSteps) PasteToken(context.Context, setup.TokenFor, string) (setup.Tokened, error) {
+	return setup.Tokened{Result: setup.TokenCancelled}, nil
 }
 
 // Reopen opens nothing, as a capture never opens a browser.

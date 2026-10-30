@@ -311,3 +311,44 @@ func TestAFieldsHintGivesWayWhereTheresNoRoom(t *testing.T) {
 		t.Errorf("the field's row reads %q, want %q, its hint cut to its room", got, want)
 	}
 }
+
+// A hidden field draws a dot for each glyph of its value, whatever the
+// glyph, never the value: typed in, its cursor and its view as the dots
+// lay them out, its start cut and marked where they're wider than its box;
+// not typed in, its dots plain, cut so.
+func TestAHiddenFieldDrawsADotAGlyph(t *testing.T) {
+	const secret = "test-token-漢e\u0301😀-hidden-and-more"
+	dots := func(n int) string { return strings.Repeat("•", n) }
+	tests := []struct {
+		name   string
+		field  Field
+		value  string
+		cursor int
+	}{
+		{name: "typed in, its cursor at the end", field: Field{Value: secret, Cursor: 30, Typing: true, Hidden: true}, value: "…" + dots(21) + " ", cursor: 22},
+		{name: "typed in, its cursor mid-way", field: Field{Value: "abc漢", Cursor: 1, Typing: true, Hidden: true}, value: dots(4) + blanks(19), cursor: 1},
+		{name: "not typed in", field: Field{Value: secret, Hidden: true}, value: dots(22) + "…", cursor: -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := fieldDrawn(dayField(func(f *textField) { f.field = tt.field }), 160)
+			row := c.row(0, Look{})
+			if got := string([]rune(row)[12:35]); got != tt.value {
+				t.Errorf("the value's 23 cells read %q, want %q", got, tt.value)
+			}
+			for _, part := range []string{"test", "token", "漢", "😀", "hidden"} {
+				if strings.Contains(row, part) {
+					t.Errorf("the field's row reads %q, want nothing of its value", row)
+				}
+			}
+			if tt.cursor >= 0 {
+				if got := inkAt(c, 12+tt.cursor, 0); got != caretInk {
+					t.Errorf("cell %d of the value is in %+v, want the cursor", tt.cursor, got)
+				}
+			}
+		})
+	}
+	if got := (Field{Value: secret, Cursor: 30, Hidden: true}).InView().From; got != 9 {
+		t.Errorf("a hidden field's view is from glyph %d, want 9, as its dots lay it out, not 11, as its glyphs would", got)
+	}
+}

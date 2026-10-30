@@ -186,6 +186,9 @@ func (m Model) pasted(text string) Model {
 	case m.edit != nil && !m.edit.saving:
 		card := m.edit.pasted(text)
 		m.edit = &card
+	case m.paste != nil && !m.paste.checking:
+		card := m.paste.pasted(text)
+		m.paste = &card
 	case m.typing():
 		return m.edited(m.priming.day.pasted(text))
 	}

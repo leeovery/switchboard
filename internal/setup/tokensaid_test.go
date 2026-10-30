@@ -140,6 +140,32 @@ func TestTheTokenCardSaysHowAMakingSavedNothing(t *testing.T) {
 	}
 }
 
+// The paste card says why it refuses a paste in setup's words: what's
+// pasted no token, the API refusing it, and not answering, as each is told;
+// another account's subscription, named. Every other end is no refusal.
+func TestThePasteCardSaysWhyItRefusesAPaste(t *testing.T) {
+	const why = "what's pasted holds more than the token"
+	tests := []struct {
+		name    string
+		tokened setup.Tokened
+		want    string
+	}{
+		{name: "no token", tokened: setup.Tokened{Result: setup.TokenNotGiven, Why: why}, want: why},
+		{name: "refused", tokened: setup.Tokened{Result: setup.TokenRefused, Why: "the API refused the token (HTTP 401)"}, want: "the API refused the token (HTTP 401)"},
+		{name: "unanswered", tokened: setup.Tokened{Result: setup.TokenUnanswered, Why: "the API didn't answer (HTTP 529)"}, want: "the API didn't answer (HTTP 529)"},
+		{name: "another account's", tokened: setup.Tokened{Result: setup.TokenSameAccount, SameAs: "work"}, want: "work has that subscription already, so the token isn't saved"},
+		{name: "saved", tokened: setup.Tokened{Result: setup.TokenSaved}},
+		{name: "cancelled", tokened: setup.Tokened{Result: setup.TokenCancelled}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.tokened.Refusal(); got != tt.want {
+				t.Errorf("Refusal() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheReviewsOrganizationsAreThoseKnown(t *testing.T) {
 	review := setup.Review{Accounts: []setup.Reviewed{
 		{ID: "work", Token: setup.TokenStanding{State: setup.TokenWorking, Organization: "org-work"}},

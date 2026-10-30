@@ -10,8 +10,8 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// Field is a value of an account its add card or its edit card gives, as a
-// refusal names it.
+// Field is a value of an account its add card or its edit card gives, or
+// the token its paste card does, as a refusal names it.
 type Field int
 
 const (
@@ -22,6 +22,7 @@ const (
 	PlanField
 	PrimaryField
 	ReserveField
+	TokenField
 )
 
 // Edit is a change to an account, as setup's edit card gives it: each value

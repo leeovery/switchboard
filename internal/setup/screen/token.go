@@ -17,17 +17,20 @@ import (
 // and the accounts it's compared with; how its making tells what comes of
 // it, and what stops it; the last step the making told, and the step that
 // had the sign-in address ready, once told, with when the card heard it,
-// which the wait counts from; whether esc has asked the making to stop; and
-// how it ended, where it saved nothing.
+// which the wait counts from; whether esc, or p, has asked the making to
+// stop, and whether p, for the paste card to open once it has; and how it
+// ended, where it saved nothing, and whether with its token made, given
+// back to copy, unread or not saved.
 type tokenCard struct {
-	f        setup.TokenFor
-	told     makingTold
-	stop     context.CancelFunc
-	step     setup.MakingStep
-	address  setup.Making
-	since    time.Time
-	stopping bool
-	unsaved  *setup.Unsaved
+	f                 setup.TokenFor
+	told              makingTold
+	stop              context.CancelFunc
+	step              setup.MakingStep
+	address           setup.Making
+	since             time.Time
+	stopping, pasting bool
+	unsaved           *setup.Unsaved
+	madeUnsaved       bool
 }
 
 // stage is where the card's making has got, as the card tells it: ended,
@@ -46,6 +49,35 @@ func (c tokenCard) stage() dashboard.TokenStage {
 		return dashboard.TokenWaiting
 	}
 	return dashboard.TokenStarting
+}
+
+// stopped is the card once its making is asked to stop, which saves nothing
+// unless the token's made first; and, where pasting, for the paste card to
+// open in its place once it has stopped.
+func (c tokenCard) stopped(pasting bool) *tokenCard {
+	c.stopping, c.pasting = true, pasting
+	c.stop()
+	return &c
+}
+
+// notSaved is the card as it tells of its token made once a paste of it
+// couldn't be saved, as why says: as setup tells a token made that isn't
+// saved, what the card showed under it, the token, or setup-token's lines,
+// to copy again.
+func (c tokenCard) notSaved(why string) *tokenCard {
+	unsaved := cleanUnsaved(setup.Tokened{Result: setup.TokenNotSaved, Why: why, Shown: c.unsaved.Shown}.Unsaved())
+	c.unsaved = &unsaved
+	return &c
+}
+
+// backTo is the card the paste card opened from it goes back to, on esc,
+// and leaves setup as, so a token made but unsaved is there to copy again:
+// none where the making ended otherwise.
+func (c tokenCard) backTo() *tokenCard {
+	if !c.madeUnsaved {
+		return nil
+	}
+	return &c
 }
 
 // unopened reports whether the sign-in address didn't open, so the card
@@ -161,20 +193,29 @@ func makeToken(js *jobs, steps Steps, ctx context.Context, stop context.CancelFu
 // whether an interrupt was held as a token made was saved, as the screen
 // heard it, or as it ended once the screen had gone. A failure, which the
 // screen would have closed the card at, came once it had gone, so it's
-// logged, as nothing else can show it.
+// logged, as nothing else can show it. Where the paste card is open, the
+// card is the one it was opened from, as the paste card goes back to it,
+// none where the paste it was checking as the screen went saved its token.
 func (m Model) tokenLeft() (unsaved *setup.Tokened, interrupted bool) {
-	if m.token == nil {
+	card := m.token
+	if m.paste != nil {
+		card = m.paste.from
+		if m.paste.savedOnceGone() {
+			card = nil
+		}
+	}
+	if card == nil {
 		return nil, m.interrupted
 	}
 	var ended tokenedMsg
 	select {
-	case ended = <-m.token.told.kept:
+	case ended = <-card.told.kept:
 	default:
 		return nil, m.interrupted
 	}
 	interrupted = m.interrupted || ended.tokened.InterruptHeld
 	if ended.err != nil {
-		logger.Error("making a token failed once setup's screen had gone", "account", m.token.f.Account.ID, "error", ended.err)
+		logger.Error("making a token failed once setup's screen had gone", "account", card.f.Account.ID, "error", ended.err)
 		return nil, interrupted
 	}
 	switch ended.tokened.Result {
@@ -223,26 +264,26 @@ func (m Model) tokened(msg tokenedMsg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
-// ended takes in how card's making ended: saved, the card closed and the
-// accounts read again, the row chosen moving to the account once they're
-// read; failing, the step failed, not saved, the card closed; stopped, the
-// card closed, nothing saved; else, saving nothing, the card says why, as
-// setup words it, made safe to show, the accounts read again where the
-// token made wasn't saved, as its save may have changed them.
+// ended takes in how card's making ended: saved, or failing, as tokenSaved
+// has it, the card closed; stopped, the card closed, nothing saved, the
+// paste card opening in its place where p stopped it; else, saving nothing,
+// the card says why, as setup words it, made safe to show, the accounts
+// read again where the token made wasn't saved, as its save may have
+// changed them.
 func (m Model) ended(card tokenCard, msg tokenedMsg) (Model, tea.Cmd) {
 	switch r := msg.tokened.Result; {
 	case msg.err != nil || r == setup.TokenSaved:
 		m.token = nil
-		if msg.err == nil {
-			m.madeFor = card.f.Account.ID
-		}
-		return m.changed(msg.err)
+		return m.tokenSaved(card.f.Account.ID, msg.err)
+	case r == setup.TokenCancelled && card.pasting:
+		return m.pasting(card.f, nil), nil
 	case r == setup.TokenCancelled || r == setup.TokenInterrupted:
 		m.token = nil
 		return m, nil
 	}
 	unsaved := cleanUnsaved(msg.tokened.Unsaved())
 	card.unsaved = &unsaved
+	card.madeUnsaved = msg.tokened.Result == setup.TokenUnread || msg.tokened.Result == setup.TokenNotSaved
 	m.token = &card
 	if msg.tokened.Result == setup.TokenNotSaved {
 		return m.askAgain()
@@ -263,11 +304,14 @@ func cleanUnsaved(u setup.Unsaved) setup.Unsaved {
 
 // tokenPressed acts on a key at the token card, as its stage has it: esc,
 // starting or waiting, stops the making, which saves nothing unless the
-// token's made first, and once it ended, closes the card; o, waiting,
-// opens the address again, where it opened, and c copies it where it
-// didn't; and enter, once it ended, tries again, where it does. p, pasting
-// a token, does nothing yet; no key stops a making being stopped, nor one
-// whose token is made, which is saved however setup's left.
+// token's made first, and once it ended, closes the card; p, starting or
+// waiting, stops it so, then opens the paste card once it has stopped, and
+// once it ended, opens the paste card at once, which goes back to this card
+// as backTo has it; o, waiting, opens the
+// address again, where it opened, and c copies it where it didn't; and
+// enter, once it ended, tries again, where it does. No key stops a making
+// being stopped, nor one whose token is made, which is saved however
+// setup's left.
 func (m Model) tokenPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	card := *m.token
 	stage := card.stage()
@@ -275,11 +319,16 @@ func (m Model) tokenPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		switch stage {
 		case dashboard.TokenStarting, dashboard.TokenWaiting:
-			card.stopping = true
-			card.stop()
-			m.token = &card
+			m.token = card.stopped(false)
 		case dashboard.TokenUnsaved:
 			m.token = nil
+		}
+	case "p":
+		switch stage {
+		case dashboard.TokenStarting, dashboard.TokenWaiting:
+			m.token = card.stopped(true)
+		case dashboard.TokenUnsaved:
+			return m.pasting(card.f, card.backTo()), nil
 		}
 	case "o":
 		if stage == dashboard.TokenWaiting && !card.unopened() {

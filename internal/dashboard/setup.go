@@ -105,11 +105,10 @@ func (s Setup) ScrolledToChosen(width, height int) int {
 }
 
 // SpinDelay is how long from the screen's time until the spinner of the
-// page showing, or of the token card open over it, moves on, as spinDelay
-// has it. It reports false where neither shows one.
+// page showing, or of the card open over it, moves on, as spinDelay has it.
+// It reports false where neither shows one.
 func (s Setup) SpinDelay() (time.Duration, bool) {
-	card := s.tokenCard()
-	if s.shown(Look{}).underWay == nil && (card == nil || !card.Stage.spins()) {
+	if s.shown(Look{}).underWay == nil && !s.cardSpins() {
 		return 0, false
 	}
 	return spinDelay(s.Now), true

@@ -95,15 +95,16 @@ type setupCard struct {
 	fields []cardField
 }
 
-// cardField is a field of a card's, on the row of its body given.
+// cardField is a field of a card's, on the row of its body given, from the
+// cell of its content given.
 type cardField struct {
-	row   int
-	field textField
+	row, at int
+	field   textField
 }
 
 // card is the card open over the page of the step showing: the Accounts
-// page's add card, its edit card, its remove card, or its token card, at
-// the screen's time; nil where none is.
+// page's add card, its edit card, its remove card, its token card, or its
+// paste card, at the screen's time; nil where none is.
 func (s Setup) card(width int) *setupCard {
 	if s.At != SetupAccounts || s.Accounts == nil {
 		return nil
@@ -118,8 +119,26 @@ func (s Setup) card(width int) *setupCard {
 		return a.Remove.card(cardWidth)
 	case a.Token != nil:
 		return a.Token.card(cardWidth, s.Now)
+	case a.Paste != nil:
+		return a.Paste.card(cardWidth, s.Now)
 	}
 	return nil
+}
+
+// cardSpins reports whether the card open over the page of the step
+// showing has its spinner moving: the token card, but at its making's end,
+// and the paste card while it checks the token.
+func (s Setup) cardSpins() bool {
+	if s.At != SetupAccounts || s.Accounts == nil {
+		return false
+	}
+	switch a := s.Accounts; {
+	case a.Token != nil:
+		return a.Token.Stage.spins()
+	case a.Paste != nil:
+		return a.Paste.Checking
+	}
+	return false
 }
 
 // tokenCard is the token card open over the page of the step showing: nil
@@ -139,7 +158,7 @@ func (k setupCard) draw(c *canvas) {
 	shown := len(k.card.shown(c.height()))
 	for _, f := range k.fields {
 		if f.row < shown {
-			f.field.draw(c, x+cardInset, y+2+f.row, k.card.width-2*cardInset)
+			f.field.draw(c, x+cardInset+f.at, y+2+f.row, k.card.width-2*cardInset-f.at)
 		}
 	}
 }
@@ -152,7 +171,7 @@ func (e SetupEditCard) card(width int) *setupCard {
 	content := width - 2*cardInset
 	focus := cardFocus{chosen: e.Chosen, refused: e.Refused, why: e.Why}
 	k := &setupCard{card: Card{title: "EDIT " + strings.ToUpper(e.ID), width: width, keys: editKeys}}
-	k.text(focus.textField(setup.LabelField, labelName, "", e.Label), content)
+	k.text(focus.textField(setup.LabelField, labelName, "", e.Label), 0, content)
 	primary := 0
 	if e.Primary {
 		primary = 1
@@ -166,7 +185,7 @@ func (e SetupEditCard) card(width int) *setupCard {
 		hintUnder(content, primaryHint),
 		nil,
 	)
-	k.text(focus.textField(setup.ReserveField, reserveName, reserveHint, e.Reserve), content)
+	k.text(focus.textField(setup.ReserveField, reserveName, reserveHint, e.Reserve), 0, content)
 	return k
 }
 
@@ -180,9 +199,9 @@ func (a SetupAddCard) card(width int) *setupCard {
 	focus := cardFocus{chosen: a.Chosen, refused: a.Refused, why: a.Why}
 	k := &setupCard{card: Card{title: "ADD AN ACCOUNT", width: width, keys: addKeys}}
 	k.card.body = append(line{{addCardIntro, mutedInk}}.wrap(content), nil)
-	k.text(focus.textField(setup.IDField, idName, "", a.ID), content)
+	k.text(focus.textField(setup.IDField, idName, "", a.ID), 0, content)
 	k.card.body = append(k.card.body, hintUnder(content, idHint), nil)
-	k.text(focus.textField(setup.LabelField, labelName, labelHint, a.Label), content)
+	k.text(focus.textField(setup.LabelField, labelName, labelHint, a.Label), 0, content)
 	k.card.body = append(k.card.body, nil, focus.planRow(content, a.Plan), nil)
 	for _, l := range addTokenSays {
 		k.card.body = append(k.card.body, l.wrap(content)...)
@@ -217,11 +236,12 @@ func (f cardFocus) planRow(width int, plan string) line {
 	return optionsRow(width, planName, planNames(plans), slices.Index(plans, plan), f.chosen == setup.PlanField)
 }
 
-// text puts f on the card's next row of its body, content cells wide, and
-// the rows under it saying what's wrong with its value, where anything is.
-func (k *setupCard) text(f textField, content int) {
-	k.fields = append(k.fields, cardField{row: len(k.card.body), field: f})
-	k.card.body = append(k.card.body, make([]line, 1+len(f.wrongLines(content)))...)
+// text puts f on the card's next row of its body, content cells wide, from
+// the cell at, and the rows under it saying what's wrong with its value,
+// where anything is.
+func (k *setupCard) text(f textField, at, content int) {
+	k.fields = append(k.fields, cardField{row: len(k.card.body), at: at, field: f})
+	k.card.body = append(k.card.body, make([]line, 1+len(f.wrongLines(content-at)))...)
 }
 
 // card is the remove card, width cells wide: REMOVE and the account's id in

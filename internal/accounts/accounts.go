@@ -42,6 +42,23 @@ type Prober interface {
 	Probe(ctx context.Context, token string) (quota.Probe, error)
 }
 
+// RefusedError is what taking a token the API refuses fails with: why it
+// refused, as the probe said it, any token in it hidden. It wraps
+// ErrRefused.
+type RefusedError struct {
+	Why string
+}
+
+// Error says the API refused the token, why, and to make another.
+func (e *RefusedError) Error() string {
+	return fmt.Sprintf("%v (%s), so nothing is saved: make another with claude setup-token, run while signed in to that subscription", ErrRefused, e.Why)
+}
+
+// Unwrap is ErrRefused.
+func (e *RefusedError) Unwrap() error {
+	return ErrRefused
+}
+
 // refusal is a probe's failure that says whether the API refused the token.
 type refusal interface {
 	error
@@ -107,7 +124,7 @@ func taken(checked Checked) Taken {
 }
 
 // Check asks the API at the config's upstream whether it takes the token, as
-// Add and SetToken do, saving nothing. It fails, wrapping ErrRefused, when
+// Add and SetToken do, saving nothing. It fails with a *RefusedError when
 // the API refuses the token, and with ctx's error once ctx is done; and says
 // why when the API doesn't answer.
 func (r Registry) Check(ctx context.Context, token tokens.Token) (Checked, error) {
@@ -354,7 +371,7 @@ func (r Registry) now() time.Time {
 }
 
 // check asks the API at upstream whether it takes the token, by probing with
-// it. It fails, wrapping ErrRefused, when the API refuses the token, and with
+// it. It fails with a *RefusedError when the API refuses the token, and with
 // ctx's error once ctx is done, whatever the probe made of it; and says why
 // when the API doesn't answer.
 func (r Registry) check(ctx context.Context, upstream string, token tokens.Token) (Checked, error) {
@@ -367,7 +384,7 @@ func (r Registry) check(ctx context.Context, upstream string, token tokens.Token
 	}
 	why := redact.Text(err.Error(), token.Reveal())
 	if refused, ok := errors.AsType[refusal](err); ok && refused.Refused() {
-		return Checked{}, fmt.Errorf("%w (%s), so nothing is saved: make another with claude setup-token, run while signed in to that subscription", ErrRefused, why)
+		return Checked{}, &RefusedError{Why: why}
 	}
 	return Checked{Unchecked: true, Why: why}, nil
 }

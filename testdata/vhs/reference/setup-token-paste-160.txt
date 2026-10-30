@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     1 Accounts   2 Priming   3 Service   4 claude link   5 Skill   Done                                                Tue 27 Oct  17:42:00
+
+○ router not running yet  ·  1 account, working
+
+ACCOUNTS  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  1 account
+
+  Add each Claude subscription you want switchboard to route across.
+
+     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN
+
+  1  work ◆          Work          Max 20x    none                                 expires 27 Oct 2027  ·  365 days left
+
+▌ +  add an account
+                                        ╭─ PASTE A TOKEN · PERSONAL ───────────────────────────────────────────────────╮
+                                        │                                                                              │
+                                        │       Paste the token you made with claude setup-token                       │
+                                        │       Setup checks it with the API, then saves it, a year from today.        │
+                                        │                                                                              │
+                                        │       Token     •••••••••••••••••••       shown as dots                      │
+                                        │                                                                              │
+                                        │       A token copied across lines is joined up, the card's edges left out.   │
+                                        │                                                                              │
+                                        │                                                     enter save   esc cancel  │
+                                        ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
