@@ -1420,6 +1420,31 @@ not the owner's decisions:
   setup couldn't save it`, why, the token after `│`, then `It lasts a year on the account, so copy
   it, then press p to paste it once that's put right.`, the accounts read again; where setup never
   read the token, why alone, and `enter try again`.
+- **Pasting a token:** `p` while setup-token starts or waits stops it as `esc` does, and the paste
+  card opens once it has stopped; a token made as it stopped is saved instead, and no paste card
+  opens. On an ended card, `p` opens the paste card at once. Its field shows a dot for each
+  character, never the token. `enter` waits for the checks, then checks the token with the API and
+  saves it, added or replacing, a year from today. A pasted token is saved only once the API has
+  checked it: one it doesn't answer for isn't saved, as the start of a token has a setup token's
+  shape, and saved unchecked it would take a working token's place. What isn't saved is said under
+  the field, which is emptied, as nothing in it shows to put right: `the API didn't answer (why),
+  so it isn't saved: paste it again in a moment`; `the API refused the token (why), so it isn't
+  saved: check it was copied whole`; the same account's; no token. `esc` closes it, saving nothing.
+- **What a paste may hold** is `pastedToken`'s rule alone. Whitespace of every kind is taken out.
+  One word is the token, whatever its shape, as `accounts add` takes it. Several are joined only
+  where they make one setup token whole, `sk-ant-` once. A paste holding box-drawing characters was
+  copied off the card, the page beside it often with it: it's split at them, and a segment with
+  whitespace inside it, the page's words or the card's, is left out. Where a blank segment sits
+  between two others, the copy taken line by line, a one-word segment counts only where the token
+  starts in it or it follows the padding between the card's edge and its gutter. The parts must
+  make one setup token whole. The rule holds whether the line breaks reach it or not, as the field
+  drops them. A drag that overshoots by one word, or a block dragged into the page, is refused by
+  the API, which fails safe.
+- **A paste keeps a token made:** opened from the unread or not-saved card, the paste card keeps
+  that card. `esc` goes back to it, so the token can be copied again. A paste that fails puts back
+  the not-saved card, its why the paste's, failing no step, the accounts read again. `ctrl+c`
+  gives back that card's `Left.Unsaved` unless the paste saved, even after the screen had gone.
+  Opened from any other card, a paste that fails fails the step, the token still on the clipboard.
 - **The status line waits** until both the router and the accounts have answered, blank till then,
   so it never says `nothing set up yet` of accounts not yet read; where the config can't be read,
   it shows the router's part alone.

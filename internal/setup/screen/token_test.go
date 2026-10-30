@@ -499,10 +499,6 @@ func TestAMakingThatSavedNothingSaysWhy(t *testing.T) {
 				t.Errorf("personal's token was replaced, want nothing saved")
 			}
 
-			h.pressAndDeliver("p")
-			if got := h.model.token.stage(); got != dashboard.TokenUnsaved {
-				t.Errorf("p moved the card to stage %d, want it doing nothing yet", got)
-			}
 			h.pressAndDeliver("enter")
 			if tt.again {
 				if got := h.steps.nextMake(t); got.Account.ID != "personal" || got.Add {
@@ -609,13 +605,17 @@ func TestWhatAnotherMakingTellsIsDropped(t *testing.T) {
 	}
 }
 
-// While the token card is open, no page key acts, nor the wheel, and a
-// paste goes nowhere yet.
+// While the token card is open, no page key acts, and a paste goes nowhere,
+// as the card has no field.
 func TestTheTokenCardTakesEveryKey(t *testing.T) {
 	h := tokening(t, fakeMaking{steps: []setup.Making{privately, approving}}, 1)
 	h.hearAll(2)
 	for _, k := range []string{"e", "r", "t", "down", "pgdown"} {
 		h.pressAndDeliver(k)
+	}
+	h.deliver(tea.PasteMsg{Content: "test-token-personal"})
+	if h.model.paste != nil || len(h.steps.pastes) != 0 {
+		t.Errorf("a paste at the token card opened %+v, pasted %v; want it going nowhere", h.model.paste, h.steps.pastes)
 	}
 	if h.model.edit != nil || h.model.remove != nil || h.model.chosen != 1 || h.model.scroll != 0 || len(h.steps.edits) != 0 {
 		t.Errorf("with the token card open, a page key acted: cards %v %v, row %d chosen, scrolled %d", h.model.edit, h.model.remove, h.model.chosen, h.model.scroll)

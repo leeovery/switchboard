@@ -54,7 +54,13 @@ func (f *form) retyped(field *entry, now entry) {
 // refusing is f saying why setup refused a value, as refused has it, made
 // safe to show, under the field it's of.
 func (f form) refusing(refused *setup.Refused) form {
-	f.refused, f.why = refused.Field, prose.Clean(refused.Why)
+	return f.refusedAt(refused.Field, refused.Why)
+}
+
+// refusedAt is f saying why setup refused the value of field, made safe to
+// show, under it.
+func (f form) refusedAt(field setup.Field, why string) form {
+	f.refused, f.why = field, prose.Clean(why)
 	return f
 }
 
@@ -182,15 +188,15 @@ func (c removeCard) drawn() *dashboard.SetupRemoveCard {
 
 // carded reports whether a card is open over the page, taking every key.
 func (m Model) carded() bool {
-	return m.add != nil || m.edit != nil || m.remove != nil || m.token != nil
+	return m.add != nil || m.edit != nil || m.remove != nil || m.token != nil || m.paste != nil
 }
 
 // cardPressed acts on a key while a card is open: ctrl+c leaves; else, while
 // it isn't being checked or saved, the add card's keys, as addPressed has
-// them, the edit card's, as editPressed has them, or the remove card's, as
-// removePressed has them; or the token card's, as tokenPressed has them. No
-// other key acts, q among them, as the key line, empty while a card's open,
-// offers none.
+// them, the edit card's, as editPressed has them, the remove card's, as
+// removePressed has them, or the paste card's, as pastePressed has them; or
+// the token card's, as tokenPressed has them. No other key acts, q among
+// them, as the key line, empty while a card's open, offers none.
 func (m Model) cardPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.String() == "ctrl+c":
@@ -201,6 +207,8 @@ func (m Model) cardPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.editPressed(key)
 	case m.remove != nil && !m.remove.removing:
 		return m.removePressed(key)
+	case m.paste != nil && !m.paste.checking:
+		return m.pastePressed(key)
 	case m.token != nil:
 		return m.tokenPressed(key)
 	}

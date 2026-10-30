@@ -20,10 +20,10 @@ import (
 
 // registered are steps whose accounts are setup's own, in a config file and
 // a state directory of the test's: Review, ReviewOf, CheckAdding,
-// EditAccount, RemoveAccount, MakeToken and Reopen answer as setup does,
-// through the registry, and every other step as fakeSteps does. No account
-// has a token, so none is checked, unless a test gives it one, and the
-// registry what checks it.
+// EditAccount, RemoveAccount, MakeToken, Reopen and PasteToken answer as
+// setup does, through the registry, and every other step as fakeSteps does.
+// No account has a token, so none is checked, unless a test gives it one,
+// and the registry what checks it.
 type registered struct {
 	*fakeSteps
 	setup *setup.Setup
@@ -73,6 +73,10 @@ func (s *registered) MakeToken(ctx context.Context, f setup.TokenFor, report fun
 
 func (s *registered) Reopen(ctx context.Context, at setup.Making) error {
 	return s.setup.Reopen(ctx, at)
+}
+
+func (s *registered) PasteToken(ctx context.Context, f setup.TokenFor, pasted string) (setup.Tokened, error) {
+	return s.setup.PasteToken(ctx, f, pasted)
 }
 
 // config is what the config file reads.

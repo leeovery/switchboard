@@ -297,11 +297,17 @@ type fakeSteps struct {
 	asked     chan setup.TokenFor
 	reopens   []setup.Making
 	reopenErr error
-	standings int
-	reviews   int
-	primings  int
-	services  int
-	skills    int
+	// pastes are the pastes PasteToken is asked to save, each ending as
+	// pasteEnds has it, saved where it's nil, but where pasteErr fails it.
+	pastes         []fakePaste
+	pasteEnds      *setup.Tokened
+	pasteErr       error
+	pasteUntilGone bool
+	standings      int
+	reviews        int
+	primings       int
+	services       int
+	skills         int
 }
 
 // fakeMaking is how fakeSteps makes a token: it reports each of steps in
@@ -422,6 +428,34 @@ func (s *fakeSteps) nextMake(t *testing.T) setup.TokenFor {
 		t.Fatal("a minute on, MakeToken hadn't been asked to make a token")
 	}
 	return setup.TokenFor{}
+}
+
+// fakePaste is a paste PasteToken was asked to save: for whom, and what was
+// pasted.
+type fakePaste struct {
+	f      setup.TokenFor
+	pasted string
+}
+
+// PasteToken keeps the paste, and, once its context ends, where
+// pasteUntilGone is set, as the screen's does once it has gone, ends as
+// pasteEnds has it, the token saved where it's nil, as ended has a token
+// saved, failing with pasteErr where it's set.
+func (s *fakeSteps) PasteToken(ctx context.Context, f setup.TokenFor, pasted string) (setup.Tokened, error) {
+	s.mu.Lock()
+	s.pastes = append(s.pastes, fakePaste{f: f, pasted: pasted})
+	ends, err, held := saved, s.pasteErr, s.pasteUntilGone
+	if s.pasteEnds != nil {
+		ends = *s.pasteEnds
+	}
+	s.mu.Unlock()
+	if held {
+		<-ctx.Done()
+	}
+	if err != nil {
+		return setup.Tokened{}, err
+	}
+	return s.ended(f, ends), nil
 }
 
 func (s *fakeSteps) Reopen(_ context.Context, at setup.Making) error {

@@ -168,6 +168,9 @@ const (
 	NoClaudeCode
 	// TokenNotGiven is what was pasted being no token.
 	TokenNotGiven
+	// TokenUnanswered is the API not answering for a pasted token, which is
+	// saved only once it's checked, as Why says.
+	TokenUnanswered
 	// TokenCancelled is the caller's context ending first, and
 	// TokenInterrupted an interrupt.
 	TokenCancelled
@@ -186,8 +189,10 @@ type Tokened struct {
 	// at TokenSameAccount.
 	SameAs string
 	// Shown is what setup-token showed, at TokenNotMade and TokenUnread, a
-	// line each, the blank lines left out, and the token, at TokenNotSaved:
-	// for the person alone, never a log, as it can hold the token.
+	// line each, the blank lines left out; and at TokenNotSaved, the token,
+	// or, where a paste of a token made but unread couldn't be saved, what
+	// setup-token showed, the token in it: for the person alone, never a
+	// log, as it can hold the token.
 	Shown []string
 	// InterruptHeld says an interrupt came while the token made was held
 	// through its save, as Setup.Hold has it, for the caller to end once it
@@ -241,7 +246,7 @@ func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) 
 	tell(Making{Step: CheckingToken})
 	// The prober bounds its own wait on the API, which, not answering, leaves
 	// the token saved unchecked.
-	saved, err := s.save(context.WithoutCancel(ctx), f, a.token)
+	saved, err := s.save(context.WithoutCancel(ctx), f, a.token, false)
 	if err != nil {
 		return notSaved(f, err, a.token), nil
 	}
@@ -364,30 +369,36 @@ func notMade(ctx context.Context, f TokenFor, a attempt) (Tokened, error) {
 	return Tokened{}, a.err
 }
 
-// PasteToken checks the token pasted with the API, compares the organization
-// it names it in with the other accounts', and saves it, with its year from
-// today, as nothing says when it was made: in the account's place, or with
-// the account, added. It saves nothing where the API refuses it, it's
-// another account's, or ctx ends before it's saved. It fails, asking the API
-// nothing, where the token couldn't be saved for the account, not
-// configured, or one the config can't add; and with what's no outcome of the
-// check, as where the config can't be read or the token written.
+// PasteToken checks the token pasted, as pastedToken takes it, with the
+// API, compares the organization it names it in with the other accounts',
+// and saves it, with its year from today, as nothing says when it was made:
+// in the account's place, or with the account, added. It saves nothing where
+// what's pasted is no token, the API refuses it, or doesn't answer for it,
+// as a token's saved only once it's checked, it's another account's, or ctx
+// ends before it's saved, saying why in words of the paste's own. It fails, asking the API nothing, where the
+// token couldn't be saved for the account, not configured, or one the config
+// can't add; and with what's no outcome of the check, as where the config
+// can't be read or the token written.
 func (s *Setup) PasteToken(ctx context.Context, f TokenFor, pasted string) (Tokened, error) {
 	if _, err := s.takes(f); err != nil {
 		return Tokened{}, err
 	}
-	token, err := tokens.Parse(pasted)
+	token, err := pastedToken(pasted)
 	if err != nil {
 		return Tokened{Result: TokenNotGiven, Why: err.Error()}, nil
 	}
-	return s.save(ctx, f, token)
+	return s.save(ctx, f, token, true)
 }
 
 // save checks token with the API, runs the duplicate check, and saves it for
-// f's account, as PasteToken says. A save done as ctx ends is a save.
-func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token) (Tokened, error) {
+// f's account, as PasteToken says, where pasted, else as MakeToken does, a
+// token made saved unchecked where the API doesn't answer, as setup-token
+// made it. A save done as ctx ends is a save.
+func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token, pasted bool) (Tokened, error) {
 	checked, err := s.Accounts.Check(ctx, token)
 	switch {
+	case errors.Is(err, accounts.ErrRefused) && pasted:
+		return Tokened{Result: TokenRefused, Why: pastedRefused(err)}, nil
 	case errors.Is(err, accounts.ErrRefused):
 		return Tokened{Result: TokenRefused, Why: err.Error()}, nil
 	case cancelledBy(ctx, err):
@@ -396,6 +407,10 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token) (Token
 		return Tokened{}, err
 	}
 	id := f.Account.ID
+	if pasted && checked.Unchecked {
+		logger.Info("the API didn't answer for a token pasted, so it isn't saved", "account", id, "error", checked.Why)
+		return Tokened{Result: TokenUnanswered, Why: pastedUnanswered(checked.Why)}, nil
+	}
 	if other := f.Organizations.holder(checked.Organization, id); other != "" {
 		logger.Info("a token is another account's subscription's, so it isn't saved", "account", id, "other", other)
 		return Tokened{Result: TokenSameAccount, SameAs: other}, nil

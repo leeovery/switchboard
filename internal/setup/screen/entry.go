@@ -7,12 +7,14 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/textfield"
 )
 
-// entry is a text field as the screen holds it: what's typed in it, and the
+// entry is a text field as the screen holds it: what's typed in it; the
 // first glyph its box shows, as dashboard.Field.InView keeps it, so its view
-// holds still while the cursor moves within it.
+// holds still while the cursor moves within it; and whether it's hidden, as
+// a token's is, its view kept as its dots draw it.
 type entry struct {
-	text textfield.Text
-	from int
+	text   textfield.Text
+	from   int
+	hidden bool
 }
 
 // entryOf is a field holding value, its cursor after the last of it, in
@@ -28,7 +30,7 @@ func (e entry) value() string {
 
 // field is the field as dashboard.Field draws it, typed in as typing says.
 func (e entry) field(typing bool) dashboard.Field {
-	return dashboard.Field{Value: e.text.Value(), Cursor: e.text.Cursor(), From: e.from, Typing: typing}
+	return dashboard.Field{Value: e.text.Value(), Cursor: e.text.Cursor(), From: e.from, Typing: typing, Hidden: e.hidden}
 }
 
 // holding is the field holding text, its view moved as little as keeps its

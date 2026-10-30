@@ -207,18 +207,19 @@ const darkAnswer = "\x1b]11;rgb:1a1a/1b1b/2626\x07"
 // answers the screen's question of its background with answer, "" for
 // none, and once the screen has settled, closing settled, where it's set,
 // and once ready, where it's set, it types keys; then once thenReady, where
-// it's set, it types then. It tells saw, where it's set, each message the
-// screen takes in, before it does. Once the screen has gone, the moment to
-// say what setup's finishing comes as moment, given the jobs run waits for,
-// has it, never where it's nil;
-// and wrote, where it's set, is told of each write to the terminal.
+// it's set, it types then; then once lastReady, where it's set, it types
+// last. It tells saw, where it's set, each message the screen takes in,
+// before it does. Once the screen has gone, the moment to say what setup's
+// finishing comes as moment, given the jobs run waits for, has it, never
+// where it's nil; and wrote, where it's set, is told of each write to the
+// terminal.
 type terminal struct {
-	answer, keys, then string
-	ready, thenReady   <-chan struct{}
-	settled            chan struct{}
-	saw                func(tea.Msg)
-	moment             func(*jobs) <-chan time.Time
-	wrote              func(p []byte)
+	answer, keys, then, last    string
+	ready, thenReady, lastReady <-chan struct{}
+	settled                     chan struct{}
+	saw                         func(tea.Msg)
+	moment                      func(*jobs) <-chan time.Time
+	wrote                       func(p []byte)
 }
 
 // runUntil runs setup's screen of cfg on a terminal acting as term does,
@@ -268,6 +269,10 @@ func runIn(t *testing.T, ctx context.Context, cfg Config, term terminal) (Left, 
 		if term.thenReady != nil {
 			<-term.thenReady
 			_, _ = io.WriteString(typing, term.then)
+		}
+		if term.lastReady != nil {
+			<-term.lastReady
+			_, _ = io.WriteString(typing, term.last)
 		}
 	}()
 	moment := func(js *jobs) <-chan time.Time {

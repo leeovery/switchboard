@@ -73,6 +73,10 @@ type Steps interface {
 	// Reopen opens the sign-in address at its AddressReady again, the way it
 	// opened first.
 	Reopen(ctx context.Context, at setup.Making) error
+	// PasteToken saves the token pasted, as f says, as MakeToken saves a
+	// token made, saving nothing where what's pasted is no token, or the
+	// end of ctx comes before it's saved.
+	PasteToken(ctx context.Context, f setup.TokenFor, pasted string) (setup.Tokened, error)
 }
 
 // Config is what the screen is given.
@@ -139,13 +143,15 @@ type Model struct {
 	// chosen is the Accounts page's row chosen: an account's, by its place
 	// in the review, or past the last, + add an account.
 	chosen int
-	// add, edit, remove and token are the cards open over the Accounts page,
-	// the card adding an account, the chosen account's edit card, the card
-	// asking before it's removed, or the token card: nil where none is.
+	// add, edit, remove, token and paste are the cards open over the
+	// Accounts page, the card adding an account, the chosen account's edit
+	// card, the card asking before it's removed, the token card, or the card
+	// pasting a token: nil where none is.
 	add    *addCard
 	edit   *editCard
 	remove *removeCard
 	token  *tokenCard
+	paste  *pasteCard
 	// makings numbers the tokens' makings begun, each the token card's; and
 	// interrupted is set once one ends with an interrupt held as its token
 	// was saved, which the screen leaves at.
@@ -270,6 +276,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.tokened(msg)
 	case reopenedMsg:
 		return m.reopened(msg), nil
+	case pastedMsg:
+		return m.pasteSaved(msg)
 	}
 	return m, nil
 }

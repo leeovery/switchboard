@@ -78,7 +78,7 @@ func (t Tokened) Unsaved() Unsaved {
 		failed.Headline, failed.Says = "The token was refused", "The API refused the token, so it isn't saved."
 	case TokenSameAccount:
 		failed.Headline = "The token is for " + t.SameAs + "'s subscription"
-		failed.Says = t.SameAs + " has that subscription already, so the token isn't saved."
+		failed.Says = sameSubscription(t.SameAs) + "."
 		failed.Then = tryAgainSignedIn
 	case NoClaudeCode:
 		failed.Headline, failed.Says, failed.Then = "There's no Claude Code to create the token with", t.Why, tryAgainInstalled
@@ -98,6 +98,27 @@ func (t Tokened) Unsaved() Unsaved {
 		return Unsaved{}
 	}
 	return failed
+}
+
+// sameSubscription says the account named has the token's subscription
+// already, so it isn't saved.
+func sameSubscription(id string) string {
+	return id + " has that subscription already, so the token isn't saved"
+}
+
+// Refusal is why the paste card refuses the token pasted, said under its
+// field, where its paste saved nothing, as Result says: what's pasted no
+// token, the API refusing it, or not answering for it, as PasteToken words
+// each; and another account's subscription, which it names. Any other end is
+// no refusal: "".
+func (t Tokened) Refusal() string {
+	switch t.Result {
+	case TokenNotGiven, TokenRefused, TokenUnanswered:
+		return t.Why
+	case TokenSameAccount:
+		return sameSubscription(t.SameAs)
+	}
+	return ""
 }
 
 // trimmed are the lines without the blanks round each, as setup-token sets

@@ -176,6 +176,9 @@ func (m Model) accountsPage() *dashboard.SetupAccountsPage {
 	if m.token != nil {
 		p.Token = m.token.drawn(m.now())
 	}
+	if m.paste != nil {
+		p.Paste = m.paste.drawn()
+	}
 	return p
 }
 
