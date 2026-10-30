@@ -1388,10 +1388,11 @@ not the owner's decisions:
   nothing: it closes once the token's saved, or says why it isn't. `ctrl+c` leaves at any stage,
   and setup returns only once the token's saved, or setup-token has stopped. From the token made,
   leaving setup no longer ends the making: setup-token is read within its own time limits, then
-  the token's checked and saved, the process's interrupts held throughout, the first told to
-  setup's caller (`Saving`) to say it saves the token first. One held, however late, is said in
-  the outcome (`InterruptHeld`): the screen leaves once the making's ended, and its `Run` says so
-  (`Left.Interrupted`), for its caller to end as an interrupt has it. A token made but unread, or
+  the token's checked and saved, the process's interrupts held throughout, the first told to a
+  caller that asks (`Saving`), as `accounts token` will, to say it saves the token first. One
+  held, however late, is said in the outcome (`InterruptHeld`): the screen leaves once the
+  making's ended, keys doing nothing meanwhile, and its `Run` says so (`Left.Interrupted`), for
+  its caller to end as an interrupt has it. A token made but unread, or
   not saved, once the screen has gone, or on the card as it goes, is given back by `Run`
   (`Left.Unsaved`) for its caller to show.
 - **The duplicate check waits for the checks:** `t` and the add card's `enter` do nothing while
@@ -1445,6 +1446,17 @@ not the owner's decisions:
   the not-saved card, its why the paste's, failing no step, the accounts read again. `ctrl+c`
   gives back that card's `Left.Unsaved` unless the paste saved, even after the screen had gone.
   Opened from any other card, a paste that fails fails the step, the token still on the clipboard.
+- **Leaving the screen:** `switchboard setup` runs it where stdin and stdout are both terminals,
+  refusing first a switchboard that won't last. Once the screen has gone, it prints in order:
+  - a token it gave back (`Left.Unsaved`): its lines to copy, the card's last words put for after
+    the screen, as `Run switchboard setup again to try again, or to paste a token you made with
+    claude setup-token.`;
+  - or else, where an interrupt was held through a token's save, `switchboard: interrupted once
+    the token was saved, as it lasts a year on the account` on stderr;
+  - then `run setup again to carry on` before Done, or the failed step's error, exit 1.
+  
+  An interrupt held exits 130, ahead of any error. `enter` at Done opens the dashboard as
+  `switchboard dashboard` does.
 - **The status line waits** until both the router and the accounts have answered, blank till then,
   so it never says `nothing set up yet` of accounts not yet read; where the config can't be read,
   it shows the router's part alone.

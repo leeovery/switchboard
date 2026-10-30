@@ -14,6 +14,8 @@ import (
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/setup/screen"
+	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/shell"
 )
 
@@ -21,6 +23,7 @@ import (
 var version = "dev"
 
 func main() {
+	programs := setuptoken.Programs(os.Getenv)
 	root := cli.NewRootCommand(cli.Deps{
 		Version:       version,
 		Getenv:        os.Getenv,
@@ -32,12 +35,15 @@ func main() {
 		Now:           time.Now,
 		ClaudeVersion: claude.InstalledVersion(os.Getenv, os.UserHomeDir, os.Executable),
 		Watch:         watch.Run,
+		SetupScreen:   screen.Run,
 		Notifier:      notify.NewDesktop(),
 		Exec:          launch.Exec,
 		Check:         handover.Run,
 		Launchctl:     service.Launchctl,
 		Plutil:        service.Plutil,
 		LoginShell:    shell.Run,
+		Browser:       setuptoken.Browser{Run: programs},
+		PrivateWindow: setuptoken.PrivateWindow{Run: programs},
 		Hidden:        cli.HiddenInput,
 		Terminal:      cli.IsTerminal,
 		TerminalInput: cli.IsTerminalInput,

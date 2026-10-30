@@ -11,7 +11,7 @@ import (
 // never fails: a hook that can't be installed is said to be, with a warning,
 // and setup carries on.
 func (s *Setup) SessionHook() Said {
-	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
+	switchboard, err := s.Binary()
 	if err != nil {
 		logger.Warn("can't find switchboard's binary for the session hook", "error", err)
 		return withoutHook(err)

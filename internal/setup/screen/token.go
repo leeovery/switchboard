@@ -2,7 +2,6 @@ package screen
 
 import (
 	"context"
-	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -65,7 +64,7 @@ func (c tokenCard) stopped(pasting bool) *tokenCard {
 // saved, what the card showed under it, the token, or setup-token's lines,
 // to copy again.
 func (c tokenCard) notSaved(why string) *tokenCard {
-	unsaved := cleanUnsaved(setup.Tokened{Result: setup.TokenNotSaved, Why: why, Shown: c.unsaved.Shown}.Unsaved())
+	unsaved := setup.Tokened{Result: setup.TokenNotSaved, Why: why, Shown: c.unsaved.Shown}.Unsaved().Clean()
 	c.unsaved = &unsaved
 	return &c
 }
@@ -281,7 +280,7 @@ func (m Model) ended(card tokenCard, msg tokenedMsg) (Model, tea.Cmd) {
 		m.token = nil
 		return m, nil
 	}
-	unsaved := cleanUnsaved(msg.tokened.Unsaved())
+	unsaved := msg.tokened.Unsaved().Clean()
 	card.unsaved = &unsaved
 	card.madeUnsaved = msg.tokened.Result == setup.TokenUnread || msg.tokened.Result == setup.TokenNotSaved
 	m.token = &card
@@ -289,17 +288,6 @@ func (m Model) ended(card tokenCard, msg tokenedMsg) (Model, tea.Cmd) {
 		return m.askAgain()
 	}
 	return m, nil
-}
-
-// cleanUnsaved is u made safe to show: what setup-token showed keeping its
-// spacing, as the token in it is to be copied.
-func cleanUnsaved(u setup.Unsaved) setup.Unsaved {
-	u.Headline, u.Says, u.Then = prose.Clean(u.Headline), prose.Clean(u.Says), prose.Clean(u.Then)
-	u.Shown = slices.Clone(u.Shown)
-	for i, line := range u.Shown {
-		u.Shown[i] = prose.Visible(line)
-	}
-	return u
 }
 
 // tokenPressed acts on a key at the token card, as its stage has it: esc,

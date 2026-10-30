@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -77,26 +76,17 @@ func TestAnInterruptAtAHiddenPromptEndsTheCommand130(t *testing.T) {
 		return "Paste " + id + "'s token, from claude setup-token run while signed in to that subscription (it won't show): \n"
 	}
 	tests := []struct {
-		name string
-		args []string
-		// wantOut is how what the command printed on stdout ends, where
-		// setup asks, with nothing asked after the token.
-		wantOut    string
+		name       string
+		args       []string
 		wantStderr string
 	}{
 		{name: "accounts add", args: []string{"accounts", "add", "work"}, wantStderr: paste("work") + interrupted},
 		{name: "accounts token", args: []string{"accounts", "token", "side"}, wantStderr: paste("side") + interrupted},
-		{name: "setup", args: []string{"setup"}, wantOut: paste("personal"), wantStderr: interrupted},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deps, path := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
 			writeToken(t, deps, "side", "test-token-stale")
-			binary := filepath.Join(t.TempDir(), "switchboard")
-			if err := os.WriteFile(binary, []byte("#!/bin/sh\n"), 0o700); err != nil {
-				t.Fatal(err)
-			}
-			deps.Executable = func() (string, error) { return binary, nil }
 			// The user at a terminal, who interrupts the token's typing.
 			deps.Hidden = func(io.Reader) (func() ([]byte, error), bool) {
 				return func() ([]byte, error) { return nil, accounts.ErrInterrupted }, true
@@ -104,8 +94,8 @@ func TestAnInterruptAtAHiddenPromptEndsTheCommand130(t *testing.T) {
 			before := readFile(t, path)
 
 			got := runWithInput(t, deps, "", tt.args...)
-			if got.code != 130 || got.stderr != tt.wantStderr || !strings.HasSuffix(got.stdout, tt.wantOut) {
-				t.Errorf("switchboard %s = %+v, want exit status 130, stderr\n%s\nand stdout ending\n%s", strings.Join(tt.args, " "), got, tt.wantStderr, tt.wantOut)
+			if want := (result{stderr: tt.wantStderr, code: 130}); got != want {
+				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, want)
 			}
 			if readFile(t, path) != before {
 				t.Errorf("the config reads\n%s\nwant it as it was\n%s", readFile(t, path), before)
