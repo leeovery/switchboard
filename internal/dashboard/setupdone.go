@@ -48,19 +48,25 @@ func (s Setup) donePage() setupPage {
 	return p
 }
 
-// Copies is what the page showing offers to copy: the sign-in address the
-// token card shows, waiting, where it didn't open; at Done, what the claude
-// link step leaves to put in place by hand, as its line has it; "" where it
-// offers nothing.
-func (s Setup) Copies() string {
+// Copies is what the page showing copies at the key: at c, the sign-in
+// address the token card shows, waiting, where it didn't open; at the claude
+// link, what linkCopies has at the key; at Done, at c, what the claude link
+// step leaves to put in place by hand, as its line has it; "" where it
+// offers nothing at the key.
+func (s Setup) Copies(key string) string {
 	if card := s.tokenCard(); card != nil {
-		if card.Stage != TokenWaiting || !card.Unopened {
+		if key != copyAddress.Key || card.Stage != TokenWaiting || !card.Unopened {
 			return ""
 		}
 		return card.Address
 	}
-	l, _ := s.offered()
-	return l.Add
+	if s.At == SetupLink {
+		return s.linkCopies(key)
+	}
+	if l, offers := s.offered(); offers && key == copyLine.Key {
+		return l.Add
+	}
+	return ""
 }
 
 // offered is the step's line whose Add the page showing offers to copy, and

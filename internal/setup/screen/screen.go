@@ -77,6 +77,19 @@ type Steps interface {
 	// token made, saving nothing where what's pasted is no token, or the
 	// end of ctx comes before it's saved.
 	PasteToken(ctx context.Context, f setup.TokenFor, pasted string) (setup.Tokened, error)
+	// Link makes switchboard's claude link, or repairs it, writes
+	// switchboard's files for the shells, and asks the user's login shell
+	// which claude it runs, saying what it found, but never with its error,
+	// failing with accounts.ErrInterrupted at an interrupt as it asks. It
+	// stops once ctx is done.
+	Link(ctx context.Context) (setup.LinkFound, error)
+	// AskAgain asks the user's login shell again which claude it runs, found
+	// being what the claude link step found before, and says what it finds
+	// now, failing as Link does.
+	AskAgain(ctx context.Context, found setup.LinkFound) (setup.LinkFound, error)
+	// SessionHook installs the session hook, or puts it right, and says
+	// which it did, never failing: a hook it can't install, it says so.
+	SessionHook() setup.Said
 }
 
 // Config is what the screen is given.
@@ -100,9 +113,6 @@ type Config struct {
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
-	// Link is what the claude link step found, for Done to say, as the
-	// screen doesn't take the step itself yet: nil passes it through.
-	Link *setup.LinkFound
 }
 
 // Size is a terminal's size in cells.
@@ -173,8 +183,15 @@ type Model struct {
 	// service is what the service step told, and its router's health: nil
 	// until it has.
 	service *setup.Serviced
-	// link is what the claude link step found: nil where it's passed through.
-	link *setup.LinkFound
+	// found is what the claude link step found, as setup gave it, for setup
+	// to be given again; link is the same, made safe to show; both nil until
+	// it has found anything. linkEnded is set once the step has ended, its
+	// session hook installing, and hook is what the install said: nil until
+	// it has.
+	found     *setup.LinkFound
+	link      *setup.LinkFound
+	linkEnded bool
+	hook      *setup.Said
 	// skill is what the skill step said it did: nil until it has.
 	skill *setup.Said
 	// scroll is how many rows the page under its heading is scrolled down.
@@ -189,7 +206,7 @@ type Model struct {
 // New returns the screen of cfg, opening on cfg's step, its jobs run under
 // ctx: once ctx is done, no outcome of theirs is taken in.
 func New(ctx context.Context, cfg Config) Model {
-	m := Model{steps: cfg.Steps, now: cfg.Now, after: cfg.After, await: cfg.Await, jobs: newJobs(ctx), size: cfg.Size, walk: openingOn(cfg.Step), link: cleanLink(cfg.Link)}
+	m := Model{steps: cfg.Steps, now: cfg.Now, after: cfg.After, await: cfg.Await, jobs: newJobs(ctx), size: cfg.Size, walk: openingOn(cfg.Step)}
 	if m.now == nil {
 		m.now = time.Now
 	}
@@ -260,6 +277,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.daySet(msg)
 	case servicedMsg:
 		return m.serviced(msg)
+	case linkedMsg:
+		return m.linked(msg)
+	case hookedMsg:
+		return m.hooked(msg), nil
 	case skilledMsg:
 		return m.skilled(msg), nil
 	case addCheckedMsg:
@@ -285,10 +306,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // pressed acts on a key: while a card is open, as cardPressed has it;
 // while a field is typed in, as typedIn has it; else q and ctrl+c leave,
 // enter moves on, as entered has it, tab types in the Priming page's field,
-// c copies the line the page offers, where it offers one, the Accounts
-// page's keys choose its rows, as choosing has them, and act on the account
-// chosen, as accountKey has them, and the rest scroll the page, as
-// dashboard.ScrollKey has them.
+// c and d copy what the page offers at them, where it offers anything, r
+// asks the shell again at the claude link, where checkable has it, the
+// Accounts page's keys choose its rows, as choosing has them, and act on
+// the account chosen, as accountKey has them, and the rest scroll the page,
+// as dashboard.ScrollKey has them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case m.carded():
@@ -303,9 +325,12 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.entered()
 	case "tab":
 		return m.focused(true), nil
-	case "c":
-		return m, copied(m.page().Copies())
+	case "c", "d":
+		return m, copied(m.page().Copies(k))
 	default:
+		if k == "r" && m.checkable() {
+			return m.checkingAgain()
+		}
 		if by, ok := m.choosing(k); ok {
 			return m.chose(by), nil
 		}
@@ -382,7 +407,7 @@ func (m Model) View() tea.View {
 func (m Model) page() dashboard.Setup {
 	s := dashboard.Setup{
 		Now: m.now(), Summary: m.summary(), Passed: m.walk.passed, Status: m.status.line(),
-		UnderWay: !m.walk.done, Scroll: m.scroll,
+		UnderWay: !m.walk.done, Scroll: m.scroll, Linking: dashboard.SetupLinkPage{Asking: m.asking(), Ended: m.linkEnded, Hook: m.hook},
 	}
 	if m.walk.step == dashboard.SetupAccounts {
 		s.Accounts = m.accountsPage()

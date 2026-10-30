@@ -97,6 +97,74 @@ type ShellFound struct {
 	answer shell.Answer
 }
 
+// Remedy is what a situation leaves to put right by hand, as the claude
+// link's page offers it, and Done's line under it: Parts, what to do, in
+// turn; Line and Dir, switchboard's line and the bin directory, each to
+// copy where a part puts it in place, "" elsewhere; and Checkable, whether
+// asking the shell again can tell it's put right.
+type Remedy struct {
+	Parts     []RemedyPart
+	Line, Dir string
+	Checkable bool
+}
+
+// RemedyPart is a part of what to do to put the situation right by hand:
+// what to do, and what to put in place, where there's anything, the line or
+// the directory.
+type RemedyPart struct {
+	Says, Put string
+}
+
+// Remedy is what the situation leaves to put right by hand: nothing where a
+// new terminal's claude goes through switchboard already, or setup stopped
+// before it asked the shell; the bin directory alone for a shell setup
+// doesn't ask, which it can't check; asking again alone where an alias in
+// front is to go, or switchboard's line is in already; where the line is
+// there but not taking effect, moving it, or what changes PATH after it,
+// else the directory; where it reads another switchboard's file, the line
+// put in its place, else the directory; and anywhere else, the line added,
+// else the directory. The line walk shows the same by hand, in its own
+// words (ShellFound.ByHand).
+func (s ShellFound) Remedy() Remedy {
+	switch s.Situation {
+	case Unreached, Through:
+		return Remedy{}
+	case UnknownShell:
+		return Remedy{Parts: []RemedyPart{{Says: capital(dirFirst), Put: s.Dir}}, Dir: s.Dir}
+	case InFront, LineAdded:
+		return Remedy{Checkable: true}
+	case NotTaking:
+		cause, fix := notTakingFix(s.Where, s.Last)
+		says := capital(fix)
+		if s.Unasked {
+			says = shouldItNot(cause, fix)
+		}
+		return Remedy{Parts: []RemedyPart{{Says: says}, {Says: orElsewhere, Put: s.Dir}}, Dir: s.Dir, Checkable: true}
+	case OtherLine:
+		return s.byLine(inItsPlace)
+	}
+	return s.byLine(addYourself)
+}
+
+// byLine is the remedy of switchboard's line put in place, as says says,
+// else the bin directory put first on PATH, either checked by asking again.
+func (s ShellFound) byLine(says string) Remedy {
+	return Remedy{
+		Parts: []RemedyPart{{Says: says, Put: s.Line}, {Says: orElsewhere, Put: s.Dir}},
+		Line:  s.Line, Dir: s.Dir, Checkable: true,
+	}
+}
+
+// first is what the remedy's first part puts in place, which Done offers to
+// copy, and whether that's the bin directory: "" where it puts nothing.
+func (r Remedy) first() (put string, directory bool) {
+	if len(r.Parts) == 0 {
+		return "", false
+	}
+	put = r.Parts[0].Put
+	return put, put != "" && put == r.Dir
+}
+
 // errNoLine is what AddLine fails with where setup offers no line to add.
 var errNoLine = errors.New("setup offers no line to add")
 
@@ -214,7 +282,7 @@ func (r *run) sorted(answer shell.Answer) ShellFound {
 		return ShellFound{
 			Situation: UnknownShell,
 			Said:      yourShell(Warning, r.stands(answer)+" · setup can't check it for this shell: put switchboard's bin directory first on PATH by hand", r.notYet(answer)),
-			ByHand:    append(r.byHand("To have claude go through switchboard, put this directory first on PATH, wherever your shell sets it:"), cantCheck),
+			ByHand:    append(r.byHand(throughIt+dirFirst), cantCheck),
 		}
 	case answer.Kind == shell.Link:
 		return ShellFound{Situation: InFront, Said: r.notYetSaid(answer)}
@@ -261,19 +329,26 @@ func (r *run) startupLine(sh shell.Shell, answer shell.Answer) ShellFound {
 		reads := fmt.Sprintf("switchboard's line in %s reads %s, not this switchboard's file for %s, %s", where, r.fromHome(found.Sources), sh, r.fromHome(initFile))
 		at.Situation = OtherLine
 		at.Said = yourShell(Warning, stands+" · "+reads, notYet+" "+reads+".")
-		at.ByHand = r.byHand("Put this line in its place:", line, orElsewhere)
+		at.ByHand = r.byHand(inItsPlace, line, orElsewhere)
 	default:
 		return r.notTakingEffect(file, line, found.Last, answer)
 	}
 	return at
 }
 
-// addByHand and orElsewhere say how to have claude go through switchboard by
-// hand: by switchboard's line, shown after addByHand, or by the bin
-// directory, shown after orElsewhere.
+// What setup says to have claude go through switchboard by hand: by
+// switchboard's line, shown after addByHand in the line walk, and after
+// addYourself on the claude link's page, or after inItsPlace, in place of
+// another switchboard's; or by the bin directory, shown after orElsewhere,
+// or for a shell setup doesn't ask, after dirFirst, which throughIt leads
+// in the line walk.
 const (
 	addByHand   = "To have claude go through switchboard by hand, add this line to the end of your shell's startup file, after anything there that changes PATH:"
+	addYourself = "Add this line to your shell's startup file yourself, after anything else there that changes PATH:"
+	inItsPlace  = "Put this line in its place:"
 	orElsewhere = "Or, where you keep your PATH another way, put this directory first on it:"
+	dirFirst    = "put this directory first on PATH, wherever your shell sets it:"
+	throughIt   = "To have claude go through switchboard, "
 )
 
 // notTakingEffect is the situation of switchboard's line, line, in file, the
@@ -283,25 +358,38 @@ const (
 // something read after the file.
 func (r *run) notTakingEffect(file, line string, last bool, answer shell.Answer) ShellFound {
 	where := r.fromHome(file)
-	cause := "something after the line changes PATH"
-	fix := fmt.Sprintf("move switchboard's line to the end of %s, or what changes PATH after it to before it.", where)
-	if last {
-		cause = fmt.Sprintf("something read after %s changes PATH", where)
-		fix = "put switchboard's line after what changes PATH, wherever that's read."
-	}
+	cause, fix := notTakingFix(where, last)
 	at := ShellFound{Situation: NotTaking, File: file, Line: line, Where: where, Last: last}
 	if answer.Kind == shell.Unasked {
 		at.Said = yourShell(Warning,
 			fmt.Sprintf("switchboard's line is in %s, but setup can't ask it whether it takes effect: %s", where, answer.Why),
 			fmt.Sprintf("switchboard's line is in %s, but setup can't ask %s whether it takes effect: %s.", where, r.shellName(), answer.Why))
-		at.ByHand = r.byHand(fmt.Sprintf("Should it not, %s: %s %s", cause, fix, orElsewhere))
+		at.ByHand = r.byHand(shouldItNot(cause, fix) + " " + orElsewhere)
 		return at
 	}
 	at.Said = yourShell(Warning,
 		fmt.Sprintf("%s · switchboard's line is in %s, but %s", r.stands(answer), where, cause),
 		fmt.Sprintf("switchboard's line is in %s, but %s, so %s.", where, r.runs(answer), cause))
-	at.ByHand = r.byHand(fmt.Sprintf("To have claude go through switchboard, %s %s", fix, orElsewhere))
+	at.ByHand = r.byHand(throughIt + fix + " " + orElsewhere)
 	return at
+}
+
+// notTakingFix is what keeps switchboard's line, in the startup file written
+// where, from taking effect, and how to put it right: something after it
+// changes PATH, so it's to move to the end; or, where it's last, something
+// read after the file does, so it's to go after that.
+func notTakingFix(where string, last bool) (cause, fix string) {
+	if last {
+		return fmt.Sprintf("something read after %s changes PATH", where), "put switchboard's line after what changes PATH, wherever that's read."
+	}
+	return "something after the line changes PATH", fmt.Sprintf("move switchboard's line to the end of %s, or what changes PATH after it to before it.", where)
+}
+
+// shouldItNot says how to put switchboard's line right, should it not take
+// effect for cause, as fix says, where the shell couldn't be asked whether
+// it does.
+func shouldItNot(cause, fix string) string {
+	return fmt.Sprintf("Should it not, %s: %s", cause, fix)
 }
 
 // byHand is how to have claude go through switchboard by hand, the lines

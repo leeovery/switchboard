@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     ✓ Accounts   ✓ Priming   ✓ Service   4 claude link   5 Skill   Done                                                Tue 27 Oct  17:42:00
+
+● router up, healthy  ·  3 accounts, all working
+
+CLAUDE LINK  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  The claude command starts Claude Code through switchboard, so every session is routed.
+
+  ✓  Link                 ~/.local/share/switchboard/bin/claude → switchboard
+
+  !  Your shell           runs Claude Code's own claude, ~/.local/bin/claude, so its sessions aren't routed
+
+
+  Add this line to your shell's startup file yourself, after anything else there that changes PATH:
+
+      if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
+
+  Or, where you keep your PATH another way, put this directory first on it:
+
+      $HOME/.local/share/switchboard/bin
+
+  Then press r: setup asks your shell again, as a new terminal would start it.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+c copy the line   d copy the directory   r check again                                                                           enter leave it for now   q quit

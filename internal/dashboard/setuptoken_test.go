@@ -381,8 +381,11 @@ func TestTheTokenCardOffersItsAddressToCopyOnlyWhereItDidntOpen(t *testing.T) {
 		{name: "waiting, opened", card: SetupTokenCard{Stage: TokenWaiting, Address: address}},
 		{name: "ended", card: SetupTokenCard{Stage: TokenUnsaved, Unopened: true, Address: address}},
 	} {
-		if got := tokenScreen(tt.card).Copies(); got != tt.want {
-			t.Errorf("%s: Copies() = %q, want %q", tt.name, got, tt.want)
+		if got := tokenScreen(tt.card).Copies("c"); got != tt.want {
+			t.Errorf("%s: Copies(c) = %q, want %q", tt.name, got, tt.want)
+		}
+		if got := tokenScreen(tt.card).Copies("d"); got != "" {
+			t.Errorf("%s: Copies(d) = %q, want nothing", tt.name, got)
 		}
 	}
 }

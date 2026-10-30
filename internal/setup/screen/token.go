@@ -336,7 +336,7 @@ func (m Model) tokenPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "c":
 		if stage == dashboard.TokenWaiting && card.unopened() {
-			return m, copied(m.page().Copies())
+			return m, copied(m.page().Copies("c"))
 		}
 	case "enter":
 		if stage == dashboard.TokenUnsaved && card.unsaved.Again {
