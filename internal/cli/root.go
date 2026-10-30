@@ -28,6 +28,8 @@ import (
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/setup/screen"
+	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -61,6 +63,9 @@ type Deps struct {
 	// Watch shows the dashboard full screen on out until the user quits, as
 	// watch.Run does.
 	Watch func(ctx context.Context, cfg watch.Config, out io.Writer, environ []string) error
+	// SetupScreen shows setup's screen full on out until the user leaves it,
+	// and says how they left it, as screen.Run does.
+	SetupScreen func(ctx context.Context, cfg screen.Config, out io.Writer, environ []string) (screen.Left, error)
 	// Notifier posts desktop notifications, as notify.Desktop does.
 	Notifier Notifier
 	// FollowEvery is how often logs --follow and events --follow look for
@@ -83,10 +88,13 @@ type Deps struct {
 	// LoginShell runs the user's login shell, as shell.Run does: setup asks
 	// it which claude it runs.
 	LoginShell shell.Runner
+	// Browser and PrivateWindow open the sign-in address of a token setup
+	// makes, in the browser as it is, and in a private window, as
+	// setuptoken's Browser and PrivateWindow do.
+	Browser, PrivateWindow setuptoken.Opener
 	// Hidden returns what reads a line typed at the terminal stdin is,
 	// without showing it, or false when stdin isn't a terminal, as
-	// HiddenInput does: a token is typed there unseen, and setup asks there
-	// alone.
+	// HiddenInput does: a token is typed there unseen.
 	Hidden func(stdin io.Reader) (read func() ([]byte, error), ok bool)
 	// Terminal reports whether out is a terminal, as IsTerminal does: a data
 	// verb prints its form for a person on one, and its JSON elsewhere.

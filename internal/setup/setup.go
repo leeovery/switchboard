@@ -110,7 +110,7 @@ type Setup struct {
 // last, such as go run's, before it asks anything: the service and the
 // claude link both run this one.
 func (s *Setup) Run(ctx context.Context) error {
-	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
+	switchboard, err := s.Binary()
 	if err != nil {
 		return err
 	}
@@ -134,6 +134,13 @@ func (s *Setup) Run(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// Binary is this switchboard binary, which the service runs and the claude
+// link leads to, as the service's Binary has it: it fails for a build that
+// won't last, such as go run's.
+func (s *Setup) Binary() (string, error) {
+	return s.LaunchAgent.Binary(s.Install.Executable)
 }
 
 // registry is the accounts, taking a token the user types at the terminal.

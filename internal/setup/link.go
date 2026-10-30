@@ -49,7 +49,7 @@ const (
 // accounts.ErrInterrupted where the user interrupts the asking, returning
 // what it said, and the zero ShellFound.
 func (s *Setup) Link(ctx context.Context) (LinkFound, error) {
-	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
+	switchboard, err := s.Binary()
 	if err != nil {
 		return LinkFound{}, err
 	}

@@ -108,15 +108,27 @@ const finishingInstall = "interrupted: finishing installing the service first, s
 // service returns the LaunchAgent, whose router's control socket is in the
 // state directory, saying on errOut where an interrupt waits for its install.
 func (a *app) service(errOut io.Writer) (*service.Service, error) {
-	home, err := a.HomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("locate the home directory: %w", err)
-	}
-	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
+	cfg, err := a.serviceConfig()
 	if err != nil {
 		return nil, err
 	}
-	return service.New(service.Config{
+	cfg.Finishing = func() { launch.Notice(errOut, finishingInstall) }
+	return service.New(cfg)
+}
+
+// serviceConfig is the LaunchAgent's config, whose router's control socket
+// is in the state directory, telling no one where an interrupt waits for its
+// install.
+func (a *app) serviceConfig() (service.Config, error) {
+	home, err := a.HomeDir()
+	if err != nil {
+		return service.Config{}, fmt.Errorf("locate the home directory: %w", err)
+	}
+	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return service.Config{}, err
+	}
+	return service.Config{
 		GOOS:      a.GOOS,
 		UID:       a.UID,
 		Home:      home,
@@ -128,8 +140,7 @@ func (a *app) service(errOut io.Writer) (*service.Service, error) {
 		RouterAt: func(dir string) service.Router {
 			return router.NewClient(router.SocketPath(dir))
 		},
-		Finishing: func() { launch.Notice(errOut, finishingInstall) },
-	})
+	}, nil
 }
 
 // installedService returns the LaunchAgent as the router it runs sees it,

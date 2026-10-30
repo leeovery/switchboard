@@ -60,7 +60,7 @@ func failedRow(out Serviced, err error) Serviced {
 // serviced takes the service step, as Service does, saying what the step
 // says alone.
 func (s *Setup) serviced(ctx context.Context) (Serviced, error) {
-	switchboard, err := s.LaunchAgent.Binary(s.Install.Executable)
+	switchboard, err := s.Binary()
 	if err != nil {
 		return Serviced{}, err
 	}

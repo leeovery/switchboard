@@ -21,6 +21,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/setup/screen"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -483,6 +484,7 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		Now:           func() time.Time { return testNow },
 		ClaudeVersion: func() string { return testClaudeVersion },
 		Watch:         watch.Run,
+		SetupScreen:   screen.Run,
 		Notifier:      &recordingNotifier{},
 		Exec:          func(string, []string, []string) error { return errors.New("no test starts a program") },
 		Check: func(context.Context, string, []string, []string) ([]byte, error) {

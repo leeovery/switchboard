@@ -752,6 +752,49 @@ func TestTheScreenLeavesOnceATokenHeldThroughAnInterruptIsSaved(t *testing.T) {
 	}
 }
 
+// A key queued ahead of the quit an interrupt held as a token was saved
+// sends does nothing: esc doesn't close the card that gives the token made
+// back, enter on a card that tries again doesn't start another making, nor
+// p open the paste card in the card's place, so the screen leaves with the
+// making's end for Run to give back.
+func TestKeysAfterAnInterruptHeldLeaveTheCardToGiveBack(t *testing.T) {
+	held := func(tokened setup.Tokened) setup.Tokened {
+		tokened.InterruptHeld = true
+		return tokened
+	}
+	refused := held(setup.Tokened{Result: setup.TokenRefused})
+	sameAccount := held(setup.Tokened{Result: setup.TokenSameAccount, SameAs: "work"})
+	tests := []struct {
+		name string
+		ends setup.Tokened
+		key  string
+	}{
+		{name: "esc on a token made but unread", ends: held(madeUnread), key: "esc"},
+		{name: "esc on a token made but not saved", ends: held(madeNotSaved), key: "esc"},
+		{name: "enter on a refused token, which tries again", ends: refused, key: "enter"},
+		{name: "enter on the same account's token, which tries again", ends: sameAccount, key: "enter"},
+		{name: "p on a refused token, which pastes one", ends: refused, key: "p"},
+		{name: "p on the same account's token, which pastes one", ends: sameAccount, key: "p"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := tokening(t, fakeMaking{steps: []setup.Making{privately, approving}, ends: &tt.ends}, 1)
+			h.steps.nextMake(t)
+			h.hearAll(3)
+			making := h.model.makings
+
+			h.pressAndDeliver(tt.key)
+			unsaved, interrupted := h.model.tokenLeft()
+			if !interrupted || !reflect.DeepEqual(unsaved, &tt.ends) {
+				t.Errorf("tokenLeft() = %+v, %t; want %+v, an interrupt held", unsaved, interrupted, tt.ends)
+			}
+			if h.model.makings != making || h.model.paste != nil {
+				t.Errorf("%s began making %d, and opened the paste card %s; want neither, as the screen leaves", tt.key, h.model.makings, pasteSaid(h.model.paste))
+			}
+		})
+	}
+}
+
 // endsWithin is how long a test waits on a context it holds to end, where it
 // wrongly would: a cancel can reach it on a goroutine of its own, as
 // context.AfterFunc runs one, a moment after what cancelled it returns.

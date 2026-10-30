@@ -249,8 +249,14 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message: a key, a paste, the wheel, a resize, the
-// terminal's background, a tick, or an outcome of setup's.
+// terminal's background, a tick, or an outcome of setup's. Once an interrupt
+// was held as a token was saved, the screen is leaving, and a key or a paste
+// queued ahead of its quit does nothing, so the card it leaves with stays
+// for Run to give back.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.interrupted && typed(msg) {
+		return m, nil
+	}
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		return m.pressed(msg)
@@ -311,6 +317,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.pasteSaved(msg)
 	}
 	return m, nil
+}
+
+// typed reports whether msg is a key pressed or a paste.
+func typed(msg tea.Msg) bool {
+	switch msg.(type) {
+	case tea.KeyPressMsg, tea.PasteMsg:
+		return true
+	}
+	return false
 }
 
 // pressed acts on a key: while a card is open, as cardPressed has it;

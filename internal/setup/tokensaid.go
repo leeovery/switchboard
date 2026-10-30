@@ -1,8 +1,10 @@
 package setup
 
 import (
+	"slices"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setuptoken"
 )
 
@@ -49,13 +51,33 @@ type Unsaved struct {
 // shows, where it made no token: those that say why.
 const shownLast = 4
 
-// What the token card says to do once a making has saved nothing.
-const (
-	tryAgain          = "Try again, or paste a token you made with claude setup-token."
-	tryAgainSignedIn  = "Try again, signed in to the other subscription, or paste a token you made with claude setup-token."
-	tryAgainInstalled = "Install Claude Code, then try again, or paste a token you made with claude setup-token."
-	pasteIt           = "Then press p to paste it."
-	pasteItOnceRight  = "It lasts a year on the account, so copy it, then press p to paste it once that's put right."
+// thens are what to do once a making has saved nothing: try again, where
+// nothing's made, and that try signed in to the other subscription, or once
+// Claude Code's installed; and where a token's made, which lasts a year on
+// the account, paste it, once it's copied, and pasteOnceRight, where what
+// kept it from being saved is to be put right first.
+type thens struct {
+	tryAgain, signedIn, installed string
+	paste, pasteOnceRight         string
+}
+
+// The token card tries again with enter and pastes with p; once setup's
+// screen has gone, there's neither until setup is run again.
+var (
+	onTheCard = thens{
+		tryAgain:       "Try again, or paste a token you made with claude setup-token.",
+		signedIn:       "Try again, signed in to the other subscription, or paste a token you made with claude setup-token.",
+		installed:      "Install Claude Code, then try again, or paste a token you made with claude setup-token.",
+		paste:          "Then press p to paste it.",
+		pasteOnceRight: "It lasts a year on the account, so copy it, then press p to paste it once that's put right.",
+	}
+	onceGone = thens{
+		tryAgain:       "Run switchboard setup again to try again, or to paste a token you made with claude setup-token.",
+		signedIn:       "Run switchboard setup again to try again, signed in to the other subscription, or to paste a token you made with claude setup-token.",
+		installed:      "Install Claude Code, then run switchboard setup again to try again, or to paste a token you made with claude setup-token.",
+		paste:          "Then run switchboard setup again, and press p on its token card to paste it.",
+		pasteOnceRight: "It lasts a year on the account, so copy it, then once that's put right, run switchboard setup again, and press p on its token card to paste it.",
+	}
 )
 
 // Unsaved is how the token card tells the making's end, where it saved
@@ -69,7 +91,49 @@ const (
 // read it, nothing to copy, enter trying again. Any other end is the zero
 // Unsaved.
 func (t Tokened) Unsaved() Unsaved {
-	failed := Unsaved{Mark: Failed, Then: tryAgain, Again: true}
+	return t.unsaved(onTheCard)
+}
+
+// Printed is the making's end, where it saved nothing, as Unsaved tells it,
+// made safe to show, a line each, for setup's caller to print once its
+// screen has gone: what came of it; what that means; what setup-token
+// showed, each line set in by two spaces, the token in it to copy; and what
+// to do now, which is to run setup again, as there's no card to try again
+// or paste on. Any other end prints nothing.
+func (t Tokened) Printed() []string {
+	u := t.unsaved(onceGone).Clean()
+	lines := make([]string, 0, len(u.Shown)+3)
+	for _, line := range slices.Concat([]string{u.Headline, u.Says}, indented(u.Shown), []string{u.Then}) {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+// indented are the lines, each set in by two spaces.
+func indented(lines []string) []string {
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = "  " + line
+	}
+	return out
+}
+
+// Clean is u made safe to show: what setup-token showed keeping its
+// spacing, as the token in it is to be copied.
+func (u Unsaved) Clean() Unsaved {
+	u.Headline, u.Says, u.Then = prose.Clean(u.Headline), prose.Clean(u.Says), prose.Clean(u.Then)
+	u.Shown = slices.Clone(u.Shown)
+	for i, line := range u.Shown {
+		u.Shown[i] = prose.Visible(line)
+	}
+	return u
+}
+
+// unsaved is Unsaved, saying what to do now as then has it.
+func (t Tokened) unsaved(then thens) Unsaved {
+	failed := Unsaved{Mark: Failed, Then: then.tryAgain, Again: true}
 	switch t.Result {
 	case TokenNotMade:
 		failed.Headline, failed.Says = "The token wasn't created", "claude setup-token stopped with an error. What it showed:"
@@ -79,19 +143,19 @@ func (t Tokened) Unsaved() Unsaved {
 	case TokenSameAccount:
 		failed.Headline = "The token is for " + t.SameAs + "'s subscription"
 		failed.Says = sameSubscription(t.SameAs) + "."
-		failed.Then = tryAgainSignedIn
+		failed.Then = then.signedIn
 	case NoClaudeCode:
-		failed.Headline, failed.Says, failed.Then = "There's no Claude Code to create the token with", t.Why, tryAgainInstalled
+		failed.Headline, failed.Says, failed.Then = "There's no Claude Code to create the token with", t.Why, then.installed
 	case TokenUnread:
 		return Unsaved{
 			Mark: Warning, Headline: "The token was created, but setup couldn't read it",
 			Says:  "It lasts a year on the account, so copy it from what claude setup-token showed:",
-			Shown: trimmed(t.Shown), Then: pasteIt,
+			Shown: trimmed(t.Shown), Then: then.paste,
 		}
 	case TokenNotSaved:
-		kept := Unsaved{Mark: Warning, Headline: "The token was created, but setup couldn't save it", Says: t.Why, Shown: t.Shown, Then: pasteItOnceRight}
+		kept := Unsaved{Mark: Warning, Headline: "The token was created, but setup couldn't save it", Says: t.Why, Shown: t.Shown, Then: then.pasteOnceRight}
 		if len(t.Shown) == 0 {
-			kept.Then, kept.Again = tryAgain, true
+			kept.Then, kept.Again = then.tryAgain, true
 		}
 		return kept
 	default:
