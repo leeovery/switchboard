@@ -448,17 +448,14 @@ func (s yearShown) forms() []line {
 	return []line{slices.Concat(said, line{{"  ·  ", faintInk}}, days), days}
 }
 
-// daysLeftInk is the ink of the days left of the year: bold
-// state.destructive within its last warning's days, bold accent.attention
-// within its first's, as status.TokenYear.Warned has them, else muted.
+// daysLeftInk is the ink of the days left of the year: within a warning's
+// days, as status.TokenYear.Warned has them, as warnedInk colours them, else
+// muted.
 func (s yearShown) daysLeftInk() ink {
-	switch days, warned := s.year.Warned(s.at); {
-	case !warned:
-		return mutedInk
-	case days == status.TokenLastWarning:
-		return exhaustedInk
+	if days, warned := s.year.Warned(s.at); warned {
+		return warnedInk(days)
 	}
-	return alertInk
+	return mutedInk
 }
 
 // reviewChosen lays bg.selection under row y, width cells wide, but under the

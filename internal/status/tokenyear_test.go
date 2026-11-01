@@ -140,6 +140,17 @@ func TestAMomentJudgesEachTokensYearAtItsNow(t *testing.T) {
 			if got := work.TokenGone(); math.Abs(got-tt.gone) > 1e-9 {
 				t.Errorf("TokenGone() = %v, want %v", got, tt.gone)
 			}
+			warning := map[bool]int{true: status.TokenWarning}[tt.warned]
+			if tt.lastWarned {
+				warning = status.TokenLastWarning
+			}
+			if days, warned := work.TokenWarned(); days != warning || warned != tt.warned {
+				t.Errorf("TokenWarned() = %d, %v; want %d, %v", days, warned, warning, tt.warned)
+			}
+			up := !tt.unknown && !tt.counted
+			if got := work.TokenEnding(); !got.Now.Equal(now) || !got.Until.Equal(a.TokenGoodUntil) || got.Up != up || got.DaysLeft != tt.days {
+				t.Errorf("TokenEnding() = %+v, want at %v, until %v, up %v, %d days left", got, now, a.TokenGoodUntil, up, tt.days)
+			}
 		})
 	}
 }

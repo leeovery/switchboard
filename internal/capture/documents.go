@@ -31,24 +31,26 @@ import (
 // the sessions' world's, is the world's, and where its ledger holds lines of
 // its own in their place, those, by now; whether its document is read
 // fresh, at the moment drawn, as a router read it as an account reached its
-// limit then; and, where the worlds keep it, its records, built once, as
-// they're first asked for.
+// limit then; how long each account's token's year has left, where the
+// world says, which tokenAge has otherwise; and, where the worlds keep it,
+// its records, built once, as they're first asked for.
 type accountWorld struct {
-	accounts config.Accounts
-	history  history
-	pin      status.Pin
-	limits   map[string]status.Limit
-	refused  map[string]status.Refusal
-	stale    map[string]time.Time
-	sessions map[string]int
-	best     string
-	routed   func(now time.Time) []status.Session
-	events   []status.Event
-	stream   []router.StreamEvent
-	traffic  bool
-	lines    func(now time.Time) []ledger.Line
-	fresh    bool
-	records  func() *records
+	accounts  config.Accounts
+	history   history
+	pin       status.Pin
+	limits    map[string]status.Limit
+	refused   map[string]status.Refusal
+	stale     map[string]time.Time
+	sessions  map[string]int
+	best      string
+	routed    func(now time.Time) []status.Session
+	events    []status.Event
+	stream    []router.StreamEvent
+	traffic   bool
+	lines     func(now time.Time) []ledger.Line
+	fresh     bool
+	tokenLeft map[string]time.Duration
+	records   func() *records
 }
 
 // document is the router's status document of the world at now, read as
@@ -90,11 +92,11 @@ const tokenAge = 97 * 24 * time.Hour
 // account is the account a's status at at, its readings history h, as the
 // router gives it: as last read at at, or, where the world has the router
 // unable to read it since a time, then, its rates and pressure worked out
-// from its readings to then, its token taken tokenAge before, and its extra
-// usage off.
+// from its readings to then, its token taken as tokenTaken has it, and its
+// extra usage off.
 func (w accountWorld) account(a config.Account, h history, at time.Time) status.Account {
 	read := w.readAt(a.ID, at)
-	st := status.Configured(a).WithTokenTaken(at.Add(-tokenAge))
+	st := status.Configured(a).WithTokenTaken(w.tokenTaken(a.ID, at))
 	st.TokenSet, st.FetchedAt = true, read.UTC()
 	held := h.before(read)
 	latest := held.windows(claude.WindowLabel)
@@ -105,6 +107,16 @@ func (w accountWorld) account(a config.Account, h history, at time.Time) status.
 	st.Rates = status.RatesOf(latest, trails, at)
 	st.Pressure = pressureOf(st, latest, trails, w.pin.Has(a.ID), at)
 	return st
+}
+
+// tokenTaken is when the account with the given id took its token, as of at:
+// tokenAge before, or where the world says how long its token's year has
+// left, a setup token's lifetime before its year is up then.
+func (w accountWorld) tokenTaken(id string, at time.Time) time.Time {
+	if left, ok := w.tokenLeft[id]; ok {
+		return at.Add(left - claude.SetupTokenLifetime)
+	}
+	return at.Add(-tokenAge)
 }
 
 // read is when the router last read the world, as of now: readAgo before,
@@ -393,6 +405,14 @@ func (a accountWorlds) fableNearing() accountWorld {
 func (a accountWorlds) sidesPlanUnknown() accountWorld {
 	w := a.auto()
 	w.accounts[2].Plan = ""
+	return w
+}
+
+// tokensEnding is the auto world with work's token's year up in 21 days, and
+// personal's in 5, as Accounts tells of them.
+func (a accountWorlds) tokensEnding() accountWorld {
+	w := a.auto()
+	w.tokenLeft = map[string]time.Duration{"work": 21 * 24 * time.Hour, "personal": 5 * 24 * time.Hour}
 	return w
 }
 

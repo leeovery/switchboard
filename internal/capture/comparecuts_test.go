@@ -51,10 +51,11 @@ func TestCompareDrawnWideCutsNoFigure(t *testing.T) {
 
 // turnedCutsWorlds are the fixtures whose worlds Compare turns in: three
 // accounts, over a month, with a plan not known, with ten accounts, and in
-// a bad hour.
+// a bad hour, and with tokens' years ending.
 var turnedCutsWorlds = []string{
 	"accounts-phone-compare-52", "accounts-compare-160", "accounts-compare-month-160",
 	"accounts-compare-plan-unknown-160", "accounts-compare-ten-160", "accounts-compare-bad-hour-160",
+	"accounts-compare-token-160",
 }
 
 // turnedShare is a largest version's share ending BY MODEL's row after its

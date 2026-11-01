@@ -271,15 +271,12 @@ func (t limitText) say(name func(id string) string) string {
 }
 
 // yearNotice is the notification of the account's token's year ending within
-// the days warned of at now, or up: when it's up, and the days left of it,
-// as setup's review says them, and that setup makes a new token.
+// the days warned of at now, or up: its news, as prose's TokenEnding tells
+// it, and its message, the account named, then the ending told whole, that
+// setup makes a new token, as Accounts tells it.
 func yearNotice(s standing, now time.Time) notify.Notice {
-	year := s.TokenYear()
-	news := "token " + prose.Expires(now, year.GoodUntil, year.Up(now))
-	if left, counted := year.DaysLeft(now); counted {
-		news += " · " + prose.DaysLeft(left)
-	}
-	return notify.Notice{Account: s.ID, News: news, Message: s.Title() + ": " + news + " — switchboard setup makes a new one"}
+	ending := s.TokenYear().Ending(now)
+	return notify.Notice{Account: s.ID, News: prose.TokenSaid(ending.News()), Message: s.Title() + ": " + prose.TokenSaid(ending.Told())}
 }
 
 // moveNotice is the notification of a session's move, which is about the

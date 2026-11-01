@@ -46,13 +46,14 @@ const (
 	latelyBeside = 48
 )
 
-// Detail's panel's rows, from its top: the head; USAGE's heading, its
-// windows from the row after, windowsApart rows apart, and THIS WEEK's
+// Detail's panel's rows, from its top: the head, and under it the account's
+// token line, where it has one; USAGE's heading, a row under the head's
+// last, its windows from the row after, windowsApart rows apart, and THIS WEEK's
 // title on its row, its items under it, thisWeekLeastRows rows at the
 // fewest; BY MODEL, byModelGap rows under the lower of the two; and the
 // parts under BY MODEL, each the rows given under it.
 const (
-	usageAt           = 2
+	usageUnder        = 2
 	windowsApart      = 2
 	thisWeekLeastRows = 5
 	byModelGap        = 2
@@ -438,7 +439,46 @@ func (d detailDrawn) windowNames() int {
 // byModelAt is the row of the panel BY MODEL is on: byModelGap rows under
 // USAGE's last window, or THIS WEEK's last row, whichever is lower.
 func (d detailDrawn) byModelAt() int {
-	return max(usageAt+len(d.windows())*windowsApart-1, usageAt+d.thisWeekRows()) + byModelGap
+	at := d.usageAt()
+	return max(at+len(d.windows())*windowsApart-1, at+d.thisWeekRows()) + byModelGap
+}
+
+// usageAt is the row of the panel USAGE's heading is on: usageUnder rows
+// under the head, or its token line's last row, where it has one.
+func (d detailDrawn) usageAt() int {
+	return len(d.noteLines(d.f.edge()-d.noteAt())) + usageUnder
+}
+
+// noteLines are the lines of the token line under the head, as
+// tokenNoteLines wraps them width cells wide: of the account shown, where
+// the moment has it, as views.TokenNoteOf tells of it; none of all accounts.
+func (d detailDrawn) noteLines(width int) []line {
+	if d.id == "" || !d.known {
+		return nil
+	}
+	note, noted := views.TokenNoteOf(d.account)
+	return tokenNoteLines(note, noted, width)
+}
+
+// noteAt is the column the token line under the head starts at: in line with
+// the words of how the account stands, after their glyph.
+func (d detailDrawn) noteAt() int {
+	return d.standsAt() + stateWordsAt
+}
+
+// standsAt is the column the head says how the account stands from, headApart
+// cells after its name.
+func (d detailDrawn) standsAt() int {
+	return d.l.panel + d.headName().width() + headApart
+}
+
+// headName is the head's name, in the cells from the panel's column to the
+// frame's edge: the account's number, name and marks, or 0 all accounts.
+func (d detailDrawn) headName() line {
+	if d.id == "" {
+		return allAccountsName(1)
+	}
+	return listName(d.account, 1).said(d.f.edge() - d.l.panel)
 }
 
 // versionLines are BY MODEL's versions with their shares, over the rows
@@ -465,18 +505,19 @@ func (d detailDrawn) latelyAt() int {
 }
 
 // panel is Detail's panel drawn whole, from row 0 of a canvas the frame's
-// width: its head; USAGE, and THIS WEEK beside it; BY MODEL, the rule, BY
-// DAY, WEEKS and the verdict, where the period's page is read, the rule and
-// what's under it moved down a row for each row BY MODEL's versions take
-// past the first; and LATELY, beside SESSIONS where sessions run on the
-// account, its heading on SESSIONS' row and its lines under it, their words
-// cut at the frame's edge.
+// width: its head, and under it its token line; USAGE, and THIS WEEK beside
+// it; BY MODEL, the rule, BY DAY, WEEKS and the verdict, where the period's
+// page is read, the rule and what's under it moved down a row for each row
+// BY MODEL's versions take past the first; and LATELY, beside SESSIONS where
+// sessions run on the account, its heading on SESSIONS' row and its lines
+// under it, their words cut at the frame's edge.
 func (d detailDrawn) panel() *canvas {
 	c := growing(d.f.Width)
 	d.head(c, 0)
-	d.usage(c, usageAt)
+	usage := d.usageAt()
+	d.usage(c, usage)
 	if at := d.underModels(); d.page != nil {
-		d.thisWeek(c, usageAt)
+		d.thisWeek(c, usage)
 		d.byModel(c, d.byModelAt())
 		d.rule(c, at+ruleUnder)
 		c.heading(at+ruleUnder, at+byDayUnder)
@@ -498,17 +539,17 @@ func (d detailDrawn) panel() *canvas {
 	return c
 }
 
-// head draws the panel's head along row y: the account's number, name and
-// marks, or 0 all accounts, then headApart cells on, how it stands, as
-// stands has it.
+// head draws the panel's head from row y: its name, as headName has it, then
+// headApart cells on, how the account stands, as stands has it; and from the
+// row under it, its token line, as noteLines wraps it to the frame's edge,
+// from noteAt.
 func (d detailDrawn) head(c *canvas, y int) {
-	x := d.l.panel
-	if d.id == "" {
-		x = c.line(x, y, allAccountsName(1)) + headApart
-	} else {
-		x = c.line(x, y, listName(d.account, 1).said(d.f.edge()-x)) + headApart
+	c.line(d.l.panel, y, d.headName())
+	d.stands(c, d.standsAt(), y, false)
+	x := d.noteAt()
+	for i, l := range d.noteLines(d.f.edge() - x) {
+		c.line(x, y+1+i, l)
 	}
-	d.stands(c, x, y, false)
 }
 
 // stands draws how the account stands along row y from x, short where short

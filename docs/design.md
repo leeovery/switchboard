@@ -871,8 +871,8 @@ differ, this section holds: frame 4 says only what the service step can know (se
 frame 5's `PATH` line is the shell step's line, and is to be drawn again in Paper; setup's cards are
 the dashboard's card as it's drawn everywhere, their line and title in `text.subtle`, where the
 frames draw the line in `border` and the title bold `text.secondary`; and the status line, the clock
-and where a card sits follow the rules below. The primary's reserve card and the Accounts tab's
-token-year line are still to be drawn in Paper.
+and where a card sits follow the rules below. The primary's reserve card is still to be drawn in
+Paper.
 
 **The line walk, no longer run.** `switchboard setup` runs the screen, and the line walk it
 replaced is no longer run: its code is removed next, with the sentences only it prints. It asked a
@@ -1324,7 +1324,7 @@ their own words.
   this run has read. Where either isn't known, as where the header is missing or the API didn't
   answer, nothing is done: the token is saved. That setup tokens' answers carry the header is
   unverified.
-- **A token's year,** one owner, designed: `internal/status` works out when it was taken, when it's
+- **A token's year,** one owner: `internal/status` works out when it was taken, when it's
   up, whether it's up within a span, its days left and the share of it gone, and setup's TOKEN
   column and notes, the Accounts tab's line, the router's notifications and `usage` all read it
   there (see Accounts and tokens for where the time is kept). The status document carries the date
@@ -3365,9 +3365,25 @@ session. The key lines, where the frames draw the keys from before the sweep of 
   line stands (see Routing by hand).
 - On a phone: `tab views   [ ] view   ? keys   q quit`.
 
-**A token's year: designed.** Accounts shows a line for an account whose token's year is up within
-30 days, as `internal/status`, its one owner, works it out. Its words and where it sits are to be
-drawn in Paper, a small follow-up to setup's frames.
+**A token's year.** Accounts tells of an account whose token's year is up within 30 days, or is up,
+as `internal/status`, its one owner, works it out, the days counted in the dashboard's own time zone
+at its own clock; nothing changes for any other account. Its words are the notification's, `prose`
+their one owner, and `views.TokenNoteOf` the view's data; Paper follows the build.
+
+- **Detail:** a line of its own under the account's state line, in line with the state's words:
+  `token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`, `· last day` on
+  its last day, and `token expired 17 Nov 2026 — switchboard setup makes a new one` once it's up.
+  USAGE moves down a row for it. Narrower than the line, it wraps at its spaces to the frame's edge,
+  the days left and `switchboard setup` never broken; stacked, as on a phone, it sits under the
+  short state line the same way.
+- **Compare:** a row under the accounts' state row, in each such account's column: `token: 21 days
+  left`, `token: last day` or `token expired`, held with the heads. It's there only where an account
+  shown has one; other columns, and `all accounts`, leave it blank. A column too narrow says the
+  days left alone. Turned, as on a phone, where there are no heads, it's a row under the account's
+  WEEK USED row, from its bar.
+- **Colours:** the words `text.muted`; the days left, or `expired`, bold `accent.attention`, and bold
+  `state.destructive` at 7 days or fewer, as setup's table colours them; `switchboard setup`
+  `text.secondary`.
 
 **`?` help** (see The page), `HELP · ACCOUNTS`, lists the page's keys first, `t`, `R`, `j`/`k` and
 the wheel among them; then it explains each part in turn: Compare's groups and how each row is
@@ -6743,14 +6759,16 @@ posts, but for a token's year, which has no key: see Config.
   looks at the accounts on every event and every 15 seconds, so a limit lifting or a window
   resetting with no traffic is noticed.
 - **Warnings:** a window passing the share given, once a reset: `work · Work: Week at 91%`.
-- **A token's year,** designed: an account whose token's year is up within 30 days, and again within
+- **A token's year:** an account whose token's year is up within 30 days, and again within
   7, as `internal/status` works it out, once per token per threshold. It has no key in
   `[notifications]`: it's posted at most twice in a token's year, and always. Its rules are the
   build's calls (see Setup, "The build's calls"): no quiet minute holds it back, as none holds a
   limit's back; unlike room again and warnings, it tells of how the tokens stood as the router
   started, only the nearest threshold a token has passed posted, and any earlier counting as told;
   and what's told is kept in `state.json`, an account's against the token it was told for, so a
-  restart tells nothing twice and a new token starts afresh.
+  restart tells nothing twice and a new token starts afresh. Its words are `prose`'s, which the
+  Accounts tab's token line shares: `work · Work: token expires 17 Nov 2026 · 21 days left —
+  switchboard setup makes a new one`.
 - **Moves:** each move a limit's notification doesn't tell of, as one its limit forced once the
   limit's notification has gone out, or any while `limits` is off:
   `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`.
@@ -8000,7 +8018,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, and a line's limits kept small, as the views hold them, with their stored form, as a day's digest keeps the windows a page's points hold, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, the headers that name the prompt a request serves, its class and its agent, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, a window's rate of use, the allowance, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
-| `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and, designed, a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, the router's notifications and `usage` read |
+| `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, the router's notifications and `usage` read |
 | `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find reads of it (see The request ledger). It opens nothing itself; it reads through the readers it's given |
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and, designed, setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
@@ -8021,7 +8039,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]`, and telling text that holds one |
-| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, and text cut short |
+| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 
 Each view's data is built once, in `internal/views`, and drawn by `internal/dashboard` or printed
