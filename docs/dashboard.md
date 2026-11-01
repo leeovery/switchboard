@@ -209,6 +209,9 @@ Compare has a column for each account, and one for `all accounts`. Each column s
 - what the plan costs against what its use was worth at API prices. Where an account has no
   `plan`, `all accounts` says how many of the plans it knows, as its worth is every account's.
 
+An account whose token expires within 30 days, or has expired, says so under its state,
+`token: 21 days left`.
+
 `←` and `→` move a focus along the columns, scrolling them where they don't all fit. `enter`
 opens the focused account in Detail.
 
@@ -226,6 +229,10 @@ Detail shows one account, or all of them, chosen from a list at its left. It sho
 - its verdict, as History's Weeks gives it
 - its SESSIONS now
 - its LATELY.
+
+An account whose token expires within 30 days, or has expired, says so on a line under its state,
+with the command that makes a new one: `token expires 17 Nov 2026 · 21 days left — switchboard
+setup makes a new one`.
 
 In Detail:
 

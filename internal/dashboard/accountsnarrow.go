@@ -277,7 +277,9 @@ func turnedName(col compareColumn, cells int) line {
 // turnedWeek draws WEEK USED from row y, and returns the row its last column
 // is on: its label, as weekLabel has it; then each column, a blank row before
 // it, its name, its week's bar, as weekGauge has it, and its percentage, as
-// the layout places them.
+// the layout places them; and on the row under it, from its bar, what's told
+// of its token's year, where anything is, as Compare's heads tell it, the
+// turned form having no heads.
 func (cp compared) turnedWeek(c *canvas, y int, l turnedLayout, columns []compareColumn) int {
 	c.line(0, y, weekLabel(cp.f.Accounts.Period))
 	c.heading(y, y+partsApart)
@@ -288,6 +290,11 @@ func (cp compared) turnedWeek(c *canvas, y int, l turnedLayout, columns []compar
 		g.bar.draw(c, cp.f.Look, l.at, y, l.bar)
 		c.barred(l.at, y, l.bar, g.of)
 		c.right(l.figures+percentCells, y, g.percentage())
+		if col.noted {
+			y++
+			cells := cp.f.edge() - l.at
+			c.line(l.at, y, fitParts(cells, tokenShortForms(col.note).fitting(cells)...))
+		}
 	}
 	return y
 }
@@ -477,15 +484,16 @@ func (f Frame) stackedOf(doc status.Document, now time.Time) stacked {
 
 // whole is stacked Detail drawn whole, each part under its heading, a
 // blank row between: the picker, and under it how the account stands, short,
-// as stands has it; USAGE; once the period's page is read, THIS WEEK, BY
-// MODEL, BY DAY, and WEEKS with the verdict under it; SESSIONS, as Detail
+// as stands has it, and its token line, as note draws it; USAGE; once the
+// period's page is read, THIS WEEK, BY MODEL, BY DAY, and WEEKS with the
+// verdict under it; SESSIONS, as Detail
 // draws it, where sessions run on the account; and LATELY, its words uncut,
 // each line cut at the frame's edge.
 func (s stacked) whole() stack {
 	c := growing(s.f.Width)
 	s.picker(c, 0)
 	s.stands(c, 0, 1, true)
-	y := s.usage(c, 1+partsApart)
+	y := s.usage(c, s.note(c, 1)+partsApart)
 	if s.page != nil {
 		y = s.thisWeek(c, y+partsApart)
 		y = s.byModel(c, y+partsApart) + partsApart
@@ -501,6 +509,18 @@ func (s stacked) whole() stack {
 	c.heading(y, y+1)
 	s.lately(c, y+1, 0, s.f.edge())
 	return stack{c: c, targets: targets}
+}
+
+// note draws the account's token line from the row under row y, where it
+// says how it stands, as noteLines wraps it to the frame's edge, in line with
+// those words, after their glyph; and returns its last row: y where there's
+// none.
+func (s stacked) note(c *canvas, y int) int {
+	for _, l := range s.noteLines(s.f.edge() - stateWordsAt) {
+		y++
+		c.line(stateWordsAt, y, l)
+	}
+	return y
 }
 
 // picker draws the picker along row y: the account shown, or all accounts,

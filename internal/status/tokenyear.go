@@ -6,6 +6,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -72,6 +73,14 @@ func (y TokenYear) DaysLeft(now time.Time) (days int, counted bool) {
 	return dayfile.DaysBetween(now, y.GoodUntil, now.Location()), true
 }
 
+// Ending is the year's ending at now, as prose tells of it: when it's up,
+// whether it is, and the days left of it, as DaysLeft counts them. It's for
+// a year that's known: of one that isn't, it would tell of 1 Jan 0001.
+func (y TokenYear) Ending(now time.Time) prose.TokenEnding {
+	left, _ := y.DaysLeft(now)
+	return prose.TokenEnding{Now: now, Until: y.GoodUntil, Up: y.Up(now), DaysLeft: left}
+}
+
 // Gone is the share of the year gone at now, from 0 as it's taken to 1 as
 // it's up, held there either side: 1 where it's up, else 0 where either end
 // isn't known, or it has no length to share.
@@ -126,6 +135,18 @@ func (a AccountNow) TokenEndsWithin(days int) bool {
 // moment it stands at, as TokenYear.DaysLeft counts them.
 func (a AccountNow) TokenDaysLeft() (days int, counted bool) {
 	return a.TokenYear.DaysLeft(a.now)
+}
+
+// TokenWarned returns the nearest warning whose days the account's token's
+// year ends within at the moment it stands at, as TokenYear.Warned has it.
+func (a AccountNow) TokenWarned() (days int, warned bool) {
+	return a.TokenYear.Warned(a.now)
+}
+
+// TokenEnding is the account's token's year's ending at the moment it stands
+// at, as TokenYear.Ending has it.
+func (a AccountNow) TokenEnding() prose.TokenEnding {
+	return a.TokenYear.Ending(a.now)
 }
 
 // TokenGone is the share of the account's token's year gone at the moment

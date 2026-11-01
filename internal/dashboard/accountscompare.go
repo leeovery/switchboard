@@ -44,7 +44,8 @@ const (
 	barMost    = 40
 	shareSpare = 4
 	// compareHeads are the rows the heads take, held however far the rest
-	// scrolls: the names, the states, and a blank row.
+	// scrolls: the names, the states, and a blank row; and, where any column
+	// shown tells of its token's year, its row, before the blank.
 	compareHeads = 3
 	// compareByModel is BY MODEL's row under the heads, a blank row after WEEK
 	// USED's; and groupApart is how far each group's heading is from the
@@ -300,14 +301,17 @@ type compared struct {
 // compareColumn is a column of Compare: from column x, its values cut to
 // width cells and its heads to head cells, its column's less a cell, but
 // all accounts' values, to the frame's edge; of an account, by its id, as it
-// stands, numbered, where the moment has it, and its row of the period's
-// page; or, of all accounts, every account's.
+// stands, numbered, where the moment has it, what's told of its token's year,
+// where anything is, as views.TokenNoteOf has it, and its row of the
+// period's page; or, of all accounts, every account's.
 type compareColumn struct {
 	x, width, head int
 	all            bool
 	id             string
 	account        status.AccountNow
 	known          bool
+	note           views.TokenNote
+	noted          bool
 	row            views.AccountsRow
 }
 
@@ -414,11 +418,15 @@ func (cp compared) columns() []compareColumn {
 
 // column is the column of the configured account at the place given among
 // them, from 0, wherever it's shown: as the moment's Configured has it,
-// whether the moment has it, and its row of the period's page.
+// whether the moment has it, what's told of its token's year, and its row of
+// the period's page.
 func (cp compared) column(i int) compareColumn {
 	a := cp.accounts[i]
 	col := compareColumn{id: a.ID, account: a}
 	_, col.known = cp.m.Account(a.ID)
+	if col.known {
+		col.note, col.noted = views.TokenNoteOf(a)
+	}
 	if cp.page != nil {
 		if j := slices.IndexFunc(cp.page.Rows, func(r views.AccountsRow) bool { return r.Totals.Account == a.ID }); j >= 0 {
 			col.row = cp.page.Rows[j]
@@ -449,17 +457,33 @@ func (col compareColumn) ink() ink {
 // under the heads, and over the key line, where they don't all show, how
 // many are out of view.
 func (cp compared) draw(c *canvas, top int) {
-	cp.heads(c, top, cp.columns())
+	columns := cp.columns()
+	cp.heads(c, top, columns)
 	body := cp.rows()
 	paged := pagedWhole(body, cp.bodyRows())
 	from, to := paged.shown(cp.f.Scroll)
-	c.paste(body, from, top+compareHeads, to-from)
+	c.paste(body, from, top+headRows(columns), to-from)
 	c.line(0, cp.f.Height-underView, outOfView(from, paged.content-to, cp.f.edge(), compareOut))
 }
 
 // bodyRows are the rows Compare's rows show in, under its heads.
 func (cp compared) bodyRows() int {
-	return max(cp.f.viewRows()-compareHeads, 0)
+	return max(cp.f.viewRows()-cp.headRows(), 0)
+}
+
+// headRows are the rows Compare's heads take, as headRows has them of its
+// columns.
+func (cp compared) headRows() int {
+	return headRows(cp.columns())
+}
+
+// headRows are the rows the heads of the columns given take: compareHeads,
+// and a row more where any tells of its token's year.
+func headRows(columns []compareColumn) int {
+	if slices.ContainsFunc(columns, func(col compareColumn) bool { return col.noted }) {
+		return compareHeads + 1
+	}
+	return compareHeads
 }
 
 // scrolling is how far Compare's rows scroll under its heads, a row at a
@@ -471,16 +495,18 @@ func (cp compared) scrolling(offset int) Scrolling {
 // scrolls is what of Compare scrolls: its rows under its heads, across the
 // frame.
 func (cp compared) scrolls() (x, y, width, rows int) {
-	return 0, cp.f.top() + compareHeads, cp.f.Width, cp.bodyRows()
+	return 0, cp.f.top() + cp.headRows(), cp.f.Width, cp.bodyRows()
 }
 
 // targets are Compare's heads, each column's, a click on which moves the
-// focus to it: its name and its state, each across its heads' cells.
+// focus to it: its name, its state and its token's row, where there's one,
+// each across its heads' cells.
 func (cp compared) targets() []Target {
 	top := cp.f.top()
 	var targets []Target
-	for _, col := range cp.columns() {
-		for y := range compareHeads - 1 {
+	columns := cp.columns()
+	for _, col := range columns {
+		for y := range headRows(columns) - 1 {
 			targets = append(targets, Target{X: col.x, Y: top + y, Width: col.head, On: OnColumn, Account: col.id})
 		}
 	}
@@ -508,18 +534,23 @@ func (cp compared) filled() map[Ref]float64 {
 
 // heads draws the columns' heads from row top: each account's number, its
 // name and its marks, as usage names an account, but for ▲, as Accounts
-// shows no routing, and under them its state in a word; all accounts', 0 and
-// its name, and its accounts' states counted; the focused column's on
-// bg.selection, and over it, a state cued as it changes, a warning showing
-// through the focus.
+// shows no routing, under them its state in a word, and under that what's
+// told of its token's year, where anything is, short, as tokenShortForms
+// fits it; all accounts', 0 and its name, and its accounts' states counted;
+// the focused column's on bg.selection, and over it, a state cued as it
+// changes, a warning showing through the focus.
 func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
 	s := cp.f.Accounts
+	rows := headRows(columns)
 	for _, col := range columns {
 		c.line(col.x, top, cp.named(col, col.head))
 		stands := cp.stands(col, col.head)
 		c.line(col.x, top+1, stands)
+		if col.noted {
+			c.line(col.x, top+2, fitParts(col.head, tokenShortForms(col.note).fitting(col.head)...))
+		}
 		if s.Focused && s.Focus == col.id {
-			for y := range compareHeads - 1 {
+			for y := range rows - 1 {
 				c.surface(col.x, top+y, col.head, hue{token: theme.BgSelection})
 			}
 		}

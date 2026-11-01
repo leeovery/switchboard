@@ -466,6 +466,8 @@ var pages = []page{
 	{name: "accounts-detail-all-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts("]")},
 	{name: "accounts-detail-work-160", size: wide(37), world: accountWorlds.auto, keys: toDetail(downKey)},
 	{name: "accounts-detail-limit-160", size: wide(37), world: accountWorlds.badHour, keys: toDetail(downKey, downKey)},
+	{name: "accounts-detail-token-160", size: wide(37), world: accountWorlds.tokensEnding, keys: toDetail(downKey)},
+	{name: "accounts-compare-token-160", size: wide(37), world: accountWorlds.tokensEnding, keys: toAccounts()},
 	{
 		name: "accounts-detail-sessions-160", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
 		keys: slices.Concat(keysOf("]"), repeated(downKey, 3), []tea.KeyPressMsg{rightKey, downKey}),
