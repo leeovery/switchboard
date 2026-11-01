@@ -289,6 +289,10 @@ func TestAPrimingStepThatFailsStopsSetupThere(t *testing.T) {
 			if got, want := h.rows()[fieldRow], factRowOf("✗", notSet(tt.want)); got != want {
 				t.Errorf("the page's row reads\n%q\nwant\n%q", got, want)
 			}
+			lines := h.model.summary().Lines()
+			if got, want := lines[len(lines)-1].Said, (setup.Said{Mark: setup.Failed, Label: "Priming", Detail: tt.want.Error()}); got != want {
+				t.Errorf("the summary's last line is %+v, want %+v, saying why as the page does", got, want)
+			}
 			if got := strings.TrimLeft(h.rows()[keyRow], " "); got != "q quit" {
 				t.Errorf("the key line reads %q, want q quit alone", got)
 			}

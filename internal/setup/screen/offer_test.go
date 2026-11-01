@@ -296,7 +296,7 @@ func TestLeavingAsTheLineIsAddedWaitsForTheWrite(t *testing.T) {
 			default:
 				t.Error("run() returned before AddLine ended")
 			}
-			if left != (Left{Ending: Paused}) {
+			if how(left) != (Left{Ending: Paused}) {
 				t.Errorf("run() left setup %+v, want it paused", left)
 			}
 			if steps.hooks != 0 || len(steps.askedOf) != 0 {

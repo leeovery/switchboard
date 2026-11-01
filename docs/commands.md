@@ -326,29 +326,68 @@ alias cxside='switchboard run --account side --'   # a launcher pinned to side
 
 ### `setup`
 
-`setup` walks you through setting switchboard up, or what's left of it.
+`setup` walks you through setting switchboard up, or what's left of it, full screen.
 
 ```bash
 switchboard setup
 ```
 
-Each step says what's done already, and does only what isn't, so `setup` is safe to run again. It
-asks as it goes, a line at a time, so it needs a terminal. Without one, it lists what takes each
-step alone: a command where there is one, and for the skill and the session hook, `setup` alone.
+It runs in the dashboard's chrome, a page a step: Accounts, Priming, the service, the `claude`
+link and the skill, then Done. Each step says what's done already, and does only what isn't, so
+`setup` is safe to run again. It needs a terminal at least 95 columns by 25 rows; smaller, it says
+to make the terminal larger. Without a terminal, it lists what takes each step alone: a command
+where there is one, and for the skill and the session hook, `setup` alone.
 
-`setup` stops at a step that fails, at an interrupt, or when its input ends. Run it again to carry
-on from there.
+Each page says what its step found and did, a row a fact, and its keys are on the last row.
+`enter` moves on once a step is done; there's no going back. A step that fails stops `setup`
+there: its page says why, and `setup` leaves failing. `q` leaves at any step, and `setup` run again
+carries on from where things stand. While a card is open, `q` does nothing, and while Priming's
+day is typed in, it types: press `esc` first, or `ctrl+c`, which always leaves. At Done, `enter`
+opens the dashboard, and `q` leaves without it.
+
+However it's left, by `q`, a step that failed or Done, `setup` prints each step's line into the
+scrollback once the screen has gone, as Done says it, one after another, with the line to add by
+hand, or the directory to put first on `PATH`, under the `claude` link's where it isn't done, on a
+line of its own, whole, however narrow the terminal, so it copies as one line. `c` and `d` copy
+them on the screen where your terminal lets a program copy (OSC 52); where it doesn't, they're
+there to copy. For example:
+
+```text
+  ✓  Accounts             2, all working · primary: work
+  ✓  Priming              on, 08:00–23:00
+  ✓  Service              installed · router healthy
+  !  claude link          created, but it isn't first on your PATH. Add this line to ~/.zshrc:
+     if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
+  ✓  Skill                up to date
+```
+
+Then, left before Done, it says `run setup again to carry on`; left at a step that failed, it
+prints the step's error and ends with a status of 1.
 
 The steps are:
 
-1. **Accounts.** Lists the accounts, each with whether its token is usable, and asks for a missing
-   token. Pressing Enter leaves it for later. Offers to add accounts, one at a time, asking each
-   one's id, label and token. With no accounts configured, it asks for the first straight away.
-   With more than one and none marked, it asks which is the primary.
-2. **Priming.** With no day set, asks for one, as `HH:MM-HH:MM`, and writes it to `[prime]`.
-   Pressing Enter leaves priming off.
-3. **The service.** Installs the LaunchAgent when it isn't installed and no router answers or runs.
-   Installs it again when launchd hasn't loaded it and no router answers, when it runs another
+1. **Accounts.** Shows every account as a table: its id, label, plan, reserve and token. Each
+   token is checked with the API as `setup` opens, and shows the date its year is up, with the
+   days left. A note under the table says what an account is missing, and the key that sees to
+   it. `↑` and `↓` choose an account; `t` makes it a new token, `e` edits its label, plan, reserve
+   and whether it's the primary, `r` removes it, asking first, and `p` makes it the primary: the
+   account your browser and the Claude apps are signed in to. `+ add an account` adds one: its id,
+   label and plan, then its token. With no account, the card adding one opens at once. With two
+   or more and none the primary, `enter` waits for one.
+
+   `setup` makes each token with `claude setup-token`, which it runs itself, opening its sign-in
+   page in your browser. The first account's token, or the primary's on a run again, opens in
+   the browser as it is. Every other's opens in a private window, where your browser can open
+   one from the command line, as the Chrome family and Firefox can, so you sign in there to that
+   account's subscription; otherwise, as for Safari, `setup` shows the address to open in one. The
+   token's checked with the API, then saved, good for a year. A token for a subscription another
+   account has already isn't saved. `p` on the token card pastes a token you made with `claude
+   setup-token` instead; a pasted token shows as dots, never the token.
+2. **Priming.** Asks for your day, as `HH:MM-HH:MM`, holding the day set, if any, and writes it to
+   `[prime]` where it changed. Left empty, priming stays off; cleared, it's turned off.
+3. **The service.** Runs as its page opens, asking nothing. Installs the LaunchAgent when it isn't
+   installed and no router answers or runs. Installs it again when launchd hasn't loaded it and no
+   router answers, when it runs another
    switchboard than the one `setup` runs as, when `setup` is given another config file than the one
    the router serves, or when its plist differs from the one `switchboard service install` would
    write with what it was installed with, as after an upgrade that adds a key, and says what
@@ -429,10 +468,11 @@ The steps are:
    where the alias is all plain words and names no `claude`; otherwise, as with `caffeinate -i
    claude` or `cd ~/work && claude`, it's a wrapper `setup` doesn't read. A function, or a wrapper,
    `setup` doesn't read, so it says it goes through switchboard where it runs `claude` by name.
-   Ctrl-C while it asks stops `setup`. `setup` asks zsh, bash and fish alone: for another shell, it
+   `q` while it asks stops `setup`. `setup` asks zsh, bash and fish alone: for another shell, it
    shows the bin directory, as `$HOME/…`, to put first on `PATH` by hand. Until it's done, for zsh,
-   bash and fish, `setup` offers to add one line to the end of your shell's startup file, naming the
-   file and showing the line first. For zsh, the line is:
+   bash and fish, `setup` offers, once, in a card, to add one line to the end of your shell's
+   startup file, naming the file and showing the line first: `enter` adds it, and `n` leaves it to
+   add by hand. For zsh, the line is:
 
    ```bash
    if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard
@@ -456,8 +496,9 @@ The steps are:
    changes `PATH`, such as `.zlogin`, and `setup` says to put the line after it. A line there
    reading another switchboard's file, `setup` shows the line to put in its place. Declined,
    `setup` shows the line to add by hand, and the bin directory alone, as `$HOME/…`, to put first
-   on `PATH` wherever you keep it another way. Then it asks your login shell again, as often as you
-   like, until it runs the link. Leaving it isn't a failure: `setup` carries on. A shell that exits
+   on `PATH` wherever you keep it another way: `c` copies the line and `d` the directory, and `r`
+   asks your login shell again, as often as you like, until it runs the link. `enter` leaves it
+   for now, which isn't a failure: `setup` carries on. A shell that exits
    without answering may have a startup file that starts something needing a terminal, such as
    tmux, and `setup` says so.
 
@@ -472,13 +513,14 @@ The steps are:
    `skills/switchboard/SKILL.md` in `~/.claude`, or in `$CLAUDE_CONFIG_DIR`. Switchboard owns the
    file. When a new switchboard brings a new version of it, `setup`, and the router as it starts,
    replace it, edits and all. Otherwise, they leave it be.
-6. **Usage.** Prints [`usage`](#usage): every account's windows as they stand.
+6. **Done.** A line a step, as it stands, the `claude` link's with the line to add by hand where
+   it isn't done, then what to run next. `enter` opens the [dashboard](dashboard.md).
 
 `setup` refuses a switchboard that won't last, such as `go run`'s, because the service and the link
 both run the switchboard `setup` was run by.
 
-`setup` asks for tokens where they don't show as they're pasted. It never takes one pasted where
-it would show.
+`setup` takes a token only where it doesn't show as it's pasted, as on the token card. It never
+takes one pasted where it would show.
 
 ### `accounts`
 

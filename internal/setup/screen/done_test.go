@@ -232,9 +232,6 @@ func TestTheSummaryIsWhereTheWalkStands(t *testing.T) {
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("the summary reads\n%q\nwant\n%q", got, tt.want)
 			}
-			if s := h.model.summary(); s.At == setup.StepPriming && s.Failure != "" && h.model.priming.failure != s.Failure {
-				t.Errorf("the Priming page says it failed with %q, the summary %q", h.model.priming.failure, s.Failure)
-			}
 		})
 	}
 }

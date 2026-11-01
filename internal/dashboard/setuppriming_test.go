@@ -102,7 +102,7 @@ func TestADayRefusedIsSaidUnderTheField(t *testing.T) {
 func TestAPrimingStepThatFailedSaysWhyInPlaceOfTheField(t *testing.T) {
 	const why = "read the config: the config doesn't parse"
 	rows := textOf(primingScreen(func(s *Setup) {
-		s.Priming, s.Failure = &SetupPrimingPage{Failure: why}, why
+		s.Failure = why
 	}).Draw(160, 37, Look{}))
 	if got, want := rows[9], textsAt(160, map[int]string{2: "✗", 5: "Not set", 26: why}); got != want {
 		t.Errorf("row 9 reads\n%q\nwant\n%q", got, want)

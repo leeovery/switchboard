@@ -312,7 +312,7 @@ func TestQWhileChecksRunLeavesOnceEveryCheckHasEnded(t *testing.T) {
 	}()
 	select {
 	case got := <-returned:
-		if got.err != nil || got.left != (Left{Ending: Paused}) {
+		if got.err != nil || how(got.left) != (Left{Ending: Paused}) {
 			t.Errorf("run() = %+v, %v; want setup paused, no error", got.left, got.err)
 		}
 	case <-time.After(time.Minute):

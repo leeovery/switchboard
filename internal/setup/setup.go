@@ -1,8 +1,11 @@
-// Package setup walks the user at a terminal through setting switchboard up:
-// the accounts and their tokens, which is the primary, priming, the service,
-// the claude link and the session hook, and the skill, then prints usage.
-// Each step says what's done already, and does only what isn't, so setup is
-// safe to run again.
+// Package setup decides each step of setting switchboard up: the accounts
+// and their tokens, which is the primary, priming, the service, the claude
+// link and the session hook, and the skill. Its actions return typed
+// outcomes, each in the words its screen draws, and Summary is how setup
+// stands, a line a step, as Done says it and setup prints as it leaves; its
+// screen, internal/setup/screen, runs them a page a step. Each step says
+// what's done already, and does only what isn't, so setup is safe to run
+// again.
 package setup
 
 import (
@@ -171,8 +174,9 @@ type run struct {
 	made LinkMade
 	led  string
 	// health is the service's router's, where the service step saw it
-	// answer.
+	// answer, and swap how far the step's swap of the service got.
 	health *router.Health
+	swap   service.Swap
 }
 
 // wrote is told by each of setup's writes to the config or a token, which

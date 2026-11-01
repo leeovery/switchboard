@@ -744,7 +744,7 @@ func TestTheScreenLeavesOnceATokenHeldThroughAnInterruptIsSaved(t *testing.T) {
 	case <-time.After(time.Minute):
 		t.Fatal("a minute on, the screen was up still, want it left once the token held through an interrupt was saved")
 	}
-	if got.err != nil || got.left != (Left{Ending: Paused, Interrupted: true}) {
+	if got.err != nil || how(got.left) != (Left{Ending: Paused, Interrupted: true}) {
 		t.Errorf("run() = %+v, %v; want setup paused, an interrupt held", got.left, got.err)
 	}
 	if got := steps.replacedOf("work"); got != 1 {

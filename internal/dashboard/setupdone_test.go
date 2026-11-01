@@ -216,6 +216,69 @@ func wrapFault(rows []string, text string, width int) string {
 	return ""
 }
 
+func TestSetupPrintsDonesLinesOneAfterAnotherPlain(t *testing.T) {
+	want := []string{
+		textsAt(160, map[int]string{2: "✓", 5: "Accounts", 26: "3, all working · primary: work, with 5% reserved for the Claude apps"}),
+		textsAt(160, map[int]string{2: "✓", 5: "Priming", 26: "on, 08:00–23:00"}),
+		textsAt(160, map[int]string{2: "✓", 5: "Service", 26: "installed and updated · router healthy"}),
+		textsAt(160, map[int]string{2: "!", 5: "claude link", 26: "created, but it isn't first on your PATH. Add this line to ~/.zshrc:"}),
+		blanks(5) + shellLine,
+		textsAt(160, map[int]string{2: "✓", 5: "Skill", 26: "up to date"}),
+	}
+	got := SetupPrinted(doneScreen().Summary, 160)
+	if !slices.Equal(got, want) {
+		t.Errorf("setup prints\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	for _, row := range got {
+		if strings.ContainsRune(row, '\x1b') {
+			t.Errorf("setup prints %q, styled; want nothing styled for a terminal that's gone", row)
+		}
+	}
+}
+
+func TestSetupPrintsTheLineToAddWholeOnARowOfItsOwn(t *testing.T) {
+	for _, width := range []int{160, 80, 73} {
+		got := SetupPrinted(doneScreen().Summary, width)
+		i := slices.IndexFunc(got, func(row string) bool { return strings.Contains(row, "claude link") })
+		if i < 0 {
+			t.Fatalf("at %d columns, setup prints\n%s\nwith no claude link line", width, strings.Join(got, "\n"))
+		}
+		j := slices.IndexFunc(got, func(row string) bool { return strings.Contains(row, "if [ -r") })
+		if j <= i || got[j] != blanks(5)+shellLine {
+			t.Errorf("at %d columns, setup prints\n%s\nwant the line, whole, on a row of its own under the claude link's, for the terminal to wrap", width, strings.Join(got, "\n"))
+		}
+		for y, row := range got {
+			if y != j && ansi.StringWidth(row) > width {
+				t.Errorf("at %d columns, row %d, %q, is wider than the terminal, want the step's words wrapped as Done wraps them", width, y, row)
+			}
+		}
+	}
+}
+
+func TestSetupPrintsTheDirectoryWholeUnderTheLinksLine(t *testing.T) {
+	const dir = "$HOME/.local/share/switchboard/bin"
+	link := &setup.LinkFound{Made: setup.LinkCreated, Shell: setup.ShellFound{Situation: setup.UnknownShell, Dir: dir}}
+	got := SetupPrinted(setup.Summary{At: setup.StepSkill, Link: link}, 70)
+	want := []string{
+		textsAt(70, map[int]string{2: "✓", 5: "Accounts"}),
+		textsAt(70, map[int]string{2: "✓", 5: "Priming"}),
+		textsAt(70, map[int]string{2: "✓", 5: "Service"}),
+		textsAt(70, map[int]string{2: "!", 5: "claude link", 26: "created, but setup can't check it for your"}),
+		textsAt(70, map[int]string{26: "shell. Put this directory first on your"}),
+		textsAt(70, map[int]string{26: "PATH:"}),
+		blanks(5) + dir,
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("setup prints\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestSetupPrintsNothingOfAStepNotReached(t *testing.T) {
+	if got := SetupPrinted(setup.Summary{}, 160); len(got) != 0 {
+		t.Errorf("setup prints %q of a summary of no step, want nothing", got)
+	}
+}
+
 func TestDoneHoldsItsPageAtTheLeastSize(t *testing.T) {
 	const width, height = 95, 25
 	top := textOf(doneScreen().Draw(width, height, Look{}))

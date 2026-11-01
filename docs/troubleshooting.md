@@ -20,7 +20,7 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   after it, to the end of the file, or what changes `PATH` to before it. Where you keep `PATH`
   another way, as in a file of your own or a tool that writes it, put switchboard's bin
   directory, `$XDG_DATA_HOME/switchboard/bin`, else `~/.local/share/switchboard/bin`, first on
-  it there. `setup` checks again once you have. An alias named `claude` goes through switchboard
+  it there. `r` on `setup`'s `claude` link page checks again once you have. An alias named `claude` goes through switchboard
   where its command, after any plain variables, is `claude`, `\claude` or `command claude`, or
   switchboard's `claude` link by its path, absolute or from an unquoted `~/`, `$HOME/` or
   `${HOME}/`, with no variable before it that sets `PATH`, by `PATH=` or `PATH+=`, or in zsh
@@ -49,6 +49,15 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `setup` again. Where it says `switchboard is running as sb here`, you ran switchboard by
   another name, such as a link of your own or a build given another name: run `setup` as `switchboard`, by the path
   you installed it at.
+- **`setup` says to make the terminal larger:** its screen needs 95 columns by 25 rows, so on a
+  phone's narrow terminal, turn it sideways or use a larger one.
+- **`c` on `setup`'s screen copies nothing:** it copies by OSC 52, which some terminals don't
+  allow, or allow only once it's turned on, as tmux's `set-clipboard`. As `setup` leaves, it prints
+  each step's line into the scrollback, with the line to add to your shell's startup file, or the
+  directory to put first on `PATH`, to copy from there.
+- **A token `setup` made but couldn't read or save:** it prints the token as `claude setup-token`
+  showed it, once its screen has gone, as the token lasts a year on the account. Run `setup` again,
+  and press `p` on its token card to paste it.
 - **The ledger's digests:** the `ledger/digest-<date>.json.gz`, `ledger/parts-<date>.gz`,
   `ledger/logday-<date>.json.gz` and `ledger/rows-<date>.gz` files are safe to delete. They're
   worked out from the day's lines, and the router writes them again on its next round, or when it

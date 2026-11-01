@@ -3,11 +3,11 @@ package dashboard
 import "github.com/leeovery/switchboard/internal/setup"
 
 // SetupPrimingPage is the Priming step's page as it stands: the field Your day,
-// and why the day typed in it isn't one, where setup refused it; or why the
-// step failed, reading the day or setting it, where it did.
+// and why the day typed in it isn't one, where setup refused it. Why the step
+// failed, reading the day or setting it, is the summary's.
 type SetupPrimingPage struct {
-	Day              Field
-	Refused, Failure string
+	Day     Field
+	Refused string
 }
 
 // What the Priming page says: what priming is for, in the lines the page
@@ -28,14 +28,14 @@ const (
 
 // primingPage is the Priming step's page: PRIMING, what priming is for, and
 // once the day is read, the field Your day, holding it, and how to leave
-// priming off; or, where the step failed, why. Its onward key moves on to
-// the Service.
+// priming off; or, where the step failed, why, as the summary says it. Its
+// onward key moves on to the Service.
 func (s Setup) primingPage() setupPage {
 	p := setupPage{name: "PRIMING", purpose: primingPurpose, onward: onward("next: " + SetupService.Title())}
 	switch pr := s.Priming; {
+	case s.Failure != "":
+		p.facts = []setup.Said{{Mark: setup.Failed, Label: primingNotSet, Detail: s.Failure}}
 	case pr == nil:
-	case pr.Failure != "":
-		p.facts = []setup.Said{{Mark: setup.Failed, Label: primingNotSet, Detail: pr.Failure}}
 	default:
 		p.fields = []textField{{name: dayName, hint: dayHint, wrong: pr.Refused, field: pr.Day}}
 		p.notes = []line{{{primingOff, mutedInk}}}

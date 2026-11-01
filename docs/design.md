@@ -868,11 +868,11 @@ frames draw the line in `border` and the title bold `text.secondary`; and the st
 and where a card sits follow the rules below. The primary's reserve card and the Accounts tab's
 token-year line are still to be drawn in Paper.
 
-**The line walk, until the cut-over.** Until the screen is built, `switchboard setup` runs the line
-walk it replaces, and once the screen runs in its place the line walk is removed. It asks a line at
-a time, and stops when its input ends. Its Service, `claude` link and Skill do what steps 3 to 5
-below say, asked and told a line at a time. Its Accounts, Priming and end are its own, far less than
-the screen's, which steps 1, 2 and 6 describe:
+**The line walk, no longer run.** `switchboard setup` runs the screen, and the line walk it
+replaced is no longer run: its code is removed next, with the sentences only it prints. It asked a
+line at a time, and stopped when its input ended. Its Service, `claude` link and Skill did what
+steps 3 to 5 below say, asked and told a line at a time. Its Accounts, Priming and end were its
+own, far less than the screen's, which steps 1, 2 and 6 describe:
 
 - **Accounts:** lists the accounts, each with whether its token file holds a usable token, read from
   the file, with no check with the API, and asks for a missing token, typed hidden, as `accounts
@@ -1448,6 +1448,11 @@ not the owner's decisions:
   Opened from any other card, a paste that fails fails the step, the token still on the clipboard.
 - **Leaving the screen:** `switchboard setup` runs it where stdin and stdout are both terminals,
   refusing first a switchboard that won't last. Once the screen has gone, it prints in order:
+  - the summary (`Left.Summary`), Done's line a step, as Done draws their rows, one after another,
+    as wide as the terminal, without colour, and what the claude link leaves to add by hand under
+    its line, from the label's column, whole, for the terminal to wrap, so it copies as one line,
+    as a terminal without OSC 52 copies it from there; before anything that follows from it, so
+    the steps come first and what to do now last;
   - a token it gave back (`Left.Unsaved`): its lines to copy, the card's last words put for after
     the screen, as `Run switchboard setup again to try again, or to paste a token you made with
     claude setup-token.`;
@@ -1457,6 +1462,22 @@ not the owner's decisions:
   
   An interrupt held exits 130, ahead of any error. `enter` at Done opens the dashboard as
   `switchboard dashboard` does.
+- **The summary as setup leaves** is worked out once every job of the screen's has ended, from
+  how each step ended: where the screen went before the step showing had taken in what its job
+  came to, it's taken in then, as the screen would have, so the summary says it. Once setup is
+  leaving, what a job came to counts only where its write had begun, as a write once begun runs
+  to its end: a day or a line being written, the session hook or the skill, and the service
+  step's swap. For the service, `service.Install` says how far its swap got (`Swap`), whatever it
+  fails with: a swap done is said by what the step did, `installed`, its router's answer unknown,
+  and isn't a failure, as only the wait for the router was cut short, by the leaving or by an
+  interrupt held through the swap; a swap that began and failed fails the step, and setup leaves
+  failing; and anything before the swap, as `launchctl` killed or the router's ask cut short, is
+  dropped once the leaving is under way, the step said of as not reached. A restart of the router
+  the step made before any swap, as `service restart` or starting the service afresh does, is
+  outside this rule, as the account changes are. The `claude` link's asking, stopped, is dropped
+  too, as what it found then isn't what the shell runs. The account changes' writes run to their
+  end, but what they change shows only once the accounts are read again, which the leaving stops.
+  A token still being checked reads unchecked, as no check answers it now.
 - **The status line waits** until both the router and the accounts have answered, blank till then,
   so it never says `nothing set up yet` of accounts not yet read; where the config can't be read,
   it shows the router's part alone.
@@ -1548,7 +1569,7 @@ not the owner's decisions:
 
 ### How it's built
 
-All of it is designed, but `internal/setuptoken`, built (#187), which nothing calls yet.
+It's built: `switchboard setup` runs the screen, which makes tokens through `internal/setuptoken`.
 
 - **`internal/setup` decides.** It keeps every step's logic, and gives the screen actions that
   return typed outcomes rather than print: a step finds a situation, the screen asks, and an action

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"maps"
@@ -14,11 +15,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/setup/screen"
 	"github.com/leeovery/switchboard/internal/setuptoken"
@@ -160,6 +163,165 @@ func TestSetupLeavesAsTheScreenWasLeft(t *testing.T) {
 			}
 			if !slices.Equal(happened, want) {
 				t.Errorf("setup ran %q, want %q", happened, want)
+			}
+		})
+	}
+}
+
+// stepRow is a step's line as setup prints it: its mark at the third
+// column, its label at the sixth, and what it says at the 27th, as Done
+// draws it.
+func stepRow(mark, label, detail string) string {
+	return strings.TrimRight(fmt.Sprintf("  %s  %-21s%s", mark, label, detail), " ")
+}
+
+// underRow is what a step's line leaves to add by hand, as setup prints it
+// under the line, whole, from the label's column.
+func underRow(add string) string {
+	return strings.Repeat(" ", 5) + add
+}
+
+func TestSetupPrintsEachStepsLineAsItLeaves(t *testing.T) {
+	const (
+		saved = "switchboard: interrupted once the token was saved, as it lasts a year on the account\n"
+		line  = `if [ -r "$HOME/.local/share/switchboard/shell/init.zsh" ]; then . "$HOME/.local/share/switchboard/shell/init.zsh"; fi  # switchboard`
+		dir   = "$HOME/.local/share/switchboard/bin"
+		why   = "it failed, as setup says"
+	)
+	working := setup.TokenStanding{State: setup.TokenWorking}
+	review := &setup.Review{Accounts: []setup.Reviewed{{ID: "work", Primary: true, Token: working}, {ID: "personal", Token: working}}}
+	day := &config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}
+	serviced := &setup.Serviced{Said: []setup.Said{{Mark: setup.Done, Label: "Installed", Detail: "~/Library/LaunchAgents/io.github.leeovery.switchboard.plist"}}, Router: &router.Health{OK: true}}
+	byHand := &setup.LinkFound{Made: setup.LinkCreated, Shell: setup.ShellFound{Situation: setup.OfferLine, Where: "~/.zshrc", Line: line, Dir: dir}}
+	unchecked := &setup.LinkFound{Made: setup.LinkCreated, Shell: setup.ShellFound{Situation: setup.UnknownShell, Dir: dir}}
+	skill := &setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/.claude/skills/switchboard/SKILL.md"}
+	var (
+		accountsRow = stepRow("✓", "Accounts", "2, all working · primary: work")
+		primingRow  = stepRow("✓", "Priming", "on, 08:00–23:00")
+		serviceRow  = stepRow("✓", "Service", "installed · router healthy")
+		linkRows    = []string{stepRow("!", "claude link", "created, but it isn't first on your PATH. Add this line to ~/.zshrc:"), underRow(line)}
+		dirRows     = []string{stepRow("!", "claude link", "created, but setup can't check it for your shell. Put this directory first on your PATH:"), underRow(dir)}
+		skillRow    = stepRow("✓", "Skill", "installed")
+		everyRow    = slices.Concat([]string{accountsRow, primingRow, serviceRow}, linkRows, []string{skillRow})
+	)
+	stepFailed := errors.New(why)
+	screenFailed := errors.New("run setup's screen: read the terminal: input/output error")
+	tests := []struct {
+		name      string
+		left      screen.Left
+		screenErr error
+		// rows are the steps' lines setup prints first, then leaving what it
+		// prints after them, and wantCode its exit status.
+		rows     []string
+		leaving  string
+		wantCode int
+		// wantDashboard is set where the dashboard opens, after.
+		wantDashboard bool
+	}{
+		{
+			name:    "q mid-way",
+			left:    screen.Left{Ending: screen.Paused, Summary: setup.Summary{At: setup.StepService, Review: review, Day: day, Service: serviced}},
+			rows:    []string{accountsRow, primingRow, serviceRow},
+			leaving: "run setup again to carry on\n",
+		},
+		{
+			name: "q at Done: the line left to add by hand under the claude link's",
+			left: screen.Left{Ending: screen.Finished, Summary: setup.Summary{At: setup.StepDone, Review: review, Day: day, Service: serviced, Link: byHand, Skill: skill}},
+			rows: everyRow,
+		},
+		{
+			name:          "enter at Done: before the dashboard",
+			left:          screen.Left{Ending: screen.ToDashboard, Summary: setup.Summary{At: setup.StepDone, Review: review, Day: day, Service: serviced, Link: byHand, Skill: skill}},
+			rows:          everyRow,
+			leaving:       "the dashboard\n",
+			wantDashboard: true,
+		},
+		{
+			name:     "Accounts failed",
+			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepAccounts, Failure: why}},
+			rows:     []string{stepRow("✗", "Accounts", why)},
+			leaving:  "Error: " + why + "\n",
+			wantCode: 1,
+		},
+		{
+			name:     "Priming failed",
+			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepPriming, Failure: why, Review: review}},
+			rows:     []string{accountsRow, stepRow("✗", "Priming", why)},
+			leaving:  "Error: " + why + "\n",
+			wantCode: 1,
+		},
+		{
+			name:     "Service failed",
+			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepService, Failure: why, Review: review, Day: day}},
+			rows:     []string{accountsRow, primingRow, stepRow("✗", "Service", why)},
+			leaving:  "Error: " + why + "\n",
+			wantCode: 1,
+		},
+		{
+			name:     "the claude link failed",
+			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepLink, Failure: why, Review: review, Day: day, Service: serviced}},
+			rows:     []string{accountsRow, primingRow, serviceRow, stepRow("✗", "claude link", why)},
+			leaving:  "Error: " + why + "\n",
+			wantCode: 1,
+		},
+		{
+			name:     "Skill failed: the directory left to put first on PATH under the claude link's",
+			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepSkill, Failure: why, Review: review, Day: day, Service: serviced, Link: unchecked}},
+			rows:     slices.Concat([]string{accountsRow, primingRow, serviceRow}, dirRows, []string{stepRow("✗", "Skill", why)}),
+			leaving:  "Error: " + why + "\n",
+			wantCode: 1,
+		},
+		{
+			name:     "an interrupt held as a token was saved: the summary, then the token saved first",
+			left:     screen.Left{Ending: screen.Paused, Interrupted: true, Summary: setup.Summary{At: setup.StepAccounts, Review: review}},
+			rows:     []string{accountsRow},
+			leaving:  saved + "Error: interrupted\n",
+			wantCode: 130,
+		},
+		{
+			name: "a token the screen gave back: the summary, then the token",
+			left: screen.Left{Ending: screen.Paused, Unsaved: &setup.Tokened{Result: setup.TokenRefused}, Summary: setup.Summary{At: setup.StepAccounts, Review: review}},
+			rows: []string{accountsRow},
+			leaving: "The token was refused\nThe API refused the token, so it isn't saved.\n" +
+				"Run switchboard setup again to try again, or to paste a token you made with claude setup-token.\n" +
+				"run setup again to carry on\n",
+		},
+		{
+			name:      "the screen failing: the summary, then why",
+			left:      screen.Left{Ending: screen.Paused, Summary: setup.Summary{At: setup.StepService, Review: review, Day: day, Service: serviced}},
+			screenErr: screenFailed,
+			rows:      []string{accountsRow, primingRow, serviceRow},
+			leaving:   "Error: " + screenFailed.Error() + "\n",
+			wantCode:  1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := setupDeps(t)
+			deps.Getenv = withEnv(deps.Getenv, "COLUMNS", "160")
+			var happened []string
+			deps.SetupScreen = func(_ context.Context, _ screen.Config, out io.Writer, _ []string) (screen.Left, error) {
+				happened = append(happened, "screen")
+				_, _ = io.WriteString(out, "the screen\n")
+				return tt.left, tt.screenErr
+			}
+			deps.Watch = func(_ context.Context, _ watch.Config, out io.Writer, _ []string) error {
+				happened = append(happened, "dashboard")
+				_, _ = io.WriteString(out, "the dashboard\n")
+				return nil
+			}
+
+			printed, code := runSeen(t, deps, "setup")
+			want := "the screen\n" + strings.Join(tt.rows, "\n") + "\n" + tt.leaving
+			if printed != want || code != tt.wantCode {
+				t.Errorf("switchboard setup printed\n%s\nexit status %d; want\n%s\nexit status %d", printed, code, want, tt.wantCode)
+			}
+			wantRan := []string{"screen"}
+			if tt.wantDashboard {
+				wantRan = append(wantRan, "dashboard")
+			}
+			if !slices.Equal(happened, wantRan) {
+				t.Errorf("setup ran %q, want %q", happened, wantRan)
 			}
 		})
 	}

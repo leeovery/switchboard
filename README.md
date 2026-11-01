@@ -75,7 +75,7 @@ switchboard usage       # every account's limits, as they stand
 switchboard dashboard   # the live dashboard
 ```
 
-`setup` takes you through adding your accounts and installing the rest. See [`setup`](docs/commands.md#setup) for what each step does.
+`setup` takes you through adding your accounts and installing the rest, full screen, a page a step, making each account's token with `claude setup-token` as it goes. At the end, `enter` opens the dashboard. See [`setup`](docs/commands.md#setup) for what each step does.
 
 ## How it works
 
@@ -111,7 +111,7 @@ Run by Claude, these commands print JSON without being asked. See [Claude and sw
 
 | Command | What it does |
 |---|---|
-| [`switchboard setup`](docs/commands.md#setup) | Adds your accounts and installs the rest, a step at a time |
+| [`switchboard setup`](docs/commands.md#setup) | Adds your accounts and installs the rest, full screen, a page a step |
 | [`switchboard usage`](docs/commands.md#usage) | Prints every account's windows as they stand |
 | [`switchboard dashboard`](docs/dashboard.md) | Opens the live dashboard |
 | [`switchboard pin`](docs/commands.md#pin) | Sends sessions to the accounts you name, or back to the router's choice |

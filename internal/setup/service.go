@@ -35,11 +35,17 @@ const (
 const installAdvice = "switchboard service install, run from the shell the router should use"
 
 // Service takes the service step, as the line walk's does, and returns what
-// it said and the router's health. It fails as the step does, and with
-// errNoAccount where no account is configured, as there's nothing to serve.
-// Where it fails, it says so as failedRow has it.
+// it said, the router's health, and how far its swap of the service got. It
+// fails as the step does, and with errNoAccount where no account is
+// configured, as there's nothing to serve. Where it fails, it says so as
+// failedRow has it, but where ctx ends once the service is swapped: that
+// cuts short only what comes after, such as the wait for its router, so it
+// adds no failed row, and fails with why, for a caller to tell.
 func (s *Setup) Service(ctx context.Context) (Serviced, error) {
 	out, err := s.serviced(ctx)
+	if out.Swap == service.Swapped && ctx.Err() != nil {
+		return out, err
+	}
 	return failedRow(out, err), err
 }
 
@@ -75,7 +81,7 @@ func (s *Setup) serviced(ctx context.Context) (Serviced, error) {
 	var out Serviced
 	r := &run{Setup: s, switchboard: switchboard, registry: registry, cfg: draft.Config(), tell: func(said Said) { out.Said = append(out.Said, said) }}
 	err = r.service(ctx)
-	out.Router = r.health
+	out.Router, out.Swap = r.health, r.swap
 	return out, err
 }
 
@@ -563,7 +569,8 @@ func kept(opts service.InstallOptions, given bool) string {
 // and says how the router it starts answers, and, with placesAfter set,
 // where it finds what setup does elsewhere, as placesOfStarted says. It
 // warns of the accounts without a usable token only where the router serves
-// setup's config file, whose accounts setup has.
+// setup's config file, whose accounts setup has. A service swapped is said
+// to be installed, even where installing it fails after, cut short.
 func (r *run) install(ctx context.Context, svc *service.Service, opts service.InstallOptions, placesAfter bool) error {
 	opts.Executable = r.switchboard
 	routers, err := svc.Places(opts)
@@ -578,15 +585,18 @@ func (r *run) install(ctx context.Context, svc *service.Service, opts service.In
 		opts.Accounts = r.cfg.Accounts
 	}
 	installed, err := svc.Install(ctx, opts)
+	r.swap = installed.Swap
+	if installed.Swap == service.Swapped {
+		r.tell(Said{
+			Mark:     Done,
+			Label:    "Installed",
+			Detail:   r.fromHome(svc.Plist()),
+			Sentence: fmt.Sprintf("Installed %s: launchd starts the router now, at every login, and whenever it stops.", svc.Plist()),
+		})
+	}
 	if err != nil {
 		return err
 	}
-	r.tell(Said{
-		Mark:     Done,
-		Label:    "Installed",
-		Detail:   r.fromHome(svc.Plist()),
-		Sentence: fmt.Sprintf("Installed %s: launchd starts the router now, at every login, and whenever it stops.", svc.Plist()),
-	})
 	for _, warning := range installed.Warnings {
 		r.tell(Said{Mark: Warning, Label: "Warning", Detail: warning, Sentence: fmt.Sprintf("Warning: %s.", warning)})
 	}

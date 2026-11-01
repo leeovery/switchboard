@@ -72,7 +72,7 @@ func TestRunEndsEveryJobBeforeItReturns(t *testing.T) {
 	default:
 		t.Error("run() returned before Standing ended")
 	}
-	if got.err != nil || got.left != (Left{Ending: Paused}) {
+	if got.err != nil || how(got.left) != (Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", got.left, got.err)
 	}
 }
@@ -136,7 +136,7 @@ func TestQWhileTheDayIsSetLeavesOnceTheWriteHasEnded(t *testing.T) {
 	default:
 		t.Error("run() returned before SetDay ended")
 	}
-	if got.err != nil || got.left != (Left{Ending: Paused}) {
+	if got.err != nil || how(got.left) != (Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", got.left, got.err)
 	}
 }
@@ -144,7 +144,7 @@ func TestQWhileTheDayIsSetLeavesOnceTheWriteHasEnded(t *testing.T) {
 func TestRunPutsTheBackgroundBackAndSaysHowSetupWasLeft(t *testing.T) {
 	cfg := Config{Steps: newFakeSteps(), Step: dashboard.SetupService, Pair: nord(t)}
 	left, out, err := runUntil(t, cfg, terminal{answer: darkAnswer, keys: "q"})
-	if err != nil || left != (Left{Ending: Paused}) {
+	if err != nil || how(left) != (Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", left, err)
 	}
 	if want := ansi.SetBackgroundColor("#1a1b26"); !strings.HasSuffix(out, want) {
