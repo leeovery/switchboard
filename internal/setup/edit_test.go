@@ -3,6 +3,7 @@ package setup_test
 import (
 	"errors"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -228,6 +229,61 @@ func TestReserveTyped(t *testing.T) {
 		if got := (setup.Reviewed{Reserve: tt.reserve}).ReserveTyped(); got != tt.want {
 			t.Errorf("ReserveTyped of %v = %q, want %q", tt.reserve, got, tt.want)
 		}
+	}
+}
+
+// A reserve typed in an edit changes it only where it differs from the
+// account's: typed as it was, none in any case, or left empty, of an
+// account with none, changes nothing; anything else is given as typed, for
+// EditAccount to read or refuse.
+func TestReserveChange(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		reserve float64
+		typed   string
+		want    *string
+	}{
+		{name: "none, of none", typed: "none"},
+		{name: "None, of none", typed: " None "},
+		{name: "empty, of none", typed: ""},
+		{name: "blank, of none", typed: "  "},
+		{name: "a percentage, of none", typed: "5%", want: new("5%")},
+		{name: "a value refused, of none", typed: "5", want: new("5")},
+		{name: "as it was", reserve: 0.05, typed: "5%"},
+		{name: "another percentage", reserve: 0.05, typed: "10%", want: new("10%")},
+		{name: "none, of a reserve", reserve: 0.05, typed: "none", want: new("none")},
+		{name: "empty, of a reserve", reserve: 0.05, typed: "", want: new("")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := (setup.Reviewed{Reserve: tt.reserve}).ReserveChange(tt.typed)
+			if (got == nil) != (tt.want == nil) || got != nil && *got != *tt.want {
+				t.Errorf("ReserveChange(%q) of %v = %v, want %v", tt.typed, tt.reserve, deref(got), deref(tt.want))
+			}
+		})
+	}
+}
+
+// deref is what s points to, or nil.
+func deref(s *string) any {
+	if s == nil {
+		return nil
+	}
+	return *s
+}
+
+// The primary's reserve card says what the primary is, by its id, and what
+// its reserve is, what its field takes, and where other reserves are set.
+func TestAskingReserve(t *testing.T) {
+	want := setup.ReserveAsk{
+		Says: []string{
+			"work is the primary, the account the Claude apps are signed in to.",
+			"Its reserve is the share of each of its windows kept back for them.",
+		},
+		Takes:     "a percentage, or none",
+		Elsewhere: "Other accounts' reserves are set with e, or switchboard accounts edit.",
+	}
+	if got := setup.AskingReserve("work"); !reflect.DeepEqual(got, want) {
+		t.Errorf("AskingReserve(work) = %+v, want %+v", got, want)
 	}
 }
 

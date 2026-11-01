@@ -145,13 +145,19 @@ func (m Model) chosenInView() Model {
 // read, but while a change is settling, which it waits for: on + add an
 // account, it opens the add card, so it never moves on with no account; on
 // an account's row, it moves on, changing nothing, but where two accounts or
-// more have none the primary, which waits for one.
+// more have none the primary, which waits for one, and where the primary's
+// reserve card opens first, as askingReserve has it.
 func (m Model) accountsEntered() (tea.Model, tea.Cmd) {
 	switch {
 	case m.settling():
 	case m.adding():
 		m.add = addOpened()
-	case !m.status.review.Unmarked:
+	case m.status.review.Unmarked:
+	default:
+		if card := m.askingReserve(); card != nil {
+			m.reserve, m.reserveAsked = card, true
+			return m, nil
+		}
 		return m.movedOn()
 	}
 	return m, nil
@@ -178,6 +184,9 @@ func (m Model) accountsPage() *dashboard.SetupAccountsPage {
 	}
 	if m.paste != nil {
 		p.Paste = m.paste.drawn()
+	}
+	if m.reserve != nil {
+		p.Reserve = m.reserve.drawn()
 	}
 	return p
 }

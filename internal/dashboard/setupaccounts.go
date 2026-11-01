@@ -20,9 +20,9 @@ import (
 // a first run, setup having first read no account; the row chosen, an
 // account's by its place among them, or past the last, + add an account;
 // the card open over it, the card adding an account, the chosen account's
-// edit card, the card asking before it's removed, the token card, or the
-// card pasting a token, where one is; and what the step failed at, where it
-// did.
+// edit card, the card asking before it's removed, the token card, the card
+// pasting a token, or the primary's reserve card, where one is; and what
+// the step failed at, where it did.
 type SetupAccountsPage struct {
 	FirstRun bool
 	Chosen   int
@@ -31,6 +31,7 @@ type SetupAccountsPage struct {
 	Remove   *SetupRemoveCard
 	Token    *SetupTokenCard
 	Paste    *SetupPasteCard
+	Reserve  *SetupReserveCard
 	Failed   AccountsFailed
 }
 

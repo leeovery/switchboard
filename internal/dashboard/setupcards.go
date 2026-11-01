@@ -24,6 +24,15 @@ type SetupEditCard struct {
 	Why            string
 }
 
+// SetupReserveCard is the primary's reserve card, open over the Accounts
+// page on a first run, as it stands: the primary's id; its Reserve, typed
+// in as the screen has it; and where setup refused it, why.
+type SetupReserveCard struct {
+	ID      string
+	Reserve Field
+	Why     string
+}
+
 // SetupAddCard is the card adding an account, open over the Accounts page,
 // as it stands: its fields, ID and Label as typed, and Plan the plan chosen,
 // one of config.PlanChoices; the field chosen; and where setup refused a
@@ -72,13 +81,14 @@ var addTokenSays = []line{
 	{{"the browser while signed in to this subscription. Tokens last a year.", secondaryInk}},
 }
 
-// Primary's choices, and the edit card's keys, the add card's and the
-// remove card's.
+// Primary's choices, and the edit card's keys, the add card's, the remove
+// card's and the reserve card's.
 var (
 	primaryChoices = []string{"no", "yes"}
 	editKeys       = []Key{{Key: "tab", Does: "next"}, {Key: "←→", Does: "select"}, {Key: "enter", Does: "save"}, {Key: "esc", Does: "cancel"}}
 	addKeys        = []Key{{Key: "tab", Does: "next"}, {Key: "enter", Does: "create token"}, {Key: "esc", Does: "cancel"}}
 	removeKeys     = []Key{{Key: "enter", Does: "remove"}, {Key: "esc", Does: "keep it"}}
+	reserveKeys    = []Key{{Key: "enter", Does: "save"}, {Key: "esc", Does: "no reserve"}}
 )
 
 // What the remove card says of the account it would remove, after its id.
@@ -116,8 +126,8 @@ func (s Setup) card(width int) *setupCard {
 }
 
 // accountsCard is the card open over the Accounts page: its add card, its
-// edit card, its remove card, its token card, or its paste card, at the
-// screen's time; nil where none is.
+// edit card, its remove card, its token card, its paste card, or the
+// primary's reserve card, at the screen's time; nil where none is.
 func (s Setup) accountsCard(width int) *setupCard {
 	if s.Accounts == nil {
 		return nil
@@ -134,6 +144,8 @@ func (s Setup) accountsCard(width int) *setupCard {
 		return a.Token.card(cardWidth, s.Now)
 	case a.Paste != nil:
 		return a.Paste.card(cardWidth, s.Now)
+	case a.Reserve != nil:
+		return a.Reserve.card(cardWidth)
 	}
 	return nil
 }
@@ -203,6 +215,26 @@ func (e SetupEditCard) card(width int) *setupCard {
 		nil,
 	)
 	k.text(focus.textField(setup.ReserveField, reserveName, reserveHint, e.Reserve), 0, content)
+	return k
+}
+
+// card is the primary's reserve card, width cells wide, its words setup's:
+// RESERVE and the primary's id in its top edge; what the primary is and
+// what its reserve is, in text.secondary; then a blank row apart, its
+// Reserve, as it's given, its hint after it, as the edit card's, why setup
+// refused it under it, and what it takes under that, faint; a blank row on,
+// where the other accounts' reserves are set, muted; and its keys.
+func (r SetupReserveCard) card(width int) *setupCard {
+	content := width - 2*cardInset
+	asked := setup.AskingReserve(r.ID)
+	k := &setupCard{card: Card{title: "RESERVE · " + strings.ToUpper(r.ID), width: width, keys: reserveKeys}}
+	for _, says := range asked.Says {
+		k.card.body = append(k.card.body, line{{says, secondaryInk}}.wrap(content)...)
+	}
+	k.card.body = append(k.card.body, nil)
+	k.text(textField{name: reserveName, hint: reserveHint, wrong: r.Why, field: r.Reserve}, 0, content)
+	k.card.body = append(k.card.body, hintUnder(content, asked.Takes), nil)
+	k.card.body = append(k.card.body, line{{asked.Elsewhere, mutedInk}}.wrap(content)...)
 	return k
 }
 

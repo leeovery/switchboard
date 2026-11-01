@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     1 Accounts   2 Priming   3 Service   4 claude link   5 Skill   Done                                                Tue 27 Oct  17:42:00
+
+○ router not running yet  ·  3 accounts, all working
+
+ACCOUNTS  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  3 accounts
+
+  Add each Claude subscription you want switchboard to route across.
+
+     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN
+
+▌ 1  work ◆          Work          Max 20x    none                                 expires 27 Oct 2027  ·  365 days left
+
+  2  personal        Personal      Max 5╭─ RESERVE · WORK ─────────────────────────────────────────────────────────────╮
+                                        │                                                                              │
+  3  side            Side          Pro  │  work is the primary, the account the Claude apps are signed in to.          │
+                                        │  Its reserve is the share of each of its windows kept back for them.         │
+  +  add an account                     │                                                                              │
+                                        │  Reserve   5%                        usage kept back for the Claude apps     │
+                                        │            a percentage, or none                                             │
+                                        │                                                                              │
+                                        │  Other accounts' reserves are set with e, or switchboard accounts edit.      │
+                                        │                                                                              │
+                                        │                                                 enter save   esc no reserve  │
+                                        ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+

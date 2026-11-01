@@ -373,7 +373,9 @@ The steps are:
    and whether it's the primary, `r` removes it, asking first, and `p` makes it the primary: the
    account your browser and the Claude apps are signed in to. `+ add an account` adds one: its id,
    label and plan, then its token. With no account, the card adding one opens at once. With two
-   or more and none the primary, `enter` waits for one.
+   or more and none the primary, `enter` waits for one. On a first run, where the primary has
+   no reserve, `enter` asks for one first, once: the share of its windows kept back for the
+   Claude apps, as a percentage, or `none`; `esc` leaves it with none, writing nothing.
 
    `setup` makes each token with `claude setup-token`, which it runs itself, opening its sign-in
    page in your browser. The first account's token, or the primary's on a run again, opens in

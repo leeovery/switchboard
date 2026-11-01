@@ -63,7 +63,9 @@ type setupScreen struct {
 // private Firefox window, setup-token waiting on its approval for 21
 // seconds, as frame 2 has it, or stopped with an error, as frame 10 has it;
 // and from there, p pressed, the card pasting personal's token, a token
-// typed in, as no frame has it, laid out as frame 2.
+// typed in, as no frame has it, laid out as frame 2; and on a first run,
+// work, personal and side added, each token made, then enter on work's
+// row, the primary's reserve card open, 5% typed, as frame 13 has it.
 var setupScreens = []setupScreen{
 	{name: "setup-add-first-160", size: wide(37), step: dashboard.SetupAccounts, steps: firstRun, keys: slices.Concat(typingWork(), []tea.KeyPressMsg{tabKey, tabKey}), card: "ADD AN ACCOUNT", cardKeys: "tab next   enter create token   esc cancel"},
 	{name: "setup-token-waiting-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(nil), keys: addingPersonal(), waited: 21 * time.Second, card: "NEW TOKEN · PERSONAL", cardKeys: "o reopen window   p paste a token   esc cancel"},
@@ -71,6 +73,7 @@ var setupScreens = []setupScreen{
 	{name: "setup-token-paste-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: slices.Concat(addingPersonal(), keysOf("p"), keysOf(strings.Split("test-token-personal", "")...)), card: "PASTE A TOKEN · PERSONAL", cardKeys: "enter save   esc cancel"},
 	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
 	{name: "setup-edit-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: slices.Concat(keysOf("j", "e"), []tea.KeyPressMsg{tabKey, leftKey, leftKey}), card: "EDIT PERSONAL", cardKeys: "tab next   ←→ select   enter save   esc cancel"},
+	{name: "setup-reserve-160", size: wide(37), step: dashboard.SetupAccounts, steps: addingThree, keys: slices.Concat(addedThree(), repeated(upKey, 2), []tea.KeyPressMsg{enterKey}, keysOf("5", "%")), card: "RESERVE · WORK", cardKeys: "enter save   esc no reserve"},
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
 	{name: "setup-service-160", size: wide(37), step: dashboard.SetupService, steps: everyStepPassed},
 	{name: "setup-skill-160", size: wide(37), step: dashboard.SetupSkill, steps: everyStepPassed},
@@ -106,6 +109,20 @@ func addingPersonal() []tea.KeyPressMsg {
 		[]tea.KeyPressMsg{downKey, enterKey},
 		keysOf(strings.Split("personal", "")...), []tea.KeyPressMsg{tabKey}, keysOf(strings.Split("Personal", "")...), []tea.KeyPressMsg{enterKey},
 	)
+}
+
+// addedThree are the keys that add work on a first run, as typingWork types
+// it, then personal on Max 5x and side on Pro, from + add an account, each
+// token made, leaving side's row chosen.
+func addedThree() []tea.KeyPressMsg {
+	adding := func(id, label string, lefts int) []tea.KeyPressMsg {
+		return slices.Concat(
+			[]tea.KeyPressMsg{downKey, enterKey},
+			keysOf(strings.Split(id, "")...), []tea.KeyPressMsg{tabKey}, keysOf(strings.Split(label, "")...),
+			[]tea.KeyPressMsg{tabKey}, repeated(leftKey, lefts), []tea.KeyPressMsg{enterKey},
+		)
+	}
+	return slices.Concat(typingWork(), []tea.KeyPressMsg{enterKey}, adding("personal", "Personal", 2), adding("side", "Side", 3))
 }
 
 // called is the fixture's name.
@@ -268,6 +285,24 @@ func makingPersonal(ends *setup.Tokened) func(time.Time) setupSteps {
 		}
 		return steps
 	}
+}
+
+// addingThree are the steps of a first run, at now, as frame 13 has them:
+// no router running, and no account, at first; then work's token, personal's
+// and side's, each made in the browser as it is, and saved.
+func addingThree(now time.Time) setupSteps {
+	steps := firstRun(now)
+	steps.makings = map[string]setupMaking{}
+	for id, label := range map[string]string{"work": "Work", "personal": "Personal", "side": "Side"} {
+		steps.makings[id] = setupMaking{
+			steps: []setup.Making{
+				{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: label},
+				{Step: setup.AwaitingApproval}, {Step: setup.TokenMade}, {Step: setup.CheckingToken},
+			},
+			ends: &setup.Tokened{Result: setup.TokenSaved},
+		}
+	}
+	return steps
 }
 
 // personalNotMade is setup-token stopping with an error making personal's

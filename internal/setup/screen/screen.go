@@ -165,15 +165,19 @@ type Model struct {
 	// chosen is the Accounts page's row chosen: an account's, by its place
 	// in the review, or past the last, + add an account.
 	chosen int
-	// add, edit, remove, token and paste are the cards open over the
-	// Accounts page, the card adding an account, the chosen account's edit
-	// card, the card asking before it's removed, the token card, or the card
-	// pasting a token: nil where none is.
-	add    *addCard
-	edit   *editCard
-	remove *removeCard
-	token  *tokenCard
-	paste  *pasteCard
+	// add, edit, remove, token, paste and reserve are the cards open over
+	// the Accounts page, the card adding an account, the chosen account's
+	// edit card, the card asking before it's removed, the token card, the
+	// card pasting a token, or the primary's reserve card: nil where none
+	// is. reserveAsked is set once the reserve card has opened, as it opens
+	// once only.
+	add          *addCard
+	edit         *editCard
+	remove       *removeCard
+	token        *tokenCard
+	paste        *pasteCard
+	reserve      *reserveCard
+	reserveAsked bool
 	// makings numbers the tokens' makings begun, each the token card's; and
 	// interrupted is set once one ends with an interrupt held as its token
 	// was saved, which the screen leaves at.
@@ -313,6 +317,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.removed(msg)
 	case primaryMsg:
 		return m.marked(msg)
+	case reservedMsg:
+		return m.reserved(msg)
 	case makingMsg:
 		return m.madeStep(msg)
 	case tokenedMsg:

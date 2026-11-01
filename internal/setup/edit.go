@@ -50,6 +50,23 @@ func (r Reviewed) ReserveTyped() string {
 	return prose.PercentSet(r.Reserve)
 }
 
+// ReserveChange is the reserve typed in the account's edit, as Edit.Reserve
+// takes it: nil where it leaves the reserve as it is, typed as ReserveTyped
+// writes it, or, where it has none, typed none or left empty.
+func (r Reviewed) ReserveChange(typed string) *string {
+	if typed == r.ReserveTyped() || r.Reserve == 0 && noReserve(typed) {
+		return nil
+	}
+	return &typed
+}
+
+// noReserve reports whether the reserve typed is none: none, in any case, or
+// nothing.
+func noReserve(typed string) bool {
+	typed = strings.TrimSpace(typed)
+	return typed == "" || strings.EqualFold(typed, reserveNone)
+}
+
 // PlanChosen is the account's plan as its edit chooses it, one of
 // config.PlanChoices: its own, or config.PlanNone where it has none.
 func (r Reviewed) PlanChosen() string {
@@ -127,7 +144,7 @@ func refusedValue(field Field, err error) *Refused {
 // reserveOf is the reserve typed, as config.ParseReserve reads it: none, or
 // nothing, being 0.
 func reserveOf(typed string) (float64, error) {
-	if typed = strings.TrimSpace(typed); typed == "" || strings.EqualFold(typed, reserveNone) {
+	if noReserve(typed) {
 		return 0, nil
 	}
 	return config.ParseReserve(typed)
