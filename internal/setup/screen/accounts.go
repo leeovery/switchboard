@@ -209,8 +209,7 @@ func (m Model) chosenAccount() (setup.Reviewed, bool) {
 // accountKey acts on the account a, chosen, as key says: e opens its edit
 // card; r, the card asking before it's removed; p makes it the primary, as
 // madePrimary has it; and t makes it a new token, saved in its old one's
-// place, compared with the accounts read, as making has it, once no
-// account's check is out.
+// place, as madeOnceChecked has it.
 func (m Model) accountKey(key string, a setup.Reviewed) (tea.Model, tea.Cmd) {
 	switch key {
 	case "e":
@@ -220,10 +219,7 @@ func (m Model) accountKey(key string, a setup.Reviewed) (tea.Model, tea.Cmd) {
 	case "p":
 		return m.madePrimary(a)
 	case "t":
-		if m.status.checksOut() {
-			return m, nil
-		}
-		return m.making(setup.TokenFor{Account: config.NewAccount{ID: a.ID}, Organizations: m.organizations()})
+		return m.madeOnceChecked(setup.TokenFor{Account: config.NewAccount{ID: a.ID}})
 	}
 	return m, nil
 }

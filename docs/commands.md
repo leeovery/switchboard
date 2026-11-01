@@ -350,7 +350,9 @@ scrollback once the screen has gone, as Done says it, one after another, with th
 hand, or the directory to put first on `PATH`, under the `claude` link's where it isn't done, on a
 line of its own, whole, however narrow the terminal, so it copies as one line. `c` and `d` copy
 them on the screen where your terminal lets a program copy (OSC 52); where it doesn't, they're
-there to copy. For example:
+there to copy. Where a token went unchecked, as when you leave before the checks answer, the
+Accounts line counts each kind, as `3: 1 working, 1 unchecked, 1 refused`, or `3, all unchecked`,
+or `1, unchecked` of one account. For example:
 
 ```text
   ✓  Accounts             2, all working · primary: work

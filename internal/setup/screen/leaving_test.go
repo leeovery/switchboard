@@ -364,8 +364,8 @@ func TestQWhileTokensAreCheckedSaysThemUnchecked(t *testing.T) {
 	if err != nil || how(left) != (Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", how(left), err)
 	}
-	if got, want := read(left.Summary.Lines()), []string{"✓ Accounts 3, all working · primary: work, with 5% reserved for the Claude apps"}; !slices.Equal(got, want) {
-		t.Errorf("the summary reads\n%q\nwant\n%q, never checking…", got, want)
+	if got, want := read(left.Summary.Lines()), []string{"✓ Accounts 3, all unchecked · primary: work, with 5% reserved for the Claude apps"}; !slices.Equal(got, want) {
+		t.Errorf("the summary reads\n%q\nwant\n%q, never checking…, nor all working", got, want)
 	}
 	for _, a := range left.Summary.Review.Accounts {
 		if a.Token.State != setup.TokenUnchecked {
@@ -378,7 +378,11 @@ func TestATokenTheScreenHeardCheckedIsLeftAsChecked(t *testing.T) {
 	h := accountsHarness(t, frame3Steps())
 	checks := h.held()
 	h.deliver(checks[:1]...)
-	review := h.model.gone().leaving().Review
+	left := h.model.gone().leaving()
+	if got, want := read(left.Lines()), []string{"✓ Accounts 3: 1 working, 2 unchecked · primary: work, with 5% reserved for the Claude apps"}; !slices.Equal(got, want) {
+		t.Errorf("the summary reads\n%q\nwant\n%q", got, want)
+	}
+	review := left.Review
 	want := []setup.TokenState{setup.TokenWorking, setup.TokenUnchecked, setup.TokenUnchecked}
 	var got []setup.TokenState
 	for _, a := range review.Accounts {

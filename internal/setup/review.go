@@ -165,12 +165,35 @@ func (s *Setup) Review() (Review, error) {
 	if cfg == nil {
 		return review, nil
 	}
-	review.Unmarked = len(cfg.Accounts) > 1 && !draft.MarksPrimary()
 	for _, a := range cfg.Accounts {
-		row, _ := s.reviewed(a, review.Unmarked)
+		row, _ := s.reviewed(a, draft.MarksPrimaryOf(a.ID))
 		review.Accounts = append(review.Accounts, row)
 	}
-	return review, nil
+	return review.Resolved(), nil
+}
+
+// Resolved is the review, each account's Primary read as the config's mark
+// of it, with the primary as setup shows it: the account marked; else one
+// alone, for want of a mark, as config.PrimaryIndex has it; and of two or
+// more, none marked, none, the review Unmarked, as one must be marked.
+func (r Review) Resolved() Review {
+	isMarked := func(a Reviewed) bool { return a.Primary }
+	r.Accounts = slices.Clone(r.Accounts)
+	r.Unmarked = len(r.Accounts) > 1 && !slices.ContainsFunc(r.Accounts, isMarked)
+	if len(r.Accounts) > 0 && !r.Unmarked {
+		r.Accounts[config.PrimaryIndex(r.Accounts, isMarked)].Primary = true
+	}
+	return r
+}
+
+// marked is the config's accounts, each by its id, its Primary as the draft
+// marks it, as Resolved reads them.
+func marked(draft *config.Draft, cfg *config.Config) Review {
+	var review Review
+	for _, a := range cfg.Accounts {
+		review.Accounts = append(review.Accounts, Reviewed{ID: a.ID, Primary: draft.MarksPrimaryOf(a.ID)})
+	}
+	return review
 }
 
 // ReviewOf is the row of the account with the given id, its token checked
@@ -191,7 +214,7 @@ func (s *Setup) ReviewOf(ctx context.Context, id string) (Reviewed, error) {
 	if i < 0 {
 		return Reviewed{}, config.NotConfigured(id)
 	}
-	row, token := s.reviewed(cfg.Accounts[i], len(cfg.Accounts) > 1 && !draft.MarksPrimary())
+	row, token := s.reviewed(cfg.Accounts[i], marked(draft, cfg).Resolved().Accounts[i].Primary)
 	if row.Token.State != TokenRead {
 		return row, nil
 	}
@@ -254,11 +277,10 @@ func (r Review) Keeping(earlier Review) Review {
 	return r
 }
 
-// reviewed is the account's row, its token read but unchecked, and the token
-// read, for checking. unmarked says no account is marked the primary, of
-// two or more.
-func (s *Setup) reviewed(a config.Account, unmarked bool) (Reviewed, tokens.Token) {
-	row := Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Reserve: a.Reserve, Primary: a.Primary && !unmarked}
+// reviewed is the account's row, the primary as primary says, its token
+// read but unchecked, and the token read, for checking.
+func (s *Setup) reviewed(a config.Account, primary bool) (Reviewed, tokens.Token) {
+	row := Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Reserve: a.Reserve, Primary: primary}
 	token, err := s.Accounts.Tokens.Read(a.ID)
 	switch {
 	case errors.Is(err, tokens.ErrMissing):
@@ -371,11 +393,13 @@ func (r Review) notesOf(a Reviewed) []Note {
 }
 
 // yearEnding says when a token's year ends, at now, and the days left of it
-// where it hasn't, such as "expires 17 Nov 2026: 21 days left".
+// where it hasn't, each as status.TokenYear.Ending tells it, such as
+// "expires 17 Nov 2026: 21 days left".
 func yearEnding(year status.TokenYear, now time.Time) string {
-	ends := prose.Expires(now, year.GoodUntil, year.Up(now))
-	if left, counted := year.DaysLeft(now); counted {
-		ends += ": " + prose.DaysLeft(left)
+	ending := year.Ending(now)
+	ends := ending.Expires()
+	if left, counted := ending.Left(); counted {
+		ends += ": " + left
 	}
 	return ends
 }

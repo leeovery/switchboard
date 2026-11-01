@@ -122,6 +122,7 @@ func TestTheSummaryAsTheWalkLeavesIt(t *testing.T) {
 func TestTheAccountsLine(t *testing.T) {
 	working := setup.TokenStanding{State: setup.TokenWorking}
 	refused := setup.TokenStanding{State: setup.TokenNotTaken}
+	unchecked := setup.TokenStanding{State: setup.TokenUnchecked}
 	tests := []struct {
 		name   string
 		review setup.Review
@@ -143,6 +144,24 @@ func TestTheAccountsLine(t *testing.T) {
 			{ID: "work", Token: working}, {ID: "personal", Token: working},
 		}}, mark: setup.Warning, want: "2, all working · none is the primary"},
 		{name: "none: a warning", review: setup.Review{}, mark: setup.Warning, want: "none"},
+		{name: "some unchecked: said so, never all working", review: setup.Review{Accounts: []setup.Reviewed{
+			{ID: "work", Primary: true, Token: working}, {ID: "personal", Token: unchecked}, {ID: "side", Token: working},
+		}}, want: "3: 2 working, 1 unchecked · primary: work"},
+		{name: "every one unchecked: all unchecked", review: setup.Review{Accounts: []setup.Reviewed{
+			{ID: "work", Primary: true, Token: unchecked}, {ID: "personal", Token: unchecked},
+		}}, want: "2, all unchecked · primary: work"},
+		{name: "one, unchecked", review: setup.Review{Accounts: []setup.Reviewed{{ID: "work", Primary: true, Token: unchecked}}},
+			want: "1, unchecked · primary: work"},
+		{name: "unchecked beside one refused, each named: a warning", review: setup.Review{Accounts: []setup.Reviewed{
+			{ID: "work", Primary: true, Token: working}, {ID: "personal", Token: unchecked}, {ID: "side", Token: refused},
+		}}, mark: setup.Warning, want: "3: 1 working, 1 unchecked, 1 refused · primary: work"},
+		{name: "unchecked beside every other kind, each named: a warning", review: setup.Review{Accounts: []setup.Reviewed{
+			{ID: "work", Primary: true, Token: working}, {ID: "personal", Token: unchecked}, {ID: "side", Token: refused},
+			{ID: "team", Token: setup.TokenStanding{State: setup.TokenUnreadable}}, {ID: "spare"}, {ID: "extra", Token: unchecked},
+		}}, mark: setup.Warning, want: "6: 1 working, 2 unchecked, 1 refused, 1 unreadable, 1 without a token · primary: work"},
+		{name: "unchecked while one is still to be checked: checking", review: setup.Review{Accounts: []setup.Reviewed{
+			{ID: "work", Primary: true, Token: setup.TokenStanding{State: setup.TokenRead}}, {ID: "personal", Token: unchecked},
+		}}, want: "2, checking… · primary: work"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -163,7 +182,7 @@ func TestTheAccountsLineReadsEachTokenAsChecked(t *testing.T) {
 	if status != "3 accounts, 2 working" {
 		t.Fatalf("the status line counts %q, want 3 accounts, 2 working", status)
 	}
-	want := "3, 2 working · primary: work, with 5% reserved for the Claude apps"
+	want := "3: 1 working, 1 unchecked, 1 refused · primary: work, with 5% reserved for the Claude apps"
 	checkStepLine(t, lineOf(t, setup.Summary{Review: &review}, accountsLine), setup.Warning, want, "")
 }
 

@@ -272,8 +272,8 @@ func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) 
 			report(m)
 		}
 	}
-	kept := &madeHold{hold: s.Hold, saving: s.Saving}
-	defer func() { tokened.InterruptHeld = kept.end() }()
+	kept := &madeHold{Holder: s.Hold, saving: s.Saving}
+	defer func() { tokened.InterruptHeld = kept.Let() }()
 	a := s.make(ctx, opener, tell, kept)
 	if a.err != nil {
 		return notMade(ctx, f, a)
@@ -334,24 +334,17 @@ func (s *Setup) make(ctx context.Context, opener setuptoken.Opener, tell func(Ma
 	return attempt{token: token, err: err, made: made.Load(), interrupted: asked.Err() != nil && ctx.Err() == nil}
 }
 
-// madeHold is the process's interrupts held for a token made, from begin
-// till end, as hold has them, the first told to saving, on a goroutine of
-// its own, so nothing waits on it.
+// madeHold is the process's interrupts kept for a token made, from begin
+// till Let, as interrupts.Kept keeps them, the first told to saving, on a
+// goroutine of its own, so nothing waits on it.
 type madeHold struct {
-	hold   interrupts.Holder
+	interrupts.Kept
 	saving func()
-	mu     sync.Mutex
-	held   *interrupts.Held
 }
 
-// begin holds the interrupts, where they aren't held already.
+// begin keeps the interrupts, where they aren't kept already.
 func (k *madeHold) begin() {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	if k.held == nil {
-		k.held = interrupts.Hold(k.hold)
-		k.held.Watch(k.told)
-	}
+	k.Keep(k.told)
 }
 
 // told tells saving, where it's set, of an interrupt held.
@@ -359,14 +352,6 @@ func (k *madeHold) told() {
 	if k.saving != nil {
 		go k.saving()
 	}
-}
-
-// end lets the interrupts go, where they're held, reporting whether one was
-// held, as interrupts.Held's End has it.
-func (k *madeHold) end() bool {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	return k.held != nil && k.held.End()
 }
 
 // screened is setup-token's own failure, which says what it showed, as a

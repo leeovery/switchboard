@@ -391,6 +391,37 @@ func TestReviewsTheOnlyAccountAsThePrimary(t *testing.T) {
 	}
 }
 
+// ReviewOf reads the account's primary as Review does: one alone, unmarked,
+// is the primary, for want of a mark; of two, the second marked, it is, and
+// the first isn't.
+func TestReviewOfReadsThePrimaryAsReviewDoes(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  string
+		primary map[string]bool
+	}{
+		{name: "one alone, unmarked", config: "[[account]]\nid = \"work\"\n", primary: map[string]bool{"work": true}},
+		{
+			name:    "the second of two marked",
+			config:  "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\nprimary = true\n",
+			primary: map[string]bool{"work": false, "side": true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.writeConfig(t, tt.config)
+			s := w.reviewing(t, &checkingAPI{})
+			for id, want := range tt.primary {
+				row, err := s.ReviewOf(t.Context(), id)
+				if err != nil || row.Primary != want {
+					t.Errorf("ReviewOf(%s) is %+v (%v), want primary %v", id, row, err, want)
+				}
+			}
+		})
+	}
+}
+
 func TestReviewOfChecksTheToken(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -709,5 +740,43 @@ func TestReviewTellsNoToken(t *testing.T) {
 			return n.Account == "loose" && strings.HasSuffix(n.Says, "chmod 600 "+w.tokens().Path("loose"))
 		}) {
 		t.Errorf("the notes are %+v, want down's year among them, and why loose's token can't be read, ending in the command to copy", notes)
+	}
+}
+
+// Resolved reads each account's Primary as the config's mark of it: the one
+// marked is the primary; one alone is, for want of a mark; and of two or
+// more, none marked, none is, the review Unmarked.
+func TestResolvedReadsThePrimaryFromTheMarks(t *testing.T) {
+	tests := []struct {
+		name     string
+		marked   []bool
+		primary  []bool
+		unmarked bool
+	}{
+		{name: "none"},
+		{name: "one alone, unmarked", marked: []bool{false}, primary: []bool{true}},
+		{name: "one alone, marked", marked: []bool{true}, primary: []bool{true}},
+		{name: "two, the second marked", marked: []bool{false, true}, primary: []bool{false, true}},
+		{name: "two, none marked", marked: []bool{false, false}, primary: []bool{false, false}, unmarked: true},
+		{name: "three, none marked", marked: []bool{false, false, false}, primary: []bool{false, false, false}, unmarked: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var written setup.Review
+			for i, marked := range tt.marked {
+				written.Accounts = append(written.Accounts, setup.Reviewed{ID: fmt.Sprint("account-", i), Primary: marked})
+			}
+			resolved := written.Resolved()
+			var primary []bool
+			for _, a := range resolved.Accounts {
+				primary = append(primary, a.Primary)
+			}
+			if !slices.Equal(primary, tt.primary) || resolved.Unmarked != tt.unmarked {
+				t.Errorf("Resolved() has the primaries %v, Unmarked %v; want %v, %v", primary, resolved.Unmarked, tt.primary, tt.unmarked)
+			}
+			if len(tt.marked) == 1 && !tt.marked[0] && written.Accounts[0].Primary {
+				t.Error("Resolved() changed the review it was given, want a copy")
+			}
+		})
 	}
 }

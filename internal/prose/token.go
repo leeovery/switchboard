@@ -44,10 +44,35 @@ const tokenCommand = "switchboard setup"
 // expires 17 Nov 2026 · 21 days left", "· last day" on its last day, or
 // "token expired 17 Nov 2026" once it's up.
 func (e TokenEnding) News() []TokenPart {
-	if e.Up {
-		return []TokenPart{{"token ", TokenWords}, {expiresVerb(true), TokenWarning}, {" " + DayMonthYear(e.Until.In(e.Now.Location())), TokenWords}}
+	left, ok := e.Left()
+	if !ok {
+		verb, date := e.Dated()
+		return []TokenPart{{"token ", TokenWords}, {verb, TokenWarning}, {" " + date, TokenWords}}
 	}
-	return []TokenPart{{"token " + Expires(e.Now, e.Until, false) + " · ", TokenWords}, {DaysLeft(e.DaysLeft), TokenWarning}}
+	return []TokenPart{{"token " + e.Expires() + " · ", TokenWords}, {left, TokenWarning}}
+}
+
+// Dated is the year's ending by its date, its verb and its date apart, for
+// one who shows them apart: "expires", or "expired" once it's up, and the
+// date, in Now's time zone, such as "17 Nov 2026".
+func (e TokenEnding) Dated() (verb, date string) {
+	return expiresVerb(e.Up), DayMonthYear(e.Until.In(e.Now.Location()))
+}
+
+// Expires is the year's ending by its date, whole, as Dated has it: "expires
+// 17 Nov 2026", or "expired 17 Nov 2026" once it's up.
+func (e TokenEnding) Expires() string {
+	verb, date := e.Dated()
+	return verb + " " + date
+}
+
+// Left is the days left of the year, as DaysLeft says them, such as "21 days
+// left", or "last day" on its last day: false once it's up, as none are.
+func (e TokenEnding) Left() (string, bool) {
+	if e.Up {
+		return "", false
+	}
+	return DaysLeft(e.DaysLeft), true
 }
 
 // Told is the year's ending told whole, as News tells it, and that

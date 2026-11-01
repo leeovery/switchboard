@@ -312,7 +312,8 @@ func (m Model) ended(card tokenCard, msg tokenedMsg) (Model, tea.Cmd) {
 // once it ended, opens the paste card at once, which goes back to this card
 // as backTo has it; o, waiting, opens the
 // address again, where it opened, and c copies it where it didn't; and
-// enter, once it ended, tries again, where it does. No key stops a making
+// enter, once it ended, tries again, where it does, as madeOnceChecked has
+// it. No key stops a making
 // being stopped, nor one whose token is made, which is saved however
 // setup's left.
 func (m Model) tokenPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -343,10 +344,22 @@ func (m Model) tokenPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		if stage == dashboard.TokenUnsaved && card.unsaved.Again {
-			return m.making(card.f)
+			return m.madeOnceChecked(card.f)
 		}
 	}
 	return m, nil
+}
+
+// madeOnceChecked is m making the token f says, as making has it, compared
+// with the organizations of the accounts read now, once no account's check
+// is out, so it's compared with every one the run will know: m as it is,
+// nothing begun, while any is.
+func (m Model) madeOnceChecked(f setup.TokenFor) (Model, tea.Cmd) {
+	if m.status.checksOut() {
+		return m, nil
+	}
+	f.Organizations = m.organizations()
+	return m.making(f)
 }
 
 // reopenedMsg is what Reopen answered, opening the sign-in address again.

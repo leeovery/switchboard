@@ -8,7 +8,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
@@ -189,8 +188,8 @@ func TestATokensYearIsJudgedAtNow(t *testing.T) {
 		days                          int
 		counted                       bool
 		gone                          float64
-		// said is how prose.Expires words its end, told whether it's up as
-		// Up judges it, where it's given.
+		// said is how its Ending words its end, whether it's up as Up judges
+		// it, where it's given.
 		said string
 	}{
 		{name: "just taken", year: status.TokenYearFrom(frame), now: frame, known: true, days: 365, counted: true, said: "expires 27 Oct 2027"},
@@ -263,8 +262,8 @@ func TestATokensYearIsJudgedAtNow(t *testing.T) {
 			if got := y.Gone(tt.now); math.Abs(got-tt.gone) > 1e-6 {
 				t.Errorf("Gone() = %v, want %v", got, tt.gone)
 			}
-			if got := prose.Expires(tt.now, y.GoodUntil, y.Up(tt.now)); tt.said != "" && got != tt.said {
-				t.Errorf("Expires() = %q, want %q", got, tt.said)
+			if got := y.Ending(tt.now).Expires(); tt.said != "" && got != tt.said {
+				t.Errorf("Ending().Expires() = %q, want %q", got, tt.said)
 			}
 		})
 	}

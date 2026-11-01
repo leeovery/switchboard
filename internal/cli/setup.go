@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/interrupts"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/sessionhook"
@@ -70,22 +71,22 @@ func (a *app) setup(cmd *cobra.Command) error {
 		return err
 	}
 	ctx := cmd.Context()
-	kept := &keptFrom{hold: a.Hold}
+	kept := &interrupts.Kept{Holder: a.Hold}
 	cfg := a.setupScreen(s)
-	cfg.Holding = func() { kept.keep(nil) }
+	cfg.Holding = func() { kept.Keep(nil) }
 	left, err := a.SetupScreen(ctx, cfg, out, a.Environ())
 	if errors.Is(err, screen.ErrNotTerminal) {
 		return setup.ErrNoTerminal
 	}
 	var caught bool
 	if left.Unsaved == nil {
-		caught = kept.let()
+		caught = kept.Let()
 	}
 	printLines(out, dashboard.SetupPrinted(left.Summary, a.terminalWidth(out)))
 	switch {
 	case left.Unsaved != nil:
 		printLines(out, left.Unsaved.Printed())
-		caught = kept.let()
+		caught = kept.Let()
 	case left.Interrupted:
 		launch.Notice(cmd.ErrOrStderr(), savedFirst)
 	}

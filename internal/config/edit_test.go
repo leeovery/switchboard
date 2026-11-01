@@ -771,8 +771,8 @@ primary = true
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
-			if primary := cfg.Accounts.Primary(); primary.ID != tt.id || !draft.MarksPrimary() {
-				t.Errorf("the primary loads as %s, marked: %v; want %s, marked", primary.ID, draft.MarksPrimary(), tt.id)
+			if primary := cfg.Accounts.Primary(); primary.ID != tt.id || !draft.MarksPrimaryOf(tt.id) {
+				t.Errorf("the primary loads as %s, marked: %v; want %s, marked", primary.ID, draft.MarksPrimaryOf(tt.id), tt.id)
 			}
 			if !reflect.DeepEqual(draft.Config(), cfg) {
 				t.Errorf("Config() = %+v, want what the file saved loads as, %+v", draft.Config(), cfg)
@@ -824,26 +824,6 @@ func TestSetPrimaryRefuses(t *testing.T) {
 
 			err := draft.SetPrimary(tt.id)
 			checkRefused(t, path, tt.config, draft, err, tt.wantErr, tt.wantIs)
-		})
-	}
-}
-
-func TestMarksPrimary(t *testing.T) {
-	tests := []struct {
-		name   string
-		config string
-		want   bool
-	}{
-		{name: "an account marked", config: commented, want: true},
-		{name: "none marked", config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n"},
-		{name: "one marked false", config: "[[account]]\nid = \"work\"\nprimary = false\n"},
-		{name: "no config", config: ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := edit(t, writeConfig(t, tt.config)).MarksPrimary(); got != tt.want {
-				t.Errorf("MarksPrimary() = %v, want %v", got, tt.want)
-			}
 		})
 	}
 }

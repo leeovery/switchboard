@@ -1,33 +1,47 @@
 package screen
 
 import (
+	"context"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/setup"
+	"github.com/leeovery/switchboard/internal/setuptoken"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
-// threeAdded are the accounts once a first run has added them: work, the
-// primary, then personal and side, none with a reserve, each token working.
+// threeAdded are the accounts once a first run has added them: work, then
+// personal and side, none marked the primary, as setup adds them, and none
+// with a reserve, each token working.
 func threeAdded() []setup.Reviewed {
 	working := setup.TokenStanding{State: setup.TokenWorking}
 	return []setup.Reviewed{
-		{ID: "work", Label: "Work", Primary: true, Token: working},
+		{ID: "work", Label: "Work", Token: working},
 		{ID: "personal", Label: "Personal", Token: working},
 		{ID: "side", Label: "Side", Token: working},
 	}
 }
 
-// firstRunAdded is a first run, its accounts added as given, and marked as
-// unmarked says, read again, work's row chosen.
-func firstRunAdded(t *testing.T, added []setup.Reviewed, unmarked bool) *harness {
+// workMarked are the accounts threeAdded has, work marked the primary, as p
+// marks it.
+func workMarked() []setup.Reviewed {
+	added := threeAdded()
+	added[0].Primary = true
+	return added
+}
+
+// firstRunAdded is a first run, its accounts added as given, each marked the
+// primary as given, read again, work's row chosen.
+func firstRunAdded(t *testing.T, added []setup.Reviewed) *harness {
 	t.Helper()
 	h := firstRun(t)
 	h.pressAndDeliver("esc")
 	h.steps.mu.Lock()
-	h.steps.review.Accounts, h.steps.review.Unmarked = added, unmarked
+	h.steps.review.Accounts = added
 	h.steps.mu.Unlock()
 	m, cmd := h.model.askAgain()
 	h.model = m
@@ -38,15 +52,24 @@ func firstRunAdded(t *testing.T, added []setup.Reviewed, unmarked bool) *harness
 	return h
 }
 
-// reserving is a first run, its three accounts added, enter pressed on
-// work's row, the primary's reserve card open.
+// reserving is a first run, its three accounts added, none the primary, then
+// p and enter pressed on work's row, as a user must, the primary's reserve
+// card open; the edits EditAccount is given counted from there, p's mark
+// put by.
 func reserving(t *testing.T) *harness {
 	t.Helper()
-	h := firstRunAdded(t, threeAdded(), false)
+	h := firstRunAdded(t, threeAdded())
+	h.pressAndDeliver("p")
 	h.pressAndDeliver("enter")
 	if title, _ := h.card(); title != "RESERVE · WORK" {
-		t.Fatalf("enter on a first run opened the card %q, want RESERVE · WORK", title)
+		t.Fatalf("p and enter on a first run opened the card %q, want RESERVE · WORK", title)
 	}
+	h.steps.mu.Lock()
+	defer h.steps.mu.Unlock()
+	if want := (fakeEdit{id: "work", edit: setup.Edit{Primary: true}}); len(h.steps.edits) != 1 || h.steps.edits[0].id != want.id || !sameEdit(h.steps.edits[0].edit, want.edit) {
+		t.Fatalf("p gave EditAccount %+v, want work marked the primary", h.steps.edits)
+	}
+	h.steps.edits = nil
 	return h
 }
 
@@ -89,7 +112,7 @@ func TestOnAFirstRunEnterOpensThePrimarysReserveCard(t *testing.T) {
 // for the mark: then the card opens on the new primary, and its reserve is
 // saved to it, never to the one that was.
 func TestTheReserveCardFollowsPToTheNewPrimary(t *testing.T) {
-	h := firstRunAdded(t, threeAdded(), false)
+	h := firstRunAdded(t, workMarked())
 	h.pressAndDeliver("down")
 	marked := h.press("p")
 	h.pressAndDeliver("enter")
@@ -120,7 +143,7 @@ func TestTheReserveCardFollowsPToTheNewPrimary(t *testing.T) {
 // moves on. With two or more and none the primary, enter waits, opening
 // nothing.
 func TestThePrimarysReserveCardOpensOnlyWhereItsAsked(t *testing.T) {
-	reserved := threeAdded()
+	reserved := workMarked()
 	reserved[0].Reserve = 0.05
 	tests := []struct {
 		name  string
@@ -132,13 +155,9 @@ func TestThePrimarysReserveCardOpensOnlyWhereItsAsked(t *testing.T) {
 			h.start()
 			return h
 		}, moves: true},
-		{name: "its reserve set", start: func(t *testing.T) *harness { return firstRunAdded(t, reserved, false) }, moves: true},
-		{name: "one account, its reserve set", start: func(t *testing.T) *harness { return firstRunAdded(t, reserved[:1], false) }, moves: true},
-		{name: "none the primary", start: func(t *testing.T) *harness {
-			unmarked := threeAdded()
-			unmarked[0].Primary = false
-			return firstRunAdded(t, unmarked, true)
-		}},
+		{name: "its reserve set", start: func(t *testing.T) *harness { return firstRunAdded(t, reserved) }, moves: true},
+		{name: "one account, its reserve set", start: func(t *testing.T) *harness { return firstRunAdded(t, reserved[:1]) }, moves: true},
+		{name: "none the primary", start: func(t *testing.T) *harness { return firstRunAdded(t, threeAdded()) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -158,10 +177,10 @@ func TestThePrimarysReserveCardOpensOnlyWhereItsAsked(t *testing.T) {
 	}
 }
 
-// With one account, it's the primary, as the config and the status read
-// the only account, so its reserve card opens.
+// With one account, unmarked, it's the primary for want of a mark, as the
+// config and the status read the only account, so its reserve card opens.
 func TestWithOneAccountItsReserveIsAsked(t *testing.T) {
-	h := firstRunAdded(t, threeAdded()[:1], false)
+	h := firstRunAdded(t, threeAdded()[:1])
 	h.pressAndDeliver("enter")
 	if title, _ := h.card(); title != "RESERVE · WORK" {
 		t.Errorf("enter opened the card %q, want RESERVE · WORK", title)
@@ -307,5 +326,61 @@ func TestTheEditCardsReserveClearedOfNoneSavesNothing(t *testing.T) {
 	_, edits := edited(t, "tab", "tab", "tab", "backspace", "backspace", "backspace", "backspace")
 	if len(edits) != 0 {
 		t.Errorf("EditAccount was given %+v, want nothing: the reserve was none, and is", edits)
+	}
+}
+
+// madeInTurn is setup-token, as setup's TokenMaker, making each of made in
+// turn, as madeAs makes it.
+type madeInTurn struct {
+	mu   sync.Mutex
+	made []madeAs
+}
+
+func (m *madeInTurn) Make(ctx context.Context, s setuptoken.Signing) (tokens.Token, error) {
+	m.mu.Lock()
+	next := m.made[0]
+	m.made = m.made[1:]
+	m.mu.Unlock()
+	return next.Make(ctx, s)
+}
+
+// On a first run through setup's own steps, setup-token faked, work, personal
+// and side added, each token made, none is marked the primary, as config
+// adds them: enter waits, the note saying one must be. p on work marks it,
+// and enter then opens its reserve card.
+func TestAFirstRunsAccountsWaitForPThroughSetup(t *testing.T) {
+	steps := newRegistered(t, "")
+	s := steps.setup
+	s.Accounts.Prober = func(string) accounts.Prober { return tokenAPI{} }
+	s.TokenMaker = &madeInTurn{made: []madeAs{"test-token-work", "test-token-personal", "test-token-side"}}
+	s.Browser, s.PrivateWindow = privateWindow{}, privateWindow{}
+	s.Interrupt = func(ctx context.Context) (context.Context, context.CancelFunc) { return context.WithCancel(ctx) }
+	h := registeredHarness(t, steps)
+	for i, id := range []string{"work", "personal", "side"} {
+		if i > 0 {
+			h.pressAndDeliver("down")
+			h.pressAndDeliver("enter")
+		}
+		h.typeIn(id)
+		h.pressAndDeliver("enter")
+		h.hearAll(5)
+	}
+	if review := h.model.status.review; review == nil || len(review.Accounts) != 3 || !review.Unmarked {
+		t.Fatalf("the three added, the review is %+v, want them all, none the primary", review)
+	}
+
+	h.pressAndDeliver("enter")
+	if title, _ := h.card(); title != "" || h.model.page().At != dashboard.SetupAccounts {
+		t.Fatalf("with none the primary, enter opened the card %q, showing %s; want it waiting at Accounts", title, h.model.page().At.Title())
+	}
+	if rows := strings.Join(h.rows(), "\n"); !strings.Contains(rows, "No account is the primary") {
+		t.Errorf("the page reads\n%s\nwant the note that none is the primary", rows)
+	}
+	h.pressAndDeliver("up")
+	h.pressAndDeliver("up")
+	h.pressAndDeliver("p")
+	h.pressAndDeliver("enter")
+	if title, _ := h.card(); title != "RESERVE · WORK" {
+		t.Errorf("p and enter on work opened the card %q, want RESERVE · WORK", title)
 	}
 }

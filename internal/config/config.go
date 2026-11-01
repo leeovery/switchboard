@@ -120,10 +120,16 @@ func (as Accounts) Primary() Account {
 	return as[as.primary()]
 }
 
-// primary is the index of the primary account: the one marked primary, else
-// the first.
+// primary is the index of the primary account, as PrimaryIndex has it.
 func (as Accounts) primary() int {
-	if i := slices.IndexFunc(as, func(a Account) bool { return a.Primary }); i >= 0 {
+	return PrimaryIndex(as, func(a Account) bool { return a.Primary })
+}
+
+// PrimaryIndex is the index of the primary of accounts, whose marks marked
+// reads: the one marked primary, else the first, for want of a mark; 0 of
+// none, the first's place.
+func PrimaryIndex[A any](accounts []A, marked func(A) bool) int {
+	if i := slices.IndexFunc(accounts, marked); i >= 0 {
 		return i
 	}
 	return 0

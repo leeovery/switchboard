@@ -149,7 +149,7 @@ func (r *run) service(ctx context.Context) error {
 	}
 	switch {
 	case stale && why != "":
-		updated := reinstalled(why, kept(opts, given))
+		updated := Reinstalled(why, kept(opts, given))
 		return r.install(ctx, svc, opts, &updated, afresh)
 	case stale:
 		return r.install(ctx, svc, opts, nil, afresh)
@@ -157,7 +157,7 @@ func (r *run) service(ctx context.Context) error {
 		return r.restart(ctx, svc, opts)
 	}
 	r.health = st.Router
-	said := routerUp(*st.Router)
+	said := RouterUp(*st.Router)
 	if r.changed && shared {
 		said.Detail += " · takes up setup's changes on its own"
 	}
@@ -365,7 +365,7 @@ func (r *run) reinstallUnread(ctx context.Context, unread error) error {
 	if err := r.startable(svc, opts); err != nil {
 		return r.unstartable(ctx, svc, why, err)
 	}
-	updated := reinstalled(why, "")
+	updated := Reinstalled(why, "")
 	return r.install(ctx, svc, opts, &updated, false)
 }
 
@@ -475,14 +475,27 @@ func (r *run) stale(ctx context.Context, svc *service.Service, opts service.Inst
 	case err != nil:
 		return "", false, err
 	case len(drift) > 0:
-		return "its plist had " + prose.List(drift), true, nil
+		return PlistHad(drift), true, nil
 	}
 	return "", !st.Loaded, nil
 }
 
-// reinstalled says the service is installed afresh, as why says, keeping the
+// PlistHad says why the service is installed afresh where its plist differs
+// from the one this switchboard writes, as service.Service's Drift names
+// each difference, such as "its plist had no ProcessType".
+func PlistHad(drift []string) string {
+	return "its plist had " + prose.List(drift)
+}
+
+// ServiceInstalled is the row of the service installed, its plist at at,
+// from the home.
+func ServiceInstalled(at string) Said {
+	return Said{Mark: Done, Label: "Installed", Detail: at}
+}
+
+// Reinstalled says the service is installed afresh, as why says, keeping the
 // router's flags kept names, "" for none.
-func reinstalled(why, kept string) Said {
+func Reinstalled(why, kept string) Said {
 	detail := "reinstalled: " + why
 	if kept != "" {
 		detail += " · kept its " + kept
@@ -516,7 +529,7 @@ func (r *run) install(ctx context.Context, svc *service.Service, opts service.In
 	opts.Executable = r.switchboard
 	installed, err := r.swapIn(ctx, svc, &opts)
 	if installed.Swap == service.Swapped {
-		r.tell(Said{Mark: Done, Label: "Installed", Detail: r.fromHome(svc.Plist())})
+		r.tell(ServiceInstalled(r.fromHome(svc.Plist())))
 	}
 	if updated != nil {
 		r.tell(*updated)
@@ -595,12 +608,12 @@ func (r *run) up(ctx context.Context, svc *service.Service, opts service.Install
 		}
 	}
 	r.health = h
-	r.tell(routerUp(*h))
+	r.tell(RouterUp(*h))
 	return nil
 }
 
-// routerUp is the Said of the service's router up, answering as h says.
-func routerUp(h router.Health) Said {
+// RouterUp is the Said of the service's router up, answering as h says.
+func RouterUp(h router.Health) Said {
 	said := Said{Mark: Done, Label: routerLabel, Detail: routerDetail(h)}
 	if !h.OK {
 		said.Mark = Warning

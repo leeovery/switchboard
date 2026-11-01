@@ -499,6 +499,25 @@ func TestAccountsPrimary(t *testing.T) {
 	}
 }
 
+func TestPrimaryIndex(t *testing.T) {
+	tests := []struct {
+		name  string
+		marks []bool
+		want  int
+	}{
+		{name: "the one marked", marks: []bool{false, false, true}, want: 2},
+		{name: "the first, without one marked", marks: []bool{false, false}, want: 0},
+		{name: "none: the first's place", marks: nil, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := config.PrimaryIndex(tt.marks, func(marked bool) bool { return marked }); got != tt.want {
+				t.Errorf("PrimaryIndex(%v) = %d, want %d", tt.marks, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoadAcceptsLoopbackListenAndHTTPUpstream(t *testing.T) {
 	tests := []struct {
 		name     string
