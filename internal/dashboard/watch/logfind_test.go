@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -662,4 +663,211 @@ func TestThePanelsSlashOpensTheFind(t *testing.T) {
 	if h.model.open != nothingOpen || !h.model.finding() {
 		t.Errorf("/ on the panel left %d open, finding %t; want the panel closed, the find open", h.model.open, h.model.finding())
 	}
+}
+
+// typingKey is the key that types r, as a terminal sends it.
+func typingKey(r rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
+}
+
+// The find types as setup's fields do, through textfield: at its cursor,
+// which ←, →, home and end move; backspace and delete take out the glyph
+// before it and after it, a glyph of several runes whole; and a paste puts
+// what's pasted in at it, but for what would disturb the line.
+func TestTheFindTypesAtItsCursor(t *testing.T) {
+	a, p, i, x := typingKey('a'), typingKey('p'), typingKey('i'), typingKey('x')
+	e, acute, thumb := typingKey('e'), typingKey('\u0301'), typingKey('👍')
+	left, right := tea.KeyPressMsg{Code: tea.KeyLeft}, tea.KeyPressMsg{Code: tea.KeyRight}
+	home, end := tea.KeyPressMsg{Code: tea.KeyHome}, tea.KeyPressMsg{Code: tea.KeyEnd}
+	backspace, del := tea.KeyPressMsg{Code: tea.KeyBackspace}, tea.KeyPressMsg{Code: tea.KeyDelete}
+	space := tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	tests := []struct {
+		name   string
+		msgs   []tea.Msg
+		typed  string
+		cursor int
+	}{
+		{name: "typed", msgs: []tea.Msg{a, p, i}, typed: "api", cursor: 3},
+		{name: "a space typed", msgs: []tea.Msg{a, space}, typed: "a ", cursor: 2},
+		{name: "typed after ←", msgs: []tea.Msg{a, i, left, p}, typed: "api", cursor: 2},
+		{name: "→", msgs: []tea.Msg{a, p, i, left, left, right}, typed: "api", cursor: 2},
+		{name: "→ at the end", msgs: []tea.Msg{a, p, i, right}, typed: "api", cursor: 3},
+		{name: "home then typed", msgs: []tea.Msg{p, i, home, a}, typed: "api", cursor: 1},
+		{name: "end then typed", msgs: []tea.Msg{a, p, home, end, i}, typed: "api", cursor: 3},
+		{name: "backspace at the cursor", msgs: []tea.Msg{a, p, x, i, left, backspace}, typed: "api", cursor: 2},
+		{name: "backspace at the start", msgs: []tea.Msg{a, p, i, home, backspace}, typed: "api", cursor: 0},
+		{name: "delete at the cursor", msgs: []tea.Msg{a, x, p, i, home, right, del}, typed: "api", cursor: 1},
+		{name: "delete at the end", msgs: []tea.Msg{a, p, i, del}, typed: "api", cursor: 3},
+		{name: "an emoji taken back whole", msgs: []tea.Msg{a, thumb, backspace}, typed: "a", cursor: 1},
+		{name: "a combining mark joining its letter", msgs: []tea.Msg{e, acute}, typed: "e\u0301", cursor: 1},
+		{name: "an accented letter taken back whole", msgs: []tea.Msg{e, acute, backspace}, typed: "", cursor: 0},
+		{name: "an accented letter deleted whole", msgs: []tea.Msg{e, acute, x, home, del}, typed: "x", cursor: 0},
+		{name: "a paste", msgs: []tea.Msg{tea.PasteMsg{Content: "api"}}, typed: "api", cursor: 3},
+		{name: "a paste at the cursor", msgs: []tea.Msg{a, i, left, tea.PasteMsg{Content: "p"}}, typed: "api", cursor: 2},
+		{name: "a paste's line break left out", msgs: []tea.Msg{tea.PasteMsg{Content: "ap\ni"}}, typed: "api", cursor: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, probedWithoutTheRouter())
+			onTheLog(h, t.TempDir())
+			h.start()
+			h.typed("/")
+			h.deliver(tt.msgs...)
+			if f := h.model.log.page.Finding; !h.model.finding() || f.Typed != tt.typed || f.Cursor != tt.cursor {
+				t.Errorf("the find open %t holds %q, its cursor at %d; want open, %q, at %d", h.model.finding(), f.Typed, f.Cursor, tt.typed, tt.cursor)
+			}
+		})
+	}
+}
+
+// The find opens with nothing typed, its cursor at the start, however it
+// last closed: cancelled with esc, or filtering with enter.
+func TestTheFindOpensEmptyHoweverItClosed(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		close tea.KeyPressMsg
+	}{
+		{name: "esc", close: escape},
+		{name: "enter", close: enter},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -time.Minute))
+			h := newHarness(t, probedWithoutTheRouter())
+			onTheLog(h, state)
+			h.start()
+			h.typed("/", "a", "p", "i")
+			h.keys(tea.KeyPressMsg{Code: tea.KeyLeft}, tt.close)
+			if h.model.finding() {
+				t.Fatalf("%s pressed, the find is open still", tt.name)
+			}
+			h.typed("/", "x")
+			if f := h.model.log.page.Finding; f.Typed != "x" || f.Cursor != 1 {
+				t.Errorf("closed with %s, reopened and x typed, the find holds %q, its cursor at %d; want x alone, at 1", tt.name, f.Typed, f.Cursor)
+			}
+		})
+	}
+}
+
+// A paste with the find closed types nothing, nor opens it; with it open,
+// what's pasted finds what it matches.
+func TestAPasteTypesInTheFindAloneWhileItsOpen(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -time.Minute), ranIn("0a000002", webSession, "~/Code/web", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.start()
+	h.deliver(tea.PasteMsg{Content: "api"})
+	if f := h.model.log.page.Finding; f.Open || f.Typed != "" {
+		t.Errorf("a paste with the find closed left it open %t, holding %q; want it closed, nothing typed", f.Open, f.Typed)
+	}
+	h.typed("/")
+	h.deliver(tea.PasteMsg{Content: "api"})
+	if got := foundIDs(h); !slices.Equal(got, []string{apiSession + " ~/Code/api"}) {
+		t.Errorf("api pasted in the find, it finds %v, want api alone", got)
+	}
+}
+
+// A change to what's typed sends the pick back to the first found; the
+// cursor moved alone keeps it.
+func TestTheFindsPickStaysAsTheCursorMovesAndGoesBackAsWhatsTypedChanges(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", docsSession, "~/Code/api-docs", -2*time.Minute), ranIn("0a000002", apiSession, "~/Code/api", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.start()
+	h.typed("/", "a", "p")
+	h.keys(tea.KeyPressMsg{Code: tea.KeyDown})
+	second, _ := h.model.log.page.Finding.Pick()
+	h.keys(tea.KeyPressMsg{Code: tea.KeyLeft}, tea.KeyPressMsg{Code: tea.KeyHome}, tea.KeyPressMsg{Code: tea.KeyEnd})
+	if got, _ := h.model.log.page.Finding.Pick(); got.ID != second.ID || len(h.model.log.page.Finding.Found.Sessions) != 2 {
+		t.Errorf("the cursor moved alone, the find picks %q of %v; want %q, picked before it moved, of two", got.ID, foundIDs(h), second.ID)
+	}
+	h.typed("i")
+	first := h.model.log.page.Finding.Found.Sessions[0]
+	if got, _ := h.model.log.page.Finding.Pick(); got.ID != first.ID || first.ID == second.ID {
+		t.Errorf("i typed, the find picks %q; want the first found, %q", got.ID, first.ID)
+	}
+}
+
+// The find's line draws its cursor where it stands: after ←, before the
+// last glyph typed.
+func TestTheFindsLineDrawsItsCursorMidText(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.start()
+	h.typed("/", "a", "p", "i")
+	h.keys(tea.KeyPressMsg{Code: tea.KeyLeft})
+	rows := strings.Split(h.view(), "\n")
+	if got := strings.TrimSpace(rows[len(rows)-2]); !strings.HasPrefix(got, "/ ap▏i   a910 api  today") {
+		t.Errorf("api typed then ←, the state line's row reads %q, want / ap▏i, the cursor before the i", got)
+	}
+}
+
+// What's typed wider than the find's line scrolls to keep the cursor in
+// view, the view holding still while the cursor moves within it.
+func TestTheFindsViewHoldsStillAsItsCursorMovesWithinIt(t *testing.T) {
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, t.TempDir())
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 40, Height: 20})...)
+	h.start()
+	h.typed("/")
+	h.deliver(tea.PasteMsg{Content: strings.Repeat("abcdefghij", 6)})
+	at := h.model.log.page.Finding.From
+	stateRow := func() string {
+		rows := strings.Split(h.view(), "\n")
+		return strings.TrimSpace(rows[len(rows)-2])
+	}
+	if at == 0 || !strings.HasPrefix(stateRow(), "/ …") || !strings.HasSuffix(stateRow(), "j▏") {
+		t.Fatalf("60 glyphs pasted on a line 40 wide, the find shows from %d, its line reading %q; want it scrolled, the cursor at its end", at, stateRow())
+	}
+	for range 5 {
+		h.keys(tea.KeyPressMsg{Code: tea.KeyLeft})
+	}
+	if got := h.model.log.page.Finding.From; got != at || !strings.Contains(stateRow(), "e▏fghij") {
+		t.Errorf("← 5 times, the find shows from %d, its line reading %q; want from %d still, the cursor before the last 5", got, stateRow(), at)
+	}
+}
+
+// A paste lands in the find only where a key would: not in a card opened
+// over it, as by a click on the line lit, nor in a session's page open over
+// it, which take their own keys.
+func TestAPasteLandsInTheFindAloneWhereItTakesTheKeys(t *testing.T) {
+	t.Run("a card over it", func(t *testing.T) {
+		state := t.TempDir()
+		writeLines(t, state, ranIn("0a000001", apiSession, "~/Code/api", -time.Minute))
+		h := newHarness(t, probedWithoutTheRouter())
+		onTheLog(h, state)
+		h.start()
+		h.keys(tea.KeyPressMsg{Code: tea.KeyUp})
+		h.typed("/", "a")
+		h.clickWhere(func(on dashboard.Target) bool { return on.On == dashboard.OnRow && h.model.log.page.Lit(on.Row) })
+		if h.model.open != logCardOpen || !h.model.finding() {
+			t.Fatalf("the lit line clicked with the find open, the card open %t, the find %t; want both", h.model.open == logCardOpen, h.model.finding())
+		}
+		h.deliver(tea.PasteMsg{Content: "x"})
+		if got := h.model.log.page.Finding.Typed; got != "a" {
+			t.Errorf("x pasted with a card over the find, it holds %q, want a, as it was", got)
+		}
+	})
+	t.Run("a session's page over it", func(t *testing.T) {
+		state := t.TempDir()
+		writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+		h := routedHarness(t, routerDocument(three()...))
+		onTheLog(h, state)
+		h.start()
+		next, read := h.model.openSession(idD28C)
+		h.model = next
+		h.typed("/", "a")
+		h.deliver(h.run(read)...)
+		if h.model.session == nil || !h.model.log.page.Finding.Open {
+			t.Fatal("the page's read landed over the find, want its page open, the find under it")
+		}
+		h.deliver(tea.PasteMsg{Content: "x"})
+		if got := h.model.log.page.Finding.Typed; got != "a" {
+			t.Errorf("x pasted with a session's page over the find, it holds %q, want a, as it was", got)
+		}
+	})
 }

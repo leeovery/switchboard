@@ -4,28 +4,29 @@ import (
 	"maps"
 	"slices"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dashboard/textfield"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// findWalk is what the watch holds of the Log's find beside its line: the
-// sessions of each past day whose lines it has read, by the day's date,
-// held for the run, so it walks back through the days once a run; the
-// summaries of the days the ledger keeps, which name the sessions of each
-// before its lines are read, held while it's open alone, and whether
-// they're read since the find last opened, its openings counted, so a read
-// of them as it opened before, or landing once it has closed, is dropped;
-// whether a read for it is under way, one at a time; the session
-// enter picked, once it has ended, for the table shown to pause at its
-// newest line once the tables reach its day; and the session enter picked
-// last, which joins the panel's sessions while the filter keeps it.
+// findWalk is what the watch holds of the Log's find beside its line: what's
+// typed in it, and where its cursor is, which its line draws; the sessions
+// of each past day whose lines it has read, by the day's date, held for the
+// run, so it walks back through the days once a run; the summaries of the
+// days the ledger keeps, which name the sessions of each before its lines
+// are read, held while it's open alone, and whether they're read since the
+// find last opened, its openings counted, so a read of them as it opened
+// before, or landing once it has closed, is dropped; whether a read for it
+// is under way, one at a time; the session enter picked, once it has ended,
+// for the table shown to pause at its newest line once the tables reach its
+// day; and the session enter picked last, which joins the panel's sessions
+// while the filter keeps it.
 type findWalk struct {
+	typed     textfield.Text
 	days      map[string][]views.DaySession
 	summaries []ledger.Summary
 	summed    bool
@@ -56,7 +57,7 @@ func (m Model) openLogFind() (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.log.page.Finding = dashboard.LogFinding{Open: true}
-	m.log.find.summed = false
+	m.log.find.typed, m.log.find.summed = textfield.Text{}, false
 	m.log.find.opening++
 	return m, nil
 }
@@ -71,12 +72,12 @@ func (m Model) finding() bool {
 // logFindKey acts on a key while the Log's find is open, which takes every
 // key but ctrl+c: esc cancels it, dropping a session's page asked to open,
 // as esc on the page does, as unasked has it; enter filters both tables to
-// the session picked, as foundPicked has it; ↑ and ↓ step the pick;
-// backspace takes back what was typed last; and a printable key, space among
-// them, types, the pick going back to the first found. The rest do nothing.
-func (m Model) logFindKey(key string) (tea.Model, tea.Cmd) {
+// the session picked, as foundPicked has it; ↑ and ↓ step the pick; and the
+// rest type, as textfield.Text.Pressed has them, as typedInFind takes
+// them. A key it doesn't take does nothing.
+func (m Model) logFindKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	f := m.log.page.Finding
-	switch key {
+	switch key.String() {
 	case "esc":
 		f, m = dashboard.LogFinding{}, m.unasked()
 		m.log.find = m.log.find.closed()
@@ -86,31 +87,34 @@ func (m Model) logFindKey(key string) (tea.Model, tea.Cmd) {
 		f = f.Stepped(-1)
 	case "down":
 		f = f.Stepped(1)
-	case "backspace":
-		_, size := utf8.DecodeLastRuneInString(f.Typed)
-		f.Typed, f.Picked = f.Typed[:len(f.Typed)-size], ""
 	default:
-		r, ok := typedRune(key)
-		if !ok {
-			return m, nil
+		if typed, ok := m.log.find.typed.Pressed(key); ok {
+			return m.typedInFind(typed), nil
 		}
-		f.Typed, f.Picked = f.Typed+string(r), ""
+		return m, nil
 	}
 	m.log.page.Finding = f
 	return m, nil
 }
 
-// typedRune is what the key types on the find's line: a space, or a
-// printable character; false for any other key.
-func typedRune(key string) (rune, bool) {
-	if key == "space" {
-		return ' ', true
+// pasted puts text pasted into the Log's find at its cursor, as
+// textfield.Text.Pasted has it, where the find would take a key pressed;
+// elsewhere a paste does nothing.
+func (m Model) pasted(text string) Model {
+	if m.open != nothingOpen || !m.finding() {
+		return m
 	}
-	r, size := utf8.DecodeRuneInString(key)
-	if size == 0 || size != len(key) || !unicode.IsPrint(r) {
-		return 0, false
-	}
-	return r, true
+	return m.typedInFind(m.log.find.typed.Pasted(text))
+}
+
+// typedInFind is m with typed in the Log's find, its line drawing it, its
+// cursor in view, as FindInView has it, a change to what's typed sending the
+// pick back to the first found, as Retyped has it.
+func (m Model) typedInFind(typed textfield.Text) Model {
+	m.log.find.typed = typed
+	m.log.page.Finding = m.log.page.Finding.Retyped(typed.Value(), typed.Cursor())
+	m.log.page.Finding = m.logFrame().FindInView()
+	return m
 }
 
 // foundPicked is m with both of the Log's tables filtered to the session
@@ -132,11 +136,11 @@ func (m Model) foundPicked() Model {
 	return m
 }
 
-// closed is w as the find closes: holding none of the days' summaries,
-// which it reads afresh as it opens, and which no landing nor its reach
-// reads.
+// closed is w as the find closes: nothing typed, and holding none of the
+// days' summaries, which it reads afresh as it opens, and which no landing
+// nor its reach reads.
 func (w findWalk) closed() findWalk {
-	w.summaries, w.summed = nil, false
+	w.typed, w.summaries, w.summed = textfield.Text{}, nil, false
 	return w
 }
 

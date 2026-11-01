@@ -5305,15 +5305,18 @@ the width, the table scrolling to keep it in view, and from following, `↑` cho
 and pausing there (settled in the plan); `enter` opens its details, and `esc` closes them; `end`
 follows again, the newest line at the foot and nothing chosen; `s` opens the chosen line's session's
 page, and `esc` there comes back to the Log as it was, paused at its line; `f` opens the panel; `/`
-opens a find line in the state line's row, `/ api▏`, which finds a session by its id's start or by
-its directory's name, today's sessions first, then back a day at a time through the days the ledger
-keeps, each past day's sessions read from the side its head holds where it stands, and its lines
-only where none does (see Live updates); `↑↓` and `enter` pick among the sessions it matches, and
-`enter` filters both tables to the one picked, its lines alone, headed `only <id> <name>`, paused
-at its newest line where it has ended, the panel listing it among today's sessions, ticked; `esc`
-cancels the find, and with a filter on and nothing open, `esc` clears the filter (the owner's call,
-13 October 2026; see The request ledger); `p` opens new sessions' routing picker, whatever line is
-chosen, as the page decides which picker (see Routing by hand); `?` help for this page,
+opens a find line in the state line's row, `/ api▏`, typed in as setup's fields are (`←→`, `home`,
+`end`, `delete` and a paste, through `internal/dashboard/textfield`), the cursor drawn where it
+stands, what's typed scrolling to keep it in view, which finds a session by its id's start or by
+its directory's name, today's sessions first, then back a day at a time through the days the
+ledger keeps, each past day's sessions read from the side its head holds where it stands, and its
+lines only where none does (see Live updates); `↑↓` and `enter` pick among the sessions it
+matches, and `enter` filters both tables to the one picked, its lines alone, headed
+`only <id> <name>`, paused at its newest line where it has ended, the panel listing it among
+today's sessions, ticked; `esc` cancels the find, and with a filter on and nothing open, `esc`
+clears the filter (the owner's call, 13 October 2026; see The request ledger); `p` opens new
+sessions' routing picker, whatever line is chosen, as the page decides which picker (see Routing
+by hand); `?` help for this page,
 `HELP · LOG`, listing every key first, `t`, `R` and `j`/`k` among them, then explaining the marks, the
 columns, the kinds, why checks and counts are hidden, worth at API prices and what the ledger never
 keeps (settled in the plan); `q` quits. `j` `k`, PgUp, PgDn and the wheel scroll the table; `R` and
