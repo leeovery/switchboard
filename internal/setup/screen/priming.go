@@ -155,9 +155,9 @@ func (m Model) typedIn(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// pasted is m with text pasted into the field typed in: the add card's or
-// the edit card's, where one's open, as addCard.pasted and editCard.pasted
-// have it; or the Priming page's.
+// pasted is m with text pasted into the field typed in: the add card's, the
+// edit card's, the paste card's or the reserve card's, where one's open, as
+// each card's pasted has it; or the Priming page's.
 func (m Model) pasted(text string) Model {
 	switch {
 	case m.add != nil && !m.add.checking:
@@ -169,6 +169,9 @@ func (m Model) pasted(text string) Model {
 	case m.paste != nil && !m.paste.checking:
 		card := m.paste.pasted(text)
 		m.paste = &card
+	case m.reserve != nil && !m.reserve.saving:
+		card := m.reserve.pasted(text)
+		m.reserve = &card
 	case m.typing():
 		return m.edited(m.priming.day.pasted(text))
 	}

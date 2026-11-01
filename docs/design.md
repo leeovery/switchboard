@@ -871,8 +871,8 @@ differ, this section holds: frame 4 says only what the service step can know (se
 frame 5's `PATH` line is the shell step's line, and is to be drawn again in Paper; setup's cards are
 the dashboard's card as it's drawn everywhere, their line and title in `text.subtle`, where the
 frames draw the line in `border` and the title bold `text.secondary`; and the status line, the clock
-and where a card sits follow the rules below. The primary's reserve card is still to be drawn in
-Paper.
+and where a card sits follow the rules below. The primary's reserve card is frame 13, drawn after
+the sign-off as one of the calls approved.
 
 Setup needs a terminal, the screen being its only way through: without one, it fails
 (`setup.ErrNoTerminal`), saying how each step is taken alone: by the command that takes it, where
@@ -908,7 +908,7 @@ show.
 - **The key line,** the last row: the page's own keys at the left, and at the right `enter` and
   where it goes, as `enter next: Priming`, then `q quit`, each key bold `accent.key` and its word
   `text.muted`, three cells apart. While a card is open the key line is empty, as in frames 1, 2, 6,
-  8 and 10: the card's keys are its own.
+  8, 10 and 13: the card's keys are its own.
 - **Forward only.** `enter` moves on to the next step once this one is done, and there's no going
   back. `q`, at any step but Done, leaves with a status of 0, saying `run setup again to carry on`,
   and at Done leaves with a status of 0 without opening the dashboard; run again, setup carries on
@@ -982,14 +982,22 @@ show.
      remove`, `p make primary`. `enter` all the way through changes nothing.
    - **Edit** (`e`, frame 6), the card `EDIT PERSONAL`: Label; Plan, `used by History to value
      usage`; Primary, `no` or `yes`, `the account the Claude apps are signed in to`; and Reserve,
-     `usage kept back for the Claude apps`, a percentage, as `accounts edit` takes it, or `none`.
-     Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
+     `usage kept back for the Claude apps`, a percentage, as `accounts edit` takes it, or `none`,
+     so cleared on an account with none, it writes nothing. Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
      `accounts.Registry.Edit`, as `accounts edit` does.
    - **The primary,** the account the browser and the Claude apps are signed in to: `p` marks the
      chosen account, taking the mark off the one that had it.
-   - **The primary's reserve,** on a first run, once the accounts are added: a small card, as the
-     edit card's Reserve field, the share of the primary's windows the router leaves for the Claude
-     apps, or `none`. Other accounts' reserves are set with `e`, or `accounts edit`.
+   - **The primary's reserve** (frame 13), on a first run, once the accounts are added: `enter` on
+     an account's row opens the card `RESERVE · <ID>`, once only, where the primary's reserve is
+     unset; with one account, that account is the primary. It says `work is the primary, the
+     account the Claude apps are signed in to.` and `Its reserve is the share of each of its windows kept back for
+     them.` in `text.secondary`; the edit card's Reserve, typed in, empty, its hint `usage kept
+     back for the Claude apps`, and under it `a percentage, or none` in `text.faint`; then `Other
+     accounts' reserves are set with e, or switchboard accounts edit.` muted. Its keys: `enter
+     save`, `esc no reserve`. `enter` saves it as the edit card's Reserve is saved, through
+     `accounts.Registry.Edit`, `none` or empty saving nothing, and moves on to Priming; a value
+     config refuses is said under the field, the card staying open, and a write that fails
+     otherwise fails the step, as the edit card's does. `esc` writes nothing, and moves on. Other accounts' reserves are set with `e`, or `accounts edit`.
    - **Remove** (`r`) asks first, in a card laid as frame 6's, naming the account, and removes it as
      `accounts remove` does.
    - **A new token** (`t`) makes the chosen account's token in the token card, and saves it in the
