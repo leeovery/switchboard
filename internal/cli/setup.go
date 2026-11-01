@@ -9,14 +9,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/accounts"
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/sessionhook"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/setup/screen"
-	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/skill"
 )
@@ -126,20 +124,15 @@ func (a *app) setupScreen(s *setup.Setup) screen.Config {
 	return cfg
 }
 
-// newSetup returns setup, for the config, the state and the Claude Code
-// config directory the CLI finds, this switchboard binary, PATH, and the
-// user's login shell; its files for the shells loading the completions of
-// root, the command tree; making tokens with the real claude setup-token,
-// its sign-in opened by the CLI's openers. The process's interrupts are held
-// as a token's saved, telling no one, as the screen's Left says one was
-// held, and the service's install says nothing of one it waits for, as
-// setup's screen says it waits.
+// newSetup returns setup, making tokens as tokenSetup has it, for the
+// service, this switchboard binary, PATH, and the user's login shell; its
+// files for the shells loading the completions of root, the command tree;
+// and the skill and the session hook where Claude Code reads them. The
+// process's interrupts are held as a token's saved, telling no one, as the
+// screen's Left says one was held, and the service's install says nothing of
+// one it waits for, as setup's screen says it waits.
 func (a *app) newSetup(root *cobra.Command) (*setup.Setup, error) {
-	path, err := a.configFile()
-	if err != nil {
-		return nil, err
-	}
-	files, err := a.tokens()
+	s, err := a.tokenSetup()
 	if err != nil {
 		return nil, err
 	}
@@ -147,45 +140,27 @@ func (a *app) newSetup(root *cobra.Command) (*setup.Setup, error) {
 	if err != nil {
 		return nil, err
 	}
-	svc, err := service.New(cfg)
-	if err != nil {
+	if s.LaunchAgent, err = service.New(cfg); err != nil {
 		return nil, err
 	}
 	exe, err := a.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("find this switchboard binary: %w", err)
 	}
-	skillPath, err := skill.Path(a.Getenv, a.HomeDir)
-	if err != nil {
+	if s.SkillFile, err = skill.Path(a.Getenv, a.HomeDir); err != nil {
 		return nil, err
 	}
-	settings, err := sessionhook.Path(a.Getenv, a.HomeDir)
-	if err != nil {
+	if s.Settings, err = sessionhook.Path(a.Getenv, a.HomeDir); err != nil {
 		return nil, err
 	}
-	shells, err := a.shellFiles(root)
-	if err != nil {
+	if s.Shells, err = a.shellFiles(root); err != nil {
 		return nil, err
 	}
-	// Without a home directory, only the install paths outside it are tried.
-	home, _ := a.HomeDir()
-	installPaths := claude.InstallPaths(home)
-	return &setup.Setup{
-		Accounts:      accounts.Registry{ConfigPath: path, Tokens: files, Prober: a.prober, Now: a.Now},
-		LaunchAgent:   svc,
-		Install:       service.InstallOptions{Executable: exe, Config: a.configPath},
-		Startable:     a.startableIn,
-		Path:          a.Getenv("PATH"),
-		InstallPaths:  installPaths,
-		Bin:           shells.Bin,
-		Home:          home,
-		Shells:        shells,
-		Login:         shell.Login{Environ: a.Environ(), Run: a.LoginShell},
-		Getenv:        a.Getenv,
-		TokenMaker:    setuptoken.Maker{Environ: a.Environ(), InstallPaths: installPaths, Executable: a.Executable},
-		Browser:       a.Browser,
-		PrivateWindow: a.PrivateWindow,
-		SkillFile:     skillPath,
-		Settings:      settings,
-	}, nil
+	s.Install = service.InstallOptions{Executable: exe, Config: a.configPath}
+	s.Startable = a.startableIn
+	s.Path = a.Getenv("PATH")
+	s.Bin = s.Shells.Bin
+	s.Login = shell.Login{Environ: a.Environ(), Run: a.LoginShell}
+	s.Getenv = a.Getenv
+	return s, nil
 }

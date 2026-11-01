@@ -61,7 +61,6 @@ const (
 	tokenStarting     = "Starting claude setup-token"
 	tokenStartingSays = "Setup opens its sign-in page in the browser once it's ready."
 	tokenWaiting      = "Waiting for you to approve it in the browser"
-	tokenPrivate      = "Close any other private window first: they all share one sign-in."
 	tokenSaves        = "Setup saves the token automatically. There's nothing to copy."
 	tokenStopping     = "Stopping claude setup-token"
 	tokenStoppingSays = "Nothing is saved, unless it had already created the token."
@@ -122,7 +121,7 @@ func (t SetupTokenCard) waiting(b *tokenBody, now time.Time) {
 		b.says(line{{t.Opening, secondaryInk}}).gap()
 	}
 	if t.Private {
-		b.says(line{{tokenPrivate, warningInk}}).gap()
+		b.says(line{{setup.SharedSignIn, warningInk}}).gap()
 	}
 	if t.Unopened {
 		for _, l := range wholeLines(prose.Visible(t.Address), b.width-tokenSaysAt) {

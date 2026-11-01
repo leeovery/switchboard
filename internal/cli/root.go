@@ -23,11 +23,13 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/handover"
+	"github.com/leeovery/switchboard/internal/interrupts"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/setup/screen"
 	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/shell"
@@ -92,6 +94,13 @@ type Deps struct {
 	// makes, in the browser as it is, and in a private window, as
 	// setuptoken's Browser and PrivateWindow do.
 	Browser, PrivateWindow setuptoken.Opener
+	// TokenMaker makes an account's token, as setup's TokenMaker does: nil
+	// makes it with claude setup-token, as setuptoken.Maker does.
+	TokenMaker setup.TokenMaker
+	// Interrupt and Hold take the process's interrupts as a token's made, as
+	// setup's Interrupt and Hold do: nil takes them through os/signal.
+	Interrupt func(context.Context) (context.Context, context.CancelFunc)
+	Hold      interrupts.Holder
 	// Hidden returns what reads a line typed at the terminal stdin is,
 	// without showing it, or false when stdin isn't a terminal, as
 	// HiddenInput does: a token is typed there unseen.
