@@ -41,7 +41,7 @@ const (
 		"Starting claude setup-token: its sign-in page opens in the browser once it's ready."
 	waits   = "Waiting for you to approve it in the browser: the token's saved automatically, so there's nothing to copy."
 	made    = "claude setup-token created the token: an interrupt now waits until it's checked, and what came of it is said."
-	checks  = "Checking the token with the API, then saving it, a year from today."
+	checks  = "Checking the token and saving it: the API checks it, and it's good for a year from today."
 	private = "Close any other private window first: they all share one sign-in."
 )
 

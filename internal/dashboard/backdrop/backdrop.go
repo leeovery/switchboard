@@ -103,9 +103,9 @@ func (b Backdrop) settle(dark bool) (Backdrop, bool) {
 	return b, true
 }
 
-// InForce is the theme of pair the screen is drawn in, by the terminal's
+// inForce is the theme of pair the screen is drawn in, by the terminal's
 // background.
-func (b Backdrop) InForce(pair theme.Pair) theme.Theme {
+func (b Backdrop) inForce(pair theme.Pair) theme.Theme {
 	return pair.For(b.dark)
 }
 
@@ -119,7 +119,7 @@ func (b Backdrop) DrawIn(t theme.Theme) Backdrop {
 // DrawInForce is b once the screen is drawn in the theme of pair in force,
 // as DrawIn has it, and that theme.
 func (b Backdrop) DrawInForce(pair theme.Pair) (Backdrop, theme.Theme) {
-	t := b.InForce(pair)
+	t := b.inForce(pair)
 	return b.DrawIn(t), t
 }
 

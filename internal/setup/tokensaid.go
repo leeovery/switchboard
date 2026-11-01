@@ -8,6 +8,21 @@ import (
 	"github.com/leeovery/switchboard/internal/setuptoken"
 )
 
+// What a token's making says as it goes, as the token card says it: at each
+// stage, what's under way, then what it says of it; and once the token's
+// made, that it's saved however setup's left.
+const (
+	MakingStarts     = "Starting claude setup-token"
+	MakingStartsSays = "Setup opens its sign-in page in the browser once it's ready."
+	MakingWaits      = "Waiting for you to approve it in the browser"
+	MakingSaves      = "Setup saves the token automatically. There's nothing to copy."
+	MakingStops      = "Stopping claude setup-token"
+	MakingStopsSays  = "Nothing is saved, unless it had already created the token."
+	MakingChecks     = "Checking the token and saving it"
+	MakingChecksSays = "claude setup-token created it. Setup checks it with the API, then saves it, a year from today."
+	MakingKept       = "It's saved however you leave setup now, as it lasts a year on the account."
+)
+
 // Opening says how the sign-in address opened, at AddressReady, as the token
 // card says it under its wait: in a private window, as the browser is
 // signed in to another account, to sign in there; not opened, to open the

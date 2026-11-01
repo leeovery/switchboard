@@ -33,14 +33,12 @@ type SetupOfferCard struct {
 }
 
 // What the claude link page says of its own: what the claude command is
-// for; what it says while it asks the shell; the label of its row where the
-// step failed; and where asking again can tell the link is put right by
-// hand, how to have it ask.
+// for; what it says while it asks the shell; and where asking again can
+// tell the link is put right by hand, how to have it ask.
 const (
-	linkPurpose  = "The claude command starts Claude Code through switchboard, so every session is routed."
-	linkAsking   = "Asking your shell, as a new terminal starts it, which claude it runs"
-	linkNotSetUp = "Not set up"
-	pressR       = "Then press r: setup asks your shell again, as a new terminal would start it."
+	linkPurpose = "The claude command starts Claude Code through switchboard, so every session is routed."
+	linkAsking  = "Asking your shell, as a new terminal starts it, which claude it runs"
+	pressR      = "Then press r: setup asks your shell again, as a new terminal would start it."
 )
 
 // The claude link page's keys, where it leaves the link to put right by
@@ -68,7 +66,7 @@ func (s Setup) linkPage() setupPage {
 	}
 	switch {
 	case s.Failure != "":
-		p.facts = append(p.facts, setup.Said{Mark: setup.Failed, Label: linkNotSetUp, Detail: s.Failure})
+		p.facts = append(p.facts, setup.Said{Mark: setup.Failed, Label: setup.NotSetUp, Detail: s.Failure})
 	case s.Linking.Asking:
 		p.underWay = waiting(s.Now, linkAsking)
 	case found == nil:

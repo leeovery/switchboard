@@ -28,5 +28,5 @@ func (s *Setup) Skill() (Said, error) {
 
 // notInstalled is what the skill step says where it failed, as err says.
 func notInstalled(err error) Said {
-	return Said{Mark: Failed, Label: "Not installed", Detail: err.Error()}
+	return Said{Mark: Failed, Label: NotInstalled, Detail: err.Error()}
 }

@@ -54,7 +54,7 @@ Each screen opens its page in [the dashboard's docs](docs/dashboard.md).
 
 ## Install
 
-You need macOS, Claude Code, and a long-lived token for each subscription. To make a token, run `claude setup-token` while signed in to that subscription.
+You need macOS, Claude Code, and a Claude subscription or several. `setup` makes each subscription's long-lived token for you.
 
 ```bash
 brew install leeovery/tools/switchboard

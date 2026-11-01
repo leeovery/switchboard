@@ -21,9 +21,6 @@ const (
 	dayName    = "Your day"
 	dayHint    = "start and end, as HH:MM-HH:MM"
 	primingOff = "Leave it empty to keep priming off."
-	// primingNotSet labels the fact of a step that failed, reading the day
-	// or setting it.
-	primingNotSet = "Not set"
 )
 
 // primingPage is the Priming step's page: PRIMING, what priming is for, and
@@ -34,7 +31,7 @@ func (s Setup) primingPage() setupPage {
 	p := setupPage{name: "PRIMING", purpose: primingPurpose, onward: onward("next: " + SetupService.Title())}
 	switch pr := s.Priming; {
 	case s.Failure != "":
-		p.facts = []setup.Said{{Mark: setup.Failed, Label: primingNotSet, Detail: s.Failure}}
+		p.facts = []setup.Said{{Mark: setup.Failed, Label: setup.NotSet, Detail: s.Failure}}
 	case pr == nil:
 	default:
 		p.fields = []textField{{name: dayName, hint: dayHint, wrong: pr.Refused, field: pr.Day}}

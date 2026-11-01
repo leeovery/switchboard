@@ -54,10 +54,10 @@ const (
 // accountsFailedLabels are the labels of the failed fact, by what the step
 // failed at.
 var accountsFailedLabels = map[AccountsFailed]string{
-	AccountsNotRead:    "Not read",
-	AccountsNotSaved:   "Not saved",
-	AccountsNotDeleted: "Not deleted",
-	AccountsNotChecked: "Not checked",
+	AccountsNotRead:    setup.NotRead,
+	AccountsNotSaved:   setup.NotSaved,
+	AccountsNotDeleted: setup.NotDeleted,
+	AccountsNotChecked: setup.NotChecked,
 }
 
 // What the Accounts page says: what the review is, or on a first run, what

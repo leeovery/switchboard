@@ -112,7 +112,7 @@ type run struct {
 	switchboard string
 	// cfg is the config as the service step found it.
 	cfg *config.Config
-	// tell is where the step tells what it says: nil where nothing hears it.
+	// tell is where the step tells what it says, each row its outcome holds.
 	tell func(Said)
 	// claudeCode is Claude Code's own claude, as the claude link step found
 	// it.

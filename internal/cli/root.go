@@ -110,7 +110,8 @@ type Deps struct {
 	Terminal func(out io.Writer) bool
 	// TerminalInput reports whether in is a terminal, as IsTerminalInput
 	// does: the session hook reads no input from one, which would wait for
-	// typing.
+	// typing, and setup runs its screen, and accounts token makes a token,
+	// only on one.
 	TerminalInput func(in io.Reader) bool
 	// Background asks the terminal out is what its background is, as
 	// TerminalBackground does: nil where it doesn't say. usage prints its

@@ -26,6 +26,19 @@ type Said struct {
 	Detail string
 }
 
+// The labels of the row that says why a step failed, where none of the
+// step's own rows does: the Accounts step's, by what it failed at;
+// Priming's; the Service's and the claude link's; and the Skill's.
+const (
+	NotRead      = "Not read"
+	NotSaved     = "Not saved"
+	NotDeleted   = "Not deleted"
+	NotChecked   = "Not checked"
+	NotSet       = "Not set"
+	NotSetUp     = "Not set up"
+	NotInstalled = "Not installed"
+)
+
 // Serviced is what the service step told, in turn, and the health of the
 // service's router, where the step saw it answer: nil where it didn't. Swap
 // is how far the step's swap of the service got, as service.Install says,
