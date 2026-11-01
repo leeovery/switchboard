@@ -3,6 +3,8 @@ package dashboard
 import (
 	"strings"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/setup"
 )
 
 // SetupPasteCard is the card pasting an account's token, open over the
@@ -43,7 +45,7 @@ func (p SetupPasteCard) card(width int, now time.Time) *setupCard {
 	content := width - 2*cardInset
 	b := tokenBody{width: content}
 	if p.Checking {
-		b.underWay(now, tokenChecking)
+		b.underWay(now, setup.MakingChecks)
 	} else {
 		b.says(line{{pasteAsks, titleInk}})
 	}

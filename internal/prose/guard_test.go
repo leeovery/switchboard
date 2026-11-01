@@ -24,11 +24,14 @@ import (
 // money through prose. strconv's floats and ansi's cuts are prose's in every
 // package.
 var tellingPackages = []string{
+	"internal/accounts",
 	"internal/cli",
 	"internal/dashboard",
 	"internal/dashboard/watch",
 	"internal/notify",
 	"internal/router",
+	"internal/setup",
+	"internal/setup/screen",
 	"internal/status",
 	"internal/views",
 }

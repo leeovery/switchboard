@@ -110,15 +110,14 @@ func TestAMomentJudgesEachTokensYearAtItsNow(t *testing.T) {
 		warned, lastWarned bool
 		days               int
 		counted            bool
-		gone               float64
 	}{
 		{name: "not known", unknown: true},
-		{name: "31 days left", left: 31, days: 31, counted: true, gone: 334.0 / 365},
-		{name: "30 days left", left: 30, warned: true, days: 30, counted: true, gone: 335.0 / 365},
-		{name: "8 days left", left: 8, warned: true, days: 8, counted: true, gone: 357.0 / 365},
-		{name: "7 days left", left: 7, warned: true, lastWarned: true, days: 7, counted: true, gone: 358.0 / 365},
-		{name: "up at now", warned: true, lastWarned: true, gone: 1},
-		{name: "past its year", left: -1, warned: true, lastWarned: true, gone: 1},
+		{name: "31 days left", left: 31, days: 31, counted: true},
+		{name: "30 days left", left: 30, warned: true, days: 30, counted: true},
+		{name: "8 days left", left: 8, warned: true, days: 8, counted: true},
+		{name: "7 days left", left: 7, warned: true, lastWarned: true, days: 7, counted: true},
+		{name: "up at now", warned: true, lastWarned: true},
+		{name: "past its year", left: -1, warned: true, lastWarned: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -128,18 +127,6 @@ func TestAMomentJudgesEachTokensYearAtItsNow(t *testing.T) {
 			}
 			doc := status.Document{GeneratedAt: generated, Source: status.SourceProbe, Accounts: []status.Account{a}}
 			work := doc.At(now, policy).Accounts[0]
-			if got := work.TokenEndsWithin(status.TokenWarning); got != tt.warned {
-				t.Errorf("TokenEndsWithin(TokenWarning) = %v, want %v", got, tt.warned)
-			}
-			if got := work.TokenEndsWithin(status.TokenLastWarning); got != tt.lastWarned {
-				t.Errorf("TokenEndsWithin(TokenLastWarning) = %v, want %v", got, tt.lastWarned)
-			}
-			if days, counted := work.TokenDaysLeft(); days != tt.days || counted != tt.counted {
-				t.Errorf("TokenDaysLeft() = %d, %v; want %d, %v", days, counted, tt.days, tt.counted)
-			}
-			if got := work.TokenGone(); math.Abs(got-tt.gone) > 1e-9 {
-				t.Errorf("TokenGone() = %v, want %v", got, tt.gone)
-			}
 			warning := map[bool]int{true: status.TokenWarning}[tt.warned]
 			if tt.lastWarned {
 				warning = status.TokenLastWarning

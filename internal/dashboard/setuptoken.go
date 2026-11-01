@@ -56,19 +56,6 @@ func (t TokenStage) spins() bool {
 // starts, its mark in the cells before.
 const tokenSaysAt = 5
 
-// What the token card says, at each stage, of its own.
-const (
-	tokenStarting     = "Starting claude setup-token"
-	tokenStartingSays = "Setup opens its sign-in page in the browser once it's ready."
-	tokenWaiting      = "Waiting for you to approve it in the browser"
-	tokenSaves        = "Setup saves the token automatically. There's nothing to copy."
-	tokenStopping     = "Stopping claude setup-token"
-	tokenStoppingSays = "Nothing is saved, unless it had already created the token."
-	tokenChecking     = "Checking the token and saving it"
-	tokenCheckingSays = "claude setup-token created it. Setup checks it with the API, then saves it, a year from today."
-	tokenKept         = "It's saved however you leave setup now, as it lasts a year on the account."
-)
-
 // The token card's keys.
 var (
 	reopenKey   = Key{Key: "o", Does: "reopen window"}
@@ -93,13 +80,13 @@ func (t SetupTokenCard) body(now time.Time, content int) []line {
 	b := tokenBody{width: content}
 	switch t.Stage {
 	case TokenStarting:
-		b.underWay(now, tokenStarting).gap().says(line{{tokenStartingSays, mutedInk}})
+		b.underWay(now, setup.MakingStarts).gap().says(line{{setup.MakingStartsSays, mutedInk}})
 	case TokenWaiting:
 		t.waiting(&b, now)
 	case TokenStopping:
-		b.underWay(now, tokenStopping).gap().says(line{{tokenStoppingSays, mutedInk}})
+		b.underWay(now, setup.MakingStops).gap().says(line{{setup.MakingStopsSays, mutedInk}})
 	case TokenChecking:
-		b.underWay(now, tokenChecking).gap().says(line{{tokenCheckingSays, secondaryInk}}).gap().says(line{{tokenKept, mutedInk}})
+		b.underWay(now, setup.MakingChecks).gap().says(line{{setup.MakingChecksSays, secondaryInk}}).gap().says(line{{setup.MakingKept, mutedInk}})
 	case TokenUnsaved:
 		t.unsaved(&b)
 	}
@@ -115,7 +102,7 @@ func (t SetupTokenCard) body(now time.Time, content int) []line {
 // never cut, as it's to be copied whole; and that setup saves the token
 // itself, muted.
 func (t SetupTokenCard) waiting(b *tokenBody, now time.Time) {
-	b.lines = append(b.lines, spread(waiting(now, tokenWaiting), line{{prose.Stopwatch(t.Waited), faintInk}}, b.width))
+	b.lines = append(b.lines, spread(waiting(now, setup.MakingWaits), line{{prose.Stopwatch(t.Waited), faintInk}}, b.width))
 	b.gap()
 	if t.Opening != "" {
 		b.says(line{{t.Opening, secondaryInk}}).gap()
@@ -129,7 +116,7 @@ func (t SetupTokenCard) waiting(b *tokenBody, now time.Time) {
 		}
 		b.gap()
 	}
-	b.says(line{{tokenSaves, mutedInk}})
+	b.says(line{{setup.MakingSaves, mutedInk}})
 }
 
 // unsaved is what the card says of a making that saved nothing, as frame 10

@@ -73,8 +73,8 @@ func TestTheHalfOfThePairInForceGoesByTheTerminalsBackground(t *testing.T) {
 			if !b.Settled() || !afresh {
 				t.Errorf("settled %v, to be drawn afresh %v, want both", b.Settled(), afresh)
 			}
-			if got := b.InForce(pair).Slug; got != tt.want {
-				t.Errorf("InForce() = %s, want %s", got, tt.want)
+			if got := inForce(b, pair); got != tt.want {
+				t.Errorf("the theme in force is %s, want %s", got, tt.want)
 			}
 		})
 	}
@@ -94,14 +94,14 @@ func TestALateAnswerIsStillHeard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b, _ := backdrop.Backdrop{}.NoAnswer()
-			b = b.DrawIn(b.InForce(pair))
+			b, _ = b.DrawInForce(pair)
 			b, afresh := b.Answered(tt.answer, pair)
 
 			if afresh != tt.wantAfresh {
 				t.Errorf("a late answer has the screen drawn afresh %v, want %v", afresh, tt.wantAfresh)
 			}
-			if got := b.InForce(pair).Slug; got != tt.want {
-				t.Errorf("InForce() = %s, want %s", got, tt.want)
+			if got := inForce(b, pair); got != tt.want {
+				t.Errorf("the theme in force is %s, want %s", got, tt.want)
 			}
 			if got, want := putBack(b), ansi.SetBackgroundColor(hex(tt.answer)); got != want {
 				t.Errorf("PutBack() writes %q, want %q, the background the late answer said", got, want)
@@ -113,11 +113,11 @@ func TestALateAnswerIsStillHeard(t *testing.T) {
 func TestOnlyTheFirstAnswerCounts(t *testing.T) {
 	pair := defaultPair(t)
 	b, _ := backdrop.Backdrop{}.Answered(darkBackground, pair)
-	b = b.DrawIn(b.InForce(pair))
+	b, _ = b.DrawInForce(pair)
 
 	b, afresh := b.Answered(lightBackground, pair)
-	if afresh || b.InForce(pair).Slug != pair.Dark.Slug {
-		t.Errorf("a second answer has the screen drawn afresh %v in %s, want neither, %s still", afresh, b.InForce(pair).Slug, pair.Dark.Slug)
+	if afresh || inForce(b, pair) != pair.Dark.Slug {
+		t.Errorf("a second answer has the screen drawn afresh %v in %s, want neither, %s still", afresh, inForce(b, pair), pair.Dark.Slug)
 	}
 	if got, want := putBack(b), ansi.SetBackgroundColor(hex(darkBackground)); got != want {
 		t.Errorf("PutBack() writes %q, want the first answer's, %q", got, want)
@@ -127,11 +127,11 @@ func TestOnlyTheFirstAnswerCounts(t *testing.T) {
 func TestTheWaitRunningOutAfterAnAnswerChangesNothing(t *testing.T) {
 	pair := defaultPair(t)
 	b, _ := backdrop.Backdrop{}.Answered(lightBackground, pair)
-	b = b.DrawIn(b.InForce(pair))
+	b, _ = b.DrawInForce(pair)
 
 	b, afresh := b.NoAnswer()
-	if afresh || b.InForce(pair).Slug != pair.Light.Slug {
-		t.Errorf("the wait running out after a light answer has the screen drawn afresh %v in %s, want neither, %s still", afresh, b.InForce(pair).Slug, pair.Light.Slug)
+	if afresh || inForce(b, pair) != pair.Light.Slug {
+		t.Errorf("the wait running out after a light answer has the screen drawn afresh %v in %s, want neither, %s still", afresh, inForce(b, pair), pair.Light.Slug)
 	}
 }
 
@@ -266,4 +266,10 @@ func hexOrNone(c color.Color) string {
 		return "none"
 	}
 	return hex(c)
+}
+
+// inForce is the slug of the theme of pair b has the screen drawn in.
+func inForce(b backdrop.Backdrop, pair theme.Pair) string {
+	_, t := b.DrawInForce(pair)
+	return t.Slug
 }

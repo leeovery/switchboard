@@ -125,18 +125,6 @@ func (a Account) TokenYear() TokenYear {
 	return TokenYear{Taken: a.TokenTaken, GoodUntil: a.TokenGoodUntil}
 }
 
-// TokenEndsWithin reports whether the account's token's year ends within
-// days of the moment it stands at, as TokenYear.EndsWithin has it.
-func (a AccountNow) TokenEndsWithin(days int) bool {
-	return a.TokenYear.EndsWithin(a.now, days)
-}
-
-// TokenDaysLeft counts the days left of the account's token's year at the
-// moment it stands at, as TokenYear.DaysLeft counts them.
-func (a AccountNow) TokenDaysLeft() (days int, counted bool) {
-	return a.TokenYear.DaysLeft(a.now)
-}
-
 // TokenWarned returns the nearest warning whose days the account's token's
 // year ends within at the moment it stands at, as TokenYear.Warned has it.
 func (a AccountNow) TokenWarned() (days int, warned bool) {
@@ -147,10 +135,4 @@ func (a AccountNow) TokenWarned() (days int, warned bool) {
 // at, as TokenYear.Ending has it.
 func (a AccountNow) TokenEnding() prose.TokenEnding {
 	return a.TokenYear.Ending(a.now)
-}
-
-// TokenGone is the share of the account's token's year gone at the moment
-// it stands at, as TokenYear.Gone has it.
-func (a AccountNow) TokenGone() float64 {
-	return a.TokenYear.Gone(a.now)
 }

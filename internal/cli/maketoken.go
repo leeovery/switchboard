@@ -17,15 +17,16 @@ import (
 	"github.com/leeovery/switchboard/internal/setuptoken"
 )
 
-// What accounts token says of a token's making, a line a step, in the token
-// card's words where they fit a line.
+// What accounts token says of a token's making, a line a step: where the
+// token card says the step, it leads with the card's words, then says the
+// rest itself, as the card's sentences after them say Setup does it.
 const (
 	makingCompares    = "Checking the other accounts' tokens, to tell their subscriptions from this one's."
-	makingStarts      = "Starting claude setup-token: its sign-in page opens in the browser once it's ready."
+	makingStarts      = setup.MakingStarts + ": its sign-in page opens in the browser once it's ready."
 	makingOpened      = "Its sign-in page is open in the browser."
-	makingWaits       = "Waiting for you to approve it in the browser: the token's saved automatically, so there's nothing to copy."
+	makingWaits       = setup.MakingWaits + ": the token's saved automatically, so there's nothing to copy."
 	makingMade        = "claude setup-token created the token: an interrupt now waits until it's checked, and what came of it is said."
-	makingChecks      = "Checking the token with the API, then saving it, a year from today."
+	makingChecks      = setup.MakingChecks + ": the API checks it, and it's good for a year from today."
 	makingInterrupted = "interrupted: saving the token first, as it lasts a year on the account"
 )
 

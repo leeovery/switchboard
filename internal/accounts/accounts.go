@@ -155,24 +155,6 @@ func (r Registry) Add(ctx context.Context, account config.NewAccount) (Taken, er
 	return t, nil
 }
 
-// AddGiven registers an account as AddChecked does, the token given checked
-// first, as Check checks it, once the account is shown to be one the config
-// can add: nothing is saved where the API refuses the token.
-func (r Registry) AddGiven(ctx context.Context, account config.NewAccount, token tokens.Token) (Checked, error) {
-	var checked Checked
-	err := r.add(account, func(upstream string) (err error) {
-		if checked, err = r.check(ctx, upstream, token); err != nil {
-			return err
-		}
-		return r.write(ctx, account.ID, token, checked)
-	})
-	if err != nil {
-		return Checked{}, err
-	}
-	logAdded(account, false)
-	return checked, nil
-}
-
 // AddChecked registers an account as Add does, with the token given, which
 // Check has checked, as checked says, saving it whatever its token file
 // holds. It doesn't ask the API, and saves nothing once ctx is done.
@@ -220,32 +202,6 @@ func (r Registry) SetToken(ctx context.Context, cfg *config.Config, id string) (
 		return Taken{}, err
 	}
 	return r.take(ctx, id, cfg.Upstream)
-}
-
-// SetTokenGiven replaces the token of the account with the given id as
-// SetTokenChecked does, the token given checked first, as Check checks it,
-// once the account is shown to be configured: nothing is saved where the API
-// refuses the token.
-func (r Registry) SetTokenGiven(ctx context.Context, id string, token tokens.Token) (Checked, error) {
-	draft, err := config.Edit(r.ConfigPath)
-	if err != nil {
-		return Checked{}, err
-	}
-	if _, err := configured(draft.Config(), id); err != nil {
-		return Checked{}, err
-	}
-	upstream, err := draft.Upstream()
-	if err != nil {
-		return Checked{}, err
-	}
-	checked, err := r.check(ctx, upstream, token)
-	if err != nil {
-		return Checked{}, err
-	}
-	if err := r.write(ctx, id, token, checked); err != nil {
-		return Checked{}, err
-	}
-	return checked, nil
 }
 
 // SetTokenChecked replaces the token of the account with the given id, which

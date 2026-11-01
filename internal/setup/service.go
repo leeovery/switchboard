@@ -57,7 +57,7 @@ func failedRow(out Serviced, err error) Serviced {
 		return out
 	}
 	if !slices.ContainsFunc(out.Said, func(said Said) bool { return said.Mark == Failed }) {
-		out.Said = append(out.Said, Said{Mark: Failed, Label: "Not set up", Detail: redact.Text(err.Error())})
+		out.Said = append(out.Said, Said{Mark: Failed, Label: NotSetUp, Detail: redact.Text(err.Error())})
 	}
 	return out
 }
