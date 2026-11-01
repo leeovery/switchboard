@@ -65,6 +65,42 @@ func (r Review) Organizations() Organizations {
 	return o
 }
 
+// OtherOrganizations are the organizations of every account but the one with
+// the given id, which a token made or pasted for it is compared with: each
+// other account's token checked with the API, all at once, as ReviewOf
+// checks it, and its answer folded into the review as Review.Checked has it,
+// so one the API doesn't answer for, or whose check fails, which is logged,
+// has none known. It fails as Review does, and with ctx's error once ctx is
+// done.
+func (s *Setup) OtherOrganizations(ctx context.Context, id string) (Organizations, error) {
+	review, err := s.Review()
+	if err != nil {
+		return nil, err
+	}
+	var others []string
+	for _, a := range review.Accounts {
+		if a.ID != id && a.Token.State == TokenRead {
+			others = append(others, a.ID)
+		}
+	}
+	rows, errs := make([]Reviewed, len(others)), make([]error, len(others))
+	var wg sync.WaitGroup
+	for i, other := range others {
+		wg.Go(func() { rows[i], errs[i] = s.ReviewOf(ctx, other) })
+	}
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	for i, other := range others {
+		if errs[i] != nil {
+			logger.Warn("couldn't check an account's token, so its organization isn't known", "account", other, "error", errs[i])
+		}
+		review = review.Checked(other, rows[i], errs[i])
+	}
+	return review.Organizations(), nil
+}
+
 // holder returns the id of the account other than except whose organization
 // is organization, "" where there's none, or organization isn't known.
 func (o Organizations) holder(organization, except string) string {

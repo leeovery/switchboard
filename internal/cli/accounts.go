@@ -161,15 +161,40 @@ func (f editFlags) change(given func(name string) bool) (accounts.Change, error)
 }
 
 func newAccountsTokenCommand(a *app) *cobra.Command {
-	return &cobra.Command{
+	var paste bool
+	cmd := &cobra.Command{
 		Use:   "token <id>",
-		Short: "Replace an account's token",
-		Long:  "Replace an account's token, in its token file, <state dir>/tokens/<id>.\n\n" + takingAToken,
-		Args:  oneAccount,
+		Short: "Replace an account's token, making it with claude setup-token",
+		Long: `Replace an account's token, in its token file, <state dir>/tokens/<id>.
+
+At a terminal, it makes the token as setup does, saying each step as it
+goes: it runs claude setup-token, which opens its sign-in page in the
+browser, as it is for the primary, as the browser is signed in to it, and in
+a private window for any other account, where the browser can open one, or
+else shows the address to open in one. Once you approve it there, the token
+is checked with the API and saved, a year from today. It isn't saved where
+the API refuses it, or where its subscription is another account's already,
+as the organization the API names it in says: the other accounts' tokens are
+checked first, to know theirs. An interrupt before the token's made stops
+claude setup-token, saving nothing. Once it's made, as it lasts a year on the
+account, it's saved whatever stops the command, saved unchecked where the
+API doesn't answer, or shown to copy and paste where it can't be.
+
+--paste asks for the token instead, which doesn't show as it's pasted: make
+one with claude setup-token, run while signed in to that subscription. Away
+from a terminal, it reads the token from stdin. A token given is checked
+with the API before it's saved: one the API refuses isn't, and one the API
+doesn't answer for is, with a warning.`,
+		Args: oneAccount,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.replaceToken(cmd, args[0])
+			if paste || !a.TerminalInput(cmd.InOrStdin()) || !a.Terminal(cmd.OutOrStdout()) {
+				return a.replaceToken(cmd, args[0])
+			}
+			return a.makeToken(cmd, args[0])
 		},
 	}
+	cmd.Flags().BoolVar(&paste, "paste", false, "take a token made with claude setup-token, pasted, in place of making one")
+	return cmd
 }
 
 func newAccountsRemoveCommand(a *app) *cobra.Command {
@@ -217,7 +242,7 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount) error {
 	if err != nil {
 		return labelRemedy(err, "leave --label out")
 	}
-	warnUnchecked(cmd.ErrOrStderr(), taken)
+	warnUnchecked(cmd.ErrOrStderr(), taken.Unchecked)
 	said := "added " + account.ID
 	if account.Primary {
 		said += ", the primary"
@@ -244,7 +269,7 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 	if err != nil {
 		return a.notConfigured(err, id, addIt(id))
 	}
-	warnUnchecked(cmd.ErrOrStderr(), taken)
+	warnUnchecked(cmd.ErrOrStderr(), taken.Unchecked)
 	_, err = io.WriteString(cmd.OutOrStdout(), "saved "+id+"'s token\n")
 	return err
 }
@@ -511,10 +536,10 @@ func (a *app) tokenInput(stdin io.Reader, stderr io.Writer) accounts.Input {
 }
 
 // warnUnchecked tells w when the API didn't answer whether it takes the token
-// taken, which was saved all the same.
-func warnUnchecked(w io.Writer, taken accounts.Taken) {
-	if taken.Unchecked != nil {
-		launch.Warn(w, "couldn't check the token with the API", taken.Unchecked, "saved it all the same")
+// taken, as unchecked says why, which was saved all the same.
+func warnUnchecked(w io.Writer, unchecked error) {
+	if unchecked != nil {
+		launch.Warn(w, "couldn't check the token with the API", unchecked, "saved it all the same")
 	}
 }
 

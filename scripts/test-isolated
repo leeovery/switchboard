@@ -28,8 +28,10 @@ repo=$(cd "$(dirname "$0")/.." && pwd -P)
 renice 10 -p $$ >/dev/null 2>&1 || true
 
 # Under the race detector on a busy machine, the dashboard's watch tests take
-# longer than go test's default of ten minutes. A -timeout given overrides it.
-limit=30m
+# longer than go test's default of ten minutes, and capture's, holding every
+# view to its rows at every size, about half an hour. A -timeout given
+# overrides it.
+limit=60m
 
 # packages is every package, unless the arguments name some, as ./internal/views/...:
 # an argument naming a directory of the module, with /... or without, and not a

@@ -25,6 +25,10 @@ func (m Making) Opening() string {
 	return "Your browser is signed in to " + m.SignedIn + ", and setup couldn't open " + privateWindow(m.Browser) + ". Open this address in one, sign in to " + m.For + " there, then approve:"
 }
 
+// SharedSignIn is what's said where the sign-in address opened in a private
+// window: the browser's others share its sign-in.
+const SharedSignIn = "Close any other private window first: they all share one sign-in."
+
 // privateWindow names a private window of the browser, "a private Firefox
 // window", or of none named, "a private window".
 func privateWindow(browser string) string {
@@ -101,7 +105,27 @@ func (t Tokened) Unsaved() Unsaved {
 // to do now, which is to run setup again, as there's no card to try again
 // or paste on. Any other end prints nothing.
 func (t Tokened) Printed() []string {
-	u := t.unsaved(onceGone).Clean()
+	return t.printed(onceGone)
+}
+
+// PrintedFor is the making's end, where it saved nothing, as Printed has it,
+// for a command that made the token to print: what to do now is to run
+// again, the command, to try again, or paste, the command taking a pasted
+// token, to paste one.
+func (t Tokened) PrintedFor(again, paste string) []string {
+	return t.printed(thens{
+		tryAgain:       "Run " + again + " to try again, or " + paste + " to paste a token you made with claude setup-token.",
+		signedIn:       "Run " + again + " to try again, signed in to the other subscription, or " + paste + " to paste a token you made with claude setup-token.",
+		installed:      "Install Claude Code, then run " + again + " to try again, or " + paste + " to paste a token you made with claude setup-token.",
+		paste:          "Then run " + paste + ", and paste it.",
+		pasteOnceRight: "It lasts a year on the account, so copy it, then once that's put right, run " + paste + ", and paste it.",
+	})
+}
+
+// printed is the making's end, as Printed has it, saying what to do now as
+// then has it.
+func (t Tokened) printed(then thens) []string {
+	u := t.unsaved(then).Clean()
 	lines := make([]string, 0, len(u.Shown)+3)
 	for _, line := range slices.Concat([]string{u.Headline, u.Says}, indented(u.Shown), []string{u.Then}) {
 		if strings.TrimSpace(line) != "" {

@@ -279,3 +279,91 @@ func TestTheReviewsOrganizationsAreThoseKnown(t *testing.T) {
 		t.Errorf("Organizations() = %v, want %v", got, want)
 	}
 }
+
+// A command that made the token prints its end as setup's screen does once
+// it has gone, but what to do now is to run that command again, or the one
+// taking a pasted token.
+func TestAMakingThatSavedNothingIsPrintedForTheCommandThatMadeIt(t *testing.T) {
+	const (
+		again = "switchboard accounts token personal"
+		paste = "switchboard accounts token personal --paste"
+	)
+	tests := []struct {
+		name    string
+		tokened setup.Tokened
+		want    []string
+	}{
+		{
+			name:    "the token made, but unread: all setup-token showed, the token pasted",
+			tokened: setup.Tokened{Result: setup.TokenUnread, Shown: []string{" Your OAuth token (valid for 1 year):", "", " test-token-personal"}},
+			want: []string{
+				"The token was created, but setup couldn't read it",
+				"It lasts a year on the account, so copy it from what claude setup-token showed:",
+				"  Your OAuth token (valid for 1 year):",
+				"  test-token-personal",
+				"Then run switchboard accounts token personal --paste, and paste it.",
+			},
+		},
+		{
+			name:    "the token made, but not saved: why, the token, pasted once that's put right",
+			tokened: setup.Tokened{Result: setup.TokenNotSaved, Why: "write the token file: permission denied", Shown: []string{"test-token-personal"}},
+			want: []string{
+				"The token was created, but setup couldn't save it",
+				"write the token file: permission denied",
+				"  test-token-personal",
+				"It lasts a year on the account, so copy it, then once that's put right, run switchboard accounts token personal --paste, and paste it.",
+			},
+		},
+		{
+			name:    "the token made, but never read: why, and trying again",
+			tokened: setup.Tokened{Result: setup.TokenNotSaved, Why: "read setup-token's terminal: input/output error"},
+			want: []string{
+				"The token was created, but setup couldn't save it",
+				"read setup-token's terminal: input/output error",
+				"Run switchboard accounts token personal to try again, or switchboard accounts token personal --paste to paste a token you made with claude setup-token.",
+			},
+		},
+		{
+			name:    "the API refusing the token",
+			tokened: setup.Tokened{Result: setup.TokenRefused},
+			want: []string{
+				"The token was refused",
+				"The API refused the token, so it isn't saved.",
+				"Run switchboard accounts token personal to try again, or switchboard accounts token personal --paste to paste a token you made with claude setup-token.",
+			},
+		},
+		{
+			name:    "another account's subscription, named",
+			tokened: setup.Tokened{Result: setup.TokenSameAccount, SameAs: "work"},
+			want: []string{
+				"The token is for work's subscription",
+				"work has that subscription already, so the token isn't saved.",
+				"Run switchboard accounts token personal to try again, signed in to the other subscription, or switchboard accounts token personal --paste to paste a token you made with claude setup-token.",
+			},
+		},
+		{
+			name:    "no Claude Code: why",
+			tokened: setup.Tokened{Result: setup.NoClaudeCode, Why: "can't find claude: it isn't on PATH"},
+			want: []string{
+				"There's no Claude Code to create the token with",
+				"can't find claude: it isn't on PATH",
+				"Install Claude Code, then run switchboard accounts token personal to try again, or switchboard accounts token personal --paste to paste a token you made with claude setup-token.",
+			},
+		},
+		{name: "saved", tokened: setup.Tokened{Result: setup.TokenSaved}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.tokened.PrintedFor(again, paste); !slices.Equal(got, tt.want) {
+				t.Errorf("PrintedFor() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintedForMakesTheCommandsSafeToShow(t *testing.T) {
+	got := setup.Tokened{Result: setup.TokenRefused}.PrintedFor("switchboard accounts token side\x1b[2J", "it --paste")
+	if want := "Run switchboard accounts token side [2J to try again, or it --paste to paste a token you made with claude setup-token."; got[len(got)-1] != want {
+		t.Errorf("PrintedFor() ends %q, want %q", got[len(got)-1], want)
+	}
+}

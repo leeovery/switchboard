@@ -836,16 +836,22 @@ accounts:
   the line it follows; a replaced value keeps the comment beside it, and a key taken out, such as
   the former primary's mark, goes with its comment. The flags are read into the values its
   action, `accounts.Registry.Edit`, takes, so a form can give it the same.
-- `accounts token <id>` replaces an account's token, under the same rules: today, typed hidden, or
-  read from stdin. Designed: it makes the token as setup does, running `claude setup-token` by the
-  opener rule (see Setup), or takes one pasted or on stdin. `accounts remove <id>` removes the
-  account from the config, and deletes its token file: of one that's a link, the link alone, saying
-  where it led, as the file there isn't switchboard's. Of the primary, it says which account is the
-  primary now, and that the sessions running on the removed account's token stay routed, as the new
-  primary's, for a week from when the router takes the change up, or, when the new primary has no
-  usable token, that they aren't routed until it has one. Where it takes the account out of the
-  config but can't delete the token file, it fails saying so: the account taken out, the token
-  file's path, and why it isn't deleted.
+- `accounts token <id>` replaces an account's token. At a terminal, stdin and stdout both, it makes
+  the token as setup does (`setup.MakeToken`), running `claude setup-token` by the opener rule (see
+  Setup), a line a step, once it has checked the other accounts' tokens, all at once, so the
+  duplicate check knows their organizations. Its build's calls: the steps go to stdout, setup's
+  `Saving` to stderr, as `interrupted: saving the token first`; a token made but unread, or not
+  saved, is printed to stdout alone, to copy, with what to run to paste it, `accounts token <id>
+  --paste`, the interrupts held, from the token made, till that's printed; every making that
+  saves nothing fails, an interrupt held exiting 130. With `--paste`, or away from a terminal, it
+  takes a token typed hidden, or read from stdin, under the same rules as `accounts add`. `accounts
+  remove <id>` removes the account from the config, and deletes its token file: of one that's a
+  link, the link alone, saying where it led, as the file there isn't switchboard's. Of the primary,
+  it says which account is the primary now, and that the sessions running on the removed account's
+  token stay routed, as the new primary's, for a week from when the router takes the change up, or,
+  when the new primary has no usable token, that they aren't routed until it has one. Where it
+  takes the account out of the config but can't delete the token file, it fails saying so: the
+  account taken out, the token file's path, and why it isn't deleted.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
   config file that's a link is written through, never replaced. The router picks the change up
   itself (see The router looking after itself).
@@ -1389,7 +1395,7 @@ not the owner's decisions:
   and setup returns only once the token's saved, or setup-token has stopped. From the token made,
   leaving setup no longer ends the making: setup-token is read within its own time limits, then
   the token's checked and saved, the process's interrupts held throughout, the first told to a
-  caller that asks (`Saving`), as `accounts token` will, to say it saves the token first. One
+  caller that asks (`Saving`), as `accounts token` does, to say it saves the token first. One
   held, however late, is said in the outcome (`InterruptHeld`): the screen leaves once the
   making's ended, keys doing nothing meanwhile, and its `Run` says so (`Left.Interrupted`), for
   its caller to end as an interrupt has it. A token made but unread, or
@@ -1602,7 +1608,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `accounts` | List the accounts: id, label, whether its token is present and usable, and why not, and which is the primary |
 | `accounts add <id> [--label <label>] [--primary]` | Register an account, asking for its token or reading it from stdin: see Accounts and tokens |
 | `accounts edit <id> [--label <label>] [--plan <plan>] [--primary] [--reserve <percent>]` | Change an account's label, plan, primary or reserve: see Accounts and tokens |
-| `accounts token <id>` | Replace an account's token |
+| `accounts token <id> [--paste]` | Replace an account's token, making it with `claude setup-token` at a terminal, or taking one pasted or on stdin: see Accounts and tokens |
 | `accounts remove <id>` | Remove an account, and its token file |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
 | `status [--session <id>] [--json \| --pretty] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |

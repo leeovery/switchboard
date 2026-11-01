@@ -531,7 +531,7 @@ an account's token, and remove an account.
 switchboard accounts
 switchboard accounts add <id> [--label <label>] [--primary]
 switchboard accounts edit <id> [--label <label>] [--plan <plan>] [--primary] [--reserve <percent>]
-switchboard accounts token <id>
+switchboard accounts token <id> [--paste]
 switchboard accounts remove <id>
 ```
 
@@ -541,6 +541,7 @@ switchboard accounts remove <id>
 | `--plan <plan>` | `edit`: the plan the account's subscription is on: `pro`, `max5x` or `max20x`, or `none` to leave it unknown. |
 | `--primary` | `add` and `edit`: make the account the primary, the account the browser and the Claude apps use, in place of the one that was. |
 | `--reserve <percent>` | `edit`: the share of every window the router leaves unused on the account, as a percentage to two decimal places at most, such as `5%` or `2.5%`, from `0%` up to but not including `100%`. `0` or `0%` takes the reserve away. |
+| `--paste` | `token`: take a token made with `claude setup-token`, pasted, in place of making one. |
 
 For each account, `switchboard accounts` shows:
 
@@ -610,7 +611,32 @@ The subcommands do the following:
     a label edit of that account is refused, to be made by hand, and nothing is written. A plan,
     reserve or primary edit is made: a key the account has is replaced where it stands, and one
     it hasn't is put below the line that closes the label, whatever the label holds.
-- **`token`** replaces an account's token.
+- **`token`** replaces an account's token. At a terminal, it makes the token as `setup` does,
+  saying each step as it goes:
+  - It runs `claude setup-token`, which opens its sign-in page in your browser: as it is for the
+    primary, as the browser is signed in to it, and in a private window for any other account, so
+    you sign in to that one there. A private window opens where the default browser can open one
+    from its command line, as the Chrome family's, Edge's and Firefox's can. Close any other
+    private window first, as they all share one sign-in. Where `token` can't open the page, as
+    for Safari, it shows the address to open by hand.
+  - Once you approve it, `claude setup-token` creates the token, and `token` checks it with the
+    API and saves it, a year from today.
+  - The token isn't saved where the API refuses it, or where its subscription is another
+    account's already, as the organization the API names it in says. So `token` checks the other
+    accounts' tokens first, all at once, to know theirs, saying so: a moment, as long as the API
+    takes to answer, up to about 10 seconds where it doesn't. Where an organization isn't known,
+    the token is saved.
+  - Ctrl-C before the token's created stops `claude setup-token` and saves nothing. Once it's
+    created, as it lasts a year on the account, Ctrl-C waits: `token` says it saves the token
+    first, checks it, and says what came of it, then exits as interrupted. The token is saved;
+    shown to copy, where it was made but couldn't be read or saved; or not saved, where the API
+    refuses it or it's another account's. It's saved unchecked, with a warning, where the API
+    doesn't answer.
+  - Where the token was created but couldn't be read off `claude setup-token`'s screen, `token`
+    shows what that screen showed, the token in it, to copy. Where it was read but couldn't be
+    saved, `token` shows it, to copy, and why. Either way it fails: paste it with `--paste`.
+  - Where it saves nothing otherwise, it says why and fails: run it again, or paste a token with
+    `--paste`.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file, then the record of when its token was taken (see
   [When each token was taken](configuration.md#when-each-token-was-taken)).
@@ -627,11 +653,11 @@ The subcommands do the following:
     routed, as the primary's, for a week from when the router takes the change up, while the
     primary has a usable token. `remove` says when the primary has none.
 
-**Tokens.** At a terminal, `add` and `token` ask for the token, which doesn't show as it's pasted.
-Otherwise, they read it from stdin. To make a token, run `claude setup-token` while signed in to
-that subscription.
+**Tokens given.** At a terminal, `add`, and `token --paste`, ask for the token, which doesn't show
+as it's pasted. Otherwise, they read it from stdin, as `token` does too. To make a token, run
+`claude setup-token` while signed in to that subscription.
 
-`add` and `token` check the token with the API before they save it:
+`add` and `token` check a token given with the API before they save it:
 
 - A token the API refuses isn't saved.
 - A token the API doesn't answer for is saved, with a warning.
@@ -653,6 +679,7 @@ Examples:
 switchboard accounts add work --label Work --primary
 switchboard accounts add side --label Side
 switchboard accounts edit side --plan max5x --reserve 5%
+switchboard accounts token side
 pbpaste | switchboard accounts token side
 switchboard accounts remove side
 ```
