@@ -607,8 +607,9 @@ In the `f` panel:
 - `enter` applies the ticks, and `esc` closes the panel unchanged.
 - `/` closes the panel for the find.
 
-The find looks at today's sessions first, then back a day at a time. `↑`, `↓` and `enter` pick a
-session, filtering both tables to it.
+The find looks at today's sessions first, then back a day at a time. You type in it as in setup's
+fields: `←`, `→`, `home` and `end` move the cursor, `backspace` and `delete` take out a character,
+and a paste goes in at the cursor. `↑`, `↓` and `enter` pick a session, filtering both tables to it.
 
 ## A session's page
 

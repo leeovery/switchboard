@@ -32,7 +32,7 @@ func foundThree() views.Found {
 // foundThree, the one given picked.
 func findingThree(picked string) LogPage {
 	p := threeAsked()
-	p.Finding = LogFinding{Open: true, Typed: "api", Found: foundThree(), Picked: picked}
+	p.Finding = LogFinding{Open: true, Typed: "api", Cursor: 3, Found: foundThree(), Picked: picked}
 	return p
 }
 
@@ -42,7 +42,7 @@ func findingThree(picked string) LogPage {
 // count, then the session picked, what's typed cut last.
 func TestTheFindsLineSaysWhatsTypedThePickAndHowManyItFinds(t *testing.T) {
 	none := threeAsked()
-	none.Finding = LogFinding{Open: true, Typed: "zzz"}
+	none.Finding = LogFinding{Open: true, Typed: "zzz", Cursor: 3}
 	tests := []struct {
 		name        string
 		page        LogPage
@@ -84,6 +84,82 @@ func TestTheFindsLineIsInkedAsThePageInksIt(t *testing.T) {
 		if !slices.Contains(l, want) {
 			t.Errorf("the find's line draws no %q in %v: %v", want.text, want.ink, l.inked())
 		}
+	}
+}
+
+// The find's line draws its cursor where the cursor is, in glyphs from the
+// start, a glyph of several runes kept whole either side of it; at the end,
+// or past it, after what's typed, as it always has.
+func TestTheFindsLineDrawsItsCursorWhereItIs(t *testing.T) {
+	const accented = "e\u0301"
+	tests := []struct {
+		name   string
+		typed  string
+		cursor int
+		want   []span
+	}{
+		{name: "at the end", typed: "api", cursor: 3, want: []span{{"/", keyInk}, {" api", typedInk}, {"▏", cursorInk}, spaces(findMatchGap)}},
+		{name: "past the end", typed: "api", cursor: 9, want: []span{{"/", keyInk}, {" api", typedInk}, {"▏", cursorInk}, spaces(findMatchGap)}},
+		{name: "before the last", typed: "api", cursor: 2, want: []span{{"/", keyInk}, {" ap", typedInk}, {"▏", cursorInk}, {"i", typedInk}}},
+		{name: "at the start", typed: "api", want: []span{{"/", keyInk}, {" ", typedInk}, {"▏", cursorInk}, {"api", typedInk}}},
+		{name: "after an accented letter", typed: accented + "x", cursor: 1, want: []span{{"/", keyInk}, {" " + accented, typedInk}, {"▏", cursorInk}, {"x", typedInk}}},
+		{name: "before an emoji", typed: "a👍", cursor: 1, want: []span{{"/", keyInk}, {" a", typedInk}, {"▏", cursorInk}, {"👍", typedInk}}},
+		{name: "after an emoji", typed: "a👍x", cursor: 2, want: []span{{"/", keyInk}, {" a👍", typedInk}, {"▏", cursorInk}, {"x", typedInk}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := findingThree("")
+			p.Finding.Typed, p.Finding.Cursor = tt.typed, tt.cursor
+			l, _ := p.findLine(128)
+			if len(l) < len(tt.want) || !slices.Equal(l[:len(tt.want)], line(tt.want)) {
+				t.Errorf("the find's line is %v, want it to start %v", l, tt.want)
+			}
+		})
+	}
+}
+
+// What's typed wider than the find's line scrolls to keep the cursor in
+// view, as setup's fields do, an ellipsis marking what's cut either side;
+// from where the view stood, it moves as little as keeps the cursor in it.
+func TestTheFindsLineScrollsWhatsTypedToKeepItsCursorInView(t *testing.T) {
+	const typed, width = "abcdefghijklmnopqrstuvwxyz", 12
+	tests := []struct {
+		name         string
+		cursor, from int
+		want         string
+	}{
+		{name: "at the end", cursor: 26, want: "/ …stuvwxyz▏"},
+		{name: "mid-way", cursor: 13, want: "/ …ghijklm▏…"},
+		{name: "at the start", cursor: 0, from: 18, want: "/ ▏abcdefgh…"},
+		{name: "← from the end, the view held", cursor: 21, from: 18, want: "/ …stu▏vwxyz"},
+		{name: "→ from the start, the view held", cursor: 5, want: "/ abcde▏fgh…"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := findingThree("")
+			p.Finding.Typed, p.Finding.Cursor, p.Finding.From = typed, tt.cursor, tt.from
+			p.Finding = Frame{Width: width, View: Log, Log: p}.FindInView()
+			l, _ := p.findLine(width)
+			if got := l.plain(); strings.TrimRight(got, " ") != tt.want {
+				t.Errorf("the find's line reads %q, want %q", got, tt.want)
+			}
+			if w := l.width(); w > width {
+				t.Errorf("the find's line is %d cells, past the %d it has", w, width)
+			}
+		})
+	}
+}
+
+// A change to what's typed sends the pick back to the first found; the
+// cursor moved alone keeps it.
+func TestTheFindsPickGoesBackToTheFirstWhereWhatsTypedChanges(t *testing.T) {
+	moved := findingThree(docsID).Finding.Retyped("api", 2)
+	if moved.Picked != docsID || moved.Cursor != 2 {
+		t.Errorf("the cursor moved alone, the find picks %q, its cursor at %d; want %q kept, at 2", moved.Picked, moved.Cursor, docsID)
+	}
+	changed := moved.Retyped("apxi", 3)
+	if changed.Picked != "" || changed.Typed != "apxi" || changed.Cursor != 3 {
+		t.Errorf("x typed, the find holds %q at %d, picking %q; want apxi at 3, the pick back to the first", changed.Typed, changed.Cursor, changed.Picked)
 	}
 }
 

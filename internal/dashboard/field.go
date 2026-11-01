@@ -149,11 +149,14 @@ func (f Field) glyphs() []grapheme {
 	return gs
 }
 
-// fieldView is a field's value as it's drawn typed in: its glyphs; where its
-// cursor is; and the first glyph shown, as the view last stood.
+// fieldView is a value as it's drawn typed in: its glyphs; where its cursor
+// is; the first glyph shown, as the view last stood; and whether the cursor
+// is drawn between glyphs, a cell of its own, as the Log's find draws its
+// ▏, rather than on the glyph it's at, as a field draws its block.
 type fieldView struct {
 	glyphs       []grapheme
 	cursor, from int
+	between      bool
 }
 
 // caret is the glyph the cursor is drawn on: the one it's at, or a blank,
@@ -166,12 +169,30 @@ func (v fieldView) caret() grapheme {
 	return grapheme{text: " ", cells: 1}
 }
 
+// caretCells is how many cells the cursor takes: one, between glyphs, else
+// its caret's.
+func (v fieldView) caretCells() int {
+	if v.between {
+		return 1
+	}
+	return v.caret().width()
+}
+
+// after is the first glyph drawn after the cursor: the one it's at, where
+// it's drawn between glyphs, else the one after its caret.
+func (v fieldView) after() int {
+	if v.between {
+		return v.cursor
+	}
+	return min(v.cursor+1, len(v.glyphs))
+}
+
 // cells is how many cells the glyphs from i to j take as they're drawn, the
-// cursor's as caret has it.
+// cursor's as caret has it, where the cursor's drawn on it.
 func (v fieldView) cells(i, j int) int {
 	n := 0
 	for k := i; k < j; k++ {
-		if k == v.cursor {
+		if k == v.cursor && !v.between {
 			n += v.caret().width()
 		} else {
 			n += v.glyphs[k].width()
@@ -190,13 +211,13 @@ func cutBefore(from int) int {
 // glyphs shown from from: it and those before it, and either the rest, or a
 // cell for the ellipsis marking them cut.
 func (v fieldView) shows(from, room int) bool {
-	used := cutBefore(from) + v.cells(from, v.cursor) + v.caret().width()
-	rest := v.cells(min(v.cursor+1, len(v.glyphs)), len(v.glyphs))
+	used := cutBefore(from) + v.cells(from, v.cursor) + v.caretCells()
+	rest := v.cells(v.after(), len(v.glyphs))
 	return used+rest <= room || used+1 <= room
 }
 
-// fits reports whether the glyphs from from to the last, and the blank the
-// cursor takes after it, fit in room cells.
+// fits reports whether the glyphs from from to the last, and the cell the
+// cursor takes after the last, fit in room cells.
 func (v fieldView) fits(from, room int) bool {
 	return cutBefore(from)+v.cells(from, len(v.glyphs))+1 <= room
 }
@@ -213,6 +234,22 @@ func (v fieldView) first(room int) int {
 	return from
 }
 
+// shown are the glyphs shown in room cells: from the first, as first moves
+// it, to the last that fits whole after the cursor, leaving a cell for the
+// ellipsis that marks the rest cut, where they don't all fit.
+func (v fieldView) shown(room int) (from, to int) {
+	from, to = v.first(room), v.after()
+	used := cutBefore(from) + v.cells(from, v.cursor) + v.caretCells()
+	if used+v.cells(to, len(v.glyphs)) <= room {
+		return from, len(v.glyphs)
+	}
+	for to < len(v.glyphs) && used+v.glyphs[to].width()+1 <= room {
+		used += v.glyphs[to].width()
+		to++
+	}
+	return from, to
+}
+
 // typed is the field's value as it's drawn typed in, in no more than room
 // cells, its view as InView moves it: an ellipsis, where glyphs before it
 // are cut; the glyphs from its first shown; the cursor, in caretInk, on the
@@ -221,23 +258,16 @@ func (v fieldView) first(room int) int {
 // cut; each but the cursor in typingInk.
 func (f Field) typed(room int) line {
 	v := f.typedView()
-	from, caret := v.first(room), v.caret()
+	from, to := v.shown(room)
 	var l line
 	if from > 0 {
 		l = line{{prose.Ellipsis, typingInk}}
 	}
-	l = append(l, span{spelt(v.glyphs[from:v.cursor]), typingInk}, span{caret.text, caretInk})
-	after := min(v.cursor+1, len(v.glyphs))
-	used := cutBefore(from) + v.cells(from, v.cursor) + caret.width()
-	if used+v.cells(after, len(v.glyphs)) <= room {
-		return append(l, span{spelt(v.glyphs[after:]), typingInk})
+	l = append(l, span{spelt(v.glyphs[from:v.cursor]), typingInk}, span{v.caret().text, caretInk}, span{spelt(v.glyphs[v.after():to]), typingInk})
+	if to < len(v.glyphs) {
+		l = append(l, span{prose.Ellipsis, typingInk})
 	}
-	to := after
-	for to < len(v.glyphs) && used+v.glyphs[to].width()+1 <= room {
-		used += v.glyphs[to].width()
-		to++
-	}
-	return append(l, span{spelt(v.glyphs[after:to]), typingInk}, span{prose.Ellipsis, typingInk})
+	return l
 }
 
 // spelt is the text of gs, one after another.

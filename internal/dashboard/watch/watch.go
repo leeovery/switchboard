@@ -650,7 +650,7 @@ func (m Model) render() Model {
 	return m
 }
 
-// take takes in a message: a key, a click, the wheel, a resize, the
+// take takes in a message: a key, a paste, a click, the wheel, a resize, the
 // terminal's background, the themes listed for the picker, or the choice
 // kept as it stands, a read, the router's history, the ledger's days read
 // for History, the router carrying out an order, the sessions listed to
@@ -663,6 +663,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.resized(msg)
 	case tea.KeyPressMsg:
 		return m.pressed(msg)
+	case tea.PasteMsg:
+		return m.pasted(msg.Content), nil
 	case tea.MouseClickMsg:
 		return m.clicked(msg)
 	case tea.MouseWheelMsg:
@@ -806,7 +808,7 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case m.open == turnCardOpen:
 		return m.turnCardKey(k)
 	case m.finding():
-		return m.logFindKey(k)
+		return m.logFindKey(key)
 	case k == "q":
 		return m, tea.Quit
 	case m.picker.open:

@@ -9,14 +9,30 @@ import (
 )
 
 // LogFinding is the Log's find, as / opens it in the state line's row:
-// whether it's open; what's typed; what it finds, as far back as it has
-// read, as the watch built it; and the session picked among them, by its
-// whole id, the first where none is, or the one picked is no longer found.
+// whether it's open; what's typed, and where its cursor is, in glyphs from
+// its start, as a terminal draws them; From, the first glyph its line shows
+// of what's typed wider than it, as FindInView last left it; what it finds,
+// as far back as it has read, as the watch built it; and the session picked
+// among them, by its whole id, the first where none is, or the one picked is
+// no longer found.
 type LogFinding struct {
 	Open   bool
 	Typed  string
+	Cursor int
+	From   int
 	Found  views.Found
 	Picked string
+}
+
+// Retyped is the find holding typed, its cursor at cursor: where what's
+// typed changes, the pick goes back to the first found; where the cursor
+// alone moves, it stays.
+func (f LogFinding) Retyped(typed string, cursor int) LogFinding {
+	if typed != f.Typed {
+		f.Picked = ""
+	}
+	f.Typed, f.Cursor = typed, cursor
+	return f
 }
 
 // picked is the place of the session picked among those found: false where
@@ -135,7 +151,7 @@ const (
 )
 
 // The find's line's inks: what's typed, in text.primary, and the cursor
-// after it, in accent.key.
+// within it, in accent.key.
 var (
 	typedInk  = ink{token: theme.TextPrimary}
 	cursorInk = ink{token: theme.AccentKey}
@@ -143,20 +159,20 @@ var (
 
 // findLine is the find's line, width cells wide, which the state line's row
 // shows in its place while the find is open, reporting false while it
-// isn't: at its left, / and what's typed, the cursor after it, as "/ api▏";
-// three cells on, the session picked, named as the table names a session,
-// "7f3a api"; and two cells on, the day it's found on, "today", or as the
-// day rule names a day, "Tue 29 Sep". At its right, ending at the last
-// column, how many sessions it finds so far, and while it finds any, the
-// keys that pick one: "3 sessions · ↑↓ enter". Narrowing, the keys go
-// first, then the day, then the count, then the session picked; what's
-// left is cut.
+// isn't: at its left, / and what's typed, the cursor where it is, as
+// typedLine draws it, "/ api▏"; three cells on, the session picked, named
+// as the table names a session, "7f3a api"; and two cells on, the day it's
+// found on, "today", or as the day rule names a day, "Tue 29 Sep". At its
+// right, ending at the last column, how many sessions it finds so far, and
+// while it finds any, the keys that pick one: "3 sessions · ↑↓ enter".
+// Narrowing, the keys go first, then the day, then the count, then the
+// session picked; what's typed scrolls to keep its cursor in view.
 func (p LogPage) findLine(width int) (line, bool) {
 	f := p.Finding
 	if !f.Open {
 		return nil, false
 	}
-	typed := line{{"/", keyInk}, {" " + f.Typed, typedInk}, {"▏", cursorInk}}
+	typed := f.typedLine(width)
 	named, day := typed, typed
 	if s, ok := f.Pick(); ok {
 		named = slices.Concat(typed, line{spaces(findMatchGap)}, sessionCell(s.ID, s.Dir, true))
@@ -169,6 +185,50 @@ func (p LogPage) findLine(width int) (line, bool) {
 		}
 	}
 	return typed.fit(width), true
+}
+
+// findTypedAt is the cell what's typed starts at on the find's line, after
+// "/ ".
+const findTypedAt = 2
+
+// FindInView is the Log's find with From moved as little as brings its
+// cursor into view on its line, f.Width cells wide, as Field.InView moves a
+// field's, so the view holds still while the cursor moves within it.
+func (f Frame) FindInView() LogFinding {
+	found := f.Log.Finding
+	found.From = found.typedView().first(f.Width - findTypedAt)
+	return found
+}
+
+// typedView is what's typed in the find as its line draws it: its glyphs,
+// and its cursor and From, each kept within them, the cursor drawn between
+// glyphs.
+func (f LogFinding) typedView() fieldView {
+	v := Field{Value: f.Typed, Cursor: f.Cursor, From: f.From}.typedView()
+	v.between = true
+	return v
+}
+
+// typedLine is / and what's typed, width cells wide at most, the cursor
+// between the glyphs it falls between, "/ api▏" at the end, "/ ap▏i" before
+// the last: of a value wider than its room, the glyphs in view around the
+// cursor, as FindInView moves them, an ellipsis marking those cut either
+// side.
+func (f LogFinding) typedLine(width int) line {
+	v := f.typedView()
+	from, to := v.shown(width - findTypedAt)
+	before, after := " ", ""
+	if from > 0 {
+		before += prose.Ellipsis
+	}
+	if to < len(v.glyphs) {
+		after = prose.Ellipsis
+	}
+	l := line{{"/", keyInk}, {before + spelt(v.glyphs[from:v.cursor]), typedInk}, {"▏", cursorInk}}
+	if rest := spelt(v.glyphs[v.cursor:to]) + after; rest != "" {
+		l = append(l, span{rest, typedInk})
+	}
+	return l
 }
 
 // counted is how many sessions the find finds so far, "3 sessions", the
