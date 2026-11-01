@@ -14,30 +14,20 @@ import (
 
 // primingForm is the Priming page as the screen holds it: the day priming
 // is on over, as it was last read or set; the day as it was read, as its
-// field first shows it; the field Your day, and whether it's typed in; why
-// setup refused the day typed, where it did; and why the step failed, where
-// it did.
+// field first shows it; the field Your day, and whether it's typed in; and
+// why setup refused the day typed, where it did. Why the step failed, where
+// it did, is the walk's, as the summary says it.
 type primingForm struct {
 	set     config.Day
 	read    string
 	day     entry
 	typing  bool
 	refused string
-	failure string
 }
 
 // page is the Priming page as dashboard.Setup draws it.
 func (f primingForm) page() *dashboard.SetupPrimingPage {
-	return &dashboard.SetupPrimingPage{Day: f.day.field(f.typing), Refused: f.refused, Failure: f.failure}
-}
-
-// primed is the day priming is on over, as it was last read or set: nil
-// where the step failed.
-func (f primingForm) primed() *config.Day {
-	if f.failure != "" {
-		return nil
-	}
-	return &f.set
+	return &dashboard.SetupPrimingPage{Day: f.day.field(f.typing), Refused: f.refused}
 }
 
 // typed is what's typed in the field, without the blanks round it, as a
@@ -66,7 +56,8 @@ func readDay(steps Steps) job {
 // failed.
 func (m Model) primed(msg primedMsg) Model {
 	if msg.err != nil {
-		return m.primingFailed(msg.err)
+		m.walk = m.walk.finished(msg.err)
+		return m
 	}
 	var read string
 	if msg.day != (config.Day{}) {
@@ -74,19 +65,6 @@ func (m Model) primed(msg primedMsg) Model {
 	}
 	m.priming = &primingForm{set: msg.day, read: read, day: entryOf(read), typing: true}
 	m.walk = m.walk.finished(nil)
-	return m
-}
-
-// primingFailed is m with the Priming step failed, as err says, its field
-// given up.
-func (m Model) primingFailed(err error) Model {
-	var f primingForm
-	if m.priming != nil {
-		f = *m.priming
-	}
-	f.typing, f.failure = false, failure(err)
-	m.priming = &f
-	m.walk = m.walk.finished(err)
 	return m
 }
 
@@ -106,8 +84,9 @@ func (m Model) dayEntered() (tea.Model, tea.Cmd) {
 		m.priming = &f
 		return m, nil
 	}
+	m.walk = m.walk.keeping()
 	m.walk.done = false
-	return m, m.jobs.write(setDay(m.steps, typed))
+	return m, m.jobs.write(m.walk.keep(setDay(m.steps, typed)))
 }
 
 // refusal is why config refused a day, made safe to show: why the value is
@@ -137,7 +116,8 @@ func setDay(steps Steps, day string) job {
 // step failed.
 func (m Model) daySet(msg daySetMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
-		return m.primingFailed(msg.err), nil
+		m.walk = m.walk.finished(msg.err)
+		return m, nil
 	}
 	f := *m.priming
 	f.set = msg.day

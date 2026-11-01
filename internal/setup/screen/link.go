@@ -22,12 +22,22 @@ type linkedMsg struct {
 }
 
 // linkClaude is the claude link step's action: Link, stopping once its
-// context is done.
+// context is done, as asked has it.
 func linkClaude(steps Steps) job {
 	return func(ctx context.Context) tea.Msg {
 		found, err := steps.Link(ctx)
-		return linkedMsg{found: found, err: err}
+		return asked(ctx, linkedMsg{found: found, err: err})
 	}
+}
+
+// asked is what the claude link step found, as msg says, once its asking
+// of the shell, under ctx, ends: nothing where ctx is done, as setup's
+// leaving stopped the asking, so what it found isn't what the shell runs.
+func asked(ctx context.Context, msg linkedMsg) tea.Msg {
+	if ctx.Err() != nil {
+		return nil
+	}
+	return msg
 }
 
 // asking reports whether the claude link step asks the user's login shell
@@ -82,11 +92,12 @@ func (m Model) checkable() bool {
 // saying so, its spinner moving.
 func (m Model) checkingAgain() (Model, tea.Cmd) {
 	steps, found := m.steps, *m.found
+	m.walk = m.walk.keeping()
 	m.walk.done, m.spins = false, m.spins+1
-	again := m.jobs.read(func(ctx context.Context) tea.Msg {
+	again := m.jobs.read(m.walk.keep(func(ctx context.Context) tea.Msg {
 		again, err := steps.AskAgain(ctx, found)
-		return linkedMsg{found: again, again: true, err: err}
-	})
+		return asked(ctx, linkedMsg{found: again, again: true, err: err})
+	}))
 	return m, tea.Batch(again, m.armSpin())
 }
 
@@ -136,11 +147,12 @@ type addedMsg struct {
 // done: the card says so, its spinner moving, till it's added.
 func (m Model) addingLine() (Model, tea.Cmd) {
 	steps, found := m.steps, *m.found
+	m.walk = m.walk.keeping()
 	m.offer, m.spins = &offerCard{adding: true}, m.spins+1
-	add := m.jobs.write(func(context.Context) tea.Msg {
+	add := m.jobs.write(m.walk.keep(func(context.Context) tea.Msg {
 		added, err := steps.AddLine(found)
 		return addedMsg{found: added, err: err}
-	})
+	}))
 	return m, tea.Batch(add, m.armSpin())
 }
 
@@ -182,11 +194,12 @@ type hookedMsg struct {
 // installed, as hooked has it, so the walk moves on, and the Skill writes,
 // only once it has.
 func (m Model) ending() (Model, tea.Cmd) {
+	m.walk = m.walk.keeping()
 	m.linkEnded, m.walk.done = true, false
 	steps := m.steps
-	return m, m.jobs.write(func(context.Context) tea.Msg {
+	return m, m.jobs.write(m.walk.keep(func(context.Context) tea.Msg {
 		return hookedMsg{said: steps.SessionHook()}
-	})
+	}))
 }
 
 // hooked takes in what the session hook's install said, its detail made

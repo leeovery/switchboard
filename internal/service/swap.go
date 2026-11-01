@@ -19,9 +19,9 @@ import (
 // to the bootstrap's end, none of them stops it, the process's interrupts
 // held, as Config.Hold has them, each launchctl run bounded by its own limit
 // alone. Interrupted as it swaps, it says so as Config.Finishing does, and
-// once it has swapped, fails with accounts.ErrInterrupted. The interrupts are
-// let go however it ends, a panic among its ends.
-func (s *Service) swap(ctx context.Context, a agent) (err error) {
+// once it has swapped, fails with accounts.ErrInterrupted. It says how far
+// it got. The interrupts are let go however it ends, a panic among its ends.
+func (s *Service) swap(ctx context.Context, a agent) (got Swap, err error) {
 	h := interrupts.Hold(s.cfg.Hold)
 	defer func() {
 		if interrupted := h.End(); interrupted && err == nil {
@@ -30,10 +30,13 @@ func (s *Service) swap(ctx context.Context, a agent) (err error) {
 	}()
 	loaded, err := s.beforeSwap(ctx, h)
 	if err != nil {
-		return err
+		return NotSwapped, err
 	}
 	h.Watch(s.cfg.Finishing)
-	return s.swapThrough(context.WithoutCancel(ctx), a, loaded)
+	if err := s.swapThrough(context.WithoutCancel(ctx), a, loaded); err != nil {
+		return SwapFailed, err
+	}
+	return Swapped, nil
 }
 
 // beforeSwap is whether launchd has the service loaded, unless the swap is

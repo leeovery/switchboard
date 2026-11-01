@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/service"
 )
 
 // Mark is how what a step found stands: done, a warning, or failed.
@@ -32,10 +33,13 @@ type Said struct {
 }
 
 // Serviced is what the service step told, in turn, and the health of the
-// service's router, where the step saw it answer: nil where it didn't.
+// service's router, where the step saw it answer: nil where it didn't. Swap
+// is how far the step's swap of the service got, as service.Install says,
+// where the step began one, which runs to its end whatever stops the step.
 type Serviced struct {
 	Said   []Said
 	Router *router.Health
+	Swap   service.Swap
 }
 
 // capital is text with its first letter a capital, as a sentence starts.

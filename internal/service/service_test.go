@@ -262,12 +262,15 @@ func TestInstallBootstrapsWhateverBootingOutDid(t *testing.T) {
 				s.launchctl.loaded = true
 				tt.lay(s)
 
-				_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+				installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
 				switch want := tt.wantErr(s); {
 				case want == "" && err != nil:
 					t.Errorf("Install() error = %v, want none", err)
 				case want != "" && (err == nil || err.Error() != want):
 					t.Errorf("Install() error = %v, want %q", err, want)
+				}
+				if want := map[bool]service.Swap{true: service.Swapped, false: service.SwapFailed}[tt.wantErr(s) == ""]; installed.Swap != want {
+					t.Errorf("Install() swap = %v, want %v", installed.Swap, want)
 				}
 				if bootstrap := []string{"bootstrap", "gui/501", s.plist}; !slices.ContainsFunc(s.launchctl.calls, func(call []string) bool { return slices.Equal(call, bootstrap) }) {
 					t.Errorf("ran launchctl %q, want the bootstrap tried", s.launchctl.calls)
@@ -358,8 +361,9 @@ func TestInstallGivenUpWhileLaunchdLetsTheOldServiceGoLoadsTheNewOne(t *testing.
 		defer cancel()
 		time.AfterFunc(5*time.Second, cancel)
 
-		if _, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary}); !errors.Is(err, context.Canceled) {
-			t.Errorf("Install() error = %v, want it cancelled, once the new service is loaded", err)
+		installed, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
+		if !errors.Is(err, context.Canceled) || installed.Swap != service.Swapped {
+			t.Errorf("Install() = %+v, %v; want it swapped, then cancelled, once the new service is loaded", installed, err)
 		}
 		if want := [][]string{{"print", target}, {"bootout", target}}; len(s.launchctl.calls) < 2 || !reflect.DeepEqual(s.launchctl.calls[:2], want) {
 			t.Fatalf("ran launchctl %q, want it to start %q", s.launchctl.calls, want)
@@ -401,8 +405,9 @@ func TestInstallGivenUpOnceItHasWrittenRunsThrough(t *testing.T) {
 			}
 		}
 
-		if _, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary}); !errors.Is(err, context.Canceled) {
-			t.Errorf("Install() error = %v, want it cancelled, once the new service is loaded", err)
+		installed, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
+		if !errors.Is(err, context.Canceled) || installed.Swap != service.Swapped {
+			t.Errorf("Install() = %+v, %v; want it swapped, then cancelled, once the new service is loaded", installed, err)
 		}
 		bootstrap := []string{"bootstrap", "gui/501", s.plist}
 		if want := [][]string{{"print", target}, {"bootout", target}, {"print", target}, bootstrap}; !reflect.DeepEqual(s.launchctl.calls, want) {
@@ -436,9 +441,12 @@ func TestAnInterruptAsTheServiceIsSwappedWaitsForTheSwap(t *testing.T) {
 			}
 		}
 
-		_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+		installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
 		if want := "the service is installed, but interrupted before its router answered"; err == nil || err.Error() != want || !errors.Is(err, accounts.ErrInterrupted) {
 			t.Errorf("Install() error = %v, want %q, an interrupt", err, want)
+		}
+		if installed.Swap != service.Swapped {
+			t.Errorf("Install() swap = %v, want it swapped, the interrupt cutting only the wait for its router", installed.Swap)
 		}
 		if told != 1 {
 			t.Errorf("told the swap is finished first %d times, want once, as the first interrupt came", told)
@@ -457,15 +465,60 @@ func TestAnInterruptBeforeTheWriteDoesNothing(t *testing.T) {
 	s.launchctl.loaded = true
 	s.interrupts.atHold = os.Interrupt
 
-	_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+	installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
 	if want := "the service wasn't installed: interrupted"; err == nil || err.Error() != want || !errors.Is(err, accounts.ErrInterrupted) {
 		t.Errorf("Install() error = %v, want %q, an interrupt", err, want)
+	}
+	if installed.Swap != service.NotSwapped {
+		t.Errorf("Install() swap = %v, want none begun", installed.Swap)
 	}
 	if len(s.launchctl.calls) > 0 {
 		t.Errorf("ran launchctl %q, want the service left loaded as it was", s.launchctl.calls)
 	}
 	if _, err := os.Stat(s.plist); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("the plist is there (%v), want none written", err)
+	}
+}
+
+func TestInstallStoppedAsLaunchdIsAskedBeforeTheSwapBeginsNone(t *testing.T) {
+	tests := []struct {
+		name string
+		// stop stops Install as the swap asks launchd whether it has the
+		// service loaded, cancelling cancel or interrupting s.
+		stop    func(s *setup, cancel context.CancelFunc)
+		wantErr func(error) bool
+	}{
+		{name: "its context ended", stop: func(_ *setup, cancel context.CancelFunc) { cancel() }, wantErr: func(err error) bool { return errors.Is(err, context.Canceled) }},
+		{name: "an interrupt caught", stop: func(s *setup, _ context.CancelFunc) { s.interrupts.interrupt() }, wantErr: func(err error) bool {
+			return err != nil && err.Error() == "the service wasn't installed: interrupted" && errors.Is(err, accounts.ErrInterrupted)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, upOnceStarted(4242))
+			s.launchctl.loaded = true
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			s.launchctl.ran = func(args []string) {
+				if args[0] == "print" {
+					tt.stop(s, cancel)
+				}
+			}
+
+			installed, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
+			if !tt.wantErr(err) || installed.Swap != service.NotSwapped {
+				t.Errorf("Install() = %+v, %v; want no swap begun, and why it stopped", installed, err)
+			}
+			if want := [][]string{{"print", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
+				t.Errorf("ran launchctl %q, want %q alone: the service left loaded as it was", s.launchctl.calls, want)
+			}
+			if !s.launchctl.has() {
+				t.Error("launchd hasn't the service loaded, want it left as it was")
+			}
+			if _, err := os.Stat(s.plist); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("the plist is there (%v), want none written", err)
+			}
+		})
 	}
 }
 

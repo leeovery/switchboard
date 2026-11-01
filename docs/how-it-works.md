@@ -37,11 +37,11 @@ counts.
 
 ### How requests reach the router
 
-`setup` puts a link named `claude` in switchboard's own bin directory. It adds one line to your
-shell's startup file, which sources a file of switchboard's own for your shell; that file puts the
-bin directory first on `PATH`, ahead of the real `claude`, and loads switchboard's completions.
-Where you keep `PATH` another way, put the bin directory first on it yourself. `setup` asks your
-login shell which `claude` it runs, and is done with this once that's the link. See
+`setup` puts a link named `claude` in switchboard's own bin directory. It offers to add one line
+to your shell's startup file, which sources a file of switchboard's own for your shell; that file
+puts the bin directory first on `PATH`, ahead of the real `claude`, and loads switchboard's
+completions. Where you keep `PATH` another way, put the bin directory first on it yourself. `setup`
+asks your login shell which `claude` it runs, and is done with this once that's the link. See
 [`setup`](commands.md#setup).
 
 When switchboard runs by the name `claude`, it starts the real Claude Code connected to the router.
@@ -460,7 +460,8 @@ Some commands probe every account, as you asked them to:
 - `usage --probe` and `dashboard --probe`.
 - `usage`, `status` or `dashboard` without the router.
 
-`accounts add`, `accounts token` and `setup` probe a token they're given, to check it.
+`accounts add`, `accounts token` and `setup` probe a token they're given, to check it, and `setup`
+probes every account's token as it opens.
 
 ### The router's rounds
 

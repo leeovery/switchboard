@@ -83,6 +83,25 @@ func (s Setup) offered() (setup.StepLine, bool) {
 	return setup.StepLine{}, false
 }
 
+// SetupPrinted is setup's summary as setup prints it into the scrollback
+// once its screen has gone, width cells wide: Done's line a step, as Done
+// draws its row, on rows one after another, without colour, as nothing's
+// styled for a terminal that's gone. What a line leaves to add by hand is
+// on a row of its own under it, from the label's column, whole: the
+// terminal wraps it, so it's copied as the one line it is.
+func SetupPrinted(s setup.Summary, width int) []string {
+	var rows []string
+	for _, l := range s.Lines() {
+		c := growing(width)
+		fact(c, 0, width, l.Said)
+		rows = append(rows, c.rows(Look{})...)
+		if l.Add != "" {
+			rows = append(rows, strings.Repeat(" ", factParts(width)[factLabel].At)+l.Add)
+		}
+	}
+	return rows
+}
+
 // stepLine draws a step's line along row y, width cells wide: its row, as
 // fact draws it, then under it, from the detail's column, its line to add
 // by hand, in accent.mode, wrapped at the column's width, words wider than

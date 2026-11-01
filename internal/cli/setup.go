@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/sessionhook"
@@ -50,9 +51,10 @@ const savedFirst = "interrupted once the token was saved, as it lasts a year on 
 
 // setup walks the user at the terminal through setting switchboard up, on
 // setup's screen, refusing a switchboard that won't last before it shows
-// anything. Once the screen has gone, it prints a making the screen gave
-// back, which saved nothing, or else, where an interrupt was held as a token
-// was saved, says the token was saved first; then leaves as the screen was
+// anything. Once the screen has gone, it prints each step's line, as Done
+// says it, as wide as the terminal; then a making the screen gave back,
+// which saved nothing, or else, where an interrupt was held as a token was
+// saved, says the token was saved first; then leaves as the screen was
 // left.
 func (a *app) setup(cmd *cobra.Command) error {
 	out := cmd.OutOrStdout()
@@ -71,6 +73,7 @@ func (a *app) setup(cmd *cobra.Command) error {
 	if errors.Is(err, screen.ErrNotTerminal) {
 		return setup.ErrNoTerminal
 	}
+	printLines(out, dashboard.SetupPrinted(left.Summary, a.terminalWidth(out)))
 	switch {
 	case left.Unsaved != nil:
 		printLines(out, left.Unsaved.Printed())

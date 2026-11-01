@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -615,7 +616,7 @@ func TestLeavingAsTheSessionHookInstallsWaitsForIt(t *testing.T) {
 			default:
 				t.Error("run() returned before the session hook was installed")
 			}
-			if left != (Left{Ending: Paused}) {
+			if how(left) != (Left{Ending: Paused}) {
 				t.Errorf("run() left setup %+v, want it paused", left)
 			}
 			if steps.skills != 0 {
@@ -653,7 +654,7 @@ func TestLeavingAsTheShellIsAskedCancelsTheAskingAndWaitsForIt(t *testing.T) {
 			default:
 				t.Error("run() returned before Link ended")
 			}
-			if left != (Left{Ending: Paused}) {
+			if how(left) != (Left{Ending: Paused}) {
 				t.Errorf("run() left setup %+v, want it paused", left)
 			}
 		})
@@ -677,8 +678,11 @@ func TestAnInterruptFromOutsideAsTheShellIsAskedLeavesSetupPaused(t *testing.T) 
 	close(steps.interrupt)
 	select {
 	case left := <-returned:
-		if left != (Left{Ending: Paused}) {
+		if how(left) != (Left{Ending: Paused}) {
 			t.Errorf("run() left setup %+v, want it paused, as q leaves it", left)
+		}
+		if got, want := read(left.Summary.Lines()), []string{primingPast, "✓ Service "}; len(got) != 3 || !slices.Equal(got[1:], want) {
+			t.Errorf("the summary reads\n%q\nwant, after the accounts' line\n%q, as q leaves it", got, want)
 		}
 	case <-time.After(time.Minute):
 		t.Fatal("a minute after the interrupt, setup's screen hadn't left")

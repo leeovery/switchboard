@@ -458,7 +458,7 @@ func (m Model) summary() setup.Summary {
 		s.Failure = failure(m.walk.failed)
 	}
 	if m.priming != nil {
-		s.Day = m.priming.primed()
+		s.Day = &m.priming.set
 	}
 	return s
 }

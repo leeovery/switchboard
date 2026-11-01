@@ -203,8 +203,26 @@ type InstallOptions struct {
 	unread error
 }
 
+// Swap is how far Install's swap of the service got.
+type Swap int
+
+const (
+	// NotSwapped is Install stopped before it began the swap: the service
+	// is as it was.
+	NotSwapped Swap = iota
+	// SwapFailed is the swap begun, and failed.
+	SwapFailed
+	// Swapped is the swap done: launchd has the new service loaded.
+	Swapped
+)
+
 // Installed is what installing the service did.
 type Installed struct {
+	// Swap is how far the swap got, given back with the error Install fails
+	// with once it has begun it, as the service has changed: Swapped where
+	// only the wait for its router was cut short, by ctx or an interrupt held
+	// through the swap.
+	Swap Swap
 	// Warnings are worth the user's attention, though they didn't stop the
 	// install.
 	Warnings []string
@@ -222,7 +240,8 @@ type Installed struct {
 // the router to answer. It refuses a switchboard binary that won't last,
 // such as go run's. Once it begins the swap, as swap has it, it finishes it
 // whatever ctx does, which can take about two minutes at the worst: what it does
-// before and after heeds ctx, failing with its cause once it's done.
+// before and after heeds ctx, failing with its cause once it's done. It says
+// how far the swap got, whether it fails or not.
 func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, error) {
 	s, opts, err := s.Planned(ctx, opts)
 	if err != nil {
@@ -233,8 +252,8 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	before, i, _ := s.answering(ctx)
-	if err := s.swap(ctx, a); err != nil {
-		return Installed{}, err
+	if swap, err := s.swap(ctx, a); err != nil {
+		return Installed{Swap: swap}, err
 	}
 	// With none answering before, one that answers now is launchd's,
 	// wherever it is; with one answering, it may be one run otherwise.
@@ -244,9 +263,9 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	}
 	h, at := s.waitForRouter(ctx, waitFor, before, StartWait)
 	if err := context.Cause(ctx); err != nil {
-		return Installed{}, err
+		return Installed{Swap: Swapped}, err
 	}
-	installed := Installed{Router: h, Unread: opts.unread}
+	installed := Installed{Swap: Swapped, Router: h, Unread: opts.unread}
 	// Judged where the router answered, whose token files it reads.
 	if s.seenAt(at).tokenless(opts.Accounts) {
 		installed.Warnings = append(installed.Warnings, "no account has a usable token, so the router will have nothing to route to: switchboard accounts says why")

@@ -653,10 +653,18 @@ type fakeLaunchd struct {
 	started    int
 	unanswered int
 	calls      [][]string
+	// before, where it's set, is told of each run before it's run, failing it
+	// with the error it returns, where it returns one.
+	before func(args []string) error
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 	f.calls = append(f.calls, args)
+	if f.before != nil {
+		if err := f.before(args); err != nil {
+			return nil, err
+		}
+	}
 	switch {
 	case args[0] == "bootstrap" && f.loaded:
 		return []byte("Bootstrap failed: 5: Input/output error\n"), exitStatus(5)

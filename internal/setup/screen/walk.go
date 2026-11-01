@@ -2,12 +2,15 @@ package screen
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/setup"
 )
 
@@ -27,15 +30,18 @@ const (
 )
 
 // Left is how setup's screen was left, and for Failed, why the step failed.
-// Unsaved is how the token card's making ended, where the card was open as
-// the screen went, and it saved nothing, nor was stopped, as
-// Model.tokenLeft has it: above all a token made but unread, or not saved,
-// which lasts a year on the account, for the caller to show, as the screen
-// can't. Interrupted says an interrupt was held as a token made was saved,
-// for the caller to end as an interrupt has it.
+// Summary is how setup stands as it's left, once every job of the screen's
+// has ended, as Done says it a line a step, for the caller to print once the
+// screen has gone. Unsaved is how the token card's making ended, where the
+// card was open as the screen went, and it saved nothing, nor was stopped,
+// as Model.tokenLeft has it: above all a token made but unread, or not
+// saved, which lasts a year on the account, for the caller to show, as the
+// screen can't. Interrupted says an interrupt was held as a token made was
+// saved, for the caller to end as an interrupt has it.
 type Left struct {
 	Ending      Ending
 	Err         error
+	Summary     setup.Summary
 	Unsaved     *setup.Tokened
 	Interrupted bool
 }
@@ -51,13 +57,17 @@ type walk struct {
 	failed error
 	// toDashboard is set where enter left Done, for the dashboard to open.
 	toDashboard bool
+	// kept holds the outcome of the job the walk started last, as well as
+	// its being given to the model, for Run to take in should the screen go
+	// before the model does, as Model.gone has it.
+	kept chan tea.Msg
 }
 
 // actions are what a step does as it's reached, of the steps that do
 // something: any other is done on reaching it.
 var actions = map[dashboard.SetupStep]func(Steps) job{
 	dashboard.SetupPriming: readDay,
-	dashboard.SetupService: service,
+	dashboard.SetupService: serviceStep,
 	dashboard.SetupLink:    linkClaude,
 	dashboard.SetupSkill:   skill,
 }
@@ -75,7 +85,32 @@ func openingOn(step dashboard.SetupStep) walk {
 func (w walk) reached(step dashboard.SetupStep) walk {
 	_, acts := actions[step]
 	w.step, w.done, w.failed = step, !acts && step != dashboard.SetupAccounts, nil
+	return w.keeping()
+}
+
+// keeping is w with a place of its own to keep the outcome of the job it
+// starts next.
+func (w walk) keeping() walk {
+	w.kept = make(chan tea.Msg, 1)
 	return w
+}
+
+// keep is j, its outcome kept on w's place as well as given, where it gives
+// one. The place is j's alone, as keeping makes one for each job, so it's
+// free; were it not, the outcome would go unkept rather than hold j, and
+// with it Run, which waits for every job, for good.
+func (w walk) keep(j job) job {
+	kept := w.kept
+	return func(ctx context.Context) tea.Msg {
+		msg := j(ctx)
+		if msg != nil {
+			select {
+			case kept <- msg:
+			default:
+			}
+		}
+		return msg
+	}
 }
 
 // onward is w at the step after the one showing, which is passed through.
@@ -120,7 +155,7 @@ func (w walk) left() Left {
 // reached: setup's writing actions, as every step's is, run one at a time.
 func (m Model) action() tea.Cmd {
 	if act, ok := actions[m.walk.step]; ok {
-		return m.jobs.write(act(m.steps))
+		return m.jobs.write(m.walk.keep(act(m.steps)))
 	}
 	return nil
 }
@@ -160,13 +195,33 @@ type servicedMsg struct {
 	err      error
 }
 
-// service is the service step's action: Service, stopping once its context
-// is done.
-func service(steps Steps) job {
+// serviceStep is the service step's action: Service, stopping once its
+// context is done, as servicedOf has it.
+func serviceStep(steps Steps) job {
 	return func(ctx context.Context) tea.Msg {
 		serviced, err := steps.Service(ctx)
-		return servicedMsg{serviced: serviced, err: err}
+		return servicedOf(ctx, serviced, err)
 	}
+}
+
+// servicedOf is what the service step told, as serviced and err say, once
+// it has ended under ctx. Once ctx is done, as setup's leaving does, it
+// counts only where the step's swap of the service began, as the swap runs
+// to its end: one that failed fails the step; one done is said by what the
+// step did, its router's answer unknown, not as a failure, as is one an
+// interrupt held through the swap cut short; and anything before the swap
+// is dropped, the step said of as not reached. A restart of the router
+// before the swap, as the step may make, is outside this, as the account
+// changes are.
+func servicedOf(ctx context.Context, serviced setup.Serviced, err error) tea.Msg {
+	cut := ctx.Err() != nil || errors.Is(err, accounts.ErrInterrupted)
+	switch {
+	case cut && serviced.Swap == service.Swapped:
+		err = nil
+	case ctx.Err() != nil && serviced.Swap == service.NotSwapped:
+		return nil
+	}
+	return servicedMsg{serviced: serviced, err: err}
 }
 
 // serviced takes in what the service step told, each detail made safe to
