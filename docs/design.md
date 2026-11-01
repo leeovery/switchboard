@@ -1249,14 +1249,15 @@ show.
    `The skill tells Claude about switchboard, so it can answer questions about your accounts, usage
    and sessions.`, and Installed, with its path. Its key: `enter finish`.
 6. **Done** (frame 5): SWITCHBOARD IS SET UP, then a row a step, as it stands: Accounts, `3, all
-   working · primary: work, with 5% reserved for the Claude apps`; Priming, `on, 08:00–23:00`;
-   Service, `installed and updated · router healthy`; claude link, where it isn't done, `!` and
-   `created, but it isn't first on your PATH. Add this line to ~/.zshrc:`, naming the startup file,
-   and under it, in `accent.mode`, the shell step's line; Skill, `up to date`. Then NEXT: `claude`,
-   `start Claude Code as usual: its sessions route through switchboard`, and `switchboard`, `open
-   the dashboard: every account's windows, sessions and history`. Its keys: `c copy the line`, where
-   the link isn't done, and `enter open the dashboard`, `q quit`. `enter` leaves setup for the
-   dashboard; there's no `usage` printout.
+   working · primary: work, with 5% reserved for the Claude apps`, or, where a token went unchecked,
+   each kind counted, `3: 1 working, 1 unchecked, 1 refused`, or `3, all unchecked`, or `1,
+   unchecked` of one account; Priming, `on, 08:00–23:00`; Service, `installed and updated · router
+   healthy`; claude link, where it isn't done, `!` and `created, but it isn't first on your PATH. Add
+   this line to ~/.zshrc:`, naming the startup file, and under it, in `accent.mode`, the shell
+   step's line; Skill, `up to date`. Then NEXT: `claude`, `start Claude Code as usual: its sessions
+   route through switchboard`, and `switchboard`, `open the dashboard: every account's windows,
+   sessions and history`. Its keys: `c copy the line`, where the link isn't done, and `enter open
+   the dashboard`, `q quit`. `enter` leaves setup for the dashboard; there's no `usage` printout.
 
 ### The token card
 
@@ -1476,7 +1477,8 @@ not the owner's decisions:
   outside this rule, as the account changes are. The `claude` link's asking, stopped, is dropped
   too, as what it found then isn't what the shell runs. The account changes' writes run to their
   end, but what they change shows only once the accounts are read again, which the leaving stops.
-  A token still being checked reads unchecked, as no check answers it now.
+  A token still being checked reads unchecked, as no check answers it now, and the Accounts line
+  says so, as `3: 1 working, 2 unchecked`, never `all working`.
 - **The status line waits** until both the router and the accounts have answered, blank till then,
   so it never says `nothing set up yet` of accounts not yet read; where the config can't be read,
   it shows the router's part alone.

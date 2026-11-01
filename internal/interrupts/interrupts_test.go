@@ -144,6 +144,52 @@ func TestAWatchTellsOfTheFirstInterruptAlone(t *testing.T) {
 	}
 }
 
+// Kept holds the interrupts once however often it's kept, telling of the
+// first caught, and lets them go once however often it's let: the second Let
+// finds none held, and a Keep after it holds nothing.
+func TestKeptHoldsOnceAndLetsGoOnce(t *testing.T) {
+	process := &fakeProcess{}
+	k := &interrupts.Kept{Holder: process.hold}
+	told := make(chan struct{}, 2)
+	tell := func() { told <- struct{}{} }
+	k.Keep(tell)
+	k.Keep(tell)
+	if process.holds != 1 {
+		t.Fatalf("kept twice, held %d times, want once", process.holds)
+	}
+	process.send(os.Interrupt)
+	select {
+	case <-told:
+	case <-time.After(time.Minute):
+		t.Fatal("a minute on, nothing was told of the interrupt caught")
+	}
+	if !k.Let() {
+		t.Error("Let() reports no interrupt, want the one caught")
+	}
+	if process.caught != nil {
+		t.Error("let go, the interrupts are held still")
+	}
+	if k.Let() {
+		t.Error("let go again, Let() reports an interrupt, want none: none is held")
+	}
+	k.Keep(tell)
+	if process.holds != 1 || process.caught != nil {
+		t.Errorf("kept once let go, held %d times, held still: %t; want nothing held again", process.holds, process.caught != nil)
+	}
+	if len(told) != 0 {
+		t.Errorf("told of %d interrupts more, want the first alone", len(told))
+	}
+}
+
+// Kept never kept lets nothing go, and reports no interrupt.
+func TestKeptNeverKeptLetsNothingGo(t *testing.T) {
+	process := &fakeProcess{}
+	k := &interrupts.Kept{Holder: process.hold}
+	if k.Let() || process.holds != 0 {
+		t.Errorf("never kept, Let() reported an interrupt, or %d holds were made; want neither", process.holds)
+	}
+}
+
 func TestEndCatchesAnInterruptAsTheHoldIsLetGo(t *testing.T) {
 	tests := []struct {
 		name      string

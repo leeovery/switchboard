@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/setup/screen"
 	"github.com/leeovery/switchboard/internal/setuptoken"
@@ -64,8 +65,9 @@ type setupScreen struct {
 // seconds, as frame 2 has it, or stopped with an error, as frame 10 has it;
 // and from there, p pressed, the card pasting personal's token, a token
 // typed in, as no frame has it, laid out as frame 2; and on a first run,
-// work, personal and side added, each token made, then enter on work's
-// row, the primary's reserve card open, 5% typed, as frame 13 has it.
+// work, personal and side added, each token made, none the primary, then p
+// on work's row, as a user must, and enter, the primary's reserve card open,
+// 5% typed, as frame 13 has it.
 var setupScreens = []setupScreen{
 	{name: "setup-add-first-160", size: wide(37), step: dashboard.SetupAccounts, steps: firstRun, keys: slices.Concat(typingWork(), []tea.KeyPressMsg{tabKey, tabKey}), card: "ADD AN ACCOUNT", cardKeys: "tab next   enter create token   esc cancel"},
 	{name: "setup-token-waiting-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(nil), keys: addingPersonal(), waited: 21 * time.Second, card: "NEW TOKEN · PERSONAL", cardKeys: "o reopen window   p paste a token   esc cancel"},
@@ -73,7 +75,7 @@ var setupScreens = []setupScreen{
 	{name: "setup-token-paste-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: slices.Concat(addingPersonal(), keysOf("p"), keysOf(strings.Split("test-token-personal", "")...)), card: "PASTE A TOKEN · PERSONAL", cardKeys: "enter save   esc cancel"},
 	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
 	{name: "setup-edit-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: slices.Concat(keysOf("j", "e"), []tea.KeyPressMsg{tabKey, leftKey, leftKey}), card: "EDIT PERSONAL", cardKeys: "tab next   ←→ select   enter save   esc cancel"},
-	{name: "setup-reserve-160", size: wide(37), step: dashboard.SetupAccounts, steps: addingThree, keys: slices.Concat(addedThree(), repeated(upKey, 2), []tea.KeyPressMsg{enterKey}, keysOf("5", "%")), card: "RESERVE · WORK", cardKeys: "enter save   esc no reserve"},
+	{name: "setup-reserve-160", size: wide(37), step: dashboard.SetupAccounts, steps: addingThree, keys: slices.Concat(addedThree(), repeated(upKey, 2), keysOf("p"), []tea.KeyPressMsg{enterKey}, keysOf("5", "%")), card: "RESERVE · WORK", cardKeys: "enter save   esc no reserve"},
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
 	{name: "setup-service-160", size: wide(37), step: dashboard.SetupService, steps: everyStepPassed},
 	{name: "setup-skill-160", size: wide(37), step: dashboard.SetupSkill, steps: everyStepPassed},
@@ -188,8 +190,9 @@ func (f Fixture) settleSetup(size watch.Size) screen.Model {
 }
 
 // setupSteps are setup's steps as a capture fakes them, answering at once
-// as given: they read, run and write nothing. Review reads each token, and
-// ReviewOf checks it as checked has it, each account saved among them.
+// as given: they read, run and write nothing. Review reads each account, as
+// the config marks it, and each token, and ReviewOf checks it as checked
+// has it, each account saved among them.
 // makings are how each account's token is made, by its id. link is what the
 // claude link step finds, asked first or again, and hook what the session
 // hook's install says.
@@ -232,30 +235,50 @@ func (s setupSteps) told() int {
 }
 
 // setupSaved are the accounts a capture's steps have added, their tokens
-// made and saved, each a year from then, as setup saves it.
+// made and saved, each a year from then, as setup saves it; and the account
+// marked the primary since, in every other's place: "" where none is.
 type setupSaved struct {
 	mu       sync.Mutex
 	accounts []setup.Reviewed
+	primary  string
 }
 
-// add adds the account f adds, its token saved at the time given, the
-// primary where it's the first.
-func (s *setupSaved) add(f setup.TokenFor, at time.Time, first bool) {
+// add adds the account f adds, its token saved at the time given, marked the
+// primary only where f asks it to be, as config adds it.
+func (s *setupSaved) add(f setup.TokenFor, at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a := f.Account
-	s.accounts = append(s.accounts, setup.Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Primary: first, Token: read(status.TokenYearFrom(at))})
+	s.accounts = append(s.accounts, setup.Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Token: read(status.TokenYearFrom(at))})
+	if a.Primary {
+		s.primary = a.ID
+	}
 }
 
-// added are the accounts added so far: none where the steps have none
-// saved, as outside a settle.
-func (s *setupSaved) added() []setup.Reviewed {
+// mark marks the account the primary, in every other's place.
+func (s *setupSaved) mark(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.primary = id
+}
+
+// over is the accounts given, then those added, each marked the primary as
+// the config writes it: the one marked since, where one is, else as given.
+// There are none added where the steps have none saved, as outside a
+// settle.
+func (s *setupSaved) over(given []setup.Reviewed) []setup.Reviewed {
 	if s == nil {
-		return nil
+		return slices.Clone(given)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return slices.Clone(s.accounts)
+	accounts := slices.Concat(given, s.accounts)
+	if s.primary != "" {
+		for i := range accounts {
+			accounts[i].Primary = accounts[i].ID == s.primary
+		}
+	}
+	return accounts
 }
 
 // makingPersonal are the steps of a first run, at now, as frames 2 and 10
@@ -368,21 +391,32 @@ func accountsPassed(now time.Time) setupSteps {
 // everyStepPassed are the steps as they stand once each before the Skill
 // has passed, at now: as the Accounts left them, but for a router up and
 // healthy; the service installed again, its plist out of date, and its
-// router healthy, as frame 4 says it in the words setup says; and the skill
-// installed; each place written from the home as setup writes it.
+// router healthy, as frame 4 says it, each row as setup words it; and the
+// skill installed; each place written from the home as setup writes it.
 func everyStepPassed(now time.Time) setupSteps {
 	steps := accountsPassed(now)
 	steps.standing = setup.RouterStanding{State: setup.RouterHealthy}
+	health := router.Health{OK: true, Listen: "127.0.0.1:4747", Version: "0.2.10"}
 	steps.service = setup.Serviced{
 		Said: []setup.Said{
-			{Mark: setup.Done, Label: "Installed", Detail: "~/Library/LaunchAgents/io.github.leeovery.switchboard.plist"},
-			{Mark: setup.Warning, Label: "Updated", Detail: "reinstalled: its plist had no ProcessType · kept its --log-level"},
-			{Mark: setup.Done, Label: "Router", Detail: "healthy · 127.0.0.1:4747 · v0.2.10"},
+			setup.ServiceInstalled(plistFromHome()),
+			setup.Reinstalled(setup.PlistHad([]string{"no ProcessType"}), "--log-level"),
+			setup.RouterUp(health),
 		},
-		Router: &router.Health{OK: true, Listen: "127.0.0.1:4747", Version: "0.2.10"},
+		Router: &health,
 	}
 	steps.skill = setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/.claude/skills/switchboard/SKILL.md"}
 	return steps
+}
+
+// plistFromHome is where the service's plist goes, from the home, as setup
+// writes it: the service's own path, its home ~.
+func plistFromHome() string {
+	svc, err := service.New(service.Config{GOOS: "darwin", Home: "~"})
+	if err != nil {
+		panic(err)
+	}
+	return svc.Plist()
 }
 
 // linkLeft are the steps as they stand once each has passed, at now: as
@@ -441,33 +475,34 @@ func (s setupSteps) Standing(context.Context) (setup.RouterStanding, error) {
 	return s.standing, nil
 }
 
-// Review is the accounts as given, then those saved, each token read, as
+// Review is the accounts as given, then those saved, each marked the
+// primary as saved has it, as setup resolves them, each token read, as
 // testToken has it.
 func (s setupSteps) Review() (setup.Review, error) {
 	review := s.review
-	review.Accounts = slices.Concat(review.Accounts, s.saved.added())
+	review.Accounts = s.saved.over(review.Accounts)
+	review = review.Resolved()
 	for i, a := range review.Accounts {
 		review.Accounts[i].Token = a.Token.Of(testToken(a.ID))
 	}
 	return review, nil
 }
 
-// ReviewOf is the account's row as given, its token, as testToken has it,
-// as checked has it; or one saved, its token working.
+// ReviewOf is the account's row as Review has it, its token, as testToken
+// has it: one given as checked has it, the zero standing where it has none,
+// so a fixture that leaves one out shows it; one saved, working.
 func (s setupSteps) ReviewOf(_ context.Context, id string) (setup.Reviewed, error) {
-	of := func(a setup.Reviewed) bool { return a.ID == id }
-	if i := slices.IndexFunc(s.review.Accounts, of); i >= 0 {
-		row := s.review.Accounts[i]
-		row.Token = s.checked[id].Of(testToken(id))
-		return row, nil
-	}
-	saved := s.saved.added()
-	i := slices.IndexFunc(saved, of)
+	review, _ := s.Review()
+	i := slices.IndexFunc(review.Accounts, func(a setup.Reviewed) bool { return a.ID == id })
 	if i < 0 {
 		return setup.Reviewed{}, config.NotConfigured(id)
 	}
-	row := saved[i]
-	row.Token = setup.TokenStanding{State: setup.TokenWorking, Year: row.Token.Year}.Of(testToken(id))
+	row := review.Accounts[i]
+	checked := s.checked[id]
+	if i >= len(s.review.Accounts) {
+		checked = setup.TokenStanding{State: setup.TokenWorking, Year: row.Token.Year}
+	}
+	row.Token = checked.Of(testToken(id))
 	return row, nil
 }
 
@@ -543,7 +578,7 @@ func (s setupSteps) MakeToken(_ context.Context, f setup.TokenFor, report func(s
 		return setup.Tokened{Result: setup.TokenCancelled}, nil
 	}
 	if making.ends.Result == setup.TokenSaved && f.Add {
-		s.saved.add(f, s.review.At, len(s.review.Accounts)+len(s.saved.added()) == 0)
+		s.saved.add(f, s.review.At)
 	}
 	return *making.ends, nil
 }
@@ -559,8 +594,12 @@ func (s setupSteps) Reopen(context.Context, setup.Making) error {
 	return nil
 }
 
-// EditAccount changes nothing, as no fixture saves an edit.
-func (s setupSteps) EditAccount(string, setup.Edit) (accounts.Edited, error) {
+// EditAccount marks the account the primary where the edit makes it so, as
+// p does; it changes nothing else, as no fixture saves another edit.
+func (s setupSteps) EditAccount(id string, edit setup.Edit) (accounts.Edited, error) {
+	if edit.Primary && s.saved != nil {
+		s.saved.mark(id)
+	}
 	return accounts.Edited{}, nil
 }
 

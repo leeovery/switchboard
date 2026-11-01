@@ -337,7 +337,7 @@ func TestTheLabelsViewHoldsStillWhileItsCursorMovesWithinIt(t *testing.T) {
 
 func TestPMakesTheChosenAccountThePrimary(t *testing.T) {
 	steps := frame3Steps()
-	steps.review.Unmarked, steps.review.Accounts[0].Primary = true, false
+	steps.review.Accounts[0].Primary = false
 	h := accountsHarness(t, steps)
 	h.start()
 	h.pressAndDeliver("enter")

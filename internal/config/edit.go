@@ -188,12 +188,6 @@ func (d *Draft) Upstream() (string, error) {
 	return d.file.Upstream, nil
 }
 
-// MarksPrimary reports whether the draft marks an account primary, rather
-// than leaving the first to be the primary for want of one.
-func (d *Draft) MarksPrimary() bool {
-	return slices.ContainsFunc(d.file.Accounts, func(a fileAccount) bool { return a.Primary })
-}
-
 // MarksPrimaryOf reports whether the draft marks the account with the given
 // id primary: never where it's the primary only as the first, none marked.
 func (d *Draft) MarksPrimaryOf(id string) bool {

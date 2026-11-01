@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/interrupts"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
@@ -86,7 +87,7 @@ func (a *app) makeToken(cmd *cobra.Command, id string) error {
 	if err := s.Accounts.Configured(id); err != nil {
 		return a.notConfigured(err, id, addIt(id))
 	}
-	said := &makingSaid{out: cmd.OutOrStdout(), errOut: cmd.ErrOrStderr(), hold: a.Hold}
+	said := &makingSaid{out: cmd.OutOrStdout(), errOut: cmd.ErrOrStderr(), Holder: a.Hold}
 	if len(cfg.Accounts) > 1 {
 		said.lines(makingCompares)
 	}
@@ -99,14 +100,14 @@ func (a *app) makeToken(cmd *cobra.Command, id string) error {
 	said.lines(makingStarts)
 	tokened, err := s.MakeToken(ctx, setup.TokenFor{Account: config.NewAccount{ID: id}, Organizations: organizations}, said.step)
 	if err != nil {
-		said.let()
+		said.Let()
 		return a.notConfigured(err, id, addIt(id))
 	}
 	if tokened.InterruptHeld {
 		said.interrupted()
 	}
 	ended := said.ended(cmd, id, tokened)
-	if !said.let() && !tokened.InterruptHeld {
+	if !said.Let() && !tokened.InterruptHeld {
 		return ended
 	}
 	said.interrupted()
@@ -126,12 +127,12 @@ func heldBack(err error) error {
 // makingSaid says a token's making as it goes, a line at a time, in the
 // order it's told, from whichever goroutine tells it: each step, and how it
 // ended, on out, and an interrupt held, once, on errOut. From the token
-// made till its end is said, it holds the process's interrupts with hold,
-// as setup does through the save, so the token isn't lost to one as it's
-// printed to copy.
+// made till its end is said, it keeps the process's interrupts, as setup
+// does through the save, so the token isn't lost to one as it's printed to
+// copy.
 type makingSaid struct {
 	out, errOut io.Writer
-	keptFrom
+	interrupts.Kept
 	mu   sync.Mutex
 	told sync.Once
 }
@@ -147,7 +148,7 @@ func (m *makingSaid) lines(lines ...string) {
 // made.
 func (m *makingSaid) step(at setup.Making) {
 	if at.Step == setup.TokenMade {
-		m.keep(m.interrupted)
+		m.Keep(m.interrupted)
 	}
 	m.lines(stepSaid(at)...)
 }

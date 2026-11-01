@@ -374,7 +374,7 @@ func TestEnterAtAccounts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			steps := frame3Steps()
 			if tt.unmarked {
-				steps.review.Unmarked, steps.review.Accounts[0].Primary = true, false
+				steps.review.Accounts[0].Primary = false
 			}
 			h := accountsHarness(t, steps)
 			h.start()
@@ -394,7 +394,7 @@ func TestEnterAtAccounts(t *testing.T) {
 
 func TestWhereNoneIsThePrimaryTheKeyLineHasNoEnter(t *testing.T) {
 	steps := frame3Steps()
-	steps.review.Unmarked, steps.review.Accounts[0].Primary = true, false
+	steps.review.Accounts[0].Primary = false
 	h := accountsHarness(t, steps)
 	h.start()
 	if got := h.rows()[keyRow]; !strings.HasSuffix(got, "   q quit") || strings.Contains(got, "enter") {

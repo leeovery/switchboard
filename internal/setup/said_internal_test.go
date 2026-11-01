@@ -34,8 +34,8 @@ func TestRouterUp(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := routerUp(tt.h); got != tt.want {
-				t.Errorf("routerUp() = %+v, want %+v", got, tt.want)
+			if got := RouterUp(tt.h); got != tt.want {
+				t.Errorf("RouterUp() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

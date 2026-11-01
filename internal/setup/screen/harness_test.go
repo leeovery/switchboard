@@ -249,10 +249,11 @@ func (c *fakeClock) Now() time.Time {
 }
 
 // fakeSteps answers as setup's steps do: Standing with standing, Review with
-// review, each token of the account's own, as tokenOf has it, failing with
-// reviewErr where it's set; ReviewOf with the review's row, its token as
-// checked has it, where it has it, of the account's own, failing with
-// checkErr where it's set, keeping each id it's asked of in checks; Priming
+// review, its accounts marked the primary as setup.Review.Resolved has them, each token
+// of the account's own, as tokenOf has it, failing with reviewErr where it's
+// set; ReviewOf with that review's row, its token as checked has it, where
+// it has it, of the account's own, failing with checkErr where it's set,
+// keeping each id it's asked of in checks; Priming
 // with day, failing with primingErr where it's set; SetDay as
 // config.ParseDay does, keeping each day it's given in set, failing with
 // setErr where it's set; Service with serviced, failing with serviceErr
@@ -265,8 +266,11 @@ func (c *fakeClock) Now() time.Time {
 // as it's asked. Its answers are read, and its counts kept, under mu, as
 // jobs ask it at once: a test sets what it answers while no job runs.
 type fakeSteps struct {
-	mu        sync.Mutex
-	standing  setup.RouterStanding
+	mu       sync.Mutex
+	standing setup.RouterStanding
+	// review is the accounts as the config writes them, each Primary where
+	// the config marks it, which Review and ReviewOf resolve: its Unmarked
+	// is never read, as Resolved works it out.
 	review    setup.Review
 	reviewErr error
 	// replaced are the accounts whose token has been replaced, as replace
@@ -402,8 +406,8 @@ func (s *fakeSteps) MakeToken(ctx context.Context, f setup.TokenFor, report func
 }
 
 // ended is the making for f ended as tokened says: where it's saved, the
-// account added, its token working, a year from start, or its token
-// replaced so.
+// account added, marked the primary only where f asks it to be, as config
+// adds it, its token working, a year from start, or its token replaced so.
 func (s *fakeSteps) ended(f setup.TokenFor, tokened setup.Tokened) setup.Tokened {
 	if tokened.Result != setup.TokenSaved {
 		return tokened
@@ -421,7 +425,12 @@ func (s *fakeSteps) ended(f setup.TokenFor, tokened setup.Tokened) setup.Tokened
 		s.review.Accounts[i].Token = token
 	} else {
 		a := f.Account
-		s.review.Accounts = append(s.review.Accounts, setup.Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Primary: len(s.review.Accounts) == 0, Token: token})
+		if a.Primary {
+			for i := range s.review.Accounts {
+				s.review.Accounts[i].Primary = false
+			}
+		}
+		s.review.Accounts = append(s.review.Accounts, setup.Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Primary: a.Primary, Token: token})
 	}
 	s.checked = maps.Clone(s.checked)
 	if s.checked == nil {
@@ -514,8 +523,7 @@ func (s *fakeSteps) Review() (setup.Review, error) {
 	if s.reviewErr != nil {
 		return setup.Review{}, s.reviewErr
 	}
-	review := s.review
-	review.Accounts = slices.Clone(review.Accounts)
+	review := s.review.Resolved()
 	for i, a := range review.Accounts {
 		review.Accounts[i].Token = a.Token.Of(s.tokenOf(a.ID))
 	}
@@ -526,11 +534,12 @@ func (s *fakeSteps) ReviewOf(_ context.Context, id string) (setup.Reviewed, erro
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.checks = append(s.checks, id)
-	i := slices.IndexFunc(s.review.Accounts, func(a setup.Reviewed) bool { return a.ID == id })
+	review := s.review.Resolved()
+	i := slices.IndexFunc(review.Accounts, func(a setup.Reviewed) bool { return a.ID == id })
 	if s.checkErr != nil || i < 0 {
 		return setup.Reviewed{}, cmp.Or(s.checkErr, config.NotConfigured(id))
 	}
-	row := s.review.Accounts[i]
+	row := review.Accounts[i]
 	if token, ok := s.checked[id]; ok {
 		row.Token = token
 	}
@@ -678,13 +687,11 @@ func (s *fakeSteps) EditAccount(id string, edit setup.Edit) (accounts.Edited, er
 		}
 		a.Primary = a.Primary || edit.Primary
 	}
-	s.review.Unmarked = s.review.Unmarked && !edit.Primary
 	return accounts.Edited{}, nil
 }
 
-// RemoveAccount keeps the id, and takes the account out of the review: where
-// it was the primary, two or more left have none marked, and one left is
-// the primary.
+// RemoveAccount keeps the id, and takes the account out of the review, its
+// mark with it.
 func (s *fakeSteps) RemoveAccount(id string) (accounts.Removed, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -693,14 +700,7 @@ func (s *fakeSteps) RemoveAccount(id string) (accounts.Removed, error) {
 		return accounts.Removed{}, s.removeErr
 	}
 	i := slices.IndexFunc(s.review.Accounts, func(a setup.Reviewed) bool { return a.ID == id })
-	primary := s.review.Accounts[i].Primary
 	s.review.Accounts = slices.Delete(slices.Clone(s.review.Accounts), i, i+1)
-	if primary {
-		s.review.Unmarked = len(s.review.Accounts) > 1
-		if len(s.review.Accounts) == 1 {
-			s.review.Accounts[0].Primary = true
-		}
-	}
 	return accounts.Removed{}, nil
 }
 

@@ -334,6 +334,54 @@ func TestATokensMakingWaitsForTheAccountsChecks(t *testing.T) {
 	}
 }
 
+// enter, trying again once a making saved nothing, waits as t does while any
+// account's check is out, doing nothing; once the checks are in, it makes
+// the token again, compared with every organization known then, not only
+// those the first try knew.
+func TestTryingAgainWaitsForTheAccountsChecks(t *testing.T) {
+	steps := frame3Steps()
+	steps.checked["work"] = setup.TokenStanding{State: setup.TokenWorking, Organization: "org-work"}
+	steps.checked["personal"] = setup.TokenStanding{State: setup.TokenWorking, Year: endingIn, Organization: "org-personal"}
+	steps.making = fakeMaking{steps: []setup.Making{privately, approving}, ends: &setup.Tokened{Result: setup.TokenRefused}}
+	h := accountsHarness(t, steps)
+	h.start()
+	h.pressAndDeliver("down")
+	h.pressAndDeliver("t")
+	if got := h.steps.nextMake(t).Organizations; !reflect.DeepEqual(got, setup.Organizations{"work": "org-work", "personal": "org-personal"}) {
+		t.Fatalf("the first try was compared with %v, want work's and personal's", got)
+	}
+	h.hearAll(3)
+
+	h.steps.replace("side")
+	h.steps.mu.Lock()
+	h.steps.checked["side"] = setup.TokenStanding{State: setup.TokenWorking, Organization: "org-side"}
+	h.steps.mu.Unlock()
+	m, cmd := h.model.askAgain()
+	h.model = m
+	var checks []tea.Msg
+	for pending := h.run(cmd); len(pending) > 0; pending = pending[1:] {
+		if _, ok := pending[0].(checkedMsg); ok {
+			checks = append(checks, pending[0])
+			continue
+		}
+		pending = append(pending, h.update(pending[0])...)
+	}
+	if len(checks) != 1 {
+		t.Fatalf("held back %d checks, want side's new token's alone", len(checks))
+	}
+
+	h.pressAndDeliver("enter")
+	if len(h.steps.asked) != 0 || h.model.token.stage() != dashboard.TokenUnsaved {
+		t.Fatalf("with side's check out, enter left the card at stage %d, MakeToken asked %d times; want nothing begun", h.model.token.stage(), len(h.steps.asked))
+	}
+	h.deliver(checks...)
+	h.pressAndDeliver("enter")
+	want := setup.TokenFor{Account: config.NewAccount{ID: "personal"}, Organizations: setup.Organizations{"work": "org-work", "personal": "org-personal", "side": "org-side"}}
+	if got := h.steps.nextMake(t); !reflect.DeepEqual(got, want) {
+		t.Errorf("trying again asked MakeToken %+v, want %+v", got, want)
+	}
+}
+
 // Once a saved token's accounts are read again, whatever came of it, the
 // account it was saved for is forgotten: a read that fails leaves the row
 // chosen where it is, and none after moves it there.

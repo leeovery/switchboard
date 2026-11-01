@@ -96,15 +96,15 @@ func lineOf[O any](outcome *O, say func(O) Said) (StepLine, bool) {
 }
 
 // said is the accounts' line: how many there are, and how many have
-// working tokens, as the status line counts them; then the primary, and
-// what's reserved on it for the Claude apps, where any is, or that none is
-// the primary, of two or more. It's a warning where any token isn't
-// working, none is the primary, or there are no accounts.
+// working tokens, as counted has it; then the primary, and what's reserved
+// on it for the Claude apps, where any is, or that none is the primary, of
+// two or more. It's a warning where any token isn't working, none is the
+// primary, or there are no accounts.
 func (r Review) said() Said {
 	if len(r.Accounts) == 0 {
 		return Said{Mark: Warning, Detail: "none"}
 	}
-	said := Said{Mark: Done, Detail: prose.Grouped(len(r.Accounts)) + ", " + r.working()}
+	said := Said{Mark: Done, Detail: r.counted()}
 	if slices.ContainsFunc(r.Accounts, func(a Reviewed) bool { return !a.Token.Working() }) {
 		said.Mark = Warning
 	}
@@ -118,6 +118,57 @@ func (r Review) said() Said {
 		said.Mark, said.Detail = Warning, said.Detail+" · none is the primary"
 	}
 	return said
+}
+
+// counted is how many accounts there are, and how many have working tokens,
+// as the status line counts them, such as "3, all working"; but where any
+// token went unchecked, and none is still to be checked, as the status
+// line's count takes an unchecked token for working: every one unchecked,
+// "3, all unchecked", or "1, unchecked" of one, as working says it of one;
+// else how many of each kind there are, in tokenKinds' order and words, so
+// they add up, such as "3: 1 working, 1 unchecked, 1 refused".
+func (r Review) counted() string {
+	accounts := prose.Grouped(len(r.Accounts))
+	switch unchecked := r.countOf(TokenUnchecked); {
+	case unchecked == 0 || r.countOf(TokenRead) > 0:
+		return accounts + ", " + r.working()
+	case unchecked == 1 && len(r.Accounts) == 1:
+		return accounts + ", unchecked"
+	case unchecked == len(r.Accounts):
+		return accounts + ", all unchecked"
+	}
+	var counts []string
+	for _, kind := range tokenKinds {
+		if n := r.countOf(kind.state); n > 0 {
+			counts = append(counts, prose.Grouped(n)+" "+kind.named)
+		}
+	}
+	return accounts + ": " + strings.Join(counts, ", ")
+}
+
+// tokenKinds are the kinds of token the accounts' line counts where any went
+// unchecked, in its order, each as it names them: every state a token
+// checked, or not, can be left in.
+var tokenKinds = []struct {
+	state TokenState
+	named string
+}{
+	{TokenWorking, "working"},
+	{TokenUnchecked, "unchecked"},
+	{TokenNotTaken, "refused"},
+	{TokenUnreadable, "unreadable"},
+	{NoToken, "without a token"},
+}
+
+// countOf is how many of the accounts' tokens stand as state.
+func (r Review) countOf(state TokenState) int {
+	n := 0
+	for _, a := range r.Accounts {
+		if a.Token.State == state {
+			n++
+		}
+	}
+	return n
 }
 
 // primingSaid is priming's line: on, over the day, or off.

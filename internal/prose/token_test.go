@@ -54,3 +54,35 @@ func TestATokensYearEndingIsToldAsNewsWholeAndShort(t *testing.T) {
 		})
 	}
 }
+
+// A token's year ending is told in its parts, for one who shows them apart:
+// its verb and its date, in now's time zone; the two whole; and the days
+// left, none once it's up.
+func TestATokensYearEndingIsToldInItsParts(t *testing.T) {
+	until := time.Date(2026, 11, 17, 23, 30, 0, 0, time.UTC)
+	east := time.FixedZone("UTC+1", 60*60)
+	tests := []struct {
+		name                    string
+		ending                  prose.TokenEnding
+		verb, date, whole, left string
+		counted                 bool
+	}{
+		{name: "days left", ending: prose.TokenEnding{Now: time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC), Until: until, DaysLeft: 21}, verb: "expires", date: "17 Nov 2026", whole: "expires 17 Nov 2026", left: "21 days left", counted: true},
+		{name: "its last day, east of UTC, the next day there", ending: prose.TokenEnding{Now: time.Date(2026, 11, 18, 0, 10, 0, 0, east), Until: until}, verb: "expires", date: "18 Nov 2026", whole: "expires 18 Nov 2026", left: "last day", counted: true},
+		{name: "up", ending: prose.TokenEnding{Now: time.Date(2026, 12, 2, 9, 0, 0, 0, time.UTC), Until: until, Up: true}, verb: "expired", date: "17 Nov 2026", whole: "expired 17 Nov 2026"},
+		{name: "up, east of UTC, the next day there", ending: prose.TokenEnding{Now: time.Date(2026, 12, 2, 9, 0, 0, 0, east), Until: until, Up: true}, verb: "expired", date: "18 Nov 2026", whole: "expired 18 Nov 2026"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if verb, date := tt.ending.Dated(); verb != tt.verb || date != tt.date {
+				t.Errorf("Dated() = %q, %q; want %q, %q", verb, date, tt.verb, tt.date)
+			}
+			if got := tt.ending.Expires(); got != tt.whole {
+				t.Errorf("Expires() = %q, want %q", got, tt.whole)
+			}
+			if left, counted := tt.ending.Left(); left != tt.left || counted != tt.counted {
+				t.Errorf("Left() = %q, %v; want %q, %v", left, counted, tt.left, tt.counted)
+			}
+		})
+	}
+}

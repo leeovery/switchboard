@@ -435,17 +435,18 @@ func (s yearShown) draw(c *canvas, look Look, x, y, cells int) {
 
 // forms are the forms of what's said after the year's bar, the first whole,
 // each narrower than the one before: expires, muted, and the date, in
-// text.secondary, as prose.Expires says them; then, where the year isn't up,
-// · and the days left, as prose.DaysLeft says them, in daysLeftInk; and
-// where they don't fit, the days left alone, which a row gives up last.
+// text.secondary; then, where the year isn't up, · and the days left, in
+// daysLeftInk; and where they don't fit, the days left alone, which a row
+// gives up last: each as status.TokenYear.Ending tells it.
 func (s yearShown) forms() []line {
-	verb, date, _ := strings.Cut(prose.Expires(s.at, s.year.GoodUntil, s.year.Up(s.at)), " ")
+	ending := s.year.Ending(s.at)
+	verb, date := ending.Dated()
 	said := line{{verb + " ", mutedInk}, {date, secondaryInk}}
-	left, counted := s.year.DaysLeft(s.at)
+	left, counted := ending.Left()
 	if !counted {
 		return []line{said}
 	}
-	days := line{{prose.DaysLeft(left), s.daysLeftInk()}}
+	days := line{{left, s.daysLeftInk()}}
 	return []line{slices.Concat(said, line{{"  ·  ", faintInk}}, days), days}
 }
 
