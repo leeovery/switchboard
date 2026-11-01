@@ -44,12 +44,11 @@ func lineOf(t *testing.T, s setup.Summary, at int) setup.StepLine {
 	return lines[at]
 }
 
-// checkStepLine checks got is marked mark, says detail, and has add under it,
-// with no sentence of the line walk's.
+// checkStepLine checks got is marked mark, says detail, and has add under it.
 func checkStepLine(t *testing.T, got setup.StepLine, mark setup.Mark, detail, add string) {
 	t.Helper()
-	if got.Mark != mark || got.Detail != detail || got.Add != add || got.Sentence != "" {
-		t.Errorf("the line is %+v\nwant marked %v, saying %q, adding %q, with no sentence", got, mark, detail, add)
+	if got.Mark != mark || got.Detail != detail || got.Add != add {
+		t.Errorf("the line is %+v\nwant marked %v, saying %q, adding %q", got, mark, detail, add)
 	}
 }
 
@@ -199,7 +198,7 @@ func TestThePrimingLine(t *testing.T) {
 }
 
 func TestTheServiceLine(t *testing.T) {
-	installed := setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/Library/LaunchAgents/io.github.leeovery.switchboard.plist", Sentence: "Installed it."}
+	installed := setup.Said{Mark: setup.Done, Label: "Installed", Detail: "~/Library/LaunchAgents/io.github.leeovery.switchboard.plist"}
 	updated := setup.Said{Mark: setup.Warning, Label: "Updated", Detail: "reinstalled: its plist had no ProcessType"}
 	up := setup.Said{Mark: setup.Done, Label: "Router", Detail: "healthy · 127.0.0.1:4747"}
 	restarted := setup.Said{Mark: setup.Warning, Label: "Restarted", Detail: "the router didn't answer"}
@@ -212,7 +211,7 @@ func TestTheServiceLine(t *testing.T) {
 	}{
 		{name: "installed, its router healthy", serviced: setup.Serviced{Said: []setup.Said{installed, up}, Router: healthy},
 			want: "installed · router healthy"},
-		{name: "installed afresh: installed and updated", serviced: setup.Serviced{Said: []setup.Said{updated, installed, up}, Router: healthy},
+		{name: "installed afresh: installed and updated", serviced: setup.Serviced{Said: []setup.Said{installed, updated, up}, Router: healthy},
 			want: "installed and updated · router healthy"},
 		{name: "in place, its router up", serviced: setup.Serviced{Said: []setup.Said{up}, Router: healthy},
 			want: "installed · router healthy"},

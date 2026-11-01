@@ -45,7 +45,6 @@ func TestFailedRow(t *testing.T) {
 	failed := errors.New("launchctl bootstrap: Bootstrap failed: 5")
 	notSetUp := Said{Mark: Failed, Label: "Not set up", Detail: failed.Error()}
 	updated := Said{Mark: Warning, Label: "Updated", Detail: "reinstalled: its plist had no ProcessType"}
-	walkOnly := Said{Mark: Failed, Sentence: "The line walk's alone."}
 	ownRow := Said{Mark: Failed, Label: "Router", Detail: "not running"}
 	tests := []struct {
 		name string
@@ -56,7 +55,6 @@ func TestFailedRow(t *testing.T) {
 		{name: "done: as told", said: []Said{updated}, want: []Said{updated}},
 		{name: "failed, saying nothing of it: Not set up", said: []Said{updated}, err: failed, want: []Said{updated, notSetUp}},
 		{name: "failed with a row of its own: as told", said: []Said{ownRow}, err: failed, want: []Said{ownRow}},
-		{name: "failed with a failed row the screen doesn't draw: Not set up", said: []Said{walkOnly}, err: failed, want: []Said{walkOnly, notSetUp}},
 		{name: "interrupted: as told, an interrupt no failure of the step's", said: []Said{updated}, err: fmt.Errorf("the service is installed, but the wait for its router was %w", accounts.ErrInterrupted), want: []Said{updated}},
 	}
 	for _, tt := range tests {

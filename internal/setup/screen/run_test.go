@@ -288,7 +288,7 @@ func runIn(t *testing.T, ctx context.Context, cfg Config, term terminal) (Left, 
 		}
 		return term.moment(js)
 	}
-	left, err := run(ctx, cfg, &out, moment, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter))
+	left, err := run(ctx, cfg, &out, moment, filter, tea.WithInput(in), tea.WithoutSignals())
 	return left, out.String(), err
 }
 
@@ -313,4 +313,159 @@ func (b *lockedBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+// holdingTold notes what Holding is told: how many times, and whether it was
+// first told only once the screen had left the alternate screen, which
+// Bubble Tea does as it gives the terminal back.
+type holdingTold struct {
+	mu                sync.Mutex
+	told              int
+	leftAlt, lateTold bool
+}
+
+func (h *holdingTold) holding() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.told == 0 {
+		h.lateTold = h.leftAlt
+	}
+	h.told++
+}
+
+func (h *holdingTold) wrote(p []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.leftAlt = h.leftAlt || bytes.Contains(p, []byte(ansi.ResetModeAltScreenSaveCursor))
+}
+
+func (h *holdingTold) state() (told int, leftAlt, lateTold bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.told, h.leftAlt, h.lateTold
+}
+
+// Holding is told as the screen goes with a token's making in hand, which
+// Run may give back, before Bubble Tea gives the terminal back, where a
+// ctrl+c is an interrupt again; where Bubble Tea passes its filter by, as
+// the context ending does, as Run returns.
+func TestHoldingIsToldAsTheScreenGoesWithATokensMakingInHand(t *testing.T) {
+	tests := []struct {
+		name string
+		// ctrlC leaves by ctrl+c, else the context ends.
+		ctrlC bool
+		// late is whether Holding may first be told once the terminal is
+		// given back.
+		late bool
+	}{
+		{name: "ctrl+c", ctrlC: true},
+		{name: "the context ending", late: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			steps := newFakeSteps()
+			reported := make(chan struct{})
+			steps.making = fakeMaking{steps: []setup.Making{privately, approving}, reported: reported}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			reviewed := make(chan struct{})
+			var once sync.Once
+			told := &holdingTold{}
+			term := terminal{keys: "t", ready: reviewed, wrote: told.wrote, saw: func(msg tea.Msg) {
+				if _, ok := msg.(reviewMsg); ok {
+					once.Do(func() { close(reviewed) })
+				}
+			}}
+			if tt.ctrlC {
+				term.then, term.thenReady = "\x03", reported
+			} else {
+				go func() {
+					<-reported
+					cancel()
+				}()
+			}
+
+			if _, _, err := runIn(t, ctx, Config{Steps: steps, Step: dashboard.SetupAccounts, Holding: told.holding}, term); tt.ctrlC && err != nil {
+				t.Fatalf("run() error = %v, want none", err)
+			}
+			n, leftAlt, late := told.state()
+			if n == 0 {
+				t.Fatal("Holding was never told, want it told as the screen went with the token card open")
+			}
+			if !tt.late && (!leftAlt || late) {
+				t.Errorf("Holding was first told once the alternate screen was left: %t, the alternate screen left at all: %t; want it told before, as Bubble Tea heeds the quit", late, leftAlt)
+			}
+		})
+	}
+}
+
+func TestHoldingIsntToldWhereTheScreenGoesWithNoTokensMakingInHand(t *testing.T) {
+	told := &holdingTold{}
+	cfg := Config{Steps: newFakeSteps(), Step: dashboard.SetupService, Holding: told.holding}
+	if _, _, err := runUntil(t, cfg, terminal{keys: "q"}); err != nil {
+		t.Fatalf("run() error = %v, want none", err)
+	}
+	if n, _, _ := told.state(); n != 0 {
+		t.Errorf("Holding was told %d times, want never, with no token card open", n)
+	}
+}
+
+func TestATokensMakingIsInHandWhileItsCardIsOpenOrThePasteCardOpenedFromIt(t *testing.T) {
+	card := &tokenCard{}
+	tests := []struct {
+		name string
+		m    Model
+		want bool
+	}{
+		{name: "no card open"},
+		{name: "the token card open", m: Model{token: card}, want: true},
+		{name: "the paste card open, opened from the token card", m: Model{paste: &pasteCard{from: card}}, want: true},
+		{name: "the paste card open, opened from the add card", m: Model{paste: &pasteCard{}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var told bool
+			tt.m.holding(func() { told = true })
+			if told != tt.want {
+				t.Errorf("Holding told: %t, want %t", told, tt.want)
+			}
+			tt.m.holding(nil)
+		})
+	}
+}
+
+// Bubble Tea's filter tells Holding of the screen quitting, or interrupted
+// from outside, as an interrupt sent to the process during the screen is,
+// with a token's making in hand, and of nothing else; and passes every
+// message on to heed.
+func TestTheFilterTellsHoldingOfAQuitOrAnInterruptWithATokensMakingInHand(t *testing.T) {
+	inHand := Model{token: &tokenCard{}}
+	tests := []struct {
+		name string
+		m    Model
+		msg  tea.Msg
+		want bool
+	}{
+		{name: "a quit, a making in hand", m: inHand, msg: tea.QuitMsg{}, want: true},
+		{name: "an interrupt, a making in hand", m: inHand, msg: tea.InterruptMsg{}, want: true},
+		{name: "a key, a making in hand", m: inHand, msg: tea.KeyPressMsg{Code: 'q', Text: "q"}},
+		{name: "a quit, no making in hand", msg: tea.QuitMsg{}},
+		{name: "an interrupt, no making in hand", msg: tea.InterruptMsg{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var told bool
+			var heeded tea.Msg
+			filter := heeding(func() { told = true }, func(_ tea.Model, msg tea.Msg) tea.Msg {
+				heeded = msg
+				return msg
+			})
+			if got := filter(tt.m, tt.msg); got != tt.msg || heeded != tt.msg {
+				t.Errorf("the filter gave %v, heed was given %v; want the message passed through heed", got, heeded)
+			}
+			if told != tt.want {
+				t.Errorf("Holding told: %t, want %t", told, tt.want)
+			}
+		})
+	}
 }

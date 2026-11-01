@@ -33,11 +33,11 @@ func TestEditAccountWritesAsAccountsEditDoes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			byCommand := frame3(t)
-			if _, err := byCommand.setup(t, &user{}).Accounts.Edit(tt.id, tt.change); err != nil {
+			if _, err := byCommand.setup(t).Accounts.Edit(tt.id, tt.change); err != nil {
 				t.Fatalf("Registry.Edit error = %v", err)
 			}
 			w := frame3(t)
-			edited, err := w.setup(t, &user{}).EditAccount(tt.id, tt.edit)
+			edited, err := w.setup(t).EditAccount(tt.id, tt.edit)
 			if err != nil {
 				t.Fatalf("EditAccount error = %v", err)
 			}
@@ -71,7 +71,7 @@ func TestEditAccountRefuses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := frame3(t)
-			_, err := w.setup(t, &user{}).EditAccount("personal", tt.edit)
+			_, err := w.setup(t).EditAccount("personal", tt.edit)
 			refused, ok := errors.AsType[*setup.Refused](err)
 			if !ok || refused.Field != tt.field || refused.Why != tt.why {
 				t.Fatalf("EditAccount error = %v (%+v), want a Refused of field %d saying %q", err, refused, tt.field, tt.why)
@@ -99,7 +99,7 @@ func TestEditAccountMarksTheFirstThePrimaryWhereNoneIsMarked(t *testing.T) {
 			w := newWorld(t)
 			const unmarked = "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n"
 			w.writeConfig(t, unmarked)
-			s := w.setup(t, &user{})
+			s := w.setup(t)
 			if review, err := s.Review(); err != nil || !review.Unmarked {
 				t.Fatalf("the review before is %+v, %v; want it unmarked", review, err)
 			}
@@ -121,7 +121,7 @@ func TestEditAccountMarksTheFirstThePrimaryWhereNoneIsMarked(t *testing.T) {
 // An edit of an account no account has fails as Registry.Edit does, never
 // as a refusal of a value.
 func TestEditAccountOfAnAccountGone(t *testing.T) {
-	_, err := frame3(t).setup(t, &user{}).EditAccount("gone", setup.Edit{Plan: new("pro")})
+	_, err := frame3(t).setup(t).EditAccount("gone", setup.Edit{Plan: new("pro")})
 	if _, refused := errors.AsType[*setup.Refused](err); refused || !errors.Is(err, config.ErrNotConfigured) {
 		t.Errorf("EditAccount error = %v, want it matching ErrNotConfigured, not a Refused", err)
 	}
@@ -138,12 +138,12 @@ func TestRemoveAccount(t *testing.T) {
 		id := tt.id
 		t.Run(id, func(t *testing.T) {
 			byCommand := frame3(t)
-			want, err := byCommand.setup(t, &user{}).Accounts.Remove(id)
+			want, err := byCommand.setup(t).Accounts.Remove(id)
 			if err != nil {
 				t.Fatalf("Registry.Remove error = %v", err)
 			}
 			w := frame3(t)
-			s := w.setup(t, &user{})
+			s := w.setup(t)
 			removed, err := s.RemoveAccount(id)
 			if err != nil {
 				t.Fatalf("RemoveAccount error = %v", err)
@@ -182,7 +182,7 @@ func TestRemoveAccountThatLeavesItsTokenFile(t *testing.T) {
 	w := frame3(t)
 	w.removeToken(t, "side")
 	mkdir(t, filepath.Join(w.tokens().Path("side"), "kept"))
-	s := w.setup(t, &user{})
+	s := w.setup(t)
 
 	_, err := s.RemoveAccount("side")
 	if _, refused := errors.AsType[*setup.Refused](err); refused {
@@ -204,7 +204,7 @@ func TestRemoveAccountRefusesTheOnlyOne(t *testing.T) {
 	const only = "[[account]]\nid = \"work\"\n"
 	w.writeConfig(t, only)
 	w.writeToken(t, "work", workToken)
-	_, err := w.setup(t, &user{}).RemoveAccount("work")
+	_, err := w.setup(t).RemoveAccount("work")
 	refused, ok := errors.AsType[*setup.Refused](err)
 	if !ok || refused.Field != setup.NoField || refused.Why != `account "work" is the only one, and a config needs one at least` {
 		t.Fatalf("RemoveAccount error = %v, want a Refused of no field saying the config needs one", err)

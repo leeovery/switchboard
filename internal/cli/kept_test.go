@@ -145,25 +145,25 @@ func TestSetupChecksTheRouterCouldStartFromWhatThePlistKeeps(t *testing.T) {
 	s.srv.deps.SetupScreen = func(ctx context.Context, cfg screen.Config, _ io.Writer, _ []string) (screen.Left, error) {
 		serviced, _ := cfg.Steps.Service(ctx)
 		for _, said := range serviced.Said {
-			step += said.Sentence + "\n"
+			step += said.Label + ": " + said.Detail + "\n"
 		}
 		return screen.Left{Ending: screen.Paused}, nil
 	}
 
 	run(t, s.srv.deps, "setup")
 	for _, want := range []string{
-		"The service's plist differs from the one this switchboard writes, with ",
-		"but the router couldn't start installed afresh, so the service is left as it is, its router running: ",
-		"It couldn't start as:\n--log-level: ",
+		"Left as it is: its plist had ",
+		", but the router couldn't start installed afresh, so the service is left as it is, its router running: ",
+		" · it couldn't start as: --log-level: ",
 	} {
 		if !strings.Contains(step, want) {
 			t.Errorf("setup's service step said\n%s\nwant it to hold\n%s", step, want)
 		}
 	}
-	if strings.Contains(step, "Installed ") {
+	if strings.Contains(step, "Installed: ") {
 		t.Errorf("setup's service step said\n%s\nwant the service left as it is", step)
 	}
-	if strings.Contains(step, "The router uses another") {
+	if strings.Contains(step, "Elsewhere: ") {
 		t.Errorf("setup's service step said\n%s\nwant nothing said of places, the router left before they're judged", step)
 	}
 	if got := readFile(t, s.plist); got != written {

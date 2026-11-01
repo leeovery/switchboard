@@ -3,51 +3,34 @@ package setup_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/sessionhook"
+	"github.com/leeovery/switchboard/internal/setup"
 )
 
-// withoutTheHook starts what setup says where the session hook can't be
-// installed, before why.
-const withoutTheHook = "Setup carries on without the session hook, so a session that doesn't go through switchboard won't say so: "
-
-func TestTheSessionHook(t *testing.T) {
-	const settings = "<root>/claude/settings.json"
-	removeSettings := func(t *testing.T, w *world) {
-		if err := os.Remove(w.settings); err != nil {
-			t.Fatal(err)
-		}
-	}
+func TestSessionHookSays(t *testing.T) {
+	const at = "<root>/claude/settings.json"
+	const does = "Claude Code says so when a session doesn't start through switchboard · " + at
+	const without = "setup carries on without it, so a session that doesn't go through switchboard won't say so: "
 	tests := []struct {
 		name string
-		// lay changes the world, which is done, before setup runs.
-		lay func(t *testing.T, w *world)
-		// want is the link step's last line.
-		want string
+		// lay changes the world, which is done, before the session hook.
+		lay  func(t *testing.T, w *world)
+		want setup.Said
 		// wantWritten is set where the settings file is written; wantLeft
 		// where it's left as it was, though not as it should be.
 		wantWritten, wantLeft bool
 	}{
 		{
-			name:        "not installed: installed",
-			lay:         removeSettings,
-			want:        "Installed the session hook, which tells a session that doesn't go through switchboard so: " + settings + "\n",
-			wantWritten: true,
-		},
-		{
-			name: "not installed, and claude not linked: installed all the same",
+			name: "not installed: installed",
 			lay: func(t *testing.T, w *world) {
-				removeSettings(t, w)
-				claudeLink := filepath.Join(w.bin, "claude")
-				if err := os.Remove(claudeLink); err != nil {
+				if err := os.Remove(w.settings); err != nil {
 					t.Fatal(err)
 				}
-				writeFile(t, claudeLink, "#!/bin/sh\n", 0o700)
 			},
-			want:        "Installed the session hook, which tells a session that doesn't go through switchboard so: " + settings + "\n",
+			want:        setup.Said{Mark: setup.Done, Label: "Session hook", Detail: does},
 			wantWritten: true,
 		},
 		{
@@ -57,32 +40,30 @@ func TestTheSessionHook(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			want:        "Put the session hook right: " + settings + "\n",
+			want:        setup.Said{Mark: setup.Done, Label: "Session hook", Detail: "put right: " + does},
 			wantWritten: true,
 		},
 		{
 			name: "in place: nothing written",
-			want: "The session hook is in place: " + settings + "\n",
+			want: setup.Said{Mark: setup.Done, Label: "Session hook", Detail: "in place: " + does},
 		},
 		{
-			name:     "settings that aren't an object: left as they are, and setup carries on",
+			name:     "settings that aren't an object: left as they are, a warning, carrying on",
 			lay:      func(t *testing.T, w *world) { writeFile(t, w.settings, "[]\n", 0o644) },
-			want:     withoutTheHook + settings + ": not a JSON object.\n",
+			want:     setup.Said{Mark: setup.Warning, Label: "Session hook", Detail: without + at + ": not a JSON object"},
 			wantLeft: true,
 		},
 		{
-			name: "switchboard run by another name: left as it is, and setup carries on",
+			name: "switchboard run by another name: left as it is, a warning, carrying on",
 			lay: func(t *testing.T, w *world) {
 				version := filepath.Join(w.root, "Cellar", "switchboard", "1.2.3", "bin", "switchboard")
 				w.switchboard = claudetest.Link(t, version, filepath.Join(w.home, "bin", "sb"))
-				w.installService(t, w.switchboard)
-				claudeLink := filepath.Join(w.bin, "claude")
-				if err := os.Remove(claudeLink); err != nil {
-					t.Fatal(err)
-				}
-				claudetest.Link(t, w.switchboard, claudeLink)
 			},
-			want:     withoutTheHook + "switchboard is running as sb here, so the session hook isn't installed: run setup as switchboard.\n",
+			want: setup.Said{
+				Mark:   setup.Warning,
+				Label:  "Session hook",
+				Detail: without + "switchboard is running as sb here, so the session hook isn't installed: run setup as switchboard",
+			},
 			wantLeft: true,
 		},
 	}
@@ -95,12 +76,9 @@ func TestTheSessionHook(t *testing.T) {
 			}
 			before := w.snapshot(t)
 
-			shown := w.runs(t, "")
-			if got := section(t, shown, "4. The claude link"); !strings.HasSuffix(got, "\n"+tt.want) {
-				t.Errorf("the claude link step showed\n%s\nwant it to end\n%s", got, tt.want)
-			}
-			if !strings.Contains(shown, "\n5. The skill\n") {
-				t.Errorf("the terminal showed\n%s\nwant setup to carry on to the skill", shown)
+			got := w.setup(t).SessionHook()
+			if said := w.rootedSaid([]setup.Said{got})[0]; said != tt.want {
+				t.Errorf("SessionHook() = %+v, want %+v", said, tt.want)
 			}
 			if tt.wantWritten {
 				before[w.settings] = w.snapshot(t)[w.settings]

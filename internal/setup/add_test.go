@@ -16,7 +16,7 @@ import (
 func TestCheckAddingWritesNothing(t *testing.T) {
 	t.Run("a run again", func(t *testing.T) {
 		w := frame3(t)
-		got, err := w.setup(t, &user{}).CheckAdding(setup.Adding{ID: "spare", Label: "Spare", Plan: "max5x"})
+		got, err := w.setup(t).CheckAdding(setup.Adding{ID: "spare", Label: "Spare", Plan: "max5x"})
 		if err != nil {
 			t.Fatalf("CheckAdding error = %v", err)
 		}
@@ -29,7 +29,7 @@ func TestCheckAddingWritesNothing(t *testing.T) {
 	})
 	t.Run("a first run", func(t *testing.T) {
 		w := newWorld(t)
-		got, err := w.setup(t, &user{}).CheckAdding(setup.Adding{ID: "work", Plan: config.PlanNone})
+		got, err := w.setup(t).CheckAdding(setup.Adding{ID: "work", Plan: config.PlanNone})
 		if err != nil {
 			t.Fatalf("CheckAdding error = %v", err)
 		}
@@ -65,7 +65,7 @@ func TestCheckAddingRefuses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := frame3(t)
-			_, err := w.setup(t, &user{}).CheckAdding(tt.adding)
+			_, err := w.setup(t).CheckAdding(tt.adding)
 			refused, ok := errors.AsType[*setup.Refused](err)
 			if !ok || refused.Field != tt.field || refused.Why != tt.why {
 				t.Fatalf("CheckAdding error = %v (%+v), want a Refused of field %d saying %q", err, refused, tt.field, tt.why)
@@ -82,7 +82,7 @@ func TestCheckAddingRefuses(t *testing.T) {
 func TestCheckAddingOfAConfigThatCantBeRead(t *testing.T) {
 	w := newWorld(t)
 	w.writeConfig(t, "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"Work\"\n")
-	_, err := w.setup(t, &user{}).CheckAdding(setup.Adding{ID: "spare", Plan: config.PlanNone})
+	_, err := w.setup(t).CheckAdding(setup.Adding{ID: "spare", Plan: config.PlanNone})
 	if _, refused := errors.AsType[*setup.Refused](err); refused || err == nil {
 		t.Errorf("CheckAdding error = %v, want the config's own, not a Refused", err)
 	}

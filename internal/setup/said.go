@@ -17,19 +17,13 @@ const (
 	Failed
 )
 
-// Said is what a step tells of one thing it found or did, in both the forms
-// it's told in: a mark, a label of a few words and the detail after it, as
-// setup's screen draws a row, and the sentence the line walk prints.
+// Said is what a step tells of one thing it found or did, as setup's screen
+// draws a row: a mark, a label of a few words, and the detail after it.
 type Said struct {
-	Mark Mark
-	// Label is "" for a Said that's the line walk's alone, which the screen
-	// doesn't draw.
+	Mark  Mark
 	Label string
 	// Detail is the rest, which the screen wraps.
 	Detail string
-	// Sentence is the line walk's, as it prints it: a line, or more; "" for a
-	// Said that's the screen's alone, which the line walk doesn't print.
-	Sentence string
 }
 
 // Serviced is what the service step told, in turn, and the health of the

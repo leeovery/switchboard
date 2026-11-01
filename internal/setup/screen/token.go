@@ -196,12 +196,9 @@ func makeToken(js *jobs, steps Steps, ctx context.Context, stop context.CancelFu
 // card is the one it was opened from, as the paste card goes back to it,
 // none where the paste it was checking as the screen went saved its token.
 func (m Model) tokenLeft() (unsaved *setup.Tokened, interrupted bool) {
-	card := m.token
-	if m.paste != nil {
-		card = m.paste.from
-		if m.paste.savedOnceGone() {
-			card = nil
-		}
+	card := m.makingCard()
+	if m.paste != nil && m.paste.savedOnceGone() {
+		card = nil
 	}
 	if card == nil {
 		return nil, m.interrupted
@@ -222,6 +219,24 @@ func (m Model) tokenLeft() (unsaved *setup.Tokened, interrupted bool) {
 		return nil, interrupted
 	}
 	return &ended.tokened, interrupted
+}
+
+// makingCard is the token card whose making the screen has in hand: the
+// card open, or the one the paste card open was opened from; nil with
+// neither.
+func (m Model) makingCard() *tokenCard {
+	if m.paste != nil {
+		return m.paste.from
+	}
+	return m.token
+}
+
+// holding tells holding, where it's set, where m has a token's making in
+// hand, which tokenLeft may give back once the screen has gone.
+func (m Model) holding(holding func()) {
+	if holding != nil && m.makingCard() != nil {
+		holding()
+	}
 }
 
 // listen is the command that waits for what the token card's making tells

@@ -39,6 +39,19 @@ func Heeded(_ tea.Model, msg tea.Msg) tea.Msg {
 	return msg
 }
 
+// Heeding is heed as Bubble Tea's filter of a screen Run runs, given the
+// screen as its last step left it, where Bubble Tea gives the filter the
+// screen as Run wraps it.
+func Heeding[S Screen](heed func(S, tea.Msg) tea.Msg) func(tea.Model, tea.Msg) tea.Msg {
+	return func(m tea.Model, msg tea.Msg) tea.Msg {
+		t, ok := m.(tracked[S])
+		if !ok {
+			return msg
+		}
+		return heed(t.screen, msg)
+	}
+}
+
 // tracked is the screen as Bubble Tea runs it, each step it takes noted in
 // last: Bubble Tea gives back no model from a panic it recovers from, and
 // the background the screen set is put back all the same.

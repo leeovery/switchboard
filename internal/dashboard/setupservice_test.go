@@ -62,19 +62,6 @@ func TestTheServicePagesPurposeIsMuted(t *testing.T) {
 	}
 }
 
-func TestASaidWithNoLabelIsTheLineWalksAlone(t *testing.T) {
-	walkOnly := setup.Said{Mark: setup.Done, Sentence: "The service is installed."}
-	rows := textOf(serviceScreen(func(s *Setup) {
-		s.Service.Said = []setup.Said{walkOnly, routerHealthy}
-	}).Draw(160, 37, Look{}))
-	if got, want := rows[8], textsAt(160, map[int]string{2: "✓", 5: "Router", 26: routerHealthy.Detail}); got != want {
-		t.Errorf("row 8 reads\n%q\nwant\n%q: a Said with no label left off", got, want)
-	}
-	if rows[10] != "" {
-		t.Errorf("row 10 reads %q, want it blank", rows[10])
-	}
-}
-
 func TestWhileTheServiceStepIsUnderWayItsPageSaysSo(t *testing.T) {
 	c := setupDrawn(serviceScreen(underWay(now)), 160, 37)
 	if got, want := rowOf(c, 8), "  ●∙∙  Seeing to the service and its router"; got != want {

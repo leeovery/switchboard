@@ -32,10 +32,10 @@ type Summary struct {
 }
 
 // StepLine is a step's line in the summary: its row, labelled with the
-// step's name, and its detail, the line walk's sentence left out; and under
-// it, Add, what the claude link step leaves to put in place by hand, to
-// copy: "" for every other. Directory is set where Add is the bin directory,
-// to put first on PATH, rather than a line for a startup file.
+// step's name, and its detail; and under it, Add, what the claude link step
+// leaves to put in place by hand, to copy: "" for every other. Directory is
+// set where Add is the bin directory, to put first on PATH, rather than a
+// line for a startup file.
 type StepLine struct {
 	Said
 	Add       string
@@ -134,7 +134,7 @@ func primingSaid(day config.Day) Said {
 // and what the step left for the user to do, a row's detail each. It's a
 // warning where the router answered unhealthy, or anything's left to do.
 func (s Serviced) said() Said {
-	if i := slices.IndexFunc(s.Said, func(said Said) bool { return said.Mark == Failed && said.Label != "" }); i >= 0 {
+	if i := slices.IndexFunc(s.Said, func(said Said) bool { return said.Mark == Failed }); i >= 0 {
 		return Said{Mark: Failed, Detail: s.Said[i].summed().Detail}
 	}
 	said, did := Said{Mark: Done}, []string{"installed"}

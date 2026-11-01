@@ -139,7 +139,7 @@ type tokenRig struct {
 func (w *world) tokenRig(t *testing.T, maker *fakeMaker) tokenRig {
 	t.Helper()
 	r := tokenRig{
-		s:       w.setup(t, &user{}),
+		s:       w.setup(t),
 		maker:   maker,
 		browser: &fakeOpener{opening: setuptoken.Opening{Opened: setuptoken.OpenedInBrowser}},
 		private: &fakeOpener{opening: setuptoken.Opening{Opened: setuptoken.OpenedPrivately, Browser: "Firefox"}},

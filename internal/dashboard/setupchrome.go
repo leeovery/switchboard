@@ -188,12 +188,11 @@ func (l laidPage) paged(rows int) rowsPaged {
 
 // content is what's under the page's heading, drawn whole width cells wide:
 // from setupIndent, what the step is for, each of its lines wrapped further
-// where it's wider than the page; then a row on, its facts, but those with
-// no label, which are the line walk's alone, then from setupIndent, what it
-// says while its step is under way, cut where it's wider than the page; then
-// a row further on, what's left to put right by hand, as handPart draws it;
-// then its fields; a blank row after each fact, part and field; then its
-// table and the notes under it;
+// where it's wider than the page; then a row on, its facts, then from
+// setupIndent, what it says while its step is under way, cut where it's
+// wider than the page; then a row further on, what's left to put right by
+// hand, as handPart draws it; then its fields; a blank row after each fact,
+// part and field; then its table and the notes under it;
 // then its notes, wrapped as its purpose is; then each step's line, as
 // stepLine draws it, a blank row after each; then two rows on, where it has
 // any, the commands to run next, under their heading, a blank row after
@@ -212,9 +211,7 @@ func (p setupPage) content(width int) laidPage {
 		y++
 	}
 	for _, said := range p.facts {
-		if said.Label != "" {
-			y = fact(c, y, width, said) + 1
-		}
+		y = fact(c, y, width, said) + 1
 	}
 	if p.underWay != nil {
 		c.line(setupIndent, y, p.underWay.fit(width-setupIndent))

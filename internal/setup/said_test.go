@@ -13,8 +13,8 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/service"
-	"github.com/leeovery/switchboard/internal/sessionhook"
 	"github.com/leeovery/switchboard/internal/setup"
+	"github.com/leeovery/switchboard/internal/skill"
 )
 
 // rootedSaid is said with the world's root written <root>, as the tests write
@@ -23,7 +23,6 @@ func (w *world) rootedSaid(said []setup.Said) []setup.Said {
 	out := make([]setup.Said, len(said))
 	for i, s := range said {
 		s.Detail = strings.ReplaceAll(s.Detail, w.root, "<root>")
-		s.Sentence = strings.ReplaceAll(s.Sentence, w.root, "<root>")
 		out[i] = s
 	}
 	return out
@@ -36,29 +35,15 @@ func TestServiceSaysWhatTheServicePageShows(t *testing.T) {
 	w.editPlist(t, withoutProcessType)
 	w.launchd.version = "0.2.10"
 
-	got, err := w.setup(t, &user{}).Service(t.Context())
+	got, err := w.setup(t).Service(t.Context())
 	if err != nil {
 		t.Fatalf("Service() error = %v", err)
 	}
+	// In frame 4's order: Installed, Updated, then Router.
 	want := []setup.Said{
-		{
-			Mark:     setup.Warning,
-			Label:    "Updated",
-			Detail:   "reinstalled: its plist had no ProcessType · kept its --log-level",
-			Sentence: "The service's plist differs from the one this switchboard writes, with no ProcessType, so it's installed afresh.",
-		},
-		{
-			Mark:     setup.Done,
-			Label:    "Installed",
-			Detail:   "~/Library/LaunchAgents/io.github.leeovery.switchboard.plist",
-			Sentence: strings.TrimSuffix(installedAt, "\n"),
-		},
-		{
-			Mark:     setup.Done,
-			Label:    "Router",
-			Detail:   "healthy · 127.0.0.1:4747 · v0.2.10",
-			Sentence: "The router is up: healthy, pid 4244.",
-		},
+		{Mark: setup.Done, Label: "Installed", Detail: "~/Library/LaunchAgents/io.github.leeovery.switchboard.plist"},
+		{Mark: setup.Warning, Label: "Updated", Detail: "reinstalled: its plist had no ProcessType · kept its --log-level"},
+		{Mark: setup.Done, Label: "Router", Detail: "healthy · 127.0.0.1:4747 · v0.2.10"},
 	}
 	if said := w.rootedSaid(got.Said); !reflect.DeepEqual(said, want) {
 		t.Errorf("Service() said\n%#v\nwant\n%#v", said, want)
@@ -68,8 +53,7 @@ func TestServiceSaysWhatTheServicePageShows(t *testing.T) {
 	}
 }
 
-func TestServiceSaysEachOutcomeAsTheLineWalkDoes(t *testing.T) {
-	// said is a Said without its sentence, which the line walk's tests hold.
+func TestServiceSaysEachOutcomeAsTheServicePageShowsIt(t *testing.T) {
 	type said struct {
 		mark          setup.Mark
 		label, detail string
@@ -104,8 +88,8 @@ func TestServiceSaysEachOutcomeAsTheLineWalkDoes(t *testing.T) {
 				w.installServiceWith(t, service.InstallOptions{Executable: w.goInstalled(t), Config: w.config, LogLevel: "warn"})
 			},
 			want: []said{
-				{setup.Warning, "Updated", "reinstalled: it ran <root>/go/bin/switchboard, not this switchboard, <root>/brew/bin/switchboard · kept its --config and --log-level"},
 				{setup.Done, "Installed", plist},
+				{setup.Warning, "Updated", "reinstalled: it ran <root>/go/bin/switchboard, not this switchboard, <root>/brew/bin/switchboard · kept its --config and --log-level"},
 				{setup.Done, "Router", "healthy · 127.0.0.1:4747"},
 			},
 			wantRouter: true,
@@ -117,8 +101,8 @@ func TestServiceSaysEachOutcomeAsTheLineWalkDoes(t *testing.T) {
 				w.configFlag = w.config
 			},
 			want: []said{
-				{setup.Warning, "Updated", "reinstalled: setup is given another config file than the one the router served · kept its --log-level"},
 				{setup.Done, "Installed", plist},
+				{setup.Warning, "Updated", "reinstalled: setup is given another config file than the one the router served · kept its --log-level"},
 				{setup.Done, "Router", "healthy · 127.0.0.1:4747"},
 			},
 			wantRouter: true,
@@ -158,31 +142,18 @@ func TestServiceSaysEachOutcomeAsTheLineWalkDoes(t *testing.T) {
 				"while launchd has the service loaded, but runs no router: setup leaves them as they are; stop the router run by hand, then run switchboard service install"}},
 		},
 	}
-	// laid is a world, done, as lay changes it.
-	laid := func(t *testing.T, lay func(t *testing.T, w *world)) *world {
-		w := newWorld(t)
-		w.done(t)
-		if lay != nil {
-			lay(t, w)
-		}
-		return w
-	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := laid(t, tt.lay)
+			w := newWorld(t)
+			w.done(t)
+			if tt.lay != nil {
+				tt.lay(t, w)
+			}
 
-			got, _ := w.setup(t, &user{}).Service(t.Context())
+			got, _ := w.setup(t).Service(t.Context())
 			var marked []said
-			var sentences strings.Builder
 			for _, s := range w.rootedSaid(got.Said) {
 				marked = append(marked, said{s.Mark, s.Label, s.Detail})
-				if s.Sentence != "" {
-					sentences.WriteString(s.Sentence + "\n")
-				}
-			}
-			walked, _ := laid(t, tt.lay).run(t, "")
-			if printed := section(t, walked, "3. The service"); sentences.String() != printed {
-				t.Errorf("Service() said the sentences\n%s\nbut the line walk printed\n%s", sentences.String(), printed)
 			}
 			if !reflect.DeepEqual(marked, tt.want) {
 				t.Errorf("Service() said\n%+v\nwant\n%+v", marked, tt.want)
@@ -196,13 +167,13 @@ func TestServiceSaysEachOutcomeAsTheLineWalkDoes(t *testing.T) {
 
 func TestServiceNeedsAnAccount(t *testing.T) {
 	w := newWorld(t)
-	got, err := w.setup(t, &user{}).Service(t.Context())
+	got, err := w.setup(t).Service(t.Context())
 	if err == nil || !strings.HasPrefix(err.Error(), "no account is configured") {
 		t.Fatalf("Service() error = %v, want no account configured", err)
 	}
 	want := []setup.Said{{Mark: setup.Failed, Label: "Not set up", Detail: err.Error()}}
 	if !reflect.DeepEqual(got.Said, want) {
-		t.Errorf("Service() said %+v, want %+v: a failure the step said nothing of, as the screen draws it, the line walk printing none", got.Said, want)
+		t.Errorf("Service() said %+v, want %+v: a failure the step said nothing of, as the screen draws it", got.Said, want)
 	}
 }
 
@@ -231,14 +202,13 @@ func TestServiceEndsAFailureWithAFailedRow(t *testing.T) {
 			wantDetail: "a router run some other way answers, pid 5000",
 		},
 	}
-	marks := map[setup.Mark]string{setup.Done: "✓", setup.Warning: "!", setup.Failed: "✗"}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t)
 			w.done(t)
 			tt.lay(t, w)
 
-			got, err := w.setup(t, &user{}).Service(t.Context())
+			got, err := w.setup(t).Service(t.Context())
 			if err == nil {
 				t.Fatal("Service() error = nil, want it to fail")
 			}
@@ -274,12 +244,20 @@ func TestPrimingAndSetDay(t *testing.T) {
 		{name: "set again, over another", config: doneConfig, day: "07:00-22:00", want: "07:00-22:00", wantConfig: dayless + "\n[prime]\nday = \"07:00-22:00\"\n"},
 		{name: "cleared: priming turned off", config: doneConfig, day: "", want: "", wantConfig: dayless + "\n[prime]\n"},
 		{name: "cleared, where priming is off: left as it is", config: dayless, day: "", want: "", wantConfig: dayless},
+		{name: "set past midnight", config: dayless, day: "22:00-02:00", want: "22:00-02:00", wantConfig: dayless + "\n[prime]\nday = \"22:00-02:00\"\n"},
+		{
+			name:       "set in a [prime] table giving no day, kept as it's laid out",
+			config:     dayless + "\n# The windows' day.\n[prime]\nday = \"\"  # local time\n",
+			day:        "07:30-22:00",
+			want:       "07:30-22:00",
+			wantConfig: dayless + "\n# The windows' day.\n[prime]\nday = \"07:30-22:00\"  # local time\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t)
 			w.writeConfig(t, tt.config)
-			s := w.setup(t, &user{})
+			s := w.setup(t)
 
 			set, err := s.SetDay(tt.day)
 			if err != nil {
@@ -322,7 +300,7 @@ func TestSetDayTellsTheServiceOfAChangedDayAlone(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t)
 			w.done(t)
-			s := w.setup(t, &user{})
+			s := w.setup(t)
 
 			if _, err := s.SetDay(tt.day); err != nil {
 				t.Fatalf("SetDay(%q) error = %v", tt.day, err)
@@ -350,7 +328,7 @@ func TestSetDayNeverMakesTheConfigFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t)
 
-			_, err := w.setup(t, &user{}).SetDay(tt.day)
+			_, err := w.setup(t).SetDay(tt.day)
 			if (err != nil) != tt.wantErr || (err != nil && !strings.HasPrefix(err.Error(), "no account is configured")) {
 				t.Errorf("SetDay(%q) error = %v, want no account configured: %v", tt.day, err, tt.wantErr)
 			}
@@ -365,7 +343,7 @@ func TestSetDayRefusesADayThatIsntOne(t *testing.T) {
 	w := newWorld(t)
 	w.writeConfig(t, doneConfig)
 
-	_, err := w.setup(t, &user{}).SetDay("8-23")
+	_, err := w.setup(t).SetDay("8-23")
 	if want := `prime.day "8-23": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`; err == nil || err.Error() != want {
 		t.Errorf("SetDay() error = %v, want %q", err, want)
 	}
@@ -380,6 +358,8 @@ func TestSkillSays(t *testing.T) {
 		name string
 		lay  func(t *testing.T, w *world)
 		want setup.Said
+		// wantWritten is set where the skill is written.
+		wantWritten bool
 	}{
 		{
 			name: "not installed: installed",
@@ -388,16 +368,18 @@ func TestSkillSays(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			want: setup.Said{Mark: setup.Done, Label: "Installed", Detail: at, Sentence: "Installed the skill, which tells Claude what switchboard does under claude: " + at},
+			want:        setup.Said{Mark: setup.Done, Label: "Installed", Detail: at},
+			wantWritten: true,
 		},
 		{
-			name: "older: updated",
-			lay:  func(t *testing.T, w *world) { writeFile(t, w.skill, "---\nname: switchboard\n---\n", 0o644) },
-			want: setup.Said{Mark: setup.Done, Label: "Updated", Detail: at, Sentence: "Brought the skill up to date: " + at},
+			name:        "older than this switchboard's: updated",
+			lay:         func(t *testing.T, w *world) { writeFile(t, w.skill, "---\nname: switchboard\n---\n", 0o644) },
+			want:        setup.Said{Mark: setup.Done, Label: "Updated", Detail: at},
+			wantWritten: true,
 		},
 		{
-			name: "up to date",
-			want: setup.Said{Mark: setup.Done, Label: "Up to date", Detail: at, Sentence: "The skill is installed, and up to date: " + at},
+			name: "up to date: left as it is",
+			want: setup.Said{Mark: setup.Done, Label: "Up to date", Detail: at},
 		},
 	}
 	for _, tt := range tests {
@@ -407,13 +389,21 @@ func TestSkillSays(t *testing.T) {
 			if tt.lay != nil {
 				tt.lay(t, w)
 			}
+			before := w.snapshot(t)
 
-			got, err := w.setup(t, &user{}).Skill()
+			got, err := w.setup(t).Skill()
 			if err != nil {
 				t.Fatalf("Skill() error = %v", err)
 			}
 			if said := w.rootedSaid([]setup.Said{got})[0]; said != tt.want {
 				t.Errorf("Skill() = %+v, want %+v", said, tt.want)
+			}
+			found, err := skill.Refresh(w.skill)
+			if err != nil || !found.Installed || found.Rewritten {
+				t.Errorf("the skill at %s: %+v, %v; want this switchboard's installed", w.skill, found, err)
+			}
+			if !tt.wantWritten {
+				w.checkUnchanged(t, before)
 			}
 		})
 	}
@@ -428,74 +418,17 @@ func TestSkillSaysWhyItFailed(t *testing.T) {
 	}
 	writeFile(t, claudeDir, "not a directory\n", 0o644)
 
-	got, err := w.setup(t, &user{}).Skill()
+	got, err := w.setup(t).Skill()
 	if err == nil {
 		t.Fatal("Skill() error = nil, want why the skill couldn't be written")
 	}
 	want := setup.Said{Mark: setup.Failed, Label: "Not installed", Detail: err.Error()}
 	if got != want {
-		t.Errorf("Skill() = %+v, want %+v: failed, the error's words its detail, and no sentence for the line walk", got, want)
+		t.Errorf("Skill() = %+v, want %+v: failed, the error's words its detail", got, want)
 	}
 }
 
-func TestSessionHookSays(t *testing.T) {
-	const at = "<root>/claude/settings.json"
-	const does = "Claude Code says so when a session doesn't start through switchboard · " + at
-	tests := []struct {
-		name string
-		lay  func(t *testing.T, w *world)
-		want setup.Said
-	}{
-		{
-			name: "not installed: installed",
-			lay: func(t *testing.T, w *world) {
-				if err := os.Remove(w.settings); err != nil {
-					t.Fatal(err)
-				}
-			},
-			want: setup.Said{Mark: setup.Done, Label: "Session hook", Detail: does, Sentence: "Installed the session hook, which tells a session that doesn't go through switchboard so: " + at},
-		},
-		{
-			name: "running another switchboard: put right",
-			lay: func(t *testing.T, w *world) {
-				if _, err := sessionhook.Install(w.settings, w.goInstalled(t)); err != nil {
-					t.Fatal(err)
-				}
-			},
-			want: setup.Said{Mark: setup.Done, Label: "Session hook", Detail: "put right: " + does, Sentence: "Put the session hook right: " + at},
-		},
-		{
-			name: "in place",
-			want: setup.Said{Mark: setup.Done, Label: "Session hook", Detail: "in place: " + does, Sentence: "The session hook is in place: " + at},
-		},
-		{
-			name: "settings that aren't an object: a warning, carrying on",
-			lay:  func(t *testing.T, w *world) { writeFile(t, w.settings, "[]\n", 0o644) },
-			want: setup.Said{
-				Mark:     setup.Warning,
-				Label:    "Session hook",
-				Detail:   "setup carries on without it, so a session that doesn't go through switchboard won't say so: " + at + ": not a JSON object",
-				Sentence: withoutTheHook + at + ": not a JSON object.",
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			w := newWorld(t)
-			w.done(t)
-			if tt.lay != nil {
-				tt.lay(t, w)
-			}
-
-			got := w.setup(t, &user{}).SessionHook()
-			if said := w.rootedSaid([]setup.Said{got})[0]; said != tt.want {
-				t.Errorf("SessionHook() = %+v, want %+v", said, tt.want)
-			}
-		})
-	}
-}
-
-func TestServiceRedactsReasonsInBothForms(t *testing.T) {
+func TestServiceRedactsReasons(t *testing.T) {
 	tests := []struct {
 		name string
 		lay  func(t *testing.T, w *world)
@@ -526,10 +459,10 @@ func TestServiceRedactsReasonsInBothForms(t *testing.T) {
 			w.done(t)
 			tt.lay(t, w)
 
-			got, _ := w.setup(t, &user{}).Service(t.Context())
+			got, _ := w.setup(t).Service(t.Context())
 			var details []string
 			for _, said := range got.Said {
-				if strings.Contains(said.Detail, tokenShaped) || strings.Contains(said.Sentence, tokenShaped) {
+				if strings.Contains(said.Detail, tokenShaped) {
 					t.Errorf("Service() said %+v, want what's token-shaped redacted", said)
 				}
 				details = append(details, said.Detail)
