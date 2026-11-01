@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -409,6 +408,122 @@ func TestSetupShowsATokenItCouldntSaveOnceTheScreenHasGone(t *testing.T) {
 	}
 }
 
+// From the screen going with a token's making in hand, as it tells Holding,
+// setup holds the interrupts through the printing of a making it gave back,
+// one coming then ending setup as interrupted once it's printed whole,
+// saying nothing of a save; and with none given back, lets them go before
+// it prints anything, an interrupt as it prints ending it as one always has.
+func TestSetupHoldsTheInterruptsTillATokenGivenBackIsShown(t *testing.T) {
+	const carryOn = "run setup again to carry on"
+	unread := &setup.Tokened{Result: setup.TokenUnread, Shown: []string{" Your token:", " test-token-personal"}}
+	accountsRow := stepRow("✓", "Accounts", "2, all working · primary: work")
+	shown := []string{
+		"The token was created, but setup couldn't read it",
+		"It lasts a year on the account, so copy it from what claude setup-token showed:",
+		"  Your token:",
+		"  test-token-personal",
+		"Then run switchboard setup again, and press p on its token card to paste it.",
+	}
+	tests := []struct {
+		name string
+		// holding has the screen tell Holding, as it does going with a
+		// token's making in hand, and goneInterrupt then sends an interrupt,
+		// as one comes while its jobs are waited for; unsaved is the making
+		// it gives back.
+		holding, goneInterrupt bool
+		unsaved                *setup.Tokened
+		// interruptAt is the line printed as an interrupt is sent.
+		interruptAt string
+		want        result
+		// heldAt is how many holds held the interrupts as it was sent,
+		// holds how many held them in all.
+		heldAt, holds int
+	}{
+		{
+			name:        "a token given back, an interrupt as its last line prints",
+			holding:     true,
+			unsaved:     unread,
+			interruptAt: shown[len(shown)-1],
+			want:        result{stdout: lines(slices.Concat([]string{"the screen", accountsRow}, shown)...), stderr: "Error: interrupted\n", code: 130},
+			heldAt:      1,
+			holds:       1,
+		},
+		{
+			name:        "a token given back, an interrupt as the summary prints",
+			holding:     true,
+			unsaved:     unread,
+			interruptAt: accountsRow,
+			want:        result{stdout: lines(slices.Concat([]string{"the screen", accountsRow}, shown)...), stderr: "Error: interrupted\n", code: 130},
+			heldAt:      1,
+			holds:       1,
+		},
+		{
+			name:    "a token given back, no interrupt",
+			holding: true,
+			unsaved: unread,
+			want:    result{stdout: lines(slices.Concat([]string{"the screen", accountsRow}, shown, []string{carryOn})...)},
+			holds:   1,
+		},
+		{
+			// Ended as interrupted, saying nothing of a token saved.
+			name:          "none given back, an interrupt as the screen's jobs end",
+			holding:       true,
+			goneInterrupt: true,
+			want:          result{stdout: lines("the screen", accountsRow), stderr: "Error: interrupted\n", code: 130},
+			holds:         1,
+		},
+		{
+			name:        "none given back, an interrupt as the summary prints",
+			holding:     true,
+			interruptAt: accountsRow,
+			want:        result{stdout: lines("the screen", accountsRow, carryOn)},
+			holds:       1,
+		},
+		{
+			name:        "no token's making in hand, an interrupt as the summary prints",
+			interruptAt: accountsRow,
+			want:        result{stdout: lines("the screen", accountsRow, carryOn)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			held := &heldInterrupts{}
+			deps := setupDeps(t)
+			deps.Getenv = withEnv(deps.Getenv, "COLUMNS", "160")
+			deps.Hold = held.hold
+			working := setup.TokenStanding{State: setup.TokenWorking}
+			review := &setup.Review{Accounts: []setup.Reviewed{{ID: "work", Primary: true, Token: working}, {ID: "personal", Token: working}}}
+			deps.SetupScreen = func(_ context.Context, cfg screen.Config, out io.Writer, _ []string) (screen.Left, error) {
+				_, _ = io.WriteString(out, "the screen\n")
+				if tt.holding {
+					cfg.Holding()
+					cfg.Holding()
+				}
+				if tt.goneInterrupt {
+					held.send(os.Interrupt)
+				}
+				return screen.Left{Ending: screen.Paused, Summary: setup.Summary{Review: review}, Unsaved: tt.unsaved}, nil
+			}
+
+			got, stdout := runWriting(t, deps, &holdingWriter{held: held, interruptAt: tt.interruptAt}, "setup")
+			if got != tt.want {
+				t.Errorf("switchboard setup =\n%+v\nwant\n%+v", got, tt.want)
+			}
+			if stdout.heldAt != tt.heldAt {
+				t.Errorf("%d holds held the interrupts as one was sent, want %d", stdout.heldAt, tt.heldAt)
+			}
+			if active, holds := held.state(); active != 0 || holds != tt.holds {
+				t.Errorf("the interrupts were held %d times, %d holding them still; want %d, none still", holds, active, tt.holds)
+			}
+			for _, line := range stdout.unheld {
+				if slices.Contains(shown, line) {
+					t.Errorf("%q, of the token given back, was printed once the interrupts were let go, want every line of it printed while they're held", line)
+				}
+			}
+		})
+	}
+}
+
 func TestSetupsScreenIsSetupsOwn(t *testing.T) {
 	tests := []struct {
 		name string
@@ -455,8 +570,8 @@ func TestSetupsScreenIsSetupsOwn(t *testing.T) {
 			case tt.wantPair && (given.Pair == nil || given.Pair.Light.Slug != "lake" || given.Pair.Dark.Slug != "amber"):
 				t.Errorf("the screen is drawn in %+v, want lake, from the themes directory, and amber, as the dashboard's choice keeps them", given.Pair)
 			}
-			if s.Hold != nil || s.Saving != nil || s.Usage != nil {
-				t.Error("setup holds interrupts of its own, tells Saving of one held, or prints usage; want the process's held, the screen's Left saying so, and no usage")
+			if s.Hold != nil || s.Saving != nil {
+				t.Error("setup holds interrupts of its own, or tells Saving of one held; want the process's held, the screen's Left saying so")
 			}
 			switch finishing := reflect.ValueOf(s.LaunchAgent).Elem().FieldByName("cfg").FieldByName("Finishing"); {
 			case !finishing.IsValid():
@@ -550,17 +665,19 @@ func TestSetupsStepsAreSetUpAsTheCLIFindsThem(t *testing.T) {
 	shellDir := filepath.Join(data, "switchboard", "shell")
 	line := `if [ -r "` + shellDir + `/init.zsh" ]; then . "` + shellDir + `/init.zsh"; fi  # switchboard`
 	want := []string{
-		"Installed " + s.plist + ": ",
-		"The router is up: healthy, pid " + strconv.Itoa(os.Getpid()) + ".",
-		"Linked " + link + " to " + s.binary + ".",
-		"Wrote switchboard's files for the shells, in " + shellDir + ": init.zsh, init.bash, completion.bash and init.fish.",
-		"claude goes through switchboard in a new terminal: zsh runs " + link + ".",
-		"Installed the session hook, which tells a session that doesn't go through switchboard so: " + settings,
-		"Installed the skill, which tells Claude what switchboard does under claude: " + skill,
+		"Installed: ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist",
+		"Router: healthy",
+		"Link: ",
+		"Your shell: ",
+		"Session hook: ",
+		"Installed: ",
 	}
-	for _, w := range want {
-		if !slices.ContainsFunc(said, func(s string) bool { return strings.HasPrefix(s, w) }) {
-			t.Errorf("setup's steps said\n%s\nwant one saying\n%s", strings.Join(said, "\n"), w)
+	if len(said) != len(want) {
+		t.Errorf("setup's steps said\n%s\nwant a row each of\n%s", strings.Join(said, "\n"), strings.Join(want, "\n"))
+	}
+	for i, w := range want {
+		if i >= len(said) || !strings.HasPrefix(said[i], w) {
+			t.Errorf("setup's steps said\n%s\nwant row %d to begin\n%s", strings.Join(said, "\n"), i, w)
 		}
 	}
 	// The prober asks the CLI's API of the tokens in the CLI's token files:
@@ -648,13 +765,14 @@ func takeAccountsAndPriming(t *testing.T, ctx context.Context, steps screen.Step
 
 // takeSteps takes the steps the screen takes past Accounts, as a user
 // pressing enter through them does, adding switchboard's line where the
-// claude link step offers it, and returns the sentences they said.
+// claude link step offers it, and returns the rows they said, each its
+// label and detail.
 func takeSteps(t *testing.T, ctx context.Context, steps screen.Steps) []string {
 	t.Helper()
 	var said []string
 	tell := func(all ...setup.Said) {
 		for _, s := range all {
-			said = append(said, s.Sentence)
+			said = append(said, s.Label+": "+s.Detail)
 		}
 	}
 	serviced, err := steps.Service(ctx)

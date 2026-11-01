@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/service"
-	"github.com/leeovery/switchboard/internal/setup"
 )
 
 func TestServiceSaysHowFarItsSwapGotWhereItsContextEnds(t *testing.T) {
@@ -27,7 +26,7 @@ func TestServiceSaysHowFarItsSwapGotWhereItsContextEnds(t *testing.T) {
 		{
 			name: "ended as the swap boots the old service out: swapped, installed, no failed row",
 			at:   "bootout", want: service.Swapped,
-			wantLabels: []string{"! Updated", "✓ Installed"},
+			wantLabels: []string{"✓ Installed", "! Updated"},
 		},
 		{
 			name: "launchctl killed as the step first asks launchd how the service stands, long before Install: none",
@@ -61,7 +60,7 @@ func TestServiceSaysHowFarItsSwapGotWhereItsContextEnds(t *testing.T) {
 				return nil
 			}
 
-			got, err := w.setup(t, &user{}).Service(ctx)
+			got, err := w.setup(t).Service(ctx)
 			if err == nil || got.Swap != tt.want {
 				t.Fatalf("Service() swap = %v, error = %v; want %v, and an error", got.Swap, err, tt.want)
 			}
@@ -71,7 +70,6 @@ func TestServiceSaysHowFarItsSwapGotWhereItsContextEnds(t *testing.T) {
 			if tt.wantLabels == nil {
 				return
 			}
-			marks := map[setup.Mark]string{setup.Done: "✓", setup.Warning: "!", setup.Failed: "✗"}
 			var labels []string
 			for _, said := range got.Said {
 				labels = append(labels, marks[said.Mark]+" "+said.Label)

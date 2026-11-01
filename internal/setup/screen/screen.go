@@ -119,6 +119,12 @@ type Config struct {
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
+	// Holding, where it's set, is told as the screen goes with a token's
+	// making in hand, which Left may give back, before the terminal is given
+	// back, when a ctrl+c is an interrupt again: for the caller to hold the
+	// process's interrupts from then till it has shown what's given back. It
+	// may be told more than once.
+	Holding func()
 }
 
 // Size is a terminal's size in cells.

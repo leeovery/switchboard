@@ -102,7 +102,7 @@ func (a *checkingAPI) askedOf() []string {
 // reviewing is setup in the world, its clock frame 3's, its API checkingAPI.
 func (w *world) reviewing(t *testing.T, api *checkingAPI) *setup.Setup {
 	t.Helper()
-	s := w.setup(t, &user{})
+	s := w.setup(t)
 	s.Accounts.Prober = api.proberAt
 	s.Accounts.Now = func() time.Time { return frameClock }
 	return s

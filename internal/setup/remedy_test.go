@@ -2,8 +2,6 @@ package setup_test
 
 import (
 	"reflect"
-	"slices"
-	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/setup"
@@ -55,54 +53,5 @@ func TestARemedyIsWhatTheSituationLeavesToPutRightByHand(t *testing.T) {
 				t.Errorf("Remedy() = %+v\nwant %+v", got, tt.want)
 			}
 		})
-	}
-}
-
-// addCases are the situations whose remedy adds switchboard's line, which
-// the claude link's page words as frame 11 does, and the line walk in words
-// of its own.
-var addCases = []setup.Situation{setup.OfferLine, setup.WhichFile, setup.RivalFile, setup.CantLook, setup.CantAdd}
-
-// checkRemedyAgreesWithTheWalk checks that the claude link page's remedy
-// for found agrees with what the line walk shows by hand (ShellFound.ByHand):
-// every part's line or directory to put in place is one the walk shows;
-// every part's words are within one of the walk's lines, but for the add
-// cases' first, which both word as adding the line, each in its own words;
-// the remedy copies the line and the directory just where the walk shows
-// them; and it's Checkable but for the situations where the walk doesn't ask
-// again, as settle has them, listed here, not read from the walk. Done's
-// offer isn't checked here: it's what the remedy puts in place first, read
-// from the remedy itself.
-func checkRemedyAgreesWithTheWalk(t *testing.T, found setup.LinkFound) {
-	t.Helper()
-	sh := found.Shell
-	r := sh.Remedy()
-	within := func(says string) bool {
-		return slices.ContainsFunc(sh.ByHand, func(line string) bool {
-			return strings.Contains(strings.ToLower(line), strings.ToLower(says))
-		})
-	}
-	for i, part := range r.Parts {
-		if part.Put != "" && !slices.Contains(sh.ByHand, part.Put) {
-			t.Errorf("the remedy's part %d puts %q in place, which the line walk doesn't show: %q", i, part.Put, sh.ByHand)
-		}
-		switch {
-		case i == 0 && slices.Contains(addCases, sh.Situation):
-			if !strings.HasPrefix(part.Says, "Add this line") || !within("add this line") {
-				t.Errorf("the remedy's first part says %q and the line walk %q, want each to add the line", part.Says, sh.ByHand)
-			}
-		case !within(part.Says):
-			t.Errorf("the remedy's part %d says %q, which no line of the walk's holds: %q", i, part.Says, sh.ByHand)
-		}
-	}
-	if walks := sh.Line != "" && slices.Contains(sh.ByHand, sh.Line); (r.Line != "") != walks {
-		t.Errorf("the page's remedy copies the line %q; the line walk shows it by hand: %t", r.Line, walks)
-	}
-	if walks := sh.Dir != "" && slices.Contains(sh.ByHand, sh.Dir); (r.Dir != "") != walks {
-		t.Errorf("the page's remedy copies the directory %q; the line walk shows it by hand: %t", r.Dir, walks)
-	}
-	walkAsks := !slices.Contains([]setup.Situation{setup.Unreached, setup.Through, setup.UnknownShell}, sh.Situation)
-	if r.Checkable != walkAsks {
-		t.Errorf("the page's remedy asks again: %t; the line walk does: %t", r.Checkable, walkAsks)
 	}
 }

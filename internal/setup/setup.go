@@ -11,7 +11,6 @@ package setup
 import (
 	"context"
 	"errors"
-	"io"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
@@ -22,7 +21,6 @@ import (
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/shell"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
 var logger = logs.For("setup")
@@ -34,21 +32,16 @@ var ErrNoTerminal = errors.New(`setup asks as it goes, so it needs a terminal: r
   2. Priming, optionally: day = "HH:MM-HH:MM" in the config's [prime] table
   3. The service: switchboard service install, or switchboard service restart once it's installed
   4. The claude link: a link named claude to "$(command -v switchboard)" in switchboard's bin directory, ~/.local/share/switchboard/bin, or $XDG_DATA_HOME/switchboard/bin, and that directory first on PATH; setup alone writes switchboard's file for the shell, with its completions, and the line in the shell's startup file that reads it. The session hook: setup alone writes it
-  5. The skill: setup alone writes it
-  6. Every account's windows as they stand: switchboard usage`)
+  5. The skill: setup alone writes it`)
 
-// errNoAccount is what setup stops with when there's no account, and the
-// user adds none: there's nothing to set up without one.
+// errNoAccount is what a step that needs an account fails with where none is
+// configured: there's nothing to set up without one.
 var errNoAccount = errors.New("no account is configured, so setup stops here: run it again to add one, or switchboard accounts add <id>")
 
 // Setup is what setting switchboard up takes.
 type Setup struct {
-	// Terminal is where the user answers, and hears what setup finds and
-	// does.
-	Terminal Terminal
 	// Accounts are the config file and the token files, where accounts are
-	// added and tokens taken. Setup takes tokens at the terminal, whatever
-	// its Input.
+	// added and tokens saved.
 	Accounts accounts.Registry
 	// LaunchAgent is the service, which Install says how to run: this
 	// switchboard binary, as the path it was run by names it, and the config
@@ -96,47 +89,12 @@ type Setup struct {
 	// SkillFile is where Claude Code reads the skill, and Settings Claude
 	// Code's settings file, where the session hook goes.
 	SkillFile, Settings string
-	// Usage prints every account's windows as they stand on out, as
-	// switchboard usage does.
-	Usage func(ctx context.Context, out io.Writer) error
 
 	// changed is set once setup changes the config or a token.
 	changed bool
 	// routerWait is how long Standing waits for a router to answer: zero
 	// for launch.AskTimeout.
 	routerWait time.Duration
-}
-
-// Run takes each step in turn, stopping at one that fails, or when the
-// user's input ends, or they interrupt a token's typing, which a run of
-// setup again carries on from. It refuses a switchboard binary that won't
-// last, such as go run's, before it asks anything: the service and the
-// claude link both run this one.
-func (s *Setup) Run(ctx context.Context) error {
-	switchboard, err := s.Binary()
-	if err != nil {
-		return err
-	}
-	r := &run{Setup: s, switchboard: switchboard, registry: s.registry(), tell: s.Terminal.tell, note: s.Terminal.say}
-	r.Terminal.sayf("Setting switchboard up: each step says what's done already, and does only what isn't.")
-	steps := []struct {
-		title string
-		take  func(context.Context) error
-	}{
-		{"Accounts", r.accounts},
-		{"Priming", r.priming},
-		{"The service", r.service},
-		{"The claude link", r.link},
-		{"The skill", r.skill},
-		{"Usage", r.usage},
-	}
-	for i, step := range steps {
-		r.Terminal.heading(i+1, step.title)
-		if err := step.take(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Binary is this switchboard binary, which the service runs and the claude
@@ -146,26 +104,16 @@ func (s *Setup) Binary() (string, error) {
 	return s.LaunchAgent.Binary(s.Install.Executable)
 }
 
-// registry is the accounts, taking a token the user types at the terminal.
-func (s *Setup) registry() accounts.Registry {
-	r := s.Accounts
-	r.Input = accounts.Input{Hidden: s.Terminal.Hidden, Prompt: s.Terminal.Out}
-	return r
-}
-
-// run is one walk through the steps, and what they've found and changed.
+// run is one taking of a step, and what it found and did.
 type run struct {
 	*Setup
 	// switchboard is this switchboard binary, which the service runs and the
 	// claude link leads to.
 	switchboard string
-	registry    accounts.Registry
-	// cfg is the config as the steps have left it.
+	// cfg is the config as the service step found it.
 	cfg *config.Config
-	// tell is where the steps tell what they say, and note where the line
-	// walk says what's about to take a while: nil where nothing hears it.
+	// tell is where the step tells what it says: nil where nothing hears it.
 	tell func(Said)
-	note func(string)
 	// claudeCode is Claude Code's own claude, as the claude link step found
 	// it.
 	claudeCode string
@@ -183,13 +131,4 @@ type run struct {
 // a router that answers takes up on its own.
 func (s *Setup) wrote() {
 	s.changed = true
-}
-
-func (r *run) usage(ctx context.Context) error {
-	return r.Usage(ctx, r.Terminal.Out)
-}
-
-// title names an account as every command does, such as "work · Work".
-func title(a config.Account) string {
-	return status.Account{ID: a.ID, Label: a.Label}.Title()
 }

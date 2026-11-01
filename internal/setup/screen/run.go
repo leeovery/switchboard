@@ -26,7 +26,7 @@ func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) (Left
 	if f, ok := out.(term.File); !ok || !term.IsTerminal(f.Fd()) {
 		return Left{}, ErrNotTerminal
 	}
-	return run(ctx, cfg, out, waitedSaid, tea.WithEnvironment(environ), tea.WithFilter(backdrop.Heeded))
+	return run(ctx, cfg, out, waitedSaid, backdrop.Heeded, tea.WithEnvironment(environ))
 }
 
 // run shows setup's screen on out until the user leaves it, putting back the
@@ -37,13 +37,17 @@ func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) (Left
 // Model.gone has it; the summary as it's left; and how the token card's
 // making left it, as Model.tokenLeft has it. Where the service step's own
 // job runs on once moment, given the jobs it waits for, has come, it says on
-// out that setup is finishing it.
-func run(ctx context.Context, cfg Config, out io.Writer, moment func(*jobs) <-chan time.Time, opts ...tea.ProgramOption) (Left, error) {
+// out that setup is finishing it. Bubble Tea's filter is heed, but that it
+// tells Holding of the screen going, as heeding has it; and as Bubble Tea
+// returns, as a failure or a panic it ends with passes the filter by.
+func run(ctx context.Context, cfg Config, out io.Writer, moment func(*jobs) <-chan time.Time, heed func(tea.Model, tea.Msg) tea.Msg, opts ...tea.ProgramOption) (Left, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	m := New(ctx, cfg)
 	logger.Info("setup's screen started", "step", m.walk.step.Title())
-	last, err := backdrop.Run(m, out, append(opts, tea.WithContext(ctx))...)
+	filter := tea.WithFilter(backdrop.Heeding(heeding(cfg.Holding, heed)))
+	last, err := backdrop.Run(m, out, append(opts, tea.WithContext(ctx), filter)...)
+	last.holding(cfg.Holding)
 	cancel()
 	waitSaying(m.jobs.wait, moment(m.jobs), func() {
 		if finishing(last.walk, m.jobs) {
@@ -61,6 +65,19 @@ func run(ctx context.Context, cfg Config, out io.Writer, moment func(*jobs) <-ch
 		return left, fmt.Errorf("run setup's screen: %w", err)
 	}
 	return left, nil
+}
+
+// heeding is heed, telling holding of the screen quitting, or interrupted,
+// with a token's making in hand, as Model.holding has it: as Bubble Tea
+// heeds the message, before it gives the terminal back.
+func heeding(holding func(), heed func(tea.Model, tea.Msg) tea.Msg) func(Model, tea.Msg) tea.Msg {
+	return func(m Model, msg tea.Msg) tea.Msg {
+		switch msg.(type) {
+		case tea.QuitMsg, tea.InterruptMsg:
+			m.holding(holding)
+		}
+		return heed(m, msg)
+	}
 }
 
 // waitingSaid is how long the screen, once it has gone, waits for setup's

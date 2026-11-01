@@ -874,33 +874,15 @@ frames draw the line in `border` and the title bold `text.secondary`; and the st
 and where a card sits follow the rules below. The primary's reserve card is still to be drawn in
 Paper.
 
-**The line walk, no longer run.** `switchboard setup` runs the screen, and the line walk it
-replaced is no longer run: its code is removed next, with the sentences only it prints. It asked a
-line at a time, and stopped when its input ended. Its Service, `claude` link and Skill did what
-steps 3 to 5 below say, asked and told a line at a time. Its Accounts, Priming and end were its
-own, far less than the screen's, which steps 1, 2 and 6 describe:
-
-- **Accounts:** lists the accounts, each with whether its token file holds a usable token, read from
-  the file, with no check with the API, and asks for a missing token, typed hidden, as `accounts
-  token` does (`accounts.Registry.SetToken`); Enter leaves it for later. It offers to add accounts,
-  one at a time, asking each one's id and label, and its token where its token file holds none
-  usable, as `accounts add` does, and with none configured, asks for the first straight away. It
-  asks no plan or reserve, makes no token, runs no duplicate check, and edits and removes nothing.
-  With more than one and none marked, it asks which is the primary, the one the browser and the
-  Claude apps are signed into, Enter giving the first, and marks it.
-- **Priming:** with no day set, asks for one, `HH:MM-HH:MM`, and writes it to `[prime]`, Enter
-  leaving priming off; with a day set, it says so, and asks nothing, so it never clears one.
-- **Its end:** it prints `usage`, every account's windows as they stand (see `usage`, the printout),
-  where the screen ends at Done.
-
-Setup needs a terminal: without one, it fails (`setup.ErrNoTerminal`), saying how each step is taken
-alone: by the command that takes it, where there is one, priming by a line in the config's `[prime]`
-table, and the `claude` link by making it and putting its directory first on `PATH`; the skill and
-the session hook, only setup writes. There's no line path for a missing terminal. It stops at a step
-that fails, or at an interrupt; run again, it carries on from there. Before it shows anything, it
-refuses a switchboard that won't last, such as `go run`'s, as `service install` does: the service
-and the `claude` link both run the one setup was run by. An answer shaped like a token, typed where
-it shows, as in a field, is never taken: a token is pasted where it doesn't show.
+Setup needs a terminal, the screen being its only way through: without one, it fails
+(`setup.ErrNoTerminal`), saying how each step is taken alone: by the command that takes it, where
+there is one, priming by a line in the config's `[prime]` table, and the `claude` link by making it
+and putting its directory first on `PATH`; the skill and the session hook, only setup writes. It
+stops at a step that fails, or at an interrupt; run again, it carries on from there. Before it
+shows anything, it refuses a switchboard that won't last, such as `go run`'s, as `service install`
+does: the service and the `claude` link both run the one setup was run by. An answer shaped like a
+token, typed where it shows, as in a field, is never taken: a token is pasted where it doesn't
+show.
 
 ### The screen
 
@@ -953,8 +935,8 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
 
 ### The steps
 
-1. **Accounts,** the screen's (the line walk's is above): every account as a table, ACCOUNTS heading
-   it, and the accounts counted at its right, `1 account`, `3 accounts`, or nothing with none.
+1. **Accounts:** every account as a table, ACCOUNTS heading it, and the accounts counted at its
+   right, `1 account`, `3 accounts`, or nothing with none.
    - **The table:** its heads on row 8, ACCOUNT, LABEL, PLAN, RESERVE and TOKEN in `text.subtle`,
      then from row 10 a row an account, two rows apart, in the config's order: its number in
      `text.subtle`; its id, bold `text.primary`, and `◆` in `text.muted` after the primary's; its
@@ -1012,9 +994,8 @@ it shows, as in a field, is never taken: a token is pasted where it doesn't show
      `accounts remove` does.
    - **A new token** (`t`) makes the chosen account's token in the token card, and saves it in the
      old one's place once it's checked, as `accounts token` does.
-2. **Priming,** the screen's (frame 7; the line walk's is above): `Priming starts each account's
-   5-hour window on a schedule, so their resets are spread through your day instead of all arriving
-   at once. It's optional.`, then the field `Your day`, holding the day set, if any, `start and end,
+2. **Priming** (frame 7): `Priming starts each account's 5-hour window on a schedule, so their
+   resets are spread through your day instead of all arriving at once. It's optional.`, then the field `Your day`, holding the day set, if any, `start and end,
    as HH:MM-HH:MM`, and `Leave it empty to keep priming off.` `enter` writes the day to `[prime]`
    where it changed; a field left empty leaves priming off, and one cleared turns it off.
 3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
@@ -1467,7 +1448,11 @@ not the owner's decisions:
   - then `run setup again to carry on` before Done, or the failed step's error, exit 1.
   
   An interrupt held exits 130, ahead of any error. `enter` at Done opens the dashboard as
-  `switchboard dashboard` does.
+  `switchboard dashboard` does. The screen going with the token card open, or the paste card
+  opened from it, holds the process's interrupts before the terminal is given back, through the
+  printing of a token it gives back, or, with none, till the screen has gone: an interrupt then
+  lets the token print whole, and exits 130, saying nothing of a save; and a hangup or a SIGTERM,
+  as a ctrl+c, waits for setup's jobs and printing, then exits as interrupted.
 - **The summary as setup leaves** is worked out once every job of the screen's has ended, from
   how each step ended: where the screen went before the step showing had taken in what its job
   came to, it's taken in then, as the screen would have, so the summary says it. Once setup is
@@ -1544,8 +1529,8 @@ not the owner's decisions:
   makes the link and asks the shell in one go. `r` asks again (`AskAgain`), the spinner under the
   Link row. `Link` or `AskAgain` failing fails the step, its row `✗ Not set up` and why, nothing
   worded from what it found.
-- **What's left to put right by hand** is `Remedy`'s, setup's one owner, which the page, Done's
-  row and the line walk read:
+- **What's left to put right by hand** is `Remedy`'s, setup's one owner, which the page and Done's
+  row read:
   - Declined, or where setup writes nothing (which file, a rival file, a file it can't look in,
     a line it couldn't add): frame 11's words, the line and the directory.
   - Another switchboard's line: `Put this line in its place:` and the line.
@@ -1564,8 +1549,7 @@ not the owner's decisions:
     a second `enter`.
   - Skill's write waits for the hook.
 - **The offer card:**
-  - It opens once, on the step's first answer, as the line walk offers once. An answer to `r`
-    never opens it again.
+  - It opens once, on the step's first answer. An answer to `r` never opens it again.
   - While it adds the line, its first row is the spinner and `Adding the line to the end of
     ~/.zshrc`, its keys `q quit` alone. The line is written whole or not at all, never once the
     screen has gone, and setup leaves only once it's written.
@@ -1582,9 +1566,8 @@ It's built: `switchboard setup` runs the screen, which makes tokens through `int
   acts on the answer. They're `Review` and `ReviewOf`, of one account; `MakeToken` and `PasteToken`;
   adding, editing and removing an account, and marking the primary, through `accounts.Registry`;
   `Priming` and `SetDay`; `Service`; `Link`, `AddLine` and `AskAgain`; `SessionHook` and `Skill`;
-  and `Standing`, whether a router answers, for the status line. Each outcome carries the sentence
-  the line walk prints, so the line walk's tests and goldens don't move before the cut-over; the
-  screen draws its own words.
+  and `Standing`, whether a router answers, for the status line. Each outcome says itself as rows,
+  each a mark, a label and a detail (`Said`), which the screen draws.
 - **`internal/dashboard` draws.** `dashboard.Setup` is a page of its own, pure: its data, and
   `Draw(width, height, look)`, which returns its lines. It reads setup's outcome types, and setup
   never imports the dashboard. It draws with the dashboard's canvas, inks, pills, tabs, flex,
@@ -2168,7 +2151,6 @@ the same block (see The Overview).
   else every account probed, `--probe` probing regardless, and `-r`, `--refresh` having the router
   read every account it may first (see Commands). Off a terminal, or with `--json`, it prints the
   status document instead, as every data verb prints its data (see The data verbs).
-- **`setup`'s line walk ends by printing it;** its full screen ends at Done instead (see Setup).
 
 The layout follows the terminal's width, `w` columns, and every arrangement the configured accounts
 and the windows shown, never what's read of them:
@@ -8027,9 +8009,9 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets; and asking the binary first whether it could start (`--check`), telling its refusal apart from a binary that can't answer |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
-| `internal/setup` | `setup`'s steps, the `claude` link in switchboard's bin directory among them, with switchboard's line in the shell's startup file and the login shell's answer, which it takes from `internal/shell`, asked a line at a time at a terminal: the line walk `switchboard setup` runs until the full screen replaces it. Designed, for the full screen: the situation each step finds, and the actions that act on an answer, each returning a typed outcome carrying the line walk's sentence (see Setup) |
-| `internal/setup/screen` | Designed: setup's full screen (Bubble Tea), shaped as `internal/dashboard/watch` is: the screen's state alone, the step it's on, its cards and fields, keys and copying; the steps called through the `Steps` interface it declares, which `*setup.Setup` satisfies and `internal/capture` fakes; and long work, making a token, asking the login shell and the service step, on goroutines it owns, cancelled and waited for before it returns |
-| `internal/setuptoken` | Making an account's setup token (#187): running `claude setup-token` on a pseudo-terminal of its own, wide enough that the token is drawn whole; its shim, the script `BROWSER` names, in a private directory of its own, which writes the sign-in address to a file there for it to read, so switchboard is never run as the browser; opening the address as its caller chooses, in the default browser as it is or in a private window of one whose command line can open one; and taking the token from what setup-token draws once it says it's made. It draws nothing itself: its caller words each step it reports. Nothing calls it yet: setup's full screen and `accounts token` are designed to |
+| `internal/setup` | `setup`'s steps, the `claude` link in switchboard's bin directory among them, with switchboard's line in the shell's startup file and the login shell's answer, which it takes from `internal/shell`: the situation each step finds, and the actions that act on an answer, each returning a typed outcome saying itself as the screen's rows, which `internal/setup/screen` calls (see Setup) |
+| `internal/setup/screen` | Setup's full screen (Bubble Tea), shaped as `internal/dashboard/watch` is: the screen's state alone, the step it's on, its cards and fields, keys and copying; the steps called through the `Steps` interface it declares, which `*setup.Setup` satisfies and `internal/capture` fakes; and long work, making a token, asking the login shell and the service step, on goroutines it owns, cancelled and waited for before it returns |
+| `internal/setuptoken` | Making an account's setup token (#187): running `claude setup-token` on a pseudo-terminal of its own, wide enough that the token is drawn whole; its shim, the script `BROWSER` names, in a private directory of its own, which writes the sign-in address to a file there for it to read, so switchboard is never run as the browser; opening the address as its caller chooses, in the default browser as it is or in a private window of one whose command line can open one; and taking the token from what setup-token draws once it says it's made. It draws nothing itself: its caller words each step it reports. Setup's full screen and `accounts token` call it, through `setup.MakeToken` |
 | `internal/shell` | switchboard in the user's shell: its files for zsh, bash and fish, which put its bin directory first on `PATH` and load its completions, and writing and refreshing them; its line in the shell's startup file, which startup file that is, finding the line there and adding it; and asking the user's login shell which `claude` it runs, in a process group of its own, killed whole once it answers, at its time limit or at an interrupt |
 | `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy; and where Claude Code's config directory is |
 | `internal/sessionhook` | The session hook: what `hook session-start` tells a session that didn't start through switchboard, and switchboard's entry in Claude Code's `settings.json`, installed or put right, the rest of the file left as it is |

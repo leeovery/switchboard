@@ -4,9 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
-	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -32,13 +30,15 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
-var update = flag.Bool("update", false, "rewrite the golden files with what the tests show")
+// tokenShaped is shaped like a Claude token, though it's none, as a user
+// might paste one where it shows.
+const tokenShaped = "sk-ant-oat01-fake_token-shaped"
 
 // tokenTaken is when setup takes a token the user gives, by its clock.
 var tokenTaken = time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
 
-// doneConfig is the config a first run of setup leaves, as the user answers
-// firstRun: work and side, work the primary, and priming over 08:00-23:00.
+// doneConfig is the config a first run of setup leaves: work and side, work
+// the primary, and priming over 08:00-23:00.
 const doneConfig = `[[account]]
 id    = "work"
 label = "Work"
@@ -199,8 +199,8 @@ func (w *world) addLine(t *testing.T) {
 	}
 }
 
-// setup is setup in the world, at the terminal the user is at.
-func (w *world) setup(t *testing.T, u *user) *setup.Setup {
+// setup is setup in the world.
+func (w *world) setup(t *testing.T) *setup.Setup {
 	t.Helper()
 	// The CLI's state directory, as it finds it.
 	stateDir, err := config.StateDir(w.getenv, func() (string, error) { return w.home, nil })
@@ -227,7 +227,6 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		t.Fatal(err)
 	}
 	return &setup.Setup{
-		Terminal:     u.terminal(),
 		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt, Now: func() time.Time { return tokenTaken }},
 		LaunchAgent:  svc,
 		Install:      service.InstallOptions{Executable: w.switchboard, Config: w.configFlag},
@@ -243,36 +242,54 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Hold:         w.interrupts.hold,
 		SkillFile:    w.skill,
 		Settings:     w.settings,
-		Usage: func(_ context.Context, out io.Writer) error {
-			_, err := io.WriteString(out, "(every account's usage)\n")
-			return err
-		},
 	}
 }
 
-// run runs setup in the world, the user giving answers in turn, a line
-// each, typed unseen or not as setup asks, and returns what the terminal
-// showed, the world's root in it written <root>, and what setup returned.
-// It fails the test when setup asked for fewer answers than were given.
-func (w *world) run(t *testing.T, answers ...string) (string, error) {
+// marks are setup's marks as its screen draws them.
+var marks = map[setup.Mark]string{setup.Done: "✓", setup.Warning: "!", setup.Failed: "✗"}
+
+// serviced takes the service step in the world with s, as setup's screen
+// does, and returns what it said, a row a line, its mark, its label and its
+// detail, the world's root written <root>; then the pid of the router it saw
+// answer, where it saw one, as routerPID words it; and how it failed.
+func (w *world) serviced(t *testing.T, s *setup.Setup) (string, error) {
 	t.Helper()
-	u := &user{answers: answers}
-	err := w.setup(t, u).Run(t.Context())
-	if len(u.answers) > 0 {
-		t.Errorf("setup asked for fewer answers than were given, leaving %q", u.answers)
+	got, err := s.Service(t.Context())
+	var told strings.Builder
+	for _, said := range w.rootedSaid(got.Said) {
+		fmt.Fprintf(&told, "%s %s: %s\n", marks[said.Mark], said.Label, said.Detail)
 	}
-	return strings.ReplaceAll(u.shown.String(), w.root, "<root>"), err
+	if got.Router != nil {
+		told.WriteString(routerPID(got.Router.PID))
+	}
+	return told.String(), err
 }
 
-// runs runs setup as run does, failing the test when setup fails.
-func (w *world) runs(t *testing.T, answers ...string) string {
+// service takes the service step in the world, as serviced does, failing
+// the test where it fails.
+func (w *world) service(t *testing.T) string {
 	t.Helper()
-	shown, err := w.run(t, answers...)
+	told, err := w.serviced(t, w.setup(t))
 	if err != nil {
-		t.Fatalf("Run() error = %v; the terminal showed\n%s", err, shown)
+		t.Fatalf("Service() error = %v; it said\n%s", err, told)
 	}
-	return shown
+	return told
 }
+
+// routerPID is how serviced says the pid of the router the service step saw
+// answer.
+func routerPID(pid int) string {
+	return fmt.Sprintf("its router: pid %d\n", pid)
+}
+
+// up is the service step's router row, healthy, and its pid, as serviced
+// says them.
+func up(pid int) string {
+	return "✓ Router: healthy · 127.0.0.1:4747\n" + routerPID(pid)
+}
+
+// installedRow is the service step's row of the service installed.
+const installedRow = "✓ Installed: ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist\n"
 
 // done lays the world out as the first run of setup leaves it: doneConfig,
 // with both accounts' tokens; the service installed, and its router up;
@@ -306,8 +323,7 @@ func (w *world) done(t *testing.T) {
 // where set, stands in front of PATH's claude. Its answers, while it has
 // some, come first, in turn, as the user puts switchboard's bin directory on
 // PATH by hand meanwhile; and where interrupted is set, the user interrupts
-// its asking, or, where interruptAt is, its asking that many times. A shell
-// switchboard doesn't know, it doesn't ask.
+// its asking. A shell switchboard doesn't know, it doesn't ask.
 type fakeLogin struct {
 	w           *world
 	overridden  bool
@@ -315,14 +331,13 @@ type fakeLogin struct {
 	front       shell.Front
 	answers     []shell.Answer
 	interrupted bool
-	interruptAt int
 	// asked are the links it was asked about, in turn.
 	asked []string
 }
 
 func (f *fakeLogin) Which(ctx context.Context, link string) shell.Answer {
 	f.asked = append(f.asked, link)
-	if f.interrupted || len(f.asked) == f.interruptAt {
+	if f.interrupted {
 		f.w.interrupt()
 		return shell.Answer{Why: context.Cause(ctx).Error()}
 	}
@@ -382,7 +397,7 @@ func (w *world) installService(t *testing.T, binary string) {
 // opts says.
 func (w *world) installServiceWith(t *testing.T, opts service.InstallOptions) {
 	t.Helper()
-	if _, err := w.setup(t, &user{}).LaunchAgent.Install(t.Context(), opts); err != nil {
+	if _, err := w.setup(t).LaunchAgent.Install(t.Context(), opts); err != nil {
 		t.Fatal(err)
 	}
 	w.launchd.calls = nil
@@ -438,24 +453,6 @@ func (w *world) removeToken(t *testing.T, id string) {
 // untouched are the launchctl subcommands a run of setup runs that leaves the
 // service as it is: it asks whether the service is loaded.
 var untouched = []string{"print"}
-
-// checkLeftToTheRouter checks setup, having shown shown, left the service as
-// it was, its router up, saying the router takes up the changes to the
-// config and the tokens on its own when changed says setup made some.
-func (w *world) checkLeftToTheRouter(t *testing.T, shown string, changed bool) {
-	t.Helper()
-	const up = "The service is installed, and the router is up: healthy, pid 4242."
-	want := up + "\n"
-	if changed {
-		want = up + " It takes up setup's changes on its own.\n"
-	}
-	if got := section(t, shown, "3. The service"); got != want {
-		t.Errorf("the service step showed\n%s\nwant\n%s", got, want)
-	}
-	if ran := w.launchd.ran(); !slices.Equal(ran, untouched) {
-		t.Errorf("ran launchctl %q, want %q: the service left as it is", ran, untouched)
-	}
-}
 
 // checkToken checks the account's token file holds a usable token, want.
 func (w *world) checkToken(t *testing.T, id, want string) {
@@ -521,88 +518,6 @@ func (w *world) checkUnchanged(t *testing.T, before map[string]string) {
 			t.Errorf("%s appeared: %s", path, after[path])
 		}
 	}
-}
-
-// section returns what the terminal showed of the step headed heading, such
-// as "4. The claude link": the lines after its heading, up to the next step's.
-func section(t *testing.T, shown, heading string) string {
-	t.Helper()
-	_, after, ok := strings.Cut(shown, "\n"+heading+"\n")
-	if !ok {
-		t.Fatalf("the terminal showed\n%s\nwant a step headed %q", shown, heading)
-	}
-	if next := nextHeading.FindStringIndex(after); next != nil {
-		after = after[:next[0]]
-	}
-	return after
-}
-
-// nextHeading is where the next step's heading starts: the blank line
-// before it.
-var nextHeading = regexp.MustCompile(`(?m)^\n\d\. `)
-
-// checkGolden checks what the terminal showed against the golden file name.
-func checkGolden(t *testing.T, name, shown string) {
-	t.Helper()
-	path := filepath.Join("testdata", name+".golden")
-	if *update {
-		if err := os.WriteFile(path, []byte(shown), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read the golden file (run with -update to make it): %v", err)
-	}
-	if shown != string(want) {
-		t.Errorf("the terminal showed\n%s\nwant (%s; run with -update to accept it)\n%s", shown, path, want)
-	}
-}
-
-// user is the user at the terminal, giving answers in turn, a line each,
-// typed unseen when setup reads a token. The terminal shows what they type
-// but for a token, as a terminal does.
-type user struct {
-	answers []string
-	shown   strings.Builder
-	// typing is what's left of the line being typed.
-	typing string
-}
-
-func (u *user) terminal() setup.Terminal {
-	return setup.Terminal{In: u, Out: &u.shown, Hidden: u.typeUnseen}
-}
-
-// Read types the next answer, which the terminal shows.
-func (u *user) Read(p []byte) (int, error) {
-	if u.typing == "" {
-		if len(u.answers) == 0 {
-			return 0, io.EOF
-		}
-		u.typing = u.answers[0] + "\n"
-		u.answers = u.answers[1:]
-		u.shown.WriteString(u.typing)
-	}
-	n := copy(p, u.typing)
-	u.typing = u.typing[n:]
-	return n, nil
-}
-
-// interrupt is an answer that's the user interrupting the typing of a token.
-const interrupt = "^C"
-
-// typeUnseen types the next answer, which the terminal doesn't show, nor the
-// newline that ends it: or interrupts the typing, as interrupt says to.
-func (u *user) typeUnseen() ([]byte, error) {
-	if len(u.answers) == 0 {
-		return nil, io.EOF
-	}
-	answer := u.answers[0]
-	u.answers = u.answers[1:]
-	if answer == interrupt {
-		return nil, accounts.ErrInterrupted
-	}
-	return []byte(answer), nil
 }
 
 // fakeLaunchd stands in for launchctl, and launchd and the router behind it.

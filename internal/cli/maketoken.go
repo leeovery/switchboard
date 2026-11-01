@@ -11,7 +11,6 @@ import (
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/interrupts"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
@@ -131,10 +130,9 @@ func heldBack(err error) error {
 // printed to copy.
 type makingSaid struct {
 	out, errOut io.Writer
-	hold        interrupts.Holder
-	mu          sync.Mutex
-	held        *interrupts.Held
-	told        sync.Once
+	keptFrom
+	mu   sync.Mutex
+	told sync.Once
 }
 
 // lines says each of lines.
@@ -148,29 +146,9 @@ func (m *makingSaid) lines(lines ...string) {
 // made.
 func (m *makingSaid) step(at setup.Making) {
 	if at.Step == setup.TokenMade {
-		m.keep()
+		m.keep(m.interrupted)
 	}
 	m.lines(stepSaid(at)...)
-}
-
-// keep holds the interrupts, where they aren't held already, telling
-// interrupted of the first.
-func (m *makingSaid) keep() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.held == nil {
-		m.held = interrupts.Hold(m.hold)
-		m.held.Watch(m.interrupted)
-	}
-}
-
-// let lets the interrupts go, where they're held, reporting whether one came
-// while they were.
-func (m *makingSaid) let() bool {
-	m.mu.Lock()
-	held := m.held
-	m.mu.Unlock()
-	return held != nil && held.End()
 }
 
 // interrupted says, the first time it's told, that an interrupt came once

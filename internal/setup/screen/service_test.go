@@ -72,15 +72,6 @@ func TestTheServiceStepRunsAsTheScreenOpensOnIt(t *testing.T) {
 	}
 }
 
-func TestALineWalksSaidIsntDrawn(t *testing.T) {
-	h := newHarness(t, dashboard.SetupService)
-	h.steps.serviced.Said = []setup.Said{{Mark: setup.Done, Sentence: "The line walk's alone."}, routerHealthy}
-	h.start()
-	if got, want := h.rows()[serviceFirstRow], factRowOf("✓", routerHealthy); got != want {
-		t.Errorf("the first fact's row reads\n%q\nwant\n%q, a Said with no label left off", got, want)
-	}
-}
-
 // heldOutcomes starts h's model, delivering what its first commands send
 // back but for the service step's outcome, which it returns, undelivered.
 func heldOutcomes(h *harness) []tea.Msg {

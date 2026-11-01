@@ -53,7 +53,10 @@ const savedFirst = "interrupted once the token was saved, as it lasts a year on 
 // says it, as wide as the terminal; then a making the screen gave back,
 // which saved nothing, or else, where an interrupt was held as a token was
 // saved, says the token was saved first; then leaves as the screen was
-// left.
+// left. From the screen going with a token's making in hand, it holds the
+// process's interrupts, through the printing of a making given back, which
+// one would otherwise lose, the token lasting a year on the account; or
+// else till the screen has gone. One held leaves as an interrupt has it.
 func (a *app) setup(cmd *cobra.Command) error {
 	out := cmd.OutOrStdout()
 	if !a.TerminalInput(cmd.InOrStdin()) || !a.Terminal(out) {
@@ -67,17 +70,26 @@ func (a *app) setup(cmd *cobra.Command) error {
 		return err
 	}
 	ctx := cmd.Context()
-	left, err := a.SetupScreen(ctx, a.setupScreen(s), out, a.Environ())
+	kept := &keptFrom{hold: a.Hold}
+	cfg := a.setupScreen(s)
+	cfg.Holding = func() { kept.keep(nil) }
+	left, err := a.SetupScreen(ctx, cfg, out, a.Environ())
 	if errors.Is(err, screen.ErrNotTerminal) {
 		return setup.ErrNoTerminal
+	}
+	var caught bool
+	if left.Unsaved == nil {
+		caught = kept.let()
 	}
 	printLines(out, dashboard.SetupPrinted(left.Summary, a.terminalWidth(out)))
 	switch {
 	case left.Unsaved != nil:
 		printLines(out, left.Unsaved.Printed())
+		caught = kept.let()
 	case left.Interrupted:
 		launch.Notice(cmd.ErrOrStderr(), savedFirst)
 	}
+	left.Interrupted = left.Interrupted || caught
 	return a.leave(ctx, out, left, err)
 }
 
