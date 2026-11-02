@@ -188,7 +188,8 @@ func drawsEmpty(kind status.WindowKind) bool {
 // of the windows shown, its Σ in their number column, reporting false where
 // there's no pool, as with one account: each window's bar filled to its
 // accounts' mean use, with their even pace and no cap's mark, empty where no
-// account's use is counted, and its words its room, the first it has words
+// account's use is counted, and its words its room of how many of its
+// accounts have the window, as its Of counts them, the first it has words
 // for saying it's pinned, where it is; nothing drawn of a window it leaves
 // out as its accounts lack it, as m's PoolLacks says; and of any other it
 // hasn't, its bar empty.
@@ -211,7 +212,7 @@ func poolRow(m status.Moment, names []accountName, windows []shownWindow) (usage
 		if p.Used != nil {
 			bar = usageBar{used: *p.Used, capAt: 1, pace: p.Pace}
 		}
-		row.gauges = append(row.gauges, gauge{of: Ref{Window: w.key}, bar: bar, words: poolWords(p.Room, len(pool.Accounts), pinned)})
+		row.gauges = append(row.gauges, gauge{of: Ref{Window: w.key}, bar: bar, words: poolWords(p.Room, p.Of, pinned)})
 		pinned = false
 	}
 	return row, true
@@ -624,7 +625,8 @@ func (b usageBlock) underHeading() int {
 
 // stacked draws the block's windows one under another, each a section, its
 // heading, then a row an account, the pool last, from row y, a blank line
-// between sections, as before the key line.
+// between sections, as before the key line. A section has only the rows of
+// its window, as having has them.
 func (b usageBlock) stacked(c *canvas, y int) laid {
 	bar := b.bar()
 	all := laid{end: y}
@@ -634,7 +636,7 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		}
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
 		first := y + b.underHeading()
-		section := b.each(c, first, 2, func(r usageRow, y int) int {
+		section := b.having(i).each(c, first, 2, func(r usageRow, y int) int {
 			c.line(1, y, r.name)
 			b.gauge(c, r.gauges[i], b.names, y, bar, b.width-afterWords)
 			return y
@@ -646,6 +648,15 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		y, all.end = section.end, section.end
 	}
 	return all
+}
+
+// having is the block with only the rows that have its window i: none of an
+// account without it, and none of the pool where it lacks it, as poolRow has
+// it, so the pool's row and its rule go once fewer than two accounts have it.
+// An account unread, or without a usable token, may have it, so keeps its row.
+func (b usageBlock) having(i int) usageBlock {
+	b.rows = slices.DeleteFunc(slices.Clone(b.rows), func(r usageRow) bool { return r.gauges[i].none })
+	return b
 }
 
 // each draws the block's rows from row y, each as draw draws it from the row

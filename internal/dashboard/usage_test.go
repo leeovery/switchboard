@@ -3,6 +3,7 @@ package dashboard
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"math"
 	"regexp"
 	"slices"
@@ -775,6 +776,175 @@ func TestAPoolNothingIsReadOfKeepsItsWindows(t *testing.T) {
 		if got := strings.Fields(byAccount[row]); !slices.Equal(got, want) {
 			t.Errorf("the pool's row %d reads %q, want %q", row, byAccount[row], want)
 		}
+	}
+}
+
+// sectionRows are doc's usage block width columns wide, its windows
+// stacked, with its big bars where big is set: each section's rows by its
+// heading, the blank rows after its last left out.
+func sectionRows(t *testing.T, doc status.Document, width int, big bool) map[string][]string {
+	t.Helper()
+	b := printBlock(doc, width, Look{})
+	b.big = big
+	if b.matrixed() {
+		t.Fatalf("the block at %d columns is a matrix, want its windows stacked", width)
+	}
+	c := growing(width)
+	b.draw(c, 0)
+	sections := map[string][]string{}
+	var heading string
+	for _, row := range c.rows(Look{}) {
+		if row != "" && row[0] != ' ' && !strings.HasPrefix(row, "─") {
+			heading = strings.TrimSpace(row)
+			continue
+		}
+		sections[heading] = append(sections[heading], row)
+	}
+	for h, rows := range sections {
+		for len(rows) > 0 && strings.TrimSpace(rows[len(rows)-1]) == "" {
+			rows = rows[:len(rows)-1]
+		}
+		sections[h] = rows
+	}
+	return sections
+}
+
+// stackedSections are the sections as sectionRows has them, a row as the
+// number and label it's named by, "rule" for the pool's rule and "" for a
+// blank row.
+func stackedSections(t *testing.T, doc status.Document, width int, big bool) map[string][]string {
+	t.Helper()
+	sections := sectionRows(t, doc, width, big)
+	for h, rows := range sections {
+		named := make([]string, len(rows))
+		for i, row := range rows {
+			fields := strings.Fields(row)
+			switch {
+			case len(fields) == 0:
+			case strings.HasPrefix(row, "─"):
+				named[i] = "rule"
+			default:
+				named[i] = fields[0] + " " + fields[1]
+			}
+		}
+		sections[h] = named
+	}
+	return sections
+}
+
+// The stacked layouts: narrow, and the Overview's big bars.
+var stackedLayouts = []struct {
+	name  string
+	width int
+	big   bool
+}{
+	{name: "stacked", width: 52},
+	{name: "big bars", width: 160, big: true},
+}
+
+// Stacked, and in the big bars, a section lists only the accounts that have
+// its window, and the pool's rule and row only where status keeps the window
+// in the pool, which takes two accounts having it; an account unread, or
+// without a usable token, may have it, so keeps its row, as does the pool
+// where nothing is read of it. Every other section keeps every account.
+func TestAStackedSectionListsOnlyTheAccountsWithItsWindow(t *testing.T) {
+	unread := func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }
+	tokenless := func(a *status.Account) { a.TokenSet = false }
+	every := []string{"", "1 work", "", "2 personal", "", "3 side", "rule", "Σ pool"}
+	tests := []struct {
+		name string
+		doc  status.Document
+		want []string
+		// pool is what the pool's row says after its name, where it's checked.
+		pool []string
+	}{
+		{name: "every account with it", doc: trio(), want: every},
+		{name: "work without it", doc: trio(account("work", noSession)), want: []string{"", "2 personal", "", "3 side", "rule", "Σ pool"}},
+		{name: "side alone with it", doc: trio(account("work", noSession), account("personal", noSession)), want: []string{"", "3 side"}},
+		{name: "personal unread", doc: trio(account("work", noSession), account("personal", unread)), want: []string{"", "2 personal", "", "3 side", "rule", "Σ pool"}},
+		{name: "personal tokenless", doc: trio(account("work", noSession), account("personal", tokenless)), want: []string{"", "2 personal", "", "3 side", "rule", "Σ pool"}},
+		{name: "nothing read", doc: trio(account("work", unread), account("personal", unread), account("side", unread)), want: every, pool: []string{"—"}},
+	}
+	for _, layout := range stackedLayouts {
+		for _, tt := range tests {
+			t.Run(layout.name+", "+tt.name, func(t *testing.T) {
+				sections := stackedSections(t, tt.doc, layout.width, layout.big)
+				if got := sections["5-HOUR"]; !slices.Equal(got, tt.want) {
+					t.Errorf("the 5-hour section's rows are %q, want %q", got, tt.want)
+				}
+				if tt.pool != nil {
+					rows := sectionRows(t, tt.doc, layout.width, layout.big)["5-HOUR"]
+					if got := strings.Fields(rows[len(rows)-1]); len(got) < 2 || !slices.Equal(got[:2], []string{"Σ", "pool"}) || !slices.Equal(got[2:], tt.pool) {
+						t.Errorf("the 5-hour section's pool row reads %q, want Σ pool and %q", rows[len(rows)-1], tt.pool)
+					}
+				}
+				if got := sections["WEEK"]; !slices.Equal(got, every) {
+					t.Errorf("the week's section's rows are %q, want %q", got, every)
+				}
+			})
+		}
+	}
+}
+
+// A stacked section's rows are those it draws: it takes the rows of none it
+// leaves out, and places none of them, so USAGE counts no account shown in
+// it that isn't.
+func TestAStackedSectionTakesTheRowsItDraws(t *testing.T) {
+	tests := []struct {
+		name   string
+		doc    status.Document
+		fewer  int
+		placed map[string]int
+	}{
+		{name: "work without it", doc: trio(account("work", noSession)), fewer: 2, placed: map[string]int{"work": 2, "personal": 3, "side": 3, "": 3}},
+		{name: "side alone with it", doc: trio(account("work", noSession), account("personal", noSession)), fewer: 6, placed: map[string]int{"work": 2, "personal": 2, "side": 3, "": 2}},
+	}
+	for _, layout := range stackedLayouts {
+		every := printBlock(trio(), layout.width, Look{})
+		every.big = layout.big
+		for _, tt := range tests {
+			t.Run(layout.name+", "+tt.name, func(t *testing.T) {
+				b := printBlock(tt.doc, layout.width, Look{})
+				b.big = layout.big
+				if got, want := b.height(), every.height()-tt.fewer; got != want {
+					t.Errorf("the block takes %d rows, want %d, %d fewer than where every account has a 5-hour window", got, want, tt.fewer)
+				}
+				placed := map[string]int{}
+				for _, p := range b.placed() {
+					placed[p.id]++
+				}
+				if !maps.Equal(placed, tt.placed) {
+					t.Errorf("the rows placed by account, the pool's as \"\", are %v, want %v", placed, tt.placed)
+				}
+			})
+		}
+	}
+}
+
+// The pool's room is said of how many of its accounts have the window,
+// however the block is laid out: of 2 in a 5-hour two of three have, of 3 in
+// the weeks every one has.
+func TestThePoolsRoomIsOfTheAccountsWithTheWindow(t *testing.T) {
+	doc := trio(account("work", noSession))
+	tests := []struct {
+		name  string
+		width int
+		by    By
+	}{
+		{name: "side by side", width: 160, by: ByWindow},
+		{name: "stacked", width: 52, by: ByWindow},
+		{name: "by account", width: 160, by: ByAccount},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			all := strings.Join(printed(doc, tt.width, tt.by), "\n")
+			if got := strings.Count(all, " of 2 left"); got != 1 {
+				t.Errorf("the printout says of 2 left %d times, want once, of the 5-hour:\n%s", got, all)
+			}
+			if got := strings.Count(all, " of 3 left"); got != 2 {
+				t.Errorf("the printout says of 3 left %d times, want twice, of the weeks:\n%s", got, all)
+			}
+		})
 	}
 }
 

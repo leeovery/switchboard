@@ -524,6 +524,52 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowWhereItsWindowsSitSideBySide(t *t
 	}
 }
 
+// With one window, whose big bars take no more rows than its matrix, USAGE
+// draws its big bars wherever the matrix fits; with two or more, it draws
+// the matrix in the matrix's rows and the big bars only in theirs. At each
+// step it gives way, alike: one window its big bars, two its matrix.
+func TestUSAGEsBigBarsWinWhereTheyAreNoTallerThanTheMatrix(t *testing.T) {
+	weekOnly := func(id string) status.Account { return readAccount(id, weekOf(0.2, 3*quota.Day)) }
+	oneWindow := routerDoc("a1", 0, weekOnly("a1"), weekOnly("a2"), weekOnly("a3"))
+	tests := []struct {
+		name  string
+		doc   status.Document
+		width int
+		// most gives USAGE the big bars' rows, else the matrix's.
+		most, big bool
+	}{
+		{name: "one window, in the matrix's rows", doc: oneWindow, width: 160, big: true},
+		{name: "one window on a phone", doc: oneWindow, width: 73, big: true},
+		{name: "two windows, in the matrix's rows", doc: manyRead(3), width: 160},
+		{name: "two windows, in the big bars' rows", doc: manyRead(3), width: 160, most: true, big: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := frameOf(tt.width, 60).overviewBlock(tt.doc, now).views()
+			if !v.block.sideBySide() {
+				t.Fatalf("the windows don't sit side by side at %d columns, want a matrix that fits", tt.width)
+			}
+			rows := v.all
+			if tt.most {
+				rows = v.big
+			}
+			if got := v.fitted(rows).big; got != tt.big {
+				t.Errorf("in %d rows, the matrix's %d and the big bars' %d, USAGE draws its big bars: %v, want %v", rows, v.all, v.big, got, tt.big)
+			}
+		})
+	}
+	for given := givenApart; given <= givenKey; given++ {
+		for _, tt := range tests[:3] {
+			t.Run(fmt.Sprintf("given way to step %d, %s", given, tt.name), func(t *testing.T) {
+				lean := frameOf(tt.width, 60).overviewBlock(tt.doc, now).views().given(given)
+				if got := lean.fitted(lean.all).big; got != tt.big {
+					t.Errorf("in its %d rows, its big bars' %d, USAGE draws its big bars: %v, want %v", lean.all, lean.big, got, tt.big)
+				}
+			})
+		}
+	}
+}
+
 // On the Overview, as in the printout, USAGE's blocks are a blank row apart,
 // by window and by account, at every width, as its key line is from the
 // last.
