@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -137,6 +138,36 @@ func TestLessAndMoreShowTheOtherWindowsLiveViewRound(t *testing.T) {
 	}
 }
 
+// The heading names the window between < and >, each a step to click, where
+// Runway offers another window; where it offers the week alone, as where no
+// account has a 5-hour window, it names it bare, with nothing to click.
+func TestRunwaysHeadingStepsOnlyWhereItOffersAnotherWindow(t *testing.T) {
+	tests := []struct {
+		name  string
+		shown RunwayShown
+		right string
+		steps int
+	}{
+		{name: "both windows offered", shown: RunwayShown{}.Offering(offeredMoment()), right: "< week >", steps: 2},
+		{name: "the 5-hour shown", shown: RunwayShown{Window: views.RunwayFiveHour}.Offering(offeredMoment()), right: "< 5-hour >", steps: 2},
+		{name: "the week alone offered", shown: RunwayShown{Window: views.RunwayFiveHour}.Offering(offeredMoment(autoAccounts...)), right: "week"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, pieces := laidOn(tt.shown.heading(), 160, false)
+			steps := 0
+			for _, p := range pieces {
+				if p.click.On == OnStep {
+					steps++
+				}
+			}
+			if got := rowOf(c, 0); !strings.HasSuffix(got, "─  "+tt.right) || steps != tt.steps {
+				t.Errorf("the heading reads %q, with %d steps to click; want it ending %q, with %d", got, steps, tt.right, tt.steps)
+			}
+		})
+	}
+}
+
 // Runway offers the 5-hour only while some account has one: a 5-hour view
 // kept shows the week's live view while none has, a day stepped back to let
 // go, < and > having nothing else to show, the preferences keeping the
@@ -248,7 +279,7 @@ func TestRunwaysHeadingNamesItsWindowAndTheDaysSteppedBackTo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := tt.shown
+			r := tt.shown.Offering(offeredMoment())
 			r.Timeline = r.TimelineAt(runwayAt(), time.Monday, 160)
 			h := r.heading()
 			if h.name != "RUNWAY" || h.period != tt.wantPeriod || !reflect.DeepEqual(h.state, tt.wantState) {

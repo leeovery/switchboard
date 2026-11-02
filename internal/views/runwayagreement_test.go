@@ -17,7 +17,8 @@ import (
 // moment, in either view, and at every moment Runway has to get right that
 // holds now: now's column stands as the moment has the account stand; the
 // use under a name, live, is its view's window's, as usage has it; the
-// pool's lane counts the moment's pool, its room of the view's window;
+// pool's lane counts as the moment's pool counts the view's window, where it
+// has it, its room of that window;
 // COMING UP lists what the moment does, in its order; a stretch holding now
 // is back as the moment has the account back from every hold, or, where a
 // window runs out before then, as it resets, the run-out carrying the hold
@@ -45,8 +46,8 @@ func TestRunwaysLanesAgreeWithTheMoment(t *testing.T) {
 					}
 				}
 			}
-			if want := poolOf(m, viewKeys[c.from.Window], l.Accounts); l.Pool.Of != want {
-				t.Errorf("the pool is of %d, want %d", l.Pool.Of, want)
+			if want, ok := poolWindowOf(m, viewKeys[c.from.Window]); ok && len(l.Accounts) >= 2 && l.Pool.Of != want {
+				t.Errorf("the pool is of %d, want %d, as the moment's pool counts the view's window", l.Pool.Of, want)
 			}
 			if want := viewKeys[c.from.Window]; l.Pool.Of > 0 && l.Pool.Key != want {
 				t.Errorf("the pool's room is of the window %q, want %q, the view's", l.Pool.Key, want)
@@ -136,28 +137,16 @@ func carriedOn(a status.AccountNow, back, carried time.Time) bool {
 	})
 }
 
-// poolOf is how many accounts the moment's pool counts in the window with
-// the given key, over the lanes given: none where there's one lane, which
-// has no pool's lane; the window's Of where the pool keeps it; none where it
-// doesn't, as one of its accounts lacks it; else, as nothing's read of it
-// yet, every account the pool has.
-func poolOf(m status.Moment, key string, lanes []views.Lane) int {
+// poolWindowOf is how many of the moment's pool's accounts it counts in the
+// window with the given key, as its Of has it, reporting false where the
+// pool has no such window.
+func poolWindowOf(m status.Moment, key string) (int, bool) {
 	pool := m.Pool()
-	lacks := func(id string) bool {
-		a, _ := m.Account(id)
-		w, _ := a.Window(key)
-		return w.Kind == status.WindowNone
-	}
 	i := slices.IndexFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == key })
-	switch {
-	case len(lanes) < 2:
-		return 0
-	case i >= 0:
-		return pool.Windows[i].Of
-	case slices.ContainsFunc(pool.Accounts, lacks):
-		return 0
+	if i < 0 {
+		return 0, false
 	}
-	return len(pool.Accounts)
+	return pool.Windows[i].Of, true
 }
 
 // inOrderAmong reports whether each of some is among all, in all's order.

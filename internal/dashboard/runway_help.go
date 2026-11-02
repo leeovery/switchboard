@@ -10,12 +10,11 @@ import (
 // runwayHelp are Runway's parts as help explains them, after its keys, in
 // the design's order: the lanes, their marks and colours and the words under
 // them; the pool's lane and its room; stepping back and how far it
-// reaches; how long a column is; and COMING UP. With one lane, as of one
-// account, or the one account of several with a 5-hour window in its view,
-// which has no pool's lane, the pool's part goes, as it does from the page.
+// reaches; how long a column is; and COMING UP. Where there's no pool's
+// lane, as with one account, the pool's part goes, as it does from the page.
 func (f Frame) runwayHelp() []helpPart {
 	parts := []helpPart{f.lanesHelp()}
-	if lanes := f.Runway.Lanes; lanes == nil || len(lanes.Accounts) != 1 {
+	if lanes := f.Runway.Lanes; lanes == nil || lanes.Pool.Of > 0 {
 		parts = append(parts, poolHelp())
 	}
 	return append(parts, steppingBackHelp(), f.columnsHelp(), runwayComingHelp())

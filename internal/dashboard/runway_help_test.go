@@ -49,16 +49,18 @@ func TestRunwayHelpListsItsKeysThenEachPartInTheDesignsOrder(t *testing.T) {
 	}
 }
 
-// One account has no pool's lane, so help leaves the pool out, as the page
-// does; lanes not built yet are taken as the pool's.
-func TestRunwayHelpLeavesThePoolOutWithOneAccount(t *testing.T) {
+// Where there's no pool's lane, as with one account, or two lanes no pool's
+// lane is drawn under, help leaves the pool out, as the page does; lanes not
+// built yet are taken as the pool's.
+func TestRunwayHelpLeavesThePoolOutWithNoPoolsLane(t *testing.T) {
 	tests := []struct {
 		name  string
 		lanes *views.Lanes
 		want  []string
 	}{
-		{name: "one account", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}}}, want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
-		{name: "two accounts", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}, {ID: "personal"}}}, want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "one account", lanes: lanesOf(1), want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "two accounts", lanes: lanesOf(2), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "two lanes, no pool's lane", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}, {ID: "side"}}}, want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 		{name: "lanes not built yet", want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 	}
 	for _, tt := range tests {

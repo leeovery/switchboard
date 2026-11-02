@@ -25,9 +25,9 @@ const (
 const collapsedGap = 1
 
 // runwayWindows are every window Runway's views can be named for, in the
-// order < and > step between them, as Graphs reads them, and runwayNames
-// what the heading calls each. What Runway offers at a moment is
-// views.RunwayWindowsOf's.
+// order < and > step between them, as Graphs reads them and a kept window
+// is known by, and runwayNames what the heading calls each. What Runway
+// offers at a moment is views.RunwayWindowsOf's.
 var (
 	runwayWindows = views.RunwayWindows()
 	runwayNames   = map[views.RunwayWindow]string{views.RunwayFiveHour: "5-hour", views.RunwayWeek: "week"}
@@ -81,7 +81,7 @@ func (r RunwayShown) Labelled(m status.Moment) RunwayShown {
 // later build's, shows the week.
 func RunwayKept(kept theme.RunwayPrefs) RunwayShown {
 	r := RunwayShown{Collapsed: kept.Collapsed}
-	if w := views.RunwayWindow(kept.Window); runwayNames[w] != "" {
+	if w := views.RunwayWindow(kept.Window); slices.Contains(runwayWindows, w) {
 		r.Window = w
 	}
 	return r
@@ -244,9 +244,13 @@ func dayOf(t time.Time) time.Time {
 
 // heading is Runway's heading row: its name, then, stepped back, the days
 // its timeline shows, as daysNamed has them; and at the right, the window
-// between < and >.
+// between < and >, or bare, with nothing to click, where Runway offers no
+// other, as Switches has it.
 func (r RunwayShown) heading() heading {
 	h := heading{name: strings.ToUpper(Runway.Title()), period: runwayNames[r.Window]}
+	if !r.Switches() {
+		h.period, h.right = "", line{{h.period, mutedInk}}
+	}
 	if first, last, ok := r.Timeline.Named(); ok {
 		h.state = line{{daysNamed(first, last), faintInk}}
 	}
