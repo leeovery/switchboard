@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
@@ -178,9 +179,9 @@ func (a accountWorlds) verified(name string, ids ...string) accountWorld {
 		w.routed = func(now time.Time) []status.Session { return u.routed(routedSessions(now)) }
 		w.lines = func(time.Time) []ledger.Line { return slices.Clone(written) }
 		for i, acct := range w.accounts {
-			w.accounts[i].Plan = planMax
+			w.accounts[i].Plan = config.PlanMax
 			if _, ok := u[acct.ID]; ok {
-				w.accounts[i].Plan = planUltra
+				w.accounts[i].Plan = config.PlanUltra
 			}
 		}
 		return w

@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -257,6 +258,34 @@ func TestTheAccountsPagesKeys(t *testing.T) {
 	c := setupDrawn(accountsScreen(frame3Review(), 3), 160, 37)
 	if got := inkAt(c, 5, accountsAddRow); got != (ink{token: theme.TextPrimary, on: reviewChosenOn}) {
 		t.Errorf("+ add an account chosen, its words are in %+v, want text.primary on bg.selection", got)
+	}
+}
+
+func TestTheAccountsPagesOnwardKeyNamesTheStepEnterGoesTo(t *testing.T) {
+	onPlans := func(plans ...string) setup.Review {
+		review := frame3Review()
+		review.Accounts = slices.Clone(review.Accounts)
+		for i := range review.Accounts {
+			review.Accounts[i].Plan = plans[i%len(plans)]
+		}
+		return review
+	}
+	tests := []struct {
+		name   string
+		review setup.Review
+		want   string
+	}{
+		{name: "every account on Ultra: the Service, as Priming is skipped", review: onPlans("ultra"), want: "enter next: Service   q quit"},
+		{name: "Ultra beside Max: Priming", review: onPlans("ultra", "max"), want: "enter next: Priming   q quit"},
+		{name: "Ultra beside a plan unset: Priming", review: onPlans("ultra", ""), want: "enter next: Priming   q quit"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := setupDrawn(accountsScreen(tt.review, 0), 160, 37)
+			if got := rowOf(c, 36); !strings.HasSuffix(got, tt.want) {
+				t.Errorf("the key line reads\n%q\nwant it to end %q", got, tt.want)
+			}
+		})
 	}
 }
 

@@ -149,7 +149,16 @@ func (t reviewTable) keys() (left, right []Key) {
 	case t.review.Unmarked:
 		return accountKeys, []Key{Quit}
 	}
-	return accountKeys, onward("next: " + SetupPriming.Title())
+	return accountKeys, onward("next: " + t.next().Title())
+}
+
+// next is the step enter moves on to: Priming, but where setup skips it, as
+// SkipsPriming has it of the accounts, the Service.
+func (t reviewTable) next() SetupStep {
+	if t.review.SkipsPriming() {
+		return SetupService
+	}
+	return SetupPriming
 }
 
 // The rows of the table and its notes, from the heads: the first account's,

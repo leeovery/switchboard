@@ -14,12 +14,19 @@ import (
 
 // Plans are the plans a subscription can be on, by the names the config
 // gives them.
-var Plans = []string{"pro", "max", "ultra"}
+var Plans = []string{PlanPro, PlanMax, PlanUltra}
+
+// The plans, each by the name the config gives it.
+const (
+	PlanPro   = "pro"
+	PlanMax   = "max"
+	PlanUltra = "ultra"
+)
 
 // planAliases are the names plans had before Anthropic renamed them on 30
 // October 2026, each by the name it has now: a config that still gives one
 // loads as if it gave the new.
-var planAliases = map[string]string{"max5x": "max", "max20x": "ultra"}
+var planAliases = map[string]string{"max5x": PlanMax, "max20x": PlanUltra}
 
 // planNamed returns plan by the name Plans give it: an alias's new name,
 // else plan as it is.

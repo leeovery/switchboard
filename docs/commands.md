@@ -388,7 +388,9 @@ The steps are:
    account has already isn't saved. `p` on the token card pastes a token you made with `claude
    setup-token` instead; a pasted token shows as dots, never the token.
 2. **Priming.** Asks for your day, as `HH:MM-HH:MM`, holding the day set, if any, and writes it to
-   `[prime]` where it changed. Left empty, priming stays off; cleared, it's turned off.
+   `[prime]` where it changed. Left empty, priming stays off; cleared, it's turned off. Where every
+   account is on Ultra, setup skips this step and says so: a verified Ultra account has no 5-hour
+   window to start. A day already set is left as it is.
 3. **The service.** Runs as its page opens, asking nothing. Installs the LaunchAgent when it isn't
    installed and no router answers or runs. Installs it again when launchd hasn't loaded it and no
    router answers, when it runs another

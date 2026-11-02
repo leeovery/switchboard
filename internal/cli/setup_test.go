@@ -189,7 +189,7 @@ func TestSetupPrintsEachStepsLineAsItLeaves(t *testing.T) {
 	)
 	working := setup.TokenStanding{State: setup.TokenWorking}
 	review := &setup.Review{Accounts: []setup.Reviewed{{ID: "work", Primary: true, Token: working}, {ID: "personal", Token: working}}}
-	day := &config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}
+	primed := &setup.Primed{Day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}}
 	serviced := &setup.Serviced{Said: []setup.Said{{Mark: setup.Done, Label: "Installed", Detail: "~/Library/LaunchAgents/io.github.leeovery.switchboard.plist"}}, Router: &router.Health{OK: true}}
 	byHand := &setup.LinkFound{Made: setup.LinkCreated, Shell: setup.ShellFound{Situation: setup.OfferLine, Where: "~/.zshrc", Line: line, Dir: dir}}
 	unchecked := &setup.LinkFound{Made: setup.LinkCreated, Shell: setup.ShellFound{Situation: setup.UnknownShell, Dir: dir}}
@@ -219,18 +219,18 @@ func TestSetupPrintsEachStepsLineAsItLeaves(t *testing.T) {
 	}{
 		{
 			name:    "q mid-way",
-			left:    screen.Left{Ending: screen.Paused, Summary: setup.Summary{At: setup.StepService, Review: review, Day: day, Service: serviced}},
+			left:    screen.Left{Ending: screen.Paused, Summary: setup.Summary{At: setup.StepService, Review: review, Primed: primed, Service: serviced}},
 			rows:    []string{accountsRow, primingRow, serviceRow},
 			leaving: "run setup again to carry on\n",
 		},
 		{
 			name: "q at Done: the line left to add by hand under the claude link's",
-			left: screen.Left{Ending: screen.Finished, Summary: setup.Summary{At: setup.StepDone, Review: review, Day: day, Service: serviced, Link: byHand, Skill: skill}},
+			left: screen.Left{Ending: screen.Finished, Summary: setup.Summary{At: setup.StepDone, Review: review, Primed: primed, Service: serviced, Link: byHand, Skill: skill}},
 			rows: everyRow,
 		},
 		{
 			name:          "enter at Done: before the dashboard",
-			left:          screen.Left{Ending: screen.ToDashboard, Summary: setup.Summary{At: setup.StepDone, Review: review, Day: day, Service: serviced, Link: byHand, Skill: skill}},
+			left:          screen.Left{Ending: screen.ToDashboard, Summary: setup.Summary{At: setup.StepDone, Review: review, Primed: primed, Service: serviced, Link: byHand, Skill: skill}},
 			rows:          everyRow,
 			leaving:       "the dashboard\n",
 			wantDashboard: true,
@@ -251,21 +251,21 @@ func TestSetupPrintsEachStepsLineAsItLeaves(t *testing.T) {
 		},
 		{
 			name:     "Service failed",
-			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepService, Failure: why, Review: review, Day: day}},
+			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepService, Failure: why, Review: review, Primed: primed}},
 			rows:     []string{accountsRow, primingRow, stepRow("✗", "Service", why)},
 			leaving:  "Error: " + why + "\n",
 			wantCode: 1,
 		},
 		{
 			name:     "the claude link failed",
-			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepLink, Failure: why, Review: review, Day: day, Service: serviced}},
+			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepLink, Failure: why, Review: review, Primed: primed, Service: serviced}},
 			rows:     []string{accountsRow, primingRow, serviceRow, stepRow("✗", "claude link", why)},
 			leaving:  "Error: " + why + "\n",
 			wantCode: 1,
 		},
 		{
 			name:     "Skill failed: the directory left to put first on PATH under the claude link's",
-			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepSkill, Failure: why, Review: review, Day: day, Service: serviced, Link: unchecked}},
+			left:     screen.Left{Ending: screen.Failed, Err: stepFailed, Summary: setup.Summary{At: setup.StepSkill, Failure: why, Review: review, Primed: primed, Service: serviced, Link: unchecked}},
 			rows:     slices.Concat([]string{accountsRow, primingRow, serviceRow}, dirRows, []string{stepRow("✗", "Skill", why)}),
 			leaving:  "Error: " + why + "\n",
 			wantCode: 1,
@@ -287,7 +287,7 @@ func TestSetupPrintsEachStepsLineAsItLeaves(t *testing.T) {
 		},
 		{
 			name:      "the screen failing: the summary, then why",
-			left:      screen.Left{Ending: screen.Paused, Summary: setup.Summary{At: setup.StepService, Review: review, Day: day, Service: serviced}},
+			left:      screen.Left{Ending: screen.Paused, Summary: setup.Summary{At: setup.StepService, Review: review, Primed: primed, Service: serviced}},
 			screenErr: screenFailed,
 			rows:      []string{accountsRow, primingRow, serviceRow},
 			leaving:   "Error: " + screenFailed.Error() + "\n",
@@ -753,9 +753,9 @@ func takeAccountsAndPriming(t *testing.T, ctx context.Context, steps screen.Step
 	if _, err := steps.EditAccount("work", setup.Edit{Primary: true}); err != nil {
 		t.Fatalf("making work the primary: %v", err)
 	}
-	day, err := steps.Priming()
-	if err != nil || day != (config.Day{}) {
-		t.Fatalf("Priming() = %v, %v; want priming off", day, err)
+	primed, err := steps.Priming()
+	if err != nil || primed != (setup.Primed{}) {
+		t.Fatalf("Priming() = %v, %v; want priming off", primed, err)
 	}
 	if _, err := steps.SetDay("08:00-23:00"); err != nil {
 		t.Fatalf("setting priming's day: %v", err)

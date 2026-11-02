@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -533,8 +534,8 @@ func TestTheVerifiedWorldsPlans(t *testing.T) {
 		world accountWorld
 		want  []string
 	}{
-		{name: "ultra", world: worldsNow().ultra(), want: []string{planUltra, planUltra, planUltra}},
-		{name: "mixed", world: worldsNow().mixed(), want: []string{planUltra, planUltra, planMax}},
+		{name: "ultra", world: worldsNow().ultra(), want: []string{config.PlanUltra, config.PlanUltra, config.PlanUltra}},
+		{name: "mixed", world: worldsNow().mixed(), want: []string{config.PlanUltra, config.PlanUltra, config.PlanMax}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
