@@ -96,7 +96,7 @@ func (m Model) graphsSpans(t graphsTab, mo status.Moment, read []readings.Readin
 	spans := make(map[views.RunwayWindow]views.PoolSpan, len(views.RunwayWindows()))
 	for _, w := range views.RunwayWindows() {
 		spans[w] = look(t.spans[w], views.PoolRoomFrom{
-			Moment: mo, Readings: read, ReadThrough: m.runwayTab.live.through, Key: w.KeyIn(mo.Policy()), Columns: dashboard.GraphsGlanceColumns,
+			Moment: mo, Readings: read, ReadThrough: m.runwayTab.live.through, Key: w.KeyIn(mo), Columns: dashboard.GraphsGlanceColumns,
 		})
 	}
 	return spans

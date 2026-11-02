@@ -296,7 +296,7 @@ func (g glance) lines(l glanceLaid) ([]glanceLine, *glanceLine) {
 func (g glance) poolLine(names []accountName) *glanceLine {
 	shown := make([]shownWindow, len(runwayWindows))
 	for i, w := range runwayWindows {
-		shown[i] = shownWindow{key: w.KeyIn(g.m.Policy()), name: runwayNames[w]}
+		shown[i] = shownWindow{key: w.KeyIn(g.m), name: runwayNames[w]}
 	}
 	row, ok := poolRow(g.m.Pool(), names, shown)
 	if !ok {
@@ -317,7 +317,7 @@ func (g glance) poolLine(names []accountName) *glanceLine {
 // usable token, — in text.faint, as usage's figure; and usage's words for
 // it, as wordsOf has them, faint where it's out of the pool.
 func (g glance) accountGauge(a status.AccountNow, known bool, w views.RunwayWindow) glanceGauge {
-	key := w.KeyIn(g.m.Policy())
+	key := w.KeyIn(g.m)
 	win, _ := a.Window(key)
 	if !known {
 		win.Kind = status.WindowUnread

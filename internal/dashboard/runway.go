@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 	"time"
@@ -23,8 +24,10 @@ const (
 // column, collapsed.
 const collapsedGap = 1
 
-// runwayWindows are the windows Runway's views are named for, in the order
-// < and > step between them, and runwayNames what the heading calls each.
+// runwayWindows are every window Runway's views can be named for, in the
+// order < and > step between them, as Graphs reads them, and runwayNames
+// what the heading calls each. What Runway offers at a moment is
+// views.RunwayWindowsOf's.
 var (
 	runwayWindows = views.RunwayWindows()
 	runwayNames   = map[views.RunwayWindow]string{views.RunwayFiveHour: "5-hour", views.RunwayWeek: "week"}
@@ -32,14 +35,15 @@ var (
 
 // RunwayShown is Runway as the watch gives it: the window its view is named
 // for, and whether its account column is collapsed, as a has it, which the
-// preferences keep; the day stepped back to, as dayfile.Civil gives one, of
-// the 5-hour view, or the first day of the week stepped back to, of the
-// week's, zero in the live view, which they never keep; and what
-// the watch built at the look: the timeline the lanes are drawn over, as
-// TimelineAt has it, the lanes, as views.Lanes builds them, nil till
-// it's built them, and COMING UP's lines, as views.RunwayComing has them;
-// and the cells its accounts' labels take whole, as Labelled sizes them,
-// none till it does. What draws Runway reads what the watch built.
+// preferences keep, as Kept has them; the day stepped back to, as
+// dayfile.Civil gives one, of the 5-hour view, or the first day of the week
+// stepped back to, of the week's, zero in the live view, which they never
+// keep; and what the watch built at the look: the timeline the lanes are
+// drawn over, as TimelineAt has it, the lanes, as views.Lanes builds them,
+// nil till it's built them, and COMING UP's lines, as views.RunwayComing has
+// them; the cells its accounts' labels take whole, as Labelled sizes them,
+// none till it does; and the windows it offers, as Offering has them. What
+// draws Runway reads what the watch built.
 type RunwayShown struct {
 	Window    views.RunwayWindow
 	Collapsed bool
@@ -48,6 +52,13 @@ type RunwayShown struct {
 	Lanes     *views.Lanes
 	Coming    []status.Upcoming
 	labels    runwayLabels
+	// offered are the windows the moment of the last look offers, as
+	// views.RunwayWindowsOf has them, which < and > step between: none
+	// before the first. withheld is the window kept that they don't offer,
+	// which the view shows the week in place of: only the 5-hour can be, as
+	// the week's always offered, so the week, "", says none is.
+	offered  []views.RunwayWindow
+	withheld views.RunwayWindow
 }
 
 // runwayLabels are Runway's accounts' labels, as runwayLabelsOf has them:
@@ -70,16 +81,41 @@ func (r RunwayShown) Labelled(m status.Moment) RunwayShown {
 // later build's, shows the week.
 func RunwayKept(kept theme.RunwayPrefs) RunwayShown {
 	r := RunwayShown{Collapsed: kept.Collapsed}
-	if w := views.RunwayWindow(kept.Window); slices.Contains(runwayWindows, w) {
+	if w := views.RunwayWindow(kept.Window); runwayNames[w] != "" {
 		r.Window = w
 	}
 	return r
 }
 
 // Kept is what the preferences keep of Runway, as RunwayKept reads it: the
-// window and whether its account column is collapsed, never a step back.
+// window, the one withheld where the view shows the week in its place, so
+// it shows again once it's offered; and whether its account column is
+// collapsed; never a step back.
 func (r RunwayShown) Kept() theme.RunwayPrefs {
-	return theme.RunwayPrefs{Window: string(r.Window), Collapsed: r.Collapsed}
+	return theme.RunwayPrefs{Window: string(cmp.Or(r.withheld, r.Window)), Collapsed: r.Collapsed}
+}
+
+// Offering is Runway shown as r offering, at a look, the windows the moment
+// m offers, as views.RunwayWindowsOf has them: the window kept, as Kept has
+// it, where they offer it; else the week's live view in its place, the one
+// kept withheld, which the preferences keep all the same.
+func (r RunwayShown) Offering(m status.Moment) RunwayShown {
+	r.offered = views.RunwayWindowsOf(m)
+	shows, withheld := views.RunwayWindow(r.Kept().Window), views.RunwayWeek
+	if !slices.Contains(r.offered, shows) {
+		shows, withheld = views.RunwayWeek, shows
+	}
+	if shows != r.Window {
+		r.Back = time.Time{}
+	}
+	r.Window, r.withheld = shows, withheld
+	return r
+}
+
+// Switches reports whether < and > have another window to show: Runway
+// shown as r offers more than one, as Offering has them.
+func (r RunwayShown) Switches() bool {
+	return len(r.offered) > 1
 }
 
 // Collapsing is Runway with its account column collapsed where it's
@@ -151,10 +187,15 @@ func runwayUseCells() int {
 }
 
 // Windowed is Runway showing the live view of the window by places on from
-// the one shown, round, as < and > step between them, a place each. It
-// reports false where that's the live view shown already.
+// the one shown, round, among those it offers, as Offering has them, as <
+// and > step between them, a place each. It reports false where that's the
+// live view shown already, as it is where it offers one window, or none
+// yet.
 func (r RunwayShown) Windowed(by int) (RunwayShown, bool) {
-	next := runwayWindows[round(slices.Index(runwayWindows, r.Window)+by, len(runwayWindows))]
+	if !r.Switches() {
+		return r, false
+	}
+	next := r.offered[round(slices.Index(r.offered, r.Window)+by, len(r.offered))]
 	if next == r.Window && r.Back.IsZero() {
 		return r, false
 	}

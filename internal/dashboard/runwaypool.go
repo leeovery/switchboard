@@ -53,8 +53,9 @@ func (f Frame) roomSaid(laid runwayLaid) (int, line) {
 }
 
 // runwayPoolRoom is the pool's room in a window, as the moment has it: the
-// room, how many accounts the pool is, and whether a pin holds it; and the
-// window's key, its figure numbered by it.
+// room; how many of the pool's accounts have or may have the window, as its
+// Of counts them, the "of 3" its room is said against; and whether a pin
+// holds it; and the window's key, its figure numbered by it.
 type runwayPoolRoom struct {
 	key      string
 	room     float64
@@ -63,7 +64,7 @@ type runwayPoolRoom struct {
 }
 
 // runwayRoom is the pool's room of the moment m in the window with the key
-// given, the view's, reporting false where none of the pool's accounts has
+// given, the view's, reporting false where the moment's pool doesn't keep
 // the window.
 func runwayRoom(m status.Moment, key string) (runwayPoolRoom, bool) {
 	pool := m.Pool()
@@ -71,12 +72,14 @@ func runwayRoom(m status.Moment, key string) (runwayPoolRoom, bool) {
 	if i < 0 {
 		return runwayPoolRoom{}, false
 	}
-	return runwayPoolRoom{key: key, room: pool.Windows[i].Room, accounts: len(pool.Accounts), pinned: pool.Pinned}, true
+	w := pool.Windows[i]
+	return runwayPoolRoom{key: key, room: w.Room, accounts: w.Of, pinned: pool.Pinned}, true
 }
 
 // poolShort is the pool's room r as the collapsed account column says it,
-// as in "1.2/3": the room of how many accounts the pool is, the room bold
-// text.secondary, brightening as it changes, and "/3" in text.muted.
+// as in "1.2/3": the room of how many of its accounts have the window, the
+// room bold text.secondary, brightening as it changes, and "/3" in
+// text.muted.
 func poolShort(r runwayPoolRoom) line {
 	return line{
 		span{prose.Tenths(r.room), strongInk}.numbered(Number{Kind: NumberRoom, Of: r.key}),

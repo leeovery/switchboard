@@ -10,8 +10,9 @@ import (
 // runwayHelp are Runway's parts as help explains them, after its keys, in
 // the design's order: the lanes, their marks and colours and the words under
 // them; the pool's lane and its room; stepping back and how far it
-// reaches; how long a column is; and COMING UP. With one account, which has
-// no pool's lane, the pool's part goes, as it does from the page.
+// reaches; how long a column is; and COMING UP. With one lane, as of one
+// account, or the one account of several with a 5-hour window in its view,
+// which has no pool's lane, the pool's part goes, as it does from the page.
 func (f Frame) runwayHelp() []helpPart {
 	parts := []helpPart{f.lanesHelp()}
 	if lanes := f.Runway.Lanes; lanes == nil || len(lanes.Accounts) != 1 {
@@ -84,7 +85,7 @@ func poolHelp() helpPart {
 				"its last from 90%, ▃ at the least where any has room, and where none has room, ▂ along its foot, in a " +
 				"limit's red. An account at its cap or its limit counts without room, one running out at its pace with room " +
 				"until it does, and one not known then without. Under Σ pool, the pool's room in the view's window, as " +
-				"switchboard usage gives it; with the labels collapsed, under Σ, of how many accounts the pool is, as 1.2/3."),
+				"switchboard usage gives it; with the labels collapsed, under Σ, of how many of the pool's accounts have the window, as 1.2/3."),
 			said("The pool is every account on auto, and the pin's while one holds, as pinned says after its room where it fits; " +
 				"an account out of it is faded, the words under its lane not."),
 		},
@@ -92,7 +93,8 @@ func poolHelp() helpPart {
 }
 
 // steppingBackHelp is stepping back as help explains it: what ← and → step
-// to in each view; what < and > show; how far back ← reaches; how a day
+// to in each view; what < and > show, and why, where no account has a
+// 5-hour window, they're gone; how far back ← reaches; how a day
 // stepped back to is drawn; and that a step back is never kept.
 func steppingBackHelp() helpPart {
 	return helpPart{
@@ -101,7 +103,9 @@ func steppingBackHelp() helpPart {
 			said("`←` steps back: in the 5-hour view, first to today from its midnight, then a day at a time; in the week view, " +
 				"first to this week from its first day, as week_starts begins weeks, then a week at a time. `→` steps forward, and " +
 				"from today, or this week, to the live view: nothing lies ahead to step to. `<` and `>` show the other window's " +
-				"live view."),
+				"live view. Where no account has a 5-hour window, as a verified Ultra account has none, there's only the week, " +
+				"and `< >` leaves the key line: a 5-hour view kept shows the week, and the 5-hour again once an account has " +
+				"one. The 5-hour view lists only the accounts that have one, or may yet."),
 			said("`←` reaches back as far as the day summaries, which are kept for good; a day older than the readings history's " +
 				"keep draws its lanes from its summary's limits and resets alone. A day or a week stepped back to is drawn as it " +
 				"was, with no now, nothing dimmed, no COMING UP and no room line, under each name its highest use; today and this " +

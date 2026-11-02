@@ -6,6 +6,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // RunwayWindow is the window Runway's view is named for, as < and > step
@@ -19,10 +20,22 @@ const (
 	RunwayFiveHour RunwayWindow = "5-hour"
 )
 
-// RunwayWindows are the windows Runway's views are named for, in the order
-// < and > step between them: the week, then the 5-hour.
+// RunwayWindows are every window Runway's views can be named for, in the
+// order < and > step between them: the week, then the 5-hour. What Runway
+// offers at a moment is RunwayWindowsOf's.
 func RunwayWindows() []RunwayWindow {
 	return []RunwayWindow{RunwayWeek, RunwayFiveHour}
+}
+
+// RunwayWindowsOf are the windows Runway offers its views of at the moment
+// m, in the order < and > step between them: the week, always; then the
+// 5-hour, while some account has or may have one, as KeyIn finds it.
+func RunwayWindowsOf(m status.Moment) []RunwayWindow {
+	windows := []RunwayWindow{RunwayWeek}
+	if RunwayFiveHour.KeyIn(m) != "" {
+		windows = append(windows, RunwayFiveHour)
+	}
+	return windows
 }
 
 // The live views' spans: the 5-hour's, from the hour before now, 22 hours

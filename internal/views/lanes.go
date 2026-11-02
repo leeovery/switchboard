@@ -7,12 +7,12 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Lanes are Runway's lanes at a look, facts the dashboard words and colours:
-// a lane an account, in the moment's order; the pool's lane under them; and
+// a lane an account, in the moment's order, but one that lacks the view's
+// window, as lacks has it, which has none; the pool's lane under them; and
 // what they draw, as the legend keys it. Each look's are built once, by
 // Look, from the last look's, which holds what it judged of the timeline's
 // past until what that's judged from changes.
@@ -225,15 +225,18 @@ type Use struct {
 // before now's, or of a day or week gone, as Then, or l's judge, judges the
 // account stood at its moment, held from l where what that's judged from
 // hasn't changed; now's column and those after it as the moment has the
-// account stand, and heading.
+// account stand, and heading. An account lacking the view's window has no
+// lane, as lacks has it.
 func (l Lanes) Look(from LanesFrom) Lanes {
 	past := l.past
 	if !past.holds(from) {
 		past = l.judgePast(from)
 	}
-	look := Lanes{then: l.then, past: past, Accounts: make([]Lane, len(from.Moment.Accounts))}
+	look := Lanes{then: l.then, past: past, Accounts: make([]Lane, 0, len(from.Moment.Accounts))}
 	for i, a := range from.Moment.Accounts {
-		look.Accounts[i] = from.laneOf(a, past.accounts[i], l.judging())
+		if !from.lacks(a) {
+			look.Accounts = append(look.Accounts, from.laneOf(a, past.accounts[i], l.judging()))
+		}
 	}
 	look.Pool = from.poolOf(look.Accounts)
 	look.Drawn = drawnOf(look.Accounts)
@@ -429,22 +432,30 @@ func (s LaneStretch) holdsOn(st stood, c int, at time.Time) bool {
 }
 
 // viewKey is the key of the window the view is named for, as KeyIn has
-// it, in the moment's policy.
+// it, at the moment.
 func (from LanesFrom) viewKey() string {
-	return from.Window.KeyIn(from.Moment.Policy())
+	return from.Window.KeyIn(from.Moment)
 }
 
-// KeyIn is the key of the window Runway's view of w is named for, of those
-// every model shares, in the policy's order: the first lasting a day or less
-// of the 5-hour view, the first lasting longer of the week's; "" where none
-// does.
-func (w RunwayWindow) KeyIn(policy score.Policy) string {
-	for _, key := range policy.Shared {
+// KeyIn is the key of the window Runway's view of w is named for at the
+// moment m, of those every model shares that some account has or may have,
+// as its SharedWindows has them: the first lasting a day or less of the
+// 5-hour view, the first lasting longer of the week's; "" where none does.
+func (w RunwayWindow) KeyIn(m status.Moment) string {
+	for _, key := range m.SharedWindows() {
 		if quota.MultiDay(key) == (w == RunwayWeek) {
 			return key
 		}
 	}
 	return ""
+}
+
+// lacks reports whether the account a lacks the window the view is named
+// for, as a verified Ultra account has no 5-hour window, so has no lane in
+// the view.
+func (from LanesFrom) lacks(a status.AccountNow) bool {
+	w, _ := a.Window(from.viewKey())
+	return w.Kind == status.WindowNone
 }
 
 // saysFrom is the first column a lane's words are said of: now's, live, or

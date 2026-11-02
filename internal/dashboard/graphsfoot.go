@@ -46,7 +46,7 @@ func (f Frame) poolLine(m status.Moment, width int) line {
 	parts := []line{{{"Σ ", dimInk}, {"pool", noteInk}}}
 	pinned := pool.Pinned
 	for _, w := range runwayWindows {
-		key := w.KeyIn(m.Policy())
+		key := w.KeyIn(m)
 		r, ok := runwayRoom(m, key)
 		if !ok {
 			continue

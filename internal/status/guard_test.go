@@ -109,6 +109,9 @@ var (
 		"status.Account.HeldBy", "status.Account.Shut", "status.Account.TokenRefused", "status.Account.WindowAt",
 		"status.Document.Destination", "status.Document.Floor", "status.Document.Reserved", "status.Document.RunsOut",
 		"status.Document.StateOf", "status.Document.Text", "status.Document.WindowStatesOf",
+		// The windows every model shares, as the policy has them: the
+		// moment's SharedWindows are those some account has or may have.
+		"score.Policy.Shared",
 	}
 )
 
@@ -162,6 +165,7 @@ func TestTheMomentGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/view/planted.go:10: status.Account.Fresh takes the wire's status.Account; " + callFix,
 		"internal/view/planted.go:11: status.Sorted takes the wire's status.Account; " + callFix,
 		"internal/view/planted.go:12: status.Keyed takes the wire's status.Account; " + callFix,
+		"internal/view/shared.go:6: score.Policy.Shared works out what the moment has; " + absorbedFix,
 		"internal/view/kept.go: readsAllowed allows it, but it keeps the rule; " + allowedFix,
 		"internal/view/gone.go: readsAllowed allows it, but it's gone; " + allowedFix,
 		"status.Document.Gone: callsAllowed allows it, but no view calls it; " + allowedCallFix,
@@ -461,6 +465,14 @@ func absorbed(doc status.Document, a status.Account, now time.Time) bool {
 	state := doc.StateOf(a, now)
 	best := status.Best(nil)
 	return a.TokenRefused(now) && state == best
+}
+`,
+	"internal/view/shared.go": `package view
+
+import "example.com/fixture/internal/score"
+
+func shared(policy score.Policy) []string {
+	return policy.Shared
 }
 `,
 	"internal/view/planted.go": `package view

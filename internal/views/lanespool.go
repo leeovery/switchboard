@@ -1,11 +1,16 @@
 package views
 
-import "slices"
+import (
+	"slices"
 
-// Pool is the pool's lane: Of, how many accounts the pool has, the pin's
-// while it holds, none where there's one account, which has no pool's lane;
-// Key, the key of the window the view is named for, whose room the pool's
-// room line gives; and each column's count of them with room.
+	"github.com/leeovery/switchboard/internal/status"
+)
+
+// Pool is the pool's lane: Of, how many of the pool's accounts, the pin's
+// while it holds, have or may have the window the view is named for, none
+// where there's no pool's lane, as with one account, or one lane; Key, that
+// window's key, whose room the pool's room line gives; and each column's
+// count of them with room.
 type Pool struct {
 	Of      int
 	Key     string
@@ -33,14 +38,19 @@ func (p Pool) Limited() bool {
 }
 
 // poolOf is the pool's lane over the accounts' lanes given, as Pool has it:
-// none where there's one account.
+// none where there's one lane, nor where the pool doesn't keep the view's
+// window, as poolKeeps has it.
 func (from LanesFrom) poolOf(lanes []Lane) Pool {
 	if len(lanes) < 2 {
 		return Pool{}
 	}
 	in := from.Moment.Pool().Accounts
 	members := slices.DeleteFunc(slices.Clone(lanes), func(l Lane) bool { return !slices.Contains(in, l.ID) })
-	pool := Pool{Of: len(members), Key: from.viewKey(), Columns: make([]PoolColumn, max(from.Timeline.Columns, 0))}
+	of, kept := from.poolKeeps(len(members))
+	if !kept {
+		return Pool{}
+	}
+	pool := Pool{Of: of, Key: from.viewKey(), Columns: make([]PoolColumn, max(from.Timeline.Columns, 0))}
 	for c := range pool.Columns {
 		for _, l := range members {
 			pool.Columns[c].Known = pool.Columns[c].Known || l.Cells[c] != CellUnknown
@@ -50,6 +60,26 @@ func (from LanesFrom) poolOf(lanes []Lane) Pool {
 		}
 	}
 	return pool
+}
+
+// poolKeeps reports whether the pool keeps the view's window, and how many
+// of its accounts it counts in it, of the members given that have lanes: as
+// the moment's pool has the window, where it has it; else, where none of the
+// pool's accounts lacks it, as lacks has it, as before any reports it, the
+// members; else it doesn't keep it.
+func (from LanesFrom) poolKeeps(members int) (int, bool) {
+	pool, key := from.Moment.Pool(), from.viewKey()
+	if i := slices.IndexFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == key }); i >= 0 {
+		return pool.Windows[i].Of, true
+	}
+	return members, !slices.ContainsFunc(pool.Accounts, from.lacksAccount)
+}
+
+// lacksAccount reports whether the account with the given id lacks the view's
+// window, as lacks has it.
+func (from LanesFrom) lacksAccount(id string) bool {
+	a, ok := from.Moment.Account(id)
+	return ok && from.lacks(a)
 }
 
 // Drawn are what the lanes draw, as the legend keys it: the cells, in the
