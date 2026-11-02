@@ -392,6 +392,81 @@ func TestTheRoundsProbeAnIdleAccountEveryFiveMinutesAndOneInUseNever(t *testing.
 	})
 }
 
+func TestTheRoundsProbeAnIdleAccountWhoseAnswersStoppedReportingItsSessionEveryFiveMinutes(t *testing.T) {
+	tests := []struct {
+		name  string
+		prime config.Prime
+	}{
+		{name: "without priming"},
+		{name: "priming", prime: daytime},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				clock := newBubbleClock(onDay(1, 10, 0))
+				upstream := newWindowsUpstream(clock)
+				upstream.noSession(sideToken)
+				r := newPrimingRouter(t, clock.read, upstream, tt.prime)
+				running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.2, ResetsAt: onDay(1, 15, 0).UTC()}
+				upstream.startElsewhere(workToken, running.ResetsAt)
+				r.state.record("work", []quota.Window{running, week}, r.state.mark())
+				// Side's session ran till 01:00, and its answers have stopped
+				// reporting it since.
+				r.state.record("side", []quota.Window{lapsedAtOne, week}, r.state.mark())
+				r.state.recordAnswer("side", []quota.Window{week}, r.state.mark(), true)
+				var answering sync.WaitGroup
+				answering.Go(func() {
+					// Work's sessions read it every four minutes, by their answers.
+					for range 15 {
+						time.Sleep(4 * time.Minute)
+						r.state.record("work", []quota.Window{running, week}, r.state.mark())
+					}
+				})
+				stop := startRounds(r)
+				defer stop()
+
+				time.Sleep(time.Hour + 30*time.Second)
+				synctest.Wait()
+				var sides []time.Time
+				for at := onDay(1, 10, 5); !at.After(onDay(1, 11, 0)); at = at.Add(5 * time.Minute) {
+					sides = append(sides, at)
+				}
+				if got := upstream.probes(); !reflect.DeepEqual(got, map[string][]time.Time{sideToken: sides}) {
+					t.Errorf("probed at %v, want side every five minutes unread, %v: a probe starts no session it lacks", got, sides)
+				}
+				answering.Wait()
+			})
+		})
+	}
+}
+
+func TestAnAccountWhoseAnswersStoppedReportingItsSessionIsProbedAsAnyOther(t *testing.T) {
+	tests := []struct {
+		name string
+		// due says whether side wants probing.
+		due func(s *state) func(id string, now time.Time) bool
+	}{
+		{name: "before a choice", due: func(s *state) func(string, time.Time) bool { return s.due }},
+		{name: "on a refresh", due: func(s *state) func(string, time.Time) bool { return s.refreshing(0) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newTestState(clock)
+			// Side's session ran till an hour before, and its answers have
+			// stopped reporting it since.
+			lapsed := session
+			lapsed.ResetsAt = start.Add(-time.Hour)
+			s.record("side", []quota.Window{lapsed, week}, s.mark())
+			s.recordAnswer("side", []quota.Window{week}, s.mark(), true)
+
+			if now := start.Add(staleAfter + time.Second); !tt.due(s)("side", now) {
+				t.Errorf("side not due a probe %s, want it due: it has no session a probe would start", tt.name)
+			}
+		})
+	}
+}
+
 func TestAProbeMissedOnTheRoundsWhileTheMacSleptGoesOutAsItWakes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		clock := newBubbleClock(onDay(1, 10, 0))

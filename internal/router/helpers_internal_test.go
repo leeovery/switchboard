@@ -79,6 +79,13 @@ func newTestFile(now func() time.Time, as accounts) *stateFile {
 	return newStateFile(now, changes, newSessions(now, changes.note, changes.routine), as, usage, newYearsTold(changes.note))
 }
 
+// record takes in a reading of an account's windows off the answer to a
+// request sent at sent, as recordAnswer does one that isn't whole, which
+// retires no window: most tests read part of an account's windows.
+func (s *state) record(id string, windows []quota.Window, sent moment) []LimitLifted {
+	return s.recordAnswer(id, windows, sent, false)
+}
+
 // stillHeld reports of every account that it holds the token the state file
 // kept it holding.
 func stillHeld(string) bool { return true }

@@ -569,20 +569,13 @@ func TestTheScheduleIsWorkedOutAgainAsAnAccountGainsOrLosesItsToken(t *testing.T
 	clock := &testClock{now: onDay(1, 2, 0)}
 	files := &changingFiles{files: testTokens}
 	r := newPrimingRouterReading(t, clock.read, &stubProber{}, daytime, files.read)
-	slots := func() []string {
-		var slots []string
-		for _, slot := range r.Status().Prime.Slots {
-			slots = append(slots, slot.Account+" "+slot.At)
-		}
-		return slots
-	}
-	if got, want := slots(), []string{"work 04:10", "side 06:40"}; !slices.Equal(got, want) {
+	if got, want := slotsOf(r), []string{"work 04:10", "side 06:40"}; !slices.Equal(got, want) {
 		t.Fatalf("as the router starts, the slots are %q, want %q", got, want)
 	}
 
 	files.set(tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken})
 	r.upkeep.tokens.look()
-	if got, want := slots(), []string{"work 03:50", "personal 05:30", "side 07:10"}; !slices.Equal(got, want) {
+	if got, want := slotsOf(r), []string{"work 03:50", "personal 05:30", "side 07:10"}; !slices.Equal(got, want) {
 		t.Errorf("with personal's token, the slots are %q, want %q", got, want)
 	}
 
@@ -590,7 +583,7 @@ func TestTheScheduleIsWorkedOutAgainAsAnAccountGainsOrLosesItsToken(t *testing.T
 	files.set(tokenstest.Files{"personal": personalToken, "side": sideToken})
 	r.upkeep.tokens.look()
 	r.upkeep.tokens.look()
-	if got, want := slots(), []string{"personal 04:10", "side 06:40"}; !slices.Equal(got, want) {
+	if got, want := slotsOf(r), []string{"personal 04:10", "side 06:40"}; !slices.Equal(got, want) {
 		t.Errorf("without work's token, the slots are %q, want %q", got, want)
 	}
 
@@ -600,6 +593,32 @@ func TestTheScheduleIsWorkedOutAgainAsAnAccountGainsOrLosesItsToken(t *testing.T
 	if got := r.Status().Prime; !reflect.DeepEqual(got, status.Prime{}) {
 		t.Errorf("with no account's token, the schedule is %+v, want none", got)
 	}
+}
+
+func TestTheScheduleWorkedOutAgainAsAnAccountGainsItsTokenLeavesOutOneWithoutASessionAndSaysSoOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 2, 0))
+		files := &changingFiles{files: testTokens}
+		r := newPrimingRouterReading(t, clock.read, newWindowsUpstream(clock), daytime, files.read)
+		stop := startPriming(r)
+		defer stop()
+		synctest.Wait()
+
+		// Between two of the primer's looks, side's answers stop reporting its
+		// session, and personal gains its token.
+		r.state.recordAnswer("side", []quota.Window{week}, r.state.mark(), true)
+		files.set(tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken})
+		r.upkeep.tokens.look()
+		time.Sleep(primeLookEvery)
+		synctest.Wait()
+		if got, want := slotsOf(r), []string{"work 04:10", "personal 06:40"}; !slices.Equal(got, want) {
+			t.Errorf("with personal's token, the slots are %q, want %q: side's answers no longer report its session", got, want)
+		}
+		if got := linesWith(log, `msg="priming schedule worked out again"`); len(got) != 1 || !log.Has("level=INFO", `msg="priming schedule worked out again"`, "accounts=work,personal") {
+			t.Errorf("log reads\n%s\nwant the schedule worked out again over work and personal, told of once", log)
+		}
+	})
 }
 
 func TestAnAccountThatGainsItsTokenIsPrimedAtItsSlot(t *testing.T) {
@@ -625,6 +644,157 @@ func TestAnAccountThatGainsItsTokenIsPrimedAtItsSlot(t *testing.T) {
 			t.Errorf("once personal has its token, primed at %v, want each at its slot in the schedule of three %v", got, want)
 		}
 	})
+}
+
+func TestAnAccountWhoseAnswersStoppedReportingItsSessionIsNeverPrimed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clock := newBubbleClock(onDay(1, 0, 0))
+		upstream := newWindowsUpstream(clock)
+		upstream.noSession(sideToken)
+		r := newPrimingRouter(t, clock.read, upstream, daytime)
+		// Side's answers stopped reporting its session before the day.
+		r.state.recordAnswer("side", []quota.Window{week}, r.state.mark(), true)
+		stop := startPriming(r)
+		defer stop()
+
+		time.Sleep(29 * time.Hour)
+		synctest.Wait()
+		// Work alone has a slot, 05:30, its window's first reset halfway
+		// through the day's first five hours.
+		want := map[string][]time.Time{
+			workToken: {afterResets(onDay(1, 5, 30), 1), afterResets(onDay(1, 10, 30), 1), afterResets(onDay(1, 15, 30), 1), afterResets(onDay(1, 20, 30), 1)},
+		}
+		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
+			t.Errorf("primed at\n%v\nwant work alone, on a schedule of its own\n%v", got, want)
+		}
+	})
+}
+
+func TestTheFirstPrimeOfAnAccountWithoutASessionRetiresTheOneTheStateFileKept(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 6, 0))
+		upstream := newWindowsUpstream(clock)
+		upstream.noSession(sideToken)
+		r := newPrimingRouter(t, clock.read, upstream, daytime)
+		// The state file kept side's session as a router read it before its
+		// answers stopped reporting it: it ran till 01:00.
+		r.state.recall(savedUsage{Readings: map[string]savedReading{"side": {Windows: []quota.Window{lapsedAtOne, week}}}}, stillHeld)
+		stop := startPriming(r)
+		defer stop()
+
+		time.Sleep(3 * time.Hour)
+		synctest.Wait()
+		if got, want := upstream.probes()[sideToken], []time.Time{afterResets(onDay(1, 6, 40), 1)}; !reflect.DeepEqual(got, want) {
+			t.Errorf("side primed at %v, want %v: at its slot, and never again once it read no session", got, want)
+		}
+		for _, want := range [][]string{
+			{"level=INFO", `msg="no longer reports the window"`, "account=side", "window=5h"},
+			{"level=INFO", `msg="no window to prime"`, "account=side", "window=5h"},
+		} {
+			if !log.Has(want...) {
+				t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+			}
+		}
+		if log.Has(`msg="prime didn't start the window"`) || log.Has("msg=primed", "account=side") {
+			t.Errorf("log reads\n%s\nwant side's prime told of as finding no window, neither failing nor priming", log)
+		}
+	})
+}
+
+func TestTheScheduleIsWorkedOutAgainAsAnAccountsSessionGoesAndComesBack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 2, 0))
+		r := newPrimingRouter(t, clock.read, newWindowsUpstream(clock), daytime)
+		stop := startPriming(r)
+		defer stop()
+		synctest.Wait()
+		if got, want := slotsOf(r), []string{"work 04:10", "side 06:40"}; !slices.Equal(got, want) {
+			t.Fatalf("as the router starts, the slots are %q, want %q", got, want)
+		}
+
+		r.state.recordAnswer("side", []quota.Window{week}, r.state.mark(), true)
+		time.Sleep(primeLookEvery)
+		synctest.Wait()
+		if got, want := slotsOf(r), []string{"work 05:30"}; !slices.Equal(got, want) {
+			t.Errorf("once side's answers stop reporting its session, the slots are %q, want %q", got, want)
+		}
+		if !log.Has("level=INFO", `msg="priming schedule worked out again"`, "accounts=work") {
+			t.Errorf("log reads\n%s\nwant the schedule worked out again over work alone", log)
+		}
+
+		r.state.record("side", []quota.Window{session, week}, r.state.mark())
+		time.Sleep(primeLookEvery)
+		synctest.Wait()
+		if got, want := slotsOf(r), []string{"work 04:10", "side 06:40"}; !slices.Equal(got, want) {
+			t.Errorf("once side's session is read again, the slots are %q, want %q", got, want)
+		}
+		if !log.Has("level=INFO", `msg="priming schedule worked out again"`, "accounts=work,side") {
+			t.Errorf("log reads\n%s\nwant the schedule worked out again over both", log)
+		}
+	})
+}
+
+func TestTheScheduleIsWorkedOutAgainOnlyAsAnAccountsWindowToPrimeGoesOrComesBack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 2, 0))
+		r := newPrimingRouter(t, clock.read, newWindowsUpstream(clock), daytime)
+		// Side's answers stopped reporting its session before the primer
+		// first looked; from then on its answers and work's read as before.
+		r.state.recordAnswer("side", []quota.Window{week}, r.state.mark(), true)
+		var answering sync.WaitGroup
+		answering.Go(func() {
+			for range 40 {
+				time.Sleep(3 * time.Minute)
+				r.state.recordAnswer("side", []quota.Window{week}, r.state.mark(), true)
+				r.state.recordAnswer("work", []quota.Window{session, week}, r.state.mark(), true)
+			}
+		})
+		stop := startPriming(r)
+		defer stop()
+
+		time.Sleep(2 * time.Hour)
+		synctest.Wait()
+		if got := linesWith(log, `msg="priming schedule worked out again"`); len(got) != 1 {
+			t.Errorf("the schedule was worked out again %d times, want once, as the primer first looked: %q", len(got), got)
+		}
+		if got := linesWith(log, `msg="no longer reports the window"`); len(got) != 1 {
+			t.Errorf("side's session was told of as no longer reported %d times, want once: %q", len(got), got)
+		}
+		answering.Wait()
+	})
+}
+
+func TestAnAccountNeverReadKeepsItsSlot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 2, 0))
+		r := newPrimingRouter(t, clock.read, newWindowsUpstream(clock), daytime)
+		r.state.recordAnswer("work", []quota.Window{session, week}, r.state.mark(), true)
+		stop := startPriming(r)
+		defer stop()
+
+		time.Sleep(10 * time.Minute)
+		synctest.Wait()
+		if got, want := slotsOf(r), []string{"work 04:10", "side 06:40"}; !slices.Equal(got, want) {
+			t.Errorf("the slots are %q, want %q: side, never read, has a window to prime", got, want)
+		}
+		if log.Has(`msg="priming schedule worked out again"`) {
+			t.Errorf("log reads\n%s\nwant the schedule as it was worked out as the router started", log)
+		}
+	})
+}
+
+// slotsOf returns the slots of the router's schedule, each as its account and
+// its time of day.
+func slotsOf(r *Router) []string {
+	var slots []string
+	for _, slot := range r.Status().Prime.Slots {
+		slots = append(slots, slot.Account+" "+slot.At)
+	}
+	return slots
 }
 
 // newPrimingRouter builds a router of testConfigured that primes on the
@@ -699,28 +869,31 @@ func (c *bubbleClock) sleep(d time.Duration) {
 // account, by clock's time: a request starts the account's session when it
 // isn't running, at the ten-minute mark it falls in, and it resets five hours
 // after that mark. It notes when each token was
-// probed, refuses the tokens it's told to, and starts no session on those it's
-// told to leave idle. Every account's week reads as week does, unless it's
-// told otherwise.
+// probed, refuses the tokens it's told to, starts no session on those it's
+// told to leave idle, and answers those it's told have no session with
+// success, reporting their week alone. Every account's week reads as week
+// does, unless it's told otherwise.
 type windowsUpstream struct {
 	clock *bubbleClock
 
-	mu       sync.Mutex
-	sessions map[string]time.Time
-	refused  map[string]bool
-	idle     map[string]bool
-	probed   map[string][]time.Time
-	week     quota.Window
+	mu          sync.Mutex
+	sessions    map[string]time.Time
+	refused     map[string]bool
+	idle        map[string]bool
+	sessionless map[string]bool
+	probed      map[string][]time.Time
+	week        quota.Window
 }
 
 func newWindowsUpstream(clock *bubbleClock) *windowsUpstream {
 	return &windowsUpstream{
-		clock:    clock,
-		sessions: make(map[string]time.Time),
-		refused:  make(map[string]bool),
-		idle:     make(map[string]bool),
-		probed:   make(map[string][]time.Time),
-		week:     week,
+		clock:       clock,
+		sessions:    make(map[string]time.Time),
+		refused:     make(map[string]bool),
+		idle:        make(map[string]bool),
+		sessionless: make(map[string]bool),
+		probed:      make(map[string][]time.Time),
+		week:        week,
 	}
 }
 
@@ -731,6 +904,9 @@ func (u *windowsUpstream) Probe(_ context.Context, token string) (quota.Probe, e
 	u.probed[token] = append(u.probed[token], now)
 	if u.refused[token] {
 		return quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token")
+	}
+	if u.sessionless[token] {
+		return quota.Probe{Windows: []quota.Window{u.week}, Admitted: true}, nil
 	}
 	if reset, running := u.sessions[token]; !u.idle[token] && (!running || !reset.After(now)) {
 		u.sessions[token] = now.Truncate(10 * time.Minute).Add(5 * time.Hour)
@@ -768,6 +944,15 @@ func (u *windowsUpstream) leaveIdle(token string, lapsed time.Time) {
 	defer u.mu.Unlock()
 	u.idle[token] = true
 	u.sessions[token] = lapsed
+}
+
+// noSession has the upstream answer token with success from now on,
+// reporting its week alone, as it answers an account whose plan has no
+// session.
+func (u *windowsUpstream) noSession(token string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.sessionless[token] = true
 }
 
 // probes returns when each token was probed, by the token.

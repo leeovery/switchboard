@@ -470,6 +470,28 @@ func TestTakingUpADaysHistoryKeepsWhatTheTrailsNeedAlone(t *testing.T) {
 	}
 }
 
+func TestTakingUpTheHistoryKeepsNoTrailOfAWindowTheAccountDoesntHold(t *testing.T) {
+	now := start.Add(20 * time.Minute)
+	dir := t.TempDir()
+	h := newHistory(config.History{}, at(now))
+	h.open(dir)
+	// Work's session was read without a reset, before its answers stopped
+	// reporting it; the state file keeps its week alone.
+	writeLines(t, h,
+		readings.Reading{At: start, Account: "work", Key: "5h", Utilization: 0.2, Source: readings.FromAnswer},
+		readings.Reading{At: start.Add(10 * time.Minute), Account: "work", Key: "5h", Utilization: 0.3, Source: readings.FromAnswer},
+	)
+	s := newTestState(&testClock{now: now})
+	s.usage["work"].windows["7d"] = week
+
+	if kept := s.seed(h.readBack(now)); kept != 0 {
+		t.Errorf("took up %d readings, want none", kept)
+	}
+	if trail, ok := s.usage["work"].trails["5h"]; ok {
+		t.Errorf("work's session keeps the trail %+v, want none: work doesn't hold it", trail)
+	}
+}
+
 func TestTakingUpTheHistoryLeavesOutWhatCantBeTakenUp(t *testing.T) {
 	now := start.Add(20 * time.Minute)
 	resets := session.ResetsAt.UTC().Format(time.RFC3339)

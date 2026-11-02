@@ -241,6 +241,101 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	}
 }
 
+func TestTheStateFileKeepsTheWindowsAnAccountsWholeReadingsStoppedReporting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	saved := newTestFile(at(start), testAccounts())
+	saved.load(path)
+	saved.state.record("work", []quota.Window{session, week}, saved.state.mark())
+	saved.state.recordAnswer("work", []quota.Window{week}, saved.state.mark(), true)
+	saved.state.record("side", []quota.Window{session, week}, saved.state.mark())
+	saved.save()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := readState(t, path).Readings
+	if !slices.Equal(kept["work"].WindowsAbsent, []string{"5h"}) || kept["side"].WindowsAbsent != nil {
+		t.Errorf("state file keeps work's windows absent as %q, side's as %q; want work's session, and nothing of side's", kept["work"].WindowsAbsent, kept["side"].WindowsAbsent)
+	}
+	if n := strings.Count(string(data), `"windows_absent"`); n != 1 {
+		t.Errorf("state file holds\n%s\nwant the windows absent once, work's: side, with none, keeps the reading it kept before", data)
+	}
+	checkAsARouterFromBeforeReadsIt(t, data, saved.state)
+
+	loaded := newTestFile(at(start), testAccounts())
+	loaded.load(path)
+	if got, want := loaded.state.usage["work"].absent, map[string]moment{"5h": 0}; !maps.Equal(got, want) {
+		t.Errorf("work loaded its windows absent as %v, want %v: from before every moment", got, want)
+	}
+	if loaded.state.primable("work") {
+		t.Error("once loaded, work has a window to prime, want none")
+	}
+	if loaded.changes.unsaved.Load() {
+		t.Error("loading the file left it due to be saved, want it as it was")
+	}
+	loaded.state.record("work", []quota.Window{session}, loaded.state.mark())
+	if got := loaded.state.usage["work"].windows["5h"]; got != session {
+		t.Errorf("work's session reads %+v once read after the restart, want %+v, back", got, session)
+	}
+}
+
+func TestLoadingTakesTheWindowsRetiredAsTheRouterWouldHaveKeptThem(t *testing.T) {
+	tests := []struct {
+		name string
+		kept savedReading
+		// wantAbsent are work's windows absent once loaded, and wantHeld the
+		// keys of those it holds.
+		wantAbsent map[string]moment
+		wantHeld   []string
+	}{
+		{
+			name:       "the session retired",
+			kept:       savedReading{Windows: []quota.Window{week}, WindowsAbsent: []string{"5h"}},
+			wantAbsent: map[string]moment{"5h": 0},
+			wantHeld:   []string{"7d"},
+		},
+		{
+			name:       "a file from before windows were retired, which keeps none",
+			kept:       savedReading{Windows: []quota.Window{session, week}},
+			wantAbsent: map[string]moment{},
+			wantHeld:   []string{"5h", "7d"},
+		},
+		{
+			name:       "the session both read and retired, as edited by hand, read",
+			kept:       savedReading{Windows: []quota.Window{session, week}, WindowsAbsent: []string{"5h"}},
+			wantAbsent: map[string]moment{},
+			wantHeld:   []string{"5h", "7d"},
+		},
+		{
+			name:       "a window no model shares retired, as edited by hand, not",
+			kept:       savedReading{Windows: []quota.Window{week}, WindowsAbsent: []string{"7d_oi"}},
+			wantAbsent: map[string]moment{},
+			wantHeld:   []string{"7d"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			putState(t, path, savedState{
+				Version:  stateVersion,
+				Tokens:   map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
+				Readings: map[string]savedReading{"work": tt.kept},
+			})
+			f := newTestFile(at(start), testAccounts())
+
+			f.load(path)
+			u := f.state.usage["work"]
+			if !maps.Equal(u.absent, tt.wantAbsent) {
+				t.Errorf("work loaded its windows absent as %v, want %v", u.absent, tt.wantAbsent)
+			}
+			if got := slices.Sorted(maps.Keys(u.windows)); !slices.Equal(got, tt.wantHeld) {
+				t.Errorf("work loaded holding %q, want %q", got, tt.wantHeld)
+			}
+		})
+	}
+}
+
 func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	clock := &testClock{now: start.Add(-time.Hour)}

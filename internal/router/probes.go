@@ -265,10 +265,11 @@ func logProbe(a account, w went) {
 }
 
 // logPrime logs how a prime of an account went: at info, with the reset it
-// read of the window it primed, or at warn when it failed, on whichever
-// token, or didn't start that window. A prime that started it is told of
-// too, but for one that found it running already, as when the Claude apps
-// started it.
+// read of the window it primed, or that it read no such window, as of an
+// account whose answers no longer report it; or at warn when it failed, on
+// whichever token, or didn't start that window. A prime that started it is
+// told of too, but for one that found it running already, as when the Claude
+// apps started it.
 func (p *probes) logPrime(a account, w went) {
 	if w.err != nil {
 		logger.Warn("prime failed", "account", a.ID, "duration", w.took, "error", w.err)
@@ -276,13 +277,17 @@ func (p *probes) logPrime(a account, w went) {
 	}
 	attrs := []any{"account", a.ID, "duration", w.took}
 	primed := Primed{Account: a.ID, Window: p.state.policy.Started}
-	if i := slices.IndexFunc(w.probed.Windows, func(read quota.Window) bool { return read.Key == primed.Window }); i >= 0 {
+	i := slices.IndexFunc(w.probed.Windows, func(read quota.Window) bool { return read.Key == primed.Window })
+	if i >= 0 {
 		primed.ResetsAt = w.probed.Windows[i].ResetsAt
 		attrs = append(attrs, "resets", primed.ResetsAt)
 	}
-	if p.state.primeFailed(a.ID) {
+	switch {
+	case p.state.primeFailed(a.ID):
 		logger.Warn("prime didn't start the window", append(attrs, "window", primed.Window)...)
-	} else {
+	case i < 0:
+		logger.Info("no window to prime", append(attrs, "window", primed.Window)...)
+	default:
 		logger.Info("primed", attrs...)
 		if primed.startedBy(w.at) {
 			p.emit(primed)
