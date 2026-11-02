@@ -460,6 +460,73 @@ func TestThePoolsWindowsAreAListEvenOfNone(t *testing.T) {
 	}
 }
 
+// Each of the pool's windows counts the accounts that have it or may have
+// it, not those that lack it; a window every model shares that some lack,
+// and fewer than two have, isn't pooled; and a model's own window counts
+// every account, as none lacks it. Room and use are of those that have it.
+func TestThePoolCountsTheAccountsWithEachWindow(t *testing.T) {
+	both := func(id string) status.Account {
+		return readAt(id, windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day))
+	}
+	weekOnly := func(id string) status.Account { return readAt(id, windowIn("7d", 0.3, 2*day)) }
+	unread := status.Account{ID: "unread", Label: "unread", TokenSet: true}
+	tests := []struct {
+		name string
+		doc  status.Document
+		// want are its windows, as poolOfLines shows them.
+		want []string
+	}{
+		{name: "every account with both", doc: routerDocOf(both("work"), both("side")), want: []string{"5h of 2: room 1.2", "7d of 2: room 1"}},
+		{
+			name: "a pool of three, one lacking the 5-hour", doc: routerDocOf(both("work"), weekOnly("ultra"), both("side")),
+			want: []string{"5h of 2: room 1.2", "7d of 3: room 1.7"},
+		},
+		{name: "only one with the 5-hour: none pooled", doc: routerDocOf(both("work"), weekOnly("ultra"), weekOnly("max")), want: []string{"7d of 3: room 1.9"}},
+		{name: "one with the 5-hour, one not read, which may have it", doc: routerDocOf(both("work"), unread, weekOnly("ultra")), want: []string{"5h of 2: room 0.6", "7d of 3: room 1.2"}},
+		{
+			name: "a model's own window, which one account reports: of every account", doc: routerDocOf(readAt("work", windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day), windowIn("7d_oi", 0.2, 6*day)), both("side")),
+			want: []string{"5h of 2: room 1.2", "7d of 2: room 1", "7d_oi of 2: room 0.8"},
+		},
+		{name: "pinned to one account: its windows, as it lacks none", doc: pinnedTo(routerDocOf(both("work"), both("side")), "work"), want: []string{"5h of 1: room 0.6", "7d of 1: room 0.5"}},
+		{name: "pinned to one with the 5-hour and one lacking it: no 5-hour pooled", doc: pinnedTo(routerDocOf(both("work"), weekOnly("ultra"), both("side")), "work", "ultra"), want: []string{"7d of 2: room 1.2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := tt.doc.WorkedOut(policy)
+			if got := poolOfLines(doc.Pool); !slices.Equal(got, tt.want) {
+				t.Errorf("the pool's windows are %q, want %q", got, tt.want)
+			}
+			if got, want := doc.At(built, policy).Pool(), poolNowOf(doc.Pool); !reflect.DeepEqual(got, want) {
+				t.Errorf("the pool at the moment is %+v, want %+v, as the document has it", got, want)
+			}
+		})
+	}
+}
+
+func TestThePoolsWindowsSayHowManyAccountsHaveThem(t *testing.T) {
+	doc := routerDocOf(
+		readAt("work", windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day)),
+		readAt("ultra", windowIn("7d", 0.3, 2*day)),
+		readAt("side", windowIn("5h", 0.2, time.Hour), windowIn("7d", 0.1, 6*day)),
+	)
+	got, err := json.Marshal(doc.WorkedOut(policy).Pool)
+	for _, want := range []string{`{"key":"5h","label":"Session","of":2,`, `{"key":"7d","label":"Week","of":3,`} {
+		if err != nil || !strings.Contains(string(got), want) {
+			t.Errorf("Marshal() = %s, %v, want it to hold %s", got, err, want)
+		}
+	}
+}
+
+// poolOfLines shows each of the pool's windows: its key, how many accounts
+// have it, and its room.
+func poolOfLines(p status.Pool) []string {
+	var lines []string
+	for _, w := range p.Windows {
+		lines = append(lines, fmt.Sprintf("%s of %d: room %.6g", w.Key, w.Of, w.Room))
+	}
+	return lines
+}
+
 // poolLines shows each of the pool's windows: its key, label, room, use and
 // even pace.
 func poolLines(p status.Pool) []string {
@@ -485,7 +552,7 @@ func poolNowLines(p status.PoolNow) []string {
 func poolNowOf(p status.Pool) status.PoolNow {
 	now := status.PoolNow{Accounts: p.Accounts, Pinned: p.Pinned}
 	for _, w := range p.Windows {
-		now.Windows = append(now.Windows, status.PoolWindowNow{Key: w.Key, Room: w.Room, Used: w.Used, Pace: w.Pace})
+		now.Windows = append(now.Windows, status.PoolWindowNow{Key: w.Key, Of: w.Of, Room: w.Room, Used: w.Used, Pace: w.Pace})
 	}
 	return now
 }

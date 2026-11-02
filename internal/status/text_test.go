@@ -56,6 +56,7 @@ func TestText(t *testing.T) {
   Fable offline: HTTP 529 · Overloaded
 
 side · Side
+  Week        no week window
   5-hour       0%  not started
   Fable week 104%  resets in 7m · Mon 14:19 · exhausted
   30d          5%
@@ -129,6 +130,7 @@ probed directly
   2 sessions
 
 side · Side
+  Week    no week window
   5-hour  60%  resets in 2h 58m · Mon 17:10
   limit until Mon 21:00
   1 session
@@ -166,16 +168,19 @@ from the router: healthy  ·  3 sessions  ·  pinned to side · Side
 				},
 			},
 			want: `work · Work
+  Week    no week window
   5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   refused (401) until 14:20
 
 side · Side
+  Week    no week window
   5-hour 100%  resets in 6h 48m · Mon 21:00 · exhausted
   limit until Mon 21:00
   refused (403, opus) until 14:21
   1 session
 
 spare · Spare
+  Week    no week window
   5-hour  50%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 16:14
 
 from the router: healthy  ·  no sessions  ·  routing automatically
@@ -238,6 +243,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
   5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
 
 side · Side
+  Week    no week window
   5-hour   0%  not started · next prime Mon 14:17
 
 priming 08:00-23:00: work at 04:10 and side at 06:40
@@ -394,6 +400,7 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 				"  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
 				tt.work + "\n" +
 				"side · Side\n" +
+				"  Week    no week window\n" +
 				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
 				"\n" +
 				"from the router: healthy  ·  2 sessions  ·  " + doc.Routing() + "\n"
@@ -581,6 +588,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 				}},
 			}
 			want := "work · Work\n" +
+				"  Week    no week window\n" +
 				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
 				tt.notes + "\n" +
 				"best next: work · Work\n" +
@@ -609,6 +617,7 @@ func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
 		}},
 	}
 	want := "work · Work\n" +
+		"  Week    no week window\n" +
 		"  5-hour   0%  not started\n" +
 		"\n" +
 		"best next: work · Work\n" +
@@ -639,17 +648,17 @@ func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst
 			change: func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: reset.Add(40 * time.Minute)}
 			},
-			want: "  5-hour   0%\n  limit until Mon 17:50\n",
+			want: "  Week    no week window\n  5-hour   0%\n  limit until Mon 17:50\n",
 		},
 		{
 			name:   "its last read failed",
 			change: func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" },
-			want:   "  5-hour   0%  not started\n  HTTP 529 · Overloaded\n",
+			want:   "  Week    no week window\n  5-hour   0%  not started\n  HTTP 529 · Overloaded\n",
 		},
 		{
 			name:   "its token refused",
 			change: func(a *status.Account) { a.Refused = status.Refusal{Until: reset.Add(time.Hour), Status: 401} },
-			want:   "  5-hour   0%\n  refused (401) until 18:10\n",
+			want:   "  Week    no week window\n  5-hour   0%\n  refused (401) until 18:10\n",
 		},
 	}
 	for _, tt := range tests {
@@ -687,10 +696,38 @@ func TestTextGivesAWeekResetSinceItWasReadItsNextReset(t *testing.T) {
 		}},
 	}
 	want := "work · Work\n" +
-		"  Week   0%  resets in 6d 23h · Mon 15:12\n" +
+		"  Week     0%  resets in 6d 23h · Mon 15:12\n" +
+		"  5-hour  no 5-hour window\n" +
 		"  refused (401) until 16:12\n"
 	if got := doc.At(reset.Add(time.Second), policy).Text(); !strings.HasPrefix(got, want) {
 		t.Errorf("Text() =\n%s\nwant it to start\n%s", got, want)
+	}
+}
+
+// status says a window every model shares that an account lacks has no such
+// window, in its place, its name lining up with every account's windows;
+// and says nothing of one an account not read may have.
+func TestTextSaysAWindowAnAccountLacksIsNone(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.4, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC)}
+	doc := status.Document{
+		GeneratedAt: now.UTC(),
+		Source:      status.SourceRouter,
+		Router:      status.Health{Healthy: true},
+		Accounts: []status.Account{
+			{ID: "ultra", Label: "Ultra", TokenSet: true, FetchedAt: now.UTC(), Windows: []quota.Window{week}},
+			{ID: "spare", Label: "Spare", TokenSet: true},
+		},
+	}
+	want := "ultra · Ultra\n" +
+		"  Week    40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15\n" +
+		"  5-hour  no 5-hour window\n" +
+		"\n" +
+		"spare · Spare\n" +
+		"\n" +
+		"from the router: healthy  ·  no sessions  ·  routing automatically\n"
+	if got := doc.At(now, policy).Text(); got != want {
+		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 	}
 }
 
@@ -712,6 +749,7 @@ func TestTextSaysASessionNotedLapsedHasntStartedThoughItsProbeFailed(t *testing.
 		}},
 	}
 	want := "work · Work\n" +
+		"  Week    no week window\n" +
 		"  5-hour   0%  not started · next prime Mon 16:20\n" +
 		"  HTTP 529 · Overloaded\n"
 	if got := doc.At(now, policy).Text(); !strings.HasPrefix(got, want) {
@@ -751,7 +789,8 @@ func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 				}},
 			}
 			want := "work · Work\n" +
-				"  Week  99%  resets in 4d · Fri 14:12 · " + tt.heading + "\n\n" +
+				"  Week    99%  resets in 4d · Fri 14:12 · " + tt.heading + "\n" +
+				"  5-hour  no 5-hour window\n\n" +
 				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 			if got := doc.At(now, policy).Text(); got != want {
@@ -1007,6 +1046,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	}
 	want := "work · Work [2J\n" +
 		"  Week [2J  23%\n" +
+		"  5-hour    no 5-hour window\n" +
 		"  Fable [2J offline: HTTP 529 · [2JOverloaded\n" +
 		"  HTTP 401 · [2JInvalid bearer token\n"
 	if !strings.HasPrefix(routers, want) {

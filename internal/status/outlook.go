@@ -16,7 +16,8 @@ type Pool struct {
 	Accounts []string `json:"accounts"`
 	// Pinned is set when they're the accounts the global pin names.
 	Pinned bool `json:"pinned,omitempty"`
-	// Windows are a window each that any of them has, shortest first.
+	// Windows are a window each that any of them has, shortest first, as
+	// pooled has them.
 	Windows []PoolWindow `json:"windows"`
 }
 
@@ -24,6 +25,9 @@ type Pool struct {
 type PoolWindow struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
+	// Of is how many of its accounts have it or may have it: those that
+	// don't lack it, as lacking has them.
+	Of int `json:"of"`
 	// Room is the room its accounts have left in it, summed in accounts'
 	// worth, 1.5 being an account and a half.
 	Room float64 `json:"room"`
@@ -338,9 +342,19 @@ func (d Document) pool(accounts []judgedAccount) Pool {
 	}
 	slices.SortFunc(keys, quota.CompareKeys)
 	for _, key := range keys {
-		p.Windows = append(p.Windows, poolWindow(members, key))
+		if w := poolWindow(members, key); w.pooled(len(members)) {
+			p.Windows = append(p.Windows, w)
+		}
 	}
 	return p
+}
+
+// pooled reports whether the pool of the given number of members has the
+// window as one: not where some of them lack it, as lacking has them, and
+// fewer than two have it. A pool the global pin makes of one account has its
+// windows, as it lacks none of them.
+func (w PoolWindow) pooled(members int) bool {
+	return w.Of >= 2 || w.Of == members
 }
 
 // pooled reports whether the document has a pool: it has several accounts,
@@ -356,14 +370,18 @@ func (d Document) inPool(id string) bool {
 }
 
 // poolWindow is the window with the given key of the members given, as one:
-// the room each has left in it, as poolRoom has it, summed; their use of it,
-// those usedOf counts, averaged; and their even paces in it, as it stands,
-// where it's running, as paceOf has each, averaged.
+// how many have it or may have it, as lacking has those that don't; the room
+// each has left in it, as poolRoom has it, summed; their use of it, those
+// usedOf counts, averaged; and their even paces in it, as it stands, where
+// it's running, as paceOf has each, averaged.
 func poolWindow(members []judgedAccount, key string) PoolWindow {
 	pw := PoolWindow{Key: key}
 	var used, paces float64
 	var counted, running int
 	for _, m := range members {
+		if !m.states.lacksWindow(key) {
+			pw.Of++
+		}
 		w, ok := m.window(key)
 		if !ok {
 			continue

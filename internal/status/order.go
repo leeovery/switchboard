@@ -47,23 +47,33 @@ func (m Moment) CompareWindows(a, b string) int {
 }
 
 // SharedWindows are the keys of the windows every model shares, as the
-// policy the moment was judged by has them, in the order the owner reads
-// windows listed, as CompareWindows has it.
+// policy the moment was judged by has them, that some account has or may
+// have, in the order the owner reads windows listed, as CompareWindows has
+// it: not one every account lacks, as lacking has them, where there's any
+// account.
 func (m Moment) SharedWindows() []string {
-	return slices.SortedFunc(slices.Values(m.policy.Shared), m.CompareWindows)
+	shared := slices.DeleteFunc(slices.Clone(m.policy.Shared), m.lackedByAll)
+	return slices.SortedFunc(slices.Values(shared), m.CompareWindows)
+}
+
+// lackedByAll reports whether every account at the moment lacks the window
+// every model shares with the given key, as lacking says: never where there
+// are none.
+func (m Moment) lackedByAll(key string) bool {
+	return len(m.Accounts) > 0 && !slices.ContainsFunc(m.Accounts, func(a AccountNow) bool { return !a.lacksWindow(key) })
 }
 
 // Listed are the keys of the windows the owner reads listed at the moment
 // where none is asked for, as USAGE, the Switchboard's lines and usage's
-// printout list them: those every model shares, as SharedWindows has them,
-// so every account keeps its rows before any is read; then each
-// model's own any account reports, as any window the policy doesn't share
-// is: with models, every one, as usage's printout lists them, and the live
-// views while w shows them; without, only one nearing or at its limit on
-// some account, as nearsLimit has it, for as long as that holds. In the
-// order CompareWindows has.
+// printout list them: those every model shares that some account has or may
+// have, as SharedWindows has them, so every account keeps its rows before
+// any is read; then each model's own any account reports, as any window the
+// policy doesn't share is: with models, every one, as usage's printout lists
+// them, and the live views while w shows them; without, only one nearing or
+// at its limit on some account, as nearsLimit has it, for as long as that
+// holds. In the order CompareWindows has.
 func (m Moment) Listed(models bool) []string {
-	keys := slices.Clone(m.policy.Shared)
+	keys := m.SharedWindows()
 	for _, a := range m.Accounts {
 		for _, w := range a.Windows {
 			if models || w.nearsLimit() {
