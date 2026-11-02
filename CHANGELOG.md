@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-02
+
+Setup is now a full-screen walkthrough that creates each account's token for you.
+
+💥 Breaking
+- `switchboard setup` now needs a terminal for both input and output — the old line-by-line prompts are gone; without a terminal it prints the commands that do each step alone.
+- `switchboard accounts token <id>` now makes the token itself with `claude setup-token` when run at a terminal — add `--paste` to type or paste a token as before.
+
+✨ Added
+- Full-screen setup, a page per step (Accounts, Priming, Service, claude link, Skill, Done) — add, edit and remove accounts, make the primary, set priming, and press `enter` at the end to open the dashboard.
+- Setup creates each account's token for you: it runs `claude setup-token`, opens the sign-in page in your browser (the primary's) or a private window (other accounts), checks the token and saves it, with `p` to paste one instead.
+- Duplicate-subscription check — a new token that belongs to another account's subscription is refused.
+- `switchboard accounts edit <id>` with `--label`, `--plan`, `--primary` and `--reserve` — change an account without editing the config by hand.
+- Token expiry tracking — each token's year is shown on the Accounts page, in the dashboard and in setup, and desktop notifications warn at 30 and 7 days before it ends and when it has expired.
+- Setup offers to add one line to your shell's startup file so `claude` goes through switchboard, and writes switchboard's own shell files with PATH and completions for zsh, bash and fish.
+- Session hook — a Claude Code session that didn't start through switchboard now says so.
+- Setup asks your login shell which `claude` it actually runs, and explains what to fix if it isn't switchboard's.
+- Setup warns when the router and setup look at different state, config or Claude Code directories.
+
+🔧 Changed
+- `switchboard service install` keeps the flags and environment variables of the plist already in place, and reinstalls when the plist differs from the one this version writes.
+- `switchboard service status` shows whether launchd is running the router and its pid, and says when the answering router is not the one the plist runs.
+- Installing the service now finishes the swap once begun, even on an interrupt, so the router isn't left down.
+- Removing an account says clearly when its token file couldn't be deleted, or was a link whose target is kept.
+- Restarts and status checks look for the router where the installed plist keeps its state.
+
+🐛 Fixed
+- Token files that are symlinks with relative `..` targets are now followed correctly when writing.
+- Concurrent log-directory locks no longer fail when interrupted by a signal.
+- The router now returns an error instead of an empty 200 when it can't encode a JSON answer.
+
 ## [0.2.10] - 2026-10-27
 
 🐛 Fixed
