@@ -65,15 +65,16 @@ func (from LanesFrom) poolOf(lanes []Lane) Pool {
 // poolCounts is how many of the pool's accounts its lane counts in the view's
 // window, the members given being those of them with lanes, reporting false
 // where it has no lane: the window's Of, where the moment's pool has the
-// window; else, as before any reports it, the members, where the pool would
-// keep a window they had, as status keeps one: two or more of them, or every
-// one of the pool's accounts, as a pin of one account not read yet is.
+// window; else, as before any reports it, the members, where there are any
+// and the pool doesn't lack the window, as the moment's PoolLacks has it.
+// The members are those PoolLacks counts, as an account has a lane but
+// where it lacks the window.
 func (from LanesFrom) poolCounts(members int) (int, bool) {
 	pool, key := from.Moment.Pool(), from.viewKey()
 	if i := slices.IndexFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == key }); i >= 0 {
 		return pool.Windows[i].Of, true
 	}
-	return members, members >= 2 || members > 0 && members == len(pool.Accounts)
+	return members, members > 0 && !from.Moment.PoolLacks(key)
 }
 
 // Drawn are what the lanes draw, as the legend keys it: the cells, in the

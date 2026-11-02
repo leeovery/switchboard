@@ -129,6 +129,11 @@ func TestTheFiveHourViewListsOnlyTheAccountsThatHaveOne(t *testing.T) {
 			window:   views.RunwayFiveHour, lanes: []string{"personal", "side"}, of: 2,
 		},
 		{
+			name:     "none read yet",
+			accounts: []status.Account{unreadAccount("work"), unreadAccount("personal"), unreadAccount("side")},
+			window:   views.RunwayFiveHour, lanes: []string{"work", "personal", "side"}, of: 3,
+		},
+		{
 			name:     "starting up, two not read yet beside an Ultra one",
 			accounts: []status.Account{ultraAccount("work"), unreadAccount("personal"), unreadAccount("side")},
 			window:   views.RunwayFiveHour, lanes: []string{"personal", "side"}, of: 2,
