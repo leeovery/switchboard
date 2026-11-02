@@ -28,7 +28,7 @@ LIMITS
   left at its last reset  0% (limit Fri)     15%                40%                37%                91%                21%                —
 
 VALUE
-  plan                    Max 20x · $200/mo  Max 20x · $200/mo  Max 20x · $200/mo  Max 20x · $200/mo  Max 5x · $100/mo   Max 20x · $200/mo  $1,700/mo · 10 plans
+  plan                    Ultra · $200/mo    Ultra · $200/mo    Ultra · $200/mo    Ultra · $200/mo    Max · $100/mo      Ultra · $200/mo    $1,700/mo · 10 plans
   extra usage             off                off                off                off                off                off                off on all
   worth at API prices     $184               $212               $239               $151               $9                 $133               $1,310
   against its price       4.0× its $46 week  4.6× its $46 week  5.2× its $46 week  3.3× its $46 week  0.4× its $23 week  2.9× its $46 week  3.3× its $392 week

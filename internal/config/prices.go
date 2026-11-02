@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 	"math"
 	"slices"
@@ -13,9 +14,28 @@ import (
 
 // Plans are the plans a subscription can be on, by the names the config
 // gives them.
-var Plans = []string{"pro", "max5x", "max20x"}
+var Plans = []string{"pro", "max", "ultra"}
 
-// planNames names Plans, as "pro, max5x or max20x".
+// planAliases are the names plans had before Anthropic renamed them on 30
+// October 2026, each by the name it has now: a config that still gives one
+// loads as if it gave the new.
+var planAliases = map[string]string{"max5x": "max", "max20x": "ultra"}
+
+// planNamed returns plan by the name Plans give it: an alias's new name,
+// else plan as it is.
+func planNamed(plan string) string {
+	if now, ok := planAliases[plan]; ok {
+		return now
+	}
+	return plan
+}
+
+// isPlan reports whether plan names one of Plans, by its name or an alias.
+func isPlan(plan string) bool {
+	return slices.Contains(Plans, planNamed(plan))
+}
+
+// planNames names Plans, as "pro, max or ultra".
 func planNames() string {
 	last := len(Plans) - 1
 	return strings.Join(Plans[:last], ", ") + " or " + Plans[last]
@@ -24,7 +44,8 @@ func planNames() string {
 // Prices are the config's prices in place of those switchboard carries, each
 // in US dollars.
 type Prices struct {
-	// Plans are plans' prices, a month, by their names, each one of Plans.
+	// Plans are plans' prices, a month, by their names, each one of Plans:
+	// the file may give an alias, which loading renames.
 	Plans map[string]float64 `toml:"plans"`
 	// Models are models' prices, by their ids as the API names them.
 	Models map[string]ModelPrices `toml:"models"`
@@ -63,18 +84,18 @@ func (m ModelPrices) kinds() []tokenPrice {
 }
 
 // checkPrices keeps each price the config gives a number, 0 or more, and
-// each plan it prices one of Plans, a plan it doesn't know being an unknown
-// key. A kind of token it doesn't know is an unknown key too, which decoding
-// leaves unused.
+// each plan it prices one of Plans, priced by one name only, a plan it
+// doesn't know being an unknown key. A kind of token it doesn't know is an
+// unknown key too, which decoding leaves unused.
 func checkPrices(p Prices) error {
 	var errs []error
 	for _, plan := range slices.Sorted(maps.Keys(p.Plans)) {
-		key := toml.Key{"prices", "plans", plan}.String()
-		if !slices.Contains(Plans, plan) {
+		key := planPriceKey(plan)
+		if !isPlan(plan) {
 			errs = append(errs, unknownKey(key))
 			continue
 		}
-		errs = append(errs, checkPrice(key, p.Plans[plan], "the plan's price in US dollars a month"))
+		errs = append(errs, checkPrice(key, p.Plans[plan], "the plan's price in US dollars a month"), checkPricedOnce(p, plan))
 	}
 	for _, model := range slices.Sorted(maps.Keys(p.Models)) {
 		for _, k := range p.Models[model].kinds() {
@@ -84,6 +105,36 @@ func checkPrices(p Prices) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// checkPricedOnce keeps plan, where it's an alias, from being priced by its
+// new name as well.
+func checkPricedOnce(p Prices, plan string) error {
+	now := planNamed(plan)
+	if _, both := p.Plans[now]; now == plan || !both {
+		return nil
+	}
+	return fmt.Errorf("%s and %s price the same plan: give it one price, by %s", planPriceKey(plan), planPriceKey(now), planPriceKey(now))
+}
+
+// planPriceKey is the key in [prices.plans] that prices plan.
+func planPriceKey(plan string) string {
+	return toml.Key{"prices", "plans", plan}.String()
+}
+
+// renamed returns the prices with each plan's by the name Plans give it, in
+// place of any alias, checkPrices having kept a plan from being priced
+// twice.
+func (p Prices) renamed() Prices {
+	if p.Plans == nil {
+		return p
+	}
+	plans := make(map[string]float64, len(p.Plans))
+	for plan, price := range p.Plans {
+		plans[planNamed(plan)] = price
+	}
+	p.Plans = plans
+	return p
 }
 
 // checkPrice keeps the price the config gives key a number, 0 or more, the

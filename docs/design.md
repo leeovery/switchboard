@@ -809,10 +809,12 @@ accounts:
   moves by giving `--primary` to another account. An id no account has is said before anything
   wrong with the flags' values (cobra's own errors, such as a flag without its value or an
   unknown flag, come first). A label given that's the id takes the label out, as it shows the
-  same. It writes only what changes the account as the config reads it or marks it, so
-  `--primary` on the first account, the primary only for want of a mark, marks it; and says what
-  it changed, each value now and as it was, labels quoted (`prose.Quoted`) and none, where the
-  config writes no label, said so, and a label written untidily and tidied said so; or, when
+  same. It writes only what changes the account as the config reads it, marks it or names its
+  plan, so `--primary` on the first account, the primary only for want of a mark, marks it, and
+  `--plan` given the plan the config names by its old name writes its new, `plan ultra (was
+  written max20x)`; and says what it changed, each value now and as it was, labels quoted
+  (`prose.Quoted`) and none, where the config writes no label, said so, and a label written
+  untidily and tidied said so; or, when
   every value given is the account's already, that nothing changed, writing nothing. A label
   written by hand can't go through `add`'s rules, so `prose.Quoted` shows what it holds: a
   character drawn as nothing that `add` would drop, a bidirectional control among them, as its
@@ -967,7 +969,7 @@ show.
      subscription you want switchboard to route across.` (frame 2).
    - **Adding** (`+ add an account`, then `enter`), the card `ADD AN ACCOUNT`: `Each account is one
      Claude subscription: a Pro or Max plan.`; then ID, under it `letters, numbers, - and _ · can't
-     be changed later`; Label, `shown in the dashboard`; and Plan, `Pro`, `Max 5x`, `Max 20x` or
+     be changed later`; Label, `shown in the dashboard`; and Plan, `Pro`, `Max`, `Ultra` or
      `not set`; then `Setup then creates a token with claude setup-token. You approve it in the
      browser while signed in to this subscription. Tokens last a year.` Its keys: `tab next`, `enter
      create token`, `esc cancel`. The id and label are held to `accounts add`'s rules, a wrong one
@@ -2996,7 +2998,7 @@ holds.
   the ledger began part-way through, as a fresh install's week, is priced from the ledger's first
   day, a day each to the period's end, or today's for today and 30 days, as `history` and History
   price it, as there's no worth for the days before to set against it (the owner's call, 15 October
-  2026): Max 20x's week from a Wednesday costs $33, not its whole week's $46. A ledger that holds no
+  2026): Ultra's week from a Wednesday costs $33, not its whole week's $46. A ledger that holds no
   day yet begins today, for its plans' prices as for a read of its days, and the dashboard asks
   again where it began till it holds one. It reads `4.0×`, to a tenth, and from 100× whole, `123×`,
   so it's 5 cells at most up to 9999×, bold, in `state.positive` at 1× or more
@@ -3080,7 +3082,7 @@ holds.
     `3h 10m`, and for `all accounts` their sum; and `left at its last reset`, what its week had left
     as it last reset, `15%`, or `0% (limit Fri)` where the week ran out, naming the day it did, and
     `—` for `all accounts`.
-  - **VALUE,** with no description, as its rows say it: `plan`, `Max 20x`, and ` · $200/mo` in
+  - **VALUE,** with no description, as its rows say it: `plan`, `Ultra`, and ` · $200/mo` in
     `text.subtle`, and for `all accounts` the plans summed, `$600/mo`, and ` · 3 plans`;
     `extra usage`, `off` in `text.muted`, or `on · billed past its limit` in `accent.attention`, and
     `—` before it's read, as the status document's `extra_usage` gives it (see The status document),
@@ -3577,7 +3579,7 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   with one more, of the plan most of the accounts have, every peak falls in proportion, the same use
   over more room. A replayed week is short where any account would reach 100%. `with one fewer`
   drops the account whose loss makes the fewest weeks short, and of those that tie, the one used
-  least over the weeks shown. Plans' sizes are in Pros, `pro` 1, `max5x` 5 and `max20x` 20 (see The
+  least over the weeks shown. Plans' sizes are in Pros, `pro` 1, `max` 5 and `ultra` 10 (see The
   request ledger); an account without a `plan` counts as the plan most of the accounts have, and
   where none has one, every account counts as one (settled in the plan).
 - **Its form.** Weeks is drawn wide, in the shape `v` gives it, where that shape's parts fit at
@@ -7516,8 +7518,9 @@ from the first day a router that has it runs, so nothing before then is in it.
     settled (see Backlog: keeping the price table current).
   - **Plans:** beside the models, the table prices the plans a subscription is on, each a month, in
     US dollars, with its size in Pros, which History's replay of a week weighs an account by (see
-    History): `pro`, Pro, $20 and 1; `max5x`, Max 5x, $100 and 5; and `max20x`, Max 20x, $200 and
-    20. An account's plan is the config's `plan`, as switchboard can't read it: a setup token can't
+    History): `pro`, Pro, $20 and 1; `max`, Max, $100 and 5; and `ultra`, Ultra, $200 and 10, its
+    weekly limits ten times Pro's. Max and Ultra were Max 5x and Max 20x till Anthropic renamed
+    them (see Observed behaviour); the config still loads their old names. An account's plan is the config's `plan`, as switchboard can't read it: a setup token can't
     read the profile endpoint that knows it (see Requests that need special handling). An account
     without one has no price, and nothing is priced against it.
   - **Overrides:** the config can price any model, or any plan, otherwise (see Config). An override
@@ -8269,12 +8272,12 @@ id      = "work"       # permanent name: letters, digits, '-' and '_'; its token
 label   = "Work"       # optional; defaults to the id
 primary = true         # optional: the account the browser and the Claude apps use; else the first
 reserve = 0.1          # optional, on any account: the share of every window the router leaves; else 0
-plan    = "max20x"     # optional, on any account: its plan, pro, max5x or max20x; else unknown
+plan    = "ultra"      # optional, on any account: its plan, pro, max or ultra; else unknown
 
 [[account]]
 id    = "side"
 label = "Side"
-plan  = "max5x"
+plan  = "max"
 
 [prime]                            # optional: start the 5-hour windows on a staggered schedule
 day = "08:00-23:00"                # local time; an end before the start means past midnight
@@ -8295,7 +8298,7 @@ keep = "400d"                      # how long each request's line, and each day'
 by = "window"                      # window or account: the accounts compared a window at a time, or each account's windows together
 
 [prices.plans]                     # optional: what a plan costs, in US dollars a month, in place of the built-in price
-max5x = 90
+max = 90
 
 [prices.models.claude-opus-5-5]    # optional: a model's prices, in US dollars a million tokens, in place of the built-in ones
 input          = 3.2
@@ -8348,17 +8351,19 @@ fails as it is; one that parses has every problem reported at once:
   does when the router isn't running, can't be routed through or can't be found: start nothing, or
   start Claude Code directly, an unhealthy router that says where it listens being routed through
   all the same; `SWITCHBOARD_WHEN_ROUTER_DOWN` overrides it for one launch (see Launching).
-- **`plan`,** on an account, is `pro`, `max5x` or `max20x`: the subscription it's on, which
+- **`plan`,** on an account, is `pro`, `max` or `ultra`: the subscription it's on, which
   switchboard can't read from Anthropic. It prices the account against its worth, and sizes it for
   History's replay of a week (see The request ledger). Without it, the account's plan is unknown:
-  Accounts and History show `—` for it, and price nothing against it.
+  Accounts and History show `—` for it, and price nothing against it. The plans' old names,
+  `max5x` for `max` and `max20x` for `ultra`, still load as the new, so nothing past loading sees
+  them; the file keeps the old name till an edit sets that account's plan, which writes the new.
 - **`[usage]`**: `by` is `window`, the accounts compared a window at a time, or `account`, each
   account's windows together; `window` unless given. It's the layout `usage` prints and the
   dashboard's Overview opens with: `usage --by` overrides it for one printout, and the Overview's
   `b` for the dashboard, which remembers the choice (see `usage`, the printout, and The Overview).
 - **`[prices]`** overrides the price table built into switchboard (see The request ledger).
-  `[prices.plans]` gives a plan's price, by its name, `pro`, `max5x` or `max20x`, in US dollars a
-  month. `[prices.models.<id>]` gives a model's, under its id as the API names it,
+  `[prices.plans]` gives a plan's price, by its name, `pro`, `max` or `ultra`, in US dollars a
+  month; by its old name too, but a plan priced by both is an error naming the two keys. `[prices.models.<id>]` gives a model's, under its id as the API names it,
   `claude-opus-5-5`, in US dollars a million tokens, by the kind of token: `input`, `output`,
   `cache_read`, `cache_write_5m` and `cache_write_1h`. Each price is a number, 0 or more; one left
   out keeps the built-in table's; and a model the table doesn't know is priced only where all five
@@ -9411,6 +9416,8 @@ any of it. Times are the Mac's, UTC+1.
   the window at 0%, allowed, its reset five hours on, cut back to a ten-minute mark: 01:30 for a
   probe at 20:37, 02:00 for one at 21:01, the reset a window opened then would have. Hence a
   summary records no reset of a run that read nothing (see The request ledger).
+- **30 October 2026: the plans renamed.** Anthropic renamed Max 5x to Max and Max 20x to Ultra.
+  Hence the config's plans, `pro`, `max` and `ultra`, their old names still loading (see Config).
 
 ## Checks owed
 

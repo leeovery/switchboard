@@ -63,7 +63,7 @@ type Figures map[string]string
 // by window, as "5h×2 7d×1", its minutes at a cap or a limit, "—" where
 // none was read, and whether some days never read them, "partial"; its share
 // left at its last reset, "—" where none ended, and the date its week ran
-// out in, "" where it didn't; its plan's name and its price, as "Max 20x
+// out in, "" where it didn't; its plan's name and its price, as "Ultra
 // $200/mo", its worth, as Worth.Dollars says it, and against its price, as
 // "4.0× of $46"; its six weeks' peaks, as "55 100 — 34…"; its verdict, as
 // "ends most weeks with room 2/6 23%", its limits over its weeks, and its
@@ -115,13 +115,13 @@ func AccountsMoments() []AccountsMoment {
 	})
 }
 
-// The accounts the moments configure: work and side on Max 20x, personal,
-// the primary, on Max 20x too, and spare on Max 5x.
+// The accounts the moments configure: work and side on Ultra, personal,
+// the primary, on Ultra too, and spare on Max.
 var (
-	workMax    = config.Account{ID: work, Label: work, Plan: "max20x"}
-	personalMx = config.Account{ID: personal, Label: personal, Primary: true, Plan: "max20x"}
-	sideMax    = config.Account{ID: side, Label: side, Plan: "max20x"}
-	spareFive  = config.Account{ID: "spare", Label: "spare", Plan: "max5x"}
+	workUltra     = config.Account{ID: work, Label: work, Plan: "ultra"}
+	personalUltra = config.Account{ID: personal, Label: personal, Primary: true, Plan: "ultra"}
+	sideUltra     = config.Account{ID: side, Label: side, Plan: "ultra"}
+	spareMax      = config.Account{ID: "spare", Label: "spare", Plan: "max"}
 )
 
 // in2026 is the local time in 2026, on the day of the month given, at the
@@ -143,7 +143,7 @@ func in2026(month time.Month, day, hour, minute, second int) time.Time {
 // last read the week before its reset, as a page built of them then has
 // them.
 func weekResetBeforeTheReread() []AccountsMoment {
-	accounts := config.Accounts{workMax, sideMax}
+	accounts := config.Accounts{workUltra, sideUltra}
 	asRead, reread := in2026(time.October, 5, 20, 59, 30), in2026(time.October, 5, 21, 0, 30)
 	before := mondayWeeks(false)
 	readBefore := readDoc(asRead,
@@ -233,7 +233,7 @@ func fewerThanSevenWeeks() AccountsMoment {
 	f.on(work, in2026(time.October, 1, 12, 0, 0)).Highest[week] = 0.34
 	now := At(14, 42, 7)
 	return AccountsMoment{
-		Name: "fewer than seven weeks recorded", Accounts: config.Accounts{workMax, sideMax}, WeekStarts: time.Monday,
+		Name: "fewer than seven weeks recorded", Accounts: config.Accounts{workUltra, sideUltra}, WeekStarts: time.Monday,
 		Days: f.summaries(in2026(time.September, 14, 0, 0, 0), now), Doc: readDoc(now), Now: now,
 		Want: map[string]Figures{
 			work: {FigureLeft: "40%", FigurePeaks: "— — — 40 60 34…", FigureVerdict: views.PlentyToSpare + " 0/2 50%"},
@@ -258,7 +258,7 @@ func freshInstall() AccountsMoment {
 		readAccount(work, now, window(fiveHour, 0.2, At(18, 0, 0)), window(week, 0.3, in2026(time.October, 5, 21, 0, 0))),
 		readAccount(side, now, window(fiveHour, 0.1, At(19, 0, 0)), window(week, 0.12, in2026(time.October, 7, 10, 0, 0))))
 	return AccountsMoment{
-		Name: "a fresh install", Accounts: config.Accounts{workMax, sideMax}, WeekStarts: time.Monday,
+		Name: "a fresh install", Accounts: config.Accounts{workUltra, sideUltra}, WeekStarts: time.Monday,
 		Days: f.summaries(At(0, 0, 0), now), Doc: doc, Now: now,
 		Page: Figures{FigureRecorded: "no"},
 		Want: map[string]Figures{work: nothing, side: nothing, "": {FigureRequests: "0", FigureWorth: "—", FigureVerdict: "0 weeks", FigureMostLeft: ""}},
@@ -288,11 +288,11 @@ func addedPartWay() AccountsMoment {
 		readAccount(work, now, window(fiveHour, 0.2, At(18, 0, 0)), window(week, 0.3, in2026(time.October, 4, 21, 0, 0))),
 		readAccount("spare", now, window(fiveHour, 0.1, At(19, 0, 0)), window(week, 0.35, in2026(time.October, 3, 10, 0, 0))))
 	return AccountsMoment{
-		Name: "an account added part-way through the period", Accounts: config.Accounts{workMax, spareFive}, WeekStarts: time.Monday,
+		Name: "an account added part-way through the period", Accounts: config.Accounts{workUltra, spareMax}, WeekStarts: time.Monday,
 		Days: f.summaries(in2026(time.September, 2, 0, 0, 0), now), Doc: doc, Now: now, Period: views.AccountsThirtyDays,
 		Want: map[string]Figures{
-			work:    {FigureRequests: "29", FigureWorth: "$116", FigurePlan: "Max 20x $200/mo", FigureAgainst: "0.6× of $200", FigureLeft: "30%"},
-			"spare": {FigureRequests: "3", FigureWorth: "$3", FigurePlan: "Max 5x $100/mo", FigureAgainst: "0.0× of $100", FigureLeft: "—"},
+			work:    {FigureRequests: "29", FigureWorth: "$116", FigurePlan: "Ultra $200/mo", FigureAgainst: "0.6× of $200", FigureLeft: "30%"},
+			"spare": {FigureRequests: "3", FigureWorth: "$3", FigurePlan: "Max $100/mo", FigureAgainst: "0.0× of $100", FigureLeft: "—"},
 			"":      {FigureRequests: "32", FigureSessions: "32", FigurePlan: "$300/mo", FigurePlansOf: "2 of 2", FigureAgainst: "0.4× of $300"},
 		},
 	}
@@ -314,7 +314,7 @@ func lapsedWeek() AccountsMoment {
 	now := At(14, 42, 7)
 	doc := readDoc(now, readAccount(work, now, window(fiveHour, 0.2, At(18, 0, 0)), window(week, 0.3, in2026(time.October, 4, 15, 0, 0))))
 	return AccountsMoment{
-		Name: "a week lapsed before the one the router reads", Accounts: config.Accounts{workMax}, WeekStarts: time.Monday,
+		Name: "a week lapsed before the one the router reads", Accounts: config.Accounts{workUltra}, WeekStarts: time.Monday,
 		Days: f.summaries(in2026(time.September, 1, 0, 0, 0), now), Doc: doc, Now: now,
 		Want: map[string]Figures{work: {FigureLeft: "40%"}},
 	}
@@ -338,15 +338,15 @@ func weekOfNoUse() AccountsMoment {
 	now := At(14, 42, 7)
 	doc := readDoc(now, readAccount(work, now, window(fiveHour, 0.2, At(18, 0, 0)), window(week, 0.3, in2026(time.October, 6, 10, 0, 0))))
 	return AccountsMoment{
-		Name: "a week of no use before the one the router reads", Accounts: config.Accounts{workMax}, WeekStarts: time.Monday,
+		Name: "a week of no use before the one the router reads", Accounts: config.Accounts{workUltra}, WeekStarts: time.Monday,
 		Days: f.summaries(in2026(time.September, 1, 0, 0, 0), now), Doc: doc, Now: now,
 		Want: map[string]Figures{work: {FigureLeft: "40%"}},
 	}
 }
 
-// tenAccounts is Thursday 1 October, this week, of ten accounts, nine on Max
-// 20x and spare on Max 5x, each with a request a day, extra usage on for
-// spare alone.
+// tenAccounts is Thursday 1 October, this week, of ten accounts, nine on
+// Ultra and spare on Max, each with a request a day, extra usage on for spare
+// alone.
 func tenAccounts() AccountsMoment {
 	ids := []string{work, personal, side, "client", "spare", "lab", "team", "extra", "ops", "studio"}
 	var accounts config.Accounts
@@ -354,9 +354,9 @@ func tenAccounts() AccountsMoment {
 	f := filing{}
 	now := At(14, 42, 7)
 	for _, id := range ids {
-		a := config.Account{ID: id, Label: id, Plan: "max20x"}
+		a := config.Account{ID: id, Label: id, Plan: "ultra"}
 		if id == "spare" {
-			a.Plan = "max5x"
+			a.Plan = "max"
 		}
 		accounts = append(accounts, a)
 		for day := 28; day <= 30; day++ {
@@ -372,7 +372,7 @@ func tenAccounts() AccountsMoment {
 		Name: "ten accounts, extra usage on for one", Accounts: accounts, WeekStarts: time.Monday,
 		Days: f.summaries(in2026(time.September, 28, 0, 0, 0), now), Doc: readDoc(now, read...), Now: now,
 		Want: map[string]Figures{
-			"spare": {FigureRequests: "3", FigurePlan: "Max 5x $100/mo"},
+			"spare": {FigureRequests: "3", FigurePlan: "Max $100/mo"},
 			"":      {FigureRequests: "30", FigureSessions: "10", FigurePlan: "$1,900/mo", FigurePlansOf: "10 of 10"},
 		},
 	}
@@ -392,7 +392,7 @@ func sixSessions() []AccountsMoment {
 		}
 		return sessions
 	}
-	accounts := config.Accounts{workMax, sideMax}
+	accounts := config.Accounts{workUltra, sideUltra}
 	doc := func(at time.Time) status.Document {
 		return readDoc(at, readAccount(side, at, window(fiveHour, 0.13, At(18, 50, 0))), readAccount(work, at, window(fiveHour, 0.5, At(17, 10, 0))))
 	}
@@ -417,7 +417,7 @@ func sixSessions() []AccountsMoment {
 // is priced whole, and records nothing yet. Work serves a request at 10:00
 // each day from Monday 28 September.
 func atMidnight() []AccountsMoment {
-	accounts := config.Accounts{workMax}
+	accounts := config.Accounts{workUltra}
 	moment := func(name string, now time.Time, period views.AccountsPeriod, recorded string, want Figures) AccountsMoment {
 		f := filing{}
 		for at := in2026(time.September, 28, 10, 0, 0); at.Before(now); at = at.AddDate(0, 0, 1) {
@@ -480,7 +480,7 @@ func movesLimitsAndRunsOut() AccountsMoment {
 		status.Event{At: At(12, 10, 0), Kind: status.EventPrimed, Account: work, Windows: []string{fiveHour}, Until: At(17, 10, 0)},
 	)
 	return AccountsMoment{
-		Name: "moves both ways, limits in two windows, a week run out and one used up", Accounts: config.Accounts{workMax, personalMx, sideMax},
+		Name: "moves both ways, limits in two windows, a week run out and one used up", Accounts: config.Accounts{workUltra, personalUltra, sideUltra},
 		WeekStarts: time.Monday, Days: f.summaries(in2026(time.September, 21, 0, 0, 0), now), Doc: doc, Now: now,
 		Want: map[string]Figures{
 			work: {FigureMoved: "on 1 off 3", FigureLimits: "5h×2 7d×1", FigureLeft: "0%", FigureRanOut: "2026-09-25",
@@ -495,7 +495,7 @@ func movesLimitsAndRunsOut() AccountsMoment {
 	}
 }
 
-// plansAndUnpriced is Thursday 1 October, this week: work on Max 20x, its
+// plansAndUnpriced is Thursday 1 October, this week: work on Ultra, its
 // requests priced; side on Pro, one of its requests of a model the price
 // table doesn't know; and spare, with no plan, its requests all of that
 // model.
@@ -508,10 +508,10 @@ func plansAndUnpriced() AccountsMoment {
 	now := At(14, 42, 7)
 	return AccountsMoment{
 		Name:     "no plan, two of three plans, worth part and wholly unpriced",
-		Accounts: config.Accounts{workMax, {ID: side, Label: side, Plan: "pro"}, {ID: "spare", Label: "spare"}}, WeekStarts: time.Monday,
+		Accounts: config.Accounts{workUltra, {ID: side, Label: side, Plan: "pro"}, {ID: "spare", Label: "spare"}}, WeekStarts: time.Monday,
 		Days: f.summaries(in2026(time.September, 28, 0, 0, 0), now), Doc: readDoc(now), Now: now,
 		Want: map[string]Figures{
-			work:    {FigureWorth: "$8", FigurePlan: "Max 20x $200/mo", FigureAgainst: "0.2× of $46"},
+			work:    {FigureWorth: "$8", FigurePlan: "Ultra $200/mo", FigureAgainst: "0.2× of $46"},
 			side:    {FigureWorth: "$4+", FigurePlan: "Pro $20/mo", FigureAgainst: "0.9× of $5"},
 			"spare": {FigureWorth: "unpriced", FigurePlan: "—", FigureAgainst: "—"},
 			"":      {FigureWorth: "$12+", FigurePlan: "$220/mo", FigurePlansOf: "2 of 3", FigureAgainst: "0.2× of $51"},
@@ -533,7 +533,7 @@ func versionOneAmongTheDays() AccountsMoment {
 		{Account: work, Models: []ledger.ModelDay{modelDay(opus, 2)}, Sessions: 2},
 	}}
 	return AccountsMoment{
-		Name: "a summary of version 1 among the days", Accounts: config.Accounts{workMax}, WeekStarts: time.Monday,
+		Name: "a summary of version 1 among the days", Accounts: config.Accounts{workUltra}, WeekStarts: time.Monday,
 		Days: days, Doc: readDoc(now), Now: now,
 		Want: map[string]Figures{
 			work: {FigureRequests: "3", FigureSessions: "3", FigureMinutes: "55", FigurePartial: "partial"},
@@ -549,7 +549,7 @@ func probing() AccountsMoment {
 	doc := readDoc(now, readAccount(work, now, window(fiveHour, 0.5, At(17, 10, 0))), readAccount(side, now, window(fiveHour, 0.13, At(18, 50, 0))))
 	doc.Source, doc.Router = status.SourceProbe, status.Health{}
 	return AccountsMoment{
-		Name: "probing, no sessions and no events", Accounts: config.Accounts{workMax, sideMax}, WeekStarts: time.Monday,
+		Name: "probing, no sessions and no events", Accounts: config.Accounts{workUltra, sideUltra}, WeekStarts: time.Monday,
 		Days: filing{}.summaries(At(0, 0, 0), now), Doc: doc, Now: now,
 		Want: map[string]Figures{work: {FigureRunning: "", FigureLately: ""}, side: {FigureRunning: "", FigureLately: ""}, "": {FigureLately: ""}},
 	}

@@ -97,8 +97,8 @@ func TestThePeriodStepsShorterAndLongerStoppingAtTheEnds(t *testing.T) {
 // of it it is: today a day's price, this week a week's, even on its first
 // day, 30 days a month's and 12 weeks twelve weeks'.
 func TestAPeriodsPlansArePricedWhole(t *testing.T) {
-	max20x, _ := ledger.Pricing.Plan("max20x")
-	monthly := max20x.Price("2026-10-05")
+	ultra, _ := ledger.Pricing.Plan("ultra")
+	monthly := ultra.Price("2026-10-05")
 	tests := []struct {
 		name   string
 		period views.AccountsPeriod

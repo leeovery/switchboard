@@ -69,17 +69,18 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 				`{"all":true,"verdict":"little to spare together","weeks":7,"limits":5,"left_at_reset":0.17142857142857143}]}`,
 		},
 		{
-			// By their plans, 20, 5 and 1 Pros, the rest cover side or
+			// By their plans, 10, 5 and 1 Pros, the rest cover side or
 			// spare: of the two, spare used less, so it's the one to drop.
 			// Without it, work covers side too, though side can't cover
-			// work. Spare could go; side, used more than a tenth, is barely
-			// used.
+			// work: without work, 5 weeks are short, all but those work
+			// peaked at 40%. Spare could go; side, used more than a tenth,
+			// is barely used.
 			name:     "one more than you need, by the accounts' plans",
-			accounts: config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side", Plan: "max5x"}, {ID: "spare", Plan: "pro"}},
+			accounts: config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "side", Plan: "max"}, {ID: "spare", Plan: "pro"}},
 			peaks: map[string][]float64{"work": {0.5, 0.6, 0.4, 0.5, 0.6, 0.5, 0.4}, "side": {0.2, 0.2, 0.3, 0.2, 0.2, 0.3, 0.2},
 				"spare": {0.05, 0.1, 0, 0.05, 0.1, 0.05, 0}},
 			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_two_fewer":0,"with_one_more":0,"drop":"spare","verdict":"one more than you need","accounts":[` +
-				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":7},` +
+				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":5},` +
 				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.7714285714285715,"without_it":0},` +
 				`{"account":"spare","verdict":"could go","weeks":7,"limits":0,"left_at_reset":0.95,"without_it":0},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":0,"left_at_reset":0.7404761904761905}]}`,
@@ -138,10 +139,10 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":4,"left_at_reset":0.6071428571428571}]}`,
 		},
 		{
-			// Side, on no plan, counts as Max 20x, as work is: without
+			// Side, on no plan, counts as Ultra, as work is: without
 			// either, the other's peak rises by all of its, 7 weeks short.
 			// Counted as one, side's loss would short none.
-			name: "an account on no plan counts as the plan most of the others have", accounts: config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side"}},
+			name: "an account on no plan counts as the plan most of the others have", accounts: config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "side"}},
 			peaks: map[string][]float64{"work": {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, "side": {0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6}},
 			want: `{"weeks":7,"short":0,"with_one_fewer":7,"with_one_more":0,"verdict":"about right","accounts":[` +
 				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":7},` +

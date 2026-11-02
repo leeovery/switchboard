@@ -17,7 +17,7 @@ ACCOUNTS  ───────────────────────�
                                         │                                                                              │
                                         │  Label     Work                      shown in the dashboard                  │
                                         │                                                                              │
-                                        │  Plan      □ Pro    □ Max 5x    ■ Max 20x    □ not set                       │
+                                        │  Plan      □ Pro    □ Max    ■ Ultra    □ not set                            │
                                         │                                                                              │
                                         │  Setup then creates a token with claude setup-token. You approve it in       │
                                         │  the browser while signed in to this subscription. Tokens last a year.       │

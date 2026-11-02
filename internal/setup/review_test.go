@@ -53,7 +53,7 @@ const frameConfig = `[[account]]
 id      = "work"
 label   = "Work"
 primary = true
-plan    = "max20x"
+plan    = "ultra"
 reserve = 0.05
 
 [[account]]
@@ -136,6 +136,22 @@ func (w *world) writeTokenTaken(t *testing.T, id, secret string, taken time.Time
 // personalYear is personal's token's year, as its record gives it.
 var personalYear = status.TokenYearFrom(personalUntil.Add(-claude.SetupTokenLifetime))
 
+// An account the config puts on a plan by its old name is reviewed on it by
+// its new, so its edit card opens with that plan chosen, never not set.
+func TestReviewGivesAPlanByItsOldNameByItsNew(t *testing.T) {
+	w := frame3(t)
+	w.writeConfig(t, strings.Replace(frameConfig, `plan    = "ultra"`, `plan    = "max20x"`, 1))
+
+	review, err := w.reviewing(t, &checkingAPI{}).Review()
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := review.Accounts[0]
+	if work.Plan != "ultra" || work.PlanName() != "Ultra" || !slices.Contains(config.PlanChoices(), work.PlanChosen()) {
+		t.Errorf("work is reviewed on %q, named %q, its edit choosing %q; want ultra, Ultra, one of %q", work.Plan, work.PlanName(), work.PlanChosen(), config.PlanChoices())
+	}
+}
+
 func TestReviewOfFrame3(t *testing.T) {
 	w := frame3(t)
 	api := &checkingAPI{}
@@ -147,7 +163,7 @@ func TestReviewOfFrame3(t *testing.T) {
 		t.Fatal(err)
 	}
 	read := []setup.Reviewed{
-		{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenRead}},
+		{ID: "work", Label: "Work", Plan: "ultra", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenRead}},
 		{ID: "personal", Label: "Personal", Token: setup.TokenStanding{State: setup.TokenRead, Year: personalYear}},
 		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenRead}},
 	}
@@ -165,7 +181,7 @@ func TestReviewOfFrame3(t *testing.T) {
 	checkLine(t, healthy, review, setup.Part{Standing: setup.PartUp, Words: "router up, healthy"}, setup.Part{Standing: setup.PartTold, Words: "3 accounts, checking…"})
 
 	want := []setup.Reviewed{
-		{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking, Organization: "org-work"}},
+		{ID: "work", Label: "Work", Plan: "ultra", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking, Organization: "org-work"}},
 		{ID: "personal", Label: "Personal", Token: setup.TokenStanding{State: setup.TokenWorking, Year: personalYear, Organization: "org-personal"}},
 		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenNotTaken}},
 	}

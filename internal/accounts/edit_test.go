@@ -62,16 +62,16 @@ func TestEdit(t *testing.T) {
 		{
 			name:       "a plan, in place of the one it has, keeping the comment beside it",
 			id:         "personal",
-			change:     accounts.Change{Plan: new("max20x")},
-			want:       strings.Replace(laidOut, `plan = "pro"`, `plan = "max20x"`, 1),
-			wantEdited: accounts.Edited{Was: personal, Now: with(personal, func(a *config.Account) { a.Plan = "max20x" })},
+			change:     accounts.Change{Plan: new("ultra")},
+			want:       strings.Replace(laidOut, `plan = "pro"`, `plan = "ultra"`, 1),
+			wantEdited: accounts.Edited{Was: personal, Now: with(personal, func(a *config.Account) { a.Plan = "ultra" })},
 		},
 		{
 			name:       "its id as its label, shown by it already, with a plan: the plan alone written",
 			id:         "personal",
-			change:     accounts.Change{Label: new("personal"), Plan: new("max20x")},
-			want:       strings.Replace(laidOut, `plan = "pro"`, `plan = "max20x"`, 1),
-			wantEdited: accounts.Edited{Was: personal, Now: with(personal, func(a *config.Account) { a.Plan = "max20x" })},
+			change:     accounts.Change{Label: new("personal"), Plan: new("ultra")},
+			want:       strings.Replace(laidOut, `plan = "pro"`, `plan = "ultra"`, 1),
+			wantEdited: accounts.Edited{Was: personal, Now: with(personal, func(a *config.Account) { a.Plan = "ultra" })},
 		},
 		{
 			name:       "no plan",
@@ -110,14 +110,14 @@ func TestEdit(t *testing.T) {
 		{
 			name:   "everything together",
 			id:     "personal",
-			change: accounts.Change{Label: new("Personal"), Plan: new("max5x"), Primary: true, Reserve: new(0.025)},
+			change: accounts.Change{Label: new("Personal"), Plan: new("max"), Primary: true, Reserve: new(0.025)},
 			want: strings.Replace(strings.Replace(laidOut, "primary = true\n", "", 1),
 				"plan = \"pro\"         # for now\n",
-				"plan = \"max5x\"         # for now\nlabel = \"Personal\"\nprimary = true\nreserve = 0.025\n", 1),
+				"plan = \"max\"         # for now\nlabel = \"Personal\"\nprimary = true\nreserve = 0.025\n", 1),
 			wantEdited: accounts.Edited{
 				Was:           personal,
 				NowLabelled:   true,
-				Now:           config.Account{ID: "personal", Label: "Personal", Plan: "max5x", Primary: true, Reserve: 0.025},
+				Now:           config.Account{ID: "personal", Label: "Personal", Plan: "max", Primary: true, Reserve: 0.025},
 				FormerPrimary: "work",
 				Marked:        true,
 			},
@@ -145,6 +145,27 @@ func TestEdit(t *testing.T) {
 	}
 }
 
+// Setting the plan the config gives by its old name writes it by its new, a
+// change, though the account loads the same.
+func TestEditWritesAPlanTheConfigGivesByItsOldNameByItsNew(t *testing.T) {
+	old := strings.Replace(laidOut, `plan = "pro"`, `plan = "max20x"`, 1)
+	for _, given := range []string{"ultra", "max20x"} {
+		t.Run(given, func(t *testing.T) {
+			w := newWorld(t, old)
+
+			edited, err := w.registry(&user{}, &fakeAPI{}).Edit("personal", accounts.Change{Plan: new(given)})
+			if err != nil {
+				t.Fatalf("Edit() error = %v", err)
+			}
+			onUltra := with(personal, func(a *config.Account) { a.Plan = "ultra" })
+			if edited.Before = nil; edited != (accounts.Edited{Was: onUltra, Now: onUltra, Unaliased: "max20x"}) || !edited.Changed() {
+				t.Errorf("Edit() = %+v, changed: %v; want the plan unaliased from max20x, a change", edited, edited.Changed())
+			}
+			w.checkConfig(t, strings.Replace(laidOut, `plan = "pro"`, `plan = "ultra"`, 1))
+		})
+	}
+}
+
 func TestEditWritesNothingWhenEveryValueGivenIsTheAccounts(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -156,6 +177,11 @@ func TestEditWritesNothingWhenEveryValueGivenIsTheAccounts(t *testing.T) {
 		{name: "its id as its label, which shows it by its id already", config: laidOut, id: "personal", change: accounts.Change{Label: new("personal")}},
 		{name: "its plan", config: laidOut, id: "personal", change: accounts.Change{Plan: new("pro")}},
 		{name: "no plan, having none", config: laidOut, id: "work", change: accounts.Change{Plan: new("")}},
+		{
+			name:   "its plan by its old name, the config giving its new",
+			config: strings.Replace(laidOut, `plan = "pro"`, `plan = "ultra"`, 1), id: "personal",
+			change: accounts.Change{Plan: new("max20x")},
+		},
 		{name: "its reserve", config: laidOut, id: "work", change: accounts.Change{Reserve: new(0.1)}},
 		{name: "the primary, being it", config: laidOut, id: "work", change: accounts.Change{Primary: true}},
 		{
@@ -241,7 +267,7 @@ func TestEditRefuses(t *testing.T) {
 			config:  laidOut,
 			id:      "work",
 			change:  accounts.Change{Plan: new("free")},
-			wantErr: `account "work": plan "free": must be pro, max5x or max20x, the plan the account's subscription is on`,
+			wantErr: `account "work": plan "free": must be pro, max or ultra, the plan the account's subscription is on`,
 		},
 		{
 			name:    "a reserve of the whole window, after a label it then doesn't write",

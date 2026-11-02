@@ -31,7 +31,7 @@ func yearLeft(days int) status.TokenYear {
 // token's year; and side, its token refused.
 func frame3Review() setup.Review {
 	return setup.Review{At: now, Accounts: []setup.Reviewed{
-		{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking}},
+		{ID: "work", Label: "Work", Plan: "ultra", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking}},
 		{ID: "personal", Label: "Personal", Token: setup.TokenStanding{State: setup.TokenWorking, Year: yearLeft(21)}},
 		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenNotTaken}},
 	}}
@@ -55,7 +55,7 @@ func TestTheAccountsPageIsFrame3sTable(t *testing.T) {
 		4:                "ACCOUNTS  " + strings.Repeat("─", 138) + "  3 accounts",
 		6:                "  Each token was checked with the API just now.",
 		accountsHeadsRow: "     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN",
-		accountsFirstRow: "  1  work ◆          Work          Max 20x    5%         " + strings.Repeat("╌", 24) + "  working · expiry date unknown",
+		accountsFirstRow: "  1  work ◆          Work          Ultra      5%         " + strings.Repeat("╌", 24) + "  working · expiry date unknown",
 		12:               "  2  personal        Personal      not set    none       " + strings.Repeat("█", 23) + "   expires 19 Oct 2026  ·  21 days left",
 		14:               "▌ 3  side            Side          Pro        none       ✗ rejected: revoked or expired",
 		accountsAddRow:   "  +  add an account",

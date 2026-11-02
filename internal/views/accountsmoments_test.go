@@ -132,7 +132,7 @@ func minutesRead(t views.AccountTotals) string {
 	return strconv.Itoa(*t.MinutesAtCap + *t.MinutesAtLimit)
 }
 
-// planRead reads a row's plan, by its name, and its price, as "Max 20x
+// planRead reads a row's plan, by its name, and its price, as "Ultra
 // $200/mo", or every account's, its price alone: "—" where no plan is known.
 func planRead(row views.AccountsRow) string {
 	switch {

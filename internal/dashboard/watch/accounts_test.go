@@ -254,12 +254,12 @@ func TestTheFrameNamesTheAccountsWeekAsTheConfigDoes(t *testing.T) {
 // The frame holds the configured accounts' plans at the most each has cost,
 // as the config prices them, so turned Compare's plans' column at 40
 // columns holds them whole though the period's page prices the plans
-// lower: max20x cost $4,000 a month before it fell to $200.
+// lower: ultra cost $4,000 a month before it fell to $200.
 func TestTurnedComparesPlansAreSizedByTheConfigsPlansAtTheirMost(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
 	cfg := h.config(Size{Width: 40, Height: 60})
-	cfg.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side", Plan: "max20x"}}
-	cfg.Prices.Plans = []ledger.Plan{{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{
+	cfg.Accounts = config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "side", Plan: "ultra"}}
+	cfg.Prices.Plans = []ledger.Plan{{ID: "ultra", Name: "Ultra", Size: 10, Prices: []ledger.PlanPrice{
 		{From: "2024-01-01", Monthly: 4000 * ledger.Dollar}, {From: "2025-04-09", Monthly: 200 * ledger.Dollar},
 	}}}
 	m := New(t.Context(), cfg)

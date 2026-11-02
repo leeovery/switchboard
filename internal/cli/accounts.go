@@ -404,8 +404,11 @@ func editedSays(e accounts.Edited) string {
 	if e.Was.Label != e.Now.Label {
 		changed = append(changed, labelChanged(e))
 	}
-	if e.Was.Plan != e.Now.Plan {
+	switch {
+	case e.Was.Plan != e.Now.Plan:
 		changed = append(changed, nowAndWas("plan", planSaid(e.Now.Plan), planSaid(e.Was.Plan)))
+	case e.Unaliased != "":
+		changed = append(changed, nowAndWas("plan", planSaid(e.Now.Plan), "written "+e.Unaliased))
 	}
 	switch {
 	case e.FormerPrimary != "":
@@ -419,7 +422,7 @@ func editedSays(e accounts.Edited) string {
 	return "edited " + e.Now.ID + ": " + strings.Join(changed, ", ")
 }
 
-// nowAndWas says a value an edit changed, as "plan max20x (was max5x)".
+// nowAndWas says a value an edit changed, as "plan ultra (was max)".
 func nowAndWas(name, now, was string) string {
 	return name + " " + now + " (was " + was + ")"
 }

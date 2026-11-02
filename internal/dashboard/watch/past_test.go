@@ -276,7 +276,7 @@ func TestHistoryOpenedOnAnEmptyLedgerBeginsTodayTillARequestLands(t *testing.T) 
 	today := dayfile.DateOf(start)
 	l.first = today
 	h.model.cfg.Ledger = freshLedger{l}
-	h.model.cfg.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "personal", Plan: "max5x"}}
+	h.model.cfg.Accounts = config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "personal", Plan: "max"}}
 	h.start()
 	if h.model.past.page.Year == nil || !h.model.past.began.Equal(todayStart) {
 		t.Fatalf("History opened on an empty ledger, the Year drawn %v, the ledger begun %s; want it drawn, begun today",
@@ -440,7 +440,7 @@ func TestLearningWhereTheLedgerBeganBrightensNothing(t *testing.T) {
 	day.Accounts[0].Models[0].Usage = json.RawMessage(`{"input_tokens":10000000}`)
 	l.days[yesterday] = day
 	h.model.cfg.Ledger = &flakyStart{daysLedger: l, fails: 1}
-	h.model.cfg.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "personal", Plan: "max5x"}}
+	h.model.cfg.Accounts = config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "personal", Plan: "max"}}
 	h.start()
 	against := dashboard.Number{Kind: dashboard.NumberYear, Of: "against it"}
 	was := h.drawnNumber(against)

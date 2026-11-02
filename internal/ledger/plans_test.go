@@ -15,8 +15,8 @@ func TestEachPlanIsPricedAMonthAndSizedInPros(t *testing.T) {
 		monthly  ledger.Picodollars
 	}{
 		{id: "pro", name: "Pro", size: 1, from: "2023-09-07", monthly: dollars(20)},
-		{id: "max5x", name: "Max 5x", size: 5, from: "2025-04-09", monthly: dollars(100)},
-		{id: "max20x", name: "Max 20x", size: 20, from: "2025-04-09", monthly: dollars(200)},
+		{id: "max", name: "Max", size: 5, from: "2025-04-09", monthly: dollars(100)},
+		{id: "ultra", name: "Ultra", size: 10, from: "2025-04-09", monthly: dollars(200)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.id, func(t *testing.T) {
@@ -43,7 +43,7 @@ func TestEveryPlanTheConfigNamesIsPriced(t *testing.T) {
 }
 
 func TestAPlanTheTableDoesntKnowIsntPriced(t *testing.T) {
-	for _, id := range []string{"team", "Max 5x", "MAX5X", ""} {
+	for _, id := range []string{"team", "Max", "ULTRA", "max5x", "max20x", ""} {
 		if plan, ok := ledger.Pricing.Plan(id); ok {
 			t.Errorf("Plan(%q) = %+v, want no plan", id, plan)
 		}

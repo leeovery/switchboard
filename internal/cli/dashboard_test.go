@@ -271,7 +271,7 @@ func TestDashboardGivesHistoryTheAccountsTheWeeksAndTheFamilies(t *testing.T) {
 	for _, a := range cfg.Accounts {
 		accounts = append(accounts, a.ID+":"+a.Plan)
 	}
-	if want := []string{"work:max20x", "side:"}; !slices.Equal(accounts, want) {
+	if want := []string{"work:ultra", "side:"}; !slices.Equal(accounts, want) {
 		t.Errorf("the dashboard is given the accounts %q, want the config's, %q", accounts, want)
 	}
 	if cfg.WeekStarts != time.Sunday || cfg.WeekWindow != "7d" {

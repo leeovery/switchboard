@@ -111,8 +111,14 @@ primary = true
 		{
 			name:    "with a plan, written as the plan key",
 			config:  "[[account]]\nid = \"work\"\n",
-			account: config.NewAccount{ID: "side", Label: "Side", Plan: "max5x", Primary: true},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid      = \"side\"\nlabel   = \"Side\"\nplan    = \"max5x\"\nprimary = true\n",
+			account: config.NewAccount{ID: "side", Label: "Side", Plan: "max", Primary: true},
+			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid      = \"side\"\nlabel   = \"Side\"\nplan    = \"max\"\nprimary = true\n",
+		},
+		{
+			name:    "with a plan by its old name, written by its new",
+			config:  "[[account]]\nid = \"work\"\n",
+			account: config.NewAccount{ID: "side", Plan: "max20x"},
+			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid   = \"side\"\nplan = \"ultra\"\n",
 		},
 		{
 			name:    "without a plan, writing no plan key",
@@ -363,7 +369,8 @@ func TestEditsLoadAsMeant(t *testing.T) {
 }
 
 // priced is a config that gives the day its weeks start on, each account's
-// plan, the layout usage opens with, and prices of its own.
+// plan, work's by its old name, the layout usage opens with, and prices of its
+// own, a plan's by its old name.
 const priced = `week_starts = "sunday"
 
 [[account]]
@@ -388,7 +395,7 @@ output = 16
 func TestEditsKeepTheWeeksStartThePlansTheLayoutAndThePrices(t *testing.T) {
 	path := writeConfig(t, priced)
 	wantPrices := config.Prices{
-		Plans:  map[string]float64{"max5x": 90},
+		Plans:  map[string]float64{"max": 90},
 		Models: map[string]config.ModelPrices{"claude-opus-5-5": {Input: new(3.2), Output: new(16.0)}},
 	}
 	steps := []struct {
@@ -400,21 +407,21 @@ func TestEditsKeepTheWeeksStartThePlansTheLayoutAndThePrices(t *testing.T) {
 			name: "add side",
 			edit: func(d *config.Draft) error { return d.AddAccount(config.NewAccount{ID: "side"}) },
 			want: []config.Account{
-				{ID: "work", Label: "work", Primary: true, Plan: "max20x"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
+				{ID: "work", Label: "work", Primary: true, Plan: "ultra"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
 			},
 		},
 		{
 			name: "make personal the primary",
 			edit: func(d *config.Draft) error { return d.SetPrimary("personal") },
 			want: []config.Account{
-				{ID: "work", Label: "work", Plan: "max20x"}, {ID: "personal", Label: "personal", Primary: true, Plan: "pro"}, {ID: "side", Label: "side"},
+				{ID: "work", Label: "work", Plan: "ultra"}, {ID: "personal", Label: "personal", Primary: true, Plan: "pro"}, {ID: "side", Label: "side"},
 			},
 		},
 		{
 			name: "add spare, the primary",
 			edit: func(d *config.Draft) error { return d.AddAccount(config.NewAccount{ID: "spare", Primary: true}) },
 			want: []config.Account{
-				{ID: "work", Label: "work", Plan: "max20x"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
+				{ID: "work", Label: "work", Plan: "ultra"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
 				{ID: "spare", Label: "spare", Primary: true},
 			},
 		},
@@ -422,7 +429,7 @@ func TestEditsKeepTheWeeksStartThePlansTheLayoutAndThePrices(t *testing.T) {
 			name: "set the priming day",
 			edit: func(d *config.Draft) error { return d.SetPrimeDay("08:00-23:00") },
 			want: []config.Account{
-				{ID: "work", Label: "work", Plan: "max20x"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
+				{ID: "work", Label: "work", Plan: "ultra"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
 				{ID: "spare", Label: "spare", Primary: true},
 			},
 		},
@@ -430,7 +437,7 @@ func TestEditsKeepTheWeeksStartThePlansTheLayoutAndThePrices(t *testing.T) {
 			name: "remove spare, the primary",
 			edit: func(d *config.Draft) error { return d.RemoveAccount("spare") },
 			want: []config.Account{
-				{ID: "work", Label: "work", Primary: true, Plan: "max20x"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
+				{ID: "work", Label: "work", Primary: true, Plan: "ultra"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
 			},
 		},
 		{
@@ -571,7 +578,7 @@ func TestAddAccountRefuses(t *testing.T) {
 			name:    "a plan that isn't one",
 			config:  commented,
 			account: config.NewAccount{ID: "side", Plan: "max10x"},
-			wantErr: `account "side": plan "max10x": must be pro, max5x or max20x, the plan the account's subscription is on`,
+			wantErr: `account "side": plan "max10x": must be pro, max or ultra, the plan the account's subscription is on`,
 		},
 		{
 			name:    "accounts listed inline, which a table can't follow",

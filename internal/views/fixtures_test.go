@@ -112,9 +112,9 @@ func family(model string) string {
 	return strings.Split(strings.TrimPrefix(model, "claude-"), "-")[0]
 }
 
-// accounts are the configured accounts in the views' tests: work, on Max
-// 20x, side, on Pro, and spare, on a plan not known.
-var accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side", Plan: "pro"}, {ID: "spare"}}
+// accounts are the configured accounts in the views' tests: work, on Ultra,
+// side, on Pro, and spare, on a plan not known.
+var accounts = config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "side", Plan: "pro"}, {ID: "spare"}}
 
 // input is what the views' tests build a History from: the days given, asked
 // for from a day before the ledger began, so its first day cuts no period

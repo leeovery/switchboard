@@ -32,9 +32,9 @@ func editingScreen(card SetupEditCard) Setup {
 }
 
 // frame6Card is personal's edit card as frame 6 has it: Plan chosen, and
-// moved to Max 5x.
+// moved to Max.
 func frame6Card() SetupEditCard {
-	return SetupEditCard{ID: "personal", Label: Field{Value: "Personal", Cursor: 8}, Reserve: Field{Value: "none", Cursor: 4}, Plan: "max5x", Chosen: setup.PlanField}
+	return SetupEditCard{ID: "personal", Label: Field{Value: "Personal", Cursor: 8}, Reserve: Field{Value: "none", Cursor: 4}, Plan: "max", Chosen: setup.PlanField}
 }
 
 // setupCardRow is the card's row y, from its line to its line, as text.
@@ -48,7 +48,7 @@ func TestTheEditCardIsFrame6s(t *testing.T) {
 		editCardTop:        "╭─ EDIT PERSONAL " + strings.Repeat("─", 62) + "╮",
 		editCardTop + 1:    "│" + blanks(78) + "│",
 		editLabelRow:       "│  Label     Personal" + blanks(58) + "│",
-		editPlanRow:        "│  Plan      □ Pro    ■ Max 5x    □ Max 20x    □ not set" + blanks(23) + "│",
+		editPlanRow:        "│  Plan      □ Pro    ■ Max    □ Ultra    □ not set" + blanks(28) + "│",
 		editPlanRow + 1:    "│            used by History to value usage" + blanks(36) + "│",
 		editPrimaryRow:     "│  Primary   ■ no    □ yes" + blanks(53) + "│",
 		editPrimaryRow + 1: "│            the account the Claude apps are signed in to" + blanks(22) + "│",
@@ -222,9 +222,9 @@ func firstRunScreen(card SetupAddCard) Setup {
 }
 
 // frame1Card is the add card as frame 1 has it: work's ID and Label typed,
-// Max 20x chosen, Label typed in.
+// Ultra chosen, Label typed in.
 func frame1Card() SetupAddCard {
-	return SetupAddCard{ID: Field{Value: "work", Cursor: 4}, Label: Field{Value: "Work", Cursor: 4}, Plan: "max20x", Chosen: setup.LabelField}
+	return SetupAddCard{ID: Field{Value: "work", Cursor: 4}, Label: Field{Value: "Work", Cursor: 4}, Plan: "ultra", Chosen: setup.LabelField}
 }
 
 // addCardTop is the add card's top row at 160×37, the card 16 rows tall,
@@ -241,7 +241,7 @@ func TestTheAddCardIsFrame1s(t *testing.T) {
 		addCardTop + 4:  "│  ID        work" + blanks(62) + "│",
 		addCardTop + 5:  "│            letters, numbers, - and _ · can't be changed later" + blanks(16) + "│",
 		addCardTop + 7:  "│  Label     Work                      shown in the dashboard" + blanks(18) + "│",
-		addCardTop + 9:  "│  Plan      □ Pro    □ Max 5x    ■ Max 20x    □ not set" + blanks(23) + "│",
+		addCardTop + 9:  "│  Plan      □ Pro    □ Max    ■ Ultra    □ not set" + blanks(28) + "│",
 		addCardTop + 11: "│  Setup then creates a token with claude setup-token. You approve it in" + blanks(7) + "│",
 		addCardTop + 12: "│  the browser while signed in to this subscription. Tokens last a year." + blanks(7) + "│",
 		addCardTop + 13: "│" + blanks(78) + "│",

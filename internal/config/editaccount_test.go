@@ -290,7 +290,7 @@ func TestAnAccountWithALabelOverLinesIsMadeThePrimaryBelowIt(t *testing.T) {
 
 // keyInLabel is a config whose account's label, over lines, holds a line
 // that reads as a key.
-const keyInLabel = "[[account]]\nid    = \"work\"\nlabel = \"\"\"\nplan = \"max5x\"\nreserve = 0.1\n\"\"\"\n"
+const keyInLabel = "[[account]]\nid    = \"work\"\nlabel = \"\"\"\nplan = \"max\"\nreserve = 0.1\n\"\"\"\n"
 
 func TestALabelOverLinesHoldingAKeyLineTakesThatKeyBelowIt(t *testing.T) {
 	tests := []struct {
@@ -340,27 +340,64 @@ func TestSetPlan(t *testing.T) {
 		id     string
 		plan   string
 		want   string
+		// loads is the plan the account loads on once it's set.
+		loads string
 	}{
 		{
 			name:   "below the account's last key",
 			config: workThenSide,
 			id:     "side",
-			plan:   "max5x",
-			want:   replaced(t, workThenSide, "label = \"Side\"\n", "label = \"Side\"\nplan = \"max5x\"\n"),
+			plan:   "max",
+			want:   replaced(t, workThenSide, "label = \"Side\"\n", "label = \"Side\"\nplan = \"max\"\n"),
+			loads:  "max",
 		},
 		{
 			name:   "in place of its plan, keeping the comment beside it",
 			config: "[[account]]\nid   = \"work\"\nplan = \"pro\"   # for now\n",
 			id:     "work",
-			plan:   "max20x",
-			want:   "[[account]]\nid   = \"work\"\nplan = \"max20x\"   # for now\n",
+			plan:   "ultra",
+			want:   "[[account]]\nid   = \"work\"\nplan = \"ultra\"   # for now\n",
+			loads:  "ultra",
 		},
 		{
 			name:   "in place of a plan in triple literal quotes on the one line, keeping the comment beside it",
 			config: "[[account]]\nid   = \"work\"\nplan = '''pro''' # c\n",
 			id:     "work",
+			plan:   "max",
+			want:   "[[account]]\nid   = \"work\"\nplan = \"max\" # c\n",
+			loads:  "max",
+		},
+		{
+			name:   "given by its old name, written by its new",
+			config: workThenSide,
+			id:     "side",
+			plan:   "max20x",
+			want:   replaced(t, workThenSide, "label = \"Side\"\n", "label = \"Side\"\nplan = \"ultra\"\n"),
+			loads:  "ultra",
+		},
+		{
+			name:   "the plan the file gives by its old name, written by its new in its place",
+			config: "[[account]]\nid   = \"work\"\nplan = \"max20x\" # c\n",
+			id:     "work",
+			plan:   "ultra",
+			want:   "[[account]]\nid   = \"work\"\nplan = \"ultra\" # c\n",
+			loads:  "ultra",
+		},
+		{
+			name:   "by its old name, as the file gives it, written by its new in its place",
+			config: "[[account]]\nid   = \"work\"\nplan = \"max5x\"\n",
+			id:     "work",
 			plan:   "max5x",
-			want:   "[[account]]\nid   = \"work\"\nplan = \"max5x\" # c\n",
+			want:   "[[account]]\nid   = \"work\"\nplan = \"max\"\n",
+			loads:  "max",
+		},
+		{
+			name:   "by its old name, the file giving its new, left as it is",
+			config: "[[account]]\nid   = \"work\"\nplan = \"ultra\"\n",
+			id:     "work",
+			plan:   "max20x",
+			want:   "[[account]]\nid   = \"work\"\nplan = \"ultra\"\n",
+			loads:  "ultra",
 		},
 		{
 			name:   "none, taking its plan out",
@@ -385,10 +422,38 @@ func TestSetPlan(t *testing.T) {
 			if err := draft.SetPlan(tt.id, tt.plan); err != nil {
 				t.Fatalf("SetPlan(%q, %q) error = %v", tt.id, tt.plan, err)
 			}
-			if got := checkSaved(t, path, draft, tt.id, tt.want); got.Plan != tt.plan {
-				t.Errorf("the plan loads as %q, want %q", got.Plan, tt.plan)
+			if got := checkSaved(t, path, draft, tt.id, tt.want); got.Plan != tt.loads {
+				t.Errorf("the plan loads as %q, want %q", got.Plan, tt.loads)
 			}
 		})
+	}
+}
+
+// A plan the file gives by its old name keeps it until an edit sets the
+// plan, an edit to another of the account's keys leaving it be.
+func TestAPlansOldNameStaysTillThePlanIsSet(t *testing.T) {
+	const old = "[[account]]\nid   = \"work\"\nplan = \"max20x\"\n"
+	path := writeConfig(t, old)
+	draft := edit(t, path)
+	if got := draft.PlanAlias("work"); got != "max20x" {
+		t.Errorf("PlanAlias() = %q as read, want max20x", got)
+	}
+
+	if err := draft.SetReserve("work", 0.05); err != nil {
+		t.Fatalf("SetReserve() error = %v", err)
+	}
+	if got := checkSaved(t, path, draft, "work", old+"reserve = 0.05\n"); got.Plan != "ultra" {
+		t.Errorf("the plan loads as %q, want ultra", got.Plan)
+	}
+	if got := draft.PlanAlias("work"); got != "max20x" {
+		t.Errorf("PlanAlias() = %q once the reserve's set, want max20x", got)
+	}
+
+	if err := draft.SetPlan("work", "ultra"); err != nil {
+		t.Fatalf("SetPlan() error = %v", err)
+	}
+	if got := draft.PlanAlias("work"); got != "" {
+		t.Errorf("PlanAlias() = %q once the plan's set, want none", got)
 	}
 }
 
@@ -613,7 +678,7 @@ func TestSetPlanRefuses(t *testing.T) {
 			config:  commented,
 			id:      "work",
 			plan:    "free",
-			wantErr: `account "work": plan "free": must be pro, max5x or max20x, the plan the account's subscription is on`,
+			wantErr: `account "work": plan "free": must be pro, max or ultra, the plan the account's subscription is on`,
 		},
 		{
 			name:    "accounts listed inline",
@@ -763,8 +828,10 @@ func TestParsePlan(t *testing.T) {
 		want  string
 	}{
 		{given: "pro", want: "pro"},
-		{given: "max5x", want: "max5x"},
-		{given: "max20x", want: "max20x"},
+		{given: "max", want: "max"},
+		{given: "ultra", want: "ultra"},
+		{given: "max5x", want: "max"},
+		{given: "max20x", want: "ultra"},
 		{given: "none", want: ""},
 	}
 	for _, tt := range tests {
@@ -782,10 +849,10 @@ func TestParsePlanRefuses(t *testing.T) {
 		given   string
 		wantErr string
 	}{
-		{name: "a plan it doesn't know", given: "free", wantErr: `plan "free": must be pro, max5x, max20x or none`},
-		{name: "a plan in another case", given: "Max5x", wantErr: `plan "Max5x": must be pro, max5x, max20x or none`},
-		{name: "nothing", given: "", wantErr: `plan "": must be pro, max5x, max20x or none`},
-		{name: "a token, never quoted", given: tokenShaped, wantErr: `plan "[redacted]": must be pro, max5x, max20x or none`},
+		{name: "a plan it doesn't know", given: "free", wantErr: `plan "free": must be pro, max, ultra or none`},
+		{name: "a plan in another case", given: "Max5x", wantErr: `plan "Max5x": must be pro, max, ultra or none`},
+		{name: "nothing", given: "", wantErr: `plan "": must be pro, max, ultra or none`},
+		{name: "a token, never quoted", given: tokenShaped, wantErr: `plan "[redacted]": must be pro, max, ultra or none`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -68,7 +68,7 @@ func TestByMonthIsEachMonthsRequestsWorthAndLimitsAgainstThePlans(t *testing.T) 
 		{
 			name:   "at the config's price of a plan",
 			days:   daysFrom("2026-09-30", day("2026-09-30", account("work", sent("claude-opus-5-5", 1, inputUsage)))),
-			prices: config.Prices{Plans: map[string]float64{"max20x": 150}},
+			prices: config.Prices{Plans: map[string]float64{"ultra": 150}},
 			want: `[{"month":"2026-09","requests":1,"worth":4,"cost":5.58904109589,"against":0.7156862745098566,"plans":{"known":2,"of":3},` +
 				`"by_family":[{"family":"opus","worth":4}]},{"month":"2026-10","requests":0,"cost":170,"plans":{"known":2,"of":3}}]`,
 		},
@@ -112,8 +112,8 @@ func TestAMonthAPlanPriceChangedInCostsItsPriceOnItsFirstDay(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			in := input(daysFrom(tt.began))
-			in.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}}
-			in.Prices.Plans = []ledger.Plan{{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{
+			in.Accounts = config.Accounts{{ID: "work", Plan: "ultra"}}
+			in.Prices.Plans = []ledger.Plan{{ID: "ultra", Name: "Ultra", Size: 10, Prices: []ledger.PlanPrice{
 				{From: "2025-04-09", Monthly: 200 * ledger.Dollar}, {From: "2026-09-15", Monthly: 250 * ledger.Dollar}, {From: "2026-10-02", Monthly: 300 * ledger.Dollar},
 			}}}
 			if got := jsonOf(t, views.NewHistory(in).Months); got != tt.want {

@@ -382,16 +382,17 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		History:        History{Keep: historyKeep},
 		Ledger:         Ledger{Keep: ledgerKeep},
 		Usage:          Usage{By: by},
-		Prices:         f.Prices,
+		Prices:         f.Prices.renamed(),
 	}, nil
 }
 
 // resolve returns the accounts as they're written, with their defaults filled
-// in: the id for a label, and the first account for the primary.
+// in: the id for a label, and the first account for the primary; and each
+// plan by the name Plans give it, in place of an alias.
 func resolve(written []fileAccount) Accounts {
 	accounts := make(Accounts, len(written))
 	for i, w := range written {
-		accounts[i] = Account{ID: w.ID, Label: w.shownAs(), Primary: w.Primary, Reserve: w.Reserve, Plan: w.Plan}
+		accounts[i] = Account{ID: w.ID, Label: w.shownAs(), Primary: w.Primary, Reserve: w.Reserve, Plan: planNamed(w.Plan)}
 	}
 	accounts[accounts.primary()].Primary = true
 	return accounts

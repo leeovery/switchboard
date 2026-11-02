@@ -74,7 +74,7 @@ func TestEOpensTheChosenAccountsEditCard(t *testing.T) {
 		"",
 		"  Label     Personal",
 		"",
-		"  Plan      □ Pro    □ Max 5x    □ Max 20x    ■ not set",
+		"  Plan      □ Pro    □ Max    □ Ultra    ■ not set",
 		"            used by History to value usage",
 		"",
 		"  Primary   ■ no    □ yes",
@@ -92,6 +92,17 @@ func TestEOpensTheChosenAccountsEditCard(t *testing.T) {
 	}
 	if got := h.model.edit.chosen; got != setup.LabelField {
 		t.Errorf("the card opens on field %d, want Label, typed in", got)
+	}
+}
+
+// An account's edit card opens with its plan chosen: work's, Ultra, which
+// the review gives by that name though the config may give its old.
+func TestTheEditCardOpensWithTheAccountsPlanChosen(t *testing.T) {
+	h := accountsHarness(t, frame3Steps())
+	h.start()
+	h.pressAndDeliver("e")
+	if got := h.cardRow("Plan"); got != "  Plan      □ Pro    □ Max    ■ Ultra    □ not set" {
+		t.Errorf("Plan reads %q, want Ultra chosen", got)
 	}
 }
 
@@ -115,7 +126,7 @@ func TestEachFieldOfTheEditCardIsSaved(t *testing.T) {
 		row  string
 	}{
 		{name: "its label", keys: []string{"backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "H", "o", "m", "e"}, want: setup.Edit{Label: new("Home")}, row: "  2  personal        Home"},
-		{name: "its plan", keys: []string{"tab", "left", "left"}, want: setup.Edit{Plan: new("max5x")}, row: "  2  personal        Personal      Max 5x"},
+		{name: "its plan", keys: []string{"tab", "left", "left"}, want: setup.Edit{Plan: new("max")}, row: "  2  personal        Personal      Max"},
 		{name: "its plan, no further than the first", keys: []string{"tab", "left", "left", "left", "left", "left"}, want: setup.Edit{Plan: new("pro")}, row: "  2  personal        Personal      Pro"},
 		{name: "the primary", keys: []string{"tab", "tab", "right"}, want: setup.Edit{Primary: true}, row: "  2  personal ◆      Personal"},
 		{name: "its reserve", keys: []string{"tab", "tab", "tab", "backspace", "backspace", "backspace", "backspace", "5", "%"}, want: setup.Edit{Reserve: new("5%")}, row: "  2  personal        Personal      not set    5%"},

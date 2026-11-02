@@ -78,7 +78,7 @@ func TestTokensIsEachWeeksTokensByKindAccountAndModel(t *testing.T) {
 		{
 			name:   "at the config's price of a plan",
 			days:   daysFrom("2026-10-07", day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage)))),
-			prices: config.Prices{Plans: map[string]float64{"max20x": 32, "pro": 20}},
+			prices: config.Prices{Plans: map[string]float64{"ultra": 32, "pro": 20}},
 			want: `[{"week":"2026-10-05","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4,"cost":8.54794520548,` +
 				`"against":0.467948717948688,"plans":{"known":2,"of":3},` +
 				`"by_account":[{"account":"work","input":1000000,"output":0,"cache_write":0,"cache_read":0,"total":1000000,"worth":4,` +
