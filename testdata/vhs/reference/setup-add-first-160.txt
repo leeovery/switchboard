@@ -10,7 +10,7 @@ ACCOUNTS  ───────────────────────�
 
 ▌ +  add an account                     ╭─ ADD AN ACCOUNT ─────────────────────────────────────────────────────────────╮
                                         │                                                                              │
-                                        │  Each account is one Claude subscription: a Pro or Max plan.                 │
+                                        │  Each account is one Claude subscription: a Pro, Max or Ultra plan.          │
                                         │                                                                              │
                                         │  ID        work                                                              │
                                         │            letters, numbers, - and _ · can't be changed later                │

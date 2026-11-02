@@ -814,13 +814,13 @@ accounts:
   `--plan` given the plan the config names by its old name writes its new, `plan ultra (was
   written max20x)`; and says what it changed, each value now and as it was, labels quoted
   (`prose.Quoted`) and none, where the config writes no label, said so, and a label written
-  untidily and tidied said so; or, when
-  every value given is the account's already, that nothing changed, writing nothing. A label
-  written by hand can't go through `add`'s rules, so `prose.Quoted` shows what it holds: a
-  character drawn as nothing that `add` would drop, a bidirectional control among them, as its
-  `\u` escape, so it can't reorder the line, and a direction mark too, which `add` keeps but
-  whose part can't be seen, while what `add` keeps in an emoji, a keycap, a variant, a flag or
-  a joining script shows as it is, unless an escape stands before it, and so does private use.
+  untidily and tidied said so; or, when every value given is the account's already, that nothing
+  changed, writing nothing. A label written by hand can't go through `add`'s rules, so
+  `prose.Quoted` shows what it holds: a character drawn as nothing that `add` would drop, a
+  bidirectional control among them, as its `\u` escape, so it can't reorder the line, and a
+  direction mark too, which `add` keeps but whose part can't be seen, while what `add` keeps in
+  an emoji, a keycap, a variant, a flag or a joining script shows as it is, unless an escape
+  stands before it, and so does private use.
   Moving the primary, it says what the sessions running through the router keep as Claude Code's
   own until they restart, as launch chose it from the config the edit read, the tokens as they
   stand now: the former primary's token, pinned or not; or, where it has no usable token, the
@@ -968,8 +968,8 @@ show.
      up without an account, so `enter` waits for one. Once there's one, the line is `Add each Claude
      subscription you want switchboard to route across.` (frame 2).
    - **Adding** (`+ add an account`, then `enter`), the card `ADD AN ACCOUNT`: `Each account is one
-     Claude subscription: a Pro or Max plan.`; then ID, under it `letters, numbers, - and _ · can't
-     be changed later`; Label, `shown in the dashboard`; and Plan, `Pro`, `Max`, `Ultra` or
+     Claude subscription: a Pro, Max or Ultra plan.`; then ID, under it `letters, numbers, - and _
+     · can't be changed later`; Label, `shown in the dashboard`; and Plan, `Pro`, `Max`, `Ultra` or
      `not set`; then `Setup then creates a token with claude setup-token. You approve it in the
      browser while signed in to this subscription. Tokens last a year.` Its keys: `tab next`, `enter
      create token`, `esc cancel`. The id and label are held to `accounts add`'s rules, a wrong one
@@ -7520,9 +7520,10 @@ from the first day a router that has it runs, so nothing before then is in it.
     US dollars, with its size in Pros, which History's replay of a week weighs an account by (see
     History): `pro`, Pro, $20 and 1; `max`, Max, $100 and 5; and `ultra`, Ultra, $200 and 10, its
     weekly limits ten times Pro's. Max and Ultra were Max 5x and Max 20x till Anthropic renamed
-    them (see Observed behaviour); the config still loads their old names. An account's plan is the config's `plan`, as switchboard can't read it: a setup token can't
-    read the profile endpoint that knows it (see Requests that need special handling). An account
-    without one has no price, and nothing is priced against it.
+    them (see Observed); the config still loads their old names. An account's plan is the
+    config's `plan`, as switchboard can't read it: a setup token can't read the profile endpoint
+    that knows it (see Requests that need special handling). An account without one has no price,
+    and nothing is priced against it.
   - **Overrides:** the config can price any model, or any plan, otherwise (see Config). An override
     prices every day alike, rather than from a day of its own, and where any holds, the date shown
     beside worth says so: `at its prices as of 7 Oct 2026 and the config's`.
@@ -8363,12 +8364,13 @@ fails as it is; one that parses has every problem reported at once:
   `b` for the dashboard, which remembers the choice (see `usage`, the printout, and The Overview).
 - **`[prices]`** overrides the price table built into switchboard (see The request ledger).
   `[prices.plans]` gives a plan's price, by its name, `pro`, `max` or `ultra`, in US dollars a
-  month; by its old name too, but a plan priced by both is an error naming the two keys. `[prices.models.<id>]` gives a model's, under its id as the API names it,
-  `claude-opus-5-5`, in US dollars a million tokens, by the kind of token: `input`, `output`,
-  `cache_read`, `cache_write_5m` and `cache_write_1h`. Each price is a number, 0 or more; one left
-  out keeps the built-in table's; and a model the table doesn't know is priced only where all five
-  are given, its web searches at the table's price and US-only inference unpriced. A plan's name, or
-  a kind of token, the table doesn't know is an error, as unknown keys are.
+  month; by its old name too, but a plan priced by both is an error naming the two keys.
+  `[prices.models.<id>]` gives a model's, under its id as the API names it, `claude-opus-5-5`, in
+  US dollars a million tokens, by the kind of token: `input`, `output`, `cache_read`,
+  `cache_write_5m` and `cache_write_1h`. Each price is a number, 0 or more; one left out keeps the
+  built-in table's; and a model the table doesn't know is priced only where all five are given,
+  its web searches at the table's price and US-only inference unpriced. A plan's name, or a kind
+  of token, the table doesn't know is an error, as unknown keys are.
 - **No error quotes a token:** one that quotes a value, of `listen`, `upstream`, `prime.day`,
   `week_starts`, `when_router_down`, a `plan`, `[usage]`'s `by` or a price in `[prices]`, an
   unknown key's name, or the key a file that isn't TOML fails at, such as one without a value or

@@ -95,8 +95,7 @@ func TestEOpensTheChosenAccountsEditCard(t *testing.T) {
 	}
 }
 
-// An account's edit card opens with its plan chosen: work's, Ultra, which
-// the review gives by that name though the config may give its old.
+// An account's edit card opens with its plan chosen: work's, Ultra.
 func TestTheEditCardOpensWithTheAccountsPlanChosen(t *testing.T) {
 	h := accountsHarness(t, frame3Steps())
 	h.start()

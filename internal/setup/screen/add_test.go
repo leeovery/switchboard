@@ -34,7 +34,7 @@ func firstRun(t *testing.T) *harness {
 // The add card, as it opens: its fields empty, ID chosen, typed in.
 var addCardOpened = []string{
 	"",
-	"  Each account is one Claude subscription: a Pro or Max plan.",
+	"  Each account is one Claude subscription: a Pro, Max or Ultra plan.",
 	"",
 	"  ID",
 	"            letters, numbers, - and _ · can't be changed later",

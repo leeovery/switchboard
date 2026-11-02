@@ -39,9 +39,8 @@ type Edited struct {
 	// config, which didn't before: so too where it was the primary already,
 	// only as the first with none marked, where FormerPrimary is "".
 	Marked bool
-	// Unaliased is the alias the config named the account's plan by before
-	// the edit, which wrote the plan by its name now in its place: "" where
-	// it didn't.
+	// Unaliased is the old name the config gave the account's plan, which
+	// the edit wrote by its new one: "" where it didn't.
 	Unaliased string
 	// Before is the config the edit read, as it was before the edit.
 	Before *config.Config

@@ -236,7 +236,7 @@ func TestTheAddCardIsFrame1s(t *testing.T) {
 	want := map[int]string{
 		addCardTop:      "╭─ ADD AN ACCOUNT " + strings.Repeat("─", 61) + "╮",
 		addCardTop + 1:  "│" + blanks(78) + "│",
-		addCardTop + 2:  "│  Each account is one Claude subscription: a Pro or Max plan." + blanks(17) + "│",
+		addCardTop + 2:  "│  Each account is one Claude subscription: a Pro, Max or Ultra plan." + blanks(10) + "│",
 		addCardTop + 3:  "│" + blanks(78) + "│",
 		addCardTop + 4:  "│  ID        work" + blanks(62) + "│",
 		addCardTop + 5:  "│            letters, numbers, - and _ · can't be changed later" + blanks(16) + "│",
