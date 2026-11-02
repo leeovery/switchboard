@@ -67,8 +67,8 @@ func (from LanesFrom) poolOf(lanes []Lane) Pool {
 // where it has no lane: the window's Of, where the moment's pool has the
 // window; else, as before any reports it, the members, where there are any
 // and the pool doesn't lack the window, as the moment's PoolLacks has it.
-// The members are those PoolLacks counts, as an account has a lane but
-// where it lacks the window.
+// The members are those PoolLacks counts, since an account has a lane
+// unless it lacks the window.
 func (from LanesFrom) poolCounts(members int) (int, bool) {
 	pool, key := from.Moment.Pool(), from.viewKey()
 	if i := slices.IndexFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == key }); i >= 0 {

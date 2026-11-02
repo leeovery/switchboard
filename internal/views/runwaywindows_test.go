@@ -99,11 +99,11 @@ func TestRunwayOffersTheFiveHourOnlyWhereSomeAccountHasOrMayHaveOne(t *testing.T
 // window, none for one that lacks it, as a verified Ultra account does; the
 // week view a lane for every account. The pool's lane is of the window's Of,
 // the pool's accounts that have it, where the pool keeps the window, as a
-// pin of one does; else of its accounts with lanes, before any reports the
-// window, where there are two, or they're all of the pool's, as a pin of one
-// not read yet. It goes where fewer than two lanes are left, or where the
-// pool keeps no window over fewer than two of its accounts' lanes, as with a
-// pin naming one account that has it and one that doesn't.
+// pin of one does; else, before any reports the window, of its accounts with
+// lanes, where the pool doesn't lack the window, as status's PoolLacks has
+// it, as a pin of one not read yet doesn't. It goes where fewer than two
+// lanes are left, as with one account, or where the pool lacks the window,
+// as with a pin naming one account that has it and one that doesn't.
 func TestTheFiveHourViewListsOnlyTheAccountsThatHaveOne(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -113,6 +113,16 @@ func TestTheFiveHourViewListsOnlyTheAccountsThatHaveOne(t *testing.T) {
 		lanes    []string
 		of       int
 	}{
+		{
+			name:     "one account",
+			accounts: []status.Account{fiveHourAccount("work")},
+			window:   views.RunwayFiveHour, lanes: []string{"work"},
+		},
+		{
+			name:     "two accounts, an Ultra one read and one not read yet",
+			accounts: []status.Account{ultraAccount("work"), unreadAccount("personal")},
+			window:   views.RunwayFiveHour, lanes: []string{"personal"},
+		},
 		{
 			name:     "an Ultra account among three",
 			accounts: []status.Account{ultraAccount("work"), fiveHourAccount("personal"), fiveHourAccount("side")},

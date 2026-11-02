@@ -4,8 +4,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -49,6 +51,23 @@ func TestRunwayHelpListsItsKeysThenEachPartInTheDesignsOrder(t *testing.T) {
 	}
 }
 
+// pinnedToOneUnread are Runway's 5-hour lanes as views builds them over the
+// auto world the frames were drawn of, the global pin naming side, nothing
+// read of it yet: a pool's lane of one.
+func pinnedToOneUnread() *views.Lanes {
+	doc := framesDoc()
+	doc.Accounts = slices.Clone(doc.Accounts)
+	for i, a := range doc.Accounts {
+		if a.ID == "side" {
+			doc.Accounts[i] = status.Account{ID: a.ID, Label: a.Label, TokenSet: true}
+		}
+	}
+	doc.Pin = status.Pin{Accounts: []string{"side"}, Since: routedAt.Add(-time.Hour)}
+	m := doc.WorkedOut(claudeLike).At(routedAt, claudeLike)
+	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, 136), Window: views.RunwayFiveHour})
+	return &lanes
+}
+
 // Where there's no pool's lane, as with one account, or two lanes no pool's
 // lane is drawn under, help leaves the pool out, as the page does; lanes not
 // built yet are taken as the pool's.
@@ -60,7 +79,7 @@ func TestRunwayHelpLeavesThePoolOutWithNoPoolsLane(t *testing.T) {
 	}{
 		{name: "one account", lanes: lanesOf(1), want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 		{name: "two accounts", lanes: lanesOf(2), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
-		{name: "a pin of one, a pool's lane of one", lanes: &views.Lanes{Accounts: make([]views.Lane, 3), Pool: views.Pool{Of: 1, Key: "5h"}}, want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "a pin of one not read yet, a pool's lane of one", lanes: pinnedToOneUnread(), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 		{name: "two lanes, no pool's lane", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}, {ID: "side"}}}, want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 		{name: "lanes not built yet", want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 	}
