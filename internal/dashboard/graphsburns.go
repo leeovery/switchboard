@@ -17,7 +17,7 @@ import (
 // moment's policy shares no window of the section's.
 func (f Frame) burnCards(c *canvas, m status.Moment, laid graphsLaid, placed graphsPlaced) {
 	window := burnDowns[placed.section]
-	key := window.KeyIn(m.Policy())
+	key := window.KeyIn(m)
 	if key == "" {
 		return
 	}

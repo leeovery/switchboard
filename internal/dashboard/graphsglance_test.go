@@ -47,7 +47,7 @@ func glanceOf(doc status.Document, look Look) glance {
 	m := doc.At(printNow, printPolicy)
 	pools := map[views.RunwayWindow]views.PoolSpan{}
 	for _, w := range runwayWindows {
-		pools[w] = views.PoolSpan{}.Look(views.PoolRoomFrom{Moment: m, Key: w.KeyIn(m.Policy()), Columns: sparkCells})
+		pools[w] = views.PoolSpan{}.Look(views.PoolRoomFrom{Moment: m, Key: w.KeyIn(m), Columns: sparkCells})
 	}
 	return glance{m: m, trails: trioTrails(), pools: pools, look: look}
 }

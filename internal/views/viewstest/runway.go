@@ -52,7 +52,7 @@ type RunwayMoment struct {
 // timeline has no now; the pool's count of accounts and its columns' counts
 // with room; what the lanes draw, as the legend keys it; and COMING UP. Of a
 // lane: its cells, its stretches without room, its resets, its room and its
-// use.
+// use; each "" of an account with no lane, as one lacking the view's window.
 //
 //   - cells and the pool's columns are runs of like columns, ", " between,
 //     each as "room 0-29", or "room 7" for one: a lane's by its cell, "blank",
@@ -288,8 +288,9 @@ func justAfterAFiveHourReset() []RunwayMoment {
 // failedReads has work's first read fail, nothing read of it before, so its
 // lane is blank, counted without room; its read fail after one at 14:20,
 // its lane drawn as read, its use stale; its 5-hour not reported, its week
-// alone read, so it has no use to show; and its windows listed, nothing read
-// of them yet.
+// alone read, so it lacks a 5-hour window, as a verified Ultra account does,
+// and has no lane, side's alone, with no pool's lane; and its windows
+// listed, nothing read of them yet.
 func failedReads() []RunwayMoment {
 	unread := status.Account{ID: work, Label: work, TokenSet: true, Error: "HTTP 529 · Overloaded"}
 	stale := readAccount(work, onThu(14, 20, 0), window(fiveHour, 0.4, onThu(16, 30, 0)), window(week, 0.3, mondayTen))
@@ -310,11 +311,13 @@ func failedReads() []RunwayMoment {
 			"":   {FigurePool: "2 0-135"},
 			work: {FigureCells: "room 0-135", FigureResets: "17 16:30", FigureRoom: "yes", FigureUse: "5h 40% stale, read 14:20"},
 		}),
-		fiveHourAt("a window its account hasn't reported", routed(onThu(14, 41, 0), nil, weekOnly, sideAt), sorted(
+		fiveHourAt("a 5-hour window its account lacks", routed(onThu(14, 41, 0), nil, weekOnly, sideAt), sorted(
 			readEach(work, onThu(13, 0, 0), weekOnly.Windows...),
 			sideRead(),
 		), map[string]Figures{
-			work: {FigureCells: "room 0-135", FigureResets: "", FigureRoom: "yes", FigureUse: "—"},
+			"":   {FigureOf: "0", FigurePool: ""},
+			work: {FigureCells: "", FigureUse: ""},
+			side: {FigureCells: "room 0-135", FigureUse: "5h 20%"},
 		}),
 		fiveHourAt("its windows listed, nothing read of them yet", routed(onThu(14, 41, 0), nil, listed, sideAt), sideRead(), map[string]Figures{
 			work: {FigureCells: "blank 0-135", FigureRoom: "no", FigureUse: "not read yet"},
@@ -837,6 +840,7 @@ var london = zone("Europe/London")
 // clocks change in.
 func steppedBack() []RunwayMoment {
 	doc := routed(onThu(14, 41, 0), nil, readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.3, onThu(17, 10, 0))), sideOn(onThu(14, 41, 0)))
+	weekRead := routed(onThu(14, 41, 0), nil, readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.3, onThu(17, 10, 0)), window(week, 0.2, mondayTen)), sideOn(onThu(14, 41, 0)))
 	fromWednesday := sorted(
 		readEach(work, onWed(9, 0, 0), window(fiveHour, 0.1, onWed(13, 0, 0)), window(week, 0.2, mondayTen)),
 		readEach(side, onWed(9, 0, 0), window(fiveHour, 0.1, onWed(13, 0, 0)), window(week, 0.2, mondayTen)),
@@ -902,7 +906,7 @@ func steppedBack() []RunwayMoment {
 			Want: map[string]Figures{"": {FigureNow: "83"}, work: {FigureResets: "68 12:10, 97 17:10", FigureUse: "5h highest 30%"}},
 		},
 		{
-			Name: "stepped back to a week its account's week reset in", Doc: doc, Now: thursday, Days: weekHighs(work, week, 0.9, 0.93, 0.96, 0.98, 0.2, 0.4, 0.6),
+			Name: "stepped back to a week its account's week reset in", Doc: weekRead, Now: thursday, Days: weekHighs(work, week, 0.9, 0.93, 0.96, 0.98, 0.2, 0.4, 0.6),
 			Window: views.RunwayWeek, Day: civilDay(2026, time.September, 24), WeekStarts: time.Monday, Columns: lanes,
 			Want: map[string]Figures{work: {FigureUse: "7d highest 98%"}},
 		},

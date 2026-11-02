@@ -382,7 +382,10 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // Then Runway's frames, each reached from the Overview with tab four times:
 // the week, which it opens on, wide and on a phone; the 5-hour view, with >;
 // Wednesday, > then ← twice, today and the day before; all over the auto
-// world; and the week of ten accounts. Among each view's, at the owner's
+// world; the week of ten accounts; over the mixed world of verified Ultra
+// accounts, the week, and the 5-hour view, with >, side's lane alone; and
+// over the world of all three verified Ultra, the week, the only view it
+// offers. Among each view's, at the owner's
 // sizes, each named for its size, the frames a fluid layout is checked by:
 // the Overview on a phone, an iPad and a phone on its side; Accounts'
 // Compare on a phone and Detail of work on its side; History's Year and
@@ -536,6 +539,9 @@ var pages = []page{
 	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(">"), leftKey, leftKey)},
 	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
+	{name: "runway-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toRunway()},
+	{name: "runway-mixed-5-hour-160", size: wide(37), world: accountWorlds.mixed, keys: toRunway(">")},
+	{name: "runway-ultra-160", size: wide(37), world: accountWorlds.ultra, keys: toRunway()},
 	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-collapsed-160", size: wide(37), world: accountWorlds.auto, keys: toRunway("a")},
 	{name: "runway-collapsed-108x43", size: watch.Size{Width: 108, Height: 43}, world: accountWorlds.auto, keys: toRunway("a")},

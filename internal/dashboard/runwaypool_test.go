@@ -257,6 +257,43 @@ func TestSigmaPoolHeadsThePoolsLaneWithNoRuleOverIt(t *testing.T) {
 	}
 }
 
+// The pool's room is said of how many of its accounts have the window, as
+// the window's Of counts them: of 2 in the 5-hour where one of three is
+// verified Ultra, of 3 in its week, which all have, collapsed and expanded
+// alike; and nothing where the pool keeps no 5-hour, as with side alone
+// having one.
+func TestThePoolsRoomIsSaidOfItsAccountsThatHaveTheWindow(t *testing.T) {
+	tests := []struct {
+		name         string
+		lacking      []string
+		key          string
+		short, words string
+		without      bool
+	}{
+		{name: "the 5-hour, every account with one", key: "5h", short: "1.5/3", words: "1.5 of 3 left"},
+		{name: "the 5-hour, work verified Ultra", lacking: []string{"work"}, key: "5h", short: "1.5/2", words: "1.5 of 2 left"},
+		{name: "the week, work verified Ultra", lacking: []string{"work"}, key: "7d", short: "1.2/3", words: "1.2 of 3 left"},
+		{name: "the 5-hour, side alone with one", lacking: []string{"work", "personal"}, key: "5h", without: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, ok := runwayRoom(offeredMoment(tt.lacking...), tt.key)
+			if ok == tt.without {
+				t.Fatalf("the pool has a room in %s %t, want %t", tt.key, ok, !tt.without)
+			}
+			if tt.without {
+				return
+			}
+			if got := poolShort(r).plain(); got != tt.short {
+				t.Errorf("collapsed, the pool's room reads %q, want %q", got, tt.short)
+			}
+			if got := poolWords(r.room, r.accounts, r.pinned).full.plain(); got != tt.words {
+				t.Errorf("the pool's room reads %q, want %q", got, tt.words)
+			}
+		})
+	}
+}
+
 // With one account, there's no pool's lane: no columns, no Σ pool and no
 // room, as they'd only repeat the account.
 func TestOneAccountHasNoPoolsLane(t *testing.T) {
