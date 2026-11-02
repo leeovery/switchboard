@@ -214,6 +214,35 @@ func TestUsageRefusesAWindowNoAccountReportsNamingThoseThereAre(t *testing.T) {
 	}
 }
 
+// Where every account is verified Ultra, none has a 5-hour window: --5h is
+// refused as any window no account reports is, and the JSON, which window
+// flags never shape, is the document still.
+func TestUsageRefusesThe5HourWindowWhereEveryAccountIsUltra(t *testing.T) {
+	ultraDeps := func(t *testing.T) cli.Deps {
+		deps := statusDeps(t, ultraAPI(t), nil)
+		writeToken(t, deps, "personal", "test-token-personal")
+		return deps
+	}
+	for _, form := range prettyForms() {
+		t.Run(form.name, func(t *testing.T) {
+			got := form.run(t, ultraDeps(t), "usage", "--5h")
+			if want := (result{stderr: "Error: no account reports the 5-hour window: give --week\n", code: 1}); got != want {
+				t.Errorf("switchboard usage --5h %s, %s, every account Ultra, = %+v, want %+v", strings.Join(form.args, " "), form.name, got, want)
+			}
+		})
+	}
+	for _, form := range jsonForms() {
+		t.Run(form.name, func(t *testing.T) {
+			deps := ultraDeps(t)
+			got := form.run(t, deps, "usage", "--5h")
+			if want := run(t, deps, "status", "--json"); got.code != 0 || got != want {
+				t.Errorf("switchboard usage --5h %s, %s, every account Ultra, =\n%+v\nwant what status --json prints, the flag passed over\n%+v",
+					strings.Join(form.args, " "), form.name, got, want)
+			}
+		})
+	}
+}
+
 func TestUsagePrintsEveryAccountBeforeAnyWindowIsRead(t *testing.T) {
 	tests := []struct {
 		args     []string
@@ -269,8 +298,24 @@ func sharedWindowsAPI(t *testing.T) string {
 // else. It returns the API's URL.
 func reportingAPI(t *testing.T, keys ...string) string {
 	t.Helper()
+	return answeringAPI(t, []string{"test-token-work"}, keys...)
+}
+
+// ultraAPI serves a probe of every account statusDeps configures, its
+// personal token written too, with the week alone, as every verified Ultra
+// account's answers have it. It returns the API's URL.
+func ultraAPI(t *testing.T) string {
+	t.Helper()
+	return answeringAPI(t, []string{"test-token-work", "test-token-personal", "test-token-side"}, "7d")
+}
+
+// answeringAPI serves a probe on any of the tokens given, of any model, with
+// the windows with the keys given alone, each a fifth used, and rejects
+// anything else. It returns the API's URL.
+func answeringAPI(t *testing.T, tokens []string, keys ...string) string {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer test-token-work" {
+		if !slices.Contains(tokens, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")) {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}`)
 			return
