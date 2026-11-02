@@ -496,8 +496,8 @@ const turnSeeds = 3
 // the session's given of a chunk read, so the session its line is of is
 // told apart from the one it counts toward.
 func TestATurnShowsFromItsDaysRowsWhatItShowsReadRaw(t *testing.T) {
-	met := make(map[string]bool)
-	for seed := range uint64(turnSeeds) {
+	t.Parallel()
+	met := metOfSeeds(t, turnSeeds, func(t *testing.T, seed uint64, met map[string]bool) {
 		world := turnWorld(seed)
 		first, last := sessionSpan(world)
 		laters := []time.Time{last.Add(3 * time.Hour), last.Add(7 * 24 * time.Hour), last.Add(30 * 24 * time.Hour)}
@@ -518,7 +518,7 @@ func TestATurnShowsFromItsDaysRowsWhatItShowsReadRaw(t *testing.T) {
 				c.heldToItsRows(tc, chunks, met)
 			}
 		}
-	}
+	})
 	for _, moment := range []string{
 		"a turn across midnight, each day read from its rows", "a subagent's requests on two days, each read from its rows",
 		"a turn pending, a day of its own read from its rows", "a turn a week back read from its rows, with a line since the horizon",

@@ -55,9 +55,9 @@ func (d datesGiven) Session(id string, within ...ledger.Span) iter.Seq[ledger.He
 // began to when its last row ended, nor from the horizon's on: a turn a
 // week or a month back passes over the days between.
 func TestEveryTurnOpenedShowsTheRowsReadOfEveryDay(t *testing.T) {
+	t.Parallel()
 	prices := changingPrices()
-	met := make(map[string]bool)
-	for seed := range uint64(60) {
+	met := metOfSeeds(t, 60, func(t *testing.T, seed uint64, met map[string]bool) {
 		lines, late := pagedRun(seed)
 		r := rand.New(rand.NewPCG(seed, 12))
 		first := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Session == "s" })
@@ -77,7 +77,7 @@ func TestEveryTurnOpenedShowsTheRowsReadOfEveryDay(t *testing.T) {
 		for i, after := range afters {
 			p.lookLater(i, last.Add(after), i == len(afters)-1, met)
 		}
-	}
+	})
 	for _, moment := range []string{
 		"a turn across midnight", "a subagent's request of a turn on a later day than it began", "a turn pending",
 		"a turn passing over a day of its session's lines", "a turn done holding a subagent's request filed since the feed, on the horizon's day",

@@ -199,6 +199,7 @@ func builtSays(name string) string {
 }
 
 func TestDrawingReadsTheViewsAlone(t *testing.T) {
+	t.Parallel()
 	root := sourcecheck.ModuleRoot(t)
 	sourcecheck.ReportEach(t, drawingBreaches(t, root, sourcecheck.ModulePath(t, root), drawingPackages, readersAllowed, callsAllowed, builtInTheWatch))
 }
