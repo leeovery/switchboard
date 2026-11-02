@@ -406,9 +406,10 @@ func (v usageViews) shown(rows, offset int) usageShown {
 // fitted is the block as USAGE draws it in rows rows, as it is or at a step
 // it gives way: with its big bars, as enlarged has them, where they take no
 // fewer rows than it does laid out, and fit, as with one window, whose big
-// bars take its matrix's rows; else as it's laid out. So two windows or more
-// draw the matrix in its own rows at every step. Only the rows given choose,
-// never what it holds.
+// bars take its matrix's rows; else as it's laid out. A step it gives way to
+// is never given more rows than its own matrix takes, as the planner has it,
+// so two windows or more draw the matrix at every step. Only the rows given
+// choose, never what it holds.
 func (v usageViews) fitted(rows int) usageBlock {
 	if v.all <= v.big && v.big <= rows {
 		return v.block.enlarged()

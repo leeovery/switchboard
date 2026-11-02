@@ -874,7 +874,7 @@ func TestAStackedSectionListsOnlyTheAccountsWithItsWindow(t *testing.T) {
 				}
 				if tt.pool != nil {
 					rows := sectionRows(t, tt.doc, layout.width, layout.big)["5-HOUR"]
-					if got := strings.Fields(rows[len(rows)-1]); len(got) < 2 || !slices.Equal(got[2:], tt.pool) {
+					if got := strings.Fields(rows[len(rows)-1]); len(got) < 2 || !slices.Equal(got[:2], []string{"Σ", "pool"}) || !slices.Equal(got[2:], tt.pool) {
 						t.Errorf("the 5-hour section's pool row reads %q, want Σ pool and %q", rows[len(rows)-1], tt.pool)
 					}
 				}
