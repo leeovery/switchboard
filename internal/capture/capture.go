@@ -569,6 +569,8 @@ var pages = []page{
 	{name: "graphs-glance-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toGraphs("f", "g")},
 	{name: "graphs-glance-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs("f", "g")},
 	{name: "graphs-pool-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs("f", "o")},
+	{name: "graphs-mixed-160x37", size: wide(37), world: accountWorlds.mixed, keys: toGraphs()},
+	{name: "graphs-ultra-160x37", size: wide(37), world: accountWorlds.ultra, keys: toGraphs()},
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's

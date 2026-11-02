@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log                                                             Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+WEEK  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── w
+
+1 work                                                2 personal ◆                                          3 side ▲
+66% left  ·  resets Sun 21:00                         34% left  ·  runs out ~Sat 06:00 at its pace          22% left  ·  runs out ~Fri 12:20 at its pace
+
+    ▃                      │                                    ▂                     │                     ▆                      │
+     ▅                     │                                     ▂                    │                      ▅                     │
+      ▇▆▆▆▆▃               │                                      ▆▆▆▆▆               │                       ▇▄▄▄▄                │
+            ▆▂             │                                           ▂              │                            ▆               │
+                  ▇▄       │                                                          │                                            │
+                     ▅▅▅▅▂ │                                            ▅             │                                            │
+                          ▆⢄                                             ▁▁▁▁▁        │                              ▆             │
+                           │⠉⠢⣀                                                       │                                   ▂        │
+                           │   ⠑⠤⡀                                                    │                                            │
+                           │     ⠈⠒⢄                                           ▄      │                                    ▁       │
+                           │        ⠉⠢⣀                                               │                                            │
+                           │           ⠑⠤⡀                                      ▆▆▆▆▆▂│                                     ▃      │
+                           │             ⠈⠒⢄                                          ⢄                                      ▂▂▂▂  │
+                           │                ⠉⠢⣀                                       │⠑⢄                                        ▄ │
+                           │                   ⠑⠤⡀                                    │  ⠑⢄                                       ▃│
+                           │                     ⠈                                    │    ⠡⡀                                      ⠑⠄
+                           │                                                          │     ⠈⠢⡀                                    │⠈⠢
+                           │                                                          │       ⠈⠢                                   │  ⠑⠄
+                           │⠈ ⠈ ⠈ ⠈ ⠈ ⠈ ⠈ ⠈ ⠈ ⠈ ⠈                                     │         ⠑⢄✕⣀⣀⣀⣀⣀                           │   ⠈⠢✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
+╵Mon    ╵Tue   ╵Wed   ╵Thu   ╵Fri   ╵Sat   ╵Sun             ╵Mon   ╵Tue   ╵Wed   ╵Thu    ╵Fri   ╵Sat            ╵Tue   ╵Wed   ╵Thu   ╵Fri   ╵Sat   ╵Sun
+
+Σ pool   week 1.2 of 3 left
+
+
+
+▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve
+
+tab views     w week  o pool  g glance  h when     p pin  ? help  q quit

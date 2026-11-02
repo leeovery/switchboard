@@ -91,9 +91,18 @@ func (s shown[S]) Names() []string {
 // the page draws them: each key and its word, its word faint where its
 // section is hidden.
 func (s shown[S]) Toggles() []Key {
+	return s.TogglesOf(func(S) bool { return true })
+}
+
+// TogglesOf are the keys of the sections the page offers, as offered says,
+// as Toggles lists them: a section it doesn't offer has none.
+func (s shown[S]) TogglesOf(offered func(S) bool) []Key {
 	every := everyOf[S]()
 	toggles := make([]Key, 0, len(every))
 	for _, section := range every {
+		if !offered(section) {
+			continue
+		}
 		words := wordingOf(section)
 		toggles = append(toggles, Key{Key: words.key, Does: words.word, Hidden: !s.Has(section)})
 	}

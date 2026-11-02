@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -163,6 +164,56 @@ func TestGraphsBuildsAndReadsTheLanesOfTheBurnDownSectionsShownAlone(t *testing.
 			}
 			if read := r.filed.tails > 0; read != (len(tt.want) > 0) {
 				t.Errorf("the readings history's tail was made %d times and read %d, want it read %t", len(r.filed.starts), r.filed.tails, len(tt.want) > 0)
+			}
+		})
+	}
+}
+
+// Graphs builds no 5-hour lanes where no account has a 5-hour window, as
+// where every one is verified Ultra, whichever section would read them,
+// 5-HOUR kept shown or GLANCE; where one has, it builds them, of that
+// account's lane alone.
+func TestGraphsBuildsNoFiveHourLanesWhereNoAccountHasOne(t *testing.T) {
+	week, fiveHour, glance := dashboard.GraphsWeek, dashboard.GraphsFiveHour, dashboard.GraphsGlance
+	sideWithOne := three()
+	for i := range sideWithOne[:2] {
+		sideWithOne[i].Windows = slices.DeleteFunc(sideWithOne[i].Windows, func(w quota.Window) bool { return w.Key == "5h" })
+	}
+	ultra, mixed := routerDocument(verifiedUltra()...), routerDocument(sideWithOne...)
+	tests := []struct {
+		name     string
+		doc      status.Document
+		toggled  []dashboard.GraphsSection
+		want     []views.RunwayWindow
+		fiveHour []string
+	}{
+		{name: "every account verified Ultra", doc: ultra, want: []views.RunwayWindow{views.RunwayWeek}},
+		{name: "every account verified Ultra, 5-HOUR alone kept", doc: ultra, toggled: []dashboard.GraphsSection{week}},
+		{name: "every account verified Ultra, GLANCE alone", doc: ultra, toggled: []dashboard.GraphsSection{week, fiveHour, glance}, want: []views.RunwayWindow{views.RunwayWeek}},
+		{name: "side alone with one", doc: mixed, want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}, fiveHour: []string{"side"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := runwayHarnessOf(t, tt.doc, dashboard.Graphs, func(_ *runwayed, cfg *Config) {
+				for _, s := range tt.toggled {
+					cfg.Graphs = cfg.Graphs.Toggled(s)
+				}
+			})
+			r.lookAt(start.Add(interval))
+			built := slices.Sorted(maps.Keys(r.graphsBuilds))
+			shown := slices.Sorted(maps.Keys(r.model.graphsTab.shown))
+			want := slices.Sorted(slices.Values(tt.want))
+			if !slices.Equal(built, want) || !slices.Equal(shown, want) {
+				t.Errorf("Graphs built the lanes of %v, shows those of %v, want %v alone", windowNames(built), windowNames(shown), windowNames(want))
+			}
+			var lanes []string
+			if l := r.model.graphsTab.shown[views.RunwayFiveHour].Lanes; l != nil {
+				for _, lane := range l.Accounts {
+					lanes = append(lanes, lane.ID)
+				}
+			}
+			if !slices.Equal(lanes, tt.fiveHour) {
+				t.Errorf("Graphs' 5-hour lanes are %q, want %q", lanes, tt.fiveHour)
 			}
 		})
 	}

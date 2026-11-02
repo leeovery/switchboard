@@ -107,13 +107,13 @@ func (m Model) overviewScroll(key string) (scrollStep, bool) {
 
 // graphsKey acts on a key of Graphs', reporting false for a key it doesn't
 // take, or on another tab: a section's key shows or hides it, as
-// toggleGraphs has it.
+// toggleGraphs has it, where Graphs offers it, as graphsOffers has it.
 func (m Model) graphsKey(key string) (Model, bool) {
 	if m.shownView() != dashboard.Graphs {
 		return m, false
 	}
 	section, ok := dashboard.GraphsSectionKeyed(key)
-	if !ok {
+	if !ok || !m.graphsOffers(section) {
 		return m, false
 	}
 	return m.toggleGraphs(section), true
@@ -186,12 +186,13 @@ func (m Model) overviewListings() []keyListing {
 	)
 }
 
-// graphsListings are Graphs' own keys: its toggles, each word faint where
-// its section is hidden.
+// graphsListings are Graphs' own keys: the toggles of the sections it
+// offers, as graphsOffers has them, each word faint where its section is
+// hidden.
 func (m Model) graphsListings() []keyListing {
 	graphs := m.shownView() == dashboard.Graphs
 	var own []keyListing
-	for _, k := range m.graphs.Toggles() {
+	for _, k := range m.graphs.TogglesOf(m.graphsOffers) {
 		own = append(own, keyListing{Key: k, works: graphs})
 	}
 	return own
