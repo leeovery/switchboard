@@ -95,6 +95,7 @@ func TestSessionsTheRouterDoesntListAreHeldAsNone(t *testing.T) {
 }
 
 func TestNeverHasTheRouterRefreshOnAnInterval(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		doc  status.Document
@@ -104,6 +105,7 @@ func TestNeverHasTheRouterRefreshOnAnInterval(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			h := routedHarness(t, tt.doc)
 			h.start()
 

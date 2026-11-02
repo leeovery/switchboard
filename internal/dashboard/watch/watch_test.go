@@ -106,6 +106,7 @@ func TestReadsAgainWhenDue(t *testing.T) {
 }
 
 func TestBacksOffWhileReadsFail(t *testing.T) {
+	t.Parallel()
 	// side's token is refused at every read, and its windows reset long after.
 	refusing := document(account("work", "Work", session(0.25, 5*time.Hour), week(0.5)), unreadable("side", "Side"))
 	h := newHarness(t, refusing)

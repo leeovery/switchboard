@@ -168,6 +168,7 @@ func pickedWhole(t *testing.T, start time.Time, id string, after func(s *soak)) 
 // paused still at the line the pick landed on, from the day the same
 // history read whole spans from.
 func TestLettingThePicksFilterGoWhilePausedReadsBackToOneReadWhole(t *testing.T) {
+	t.Parallel()
 	start := soakAt(21, 0)
 	g := &refilterGuard{t: t}
 	s := newSoak(t, soakSetup{start: start, days: pickGuardDays, pace: guardPace, guard: g})
