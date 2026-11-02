@@ -217,7 +217,7 @@ type printout struct {
 // at each width a layout changes at; its 5-hour window alone, as --5h prints
 // it; by account, as --by account prints it; work alone, with six sessions
 // on it, as its frame counts them; and, where no frame draws them yet, the
-// worlds of verified Ultra accounts', all three's and the mixed one's.
+// worlds of verified Ultra accounts, all three's and the mixed one's.
 var printouts = []printout{
 	{name: "usage-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.auto},
 	{name: "usage-120", size: watch.Size{Width: 120, Height: 36}, world: accountWorlds.auto},

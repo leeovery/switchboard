@@ -34,6 +34,7 @@ import (
 // limit then; how long each account's token's year has left, where the
 // world says, which tokenAge has otherwise; the accounts whose answers
 // stopped carrying their 5-hour windows, each from when, where it has any;
+// whether its records hold its own events, rather than the auto world's;
 // and, where the worlds keep it, its records, built once, as they're first
 // asked for.
 type accountWorld struct {
@@ -53,6 +54,7 @@ type accountWorld struct {
 	fresh      bool
 	tokenLeft  map[string]time.Duration
 	unreported unreported
+	ownEvents  bool
 	records    func() *records
 }
 

@@ -236,10 +236,10 @@ func (v verifiedWorld) isVerified(id string) bool {
 }
 
 // unreportedAt reports whether the account with the given id reports no
-// 5-hour window at at in the world: verified, and at no earlier than Friday
-// 25 September's start.
+// 5-hour window at at in the world: verified, and at no earlier than its
+// cutoff.
 func (v verifiedWorld) unreportedAt(id string, at time.Time) bool {
-	return v.isVerified(id) && !at.Before(dayStart(worldsNow().now, today-6))
+	return v.isVerified(id) && !at.Before(verifiedFrom(worldsNow().now))
 }
 
 // heldOffAt reports whether reason, given at at, moves a session off one of
@@ -376,9 +376,9 @@ func TestNothingAfterTheCutoffNamesAVerifiedAccountsFiveHourWindow(t *testing.T)
 }
 
 // Without a 5-hour window, work never reaches its cap at 14:31:03: the
-// router tells of its token refused then instead, moving its three sessions
-// to side as the cap did, each counted in the refusal, which has lifted by
-// the moment, so work is open.
+// router tells of its token refused instead, as d28c's request of 14:31:13
+// met it, moving its three sessions to side as the cap did, each counted in
+// the refusal, which has lifted by the moment, so work is open.
 func TestWorksCapIsARefusalLiftedByTheMoment(t *testing.T) {
 	now := worldsNow().now
 	for _, v := range verifiedWorlds() {
@@ -389,8 +389,8 @@ func TestWorksCapIsARefusalLiftedByTheMoment(t *testing.T) {
 				t.Fatal("the router tells of no refusal of work's")
 			}
 			refused := told[i]
-			if !refused.At.Equal(dayAt(now, today, 14, 31, 3)) || refused.Until.After(now) || refused.Count != 3 || refused.To != "side" {
-				t.Errorf("work was refused at %s till %s, moving %d to %s, want at 14:31:03, lifted by now, moving 3 to side",
+			if !refused.At.Equal(dayAt(now, today, 14, 31, 13)) || refused.Until.After(now) || refused.Count != 3 || refused.To != "side" {
+				t.Errorf("work was refused at %s till %s, moving %d to %s, want at 14:31:13, lifted by now, moving 3 to side",
 					refused.At.In(now.Location()), refused.Until.In(now.Location()), refused.Count, refused.To)
 			}
 			var moved []string
@@ -404,6 +404,83 @@ func TestWorksCapIsARefusalLiftedByTheMoment(t *testing.T) {
 			}
 			if work := v.world.document(now).Accounts[0]; work.Shut(now, claude.Policy()) {
 				t.Errorf("work is shut at the moment, refused till %s, want it open", work.Refused.Until)
+			}
+		})
+	}
+}
+
+// Each refusal of a verified account's the router tells of, as a 5-hour cap
+// or limit becomes one, is known from a request: one written at its moment
+// that went out there and was refused, sent on once more.
+func TestAVerifiedAccountsRefusalIsMetByARequest(t *testing.T) {
+	now := worldsNow().now
+	for _, v := range verifiedWorlds() {
+		t.Run(v.name, func(t *testing.T) {
+			lines := v.world.lines(now)
+			for _, e := range v.world.events {
+				if e.Kind != status.EventRefused || !v.unreportedAt(e.Account, e.At) {
+					continue
+				}
+				refused := ledger.Tried{Account: e.Account, Why: status.WhyRefused}
+				met := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.At.Equal(e.At) && slices.Contains(l.Tried, refused) })
+				if met < 0 || lines[met].Attempts != 2 {
+					t.Errorf("no request of %s tried %s and was refused, sent on once more, want one at its refusal", e.At.In(now.Location()), e.Account)
+				}
+			}
+		})
+	}
+}
+
+// Once a request is refused on a verified account, the router holds it for
+// as long as it holds an account refused: no request is answered there, and
+// none tries it again.
+func TestAVerifiedAccountRefusedIsHeld(t *testing.T) {
+	now := worldsNow().now
+	for _, v := range verifiedWorlds() {
+		t.Run(v.name, func(t *testing.T) {
+			lines := v.world.lines(now)
+			for i, refusal := range lines {
+				for _, held := range refusal.Tried {
+					if held.Why != status.WhyRefused || !v.unreportedAt(held.Account, refusal.At) {
+						continue
+					}
+					for _, l := range lines[i+1:] {
+						if !l.At.Before(refusal.At.Add(refusalHolds)) {
+							break
+						}
+						if l.Account == held.Account && l.Status < 400 || slices.ContainsFunc(l.Tried, func(t ledger.Tried) bool { return t.Account == held.Account }) {
+							t.Errorf("a request of %s went out on %s, refused at %s, want none while it's held", l.At.In(now.Location()), held.Account,
+								refusal.At.In(now.Location()))
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+// A verified account carries no cap or limit after its cutoff, on any
+// window: every hold the worlds put on one was on its 5-hour window, which
+// the router no longer holds, so the reasons it gives for a move off one at
+// its reserve or limit are all told as refused, as reason has them.
+func TestAVerifiedAccountCarriesNoCapOrLimitAfterItsCutoff(t *testing.T) {
+	now := worldsNow().now
+	for _, v := range verifiedWorlds() {
+		t.Run(v.name, func(t *testing.T) {
+			for _, e := range v.world.events {
+				if (e.Kind == status.EventCap || e.Kind == status.EventLimit) && v.unreportedAt(e.Account, e.At) {
+					t.Errorf("the router tells of a %s of %s's at %s, on %v, want none", e.Kind, e.Account, e.At.In(now.Location()), e.Windows)
+				}
+			}
+			for id, limit := range v.world.limits {
+				if v.isVerified(id) {
+					t.Errorf("the router holds %s at a limit on %v, want none", id, limit.Windows)
+				}
+			}
+			for _, a := range v.world.document(now).Accounts {
+				if v.isVerified(a.ID) && (len(a.Limit.Windows) > 0 || a.Shut(now, claude.Policy())) {
+					t.Errorf("%s's document holds a limit on %v, shut %t, want it open", a.ID, a.Limit.Windows, a.Shut(now, claude.Policy()))
+				}
 			}
 		})
 	}

@@ -53,11 +53,12 @@ func (u unreported) forgotten(id string, h history, at time.Time) history {
 }
 
 // events are the events told, oldest first, unnumbered, as the router tells
-// them where u's accounts stopped reporting their 5-hour windows: an event
-// of an account's 5-hour window once it no longer reports it, a prime, its
-// room again or its pressure, untold; a cap or a limit on it a refusal
-// instead, as refusedInstead has it; and every reason as reason retells it.
-func (u unreported) events(told []status.Event) []status.Event {
+// them where u's accounts stopped reporting their 5-hour windows, its lines
+// written as lines retells them: an event of an account's 5-hour window once
+// it no longer reports it, a prime, its room again or its pressure, untold;
+// a cap or a limit on it a refusal instead, as refusedInstead has it; and
+// every reason as reason retells it.
+func (u unreported) events(told []status.Event, written []ledger.Line) []status.Event {
 	var kept []status.Event
 	for _, e := range told {
 		e.Reason = u.reason(e.Reason, e.At)
@@ -66,18 +67,25 @@ func (u unreported) events(told []status.Event) []status.Event {
 			continue
 		}
 		if e.Kind == status.EventCap || e.Kind == status.EventLimit {
-			kept = append(kept, refusedInstead(e))
+			kept = append(kept, refusedInstead(e, written))
 		}
 	}
 	return kept
 }
 
 // refusedInstead is the cap or limit e on a 5-hour window told as the
-// upstream refusing the account's token then instead, holding it as long as
-// the router does, the sessions it moved the same.
-func refusedInstead(e status.Event) status.Event {
+// upstream refusing the account's token instead, as the first request of
+// those written at or after it that was refused there met it, or at e where
+// none did, holding the account as long as the router does, the sessions it
+// moved the same.
+func refusedInstead(e status.Event, written []ledger.Line) status.Event {
+	at := e.At
+	refused := ledger.Tried{Account: e.Account, Why: status.WhyRefused}
+	if i := slices.IndexFunc(written, func(l ledger.Line) bool { return !l.At.Before(e.At) && slices.Contains(l.Tried, refused) }); i >= 0 {
+		at = written[i].At
+	}
 	return status.Event{
-		Kind: status.EventRefused, At: e.At, Account: e.Account, Until: e.At.Add(refusalHolds), Status: http.StatusUnauthorized,
+		Kind: status.EventRefused, At: at, Account: e.Account, Until: at.Add(refusalHolds), Status: http.StatusUnauthorized,
 		Count: e.Count, To: e.To,
 	}
 }
@@ -102,23 +110,27 @@ func (u unreported) reason(reason string, at time.Time) string {
 	return reason
 }
 
-// lines are the lines given as a router where u's accounts stopped reporting
-// their 5-hour windows writes them: an answer's 5-hour headers gone where its
-// account no longer reports the window, and each move off an account, and
-// each account tried, at its reserve or limit, refused instead, as reason
-// says.
+// lines are the lines given, oldest first, as a router where u's accounts
+// stopped reporting their 5-hour windows writes them: an answer's 5-hour
+// headers gone where its account no longer reports the window; and each move
+// off an account at its reserve or limit refused instead, as reason says,
+// the first the request the upstream refused there, tried there first, and
+// those after it while the router holds the account sent on without trying
+// it.
 func (u unreported) lines(lines []ledger.Line) []ledger.Line {
+	held := make(map[string]time.Time)
 	for i, l := range lines {
 		if u.retired(l.Account, l.At) {
 			lines[i].Limits = withoutFiveHour(l.Limits)
 		}
-		lines[i].Reason = u.reason(l.Reason, l.At)
-		lines[i].Tried = slices.Clone(l.Tried)
-		for j, t := range lines[i].Tried {
-			if t.Why == status.WhyLimit && u.retired(t.Account, l.At) {
-				lines[i].Tried[j].Why = status.WhyRefused
-			}
+		if lines[i].Reason = u.reason(l.Reason, l.At); lines[i].Reason == l.Reason {
+			continue
 		}
+		tried := slices.DeleteFunc(slices.Clone(l.Tried), func(t ledger.Tried) bool { return t.Account == l.From })
+		if until, ok := held[l.From]; !ok || !l.At.Before(until) {
+			tried, held[l.From] = slices.Insert(tried, 0, ledger.Tried{Account: l.From, Why: status.WhyRefused}), l.At.Add(refusalHolds)
+		}
+		lines[i].Tried, lines[i].Attempts = tried, len(tried)+1
 	}
 	return lines
 }
@@ -151,7 +163,8 @@ func (u unreported) routed(sessions []status.Session) []status.Session {
 // so the router holds none of theirs, its records keep their 5-hour readings
 // from before alone, and it tells of none of their 5-hour windows since, as
 // unreported's events, lines and routed have it, its records telling its own
-// events. The rest keep their 5-hour windows, on Max.
+// events, as of the lines it writes. The rest keep their 5-hour windows, on
+// Max.
 func (a accountWorlds) verified(name string, ids ...string) accountWorld {
 	return a.kept(name, func() accountWorld {
 		u := make(unreported, len(ids))
@@ -159,10 +172,11 @@ func (a accountWorlds) verified(name string, ids ...string) accountWorld {
 			u[id] = verifiedFrom(a.now)
 		}
 		w := a.autoOf(a.today().three(true))
+		written := u.lines(sessionsLines(a.now))
 		w.unreported, w.history = u, u.history(w.history)
-		w.events = ofTheRun(u.events(happenings{a.now}.auto()))
+		w.events, w.ownEvents = ofTheRun(u.events(happenings{a.now}.auto(), written)), true
 		w.routed = func(now time.Time) []status.Session { return u.routed(routedSessions(now)) }
-		w.lines = func(now time.Time) []ledger.Line { return u.lines(sessionsLines(now)) }
+		w.lines = func(time.Time) []ledger.Line { return written }
 		for i, acct := range w.accounts {
 			w.accounts[i].Plan = planMax
 			if _, ok := u[acct.ID]; ok {
@@ -176,8 +190,9 @@ func (a accountWorlds) verified(name string, ids ...string) accountWorld {
 // ultra is the auto world with all three verified Ultra, as verified has it:
 // work open, its week at 34%, its cap of 95% on its week alone; personal's
 // week running out on Saturday at 06:00; side's at 78%, where new sessions
-// go. Work's cap at 14:31:03 is its token refused then instead, till 14:41:03,
-// moving its three sessions to side as the cap did.
+// go. Work's cap at 14:31:03 is its token refused instead, as d28c's request
+// of 14:31:13 met it, till 14:41:13, moving its three sessions to side as the
+// cap did.
 func (a accountWorlds) ultra() accountWorld {
 	return a.verified("ultra", three...)
 }
