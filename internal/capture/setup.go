@@ -361,9 +361,9 @@ func reviewed(now time.Time) setupSteps {
 	return setupSteps{
 		standing: setup.RouterStanding{State: setup.RouterHealthy},
 		review: setup.Review{At: now, Accounts: []setup.Reviewed{
-			{ID: "work", Label: "Work", Plan: "ultra", Reserve: 0.05, Primary: true, Token: read(status.TokenYear{})},
+			{ID: "work", Label: "Work", Plan: config.PlanUltra, Reserve: 0.05, Primary: true, Token: read(status.TokenYear{})},
 			{ID: "personal", Label: "Personal", Token: read(year)},
-			{ID: "side", Label: "Side", Plan: "pro", Token: read(status.TokenYear{})},
+			{ID: "side", Label: "Side", Plan: config.PlanPro, Token: read(status.TokenYear{})},
 		}},
 		checked: map[string]setup.TokenStanding{
 			"work":     {State: setup.TokenWorking},
@@ -453,7 +453,7 @@ func everyAccountUltra(now time.Time) setupSteps {
 	steps := linkLeft(now)
 	steps.review.Accounts = slices.Clone(steps.review.Accounts)
 	for i := range steps.review.Accounts {
-		steps.review.Accounts[i].Plan = planUltra
+		steps.review.Accounts[i].Plan = config.PlanUltra
 	}
 	return steps
 }
@@ -529,7 +529,10 @@ func testToken(id string) tokens.Token {
 // Priming is the day as given, the step skipped as setup skips it for the
 // accounts as Review has them.
 func (s setupSteps) Priming() (setup.Primed, error) {
-	review, _ := s.Review()
+	review, err := s.Review()
+	if err != nil {
+		return setup.Primed{}, err
+	}
 	return setup.Primed{Day: s.day, Skipped: review.SkipsPriming()}, nil
 }
 

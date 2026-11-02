@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 )
 
@@ -270,7 +271,7 @@ func setupRows(t *testing.T, f Fixture, width, height int) []string {
 func TestTheFakesPrimingSkipsByItsAccountsPlans(t *testing.T) {
 	onMax := func(now time.Time) setupSteps {
 		steps := everyAccountUltra(now)
-		steps.review.Accounts[1].Plan = planMax
+		steps.review.Accounts[1].Plan = config.PlanMax
 		return steps
 	}
 	tests := []struct {

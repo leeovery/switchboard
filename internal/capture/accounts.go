@@ -6,27 +6,21 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 )
 
-// The plans the worlds' accounts are on, as the config names them.
-const (
-	planUltra = "ultra"
-	planMax   = "max"
-)
-
 // tenAccounts are the accounts of milestone 7's frames, in config order, as
 // the specs number them: work, keeping 5% of every window back, so capped at
 // 95%; personal, the primary; side; and the seven more of the frames of six
 // and ten accounts. Each is on Ultra but spare, extra and ops, on Max.
 var tenAccounts = config.Accounts{
-	{ID: "work", Label: "work", Reserve: 0.05, Plan: planUltra},
-	{ID: "personal", Label: "personal", Primary: true, Plan: planUltra},
-	{ID: "side", Label: "side", Plan: planUltra},
-	{ID: "client", Label: "client", Plan: planUltra},
-	{ID: "spare", Label: "spare", Plan: planMax},
-	{ID: "lab", Label: "lab", Plan: planUltra},
-	{ID: "team", Label: "team", Plan: planUltra},
-	{ID: "extra", Label: "extra", Plan: planMax},
-	{ID: "ops", Label: "ops", Plan: planMax},
-	{ID: "studio", Label: "studio", Plan: planUltra},
+	{ID: "work", Label: "work", Reserve: 0.05, Plan: config.PlanUltra},
+	{ID: "personal", Label: "personal", Primary: true, Plan: config.PlanUltra},
+	{ID: "side", Label: "side", Plan: config.PlanUltra},
+	{ID: "client", Label: "client", Plan: config.PlanUltra},
+	{ID: "spare", Label: "spare", Plan: config.PlanMax},
+	{ID: "lab", Label: "lab", Plan: config.PlanUltra},
+	{ID: "team", Label: "team", Plan: config.PlanUltra},
+	{ID: "extra", Label: "extra", Plan: config.PlanMax},
+	{ID: "ops", Label: "ops", Plan: config.PlanMax},
+	{ID: "studio", Label: "studio", Plan: config.PlanUltra},
 }
 
 // firstAccounts are the first n of tenAccounts, a world's own, as the frames
