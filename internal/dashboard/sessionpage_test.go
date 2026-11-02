@@ -58,12 +58,21 @@ func pageAccount(id string, session, week, fable float64) status.Account {
 // pageDoc is the router's document as the frames draw it: work, personal,
 // the primary, and side, where new sessions go.
 func pageDoc() status.Document {
+	return pageDocChanged()
+}
+
+// pageDocChanged is pageDoc, changed as given before it's worked out.
+func pageDocChanged(change ...func(*status.Document)) status.Document {
 	personal := pageAccount("personal", 0.39, 0.66, 0)
 	personal.Primary = true
-	return status.Document{
+	doc := status.Document{
 		GeneratedAt: sessionNow.UTC(), Source: status.SourceRouter, Best: "side", Router: status.Health{Healthy: true}, Sessions: 6,
 		Accounts: []status.Account{pageAccount("work", 0.95, 0.34, 0.12), personal, pageAccount("side", 0.13, 0.78, 0.04)},
-	}.WorkedOut(claudeLike)
+	}
+	for _, c := range change {
+		c(&doc)
+	}
+	return doc.WorkedOut(claudeLike)
 }
 
 // turnRow is a turn as a frame's row has it: its number, its start, how
@@ -440,6 +449,32 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Row 7 says a window the session's account has no limit in, as usage says
+// it in full, in text.subtle, in place of its name and percentage; and its
+// least holds room for those words wherever an account of the moment lacks
+// the window, whether or not the session's account does, so the row holds
+// still as the session moves.
+func TestRowSevenSaysAWindowItsAccountLacksInPlaceOfItsFigure(t *testing.T) {
+	f := pageFrame(t, moved(), 160, 37)
+	lacking := pageDocChanged(usageLacking("side"))
+	c := f.At(lacking, sessionNow).page(lacking, sessionNow)
+	want := "side now  week 78%   no 5-hour limit   fable week 4%"
+	row := rowOf(c, 7)
+	if !strings.HasSuffix(row, want) {
+		t.Fatalf("row 7 reads\n%q\nwant it to end\n%q", row, want)
+	}
+	if at := ansi.StringWidth(row) - ansi.StringWidth("no 5-hour limit   fable week 4%"); c.at(at, 7).ink != dimInk {
+		t.Errorf("no 5-hour limit is in %+v, want text.subtle", c.at(at, 7).ink)
+	}
+	every, _ := pageDrawn(f, pageDoc())
+	for _, ids := range [][]string{{"side"}, {"work"}} {
+		d, _ := pageDrawn(f, pageDocChanged(usageLacking(ids...)))
+		if got, want := d.row7Least(), every.row7Least()+len("no 5-hour limit")-len("5-hour 100%"); got != want {
+			t.Errorf("with %s lacking its 5-hour, row 7's least is %d, want %d", ids[0], got, want)
+		}
 	}
 }
 

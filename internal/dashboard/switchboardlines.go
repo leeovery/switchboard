@@ -358,11 +358,17 @@ func (g gauge) uncapped() gauge {
 
 // meter draws g's bar in the look, bar cells long from x along row y,
 // marked as its window's, then a cell and its percentage, with no words, and
-// returns the column after it.
+// returns the column after it. Of a window its account has no such limit of,
+// it draws in their place its words alone, in full where the cells fit them,
+// else short, so every meter of a width says it alike.
 func meter(c *canvas, look Look, g gauge, x, y, bar int) int {
+	end := x + bar + 1 + percentCells
+	if g.none {
+		c.line(x, y, g.words.fitted(end-x))
+		return end
+	}
 	g.bar.draw(c, look, x, y, bar)
 	c.barred(x, y, bar, g.of)
-	end := x + bar + 1 + percentCells
 	c.right(end, y, g.percentage())
 	return end
 }

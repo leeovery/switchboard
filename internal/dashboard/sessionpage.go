@@ -120,8 +120,8 @@ func (d sessionDrawn) draw(c *canvas) {
 // widest, as WhereSaidWidest says them, every mark's cells kept, as marksSpare
 // counts them; then at its right when it started in its shortest form at
 // its widest, as ranWidest counts it. Row 7: the account it runs on and its
-// windows, the widest name and every window listed at 100%, as windows
-// draws them. Else they take their short form.
+// windows, the widest name and every window at its widest, as widestSaid has
+// it, as windows draws them. Else they take their short form.
 func (d sessionDrawn) nowFits() bool {
 	where := d.page.WhereSaidWidest(d.now)
 	said := d.saidCells(where) + d.marksSpare(where)
@@ -131,16 +131,28 @@ func (d sessionDrawn) nowFits() bool {
 }
 
 // row7Least are the cells row 7 takes at its least, whole: while the session
-// runs, its account's windows, the widest name and every window listed at
-// 100%, as windows draws them, sessionApart beside its models; once it's over, its
-// models and how long their lines are kept, at its widest, as
-// views.KeptUntilSaidWidest says it.
+// runs, its account's windows, the widest name and every window at its
+// widest, as widestSaid has it, as windows draws them, sessionApart beside
+// its models; once it's over, its models and how long their lines are kept,
+// at its widest, as views.KeptUntilSaidWidest says it.
 func (d sessionDrawn) row7Least() int {
 	if !d.page.Runs() {
 		return d.endedModelsKept(views.KeptUntilSaidWidest(d.page.KeptUntil)).width()
 	}
-	full := func(string) line { return line{{prose.PercentWhole(), mutedInk}} }
-	return sessionApart + d.windowsNamed(line{spaces(widestLabel(d.m))}, full).width()
+	return sessionApart + d.windowsNamed(line{spaces(widestLabel(d.m))}, d.widestSaid).width()
+}
+
+// widestSaid is the widest row 7 says the window w of any account of the
+// moment: at 100%, or where one has no such limit, as windowSaid says so,
+// so the row holds still as the session moves.
+func (d sessionDrawn) widestSaid(w shownWindow) line {
+	widest := windowFigure(w, line{{prose.PercentWhole(), mutedInk}})
+	for _, a := range d.m.Accounts {
+		if said := d.windowSaid(a, w); said.width() > widest.width() {
+			widest = said
+		}
+	}
+	return widest
 }
 
 // saidCells are the cells row 6's left takes, wide, saying where as given:
@@ -451,28 +463,42 @@ func partsSaid(parts []part) line {
 
 // windows are the account the session runs on and its windows now, as row
 // 7's right has them: the account in text.secondary, "now" in
-// text.subtle, then each window the Overview shows, its name in text.muted
-// and its use as usage shows it; nothing where the moment lacks the
-// account.
+// text.subtle, then each window the Overview shows, as windowSaid has it;
+// nothing where the moment lacks the account.
 func (d sessionDrawn) windows() line {
 	a, ok := d.m.Account(d.page.Account)
 	if !ok {
 		return nil
 	}
-	used := func(key string) line { return accountGauge(a, key, d.now).percentage() }
-	return d.windowsNamed(line{{asLabelled(name(a)), secondaryInk}}, used)
+	return d.windowsNamed(line{{asLabelled(name(a)), secondaryInk}}, func(w shownWindow) line { return d.windowSaid(a, w) })
+}
+
+// windowSaid is account a's window w as row 7 says it: its name in
+// text.muted and its use as usage shows it; or, where a has no such limit,
+// usage's words saying so in full, in their place.
+func (d sessionDrawn) windowSaid(a status.AccountNow, w shownWindow) line {
+	g := accountGauge(a, w.key, d.now)
+	if g.none {
+		return g.words.full
+	}
+	return windowFigure(w, g.percentage())
+}
+
+// windowFigure is the window w with the figure given, as row 7 says it: its
+// name in text.muted, then the figure.
+func windowFigure(w shownWindow, figure line) line {
+	return slices.Concat(line{{strings.ToLower(w.name) + " ", mutedInk}}, figure)
 }
 
 // windowsNamed are row 7's windows as windows draws them, of the account
-// named as given, each window listed with its percentage as given.
-func (d sessionDrawn) windowsNamed(named line, percentage func(key string) line) line {
+// named as given, each window said as said has it.
+func (d sessionDrawn) windowsNamed(named line, said func(w shownWindow) line) line {
 	l := append(slices.Clip(named), span{" now  ", dimInk})
 	for i, w := range d.listedWindows(d.m) {
 		if i > 0 {
 			l = append(l, spaces(sessionApart))
 		}
-		l = append(l, span{strings.ToLower(w.name) + " ", mutedInk})
-		l = append(l, percentage(w.key)...)
+		l = append(l, said(w)...)
 	}
 	return l
 }

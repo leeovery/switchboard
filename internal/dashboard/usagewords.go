@@ -78,7 +78,7 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	case status.WindowUnread:
 		return usageWords{full: line{{"not read yet", dimInk}}, short: line{{"not read", dimInk}}}
 	case status.WindowNone:
-		return usageWords{full: line{{"no " + status.InProse(w.Name) + " limit", dimInk}}, short: line{{"no limit", dimInk}}}
+		return lacked(status.InProse(w.Name))
 	case status.WindowStale:
 		full, short := lastRead(now, w.At)
 		return usageWords{full: line{{"not read since " + full, dimInk}}, short: line{{"read " + short, dimInk}}}
@@ -93,6 +93,13 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	default:
 		return allowed(w.Allowance, w.At, now)
 	}
+}
+
+// lacked is the words of a window its account has no such limit of, named
+// as a sentence names it, in text.subtle: "no 5-hour limit", and short, "no
+// limit".
+func lacked(window string) usageWords {
+	return usageWords{full: line{{"no " + window + " limit", dimInk}}, short: line{{"no limit", dimInk}}}
 }
 
 // lastRead shows when a reading was taken, at t, before now, in full and
