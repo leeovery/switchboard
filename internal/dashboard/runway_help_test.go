@@ -60,6 +60,7 @@ func TestRunwayHelpLeavesThePoolOutWithNoPoolsLane(t *testing.T) {
 	}{
 		{name: "one account", lanes: lanesOf(1), want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 		{name: "two accounts", lanes: lanesOf(2), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "a pin of one, a pool's lane of one", lanes: &views.Lanes{Accounts: make([]views.Lane, 3), Pool: views.Pool{Of: 1, Key: "5h"}}, want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 		{name: "two lanes, no pool's lane", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}, {ID: "side"}}}, want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 		{name: "lanes not built yet", want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 	}
