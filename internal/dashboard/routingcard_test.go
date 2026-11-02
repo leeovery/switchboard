@@ -189,13 +189,15 @@ func TestAnAccountsFiguresAreItsWindowsAsUsageReadsThem(t *testing.T) {
 	refused.Refused = status.Refusal{Until: now.Add(time.Hour).UTC(), Status: 401}
 	tokenless := readAccount("tokenless", sessionOf(0.3, time.Hour))
 	tokenless.TokenSet = false
+	weekFailed := readAccount("short", sessionOf(0.39, time.Hour))
+	weekFailed.Failures = []quota.Failure{{Label: "Week", Window: "7d", Error: "HTTP 529 · Overloaded"}}
 	tests := []struct {
 		name          string
 		account       status.Account
 		session, week Figure
 	}{
 		{name: "read", account: readAccount("read", sessionOf(0.39, time.Hour), weekOf(0.66, 3*quota.Day)), session: Figure{Used: 0.39, Read: true}, week: Figure{Used: 0.66, Read: true}},
-		{name: "its week not reported", account: readAccount("short", sessionOf(0.39, time.Hour)), session: Figure{Used: 0.39, Read: true}},
+		{name: "its week not read, its probe failing to", account: weekFailed, session: Figure{Used: 0.39, Read: true}},
 		{name: "its 5-hour reset since it was read", account: readAccount("reset", sessionOf(0.8, -time.Minute), weekOf(0.66, 3*quota.Day)), session: Figure{Read: true}, week: Figure{Used: 0.66, Read: true}},
 		{name: "as last read, its token refused", account: refused, session: Figure{Used: 0.3, Read: true, Stale: true}, week: Figure{Used: 0.5, Read: true, Stale: true}},
 		{name: "without a token, none", account: tokenless},
