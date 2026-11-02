@@ -40,9 +40,9 @@ type Steps interface {
 	// ReviewOf is the account's row, its token checked with the API, failing
 	// with ctx's error once ctx is done.
 	ReviewOf(ctx context.Context, id string) (setup.Reviewed, error)
-	// Priming is the day priming spreads the 5-hour windows' resets over:
-	// the zero Day where priming is off.
-	Priming() (config.Day, error)
+	// Priming is the day priming spreads the 5-hour windows' resets over,
+	// the zero Day where priming is off, and whether the step is skipped.
+	Priming() (setup.Primed, error)
 	// SetDay sets the day priming spreads the resets over, "" turning
 	// priming off, writing nothing where it doesn't change.
 	SetDay(day string) (config.Day, error)
@@ -296,7 +296,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = m.status.checkAnswered(msg)
 		return m.check()
 	case primedMsg:
-		return m.primed(msg), nil
+		return m.primed(msg)
 	case daySetMsg:
 		return m.daySet(msg)
 	case servicedMsg:
@@ -470,7 +470,7 @@ func (m Model) summary() setup.Summary {
 		s.Failure = failure(m.walk.failed)
 	}
 	if m.priming != nil {
-		s.Day = &m.priming.set
+		s.Primed = &m.priming.set
 	}
 	return s
 }

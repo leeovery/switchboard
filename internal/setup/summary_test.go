@@ -71,7 +71,8 @@ func summedLines(lines []setup.StepLine) []string {
 }
 
 func TestTheSummaryAsTheWalkLeavesIt(t *testing.T) {
-	day := config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}
+	primed := setup.Primed{Day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}}
+	skipped := setup.Primed{Skipped: true}
 	review := setup.Review{Accounts: []setup.Reviewed{{ID: "work", Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking}}}}
 	serviced := setup.Serviced{Said: []setup.Said{{Mark: setup.Done, Label: "Installed"}}, Router: &router.Health{OK: true}}
 	failedService := setup.Serviced{Said: []setup.Said{{Mark: setup.Failed, Label: "Not set up", Detail: "the router couldn't start"}}}
@@ -89,26 +90,28 @@ func TestTheSummaryAsTheWalkLeavesIt(t *testing.T) {
 	}{
 		{name: "left at Accounts: Accounts alone", summary: setup.Summary{At: setup.StepAccounts, Review: &review},
 			want: []string{accounts}},
-		{name: "left at Priming, its day read: up to Priming", summary: setup.Summary{At: setup.StepPriming, Review: &review, Day: &day},
+		{name: "left at Priming, its day read: up to Priming", summary: setup.Summary{At: setup.StepPriming, Review: &review, Primed: &primed},
 			want: []string{accounts, priming}},
 		{name: "left at Priming before its day is read: Priming has no line", summary: setup.Summary{At: setup.StepPriming, Review: &review},
 			want: []string{accounts}},
 		{name: "Priming failed: why", summary: setup.Summary{At: setup.StepPriming, Failure: "read the config: it doesn't parse", Review: &review},
 			want: []string{accounts, "Priming ✗ read the config: it doesn't parse"}},
-		{name: "left while the service step runs: no line for it", summary: setup.Summary{At: setup.StepService, Review: &review, Day: &day},
+		{name: "left while the service step runs: no line for it", summary: setup.Summary{At: setup.StepService, Review: &review, Primed: &primed},
 			want: []string{accounts, priming}},
-		{name: "the service step failed: its failed row", summary: setup.Summary{At: setup.StepService, Failure: "the router couldn't start", Review: &review, Day: &day, Service: &failedService},
+		{name: "the service step failed: its failed row", summary: setup.Summary{At: setup.StepService, Failure: "the router couldn't start", Review: &review, Primed: &primed, Service: &failedService},
 			want: []string{accounts, priming, "Service ✗ not set up: the router couldn't start"}},
-		{name: "left at the claude link, passed through to it", summary: setup.Summary{At: setup.StepLink, Review: &review, Day: &day, Service: &serviced},
+		{name: "left at the claude link, passed through to it", summary: setup.Summary{At: setup.StepLink, Review: &review, Primed: &primed, Service: &serviced},
 			want: []string{accounts, priming, service}},
-		{name: "left at Skill, done", summary: setup.Summary{At: setup.StepSkill, Review: &review, Day: &day, Service: &serviced, Skill: &skill},
+		{name: "left at Skill, done", summary: setup.Summary{At: setup.StepSkill, Review: &review, Primed: &primed, Service: &serviced, Skill: &skill},
 			want: []string{accounts, priming, service, "claude link ✓ ", "Skill ✓ up to date"}},
-		{name: "the skill step failed", summary: setup.Summary{At: setup.StepSkill, Failure: "mkdir ~/.claude: not a directory", Review: &review, Day: &day, Service: &serviced, Skill: &failedSkill},
+		{name: "the skill step failed", summary: setup.Summary{At: setup.StepSkill, Failure: "mkdir ~/.claude: not a directory", Review: &review, Primed: &primed, Service: &serviced, Skill: &failedSkill},
 			want: []string{accounts, priming, service, "claude link ✓ ", "Skill ✗ not installed: mkdir ~/.claude: not a directory"}},
-		{name: "a failure told by nothing of the step's: why", summary: setup.Summary{At: setup.StepSkill, Failure: "the skill couldn't be read", Review: &review, Day: &day, Service: &serviced},
+		{name: "a failure told by nothing of the step's: why", summary: setup.Summary{At: setup.StepSkill, Failure: "the skill couldn't be read", Review: &review, Primed: &primed, Service: &serviced},
 			want: []string{accounts, priming, service, "claude link ✓ ", "Skill ✗ the skill couldn't be read"}},
-		{name: "at Done: every step", summary: setup.Summary{At: setup.StepDone, Review: &review, Day: &day, Service: &serviced, Skill: &skill},
+		{name: "at Done: every step", summary: setup.Summary{At: setup.StepDone, Review: &review, Primed: &primed, Service: &serviced, Skill: &skill},
 			want: []string{accounts, priming, service, "claude link ✓ ", "Skill ✓ up to date"}},
+		{name: "Priming skipped, passed through", summary: setup.Summary{At: setup.StepService, Review: &review, Primed: &skipped},
+			want: []string{accounts, "Priming ✓ " + primingSkipped}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -200,18 +203,26 @@ func TestTheAccountsLineCountsAsTheStatusLineDoes(t *testing.T) {
 	}
 }
 
+// primingSkipped is the Priming line's detail where every account is on
+// Ultra: short enough for one line of setup's at its least width, 95, from
+// the detail's column, 26.
+const primingSkipped = "skipped: every account is on Ultra, with no 5-hour window to start"
+
 func TestThePrimingLine(t *testing.T) {
+	day := config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}
 	tests := []struct {
-		name string
-		day  config.Day
-		want string
+		name   string
+		primed setup.Primed
+		want   string
 	}{
-		{name: "on, over its day", day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}, want: "on, 08:00–23:00"},
+		{name: "on, over its day", primed: setup.Primed{Day: day}, want: "on, 08:00–23:00"},
 		{name: "off", want: "off"},
+		{name: "skipped, priming off", primed: setup.Primed{Skipped: true}, want: primingSkipped},
+		{name: "skipped, its day set: skipped still", primed: setup.Primed{Day: day, Skipped: true}, want: primingSkipped},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkStepLine(t, lineOf(t, setup.Summary{Day: &tt.day}, primingLine), setup.Done, tt.want, "")
+			checkStepLine(t, lineOf(t, setup.Summary{Primed: &tt.primed}, primingLine), setup.Done, tt.want, "")
 		})
 	}
 }

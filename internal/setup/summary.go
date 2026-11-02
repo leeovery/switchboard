@@ -23,9 +23,9 @@ type Summary struct {
 	Failure string
 	// Review is the accounts, as the status line last read them.
 	Review *Review
-	// Day is the day priming is on over, as the Priming step last read or
-	// set it: the zero Day where priming is off.
-	Day     *config.Day
+	// Primed is the Priming step as it last read it, its day as it last
+	// read or set it.
+	Primed  *Primed
 	Service *Serviced
 	Link    *LinkFound
 	Skill   *Said
@@ -73,7 +73,7 @@ func (s Summary) told(step Step) (StepLine, bool) {
 	case StepAccounts:
 		return lineOf(s.Review, Review.said)
 	case StepPriming:
-		return lineOf(s.Day, primingSaid)
+		return lineOf(s.Primed, Primed.said)
 	case StepService:
 		return lineOf(s.Service, Serviced.said)
 	case StepLink:
@@ -171,12 +171,16 @@ func (r Review) countOf(state TokenState) int {
 	return n
 }
 
-// primingSaid is priming's line: on, over the day, or off.
-func primingSaid(day config.Day) Said {
-	if !(config.Prime{Day: day}).On() {
+// said is priming's line: skipped, and why, whatever day is set; else on,
+// over the day, or off.
+func (p Primed) said() Said {
+	switch {
+	case p.Skipped:
+		return Said{Mark: Done, Detail: "skipped: every account is on " + PlanName(ultra) + ", with no 5-hour window to start"}
+	case !(config.Prime{Day: p.Day}).On():
 		return Said{Mark: Done, Detail: "off"}
 	}
-	return Said{Mark: Done, Detail: "on, " + prose.ClockSpan(day.Start, day.End)}
+	return Said{Mark: Done, Detail: "on, " + prose.ClockSpan(p.Day.Start, p.Day.End)}
 }
 
 // said is the service's line: where the step failed, why, as its first

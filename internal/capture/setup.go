@@ -59,7 +59,8 @@ type setupScreen struct {
 // it, or zsh running switchboard's, the session hook installed, as frame 12
 // has it; the Skill page, the skill installed, as frame 9 has it; Done,
 // every step walked through from Priming, the claude link made but not
-// first on PATH, the offer declined, as frame 5 has it; and on a first run,
+// first on PATH, the offer declined, as frame 5 has it, or the same, every
+// account on Ultra, Priming skipped as it's reached; and on a first run,
 // work added, its token made, then personal, its token being made in a
 // private Firefox window, setup-token waiting on its approval for 21
 // seconds, as frame 2 has it, or stopped with an error, as frame 10 has it;
@@ -83,6 +84,7 @@ var setupScreens = []setupScreen{
 	{name: "setup-link-by-hand-160", size: wide(37), step: dashboard.SetupLink, steps: linkLeft, keys: keysOf("n")},
 	{name: "setup-link-done-160", size: wide(37), step: dashboard.SetupLink, steps: linkThrough},
 	{name: "setup-done-160", size: wide(37), step: dashboard.SetupPriming, steps: linkLeft, keys: slices.Concat(repeated(enterKey, 2), keysOf("n"), repeated(enterKey, 3))},
+	{name: "setup-priming-skipped-160", size: wide(37), step: dashboard.SetupPriming, steps: everyAccountUltra, keys: slices.Concat(repeated(enterKey, 1), keysOf("n"), repeated(enterKey, 3))},
 }
 
 // setupShown is setup's screen as a fixture draws it: the step it opens on;
@@ -200,7 +202,7 @@ type setupSteps struct {
 	standing setup.RouterStanding
 	review   setup.Review
 	checked  map[string]setup.TokenStanding
-	day      config.Day
+	primed   setup.Primed
 	service  setup.Serviced
 	skill    setup.Said
 	link     setup.LinkFound
@@ -384,7 +386,7 @@ func accountsPassed(now time.Time) setupSteps {
 			{ID: "side", Label: "Side", Token: read(status.TokenYear{})},
 		}},
 		checked: map[string]setup.TokenStanding{"work": working, "personal": working, "side": working},
-		day:     config.Day{Start: 8 * time.Hour, End: 23 * time.Hour},
+		primed:  setup.Primed{Day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}},
 	}
 }
 
@@ -442,6 +444,18 @@ func linkLeft(now time.Time) setupSteps {
 		},
 	}
 	steps.hook = hookInstalled
+	return steps
+}
+
+// everyAccountUltra are the steps as linkLeft has them, at now, but for
+// every account on Ultra, so the Priming step's skipped, its day set still.
+func everyAccountUltra(now time.Time) setupSteps {
+	steps := linkLeft(now)
+	steps.review.Accounts = slices.Clone(steps.review.Accounts)
+	for i := range steps.review.Accounts {
+		steps.review.Accounts[i].Plan = planUltra
+	}
+	steps.primed.Skipped = true
 	return steps
 }
 
@@ -513,9 +527,9 @@ func testToken(id string) tokens.Token {
 	return token
 }
 
-// Priming is the day as given.
-func (s setupSteps) Priming() (config.Day, error) {
-	return s.day, nil
+// Priming is the step as given.
+func (s setupSteps) Priming() (setup.Primed, error) {
+	return s.primed, nil
 }
 
 // SetDay parses the day as setup does, writing nothing.

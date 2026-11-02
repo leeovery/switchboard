@@ -101,6 +101,38 @@ func TestTheWalkReachingPrimingReadsItsDay(t *testing.T) {
 	}
 }
 
+func TestTheWalkSkipsPrimingWhereItsStepIsSkipped(t *testing.T) {
+	tests := []struct {
+		name   string
+		opens  dashboard.SetupStep
+		enters int
+	}{
+		{name: "reached from the Accounts", opens: dashboard.SetupAccounts, enters: 1},
+		{name: "opened on", opens: dashboard.SetupPriming},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, tt.opens)
+			h.steps.day, h.steps.skipped = workingDay, true
+			h.start()
+			for range tt.enters {
+				h.pressAndDeliver("enter")
+			}
+			got := h.model.page()
+			if got.At != dashboard.SetupService || !slices.Contains(got.Passed, dashboard.SetupPriming) {
+				t.Errorf("reaching Priming shows %s, %v passed; want the Service, Priming passed", got.At.Title(), got.Passed)
+			}
+			if h.steps.primings != 1 || h.steps.services != 1 || len(h.steps.set) != 0 {
+				t.Errorf("Priming ran %d times, the Service %d, SetDay given %q; want each once, SetDay given nothing", h.steps.primings, h.steps.services, h.steps.set)
+			}
+			lines := got.Lines()
+			if i := slices.IndexFunc(lines, func(l setup.StepLine) bool { return l.Label == dashboard.SetupPriming.Title() }); i < 0 || !strings.HasPrefix(lines[i].Detail, "skipped: ") {
+				t.Errorf("the summary's lines are %+v, want Priming's skipped", lines)
+			}
+		})
+	}
+}
+
 func TestEnterAtPriming(t *testing.T) {
 	tests := []struct {
 		name string

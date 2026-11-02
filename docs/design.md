@@ -505,6 +505,12 @@ come back one at a time rather than together: once all are spent, the wait for t
 
 - **The day:** `[prime] day = "08:00-23:00"`, in local time, turns priming on. An end before the
   start means past midnight.
+- **Where every account is on Ultra,** setup skips its Priming step, saying why (see Setup): a
+  verified Ultra account has no 5-hour window, so there's nothing to start. It's judged on the
+  plans the config gives, at least one account and every one `ultra`; an account whose plan isn't
+  set, or on Pro or Max, keeps the step. The skip changes nothing in the config: a day set before
+  stays, and the router, reading no 5-hour window, has nothing to prime. A new Ultra subscriber,
+  whose account keeps a temporary 5-hour window till it's verified, isn't offered priming for it.
 - **The schedule:** with N accounts that have usable tokens, resets fall every 5 hours ÷ N; the
   first falls half a step after the day starts; each account, in config order, has its slot five
   hours before its first reset, taken back to the ten-minute mark that falls in, as the API takes
@@ -1007,7 +1013,10 @@ show.
 2. **Priming** (frame 7): `Priming starts each account's 5-hour window on a schedule, so their
    resets are spread through your day instead of all arriving at once. It's optional.`, then the field `Your day`, holding the day set, if any, `start and end,
    as HH:MM-HH:MM`, and `Leave it empty to keep priming off.` `enter` writes the day to `[prime]`
-   where it changed; a field left empty leaves priming off, and one cleared turns it off.
+   where it changed; a field left empty leaves priming off, and one cleared turns it off. Where every
+   account is on Ultra, which has no 5-hour window to start, setup skips the step: it reads the
+   config as it reaches it, ticks the step's tab, and moves on to the Service, its page never
+   shown, the step's row saying why (see Priming).
 3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
    `service install` does, that the router could start; it fails, saying why, where it couldn't.
    With no plist setup can use, none or one it can't read back, setup never succeeds, nor sends the
@@ -1526,7 +1535,8 @@ not the owner's decisions:
   one setup stands at: before it, what each told, or `✓` and its name where setup passed through;
   at it, a step that failed reads `✗` and why, its own failed row's where it has one, `failed`
   where its error says nothing; after it, no row. Priming reads `on, 08:00–23:00`, the day's span
-  with an en dash, or `off`.
+  with an en dash, or `off`; or, where setup skipped it, `skipped: every account is on Ultra, with
+  no 5-hour window to start`, whatever day is set, a row whole at setup's least width.
 - **The claude link's row** says what the step did to the link, `created`, `repaired: it led to`
   where it led, or nothing for one found in place, then what the step found, in words of its own
   for each situation the step can leave: `your shell runs it` where a new terminal's claude goes
