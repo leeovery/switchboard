@@ -6,11 +6,14 @@ import (
 	"net/http"
 	"reflect"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
@@ -834,6 +837,15 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 	}{
 		{name: "a reading off an answer", change: func(s *state, _ moment) { s.record("side", []quota.Window{session}, s.mark()) }, wantRoutine: 1},
 		{name: "a stale reading, which changes nothing", change: func(s *state, earlier moment) { s.record("work", []quota.Window{lastWeek}, earlier) }},
+		{name: "a whole reading off an answer, reporting every window", change: func(s *state, _ moment) {
+			s.recordAnswer("work", []quota.Window{session, week}, s.mark(), true)
+		}, wantRoutine: 1},
+		{name: "a whole reading off an answer that retires a window", change: func(s *state, _ moment) {
+			s.recordAnswer("work", []quota.Window{week}, s.mark(), true)
+		}, want: 1},
+		{name: "a whole probe that retires a window", change: func(s *state, _ moment) {
+			s.recordProbe("work", quota.Probe{Windows: []quota.Window{week}, Admitted: true}, nil, s.mark(), readings.FromProbe)
+		}, want: 1},
 		{name: "a probe that read", change: func(s *state, _ moment) {
 			s.recordProbe("side", probed(nil, session), nil, s.mark(), readings.FromProbe)
 		}, want: 1},
@@ -1005,6 +1017,263 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) })
 		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden, someRequest) })
 		wg.Go(func() { _, _ = s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark()) })
+		wg.Go(func() { s.recordAnswer("side", []quota.Window{week}, s.mark(), true) })
+		wg.Go(func() { s.record("side", []quota.Window{session, week}, s.mark()) })
+		wg.Go(func() { _ = s.primable("side") })
 	}
 	wg.Wait()
+}
+
+func TestAWholeReadingRetiresEachSharedWindowItDoesntReport(t *testing.T) {
+	log := logstest.Capture(t)
+	var changes changeCount
+	clock := &testClock{now: start}
+	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
+	busier := session
+	busier.Utilization = 0.5
+	emptied := session
+	emptied.Utilization = 0.02
+	u := s.usage["work"]
+	// held says, of each of what's known of work's windows, whether it holds
+	// the session.
+	held := func() map[string]bool {
+		held := make(map[string]bool)
+		_, held["windows"] = u.windows["5h"]
+		_, held["taken"] = u.taken["5h"]
+		_, held["readAt"] = u.readAt["5h"]
+		_, held["resetBy"] = u.resetBy["5h"]
+		_, held["trails"] = u.trails["5h"]
+		return held
+	}
+	// Work's session is read, then read reset by hand, so each holds it.
+	s.record("work", []quota.Window{busier, week}, s.mark())
+	clock.now = start.Add(time.Minute)
+	s.record("work", []quota.Window{emptied}, s.mark())
+	for of, has := range held() {
+		if !has {
+			t.Fatalf("work's %s don't hold the session, want them to before it's retired", of)
+		}
+	}
+	changes = 0
+	clock.now = start.Add(2 * time.Minute)
+
+	s.recordAnswer("work", []quota.Window{week}, s.mark(), true)
+	for of, has := range held() {
+		if has {
+			t.Errorf("work's %s hold the session, want it forgotten: a whole answer read work without it", of)
+		}
+	}
+	if gone, ok := u.absent["5h"]; !ok || gone == 0 {
+		t.Errorf("work's session absent from %d (%v), want absent from the moment the answer was taken in", gone, ok)
+	}
+	if work, _ := s.document().Account("work"); !reflect.DeepEqual(work.Windows, []quota.Window{week}) || work.Lapsed != nil {
+		t.Errorf("work reads %+v, lapsed %q, want its week alone, nothing lapsed", work.Windows, work.Lapsed)
+	}
+	if s.primable("work") || !s.primable("side") {
+		t.Errorf("work primable = %v, side %v; want work without a window to prime, side, unread, with one", s.primable("work"), s.primable("side"))
+	}
+	clock.now = start.Add(3 * time.Minute)
+	s.recordAnswer("work", []quota.Window{week}, s.mark(), true)
+	if changes != 1 {
+		t.Errorf("told of %d changes, want 1: the session's retirement, once", changes)
+	}
+	if got := linesWith(log, `msg="no longer reports the window"`); len(got) != 1 || !log.Has("level=INFO", `msg="no longer reports the window"`, "account=work", "window=5h") {
+		t.Errorf("log reads\n%s\nwant work's session told of once as no longer reported", log)
+	}
+}
+
+func TestAReadingRetiresNothingUnlessItsWholeAndReportsASharedWindow(t *testing.T) {
+	tests := []struct {
+		name string
+		// read takes in a reading of work without its session.
+		read func(s *state)
+	}{
+		{name: "an answer that isn't whole", read: func(s *state) { s.recordAnswer("work", []quota.Window{week}, s.mark(), false) }},
+		{name: "a whole answer of the Fable week alone", read: func(s *state) { s.recordAnswer("work", []quota.Window{fableWeek}, s.mark(), true) }},
+		{name: "a probe with no request answered with success", read: func(s *state) {
+			s.recordProbe("work", probed(nil, week, fableWeek), nil, s.mark(), readings.FromProbe)
+		}},
+		{name: "a whole probe of the Fable week alone", read: func(s *state) {
+			s.recordProbe("work", quota.Probe{Windows: []quota.Window{fableWeek}, Admitted: true}, nil, s.mark(), readings.FromProbe)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestState(&testClock{now: start})
+			s.record("work", []quota.Window{session, week}, s.mark())
+
+			tt.read(s)
+			if got := s.usage["work"].windows["5h"]; got != session {
+				t.Errorf("work's session reads %+v, want %+v, as before", got, session)
+			}
+			if len(s.usage["work"].absent) > 0 || !s.primable("work") {
+				t.Errorf("work's windows absent: %v, want none", s.usage["work"].absent)
+			}
+		})
+	}
+}
+
+func TestOnlyASuccessfulAnswerToARequestThatSpendsReadsTheAccountWhole(t *testing.T) {
+	weekAlone := func(status int, overall quota.Status) answer {
+		return func(r *http.Request) *http.Response {
+			h := http.Header{
+				"Anthropic-Ratelimit-Unified-Status":         {string(overall)},
+				"Anthropic-Ratelimit-Unified-7d-Utilization": {"0.93"},
+				"Anthropic-Ratelimit-Unified-7d-Reset":       {strconv.FormatInt(week.ResetsAt.Unix(), 10)},
+				"Anthropic-Ratelimit-Unified-7d-Status":      {string(quota.StatusAllowedWarning)},
+			}
+			return respond(r, status, h, `{"type":"message"}`)
+		}
+	}
+	tests := []struct {
+		name string
+		// answer is work's to every request, reporting its week alone.
+		answer      answer
+		wantRetired bool
+	}{
+		{name: "a 200", answer: weekAlone(http.StatusOK, quota.StatusAllowed), wantRetired: true},
+		{name: "a 429 reaching its limit", answer: weekAlone(http.StatusTooManyRequests, quota.StatusRejected)},
+		{name: "a 429 throttling it", answer: weekAlone(http.StatusTooManyRequests, quota.StatusAllowed)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				r := newTestRouter(t, at(start), &stubProber{})
+				r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+				r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+				r.proxy.transport = scripted(tt.answer, served)
+
+				routeAlone(t.Context(), r, "one")
+				if _, held := r.state.usage["work"].windows["5h"]; held == tt.wantRetired {
+					t.Errorf("work holds its session: %v, want %v", held, !tt.wantRetired)
+				}
+			})
+		})
+	}
+}
+
+func TestALateAnswerToARequestSentBeforeAWindowWasReadAgainRetiresNothing(t *testing.T) {
+	s := newTestState(&testClock{now: start})
+	// A request is sent, then another, which reads work's session; the first
+	// is answered last, whole, without it.
+	slow := s.mark()
+	s.record("work", []quota.Window{session, week}, s.mark())
+
+	s.recordAnswer("work", []quota.Window{week}, slow, true)
+	if got := s.usage["work"].windows["5h"]; got != session {
+		t.Errorf("work's session reads %+v, want %+v: the reading since may be the newer", got, session)
+	}
+	if len(s.usage["work"].absent) > 0 {
+		t.Errorf("work's windows absent: %v, want none", s.usage["work"].absent)
+	}
+}
+
+func TestAReadingOfARetiredWindowFromBeforeItsRetirementIsStale(t *testing.T) {
+	tests := []struct {
+		name string
+		// between is set when the request was sent after the one whose answer
+		// retired the window, before that was answered; otherwise it was sent
+		// before both.
+		between bool
+	}{
+		{name: "sent before the request whose answer retired it"},
+		{name: "sent before that answer was taken in", between: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newTestState(clock)
+			s.record("work", []quota.Window{session, week}, s.mark())
+			sent := s.mark()
+			retiring := s.mark()
+			if tt.between {
+				sent = s.mark()
+			}
+			clock.now = start.Add(time.Minute)
+			s.recordAnswer("work", []quota.Window{week}, retiring, true)
+			var lines []readings.Reading
+			s.history = func(read []readings.Reading) { lines = append(lines, read...) }
+
+			busier := session
+			busier.Utilization = 0.31
+			s.record("work", []quota.Window{busier, week}, sent)
+			if _, held := s.usage["work"].windows["5h"]; held {
+				t.Error("work holds its session, want it absent still: the upstream may have reckoned the reading first")
+			}
+			if _, gone := s.usage["work"].absent["5h"]; !gone {
+				t.Error("work's session isn't absent, want it absent still")
+			}
+			if lines != nil {
+				t.Errorf("the history heard of %+v, want nothing", lines)
+			}
+		})
+	}
+}
+
+func TestARetiredWindowReadOffARequestSentSinceIsBack(t *testing.T) {
+	log := logstest.Capture(t)
+	var changes changeCount
+	clock := &testClock{now: start}
+	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
+	s.record("work", []quota.Window{session, week}, s.mark())
+	s.recordAnswer("work", []quota.Window{week}, s.mark(), true)
+	var lines []readings.Reading
+	s.history = func(read []readings.Reading) { lines = append(lines, read...) }
+	changes = 0
+	clock.now = start.Add(time.Minute)
+
+	s.record("work", []quota.Window{session, week}, s.mark())
+	u := s.usage["work"]
+	if got := u.windows["5h"]; got != session {
+		t.Errorf("work's session reads %+v, want %+v, back", got, session)
+	}
+	if len(u.absent) > 0 || !s.primable("work") {
+		t.Errorf("work's windows absent: %v, want none", u.absent)
+	}
+	if want := readings.Of("work", []quota.Window{session}, clock.now, readings.FromAnswer); !reflect.DeepEqual(lines, want) {
+		t.Errorf("the history heard of %+v, want %+v, the session's line", lines, want)
+	}
+	if trail := u.trails["5h"]; len(trail) != 1 || !trail[0].At.Equal(clock.now) {
+		t.Errorf("work's session's trail is %+v, want it afresh from %v", trail, clock.now)
+	}
+	if changes != 1 {
+		t.Errorf("told of %d changes, want 1: the session back", changes)
+	}
+	if !log.Has("level=INFO", `msg="reports the window again"`, "account=work", "window=5h") {
+		t.Errorf("log reads\n%s\nwant work's session told of as back", log)
+	}
+}
+
+func TestAWholeProbeRetiresEachSharedWindowItDoesntReport(t *testing.T) {
+	tests := []struct {
+		name     string
+		admitted bool
+		// before is set when the probe went out on the token before.
+		before      bool
+		wantRetired bool
+	}{
+		{name: "a request of it answered with success", admitted: true, wantRetired: true},
+		{name: "none answered with success"},
+		{name: "on the token before, a request of it answered with success", admitted: true, before: true, wantRetired: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestState(&testClock{now: start})
+			s.record("work", []quota.Window{session, week}, s.mark())
+			sent := s.mark()
+			if tt.before {
+				s.tokenReplaced("work")
+			}
+
+			reading := quota.Probe{Windows: []quota.Window{week, fableWeek}, Admitted: tt.admitted}
+			s.recordProbe("work", reading, nil, sent, readings.FromProbe)
+			if _, held := s.usage["work"].windows["5h"]; held == tt.wantRetired {
+				t.Errorf("work holds its session: %v, want %v", held, !tt.wantRetired)
+			}
+			if _, gone := s.usage["work"].absent["5h"]; gone != tt.wantRetired {
+				t.Errorf("work's session absent: %v, want %v", gone, tt.wantRetired)
+			}
+		})
+	}
 }

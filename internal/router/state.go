@@ -102,6 +102,11 @@ type usage struct {
 	// sent before is from before the reset. It's kept in memory alone, as the
 	// state file's readings count as taken before every moment.
 	resetBy map[string]moment
+	// absent holds, by key, the windows every model shares that the
+	// account's whole readings stopped reporting, as retire has them, each
+	// with the moment the reading that showed it gone was taken in: zero for
+	// one the state file kept, which counts before every moment.
+	absent map[string]moment
 }
 
 // refusal is the upstream refusing requests on an account, answering with
@@ -273,6 +278,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 			forbidden: make(map[string]refusals),
 			trails:    make(trails),
 			resetBy:   make(map[string]moment),
+			absent:    make(map[string]moment),
 			tokenless: !a.hasToken(),
 		}
 	}
@@ -285,23 +291,124 @@ func (s *state) mark() moment {
 	return moment(s.moments.Add(1))
 }
 
-// record takes in a reading of an account's windows, off the answer to a
-// request sent at sent. Each window is merged with the reading of its key
-// before it, and the account's other windows stand. It returns the news of
-// each limit of the account's the reading shows lifted early, as liftedSince
-// has it.
-func (s *state) record(id string, windows []quota.Window, sent moment) []LimitLifted {
+// recordAnswer takes in a reading of an account's windows, off the answer to
+// a request sent at sent, whole saying whether it's a whole reading, as the
+// answer to a request that spends the account's quota, answered with success,
+// is: it reports every window that counts the request. Each window is merged
+// with the reading of its key before it, and the account's other windows
+// stand, but those a whole reading retires, as take says. It returns the news
+// of each limit of the account's the reading shows lifted early, as
+// liftedSince has it. The state file keeps a reading off an answer as a
+// routine change, and a window retired or back as news.
+func (s *state) recordAnswer(id string, windows []quota.Window, sent moment, whole bool) []LimitLifted {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
 	was := slices.Clone(u.reached)
-	changed, took := u.take(windows, at, sent, s.mark())
-	if took {
+	changed, took, news := s.take(id, windows, at, sent, whole)
+	switch {
+	case news:
+		s.changed()
+	case took:
 		s.routine()
 	}
 	s.history(readings.Of(id, changed, at, readings.FromAnswer))
 	return u.liftedSince(id, was, at)
+}
+
+// take takes in windows read of the account with the given id at a time, off
+// the answer to a request sent at sent, as its usage's take does, but those
+// of windows retired since, as unretire says; and, of a whole reading, as
+// whole says, retires each window every model shares it doesn't report, as
+// retire says. It notes in the log each window retired, and each back. It
+// returns what its usage's take does, and whether a window was retired or is
+// back, which is news. s.mu must be held.
+func (s *state) take(id string, windows []quota.Window, at time.Time, sent moment, whole bool) (changed []quota.Window, took, news bool) {
+	u := s.usage[id]
+	taken := s.mark()
+	counting, back := u.unretire(windows, sent)
+	changed, took = u.take(counting, at, sent, taken)
+	var retired []string
+	if whole {
+		retired = u.retire(windows, s.policy.Shared, sent, taken)
+	}
+	for _, key := range back {
+		logger.Info("reports the window again", "account", id, "window", key)
+	}
+	for _, key := range retired {
+		logger.Info("no longer reports the window", "account", id, "window", key)
+	}
+	return changed, took, len(back) > 0 || len(retired) > 0
+}
+
+// retire retires each of shared, the windows every model shares, that
+// windows, a whole reading off the answer to a request sent at sent, taken in
+// at taken, doesn't report, where it reports one of them: an answer that
+// reports every window counting its request reports each of them the account
+// has. One that reports none of them, as one of a model's own window alone,
+// says nothing of them. A window read off a request sent after this one,
+// answered first, stands. A window retired is forgotten, and absent from
+// taken on, as unretire has it. It returns the keys of those it retires.
+func (u *usage) retire(windows []quota.Window, shared []string, sent, taken moment) []string {
+	reports := func(key string) bool {
+		return slices.ContainsFunc(windows, func(w quota.Window) bool { return w.Key == key })
+	}
+	if !slices.ContainsFunc(shared, reports) {
+		return nil
+	}
+	var retired []string
+	for _, key := range shared {
+		if _, gone := u.absent[key]; gone || reports(key) || sent < u.taken[key] {
+			continue
+		}
+		u.forget(key)
+		u.absent[key] = taken
+		retired = append(retired, key)
+	}
+	return retired
+}
+
+// forget forgets the window named key: its reading, when and by what it was
+// taken in, any reset by hand it was read to have had, and its trail.
+func (u *usage) forget(key string) {
+	delete(u.windows, key)
+	delete(u.taken, key)
+	delete(u.readAt, key)
+	delete(u.resetBy, key)
+	delete(u.trails, key)
+}
+
+// unretire returns windows, read off the answer to a request sent at sent,
+// but each of a window retired, as retire has it, whose request was sent
+// before the reading that retired it was taken in: the upstream may have
+// reckoned it first, so it's stale. A window retired that's read off one
+// sent since is back: it's absent no longer, and unretire returns its key
+// among back.
+func (u *usage) unretire(windows []quota.Window, sent moment) (counting []quota.Window, back []string) {
+	for _, w := range windows {
+		gone, retired := u.absent[w.Key]
+		switch {
+		case !retired:
+		case sent < gone:
+			continue
+		default:
+			delete(u.absent, w.Key)
+			back = append(back, w.Key)
+		}
+		counting = append(counting, w)
+	}
+	return counting, back
+}
+
+// primable reports whether the account with the given id has a window to
+// prime: the window a request starts, as policy names it, hasn't been
+// retired, as retire has it. An account never read has.
+func (s *state) primable(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, gone := s.usage[id].absent[s.policy.Started]
+	return !gone
 }
 
 // recordExtra takes in an account's extra usage, off the answer to a request
@@ -379,10 +486,12 @@ func (u *usage) liftedSince(id string, was []limit, now time.Time) []LimitLifted
 // verdict, but not why it read nothing, what it couldn't read, or the backoff
 // its end would start. Its reading stamps the account read, and clears its
 // probes' error and backoff, as any reading does: none can have come since
-// the account took up its token, as its probes go out one at a time. The
-// state file keeps how a probe on the account's own token went, its error
-// with nothing shaped like a token in it, as a routine change, and a reading
-// that reads otherwise than before as news.
+// the account took up its token, as its probes go out one at a time. A
+// probe a request of which was answered with success, on whichever token,
+// reads the account whole, as take has it. The state file keeps how a probe
+// on the account's own token went, its error with nothing shaped like a token
+// in it, as a routine change, and a reading that reads otherwise than before,
+// or retires a window or has one back, as news.
 func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) probeTaken {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -406,9 +515,9 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	if probed.Admitted {
 		u.admitted(sent)
 	}
-	changed, took := u.take(probed.Windows, at, sent, s.mark())
+	changed, took, windowNews := s.take(id, probed.Windows, at, sent, probed.Admitted)
 	tookExtra, newExtra := u.takeExtra(probed.Extra, sent)
-	news := newExtra || len(changed) > 0
+	news := windowNews || newExtra || len(changed) > 0
 	took = took || tookExtra
 	s.history(readings.Of(id, changed, at, from))
 	for key, models := range probed.Models {
@@ -1337,14 +1446,16 @@ func (s *state) saved() savedUsage {
 }
 
 // saved is what the state file keeps of the account's usage: its windows as
-// last read, and when, the account and each window, its extra usage, and how
-// its probes went. It reports false where there's none of that to keep.
+// last read, and when, the account and each window, the windows retired, its
+// extra usage, and how its probes went. It reports false where there's none
+// of that to keep.
 func (u *usage) saved() (savedReading, bool) {
-	if len(u.windows) == 0 && !u.extra.Given() && u.probed.IsZero() {
+	if len(u.windows) == 0 && len(u.absent) == 0 && !u.extra.Given() && u.probed.IsZero() {
 		return savedReading{}, false
 	}
 	return savedReading{
-		ReadAt: u.updated, Windows: u.latest(), WindowsReadAt: u.windowsReadAt(), Extra: u.extra,
+		ReadAt: u.updated, Windows: u.latest(), WindowsReadAt: u.windowsReadAt(),
+		WindowsAbsent: slices.Sorted(maps.Keys(u.absent)), Extra: u.extra,
 		Probed: u.probed, ProbeError: u.probeErr, Misses: u.misses,
 	}, true
 }
@@ -1373,7 +1484,7 @@ func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed 
 			changed = true
 			continue
 		}
-		if u.recall(reading, holding(id), now) {
+		if u.recall(reading, holding(id), s.policy.IsShared, now) {
 			changed = true
 		}
 	}
@@ -1386,19 +1497,26 @@ func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed 
 }
 
 // recall takes in what the state file kept of the account, at now: its
-// reading, and, where it holds the token it held then, as held says, how its
-// probes went, which a stopped router's probes count for as they would have,
-// had it run on. A window kept without when it was read, as a router from
-// before kept them, wasn't read as far as is known. What a file edited by
-// hand can hold is taken as the router would have kept it: a probe kept as
-// ending after now, as before the clock was set back, ended now; a count of
-// misses runs from none to backingOff; and an error has nothing shaped like
-// a token in it. It reports whether it took the probes otherwise than they
-// were kept, or left them out.
-func (u *usage) recall(kept savedReading, held bool, now time.Time) (changed bool) {
+// reading, the windows retired, as retire has them, each absent from before
+// every moment, and, where it holds the token it held then, as held says, how
+// its probes went, which a stopped router's probes count for as they would
+// have, had it run on. A window kept without when it was read, as a router
+// from before kept them, wasn't read as far as is known. What a file edited
+// by hand can hold is taken as the router would have kept it: a window kept
+// both read and retired was read; one retired that shared says no model
+// shares wasn't retired; a probe kept as ending after now, as before the
+// clock was set back, ended now; a count of misses runs from none to
+// backingOff; and an error has nothing shaped like a token in it. It reports
+// whether it took the probes otherwise than they were kept, or left them out.
+func (u *usage) recall(kept savedReading, held bool, shared func(key string) bool, now time.Time) (changed bool) {
 	for _, w := range kept.Windows {
 		u.windows[w.Key] = w
 		u.readAt[w.Key] = kept.WindowsReadAt[w.Key].UTC()
+	}
+	for _, key := range kept.WindowsAbsent {
+		if _, read := u.windows[key]; !read && shared(key) {
+			u.absent[key] = 0
+		}
 	}
 	u.updated, u.extra = kept.ReadAt.UTC(), kept.Extra
 	if held {

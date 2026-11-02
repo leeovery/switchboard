@@ -749,3 +749,48 @@ func TestAccountsWithoutRoomAreProbedAgainOnceAMinuteAtMost(t *testing.T) {
 		}
 	}
 }
+
+func TestAnAnswerWithoutTheSessionToARequestItTookDropsItFromTheStatus(t *testing.T) {
+	r := newRouted(t)
+	// Work's quota needs using first, so the session goes there.
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	if got := r.ask(t, sessionID, opus, ""); got != "work" {
+		t.Fatalf("the request went to %s, want work", got)
+	}
+
+	// Work's answers stop reporting its session, as a plan without one's do.
+	r.api.set(workToken, weekOf(0.5, 24*time.Hour))
+	if got := r.ask(t, sessionID, opus, ""); got != "work" {
+		t.Fatalf("the request went to %s, want work, where its session is", got)
+	}
+	if work, _ := r.rt.Status().Account("work"); !reflect.DeepEqual(asRead(work.Windows), []quota.Window{weekOf(0.5, 24*time.Hour)}) {
+		t.Errorf("work reads %+v, want its week alone", work.Windows)
+	}
+}
+
+func TestAThrottledAnswerWithoutTheSessionLeavesItAsItWasRead(t *testing.T) {
+	r := newRouted(t)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	if got := r.ask(t, sessionID, opus, ""); got != "work" {
+		t.Fatalf("the request went to %s, want work", got)
+	}
+
+	// Work throttles the next request, reporting its week alone, then takes
+	// it, reporting nothing.
+	r.api.script(workToken, func(w http.ResponseWriter, _ *http.Request) {
+		reportWindows(w.Header(), []quota.Window{weekOf(0.5, 24*time.Hour)})
+		w.Header().Set("Anthropic-Ratelimit-Unified-Status", string(quota.StatusAllowed))
+		w.Header().Set("Retry-After", "1")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, `{"type":"error","error":{"type":"rate_limit_error","message":"slow down"}}`)
+	}, answerOK)
+	r.ask(t, sessionID, opus, "")
+	if got := r.api.accounts(); !slices.Equal(got, []string{"work", "work", "work"}) {
+		t.Fatalf("the requests went out on %q, want work each time", got)
+	}
+	if work, _ := r.rt.Status().Account("work"); !slices.ContainsFunc(work.Windows, func(w quota.Window) bool { return w.Key == "5h" }) {
+		t.Errorf("work reads %+v, want its session as it was read: a throttled answer reads part of the account", work.Windows)
+	}
+}

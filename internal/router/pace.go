@@ -30,9 +30,10 @@ func (t trails) note(held, kept quota.Window, at time.Time) {
 // order they were read, into the trails of the accounts configured, as though
 // they'd come in as read then: the readings history holds each change of a
 // window's use, so its trail, baseline included, is as it was, and its recent
-// rate outlasts a restart. A window whose reading, as the state file kept it,
-// has another reset than its readings last read, as when it has reset since,
-// keeps none of them. It returns how many the trails keep.
+// rate outlasts a restart. A window the account doesn't hold, as one its
+// answers no longer report, keeps none of them, and nor does one whose
+// reading, as the state file kept it, has another reset than its readings
+// last read, as when it has reset since. It returns how many the trails keep.
 func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -48,7 +49,7 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	kept := 0
 	for of, w := range last {
 		u := s.usage[of.account]
-		if !u.windows[of.window].ResetsAt.Equal(w.ResetsAt) {
+		if held, ok := u.windows[of.window]; !ok || !held.ResetsAt.Equal(w.ResetsAt) {
 			delete(u.trails, of.window)
 		}
 		kept += len(u.trails[of.window])

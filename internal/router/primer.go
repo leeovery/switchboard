@@ -2,6 +2,8 @@ package router
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,11 +32,12 @@ const (
 // window a request starts is started by a prime, a probe, at the account's
 // slot, and again whenever it isn't running until the day ends. A prime
 // missed while the Mac slept, or the router was away, goes out as soon as it
-// can, unless the day has ended.
+// can, unless the day has ended. An account whose answers no longer report
+// that window has none to prime, and no slot.
 type primer struct {
 	day config.Day
 	// accounts are every account configured: the schedule has slots for
-	// those with tokens.
+	// those with tokens that have a window to prime.
 	accounts accounts
 	state    *state
 	probes   *probes
@@ -45,11 +48,16 @@ type primer struct {
 }
 
 // plan is the schedule as it was last worked out, and the accounts it has
-// slots for: those with tokens then, in the order configured. The zero plan
-// has none, as when no account has a token.
+// slots for: those with tokens then that had a window to prime, in the order
+// configured. The zero plan has none, as when no account has a token.
 type plan struct {
 	schedule prime.Schedule
 	accounts accounts
+}
+
+// ids returns the ids of the accounts the plan has slots for, in order.
+func (pl plan) ids() []string {
+	return pl.accounts.configured().IDs()
 }
 
 // newPrimer returns what primes those of the accounts given with tokens on
@@ -63,18 +71,38 @@ func newPrimer(priming config.Prime, as accounts, state *state, probes *probes, 
 	return p
 }
 
-// replan works the schedule out again over the accounts with tokens now: as
-// the router starts, and whenever an account gains a usable token or loses
-// it.
+// replan works the schedule out again over the accounts with tokens now that
+// have a window to prime, as the state's primable says: as the router
+// starts, and whenever an account gains a usable token or loses it.
 func (p *primer) replan() {
-	sendable := p.accounts.sendable()
-	var next plan
-	if schedule, ok := prime.New(p.day, sendable.configured().IDs(), p.state.policy); ok {
-		next = plan{schedule: schedule, accounts: sendable}
-	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.plan = p.next()
+}
+
+// rework works the schedule out again, as replan does, where the accounts it
+// would have slots for differ from those it has, as when an account's window
+// to prime has been retired since, or is back, and notes it in the log.
+func (p *primer) rework() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	next := p.next()
+	if slices.Equal(next.ids(), p.plan.ids()) {
+		return
+	}
 	p.plan = next
+	logger.Info("priming schedule worked out again", "accounts", strings.Join(next.ids(), ","))
+}
+
+// next is the plan worked out over the accounts with tokens now that have a
+// window to prime.
+func (p *primer) next() plan {
+	primed := slices.DeleteFunc(p.accounts.sendable(), func(a account) bool { return !p.state.primable(a.ID) })
+	schedule, ok := prime.New(p.day, primed.configured().IDs(), p.state.policy)
+	if !ok {
+		return plan{}
+	}
+	return plan{schedule: schedule, accounts: primed}
 }
 
 // current returns the plan as it was last worked out.
@@ -84,9 +112,13 @@ func (p *primer) current() plan {
 	return p.plan
 }
 
-// run primes each account as it falls due, until ctx ends.
+// run primes each account as it falls due, until ctx ends, working the
+// schedule out again first at each look where its accounts have changed, as
+// rework says: the state's changes are heard with its lock held, so the
+// primer looks for them rather than hears of them.
 func (p *primer) run(ctx context.Context) {
 	for {
+		p.rework()
 		if underway := p.probes.prime(p.current().accounts, p.due); len(underway) > 0 {
 			settle(ctx, underway, primeWait)
 		}

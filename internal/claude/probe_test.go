@@ -330,6 +330,30 @@ func TestProbe(t *testing.T) {
 			wantAsked: []string{haiku, fable, fableOlder},
 		},
 		{
+			name: "both families answering with the weeks alone, as a plan without a session does, no failure",
+			replies: map[string]reply{
+				haiku: withUsage(http.StatusOK, week),
+				fable: withUsage(http.StatusOK, week, fableWeek),
+			},
+			want: probed(
+				quota.Usage{Windows: []quota.Window{week, fableWeek}},
+				map[string][]string{"7d": {haiku, fable}, "7d_oi": {fable}},
+			),
+			wantAsked: []string{haiku, fable},
+		},
+		{
+			name: "the base answering without the session while Fable reads it, keeping it",
+			replies: map[string]reply{
+				haiku: withUsage(http.StatusOK, week),
+				fable: withUsage(http.StatusOK, session, week, fableWeek),
+			},
+			want: probed(
+				quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+				map[string][]string{"5h": {fable}, "7d": {haiku, fable}, "7d_oi": {fable}},
+			),
+			wantAsked: []string{haiku, fable},
+		},
+		{
 			name: "the base failing while Fable answers",
 			replies: map[string]reply{
 				haiku: overloaded,
