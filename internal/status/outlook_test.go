@@ -503,6 +503,49 @@ func TestThePoolCountsTheAccountsWithEachWindow(t *testing.T) {
 	}
 }
 
+// The pool lacks a window it leaves out because its accounts lack it, as
+// it keeps those at least two have or may have, or every one; never one
+// nothing has been read of, which every account may have, nor a window a
+// pin of one keeps, nor any without a pool.
+func TestThePoolLacksAWindowItLeavesOutAsItsAccountsLackIt(t *testing.T) {
+	both := func(id string) status.Account {
+		return readAt(id, windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day))
+	}
+	weekOnly := func(id string) status.Account { return readAt(id, windowIn("7d", 0.3, 2*day)) }
+	unread := func(id string) status.Account { return status.Account{ID: id, Label: id, TokenSet: true} }
+	tests := []struct {
+		name string
+		doc  status.Document
+		key  string
+		want bool
+	}{
+		{name: "every account unread", doc: routerDocOf(unread("work"), unread("personal"), unread("side")), key: "5h"},
+		{name: "every account with the 5-hour", doc: routerDocOf(both("work"), both("side")), key: "5h"},
+		{name: "mixed: one of three with the 5-hour", doc: routerDocOf(weekOnly("work"), weekOnly("personal"), both("side")), key: "5h", want: true},
+		{name: "mixed: its week, which every one has", doc: routerDocOf(weekOnly("work"), weekOnly("personal"), both("side")), key: "7d"},
+		{name: "two of three with the 5-hour", doc: routerDocOf(both("work"), weekOnly("personal"), both("side")), key: "5h"},
+		{name: "every account Ultra", doc: routerDocOf(weekOnly("work"), weekOnly("personal"), weekOnly("side")), key: "5h", want: true},
+		{name: "one with the 5-hour, one unread, which may have it", doc: routerDocOf(both("work"), unread("personal"), weekOnly("side")), key: "5h"},
+		{name: "a model's own window none reports", doc: routerDocOf(weekOnly("work"), both("side")), key: "7d_oi"},
+		{name: "pinned to the one with the 5-hour", doc: pinnedTo(routerDocOf(weekOnly("work"), weekOnly("personal"), both("side")), "side"), key: "5h"},
+		{
+			name: "pinned to one with the 5-hour and one lacking it", doc: pinnedTo(routerDocOf(both("work"), weekOnly("personal"), both("side")), "work", "personal"),
+			key: "5h", want: true,
+		},
+		{name: "one account, no pool", doc: routerDocOf(weekOnly("work")), key: "5h"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.doc.WorkedOut(policy).At(built, policy).PoolLacks(tt.key); got != tt.want {
+				t.Errorf("PoolLacks(%q) = %t, want %t", tt.key, got, tt.want)
+			}
+		})
+	}
+	if (status.Moment{}).PoolLacks("5h") {
+		t.Error("the zero moment's pool lacks the 5-hour, want it to lack none, as there's no pool")
+	}
+}
+
 func TestThePoolsWindowsSayHowManyAccountsHaveThem(t *testing.T) {
 	doc := routerDocOf(
 		readAt("work", windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day)),

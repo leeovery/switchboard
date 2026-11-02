@@ -141,7 +141,7 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 		}
 		b.rows = append(b.rows, row)
 	}
-	if row, ok := poolRow(m.Pool(), names, b.windows); ok {
+	if row, ok := poolRow(m, names, b.windows); ok {
 		b.rows = append(b.rows, row)
 	}
 	return b
@@ -186,9 +186,11 @@ func drawsEmpty(kind status.WindowKind) bool {
 // there's no pool, as with one account: each window's bar filled to its
 // accounts' mean use, with their even pace and no cap's mark, empty where no
 // account's use is counted, and its words its room, the first it has words
-// for saying it's pinned, where it is; and nothing drawn of a window the
-// pool hasn't.
-func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (usageRow, bool) {
+// for saying it's pinned, where it is; nothing drawn of a window it leaves
+// out as its accounts lack it, as m's PoolLacks says; and of any other it
+// hasn't, its bar empty.
+func poolRow(m status.Moment, names []accountName, windows []shownWindow) (usageRow, bool) {
+	pool := m.Pool()
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
@@ -197,7 +199,8 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 	for _, w := range windows {
 		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindowNow) bool { return p.Key == w.key })
 		if j < 0 {
-			row.gauges = append(row.gauges, gauge{none: true, bar: usageBar{empty: true}})
+			lacks := m.PoolLacks(w.key)
+			row.gauges = append(row.gauges, gauge{none: lacks, bar: usageBar{empty: !lacks}})
 			continue
 		}
 		p := pool.Windows[j]

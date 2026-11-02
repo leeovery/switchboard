@@ -298,7 +298,7 @@ func (g glance) poolLine(names []accountName) *glanceLine {
 	for i, w := range runwayWindows {
 		shown[i] = shownWindow{key: w.KeyIn(g.m.Policy()), name: runwayNames[w]}
 	}
-	row, ok := poolRow(g.m.Pool(), names, shown)
+	row, ok := poolRow(g.m, names, shown)
 	if !ok {
 		return nil
 	}

@@ -324,12 +324,7 @@ func (d Document) pool(accounts []judgedAccount) Pool {
 	if !d.pooled() {
 		return Pool{}
 	}
-	var members []judgedAccount
-	for _, j := range accounts {
-		if d.inPool(j.states.account.ID) {
-			members = append(members, j)
-		}
-	}
+	members := d.members(accounts)
 	p := Pool{Pinned: !d.Pin.IsZero(), Windows: []PoolWindow{}}
 	var keys []string
 	for _, m := range members {
@@ -349,10 +344,53 @@ func (d Document) pool(accounts []judgedAccount) Pool {
 	return p
 }
 
+// members are the accounts judged that new sessions can go to, as inPool
+// says, in their order.
+func (d Document) members(accounts []judgedAccount) []judgedAccount {
+	var members []judgedAccount
+	for _, j := range accounts {
+		if d.inPool(j.states.account.ID) {
+			members = append(members, j)
+		}
+	}
+	return members
+}
+
 // kept reports whether a pool of the given number of members keeps the
-// window: where at least two members have it, or every member does.
+// window, as keeps judges it.
 func (w PoolWindow) kept(members int) bool {
-	return w.Of >= 2 || w.Of == members
+	return keeps(w.Of, members)
+}
+
+// keeps reports whether a pool of the given number of members keeps a
+// window of members of them have or may have: at least two, or every one.
+func keeps(of, members int) bool {
+	return of >= 2 || of == members
+}
+
+// poolLacks reports whether the pool of the accounts judged leaves out the
+// window with the given key because its members lack it, as lacking has
+// those that do: keeps wouldn't keep it, counting those that have it or may
+// have it. A window nothing has been read of is lacked by none, nor is any
+// where there's no pool.
+func (d Document) poolLacks(accounts []judgedAccount, key string) bool {
+	if !d.pooled() {
+		return false
+	}
+	members := d.members(accounts)
+	return !keeps(haveOrMay(members, key), len(members))
+}
+
+// haveOrMay is how many of the members given have the window with the given
+// key or may have it: those that don't lack it, as lacking has them.
+func haveOrMay(members []judgedAccount, key string) int {
+	n := 0
+	for _, m := range members {
+		if !m.states.lacksWindow(key) {
+			n++
+		}
+	}
+	return n
 }
 
 // pooled reports whether the document has a pool: it has several accounts,
@@ -373,13 +411,10 @@ func (d Document) inPool(id string) bool {
 // usedOf counts, averaged; and their even paces in it, as it stands, where
 // it's running, as paceOf has each, averaged.
 func poolWindow(members []judgedAccount, key string) PoolWindow {
-	pw := PoolWindow{Key: key}
+	pw := PoolWindow{Key: key, Of: haveOrMay(members, key)}
 	var used, paces float64
 	var counted, running int
 	for _, m := range members {
-		if !m.states.lacksWindow(key) {
-			pw.Of++
-		}
 		w, ok := m.window(key)
 		if !ok {
 			continue

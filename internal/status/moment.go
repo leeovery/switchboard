@@ -440,6 +440,15 @@ func (m Moment) Pool() PoolNow {
 	return now
 }
 
+// PoolLacks reports whether the pool at Now leaves out the window with the
+// given key because its accounts lack it: fewer than two of them have it or
+// may have it, and not every one, as where all but one are verified Ultra,
+// which has no 5-hour window. It's false of a window nothing has been read
+// of, which every account may have, and where there's no pool.
+func (m Moment) PoolLacks(key string) bool {
+	return m.doc.poolLacks(m.judged, key)
+}
+
 // Destination says where a pin to the accounts with the given ids sends
 // sessions, as destination says it.
 func (m Moment) Destination(ids []string) string {

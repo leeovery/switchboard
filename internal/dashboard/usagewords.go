@@ -78,7 +78,7 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	case status.WindowUnread:
 		return usageWords{full: line{{"not read yet", dimInk}}, short: line{{"not read", dimInk}}}
 	case status.WindowNone:
-		return alike("no "+status.InProse(w.Name)+" limit", dimInk)
+		return usageWords{full: line{{"no " + status.InProse(w.Name) + " limit", dimInk}}, short: line{{"no limit", dimInk}}}
 	case status.WindowStale:
 		full, short := lastRead(now, w.At)
 		return usageWords{full: line{{"not read since " + full, dimInk}}, short: line{{"read " + short, dimInk}}}

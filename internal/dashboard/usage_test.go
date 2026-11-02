@@ -747,6 +747,37 @@ func TestByAccountAWindowAnAccountLacksKeepsItsRow(t *testing.T) {
 	}
 }
 
+// A pool pinned to work, which lacks the 5-hour, and side, which has it,
+// leaves the 5-hour out, as its accounts lack it: its cell is blank.
+func TestAPinnedPoolsWindowItsAccountsLackIsBlank(t *testing.T) {
+	doc := trio(account("work", noSession), account("personal", noSession), pinnedTo("work", "side"))
+	rows := printed(doc, 160, ByWindow)
+	if got := colAt(rows[10], 64, 48); strings.TrimSpace(got) != "" {
+		t.Errorf("the pinned pool's 5-hour cell reads %q, want it blank", got)
+	}
+	if got := colAt(rows[10], 16, 48); !strings.Contains(got, " of 2 left · pinned") {
+		t.Errorf("the pinned pool's week reads %q, want its room of 2, pinned", got)
+	}
+}
+
+// Before anything is read, the pool lacks no window, as every account may
+// have each: its 5-hour, as every other, reads — over an empty bar, by
+// window, and keeps its label by account.
+func TestAPoolNothingIsReadOfKeepsItsWindows(t *testing.T) {
+	unread := func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }
+	doc := trio(account("work", unread), account("personal", unread), account("side", unread))
+	byWindow := printed(doc, 160, ByWindow)
+	if got := strings.Fields(byWindow[10]); !slices.Equal(got, []string{"Σ", "pool", "—", "—"}) {
+		t.Errorf("the pool's row reads %q, want — for its week and its 5-hour", byWindow[10])
+	}
+	byAccount := printed(doc, 160, ByAccount)
+	for row, want := range map[int][]string{14: {"Σ", "pool", "Week", "—"}, 16: {"5-hour", "—"}} {
+		if got := strings.Fields(byAccount[row]); !slices.Equal(got, want) {
+			t.Errorf("the pool's row %d reads %q, want %q", row, byAccount[row], want)
+		}
+	}
+}
+
 func TestThePoolSaysItsPinnedOnTheFirstWindowItHasWordsFor(t *testing.T) {
 	noWeek := func(a *status.Account) {
 		a.Windows = slices.DeleteFunc(slices.Clone(a.Windows), func(w quota.Window) bool { return w.Key == "7d" })
@@ -794,7 +825,7 @@ func TestThePoolsFigureIsItsAccountsMeanUseItsWordsTheirRoom(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.doc.At(now, claudeLike)
-			row, ok := poolRow(m.Pool(), namesOf(m), usageWindows([]string{"7d"}, labelsOf(m)))
+			row, ok := poolRow(m, namesOf(m), usageWindows([]string{"7d"}, labelsOf(m)))
 			if !ok || len(row.gauges) != 1 {
 				t.Fatalf("the pool's row is %+v, %v, want its week's gauge", row, ok)
 			}
