@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -118,14 +119,55 @@ func sectionWindows(s GraphsSection) []views.RunwayWindow {
 	return nil
 }
 
+// GraphsOffers reports whether Graphs offers the section, laying it out and
+// listing and taking its key, of the configured accounts given, at the moment
+// h holds, without working the moment out, as policy names its windows:
+// 5-HOUR only where any of them has, or may have, the 5-hour, as
+// fiveHourCharted has them, or none is configured, as the moment's
+// SharedWindows keep a window; every other section always.
+func GraphsOffers(s GraphsSection, accounts config.Accounts, h *status.HeldMoment, policy score.Policy) bool {
+	return s != GraphsFiveHour || len(accounts) == 0 || len(fiveHourCharted(accounts, h, policy)) > 0
+}
+
+// fiveHourCharted are the configured accounts given that 5-HOUR lays out a
+// card for, in the config's order: those that have, or may have, the
+// 5-hour, the window a request starts, as policy names it, at the moment h
+// holds, as its Has has them.
+func fiveHourCharted(accounts config.Accounts, h *status.HeldMoment, policy score.Policy) config.Accounts {
+	return slices.DeleteFunc(slices.Clone(accounts), func(a config.Account) bool { return !h.Has(policy.Started, a.ID) })
+}
+
+// graphsOffered are the sections shown as Graphs shows them at the moment
+// the frame holds: those its Sections show that it offers, as graphsOffers
+// has them, so one kept shown that it doesn't offer, as 5-HOUR where no
+// account has the 5-hour, is laid out as hidden, the preferences keeping it
+// all the same.
+func (f Frame) graphsOffered() GraphsSections {
+	shown := f.Graphs.Sections
+	for _, s := range EveryGraphsSection() {
+		if shown.Has(s) && !f.graphsOffers(s) {
+			shown = shown.Toggled(s)
+		}
+	}
+	return shown
+}
+
+// graphsOffers reports whether Graphs offers the section, as GraphsOffers
+// has it of the configured accounts at the moment the frame holds.
+func (f Frame) graphsOffers(s GraphsSection) bool {
+	return GraphsOffers(s, f.Graphs.Accounts, f.held, f.Policy)
+}
+
 // GraphsGlanceColumns are the columns GLANCE's pool's sparklines take, as
 // the watch builds the pool's room over each window's span across them.
 const GraphsGlanceColumns = sparkCells
 
 // GraphsShown is what the Graphs tab shows: its sections shown, as w, f, o, g
-// and h show and hide them; the configured accounts, in the config's order,
-// which alone, with the frame's size, its look, which words POOL's key, and
-// the sections shown, lay the page out, as layGraphs has it; WHEN YOU WORK's
+// and h show and hide them, and the preferences keep, those it offers alone
+// laid out, as graphsOffered has them; the configured accounts, in the
+// config's order, which alone, with the frame's size, its look, which words
+// POOL's key, the sections laid out, and those of the accounts that have the
+// 5-hour, lay the page out, as layGraphs has it; WHEN YOU WORK's
 // page, whose weeks its heading says, as the watch built it at the last look
 // on Graphs, nil where the ledger's days weren't read then, or WHEN YOU WORK
 // was hidden; and Runway's lanes over its live view of each window a
@@ -168,9 +210,9 @@ func pooled(accounts config.Accounts) bool {
 // in the rows over the legend, scrolled as the frame has it, a row at a
 // time, as paged pages them; and the legend on the view's last rows.
 func (f Frame) graphsTab(c *canvas, doc status.Document, now time.Time, top int) {
-	if f.Graphs.Sections.none() {
+	if f.graphsOffered().none() {
 		view := newCanvas(f.Width, f.viewRows())
-		everythingHidden(view, f.Width, f.Graphs.Sections.Toggles())
+		everythingHidden(view, f.Width, f.Graphs.Sections.TogglesOf(f.graphsOffers))
 		c.paste(view, 0, top, view.height())
 		return
 	}
@@ -232,7 +274,7 @@ var graphsOut = outForm{above: " above", below: " below", gap: " · ", inks: sub
 // past what shows, how many of their rows are out of view, as outOfView says
 // it in graphsOut's form.
 func (f Frame) graphsState(c *canvas) {
-	if f.Graphs.Sections.none() {
+	if f.graphsOffered().none() {
 		return
 	}
 	paged := f.graphsLaid().paged()
@@ -244,7 +286,7 @@ func (f Frame) graphsState(c *canvas) {
 // scrolled to each offset given, as their laying out pages them: none where
 // every one is hidden.
 func (f Frame) graphsScrolling() func(offset int) Scrolling {
-	if f.Graphs.Sections.none() {
+	if f.graphsOffered().none() {
 		return func(int) Scrolling { return Scrolling{} }
 	}
 	return f.graphsLaid().paged().scrolling
@@ -254,7 +296,7 @@ func (f Frame) graphsScrolling() func(offset int) Scrolling {
 // shows, across its columns, scrolled as the frame has it, a click on which
 // is a press of its key, which hides it.
 func (f Frame) graphsTargets() []Target {
-	if f.Graphs.Sections.none() {
+	if f.graphsOffered().none() {
 		return nil
 	}
 	laid := f.graphsLaid()

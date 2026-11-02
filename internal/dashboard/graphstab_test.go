@@ -239,6 +239,91 @@ func TestGraphsEverySectionHiddenTheFirstRowSaysHowToBringThemBack(t *testing.T)
 	}
 }
 
+// Graphs offers 5-HOUR while any configured account has, or may have, the
+// 5-hour, as one the router doesn't hold yet may, a card for each of them;
+// with none configured, or no moment held, it's offered; and every other
+// section always.
+func TestGraphsOffersFiveHourWhileAnyAccountHasOrMayHaveIt(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []string
+		lacking  []string
+		unheld   bool
+		want     bool
+		charted  []string
+	}{
+		{name: "every account with one", accounts: trioIDs, want: true, charted: trioIDs},
+		{name: "side alone with one", accounts: trioIDs, lacking: []string{"work", "personal"}, want: true, charted: []string{"side"}},
+		{name: "none with one", accounts: trioIDs, lacking: trioIDs},
+		{name: "none held with one, and one the router doesn't hold yet", accounts: append(slices.Clone(trioIDs), "client"), lacking: trioIDs, want: true, charted: []string{"client"}},
+		{name: "none configured", lacking: trioIDs, want: true},
+		{name: "no moment held", accounts: trioIDs, lacking: trioIDs, unheld: true, want: true, charted: trioIDs},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accounts := configured(tt.accounts...)
+			held := withoutFiveHour(trio(), tt.lacking...).HoldAt(printNow, printPolicy)
+			if tt.unheld {
+				held = nil
+			}
+			for _, s := range EveryGraphsSection() {
+				if got, want := GraphsOffers(s, accounts, held, printPolicy), tt.want || s != GraphsFiveHour; got != want {
+					t.Errorf("Graphs offers %s %t, want %t", s.heading(), got, want)
+				}
+			}
+			var charted []string
+			for _, a := range fiveHourCharted(accounts, held, printPolicy) {
+				charted = append(charted, a.ID)
+			}
+			if !slices.Equal(charted, tt.charted) {
+				t.Errorf("5-HOUR charts %q, want %q", charted, tt.charted)
+			}
+		})
+	}
+}
+
+// Where no account has the 5-hour, 5-HOUR goes, and f with it: from the
+// page, its headings' targets and the toggles every section hidden names; a
+// 5-HOUR kept, as the sections shown keep it, shows again once an account
+// has the 5-hour.
+func TestGraphsFiveHourGoesWhereNoAccountHasOne(t *testing.T) {
+	const hidden = "every section is hidden:  w week  o pool  g glance  h when"
+	fiveHour := GraphsSectionsNamed([]string{"5-hour"})
+	tests := []struct {
+		name    string
+		shown   GraphsSections
+		lacking []string
+		keys    []string
+		first   string
+	}{
+		{name: "at first, every account with one", keys: []string{"w", "f"}, first: "WEEK "},
+		{name: "at first, side alone with one", lacking: []string{"work", "personal"}, keys: []string{"w", "f"}, first: "WEEK "},
+		{name: "at first, none with one", lacking: trioIDs, keys: []string{"w"}, first: "WEEK "},
+		{name: "5-HOUR alone kept, none with one", shown: fiveHour, lacking: trioIDs, first: hidden},
+		{name: "5-HOUR alone kept, side with one", shown: fiveHour, lacking: []string{"work", "personal"}, keys: []string{"f"}, first: "5-HOUR "},
+		{name: "every one hidden, none with one", shown: GraphsSectionsNamed([]string{}), lacking: trioIDs, first: hidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := withoutFiveHour(trio(), tt.lacking...)
+			f := graphsFrame(160, 120, tt.shown)
+			text := textOf(f.Draw(doc, printNow))
+			var keys []string
+			for _, target := range f.Targets(doc, printNow) {
+				if target.On == OnPress {
+					keys = append(keys, target.Key)
+				}
+			}
+			if !strings.HasPrefix(text[f.top()], tt.first) || !slices.Equal(keys, tt.keys) {
+				t.Errorf("the view's top reads %q, its headings' targets pressing %q; want it to start %q, and %q pressed", text[f.top()], keys, tt.first, tt.keys)
+			}
+			if has, want := slices.ContainsFunc(text, func(row string) bool { return strings.HasPrefix(row, "5-HOUR ") }), slices.Contains(tt.keys, "f"); has != want {
+				t.Errorf("the page reads\n%s\nwant 5-HOUR on it %t", strings.Join(text, "\n"), want)
+			}
+		})
+	}
+}
+
 // pressed are the keys the targets a click on which presses one press, in
 // their order, and the rows they're on.
 func pressed(f Frame) (keys []string, rows []int) {

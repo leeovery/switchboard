@@ -25,16 +25,29 @@ const (
 )
 
 // graphsGiven is all that lays Graphs out, so the page holds still as reads
-// come, changing only on a key, a resize, the config or the router's
-// accounts: the frame's width and its view's rows; the sections shown; the
-// configured accounts, in the config's order, and how they're numbered; and
-// the look, which words POOL's key.
+// come, changing only on a key, a resize, the config, the router's accounts,
+// or an account's 5-hour window going or coming back: the frame's width and
+// its view's rows; the sections shown, those offered alone; the configured
+// accounts, in the config's order, how they're numbered, and those that
+// have, or may have, the 5-hour, as fiveHourCharted has them; and the look,
+// which words POOL's key.
 type graphsGiven struct {
 	width, rows int
 	shown       GraphsSections
 	accounts    config.Accounts
 	numbering   status.Numbering
+	fiveHour    config.Accounts
 	look        Look
+}
+
+// charted are the configured accounts the burn-down section lays out a card
+// for, in the config's order: 5-HOUR's, those that have, or may have, the
+// 5-hour; WEEK's, every one.
+func (g graphsGiven) charted(section GraphsSection) config.Accounts {
+	if section == GraphsFiveHour {
+		return g.fiveHour
+	}
+	return g.accounts
 }
 
 // graphsStep is a step of the room Graphs' sections take: whether every
@@ -74,26 +87,27 @@ const glanceWhenGap = 10
 // graphsShape is what of Graphs' layout no step of room changes: the
 // sections shown, in the page's order, each a unit of its own but GLANCE and
 // WHEN YOU WORK side by side, which share one; the columns of a row of cards,
-// and how many rows of them a burn-down section has, of how many accounts;
-// the width; POOL as its key words it, as poolKeyed has it; GLANCE's and WHEN
-// YOU WORK's columns where they sit side by side, as glanceBesideWhen lays
-// them, nil where they don't; GLANCE laid out across its columns, as
-// layGlance lays it; the rows WHEN YOU WORK's body takes across its columns;
-// the place of the pool's line among the units, -1 where there's none; the
-// legend's lines; and the rows the sections show in, over the legend.
+// as every configured account's lie, so a section of fewer keeps the
+// columns of one of all; the accounts each burn-down section shown lays out
+// a card for, as charted has them; the width; POOL as its key words it, as
+// poolKeyed has it; GLANCE's and WHEN YOU WORK's columns where they sit side
+// by side, as glanceBesideWhen lays them, nil where they don't; GLANCE laid
+// out across its columns, as layGlance lays it; the rows WHEN YOU WORK's body
+// takes across its columns; the place of the pool's line among the units, -1
+// where there's none; the legend's lines; and the rows the sections show in,
+// over the legend.
 type graphsShape struct {
-	units     [][]GraphsSection
-	across    []flex.Span
-	accounts  int
-	cardsDown int
-	width     int
-	pool      poolStacked
-	paired    []flex.Span
-	glance    glanceLaid
-	when      int
-	poolPart  int
-	legend    []line
-	room      int
+	units    [][]GraphsSection
+	across   []flex.Span
+	charted  map[GraphsSection]config.Accounts
+	width    int
+	pool     poolStacked
+	paired   []flex.Span
+	glance   glanceLaid
+	when     int
+	poolPart int
+	legend   []line
+	room     int
 }
 
 // shape is the shape the given lays Graphs out in: GLANCE and WHEN YOU WORK
@@ -102,7 +116,7 @@ type graphsShape struct {
 // legend while a burn-down section shows, as burnLegend flows it, keeping
 // the sections a row over it at the least.
 func (g graphsGiven) shape() graphsShape {
-	s := graphsShape{accounts: len(g.accounts), width: g.width, pool: poolKeyed(g.accounts, g.look), paired: g.paired(), poolPart: -1}
+	s := graphsShape{charted: map[GraphsSection]config.Accounts{}, width: g.width, pool: poolKeyed(g.accounts, g.look), paired: g.paired(), poolPart: -1}
 	last := -1
 	for _, section := range EveryGraphsSection() {
 		switch {
@@ -112,12 +126,12 @@ func (g graphsGiven) shape() graphsShape {
 		default:
 			if burnsDown(section) {
 				last = len(s.units)
+				s.charted[section] = g.charted(section)
 			}
 			s.units = append(s.units, []GraphsSection{section})
 		}
 	}
 	s.across = cardsAcross(len(g.accounts), g.width)
-	s.cardsDown = (s.accounts + len(s.across) - 1) / len(s.across)
 	s.glance, s.when = layGlance(g.numbering, g.accounts, s.columns(GraphsGlance).Size), whenRows(s.columns(GraphsWhen).Size, g.look)
 	if last >= 0 {
 		s.legend = burnLegend(g.width, g.reserved())
@@ -251,7 +265,14 @@ func (s graphsShape) rowsOf(section GraphsSection, step graphsStep) int {
 	case GraphsWhen:
 		return sectionHead + s.when
 	}
-	return sectionHead + s.cardsDown*step.cardRows() + max(s.cardsDown-1, 0)
+	down := s.cardsDown(section)
+	return sectionHead + down*step.cardRows() + max(down-1, 0)
+}
+
+// cardsDown are the rows of cards the burn-down section lays out, as many
+// across each as the shape's columns.
+func (s graphsShape) cardsDown(section GraphsSection) int {
+	return (len(s.charted[section]) + len(s.across) - 1) / len(s.across)
 }
 
 // graphsLaid is Graphs laid out at a step of room, as laidAt lays it: the
@@ -348,9 +369,14 @@ func layGraphs(g graphsGiven) graphsLaid {
 	return laid
 }
 
-// graphsLaid is Graphs as layGraphs lays it out in the frame's view.
+// graphsLaid is Graphs as layGraphs lays it out in the frame's view, the
+// sections it offers alone, as graphsOffered has them, and 5-HOUR's cards
+// those of the accounts fiveHourCharted has, at the moment the frame holds.
 func (f Frame) graphsLaid() graphsLaid {
-	return layGraphs(graphsGiven{width: f.Width, rows: f.viewRows(), shown: f.Graphs.Sections, accounts: f.Graphs.Accounts, numbering: f.numbering(), look: f.Look})
+	return layGraphs(graphsGiven{
+		width: f.Width, rows: f.viewRows(), shown: f.graphsOffered(), accounts: f.Graphs.Accounts, numbering: f.numbering(),
+		fiveHour: fiveHourCharted(f.Graphs.Accounts, f.held, f.Policy), look: f.Look,
+	})
 }
 
 // paged is how the sections laid out, drawn whole, page a row at a time in
@@ -380,11 +406,12 @@ type cardLaid struct {
 	chart        bounds
 }
 
-// cards are where the burn-down section placed lays each account's card, in
-// the config's order: as many across as cardsAcross has, in their columns,
-// the rest on the rows under, a blank row between two rows of cards.
+// cards are where the burn-down section placed lays the card of each account
+// it charts, as charted has them, in the config's order: as many across as
+// cardsAcross has, in their columns, the rest on the rows under, a blank row
+// between two rows of cards.
 func (l graphsLaid) cards(placed graphsPlaced) []cardLaid {
-	cards := make([]cardLaid, l.accounts)
+	cards := make([]cardLaid, len(l.charted[placed.section]))
 	per := len(l.across)
 	for i := range cards {
 		col, y := l.across[i%per], placed.at+sectionHead+i/per*(l.cardRows()+1)

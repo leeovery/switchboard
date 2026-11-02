@@ -98,10 +98,12 @@ func TestTheWatchOpensGraphsShowingTheSectionsThePreferencesKept(t *testing.T) {
 // Graphs' key line is a page of toggles', as the Overview's: wide, tab
 // views, then each toggle, its word faint where its section is hidden, then
 // p pin, ? help and q quit, each group five cells apart; on a phone, tab
-// views, ? keys and toggles and q quit.
+// views, ? keys and toggles and q quit. Where no account has a 5-hour
+// window, f 5-hour is gone.
 func TestGraphsKeyLineIsTheDesigns(t *testing.T) {
 	toggles := "tab views     w week  f 5-hour  o pool  g glance  h when     "
 	phone := "tab views   ? keys and toggles   q quit"
+	ultra := "tab views     w week  o pool  g glance  h when     p pin  ? help  q quit"
 	tests := []struct {
 		name   string
 		doc    status.Document
@@ -115,11 +117,16 @@ func TestGraphsKeyLineIsTheDesigns(t *testing.T) {
 		{name: "one account, with none other to pin to", doc: routerDocument(three()[0]), width: 160, want: toggles + "? help  q quit", hidden: []string{"pool", "glance", "when"}},
 		{name: "the wide chrome's narrowest", doc: routerDocument(three()...), width: 100, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
 		{name: "a phone", doc: routerDocument(three()...), width: 52, want: phone},
+		{name: "every account verified Ultra", doc: routerDocument(verifiedUltra()...), width: 160, want: ultra, hidden: []string{"pool", "glance", "when"}},
+		{name: "every account verified Ultra, after f", doc: routerDocument(verifiedUltra()...), width: 160, typed: []string{"f"}, want: ultra, hidden: []string{"pool", "glance", "when"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := routedHarness(t, tt.doc)
 			h.model.view = dashboard.Graphs
+			for _, a := range tt.doc.Accounts {
+				h.model.cfg.Accounts = append(h.model.cfg.Accounts, config.Account{ID: a.ID})
+			}
 			h.update(tea.WindowSizeMsg{Width: tt.width, Height: 40})
 			h.start()
 			h.typed(tt.typed...)
@@ -186,6 +193,36 @@ func TestGraphsHelpListsItsTogglesThenTheSharedKeys(t *testing.T) {
 	}
 	if got := helpOver(h.model); !slices.Equal(got, want) {
 		t.Errorf("help lists\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+// Where no account has a 5-hour window, as where every one is verified
+// Ultra, f does nothing, and help lists no f; 5-HOUR, kept shown all along,
+// shows again, f with it, once a read lands of an account with one.
+func TestGraphsFiveHourKeptShowsAgainOnceAnAccountHasOne(t *testing.T) {
+	h := routedHarness(t, routerDocument(verifiedUltra()...))
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs, h.model.cfg.Accounts, h.model.view = prefs, threeConfigured, dashboard.Graphs
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
+	h.start()
+	h.typed("f")
+	if got := h.model.graphs.Names(); !slices.Equal(got, []string{"week", "5-hour"}) || prefs.kept.GraphsTab.Sections != nil {
+		t.Errorf("f with no account's 5-hour left Graphs showing %q, kept %#v; want week and 5-hour, as they were, none kept", got, prefs.kept.GraphsTab.Sections)
+	}
+	if shown := h.view(); strings.Contains(shown, "\n5-HOUR ") || !strings.Contains(shown, "\nWEEK ") {
+		t.Errorf("the screen is\n%s\nwant WEEK's heading alone", shown)
+	}
+	if got := listedKeys(helpOver(h.model)); slices.Contains(got, "f") || !slices.Contains(got, "w") {
+		t.Errorf("help lists %q, want w and no f", got)
+	}
+
+	h.deliver(h.update(fetchedMsg{doc: routerDocument(three()...)})...)
+	if shown := h.view(); !strings.Contains(shown, "\n5-HOUR ") || !strings.Contains(shown, "f 5-hour") {
+		t.Errorf("a read landing every account's 5-hour, the screen is\n%s\nwant 5-HOUR's heading and f 5-hour on it", shown)
+	}
+	h.typed("f")
+	if got := h.model.graphs.Names(); !slices.Equal(got, []string{"week"}) {
+		t.Errorf("f with the 5-hour back left Graphs showing %q, want week alone", got)
 	}
 }
 

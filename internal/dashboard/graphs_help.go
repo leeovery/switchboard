@@ -42,7 +42,8 @@ func (f Frame) burnDownsHelp() helpPart {
 			said("A card an account, in the config's order, its room over its own window, from the window's start to its reset, " +
 				"a column a cell: each card keeps its own clock, so its days or hours, and now's │, fall where its window puts " +
 				"them, not where another card's do. The room left is filled to now, each column to the room its middle had, " +
-				"as the readings history tells it."),
+				"as the readings history tells it. 5-HOUR has a card only for each account that has a 5-hour window, or may " +
+				"yet, as one not read yet may: a verified Ultra account has none."),
 			said("Over the card, the account's number, name and marks, and its words: the room it has left, as 66% left, its " +
 				"figure coloured as switchboard usage colours a use, then what Runway says under its lane in that window's " +
 				"view, as at its cap 14:31  ·  back 17:10 or runs out ~Sat 06:00 at its pace, inked as Runway inks them, " +
@@ -143,12 +144,14 @@ func graphsRoomHelp() helpPart {
 		says: []line{
 			said("`w`, `f`, `o`, `g` and `h` show and hide WEEK, 5-HOUR, POOL, GLANCE and WHEN YOU WORK, at any size, always " +
 				"in that order, and they're kept for next time: the size decides how much room each gets, never whether it " +
-				"shows."),
+				"shows. Where no account has a 5-hour window, 5-HOUR and `f` are gone; 5-HOUR kept shown shows again once " +
+				"an account has one."),
 			said("Rows to spare go first to each card's words, a row of their own, then to the charts, the cards' and POOL's, " +
 				"every one the same height, up to " + strconv.Itoa(mostChart) + " rows. Short of room, the page scrolls whole, a row at a time, with `j` " +
 				"and `k`, a page with PgUp and PgDn, three rows with the wheel, the row over the key line saying what's out of " +
 				"view; the legend stays at " +
-				"the foot. The layout changes only on a key, a resize or the config, never as the data does."),
+				"the foot. The layout changes only on a key, a resize or the config, never as the data does, but where an " +
+				"account's 5-hour window goes or comes back."),
 			said("The charts move on with the clock: now's column, the room to it and where it's heading, a column at a time " +
 				"as each column's moment passes."),
 		},
