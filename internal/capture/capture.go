@@ -217,7 +217,8 @@ type printout struct {
 // at each width a layout changes at; its 5-hour window alone, as --5h prints
 // it; by account, as --by account prints it; work alone, with six sessions
 // on it, as its frame counts them; and the worlds of verified Ultra
-// accounts, all three's and the mixed one's, the mixed one's by account too.
+// accounts, all three's and the mixed one's, the mixed one's on a phone and
+// by account too.
 var printouts = []printout{
 	{name: "usage-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.auto},
 	{name: "usage-120", size: watch.Size{Width: 120, Height: 36}, world: accountWorlds.auto},
@@ -230,6 +231,7 @@ var printouts = []printout{
 	{name: "usage-one-account-160", size: watch.Size{Width: 160, Height: 7}, world: accountWorlds.alone},
 	{name: "usage-ultra-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.ultra},
 	{name: "usage-mixed-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.mixed},
+	{name: "usage-mixed-52", size: watch.Size{Width: 52, Height: 30}, world: accountWorlds.mixed},
 	{name: "usage-mixed-by-account-160", size: watch.Size{Width: 160, Height: 31}, world: accountWorlds.mixed, by: dashboard.ByAccount},
 }
 
@@ -326,10 +328,9 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // nearing its limit, shown with them hidden; USAGE alone; SESSIONS shown
 // too, the rest folded; six accounts and ten; at 216 columns, with SESSIONS,
 // and everything shown; on a phone; over the worlds of verified Ultra
-// accounts, all three's and the mixed one's, on a phone, where no frame
-// draws them yet, to judge by eye, and on an iPad, the mixed one's with
-// SESSIONS shown, as Paper drew it, and the mixed one's by account; and the
-// routing card opened
+// accounts, all three's and the mixed one's, on a phone and on an iPad, the
+// mixed one's with SESSIONS shown, as Paper drew it, and the mixed one's by
+// account; and the routing card opened
 // on auto, with two picked, with one picked and m ticked, and over routing's
 // world of a limit, with side picked. History's frames, each reached from
 // the Overview with tab twice, then the keys to its view: the Year, and
