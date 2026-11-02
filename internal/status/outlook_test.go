@@ -532,6 +532,8 @@ func TestThePoolLacksAWindowItLeavesOutAsItsAccountsLackIt(t *testing.T) {
 			name: "pinned to one with the 5-hour and one lacking it", doc: pinnedTo(routerDocOf(both("work"), weekOnly("personal"), both("side")), "work", "personal"),
 			key: "5h", want: true,
 		},
+		{name: "pinned to one Ultra account, read", doc: pinnedTo(routerDocOf(weekOnly("work"), both("side")), "work"), key: "5h", want: true},
+		{name: "pinned to one account unread, which may have it", doc: pinnedTo(routerDocOf(unread("work"), weekOnly("side")), "work"), key: "5h"},
 		{name: "one account, no pool", doc: routerDocOf(weekOnly("work")), key: "5h"},
 	}
 	for _, tt := range tests {
