@@ -88,12 +88,15 @@ func endLeast() int {
 }
 
 // widestUses are the cells of the rows' windows' use, as windowsWords says
-// it, each window as it's named at its widest, 100%.
+// it, each window as it's named at its widest, 100%, or as it says its
+// account has no limit in it.
 func (r RoutingCard) widestUses() int {
 	widest := 0
 	for _, row := range r.Rows {
-		for i := range row.Windows {
-			row.Windows[i].Figure = Figure{Used: 1, Read: true}
+		for i, w := range row.Windows {
+			if !w.None {
+				row.Windows[i].Figure = Figure{Used: 1, Read: true}
+			}
 		}
 		widest = max(widest, row.windowsWords().width())
 	}
@@ -286,10 +289,11 @@ type RoutingRow struct {
 // Figure is a window's use as the routing card shows it, from 0 to 1, its
 // level coloured as usage colours it: none where Read says the window
 // hasn't been read, and faded where Stale says its reading is stale, the
-// account's token refused or its last read failed.
+// account's token refused or its last read failed. None says its account
+// has no limit in the window, as a verified Ultra account has no 5-hour one.
 type Figure struct {
-	Used        float64
-	Read, Stale bool
+	Used              float64
+	Read, Stale, None bool
 }
 
 // RoutingWindow is a window of an account's row on the routing card: its
@@ -364,10 +368,11 @@ func till(what string, t time.Time, now time.Time) string {
 
 // figureOf is the use of an account's window as it stands, as usage reads it:
 // none where its bar draws empty, as where the account has no usable token or
-// nothing is read of the window; else its use, stale or not.
+// nothing is read of the window, and where it has no such window, saying
+// so; else its use, stale or not.
 func figureOf(w status.WindowNow) Figure {
 	if drawsEmpty(w.Kind) {
-		return Figure{}
+		return Figure{None: w.Kind == status.WindowNone}
 	}
 	return Figure{Used: w.Used, Read: true, Stale: w.Kind == status.WindowStale}
 }
@@ -689,8 +694,13 @@ func (row RoutingRow) sideWords() line {
 }
 
 // figureWords are a window's use as the card says it, after its name: the
-// share bold, coloured by its level as usage colours it.
+// share bold, coloured by its level as usage colours it; or, where the
+// account has no limit in the window, usage's full words saying so, as "no
+// 5-hour limit", in place of both.
 func figureWords(window string, f Figure) line {
+	if f.None {
+		return lacked(window).full
+	}
 	return slices.Concat(line{{window + " ", mutedInk}}, usageBar{used: f.Used, empty: !f.Read, stale: f.Stale}.percentage())
 }
 

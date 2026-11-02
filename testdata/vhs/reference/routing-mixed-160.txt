@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log                                                             Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
+
+                WEEK                                                                     5-HOUR
+
+1 work                                ┃                ╎   34%  19%/day till Sun 21:00   no 5-hour limit
+                                     ╭─ ROUTING · NEW SESSIONS ──────────────────────────────────────────────────────────╮
+2 personal ◆                         │                                                                                   │
+                                     │  Pick the accounts new sessions go to.                                            │
+3 side ▲                           ┃ │                                                                                   │          13%  21%/h till 18:50
+─────────────────────────────────────│  ■ 0 auto      the router chooses                                                 │──────────────────────────────────────
+Σ pool                               │  □ 1 work      open      week 34%   no 5-hour limit                               │
+                                     │  □ 2 personal  open      week 66%   no 5-hour limit                    2 running  │
+                ┃ even pace: where yo│  □ 3 side      open      week 78%   5-hour 13%                         4 running  │ere
+                                     │                                                                                   │
+ROUTING   auto ──────────────────────│  □ m  also move the sessions running                                              │──────────────────────────────────── r
+                                     │                                                                                   │
+1 work          ● open               │  The router chooses an account for each new session.                              │
+                                     │                                                                                   │▃▃▂▄▃▂▃▄▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+                                     │                                                                                   │
+2 personal ◆    ● open               │                                                                                   │      ▁▂▂▁
+                                     │                                                                                   │▁▁▁▁▂▅    ▆▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▃▃   3/min
+                                     │             ↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel  │
+3 side ▲        ● open · new sessions╰───────────────────────────────────────────────────────────────────────────────────╯          ▄       ▆▅▇▆▃▁▁ ▁▂▃▃
+                                                                                           ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄                       11/min
+                                                                                           requests a minute, last 30 minutes
+
+COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
+
+18:50       side's 5-hour resets                               in 4h 08m          14:41  ▲ c61b started on side
+~Fri 12:20  side's week runs out at its pace                  in 21h 38m          14:31  ■ work refused (401): 3 sessions moved to side
+~Sat 06:00  personal's week runs out at its pace               in 1d 15h          14:12  ▲ 7f3a started on work
+
+tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

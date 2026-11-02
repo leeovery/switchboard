@@ -63,7 +63,8 @@ func (f Frame) sessionsHelp() []helpPart {
 			heading: "LINES",
 			says: []line{
 				said("Down the right, each account's line, as switchboard usage --by account prints it: its number, name and marks, " +
-					"how it stands with the router in ROUTING's words, then a row a window, its bar, its percentage and its words. " +
+					"how it stands with the router in ROUTING's words, then a row a window, its bar, its percentage and its words; " +
+					"a window the account has no limit in, as a verified Ultra account has no 5-hour window, says so in their place. " +
 					"Each of its rows has a jack; a line moves down to meet its calls, and grows a row for each session past its rows."),
 				said("● pinned ends the name row of each account the global pin names, and ✕ out of the pool that of each it leaves " +
 					"out, whose line is faded; an account closed by its cap or a limit never is, its words and colours saying why. " +
