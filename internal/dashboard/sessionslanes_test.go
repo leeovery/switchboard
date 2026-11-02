@@ -185,6 +185,24 @@ func TestALanesWindowsShareARowEachBarHalfWhatTheWidthLeaves(t *testing.T) {
 	}
 }
 
+// On a phone, a lane whose account has no 5-hour window keeps the label
+// 5-hour and says no limit in text.subtle from where its bar would start:
+// no bar and no percentage, the label naming the window.
+func TestALanesFiveHourItsAccountLacksSaysNoLimit(t *testing.T) {
+	f := lanesFrame(52, 40, Look{}, phoneScene())
+	doc := usageWorld(extraOff, usageLacking("personal"), func(d *status.Document) { d.Events = onAuto() })
+	c := f.At(doc, routedAt).page(doc, routedAt)
+	rows := c.rows(Look{})
+	y := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "2 personal") }) + 1
+	second := laneWindowsAt + laneFirstBar + 12 + 1 + percentCells + groupGap
+	if got, want := strings.TrimRight(string([]rune(rows[y])[second:]), " "), "5-hour no limit"; got != want {
+		t.Errorf("its 5-hour reads %q, want %q; the row reads %q", got, want, rows[y])
+	}
+	if got := c.at(second+laneNextBar, y).ink; got != dimInk {
+		t.Errorf("no limit is in %+v, want text.subtle", got)
+	}
+}
+
 // The lanes draw no pool at any width they're drawn at, whether they fit
 // the view or scroll, with three accounts or one: no rule, no Σ pool and no
 // room left. It isn't an account and has no sessions, and the board never

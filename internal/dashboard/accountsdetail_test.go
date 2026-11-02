@@ -1248,28 +1248,28 @@ func TestDetailFillsEveryAccountsBarsAndAllAccounts(t *testing.T) {
 	}
 }
 
-// Detail's USAGE draws each bar as far as it has eased, as the Overview's:
-// an account's by its window, all accounts' by its window's key alone.
 // Detail of an account with no 5-hour window keeps its 5-hour row, labelled,
-// and says so from where its bar would start, in text.subtle, usage's words
-// in full: no bar, no percentage.
+// and says so from where its bar would start, in text.subtle, usage's short
+// words, as its label names the window: no bar, no percentage.
 func TestDetailOfAnAccountWithNoFiveHourLimitSaysSo(t *testing.T) {
 	doc := usageWorld(extraOff, usageLacking("work"))
 	c := detailFrame(Look{}, framedAccounts, "work", "", nil, nil).page(doc, routedAt)
 	rows := textOf(c.rows(Look{}))
-	y := rowWith(rows, "no 5-hour limit")
+	y := rowWith(rows, "no limit")
 	if y < 0 {
-		t.Fatalf("Detail of work doesn't say no 5-hour limit:\n%s", strings.Join(rows, "\n"))
+		t.Fatalf("Detail of work doesn't say no limit:\n%s", strings.Join(rows, "\n"))
 	}
-	words := columnOf(rows[y], "no 5-hour limit")
-	if got, want := textFrom(c, words-10, words+len("no 5-hour limit")+10, y), " 5-hour   no 5-hour limit          "; got != want {
+	words := columnOf(rows[y], "no limit")
+	if got, want := textFrom(c, words-10, words+len("no limit")+10, y), " 5-hour   no limit          "; got != want {
 		t.Errorf("its 5-hour row reads %q about its words, want %q: its label, its words, no bar or percentage", got, want)
 	}
 	if got := c.at(words, y).ink; got != dimInk {
-		t.Errorf("no 5-hour limit is in %+v, want text.subtle", got)
+		t.Errorf("no limit is in %+v, want text.subtle", got)
 	}
 }
 
+// Detail's USAGE draws each bar as far as it has eased, as the Overview's:
+// an account's by its window, all accounts' by its window's key alone.
 func TestDetailsUSAGEEasesItsBars(t *testing.T) {
 	doc := usageWorld(extraOff)
 	for _, tt := range []struct {

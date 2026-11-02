@@ -563,7 +563,7 @@ func (s stacked) usage(c *canvas, y int) int {
 	for i, w := range s.windows() {
 		last = y + 1 + i*windowsApart
 		c.line(0, last, line{{prose.Cut(status.Short(w.name), l.names), dimInk}})
-		b.gauge(c, s.gauge(w.key), l.at, last, l.bar, s.f.edge())
+		b.gauge(c, s.gauge(w.key).besideLabel(), l.at, last, l.bar, s.f.edge())
 	}
 	return last
 }

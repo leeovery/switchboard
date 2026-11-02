@@ -95,7 +95,7 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	}
 }
 
-// lacked is the words of a window its account has no such limit of, named
+// lacked is the words saying an account has no limit in a window, named
 // as a sentence names it, in text.subtle: "no 5-hour limit", and short, "no
 // limit".
 func lacked(window string) usageWords {

@@ -727,8 +727,8 @@ func TestByAccountAWindowAnAccountLacksKeepsItsRow(t *testing.T) {
 		row  int
 		want string
 	}{
-		{name: "work's", row: 4, want: "                5-hour    no 5-hour limit"},
-		{name: "personal's", row: 10, want: "                5-hour    no 5-hour limit"},
+		{name: "work's", row: 4, want: "                5-hour    no limit"},
+		{name: "personal's", row: 10, want: "                5-hour    no limit"},
 		{name: "the pool's", row: 22},
 		{name: "the pool's week", row: 20, want: strings.TrimRight(every[20], " ")},
 		{name: "the pool's Fable week", row: 24, want: strings.TrimRight(every[24], " ")},

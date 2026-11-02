@@ -108,15 +108,18 @@ type usageRow struct {
 // bar; its words, and whether they say it runs out; and, while the Overview
 // cues its words, how far their cue has faded, nil where they aren't cued.
 // With none set, its account, or the pool, has no such window: it draws its
-// words alone, where its bar would start, and the pool's has none.
+// words alone, where its bar would start, and the pool's has none. Labelled
+// says the window's name labels it already, beside it, so those words say
+// "no limit" without naming the window again.
 type gauge struct {
-	of      Ref
-	all     bool
-	none    bool
-	bar     usageBar
-	words   usageWords
-	runsOut bool
-	cue     *float64
+	of       Ref
+	all      bool
+	none     bool
+	labelled bool
+	bar      usageBar
+	words    usageWords
+	runsOut  bool
+	cue      *float64
 }
 
 // newUsageBlock is the usage block of the moment m, width cells wide, drawn
@@ -705,7 +708,7 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 			}
 			at := y + b.windowRow(j)
 			c.line(labelAt, at, line{{prose.Cut(status.Short(b.windows[j].name), cells-1), dimInk}})
-			b.gauge(c, g, labelAt+cells, at, bar, end)
+			b.gauge(c, g.besideLabel(), labelAt+cells, at, bar, end)
 		}
 		return y + b.blockRows() - 1
 	})
@@ -775,13 +778,24 @@ func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar, end int) {
 }
 
 // wordsIn are g's words as the block draws them in room cells: where its
-// words are laid, in full wherever they fit them, as fitted has them; else
-// as said has them by the block's width.
+// account has no limit in the window and a label beside it names the
+// window, short, as in "5-hour no limit"; where its words are laid, in full
+// wherever they fit them, as fitted has them; else as said has them by the
+// block's width.
 func (b usageBlock) wordsIn(g gauge, room int) line {
-	if b.laid {
+	switch {
+	case g.none && g.labelled:
+		return g.words.short.fitWhole(room)
+	case b.laid:
 		return g.led(g.words.fitted(room))
 	}
 	return g.said(b.width, room)
+}
+
+// besideLabel is g drawn beside its window's label, which names the window.
+func (g gauge) besideLabel() gauge {
+	g.labelled = true
+	return g
 }
 
 // percentage is g's percentage, as its bar has it, numbered as its window's

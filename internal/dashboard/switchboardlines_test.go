@@ -150,10 +150,10 @@ func usageLacking(ids ...string) func(*status.Document) {
 }
 
 // At each step, a line's 5-hour its account has no limit in draws no bar
-// and no percentage: stacked, its label, then usage's words in full from
-// where its bar would start; side by side at step 3, its label, then the
-// words in its bar's and percentage's cells, in full where they fit; and a
-// line whose account has the window keeps its bar and percentage.
+// and no percentage: its label, then usage's short words, no limit, as the
+// label names the window: stacked, from where its bar would start; side by
+// side at step 3, in its bar's cells. A line whose account has the window
+// keeps its bar and percentage.
 func TestALinesFiveHourItsAccountLacksSaysSoInPlaceOfItsMeter(t *testing.T) {
 	doc := usageWorld(usageLacking("work"))
 	tests := []struct {
@@ -162,8 +162,8 @@ func TestALinesFiveHourItsAccountLacksSaysSoInPlaceOfItsMeter(t *testing.T) {
 		row, from int
 		want      string
 	}{
-		{name: "step 1", height: 37, row: 9, from: 87, want: "5-hour     no 5-hour limit"},
-		{name: "step 3", height: 24, row: 7, from: 127, want: "5-hour no 5-hour limit"},
+		{name: "step 1", height: 37, row: 9, from: 87, want: "5-hour     no limit"},
+		{name: "step 3", height: 24, row: 7, from: 127, want: "5-hour no limit"},
 		{name: "step 3, side's", height: 24, row: 15, from: 156, want: " 13%"},
 	}
 	for _, tt := range tests {
@@ -178,24 +178,28 @@ func TestALinesFiveHourItsAccountLacksSaysSoInPlaceOfItsMeter(t *testing.T) {
 
 // A meter of a window its account has no limit in draws usage's words in
 // text.subtle across its bar's and percentage's cells, and nothing past
-// them: in full where those cells hold "no 5-hour limit", else short, by
-// the cells alone, so every meter of a width reads alike.
+// them: beside a label naming the window, short at any width; else in full
+// where those cells hold "no 5-hour limit", else short, by the cells alone,
+// so every meter of a width reads alike.
 func TestAMeterOfAWindowItsAccountLacksSaysSoInFullWhereItFits(t *testing.T) {
 	m := usageWorld(usageLacking("work")).At(routedAt, claudeLike)
 	work, _ := m.Account("work")
 	g := accountGauge(work, "5h", m.Now)
 	tests := []struct {
+		name string
+		g    gauge
 		bar  int
 		want string
 	}{
-		{bar: 21, want: "no 5-hour limit"},
-		{bar: 10, want: "no 5-hour limit"},
-		{bar: 9, want: "no limit"},
+		{name: "21 cells", g: g, bar: 21, want: "no 5-hour limit"},
+		{name: "10 cells", g: g, bar: 10, want: "no 5-hour limit"},
+		{name: "9 cells", g: g, bar: 9, want: "no limit"},
+		{name: "labelled, 21 cells", g: g.besideLabel(), bar: 21, want: "no limit"},
 	}
 	for _, tt := range tests {
-		t.Run(strconv.Itoa(tt.bar), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			c := newCanvas(40, 1)
-			end := meter(c, Look{}, g, 2, 0, tt.bar)
+			end := meter(c, Look{}, tt.g, 2, 0, tt.bar)
 			if want := 2 + tt.bar + 1 + percentCells; end != want {
 				t.Errorf("the meter ends at column %d, want %d, as one with a bar", end, want)
 			}

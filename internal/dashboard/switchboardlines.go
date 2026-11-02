@@ -229,7 +229,7 @@ func (d linesDrawn) window(c *canvas, a status.AccountNow, w shownWindow, y int)
 	x := d.x() + 1
 	bar := x + firstLabelCells
 	c.line(x, y, windowLabel(w, windowLabelCells))
-	d.wordsBlock().gauge(c, d.gauge(a, w.key), bar, y, d.laid.columns.bar, bar+d.laid.columns.bar+afterBar+d.laid.columns.words)
+	d.wordsBlock().gauge(c, d.gauge(a, w.key).besideLabel(), bar, y, d.laid.columns.bar, bar+d.laid.columns.bar+afterBar+d.laid.columns.words)
 }
 
 // barDrawn is the cells of the bars the lines draw at the layout's step: the
@@ -290,7 +290,7 @@ func sideBySideBar(width int, labels []int) int {
 func windowsBeside(c *canvas, look Look, x, y, bar int, labels []int, windows []shownWindow, gauges []gauge) {
 	for i, g := range gauges[:min(len(gauges), len(windows), len(labels))] {
 		c.line(x, y, windowLabel(windows[i], labels[i]-1))
-		x = meter(c, look, g, x+labels[i], y, bar) + groupGap
+		x = meter(c, look, g.besideLabel(), x+labels[i], y, bar) + groupGap
 	}
 }
 
@@ -358,13 +358,13 @@ func (g gauge) uncapped() gauge {
 
 // meter draws g's bar in the look, bar cells long from x along row y,
 // marked as its window's, then a cell and its percentage, with no words, and
-// returns the column after it. Of a window its account has no such limit of,
-// it draws in their place its words alone, in full where the cells fit them,
-// else short, so every meter of a width says it alike.
+// returns the column after it. Where g's account has no limit in the window,
+// it draws no bar or percentage, only its words in their cells, as a laid
+// block words it.
 func meter(c *canvas, look Look, g gauge, x, y, bar int) int {
 	end := x + bar + 1 + percentCells
 	if g.none {
-		c.line(x, y, g.words.fitted(end-x))
+		c.line(x, y, usageBlock{laid: true}.wordsIn(g, end-x))
 		return end
 	}
 	g.bar.draw(c, look, x, y, bar)

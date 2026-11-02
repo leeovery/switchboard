@@ -477,7 +477,7 @@ var pages = []page{
 	{name: "session-138x15", size: watch.Size{Width: 138, Height: 15}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "routing-session-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e", keysOf("p", "3")...), scale: storyScale},
 	{name: "session-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toSession("d28c"), scale: storyScale},
-	{name: "session-ultra-160", size: wide(37), world: accountWorlds.mixed, keys: toSession("9c2e"), scale: storyScale},
+	{name: "session-mixed-ultra-160", size: wide(37), world: accountWorlds.mixed, keys: toSession("9c2e"), scale: storyScale},
 	{name: "page-session-loading", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale, loading: true},
 	{name: "accounts-compare-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-compare-month-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts(">")},

@@ -9,7 +9,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
  1 work        ●    │   USAGE                                                                                        THIS WEEK
                     │   Week                  ▋       ┃                ╎   34%  19%/day till Sun 21:00               requests  1,204
  2 personal ◆  ●    │                                                                                                limits    none
-                    │   5-hour   no 5-hour limit                                                                     plan      Ultra
+                    │   5-hour   no limit                                                                            plan      Ultra
  3 side        ●    │                                                                                                worth     $184  4.0×
                     │                                                                                                extra use off
                     │

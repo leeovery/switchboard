@@ -89,7 +89,7 @@ func endLeast() int {
 
 // widestUses are the cells of the rows' windows' use, as windowsWords says
 // it, each window as it's named at its widest, 100%, or as it says its
-// account has no such limit.
+// account has no limit in it.
 func (r RoutingCard) widestUses() int {
 	widest := 0
 	for _, row := range r.Rows {
@@ -290,7 +290,7 @@ type RoutingRow struct {
 // level coloured as usage colours it: none where Read says the window
 // hasn't been read, and faded where Stale says its reading is stale, the
 // account's token refused or its last read failed. None says its account
-// has no such limit, as a verified Ultra account has no 5-hour window.
+// has no limit in the window, as a verified Ultra account has no 5-hour one.
 type Figure struct {
 	Used              float64
 	Read, Stale, None bool
@@ -694,9 +694,9 @@ func (row RoutingRow) sideWords() line {
 }
 
 // figureWords are a window's use as the card says it, after its name: the
-// share bold, coloured by its level as usage colours it; or, of a window its
-// account has no such limit of, that alone in its place, as usage says it in
-// full.
+// share bold, coloured by its level as usage colours it; or, where the
+// account has no limit in the window, usage's full words saying so, as "no
+// 5-hour limit", in place of both.
 func figureWords(window string, f Figure) line {
 	if f.None {
 		return lacked(window).full

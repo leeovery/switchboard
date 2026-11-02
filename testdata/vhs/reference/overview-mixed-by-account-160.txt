@@ -6,11 +6,11 @@ USAGE  ────────────────────────�
 
 1 work          Week                      ▍         ┃                   ╎   34%  19%/day till Sun 21:00    ● open
                                                                                                            0 sessions
-                5-hour    no 5-hour limit                                                                  ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+                5-hour    no limit                                                                         ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
 2 personal ◆    Week                                     ┃                  66%  out ~Sat 06:00            ● open
                                                                                                            2 sessions
-                5-hour    no 5-hour limit                                                                  ▁▂▂▂▂▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▂▁▁▁▁▁▁▁▁▁▁▁▂▁▂   3/min
+                5-hour    no limit                                                                         ▁▂▂▂▂▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▂▁▁▁▁▁▁▁▁▁▁▁▂▁▂   3/min
 
 3 side ▲        Week                            ┃              ▌            78%  out ~Fri 12:20            ● open · new sessions come here
                                                                                                            4 sessions
