@@ -402,10 +402,10 @@ func (v usageViews) shown(rows, offset int) usageShown {
 }
 
 // fitted is the block as USAGE draws it in rows rows: at its most, as
-// enlarged has it, where that's past its least and fits; else as it's laid
-// out. Only the rows given choose, never what it holds.
+// enlarged has it, where that's no less than its least and fits, as with one
+// window, whose big bars take its matrix's rows; else as it's laid out. Only the rows given choose, never what it holds.
 func (v usageViews) fitted(rows int) usageBlock {
-	if v.all < v.big && v.big <= rows {
+	if v.all <= v.big && v.big <= rows {
 		return v.block.enlarged()
 	}
 	return v.block
