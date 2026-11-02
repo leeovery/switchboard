@@ -17,7 +17,7 @@ type Pool struct {
 	// Pinned is set when they're the accounts the global pin names.
 	Pinned bool `json:"pinned,omitempty"`
 	// Windows are a window each that any of them has, shortest first, as
-	// pooled has them.
+	// kept has them.
 	Windows []PoolWindow `json:"windows"`
 }
 
@@ -342,18 +342,16 @@ func (d Document) pool(accounts []judgedAccount) Pool {
 	}
 	slices.SortFunc(keys, quota.CompareKeys)
 	for _, key := range keys {
-		if w := poolWindow(members, key); w.pooled(len(members)) {
+		if w := poolWindow(members, key); w.kept(len(members)) {
 			p.Windows = append(p.Windows, w)
 		}
 	}
 	return p
 }
 
-// pooled reports whether the pool of the given number of members has the
-// window as one: not where some of them lack it, as lacking has them, and
-// fewer than two have it. A pool the global pin makes of one account has its
-// windows, as it lacks none of them.
-func (w PoolWindow) pooled(members int) bool {
+// kept reports whether a pool of the given number of members keeps the
+// window: where at least two members have it, or every member does.
+func (w PoolWindow) kept(members int) bool {
 	return w.Of >= 2 || w.Of == members
 }
 

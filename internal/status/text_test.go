@@ -14,6 +14,19 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// weekRead is a week read a tenth used, beside a fixture's session, so a
+// test of the session stays of it alone: an account read with its session
+// and without its week lacks the week, as a test meant for that says.
+func weekRead() quota.Window {
+	return quota.Window{Key: "7d", Label: "Week", Utilization: 0.1, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC)}
+}
+
+// sessionRead is a session read a tenth used, beside a fixture's week, as
+// weekRead is beside a session.
+func sessionRead() quota.Window {
+	return quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}
+}
+
 func TestText(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	personal := status.Account{ID: "personal", Label: "Personal", Error: "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"}
@@ -44,6 +57,7 @@ func TestText(t *testing.T) {
 							{Key: "7d_oi", Label: "Fable week", Utilization: 1.04, ResetsAt: time.Date(2026, 9, 28, 13, 19, 0, 0, time.UTC)},
 							{Key: "30d", Label: "30d", Utilization: 0.05},
 							{Key: "burst", Label: "burst", Utilization: 1},
+							weekRead(),
 						},
 					},
 					personal,
@@ -56,7 +70,7 @@ func TestText(t *testing.T) {
   Fable offline: HTTP 529 · Overloaded
 
 side · Side
-  Week        no week window
+  Week        10%  resets in 5d 11h · Sun 02:10 · on pace for 47%
   5-hour       0%  not started
   Fable week 104%  resets in 7m · Mon 14:19 · exhausted
   30d          5%
@@ -118,6 +132,7 @@ probed directly
 						ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC(), Sessions: 1,
 						Windows: []quota.Window{
 							{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
+							weekRead(),
 						},
 						Limit: status.Limit{Until: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)},
 					},
@@ -130,7 +145,7 @@ probed directly
   2 sessions
 
 side · Side
-  Week    no week window
+  Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%
   5-hour  60%  resets in 2h 58m · Mon 17:10
   limit until Mon 21:00
   1 session
@@ -151,36 +166,36 @@ from the router: healthy  ·  3 sessions  ·  pinned to side · Side
 				Accounts: []status.Account{
 					{
 						ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
-						Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}},
+						Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}, weekRead()},
 						Refused: status.Refusal{Until: time.Date(2026, 9, 28, 13, 20, 0, 0, time.UTC), Status: 401},
 					},
 					{
 						ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC(), Sessions: 1,
-						Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)}},
+						Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)}, weekRead()},
 						Limit:   status.Limit{Windows: []string{"5h"}, Until: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)},
 						Refused: status.Refusal{Until: time.Date(2026, 9, 28, 13, 21, 0, 0, time.UTC), Status: 403, Family: "opus"},
 					},
 					{
 						ID: "spare", Label: "Spare", TokenSet: true, FetchedAt: now.UTC(),
-						Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.5, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}},
+						Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.5, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}, weekRead()},
 						Refused: status.Refusal{Until: now.Add(-time.Minute), Status: 403, Family: "fable"},
 					},
 				},
 			},
 			want: `work · Work
-  Week    no week window
+  Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%
   5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
   refused (401) until 14:20
 
 side · Side
-  Week    no week window
+  Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%
   5-hour 100%  resets in 6h 48m · Mon 21:00 · exhausted
   limit until Mon 21:00
   refused (403, opus) until 14:21
   1 session
 
 spare · Spare
-  Week    no week window
+  Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%
   5-hour  50%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 16:14
 
 from the router: healthy  ·  no sessions  ·  routing automatically
@@ -233,7 +248,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 					},
 					{
 						ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC().Add(-6 * time.Hour),
-						Windows: []quota.Window{{Key: "5h", Label: "Session"}},
+						Windows: []quota.Window{{Key: "5h", Label: "Session"}, weekRead()},
 						Lapsed:  []string{"5h"},
 					},
 				},
@@ -243,7 +258,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
   5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
 
 side · Side
-  Week    no week window
+  Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%
   5-hour   0%  not started · next prime Mon 14:17
 
 priming 08:00-23:00: work at 04:10 and side at 06:40
@@ -361,7 +376,7 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 	}
 	side := status.Account{
 		ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC(),
-		Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}},
+		Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}, weekRead()},
 	}
 	tests := []struct {
 		name string
@@ -400,7 +415,7 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 				"  5-hour  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
 				tt.work + "\n" +
 				"side · Side\n" +
-				"  Week    no week window\n" +
+				"  Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%\n" +
 				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
 				"\n" +
 				"from the router: healthy  ·  2 sessions  ·  " + doc.Routing() + "\n"
@@ -584,11 +599,11 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 				Router:      status.Health{Healthy: true},
 				Accounts: []status.Account{{
 					ID: "work", Label: "Work", Reserve: tt.reserve, TokenSet: true, FetchedAt: now.UTC(),
-					Windows: []quota.Window{session}, Pressure: tt.pressure, Rates: rates,
+					Windows: []quota.Window{session, weekRead()}, Pressure: tt.pressure, Rates: rates,
 				}},
 			}
 			want := "work · Work\n" +
-				"  Week    no week window\n" +
+				"  Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%\n" +
 				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
 				tt.notes + "\n" +
 				"best next: work · Work\n" +
@@ -612,12 +627,12 @@ func TestTextSaysASessionThatResetSinceItWasReadHasntStarted(t *testing.T) {
 		Router:      status.Health{Healthy: true},
 		Accounts: []status.Account{{
 			ID: "work", Label: "Work", TokenSet: true, FetchedAt: read.UTC(),
-			Windows:  []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: reset}},
+			Windows:  []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: reset}, weekRead()},
 			Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
 		}},
 	}
 	want := "work · Work\n" +
-		"  Week    no week window\n" +
+		"  Week    10%  resets in 5d 8h · Sun 02:10 · on pace for 47%\n" +
 		"  5-hour   0%  not started\n" +
 		"\n" +
 		"best next: work · Work\n" +
@@ -648,28 +663,28 @@ func TestTextSaysASessionLapsedAtNowHasntStartedUnlessALimitOrARefusalComesFirst
 			change: func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: reset.Add(40 * time.Minute)}
 			},
-			want: "  Week    no week window\n  5-hour   0%\n  limit until Mon 17:50\n",
+			want: "  5-hour   0%\n  limit until Mon 17:50\n",
 		},
 		{
 			name:   "its last read failed",
 			change: func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" },
-			want:   "  Week    no week window\n  5-hour   0%  not started\n  HTTP 529 · Overloaded\n",
+			want:   "  5-hour   0%  not started\n  HTTP 529 · Overloaded\n",
 		},
 		{
 			name:   "its token refused",
 			change: func(a *status.Account) { a.Refused = status.Refusal{Until: reset.Add(time.Hour), Status: 401} },
-			want:   "  Week    no week window\n  5-hour   0%\n  refused (401) until 18:10\n",
+			want:   "  5-hour   0%\n  refused (401) until 18:10\n",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := status.Account{
 				ID: "work", Label: "Work", TokenSet: true, FetchedAt: read.UTC(),
-				Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.97, ResetsAt: reset}},
+				Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.97, ResetsAt: reset}, weekRead()},
 			}
 			tt.change(&a)
 			doc := status.Document{GeneratedAt: read.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{a}}
-			want := "work · Work\n" + tt.want + "\n" +
+			want := "work · Work\n" + "  Week    10%  resets in 5d 8h · Sun 02:10 · on pace for 47%\n" + tt.want + "\n" +
 				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 			if got := doc.At(now, policy).Text(); got != want {
@@ -691,13 +706,13 @@ func TestTextGivesAWeekResetSinceItWasReadItsNextReset(t *testing.T) {
 		Router:      status.Health{Healthy: true},
 		Accounts: []status.Account{{
 			ID: "work", Label: "Work", TokenSet: true, FetchedAt: read.UTC(),
-			Windows: []quota.Window{{Key: "7d", Label: "Week", Utilization: 0.6, ResetsAt: reset.UTC()}},
+			Windows: []quota.Window{{Key: "7d", Label: "Week", Utilization: 0.6, ResetsAt: reset.UTC()}, sessionRead()},
 			Refused: status.Refusal{Until: reset.Add(time.Hour).UTC(), Status: 401},
 		}},
 	}
 	want := "work · Work\n" +
 		"  Week     0%  resets in 6d 23h · Mon 15:12\n" +
-		"  5-hour  no 5-hour window\n" +
+		"  5-hour  10%  resets in 1h 57m · Mon 17:10 · on pace for 25%\n" +
 		"  refused (401) until 16:12\n"
 	if got := doc.At(reset.Add(time.Second), policy).Text(); !strings.HasPrefix(got, want) {
 		t.Errorf("Text() =\n%s\nwant it to start\n%s", got, want)
@@ -744,12 +759,12 @@ func TestTextSaysASessionNotedLapsedHasntStartedThoughItsProbeFailed(t *testing.
 		Prime:       status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "16:20", Next: time.Date(2026, 9, 28, 15, 20, 0, 0, time.UTC)}}},
 		Accounts: []status.Account{{
 			ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.Add(-2 * time.Hour).UTC(), Error: "HTTP 529 · Overloaded",
-			Windows: []quota.Window{{Key: "5h", Label: "Session"}},
+			Windows: []quota.Window{{Key: "5h", Label: "Session"}, weekRead()},
 			Lapsed:  []string{"5h"},
 		}},
 	}
 	want := "work · Work\n" +
-		"  Week    no week window\n" +
+		"  Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%\n" +
 		"  5-hour   0%  not started · next prime Mon 16:20\n" +
 		"  HTTP 529 · Overloaded\n"
 	if got := doc.At(now, policy).Text(); !strings.HasPrefix(got, want) {
@@ -785,12 +800,12 @@ func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 				Router:      status.Health{Healthy: true},
 				Accounts: []status.Account{{
 					ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
-					Windows: []quota.Window{week}, Pressure: status.Pressure{Window: "5h"}, Rates: tt.rates,
+					Windows: []quota.Window{week, sessionRead()}, Pressure: status.Pressure{Window: "5h"}, Rates: tt.rates,
 				}},
 			}
 			want := "work · Work\n" +
 				"  Week    99%  resets in 4d · Fri 14:12 · " + tt.heading + "\n" +
-				"  5-hour  no 5-hour window\n\n" +
+				"  5-hour  10%  resets in 2h 58m · Mon 17:10 · on pace for 25%\n\n" +
 				"best next: work · Work\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 			if got := doc.At(now, policy).Text(); got != want {
@@ -1014,7 +1029,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	const clear = "\x1b[2J"
 	work := status.Account{
 		ID: "work", Label: "Work" + clear, TokenSet: true, FetchedAt: now.Add(-time.Minute),
-		Windows:  []quota.Window{{Key: "7d", Label: "Week" + clear, Utilization: 0.23}},
+		Windows:  []quota.Window{{Key: "7d", Label: "Week" + clear, Utilization: 0.23}, sessionRead()},
 		Failures: []quota.Failure{{Label: "Fable" + clear, Window: "7d_oi", Error: "HTTP 529 · " + clear + "Overloaded"}},
 		Error:    "HTTP 401 · " + clear + "Invalid bearer token",
 	}
@@ -1046,7 +1061,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	}
 	want := "work · Work [2J\n" +
 		"  Week [2J  23%\n" +
-		"  5-hour    no 5-hour window\n" +
+		"  5-hour    10%  resets in 1h 58m · Mon 16:10 · on pace for 16%\n" +
 		"  Fable [2J offline: HTTP 529 · [2JOverloaded\n" +
 		"  HTTP 401 · [2JInvalid bearer token\n"
 	if !strings.HasPrefix(routers, want) {

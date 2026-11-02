@@ -345,9 +345,19 @@ func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 // look at its document at its Now, by its policy, to share.
 func (m Moment) Held() *HeldMoment {
 	return &HeldMoment{
-		generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, numbering: m.numbering(), lacks: m.doc.lacking(m.policy),
+		generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, numbering: m.numbering(), lacks: m.lacking(),
 		moment: func() Moment { return m },
 	}
+}
+
+// lacking are the keys of the windows every model shares that each of the
+// moment's accounts lacks, by its id, as its judged states have them.
+func (m Moment) lacking() map[string][]string {
+	lacks := make(map[string][]string, len(m.judged))
+	for _, j := range m.judged {
+		lacks[j.states.account.ID] = j.states.lacks
+	}
+	return lacks
 }
 
 // lacking are the keys of the windows every model shares, as policy has
