@@ -32,25 +32,30 @@ import (
 // its own in their place, those, by now; whether its document is read
 // fresh, at the moment drawn, as a router read it as an account reached its
 // limit then; how long each account's token's year has left, where the
-// world says, which tokenAge has otherwise; and, where the worlds keep it,
-// its records, built once, as they're first asked for.
+// world says, which tokenAge has otherwise; the accounts whose answers
+// stopped carrying their 5-hour windows, each from when, where it has any;
+// whether its records hold its own events, rather than the auto world's;
+// and, where the worlds keep it, its records, built once, as they're first
+// asked for.
 type accountWorld struct {
-	accounts  config.Accounts
-	history   history
-	pin       status.Pin
-	limits    map[string]status.Limit
-	refused   map[string]status.Refusal
-	stale     map[string]time.Time
-	sessions  map[string]int
-	best      string
-	routed    func(now time.Time) []status.Session
-	events    []status.Event
-	stream    []router.StreamEvent
-	traffic   bool
-	lines     func(now time.Time) []ledger.Line
-	fresh     bool
-	tokenLeft map[string]time.Duration
-	records   func() *records
+	accounts   config.Accounts
+	history    history
+	pin        status.Pin
+	limits     map[string]status.Limit
+	refused    map[string]status.Refusal
+	stale      map[string]time.Time
+	sessions   map[string]int
+	best       string
+	routed     func(now time.Time) []status.Session
+	events     []status.Event
+	stream     []router.StreamEvent
+	traffic    bool
+	lines      func(now time.Time) []ledger.Line
+	fresh      bool
+	tokenLeft  map[string]time.Duration
+	unreported unreported
+	ownEvents  bool
+	records    func() *records
 }
 
 // document is the router's status document of the world at now, read as
@@ -92,13 +97,14 @@ const tokenAge = 97 * 24 * time.Hour
 // account is the account a's status at at, its readings history h, as the
 // router gives it: as last read at at, or, where the world has the router
 // unable to read it since a time, then, its rates and pressure worked out
-// from its readings to then, its token taken as tokenTaken has it, and its
+// from its readings to then, but a 5-hour window it no longer reports, as
+// unreported forgets it, its token taken as tokenTaken has it, and its
 // extra usage off.
 func (w accountWorld) account(a config.Account, h history, at time.Time) status.Account {
 	read := w.readAt(a.ID, at)
 	st := status.Configured(a).WithTokenTaken(w.tokenTaken(a.ID, at))
 	st.TokenSet, st.FetchedAt = true, read.UTC()
-	held := h.before(read)
+	held := w.unreported.forgotten(a.ID, h.before(read), read)
 	latest := held.windows(claude.WindowLabel)
 	st.Windows, st.Extra = latest, extraOff
 	st = st.AsOf(claude.Policy(), at)

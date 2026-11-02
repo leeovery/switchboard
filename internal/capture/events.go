@@ -72,7 +72,12 @@ const eventsKept = 50
 // and of the evening before, a line each as it last stands, as events -f
 // reads them.
 func routerEvents(now time.Time) []events.Line {
-	told := autoEvents(now)
+	return logged(autoEvents(now), now)
+}
+
+// logged are the events told by the router that started at routerRun, as
+// numbered, a line each as it last stands, as events -f reads them.
+func logged(told []status.Event, now time.Time) []events.Line {
 	run := routerRun(now)
 	lines := make([]events.Line, len(told))
 	for i, e := range told {
