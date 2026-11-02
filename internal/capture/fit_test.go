@@ -52,30 +52,37 @@ func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
 			names := accountNames(f)
 			for _, at := range sweptSizes(f, full[name], sweptWidths, sweptHeights) {
-				width := at.width
-				tall := plainRows(m, width, tallest)
-				chrome := chromeOf(width)
-				for _, height := range at.heights {
-					sized := deliver(m, tea.WindowSizeMsg{Width: width, Height: height})
-					rows := plainOf(sized.View().Content, height)
-					for y := range chrome {
-						if rows[y] != tall[y] {
-							t.Errorf("at %d×%d, row %d reads\n%q\nwant it as at %d rows\n%q", width, height, y+1, rows[y], tallest, tall[y])
-						}
-					}
-					if rows[height-1] != tall[tallest-1] {
-						t.Errorf("at %d×%d, the key line reads\n%q\nwant it as at %d rows\n%q", width, height, rows[height-1], tallest, tall[tallest-1])
-					}
-					if !showsAnAccountItCounts(rows, names) {
-						t.Errorf("at %d×%d, the view counts accounts out of view and shows none:\n%s", width, height, strings.Join(rows, "\n"))
-					}
-					scrolled := deliver(sized, keysOf("j")[0])
-					if rows := plainOf(scrolled.View().Content, height); !showsAnAccountItCounts(rows, names) {
-						t.Errorf("at %d×%d, scrolled a row, the view counts accounts out of view and shows none:\n%s", width, height, strings.Join(rows, "\n"))
-					}
-				}
+				atWidth(t, at.width, func(t *testing.T) { holdsItsChromeAt(t, m, names, at) })
 			}
 		})
+	}
+}
+
+// holdsItsChromeAt holds m, drawn at the width given and each of its
+// heights, to the fit sweep's rules, its accounts drawn by the names given.
+func holdsItsChromeAt(t *testing.T, m watch.Model, names []string, at swept) {
+	t.Helper()
+	width := at.width
+	tall := plainRows(m, width, tallest)
+	chrome := chromeOf(width)
+	for _, height := range at.heights {
+		sized := deliver(m, tea.WindowSizeMsg{Width: width, Height: height})
+		rows := plainOf(sized.View().Content, height)
+		for y := range chrome {
+			if rows[y] != tall[y] {
+				t.Errorf("at %d×%d, row %d reads\n%q\nwant it as at %d rows\n%q", width, height, y+1, rows[y], tallest, tall[y])
+			}
+		}
+		if rows[height-1] != tall[tallest-1] {
+			t.Errorf("at %d×%d, the key line reads\n%q\nwant it as at %d rows\n%q", width, height, rows[height-1], tallest, tall[tallest-1])
+		}
+		if !showsAnAccountItCounts(rows, names) {
+			t.Errorf("at %d×%d, the view counts accounts out of view and shows none:\n%s", width, height, strings.Join(rows, "\n"))
+		}
+		scrolled := deliver(sized, keysOf("j")[0])
+		if rows := plainOf(scrolled.View().Content, height); !showsAnAccountItCounts(rows, names) {
+			t.Errorf("at %d×%d, scrolled a row, the view counts accounts out of view and shows none:\n%s", width, height, strings.Join(rows, "\n"))
+		}
 	}
 }
 
@@ -190,48 +197,61 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 		if !f.watched() {
 			continue
 		}
-		log := strings.HasPrefix(name, "log-") || strings.HasPrefix(name, "page-log-")
+		log := ofTheLog(name)
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
 			for _, at := range sweptSizes(f, full[name], pagingWidths(log), pagingHeights(log)) {
-				width := at.width
-				reached, tall := reachOf(name, width), plainRows(m, width, tallest)
-				for _, height := range at.heights {
-					top := pagedTop(m, width, height)
-					if _, seen := walked.LoadOrStore(sweptAs(name, top, tall), true); seen {
-						continue
-					}
-					w := walkFrom(top, height)
-					if missing := unmatched(w.down, w.up); len(missing) > 0 {
-						t.Errorf("at %d×%d, paged up from the foot, the view never shows %d rows it shows paged down from the top:\n%s", width, height, len(missing), strings.Join(missing, "\n"))
-					}
-					if log || !slices.Contains(pagedHeights, height) {
-						continue
-					}
-					for _, p := range slices.Concat(w.down, w.up) {
-						if y := headingAlone(p, chromeOf(width)); y >= 0 {
-							t.Errorf("at %d×%d, row %d is a heading without its first row:\n%s", width, height, y+1, strings.Join(p.rows, "\n"))
-						}
-					}
-					if beyond := saidBeyond(w.down); beyond != "" {
-						t.Errorf("at %d×%d, paged as far as it goes, the view says %q:\n%s", width, height, beyond, strings.Join(w.down[len(w.down)-1].rows, "\n"))
-					}
-					if reached == nil || len(reached(w.down[0].rows)) < 2 {
-						continue
-					}
-					if first := w.down[0]; len(w.down) > 1 && !strings.Contains(name, "-year") && !saysMore(first.rows, "▼") {
-						t.Errorf("at %d×%d, the view pages, but its first page doesn't say more lies below:\n%s", width, height, strings.Join(first.rows, "\n"))
-					}
-					if missing := unreached(reached, w.down, tall, width); len(missing) > 0 {
-						t.Errorf("at %d×%d, paged as far as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
-					}
-					if missing := unreached(reached, w.up, tall, width); len(missing) > 0 {
-						t.Errorf("at %d×%d, paged up from as far down as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
-					}
-				}
+				atWidth(t, at.width, func(t *testing.T) { pagesThroughAt(t, m, name, at, &walked) })
 			}
 		})
+	}
+}
+
+// ofTheLog reports whether the fixture of the name given draws the Log.
+func ofTheLog(name string) bool {
+	return strings.HasPrefix(name, "log-") || strings.HasPrefix(name, "page-log-")
+}
+
+// pagesThroughAt holds m, the fixture of the name given, paged at the width
+// given and each of its heights, to the scroll sweep's rules, but where
+// walked has a view drawn alike paged already.
+func pagesThroughAt(t *testing.T, m watch.Model, name string, at swept, walked *sync.Map) {
+	t.Helper()
+	log, width := ofTheLog(name), at.width
+	reached, tall := reachOf(name, width), plainRows(m, width, tallest)
+	for _, height := range at.heights {
+		top := pagedTop(m, width, height)
+		if _, seen := walked.LoadOrStore(sweptAs(name, top, tall), true); seen {
+			continue
+		}
+		w := walkFrom(top, height)
+		if missing := unmatched(w.down, w.up); len(missing) > 0 {
+			t.Errorf("at %d×%d, paged up from the foot, the view never shows %d rows it shows paged down from the top:\n%s", width, height, len(missing), strings.Join(missing, "\n"))
+		}
+		if log || !slices.Contains(pagedHeights, height) {
+			continue
+		}
+		for _, p := range slices.Concat(w.down, w.up) {
+			if y := headingAlone(p, chromeOf(width)); y >= 0 {
+				t.Errorf("at %d×%d, row %d is a heading without its first row:\n%s", width, height, y+1, strings.Join(p.rows, "\n"))
+			}
+		}
+		if beyond := saidBeyond(w.down); beyond != "" {
+			t.Errorf("at %d×%d, paged as far as it goes, the view says %q:\n%s", width, height, beyond, strings.Join(w.down[len(w.down)-1].rows, "\n"))
+		}
+		if reached == nil || len(reached(w.down[0].rows)) < 2 {
+			continue
+		}
+		if first := w.down[0]; len(w.down) > 1 && !strings.Contains(name, "-year") && !saysMore(first.rows, "▼") {
+			t.Errorf("at %d×%d, the view pages, but its first page doesn't say more lies below:\n%s", width, height, strings.Join(first.rows, "\n"))
+		}
+		if missing := unreached(reached, w.down, tall, width); len(missing) > 0 {
+			t.Errorf("at %d×%d, paged as far as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
+		}
+		if missing := unreached(reached, w.up, tall, width); len(missing) > 0 {
+			t.Errorf("at %d×%d, paged up from as far down as it goes, the view never shows %d of the rows it draws at %d rows:\n%s", width, height, len(missing), tallest, strings.Join(missing, "\n"))
+		}
 	}
 }
 

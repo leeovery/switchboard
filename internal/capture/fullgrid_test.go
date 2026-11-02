@@ -139,6 +139,17 @@ func sweptSizes(f Fixture, fully bool, widths, heights []int) []swept {
 	return withSize(withSize(sizes, f.Size.Width, f.Size.Height), f.Size.Width, sorted[0])
 }
 
+// atWidth runs check, a size sweep's work on a fixture at the width given,
+// in a subtest of its own, run in parallel, so no fixture's sizes run on
+// one core.
+func atWidth(t *testing.T, width int, check func(t *testing.T)) {
+	t.Helper()
+	t.Run(strconv.Itoa(width), func(t *testing.T) {
+		t.Parallel()
+		check(t)
+	})
+}
+
 // withSize is sizes with the size given among them.
 func withSize(sizes []swept, width, height int) []swept {
 	i := slices.IndexFunc(sizes, func(s swept) bool { return s.width == width })
