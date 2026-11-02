@@ -753,9 +753,9 @@ func TestDocumentJSON(t *testing.T) {
 				GeneratedAt: generated,
 				Source:      status.SourceRouter,
 				Pool: status.Pool{Accounts: []string{"work", "side"}, Pinned: true, Windows: []status.PoolWindow{
-					{Key: "5h", Label: "Session", Room: 1.5, Used: new(0.25), Pace: new(0.4)},
-					{Key: "7d", Label: "Week", Room: 0.3333333333333333, Used: new(0.8333333333333334)},
-					{Key: "7d_oi", Label: "Fable week", Room: 0},
+					{Key: "5h", Label: "Session", Of: 2, Room: 1.5, Used: new(0.25), Pace: new(0.4)},
+					{Key: "7d", Label: "Week", Of: 2, Room: 0.3333333333333333, Used: new(0.8333333333333334)},
+					{Key: "7d_oi", Label: "Fable week", Of: 2, Room: 0},
 				}},
 				ComingUp: []status.Upcoming{
 					{At: generated.Add(time.Minute), Account: "side", Kind: status.UpcomingPrime},
@@ -786,6 +786,7 @@ func TestDocumentJSON(t *testing.T) {
       {
         "key": "5h",
         "label": "Session",
+        "of": 2,
         "room": 1.5,
         "used": 0.25,
         "pace": 0.4
@@ -793,12 +794,14 @@ func TestDocumentJSON(t *testing.T) {
       {
         "key": "7d",
         "label": "Week",
+        "of": 2,
         "room": 0.3333333333333333,
         "used": 0.8333333333333334
       },
       {
         "key": "7d_oi",
         "label": "Fable week",
+        "of": 2,
         "room": 0
       }
     ]

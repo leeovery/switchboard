@@ -39,8 +39,13 @@ func TestWindowsListInTheOrderOfCare(t *testing.T) {
 	}
 }
 
+// The windows every model shares are listed where some account has or may
+// have them: one is left out only where there's an account, and every one
+// lacks it, read with a usable token, reporting another such window but not
+// it.
 func TestTheMomentListsItsWindowsInTheOrderOfCare(t *testing.T) {
 	unread := func(id string) status.Account { return status.Account{ID: id, Label: id, TokenSet: true} }
+	weekOnly := func(id string) status.Account { return readAt(id, windowIn("7d", 0.3, 3*day)) }
 	every := routerDocOf(
 		readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.3, 3*day), windowIn("7d_oi", 0.2, 3*day)),
 		readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.5, 3*day)),
@@ -50,21 +55,32 @@ func TestTheMomentListsItsWindowsInTheOrderOfCare(t *testing.T) {
 		doc    status.Document
 		shared []string
 		want   []string
+		listed []string
 	}{
-		{name: "every one reported, once", doc: every, shared: []string{"5h", "7d"}, want: []string{"7d", "5h", "7d_oi"}},
-		{name: "one shared that no account reports", doc: every, shared: []string{"5h", "1d"}, want: []string{"1d", "5h", "7d", "7d_oi"}},
-		{name: "the shared alone, before any is read", doc: routerDocOf(unread("work"), unread("side")), shared: []string{"5h", "7d"}, want: []string{"7d", "5h"}},
+		{name: "every one reported, once", doc: every, shared: []string{"5h", "7d"}, want: []string{"7d", "5h"}, listed: []string{"7d", "5h", "7d_oi"}},
+		{name: "one shared that every account lacks", doc: every, shared: []string{"5h", "1d"}, want: []string{"5h"}, listed: []string{"5h", "7d", "7d_oi"}},
+		{name: "the shared alone, before any is read", doc: routerDocOf(unread("work"), unread("side")), shared: []string{"5h", "7d"}, want: []string{"7d", "5h"}, listed: []string{"7d", "5h"}},
+		{name: "every account lacking the 5-hour", doc: routerDocOf(weekOnly("work"), weekOnly("side")), shared: []string{"5h", "7d"}, want: []string{"7d"}, listed: []string{"7d"}},
+		{
+			name: "one account lacking the 5-hour, another with it", doc: routerDocOf(weekOnly("work"), readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.5, 3*day))),
+			shared: []string{"5h", "7d"}, want: []string{"7d", "5h"}, listed: []string{"7d", "5h"},
+		},
+		{
+			name: "one account lacking the 5-hour, another not read, which may have it", doc: routerDocOf(weekOnly("work"), unread("side")),
+			shared: []string{"5h", "7d"}, want: []string{"7d", "5h"}, listed: []string{"7d", "5h"},
+		},
+		{name: "no accounts", doc: routerDocOf(), shared: []string{"5h", "7d"}, want: []string{"7d", "5h"}, listed: []string{"7d", "5h"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := policy
 			p.Shared = tt.shared
 			m := tt.doc.At(built.Add(time.Minute), p)
-			if got := m.Listed(true); !slices.Equal(got, tt.want) {
-				t.Errorf("Listed(true) = %q, want %q", got, tt.want)
+			if got := m.SharedWindows(); !slices.Equal(got, tt.want) {
+				t.Errorf("SharedWindows() = %q, want %q", got, tt.want)
 			}
-			if got, want := m.SharedWindows(), tt.want[:len(tt.shared)]; !slices.Equal(got, want) {
-				t.Errorf("SharedWindows() = %q, want %q", got, want)
+			if got := m.Listed(true); !slices.Equal(got, tt.listed) {
+				t.Errorf("Listed(true) = %q, want %q", got, tt.listed)
 			}
 		})
 	}

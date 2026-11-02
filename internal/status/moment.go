@@ -156,8 +156,11 @@ type AccountNow struct {
 	Windows []WindowNow
 
 	// unreported is the kind of a window it hasn't reported, as Window gives
-	// it, and now the moment it stands at, which RoomAhead goes from.
+	// it, lacks the keys of the windows every model shares that it lacks, as
+	// lacking has them, and now the moment it stands at, which RoomAhead goes
+	// from.
 	unreported WindowKind
+	lacks      []string
 	now        time.Time
 }
 
@@ -317,19 +320,23 @@ func (m Moment) At(now time.Time) Moment {
 // for, and known by the document it's of, by when that was built, the time
 // it's at, and the policy it's judged by: for every look at the one document
 // at the one time, by the one policy, to share. It numbers the document's
-// accounts without working the moment out, for a look to lay out by.
+// accounts, and knows the windows every model shares each of them lacks,
+// without working the moment out, for a look to lay out by.
 type HeldMoment struct {
 	generated, now time.Time
 	policy         score.Policy
 	numbering      Numbering
-	moment         func() Moment
+	// lacks are the keys of the windows every model shares that each of the
+	// document's accounts lacks, by its id, as lacking has them.
+	lacks  map[string][]string
+	moment func() Moment
 }
 
 // HoldAt is the document at now, as policy judges it, held, as HeldMoment has
 // it.
 func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 	return &HeldMoment{
-		generated: d.GeneratedAt, now: now, policy: policy, numbering: d.numbering(),
+		generated: d.GeneratedAt, now: now, policy: policy, numbering: d.numbering(), lacks: d.lacking(policy),
 		moment: sync.OnceValue(func() Moment { return d.At(now, policy) }),
 	}
 }
@@ -337,7 +344,40 @@ func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 // Held is the moment held, worked out already, as HoldAt holds one: for every
 // look at its document at its Now, by its policy, to share.
 func (m Moment) Held() *HeldMoment {
-	return &HeldMoment{generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, numbering: m.numbering(), moment: func() Moment { return m }}
+	return &HeldMoment{
+		generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, numbering: m.numbering(), lacks: m.lacking(),
+		moment: func() Moment { return m },
+	}
+}
+
+// lacking are the keys of the windows every model shares that each of the
+// moment's accounts lacks, by its id, as its judged states have them.
+func (m Moment) lacking() map[string][]string {
+	lacks := make(map[string][]string, len(m.judged))
+	for _, j := range m.judged {
+		lacks[j.states.account.ID] = j.states.lacks
+	}
+	return lacks
+}
+
+// lacking are the keys of the windows every model shares, as policy has
+// them, that each of the document's accounts lacks, by its id, as the
+// account's lacking has them.
+func (d Document) lacking(policy score.Policy) map[string][]string {
+	lacks := make(map[string][]string, len(d.Accounts))
+	for _, a := range d.Accounts {
+		lacks[a.ID] = a.lacking(policy)
+	}
+	return lacks
+}
+
+// Has reports whether the account with the given id has, or may have, the
+// window with the given key, as the document whose moment h holds has it,
+// without working the moment out: false only where it's one every model
+// shares that the account lacks, as lacking has them. An account the
+// document doesn't hold yet, and any of nil, which holds none, may have it.
+func (h *HeldMoment) Has(key, id string) bool {
+	return h == nil || !slices.Contains(h.lacks[id], key)
 }
 
 // Of reports whether h holds the moment of d at now, as policy judges it: nil
@@ -363,7 +403,8 @@ type PoolNow struct {
 	// is set where they're the accounts the global pin names.
 	Accounts []string
 	Pinned   bool
-	// Windows are a window each that any of them has, shortest first.
+	// Windows are a window each that any of them has, shortest first, as the
+	// document's Pool has them.
 	Windows []PoolWindowNow
 }
 
@@ -371,6 +412,9 @@ type PoolNow struct {
 // one.
 type PoolWindowNow struct {
 	Key string
+	// Of is how many of its accounts have it or may have it, as the
+	// document's PoolWindow counts them: the "of N" its room is said against.
+	Of int
 	// Room is the room its accounts have left in it, summed in accounts'
 	// worth, 1.5 being an account and a half; Used is its accounts' mean use
 	// of it, what its bar fills to, nil where none's is counted; and Pace is
@@ -391,7 +435,7 @@ func (m Moment) Pool() PoolNow {
 	p := m.pool()
 	now := PoolNow{Accounts: p.Accounts, Pinned: p.Pinned}
 	for _, w := range p.Windows {
-		now.Windows = append(now.Windows, PoolWindowNow{Key: w.Key, Room: w.Room, Used: w.Used, Pace: w.Pace})
+		now.Windows = append(now.Windows, PoolWindowNow{Key: w.Key, Of: w.Of, Room: w.Room, Used: w.Used, Pace: w.Pace})
 	}
 	return now
 }
@@ -418,14 +462,25 @@ func (a AccountNow) Title() string {
 }
 
 // Window is the account's window with the given key; or, reporting false,
-// one it hasn't reported, which stands unread, or without a usable token,
-// its key and kind alone given.
+// one it hasn't reported: one every model shares that it lacks, as lacking
+// has them, which stands as WindowNone, named as NameOfKey names it; else one
+// that stands unread, or without a usable token, its key and kind alone
+// given.
 func (a AccountNow) Window(key string) (WindowNow, bool) {
 	i := slices.IndexFunc(a.Windows, func(w WindowNow) bool { return w.Key == key })
-	if i < 0 {
-		return WindowNow{Key: key, Kind: a.unreported}, false
+	switch {
+	case i >= 0:
+		return a.Windows[i], true
+	case a.lacksWindow(key):
+		return WindowNow{Key: key, Label: key, Name: NameOfKey(key), Kind: WindowNone}, false
 	}
-	return a.Windows[i], true
+	return WindowNow{Key: key, Kind: a.unreported}, false
+}
+
+// lacksWindow reports whether the account lacks the window every model
+// shares with the given key, as lacking says.
+func (a AccountNow) lacksWindow(key string) bool {
+	return slices.Contains(a.lacks, key)
 }
 
 // next is the id of the account new sessions go to, which ▲ marks: of one
@@ -526,7 +581,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	}
 	an.CanRise = an.TokenSet && an.Read && !s.stood.shut()
 	an.unreported, _ = s.unknown(false)
-	an.now = m.Now
+	an.lacks, an.now = s.lacks, m.Now
 	if s.refusing {
 		an.Refusal = a.Refused
 	}

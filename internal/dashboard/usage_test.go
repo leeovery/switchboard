@@ -1006,27 +1006,35 @@ func TestUsageListsTheWindowsInTheOrderOfCare(t *testing.T) {
 }
 
 func TestTheWindowsAreNamedAsNameNamesThem(t *testing.T) {
+	unread := func(d *status.Document) {
+		d.Accounts = append(d.Accounts, status.Account{ID: "spare", Label: "spare", TokenSet: true})
+	}
 	tests := []struct {
 		name   string
+		doc    status.Document
 		namer  func(string) string
 		shared []string
 		want   []shownWindow
 	}{
 		{
-			name: "by Name, over their labels", namer: printName,
+			name: "by Name, over their labels", doc: trio(), namer: printName,
 			want: []shownWindow{{"7d", "Week"}, {"5h", "5-hour"}, {"7d_oi", "Fable week"}},
 		},
 		{
-			name: "by Name, cleaned", namer: func(key string) string { return "\x1b" + key + "\a" },
+			name: "by Name, cleaned", doc: trio(), namer: func(key string) string { return "\x1b" + key + "\a" },
 			want: []shownWindow{{"7d", "7d"}, {"5h", "5h"}, {"7d_oi", "7d_oi"}},
 		},
 		{
-			name: "without Name, by their labels",
+			name: "without Name, by their labels", doc: trio(),
 			want: []shownWindow{{"7d", "Week"}, {"5h", "Session"}, {"7d_oi", "Fable week"}},
 		},
 		{
-			name: "a window every model shares that no account reports, by Name", namer: printName, shared: []string{"5h", "1d"},
+			name: "a window every model shares that an account not read may have, by Name", doc: trio(unread), namer: printName, shared: []string{"5h", "1d"},
 			want: []shownWindow{{"1d", "1d"}, {"5h", "5-hour"}, {"7d", "Week"}, {"7d_oi", "Fable week"}},
+		},
+		{
+			name: "a window every model shares that every account read lacks: not listed", doc: trio(), namer: printName, shared: []string{"5h", "1d"},
+			want: []shownWindow{{"5h", "5-hour"}, {"7d", "Week"}, {"7d_oi", "Fable week"}},
 		},
 	}
 	for _, tt := range tests {
@@ -1035,7 +1043,7 @@ func TestTheWindowsAreNamedAsNameNamesThem(t *testing.T) {
 			if tt.shared != nil {
 				policy.Shared = tt.shared
 			}
-			m := trio().At(printNow, policy)
+			m := tt.doc.At(printNow, policy)
 			if got := usageWindows(Printout{Name: tt.namer}.windows(m), Printout{Name: tt.namer}.namer(m)); !slices.Equal(got, tt.want) {
 				t.Errorf("the windows are %+v, want %+v", got, tt.want)
 			}
