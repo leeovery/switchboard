@@ -161,6 +161,7 @@ func readsThrough(t *testing.T, check func(c *digestChain, f *ledger.Follower, r
 // drawnFilter draws what's shown and widened what the days are held
 // through, of a stream drawnStream draws.
 func TestAReadHeldThroughAFilterShowsThroughOneItServesWhatTheReadWholeShows(t *testing.T) {
+	t.Parallel()
 	met := make(map[string]bool)
 	readsThrough(t, func(c *digestChain, f *ledger.Follower, r *rand.Rand) {
 		from, ids, prices := filedDates(c.lines)[0], idsOf(c.lines), changingPrices()
@@ -211,6 +212,7 @@ func notedHeld(met map[string]bool, read, whole LogRead, within LogFilter, s Str
 // moment, each filter as drawnFilter draws it, of a stream drawnStream
 // draws.
 func TestAReadRefilteredHoldsWhatTheReadAfreshThroughTheJoinHolds(t *testing.T) {
+	t.Parallel()
 	met := make(map[string]bool)
 	readsThrough(t, func(c *digestChain, f *ledger.Follower, r *rand.Rand) {
 		from, ids, prices := filedDates(c.lines)[0], idsOf(c.lines), changingPrices()

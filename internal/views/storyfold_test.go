@@ -404,6 +404,7 @@ var foldDays = []time.Time{time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local), time
 // second; priced, as the List and a session's page tell it, and unpriced, as
 // the Log does.
 func TestAStoryOfHeldRequestsTellsWhatTheStoryOfLinesTold(t *testing.T) {
+	t.Parallel()
 	prices := changingPrices()
 	for seed := range uint64(300) {
 		filed := generatedSession(seed)

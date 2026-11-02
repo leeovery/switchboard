@@ -140,6 +140,7 @@ func TestAPageOverDigestsReadsTodaysFileAloneOnItsChainOfParts(t *testing.T) {
 // that day's file and today's, no session read whole again. With the router
 // listing the sessions, and with none.
 func TestTheSessionsVerbOverDigestsShowsASessionAsReadRaw(t *testing.T) {
+	t.Parallel()
 	ids := []string{"alpha", "bravo", "charlie"}
 	n := newNineDays(t, ids, "bravo")
 	yesterday := yesterdayOf(n.today)

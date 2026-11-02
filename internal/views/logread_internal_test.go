@@ -210,6 +210,7 @@ func linesSaid(table LogTable) string {
 // across the run, as each line is priced at those of the day it's taken in
 // on.
 func TestTheLogGrownLookByLookIsTheLogReadAtOnceOnGeneratedRuns(t *testing.T) {
+	t.Parallel()
 	prices := ledger.Pricing
 	filters := []LogFilter{{}, LogOpening(), {Models: []string{foldOpus}}, {Accounts: []string{"work"}}}
 	for seed := range uint64(120) {
