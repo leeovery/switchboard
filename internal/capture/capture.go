@@ -216,8 +216,8 @@ type printout struct {
 // printouts are usage's printouts: the auto world's every window, by window,
 // at each width a layout changes at; its 5-hour window alone, as --5h prints
 // it; by account, as --by account prints it; work alone, with six sessions
-// on it, as its frame counts them; and, where no frame draws them yet, the
-// worlds of verified Ultra accounts, all three's and the mixed one's.
+// on it, as its frame counts them; and the worlds of verified Ultra
+// accounts, all three's and the mixed one's, the mixed one's by account too.
 var printouts = []printout{
 	{name: "usage-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.auto},
 	{name: "usage-120", size: watch.Size{Width: 120, Height: 36}, world: accountWorlds.auto},
@@ -230,6 +230,7 @@ var printouts = []printout{
 	{name: "usage-one-account-160", size: watch.Size{Width: 160, Height: 7}, world: accountWorlds.alone},
 	{name: "usage-ultra-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.ultra},
 	{name: "usage-mixed-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.mixed},
+	{name: "usage-mixed-by-account-160", size: watch.Size{Width: 160, Height: 31}, world: accountWorlds.mixed, by: dashboard.ByAccount},
 }
 
 // called is the printout's name.
@@ -324,9 +325,11 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // hour; by account; each model's own window shown, with w; side's Fable week
 // nearing its limit, shown with them hidden; USAGE alone; SESSIONS shown
 // too, the rest folded; six accounts and ten; at 216 columns, with SESSIONS,
-// and everything shown; on a phone; where no frame draws them yet, to judge
-// by eye, on a phone and an iPad over the worlds of verified Ultra accounts,
-// all three's and the mixed one's; and the routing card opened
+// and everything shown; on a phone; over the worlds of verified Ultra
+// accounts, all three's and the mixed one's, on a phone, where no frame
+// draws them yet, to judge by eye, and on an iPad, the mixed one's with
+// SESSIONS shown, as Paper drew it, and the mixed one's by account; and the
+// routing card opened
 // on auto, with two picked, with one picked and m ticked, and over routing's
 // world of a limit, with side picked. History's frames, each reached from
 // the Overview with tab twice, then the keys to its view: the Year, and
@@ -410,7 +413,8 @@ var pages = []page{
 	{name: "overview-ultra-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.ultra},
 	{name: "overview-ultra-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.ultra},
 	{name: "overview-mixed-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.mixed},
-	{name: "overview-mixed-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.mixed},
+	{name: "overview-mixed-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.mixed, keys: keysOf("s")},
+	{name: "overview-mixed-by-account-160", size: wide(42), world: accountWorlds.mixed, keys: keysOf("b")},
 	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},
 	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "m")},

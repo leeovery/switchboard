@@ -107,9 +107,12 @@ type usageRow struct {
 // all set, all accounts' window, which is never the pool's, by its key; its
 // bar; its words, and whether they say it runs out; and, while the Overview
 // cues its words, how far their cue has faded, nil where they aren't cued.
+// With none set, its account, or the pool, has no such window: it draws its
+// words alone, where its bar would start, and the pool's has none.
 type gauge struct {
 	of      Ref
 	all     bool
+	none    bool
 	bar     usageBar
 	words   usageWords
 	runsOut bool
@@ -156,21 +159,26 @@ func usageWindows(keys []string, name func(key string) string) []shownWindow {
 
 // accountGauge is account a's window with the given key, as it stands at
 // now, as its row draws it: empty, and nothing on it, where the account has
-// no usable token or nothing is read of the window; else filled to its use,
-// with its cap's mark and even pace's, and faded where it's stale.
+// no usable token, nothing is read of the window, or it has no such window,
+// which draws its words alone; else filled to its use, with its cap's mark
+// and even pace's, and faded where it's stale.
 func accountGauge(a status.AccountNow, key string, now time.Time) gauge {
 	w, _ := a.Window(key)
 	bar := usageBar{used: w.Used, capAt: a.Cap, pace: w.Pace, stale: w.Kind == status.WindowStale}
 	if drawsEmpty(w.Kind) {
 		bar = usageBar{empty: true}
 	}
-	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(w, now), runsOut: w.RunsOut}
+	return gauge{
+		of: Ref{Account: a.ID, Window: key}, none: w.Kind == status.WindowNone, bar: bar,
+		words: wordsOf(w, now), runsOut: w.RunsOut,
+	}
 }
 
 // drawsEmpty reports whether a window of the given kind draws an empty bar:
-// where its account has no usable token or nothing is read of it.
+// where its account has no usable token, nothing is read of it, or it has no
+// such window.
 func drawsEmpty(kind status.WindowKind) bool {
-	return kind == status.WindowTokenless || kind == status.WindowUnread
+	return kind == status.WindowTokenless || kind == status.WindowUnread || kind == status.WindowNone
 }
 
 // poolRow is pool's row under the rows of accounts named as names has them,
@@ -178,7 +186,8 @@ func drawsEmpty(kind status.WindowKind) bool {
 // there's no pool, as with one account: each window's bar filled to its
 // accounts' mean use, with their even pace and no cap's mark, empty where no
 // account's use is counted, and its words its room, the first it has words
-// for saying it's pinned, where it is.
+// for saying it's pinned, where it is; and nothing drawn of a window the
+// pool hasn't.
 func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (usageRow, bool) {
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
@@ -188,7 +197,7 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 	for _, w := range windows {
 		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindowNow) bool { return p.Key == w.key })
 		if j < 0 {
-			row.gauges = append(row.gauges, gauge{bar: usageBar{empty: true}})
+			row.gauges = append(row.gauges, gauge{none: true, bar: usageBar{empty: true}})
 			continue
 		}
 		p := pool.Windows[j]
@@ -688,6 +697,9 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 	l := b.each(c, y, blocksApart, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		for j, g := range r.gauges {
+			if r.pool && g.none {
+				continue
+			}
 			at := y + b.windowRow(j)
 			c.line(labelAt, at, line{{prose.Cut(status.Short(b.windows[j].name), cells-1), dimInk}})
 			b.gauge(c, g, labelAt+cells, at, bar, end)
@@ -742,8 +754,13 @@ func (b usageBlock) labels() (at, cells int, above bool) {
 // gauge draws g from x along row y: its bar, bar cells long, marked as its
 // window's; a cell; its percentage, right-aligned in its cells; two cells;
 // and its words, ending before column end, in the form wordsIn has them,
-// picked out while they're cued, as cue picks them out.
+// picked out while they're cued, as cue picks them out. Of a window its
+// account or the pool hasn't, it draws its words alone, from x.
 func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar, end int) {
+	if g.none {
+		c.line(x, y, b.wordsIn(g, end-x))
+		return
+	}
 	g.bar.draw(c, b.look, x, y, bar)
 	c.barred(x, y, bar, g.of)
 	at := x + bar + 1

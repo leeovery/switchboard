@@ -669,6 +669,84 @@ func TestThePoolIsLastAndCountsTheAccountsNewSessionsCanGoTo(t *testing.T) {
 	}
 }
 
+// noSession has an account's reads carry no 5-hour window, as a verified
+// Ultra account's don't.
+func noSession(a *status.Account) {
+	a.Windows = slices.DeleteFunc(slices.Clone(a.Windows), func(w quota.Window) bool { return w.Key == "5h" })
+}
+
+// Side by side, an account without a 5-hour window says so in text.subtle
+// from where its bar would start, drawing no bar, percentage or rate; the
+// pool, which has no 5-hour window where only side has one, draws nothing
+// there; and every other group keeps its columns.
+func TestAWindowAnAccountLacksSaysSoWhereItsBarWouldStart(t *testing.T) {
+	doc := trio(account("work", noSession), account("personal", noSession))
+	rows, every := printed(doc, 160, ByWindow), printed(trio(), 160, ByWindow)
+	if got := colAt(rows[2], 64, 6); got != "5-HOUR" {
+		t.Fatalf("the second group's heading reads %q, want 5-HOUR", got)
+	}
+	tests := []struct {
+		name string
+		row  int
+		want string
+	}{
+		{name: "work", row: 4, want: "no 5-hour limit"},
+		{name: "personal", row: 6, want: "no 5-hour limit"},
+		{name: "the pool", row: 10},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := colAt(rows[tt.row], 64, 48); strings.TrimRight(got, " ") != tt.want {
+				t.Errorf("the 5-hour cell reads %q, want %q and nothing else", got, tt.want)
+			}
+			if got, want := colAt(rows[tt.row], 112, 48), colAt(every[tt.row], 112, 48); got != want {
+				t.Errorf("Fable's week reads %q, want %q, as where every account has a 5-hour window", got, want)
+			}
+		})
+	}
+	if got := colAt(rows[8], 64, 48); !strings.Contains(got, "13%") {
+		t.Errorf("side's 5-hour cell reads %q, want its bar and 13%%", got)
+	}
+	c := blockOn(t, doc, 160, "nord")
+	if got := c.at(64, 4).ink; got != dimInk {
+		t.Errorf("work's no 5-hour limit is in %+v, want text.subtle", got)
+	}
+}
+
+// By account, an account without a 5-hour window keeps its row, labelled,
+// and says so from where its bar would start; the pool's row of it is
+// blank, so every block keeps its height, and ROUTING beside them its place.
+func TestByAccountAWindowAnAccountLacksKeepsItsRow(t *testing.T) {
+	doc := trio(account("work", noSession), account("personal", noSession))
+	rows, every := printed(doc, 160, ByAccount), printed(trio(), 160, ByAccount)
+	if len(rows) != len(every) {
+		t.Fatalf("the printout takes %d rows, want %d, as where every account has a 5-hour window", len(rows), len(every))
+	}
+	tests := []struct {
+		name string
+		row  int
+		want string
+	}{
+		{name: "work's", row: 4, want: "                5-hour    no 5-hour limit"},
+		{name: "personal's", row: 10, want: "                5-hour    no 5-hour limit"},
+		{name: "the pool's", row: 22},
+		{name: "the pool's week", row: 20, want: strings.TrimRight(every[20], " ")},
+		{name: "the pool's Fable week", row: 24, want: strings.TrimRight(every[24], " ")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := strings.TrimRight(rows[tt.row], " "); got != tt.want {
+				t.Errorf("row %d reads %q, want %q", tt.row, got, tt.want)
+			}
+		})
+	}
+	m, all := doc.At(printNow, printPolicy), trio().At(printNow, printPolicy)
+	placed := newUsageBlock(m, 160, Look{}, ByAccount, usageWindows(m.Listed(true), printName)).placed()
+	if want := newUsageBlock(all, 160, Look{}, ByAccount, usageWindows(all.Listed(true), printName)).placed(); !slices.Equal(placed, want) {
+		t.Errorf("the blocks are placed at %+v, want %+v, as where every account has a 5-hour window", placed, want)
+	}
+}
+
 func TestThePoolSaysItsPinnedOnTheFirstWindowItHasWordsFor(t *testing.T) {
 	noWeek := func(a *status.Account) {
 		a.Windows = slices.DeleteFunc(slices.Clone(a.Windows), func(w quota.Window) bool { return w.Key == "7d" })
@@ -1151,6 +1229,7 @@ func kindSaid(full string) (status.WindowKind, ink) {
 		ink  ink
 	}{
 		{"no token", status.WindowTokenless, errorInk},
+		{"no ", status.WindowNone, dimInk},
 		{"not read yet", status.WindowUnread, dimInk},
 		{"not read since ", status.WindowStale, dimInk},
 		{"limit", status.WindowLimited, errorInk},
