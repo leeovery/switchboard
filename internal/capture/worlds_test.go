@@ -412,19 +412,58 @@ func TestWorksCapIsARefusalLiftedByTheMoment(t *testing.T) {
 // Each refusal of a verified account's the router tells of, as a 5-hour cap
 // or limit becomes one, is known from a request: one written at its moment
 // that went out there and was refused, sent on once more.
+// The refusals are those of the auto world's holds on the verified accounts'
+// 5-hour windows, each at the request that met it: personal's limit of
+// yesterday's 19:12:40 refused at 8a2c's move of 19:12:52, and work's cap
+// of 14:31:03 at d28c's of 14:31:13.
 func TestAVerifiedAccountsRefusalIsMetByARequest(t *testing.T) {
 	now := worldsNow().now
+	type refusal struct {
+		account string
+		at      time.Time
+	}
+	want := []refusal{{"personal", clockAt(now, -1, 19, 12, 52)}, {"work", dayAt(now, today, 14, 31, 13)}}
 	for _, v := range verifiedWorlds() {
 		t.Run(v.name, func(t *testing.T) {
 			lines := v.world.lines(now)
+			var got []refusal
 			for _, e := range v.world.events {
 				if e.Kind != status.EventRefused || !v.unreportedAt(e.Account, e.At) {
 					continue
 				}
+				got = append(got, refusal{e.Account, e.At})
 				refused := ledger.Tried{Account: e.Account, Why: status.WhyRefused}
 				met := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.At.Equal(e.At) && slices.Contains(l.Tried, refused) })
 				if met < 0 || lines[met].Attempts != 2 {
 					t.Errorf("no request of %s tried %s and was refused, sent on once more, want one at its refusal", e.At.In(now.Location()), e.Account)
+				}
+			}
+			if !slices.EqualFunc(got, want, func(a, b refusal) bool { return a.account == b.account && a.at.Equal(b.at) }) {
+				t.Errorf("the router tells of refusals %v, want personal's at yesterday's 19:12:52 and work's at 14:31:13", got)
+			}
+		})
+	}
+}
+
+// Each request refused on a verified account since the router started has
+// its refusal told, at that request's time. One refused before then, as
+// b9c4's of yesterday's 16:02:05 is, the router never told of.
+func TestARequestRefusedOnAVerifiedAccountHasItsRefusalTold(t *testing.T) {
+	now := worldsNow().now
+	for _, v := range verifiedWorlds() {
+		t.Run(v.name, func(t *testing.T) {
+			started := v.world.events[0].At
+			for _, l := range v.world.lines(now) {
+				for _, tried := range l.Tried {
+					if tried.Why != status.WhyRefused || !v.unreportedAt(tried.Account, l.At) || l.At.Before(started) {
+						continue
+					}
+					told := slices.ContainsFunc(v.world.events, func(e status.Event) bool {
+						return e.Kind == status.EventRefused && e.Account == tried.Account && e.At.Equal(l.At)
+					})
+					if !told {
+						t.Errorf("a request of %s was refused on %s, and the router tells of no refusal then", l.At.In(now.Location()), tried.Account)
+					}
 				}
 			}
 		})

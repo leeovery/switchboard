@@ -114,9 +114,9 @@ func (u unreported) reason(reason string, at time.Time) string {
 // stopped reporting their 5-hour windows writes them: an answer's 5-hour
 // headers gone where its account no longer reports the window; and each move
 // off an account at its reserve or limit refused instead, as reason says,
-// the first the request the upstream refused there, tried there first, and
-// those after it while the router holds the account sent on without trying
-// it.
+// the first being the request the upstream refused there, tried there first,
+// and those after it while the router holds the account sent on without
+// trying it.
 func (u unreported) lines(lines []ledger.Line) []ledger.Line {
 	held := make(map[string]time.Time)
 	for i, l := range lines {
@@ -176,7 +176,7 @@ func (a accountWorlds) verified(name string, ids ...string) accountWorld {
 		w.unreported, w.history = u, u.history(w.history)
 		w.events, w.ownEvents = ofTheRun(u.events(happenings{a.now}.auto(), written)), true
 		w.routed = func(now time.Time) []status.Session { return u.routed(routedSessions(now)) }
-		w.lines = func(time.Time) []ledger.Line { return written }
+		w.lines = func(time.Time) []ledger.Line { return slices.Clone(written) }
 		for i, acct := range w.accounts {
 			w.accounts[i].Plan = planMax
 			if _, ok := u[acct.ID]; ok {
