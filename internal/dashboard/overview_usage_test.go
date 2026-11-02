@@ -526,7 +526,8 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowWhereItsWindowsSitSideBySide(t *t
 
 // With one window, whose big bars take no more rows than its matrix, USAGE
 // draws its big bars wherever the matrix fits; with two or more, it draws
-// the matrix in the matrix's rows and the big bars only in theirs.
+// the matrix in the matrix's rows and the big bars only in theirs. At each
+// step it gives way, alike: one window its big bars, two its matrix.
 func TestUSAGEsBigBarsWinWhereTheyAreNoTallerThanTheMatrix(t *testing.T) {
 	weekOnly := func(id string) status.Account { return readAccount(id, weekOf(0.2, 3*quota.Day)) }
 	oneWindow := routerDoc("a1", 0, weekOnly("a1"), weekOnly("a2"), weekOnly("a3"))
@@ -556,6 +557,16 @@ func TestUSAGEsBigBarsWinWhereTheyAreNoTallerThanTheMatrix(t *testing.T) {
 				t.Errorf("in %d rows, the matrix's %d and the big bars' %d, USAGE draws its big bars: %v, want %v", rows, v.all, v.big, got, tt.big)
 			}
 		})
+	}
+	for given := givenApart; given <= givenKey; given++ {
+		for _, tt := range tests[:3] {
+			t.Run(fmt.Sprintf("given way to step %d, %s", given, tt.name), func(t *testing.T) {
+				lean := frameOf(tt.width, 60).overviewBlock(tt.doc, now).views().given(given)
+				if got := lean.fitted(lean.all).big; got != tt.big {
+					t.Errorf("in its %d rows, its big bars' %d, USAGE draws its big bars: %v, want %v", lean.all, lean.big, got, tt.big)
+				}
+			})
+		}
 	}
 }
 

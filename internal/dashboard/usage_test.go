@@ -779,11 +779,10 @@ func TestAPoolNothingIsReadOfKeepsItsWindows(t *testing.T) {
 	}
 }
 
-// stackedSections are doc's usage block width columns wide, its windows
+// sectionRows are doc's usage block width columns wide, its windows
 // stacked, with its big bars where big is set: each section's rows by its
-// heading, a row as the number and label it's named by, "rule" for the
-// pool's rule and "" for a blank row, the blank rows after its last left out.
-func stackedSections(t *testing.T, doc status.Document, width int, big bool) map[string][]string {
+// heading, the blank rows after its last left out.
+func sectionRows(t *testing.T, doc status.Document, width int, big bool) map[string][]string {
 	t.Helper()
 	b := printBlock(doc, width, Look{})
 	b.big = big
@@ -795,23 +794,40 @@ func stackedSections(t *testing.T, doc status.Document, width int, big bool) map
 	sections := map[string][]string{}
 	var heading string
 	for _, row := range c.rows(Look{}) {
-		fields := strings.Fields(row)
-		switch {
-		case row != "" && row[0] != ' ' && !strings.HasPrefix(row, "─"):
+		if row != "" && row[0] != ' ' && !strings.HasPrefix(row, "─") {
 			heading = strings.TrimSpace(row)
-		case len(fields) == 0:
-			sections[heading] = append(sections[heading], "")
-		case strings.HasPrefix(row, "─"):
-			sections[heading] = append(sections[heading], "rule")
-		default:
-			sections[heading] = append(sections[heading], fields[0]+" "+fields[1])
+			continue
 		}
+		sections[heading] = append(sections[heading], row)
 	}
 	for h, rows := range sections {
-		for len(rows) > 0 && rows[len(rows)-1] == "" {
+		for len(rows) > 0 && strings.TrimSpace(rows[len(rows)-1]) == "" {
 			rows = rows[:len(rows)-1]
 		}
 		sections[h] = rows
+	}
+	return sections
+}
+
+// stackedSections are the sections as sectionRows has them, a row as the
+// number and label it's named by, "rule" for the pool's rule and "" for a
+// blank row.
+func stackedSections(t *testing.T, doc status.Document, width int, big bool) map[string][]string {
+	t.Helper()
+	sections := sectionRows(t, doc, width, big)
+	for h, rows := range sections {
+		named := make([]string, len(rows))
+		for i, row := range rows {
+			fields := strings.Fields(row)
+			switch {
+			case len(fields) == 0:
+			case strings.HasPrefix(row, "─"):
+				named[i] = "rule"
+			default:
+				named[i] = fields[0] + " " + fields[1]
+			}
+		}
+		sections[h] = named
 	}
 	return sections
 }
@@ -839,13 +855,15 @@ func TestAStackedSectionListsOnlyTheAccountsWithItsWindow(t *testing.T) {
 		name string
 		doc  status.Document
 		want []string
+		// pool is what the pool's row says after its name, where it's checked.
+		pool []string
 	}{
 		{name: "every account with it", doc: trio(), want: every},
 		{name: "work without it", doc: trio(account("work", noSession)), want: []string{"", "2 personal", "", "3 side", "rule", "Σ pool"}},
 		{name: "side alone with it", doc: trio(account("work", noSession), account("personal", noSession)), want: []string{"", "3 side"}},
 		{name: "personal unread", doc: trio(account("work", noSession), account("personal", unread)), want: []string{"", "2 personal", "", "3 side", "rule", "Σ pool"}},
 		{name: "personal tokenless", doc: trio(account("work", noSession), account("personal", tokenless)), want: []string{"", "2 personal", "", "3 side", "rule", "Σ pool"}},
-		{name: "nothing read", doc: trio(account("work", unread), account("personal", unread), account("side", unread)), want: every},
+		{name: "nothing read", doc: trio(account("work", unread), account("personal", unread), account("side", unread)), want: every, pool: []string{"—"}},
 	}
 	for _, layout := range stackedLayouts {
 		for _, tt := range tests {
@@ -853,6 +871,12 @@ func TestAStackedSectionListsOnlyTheAccountsWithItsWindow(t *testing.T) {
 				sections := stackedSections(t, tt.doc, layout.width, layout.big)
 				if got := sections["5-HOUR"]; !slices.Equal(got, tt.want) {
 					t.Errorf("the 5-hour section's rows are %q, want %q", got, tt.want)
+				}
+				if tt.pool != nil {
+					rows := sectionRows(t, tt.doc, layout.width, layout.big)["5-HOUR"]
+					if got := strings.Fields(rows[len(rows)-1]); len(got) < 2 || !slices.Equal(got[2:], tt.pool) {
+						t.Errorf("the 5-hour section's pool row reads %q, want Σ pool and %q", rows[len(rows)-1], tt.pool)
+					}
 				}
 				if got := sections["WEEK"]; !slices.Equal(got, every) {
 					t.Errorf("the week's section's rows are %q, want %q", got, every)
