@@ -595,17 +595,30 @@ func TestTheScheduleIsWorkedOutAgainAsAnAccountGainsOrLosesItsToken(t *testing.T
 	}
 }
 
-func TestTheScheduleWorkedOutAgainAsAnAccountGainsItsTokenLeavesOutOneWithoutASession(t *testing.T) {
-	clock := &testClock{now: onDay(1, 2, 0)}
-	files := &changingFiles{files: testTokens}
-	r := newPrimingRouterReading(t, clock.read, &stubProber{}, daytime, files.read)
-	r.state.recordAnswer("side", []quota.Window{week}, r.state.mark(), true)
+func TestTheScheduleWorkedOutAgainAsAnAccountGainsItsTokenLeavesOutOneWithoutASessionAndSaysSoOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 2, 0))
+		files := &changingFiles{files: testTokens}
+		r := newPrimingRouterReading(t, clock.read, newWindowsUpstream(clock), daytime, files.read)
+		stop := startPriming(r)
+		defer stop()
+		synctest.Wait()
 
-	files.set(tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken})
-	r.upkeep.tokens.look()
-	if got, want := slotsOf(r), []string{"work 04:10", "personal 06:40"}; !slices.Equal(got, want) {
-		t.Errorf("with personal's token, the slots are %q, want %q: side's answers no longer report its session", got, want)
-	}
+		// Between two of the primer's looks, side's answers stop reporting its
+		// session, and personal gains its token.
+		r.state.recordAnswer("side", []quota.Window{week}, r.state.mark(), true)
+		files.set(tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken})
+		r.upkeep.tokens.look()
+		time.Sleep(primeLookEvery)
+		synctest.Wait()
+		if got, want := slotsOf(r), []string{"work 04:10", "personal 06:40"}; !slices.Equal(got, want) {
+			t.Errorf("with personal's token, the slots are %q, want %q: side's answers no longer report its session", got, want)
+		}
+		if got := linesWith(log, `msg="priming schedule worked out again"`); len(got) != 1 || !log.Has("level=INFO", `msg="priming schedule worked out again"`, "accounts=work,personal") {
+			t.Errorf("log reads\n%s\nwant the schedule worked out again over work and personal, told of once", log)
+		}
+	})
 }
 
 func TestAnAccountThatGainsItsTokenIsPrimedAtItsSlot(t *testing.T) {

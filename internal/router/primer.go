@@ -67,31 +67,25 @@ func newPrimer(priming config.Prime, as accounts, state *state, probes *probes, 
 		return nil
 	}
 	p := &primer{day: priming.Day, accounts: as, state: state, probes: probes, now: now}
-	p.replan()
+	p.plan = p.next()
 	return p
 }
 
 // replan works the schedule out again over the accounts with tokens now that
-// have a window to prime, as the state's primable says: as the router
-// starts, and whenever an account gains a usable token or loses it.
+// have a window to prime, as the state's primable says: at each look, and
+// whenever an account gains a usable token or loses it. It notes in the log
+// each change of the accounts the schedule has slots for, whichever of those
+// finds it, as one whose window to prime has been retired, or is back, or one
+// that gains its token or loses it.
 func (p *primer) replan() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.plan = p.next()
-}
-
-// rework works the schedule out again, as replan does, where the accounts it
-// would have slots for differ from those it has, as when an account's window
-// to prime has been retired since, or is back, and notes it in the log.
-func (p *primer) rework() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	next := p.next()
-	if slices.Equal(next.ids(), p.plan.ids()) {
-		return
-	}
+	changed := !slices.Equal(next.ids(), p.plan.ids())
 	p.plan = next
-	logger.Info("priming schedule worked out again", "accounts", strings.Join(next.ids(), ","))
+	if changed {
+		logger.Info("priming schedule worked out again", "accounts", strings.Join(next.ids(), ","))
+	}
 }
 
 // next is the plan worked out over the accounts with tokens now that have a
@@ -113,12 +107,12 @@ func (p *primer) current() plan {
 }
 
 // run primes each account as it falls due, until ctx ends, working the
-// schedule out again first at each look where its accounts have changed, as
-// rework says: the state's changes are heard with its lock held, so the
-// primer looks for them rather than hears of them.
+// schedule out again first at each look, as replan says: the state's changes
+// are heard with its lock held, so the primer looks for them rather than
+// hears of them.
 func (p *primer) run(ctx context.Context) {
 	for {
-		p.rework()
+		p.replan()
 		if underway := p.probes.prime(p.current().accounts, p.due); len(underway) > 0 {
 			settle(ctx, underway, primeWait)
 		}
