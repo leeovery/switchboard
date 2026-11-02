@@ -176,7 +176,7 @@ func (r Review) countOf(state TokenState) int {
 func (p Primed) said() Said {
 	switch {
 	case p.Skipped:
-		return Said{Mark: Done, Detail: "skipped: every account is on " + PlanName(ultra) + ", with no 5-hour window to start"}
+		return Said{Mark: Done, Detail: "skipped: every account is on " + PlanName(config.PlanUltra) + ", with no 5-hour window to start"}
 	case !(config.Prime{Day: p.Day}).On():
 		return Said{Mark: Done, Detail: "off"}
 	}

@@ -202,7 +202,7 @@ type setupSteps struct {
 	standing setup.RouterStanding
 	review   setup.Review
 	checked  map[string]setup.TokenStanding
-	primed   setup.Primed
+	day      config.Day
 	service  setup.Serviced
 	skill    setup.Said
 	link     setup.LinkFound
@@ -386,7 +386,7 @@ func accountsPassed(now time.Time) setupSteps {
 			{ID: "side", Label: "Side", Token: read(status.TokenYear{})},
 		}},
 		checked: map[string]setup.TokenStanding{"work": working, "personal": working, "side": working},
-		primed:  setup.Primed{Day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}},
+		day:     config.Day{Start: 8 * time.Hour, End: 23 * time.Hour},
 	}
 }
 
@@ -455,7 +455,6 @@ func everyAccountUltra(now time.Time) setupSteps {
 	for i := range steps.review.Accounts {
 		steps.review.Accounts[i].Plan = planUltra
 	}
-	steps.primed.Skipped = true
 	return steps
 }
 
@@ -527,9 +526,11 @@ func testToken(id string) tokens.Token {
 	return token
 }
 
-// Priming is the step as given.
+// Priming is the day as given, the step skipped as setup skips it for the
+// accounts as Review has them.
 func (s setupSteps) Priming() (setup.Primed, error) {
-	return s.primed, nil
+	review, _ := s.Review()
+	return setup.Primed{Day: s.day, Skipped: review.SkipsPriming()}, nil
 }
 
 // SetDay parses the day as setup does, writing nothing.

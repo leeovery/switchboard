@@ -1015,8 +1015,9 @@ show.
    as HH:MM-HH:MM`, and `Leave it empty to keep priming off.` `enter` writes the day to `[prime]`
    where it changed; a field left empty leaves priming off, and one cleared turns it off. Where every
    account is on Ultra, which has no 5-hour window to start, setup skips the step: it reads the
-   config as it reaches it, ticks the step's tab, and moves on to the Service, its page never
-   shown, the step's row saying why (see Priming).
+   config as it reaches it, its page showing, under way, only while it does, then ticks the step's
+   tab and moves on to the Service, the step's row saying why (see Priming). The Accounts page's
+   key line says so beforehand, as `enter next: Service`, by the same check of the accounts' plans.
 3. **Service:** installs the LaunchAgent when its plist isn't there, once it has checked, as
    `service install` does, that the router could start; it fails, saying why, where it couldn't.
    With no plist setup can use, none or one it can't read back, setup never succeeds, nor sends the

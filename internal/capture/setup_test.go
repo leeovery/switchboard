@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -262,4 +263,32 @@ func setupRows(t *testing.T, f Fixture, width, height int) []string {
 		t.Fatalf("at %d×%d, the frame is %d rows, want %d", width, height, len(rows), height)
 	}
 	return rows
+}
+
+// The fake's Priming skips the step as setup does, by its accounts' plans,
+// never by a fixture's say.
+func TestTheFakesPrimingSkipsByItsAccountsPlans(t *testing.T) {
+	onMax := func(now time.Time) setupSteps {
+		steps := everyAccountUltra(now)
+		steps.review.Accounts[1].Plan = planMax
+		return steps
+	}
+	tests := []struct {
+		name  string
+		steps func(time.Time) setupSteps
+		want  bool
+	}{
+		{name: "every account on Ultra: skipped", steps: everyAccountUltra, want: true},
+		{name: "one on Max beside Ultra: not skipped", steps: onMax},
+		{name: "plans unset: not skipped", steps: linkLeft},
+		{name: "no account: not skipped", steps: firstRun},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			primed, err := tt.steps(setupMoment()).Priming()
+			if err != nil || primed.Skipped != tt.want {
+				t.Errorf("Priming() = %+v, %v; want skipped %t", primed, err, tt.want)
+			}
+		})
+	}
 }
