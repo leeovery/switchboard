@@ -18,7 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// The sizes the fit sweep draws every fixture at: widths either side of
+// The sizes the fit sweep draws a fixture at: widths either side of
 // those a layout changes at, and every height from where the page first has
 // room for a view to where History stops scrolling whole, then a few
 // taller.
@@ -36,9 +36,12 @@ const tallest = 60
 // between, and its key line read as those of the same fixture drawn as tall
 // as anything fits, as the height changes none of them, so no view draws on
 // them; and where History's Weeks or Days say how many more accounts are out
-// of view, as drawn and scrolled a row, they show one at least. Setup's
-// screen has a rule of its own, held in setup_test.go.
+// of view, as drawn and scrolled a row, they show one at least. The whole
+// grid is drawn for one fixture or two of each view, as sweptFully chooses
+// them, and the rest at a few sizes, as sweptSizes has them. Setup's screen
+// has a rule of its own, held in setup_test.go.
 func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
+	full := sweptFully(t)
 	for _, name := range Names() {
 		f := fixture(t, name)
 		if !f.watched() {
@@ -48,10 +51,11 @@ func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
 			names := accountNames(f)
-			for _, width := range sweptWidths {
+			for _, at := range sweptSizes(f, full[name], sweptWidths, sweptHeights) {
+				width := at.width
 				tall := plainRows(m, width, tallest)
 				chrome := chromeOf(width)
-				for _, height := range sweptHeights {
+				for _, height := range at.heights {
 					sized := deliver(m, tea.WindowSizeMsg{Width: width, Height: height})
 					rows := plainOf(sized.View().Content, height)
 					for y := range chrome {
@@ -149,7 +153,7 @@ func plainOf(content string, height int) []string {
 	return rows
 }
 
-// The sizes the scroll sweep draws every fixture at: the widths either side
+// The sizes the scroll sweep draws a fixture at: the widths either side
 // of those a layout changes at, and heights above the floor, where every
 // view has rows to page through.
 var (
@@ -174,9 +178,12 @@ var (
 // top, that row and not a twin elsewhere, as unmatched tells them apart, so
 // no page up passes over what a page down shows: whatever a view pages by,
 // rows, accounts or periods, a page up ends at the one above the first the
-// page showed. A view drawn alike by two fixtures at
-// a size is paged once.
+// page showed. A view drawn alike by two fixtures at a size is paged once.
+// The whole grid is paged for one fixture or two of each view, as
+// sweptFully chooses them, and the rest at a few sizes, as sweptSizes has
+// them.
 func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
+	full := sweptFully(t)
 	var walked sync.Map
 	for _, name := range Names() {
 		f := fixture(t, name)
@@ -187,9 +194,10 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
-			for _, width := range pagingWidths(log) {
+			for _, at := range sweptSizes(f, full[name], pagingWidths(log), pagingHeights(log)) {
+				width := at.width
 				reached, tall := reachOf(name, width), plainRows(m, width, tallest)
-				for _, height := range pagingHeights(log) {
+				for _, height := range at.heights {
 					top := pagedTop(m, width, height)
 					if _, seen := walked.LoadOrStore(sweptAs(name, top, tall), true); seen {
 						continue
