@@ -4,6 +4,7 @@ import (
 	"maps"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -122,6 +124,8 @@ func TestEachWorldsRecordsAreItsDaysReadingsCapsAndTraffic(t *testing.T) {
 		{name: "ten accounts", world: tenWorld(), traffic: true, minutes: map[string]atCapAndLimit{"work": {11, 0}, "team": {0, 44}}},
 		{name: "work alone", world: worlds.one(), minutes: map[string]atCapAndLimit{"work": {}}},
 		{name: "f41a resumed", world: worlds.resumed(), traffic: true, minutes: map[string]atCapAndLimit{"work": {11, 0}}},
+		{name: "all three verified Ultra", world: worlds.ultra(), traffic: true, minutes: map[string]atCapAndLimit{"work": {}, "personal": {}}},
+		{name: "work and personal verified Ultra", world: worlds.mixed(), traffic: true, minutes: map[string]atCapAndLimit{"work": {}, "side": {}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -204,5 +208,227 @@ func TestWorksCapIsTheSameMomentInTheReadingsTheEventsTheLinesAndTheSummary(t *t
 	if work.Highest[sessionKey] != 1-workReserve || minutesOf(t, work) != (atCapAndLimit{cap: 11}) {
 		t.Errorf("today's summary has work's 5-hour window at %v at its highest, %+v minutes at its cap and a limit, want 0.95, 11 at its cap",
 			work.Highest[sessionKey], minutesOf(t, work))
+	}
+}
+
+// verifiedWorld is a world of verified Ultra accounts, by name, as the worlds
+// keep it, and the ids of those of its accounts that are verified.
+type verifiedWorld struct {
+	name     string
+	world    accountWorld
+	verified []string
+}
+
+// verifiedWorlds are the worlds of verified Ultra accounts: all three, and
+// work and personal alone, side keeping its 5-hour window.
+func verifiedWorlds() []verifiedWorld {
+	worlds := worldsNow()
+	return []verifiedWorld{
+		{name: "ultra", world: worlds.ultra(), verified: three},
+		{name: "mixed", world: worlds.mixed(), verified: []string{"work", "personal"}},
+	}
+}
+
+// isVerified reports whether the account with the given id is one of the
+// world's verified.
+func (v verifiedWorld) isVerified(id string) bool {
+	return slices.Contains(v.verified, id)
+}
+
+// unreportedAt reports whether the account with the given id reports no
+// 5-hour window at at in the world: verified, and at no earlier than Friday
+// 25 September's start.
+func (v verifiedWorld) unreportedAt(id string, at time.Time) bool {
+	return v.isVerified(id) && !at.Before(dayStart(worldsNow().now, today-6))
+}
+
+// heldOffAt reports whether reason, given at at, moves a session off one of
+// the world's verified accounts at its reserve or its limit once it reports
+// no 5-hour window, as only a cap or limit on that window could.
+func (v verifiedWorld) heldOffAt(reason string, at time.Time) bool {
+	for _, id := range v.verified {
+		off := status.ReasonMovedOff + id + " "
+		if v.unreportedAt(id, at) && (reason == off+status.WhyReserve || reason == off+status.WhyLimit) {
+			return true
+		}
+	}
+	return false
+}
+
+// isFiveHourHeader reports whether an answer's header, as a line keeps it,
+// is one of the 5-hour window's.
+func isFiveHourHeader(name string) bool {
+	return strings.HasPrefix(name, fiveHourKey+"-")
+}
+
+// A verified Ultra account's answers carry no 5-hour window, so the router's
+// document holds none of its, nor a trail of one: of every account in the
+// ultra world, and of work's and personal's in the mixed one, where side
+// keeps its own, at 13% now, resetting at 18:50.
+func TestTheDocumentHoldsNoFiveHourWindowOfAVerifiedAccount(t *testing.T) {
+	now := worldsNow().now
+	for _, v := range verifiedWorlds() {
+		t.Run(v.name, func(t *testing.T) {
+			doc := v.world.document(now)
+			for _, a := range doc.Accounts {
+				w, held := a.Window(sessionKey)
+				if held == v.isVerified(a.ID) {
+					t.Errorf("the document holds %s's 5-hour window: %t, want %t", a.ID, held, !v.isVerified(a.ID))
+				}
+				if held && (percent(w.Utilization) != 13 || !w.ResetsAt.Equal(dayAt(now, today, 18, 50, 0))) {
+					t.Errorf("%s's 5-hour window reads %d%%, resetting %s, want 13%%, resetting 18:50", a.ID, percent(w.Utilization),
+						w.ResetsAt.In(now.Location()))
+				}
+			}
+			for _, tr := range v.world.trails(doc, now) {
+				if tr.window == sessionKey && v.isVerified(tr.account) {
+					t.Errorf("the router gives a trail of %s's 5-hour window, want none", tr.account)
+				}
+			}
+		})
+	}
+}
+
+// The readings history keeps a verified account's 5-hour readings from
+// before Friday 25 September, as real history does, and holds none from
+// then on; side, in the mixed world, keeps its own to today's.
+func TestTheHistoryKeepsAVerifiedAccountsFiveHourReadingsBeforeItsCutoffAlone(t *testing.T) {
+	cutoff := dayStart(worldsNow().now, today-6)
+	for _, v := range verifiedWorlds() {
+		t.Run(v.name, func(t *testing.T) {
+			before, after := make(map[string]int), make(map[string]int)
+			for _, r := range v.world.records().readings {
+				switch {
+				case r.Key != sessionKey:
+				case r.At.Before(cutoff):
+					before[r.Account]++
+				default:
+					after[r.Account]++
+				}
+			}
+			for _, id := range v.world.accounts.IDs() {
+				if before[id] == 0 {
+					t.Errorf("the history holds no 5-hour reading of %s's before the cutoff, want its past ones", id)
+				}
+				if v.isVerified(id) != (after[id] == 0) {
+					t.Errorf("the history holds %d 5-hour readings of %s's from the cutoff, want them %t", after[id], id, !v.isVerified(id))
+				}
+			}
+		})
+	}
+}
+
+// Nothing the router tells, records or streams after a verified account's
+// cutoff names its 5-hour window: no event of it, in the document or the
+// records; no limit or pressure on it; no answer's 5-hour headers in a
+// line; and no move off it at its reserve or its limit, in an event, a
+// line, an account a line tried, a session listed or the stream.
+func TestNothingAfterTheCutoffNamesAVerifiedAccountsFiveHourWindow(t *testing.T) {
+	now := worldsNow().now
+	for _, v := range verifiedWorlds() {
+		t.Run(v.name, func(t *testing.T) {
+			told := slices.Clone(v.world.events)
+			for _, l := range v.world.records().events {
+				told = append(told, l.Event)
+			}
+			for _, e := range told {
+				if v.unreportedAt(e.Account, e.At) && slices.Contains(e.Windows, sessionKey) {
+					t.Errorf("the router tells of %s's 5-hour window at %s, in a %s event, want nothing", e.Account, e.At.In(now.Location()), e.Kind)
+				}
+				if v.heldOffAt(e.Reason, e.At) {
+					t.Errorf("the router's %s event of %s says %q, want no move off a verified account at its reserve or limit", e.Kind,
+						e.At.In(now.Location()), e.Reason)
+				}
+			}
+			for _, a := range v.world.document(now).Accounts {
+				if v.isVerified(a.ID) && (slices.Contains(a.Limit.Windows, sessionKey) || a.Pressure.Window == sessionKey) {
+					t.Errorf("%s's document holds a limit on %v and pressure on %q, want neither on its 5-hour window", a.ID, a.Limit.Windows, a.Pressure.Window)
+				}
+			}
+			for _, f := range v.world.records().lines {
+				l := f.Line
+				if v.unreportedAt(l.Account, l.At) && slices.ContainsFunc(slices.Collect(maps.Keys(l.Limits)), isFiveHourHeader) {
+					t.Errorf("a line on %s at %s keeps the 5-hour headers of %v, want none", l.Account, l.At.In(now.Location()), l.Limits)
+				}
+				if v.heldOffAt(l.Reason, l.At) {
+					t.Errorf("a line at %s says %q, want no move off a verified account at its reserve or limit", l.At.In(now.Location()), l.Reason)
+				}
+				for _, tried := range l.Tried {
+					if v.unreportedAt(tried.Account, l.At) && tried.Why == status.WhyLimit {
+						t.Errorf("a line at %s tried %s, which %s, want it never at a limit", l.At.In(now.Location()), tried.Account, tried.Why)
+					}
+				}
+			}
+			for _, s := range v.world.routed(now) {
+				for _, a := range s.Assignments {
+					if v.heldOffAt(a.Reason, a.AssignedAt) {
+						t.Errorf("the router lists %s's %s as %q, want no move off a verified account at its reserve or limit", s.ID, a.Model, a.Reason)
+					}
+				}
+			}
+			for _, e := range v.world.stream {
+				if v.unreportedAt(e.Account, e.At) && e.Verdict == router.StreamLimited || v.heldOffAt(e.Reason, e.At) {
+					t.Errorf("the stream tells of %s on %s, %q, %q, want no limit on a verified account", e.Request, e.Account, e.Verdict, e.Reason)
+				}
+			}
+		})
+	}
+}
+
+// Without a 5-hour window, work never reaches its cap at 14:31:03: the
+// router tells of its token refused then instead, moving its three sessions
+// to side as the cap did, each counted in the refusal, which has lifted by
+// the moment, so work is open.
+func TestWorksCapIsARefusalLiftedByTheMoment(t *testing.T) {
+	now := worldsNow().now
+	for _, v := range verifiedWorlds() {
+		t.Run(v.name, func(t *testing.T) {
+			told := v.world.events
+			i := slices.IndexFunc(told, func(e status.Event) bool { return e.Kind == status.EventRefused && e.Account == "work" })
+			if i < 0 {
+				t.Fatal("the router tells of no refusal of work's")
+			}
+			refused := told[i]
+			if !refused.At.Equal(dayAt(now, today, 14, 31, 3)) || refused.Until.After(now) || refused.Count != 3 || refused.To != "side" {
+				t.Errorf("work was refused at %s till %s, moving %d to %s, want at 14:31:03, lifted by now, moving 3 to side",
+					refused.At.In(now.Location()), refused.Until.In(now.Location()), refused.Count, refused.To)
+			}
+			var moved []string
+			for _, e := range told {
+				if e.Kind == status.EventMoved && e.ForcedBy == refused.ID {
+					moved = append(moved, e.Session)
+				}
+			}
+			if want := []string{idD28C, id7F3A, idDB8A}; !slices.Equal(moved, want) {
+				t.Errorf("the refusal moved %v, want d28c, 7f3a and db8a", moved)
+			}
+			if work := v.world.document(now).Accounts[0]; work.Shut(now, claude.Policy()) {
+				t.Errorf("work is shut at the moment, refused till %s, want it open", work.Refused.Until)
+			}
+		})
+	}
+}
+
+// The verified accounts are on Ultra; side, keeping its 5-hour window in
+// the mixed world, on Max.
+func TestTheVerifiedWorldsPlans(t *testing.T) {
+	tests := []struct {
+		name  string
+		world accountWorld
+		want  []string
+	}{
+		{name: "ultra", world: worldsNow().ultra(), want: []string{planUltra, planUltra, planUltra}},
+		{name: "mixed", world: worldsNow().mixed(), want: []string{planUltra, planUltra, planMax}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, a := range tt.world.accounts {
+				got = append(got, a.Plan)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the accounts are on %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

@@ -36,7 +36,8 @@ type records struct {
 // summarised from its readings history, that history, and its accounts'
 // caps; and, where today's traffic of the three is the world's, every line
 // the sessions' world holds, or the world's own lines in their place, and
-// the router's events.
+// the router's events, or, where accounts of the world's stopped reporting
+// their 5-hour windows, its own, as it retells them.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
 	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
 	if w.traffic {
@@ -44,6 +45,9 @@ func (a accountWorlds) recordsOf(w accountWorld) *records {
 	}
 	if w.lines != nil {
 		r.lines = filedOf(heldAsWritten(w.lines(a.now)))
+	}
+	if w.unreported != nil {
+		r.events = logged(w.events, a.now)
 	}
 	return r
 }
