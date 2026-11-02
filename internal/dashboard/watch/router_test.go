@@ -141,6 +141,7 @@ func TestNeverHasTheRouterRefreshOnAnInterval(t *testing.T) {
 }
 
 func TestHasTheRouterRefreshOnceAWindowOnScreenResets(t *testing.T) {
+	t.Parallel()
 	// The router's document shows work's week resetting at 13:20, and goes on
 	// showing it after, as it would were work idle.
 	h := routedHarness(t, routerDocument(
@@ -158,6 +159,7 @@ func TestHasTheRouterRefreshOnceAWindowOnScreenResets(t *testing.T) {
 }
 
 func TestShowsASessionThatHasLapsedEmptyRatherThanRefreshingIt(t *testing.T) {
+	t.Parallel()
 	// Work's session resets at 13:20, and nothing is read of work since, so
 	// from then on the router's document shows it lapsed.
 	side := account("side", "Side", session(0.4, 2*time.Hour), week(0.6))
@@ -177,6 +179,7 @@ func TestShowsASessionThatHasLapsedEmptyRatherThanRefreshingIt(t *testing.T) {
 }
 
 func TestAWindowResettingOnAnAccountWhoseSessionHasLapsedHasTheRouterRefreshNothing(t *testing.T) {
+	t.Parallel()
 	// Work's session has lapsed, and its week resets at 13:20; side's session
 	// runs, and its week resets at 13:22.
 	work := account("work", "Work", quota.Window{Key: "5h", Label: "Session"}, window("7d", "Week", 0.5, 8*time.Minute))
@@ -341,6 +344,7 @@ func TestAFirstReadSaysTheLatestReadsNewsTheRouterGoneSinceFirstFoundOrAProbesOw
 }
 
 func TestAProbeThatFailsUnderAProbedDocumentSaysWhyThoughTheRouterIsFoundGone(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t, probedWithoutTheRouter())
 	h.start()
 	h.source.err = errors.New("the keychain is locked")
@@ -374,6 +378,7 @@ func TestProbingAsAskedAReadThatFailsSaysWhyAndNothingOfTheRouter(t *testing.T) 
 }
 
 func TestFallsBackToProbingWhenTheRouterStops(t *testing.T) {
+	t.Parallel()
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 
@@ -430,6 +435,7 @@ func TestAsksAfterTheRouterOnceAMinuteAtMost(t *testing.T) {
 }
 
 func TestAsksAfterTheRouterWhenAProbeIsDue(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t, calm())
 	h.start()
 

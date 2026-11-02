@@ -23,6 +23,7 @@ const findGuardDays = 4
 // no day's lines whose side does: here every past day's, so it reads none
 // of their lines.
 func TestTheFindReadsNoDayRawWhoseSideStands(t *testing.T) {
+	t.Parallel()
 	start := soakAt(21, 0)
 	g := readingHeads("DaySide")
 	s := newSoak(t, soakSetup{start: start, days: findGuardDays, pace: guardPace, guard: g})
@@ -94,6 +95,7 @@ const (
 // holds what it decodes once, the find, closed, holding none of the days'
 // summaries, as sameLogAsReadWhole has it.
 func TestTheFindsPickReadsOnlyWhatMayHoldItsSession(t *testing.T) {
+	t.Parallel()
 	start := soakAt(21, 0)
 	g := &pickGuard{}
 	s := newSoak(t, soakSetup{start: start, days: pickGuardDays, pace: guardPace, guard: g})

@@ -46,6 +46,7 @@ func TestTimersAreRealWhenTheConfigGivesNone(t *testing.T) {
 }
 
 func TestReadsAgainWhenDue(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		doc      status.Document
