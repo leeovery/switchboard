@@ -408,6 +408,7 @@ func blanksOf(l sessionLayout) int {
 // oldest open, wherever the story, the accounts and the blank rows stand as
 // they did a row shorter.
 func TestATallerPageNeverShowsLess(t *testing.T) {
+	t.Parallel()
 	type shows struct {
 		l        sessionLayout
 		requests int
@@ -445,6 +446,7 @@ func TestATallerPageNeverShowsLess(t *testing.T) {
 // chrome's and 160, of one turn, three and thirteen, on one account, two
 // and four.
 func TestATallerPageNeverShowsATurnOpenFewerRequests(t *testing.T) {
+	t.Parallel()
 	for _, turns := range []int{1, 3, 13} {
 		for _, width := range append(slices.Clone(sweptWidths), 160) {
 			for _, accounts := range []int{1, 2, 4} {
@@ -560,6 +562,7 @@ func drawnRows(d sessionDrawn) []string {
 // columns to 220, its now rows, its story under its heading or label, its
 // accounts, TURNS and its turns read as they do under the chrome's own.
 func TestTheChromeDecidesNothingButTheHeadings(t *testing.T) {
+	t.Parallel()
 	shown := moved()
 	shown.Story = movedStory()
 	for width := 40; width <= 220; width++ {
@@ -590,6 +593,7 @@ func TestTheChromeDecidesNothingButTheHeadings(t *testing.T) {
 // switching once as the frame widens, never at the chrome's breakpoint: its
 // now rows, and a move's label in the story.
 func TestASessionsContentFormsSwitchOnceWhereTheyFit(t *testing.T) {
+	t.Parallel()
 	shown := moved()
 	shown.Story = movedStory()
 	for _, world := range pageWorlds {
@@ -1072,6 +1076,7 @@ func TestATurnsRowNeverSaysLessAsTheFrameWidens(t *testing.T) {
 // the points and the name give it back the cells they took while it was
 // gone.
 func TestAnAccountsRowGivesWayInItsOrder(t *testing.T) {
+	t.Parallel()
 	for _, world := range pageWorlds {
 		var before sessionDrawn
 		var beforeRows [][]rune
@@ -1290,6 +1295,7 @@ func TestAnAccountsRowMeasuresTheWindowsTheSessionUsed(t *testing.T) {
 // saying so, "99,999+ requests" and "$9999.99+", never cut: at every width,
 // even below the row's leasts, where the points give way, never the worth.
 func TestAnAccountsPartsKeepToTheirColumns(t *testing.T) {
+	t.Parallel()
 	for _, tt := range []struct {
 		name            string
 		requests, cents int
@@ -1338,6 +1344,7 @@ func pointsSessions() map[string]*SessionShown {
 // a 26-cell one, from 58 columns up, every account's row says every window
 // it took, uncut, and from 129 up, its requests whole too.
 func TestAnAccountsWindowsComeBeforeItsRequests(t *testing.T) {
+	t.Parallel()
 	docs := map[string]status.Document{"short names": pageDoc(), "a 26-cell name": pageLabelled("work-team-plan-for-the-org", "personal", "side")}
 	for world, doc := range docs {
 		for name, shown := range pointsSessions() {
@@ -1364,6 +1371,7 @@ func TestAnAccountsWindowsComeBeforeItsRequests(t *testing.T) {
 // window takes at its least in the row of an account that took every window
 // listed.
 func TestNoAccountsNameIsCutBesideBlankCells(t *testing.T) {
+	t.Parallel()
 	for _, world := range pageWorlds {
 		names := stayNameCells(namesOf(world.doc().At(sessionNow, claudeLike)))
 		for name, shown := range pointsSessions() {
@@ -1407,6 +1415,7 @@ func (d sessionDrawn) stayColumnOf(p stayPart) (stayColumn, bool) {
 // whatever the session's doing or however long it has run, so an account
 // reads one way and holds still as the session works.
 func TestTheShortNowRowsGiveTheirNamesOneWidth(t *testing.T) {
+	t.Parallel()
 	doings := []views.Activity{
 		{Doing: views.Asking}, {Doing: views.Answering}, {Doing: views.Throttled, Status: 429},
 		{Doing: views.Refused, Status: 403}, {Doing: views.Idle, Since: sessionNow.Add(-9 * time.Minute)},
@@ -1471,6 +1480,7 @@ func sideNamed(row string) string {
 // go; on an ended session's, which never asks, it has none, and tools takes
 // them.
 func TestOnlyASessionThatCanAskKeepsAskingsCells(t *testing.T) {
+	t.Parallel()
 	over := moved()
 	over.Page.Activity = views.Activity{Doing: views.Ended, Since: at(14, 0)}
 	quiet := moved()
@@ -1497,6 +1507,7 @@ func TestOnlyASessionThatCanAskKeepsAskingsCells(t *testing.T) {
 // short names and long, at every width, each time where says is whole on
 // its row, or gone, where even the row's leasts can't hold it.
 func TestTheNowRowsNeverCutATime(t *testing.T) {
+	t.Parallel()
 	for _, world := range pageWorlds {
 		for _, state := range nowStates() {
 			for width := 40; width <= 220; width++ {
@@ -1629,6 +1640,7 @@ func TestATurnsToolsLeaveWhole(t *testing.T) {
 // No row of a session's page reads "……", a cut landing right after a name
 // cut short ending at the name's own ellipsis.
 func TestNoRowReadsADoubledEllipsis(t *testing.T) {
+	t.Parallel()
 	for _, world := range pageWorlds {
 		for _, state := range nowStates() {
 			for width := 40; width <= 220; width++ {

@@ -351,6 +351,7 @@ func TestAFrameAtOneDocumentReadsAnothersMomentAfresh(t *testing.T) {
 // and as narrow as a phone: holding it changes how often it's worked out,
 // never what's drawn.
 func TestAHeldFrameDrawsWhatOneWorkingItsMomentOutAfreshDoes(t *testing.T) {
+	t.Parallel()
 	for _, hm := range statustest.HardMoments(claudeLike) {
 		for _, v := range Views() {
 			for _, size := range [][2]int{{160, 40}, {52, 36}} {

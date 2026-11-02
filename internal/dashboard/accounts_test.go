@@ -201,6 +201,7 @@ func namingCounted(f Frame) (Frame, *int) {
 // Detail's parts, each under its heading. A heading on the page's first row
 // stays, as the page has no row over it to end on.
 func TestAccountsShowNoHeadingWithoutItsFirstRow(t *testing.T) {
+	t.Parallel()
 	_, sessions, _ := overviewWorld()
 	compare, compareDoc := threeCompared(t, 160, 37)
 	detail := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sessions)

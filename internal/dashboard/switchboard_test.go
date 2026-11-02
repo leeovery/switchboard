@@ -887,6 +887,7 @@ func namedOf(cells int) func(*status.Document) {
 // row has its week's bar, 21 cells to its words, between. Of names of 8, 14
 // and 22 cells, at every width from 100 to 220, at each step.
 func TestTheLinesNamesAndStateLeadsAreWholeWhereTheyFit(t *testing.T) {
+	t.Parallel()
 	const namesLeast = 16
 	leads := []string{"● at its cap", "■ limit reached", "● open"}
 	seen := map[string]bool{}
