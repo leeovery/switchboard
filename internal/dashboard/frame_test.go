@@ -112,6 +112,7 @@ func TestAFrameIsTheTerminalsSize(t *testing.T) {
 }
 
 func TestAFrameFitsEveryWidth(t *testing.T) {
+	t.Parallel()
 	docs := map[string]status.Document{
 		"three":       threeRouted(),
 		"one":         routerDoc("work", 3, pressedAccount("work")),
@@ -121,6 +122,7 @@ func TestAFrameFitsEveryWidth(t *testing.T) {
 	for name, doc := range docs {
 		for _, view := range Views() {
 			t.Run(name+", "+view.Title(), func(t *testing.T) {
+				t.Parallel()
 				for width := 1; width <= 200; width++ {
 					for _, height := range []int{1, 3, 8, 40} {
 						f := frameOf(width, height)

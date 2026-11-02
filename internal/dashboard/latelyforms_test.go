@@ -151,6 +151,7 @@ func latelyRoom(f Frame, doc status.Document) (cells int, beside, shown bool) {
 }
 
 func TestAWiderFrameNeverGivesLATELYAShorterForm(t *testing.T) {
+	t.Parallel()
 	for n := 1; n <= len(accountIDs); n++ {
 		for _, long := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%d accounts, long names %t", n, long), func(t *testing.T) {

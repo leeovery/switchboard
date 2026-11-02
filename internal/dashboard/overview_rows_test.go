@@ -99,6 +99,7 @@ func TestCOMINGUPAndLATELYSitSideBySideWhereTheirLeastsFit(t *testing.T) {
 // only where every unit not folded is at its most, or none's next step fits
 // in them.
 func TestNoUnitFoldsWhereItFitsAndNoRowIsLeftBlankWhereAStepFits(t *testing.T) {
+	t.Parallel()
 	ten, _ := tenAccounts()
 	fabled := threeRouted()
 	fabled.Accounts = slices.Clone(fabled.Accounts)

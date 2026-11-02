@@ -513,6 +513,7 @@ func TestStubsHangForEachSessionTheLimitMoved(t *testing.T) {
 // lines whole, and at 24, compacted, the stubs' rows still in view. So the
 // calls moved run along the stubs' rows where a limited account is first.
 func TestNoCordCrossesALimitsStub(t *testing.T) {
+	t.Parallel()
 	accounts := []string{"work", "personal", "side"}
 	for i, limited := range accounts {
 		others := slices.Delete(slices.Clone(accounts), i, i+1)
@@ -530,54 +531,58 @@ func TestNoCordCrossesALimitsStub(t *testing.T) {
 
 // stubsClear checks no cord crosses a stub where each account limited has
 // moved the sessions stubs counts, in turn, to the accounts open, each of
-// those with a call of its own, as TestNoCordCrossesALimitsStub has it.
+// those with a call of its own, as TestNoCordCrossesALimitsStub has it: in a
+// subtest of its own, named by the sessions moved, run in parallel.
 func stubsClear(t *testing.T, open []string, stubs map[string]int) {
 	t.Helper()
-	idle := idleSince(routedAt.Add(-time.Minute))
-	var before, after []views.Call
-	for j, to := range open {
-		own := boardCall(fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", 0xa0+j), to, "~/Code/own", idle, "")
-		before, after = append(before, own), append(after, own)
-	}
-	var limits []func(*status.Document)
-	n := 0
-	for _, limited := range slices.Sorted(maps.Keys(stubs)) {
-		for range stubs[limited] {
-			n++
-			id := fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", n)
-			before = append(before, boardCall(id, limited, "~/Code/moved", idle, ""))
-			after = append(after, boardCall(id, open[n%len(open)], "~/Code/moved", idle, limited))
+	t.Run(fmt.Sprintf("%v moved", stubs), func(t *testing.T) {
+		t.Parallel()
+		idle := idleSince(routedAt.Add(-time.Minute))
+		var before, after []views.Call
+		for j, to := range open {
+			own := boardCall(fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", 0xa0+j), to, "~/Code/own", idle, "")
+			before, after = append(before, own), append(after, own)
 		}
-		limits = append(limits, atItsLimit(limited, open[0], atClock(14, 12, 0), atClock(15, 54, 0), stubs[limited]))
-	}
-	doc := usageWorld(limits...)
-	board := boardOf(boardLook{calls: before}, boardLook{calls: after, stubs: stubs})
-	for _, height := range []int{60, 24} {
-		for width := 100; width <= 220; width++ {
-			f := boardFrame(width, height, Look{}, board, Traffic{})
-			laid := f.switchboardLaid(doc, routedAt)
-			if laid.lanes {
-				continue
+		var limits []func(*status.Document)
+		n := 0
+		for _, limited := range slices.Sorted(maps.Keys(stubs)) {
+			for range stubs[limited] {
+				n++
+				id := fmt.Sprintf("%04x0000-5e55-4000-8000-000000000000", n)
+				before = append(before, boardCall(id, limited, "~/Code/moved", idle, ""))
+				after = append(after, boardCall(id, open[n%len(open)], "~/Code/moved", idle, limited))
 			}
-			c := f.page(doc, routedAt)
-			for limited, moved := range stubs {
-				ln, _ := laid.line(limited)
-				if len(ln.stubs) != moved {
-					t.Fatalf("%v moved, at %d×%d: %s has %d stubs, want %d", stubs, width, height, limited, len(ln.stubs), moved)
+			limits = append(limits, atItsLimit(limited, open[0], atClock(14, 12, 0), atClock(15, 54, 0), stubs[limited]))
+		}
+		doc := usageWorld(limits...)
+		board := boardOf(boardLook{calls: before}, boardLook{calls: after, stubs: stubs})
+		for _, height := range []int{60, 24} {
+			for width := 100; width <= 220; width++ {
+				f := boardFrame(width, height, Look{}, board, Traffic{})
+				laid := f.switchboardLaid(doc, routedAt)
+				if laid.lanes {
+					continue
 				}
-				for _, s := range ln.stubs {
-					y, x := f.top()+s.row, laid.columns.jacks-stubCells
-					hangs := y < height && c.at(x-1, y).glyph != hangingGlyph
-					for k := range stubCells {
-						hangs = hangs && c.at(x+k, y).glyph == hangingGlyph && c.at(x+k, y).ink == errorInk
+				c := f.page(doc, routedAt)
+				for limited, moved := range stubs {
+					ln, _ := laid.line(limited)
+					if len(ln.stubs) != moved {
+						t.Fatalf("%v moved, at %d×%d: %s has %d stubs, want %d", stubs, width, height, limited, len(ln.stubs), moved)
 					}
-					if !hangs {
-						t.Fatalf("%v moved, at %d×%d: %s's stub on row %d reads %q, want %d red cells of %s, clear of every cord", stubs, width, height, limited, y+1, textFrom(c, x-3, x+stubCells+1, y), stubCells, hangingGlyph)
+					for _, s := range ln.stubs {
+						y, x := f.top()+s.row, laid.columns.jacks-stubCells
+						hangs := y < height && c.at(x-1, y).glyph != hangingGlyph
+						for k := range stubCells {
+							hangs = hangs && c.at(x+k, y).glyph == hangingGlyph && c.at(x+k, y).ink == errorInk
+						}
+						if !hangs {
+							t.Fatalf("%v moved, at %d×%d: %s's stub on row %d reads %q, want %d red cells of %s, clear of every cord", stubs, width, height, limited, y+1, textFrom(c, x-3, x+stubCells+1, y), stubCells, hangingGlyph)
+						}
 					}
 				}
 			}
 		}
-	}
+	})
 }
 
 // letGo is the Switchboard after d28c moved from work to side with no

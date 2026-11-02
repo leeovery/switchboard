@@ -666,40 +666,44 @@ func nowStates() []struct {
 // narrows; and row 7 its account's windows whole, or once it's over, its
 // models and how long they're kept.
 func TestTheNowRowsWideFormCutsNothing(t *testing.T) {
+	t.Parallel()
 	for _, world := range pageWorlds {
 		for _, state := range nowStates() {
-			var switched []int
-			was, fuller := true, 0
-			for width := 220; width >= 40; width-- {
-				d, drawn := pageDrawn(pageFrame(t, state.shown, width, 37), world.doc())
-				if d.nowWide != was {
-					switched = append(switched, width)
+			t.Run(world.name+", "+state.name, func(t *testing.T) {
+				t.Parallel()
+				var switched []int
+				was, fuller := true, 0
+				for width := 220; width >= 40; width-- {
+					d, drawn := pageDrawn(pageFrame(t, state.shown, width, 37), world.doc())
+					if d.nowWide != was {
+						switched = append(switched, width)
+					}
+					was = d.nowWide
+					if !d.nowWide {
+						continue
+					}
+					row6, row7 := strings.TrimRight(string(drawn[d.l.now]), " "), strings.TrimRight(string(drawn[d.l.now+1]), " ")
+					where := d.page.Where(d.now)
+					said := slices.Concat(d.doing(), line{spaces(sessionApart)}, d.onSince(where.OnSince), d.words(where.Why, mutedInk)).plain()
+					form := slices.IndexFunc(d.startedForms(), func(l line) bool {
+						return strings.HasSuffix(row6, strings.Repeat(" ", sessionApart)+l.plain())
+					})
+					if !strings.HasPrefix(row6, said) || form < fuller {
+						t.Errorf("%s, %s, at %d columns, row 6 reads\n%q\nwant it to say\n%q\nand end in a form of when it started, no fuller than at %d", world.name, state.name, width, row6, said, width+1)
+					}
+					fuller = max(fuller, form)
+					right := d.windows()
+					if !d.page.Runs() {
+						right = d.endedModels()
+					}
+					if !strings.HasSuffix(row7, right.plain()) {
+						t.Errorf("%s, %s, at %d columns, row 7 reads\n%q\nwant it to end\n%q", world.name, state.name, width, row7, right.plain())
+					}
 				}
-				was = d.nowWide
-				if !d.nowWide {
-					continue
+				if len(switched) != 1 {
+					t.Errorf("%s, %s, the now rows switch form at %v, want once", world.name, state.name, switched)
 				}
-				row6, row7 := strings.TrimRight(string(drawn[d.l.now]), " "), strings.TrimRight(string(drawn[d.l.now+1]), " ")
-				where := d.page.Where(d.now)
-				said := slices.Concat(d.doing(), line{spaces(sessionApart)}, d.onSince(where.OnSince), d.words(where.Why, mutedInk)).plain()
-				form := slices.IndexFunc(d.startedForms(), func(l line) bool {
-					return strings.HasSuffix(row6, strings.Repeat(" ", sessionApart)+l.plain())
-				})
-				if !strings.HasPrefix(row6, said) || form < fuller {
-					t.Errorf("%s, %s, at %d columns, row 6 reads\n%q\nwant it to say\n%q\nand end in a form of when it started, no fuller than at %d", world.name, state.name, width, row6, said, width+1)
-				}
-				fuller = max(fuller, form)
-				right := d.windows()
-				if !d.page.Runs() {
-					right = d.endedModels()
-				}
-				if !strings.HasSuffix(row7, right.plain()) {
-					t.Errorf("%s, %s, at %d columns, row 7 reads\n%q\nwant it to end\n%q", world.name, state.name, width, row7, right.plain())
-				}
-			}
-			if len(switched) != 1 {
-				t.Errorf("%s, %s, the now rows switch form at %v, want once", world.name, state.name, switched)
-			}
+			})
 		}
 	}
 }
@@ -709,6 +713,7 @@ func TestTheNowRowsWideFormCutsNothing(t *testing.T) {
 // ▲ on whichever account or none, nor ◆ on whichever, nor the clock a day,
 // a week or a year on, its times' days with it.
 func TestTheNowRowsSwitchWhereTheSessionsWordsSay(t *testing.T) {
+	t.Parallel()
 	wideFrom := map[string][2]int{
 		"moved":                  {96, 154},
 		"quiet":                  {64, 80},
@@ -721,28 +726,32 @@ func TestTheNowRowsSwitchWhereTheSessionsWordsSay(t *testing.T) {
 		"ended, many models":                      {168, 168},
 	}
 	for w, world := range pageWorlds {
-		for _, state := range nowStates() {
+		for s, state := range nowStates() {
 			for _, best := range []string{"", "work", "personal", "side"} {
-				for _, primary := range []string{"work", "personal", "side"} {
-					for _, later := range []int{0, 1, 7, 365} {
-						doc := world.doc()
-						doc.Best = best
-						for i := range doc.Accounts {
-							doc.Accounts[i].Primary = doc.Accounts[i].ID == primary
-						}
-						now := sessionNow.AddDate(0, 0, later)
-						switched := 0
-						for width := 40; width <= 220 && switched == 0; width++ {
-							if pageFrame(t, state.shown, width, 37).At(doc, now).sessionDrawn(doc, now).nowWide {
-								switched = width
+				t.Run(fmt.Sprintf("%s, %s, ▲ on %q", world.name, state.name, best), func(t *testing.T) {
+					t.Parallel()
+					shown := nowStates()[s].shown
+					for _, primary := range []string{"work", "personal", "side"} {
+						for _, later := range []int{0, 1, 7, 365} {
+							doc := world.doc()
+							doc.Best = best
+							for i := range doc.Accounts {
+								doc.Accounts[i].Primary = doc.Accounts[i].ID == primary
+							}
+							now := sessionNow.AddDate(0, 0, later)
+							switched := 0
+							for width := 40; width <= 220 && switched == 0; width++ {
+								if pageFrame(t, shown, width, 37).At(doc, now).sessionDrawn(doc, now).nowWide {
+									switched = width
+								}
+							}
+							if want := wideFrom[state.name][w]; switched != want {
+								t.Errorf("%s, %s, ▲ on %q, ◆ on %s, %d days on, the now rows are wide from %d columns, want %d",
+									world.name, state.name, best, primary, later, switched, want)
 							}
 						}
-						if want := wideFrom[state.name][w]; switched != want {
-							t.Errorf("%s, %s, ▲ on %q, ◆ on %s, %d days on, the now rows are wide from %d columns, want %d",
-								world.name, state.name, best, primary, later, switched, want)
-						}
 					}
-				}
+				})
 			}
 		}
 	}
@@ -753,6 +762,7 @@ func TestTheNowRowsSwitchWhereTheSessionsWordsSay(t *testing.T) {
 // resumed today says when it started whole at 140 columns. And at every
 // width its form is the same whatever the session's doing.
 func TestRow6sRightIsAsFullAsTheWordsSaidNowLeaveRoomFor(t *testing.T) {
+	t.Parallel()
 	d, drawn := pageDrawn(pageFrame(t, resumed(), 140, 37), pageDoc())
 	if row := strings.TrimRight(string(drawn[d.l.now]), " "); !d.nowWide || !strings.HasSuffix(row, "   started yesterday 16:40 · resumed 09:12") {
 		t.Errorf("at 140 columns, row 6 reads\n%q\nwant it wide, ending in when it started and resumed", row)
@@ -765,18 +775,21 @@ func TestRow6sRightIsAsFullAsTheWordsSaidNowLeaveRoomFor(t *testing.T) {
 		if !state.shown.Page.Runs() {
 			continue
 		}
-		for width := 40; width <= 220; width++ {
-			var forms []string
-			for _, doing := range doings {
-				shown := *state.shown
-				shown.Page.Activity = doing
-				d, _ := pageDrawn(pageFrame(t, &shown, width, 37), pageDoc())
-				forms = append(forms, d.startedFit().plain())
+		t.Run(state.name, func(t *testing.T) {
+			t.Parallel()
+			for width := 40; width <= 220; width++ {
+				var forms []string
+				for _, doing := range doings {
+					shown := *state.shown
+					shown.Page.Activity = doing
+					d, _ := pageDrawn(pageFrame(t, &shown, width, 37), pageDoc())
+					forms = append(forms, d.startedFit().plain())
+				}
+				if slices.ContainsFunc(forms, func(form string) bool { return form != forms[0] }) {
+					t.Errorf("%s, at %d columns, row 6's right reads %q as the session's doing changes, want one form", state.name, width, forms)
+				}
 			}
-			if slices.ContainsFunc(forms, func(form string) bool { return form != forms[0] }) {
-				t.Errorf("%s, at %d columns, row 6's right reads %q as the session's doing changes, want one form", state.name, width, forms)
-			}
-		}
+		})
 	}
 }
 
@@ -1180,6 +1193,7 @@ func stayStep(t *testing.T, world string, width int, d sessionDrawn) int {
 // before its first point and after, at 1 to 1,234 points of each window,
 // and worth a cent to its bound.
 func TestAnAccountsRowHoldsStillAsItsFiguresChange(t *testing.T) {
+	t.Parallel()
 	docs := map[string]status.Document{"short names": pageDoc(), "a 26-cell name": pageLabelled("work-team-plan-for-the-org", "personal", "side")}
 	cents := func(n int64) *ledger.Picodollars {
 		p := ledger.Picodollars(n) * ledger.Picodollars(10_000_000_000)
@@ -1203,28 +1217,31 @@ func TestAnAccountsRowHoldsStillAsItsFiguresChange(t *testing.T) {
 	figures = append(figures, figure{set: func(a *views.SessionAccount) { a.Points = nil }})
 	for world, doc := range docs {
 		for width := 40; width <= 220; width++ {
-			d, drawn := pageDrawn(pageFrame(t, moved(), width, 37), doc)
-			want, wantShown := d.stayColumns, windowsShown(d, drawn)
-			for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
-				for j, o := range d.page.Stays(d.now)[:i] {
-					if len(s.PointsKeys()) == len(o.PointsKeys()) && wantShown[i] != wantShown[j] {
-						t.Errorf("%s, at %d columns, rows of %d windows show %d and %d of them", world, width, len(s.PointsKeys()), wantShown[j], wantShown[i])
+			t.Run(fmt.Sprintf("%s at %d", world, width), func(t *testing.T) {
+				t.Parallel()
+				d, drawn := pageDrawn(pageFrame(t, moved(), width, 37), doc)
+				want, wantShown := d.stayColumns, windowsShown(d, drawn)
+				for i, s := range d.page.Stays(d.now)[:d.l.accounts] {
+					for j, o := range d.page.Stays(d.now)[:i] {
+						if len(s.PointsKeys()) == len(o.PointsKeys()) && wantShown[i] != wantShown[j] {
+							t.Errorf("%s, at %d columns, rows of %d windows show %d and %d of them", world, width, len(s.PointsKeys()), wantShown[j], wantShown[i])
+						}
 					}
 				}
-			}
-			for i, figure := range figures {
-				shown := moved()
-				for a := range shown.Page.Accounts {
-					figure.set(&shown.Page.Accounts[a])
+				for i, figure := range figures {
+					shown := moved()
+					for a := range shown.Page.Accounts {
+						figure.set(&shown.Page.Accounts[a])
+					}
+					d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
+					if !slices.Equal(d.stayColumns, want) {
+						t.Errorf("%s, at %d columns, with figures %d, an account's row is laid out %+v, want %+v as with the frames'", world, width, i, d.stayColumns, want)
+					}
+					if got := windowsShown(d, drawn); figure.took && !slices.Equal(got, wantShown) {
+						t.Errorf("%s, at %d columns, with figures %d, the accounts' rows show %v windows, want %v as with the frames'", world, width, i, got, wantShown)
+					}
 				}
-				d, drawn := pageDrawn(pageFrame(t, shown, width, 37), doc)
-				if !slices.Equal(d.stayColumns, want) {
-					t.Errorf("%s, at %d columns, with figures %d, an account's row is laid out %+v, want %+v as with the frames'", world, width, i, d.stayColumns, want)
-				}
-				if got := windowsShown(d, drawn); figure.took && !slices.Equal(got, wantShown) {
-					t.Errorf("%s, at %d columns, with figures %d, the accounts' rows show %v windows, want %v as with the frames'", world, width, i, got, wantShown)
-				}
-			}
+			})
 		}
 	}
 }
