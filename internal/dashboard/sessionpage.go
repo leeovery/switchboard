@@ -143,8 +143,8 @@ func (d sessionDrawn) row7Least() int {
 }
 
 // widestSaid is the widest row 7 says the window w of any account of the
-// moment: at 100%, or where an account has no limit in it, as windowSaid says so,
-// so the row holds still as the session moves.
+// moment: at 100%, or where an account has no limit in it, as windowSaid
+// says so, so the row holds still as the session moves.
 func (d sessionDrawn) widestSaid(w shownWindow) line {
 	widest := windowFigure(w, line{{prose.PercentWhole(), mutedInk}})
 	for _, a := range d.m.Accounts {
