@@ -18,7 +18,7 @@ Week            ▏   ┃        ╎  34%  19%/day · Sun
 THIS WEEK
 requests  1,204           worth     $184
 limits    5-hour ×2       extra use off
-plan      Max 20x         against   4.0×
+plan      Ultra           against   4.0×
 
 BY MODEL
 ● Opus 5.5 55%  ● Opus 5 7%  ● Sonnet 5.5 28%

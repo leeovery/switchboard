@@ -39,14 +39,17 @@ type Edited struct {
 	// config, which didn't before: so too where it was the primary already,
 	// only as the first with none marked, where FormerPrimary is "".
 	Marked bool
+	// Unaliased is the old name the config gave the account's plan, which
+	// the edit wrote by its new one: "" where it didn't.
+	Unaliased string
 	// Before is the config the edit read, as it was before the edit.
 	Before *config.Config
 }
 
 // Changed reports whether the edit changed the account, as the config reads
-// it or as it marks it.
+// it, marks it or names its plan.
 func (e Edited) Changed() bool {
-	return e.Was != e.Now || e.Marked
+	return e.Was != e.Now || e.Marked || e.Unaliased != ""
 }
 
 // Configured fails, matching config.ErrNotConfigured, when no account in the
@@ -75,7 +78,7 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	if err != nil {
 		return Edited{}, err
 	}
-	wasLabelled, wasMarked := draft.Labelled(id), draft.MarksPrimaryOf(id)
+	wasLabelled, wasMarked, wasAlias := draft.Labelled(id), draft.MarksPrimaryOf(id), draft.PlanAlias(id)
 	if err := change.apply(draft, was); err != nil {
 		return Edited{}, err
 	}
@@ -88,6 +91,9 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 		WasLabelled: wasLabelled, NowLabelled: draft.Labelled(id),
 		Marked: !wasMarked && draft.MarksPrimaryOf(id),
 		Before: before,
+	}
+	if draft.PlanAlias(id) != wasAlias {
+		edited.Unaliased = wasAlias
 	}
 	if !edited.Changed() {
 		return edited, nil

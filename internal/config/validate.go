@@ -436,26 +436,28 @@ func ParseReserve(given string) (float64, error) {
 // PlanNone is what ParsePlan reads as no plan, leaving it unknown.
 const PlanNone = "none"
 
-// PlanChoices are what ParsePlan reads: each of Plans, then PlanNone.
+// PlanChoices are what ParsePlan reads, but for the aliases it takes: each of
+// Plans, then PlanNone.
 func PlanChoices() []string {
 	return slices.Concat(Plans, []string{PlanNone})
 }
 
-// ParsePlan reads a plan as a command is given it: one of Plans, or PlanNone,
-// which it reads as "".
+// ParsePlan reads a plan as a command is given it: one of Plans, by its name
+// or an alias, which it reads as the name; or PlanNone, which it reads as "".
 func ParsePlan(given string) (string, error) {
 	switch {
 	case given == PlanNone:
 		return "", nil
-	case slices.Contains(Plans, given):
-		return given, nil
+	case isPlan(given):
+		return planNamed(given), nil
 	}
 	return "", wrongValue("plan", given, "must be "+prose.ListOr(PlanChoices()))
 }
 
-// checkPlan keeps an account's plan one of Plans, or none.
+// checkPlan keeps an account's plan one of Plans, by its name or an alias,
+// or none.
 func checkPlan(account, plan string) error {
-	if plan == "" || slices.Contains(Plans, plan) {
+	if plan == "" || isPlan(plan) {
 		return nil
 	}
 	return fmt.Errorf("%s: %w", account, wrongValue("plan", plan, "must be "+planNames()+", the plan the account's subscription is on"))

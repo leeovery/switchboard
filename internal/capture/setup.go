@@ -47,10 +47,10 @@ type setupScreen struct {
 
 // setupScreens are setup's screen's fixtures: the Accounts page on a first
 // run, no router running and no account, its add card open as it opens at
-// once, work's ID and Label typed and Max 20x chosen, then tab round to
+// once, work's ID and Label typed and Ultra chosen, then tab round to
 // Label again, as frame 1 has it; the Accounts page run again, each token
 // checked, side chosen, as frame 3 has it; the same, personal
-// chosen, its edit card open, its Plan chosen and moved to Max 5x, as frame
+// chosen, its edit card open, its Plan chosen and moved to Max, as frame
 // 6 has it; the Priming page, its day read, typed in, as frame 7 has it;
 // the Service page, the service installed again and its router healthy, as
 // frame 4 has it; the claude link page, zsh running Claude Code's own
@@ -97,7 +97,7 @@ type setupShown struct {
 }
 
 // typingWork are the keys that type work into the add card, as frame 1 has
-// it: its ID, then its Label, then Max 20x chosen.
+// it: its ID, then its Label, then Ultra chosen.
 func typingWork() []tea.KeyPressMsg {
 	return slices.Concat(keysOf("w", "o", "r", "k"), []tea.KeyPressMsg{tabKey}, keysOf("W", "o", "r", "k"), []tea.KeyPressMsg{tabKey, leftKey})
 }
@@ -114,7 +114,7 @@ func addingPersonal() []tea.KeyPressMsg {
 }
 
 // addedThree are the keys that add work on a first run, as typingWork types
-// it, then personal on Max 5x and side on Pro, from + add an account, each
+// it, then personal on Max and side on Pro, from + add an account, each
 // token made, leaving side's row chosen.
 func addedThree() []tea.KeyPressMsg {
 	adding := func(id, label string, lefts int) []tea.KeyPressMsg {
@@ -349,7 +349,7 @@ func firstRun(now time.Time) setupSteps {
 }
 
 // reviewed are the steps as they stand on a run again, at now, as frame 3
-// has them: a router up and healthy; work, the primary, on Max 20x, 5%
+// has them: a router up and healthy; work, the primary, on Ultra, 5%
 // reserved, its token working, its year unknown; personal, its plan not
 // set, its token working, 21 days left of its year; and side, on Pro, its
 // token refused.
@@ -359,7 +359,7 @@ func reviewed(now time.Time) setupSteps {
 	return setupSteps{
 		standing: setup.RouterStanding{State: setup.RouterHealthy},
 		review: setup.Review{At: now, Accounts: []setup.Reviewed{
-			{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: read(status.TokenYear{})},
+			{ID: "work", Label: "Work", Plan: "ultra", Reserve: 0.05, Primary: true, Token: read(status.TokenYear{})},
 			{ID: "personal", Label: "Personal", Token: read(year)},
 			{ID: "side", Label: "Side", Plan: "pro", Token: read(status.TokenYear{})},
 		}},

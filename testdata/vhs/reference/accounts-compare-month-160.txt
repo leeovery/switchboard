@@ -28,7 +28,7 @@ LIMITS
   left at its last reset  0% (limit Fri)                    15%                              40%                              —
 
 VALUE
-  plan                    Max 20x · $200/mo                 Max 20x · $200/mo                Max 20x · $200/mo                $600/mo · 3 plans
+  plan                    Ultra · $200/mo                   Ultra · $200/mo                  Ultra · $200/mo                  $600/mo · 3 plans
   extra usage             off                               off                              off                              off on all
   worth at API prices     $1,219                            $1,078                           $764                             $3,061
   against its price       6.1× its $200 month               5.4× its $200 month              3.8× its $200 month              5.1× its $600 month

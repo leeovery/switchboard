@@ -34,14 +34,14 @@ func firstRun(t *testing.T) *harness {
 // The add card, as it opens: its fields empty, ID chosen, typed in.
 var addCardOpened = []string{
 	"",
-	"  Each account is one Claude subscription: a Pro or Max plan.",
+	"  Each account is one Claude subscription: a Pro, Max or Ultra plan.",
 	"",
 	"  ID",
 	"            letters, numbers, - and _ · can't be changed later",
 	"",
 	"  Label                               shown in the dashboard",
 	"",
-	"  Plan      □ Pro    □ Max 5x    □ Max 20x    ■ not set",
+	"  Plan      □ Pro    □ Max    □ Ultra    ■ not set",
 	"",
 	"  Setup then creates a token with claude setup-token. You approve it in",
 	"  the browser while signed in to this subscription. Tokens last a year.",
@@ -160,14 +160,14 @@ func TestTheAddCardsTabAndArrows(t *testing.T) {
 	h.pressAndDeliver("tab")
 	for _, tt := range []struct {
 		key, want string
-	}{{"right", config.PlanNone}, {"left", "max20x"}, {"left", "max5x"}, {"left", "pro"}, {"left", "pro"}, {"right", "max5x"}} {
+	}{{"right", config.PlanNone}, {"left", "ultra"}, {"left", "max"}, {"left", "pro"}, {"left", "pro"}, {"right", "max"}} {
 		h.pressAndDeliver(tt.key)
 		if got := plan(); got != tt.want {
 			t.Fatalf("%s chose %q, want %q", tt.key, got, tt.want)
 		}
 	}
-	if got := h.cardRow("Plan"); got != "  Plan      □ Pro    ■ Max 5x    □ Max 20x    □ not set" {
-		t.Errorf("Plan reads %q, want Max 5x chosen", got)
+	if got := h.cardRow("Plan"); got != "  Plan      □ Pro    ■ Max    □ Ultra    □ not set" {
+		t.Errorf("Plan reads %q, want Max chosen", got)
 	}
 }
 
@@ -183,7 +183,7 @@ func TestEnterHandsTheAccountOnToHaveItsTokenMade(t *testing.T) {
 	h.pressAndDeliver("tab")
 	h.pressAndDeliver("left")
 	h.pressAndDeliver("enter")
-	if want := []setup.Adding{{ID: "work", Label: "Work", Plan: "max20x"}}; !slices.Equal(h.steps.adds, want) {
+	if want := []setup.Adding{{ID: "work", Label: "Work", Plan: "ultra"}}; !slices.Equal(h.steps.adds, want) {
 		t.Fatalf("CheckAdding was asked %+v, want %+v", h.steps.adds, want)
 	}
 	if h.model.add != nil {
@@ -192,7 +192,7 @@ func TestEnterHandsTheAccountOnToHaveItsTokenMade(t *testing.T) {
 	if title, _ := h.card(); title != "NEW TOKEN · WORK" {
 		t.Errorf("the card open reads %q, want work's token card", title)
 	}
-	want := setup.TokenFor{Account: config.NewAccount{ID: "work", Label: "Work", Plan: "max20x"}, Add: true, Organizations: setup.Organizations{}}
+	want := setup.TokenFor{Account: config.NewAccount{ID: "work", Label: "Work", Plan: "ultra"}, Add: true, Organizations: setup.Organizations{}}
 	if got := h.steps.nextMake(t); !reflect.DeepEqual(got, want) {
 		t.Errorf("MakeToken was asked %+v, want %+v", got, want)
 	}

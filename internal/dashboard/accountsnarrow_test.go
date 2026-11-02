@@ -179,7 +179,7 @@ func TestTurnedCompareAndStackedDetailSayADashForEachFigureOfAPeriodWithNothingR
 		{shown: AccountsDetail, want: map[int]string{
 			20: "requests  —               worth     —",
 			21: "limits    —               extra use off",
-			22: "plan      Max 20x         against   —",
+			22: "plan      Ultra           against   —",
 		}},
 	}
 	for _, tt := range tests {

@@ -39,7 +39,7 @@ var (
 func frame3Steps() *fakeSteps {
 	steps := newFakeSteps()
 	steps.review = setup.Review{At: start, Accounts: []setup.Reviewed{
-		{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: readToken},
+		{ID: "work", Label: "Work", Plan: "ultra", Reserve: 0.05, Primary: true, Token: readToken},
 		{ID: "personal", Label: "Personal", Token: setup.TokenStanding{State: setup.TokenRead, Year: endingIn}},
 		{ID: "side", Label: "Side", Plan: "pro", Token: readToken},
 	}}

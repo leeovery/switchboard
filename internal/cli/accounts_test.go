@@ -767,10 +767,10 @@ func TestAccountsEdit(t *testing.T) {
 		{
 			name:    "a plan",
 			config:  personalAndSide,
-			args:    []string{"--plan", "max5x"},
-			wantOut: "edited side: plan max5x (was none)\n",
+			args:    []string{"--plan", "max"},
+			wantOut: "edited side: plan max (was none)\n",
 			old:     "label = \"Side\"\n",
-			new:     "label = \"Side\"\nplan = \"max5x\"\n",
+			new:     "label = \"Side\"\nplan = \"max\"\n",
 		},
 		{
 			name:    "the primary, in place of the first, the primary for want of a mark",
@@ -791,10 +791,10 @@ func TestAccountsEdit(t *testing.T) {
 		{
 			name:    "everything together",
 			config:  personalAndSide,
-			args:    []string{"--label", "Day job", "--plan", "max20x", "--primary", "--reserve", "2.5%"},
-			wantOut: "edited side: label \"Day job\" (was \"Side\"), plan max20x (was none), the primary in place of personal, reserve 2.5% (was none)\n" + primaryFromPersonal,
+			args:    []string{"--label", "Day job", "--plan", "ultra", "--primary", "--reserve", "2.5%"},
+			wantOut: "edited side: label \"Day job\" (was \"Side\"), plan ultra (was none), the primary in place of personal, reserve 2.5% (was none)\n" + primaryFromPersonal,
 			old:     "label = \"Side\"\n",
-			new:     "label = \"Day job\"\nplan = \"max20x\"\nprimary = true\nreserve = 0.025\n",
+			new:     "label = \"Day job\"\nplan = \"ultra\"\nprimary = true\nreserve = 0.025\n",
 		},
 		{
 			name:    "no plan and no reserve, taking out their lines and the comments beside them",
@@ -805,12 +805,12 @@ func TestAccountsEdit(t *testing.T) {
 			new:     "",
 		},
 		{
-			name:    "a plan and a reserve in place of those it has, keeping the comments beside them",
+			name:    "a plan, by its old name, and a reserve in place of those it has, keeping the comments beside them",
 			config:  sideOnAPlan,
 			args:    []string{"--plan", "max5x", "--reserve", "7.5%"},
-			wantOut: "edited side: plan max5x (was pro), reserve 7.5% (was 10%)\n",
+			wantOut: "edited side: plan max (was pro), reserve 7.5% (was 10%)\n",
 			old:     "plan    = \"pro\"   # for now\nreserve = 0.1     # the app's share\n",
-			new:     "plan    = \"max5x\"   # for now\nreserve = 0.075     # the app's share\n",
+			new:     "plan    = \"max\"   # for now\nreserve = 0.075     # the app's share\n",
 		},
 		{
 			name:    "no reserve, written as 0%",
@@ -835,6 +835,28 @@ func TestAccountsEdit(t *testing.T) {
 			wantOut: "edited side: reserve none (was 0.001%)\n",
 			old:     "reserve = 0.00001\n",
 			new:     "",
+		},
+		{
+			name:    "the plan it has, which the config gives by its old name, written by its new",
+			config:  personalAndSide + "plan = \"max20x\"\n",
+			args:    []string{"--plan", "ultra"},
+			wantOut: "edited side: plan ultra (was written max20x)\n",
+			old:     "plan = \"max20x\"\n",
+			new:     "plan = \"ultra\"\n",
+		},
+		{
+			name:    "the plan it has, by its old name as the config gives it, written by its new",
+			config:  personalAndSide + "plan = \"max20x\"\n",
+			args:    []string{"--plan", "max20x"},
+			wantOut: "edited side: plan ultra (was written max20x)\n",
+			old:     "plan = \"max20x\"\n",
+			new:     "plan = \"ultra\"\n",
+		},
+		{
+			name:    "the plan it has, by its old name, the config giving its new, which changes nothing",
+			config:  personalAndSide + "plan = \"ultra\"\n",
+			args:    []string{"--plan", "max20x"},
+			wantOut: "side has every value given already, so nothing changed\n",
 		},
 		{
 			name:    "the label it has but for surrounding whitespace, which changes nothing",
@@ -1034,7 +1056,7 @@ func TestAccountsEditRefuses(t *testing.T) {
 		{
 			name:    "a plan that isn't one",
 			args:    []string{"side", "--plan", "free"},
-			wantErr: `plan "free": must be pro, max5x, max20x or none`,
+			wantErr: `plan "free": must be pro, max, ultra or none`,
 		},
 		{
 			name:    "a reserve as a number alone",

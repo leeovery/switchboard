@@ -41,12 +41,12 @@ id      = "work"        # for good: letters, digits, '-' and '_'; its token is t
 label   = "Work"
 primary = true          # the account the browser and the Claude apps are signed into
 reserve = 0.1           # optional, on any account: the share of every window the router leaves unused
-plan    = "max20x"      # optional, on any account: its plan, pro, max5x or max20x
+plan    = "ultra"       # optional, on any account: its plan, pro, max or ultra
 
 [[account]]
 id    = "personal"
 label = "Personal"
-plan  = "max5x"
+plan  = "max"
 
 [[account]]
 id    = "side"
@@ -71,7 +71,7 @@ keep = "400d"
 by = "window"
 
 [prices.plans]          # optional: a plan's price, in US dollars a month, in place of switchboard's
-max5x = 90
+max = 90
 
 [prices.models.claude-opus-5-5]   # optional: a model's prices, in US dollars a million tokens
 input          = 3.2
@@ -124,7 +124,7 @@ The config has one `[[account]]` table for each subscription, and at least one.
 | `label` | The id | What the account is shown as, at most 100 characters. It can't hold anything shaped like a token. |
 | `primary` | The first account | Marks the account the browser and the Claude apps are signed into: [the primary](how-it-works.md#the-primary). At most one account can set it. |
 | `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. [`accounts edit <id> --reserve <percent>`](commands.md#accounts) sets it, as a percentage. See [Reserves](how-it-works.md#reserves). |
-| `plan` | None (unknown) | The plan the account's subscription is on: `pro`, `max5x` or `max20x`. |
+| `plan` | None (unknown) | The plan the account's subscription is on: `pro`, `max` or `ultra`. The names the plans had before Anthropic renamed them, `max5x` for `max` and `max20x` for `ultra`, still load. |
 
 An `id` must follow these rules:
 
@@ -219,7 +219,7 @@ their place, for [`history`](commands.md#history), [`sessions`](commands.md#sess
 
 | Key | Default | Description |
 |---|---|---|
-| `[prices.plans]` | Switchboard's prices | A plan's price in US dollars a month, under the plan's name: `pro`, `max5x` or `max20x`. |
+| `[prices.plans]` | Switchboard's prices | A plan's price in US dollars a month, under the plan's name: `pro`, `max` or `ultra`. A plan's old name, `max5x` or `max20x`, still loads, but not beside its new. |
 | `[prices.models.<id>]` | Switchboard's prices | A model's prices in US dollars a million tokens, one for each kind of token. |
 
 Name a model by its id as the API names it, such as `claude-opus-5-5`. The kinds of token are

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -28,7 +29,7 @@ when_router_down = "direct"
 id      = "work"
 label   = "Work"
 reserve = 0.05
-plan    = "max20x"
+plan    = "ultra"
 
 [[account]]
 id      = "personal"
@@ -59,7 +60,7 @@ keep = "120d"
 by = "account"
 
 [prices.plans]
-max5x = 90
+max   = 90
 pro   = 0
 
 [prices.models.claude-opus-5-5]
@@ -78,7 +79,7 @@ output = 12.5
 		WhenRouterDown: config.Direct,
 		WeekStarts:     time.Sunday,
 		Accounts: []config.Account{
-			{ID: "work", Label: "Work", Reserve: 0.05, Plan: "max20x"},
+			{ID: "work", Label: "Work", Reserve: 0.05, Plan: "ultra"},
 			{ID: "personal", Label: "Personal", Primary: true, Reserve: 0.2},
 			{ID: "side", Label: "side", Plan: "pro"},
 		},
@@ -88,7 +89,7 @@ output = 12.5
 		Ledger:        config.Ledger{Keep: 120 * 24 * time.Hour},
 		Usage:         config.Usage{By: config.ByAccount},
 		Prices: config.Prices{
-			Plans: map[string]float64{"max5x": 90, "pro": 0},
+			Plans: map[string]float64{"max": 90, "pro": 0},
 			Models: map[string]config.ModelPrices{
 				"claude-opus-5-5": {Input: new(3.2), Output: new(16.0), CacheRead: new(0.16), CacheWrite5m: new(4.0), CacheWrite1h: new(6.4)},
 				"claude-test-1":   {Output: new(12.5)},
@@ -402,19 +403,29 @@ func TestParseLayoutReadsEachLayoutByItsNameAloneInAnyCase(t *testing.T) {
 	}
 }
 
+// A plan loads by its name, and by the name it had before Anthropic renamed
+// it, as an account's plan and as the key that prices it, as its name now.
 func TestLoadEachPlanAnAccountCanBeOn(t *testing.T) {
-	for _, plan := range []string{"pro", "max5x", "max20x"} {
-		cfg, err := config.Load(writeConfig(t, accountTOML("work")+"plan = \""+plan+"\"\n"+accountTOML("side")+"\n[prices.plans]\n"+plan+" = 1\n"))
+	tests := []struct{ given, want string }{
+		{given: "pro", want: "pro"},
+		{given: "max", want: "max"},
+		{given: "ultra", want: "ultra"},
+		{given: "max5x", want: "max"},
+		{given: "max20x", want: "ultra"},
+	}
+	for _, tt := range tests {
+		cfg, err := config.Load(writeConfig(t, accountTOML("work")+"plan = \""+tt.given+"\"\n"+accountTOML("side")+"\n[prices.plans]\n"+tt.given+" = 1\n"))
 		if err != nil {
-			t.Fatalf("Load() of an account on %s error = %v", plan, err)
+			t.Fatalf("Load() of an account on %s error = %v", tt.given, err)
 		}
-		if cfg.Accounts[0].Plan != plan || cfg.Accounts[1].Plan != "" || cfg.Prices.Plans[plan] != 1 {
-			t.Errorf("Load() has work on %q and side on %q, the plans priced %v, want work on %s, side's plan unknown, and %s priced at $1",
-				cfg.Accounts[0].Plan, cfg.Accounts[1].Plan, cfg.Prices.Plans, plan, plan)
+		want := map[string]float64{tt.want: 1}
+		if cfg.Accounts[0].Plan != tt.want || cfg.Accounts[1].Plan != "" || !maps.Equal(cfg.Prices.Plans, want) {
+			t.Errorf("Load() of %s has work on %q and side on %q, the plans priced %v, want work on %s, side's plan unknown, and %v",
+				tt.given, cfg.Accounts[0].Plan, cfg.Accounts[1].Plan, cfg.Prices.Plans, tt.want, want)
 		}
 	}
-	if !slices.Equal(config.Plans, []string{"pro", "max5x", "max20x"}) {
-		t.Errorf("Plans = %q, want pro, max5x and max20x", config.Plans)
+	if !slices.Equal(config.Plans, []string{"pro", "max", "ultra"}) {
+		t.Errorf("Plans = %q, want pro, max and ultra", config.Plans)
 	}
 }
 
@@ -734,7 +745,7 @@ func TestLoadUndecodableFile(t *testing.T) {
 		{name: "the layout as a number", config: "usage = { by = 1 }\n"},
 		{name: "the router down as a flag", config: "when_router_down = true\n"},
 		{name: "a plan as a number", config: "account = [{ id = \"work\", plan = 5 }]\n"},
-		{name: "a plan's price in words", config: "prices = { plans = { max5x = \"ninety\" } }\n"},
+		{name: "a plan's price in words", config: "prices = { plans = { max = \"ninety\" } }\n"},
 		{name: "a model's price in words", config: "prices = { models = { claude-opus-5-5 = { input = \"cheap\" } } }\n"},
 		{name: "a model's prices as a number", config: "prices = { models = { claude-opus-5-5 = 3 } }\n"},
 	}
@@ -780,7 +791,7 @@ func TestLoadReportsProblems(t *testing.T) {
 		return fmt.Sprintf("usage.by %q: must be window, the accounts compared a window at a time, or account, each account's windows together", given)
 	}
 	plan := func(account, given string) string {
-		return fmt.Sprintf("account %q: plan %q: must be pro, max5x or max20x, the plan the account's subscription is on", account, given)
+		return fmt.Sprintf("account %q: plan %q: must be pro, max or ultra, the plan the account's subscription is on", account, given)
 	}
 	planPrice := func(plan, given string) string {
 		return fmt.Sprintf("prices.plans.%s %q: must be a number, 0 or more: the plan's price in US dollars a month", plan, given)
@@ -928,9 +939,9 @@ func TestLoadReportsProblems(t *testing.T) {
 		{name: "a layout given empty", config: work + "\n[usage]\nby = \"\"\n", want: []string{by("")}},
 		{name: "a plan the table doesn't know", config: work + "plan = \"max10x\"\n", want: []string{plan("work", "max10x")}},
 		{name: "a plan in another case", config: work + "plan = \"Max5x\"\n", want: []string{plan("work", "Max5x")}},
-		{name: "a plan by the name it's shown by", config: work + accountTOML("side") + "plan = \"Max 20x\"\n", want: []string{plan("side", "Max 20x")}},
+		{name: "a plan by the name it's shown by", config: work + accountTOML("side") + "plan = \"Ultra\"\n", want: []string{plan("side", "Ultra")}},
 		{
-			name:   "a plan's price below none",
+			name:   "a plan's price below none, by its old name",
 			config: work + "\n[prices.plans]\nmax5x = -1\n",
 			want:   []string{planPrice("max5x", "-1")},
 		},
@@ -941,8 +952,16 @@ func TestLoadReportsProblems(t *testing.T) {
 		},
 		{
 			name:   "an endless plan's price",
-			config: work + "\n[prices.plans]\nmax20x = inf\n",
-			want:   []string{planPrice("max20x", "+Inf")},
+			config: work + "\n[prices.plans]\nultra = inf\n",
+			want:   []string{planPrice("ultra", "+Inf")},
+		},
+		{
+			name:   "plans priced by their old names and their new",
+			config: work + "\n[prices.plans]\nmax = 90\nmax5x = 90\nmax20x = 180\nultra = 190\npro = 20\n",
+			want: []string{
+				"prices.plans.max20x and prices.plans.ultra price the same plan: give it one price, by prices.plans.ultra",
+				"prices.plans.max5x and prices.plans.max price the same plan: give it one price, by prices.plans.max",
+			},
 		},
 		{
 			name:   "the price of a plan the table doesn't know, its value never quoted",
@@ -1165,14 +1184,14 @@ func TestLoadReportsProblems(t *testing.T) {
 			name: "several problems at once",
 			config: "listen = \"0.0.0.0:4747\"\nupstream = \"api.anthropic.com\"\nweek_starts = \"someday\"\nverbose = true\n" +
 				work + "primary = true\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n" +
-				"\n[[account]]\nreserve = 2.0\nplan = \"max\"\n" +
+				"\n[[account]]\nreserve = 2.0\nplan = \"max10x\"\n" +
 				accountTOML("work") + "primary = true\n" +
 				"\n[prime]\nday = \"23:00-23:00\"\n" +
 				"\n[notifications]\nwarning = 1\n" +
 				"\n[history]\nkeep = \"7d\"\n" +
 				"\n[ledger]\nkeep = \"1y\"\n" +
 				"\n[usage]\nby = \"model\"\n" +
-				"\n[prices.plans]\nmax5x = -90\n" +
+				"\n[prices.plans]\nultra = -90\n" +
 				"\n[prices.models.claude-opus-5-5]\ninput = -3.2\n",
 			want: []string{
 				`unknown key "verbose"`,
@@ -1182,7 +1201,7 @@ func TestLoadReportsProblems(t *testing.T) {
 				weekStarts("someday"),
 				"account #2: id is required",
 				"account #2: reserve 2: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1",
-				`account #2: plan "max": must be pro, max5x or max20x, the plan the account's subscription is on`,
+				`account #2: plan "max10x": must be pro, max or ultra, the plan the account's subscription is on`,
 				`duplicate account id "work"`,
 				`primary is set on account "work" and account "work": only one account can be the primary, the one the browser and the Claude apps use`,
 				`prime.day "23:00-23:00": must end at another time than it starts; an end before the start is past midnight`,
@@ -1190,7 +1209,7 @@ func TestLoadReportsProblems(t *testing.T) {
 				keep("history.keep", "7d", "400d"),
 				keep("ledger.keep", "1y", "400d"),
 				by("model"),
-				planPrice("max5x", "-90"),
+				planPrice("ultra", "-90"),
 				modelPrice("claude-opus-5-5.input", "-3.2"),
 			},
 		},
@@ -1243,7 +1262,7 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		`upstream "[redacted]": must be an absolute http or https URL, such as https://api.anthropic.com`,
 		`when_router_down "[redacted]": must be stop, claude starting nothing while the router is down, or direct, claude connecting directly on an account's token`,
 		`week_starts "[redacted]": must be a day of the week, by its name in English, such as monday`,
-		`account "work": plan "[redacted]": must be pro, max5x or max20x, the plan the account's subscription is on`,
+		`account "work": plan "[redacted]": must be pro, max or ultra, the plan the account's subscription is on`,
 		`prime.day "[redacted]": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`,
 		`history.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,
 		`ledger.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,

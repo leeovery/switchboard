@@ -9,7 +9,7 @@ ACCOUNTS    Detail   ───────────────────�
 USAGE                                                                                                                                   THIS WEEK
 Week                  ▋       ┃                ╎   34%  19%/day till Sun 21:00                                                          requests  612
                                                                                                                                         limits    5-hour ×2
-5-hour                       ┃  ▎              ╎   58%  out ~16:05                                                                      plan      Max 20x
+5-hour                       ┃  ▎              ╎   58%  out ~16:05                                                                      plan      Ultra
                                                                                                                                         worth     $127  2.8×
                                                                                                                                         extra use off
 

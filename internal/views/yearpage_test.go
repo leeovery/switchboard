@@ -550,7 +550,7 @@ func TestVCyclesTheVersionsUsedAndTheAccounts(t *testing.T) {
 		t.Errorf("v cycles the accounts %v, want %v", page.Accounts, want)
 	}
 	in := input(days)
-	in.Accounts = config.Accounts{{ID: "work", Plan: "max20x"}}
+	in.Accounts = config.Accounts{{ID: "work", Plan: "ultra"}}
 	if alone := views.NewPast(in, days).Year(views.YearAsk{}); alone.Accounts != nil {
 		t.Errorf("v cycles the accounts %v of one alone, want none", alone.Accounts)
 	}

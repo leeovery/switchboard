@@ -542,7 +542,7 @@ switchboard accounts remove <id>
 | Flag | What it does |
 |---|---|
 | `--label <label>` | `add` and `edit`: show the account as `<label>`. Default: the id, which `--label ""` goes back to. |
-| `--plan <plan>` | `edit`: the plan the account's subscription is on: `pro`, `max5x` or `max20x`, or `none` to leave it unknown. |
+| `--plan <plan>` | `edit`: the plan the account's subscription is on: `pro`, `max` or `ultra`, or `none` to leave it unknown. A plan's old name, `max5x` or `max20x`, works too, and the config is written with its new. |
 | `--primary` | `add` and `edit`: make the account the primary, the account the browser and the Claude apps use, in place of the one that was. |
 | `--reserve <percent>` | `edit`: the share of every window the router leaves unused on the account, as a percentage to two decimal places at most, such as `5%` or `2.5%`, from `0%` up to but not including `100%`. `0` or `0%` takes the reserve away. |
 | `--paste` | `token`: take a token made with `claude setup-token`, pasted, in place of making one. |
@@ -682,7 +682,7 @@ Examples:
 ```bash
 switchboard accounts add work --label Work --primary
 switchboard accounts add side --label Side
-switchboard accounts edit side --plan max5x --reserve 5%
+switchboard accounts edit side --plan max --reserve 5%
 switchboard accounts token side
 pbpaste | switchboard accounts token side
 switchboard accounts remove side

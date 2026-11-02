@@ -29,7 +29,7 @@ func TestAPageGivesHistoryItsWorldsAccountsTheWeeksAndTheFamilies(t *testing.T) 
 	for _, a := range cfg.Accounts {
 		accounts = append(accounts, a.ID+":"+a.Plan)
 	}
-	if want := []string{"work:max20x", "personal:max20x", "side:max20x"}; !slices.Equal(accounts, want) {
+	if want := []string{"work:ultra", "personal:ultra", "side:ultra"}; !slices.Equal(accounts, want) {
 		t.Errorf("the page's watch is given the accounts %q, want its world's, %q", accounts, want)
 	}
 	if cfg.WeekStarts != time.Monday || cfg.WeekWindow != "7d" {

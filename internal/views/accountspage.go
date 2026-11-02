@@ -60,7 +60,7 @@ type AccountsRow struct {
 	// part-way through the period, as there's no worth for the days before.
 	Totals AccountTotals
 	Plan   PlanCost
-	// PlanName names its plan as the price table does, as Max 20x: "" where
+	// PlanName names its plan as the price table does, as Ultra: "" where
 	// its plan isn't known, and of every account's.
 	PlanName string
 	// WeekLeft is the share its week had left as it last reset, the use read

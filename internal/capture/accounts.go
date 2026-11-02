@@ -8,25 +8,25 @@ import (
 
 // The plans the worlds' accounts are on, as the config names them.
 const (
-	max20x = "max20x"
-	max5x  = "max5x"
+	planUltra = "ultra"
+	planMax   = "max"
 )
 
 // tenAccounts are the accounts of milestone 7's frames, in config order, as
 // the specs number them: work, keeping 5% of every window back, so capped at
 // 95%; personal, the primary; side; and the seven more of the frames of six
-// and ten accounts. Each is on Max 20x but spare, extra and ops, on Max 5x.
+// and ten accounts. Each is on Ultra but spare, extra and ops, on Max.
 var tenAccounts = config.Accounts{
-	{ID: "work", Label: "work", Reserve: 0.05, Plan: max20x},
-	{ID: "personal", Label: "personal", Primary: true, Plan: max20x},
-	{ID: "side", Label: "side", Plan: max20x},
-	{ID: "client", Label: "client", Plan: max20x},
-	{ID: "spare", Label: "spare", Plan: max5x},
-	{ID: "lab", Label: "lab", Plan: max20x},
-	{ID: "team", Label: "team", Plan: max20x},
-	{ID: "extra", Label: "extra", Plan: max5x},
-	{ID: "ops", Label: "ops", Plan: max5x},
-	{ID: "studio", Label: "studio", Plan: max20x},
+	{ID: "work", Label: "work", Reserve: 0.05, Plan: planUltra},
+	{ID: "personal", Label: "personal", Primary: true, Plan: planUltra},
+	{ID: "side", Label: "side", Plan: planUltra},
+	{ID: "client", Label: "client", Plan: planUltra},
+	{ID: "spare", Label: "spare", Plan: planMax},
+	{ID: "lab", Label: "lab", Plan: planUltra},
+	{ID: "team", Label: "team", Plan: planUltra},
+	{ID: "extra", Label: "extra", Plan: planMax},
+	{ID: "ops", Label: "ops", Plan: planMax},
+	{ID: "studio", Label: "studio", Plan: planUltra},
 }
 
 // firstAccounts are the first n of tenAccounts, a world's own, as the frames

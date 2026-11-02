@@ -167,7 +167,7 @@ func (h *heard) address(t *testing.T) setup.Making {
 
 // adding is personal, added with its token, and replacing the account with
 // the given id, configured, its token replaced.
-var adding = setup.TokenFor{Account: config.NewAccount{ID: "personal", Label: "Personal", Plan: "max5x"}, Add: true}
+var adding = setup.TokenFor{Account: config.NewAccount{ID: "personal", Label: "Personal", Plan: "max"}, Add: true}
 
 func replacing(id string) setup.TokenFor {
 	return setup.TokenFor{Account: config.NewAccount{ID: id}}

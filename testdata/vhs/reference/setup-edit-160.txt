@@ -8,12 +8,12 @@ ACCOUNTS  ───────────────────────�
 
      ACCOUNT         LABEL         PLAN       RESERVE    TOKEN
 
-  1  work ◆          Work          Max 20x    5%         ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌  working · expiry date unknown
+  1  work ◆          Work          Ultra      5%         ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌  working · expiry date unknown
                                         ╭─ EDIT PERSONAL ──────────────────────────────────────────────────────────────╮
 ▌ 2  personal        Personal      not s│                                                                              │
                                         │  Label     Personal                                                          │
   3  side            Side          Pro  │                                                                              │
-                                        │  Plan      □ Pro    ■ Max 5x    □ Max 20x    □ not set                       │
+                                        │  Plan      □ Pro    ■ Max    □ Ultra    □ not set                            │
   +  add an account                     │            used by History to value usage                                    │
                                         │                                                                              │
                                         │  Primary   ■ no    □ yes                                                     │
