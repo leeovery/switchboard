@@ -1,12 +1,15 @@
 package capture
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 )
 
 // compareCutsWorlds are the fixtures of Compare whose figures run widest:
@@ -17,18 +20,12 @@ var compareCutsWorlds = []string{"accounts-compare-month-160", "accounts-compare
 // columns to 220, over every period, in each of the worlds whose figures run
 // widest: each value takes a form its column holds whole.
 func TestCompareDrawnWideCutsNoFigure(t *testing.T) {
+	t.Parallel()
 	for _, name := range compareCutsWorlds {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			f := fixture(t, name)
-			m := withNothingOver(t, f.settle(f.Size), f.Size)
-			for _, k := range keysOf("<", "<", "<") {
-				m = deliver(m, k)
-			}
-			for period := range 4 {
-				if period > 0 {
-					m = deliver(m, keysOf(">")[0])
-				}
+		for period := range comparePeriods {
+			t.Run(fmt.Sprintf("%s, period %d", name, period), func(t *testing.T) {
+				t.Parallel()
+				m := compareOver(t, name, period)
 				for width := 40; width <= 220; width++ {
 					rows := plainRows(m, width, tallest)
 					if !slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, "0 all accounts") }) {
@@ -44,9 +41,28 @@ func TestCompareDrawnWideCutsNoFigure(t *testing.T) {
 						}
 					}
 				}
-			}
-		})
+			})
+		}
 	}
+}
+
+// comparePeriods is how many periods Compare's cuts are held over: from the
+// earliest, three back with <, to the latest.
+const comparePeriods = 4
+
+// compareOver is Compare of the fixture named, with nothing open over it,
+// moved back three periods with <, then on period of them with >.
+func compareOver(t *testing.T, name string, period int) watch.Model {
+	t.Helper()
+	f := fixture(t, name)
+	m := withNothingOver(t, f.settle(f.Size), f.Size)
+	for _, k := range keysOf("<", "<", "<") {
+		m = deliver(m, k)
+	}
+	for range period {
+		m = deliver(m, keysOf(">")[0])
+	}
+	return m
 }
 
 // turnedCutsWorlds are the fixtures whose worlds Compare turns in: three
@@ -71,18 +87,12 @@ const turnedTall = 120
 // names' column, from WEEK USED to VALUE's last row, nothing is cut but a
 // largest version's name, and never its share.
 func TestCompareTurnedCutsNoFigure(t *testing.T) {
+	t.Parallel()
 	for _, name := range turnedCutsWorlds {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			f := fixture(t, name)
-			m := withNothingOver(t, f.settle(f.Size), f.Size)
-			for _, k := range keysOf("<", "<", "<") {
-				m = deliver(m, k)
-			}
-			for period := range 4 {
-				if period > 0 {
-					m = deliver(m, keysOf(">")[0])
-				}
+		for period := range comparePeriods {
+			t.Run(fmt.Sprintf("%s, period %d", name, period), func(t *testing.T) {
+				t.Parallel()
+				m := compareOver(t, name, period)
 				width := 40
 				for ; ; width++ {
 					rows := plainRows(m, width, turnedTall)
@@ -96,8 +106,8 @@ func TestCompareTurnedCutsNoFigure(t *testing.T) {
 				if width == 40 {
 					t.Fatalf("period %d: Compare is wide at 40 columns, never turned", period)
 				}
-			}
-		})
+			})
+		}
 	}
 }
 
