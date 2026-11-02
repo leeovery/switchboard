@@ -304,20 +304,26 @@ func TestNoClickActsWhileACardIsOpen(t *testing.T) {
 	for _, card := range []string{"p", "?"} {
 		t.Run(card, func(t *testing.T) {
 			t.Parallel()
+			// opened is the card open, every target the page gives clicked
+			// under it, each failing the test where it acts, so every sweep
+			// of a row starts where the clicks on the targets left it.
 			opened := func(t *testing.T) *harness {
+				t.Helper()
 				h := routedHarness(t, routerDocument(three()...))
 				h.start()
 				h.press(card)
-				return h
-			}
-			t.Run("on each target", func(t *testing.T) {
-				t.Parallel()
-				h := opened(t)
 				open := h.model.open
 				for _, target := range h.targets() {
 					if h.click(target.X, target.Y) || h.model.open != open || h.model.view != dashboard.Overview {
 						t.Fatalf("with %v open, a click on %+v acted: open %v, showing %q", open, target, h.model.open, h.model.view)
 					}
+				}
+				return h
+			}
+			t.Run("on each target", func(t *testing.T) {
+				t.Parallel()
+				if h := opened(t); len(h.source.orders) > 0 || h.model.help.scroll != 0 {
+					t.Fatalf("with %v open, the clicks on its targets ordered %q, or scrolled help %d", h.model.open, h.source.orders, h.model.help.scroll)
 				}
 			})
 			for y := range opened(t).model.size.Height {
@@ -543,11 +549,14 @@ func TestNoClickOrTurnOfTheWheelRoutesQuitsOrPanics(t *testing.T) {
 			r := rand.New(rand.NewPCG(6, uint64(i)))
 			for _, size := range sizes {
 				for _, tab := range dashboard.Views() {
-					cells := cellsToClick(clickedHarness(t, tab, size, opening).targets(), size, r)
+					h := clickedHarness(t, tab, size, opening)
+					cells := cellsToClick(h.targets(), size, r)
 					wheels := wheelsToTurn(len(cells), r)
 					t.Run(fmt.Sprintf("%dx%d on %s", size.Width, size.Height, tab), func(t *testing.T) {
 						t.Parallel()
-						h := clickedHarness(t, tab, size, opening)
+						// Built above, as the cells are picked in turn from its
+						// targets, the harness is this subtest's alone from here.
+						h.t = t
 						routing := h.model.open == routingOpen
 						for j, cell := range cells {
 							x, y := cell[0], cell[1]
