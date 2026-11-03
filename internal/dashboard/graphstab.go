@@ -120,21 +120,12 @@ func sectionWindows(s GraphsSection) []views.RunwayWindow {
 }
 
 // GraphsOffers reports whether Graphs offers the section, laying it out and
-// listing and taking its key, of the configured accounts given, at the moment
-// h holds, without working the moment out, as policy names its windows:
-// 5-HOUR only where any of them has, or may have, the 5-hour, as
-// fiveHourCharted has them, or none is configured, as the moment's
-// SharedWindows keep a window; every other section always.
-func GraphsOffers(s GraphsSection, accounts config.Accounts, h *status.HeldMoment, policy score.Policy) bool {
-	return s != GraphsFiveHour || fiveHourOffered(accounts, fiveHourCharted(accounts, h, policy))
-}
-
-// fiveHourOffered reports whether Graphs charts the 5-hour, of the
-// configured accounts given, those that have, or may have, it as charted:
-// where any does, or none is configured, as the moment's SharedWindows keep
-// a window.
-func fiveHourOffered(accounts, charted config.Accounts) bool {
-	return len(accounts) == 0 || len(charted) > 0
+// listing and taking its key, at the moment h holds, without working the
+// moment out, as policy names its windows: 5-HOUR only where some account h
+// holds has, or may have, the 5-hour, the window a request starts, as its
+// AnyHas has it, as Runway offers its 5-hour; every other section always.
+func GraphsOffers(s GraphsSection, h *status.HeldMoment, policy score.Policy) bool {
+	return s != GraphsFiveHour || h.AnyHas(policy.Started)
 }
 
 // fiveHourCharted are the configured accounts given that 5-HOUR lays out a
@@ -161,9 +152,9 @@ func (f Frame) graphsOffered() GraphsSections {
 }
 
 // graphsOffers reports whether Graphs offers the section, as GraphsOffers
-// has it of the configured accounts at the moment the frame holds.
+// has it at the moment the frame holds.
 func (f Frame) graphsOffers(s GraphsSection) bool {
-	return GraphsOffers(s, f.Graphs.Accounts, f.held, f.Policy)
+	return GraphsOffers(s, f.held, f.Policy)
 }
 
 // GraphsGlanceColumns are the columns GLANCE's pool's sparklines take, as

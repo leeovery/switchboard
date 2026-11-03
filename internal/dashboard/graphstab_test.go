@@ -239,10 +239,11 @@ func TestGraphsEverySectionHiddenTheFirstRowSaysHowToBringThemBack(t *testing.T)
 	}
 }
 
-// Graphs offers 5-HOUR while any configured account has, or may have, the
-// 5-hour, as one the router doesn't hold yet may, a card for each of them;
-// with none configured, or no moment held, it's offered; and every other
-// section always.
+// Graphs offers 5-HOUR while any account the moment holds has, or may have,
+// the 5-hour, as its AnyHas has it, so never where every one it holds lacks
+// it, though one configured that the router doesn't hold yet may have it; a
+// card for each configured account that has, or may have, it, as Has has
+// them; with no moment held, it's offered; and every other section always.
 func TestGraphsOffersFiveHourWhileAnyAccountHasOrMayHaveIt(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -255,8 +256,9 @@ func TestGraphsOffersFiveHourWhileAnyAccountHasOrMayHaveIt(t *testing.T) {
 		{name: "every account with one", accounts: trioIDs, want: true, charted: trioIDs},
 		{name: "side alone with one", accounts: trioIDs, lacking: []string{"work", "personal"}, want: true, charted: []string{"side"}},
 		{name: "none with one", accounts: trioIDs, lacking: trioIDs},
-		{name: "none held with one, and one the router doesn't hold yet", accounts: append(slices.Clone(trioIDs), "client"), lacking: trioIDs, want: true, charted: []string{"client"}},
-		{name: "none configured", lacking: trioIDs, want: true},
+		{name: "none held with one, and one the router doesn't hold yet", accounts: append(slices.Clone(trioIDs), "client"), lacking: trioIDs, charted: []string{"client"}},
+		{name: "none configured, none held with one", lacking: trioIDs},
+		{name: "none configured, every one held with one", want: true},
 		{name: "no moment held", accounts: trioIDs, lacking: trioIDs, unheld: true, want: true, charted: trioIDs},
 	}
 	for _, tt := range tests {
@@ -267,7 +269,7 @@ func TestGraphsOffersFiveHourWhileAnyAccountHasOrMayHaveIt(t *testing.T) {
 				held = nil
 			}
 			for _, s := range EveryGraphsSection() {
-				if got, want := GraphsOffers(s, accounts, held, printPolicy), tt.want || s != GraphsFiveHour; got != want {
+				if got, want := GraphsOffers(s, held, printPolicy), tt.want || s != GraphsFiveHour; got != want {
 					t.Errorf("Graphs offers %s %t, want %t", s.heading(), got, want)
 				}
 			}
@@ -321,6 +323,29 @@ func TestGraphsFiveHourGoesWhereNoAccountHasOne(t *testing.T) {
 				t.Errorf("the page reads\n%s\nwant 5-HOUR on it %t", strings.Join(text, "\n"), want)
 			}
 		})
+	}
+}
+
+// Where every account the router holds lacks the 5-hour, as verified Ultra
+// ones do, Graphs offers no 5-HOUR, nor GLANCE a 5-HOUR column, though one
+// configured that the router doesn't hold yet, as after accounts add, may
+// have it: as Runway offers no 5-hour then, at the same moment.
+func TestGraphsOffersNoFiveHourWhereEveryAccountHeldLacksIt(t *testing.T) {
+	doc := withoutFiveHour(trio(), trioIDs...)
+	f := graphsFrame(160, 120, everyGraphsSection()).At(doc, printNow)
+	f.Graphs.Accounts = configured(append(slices.Clone(trioIDs), "client")...)
+	if got := views.RunwayWindowsOf(f.Moment(doc, printNow)); !slices.Equal(got, []views.RunwayWindow{views.RunwayWeek}) {
+		t.Fatalf("Runway offers %q, want the week alone", got)
+	}
+	if f.graphsOffers(GraphsFiveHour) {
+		t.Error("Graphs offers 5-HOUR, want it gone")
+	}
+	if got := f.graphsLaid().glance.windows; !slices.Equal(got, []views.RunwayWindow{views.RunwayWeek}) {
+		t.Errorf("GLANCE draws %q, want the week alone", got)
+	}
+	text := textOf(f.Draw(doc, printNow))
+	if slices.ContainsFunc(text, func(row string) bool { return strings.Contains(row, "5-HOUR") }) {
+		t.Errorf("the page reads\n%s\nwant no 5-HOUR on it, neither section nor GLANCE's column", strings.Join(text, "\n"))
 	}
 }
 

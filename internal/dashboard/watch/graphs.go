@@ -25,12 +25,12 @@ func (m Model) graphsHours() *views.HoursPage {
 }
 
 // graphsOffers reports whether Graphs offers the section, as
-// dashboard.GraphsOffers has it of the configured accounts at the moment its
-// lanes were last built, which is the moment the page it draws then lays its
-// sections out at, as graphsBuilt builds them at every look while it shows:
-// so its key works and is listed as the page has the section.
+// dashboard.GraphsOffers has it at the moment its lanes were last built,
+// which is the moment the page it draws then lays its sections out at, as
+// graphsBuilt builds them at every look while it shows: so its key works
+// and is listed as the page has the section.
 func (m Model) graphsOffers(s dashboard.GraphsSection) bool {
-	return dashboard.GraphsOffers(s, m.cfg.Accounts, m.graphsTab.builtAt, m.cfg.Policy)
+	return dashboard.GraphsOffers(s, m.graphsTab.builtAt, m.cfg.Policy)
 }
 
 // graphsShown is what the Graphs tab shows: its sections shown; the

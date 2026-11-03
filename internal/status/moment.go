@@ -380,6 +380,15 @@ func (h *HeldMoment) Has(key, id string) bool {
 	return h == nil || !slices.Contains(h.lacks[id], key)
 }
 
+// AnyHas reports whether some account the document whose moment h holds
+// holds has, or may have, the window every model shares with the given key,
+// without working the moment out: false only where it holds accounts and
+// every one lacks it, as the moment's SharedWindows leave it out. Nil, which
+// holds none, may have it.
+func (h *HeldMoment) AnyHas(key string) bool {
+	return h == nil || !lackedByEvery(maps.Values(h.lacks), key)
+}
+
 // Of reports whether h holds the moment of d at now, as policy judges it: nil
 // holds none. It knows d by when it was built alone, never by what it holds,
 // which is sound only as every producer, the router, probing and capture's

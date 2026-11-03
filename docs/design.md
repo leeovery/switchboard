@@ -4750,9 +4750,12 @@ plan, wait in the backlog (see Backlog, graphs-page). The keys were left to the 
 two every model shares, as on Runway: a model's own window has no card, and `w` is WEEK's here,
 where on the pages that list windows as they stand it shows the models' own (see Keys). A 5-hour
 window goes where no account has one, as Runway's goes (see Runway, and `usage`, the printout):
-5-HOUR's section, `f` and `f`'s words on the key line and in help, GLANCE's 5-HOUR column, and the
-lanes the watch builds for it; a 5-HOUR kept shown in the preferences is kept as it is, and shows
-again once an account has a 5-hour window.
+where the held moment holds accounts and every one lacks it, as its `AnyHas` says, the rule the
+moment's `SharedWindows` keep the window by, so an account configured that the router doesn't hold
+yet, as after `accounts add`, keeps it for neither. It takes 5-HOUR's section, `f` and `f`'s words
+on the key line and in help, GLANCE's 5-HOUR column, and the lanes the watch builds for it; a
+5-HOUR kept shown in the preferences is kept as it is, and shows again once an account has a 5-hour
+window.
 
 - **A section's heading** is the Overview's (see The Overview): its name in `text.subtle`; three
   spaces and its description, where it has one; a space, a rule of `─` in `border` and a space;

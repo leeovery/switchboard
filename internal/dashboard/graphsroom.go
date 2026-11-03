@@ -29,15 +29,17 @@ const (
 // or an account's 5-hour window going or coming back: the frame's width and
 // its view's rows; the sections shown, those offered alone; the configured
 // accounts, in the config's order, how they're numbered, and those that
-// have, or may have, the 5-hour, as fiveHourCharted has them; and the look,
-// which words POOL's key.
+// have, or may have, the 5-hour, as fiveHourCharted has them; whether Graphs
+// offers the 5-hour, as GraphsOffers has it of 5-HOUR; and the look, which
+// words POOL's key.
 type graphsGiven struct {
-	width, rows int
-	shown       GraphsSections
-	accounts    config.Accounts
-	numbering   status.Numbering
-	fiveHour    config.Accounts
-	look        Look
+	width, rows    int
+	shown          GraphsSections
+	accounts       config.Accounts
+	numbering      status.Numbering
+	fiveHour       config.Accounts
+	offersFiveHour bool
+	look           Look
 }
 
 // charted are the configured accounts the burn-down section lays out a card
@@ -51,10 +53,9 @@ func (g graphsGiven) charted(section GraphsSection) config.Accounts {
 }
 
 // glanceWindows are the windows GLANCE draws, in runwayWindows' order: every
-// one but the 5-hour where Graphs doesn't chart it, as fiveHourOffered has
-// it of the accounts that have, or may have, it.
+// one but the 5-hour where Graphs doesn't offer it.
 func (g graphsGiven) glanceWindows() []views.RunwayWindow {
-	if fiveHourOffered(g.accounts, g.fiveHour) {
+	if g.offersFiveHour {
 		return runwayWindows
 	}
 	return slices.DeleteFunc(slices.Clone(runwayWindows), func(w views.RunwayWindow) bool { return w == views.RunwayFiveHour })
@@ -380,12 +381,13 @@ func layGraphs(g graphsGiven) graphsLaid {
 }
 
 // graphsLaid is Graphs as layGraphs lays it out in the frame's view, the
-// sections it offers alone, as graphsOffered has them, and 5-HOUR's cards
-// those of the accounts fiveHourCharted has, at the moment the frame holds.
+// sections it offers alone, as graphsOffered has them, GLANCE's 5-hour with
+// them, and 5-HOUR's cards those of the accounts fiveHourCharted has, at the
+// moment the frame holds.
 func (f Frame) graphsLaid() graphsLaid {
 	return layGraphs(graphsGiven{
 		width: f.Width, rows: f.viewRows(), shown: f.graphsOffered(), accounts: f.Graphs.Accounts, numbering: f.numbering(),
-		fiveHour: fiveHourCharted(f.Graphs.Accounts, f.held, f.Policy), look: f.Look,
+		fiveHour: fiveHourCharted(f.Graphs.Accounts, f.held, f.Policy), offersFiveHour: f.graphsOffers(GraphsFiveHour), look: f.Look,
 	})
 }
 

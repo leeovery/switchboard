@@ -2,6 +2,7 @@ package status
 
 import (
 	"cmp"
+	"iter"
 	"math"
 	"slices"
 	"time"
@@ -57,10 +58,29 @@ func (m Moment) SharedWindows() []string {
 }
 
 // lackedByAll reports whether every account at the moment lacks the window
-// every model shares with the given key, as lacking says: never where there
-// are none.
+// every model shares with the given key, as lackedByEvery has it.
 func (m Moment) lackedByAll(key string) bool {
-	return len(m.Accounts) > 0 && !slices.ContainsFunc(m.Accounts, func(a AccountNow) bool { return !a.lacksWindow(key) })
+	return lackedByEvery(func(yield func([]string) bool) {
+		for _, a := range m.Accounts {
+			if !yield(a.lacks) {
+				return
+			}
+		}
+	}, key)
+}
+
+// lackedByEvery reports whether every account, of those whose lacks are
+// given, the keys of the windows every model shares it lacks, as lacking has
+// them, lacks the window with the given key: never where there are none.
+func lackedByEvery(lacks iter.Seq[[]string], key string) bool {
+	some := false
+	for l := range lacks {
+		if !slices.Contains(l, key) {
+			return false
+		}
+		some = true
+	}
+	return some
 }
 
 // Listed are the keys of the windows the owner reads listed at the moment
