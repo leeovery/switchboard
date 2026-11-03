@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"errors"
 	"reflect"
 	"slices"
 	"testing"
@@ -60,6 +61,69 @@ func TestCollectGivesTheScheduleOverTheAccountsWithTokens(t *testing.T) {
 	want := status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "04:10"}, {Account: "side", At: "06:40"}}}
 	if doc := collector.Collect(t.Context(), accounts); !reflect.DeepEqual(doc.Prime, want) {
 		t.Errorf("Collect().Prime = %+v, want %+v: personal has no token, and when each is next primed is the router's to say", doc.Prime, want)
+	}
+}
+
+func TestCollectPrimesOnlyTheAccountsWithAWindowToPrime(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.2, ResetsAt: now.Add(3 * time.Hour)}
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.4, ResetsAt: now.Add(48 * time.Hour)}
+	withSession := withWindows(session, week)
+	weekAlone := withWindows(week)
+	sessionUnread := probeResult{usage: quota.Usage{
+		Windows:  []quota.Window{week},
+		Failures: []quota.Failure{{Label: "Sonnet", Window: "5h", Error: "HTTP 529"}},
+	}}
+	slots := func(slots ...status.Slot) status.Prime {
+		return status.Prime{Day: "08:00-23:00", Window: "5h", Slots: slots}
+	}
+	tests := []struct {
+		name                 string
+		work, personal, side probeResult
+		want                 status.Prime
+	}{
+		{
+			name: "all with the session, each spaced by the three",
+			work: withSession, personal: withSession, side: withSession,
+			want: slots(status.Slot{Account: "work", At: "03:50"}, status.Slot{Account: "personal", At: "05:30"}, status.Slot{Account: "side", At: "07:10"}),
+		},
+		{
+			name: "one reporting the week without the session has no slot, the others spaced by the two",
+			work: withSession, personal: weekAlone, side: withSession,
+			want: slots(status.Slot{Account: "work", At: "04:10"}, status.Slot{Account: "side", At: "06:40"}),
+		},
+		{
+			name: "one whose session went unread keeps its slot",
+			work: withSession, personal: sessionUnread, side: withSession,
+			want: slots(status.Slot{Account: "work", At: "03:50"}, status.Slot{Account: "personal", At: "05:30"}, status.Slot{Account: "side", At: "07:10"}),
+		},
+		{
+			name: "one whose probe failed keeps its slot",
+			work: withSession, personal: probeResult{err: errors.New("HTTP 500")}, side: weekAlone,
+			want: slots(status.Slot{Account: "work", At: "04:10"}, status.Slot{Account: "personal", At: "06:40"}),
+		},
+		{
+			name: "none when every account lacks the session",
+			work: weekAlone, personal: weekAlone, side: weekAlone,
+			want: status.Prime{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := status.Collector{
+				Prober: &fakeProber{results: map[string]probeResult{
+					"test-token-work": tt.work, "test-token-personal": tt.personal, "test-token-side": tt.side,
+				}},
+				Policy: policy,
+				Prime:  config.Prime{Day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}},
+				Token:  tokenstest.Files{"work": "test-token-work", "personal": "test-token-personal", "side": "test-token-side"}.Read,
+				Taken:  tokenstest.Taken{}.Read,
+				Now:    func() time.Time { return now },
+			}
+			if got := collector.Collect(t.Context(), accounts).Prime; !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Collect().Prime = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 
