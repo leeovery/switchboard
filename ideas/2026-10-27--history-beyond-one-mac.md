@@ -7,6 +7,13 @@ Mac itself: the tool that restores the owner's settings on a new Mac keeps setti
 repository, the wrong place for data that grows by 20–38 MB a day before it's compressed. The
 owner's next Mac arrives in about four weeks, and is to have this Mac's history.
 
+## Taken up, 3 November 2026
+
+The owner chose an export and an import first, then the export on a schedule, into a folder the
+user chooses, iCloud Drive, Dropbox, an external disk, anywhere: switchboard runs the export and
+nothing more, and what keeps the folder safe, or carries it elsewhere, is the folder's own
+business. The design's Export and import says how; what was measured is there too.
+
 What stays as it is:
 
 - The config file is the user's, written by hand, and theirs to keep.
@@ -14,19 +21,17 @@ What stays as it is:
 - Tokens are never backed up: `setup` makes them on each Mac (see
   `2026-10-14--auth-and-onboarding.md`).
 
-## Suggested, to settle with the owner
+## Left: one history across several Macs
 
-- **Where:** iCloud Drive, built into macOS, so every Mac on one Apple ID has it from its first login,
-  with nothing to install. A folder of switchboard's there, and in it one for each Mac.
-- **How:** never the live state in the synced folder. Switchboard keeps working in its state
-  directory, and copies a day's finished files there once they're compressed and never change again,
-  so each Mac writes only its own folder and no file is ever written twice: no sync conflicts. A
-  day not yet compressed is the Mac's own backup's to keep.
-- **Size:** a compressed day comes to about 4–8 MB, about 2–3 GB a year.
-- **Restore:** on a new Mac, `setup` offers to bring a Mac's history back.
+Not now, the owner's call on 3 November 2026: one history read across several Macs at once, each
+Mac's History counting the others' requests. It's only worth it where two Macs run switchboard on
+the same accounts at the same time, as each records only the requests it routed, and History,
+worth and the totals on either would count short.
 
-To settle: which files go (the ledger's own lines, or its derived files too, which can be built
-again); how a Mac is named in the folder, never by its machine name in anything switchboard shows
-publicly; how the copying is kept, as the router's housekeeping after a day compresses; what a
-restore does with days the new Mac has already, as when both Macs run through the same days; and
-what's said when iCloud Drive isn't there, or is full.
+Suggested, should it come up: each Mac exports on the schedule into one `[export] dir`, a folder a
+Mac as they do already, and each Mac's readers read the other Macs' folders beside its own state
+directory, never writing them. The others' days run as far behind as their exports, today's an
+hour at most, and the readings of one account, read by both Macs, are one account's however many
+Macs read them.
+
+Later, too: `setup` on a new Mac offering to import a folder.
