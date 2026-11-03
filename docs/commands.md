@@ -1246,7 +1246,16 @@ and how many of them it wrote:
 exported 31 days to /Users/you/Dropbox/switchboard/mac-0123456789abcdef: 3 written, 28 as they were
 ```
 
-A `<dir>` that's a file, or that can't be made or written, fails, saying so.
+A `<dir>` that's a file, or that can't be made or written, fails, saying so, and stops the export
+there. A day's file that can't be read, as one damaged, is passed over, and the rest exported.
+Then `export` names each it passed over, and why, and fails:
+
+```
+switchboard: couldn't export the request ledger of 2026-10-30: read requests-2026-10-30.jsonl.gz: gzip: invalid header
+```
+
+A folder on a disk that keeps coarser times, as exFAT, a network share or a NAS does, works as
+well: a day unchanged since is still left as it is.
 
 The install's id is in `install-id`, in the state directory, made by the first export and never
 replaced. A Mac whose state directory was restored from another's, as Migration Assistant restores

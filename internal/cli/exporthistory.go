@@ -28,10 +28,18 @@ iCloud Drive syncs, the history outlasts the Mac.
 A day exported before, and unchanged since, is left as it is, and nothing in
 the folder is ever removed, a day past keeping included. Every file is
 written beside where it goes and renamed into place, so a sync never carries
-one half written. It reads the files where they lie, so it needs no router.`,
+one half written. It reads the files where they lie, so it needs no router.
+
+A day's file that can't be read is passed over, and the rest exported; then
+export names each it passed over, and why, and fails.`,
 		Args: oneFolder,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.export(cmd.OutOrStdout(), args[0])
+			err := a.export(cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
+			if errors.Is(err, errUnexported) {
+				// export has said which days, and why.
+				cmd.SilenceErrors = true
+			}
+			return err
 		},
 	}
 }
@@ -48,10 +56,15 @@ func oneFolder(_ *cobra.Command, args []string) error {
 	return nil
 }
 
+// errUnexported is what export fails with where it passed over a day's file
+// it couldn't read, once it has exported the rest and said which.
+var errUnexported = errors.New("some days couldn't be exported")
+
 // export exports the history in the state directory into the Mac's folder in
 // dir, taken from the working directory where it's relative, and says what
-// it did.
-func (a *app) export(out io.Writer, dir string) error {
+// it did, then, on errOut, each day's file it couldn't read, failing with
+// errUnexported where there's any.
+func (a *app) export(out, errOut io.Writer, dir string) error {
 	if !filepath.IsAbs(dir) {
 		wd, err := a.Getwd()
 		if err != nil {
@@ -67,7 +80,26 @@ func (a *app) export(out io.Writer, dir string) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(out, "exported %s to %s: %s written, %s as they were\n",
-		prose.Counted(r.Days(), "day"), r.Folder, prose.Grouped(r.Written), prose.Grouped(r.AsTheyWere))
-	return err
+	if _, err := fmt.Fprintf(out, "exported %s to %s: %s written, %s as they were\n",
+		prose.Counted(r.Days(), "day"), r.Folder, prose.Grouped(r.Written), prose.Grouped(r.AsTheyWere)); err != nil {
+		return err
+	}
+	return sayUnexported(errOut, r.Unread)
+}
+
+// sayUnexported says on errOut, a line each, why each of unread, the days'
+// files an export passed over, couldn't be exported, failing with
+// errUnexported, and why each couldn't, where there's any.
+func sayUnexported(errOut io.Writer, unread []export.DayError) error {
+	if len(unread) == 0 {
+		return nil
+	}
+	errs := make([]error, len(unread))
+	for i, u := range unread {
+		errs[i] = u
+		if _, err := fmt.Fprintln(errOut, "switchboard: "+u.Error()); err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("%w: %w", errUnexported, errors.Join(errs...))
 }

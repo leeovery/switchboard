@@ -77,6 +77,24 @@ func TestExportTakesARelativeFolderFromTheWorkingDirectory(t *testing.T) {
 	}
 }
 
+func TestExportSaysWhichDaysItCouldntReadThenFails(t *testing.T) {
+	deps := exportDeps(t)
+	ledgerDir := ledger.Dir(stateDir(t, deps))
+	writeStateFile(t, ledgerDir, "events-2026-10-02.jsonl.gz", []byte("not gzip, nor ever was\n"))
+	writeStateFile(t, ledgerDir, "events-2026-10-02.jsonl", []byte(`{"n":3}`+"\n"))
+	dir := t.TempDir()
+
+	got := run(t, deps, "export", dir)
+	want := result{
+		stdout: "exported 2 days to " + macsFolder(t, deps, dir) + ": 2 written, 0 as they were\n",
+		stderr: "switchboard: couldn't export the router's events of 2026-10-02: read events-2026-10-02.jsonl.gz: gzip: invalid header\n",
+		code:   1,
+	}
+	if got != want {
+		t.Errorf("switchboard export = %+v, want %+v", got, want)
+	}
+}
+
 func TestExportIntoAFileFails(t *testing.T) {
 	deps := exportDeps(t)
 	dir := filepath.Join(t.TempDir(), "backups")

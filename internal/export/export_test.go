@@ -25,7 +25,7 @@ var exportNow = time.Date(2026, 10, 9, 14, 42, 7, 500, time.UTC)
 
 // The times the tests' files were last modified.
 var (
-	compressedAt = time.Date(2026, 10, 3, 1, 0, 0, 123, time.UTC)
+	compressedAt = time.Date(2026, 10, 3, 1, 0, 1, 750_000_123, time.UTC)
 	appendedAt   = time.Date(2026, 10, 8, 23, 59, 0, 456, time.UTC)
 	summarisedAt = time.Date(2026, 10, 4, 1, 0, 1, 0, time.UTC)
 )
@@ -99,7 +99,7 @@ func exportInto(t *testing.T, stateDir, dir string) export.Result {
 func wantResult(t *testing.T, got export.Result, stateDir, dir string, written, asTheyWere int) {
 	t.Helper()
 	want := export.Result{Folder: folderOf(t, stateDir, dir), Written: written, AsTheyWere: asTheyWere}
-	if got != want {
+	if got.Folder != want.Folder || got.Written != want.Written || got.AsTheyWere != want.AsTheyWere || len(got.Unread) > 0 {
 		t.Errorf("Export() = %+v, want %+v", got, want)
 	}
 }
@@ -239,7 +239,7 @@ func TestACompressedDayIsCopiedAgainOnceItChanges(t *testing.T) {
 		modified time.Time
 	}{
 		{name: "another size", data: gzipOf(t, linesOf(`{"n":1}`, `{"n":2}`, `{"n":3}`)), modified: compressedAt},
-		{name: "another time", data: gzipOf(t, linesOf(`{"n":1}`, `{"n":2}`)), modified: compressedAt.Add(time.Second)},
+		{name: "another time", data: gzipOf(t, linesOf(`{"n":1}`, `{"n":2}`)), modified: compressedAt.Add(3 * time.Second)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
