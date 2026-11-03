@@ -140,6 +140,7 @@ func TestUpAndDownDoNothingWhereUSAGEShowsEveryAccount(t *testing.T) {
 // either way, wide and on a phone, and the key line never, leaving it to
 // help as it leaves j and k; and ↓ moves USAGE exactly there.
 func TestUpAndDownAreNamedAndScrollExactlyWhereUSAGEScrolls(t *testing.T) {
+	t.Parallel()
 	scroll := dashboard.Key{Key: "↑↓", Does: "scroll"}
 	found := map[bool]int{}
 	for _, width := range []int{73, 160} {

@@ -104,22 +104,30 @@ func TestAClickOnTheTabShownChangesNothing(t *testing.T) {
 }
 
 func TestAClickOffEveryTargetDoesNothing(t *testing.T) {
-	h := routedHarness(t, routerDocument(three()...))
-	h.start()
-	h.settle()
-	was := h.model
-	targets := h.targets()
-	for y := range was.size.Height {
-		for x := range was.size.Width {
-			if _, on := targetAt(targets, x, y); on {
-				continue
+	t.Parallel()
+	settled := func(t *testing.T) *harness {
+		h := routedHarness(t, routerDocument(three()...))
+		h.start()
+		h.settle()
+		return h
+	}
+	for y := range settled(t).model.size.Height {
+		t.Run(fmt.Sprintf("row %d", y), func(t *testing.T) {
+			t.Parallel()
+			h := settled(t)
+			was := h.model
+			targets := h.targets()
+			for x := range was.size.Width {
+				if _, on := targetAt(targets, x, y); on {
+					continue
+				}
+				if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.scroll != was.scroll ||
+					h.model.sections != was.sections || h.model.by != was.by || h.model.picker.open || len(h.source.orders) > 0 {
+					t.Fatalf("a click at %d,%d, on no target, acted: showing %q, open %v, scrolled %d, sections %v, by %v, orders %q",
+						x, y, h.model.view, h.model.open, h.model.scroll, h.model.sections.Names(), h.model.by, h.source.orders)
+				}
 			}
-			if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.scroll != was.scroll ||
-				h.model.sections != was.sections || h.model.by != was.by || h.model.picker.open || len(h.source.orders) > 0 {
-				t.Fatalf("a click at %d,%d, on no target, acted: showing %q, open %v, scrolled %d, sections %v, by %v, orders %q",
-					x, y, h.model.view, h.model.open, h.model.scroll, h.model.sections.Names(), h.model.by, h.source.orders)
-			}
-		}
+		})
 	}
 }
 
@@ -292,23 +300,43 @@ func TestAClickOnAKeyThePageDoesntTakeDoesNothing(t *testing.T) {
 }
 
 func TestNoClickActsWhileACardIsOpen(t *testing.T) {
+	t.Parallel()
 	for _, card := range []string{"p", "?"} {
 		t.Run(card, func(t *testing.T) {
-			h := routedHarness(t, routerDocument(three()...))
-			h.start()
-			h.press(card)
-			open := h.model.open
-			for _, target := range h.targets() {
-				if h.click(target.X, target.Y) || h.model.open != open || h.model.view != dashboard.Overview {
-					t.Fatalf("with %v open, a click on %+v acted: open %v, showing %q", open, target, h.model.open, h.model.view)
-				}
-			}
-			for y := range h.model.size.Height {
-				for x := range h.model.size.Width {
-					if h.click(x, y) || h.model.open != open || len(h.source.orders) > 0 || h.model.help.scroll != 0 {
-						t.Fatalf("with %v open, a click at %d,%d acted: open %v, orders %q", open, x, y, h.model.open, h.source.orders)
+			t.Parallel()
+			// opened is the card open, every target the page gives clicked
+			// under it, each failing the test where it acts, so every sweep
+			// of a row starts where the clicks on the targets left it.
+			opened := func(t *testing.T) *harness {
+				t.Helper()
+				h := routedHarness(t, routerDocument(three()...))
+				h.start()
+				h.press(card)
+				open := h.model.open
+				for _, target := range h.targets() {
+					if h.click(target.X, target.Y) || h.model.open != open || h.model.view != dashboard.Overview {
+						t.Fatalf("with %v open, a click on %+v acted: open %v, showing %q", open, target, h.model.open, h.model.view)
 					}
 				}
+				return h
+			}
+			t.Run("on each target", func(t *testing.T) {
+				t.Parallel()
+				if h := opened(t); len(h.source.orders) > 0 || h.model.help.scroll != 0 {
+					t.Fatalf("with %v open, the clicks on its targets ordered %q, or scrolled help %d", h.model.open, h.source.orders, h.model.help.scroll)
+				}
+			})
+			for y := range opened(t).model.size.Height {
+				t.Run(fmt.Sprintf("row %d", y), func(t *testing.T) {
+					t.Parallel()
+					h := opened(t)
+					open := h.model.open
+					for x := range h.model.size.Width {
+						if h.click(x, y) || h.model.open != open || len(h.source.orders) > 0 || h.model.help.scroll != 0 {
+							t.Fatalf("with %v open, a click at %d,%d acted: open %v, orders %q", open, x, y, h.model.open, h.source.orders)
+						}
+					}
+				})
 			}
 		})
 	}
@@ -513,6 +541,7 @@ func TestShowingTheOverviewAsAnAnswerStreamsDrawsItsFrames(t *testing.T) {
 // over the page, the routing card, help, and the theme picker, drawing the
 // screen after each.
 func TestNoClickOrTurnOfTheWheelRoutesQuitsOrPanics(t *testing.T) {
+	t.Parallel()
 	sizes := []tea.WindowSizeMsg{{Width: 160, Height: 40}, {Width: 52, Height: 40}, {Width: 20, Height: 6}, {Width: 1, Height: 1}}
 	for i, opening := range []string{"", "p", "?", "t"} {
 		t.Run("opened with "+cmp.Or(opening, "nothing"), func(t *testing.T) {
@@ -521,17 +550,24 @@ func TestNoClickOrTurnOfTheWheelRoutesQuitsOrPanics(t *testing.T) {
 			for _, size := range sizes {
 				for _, tab := range dashboard.Views() {
 					h := clickedHarness(t, tab, size, opening)
-					routing := h.model.open == routingOpen
-					for _, cell := range cellsToClick(h.targets(), size, r) {
-						x, y := cell[0], cell[1]
-						wheel := tea.MouseWheelMsg{X: x, Y: y, Button: []tea.MouseButton{tea.MouseWheelUp, tea.MouseWheelDown}[r.IntN(2)]}
-						h.deliver(h.update(wheel)...)
-						if h.click(x, y) || len(h.source.orders) > 0 || !routing && h.model.open == routingOpen {
-							t.Fatalf("%dx%d on %s, a click at %d,%d quit, ordered %q, or opened the routing card: open %v",
-								size.Width, size.Height, tab, x, y, h.source.orders, h.model.open)
+					cells := cellsToClick(h.targets(), size, r)
+					wheels := wheelsToTurn(len(cells), r)
+					t.Run(fmt.Sprintf("%dx%d on %s", size.Width, size.Height, tab), func(t *testing.T) {
+						t.Parallel()
+						// Built above, as the cells are picked in turn from its
+						// targets, the harness is this subtest's alone from here.
+						h.t = t
+						routing := h.model.open == routingOpen
+						for j, cell := range cells {
+							x, y := cell[0], cell[1]
+							h.deliver(h.update(tea.MouseWheelMsg{X: x, Y: y, Button: wheels[j]})...)
+							if h.click(x, y) || len(h.source.orders) > 0 || !routing && h.model.open == routingOpen {
+								t.Fatalf("%dx%d on %s, a click at %d,%d quit, ordered %q, or opened the routing card: open %v",
+									size.Width, size.Height, tab, x, y, h.source.orders, h.model.open)
+							}
+							h.model.View()
 						}
-						h.model.View()
-					}
+					})
 				}
 			}
 		})
@@ -568,6 +604,16 @@ func cellsToClick(targets []dashboard.Target, size tea.WindowSizeMsg, r *rand.Ra
 		cells = append(cells, [2]int{r.IntN(size.Width+2) - 1, r.IntN(size.Height+2) - 1})
 	}
 	return cells
+}
+
+// wheelsToTurn are the turns of the wheel, up or down as r picks them, to
+// give before each of n clicks.
+func wheelsToTurn(n int, r *rand.Rand) []tea.MouseButton {
+	wheels := make([]tea.MouseButton, n)
+	for i := range wheels {
+		wheels[i] = []tea.MouseButton{tea.MouseWheelUp, tea.MouseWheelDown}[r.IntN(2)]
+	}
+	return wheels
 }
 
 // A click on a row of the Log's table chooses it, pausing it; on ▼ N new,

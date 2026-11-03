@@ -142,6 +142,7 @@ func TestHelpListsTheThemePickerInColour(t *testing.T) {
 }
 
 func TestADocumentLandingUnderHelpMovesNothingInIt(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t, calm())
 	h.start()
 	h.press("?")

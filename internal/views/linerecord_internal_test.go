@@ -160,6 +160,7 @@ func shownOfLines(lines []ledger.Line, prices ledger.Table, now time.Time) []any
 // are dressed in all a router's line says, among them lines without ids,
 // and the twins drawn afresh for each line.
 func TestTwoLinesWhoseRecordsAreEqualGiveEqualRows(t *testing.T) {
+	t.Parallel()
 	for seed := range uint64(40) {
 		lines, _ := pagedRun(seed)
 		r := rand.New(rand.NewPCG(seed, 12))

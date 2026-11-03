@@ -1029,6 +1029,7 @@ func TestTokensRatioMostIsTheWidestARatioIsWritten(t *testing.T) {
 }
 
 func TestTokensAgainstItsPriceOfAHundredfoldIsNeverCut(t *testing.T) {
+	t.Parallel()
 	for _, split := range []TokensSplit{TokensUnsplit, TokensByModel} {
 		for ratio, said := range map[float64]string{123.4: "123× its $7 day", 1234.5: "1234× its $7 day"} {
 			f := tokensFrame(220, 37, split)

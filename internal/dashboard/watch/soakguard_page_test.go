@@ -27,6 +27,7 @@ import (
 // Just after midnight, a few minutes on and at the end, the page and its
 // turn open are those of a page read whole at the same moment.
 func TestThePageHoldsOnlyItsTurns(t *testing.T) {
+	t.Parallel()
 	midnight := dayfile.DayStart(guardStart, 1)
 	begins, ends := midnight.Add(-time.Minute), midnight.Add(guardLateFor+time.Minute)
 	closes := ends.Add(-30 * time.Second)

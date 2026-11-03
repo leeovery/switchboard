@@ -231,6 +231,7 @@ func TestAsTheLanesWidenNoNameNarrowsAndNamesComeFirst(t *testing.T) {
 // decides they fit is never wider than the room laid, whichever way the from
 // column's arrival moves it.
 func TestEveryBentCordTurnsDownInsideTheRoomOnAColumnOfItsOwn(t *testing.T) {
+	t.Parallel()
 	for _, labels := range []int{8, 14, 22} {
 		for _, moved := range []bool{false, true} {
 			for width := 100; width <= 300; width++ {
@@ -325,6 +326,7 @@ func TestTheSteadyRoomNeverNarrowsAsTheWidthGrows(t *testing.T) {
 // names of 8, 14 and 22 cells, with no call moved and with one: the steady
 // room never narrows, so cords never give way to lanes on a wider frame.
 func TestTheBoardsFormChangesOnceAsTheWidthGrows(t *testing.T) {
+	t.Parallel()
 	for _, labels := range []int{8, 14, 22} {
 		for _, moved := range []bool{false, true} {
 			for n := range 41 {

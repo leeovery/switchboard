@@ -70,22 +70,40 @@ func dayAfterDay(lines []ledger.Line, days int) []ledger.Line {
 // worlds build so, as takesSplits names them. Of the generated worlds, read
 // with tables other than the one the states are built with.
 func TestChainedDigestsAreTheSessionsReadWhole(t *testing.T) {
+	t.Parallel()
 	prices := digestPrices(t, changingPrices())
+	checked := make([]chainChecked, len(chainWorlds)*chainSeeds)
+	t.Run("worlds", func(t *testing.T) {
+		for i, w := range chainWorlds {
+			for seed := range uint64(chainSeeds) {
+				t.Run(fmt.Sprintf("%s %d", w.name, seed), func(t *testing.T) {
+					t.Parallel()
+					c := newDigestChain(t, fmt.Sprintf("%s %d", w.name, seed), seed, w.lines(seed))
+					c.digestDayByDay(func(day LedgerDay) { c.checkFollowed(day.Start.Add(12*time.Hour), prices) })
+					was := chainChecked{chain: c}
+					was.chained = c.checkChained()
+					was.restored = c.checkRestored(prices)
+					was.paged = c.checkPaged()
+					checked[i*chainSeeds+int(seed)] = was
+				})
+			}
+		}
+	})
 	var restored, paged, followed, pagesFollowed, based, chained int
 	var refused, pagesRefused []string
-	for _, w := range chainWorlds {
-		for seed := range uint64(chainSeeds) {
-			c := newDigestChain(t, fmt.Sprintf("%s %d", w.name, seed), seed, w.lines(seed))
-			c.digestDayByDay(func(day LedgerDay) { c.checkFollowed(day.Start.Add(12*time.Hour), prices) })
-			chained = max(chained, c.checkChained())
-			restored += c.checkRestored(prices)
-			paged += c.checkPaged()
-			followed += c.followed
-			pagesFollowed += c.pagesFollowed
-			based += c.based
-			refused = append(refused, c.refused...)
-			pagesRefused = append(pagesRefused, c.pagesRefused...)
+	for _, was := range checked {
+		if was.chain == nil {
+			continue
 		}
+		c := was.chain
+		chained = max(chained, was.chained)
+		restored += was.restored
+		paged += was.paged
+		followed += c.followed
+		pagesFollowed += c.pagesFollowed
+		based += c.based
+		refused = append(refused, c.refused...)
+		pagesRefused = append(pagesRefused, c.pagesRefused...)
 	}
 	if restored == 0 || paged == 0 || followed == 0 || pagesFollowed == 0 || based == 0 || chained < 4 {
 		t.Errorf("%d states restored onto a later day, %d pages restored from their chains, %d sessions followed resting on a state, %d on a page, "+
@@ -97,6 +115,14 @@ func TestChainedDigestsAreTheSessionsReadWhole(t *testing.T) {
 			t.Errorf("%s %q resting on a state, want the sessions the worlds build a split their points can't take, %q", what, got, takesSplits)
 		}
 	}
+}
+
+// chainChecked is a chain of a world's digests, as checked: the longest
+// chain of states it holds, and how many states it restored onto a later
+// day and pages from their chains.
+type chainChecked struct {
+	chain                    *digestChain
+	chained, restored, paged int
 }
 
 // takesSplits are the sessions of the chained worlds, by world and id, whose

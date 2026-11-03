@@ -107,6 +107,7 @@ func shownRows(r RoutingCard, f Frame) (names, ends []int) {
 // account's name shows fewer cells, and no row's end says less, whatever
 // the names and however many accounts there are.
 func TestAsTheStackedCardWidensNoNameNorEndSaysLess(t *testing.T) {
+	t.Parallel()
 	for name, first := range widenedNames {
 		for n := 1; n <= 10; n++ {
 			for mode, base := range map[string]RoutingCard{"new sessions'": widestEnds(), "a session's": sessionCard(nil)} {

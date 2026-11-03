@@ -244,6 +244,7 @@ func (c *countingLedger) SessionsOf(ids []string, rest func(string) ledger.Rest,
 // turns, just after, and at the end, the List of the store as the reads fed
 // it is the List of one read whole.
 func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
+	t.Parallel()
 	midnight := dayfile.DayStart(guardStart, 1)
 	last := guardEnd.Add(-2 * lookEvery)
 	g := &storeGuard{t: t, ids: make(map[int]string), held: []time.Time{guardStart, midnight.Add(guardLateFor), last},

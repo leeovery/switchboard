@@ -51,6 +51,7 @@ func builtForSessionsSays(name string) string {
 }
 
 func TestSessionsDrawWhatTheWatchBuilt(t *testing.T) {
+	t.Parallel()
 	root := sourcecheck.ModuleRoot(t)
 	sourcecheck.ReportEach(t, sessionsBreaches(t, root, sourcecheck.ModulePath(t, root), sessionsFiles, builtForSessions, sessionsAbsorbed))
 }

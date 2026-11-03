@@ -77,6 +77,7 @@ const (
 // above name: resets, a window only some models share, a run broken and
 // resumed, and answers without ids among them.
 func TestAPagesPointsRestoredFromTheirStoredFormAreThePointsFoldedWhole(t *testing.T) {
+	t.Parallel()
 	met := make(map[string]bool)
 	for seed := range uint64(pointsSeeds) {
 		lines := pointedRun(seed)
