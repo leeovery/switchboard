@@ -52,6 +52,29 @@ func (v View) headsItself() bool {
 	return v == Overview || v == Graphs
 }
 
+// SubViews are the tab's own views, named as its heading row names them, in
+// lower case, the one it opens on first: its sub-tabs, or Runway's windows;
+// none where it has none.
+func (v View) SubViews() []string {
+	switch v {
+	case Accounts:
+		return lowerNames(accountsViews)
+	case History:
+		return lowerNames(historyViews)
+	case Sessions:
+		return lowerNames(sessionsViews)
+	case Log:
+		return lowerNames(logViews)
+	case Runway:
+		names := make([]string, len(runwayWindows))
+		for i, w := range runwayWindows {
+			names[i] = runwayNames[w]
+		}
+		return names
+	}
+	return nil
+}
+
 // Title is the tab's name in the title row, such as Overview.
 func (v View) Title() string {
 	return cmp.Or(titles[v], string(v))

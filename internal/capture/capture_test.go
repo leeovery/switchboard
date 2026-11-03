@@ -387,22 +387,19 @@ var everyInput = []tea.Msg{
 // TestNoFixtureKeyOrWidthPanics takes one fixture or two of each view, as
 // sweptFully chooses them, through every width and every key, as
 // takenAtEveryWidth has it; each of the rest takes every key, click and turn
-// of the wheel in turn at its own size. A printout, which takes no keys, is
-// drawn as tall as it is: at every width from 1 to 240 where it's chosen,
-// else at its own.
+// of the wheel in turn at its own size. Every printout, which takes no keys,
+// is drawn as tall as it is at every width from 1 to 240.
 func TestNoFixtureKeyOrWidthPanics(t *testing.T) {
-	full := sweptFully(t)
+	full := sweptFully(t, takesKeys)
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			f := fixture(t, name)
 			switch {
-			case f.Printout && full[name]:
+			case f.Printout:
 				for width := 1; width <= 240; width++ {
 					printedAt(t, f, width)
 				}
-			case f.Printout:
-				printedAt(t, f, f.Size.Width)
 			case full[name]:
 				takenAtEveryWidth(t, f)
 			default:

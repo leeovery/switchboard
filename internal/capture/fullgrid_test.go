@@ -12,80 +12,102 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 )
 
-// subViews are the sub-views of each tab that has them, as the fixtures'
-// names lead their words for them, as week leads weeks, the one the tab
-// opens on first.
-var subViews = map[string][]string{
-	"history":  {"year", "week", "day", "token"},
-	"accounts": {"compare", "detail"},
-	"sessions": {"switchboard", "list"},
-	"runway":   {"week", "5-hour"},
-	"log":      {"request", "event"},
-}
-
 // drawnView is the view the fixture draws, as its name says it: setup's
-// screen's step; else the tab, a session's page, the routing card or
-// usage's printout its name leads with, past page- for a page drawn to
-// judge by eye, and the sub-view of a tab that has them the name says, else
-// the one the tab opens on. A page whose name leads with a sub-view alone,
-// as page-year's, is of that sub-view's tab; one whose name says no view is
-// a view of its own.
+// screen's step, and the card open over it; else the tab, a session's page,
+// the routing card or usage's printout its name leads with, past page- for
+// a page drawn to judge by eye, and the tab's own view, of those
+// dashboard.View's SubViews names, its name says, as a word of it, else the
+// one the tab opens on. A page whose name leads with a tab's own view alone,
+// as page-year's, is of that tab; one whose name says no view is a view of
+// its own.
 func drawnView(f Fixture) string {
 	if f.setup != nil {
-		return "setup " + strconv.Itoa(int(f.setup.step))
+		return strings.TrimSpace("setup " + strconv.Itoa(int(f.setup.step)) + " " + f.setup.card)
 	}
 	name := strings.TrimPrefix(f.Name, "page-")
 	lead, _, _ := strings.Cut(name, "-")
-	tab := lead
+	kind := lead
 	if !slices.Contains(drawnKinds(), lead) {
-		tab = tabOfSubView(lead)
+		kind = tabOfSubView(lead)
 	}
-	subs := subViews[tab]
+	subs := dashboard.View(kind).SubViews()
 	switch {
-	case tab == "":
+	case kind == "":
 		return name
 	case len(subs) == 0:
-		return tab
+		return kind
 	}
 	for _, sub := range subs {
-		if strings.Contains("-"+name, "-"+sub) {
-			return tab + " " + sub
+		if namesWord(name, sub) {
+			return kind + " " + sub
 		}
 	}
-	return tab + " " + subs[0]
+	return kind + " " + subs[0]
 }
 
-// drawnKinds are what a fixture's name leads with, where it draws a tab, a
-// session's page, the routing card or usage's printout.
+// watchPages are what the watch shows of itself, as a fixture's name leads
+// with them: each tab, and a session's page.
+func watchPages() []dashboard.View {
+	return append(dashboard.Views(), dashboard.SessionPage)
+}
+
+// drawnKinds are what a fixture's name leads with, where it draws one of
+// the pages, the routing card or usage's printout.
 func drawnKinds() []string {
-	kinds := []string{string(dashboard.SessionPage), "routing", "usage"}
-	for _, v := range dashboard.Views() {
+	kinds := []string{"routing", "usage"}
+	for _, v := range watchPages() {
 		kinds = append(kinds, string(v))
 	}
 	return kinds
 }
 
-// tabOfSubView is the tab of the sub-view given, as subViews names it: ""
-// where none has it.
-func tabOfSubView(sub string) string {
-	for _, tab := range slices.Sorted(maps.Keys(subViews)) {
-		if slices.Contains(subViews[tab], sub) {
-			return tab
+// tabOfSubView is the tab one of whose own views the word given names, as
+// namesWord has it: "" where none's does.
+func tabOfSubView(word string) string {
+	for _, v := range dashboard.Views() {
+		if slices.ContainsFunc(v.SubViews(), func(sub string) bool { return namesWord(word, sub) }) {
+			return string(v)
 		}
 	}
 	return ""
 }
 
-// sweptFully are the fixtures, by name, each size sweep draws at every size
-// of its grid, and the key sweep takes every key at every width: of each
-// view, as drawnView has it, the one that lays out the most, as byAccounts
-// orders them, and the one drawn narrowest, as byWidth does. The rest are
-// drawn at a few sizes, as sweptSizes has them.
-func sweptFully(t *testing.T) map[string]bool {
+// namesWord reports whether the name, its words split by hyphens, has the
+// view's name given as a word of it, or one less its plural s, as
+// log-event-details names the Log's events.
+func namesWord(name, view string) bool {
+	words := "-" + name + "-"
+	return strings.Contains(words, "-"+view+"-") || strings.Contains(words, "-"+strings.TrimSuffix(view, "s")+"-")
+}
+
+// ofAPage reports whether the watch draws the fixture as one of its pages,
+// as drawnView reads it: the fixtures the fit and scroll sweeps choose
+// among, as they close what's open over a page, which leaves the page under
+// the routing card, or the help over a page drawn to judge by eye, drawn as
+// another fixture draws it.
+func ofAPage(f Fixture) bool {
+	kind, _, _ := strings.Cut(drawnView(f), " ")
+	return f.watched() && slices.Contains(watchPages(), dashboard.View(kind))
+}
+
+// takesKeys reports whether the fixture takes keys: every one but a
+// printout, which the key sweep draws at every width whatever it chooses.
+func takesKeys(f Fixture) bool {
+	return !f.Printout
+}
+
+// sweptFully are the fixtures, by name, a sweep draws at every size of its
+// grid, or takes every key at every width, of those among says it chooses
+// from: of each view, as drawnView has it, the one that lays out the most,
+// as byAccounts orders them, and the one drawn narrowest, as byWidth does.
+// The rest are drawn at a few sizes, as sweptSizes has them.
+func sweptFully(t *testing.T, among func(Fixture) bool) map[string]bool {
 	t.Helper()
 	var fixtures []Fixture
 	for _, name := range Names() {
-		fixtures = append(fixtures, fixture(t, name))
+		if f := fixture(t, name); among(f) {
+			fixtures = append(fixtures, f)
+		}
 	}
 	full := make(map[string]bool)
 	for _, order := range []func(a, b Fixture) int{byAccounts, byWidth} {
@@ -107,9 +129,18 @@ func byAccounts(a, b Fixture) int {
 }
 
 // byWidth orders fixtures by the width they're drawn at, the narrowest
-// first, then as byAccounts does.
+// first; then by their accounts, the most first; then by the keys pressed
+// to reach them, the fewest first, so the view as it opens is drawn fully
+// beside the one byAccounts finds; then by name.
 func byWidth(a, b Fixture) int {
-	return cmp.Or(cmp.Compare(a.Size.Width, b.Size.Width), byAccounts(a, b))
+	return cmp.Or(cmp.Compare(a.Size.Width, b.Size.Width), cmp.Compare(len(b.accounts), len(a.accounts)), cmp.Compare(len(a.keys), len(b.keys)), strings.Compare(a.Name, b.Name))
+}
+
+// sweepGrid is a size sweep's grid: the widths and heights it draws a
+// fixture at in full, and the least height it holds one it doesn't to.
+type sweepGrid struct {
+	widths, heights []int
+	least           int
 }
 
 // swept is a width a size sweep draws a fixture at, and the heights it
@@ -119,24 +150,24 @@ type swept struct {
 	heights []int
 }
 
-// sweptSizes are the sizes a sweep of the widths and heights given draws
-// the fixture at, a width at a time: every one of its grid, where the
-// sweep draws it fully, as sweptFully has it; else its own size, each of
-// the widths at the middle height, and the least height at its own width.
-func sweptSizes(f Fixture, fully bool, widths, heights []int) []swept {
+// sweptSizes are the sizes a sweep of the grid given draws the fixture at,
+// a width at a time: every one of the grid, where the sweep draws it fully,
+// as sweptFully has it; else its own size, each of the grid's widths at its
+// middle height, and its least height at the fixture's own width.
+func sweptSizes(f Fixture, fully bool, g sweepGrid) []swept {
 	if fully {
-		sizes := make([]swept, 0, len(widths))
-		for _, width := range widths {
-			sizes = append(sizes, swept{width: width, heights: heights})
+		sizes := make([]swept, 0, len(g.widths))
+		for _, width := range g.widths {
+			sizes = append(sizes, swept{width: width, heights: g.heights})
 		}
 		return sizes
 	}
-	sorted := slices.Sorted(slices.Values(heights))
-	sizes := make([]swept, 0, len(widths)+1)
-	for _, width := range widths {
+	sorted := slices.Sorted(slices.Values(g.heights))
+	sizes := make([]swept, 0, len(g.widths)+1)
+	for _, width := range g.widths {
 		sizes = withSize(sizes, width, sorted[len(sorted)/2])
 	}
-	return withSize(withSize(sizes, f.Size.Width, f.Size.Height), f.Size.Width, sorted[0])
+	return withSize(withSize(sizes, f.Size.Width, f.Size.Height), f.Size.Width, g.least)
 }
 
 // atWidth runs check, a size sweep's work on a fixture at the width given,
@@ -162,26 +193,25 @@ func withSize(sizes []swept, width, height int) []swept {
 	return sizes
 }
 
-// Every view the fixtures draw, as drawnView has it, is one each sweep draws
-// at every size of its grid for one fixture or two: the fit and scroll
-// sweeps of those the watch draws, and the key sweep of every one. So a new
-// view can't slip out of the full grid unnoticed, nor a view's fixtures
-// all slip into it.
+// Every view the fixtures a sweep chooses among draw, as drawnView has it,
+// is one the sweep draws at every size of its grid for one fixture or two:
+// the fit and scroll sweeps of the pages, and the key sweep of every fixture
+// that takes keys. So none of a view's fixtures all slip into the full grid.
 func TestEverySweepDrawsEachViewFullyForOneFixtureOrTwo(t *testing.T) {
-	full := sweptFully(t)
 	tests := []struct {
 		name  string
-		draws func(Fixture) bool
+		among func(Fixture) bool
 	}{
-		{name: "the fit and scroll sweeps", draws: Fixture.watched},
-		{name: "the key sweep", draws: func(Fixture) bool { return true }},
+		{name: "the fit and scroll sweeps", among: ofAPage},
+		{name: "the key sweep", among: takesKeys},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			full := sweptFully(t, tt.among)
 			drawn, fully := make(map[string]bool), make(map[string][]string)
 			for _, name := range Names() {
 				f := fixture(t, name)
-				if !tt.draws(f) {
+				if !tt.among(f) {
 					continue
 				}
 				view := drawnView(f)
@@ -199,6 +229,32 @@ func TestEverySweepDrawsEachViewFullyForOneFixtureOrTwo(t *testing.T) {
 	}
 }
 
+// Every page the watch has, each tab's own views among them, as
+// dashboard.View's SubViews names them, is drawn fully by a fixture the fit
+// and scroll sweeps choose, and so by the key sweep's too. So a new tab or
+// a tab's new view can't slip out of the full grid unnoticed.
+func TestEveryPageTheWatchHasIsDrawnFully(t *testing.T) {
+	full := sweptFully(t, ofAPage)
+	fully := make(map[string]bool)
+	for name := range full {
+		fully[drawnView(fixture(t, name))] = true
+	}
+	for _, v := range watchPages() {
+		views := []string{string(v)}
+		if subs := v.SubViews(); len(subs) > 0 {
+			views = nil
+			for _, sub := range subs {
+				views = append(views, string(v)+" "+sub)
+			}
+		}
+		for _, view := range views {
+			if !fully[view] {
+				t.Errorf("no fixture the fit and scroll sweeps draw fully draws %q", view)
+			}
+		}
+	}
+}
+
 // Each kind of fixture's name is read as the view it draws.
 func TestAFixturesViewIsWhatItsNameSays(t *testing.T) {
 	tests := []struct {
@@ -210,22 +266,24 @@ func TestAFixturesViewIsWhatItsNameSays(t *testing.T) {
 		{name: "usage-5h-52", want: "usage"},
 		{name: "session-moved-160", want: "session"},
 		{name: "history-phone-year-52", want: "history year"},
-		{name: "history-weeks-ten-160", want: "history week"},
-		{name: "history-tokens-models-160", want: "history token"},
+		{name: "history-weeks-ten-160", want: "history weeks"},
+		{name: "history-tokens-models-160", want: "history tokens"},
 		{name: "page-year-160x24", want: "history year"},
 		{name: "accounts-phone-detail-52", want: "accounts detail"},
 		{name: "page-detail-list-focus", want: "accounts detail"},
 		{name: "sessions-108x44", want: "sessions switchboard"},
 		{name: "sessions-list-phone-52", want: "sessions list"},
+		{name: "sessions-list-long-names-108x44", want: "sessions list"},
 		{name: "page-sessions-short", want: "sessions switchboard"},
 		{name: "runway-5-hour-160", want: "runway 5-hour"},
 		{name: "runway-ten-accounts-160", want: "runway week"},
-		{name: "log-event-details-160", want: "log event"},
-		{name: "log-not-live-160", want: "log request"},
-		{name: "page-log-find", want: "log request"},
+		{name: "log-event-details-160", want: "log events"},
+		{name: "log-not-live-160", want: "log requests"},
+		{name: "page-log-find", want: "log requests"},
 		{name: "graphs-sections-173x53", want: "graphs"},
 		{name: "page-help-scrolled", want: "help-scrolled"},
 		{name: "setup-link-done-160", want: "setup " + strconv.Itoa(int(dashboard.SetupLink))},
+		{name: "setup-token-paste-160", want: "setup " + strconv.Itoa(int(dashboard.SetupAccounts)) + " PASTE A TOKEN · PERSONAL"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -236,11 +294,39 @@ func TestAFixturesViewIsWhatItsNameSays(t *testing.T) {
 	}
 }
 
+// The fit and scroll sweeps choose among the pages alone, as they close
+// what's open over one: never the routing card's fixtures, nor a page drawn
+// to judge by eye whose name says no page.
+func TestTheSizeSweepsChooseAmongThePagesAlone(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{name: "overview-default-160", want: true},
+		{name: "session-moved-160", want: true},
+		{name: "page-year-160x24", want: true},
+		{name: "routing-auto-160"},
+		{name: "routing-session-160"},
+		{name: "page-routing-phone"},
+		{name: "page-help-scrolled"},
+		{name: "page-not-answering"},
+		{name: "usage-52"},
+		{name: "setup-review-160"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ofAPage(fixture(t, tt.name)); got != tt.want {
+				t.Errorf("ofAPage(%s) = %t, want %t", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
 // A fixture a sweep doesn't draw fully is drawn at its own size, at each of
-// the sweep's widths at its middle height, and at its least height at its
-// own width; one it does, at every size of its grid.
-func TestASweepDrawsAFixtureAtItsOwnSizeEachWidthAndItsLeastHeight(t *testing.T) {
-	widths, heights := []int{52, 120}, []int{12, 14, 16, 20}
+// the grid's widths at its middle height, and at the grid's least height at
+// its own width; one it does, at every size of the grid.
+func TestASweepDrawsAFixtureAtItsOwnSizeEachWidthAndTheLeastHeight(t *testing.T) {
+	g := sweepGrid{widths: []int{52, 120}, heights: []int{12, 14, 16, 20}, least: 14}
 	tests := []struct {
 		name  string
 		size  watch.Size
@@ -249,26 +335,26 @@ func TestASweepDrawsAFixtureAtItsOwnSizeEachWidthAndItsLeastHeight(t *testing.T)
 	}{
 		{
 			name: "drawn fully", size: watch.Size{Width: 160, Height: 37}, fully: true,
-			want: []swept{{width: 52, heights: heights}, {width: 120, heights: heights}},
+			want: []swept{{width: 52, heights: g.heights}, {width: 120, heights: g.heights}},
 		},
 		{
 			name: "at a width of its own", size: watch.Size{Width: 160, Height: 37},
-			want: []swept{{width: 52, heights: []int{16}}, {width: 120, heights: []int{16}}, {width: 160, heights: []int{12, 37}}},
+			want: []swept{{width: 52, heights: []int{16}}, {width: 120, heights: []int{16}}, {width: 160, heights: []int{14, 37}}},
 		},
 		{
-			name: "at one of the sweep's widths", size: watch.Size{Width: 52, Height: 33},
-			want: []swept{{width: 52, heights: []int{12, 16, 33}}, {width: 120, heights: []int{16}}},
+			name: "at one of the grid's widths", size: watch.Size{Width: 52, Height: 33},
+			want: []swept{{width: 52, heights: []int{14, 16, 33}}, {width: 120, heights: []int{16}}},
 		},
 		{
-			name: "at the middle height of one of the sweep's widths", size: watch.Size{Width: 120, Height: 16},
-			want: []swept{{width: 52, heights: []int{16}}, {width: 120, heights: []int{12, 16}}},
+			name: "at the middle height of one of the grid's widths", size: watch.Size{Width: 120, Height: 16},
+			want: []swept{{width: 52, heights: []int{16}}, {width: 120, heights: []int{14, 16}}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := sweptSizes(Fixture{Size: tt.size}, tt.fully, widths, heights)
+			got := sweptSizes(Fixture{Size: tt.size}, tt.fully, g)
 			if !slices.EqualFunc(got, tt.want, func(a, b swept) bool { return a.width == b.width && slices.Equal(a.heights, b.heights) }) {
-				t.Errorf("sweptSizes(%v, %t, %v, %v) = %v, want %v", tt.size, tt.fully, widths, heights, got, tt.want)
+				t.Errorf("sweptSizes(%v, %t, %+v) = %v, want %v", tt.size, tt.fully, g, got, tt.want)
 			}
 		})
 	}

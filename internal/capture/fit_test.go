@@ -25,6 +25,7 @@ import (
 var (
 	sweptWidths  = []int{20, 40, 52, 80, 99, 100, 120, 160, 230}
 	sweptHeights = []int{8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28, 30, 33, 36, 37, 41}
+	fitGrid      = sweepGrid{widths: sweptWidths, heights: sweptHeights, least: sweptHeights[0]}
 )
 
 // tallest is the height the fit sweep holds each smaller one to: tall
@@ -37,11 +38,11 @@ const tallest = 60
 // as anything fits, as the height changes none of them, so no view draws on
 // them; and where History's Weeks or Days say how many more accounts are out
 // of view, as drawn and scrolled a row, they show one at least. The whole
-// grid is drawn for one fixture or two of each view, as sweptFully chooses
-// them, and the rest at a few sizes, as sweptSizes has them. Setup's screen
-// has a rule of its own, held in setup_test.go.
+// grid is drawn for one fixture or two of each page's view, as sweptFully
+// chooses them, and the rest at a few sizes, as sweptSizes has them.
+// Setup's screen has a rule of its own, held in setup_test.go.
 func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
-	full := sweptFully(t)
+	full := sweptFully(t, ofAPage)
 	for _, name := range Names() {
 		f := fixture(t, name)
 		if !f.watched() {
@@ -51,7 +52,7 @@ func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
 			names := accountNames(f)
-			for _, at := range sweptSizes(f, full[name], sweptWidths, sweptHeights) {
+			for _, at := range sweptSizes(f, full[name], fitGrid) {
 				atWidth(t, at.width, func(t *testing.T) { holdsItsChromeAt(t, m, names, at) })
 			}
 		})
@@ -186,11 +187,11 @@ var (
 // no page up passes over what a page down shows: whatever a view pages by,
 // rows, accounts or periods, a page up ends at the one above the first the
 // page showed. A view drawn alike by two fixtures at a size is paged once.
-// The whole grid is paged for one fixture or two of each view, as
+// The whole grid is paged for one fixture or two of each page's view, as
 // sweptFully chooses them, and the rest at a few sizes, as sweptSizes has
 // them.
 func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
-	full := sweptFully(t)
+	full := sweptFully(t, ofAPage)
 	var walked sync.Map
 	for _, name := range Names() {
 		f := fixture(t, name)
@@ -201,7 +202,7 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
-			for _, at := range sweptSizes(f, full[name], pagingWidths(log), pagingHeights(log)) {
+			for _, at := range sweptSizes(f, full[name], pagingGrid(log)) {
 				atWidth(t, at.width, func(t *testing.T) { pagesThroughAt(t, m, name, at, &walked) })
 			}
 		})
@@ -356,6 +357,18 @@ func pagingHeights(log bool) []int {
 		}
 	}
 	return heights
+}
+
+// pagingGrid is the scroll sweep's grid of a view, the Log's or another's:
+// pagingWidths by pagingHeights, a fixture it doesn't page fully held to the
+// least of pagedHeights, where every rule of the sweep holds; the Log's,
+// held to the one rule, to the least it pages at.
+func pagingGrid(log bool) sweepGrid {
+	g := sweepGrid{widths: pagingWidths(log), heights: pagingHeights(log), least: pagedHeights[0]}
+	if log {
+		g.least = g.heights[0]
+	}
+	return g
 }
 
 // unmatched are the rows the pages seen show, each what the view scrolls of

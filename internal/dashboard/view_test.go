@@ -16,6 +16,31 @@ func TestTheSevenTabsInTheirOrder(t *testing.T) {
 	}
 }
 
+// Each tab's own views are named as its heading row names them, the one it
+// opens on first; a tab without any has none.
+func TestEachTabsSubViewsInTheirOrder(t *testing.T) {
+	tests := []struct {
+		view View
+		want []string
+	}{
+		{view: Overview},
+		{view: Accounts, want: []string{"compare", "detail"}},
+		{view: History, want: []string{"year", "weeks", "days", "tokens"}},
+		{view: Sessions, want: []string{"switchboard", "list"}},
+		{view: Runway, want: []string{"week", "5-hour"}},
+		{view: Graphs},
+		{view: Log, want: []string{"requests", "events"}},
+		{view: SessionPage},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.view), func(t *testing.T) {
+			if got := tt.view.SubViews(); !slices.Equal(got, tt.want) {
+				t.Errorf("%s.SubViews() = %q, want %q", tt.view, got, tt.want)
+			}
+		})
+	}
+}
+
 // Graphs heads its own sections, as the Overview does: no heading row, its
 // view, its first section's heading, from the heading row's row, with
 // nothing over it.
