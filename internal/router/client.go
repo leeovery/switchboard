@@ -249,14 +249,30 @@ func (c *Client) History(ctx context.Context, window string, step time.Duration)
 // before POST /import can't.
 func (c *Client) Import(ctx context.Context) (Imported, error) {
 	var imported Imported
-	err := c.ask(ctx, http.MethodPost, "/import", nil, &imported)
-	if d, ok := errors.AsType[declined](err); ok && d.status == http.StatusNotFound && d.reason == "" {
-		return Imported{}, fmt.Errorf("%w: %w", ErrNoImport, err)
-	}
-	if err != nil {
+	if err := noImport(c.ask(ctx, http.MethodPost, "/import", nil, &imported)); err != nil {
 		return Imported{}, err
 	}
 	return imported, nil
+}
+
+// ImportRunning asks whether the router is running an import now. It fails
+// with ErrNoImport when it can't be asked, as a router from before POST
+// /import can't.
+func (c *Client) ImportRunning(ctx context.Context) (bool, error) {
+	var running importRunning
+	if err := noImport(c.call(ctx, clientTimeout, http.MethodGet, "/import", nil, &running)); err != nil {
+		return false, err
+	}
+	return running.Running, nil
+}
+
+// noImport is err, a call's of /import, as ErrNoImport where the router
+// doesn't know the path, as one from before POST /import doesn't.
+func noImport(err error) error {
+	if d, ok := errors.AsType[declined](err); ok && d.status == http.StatusNotFound && d.reason == "" {
+		return fmt.Errorf("%w: %w", ErrNoImport, err)
+	}
+	return err
 }
 
 // Stream opens the router's request stream, and returns what befalls each

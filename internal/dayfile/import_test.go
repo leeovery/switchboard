@@ -657,6 +657,70 @@ func TestAWriterImportsByItsOwnKeepAndClock(t *testing.T) {
 	}
 }
 
+func TestWhatFollowsADayTakenInIsDoneWithItAsOne(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := readingsHistory(t.TempDir())
+		w := testWriter(f, at(start), 1)
+		stop := running(t, w)
+		defer stop()
+		date := DateOf(start)
+		lines := linesOf(`{"n":1}`)
+		s := stage(t, date, gzipOf(t, lines))
+		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+		defer cancel()
+		var held []byte
+		finished := make(chan struct{})
+
+		_, err := w.ImportThen(ctx, date, s.path, func() error {
+			held, _ = os.ReadFile(f.path(plainFile(date)))
+			time.Sleep(2 * time.Minute)
+			close(finished)
+			return nil
+		})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("ImportThen() = %v, want its context's end, which came first", err)
+		}
+		select {
+		case <-finished:
+		case <-time.After(time.Hour):
+			t.Fatal("what follows the day taken in never finished, want it run to its end with the day")
+		}
+		if string(held) != lines {
+			t.Errorf("as what follows ran, the day held %q, want the lines taken in, %q", held, lines)
+		}
+	})
+}
+
+func TestWhatFollowsADayTakenInFailsTheImport(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	w := testWriter(f, at(start), 1)
+	stop := running(t, w)
+	defer stop()
+	date := DateOf(start)
+	s := stage(t, date, gzipOf(t, linesOf(`{"n":1}`)))
+	failed := errors.New("what follows failed")
+
+	if _, err := w.ImportThen(t.Context(), date, s.path, func() error { return failed }); !errors.Is(err, failed) {
+		t.Errorf("ImportThen() = %v, want what followed's error, %v", err, failed)
+	}
+}
+
+func TestWhatFollowsADayIsntDoneWhereTheDayCantBeTakenIn(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	w := testWriter(f, at(start), 1)
+	stop := running(t, w)
+	defer stop()
+	followed := false
+
+	_, err := w.ImportThen(t.Context(), DateOf(start), filepath.Join(t.TempDir(), "gone.jsonl.gz"), func() error {
+		followed = true
+		return nil
+	})
+	if err == nil || followed {
+		t.Errorf("ImportThen() of a file that isn't there = %v, what follows done = %v; want it to fail, doing none of it", err, followed)
+	}
+}
+
 func TestImportingADayThatIsntADateFails(t *testing.T) {
 	f := readingsHistory(t.TempDir())
 	w := testWriter(f, at(start), 1)

@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,9 +17,63 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
 )
+
+// importingConfig is the config of a router of testConfigured's on start's
+// clock, listening on a port of its own, its state directory one of the
+// test's own, short enough to hold its control socket.
+func importingConfig(t *testing.T) Config {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "sb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+	cfg.StateDir, cfg.Listen = dir, "127.0.0.1:0"
+	return cfg
+}
+
+// runImporting runs r until the test ends, returning once its control API
+// answers, with a client of it, and what stops it, which returns once Run
+// has.
+func runImporting(t *testing.T, r *Router) (*Client, func() error) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	finished := make(chan error, 1)
+	go func() { finished <- r.run(ctx) }()
+	stop := sync.OnceValue(func() error {
+		cancel()
+		return <-finished
+	})
+	t.Cleanup(func() { _ = stop() })
+	client := NewClient(SocketPath(r.cfg.StateDir))
+	waitFor(t, "the router answers", func() bool {
+		_, err := client.Health(t.Context())
+		return err == nil
+	})
+	return client, stop
+}
+
+// stageFile writes data as the file at path, making its directory.
+func stageFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// readingOn is a reading of work's session taken at at, as a line of the
+// readings history.
+func readingOn(at time.Time) string {
+	return `{"at":"` + at.UTC().Format(time.RFC3339) + `","account":"work","window":"5h","utilization":0.4,"status":"allowed","source":"answer"}` + "\n"
+}
 
 // heldImporting is a router of testConfigured's, run in a state directory of
 // the test's own, with a day of readings staged to import, and its readings
@@ -30,55 +85,32 @@ type heldImporting struct {
 	// dir is the router's state directory, and date the date of the day
 	// staged.
 	dir, date string
-	// busy closes once the writer is held.
-	busy    chan struct{}
-	release func()
+	release   func()
 	// stop stops the router, and returns once Run has.
 	stop func() error
 }
 
 // newHeldImporting runs a router as heldImporting says, until the test ends,
-// returning once its control API answers.
+// returning once its control API answers, and its writer is held.
 func newHeldImporting(t *testing.T) *heldImporting {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "sb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
-	cfg.StateDir, cfg.Listen = dir, "127.0.0.1:0"
-	h := &heldImporting{r: newTestRouterOf(t, cfg), client: NewClient(SocketPath(dir)), dir: dir, date: dayfile.DateOf(start.AddDate(0, 0, -10)), busy: make(chan struct{})}
-	staged := readings.Files(readings.Dir(filepath.Join(ImportDir(dir), "1")), logger)
-	if err := os.MkdirAll(staged.Dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	line := `{"at":"` + start.AddDate(0, 0, -10).Format(time.RFC3339) + `","account":"work","window":"5h","utilization":0.4,"status":"allowed","source":"answer"}` + "\n"
-	if err := os.WriteFile(staged.CompressedPath(h.date), gzipOf(t, line), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	released := make(chan struct{})
+	cfg := importingConfig(t)
+	h := &heldImporting{r: newTestRouterOf(t, cfg), dir: cfg.StateDir, date: dayfile.DateOf(start.AddDate(0, 0, -10))}
+	staged := readings.Files(readings.Dir(filepath.Join(ImportDir(h.dir), "1")), logger)
+	stageFile(t, staged.CompressedPath(h.date), gzipOf(t, readingOn(start.AddDate(0, 0, -10))))
+	busy, released := make(chan struct{}), make(chan struct{})
 	h.release = sync.OnceFunc(func() { close(released) })
+	// The writer goes free as the test ends, before its router is stopped,
+	// which waits on it.
 	h.r.history.pruning = func(time.Time) {
-		close(h.busy)
-		<-released
+		close(busy)
+		select {
+		case <-released:
+		case <-t.Context().Done():
+		}
 	}
-	ctx, cancel := context.WithCancel(t.Context())
-	finished := make(chan error, 1)
-	go func() { finished <- h.r.run(ctx) }()
-	h.stop = sync.OnceValue(func() error {
-		cancel()
-		return <-finished
-	})
-	t.Cleanup(func() {
-		h.release()
-		_ = h.stop()
-	})
-	waitFor(t, "the router answers", func() bool {
-		_, err := h.client.Health(t.Context())
-		return err == nil
-	})
-	<-h.busy
+	h.client, h.stop = runImporting(t, h.r)
+	<-busy
 	return h
 }
 
@@ -183,6 +215,75 @@ func TestARouterStoppingMidImportCutsItShortWithoutWaitingOnIt(t *testing.T) {
 	}
 	if _, err := os.Stat(readings.Files(readings.Dir(h.dir), logger).CompressedPath(h.date)); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("once the import was cut short, the day staged: %v, want it never taken in, the writer never having taken the work up", err)
+	}
+}
+
+func TestTheRouterSaysWhetherAnImportIsRunning(t *testing.T) {
+	logstest.Capture(t)
+	h := newHeldImporting(t)
+	running := func(when string, want bool) {
+		t.Helper()
+		if got, err := h.client.ImportRunning(t.Context()); err != nil || got != want {
+			t.Errorf("%s, ImportRunning() = %v, %v, want %v", when, got, err, want)
+		}
+	}
+
+	running("before an import", false)
+	answered := h.importing(t)
+	running("as one runs", true)
+	h.release()
+	if err := <-answered; err != nil {
+		t.Fatalf("Import() = %v", err)
+	}
+	running("once it's done", false)
+}
+
+func TestASummaryARoundWritesOfADayAsItsFolderComesInGivesWayToTheOneStaged(t *testing.T) {
+	logstest.Capture(t)
+	cfg := importingConfig(t)
+	// The ledger's lines are kept 30 days, the readings history 400.
+	cfg.Ledger.Keep = 30 * 24 * time.Hour
+	r := newTestRouterOf(t, cfg)
+	day := start.AddDate(0, 0, -60)
+	date, weekBefore := dayfile.DateOf(day), dayfile.DateOf(day.AddDate(0, 0, -9))
+	// The Mac's ledger holds an older day's summary, so a round summarises
+	// the days after from their readings, where the readings history covers
+	// them.
+	older := dayfile.DateOf(day.AddDate(0, 0, -10))
+	stageFile(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), older), []byte(`{"version":6,"day":"`+older+`","lines":0}`+"\n"))
+	// The folder covers the day with readings of it and of the day before its
+	// week; its requests' lines are past keeping, so its summary staged is
+	// their only record.
+	folder := filepath.Join(ImportDir(cfg.StateDir), "1")
+	stagedReadings := readings.Files(readings.Dir(folder), logger)
+	stageFile(t, stagedReadings.CompressedPath(weekBefore), gzipOf(t, readingOn(day.AddDate(0, 0, -9))))
+	stageFile(t, stagedReadings.CompressedPath(date), gzipOf(t, readingOn(day)))
+	stageFile(t, ledger.Files(ledger.Dir(folder), logger).CompressedPath(date),
+		gzipOf(t, `{"at":"`+day.UTC().Format(time.RFC3339)+`","request":"staged","kind":"message","account":"work","status":200}`+"\n"))
+	stageFile(t, ledger.SummaryFile(ledger.Dir(folder), date), []byte(`{"version":6,"day":"`+date+`","lines":2,"accounts":[{"account":"work"}]}`+"\n"))
+	summary := ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)
+	var wrote bool
+	r.imports.between = func() {
+		r.ledger.summariseEnded(r.cfg.Now())
+		_, err := os.Stat(summary)
+		wrote = err == nil
+	}
+	client, _ := runImporting(t, r)
+
+	imported, err := client.Import(t.Context())
+	if err != nil || imported.Summaries != 1 {
+		t.Errorf("Import() = %+v, %v, want the day's summary copied in", imported, err)
+	}
+	if !wrote {
+		t.Fatal("the round between the readings and the ledger's days summarised nothing of the day, want one of its readings alone")
+	}
+	data, err := os.ReadFile(summary)
+	var got ledger.Summary
+	if err == nil {
+		err = json.Unmarshal(data, &got)
+	}
+	if err != nil || got.Lines != 2 {
+		t.Errorf("once imported, the day's summary is %s, %v, want the one staged, of its 2 requests, in place of the round's of its readings alone", data, err)
 	}
 }
 

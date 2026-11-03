@@ -254,8 +254,8 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	}
 	logger.Info("stopping")
 	stopLooking()
-	// An import's handler waits on the writers, which stop only after the
-	// control API, closing, has waited on its handlers.
+	// An import under way stops now, rather than run on as the router stops:
+	// the control API, closing, waits on its handler.
 	r.imports.stop()
 	looked.Wait()
 	r.probes.stop()

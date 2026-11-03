@@ -3,6 +3,7 @@ package router_test
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -264,6 +265,10 @@ func TestAnImportTakesInADayOfEachKindOfLine(t *testing.T) {
 			want: router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 1}, Lines: 1}, wantHeld: []int{1, 2},
 		},
 		{
+			name: "a day the Mac holds every line of counts for none", days: 10, macs: []int{1, 2}, staged: []int{1, 2},
+			want: router.Imported{Folders: 1}, wantHeld: []int{1, 2},
+		},
+		{
 			name: "a day past keeping is left out", days: 60, staged: []int{1, 2},
 			want: router.Imported{Folders: 1, Days: router.ImportedDays{PastKeep: 1}},
 		},
@@ -367,6 +372,25 @@ func TestTheMacsOwnSummaryStandsAgainstOneStaged(t *testing.T) {
 	}
 	if got := stateOf(t, macs); got != was {
 		t.Errorf("once imported, the Mac's summary of the day is %+v, want its own, as it was: %+v", got, was)
+	}
+}
+
+func TestASummaryOfADayTheMacHoldsLinesOfButNoSummaryYetIsntCopiedIn(t *testing.T) {
+	cfg := importConfig(t)
+	// Half an hour into the day, so yesterday ended too lately for a round to
+	// summarise it, before the import or after.
+	y, m, d := now.Local().Date()
+	cfg.Now = func() time.Time { return time.Date(y, m, d, 0, 30, 0, 0, time.Local) }
+	date := dateOf(1)
+	put(t, requestLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, requestLines.linesOf(date, 1)...), now)
+	lines := stageLines(t, folder(cfg, 1), requestLines, date, requestLines.linesOf(date, 1, 2)...)
+	put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), date), []byte(summaryOf(date, 2, len(lines))), stamped(stagedOn))
+
+	if got, want := importNow(t, cfg), (router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 1}, Lines: 1}); got != want {
+		t.Errorf("Import() = %+v, want %+v, no summary copied in", got, want)
+	}
+	if _, err := os.Stat(ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("once imported, the Mac's summary of the day: %v, want none until its round makes one of its lines: it held lines of the day", err)
 	}
 }
 
@@ -528,8 +552,8 @@ func TestImportingTheSameFolderAgainAddsNothing(t *testing.T) {
 
 	stage()
 	second, err := client.Import(t.Context())
-	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 2, PastKeep: 1}}); err != nil || second != want {
-		t.Errorf("Import() again = %+v, %v, want %+v: each day held merged, gaining nothing", second, err, want)
+	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{PastKeep: 1}}); err != nil || second != want {
+		t.Errorf("Import() again = %+v, %v, want %+v: nothing new, but the day past keeping left out again", second, err, want)
 	}
 	if after := daysStaged(); !maps.Equal(after, before) {
 		t.Errorf("once imported again, the days' files are\n%v\nwant them as the first import left them\n%v", after, before)
@@ -600,13 +624,30 @@ func numbers(n int) []int {
 	return ns
 }
 
-func TestClientImportOfARouterFromBeforeImport(t *testing.T) {
-	path := filepath.Join(shortTempDir(t), "control.sock")
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"ok": true}`) })
-	serveOn(t, path, mux)
+func TestTheClientsImportCallsOfARouterFromBeforeImport(t *testing.T) {
+	calls := []struct {
+		name string
+		call func(ctx context.Context, c *router.Client) error
+	}{
+		{name: "Import", call: func(ctx context.Context, c *router.Client) error {
+			_, err := c.Import(ctx)
+			return err
+		}},
+		{name: "ImportRunning", call: func(ctx context.Context, c *router.Client) error {
+			_, err := c.ImportRunning(ctx)
+			return err
+		}},
+	}
+	for _, c := range calls {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(shortTempDir(t), "control.sock")
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"ok": true}`) })
+			serveOn(t, path, mux)
 
-	if _, err := router.NewClient(path).Import(t.Context()); !errors.Is(err, router.ErrNoImport) {
-		t.Errorf("Import() of a router from before POST /import: %v, want ErrNoImport", err)
+			if err := c.call(t.Context(), router.NewClient(path)); !errors.Is(err, router.ErrNoImport) {
+				t.Errorf("%s() of a router from before POST /import: %v, want ErrNoImport", c.name, err)
+			}
+		})
 	}
 }
