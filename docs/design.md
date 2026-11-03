@@ -7773,13 +7773,15 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   compressed file's, written beside it and renamed into place. No two Macs write the same line, as
   each holds its time and what sets it apart (see Files), so a line held already is one imported
   before, or the Mac's own come back, and an import repeated adds nothing.
-- **Summaries:** a day's summary is copied in, with its stamp, where the Mac had neither a summary
-  nor any line of the day before the import, as it stood as each folder began, the day's lines and
-  its summary taken in as one, so a round between them, or a stop, never leaves the one without the
-  other, as of a day the Mac never saw, or one past keeping
-  whose summary is its only record; else the Mac's own stands, and the round summarises again each
-  day whose lines changed, as its files' sizes tell it, building its digest, parts, head and rows
-  again too (see The request ledger).
+- **Summaries:** a day's summary is copied in, with its stamp, where the Mac holds no line of the
+  day, and no summary of it that counts one, as of a day the Mac never saw, one past keeping whose
+  summary is its only record, or one a round summarised from the readings alone, as it does once
+  the readings history covers a day (see The request ledger): what the Mac knows of the day's
+  requests is then nothing, and the folder's summary knows more. The day's lines and its summary
+  are taken in as one, on the ledger's writer, so whatever ran before, a round, a stop or an
+  import cut short, the look and the copy see the same files. Else the Mac's own stands, and the
+  round summarises again each day whose lines changed, as its files' sizes tell it, building its
+  digest, parts, head and rows again too (see The request ledger).
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
