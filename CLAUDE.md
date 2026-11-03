@@ -37,14 +37,18 @@ verbs that print JSON for agents, and through a skill that tells Claude about it
 
 ## Gates
 
-Run all of these before reporting work done. Each must pass clean. `scripts/gate` runs them all, and
-records a clean tree that passes: run it before merging or pushing to main, so a release finds the
-record and doesn't run them again (`scripts/gated`, mint's `pre_tag`).
+While working, run these with the tests of what you changed alone, as
+`scripts/test-isolated ./internal/views/...`: the whole suite costs hours of CPU a run. Once a
+change is finished, before its PR is marked ready and before merging or pushing to main, run them
+all on the whole, each passing clean. `scripts/gate` does, and records a clean tree that passes, so
+a release finds the record and doesn't run them again (`scripts/gated`, mint's `pre_tag`). In an
+orchestrated change that whole run is the orchestrator's, on the merged whole; its implementers run
+what they changed.
 
 ```bash
 gofmt -l .               # must print nothing
 go vet ./...
-scripts/test-isolated    # every test, race detector on, isolated: see Test isolation
+scripts/test-isolated    # every test, isolated, race detector on but for capture's: see Test isolation
 golangci-lint run        # standard linters plus modernize (.golangci.yml)
 go build ./...
 ```
@@ -93,11 +97,14 @@ notifications. Ever.
   that `TestMain`; a change to the environment outside `testguard`; a process started outside its
   allow-list; an `http.Transport` not cloned from `http.DefaultTransport`; `os/user`; or the
   environment read as a package initialises.
-- **`scripts/test-isolated` is the test gate:** every test, race detector on, inside a macOS sandbox
+- **`scripts/test-isolated` is the test gate:** every test, inside a macOS sandbox
   (`scripts/isolation.sb`) that denies the network beyond loopback, the router's port 4747, writes
   into the home and the real install, and running the real programs. Each run first proves the
   sandbox holds (`--self-check` does only that). Without `sandbox-exec` on macOS, the tests don't
   run.
+- **The race detector is on for every package but `capture`,** whose tests draw every fixture at
+  every size: under the detector they cost about ten times as much, and what they draw, the watch
+  model, keeps the detector in its own tests.
 - **The full lists** of what each guard watches and denies are in `internal/testguard` and
   `scripts/`: read them before changing either.
 - **A known false failure:** Claude Code's updater re-creates `~/.local/bin/claude` during long
