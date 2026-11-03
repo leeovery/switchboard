@@ -7687,8 +7687,8 @@ and `import` brings a folder's history into a Mac's own, so the next Mac has the
 folder kept somewhere else, as one Dropbox or iCloud Drive syncs, holds it should the Mac be lost
 (the owner's choice on 3 November 2026). Switchboard writes the folder and reads it, and nothing
 more: what keeps the folder safe, or carries it to another Mac, is the folder's own business.
-Switchboard never talks to a cloud. Export is built; still to be built, in this order: import,
-then the schedule.
+Switchboard never talks to a cloud. Export and import are built; the schedule is still to be
+built.
 
 - **What goes:** what can't be built again, the request ledger's lines, the days' summaries, the
   readings history and the router's events. Not the files the router builds from them, the days'
