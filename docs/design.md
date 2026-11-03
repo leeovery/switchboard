@@ -7788,7 +7788,7 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
 - **Then** the router runs a round at once, so History, Accounts and the data verbs have the days
   within minutes, and answers `{"folders": 1, "days": {"added": 27, "merged": 3, "past_keep": 12},
   "lines": 1204, "summaries": 27}`, `lines` those added to days both held, a day that gained nothing counting for none, so an import
-  repeated answers nothing new. The command prints
+  repeated adds nothing, telling only of the days past keeping again. The command prints
   `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out`.
 
 ### On a schedule
