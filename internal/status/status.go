@@ -494,12 +494,11 @@ type Collector struct {
 // Collect probes every account that has a usable token, all at once, and
 // reports them in the order given, as they stand once read, with when each
 // token was taken where that's known, along with the best of them, the
-// priming schedule over them, and what's worked out of them, as WorkedOut
-// says. An account without one isn't probed: its status says why, and what
-// would put it right.
+// priming schedule over those with a window to prime, as primable says, and
+// what's worked out of them, as WorkedOut says. An account without one isn't
+// probed: its status says why, and what would put it right.
 func (c Collector) Collect(ctx context.Context, accounts []config.Account) Document {
 	statuses := make([]Account, len(accounts))
-	var usable []string
 	var wg sync.WaitGroup
 	for i, acct := range accounts {
 		statuses[i] = Configured(acct)
@@ -511,7 +510,6 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 		}
 		statuses[i].TokenSet = true
 		statuses[i] = c.withTokenTaken(statuses[i], token)
-		usable = append(usable, acct.ID)
 		wg.Go(func() { c.probe(ctx, &statuses[i], token) })
 	}
 	wg.Wait()
@@ -526,10 +524,23 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 		Primary:     PrimaryOf(statuses),
 		Accounts:    statuses,
 	}
-	if schedule, ok := prime.New(c.Prime.Day, usable, c.Policy); ok {
+	if schedule, ok := prime.New(c.Prime.Day, primable(c.Policy, statuses), c.Policy); ok {
 		doc.Prime = Priming(schedule)
 	}
 	return doc.WorkedOut(c.Policy)
+}
+
+// primable are the ids of the accounts given, in their order, that have a
+// usable token and may have the window a request starts, as policy names it:
+// all but those lacking says lack it.
+func primable(policy score.Policy, accounts []Account) []string {
+	var ids []string
+	for _, a := range accounts {
+		if a.TokenSet && !slices.Contains(a.lacking(policy), policy.Started) {
+			ids = append(ids, a.ID)
+		}
+	}
+	return ids
 }
 
 // Configured is an account's status as the config gives it, before anything
