@@ -5,7 +5,8 @@
 // them out, each day's lines in one compressed file, and an export.json
 // saying whose folder it is. It writes a file only where it has changed
 // since it was last exported, every one beside where it goes and renamed
-// into place, and never removes one.
+// into place, and never removes one. It stages the Macs' folders an import
+// brings in, too, in the state directory, for the router to take in.
 package export
 
 import (
@@ -16,6 +17,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -100,10 +102,22 @@ func (e Exporter) Export(dir string) (Result, error) {
 // lines are the files of lines the state directory holds, each beside where
 // the Mac's folder at folder holds them.
 func (e Exporter) lines(folder string) []dayLines {
-	return []dayLines{
-		{src: ledger.Files(ledger.Dir(e.StateDir), e.Logger), dst: ledger.Files(ledger.Dir(folder), e.Logger), looked: e.looked, wrap: e.wrap},
-		{src: events.Files(ledger.Dir(e.StateDir), e.Logger), dst: events.Files(ledger.Dir(folder), e.Logger), looked: e.looked, wrap: e.wrap},
-		{src: readings.Files(readings.Dir(e.StateDir), e.Logger), dst: readings.Files(readings.Dir(folder), e.Logger), looked: e.looked, wrap: e.wrap},
+	src, dst := linesIn(e.StateDir, e.Logger), linesIn(folder, e.Logger)
+	lines := make([]dayLines, len(src))
+	for i := range src {
+		lines[i] = dayLines{src: src[i], dst: dst[i], looked: e.looked, wrap: e.wrap}
+	}
+	return lines
+}
+
+// linesIn are the files of each kind of line in root, a state directory or a
+// Mac's folder, which lay them out alike, what can't be done with them
+// logged to logger.
+func linesIn(root string, logger *slog.Logger) []*dayfile.Files {
+	return []*dayfile.Files{
+		ledger.Files(ledger.Dir(root), logger),
+		events.Files(ledger.Dir(root), logger),
+		readings.Files(readings.Dir(root), logger),
 	}
 }
 

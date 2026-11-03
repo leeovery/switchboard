@@ -32,7 +32,7 @@ one half written. It reads the files where they lie, so it needs no router.
 
 A day whose files can't be opened or read is passed over, and the rest
 exported; then export names each it passed over, and why, and fails.`,
-		Args: oneFolder,
+		Args: oneFolder("export into", "writes"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := a.export(cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
 			if errors.Is(err, errUnexported) {
@@ -44,16 +44,19 @@ exported; then export names each it passed over, and why, and fails.`,
 	}
 }
 
-// oneFolder takes one folder to export into, refusing one whose path holds
-// something shaped like a token, which no command writes or repeats.
-func oneFolder(_ *cobra.Command, args []string) error {
-	switch {
-	case len(args) != 1 || args[0] == "":
-		return errors.New("give the folder to export into")
-	case redact.HoldsToken(args[0]):
-		return errors.New("the folder given holds something shaped like a token, which switchboard never writes: give another")
+// oneFolder takes one folder, to export into or import from as purpose says,
+// refusing one whose path holds something shaped like a token, which
+// switchboard never does as never says, nor repeats.
+func oneFolder(purpose, never string) cobra.PositionalArgs {
+	return func(_ *cobra.Command, args []string) error {
+		switch {
+		case len(args) != 1 || args[0] == "":
+			return errors.New("give the folder to " + purpose)
+		case redact.HoldsToken(args[0]):
+			return errors.New("the folder given holds something shaped like a token, which switchboard never " + never + ": give another")
+		}
+		return nil
 	}
-	return nil
 }
 
 // errUnexported is what export fails with where it passed over a day's file
@@ -65,12 +68,9 @@ var errUnexported = errors.New("some days couldn't be exported")
 // it did, then, on errOut, each day's file it couldn't read, failing with
 // errUnexported where there's any.
 func (a *app) export(out, errOut io.Writer, dir string) error {
-	if !filepath.IsAbs(dir) {
-		wd, err := a.Getwd()
-		if err != nil {
-			return fmt.Errorf("find the working directory: %w", err)
-		}
-		dir = filepath.Join(wd, dir)
+	dir, err := a.absolute(dir)
+	if err != nil {
+		return err
 	}
 	state, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
@@ -102,4 +102,17 @@ func sayUnexported(errOut io.Writer, unread []export.DayError) error {
 		}
 	}
 	return fmt.Errorf("%w: %w", errUnexported, errors.Join(errs...))
+}
+
+// absolute is the path given, taken from the working directory where it's
+// relative.
+func (a *app) absolute(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+	wd, err := a.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("find the working directory: %w", err)
+	}
+	return filepath.Join(wd, path), nil
 }

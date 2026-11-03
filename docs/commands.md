@@ -18,6 +18,7 @@ This page describes every switchboard command: what it does, its flags, and what
 | | [`sessions`](#sessions) | Lists today's sessions, or shows one session's page. |
 | | [`events`](#events) | Lists what the router decided and noticed. |
 | [Keeping history](#keeping-history) | [`export`](#export) | Copies this Mac's history into a folder of its own. |
+| | [`import`](#import) | Brings the history of other Macs' folders, or a Mac's own, into this Mac's. |
 | [Plumbing](#plumbing) | [`run`](#run) | Starts Claude Code through the router: what `claude` runs. |
 | | [`serve`](#serve) | Runs the router in the foreground. |
 | [Help and version](#help-and-version) | [`help`](#help) | Lists the commands, or shows one command's help. |
@@ -1269,6 +1270,76 @@ Example:
 
 ```bash
 switchboard export ~/Dropbox/switchboard
+```
+
+### `import`
+
+`import` brings the history in Macs' folders, as [`export`](#export) writes them, into this
+Mac's. Point it at the `<dir>` you export into, and it takes in each Mac's folder there; or point
+it at one Mac's folder, and it takes in that one. So a new Mac takes in the last one's history,
+and a Mac whose history was lost takes back its own.
+
+```bash
+switchboard import <dir>
+```
+
+A relative `<dir>` is taken from the working directory. A Mac's folder is one holding an
+`export.json` that reads. This Mac's own is taken in like any other, and a folder without one is
+passed over. A folder whose `export.json` doesn't read, as one damaged, is passed over too, and
+`import` says so, and carries on with the rest:
+
+```
+switchboard: passed over /Users/you/Dropbox/switchboard/mac-0123456789abcdef: its export.json doesn't read
+```
+
+A `<dir>` that holds no Mac's folder fails, saying so, and so does one holding a folder a newer
+switchboard exported, as this one may not read its files: upgrade switchboard to import it.
+
+What it takes in:
+
+- **A day this Mac doesn't hold** is copied in.
+- **A day it holds already** gains the lines it doesn't hold. Each line is told apart from every
+  other Mac's, so an import repeated, or of a Mac's own folder, adds nothing.
+- **A day's summary** is copied in where this Mac held nothing of the day: neither its summary nor
+  any of its lines. Otherwise this Mac's stands, and the router summarises again each day that
+  gained lines.
+- **Days past keeping:** a day's lines older than [`[ledger] keep`](configuration.md#ledger-keys),
+  or its readings older than [`[history] keep`](configuration.md#history-keys), are left out, as
+  the router would remove them. Their summaries are taken in, as summaries are kept for good.
+
+It needs the router, which writes the history, and fails without it. It copies the folders' files
+into the state directory's `import/`, then has the router take them in, and waits for it, however
+long that takes. The router then summarises the days at once, so `history`, the dashboard and the
+other commands have them within minutes. It prints how many folders it took in, and how it took
+in their days:
+
+```
+imported 1 folder: 27 days added, 3 merged, 12 past keeping left out
+```
+
+Where it added and merged no day but copied in summaries, as of days whose lines are past keeping,
+it says so:
+
+```
+imported 1 folder: 12 days' summaries, 12 days' lines past keeping left out
+```
+
+An import repeated says `imported 1 folder: nothing new`.
+
+One import runs at a time. An `import` run while another is running, as after you interrupt one
+and the router carries on with it, is refused, and leaves the running one as it is:
+
+```
+Error: an import is running already
+```
+
+Where the router refuses an import, or a day can't be taken in, `import` fails, saying why. What
+it took in before then stays, and importing again takes in the rest.
+
+Example:
+
+```bash
+switchboard import ~/Dropbox/switchboard
 ```
 
 ## Plumbing
