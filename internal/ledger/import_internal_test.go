@@ -50,9 +50,8 @@ func settled(t *testing.T, l *Ledger) {
 }
 
 // staged stages a day of a line, done with, ten days before importedOn, and
-// its summary, in a directory of the test's own, and returns it as l, holding
-// nothing of it, looks at it.
-func staged(t *testing.T, l *Ledger) LookedDay {
+// its summary, in a directory of the test's own, and returns it.
+func staged(t *testing.T) StagedDay {
 	t.Helper()
 	dir := t.TempDir()
 	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
@@ -70,15 +69,11 @@ func staged(t *testing.T, l *Ledger) LookedDay {
 			t.Fatal(err)
 		}
 	}
-	looked, err := l.Look([]StagedDay{day})
-	if err != nil || !looked[0].Unseen {
-		t.Fatalf("Look() = %+v, %v, want the day unseen", looked, err)
-	}
-	return looked[0]
+	return day
 }
 
 // holding reports whether l holds the day's lines, and its summary.
-func holding(l *Ledger, day LookedDay) (lines, summary bool) {
+func holding(l *Ledger, day StagedDay) (lines, summary bool) {
 	_, err := l.days.files.Stat(day.Date)
 	_, summaryErr := os.Stat(SummaryFile(l.days.files.Dir, day.Date))
 	return err == nil, summaryErr == nil
@@ -89,7 +84,7 @@ func holding(l *Ledger, day LookedDay) (lines, summary bool) {
 // returns once the day's lines are in, with what Import fails with once it
 // returns, what cuts it short, and what ends the round, as the test's end
 // does too.
-func inRound(t *testing.T, l *Ledger, day LookedDay) (imported <-chan error, cancel, endRound func()) {
+func inRound(t *testing.T, l *Ledger, day StagedDay) (imported <-chan error, cancel, endRound func()) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
@@ -114,7 +109,7 @@ func inRound(t *testing.T, l *Ledger, day LookedDay) (imported <-chan error, can
 func TestADaysSummaryIsCopiedInOnlyOnceARoundUnderWayIsDone(t *testing.T) {
 	logstest.Capture(t)
 	l := runningLedger(t)
-	day := staged(t, l)
+	day := staged(t)
 	imported, _, endRound := inRound(t, l, day)
 
 	// A copy that didn't wait on the round would be done well within this.
@@ -134,7 +129,7 @@ func TestADaysSummaryIsCopiedInOnlyOnceARoundUnderWayIsDone(t *testing.T) {
 func TestADayCutShortAsItsTakenInGetsBothItsLinesAndItsSummary(t *testing.T) {
 	logstest.Capture(t)
 	l := runningLedger(t)
-	day := staged(t, l)
+	day := staged(t)
 	imported, cancel, endRound := inRound(t, l, day)
 
 	cancel()
@@ -156,7 +151,7 @@ func TestADayCutShortAsItsTakenInGetsBothItsLinesAndItsSummary(t *testing.T) {
 func TestADayCutShortBeforeItsTakenInGetsNeitherItsLinesNorItsSummary(t *testing.T) {
 	logstest.Capture(t)
 	l := runningLedger(t)
-	day := staged(t, l)
+	day := staged(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -169,43 +164,68 @@ func TestADayCutShortBeforeItsTakenInGetsNeitherItsLinesNorItsSummary(t *testing
 	}
 }
 
-func TestADaysSummaryIsUnseenOnlyWhereTheLedgerHoldsNothingOfIt(t *testing.T) {
+func TestTheLedgerHoldsNoLineOfADayAsItsTakeOrElseItsFilesTell(t *testing.T) {
 	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
 	tests := []struct {
 		name string
-		// held are the ledger's own files, by their names.
-		held map[string]string
+		took dayfile.Taken
+		// held reports whether the ledger holds a file of the day's lines.
+		held bool
 		want bool
 	}{
-		{name: "a day it never saw", want: true},
-		{name: "a day of lines alone", held: map[string]string{"requests-" + date + ".jsonl": `{"request":"own"}` + "\n"}},
-		{name: "a day of its summary alone", held: map[string]string{"day-" + date + ".json": `{"version":6,"day":"` + date + `","lines":0}` + "\n"}},
-		{name: "a day of a summary that doesn't read as its own", held: map[string]string{"day-" + date + ".json": "{"}},
+		{name: "a day added, its lines just taken in", took: dayfile.Added, held: true, want: true},
+		{name: "a day merged", took: dayfile.Merged, held: true},
+		{name: "a day past keeping, of no file", took: dayfile.PastKeep, want: true},
+		{name: "a day past keeping, of a file", took: dayfile.PastKeep, held: true},
+		{name: "a day staged of no line, or of its summary alone, of no file", want: true},
+		{name: "a day staged of no line, or of its summary alone, of a file", held: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := logs.For("router")
 			d := days{files: Files(t.TempDir(), logger), logger: logger}
-			for name, data := range tt.held {
-				if err := os.WriteFile(filepath.Join(d.files.Dir, name), []byte(data), 0o600); err != nil {
+			if tt.held {
+				if err := os.WriteFile(filepath.Join(d.files.Dir, "requests-"+date+".jsonl"), []byte(`{"request":"own"}`+"\n"), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			got, err := d.unseen(date)
+			got, err := d.holdsNoLine(date, dayfile.Imported{Taken: tt.took})
 			if err != nil || got != tt.want {
-				t.Errorf("unseen(%s) = %v, %v, want %v", date, got, err, tt.want)
+				t.Errorf("holdsNoLine(%s) = %v, %v, want %v", date, got, err, tt.want)
 			}
 		})
 	}
 }
 
-func TestADayStagedWithoutItsSummaryIsNeverUnseen(t *testing.T) {
-	l := runningLedger(t)
+func TestASummaryCountsNoLineWhereItsNoneOrOfTheReadingsAlone(t *testing.T) {
 	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
+	tests := []struct {
+		name string
+		// summary is the ledger's summary of the day, none where it's "".
+		summary string
+		want    bool
+	}{
+		{name: "none", want: true},
+		{name: "one of the readings alone", summary: `{"version":6,"day":"` + date + `","lines":0}` + "\n", want: true},
+		{name: "one counting a line", summary: `{"version":6,"day":"` + date + `","lines":3}` + "\n"},
+		{name: "one cut short, which may have counted some", summary: `{"version":6,"day":"` + date + `","li`},
+		{name: "one of another day", summary: `{"version":6,"day":"2026-09-17","lines":0}` + "\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := logs.For("router")
+			d := days{files: Files(t.TempDir(), logger), logger: logger}
+			if tt.summary != "" {
+				if err := os.WriteFile(SummaryFile(d.files.Dir, date), []byte(tt.summary), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
 
-	looked, err := l.Look([]StagedDay{{Date: date, Lines: filepath.Join(t.TempDir(), "requests-"+date+".jsonl.gz")}})
-	if err != nil || looked[0].Unseen {
-		t.Errorf("Look() of a day staged without its summary = %+v, %v, want it never unseen, as there's none to copy in", looked, err)
+			got, err := d.countsNoLine(date)
+			if err != nil || got != tt.want {
+				t.Errorf("countsNoLine(%s) = %v, %v, want %v", date, got, err, tt.want)
+			}
+		})
 	}
 }

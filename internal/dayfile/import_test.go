@@ -669,9 +669,11 @@ func TestWhatFollowsADayTakenInIsDoneWithItAsOne(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 		defer cancel()
 		var held []byte
+		var given Imported
 		finished := make(chan struct{})
 
-		_, err := w.ImportThen(ctx, date, s.path, func() error {
+		_, err := w.ImportThen(ctx, date, s.path, func(took Imported) error {
+			given = took
 			held, _ = os.ReadFile(f.path(plainFile(date)))
 			time.Sleep(2 * time.Minute)
 			close(finished)
@@ -685,8 +687,8 @@ func TestWhatFollowsADayTakenInIsDoneWithItAsOne(t *testing.T) {
 		case <-time.After(time.Hour):
 			t.Fatal("what follows the day taken in never finished, want it run to its end with the day")
 		}
-		if string(held) != lines {
-			t.Errorf("as what follows ran, the day held %q, want the lines taken in, %q", held, lines)
+		if string(held) != lines || given != (Imported{Taken: Added}) {
+			t.Errorf("as what follows ran, the day held %q, and it was given %+v; want the lines taken in, %q, and the day as added", held, given, lines)
 		}
 	})
 }
@@ -700,7 +702,7 @@ func TestWhatFollowsADayTakenInFailsTheImport(t *testing.T) {
 	s := stage(t, date, gzipOf(t, linesOf(`{"n":1}`)))
 	failed := errors.New("what follows failed")
 
-	if _, err := w.ImportThen(t.Context(), date, s.path, func() error { return failed }); !errors.Is(err, failed) {
+	if _, err := w.ImportThen(t.Context(), date, s.path, func(Imported) error { return failed }); !errors.Is(err, failed) {
 		t.Errorf("ImportThen() = %v, want what followed's error, %v", err, failed)
 	}
 }
@@ -712,7 +714,7 @@ func TestWhatFollowsADayIsntDoneWhereTheDayCantBeTakenIn(t *testing.T) {
 	defer stop()
 	followed := false
 
-	_, err := w.ImportThen(t.Context(), DateOf(start), filepath.Join(t.TempDir(), "gone.jsonl.gz"), func() error {
+	_, err := w.ImportThen(t.Context(), DateOf(start), filepath.Join(t.TempDir(), "gone.jsonl.gz"), func(Imported) error {
 		followed = true
 		return nil
 	})

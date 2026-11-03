@@ -54,15 +54,9 @@ func (l *requestLedger) run(ctx context.Context) {
 	l.opened.Load().Run(ctx)
 }
 
-// look looks at the ledger for each of the days of its staged, as
-// ledger.Ledger's Look does. The ledger must be open.
-func (l *requestLedger) look(days []ledger.StagedDay) ([]ledger.LookedDay, error) {
-	return l.opened.Load().Look(days)
-}
-
 // importDay takes in the day of the ledger's staged, as ledger.Ledger's
 // Import does. The ledger must be open.
-func (l *requestLedger) importDay(ctx context.Context, day ledger.LookedDay) (ledger.ImportedDay, error) {
+func (l *requestLedger) importDay(ctx context.Context, day ledger.StagedDay) (ledger.ImportedDay, error) {
 	return l.opened.Load().Import(ctx, day)
 }
 

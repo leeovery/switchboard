@@ -375,6 +375,45 @@ func TestTheMacsOwnSummaryStandsAgainstOneStaged(t *testing.T) {
 	}
 }
 
+func TestTheMacsOwnSummaryOfADayItOnlyProbedGivesWayToOneStaged(t *testing.T) {
+	cfg := importConfig(t)
+	// Past keeping, so the day's lines aren't taken in; the Mac's summary,
+	// made from its readings alone, counts none of its requests.
+	date := dateOf(60)
+	put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(summaryOf(date, 0, 0)), now)
+	lines := stageLines(t, folder(cfg, 1), requestLines, date, requestLines.linesOf(date, 1)...)
+	staged := summaryOf(date, 1, len(lines))
+	put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), date), []byte(staged), stamped(stagedOn))
+
+	if got := importNow(t, cfg); got.Summaries != 1 {
+		t.Errorf("Import() = %+v, want 1 summary copied in", got)
+	}
+	if got := stateOf(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)); got.data != staged || got.modified != stamped(stagedOn).UnixNano() {
+		t.Errorf("once imported, the day's summary is %+v, want the one staged, with its stamp, in place of the Mac's of no request", got)
+	}
+}
+
+func TestOfTwoFoldersSummariesOfADayPastKeepingTheFirstsAloneIsCopiedIn(t *testing.T) {
+	cfg := importConfig(t)
+	date := dateOf(60)
+	var summaries []string
+	for n, numbers := range [][]int{{1}, {1, 2}} {
+		staged := folder(cfg, n+1)
+		lines := stageLines(t, staged, requestLines, date, requestLines.linesOf(date, numbers...)...)
+		summaries = append(summaries, summaryOf(date, len(numbers), len(lines)))
+		put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(summaries[n]), stamped(stagedOn))
+	}
+
+	if got := importNow(t, cfg); got.Summaries != 1 {
+		t.Errorf("Import() = %+v, want 1 summary copied in", got)
+	}
+	// The first's counts its line once copied in, and two Macs' summaries
+	// can't be merged, so the second's is left out.
+	if got := stateOf(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)).data; got != summaries[0] {
+		t.Errorf("once imported, the day's summary is\n%s\nwant the first folder's\n%s", got, summaries[0])
+	}
+}
+
 func TestASummaryOfADayTheMacHoldsLinesOfButNoSummaryYetIsntCopiedIn(t *testing.T) {
 	cfg := importConfig(t)
 	// Half an hour into the day, so yesterday ended too lately for a round to

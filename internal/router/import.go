@@ -43,8 +43,9 @@ type Imported struct {
 // kind of line of the day added lines to a day the state directory held;
 // else added, where any was added to one it held none of; else past keeping,
 // where any was left out as past keeping. A day that took nothing in, as one
-// staged of no lines, or one held that gained none, is none of them, so an
-// import repeated tells of nothing new.
+// staged of no lines, or one held that gained none, is none of them: an
+// import repeated tells of no day added or merged, and of each past keeping,
+// left out again.
 type ImportedDays struct {
 	Added    int `json:"added"`
 	Merged   int `json:"merged"`
@@ -128,7 +129,8 @@ func (r *Router) serveImport(w http.ResponseWriter, _ *http.Request) {
 }
 
 // serveImportRunning answers GET /import: whether an import is running, so a
-// command about to stage one never stages over the files one still reads.
+// command about to stage one can refuse rather than stage over the files one
+// still reads.
 func (r *Router) serveImportRunning(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, importRunning{Running: r.imports.running.Load()})
 }
@@ -188,17 +190,12 @@ func (r *Router) importStaged(ctx context.Context) (Imported, error) {
 }
 
 // importFolder takes in the folder staged at folder, adding what it took in
-// to took: having had the ledger look at each of its days staged, as
-// lookedLedger does, before any of the folder is taken in, the readings
-// history's days, then the router's events', each by its own writer, as
-// importLines takes them in, then the request ledger's, as importLedger
-// does. The readings go first, so a round made as the ledger's days come in,
-// as the hourly one, summarises them with their readings.
+// to took: the readings history's days, then the router's events', each by
+// its own writer, as importLines takes them in, then the request ledger's,
+// as importLedger does. The readings go first, so a round made as the
+// ledger's days come in, as the hourly one, summarises them with their
+// readings.
 func (r *Router) importFolder(ctx context.Context, folder string, took *importing) error {
-	days, err := r.lookedLedger(ledger.Dir(folder))
-	if err != nil {
-		return err
-	}
 	for _, staged := range []stagedLines{
 		{files: readings.Files(readings.Dir(folder), logger), take: r.history.importDay},
 		{files: events.Files(ledger.Dir(folder), logger), take: r.eventFiles.Import},
@@ -210,19 +207,7 @@ func (r *Router) importFolder(ctx context.Context, folder string, took *importin
 	if r.imports.between != nil {
 		r.imports.between()
 	}
-	return r.importLedger(ctx, days, took)
-}
-
-// lookedLedger returns the request ledger's days staged in dir, as
-// stagedLedger finds them, each as the ledger looks at it, as
-// ledger.Ledger's Look does. It fails where they can't be listed, or looked
-// at.
-func (r *Router) lookedLedger(dir string) ([]ledger.LookedDay, error) {
-	days, err := stagedLedger(dir)
-	if err != nil {
-		return nil, fmt.Errorf("read the request ledger staged to import: %w", err)
-	}
-	return r.ledger.look(days)
+	return r.importLedger(ctx, folder, took)
 }
 
 // stagedLines are the files of a kind of line staged in a folder, and what
@@ -250,10 +235,15 @@ func importLines(ctx context.Context, staged stagedLines, took *importing) error
 	return nil
 }
 
-// importLedger takes in each of the request ledger's days looked at, oldest
-// first, its lines and its summary, as ledger.Ledger's Import takes them in,
-// adding what it took in to took. It fails as Import does.
-func (r *Router) importLedger(ctx context.Context, days []ledger.LookedDay, took *importing) error {
+// importLedger takes in each of the request ledger's days staged in folder,
+// as stagedLedger finds them, oldest first, its lines and its summary, as
+// ledger.Ledger's Import takes them in, adding what it took in to took. It
+// fails where they can't be listed, and as Import does.
+func (r *Router) importLedger(ctx context.Context, folder string, took *importing) error {
+	days, err := stagedLedger(ledger.Dir(folder))
+	if err != nil {
+		return fmt.Errorf("read the request ledger staged to import: %w", err)
+	}
 	for _, day := range days {
 		imported, err := r.ledger.importDay(ctx, day)
 		if err != nil {

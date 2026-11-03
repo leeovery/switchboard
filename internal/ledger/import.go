@@ -20,16 +20,6 @@ type StagedDay struct {
 	Lines, Summary string
 }
 
-// LookedDay is a staged day as Look found the ledger before anything of its
-// folder was taken in: Unseen, where its summary is staged, and the ledger
-// held neither a summary of the day, readable or not, nor any line of it, as
-// of a day it never saw, or one past keeping whose summary is its only
-// record, so the summary staged is copied in.
-type LookedDay struct {
-	StagedDay
-	Unseen bool
-}
-
 // ImportedDay is what taking a staged day in did: how its lines were taken
 // in, as dayfile.Imported says, and whether its summary was copied in.
 type ImportedDay struct {
@@ -37,45 +27,26 @@ type ImportedDay struct {
 	Summary bool
 }
 
-// Look looks at the ledger for each of the days staged, as LookedDay says,
-// asked before anything of their folder is taken in: a round may summarise
-// one of them before its turn comes, as from the readings history's days
-// taken in, and that summary is the import's to replace. It fails where the
-// ledger can't be looked at.
-func (l *Ledger) Look(days []StagedDay) ([]LookedDay, error) {
-	looked := make([]LookedDay, len(days))
-	for i, day := range days {
-		looked[i].StagedDay = day
-		if day.Summary == "" {
-			continue
-		}
-		unseen, err := l.days.unseen(day.Date)
-		if err != nil {
-			return nil, fmt.Errorf("import the request ledger's summary of %s: %w", day.Date, err)
-		}
-		looked[i].Unseen = unseen
-	}
-	return looked, nil
-}
-
-// Import takes the day looked at in, as one piece of work on Run's
-// goroutine, between the writer's writes and its rounds: its lines, as the
-// writer's ImportThen takes a day in, by the ledger's keep and clock, then
-// its summary, as copySummary copies it, whatever the keep, as summaries are
-// kept for good; so a caller whose context ends finds the day with both, or
-// neither. A day not unseen keeps the ledger's own summary, which its round
-// makes again where the day's lines changed. It fails as ImportThen does,
-// and where the staged summary can't be read or the summary written.
-func (l *Ledger) Import(ctx context.Context, day LookedDay) (ImportedDay, error) {
+// Import takes the day staged in, as one piece of work on Run's goroutine,
+// between the writer's writes and its rounds: its lines, as the writer's
+// ImportThen takes a day in, by the ledger's keep and clock, then its
+// summary, as copySummary decides, whatever the keep, as summaries are kept
+// for good. So whatever ran before, a round, a stop or an import cut short,
+// the summary is decided on the files as its lines left them. Work taken up
+// runs to its end, which leaves the day with both or neither, though a
+// caller whose context ends first returns before it does, as Do says. It
+// fails as ImportThen does, and where the ledger's files can't be looked at,
+// the staged summary read, or the summary written.
+func (l *Ledger) Import(ctx context.Context, day StagedDay) (ImportedDay, error) {
 	var copied bool
-	copySummary := func() (err error) {
-		copied, err = l.copySummary(day)
+	copySummary := func(took dayfile.Imported) (err error) {
+		copied, err = l.copySummary(day, took)
 		return err
 	}
 	var lines dayfile.Imported
 	var err error
 	if day.Lines == "" {
-		if done := l.writer.Do(ctx, func() { err = copySummary() }); done != nil {
+		if done := l.writer.Do(ctx, func() { err = copySummary(dayfile.Imported{}) }); done != nil {
 			return ImportedDay{}, done
 		}
 	} else {
@@ -95,35 +66,74 @@ func (l *Ledger) RoundNow(ctx context.Context) error {
 	return l.writer.RoundNow(ctx)
 }
 
-// copySummary copies the summary staged of the day looked at in, where it's
-// unseen, as copyIn copies it, over any a round wrote since it was looked
-// at, holding summarising, so no round writes one as it does, reporting
-// whether it did.
-func (l *Ledger) copySummary(day LookedDay) (bool, error) {
-	if !day.Unseen {
+// copySummary copies the summary staged of the day in, its lines taken in as
+// took says, as copyIn copies it, where the ledger holds no line of the day,
+// as holdsNoLine says, and no summary of it that counts one, as countsNoLine
+// says: what the ledger knows of the day's requests is then nothing, and the
+// summary staged knows more. It holds summarising, so no round writes a
+// summary between its look and its copy, and reports whether it copied one.
+func (l *Ledger) copySummary(day StagedDay, took dayfile.Imported) (bool, error) {
+	if day.Summary == "" {
 		return false, nil
 	}
 	l.summarising.Lock()
 	defer l.summarising.Unlock()
-	copied, err := l.days.copyIn(day.StagedDay)
+	copied, err := l.days.copyOver(day, took)
 	if err != nil {
 		return false, fmt.Errorf("import the request ledger's summary of %s: %w", day.Date, err)
 	}
 	return copied, nil
 }
 
-// unseen reports whether the ledger holds neither a summary of the local day
-// with the given date, readable or not, nor any line of it. It fails where
-// it can't look.
-func (d days) unseen(date string) (bool, error) {
-	if _, err := os.Stat(SummaryFile(d.files.Dir, date)); !errors.Is(err, fs.ErrNotExist) {
+// copyOver copies the summary staged of the day in, as copyIn does, over
+// none or one that knows nothing of the day's requests, where holdsNoLine and
+// countsNoLine say the ledger knows nothing of them, its lines taken in as
+// took says, reporting whether it did.
+func (d days) copyOver(day StagedDay, took dayfile.Imported) (bool, error) {
+	if none, err := d.holdsNoLine(day.Date, took); err != nil || !none {
 		return false, err
+	}
+	if none, err := d.countsNoLine(day.Date); err != nil || !none {
+		return false, err
+	}
+	return d.copyIn(day)
+}
+
+// holdsNoLine reports whether the ledger holds no line of the local day with
+// the given date, its lines just taken in as took says: it held none before
+// where they were added, and some where they were merged; else, as of a day
+// past keeping or one staged of no line, it's as its files are now. It fails
+// where it can't look.
+func (d days) holdsNoLine(date string, took dayfile.Imported) (bool, error) {
+	switch took.Taken {
+	case dayfile.Added:
+		return true, nil
+	case dayfile.Merged:
+		return false, nil
 	}
 	_, err := d.files.Stat(date)
 	if errors.Is(err, fs.ErrNotExist) {
 		return true, nil
 	}
 	return false, err
+}
+
+// countsNoLine reports whether the ledger holds no summary of the local day
+// with the given date that counts a line: none, or one of no line, as a round
+// summarises a day from the readings alone. One that doesn't read as the
+// day's may have counted some, which can't be had again, so it stands, as a
+// round leaves it. It fails where the summary can't be read.
+func (d days) countsNoLine(date string) (bool, error) {
+	held, err := d.held(date)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return true, nil
+	case errors.Is(err, errNotTheDaysSummary):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	return held.Lines == 0, nil
 }
 
 // copyIn copies the summary staged of the day in, as the ledger's summary of

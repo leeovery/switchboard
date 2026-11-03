@@ -46,19 +46,21 @@ type Imported struct {
 // with the given date as export writes a day's, a gzip member or more of
 // lines, as ImportThen does, with nothing to do after.
 func (w *Writer[T]) Import(ctx context.Context, date, staged string) (Imported, error) {
-	return w.ImportThen(ctx, date, staged, func() error { return nil })
+	return w.ImportThen(ctx, date, staged, func(Imported) error { return nil })
 }
 
 // ImportThen takes in the file at staged, which holds the lines of the local
 // day with the given date as export writes a day's, a gzip member or more of
 // lines, by the Writer's own keep and clock, as take says, then does then,
-// the two as one piece of work on Run's goroutine, as Do does work: so
-// nothing else is done with the files between them, and a caller whose
-// context ends finds both done, or neither. It returns what it took in,
-// failing where the day couldn't be, doing none of then, and with then's
-// error; or, where it didn't wait for that, why, as Do says: ctx's error, or
+// given what it took in, the two as one piece of work on Run's goroutine, as
+// Do does work: so nothing else is done with the files between them, and
+// then sees them as the take left them. Work taken up runs to its end, which
+// leaves both done, or neither, though a caller whose context ends first
+// returns before it does, as Do says. It returns what it took in, failing
+// where the day couldn't be, doing none of then, and with then's error; or,
+// where it didn't wait for that, why, as Do says: ctx's error, or
 // ErrStopped.
-func (w *Writer[T]) ImportThen(ctx context.Context, date, staged string, then func() error) (Imported, error) {
+func (w *Writer[T]) ImportThen(ctx context.Context, date, staged string, then func(Imported) error) (Imported, error) {
 	day, _, ok := Day(date)
 	if !ok {
 		return Imported{}, fmt.Errorf("can't import %s: %q isn't a date", staged, date)
@@ -67,7 +69,7 @@ func (w *Writer[T]) ImportThen(ctx context.Context, date, staged string, then fu
 	var took, did error
 	if done := w.Do(ctx, func() {
 		if imported, took = w.files.take(stagedDay{date: date, day: day, path: staged}, w.now(), w.keep); took == nil {
-			did = then()
+			did = then(imported)
 		}
 	}); done != nil {
 		return Imported{}, done

@@ -238,12 +238,16 @@ func TestTheRouterSaysWhetherAnImportIsRunning(t *testing.T) {
 	running("once it's done", false)
 }
 
-func TestASummaryARoundWritesOfADayAsItsFolderComesInGivesWayToTheOneStaged(t *testing.T) {
-	logstest.Capture(t)
-	cfg := importingConfig(t)
-	// The ledger's lines are kept 30 days, the readings history 400.
+// pastKeeping stages a folder to import into a router whose ledger keeps its
+// lines 30 days, and its readings history 400, of a day sixty days before
+// start's: its readings, and those of the day before its week, so a round
+// summarises the day from them; and its one request's line, past keeping, so
+// its summary staged, of 2 lines, is their only record. It returns the
+// router's config, and where the router's summary of the day goes.
+func pastKeeping(t *testing.T) (cfg Config, summary string) {
+	t.Helper()
+	cfg = importingConfig(t)
 	cfg.Ledger.Keep = 30 * 24 * time.Hour
-	r := newTestRouterOf(t, cfg)
 	day := start.AddDate(0, 0, -60)
 	date, weekBefore := dayfile.DateOf(day), dayfile.DateOf(day.AddDate(0, 0, -9))
 	// The Mac's ledger holds an older day's summary, so a round summarises
@@ -251,9 +255,6 @@ func TestASummaryARoundWritesOfADayAsItsFolderComesInGivesWayToTheOneStaged(t *t
 	// them.
 	older := dayfile.DateOf(day.AddDate(0, 0, -10))
 	stageFile(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), older), []byte(`{"version":6,"day":"`+older+`","lines":0}`+"\n"))
-	// The folder covers the day with readings of it and of the day before its
-	// week; its requests' lines are past keeping, so its summary staged is
-	// their only record.
 	folder := filepath.Join(ImportDir(cfg.StateDir), "1")
 	stagedReadings := readings.Files(readings.Dir(folder), logger)
 	stageFile(t, stagedReadings.CompressedPath(weekBefore), gzipOf(t, readingOn(day.AddDate(0, 0, -9))))
@@ -261,7 +262,27 @@ func TestASummaryARoundWritesOfADayAsItsFolderComesInGivesWayToTheOneStaged(t *t
 	stageFile(t, ledger.Files(ledger.Dir(folder), logger).CompressedPath(date),
 		gzipOf(t, `{"at":"`+day.UTC().Format(time.RFC3339)+`","request":"staged","kind":"message","account":"work","status":200}`+"\n"))
 	stageFile(t, ledger.SummaryFile(ledger.Dir(folder), date), []byte(`{"version":6,"day":"`+date+`","lines":2,"accounts":[{"account":"work"}]}`+"\n"))
-	summary := ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)
+	return cfg, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)
+}
+
+// linesCounted returns how many lines the summary at path counts.
+func linesCounted(t *testing.T, path string) int {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary ledger.Summary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		t.Fatalf("the summary at %s, %s: %v", path, data, err)
+	}
+	return summary.Lines
+}
+
+func TestASummaryARoundWritesOfADayAsItsFolderComesInGivesWayToTheOneStaged(t *testing.T) {
+	logstest.Capture(t)
+	cfg, summary := pastKeeping(t)
+	r := newTestRouterOf(t, cfg)
 	var wrote bool
 	r.imports.between = func() {
 		r.ledger.summariseEnded(r.cfg.Now())
@@ -277,13 +298,44 @@ func TestASummaryARoundWritesOfADayAsItsFolderComesInGivesWayToTheOneStaged(t *t
 	if !wrote {
 		t.Fatal("the round between the readings and the ledger's days summarised nothing of the day, want one of its readings alone")
 	}
-	data, err := os.ReadFile(summary)
-	var got ledger.Summary
-	if err == nil {
-		err = json.Unmarshal(data, &got)
+	if got := linesCounted(t, summary); got != 2 {
+		t.Errorf("once imported, the day's summary counts %d lines, want the one staged, of its 2 requests, in place of the round's of its readings alone", got)
 	}
-	if err != nil || got.Lines != 2 {
-		t.Errorf("once imported, the day's summary is %s, %v, want the one staged, of its 2 requests, in place of the round's of its readings alone", data, err)
+}
+
+func TestAnImportRetriedAfterOneCutShortTakesTheSummaryStagedOverARoundsBetween(t *testing.T) {
+	logstest.Capture(t)
+	cfg, summary := pastKeeping(t)
+	first := newTestRouterOf(t, cfg)
+	client, stop := runImporting(t, first)
+	// The router stops as the folder's readings are in, cutting the import
+	// short before its ledger's days.
+	first.imports.between = func() {
+		go func() { _ = stop() }()
+		<-first.imports.ctx.Done()
+	}
+	_, err := client.Import(t.Context())
+	if d, ok := errors.AsType[declined](err); !ok || d.status != http.StatusServiceUnavailable {
+		t.Fatalf("Import() as the router stopped: %v, want a 503 saying it stopped partway", err)
+	}
+	if err := stop(); err != nil {
+		t.Fatalf("Run() = %v, want nil", err)
+	}
+
+	client, _ = runImporting(t, newTestRouterOf(t, cfg))
+	waitFor(t, "the router started again summarises the day", func() bool {
+		_, err := os.Stat(summary)
+		return err == nil
+	})
+	if got := linesCounted(t, summary); got != 0 {
+		t.Fatalf("before the import is retried, the day's summary counts %d lines, want one of its readings alone", got)
+	}
+	imported, err := client.Import(t.Context())
+	if err != nil || imported.Summaries != 1 {
+		t.Errorf("Import() retried = %+v, %v, want the day's summary copied in", imported, err)
+	}
+	if got := linesCounted(t, summary); got != 2 {
+		t.Errorf("once the import was retried, the day's summary counts %d lines, want the one staged, of its 2 requests, in place of the round's of its readings alone", got)
 	}
 }
 
