@@ -63,8 +63,9 @@ func (f Frame) burnDownsHelp() helpPart {
 				"number it. One without a usable token has no room all along; a stale one is faded, and one out of the pool " +
 				"faint."),
 			said("Under the cards, Σ pool: the pool's room in each window, the week's then the 5-hour's, as Runway's pool lane " +
-				"words it, as week 1.2 of 3 left, whichever sections show, and pinned after the first while a pin holds the " +
-				"pool. With one account there's no pool, and no line."),
+				"words it, as week 1.2 of 3 left, of the accounts that have the window, whichever sections show, and pinned " +
+				"after the first while a pin holds the pool. With one account there's no pool, and no line; where fewer than " +
+				"two have a 5-hour window, the pool has none, and the line says the week's alone."),
 		},
 		glyphs: glyphs,
 	}
@@ -102,9 +103,12 @@ func glanceHelp() helpPart {
 				"5-hour, each a burn-down a row high. A sparkline of " + strconv.Itoa(sparkCells) + " cells is the window's " +
 				"room from its start to its reset, in the window's ink as the cards have it, faint from now where it's " +
 				"heading, and ✕ where it runs out; then the room left now, as 66%; then switchboard usage's words for the " +
-				"window, as 19%/day till Sun 21:00, out ~Sat 06:00 or at cap · back 17:10."),
+				"window, as 19%/day till Sun 21:00, out ~Sat 06:00 or at cap · back 17:10. An account without a 5-hour " +
+				"window, as a verified Ultra account, reads no 5-hour limit, its sparkline empty; where no account has one, " +
+				"the 5-HOUR column goes."),
 			said("Under the accounts, Σ pool: the pool's room over each window, as POOL counts it, from its accounts' earliest " +
-				"start to their latest reset, and its room, as 1.2 of 3 left."),
+				"start to their latest reset, and its room, as 1.2 of 3 left, of the accounts that have the window. Where " +
+				"fewer than two of them have a 5-hour window, the pool has none, and nothing under 5-HOUR."),
 			said("GLANCE takes the width it needs whole, and no more. Narrower, its words take switchboard usage's short forms, " +
 				"then its names narrow; narrower still, its windows stack, the week's rows over the 5-hour's. It sits beside " +
 				"WHEN YOU WORK where both show and both fit whole, 10 cells apart; elsewhere WHEN YOU WORK comes under it."),

@@ -1,10 +1,6 @@
 package views
 
-import (
-	"slices"
-
-	"github.com/leeovery/switchboard/internal/status"
-)
+import "slices"
 
 // Pool is the pool's lane: Of, how many of the pool's accounts, the pin's
 // while it holds, have or may have the window the view is named for, as
@@ -70,9 +66,9 @@ func (from LanesFrom) poolOf(lanes []Lane) Pool {
 // The members are those PoolLacks counts, since an account has a lane
 // unless it lacks the window.
 func (from LanesFrom) poolCounts(members int) (int, bool) {
-	pool, key := from.Moment.Pool(), from.viewKey()
-	if i := slices.IndexFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == key }); i >= 0 {
-		return pool.Windows[i].Of, true
+	key := from.viewKey()
+	if w, ok := poolWindow(from.Moment, key); ok {
+		return w.Of, true
 	}
 	return members, members > 0 && !from.Moment.PoolLacks(key)
 }

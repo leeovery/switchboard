@@ -50,6 +50,16 @@ func (g graphsGiven) charted(section GraphsSection) config.Accounts {
 	return g.accounts
 }
 
+// glanceWindows are the windows GLANCE draws, in runwayWindows' order: every
+// one but the 5-hour where Graphs doesn't chart it, as fiveHourOffered has
+// it of the accounts that have, or may have, it.
+func (g graphsGiven) glanceWindows() []views.RunwayWindow {
+	if fiveHourOffered(g.accounts, g.fiveHour) {
+		return runwayWindows
+	}
+	return slices.DeleteFunc(slices.Clone(runwayWindows), func(w views.RunwayWindow) bool { return w == views.RunwayFiveHour })
+}
+
 // graphsStep is a step of the room Graphs' sections take: whether every
 // card's words have a row of their own, a blank row under them, or share its
 // label's; and how tall every chart is, the cards' and POOL's alike.
@@ -132,7 +142,7 @@ func (g graphsGiven) shape() graphsShape {
 		}
 	}
 	s.across = cardsAcross(len(g.accounts), g.width)
-	s.glance, s.when = layGlance(g.numbering, g.accounts, s.columns(GraphsGlance).Size), whenRows(s.columns(GraphsWhen).Size, g.look)
+	s.glance, s.when = layGlance(g.numbering, g.accounts, g.glanceWindows(), s.columns(GraphsGlance).Size), whenRows(s.columns(GraphsWhen).Size, g.look)
 	if last >= 0 {
 		s.legend = burnLegend(g.width, g.reserved())
 		s.legend = s.legend[:min(len(s.legend), max(g.rows-1, 0))]
@@ -150,20 +160,20 @@ func (g graphsGiven) paired() []flex.Span {
 	if !g.shown.Has(GraphsGlance) || !g.shown.Has(GraphsWhen) {
 		return nil
 	}
-	if spans, ok := glanceBesideWhen(g.numbering, g.accounts, g.width); ok {
+	if spans, ok := glanceBesideWhen(g.numbering, g.accounts, g.glanceWindows(), g.width); ok {
 		return spans
 	}
 	return nil
 }
 
 // glanceBesideWhen lays GLANCE and WHEN YOU WORK side by side width cells
-// wide, of the configured accounts given, numbered as n numbers them,
-// reporting whether both fit at their naturals with glanceWhenGap between:
-// GLANCE from column 0 at its natural, as glancePart has it; WHEN YOU WORK
-// after it, from its natural, as hoursPart has it, to the width's end, as
-// every section takes the width.
-func glanceBesideWhen(n status.Numbering, accounts config.Accounts, width int) ([]flex.Span, bool) {
-	glance, when := atNatural(glancePart(n, accounts)), atNatural(hoursPart())
+// wide, of the configured accounts given, numbered as n numbers them, GLANCE
+// drawing the windows given, reporting whether both fit at their naturals
+// with glanceWhenGap between: GLANCE from column 0 at its natural, as
+// glancePart has it; WHEN YOU WORK after it, from its natural, as hoursPart
+// has it, to the width's end, as every section takes the width.
+func glanceBesideWhen(n status.Numbering, accounts config.Accounts, windows []views.RunwayWindow, width int) ([]flex.Span, bool) {
+	glance, when := atNatural(glancePart(n, accounts, windows)), atNatural(hoursPart())
 	when.Most, when.Gap = 0, glanceWhenGap
 	return flex.Lay(width, glance, when)
 }

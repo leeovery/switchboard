@@ -188,3 +188,33 @@ func TestALookJudgesThePoolsSpanOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 		t.Errorf("the next look's span is %+v, want %+v, as a first look builds it", then.Columns, fresh.Columns)
 	}
 }
+
+// The pool's span is of as many of its accounts as have or may have the
+// window, as the pool's window counts them, not as many as the pool has: a
+// verified Ultra account among three leaves its 5-hour of two, and the share
+// it charts used is of those two.
+func TestThePoolsSpanIsOfTheAccountsWithItsWindow(t *testing.T) {
+	m := windowsMoment(nil, fiveHourAccount("work"), fiveHourAccount("personal"), ultraAccount("side"))
+	got := views.PoolSpan{}.Look(views.PoolRoomFrom{Moment: m, ReadThrough: stackAt, Key: claude.FiveHourWindow, Columns: spanColumns})
+	if got.Of != 2 || len(m.Pool().Accounts) != 3 {
+		t.Fatalf("the 5-hour's span is of %d accounts of the pool's %d, want 2 of 3", got.Of, len(m.Pool().Accounts))
+	}
+	now := got.Columns[got.Timeline.NowColumn()]
+	if !now.Known || !near(now.Room, 0.8+0.8) || !near(now.Used, status.PoolUsed(now.Room, 2)) {
+		t.Errorf("now's column is %+v, want room 1.6, used %v, of two", now, status.PoolUsed(1.6, 2))
+	}
+}
+
+// The pool's span has no columns of a window the pool lacks, as the
+// moment's PoolLacks says, as the 5-hour where all but one of its accounts
+// are verified Ultra.
+func TestThePoolsSpanIsNoneOfAWindowThePoolLacks(t *testing.T) {
+	m := windowsMoment(nil, ultraAccount("work"), ultraAccount("personal"), fiveHourAccount("side"))
+	if !m.PoolLacks(claude.FiveHourWindow) {
+		t.Fatal("the pool doesn't lack the 5-hour, want it to, of one account with it among three")
+	}
+	got := views.PoolSpan{}.Look(views.PoolRoomFrom{Moment: m, ReadThrough: stackAt, Key: claude.FiveHourWindow, Columns: spanColumns})
+	if len(got.Columns) != 0 || got.Of != 0 {
+		t.Errorf("the 5-hour's span has %d columns of %d accounts, want none", len(got.Columns), got.Of)
+	}
+}
