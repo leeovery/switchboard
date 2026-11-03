@@ -1637,6 +1637,8 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
+| `export <dir>` | Copy the history, the request ledger's lines and summaries, the readings history and the router's events, into a folder of this Mac's own in `<dir>`, needing no router: see Export and import |
+| `import <dir>` | Bring in the history of each Mac's folder in `<dir>`, or of the one folder `<dir>` is, adding to days the Mac holds already, through the router: see Export and import |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
 | `pin <id>... [--move] [--force]`, `pin auto [--force]` | Set the global pin to the accounts given, replacing any before, or clear it: see Pinning. It needs the router |
 | `pin <id> --session <session>`, `pin auto --session <session>` | Set or clear one running session's own pin, `<session>` being its id or as much of it as is unique. It needs the router |
@@ -7678,6 +7680,108 @@ from the first day a router that has it runs, so nothing before then is in it.
   after the newest digest it rests on, and that digest's state and parts; History and Accounts
   read the summaries.
 
+## Export and import
+
+Switchboard's history lives in its state directory on one Mac. `export` copies it into a folder,
+and `import` brings a folder's history into a Mac's own, so the next Mac has the last one's, and a
+folder kept somewhere else, as one Dropbox or iCloud Drive syncs, holds it should the Mac be lost
+(the owner's choice on 3 November 2026). Switchboard writes the folder and reads it, and nothing
+more: what keeps the folder safe, or carries it to another Mac, is the folder's own business.
+Switchboard never talks to a cloud. To be built, in this order: export, import, then the
+schedule.
+
+- **What goes:** what can't be built again, the request ledger's lines, the days' summaries, the
+  readings history and the router's events. Not the files the router builds from them, the days'
+  digests, parts, heads and rows, which a round builds again (see The request ledger); nor
+  `state.json`, of this Mac's sessions and of readings a new Mac's first probes take afresh; nor
+  `prefs.json`, the config, the tokens or the logs, which stay as they are (see
+  `ideas/2026-10-27--history-beyond-one-mac.md`). A day comes to about 2.5–3 MB compressed, about
+  1 GB a year (measured on 3 November 2026).
+- **A folder a Mac:** `export <dir>` writes into a folder of the Mac's own in `<dir>`,
+  `mac-<install id>`, so Macs whose config is one file, as a dotfiles repository keeps it, and so
+  names one `<dir>`, never write each other's files. The install's id is `<state dir>/install-id`,
+  16 random lowercase hex characters, made by the first export, the command's or the router's,
+  whichever comes first, made once and never replaced, so two exports at once make one id. It's
+  never a machine name. A Mac whose state directory is restored from another's, as Migration
+  Assistant restores one, carries the other's id and exports to its folder: removing the file
+  gives it a new id, and a folder of its own, at its next export.
+- **What a Mac's folder holds:** `export.json`, `{"version": 1, "install": "<id>", "exported_at":
+  "<RFC 3339 time, UTC>"}`, rewritten at each export; `ledger/`, `requests-<local
+  date>.jsonl.gz`, `events-<local date>.jsonl.gz` and `day-<local date>.json`; and `history/`,
+  `readings-<local date>.jsonl.gz`: the state directory's own names, each day's lines in one
+  compressed file. `<dir>` and the folders are made as they're needed, 0700, the files 0600.
+
+### Export
+
+`export <dir>` copies each day the state directory holds into the Mac's folder:
+
+- **A compressed day,** whose day ended two days ago or more, as `internal/dayfile` compresses a
+  day, is copied byte for byte, with its modification time, and passed over where the folder's copy
+  has the same size and time.
+- **A day not yet compressed,** today's and the two before it, is compressed on its way, its lines
+  read as every read reads them, a line cut short at the file's end left for the next export, and
+  copied again only where its plain file has changed since, the folder's copy taking the plain
+  file's modification time to tell. A day with both files, as a compress stopped partway through
+  leaves, is one not yet compressed, each of its lines read once.
+- **A day's summary** is copied as it is, with its modification time, its stamp (see The request
+  ledger), and passed over as a day's file is, so a summary copied in stands against the day's file
+  copied beside it.
+- **Every file** is written beside where it goes and renamed into place, so a sync never carries
+  one half written. Nothing in the folder is removed, a day past the Mac's keep included: the
+  folder keeps what it was given until its owner removes it.
+
+It reads the files as `history` does, so it needs no router and runs beside one, and prints
+`exported 31 days to <folder>: 3 written, 28 as they were`, its folder in full. A `<dir>` that
+can't be made or written, or that's a file, fails, saying so.
+
+### Import
+
+`import <dir>` brings in the history of each Mac's folder in `<dir>`, or of the one folder `<dir>`
+is: a folder holding an `export.json` that reads, of this Mac's own install too, as a folder may
+be brought back to the Mac it came from. A folder without one is passed over, and an
+`export.json` of a version newer than this switchboard's is refused, saying a newer switchboard
+made it. A `<dir>` holding no Mac's folder fails, saying so.
+
+- **Through the router:** the router is the history's one writer, so `import` needs it, failing
+  without it as Commands says. The command copies the folders' files into `<state dir>/import/`,
+  removing any an import cut short left there first, so the router reads nothing outside the state
+  directory, as macOS may bar a launchd agent from folders a terminal reaches; then asks the
+  router, `POST /import`, to take them in, and waits for its answer however long it takes. The
+  router takes them in between its rounds, so no day is compressed, summarised or pruned as it
+  changes, nor a line appended to it but through the import, and removes `import/` once it's done.
+  A second import while one runs is refused.
+- **A day the Mac doesn't hold:** its file is copied in, with its modification time, where its day
+  ended two days ago or more; else its lines are appended to the day's plain file, which the
+  router compresses as it does its own.
+- **A day both hold:** the folder's lines that aren't byte for byte one the Mac holds are added,
+  appended to the day's plain file where it has one, else as a gzip member of their own after its
+  compressed file's, written beside it and renamed into place. No two Macs write the same line, as
+  each holds its time and what sets it apart (see Files), so a line held already is one imported
+  before, or the Mac's own come back, and an import repeated adds nothing.
+- **Summaries:** a day's summary is copied in, with its stamp, where the Mac had neither a summary
+  nor any line of the day before the import, as of a day the Mac never saw, or one past keeping
+  whose summary is its only record; else the Mac's own stands, and the round summarises again each
+  day whose lines changed, as its files' sizes tell it, building its digest, parts, head and rows
+  again too (see The request ledger).
+- **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
+  `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
+  summaries are kept for good.
+- **Then** the router runs a round at once, so History, Accounts and the data verbs have the days
+  within minutes, and answers `{"folders": 1, "days": {"added": 27, "merged": 3, "past_keep": 12},
+  "lines": 1204, "summaries": 27}`, `lines` those added to days both held. The command prints
+  `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out`.
+
+### On a schedule
+
+`[export] dir` set, the router exports into it as `export <dir>` would, at each of its hourly
+rounds, after the round's compress, so a day just compressed goes as its final file; off unless
+it's set (see Config). An export that fails is logged once until one succeeds,
+and the status document's `export` says how it stands, `{"dir": "<dir>", "at": "<the last export
+that succeeded>", "error": "<why the last failed>"}`, `error` left out once one succeeds, and
+`export` where it isn't set. It never holds a request up, as the readings history never does.
+Built after export and import, once a check says macOS lets the router keep writing where it's
+pointed (see Checks owed).
+
 ## Logging
 
 Logs are for working out, after the fact, why a session went to an account, why a request failed,
@@ -8111,6 +8215,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; the days' digests, built on a goroutine of their own through the `Digester` seam it declares, each day's builder handed every line its read reads, and their parts files, a gzip member a session pointed at by offset, length and CRC; each day's head, built after the digests, newest first, of exactly the lines `Day` gives the day by the one read both share, its side the views'; when a digest or a head stands, and a session as of a day, on the newest state a digest holds that stands for it, or, for a page, the newest whose chain of parts reads, and the raw lines after, one lookup the writer and the readers share; a line's usage decoded once into what its request spent, which the price table prices as it prices the line, and what a page's requests spent, summed by model and where they were served, priced alike once as the page is built; a window's climb, and its stored form; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
 | `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read |
 | `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept as long, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
+| `internal/export` | The history exported into a folder and brought back: the install's id, a Mac's folder and its `export.json`, a day's files copied or compressed into it, and a folder's files staged for import; the import itself, a day's lines added to its files, `internal/dayfile`'s, run by the router between its rounds (see Export and import) |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place, unless a check its caller gives, just before the rename, says otherwise; and where writing through a link leads, so a file that's a link is written where it leads, never replaced; and setting a corrupt file aside, keeping the newest 3 of its name |
 | `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's, the readings history's and the router's events' files are read back and an answer's stream of events is counted |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
@@ -8195,7 +8300,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   and `misses` (see The router's rounds), and the hashes of every configured account's tokens, with
   a usable token or not: see Accounts and tokens; and the token-year notifications told, an
   account's against the token they were told for: see Notifications), `control.sock`, `tokens/`,
-  `logs/`, `history/` and `ledger/`. `state.json` is versioned, the version changing only when a
+  `logs/`, `history/`, `ledger/`, `install-id`, the id an export names the Mac's folder by, and
+`import/`, while an import runs (see Export and import). `state.json` is versioned, the version changing only when a
   router couldn't read what another wrote: an older file, without readings, loads as having none,
   one whose readings lack `restarted_at` as windows that run a whole length before their resets,
   which a router from before, ignoring the field, takes them all for, one whose readings lack when
@@ -8396,6 +8502,9 @@ keep = "400d"                      # how long the readings history is kept: 8d o
 [ledger]                           # optional: the request ledger, and the router's events beside it
 keep = "400d"                      # how long each request's line, and each day's file of the router's events, is kept: 8d or more, or "forever"; the days' summaries are kept for good
 
+[export]                           # optional: the history exported on a schedule
+dir = "~/Dropbox/Switchboard"      # where the router exports the history, hourly, each Mac into a folder of its own
+
 [usage]                            # optional: how usage and the dashboard lay out their windows
 by = "window"                      # window or account: the accounts compared a window at a time, or each account's windows together
 
@@ -8443,6 +8552,8 @@ fails as it is; one that parses has every problem reported at once:
 - **`[ledger]`**: `keep` is as `[history]`'s is: `8d` or more, or `forever`. It keeps the router's
   events too, a file a day beside the ledger's lines, `events-<local date>.jsonl`, for as long as it
   keeps the lines (see The router's events).
+- **`[export]`**: `dir` is an absolute path, or one starting `~/`, the home directory's; off unless
+  it's set (see Export and import).
 - **`week_starts`** is a day of the week, by its name in English, in any case, as `monday` or
   `Sunday`; `monday` unless given. It's the day the dashboard's calendar weeks start on: the weeks
   History and Accounts count by, in History's grid, weeks, days and tokens and Accounts' this week
@@ -8537,6 +8648,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
 | `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
+| `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, when the new binary judges it, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, and where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
 
@@ -9554,6 +9666,9 @@ What's built but hasn't been seen against the real thing:
   starting it again once it stops at the SIGTERM `launchctl kill` sends.
 - An artifact published from a session the router has moved opening in a browser signed into the
   primary, and whether a conversation request ever refers to an uploaded file by id.
+- Before `[export] dir` is built: a launchd agent run from an unsigned binary, replaced as an
+  upgrade replaces it, writing into iCloud Drive and into a folder a File Provider keeps, as
+  Dropbox's is, to see whether macOS asks first, and whether its answer outlives the upgrade.
 - `claude doctor` with the link in place.
 - Background sessions (`claude --bg`) going through the router.
 - *Milestone 5:* asking the terminal its background colour and setting it (OSC 11, putting it back
@@ -9604,7 +9719,7 @@ why.
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | chosen by the owner on 27 October 2026, with setup's flow step by step: setup tokens alone, which setup makes itself by running `claude setup-token`; each account's plan, the primary's reserve, a review of each account on a run again, `accounts edit`, and a warning before a token's year is up; designed as setup's full screen, its calls approved on 28 October 2026, and built in #190–#218 (see Setup), all but `usage` showing a token's year | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
-| History kept beyond one Mac: each day's finished files copied to iCloud Drive, a folder a Mac, and `setup` offering to bring a Mac's history back | agreed by the owner on 27 October 2026 that switchboard keeps it itself; the design to settle, before the owner's next Mac arrives in about four weeks | [history-beyond-one-mac](../ideas/2026-10-27--history-beyond-one-mac.md) |
+| One history across several Macs at once, each Mac's History counting the others' requests from their exported folders | later: only where two Macs run switchboard on the same accounts at once (the owner, 3 November 2026); export and import, and the export on a schedule, taken up (see Export and import) | [history-beyond-one-mac](../ideas/2026-10-27--history-beyond-one-mac.md) |
 | An uninstall: everything switchboard put on the Mac taken away, the service, the shell's startup line, the session hook, the skill and the `claude` link | asked for by the owner on 27 October 2026, as setup took on the startup line and the hook; what goes of the config, tokens and history to settle | [uninstall](../ideas/2026-10-27--uninstall.md) |
 | Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
 | The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
