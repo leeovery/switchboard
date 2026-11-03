@@ -35,7 +35,8 @@ const (
 )
 
 // Imported is what taking a day staged to import in did: how the day was
-// taken, and, of a day Merged, how many lines it gained.
+// taken, and, of a day Merged, how many lines it gained. Its zero value is a
+// day the files held none of whose staged file held no line to take in.
 type Imported struct {
 	Taken Taken
 	Lines int
@@ -76,9 +77,9 @@ type stagedDay struct {
 // where it's done with, as a compress tells one, and the file reads to its
 // end; else its lines appended to its plain file, as addLines adds them,
 // which a prune compresses as it does any. A day the files hold has the
-// staged lines it doesn't hold, as ReadDay
-// reads them, added: appended to its plain file where it has one, else as a
-// gzip member of their own after its compressed file's.
+// staged lines it doesn't hold, as ReadDay reads them, added: appended to
+// its plain file where it has one, else as a gzip member of their own after
+// its compressed file's.
 func (f *Files) take(s stagedDay, now time.Time, keep time.Duration) (Imported, error) {
 	if pastKeepingAt(s.day, now, keep) {
 		return Imported{Taken: PastKeep}, nil
@@ -114,15 +115,17 @@ func (f *Files) merge(s stagedDay, held lineSet) (Imported, error) {
 // add adds the staged day, which the files hold none of, at now, as take
 // says.
 func (f *Files) add(s stagedDay, now time.Time) (Imported, error) {
-	copied := false
-	var err error
 	if doneWithAt(s.day, now) {
-		copied, err = f.copyIn(s)
+		copied, err := f.copyIn(s)
+		if err != nil {
+			return Imported{}, err
+		}
+		if copied {
+			return Imported{Taken: Added}, nil
+		}
 	}
-	if err == nil && !copied {
-		_, err = f.addLines(s.path, make(lineSet), f.appending(s.date))
-	}
-	if err != nil {
+	added, err := f.addLines(s.path, make(lineSet), f.appending(s.date))
+	if err != nil || added == 0 {
 		return Imported{}, err
 	}
 	return Imported{Taken: Added}, nil

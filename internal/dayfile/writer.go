@@ -100,7 +100,8 @@ func (w *Writer[T]) Note(v T) {
 
 // Run writes what's noted, making its round as it starts and every pruneLook
 // after, and does what Do hands it, until ctx ends, when it writes what's
-// still queued. It makes the files' directory private as it starts.
+// still queued. It makes the files' directory private as it starts. A
+// Writer runs one Run at a time.
 func (w *Writer[T]) Run(ctx context.Context) {
 	defer close(w.starting())
 	w.files.makePrivate()

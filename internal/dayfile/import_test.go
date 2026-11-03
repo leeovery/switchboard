@@ -511,7 +511,7 @@ func TestAStagedFileOfNoLinesTakesNothingIn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := requestLedger(t.TempDir())
 
-			if got := taking(t, f, stage(t, date, tt.data), tt.now, twoWeeks); got != (Imported{Taken: Added}) || holdsDay(f, date) {
+			if got := taking(t, f, stage(t, date, tt.data), tt.now, twoWeeks); got != (Imported{}) || holdsDay(f, date) {
 				t.Errorf("take(%s) = %+v, the files holding the day = %v; want nothing taken in", date, got, holdsDay(f, date))
 			}
 		})
@@ -731,10 +731,14 @@ func TestAWriterRunAgainTakesUpWorkAgain(t *testing.T) {
 		stop := running(t, w)
 		defer stop()
 		synctest.Wait()
-		done := false
 
-		if err := w.Do(t.Context(), func() { done = true }); err != nil || !done {
-			t.Errorf("Do() = %v, the work done = %v; want it done by the Run started after the one that stopped", err, done)
+		// A Run that left the stopped Run's end in place would turn away about
+		// half of these, as Do then picks between it and the Run at random.
+		for range 100 {
+			done := false
+			if err := w.Do(t.Context(), func() { done = true }); err != nil || !done {
+				t.Fatalf("Do() = %v, the work done = %v; want it done by the Run started after the one that stopped", err, done)
+			}
 		}
 	})
 }
