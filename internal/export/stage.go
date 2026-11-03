@@ -16,10 +16,12 @@ import (
 // Folders returns the Macs' folders to import from dir: dir itself, where
 // it's one, else each folder in it that's one, by name, a Mac's folder being
 // one holding an export.json that reads, as ReadManifest reads it, this
-// Mac's own among them. It fails where one was exported by a newer
-// switchboard than this, where there's none, and where dir can't be read.
-func Folders(dir string) ([]string, error) {
-	switch is, err := macsFolder(dir); {
+// Mac's own among them. A folder holding an export.json that doesn't read is
+// passed over, and given to unread, so a damaged one never loses a Mac's
+// history unsaid. It fails where one was exported by a newer switchboard
+// than this, where there's none, and where dir can't be read.
+func Folders(dir string, unread func(folder string)) ([]string, error) {
+	switch is, err := macsFolder(dir, unread); {
 	case err != nil:
 		return nil, err
 	case is:
@@ -32,7 +34,7 @@ func Folders(dir string) ([]string, error) {
 	var folders []string
 	for _, e := range entries {
 		folder := filepath.Join(dir, e.Name())
-		is, err := macsFolder(folder)
+		is, err := macsFolder(folder, unread)
 		if err != nil {
 			return nil, err
 		}
@@ -47,12 +49,16 @@ func Folders(dir string) ([]string, error) {
 }
 
 // macsFolder reports whether folder is a Mac's folder, holding an
-// export.json that reads, failing where it was exported by a newer
-// switchboard, whose files this one may not read.
-func macsFolder(folder string) (bool, error) {
+// export.json that reads, giving it to unread where it holds one that
+// doesn't, and failing where it was exported by a newer switchboard, whose
+// files this one may not read.
+func macsFolder(folder string, unread func(folder string)) (bool, error) {
 	m, err := ReadManifest(folder)
 	switch {
 	case err != nil:
+		if _, there := os.Stat(filepath.Join(folder, manifestFile)); there == nil {
+			unread(folder)
+		}
 		return false, nil
 	case m.Version > Version:
 		return false, fmt.Errorf("can't import from %s: a newer switchboard exported it, its export.json of version %d, and this one reads version %d: upgrade switchboard to import it", folder, m.Version, Version)

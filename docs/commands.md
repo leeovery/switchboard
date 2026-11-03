@@ -1285,9 +1285,15 @@ switchboard import <dir>
 
 A relative `<dir>` is taken from the working directory. A Mac's folder is one holding an
 `export.json` that reads. This Mac's own is taken in like any other, and a folder without one is
-passed over. A `<dir>` that holds no Mac's folder fails, saying so, and so does one holding a
-folder a newer switchboard exported, as this one may not read its files: upgrade switchboard to
-import it.
+passed over. A folder whose `export.json` doesn't read, as one damaged, is passed over too, and
+`import` says so, and carries on with the rest:
+
+```
+switchboard: passed over /Users/you/Dropbox/switchboard/mac-0123456789abcdef: its export.json doesn't read
+```
+
+A `<dir>` that holds no Mac's folder fails, saying so, and so does one holding a folder a newer
+switchboard exported, as this one may not read its files: upgrade switchboard to import it.
 
 What it takes in:
 
@@ -1324,12 +1330,11 @@ One import runs at a time. An `import` run while another is running, as after yo
 and the router carries on with it, is refused, and leaves the running one as it is:
 
 ```
-switchboard: an import is running already
+Error: an import is running already
 ```
 
-Where the router refuses an import, or a day can't be taken in, `import` prints why, after
-`switchboard:`, and fails. What it took in before then stays, and importing again takes in the
-rest.
+Where the router refuses an import, or a day can't be taken in, `import` fails, saying why. What
+it took in before then stays, and importing again takes in the rest.
 
 Example:
 

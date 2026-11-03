@@ -23,7 +23,8 @@ func newImportCommand(a *app) *cobra.Command {
 or of the one folder <dir> is: the request ledger's lines, the days'
 summaries, the readings history and the router's events. This Mac's own
 folder is taken like any other, a folder without an export.json is passed
-over, and one a newer switchboard exported is refused.
+over, and so is one whose export.json doesn't read, saying so, and one a
+newer switchboard exported is refused.
 
 A day this Mac doesn't hold is copied in, and to a day it holds, the lines it
 doesn't hold are added, so an import repeated adds nothing. A day's summary
@@ -37,26 +38,9 @@ start it with switchboard service install (or switchboard serve). An import
 run while another is running is refused.`,
 		Args: oneFolder("import from", "reads"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := a.importHistory(cmd.Context(), cmd.OutOrStdout(), args[0])
-			if refused, ok := errors.AsType[importRefusal](err); ok {
-				cmd.SilenceErrors = true
-				if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "switchboard: "+refused.Error()); err != nil {
-					return err
-				}
-			}
-			return err
+			return a.importHistory(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
 		},
 	}
-}
-
-// importRefusal is an import refused, as while another runs, or by the
-// router, saying why.
-type importRefusal struct {
-	error
-}
-
-func (r importRefusal) Unwrap() error {
-	return r.error
 }
 
 // errImportUnanswered is what import fails with where the router closed
@@ -65,9 +49,9 @@ var errImportUnanswered = errors.New("the router closed before it answered, so t
 
 // importHistory imports the Macs' folders in dir, taken from the working
 // directory where it's relative, as importThrough does, holding the
-// import's lock throughout, and says what it took in. It's refused at once
-// where another holds the lock.
-func (a *app) importHistory(ctx context.Context, out io.Writer, dir string) error {
+// import's lock throughout, and says what it took in. It's refused at once,
+// with export.ErrImportRunning, where another holds the lock.
+func (a *app) importHistory(ctx context.Context, out, errOut io.Writer, dir string) error {
 	dir, err := a.absolute(dir)
 	if err != nil {
 		return err
@@ -77,14 +61,11 @@ func (a *app) importHistory(ctx context.Context, out io.Writer, dir string) erro
 		return err
 	}
 	unlock, err := export.LockImport(state)
-	if errors.Is(err, export.ErrImportRunning) {
-		return importRefusal{err}
-	}
 	if err != nil {
 		return err
 	}
 	defer unlock()
-	imported, err := importThrough(ctx, router.NewClient(router.SocketPath(state)), state, dir)
+	imported, err := importThrough(ctx, router.NewClient(router.SocketPath(state)), errOut, state, dir)
 	if err != nil {
 		return err
 	}
@@ -95,16 +76,16 @@ func (a *app) importHistory(ctx context.Context, out io.Writer, dir string) erro
 // importThrough has the router whose state directory is state import the
 // Macs' folders in dir, and returns what it took in: having asked it first
 // whether it's running an import, refusing, touching nothing, where it is;
-// then staging the folders, as export.Stage stages them; then asking it to
-// take them in, and waiting for its answer.
-func importThrough(ctx context.Context, client *router.Client, state, dir string) (router.Imported, error) {
+// then staging the folders foldersIn finds, as export.Stage stages them;
+// then asking it to take them in, and waiting for its answer.
+func importThrough(ctx context.Context, client *router.Client, errOut io.Writer, state, dir string) (router.Imported, error) {
 	switch running, err := client.ImportRunning(ctx); {
 	case err != nil:
 		return router.Imported{}, fromRouter(err)
 	case running:
-		return router.Imported{}, importRefusal{export.ErrImportRunning}
+		return router.Imported{}, export.ErrImportRunning
 	}
-	folders, err := export.Folders(dir)
+	folders, err := foldersIn(errOut, dir)
 	if err != nil {
 		return router.Imported{}, err
 	}
@@ -112,23 +93,27 @@ func importThrough(ctx context.Context, client *router.Client, state, dir string
 		return router.Imported{}, err
 	}
 	imported, err := client.Import(ctx)
+	if errors.Is(err, router.ErrUnanswered) {
+		return router.Imported{}, errImportUnanswered
+	}
 	if err != nil {
-		return router.Imported{}, fromImport(err)
+		return router.Imported{}, fromRouter(err)
 	}
 	return imported, nil
 }
 
-// fromImport is err, POST /import's, saying plainly where the router closed
-// without answering or isn't running, and as an importRefusal otherwise, as
-// where the router refused, saying why.
-func fromImport(err error) error {
-	switch {
-	case errors.Is(err, router.ErrUnanswered):
-		return errImportUnanswered
-	case router.IsNotRunning(err):
-		return errRouterDown
+// foldersIn returns the Macs' folders to import from dir, as export.Folders
+// finds them, saying on errOut, a line each, which it passed over as their
+// export.json doesn't read, the import carrying on without them.
+func foldersIn(errOut io.Writer, dir string) ([]string, error) {
+	var unread []string
+	folders, err := export.Folders(dir, func(folder string) { unread = append(unread, folder) })
+	for _, folder := range unread {
+		if _, err := fmt.Fprintln(errOut, "switchboard: passed over "+folder+": its export.json doesn't read"); err != nil {
+			return nil, err
+		}
 	}
-	return importRefusal{err}
+	return folders, err
 }
 
 // importedSaid says what an import took in, as imported counts it: "imported

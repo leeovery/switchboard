@@ -38,6 +38,13 @@ func stage(t *testing.T, importDir string, folders ...string) {
 	}
 }
 
+// foldersIn returns the Macs' folders Folders finds in dir, and the folders
+// it passed over as their export.json doesn't read.
+func foldersIn(dir string) (folders, unread []string, err error) {
+	folders, err = export.Folders(dir, func(folder string) { unread = append(unread, folder) })
+	return folders, unread, err
+}
+
 // filesUnder returns the paths of the files under root, from root, oldest
 // name first.
 func filesUnder(t *testing.T, root string) []string {
@@ -61,8 +68,8 @@ func TestFoldersTakesTheOneMacsFolderDirIs(t *testing.T) {
 	dir := macsFolder(t, t.TempDir(), installOne, export.Version)
 	macsFolder(t, filepath.Join(dir, "mac-"+installTwo), installTwo, export.Version)
 
-	if got, err := export.Folders(dir); err != nil || !slices.Equal(got, []string{dir}) {
-		t.Errorf("Folders() = %q, %v; want %q alone", got, err, dir)
+	if got, unread, err := foldersIn(dir); err != nil || !slices.Equal(got, []string{dir}) || unread != nil {
+		t.Errorf("Folders() = %q, %v, passing over %q unread; want %q alone", got, err, unread, dir)
 	}
 }
 
@@ -72,12 +79,54 @@ func TestFoldersTakesEachMacsFolderInDirByNamePassingOverTheRest(t *testing.T) {
 	one := macsFolder(t, filepath.Join(dir, "mac-"+installOne), installOne, export.Version)
 	older := macsFolder(t, filepath.Join(dir, "renamed"), installOne, export.Version-1)
 	writeFile(t, filepath.Join(dir, "notes", "readme.txt"), []byte("no export.json here\n"), exportNow)
-	writeFile(t, filepath.Join(dir, "broken", "export.json"), []byte("not json\n"), exportNow)
 	writeFile(t, filepath.Join(dir, "export.json.txt"), []byte("a file\n"), exportNow)
 	macsFolder(t, filepath.Join(one, "nested"), installTwo, export.Version)
 
-	if got, err := export.Folders(dir); err != nil || !slices.Equal(got, []string{one, two, older}) {
-		t.Errorf("Folders() = %q, %v; want %q", got, err, []string{one, two, older})
+	if got, unread, err := foldersIn(dir); err != nil || !slices.Equal(got, []string{one, two, older}) || unread != nil {
+		t.Errorf("Folders() = %q, %v, passing over %q unread; want %q", got, err, unread, []string{one, two, older})
+	}
+}
+
+func TestFoldersPassesOverAFolderWhoseExportJSONDoesntReadSayingSo(t *testing.T) {
+	tests := []struct {
+		name string
+		// broken are the folders in dir whose export.json doesn't read.
+		broken []string
+		// wantFolders are the folders in dir Folders takes.
+		wantFolders []string
+	}{
+		{name: "a folder among others", broken: []string{"broken", "mac-" + installTwo}, wantFolders: []string{"mac-" + installOne}},
+		{name: "the folder given, holding a Mac's folder", broken: []string{""}, wantFolders: []string{"mac-" + installOne}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			macsFolder(t, filepath.Join(dir, "mac-"+installOne), installOne, export.Version)
+			var wantUnread, wantFolders []string
+			for _, name := range tt.broken {
+				writeFile(t, filepath.Join(dir, name, "export.json"), []byte(`{"version":1,"install":"0123`), exportNow)
+				wantUnread = append(wantUnread, filepath.Join(dir, name))
+			}
+			for _, name := range tt.wantFolders {
+				wantFolders = append(wantFolders, filepath.Join(dir, name))
+			}
+
+			got, unread, err := foldersIn(dir)
+			if err != nil || !slices.Equal(got, wantFolders) || !slices.Equal(unread, wantUnread) {
+				t.Errorf("Folders() = %q, %v, passing over %q unread; want %q, passing over %q unread", got, err, unread, wantFolders, wantUnread)
+			}
+		})
+	}
+}
+
+func TestFoldersOfNothingButFoldersWhoseExportJSONDoesntReadSaysSoThenFails(t *testing.T) {
+	dir := t.TempDir()
+	broken := filepath.Join(dir, "mac-"+installOne)
+	writeFile(t, filepath.Join(broken, "export.json"), []byte("not json\n"), exportNow)
+
+	got, unread, err := foldersIn(dir)
+	if err == nil || !strings.HasPrefix(err.Error(), "there's nothing to import in "+dir) || !slices.Equal(unread, []string{broken}) {
+		t.Errorf("Folders() = %q, %v, passing over %q unread; want it to fail, passing over %s unread", got, err, unread, broken)
 	}
 }
 
@@ -96,7 +145,7 @@ func TestFoldersRefusesAFolderANewerSwitchboardExported(t *testing.T) {
 			macsFolder(t, filepath.Join(dir, "mac-"+installOne), installOne, export.Version)
 			newer := macsFolder(t, filepath.Join(dir, tt.folder), installTwo, export.Version+1)
 
-			got, err := export.Folders(dir)
+			got, _, err := foldersIn(dir)
 			if err == nil || !strings.Contains(err.Error(), newer) || !strings.Contains(err.Error(), "a newer switchboard exported it") {
 				t.Errorf("Folders() = %q, %v; want it refused, naming %s and saying a newer switchboard exported it", got, err, newer)
 			}
@@ -117,7 +166,7 @@ func TestFoldersFailsWhereDirHoldsNoMacsFolder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, err := export.Folders(tt.dir); err == nil || !strings.HasPrefix(err.Error(), tt.want) {
+			if got, _, err := foldersIn(tt.dir); err == nil || !strings.HasPrefix(err.Error(), tt.want) {
 				t.Errorf("Folders() = %q, %v; want it to fail, saying %q", got, err, tt.want)
 			}
 		})
@@ -252,7 +301,7 @@ func TestAnExportStagedIsByteAndTimeTheExportsOwn(t *testing.T) {
 	exportInto(t, state, dir)
 	importDir := filepath.Join(t.TempDir(), "import")
 
-	folders, err := export.Folders(dir)
+	folders, _, err := foldersIn(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

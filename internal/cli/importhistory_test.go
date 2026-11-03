@@ -19,7 +19,7 @@ import (
 
 // importRefused is what import says as it's refused while another import
 // runs.
-const importRefused = "switchboard: an import is running already\n"
+const importRefused = "Error: an import is running already\n"
 
 // importDeps are deps whose state directory's path is short enough to hold
 // the router's control socket, and that directory.
@@ -267,7 +267,7 @@ func TestImportTheRouterRefusesSaysWhy(t *testing.T) {
 			deps, state := importDeps(t)
 			(&imports{post: refusing(tt.status, tt.why)}).serve(t, state)
 
-			if got, want := run(t, deps, "import", importFolder(t, t.TempDir())), (result{stderr: "switchboard: " + tt.why + "\n", code: 1}); got != want {
+			if got, want := run(t, deps, "import", importFolder(t, t.TempDir())), (result{stderr: "Error: " + tt.why + "\n", code: 1}); got != want {
 				t.Errorf("switchboard import = %+v, want %+v", got, want)
 			}
 		})
@@ -351,6 +351,43 @@ func TestImportFromAFolderOfNoMacsFolderFails(t *testing.T) {
 	dir := t.TempDir()
 
 	want := result{stderr: "Error: there's nothing to import in " + dir + ": it holds no Mac's folder, one with the export.json export writes\n", code: 1}
+	if got := run(t, deps, "import", dir); got != want {
+		t.Errorf("switchboard import = %+v, want %+v", got, want)
+	}
+	if n := i.posted.Load(); n != 0 {
+		t.Errorf("the router was asked to import %d times, want none", n)
+	}
+}
+
+func TestImportSaysWhichFolderItPassedOverAsItsExportJSONDoesntReadThenCarriesOn(t *testing.T) {
+	deps, state := importDeps(t)
+	dir := t.TempDir()
+	importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
+	broken := filepath.Join(dir, "mac-fedcba9876543210")
+	writeStateFile(t, broken, "export.json", []byte(`{"version":1,"install":"fedc`))
+	post, asStaged := answeringAsStaged(t, state, router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}})
+	(&imports{post: post}).serve(t, state)
+
+	want := result{stdout: "imported 1 folder: 1 day added\n", stderr: "switchboard: passed over " + broken + ": its export.json doesn't read\n"}
+	if got := run(t, deps, "import", dir); got != want {
+		t.Errorf("switchboard import = %+v, want %+v", got, want)
+	}
+	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+}
+
+func TestImportOfNothingButFoldersWhoseExportJSONDoesntReadSaysSoThenFails(t *testing.T) {
+	deps, state := importDeps(t)
+	i := &imports{post: answering(router.Imported{Folders: 1})}
+	i.serve(t, state)
+	dir := t.TempDir()
+	broken := filepath.Join(dir, "mac-fedcba9876543210")
+	writeStateFile(t, broken, "export.json", []byte("not json\n"))
+
+	want := result{
+		stderr: "switchboard: passed over " + broken + ": its export.json doesn't read\n" +
+			"Error: there's nothing to import in " + dir + ": it holds no Mac's folder, one with the export.json export writes\n",
+		code: 1,
+	}
 	if got := run(t, deps, "import", dir); got != want {
 		t.Errorf("switchboard import = %+v, want %+v", got, want)
 	}
