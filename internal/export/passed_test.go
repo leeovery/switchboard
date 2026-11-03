@@ -2,6 +2,7 @@ package export_test
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -102,8 +103,8 @@ func TestADayGoneBetweenItsLookAndItsReadIsPassedOver(t *testing.T) {
 			})
 
 			r, err := pruned.Export(dir)
-			if err != nil || r.Written != 0 || len(r.Unread) > 0 {
-				t.Fatalf("Export() = %+v, %v; want the day passed over", r, err)
+			if err != nil || r.Written != 0 || r.AsTheyWere != 0 || len(r.Unread) > 0 {
+				t.Fatalf("Export() = %+v, %v; want the day passed over, counted neither written nor as it was", r, err)
 			}
 			if entries, err := os.ReadDir(filepath.Join(r.Folder, "ledger")); err == nil && len(entries) > 0 {
 				t.Errorf("the folder's ledger holds %v, want nothing of the day", entries)
@@ -130,6 +131,31 @@ func TestAWriteThatFailsStopsTheExportLeavingNothingHalfWritten(t *testing.T) {
 		t.Errorf("the folder's ledger holds %v (%v), want the folder in the way alone: no file half written", entries, err)
 	}
 	if _, err := os.Stat(filepath.Join(folder, "export.json")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("export.json: %v, want none written", err)
+	}
+}
+
+// diskFull fails every write, as a full disk does.
+type diskFull struct{}
+
+func (diskFull) Write([]byte) (int, error) {
+	return 0, errors.New("no space left on device")
+}
+
+func TestASnapshotsWriteThatFailsStopsTheExportThoughItsDayCantBeRead(t *testing.T) {
+	state, dir := t.TempDir(), t.TempDir()
+	// A day with both files, its plain file's lines read and written, then
+	// its compressed file found unreadable.
+	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	unreadable(t, requests.compressed(state, day1))
+	writeFile(t, requests.plain(state, day1), []byte(linesOf(`{"n":2}`)), appendedAt)
+	full := export.WithSnapshotsTo(exporter(state), func(io.Writer) io.Writer { return diskFull{} })
+
+	r, err := full.Export(dir)
+	if err == nil || errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("Export() = %+v, %v; want it to fail, as the write failed", r, err)
+	}
+	if _, err := os.Stat(filepath.Join(folderOf(t, state, dir), "export.json")); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("export.json: %v, want none written", err)
 	}
 }

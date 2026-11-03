@@ -1247,15 +1247,18 @@ exported 31 days to /Users/you/Dropbox/switchboard/mac-0123456789abcdef: 3 writt
 ```
 
 A `<dir>` that's a file, or that can't be made or written, fails, saying so, and stops the export
-there. A day's file that can't be read, as one damaged, is passed over, and the rest exported.
-Then `export` names each it passed over, and why, and fails:
+there. A day whose files can't be opened or read in the state directory, as one whose file
+switchboard isn't allowed to read, is passed over, and the rest exported. Then `export` names each
+day it passed over, and why, and fails:
 
 ```
-switchboard: couldn't export the request ledger of 2026-10-30: read requests-2026-10-30.jsonl.gz: gzip: invalid header
+switchboard: couldn't export the request ledger of 2026-10-30: open /Users/you/.local/state/switchboard/ledger/requests-2026-10-30.jsonl.gz: permission denied
 ```
 
-A folder on a disk that keeps coarser times, as exFAT, a network share or a NAS does, works as
-well: a day unchanged since is still left as it is.
+A folder on a disk that keeps coarser times works as well: one that keeps them to 10 milliseconds,
+as exFAT does, or to the second, as many network shares do, still leaves a day unchanged since as
+it is. On a FAT disk, which keeps them to 2 seconds, or one that rounds them, some unchanged files
+are written again at each export.
 
 The install's id is in `install-id`, in the state directory, made by the first export and never
 replaced. A Mac whose state directory was restored from another's, as Migration Assistant restores

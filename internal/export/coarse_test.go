@@ -7,47 +7,82 @@ import (
 	"time"
 )
 
+// stampedAt is when the tests' summaries are stamped, to the nanosecond, as
+// their compressed files' times stamp them.
+var stampedAt = time.Date(2026, 10, 4, 1, 0, 1, 987_654_321, time.UTC)
+
 // keptCoarsely sets the time of the file at path to what a folder whose file
-// system keeps times to the second, as FAT's 2, keeps of it, failing t where
-// it can't.
-func keptCoarsely(t *testing.T, path string, to time.Duration) {
+// system keeps times to the precision given, by truncating them, keeps of
+// it; none keeps it to the nanosecond.
+func keptCoarsely(t *testing.T, path string, precision time.Duration) {
 	t.Helper()
-	if err := os.Chtimes(path, time.Time{}, look(t, path).ModTime().Truncate(to)); err != nil {
+	if err := os.Chtimes(path, time.Time{}, look(t, path).ModTime().Truncate(precision)); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestACopyInAFolderKeepingCoarserTimesIsPassedOver(t *testing.T) {
-	for _, to := range []time.Duration{time.Second, 2 * time.Second} {
-		t.Run(to.String(), func(t *testing.T) {
+// folders are the folders' file systems the tests keep copies on, by how
+// finely each keeps their times.
+var folders = []struct {
+	name      string
+	precision time.Duration
+}{
+	{name: "a folder keeping nanoseconds"},
+	{name: "a folder keeping 10 milliseconds, as exFAT", precision: 10 * time.Millisecond},
+	{name: "a folder keeping whole seconds", precision: time.Second},
+}
+
+func TestAnUnchangedCopyIsPassedOverHoweverFinelyItsFolderKeepsTimes(t *testing.T) {
+	for _, f := range folders {
+		t.Run(f.name, func(t *testing.T) {
 			state, dir := t.TempDir(), t.TempDir()
-			data := gzipOf(t, linesOf(`{"n":1}`))
-			writeFile(t, requests.compressed(state, day1), data, compressedAt)
-			writeFile(t, summary(state, day1), []byte("{}\n"), summarisedAt.Add(1999*time.Millisecond))
+			writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+			writeFile(t, summary(state, day1), []byte(`{"version":6}`+"\n"), stampedAt)
 			exportInto(t, state, dir)
 			folder := folderOf(t, state, dir)
-			for _, path := range []string{requests.compressed(folder, day1), summary(folder, day1)} {
-				keptCoarsely(t, path, to)
+			copies := []string{requests.compressed(folder, day1), summary(folder, day1)}
+			var was []os.FileInfo
+			for _, path := range copies {
+				keptCoarsely(t, path, f.precision)
+				was = append(was, look(t, path))
 			}
-			was := look(t, requests.compressed(folder, day1))
 
 			wantResult(t, exportInto(t, state, dir), state, dir, 0, 1)
-			wantUnwritten(t, requests.compressed(folder, day1), was)
+			for i, path := range copies {
+				wantUnwritten(t, path, was[i])
+			}
 		})
 	}
 }
 
-func TestACopyInAFolderKeepingCoarserTimesIsCopiedAgainOnceItChanges(t *testing.T) {
-	state, dir := t.TempDir(), t.TempDir()
-	writeFile(t, summary(state, day1), []byte(`{"n":1}`+"\n"), summarisedAt)
-	exportInto(t, state, dir)
-	folder := folderOf(t, state, dir)
-	keptCoarsely(t, summary(folder, day1), 2*time.Second)
+func TestASummaryOfTheNextVersionIsCopiedAgainHoweverFinelyItsFolderKeepsTimes(t *testing.T) {
+	for _, f := range folders {
+		t.Run(f.name, func(t *testing.T) {
+			state, dir := t.TempDir(), t.TempDir()
+			writeFile(t, summary(state, day1), []byte(`{"version":6}`+"\n"), stampedAt)
+			exportInto(t, state, dir)
+			folder := folderOf(t, state, dir)
+			keptCoarsely(t, summary(folder, day1), f.precision)
 
-	// Summarised again, as long, a second for each version later.
-	writeFile(t, summary(state, day1), []byte(`{"n":2}`+"\n"), summarisedAt.Add(3*time.Second))
+			// Summarised again in the next version, as long, its stamp a second
+			// later.
+			next := []byte(`{"version":7}` + "\n")
+			writeFile(t, summary(state, day1), next, stampedAt.Add(time.Second))
+			wantResult(t, exportInto(t, state, dir), state, dir, 1, 0)
+			wantCopy(t, summary(folder, day1), next, stampedAt.Add(time.Second))
+		})
+	}
+}
+
+func TestOnAFATFolderAnUnchangedCopyOfAnOddSecondIsWrittenAgainAtEachExport(t *testing.T) {
+	state, dir := t.TempDir(), t.TempDir()
+	// FAT keeps 01:00:01.98 as 01:00:00, which no truncation of it to a
+	// precision the folder's time shows gives.
+	writeFile(t, summary(state, day1), []byte(`{"version":6}`+"\n"), stampedAt)
+	exportInto(t, state, dir)
+	keptCoarsely(t, summary(folderOf(t, state, dir), day1), 2*time.Second)
+
 	wantResult(t, exportInto(t, state, dir), state, dir, 1, 0)
-	wantCopy(t, summary(folder, day1), []byte(`{"n":2}`+"\n"), summarisedAt.Add(3*time.Second))
 }
 
 func TestASnapshotInAFolderKeepingCoarserTimesIsPassedOverUntilThePlainFileChanges(t *testing.T) {

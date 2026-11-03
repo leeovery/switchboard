@@ -11,6 +11,7 @@ package export
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"time"
@@ -27,9 +28,9 @@ type Exporter struct {
 	Now      func() time.Time
 	Logger   *slog.Logger
 
-	// looked, where it's set, is called with each day's date once its files
-	// of lines are looked at, before they're read, as dayLines says.
+	// looked and wrap, where they're set, are as dayLines has them.
 	looked func(date string)
+	wrap   func(io.Writer) io.Writer
 }
 
 // Result is what an export did: the Mac's folder it exported into; how many
@@ -100,9 +101,9 @@ func (e Exporter) Export(dir string) (Result, error) {
 // the Mac's folder at folder holds them.
 func (e Exporter) lines(folder string) []dayLines {
 	return []dayLines{
-		{src: ledger.Files(ledger.Dir(e.StateDir), e.Logger), dst: ledger.Files(ledger.Dir(folder), e.Logger), looked: e.looked},
-		{src: events.Files(ledger.Dir(e.StateDir), e.Logger), dst: events.Files(ledger.Dir(folder), e.Logger), looked: e.looked},
-		{src: readings.Files(readings.Dir(e.StateDir), e.Logger), dst: readings.Files(readings.Dir(folder), e.Logger), looked: e.looked},
+		{src: ledger.Files(ledger.Dir(e.StateDir), e.Logger), dst: ledger.Files(ledger.Dir(folder), e.Logger), looked: e.looked, wrap: e.wrap},
+		{src: events.Files(ledger.Dir(e.StateDir), e.Logger), dst: events.Files(ledger.Dir(folder), e.Logger), looked: e.looked, wrap: e.wrap},
+		{src: readings.Files(readings.Dir(e.StateDir), e.Logger), dst: readings.Files(readings.Dir(folder), e.Logger), looked: e.looked, wrap: e.wrap},
 	}
 }
 
@@ -120,8 +121,8 @@ func (x *exporting) lines(lines dayLines) error {
 		return fmt.Errorf("read the %s: %w", lines.src.Name, err)
 	}
 	for _, date := range dates {
-		wrote, err := lines.export(date)
-		if err := x.note("the "+lines.src.Name+" of "+date, date, wrote, err); err != nil {
+		did, err := lines.export(date)
+		if err := x.note("the "+lines.src.Name+" of "+date, date, did, err); err != nil {
 			return err
 		}
 	}
@@ -136,8 +137,8 @@ func (x *exporting) summaries(src, dst string) error {
 		return fmt.Errorf("read the request ledger's summaries: %w", err)
 	}
 	for _, date := range dates {
-		wrote, err := copyFile(ledger.SummaryFile(src, date), ledger.SummaryFile(dst, date))
-		if err := x.note("the request ledger's summary of "+date, date, wrote, err); err != nil {
+		did, err := copyFile(ledger.SummaryFile(src, date), ledger.SummaryFile(dst, date))
+		if err := x.note("the request ledger's summary of "+date, date, did, err); err != nil {
 			return err
 		}
 	}
@@ -145,9 +146,10 @@ func (x *exporting) summaries(src, dst string) error {
 }
 
 // note notes how exporting what's given, of the day with the given date,
-// went: whether it wrote it, or, where err is an unreadable, that it was
-// passed over, and why. It returns any other error, saying what it was of.
-func (x *exporting) note(what, date string, wrote bool, err error) error {
+// went: what it came to, as did says, a file gone counting its day for
+// nothing; or, where err is an unreadable, that it was passed over, and why.
+// It returns any other error, saying what it was of.
+func (x *exporting) note(what, date string, did outcome, err error) error {
 	if u, ok := errors.AsType[unreadable](err); ok {
 		x.unread = append(x.unread, DayError{What: what, Date: date, Err: u.error})
 		return nil
@@ -155,15 +157,17 @@ func (x *exporting) note(what, date string, wrote bool, err error) error {
 	if err != nil {
 		return fmt.Errorf("export %s: %w", what, err)
 	}
-	x.written[date] = x.written[date] || wrote
+	if did != gone {
+		x.written[date] = x.written[date] || did == wrote
+	}
 	return nil
 }
 
 // result is the result of the export into folder.
 func (x *exporting) result(folder string) Result {
 	r := Result{Folder: folder, Unread: x.unread}
-	for _, wrote := range x.written {
-		if wrote {
+	for _, wroteAny := range x.written {
+		if wroteAny {
 			r.Written++
 		} else {
 			r.AsTheyWere++

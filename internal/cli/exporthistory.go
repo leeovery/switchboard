@@ -30,8 +30,8 @@ the folder is ever removed, a day past keeping included. Every file is
 written beside where it goes and renamed into place, so a sync never carries
 one half written. It reads the files where they lie, so it needs no router.
 
-A day's file that can't be read is passed over, and the rest exported; then
-export names each it passed over, and why, and fails.`,
+A day whose files can't be opened or read is passed over, and the rest
+exported; then export names each it passed over, and why, and fails.`,
 		Args: oneFolder,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := a.export(cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
