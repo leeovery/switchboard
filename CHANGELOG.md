@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-03
+
+Support for Ultra accounts that have no 5-hour limit, with plans renamed to Pro, Max and Ultra.
+
+✨ Added
+- Accounts with no 5-hour window (verified Ultra) are handled throughout — the dashboard, `usage` output and routing card say "no 5-hour limit" instead of showing an empty bar.
+- The pool, Runway and Graphs leave out the 5-hour window when fewer than two accounts have one, and `< >` disappears when only the week is offered.
+- Setup skips the Priming step when every account is on Ultra, since there is no 5-hour window to start.
+- The router notices when an account stops or resumes reporting its 5-hour window, and stops priming it.
+
+🔧 Changed
+- Plans are now named `pro`, `max` and `ultra` in config, commands and views — the old names `max5x` and `max20x` still load and are accepted.
+- `accounts edit` reports when it rewrites an old plan name to its new one.
+- The add card now says "Pro, Max or Ultra plan".
+
+🐛 Fixed
+- The usage block no longer picks the wrong layout for a single window, where big bars could be skipped even though they fit.
+
 ## [0.3.0] - 2026-11-02
 
 Setup is now a full-screen walkthrough that creates each account's token for you.
