@@ -52,6 +52,7 @@ const (
 )
 
 func TestDrawingCantTellADigestFromRaw(t *testing.T) {
+	t.Parallel()
 	root := sourcecheck.ModuleRoot(t)
 	sourcecheck.ReportEach(t, digestBreaches(t, root, sourcecheck.ModulePath(t, root), drawingPackages, digestsWired, sessionsAsOf))
 }

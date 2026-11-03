@@ -26,6 +26,7 @@ import (
 var asksOfThree = []string{"5h 5m0s", "7d 30m0s"}
 
 func TestReadsTheHistoryWithEachFullReadNeverALook(t *testing.T) {
+	t.Parallel()
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 

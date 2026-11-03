@@ -40,6 +40,7 @@ func TestTheFirstLookPicksOutNoEvent(t *testing.T) {
 }
 
 func TestAnEventNewerThanTheLastLookSawIsPickedOutFadingBack(t *testing.T) {
+	t.Parallel()
 	h := routedHarness(t, withEvents(2, 1))
 	h.start()
 	h.startRouter(withEvents(3, 2, 1))

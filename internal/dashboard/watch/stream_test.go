@@ -204,6 +204,7 @@ func TestTheStreamIsAskedForAgainOnceItEnds(t *testing.T) {
 // none is drawn doing anything until it opens again and tells afresh; the
 // requests it told of are kept, for its first look to settle.
 func TestOnceTheWatchClosesTheStreamNoSeatIsDrawnDoingAnything(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		close func(h *harness)
@@ -349,6 +350,7 @@ func TestWhatTheStreamSawOfASessionOutlastsItsAnswer(t *testing.T) {
 // three minutes after it ended, as the stream saw it end, not seven, as the
 // router last saw it routed.
 func TestASessionsIdleCountsFromItsAnswersEndOnceItsLineTakesOver(t *testing.T) {
+	t.Parallel()
 	state := t.TempDir()
 	h := routedHarness(t, routerDocument(three()...))
 	h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionSessions)

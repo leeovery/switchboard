@@ -19,6 +19,7 @@ const rowsGuardDays = 4
 // reads none of their lines. Read so, its Requests are those of one read
 // whole, every day's lines read raw, as sameLogAsOneRead has it.
 func TestTheLogsDayBackReadsNoDayRawWhoseRowsStand(t *testing.T) {
+	t.Parallel()
 	start := soakAt(21, 0)
 	g := readingHeads("DayRows")
 	s := newSoak(t, soakSetup{start: start, days: rowsGuardDays, pace: guardPace, guard: g})

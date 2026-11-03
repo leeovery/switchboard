@@ -431,6 +431,7 @@ func toldOfLine(s *story, l *ledger.Line) string {
 // whole overlapping the next look's, a look part-way through filing
 // requests ending together, and the clock set back.
 func TestTheStoreFedLookByLookTellsWhatOneReadAtOnceTells(t *testing.T) {
+	t.Parallel()
 	prices := changingPrices()
 	met := make(map[string]bool)
 	for seed := range uint64(150) {

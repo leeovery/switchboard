@@ -729,6 +729,7 @@ func TestWeeksWiderNeverShowsLess(t *testing.T) {
 // An account's verdict reads whole wherever a week can give way, every
 // account's, in the table and in columns, its names whole too.
 func TestWeeksVerdictsReadWholeWhereAWeekCanGiveWay(t *testing.T) {
+	t.Parallel()
 	for _, page := range []views.WeeksPage{threeWeeks(), longNamedWeeks()} {
 		for _, shape := range []WeeksShape{WeeksTable, WeeksColumns} {
 			for width := 40; width <= 220; width++ {

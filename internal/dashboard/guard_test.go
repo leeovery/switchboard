@@ -174,6 +174,7 @@ func cutValueSays(name string) string {
 }
 
 func TestViewsLayTheirPartsOutByFlex(t *testing.T) {
+	t.Parallel()
 	root := sourcecheck.ModuleRoot(t)
 	sourcecheck.ReportEach(t, flexBreaches(t, root, sourcecheck.ModulePath(t, root), sourcecheck.Packages(t, root), drawingPackages, allowed{
 		phone:    slices.Concat(chrome, phoneAllowed),

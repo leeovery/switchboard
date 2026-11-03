@@ -104,6 +104,7 @@ func TestTheLogOpeningAfterTheTailWasReadIsGivenNoLineTwice(t *testing.T) {
 // today's rows fill the view it last filled, as a read of the tail grows it
 // across midnight: its read holds today's lines alone.
 func TestTheLogLetsGoOfTheDayBeforeWhileAnotherTabShows(t *testing.T) {
+	t.Parallel()
 	state := t.TempDir()
 	midnight := onTheDay(0, 0, 0).AddDate(0, 0, 1)
 	var yesterday []ledger.Held

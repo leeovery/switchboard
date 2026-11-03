@@ -419,6 +419,7 @@ func TestNewSessionsCardIs15RowsTallAndOneAnAccount(t *testing.T) {
 }
 
 func TestNoPickMTickOrRefusalMovesTheCard(t *testing.T) {
+	t.Parallel()
 	refusal := strings.Repeat("the router refused the pin, as no account it names can take a request now; ", 8)
 	// says are what the card can be told as it's picked: m clear, and
 	// ticked, moving none, one, four and many sessions; or refused.

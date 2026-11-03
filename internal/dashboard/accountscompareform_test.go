@@ -73,6 +73,7 @@ func TestCompareIsWideFromWhereItsLeastsFit(t *testing.T) {
 // With no accounts configured, Compare draws nothing, and help tells of no
 // focus at any width.
 func TestComparesHelpTellsOfNoFocusWithNoAccounts(t *testing.T) {
+	t.Parallel()
 	const focus = "← and → move the focus along the columns"
 	for width := compareWidthsFrom; width <= compareWidthsTo; width++ {
 		if said := strings.Join(plainLines(accountsHelping(width, AccountsShown{}, Look{}).body), " "); strings.Contains(said, focus) {
@@ -201,6 +202,7 @@ type formTaken struct{ cells, form int }
 // never gives it a shorter form. Its form switches once as the frame widens,
 // at the one width over every period.
 func TestComparesValuesCutNoFigureAtAnyWidth(t *testing.T) {
+	t.Parallel()
 	versions := comparedVersions(t)
 	for _, w := range comparedWorlds() {
 		t.Run(w.name, func(t *testing.T) {

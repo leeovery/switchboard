@@ -79,6 +79,7 @@ var spreadMoments = slices.Concat([]string{
 // table and read with another, as digestPrices has them, meeting each of
 // spreadMoments.
 func TestEveryViewOverDigestsIsTheViewReadRaw(t *testing.T) {
+	t.Parallel()
 	met := make(map[string]bool)
 	prices := digestPrices(t, changingPricesFrom(spreadRepriced))
 	for _, seed := range spreadSeeds {

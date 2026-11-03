@@ -229,6 +229,7 @@ func threeDaysApart(seed uint64) []ledger.Line {
 // records those of its lines read raw. Today, the last day as it runs, is
 // read from its lines.
 func TestTheLogReadBackOverRowsIsTheLogReadRaw(t *testing.T) {
+	t.Parallel()
 	var lastRaw, lastRows, cut, lineless int
 	for _, w := range readBackWorlds {
 		for seed := range uint64(readBackSeeds) {
@@ -287,6 +288,7 @@ const busySeed = 6
 // its lines read raw, and the Log read back to it shows what it shows over
 // the days read raw, as sameDayBack has it.
 func TestADayBackReadsItsRowsOnlyWhereTheyStandWhole(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		upset func(c *digestChain, date string)
@@ -561,6 +563,7 @@ const throughFilters = 6
 // read raw. Through the Log's opening filter, which keeps every line of its
 // kinds, it's the day read whole, reading no summary.
 func TestADayReadBackThroughAFilterGivesEveryRecordItKeeps(t *testing.T) {
+	t.Parallel()
 	met := make(map[string]bool)
 	for _, w := range throughWorlds {
 		c := w.chain(t)

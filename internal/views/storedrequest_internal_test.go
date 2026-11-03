@@ -28,6 +28,7 @@ var storedWorlds = []struct {
 // decoded of its line, its sum included, of every line of the generated
 // worlds.
 func TestARequestRestoredFromItsStoredFormIsTheOneDecoded(t *testing.T) {
+	t.Parallel()
 	for _, w := range storedWorlds {
 		for seed := range uint64(150) {
 			for i, l := range w.lines(seed) {

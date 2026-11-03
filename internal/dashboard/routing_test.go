@@ -603,6 +603,7 @@ func routingHeading(f Frame, doc status.Document) string {
 }
 
 func TestROUTINGsHeadingSwitchesToItsFullerWordsOnceAsTheFrameWidensWhenEverItsPinWasSet(t *testing.T) {
+	t.Parallel()
 	sinces := []time.Time{routedClock(1, 13, 40), time.Date(2026, 9, 28, 9, 5, 0, 0, time.UTC)}
 	for n := 1; n <= len(accountIDs); n++ {
 		for _, long := range []bool{false, true} {

@@ -257,6 +257,7 @@ func TestALineOfTheDayBeforeWrittenAfterTheTurnComesAsTheStreamTellsItEnded(t *t
 // Log awaiting its line on the day before. Back on the Log ten minutes on,
 // its row is its line's, and the stream has let it go.
 func TestALineOfTheDayBeforeComesWhileAnotherTabShows(t *testing.T) {
+	t.Parallel()
 	state := t.TempDir()
 	night := onTheDay(23, 59, 30)
 	writeLines(t, state, arrivedAt("0a000001", night.Add(-10*time.Minute)))
@@ -451,6 +452,7 @@ func (a afterMidnight) shows(t *testing.T, when string) {
 // seenFor has passed. Once the stream no longer tells of it, the Log,
 // today's rows filling its view, lets go of the day, the row on it with it.
 func TestARowSentJustAfterMidnightStaysOnALogOpenedSince(t *testing.T) {
+	t.Parallel()
 	for _, list := range []bool{false, true} {
 		name := "the Log alone"
 		if list {

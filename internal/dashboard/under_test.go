@@ -97,6 +97,7 @@ func TestUnderAFrameTooShortForItsViewIsNothing(t *testing.T) {
 }
 
 func TestUnderACardIsTheCardInItsBoxAndElsewhereNothing(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		width, height int
@@ -108,11 +109,14 @@ func TestUnderACardIsTheCardInItsBoxAndElsewhereNothing(t *testing.T) {
 		{name: "a card with keys, wide", width: 160, height: 37, card: laidCard{body: make([]line, 13), keys: []Key{{Key: "esc", Does: "cancel"}}}, title: "╭─ ROUTING · NEW SESSIONS "},
 		{name: "a card with keys, on a phone", width: 52, height: 37, card: laidCard{body: make([]line, 13), keys: []Key{{Key: "esc", Does: "cancel"}}}, title: "╭─ ROUTING · NEW SESSIONS "},
 	}
+	doc := runwayThree()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			f := frameOf(tt.width, tt.height)
 			f.View, f.Card = Runway, tt.card
-			rows := textOf(f.Draw(runwayThree(), now))
+			f = f.At(doc, now)
+			rows := textOf(f.Draw(doc, now))
 
 			top := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, tt.title) })
 			if top < 0 {
@@ -125,15 +129,18 @@ func TestUnderACardIsTheCardInItsBoxAndElsewhereNothing(t *testing.T) {
 				t.Fatalf("the frame reads\n%s\nwant the card's foot under its top, from column %d to %d", strings.Join(rows, "\n"), left+1, right+1)
 			}
 			for y := range rows {
-				for x := range tt.width {
-					want := UnderNothing
-					if left <= x && x <= right && top <= y && y <= foot {
-						want = UnderCard
+				t.Run(fmt.Sprintf("row %d", y), func(t *testing.T) {
+					t.Parallel()
+					for x := range tt.width {
+						want := UnderNothing
+						if left <= x && x <= right && top <= y && y <= foot {
+							want = UnderCard
+						}
+						if got := f.Under(doc, now, x, y); got != want {
+							t.Fatalf("under %d,%d is %v, want %v: the card's drawn from %d,%d to %d,%d", x, y, got, want, left, top, right, foot)
+						}
 					}
-					if got := f.Under(runwayThree(), now, x, y); got != want {
-						t.Fatalf("under %d,%d is %v, want %v: the card's drawn from %d,%d to %d,%d", x, y, got, want, left, top, right, foot)
-					}
-				}
+				})
 			}
 		})
 	}
