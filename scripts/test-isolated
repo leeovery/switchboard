@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Runs every test, race detector on, inside the macOS sandbox in
+# Runs every test, race detector on but for capture's, inside the macOS sandbox in
 # scripts/isolation.sb: no network beyond this machine, no unix socket outside
 # the temporary directory, nothing on the router's port, no writes into the
 # home directory but Go's caches, nor into switchboard's real config, themes,
@@ -28,20 +28,56 @@ repo=$(cd "$(dirname "$0")/.." && pwd -P)
 renice 10 -p $$ >/dev/null 2>&1 || true
 
 # Under the race detector on a busy machine, the dashboard's watch tests take
-# longer than go test's default of ten minutes, and capture's, holding every
-# view to its rows at every size, about half an hour. A -timeout given
-# overrides it.
+# longer than go test's default of ten minutes. A -timeout given overrides it.
 limit=60m
 
-# packages is every package, unless the arguments name some, as ./internal/views/...:
-# an argument naming a directory of the module, with /... or without, and not a
-# flag's value, as -coverprofile ./c.out has.
-packages=./...
+# capture's tests run without the race detector. They draw every fixture at
+# every size, which the detector makes about ten times dearer, some 70
+# core-minutes a run against 8 (measured 3 Nov 2026), and what they draw is the
+# watch model, whose own tests keep the detector.
+capture=$(cd "$repo" && go list -m)/internal/capture
+
+# flags are the arguments for go test but the packages named, as
+# ./internal/views/...: an argument naming a directory of the module, with /...
+# or without, and not a flag's value, as -coverprofile ./c.out has. Every
+# package runs unless some are named.
+flags=()
+named=()
 for arg in "$@"; do
 	case $arg in
-	./*) [[ -d $repo/${arg%/...} ]] && packages= ;;
+	./*)
+		if [[ -d $repo/${arg%/...} ]]; then
+			named+=("$arg")
+			continue
+		fi
+		;;
 	esac
+	flags+=("$arg")
 done
+
+# raced are the packages that run under the race detector, unraced capture's.
+packages=$(cd "$repo" && go list "${named[@]:-./...}")
+raced=()
+unraced=()
+while IFS= read -r package; do
+	case $package in
+	"$capture" | "$capture"/*) unraced+=("$package") ;;
+	*) raced+=("$package") ;;
+	esac
+done <<<"$packages"
+
+# run_tests runs the tests through the command given, the sandbox or none:
+# the race detector's packages, then capture's, failing where either does.
+run_tests() {
+	local status=0
+	if ((${#raced[@]})); then
+		"$@" go test -race -count=1 -timeout "$limit" "${flags[@]}" "${raced[@]}" || status=1
+	fi
+	if ((${#unraced[@]})); then
+		"$@" go test -count=1 -timeout "$limit" "${flags[@]}" "${unraced[@]}" || status=1
+	fi
+	return "$status"
+}
 
 # unseen reports whether the variable named is one no test may see: one that
 # configures switchboard, Claude Code or the Anthropic API, and can hold a
@@ -130,7 +166,8 @@ if [ "$(uname -s)" != Darwin ]; then
 	fi
 	echo "test-isolated: warning: there's no sandbox off macOS, so the tests run outside one, guarded by testguard alone" >&2
 	cd "$repo"
-	exec go test -race -count=1 -timeout "$limit" "$@" ${packages:+"$packages"}
+	run_tests
+	exit
 fi
 sandbox_exec=/usr/bin/sandbox-exec
 if [ ! -x "$sandbox_exec" ]; then
@@ -415,4 +452,4 @@ if ! self_check >/dev/null; then
 	exit 1
 fi
 cd "$repo"
-sandboxed go test -race -count=1 -timeout "$limit" "$@" ${packages:+"$packages"}
+run_tests sandboxed
