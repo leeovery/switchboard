@@ -126,7 +126,15 @@ func sectionWindows(s GraphsSection) []views.RunwayWindow {
 // fiveHourCharted has them, or none is configured, as the moment's
 // SharedWindows keep a window; every other section always.
 func GraphsOffers(s GraphsSection, accounts config.Accounts, h *status.HeldMoment, policy score.Policy) bool {
-	return s != GraphsFiveHour || len(accounts) == 0 || len(fiveHourCharted(accounts, h, policy)) > 0
+	return s != GraphsFiveHour || fiveHourOffered(accounts, fiveHourCharted(accounts, h, policy))
+}
+
+// fiveHourOffered reports whether Graphs charts the 5-hour, of the
+// configured accounts given, those that have, or may have, it as charted:
+// where any does, or none is configured, as the moment's SharedWindows keep
+// a window.
+func fiveHourOffered(accounts, charted config.Accounts) bool {
+	return len(accounts) == 0 || len(charted) > 0
 }
 
 // fiveHourCharted are the configured accounts given that 5-HOUR lays out a

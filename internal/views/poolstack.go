@@ -88,7 +88,7 @@ func (p PoolStack) Look(from PoolStackFrom) PoolStack {
 // has no such window, or the timeline has no columns, so nothing's judged.
 func (h heldRoom) stacked(from pastFrom, tl Timeline, then roomJudge) ([]PoolStackAccount, heldRoom, bool) {
 	m := from.moment
-	if tl.Columns < 1 || !slices.ContainsFunc(m.Pool().Windows, func(w status.PoolWindowNow) bool { return w.Key == from.key }) {
+	if _, ok := poolWindow(m, from.key); tl.Columns < 1 || !ok {
 		return nil, h, false
 	}
 	from.step, from.at = tl.Step(), make([]time.Time, max(tl.NowColumn(), 0))
@@ -102,6 +102,19 @@ func (h heldRoom) stacked(from pastFrom, tl Timeline, then roomJudge) ([]PoolSta
 		accounts[i] = PoolStackAccount{ID: a.ID, Label: a.Label, Rooms: stackedRooms(a, from.key, tl, past.columns, i)}
 	}
 	return accounts, past, true
+}
+
+// poolWindow is the window with the given key of the pool of the moment m,
+// reporting false where the pool doesn't keep it: where there's no pool,
+// nothing's read of it, or the pool lacks it, as the moment's PoolLacks has
+// it.
+func poolWindow(m status.Moment, key string) (status.PoolWindowNow, bool) {
+	windows := m.Pool().Windows
+	i := slices.IndexFunc(windows, func(w status.PoolWindowNow) bool { return w.Key == key })
+	if i < 0 {
+		return status.PoolWindowNow{}, false
+	}
+	return windows[i], true
 }
 
 // stackedRooms are the room of account a, the ith of the pool's, in the
