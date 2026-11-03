@@ -199,12 +199,12 @@ func listen(addr string) (net.Listener, error) {
 // of in the meantime, priming the accounts on the schedule, probing on its
 // rounds the accounts nothing has read lately, looking after itself, keeping
 // the state file, the readings history, the request ledger and what has
-// happened lately, filing its events, and posting notifications, then shuts
-// both down, writes what's left to write, and restarting, replaces itself,
-// handing their listeners over. Restarting in place, it stops all it runs
-// beside them, but for keeping the state file and filing its events, before
-// the control API closes, so a launcher is answered meanwhile, and saves
-// what that changes once it has.
+// happened lately, filing its events, and posting notifications, then cuts
+// short any import under way, shuts both down, writes what's left to write,
+// and restarting, replaces itself, handing their listeners over. Restarting
+// in place, it stops all it runs beside them, but for keeping the state file
+// and filing its events, before the control API closes, so a launcher is
+// answered meanwhile, and saves what that changes once it has.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
 	proxySrv, controlSrv := newProxyServer(r.Proxy()), newControlServer(r.Control())
 	var serving sync.WaitGroup
@@ -254,6 +254,9 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	}
 	logger.Info("stopping")
 	stopLooking()
+	// An import's handler waits on the writers, which stop only after the
+	// control API, closing, has waited on its handlers.
+	r.imports.stop()
 	looked.Wait()
 	r.probes.stop()
 	if held != nil {

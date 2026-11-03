@@ -185,7 +185,9 @@ type problem struct {
 // restarts the router at once, as it restarts itself but for waiting for a
 // moment with no request in flight, answering, before it goes, as GET /health
 // does, and whether it means to restart in place; it refuses, saying why, when
-// it can't restart, as run by hand, or with its binary refusing to start.
+// it can't restart, as run by hand, or with its binary refusing to start. POST
+// /import takes in the history import staged, answering with what it took in,
+// one import at a time.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -273,6 +275,7 @@ func (r *Router) Control() http.Handler {
 		writeJSON(w, r.windowHistory(asked))
 	})
 	mux.HandleFunc("GET /stream", r.serveStream)
+	mux.HandleFunc("POST /import", r.serveImport)
 	return mux
 }
 

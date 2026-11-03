@@ -69,6 +69,12 @@ func (h *history) run(ctx context.Context) {
 	h.writer.Run(ctx)
 }
 
+// importDay takes in the day of readings with the given date staged at
+// staged, as readings.Writer's Import does. The history must be open.
+func (h *history) importDay(ctx context.Context, date, staged string) (dayfile.Imported, error) {
+	return h.writer.Import(ctx, date, staged)
+}
+
 // readBack returns the readings the history's two newest days hold, taken at
 // or before now, one at a time, in the order they were read, whichever day's
 // file each is in, as readings.Read reads them. The newest days are by the

@@ -447,14 +447,25 @@ func (d days) held(date string) (stamped, error) {
 	if err != nil {
 		return stamped{}, err
 	}
-	var summary Summary
-	if err := json.Unmarshal(data, &summary); err != nil {
-		return stamped{}, fmt.Errorf("%w: %w", errNotTheDaysSummary, err)
-	}
-	if summary.Day != date {
-		return stamped{}, fmt.Errorf("%w: it's of %q", errNotTheDaysSummary, summary.Day)
+	summary, err := summaryIn(data, date)
+	if err != nil {
+		return stamped{}, err
 	}
 	return stamped{Summary: summary, written: data, stamp: stamp}, nil
+}
+
+// summaryIn returns the summary data holds, as a summary is written, of the
+// local day with the given date, failing with errNotTheDaysSummary where it
+// doesn't read as the day's, as one cut short, or whose day is another's.
+func summaryIn(data []byte, date string) (Summary, error) {
+	var summary Summary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		return Summary{}, fmt.Errorf("%w: %w", errNotTheDaysSummary, err)
+	}
+	if summary.Day != date {
+		return Summary{}, fmt.Errorf("%w: it's of %q", errNotTheDaysSummary, summary.Day)
+	}
+	return summary, nil
 }
 
 // readStamped returns what the file at path holds, and when it was last
