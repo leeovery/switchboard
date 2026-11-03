@@ -65,7 +65,8 @@ func (f Frame) burnDownsHelp() helpPart {
 			said("Under the cards, Σ pool: the pool's room in each window, the week's then the 5-hour's, as Runway's pool lane " +
 				"words it, as week 1.2 of 3 left, of the accounts that have the window, whichever sections show, and pinned " +
 				"after the first while a pin holds the pool. With one account there's no pool, and no line; where fewer than " +
-				"two have a 5-hour window, the pool has none, and the line says the week's alone."),
+				"two of the pool's accounts have a 5-hour window, and not every one of them does, the pool has none, and " +
+				"the line says the week's alone."),
 		},
 		glyphs: glyphs,
 	}
@@ -108,7 +109,8 @@ func glanceHelp() helpPart {
 				"the 5-HOUR column goes."),
 			said("Under the accounts, Σ pool: the pool's room over each window, as POOL counts it, from its accounts' earliest " +
 				"start to their latest reset, and its room, as 1.2 of 3 left, of the accounts that have the window. Where " +
-				"fewer than two of them have a 5-hour window, the pool has none, and nothing under 5-HOUR."),
+				"fewer than two of its accounts have a 5-hour window, and not every one of them does, the pool has none, " +
+				"and nothing under 5-HOUR."),
 			said("GLANCE takes the width it needs whole, and no more. Narrower, its words take switchboard usage's short forms, " +
 				"then its names narrow; narrower still, its windows stack, the week's rows over the 5-hour's. It sits beside " +
 				"WHEN YOU WORK where both show and both fit whole, 10 cells apart; elsewhere WHEN YOU WORK comes under it."),

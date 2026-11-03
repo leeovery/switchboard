@@ -198,12 +198,12 @@ type glanceLine struct {
 // glanceGauge is a window of an account, or the pool's, as a row of GLANCE
 // draws it: its sparkline; its figure, the room it has left, none of a
 // window its account lacks; and its words, as a gauge has them. The pool's
-// is figureless, its words, which say its room, from where a figure goes.
+// has its words at the figure: they say its room, from where a figure goes.
 type glanceGauge struct {
-	spark      sparkline
-	figure     line
-	words      gauge
-	figureless bool
+	spark         sparkline
+	figure        line
+	words         gauge
+	wordsAtFigure bool
 }
 
 // sparkline is a window as GLANCE draws it in a row of eighths, width cells
@@ -256,8 +256,8 @@ func (g glance) part(c *canvas, l glanceLaid, x, y int, windows []int, accounts 
 // the name column: its sparkline, sparkCells long; a cell; its figure,
 // right-aligned in percentCells; two cells; and its words, in full where
 // they fit what the layout gives them, else short, as fitted has them, led
-// as led has them; or, of a figureless gauge, its words from where a figure
-// goes.
+// as led has them; or, of a gauge with its words at the figure, as the
+// pool's, its words from where a figure goes.
 func (g glance) row(c *canvas, l glanceLaid, x, y int, windows []int, r glanceLine) {
 	c.line(x, y, r.name)
 	for i, w := range windows {
@@ -265,7 +265,7 @@ func (g glance) row(c *canvas, l glanceLaid, x, y int, windows []int, r glanceLi
 		gg.spark.spark(c, g.look, at, y, sparkCells)
 		figure := at + sparkCells + 1
 		words, end := figure, figure+percentCells+2+l.words
-		if !gg.figureless {
+		if !gg.wordsAtFigure {
 			c.right(figure+percentCells, y, gg.figure)
 			words += percentCells + 2
 		}
@@ -310,7 +310,7 @@ func (g glance) poolLine(names []accountName, windows []views.RunwayWindow) *gla
 	}
 	pool := &glanceLine{name: row.name}
 	for i, w := range windows {
-		pool.gauges = append(pool.gauges, glanceGauge{spark: poolSpark{span: g.pools[w]}, words: row.gauges[i], figureless: true})
+		pool.gauges = append(pool.gauges, glanceGauge{spark: poolSpark{span: g.pools[w]}, words: row.gauges[i], wordsAtFigure: true})
 	}
 	return pool
 }
