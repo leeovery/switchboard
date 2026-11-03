@@ -60,7 +60,7 @@ func (v View) SubViews() []string {
 	case Accounts:
 		return lowerNames(accountsViews)
 	case History:
-		return lowerNames(historyViews)
+		return historyNames()
 	case Sessions:
 		return lowerNames(sessionsViews)
 	case Log:
