@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 // maxLinks is how many links Target follows, as a loop of them leads
@@ -136,7 +137,22 @@ func WriteFrom(path string, perm fs.FileMode, write func(w io.Writer) error) err
 // into place: where check fails, nothing is written, and its error is
 // returned. A caller that must not replace a file changed since it read it
 // checks there, leaving the change as little time as can be.
-func WriteChecked(path string, perm fs.FileMode, write func(w io.Writer) error, check func() error) (err error) {
+func WriteChecked(path string, perm fs.FileMode, write func(w io.Writer) error, check func() error) error {
+	return writeBeside(path, perm, write, func(string) error { return check() })
+}
+
+// WriteModified writes as WriteFrom does, the file last modified at modified
+// before it's renamed into place, as a copy that keeps its original's time
+// is: so none is found whole but with another time.
+func WriteModified(path string, perm fs.FileMode, modified time.Time, write func(w io.Writer) error) error {
+	return writeBeside(path, perm, write, func(tmp string) error { return os.Chtimes(tmp, time.Time{}, modified) })
+}
+
+// writeBeside writes what write writes to a file beside path, with the
+// permissions perm, then, once it's synced and closed, calls before with its
+// path, and renames it into place: where before fails, nothing is written,
+// and its error is returned.
+func writeBeside(path string, perm fs.FileMode, write func(w io.Writer) error, before func(tmp string) error) (err error) {
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
 		return err
@@ -163,7 +179,7 @@ func WriteChecked(path string, perm fs.FileMode, write func(w io.Writer) error, 
 	if err = tmp.Close(); err != nil {
 		return err
 	}
-	if err = check(); err != nil {
+	if err = before(tmp.Name()); err != nil {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)

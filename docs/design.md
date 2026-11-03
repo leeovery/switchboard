@@ -7687,8 +7687,8 @@ and `import` brings a folder's history into a Mac's own, so the next Mac has the
 folder kept somewhere else, as one Dropbox or iCloud Drive syncs, holds it should the Mac be lost
 (the owner's choice on 3 November 2026). Switchboard writes the folder and reads it, and nothing
 more: what keeps the folder safe, or carries it to another Mac, is the folder's own business.
-Switchboard never talks to a cloud. To be built, in this order: export, import, then the
-schedule.
+Switchboard never talks to a cloud. Export is built; still to be built, in this order: import,
+then the schedule.
 
 - **What goes:** what can't be built again, the request ledger's lines, the days' summaries, the
   readings history and the router's events. Not the files the router builds from them, the days'
@@ -7717,22 +7717,34 @@ schedule.
 
 - **A compressed day,** whose day ended two days ago or more, as `internal/dayfile` compresses a
   day, is copied byte for byte, with its modification time, and passed over where the folder's copy
-  has the same size and time.
+  has the same size and the same time as the folder's disk keeps it: exactly, or cut to the 100
+  nanoseconds SMB keeps, the microsecond, the 10 milliseconds exFAT keeps or the second some disks
+  keep, the source's time cut alike. A disk
+  that keeps times more coarsely still, as FAT's two seconds, or rounds them, has some unchanged
+  files written again at each export, but never a changed one passed over, as a summary's next
+  version is stamped a second on (see The request ledger).
 - **A day not yet compressed,** today's and the two before it, is compressed on its way, its lines
   read as every read reads them, a line cut short at the file's end left for the next export, and
-  copied again only where its plain file has changed since, the folder's copy taking the plain
-  file's modification time to tell. A day with both files, as a compress stopped partway through
-  leaves, is one not yet compressed, each of its lines read once.
+  copied again only where its plain file has changed since: the copy's gzip header holds the
+  plain file's size and modification time, which tell it whatever the disk keeps of times. A day
+  with both files, as a compress stopped partway through leaves, is one not yet compressed, each
+  of its lines read once.
 - **A day's summary** is copied as it is, with its modification time, its stamp (see The request
-  ledger), and passed over as a day's file is, so a summary copied in stands against the day's file
-  copied beside it.
+  ledger), and passed over as a compressed day is, so a summary copied in stands against the day's
+  file copied beside it.
 - **Every file** is written beside where it goes and renamed into place, so a sync never carries
   one half written. Nothing in the folder is removed, a day past the Mac's keep included: the
-  folder keeps what it was given until its owner removes it.
+  folder keeps what it was given until its owner removes it. Nothing in it is read but its files'
+  sizes and times and the headers of the days not yet compressed, as a file read in a folder
+  iCloud Drive or Dropbox keeps may first be downloaded.
+- **A day that can't be read** from the state directory, as one whose file can't be opened, is
+  passed over, and the export goes on with the rest. A file that can't be written into the folder
+  stops it at once, and `export.json` is written only once every file has been.
 
 It reads the files as `history` does, so it needs no router and runs beside one, and prints
-`exported 31 days to <folder>: 3 written, 28 as they were`, its folder in full. A `<dir>` that
-can't be made or written, or that's a file, fails, saying so.
+`exported 31 days to <folder>: 3 written, 28 as they were`, its folder in full, then each day it
+passed over, as `switchboard: couldn't export the request ledger of 2026-10-30: …`, and fails
+where there was one. A `<dir>` that can't be made or written, or that's a file, fails, saying so.
 
 ### Import
 

@@ -243,14 +243,14 @@ func (f *Files) Count(date string) (int, error) {
 
 // DayStat is a look at the files of a local day that reads none of them: how
 // many bytes its plain file and its compressed file hold, none of one that
-// isn't there, and when the compressed file was last modified, never where
-// it isn't there. Lines are only ever appended to the plain file, which
-// grows with each, and compressing the day writes them into the compressed
-// file anew, longer, removing the plain file: so the sizes change as the
-// day's lines do, however coarsely the file system keeps its times.
+// isn't there, and when each was last modified, never where it isn't there.
+// Lines are only ever appended to the plain file, which grows with each, and
+// compressing the day writes them into the compressed file anew, longer,
+// removing the plain file: so the sizes change as the day's lines do, however
+// coarsely the file system keeps its times.
 type DayStat struct {
-	PlainSize, CompressedSize int64
-	CompressedModified        time.Time
+	PlainSize, CompressedSize         int64
+	PlainModified, CompressedModified time.Time
 }
 
 // Stat returns a look at the files of the local day with the given date, as
@@ -271,7 +271,7 @@ func (f *Files) Stat(date string) (DayStat, error) {
 	}
 	var s DayStat
 	if plain != nil {
-		s.PlainSize = plain.Size()
+		s.PlainSize, s.PlainModified = plain.Size(), plain.ModTime()
 	}
 	if compressed != nil {
 		s.CompressedSize, s.CompressedModified = compressed.Size(), compressed.ModTime()

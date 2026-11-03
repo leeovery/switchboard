@@ -335,6 +335,12 @@ func (f *Files) path(file dayFile) string {
 	return filepath.Join(f.Dir, file.name(f.Prefix))
 }
 
+// CompressedPath returns where the compressed file of the local day with the
+// given date is, or would be.
+func (f *Files) CompressedPath(date string) string {
+	return f.path(compressedFile(date))
+}
+
 // DateOf returns the date of the local day the file with the given name holds
 // the lines of, as its name gives it, reporting false for a name that isn't
 // one of the files'.

@@ -477,37 +477,40 @@ func TestAllTakesEveryDayByItsFilesNames(t *testing.T) {
 	}
 }
 
-func TestADaysStatGivesItsFilesSizesAndWhenItsCompressedFileWasModified(t *testing.T) {
+func TestADaysStatGivesItsFilesSizesAndWhenEachWasModified(t *testing.T) {
 	const date = "2026-09-25"
 	plain, compressed := linesOf("one", "two"), gzipOf(t, linesOf("zero"))
+	// The plain file is modified after the compressed one, as lines appended
+	// to a day compressed before leave it.
+	appended := start.Add(time.Hour)
 	tests := []struct {
 		name  string
 		files []dayFile
 		want  DayStat
 	}{
-		{name: "of a plain file alone", files: []dayFile{plainFile(date)}, want: DayStat{PlainSize: int64(len(plain))}},
+		{name: "of a plain file alone", files: []dayFile{plainFile(date)}, want: DayStat{PlainSize: int64(len(plain)), PlainModified: appended}},
 		{name: "of a compressed file alone", files: []dayFile{compressedFile(date)}, want: DayStat{CompressedSize: int64(len(compressed)), CompressedModified: start}},
 		{name: "of both", files: []dayFile{plainFile(date), compressedFile(date)},
-			want: DayStat{PlainSize: int64(len(plain)), CompressedSize: int64(len(compressed)), CompressedModified: start}},
+			want: DayStat{PlainSize: int64(len(plain)), CompressedSize: int64(len(compressed)), PlainModified: appended, CompressedModified: start}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := readingsHistory(t.TempDir())
 			for _, file := range tt.files {
-				data := []byte(plain)
+				data, modified := []byte(plain), appended
 				if file.compressed {
-					data = compressed
+					data, modified = compressed, start
 				}
 				if err := os.WriteFile(f.path(file), data, 0o600); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.Chtimes(f.path(file), time.Time{}, start); err != nil {
+				if err := os.Chtimes(f.path(file), time.Time{}, modified); err != nil {
 					t.Fatal(err)
 				}
 			}
 
 			if got, err := f.Stat(date); err != nil || got.PlainSize != tt.want.PlainSize || got.CompressedSize != tt.want.CompressedSize ||
-				!got.CompressedModified.Equal(tt.want.CompressedModified) {
+				!got.PlainModified.Equal(tt.want.PlainModified) || !got.CompressedModified.Equal(tt.want.CompressedModified) {
 				t.Errorf("Stat() = %+v, %v; want %+v", got, err, tt.want)
 			}
 		})

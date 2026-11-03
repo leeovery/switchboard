@@ -64,16 +64,36 @@ func Dir(stateDir string) string {
 	return filepath.Join(stateDir, dirName)
 }
 
-// filesIn are the ledger's files of lines in dir, what can't be done with
-// them logged to logger.
-func filesIn(dir string, logger *slog.Logger) *dayfile.Files {
+// Files are the ledger's files of lines in dir, as dayfile keeps them, what
+// can't be done with them logged to logger.
+func Files(dir string, logger *slog.Logger) *dayfile.Files {
 	return &dayfile.Files{Dir: dir, Prefix: "requests", Name: "request ledger", LineMax: lineMax, Logger: logger}
 }
 
-// summaryFile is where the ledger in dir keeps the summary of the local day
+// SummaryFile is where the ledger in dir keeps the summary of the local day
 // with the given date.
-func summaryFile(dir, date string) string {
+func SummaryFile(dir, date string) string {
 	return filepath.Join(dir, summaryPrefix+date+summarySuffix)
+}
+
+// SummaryDates returns the dates of the days the ledger in dir holds a
+// summary of, oldest first: none where dir isn't there. It fails where dir
+// can't be listed.
+func SummaryDates(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	}
+	var dates []string
+	for _, e := range entries {
+		if date, ok := datedName(e.Name(), summaryPrefix, summarySuffix); ok {
+			dates = append(dates, date)
+		}
+	}
+	return dates, nil
 }
 
 // datedName returns the date of the local day the file with the given name
@@ -134,7 +154,7 @@ type Ledger struct {
 // can't be done with them to logger; and digests them as the options given
 // say, none without them.
 func Open(dir string, keep time.Duration, now func() time.Time, history History, caps Caps, logger *slog.Logger, opts ...Option) *Ledger {
-	l := &Ledger{days: days{files: filesIn(dir, logger), history: history, caps: caps, logger: logger}}
+	l := &Ledger{days: days{files: Files(dir, logger), history: history, caps: caps, logger: logger}}
 	l.writer = dayfile.NewWriter(l.days.files, l.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "lines", Round: l.SummariseEnded,
 		Spare: func(date string) bool { return !l.days.settled(date) }})
 	var o options
@@ -289,7 +309,7 @@ var errLeftAsItIs = errors.New("its lines are gone, so it's left as it is")
 // as it is, as err says: once, until its file looks otherwise than the last
 // round left it. It returns how its file looks.
 func (l *Ledger) warnLeft(date string, err error) fs.FileInfo {
-	info, statErr := os.Stat(summaryFile(l.days.files.Dir, date))
+	info, statErr := os.Stat(SummaryFile(l.days.files.Dir, date))
 	if statErr != nil {
 		info = nil
 	}
@@ -423,7 +443,7 @@ type stamped struct {
 // with errNotTheDaysSummary where what it holds doesn't read as the day's, as
 // one cut short, or whose day is another's.
 func (d days) held(date string) (stamped, error) {
-	data, stamp, err := readStamped(summaryFile(d.files.Dir, date))
+	data, stamp, err := readStamped(SummaryFile(d.files.Dir, date))
 	if err != nil {
 		return stamped{}, err
 	}
@@ -471,7 +491,7 @@ func readStamped(path string) ([]byte, time.Time, error) {
 // read of it tells. It fails where the summary can't be read, or the day's
 // lines counted, to tell.
 func (d days) standing(date string, reachOf func(date string) reach) (stands bool, held *Summary, err error) {
-	info, err := os.Stat(summaryFile(d.files.Dir, date))
+	info, err := os.Stat(SummaryFile(d.files.Dir, date))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return false, nil, nil
@@ -521,7 +541,7 @@ func (d days) glance(date string, stamp time.Time) (stat dayfile.DayStat, none, 
 // holdsSummary reports whether the ledger holds a summary of the local day
 // with the given date, readable or not.
 func (d days) holdsSummary(date string) bool {
-	_, err := os.Stat(summaryFile(d.files.Dir, date))
+	_, err := os.Stat(SummaryFile(d.files.Dir, date))
 	return err == nil
 }
 
@@ -679,7 +699,7 @@ func (d days) remark(held stamped, stat dayfile.DayStat) {
 // summary, whole, the user's alone, over any there, stamped as stat gives
 // it.
 func (d days) write(date string, data []byte, stat dayfile.DayStat) error {
-	if err := atomicfile.Write(summaryFile(d.files.Dir, date), append(data, '\n'), 0o600); err != nil {
+	if err := atomicfile.Write(SummaryFile(d.files.Dir, date), append(data, '\n'), 0o600); err != nil {
 		return err
 	}
 	d.stamp(date, stat)
@@ -762,7 +782,7 @@ func objectOf(fields []field) []byte {
 // plain file alone. A summary that can't be stamped is warned of, and read
 // again at the next round.
 func (d days) stamp(date string, stat dayfile.DayStat) {
-	if err := os.Chtimes(summaryFile(d.files.Dir, date), time.Time{}, stampOf(date, stat)); err != nil {
+	if err := os.Chtimes(SummaryFile(d.files.Dir, date), time.Time{}, stampOf(date, stat)); err != nil {
 		d.logger.Warn("can't stamp the request ledger's summary of a day; it's read again at the next round", "day", date, "error", err)
 	}
 }

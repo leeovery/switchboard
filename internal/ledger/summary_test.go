@@ -2002,6 +2002,30 @@ func TestLinesThatDontReadArePassedOverAsADayIsSummarised(t *testing.T) {
 	}
 }
 
+func TestTheSummariesAreFoundByTheirDates(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"day-2026-10-05.json", "day-2026-10-03.json", "requests-2026-10-04.jsonl", "digest-2026-10-04.json.gz",
+		".day-2026-10-06.json.123", "day-soon.json", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("{}\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := ledger.SummaryDates(dir)
+	if want := []string{"2026-10-03", "2026-10-05"}; err != nil || !slices.Equal(got, want) {
+		t.Errorf("SummaryDates() = %q, %v; want %q", got, err, want)
+	}
+	if got, want := ledger.SummaryFile(dir, "2026-10-03"), summaryFile(dir, "2026-10-03"); got != want {
+		t.Errorf("SummaryFile() = %q, want %q", got, want)
+	}
+}
+
+func TestALedgerNotThereHoldsNoSummaries(t *testing.T) {
+	if got, err := ledger.SummaryDates(filepath.Join(t.TempDir(), "ledger")); err != nil || len(got) > 0 {
+		t.Errorf("SummaryDates() of a ledger not there = %q, %v; want none", got, err)
+	}
+}
+
 func TestASummaryThatCantBeWrittenIsLoggedAndWrittenOnALaterRound(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
