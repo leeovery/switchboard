@@ -4751,14 +4751,15 @@ two every model shares, as on Runway: a model's own window has no card, and `w` 
 where on the pages that list windows as they stand it shows the models' own (see Keys). A 5-hour
 window goes where no account has one, as Runway's goes (see Runway, and `usage`, the printout):
 where the held moment holds accounts and every one lacks it, as its `AnyHas` says, the rule the
-moment's `SharedWindows` keep the window by. So neither Graphs nor Runway keeps it for an account
-that's configured but the router doesn't hold yet, as after `accounts add`. It takes 5-HOUR's
-section, `f` and `f`'s words on the key line and in help, GLANCE's 5-HOUR column, and the lanes the
-watch builds for it. Graphs also lets its 5-HOUR and GLANCE's column go where no configured account
-would get a card, as where the config has dropped the one account held with a 5-hour window, till
-the router restarts on the new config: it offers less than `AnyHas` allows, never a section without
-its key, while Runway keeps its 5-hour view, and the watch its lanes. A 5-HOUR kept shown in the
-preferences is kept as it is, and shows again once an account has a 5-hour window.
+moment's `SharedWindows` keep the window by. So an account that's configured but the router doesn't
+hold yet, as after `accounts add`, keeps the window on neither Graphs nor Runway, though it has a
+card where the window stays. It takes 5-HOUR's section, `f` and `f`'s words on the key line and in
+help, GLANCE's 5-HOUR column, and the lanes the watch builds for it. Graphs also lets its 5-HOUR and
+GLANCE's column go where no configured account would get a card, as where the config has dropped the
+one account held with a 5-hour window, till the router restarts on the new config: it offers less
+than `AnyHas` allows, never a section without its key, while Runway keeps its 5-hour view, and the
+watch its lanes. A 5-HOUR kept shown in the preferences is kept as it is, and shows again once an
+account has a 5-hour window.
 
 - **A section's heading** is the Overview's (see The Overview): its name in `text.subtle`; three
   spaces and its description, where it has one; a space, a rule of `─` in `border` and a space;
