@@ -27,9 +27,10 @@ session, and shows the router's sessions and its record of every request. To ope
 
 This page uses these terms throughout:
 
-- **Window:** a span Claude counts an account's usage over. Each account has a week that every
-  model shares, a 5-hour window, and a model's own week where the model has one. A verified Ultra
-  account has no 5-hour window: switchboard learns that from its answers, never from its plan.
+- **Window:** a span Claude counts an account's usage over. Each account has a week that every model
+  shares, a 5-hour window, and a model's own week where the model has one. A verified Ultra account
+  has no 5-hour window: switchboard learns that from its answers, never from its plan. An account
+  not read yet, or without a usable token, counts as having it.
 - **Limit:** Claude's own limit on a window. An account at a limit can't take the requests that
   limit counts until it lifts.
 - **Cap:** the point where an account's reserve starts, 1 less its `reserve`. The router passes
@@ -93,10 +94,10 @@ pool's.
   room. A bar only grows as the screen widens: the words go from short to full first.
 - An account out of the pool, under a pin, is drawn faint.
 - An account without a 5-hour window reads `no 5-hour limit` in place of its bar, or `no limit`
-  where the room is short. In a stacked 5-HOUR section, it's left out. A window no account has
-  isn't shown, and with only the week left, USAGE stacks it at the full width wherever it fits.
-  Accounts' Detail and Sessions' lines say `no limit` beside the window's name, and a session's
-  page and the routing card `no 5-hour limit`.
+  where the room is short, and by account, where the window's label beside it names the window. In a
+  stacked 5-HOUR section, it's left out. A window no account has isn't shown, and with only the week
+  left, USAGE stacks it at the full width wherever it fits. Accounts' Detail and Sessions' lines say
+  `no limit` beside the window's name, and a session's page and the routing card `no 5-hour limit`.
 - The pool's room counts only the accounts that have the window, such as `1.2 of 3 left`. Where
   fewer than two of them have it, and not all, the pool shows nothing for it.
 
@@ -387,12 +388,15 @@ the session's:
 </div>
 
 Runway has two windows, and `<` and `>` switch between them. It opens on the week, and remembers
-the one you last left it on. Where no account has a 5-hour window, as when every account is on a
-verified Ultra plan, Runway shows the week alone, with no `<` or `>`; a 5-hour view it remembers
-comes back once an account has one. The 5-hour view lists only the accounts that have one:
+the one you last left it on:
 
 - **Week:** the week.
-- **5-hour:** from the hour before now, for 22 hours 40 minutes.
+- **5-hour:** from the hour before now, for 22 hours 40 minutes. It lists only the accounts that
+  have a 5-hour window.
+
+Where no account has a 5-hour window, as when every account is on a verified Ultra plan, Runway
+shows the week alone, with no `<` or `>`. A 5-hour view it remembers comes back once an account has
+one.
 
 Each column of a lane is one cell, showing room, at its cap, or at its limit. The past is dimmed.
 
@@ -402,10 +406,10 @@ straight into another, the first says when it lifts, and only the last says when
 back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
-room, a column at a time, and draws a low red bar along its foot where none has. `Σ pool` names
-it, as an account's name heads its lane, with the pool's room in the view's window under it, such
-as `week 1.2 of 3 left`, out of the accounts that have the window. Where fewer than two have it,
-and not all, there's no pool's lane.
+room, a column at a time, and draws a low red bar along its foot where none has. `Σ pool` names it,
+as an account's name heads its lane, with the pool's room in the view's window under it, such as
+`week 1.2 of 3 left`, out of the accounts that have the window. Where fewer than two have it, and
+not all, there's no pool's lane.
 
 COMING UP sits under the pool's lane and lists what happens next, soonest first, in two columns
 on a wide screen. Where its lines don't all fit, its last says how many more, such as `▼ 3 more`.
@@ -451,10 +455,10 @@ and the dashboard remembers which show.
 | GLANCE | `g` | hidden | A row for each account and the pool: each window's room as a sparkline, with `usage`'s words |
 | WHEN YOU WORK | `h` | hidden | Requests by the hour of the day and the day of the week, over the last four weeks |
 
-The windows charted are the two every model shares, as on Runway: a model's own window has no
-card. 5-HOUR has a card only for each account with a 5-hour window. Where no account has one,
-5-HOUR goes, with its `f` key, and GLANCE has no 5-hour column; a 5-HOUR you left shown comes back
-once an account has one. With every section hidden, the page's first row says which keys bring them back.
+The windows charted are the two every model shares, as on Runway: a model's own window has no card.
+5-HOUR has a card only for each account with a 5-hour window. Where no account has one, 5-HOUR goes,
+with its `f` key, and GLANCE has no 5-hour column; a 5-HOUR you left shown comes back once an
+account has one. With every section hidden, the page's first row says which keys bring them back.
 
 ### The burn-down cards
 
@@ -494,8 +498,7 @@ and one out of the pool faint.
 Under the cards, `Σ pool` gives the pool's room in each window, such as
 `week 1.2 of 3 left   5-hour 1.5 of 3 left`, out of the accounts that have the window. Where fewer
 than two have a 5-hour window, and not all, there's no 5-hour part. With one account there's no
-pool, and no line. At the
-foot, over the key line, a legend names the marks.
+pool, and no line. At the foot, over the key line, a legend names the marks.
 
 <div align="center">
 <img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week and 5-hour cards on Graphs, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
@@ -516,11 +519,11 @@ so POOL draws the pool's total alone.
 
 ### GLANCE
 
-GLANCE lists every account and the pool in a few rows, as `usage` does. Each window, the week's
-then the 5-hour's, is a sparkline of 16 cells, its room from its start to its reset, faint from now
-where it's heading, with `✕` where it runs out. Then come the room left now, such as `66%`, and
-`usage`'s words for the window, such as `19%/day till Sun 21:00`. An account without a 5-hour
-window has an empty sparkline there and reads `no 5-hour limit`. `Σ pool` gives the pool's
+GLANCE lists every account and the pool in a few rows, as `usage` does. Each window, the week's then
+the 5-hour's, is a sparkline of 16 cells, its room from its start to its reset, faint from now where
+it's heading, with `✕` where it runs out. Then come the room left now, such as `66%`, and `usage`'s
+words for the window, such as `19%/day till Sun 21:00`. An account without a 5-hour window has an
+empty sparkline there, no room figure, and reads `no 5-hour limit`. `Σ pool` gives the pool's
 sparklines and its room, out of the accounts that have each window.
 
 GLANCE takes the width it needs and no more, 113 columns with the sample's names. Narrower, its

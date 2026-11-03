@@ -319,13 +319,13 @@ no window joined. A window that `joined` leaves out was held from `at`.
 | `fallback` | Why it was built by probing, where the router was asked first. |
 | `best` | The account new sessions go to next. |
 | `primary` | The primary's id. |
-| `prime` | The priming schedule: the day, the window a prime starts, and each account's slot. |
+| `prime` | The priming schedule: the day, the window a prime starts, and each account's slot. An account without that window has none. |
 | `pin` | The global pin: the accounts it names, since when, and whether it moved the running sessions. |
 | `router` | The router's health over the last 5 minutes. |
 | `restart` | A restart the router has due, and, as `held`, why the binary it would become refuses to start, where that holds it. |
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |
-| `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. |
+| `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each window gives `of`, how many of the pool's accounts have it, an account not read yet counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |
 | `coming_up` | Each limit, cap or refused token lifting, window running out or resetting, and prime, soonest first. |
 | `accounts` | Each account, in the config's order. See below. |
 
@@ -335,7 +335,8 @@ Each entry in `accounts` holds these:
 - Whether its token is set, and when it was read.
 - `token_taken` and `token_good_until`: when switchboard took its token, and when the token's year,
   counted from then, is up, 365 days on, each left out where that isn't known.
-- Its `windows`, each with its use, reset and status, its even pace (`pace`) and its `allowance`.
+- Its `windows`, each with its use, reset and status, its even pace (`pace`) and its `allowance`. A
+  verified Ultra account's carry no `5h`.
 - `lapsed` and `at_reserve`: the windows that have lapsed, and those at the reserve.
 - Its `extra_usage`.
 - What couldn't be read, and why.

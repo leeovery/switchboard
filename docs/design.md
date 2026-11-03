@@ -19,11 +19,11 @@ either shows. The Dashboard section and The data verbs describe it.
 ## What it is
 
 A local proxy that spreads Claude Code sessions across several Claude subscriptions. It uses each
-account's quota right up to its limit, moves a session to another account when its account runs
-out, and otherwise keeps every session on one account so its prompt cache stays warm. Any account
-can keep back a share of its quota as a reserve, and each account's 5-hour window, where it has
-one, is started on a schedule that spreads the resets through the day. It also ships a terminal dashboard showing every
-account's usage.
+account's quota right up to its limit, moves a session to another account when its account runs out,
+and otherwise keeps every session on one account so its prompt cache stays warm. Any account can
+keep back a share of its quota as a reserve, and each account's 5-hour window, where it has one, is
+started on a schedule that spreads the resets through the day. It also ships a terminal dashboard
+showing every account's usage.
 
 It's built for its author's setup, and stays general only where that costs nothing. It runs on
 macOS only.
@@ -54,43 +54,42 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - Claude Code's own token is the primary account's, so what it sends that isn't the conversation,
   such as publishing an artifact, and what it sends around the router, goes out on the primary,
   whichever account the conversation is on. See The primary account.
-- Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers: utilization
-  and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Only a 429
-  that refuses the request itself carries none (see Choosing an account, step 7). Switchboard
-  reads them off real traffic, so it knows each account's usage without spending requests.
-  Windows are parsed generically, not hard-coded. A verified Ultra account's answers carry no
-  `5h` (see Observed), so the router learns which windows an account has from its answers, never
-  from its plan: a whole reading, a 2xx answer to a request that spends or a probe the API
-  admitted, that reports one shared window and not another retires the one it doesn't report,
-  where its request was sent after the reading held of that window was taken in. The retirement
-  outlasts a restart, as `windows_absent` in the state file, and a later reading brings the window
-  back only where its request was sent after the retirement, so an answer in flight across the
-  change can't. Of two readings of a window taken apart, one off
-  a request sent after the other was taken in is current, whatever it reads: the API reckons use
-  as it takes a request in, so no reordering can make that reading the older, and a reset made by
-  hand on claude.ai, which drops use but may keep the reset, is seen. The answer to a request sent
-  before may have been overtaken, so then the window's reset says which is current: a later reset
-  is a new window; with the same reset the higher utilization stands, as use only rises within a
-  window, so a slow response can't pull it back, nor lift a rejection either reading holds; an
-  earlier reset is ignored.
+- Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers: utilization and
+  reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Only a 429 that
+  refuses the request itself carries none (see Choosing an account, step 7). Switchboard reads them
+  off real traffic, so it knows each account's usage without spending requests. Windows are parsed
+  generically, not hard-coded. A verified Ultra account's answers carry no `5h` (see Observed), so
+  the router learns which windows an account has from its answers, never from its plan: a whole
+  reading, a 2xx answer to a request that spends or a probe the API admitted, that reports one
+  shared window and not another retires the one it doesn't report, where its request was sent after
+  the reading held of that window was taken in. The retirement outlasts a restart, as
+  `windows_absent` in the state file, and a later reading brings the window back only where its
+  request was sent after the retirement, so an answer in flight across the change can't. Of two
+  readings of a window taken apart, one off a request sent after the other was taken in is current,
+  whatever it reads: the API reckons use as it takes a request in, so no reordering can make that
+  reading the older, and a reset made by hand on claude.ai, which drops use but may keep the reset,
+  is seen. The answer to a request sent before may have been overtaken, so then the window's reset
+  says which is current: a later reset is a new window; with the same reset the higher utilization
+  stands, as use only rises within a window, so a slow response can't pull it back, nor lift a
+  rejection either reading holds; an earlier reset is ignored.
 - The router probes every account it has no reading for as it starts; its readings outlast a
   restart. After that, an account with no recent traffic is probed on the router's own rounds, once
   nothing has read it in 5 minutes and 5 minutes before each of its weeks resets, and when a
   decision needs fresh numbers, a dashboard asks for them, or it's due a prime. None is probed once
   its 5-hour window has lapsed, as the probe would start the window off the schedule, but on the
   rounds, where the window it starts resets before the account's prime, and before a week resets
-  (see Priming), and while it can take no request anyway, when starting the window costs nothing.
-  An account without a 5-hour window has none to lapse, and is probed as one with room is.
-  An account never read, as one whose probe failed as the router started, or one first given a
-  token while the router runs, has no window known to have lapsed: it's probed on the router's
-  rounds, or sooner where a decision or a dashboard needs it, at any hour, which may start its
-  window off the schedule, once. A probe is one request per model family, each capped at one output
-  token: Haiku, for the windows every model shares, and Fable, for its own week, falling back to the
-  previous Fable when the newest reads nothing. Where both report a window, the higher reading
-  stands, as the two are taken together. A probe claims the version of the Claude Code installed
-  here, as `claude --version` gives it, asked at most once an hour and given 5 seconds, output and
-  all, so a CLI that hangs, or leaves a program running that holds its output open, holds the
-  probes up no longer. A probe follows no redirect, which would carry its token along.
+  (see Priming), and while it can take no request anyway, when starting the window costs nothing. An
+  account without a 5-hour window has none to lapse, and is probed as one with room is. An account
+  never read, as one whose probe failed as the router started, or one first given a token while the
+  router runs, has no window known to have lapsed: it's probed on the router's rounds, or sooner
+  where a decision or a dashboard needs it, at any hour, which may start its window off the
+  schedule, once. A probe is one request per model family, each capped at one output token: Haiku,
+  for the windows every model shares, and Fable, for its own week, falling back to the previous
+  Fable when the newest reads nothing. Where both report a window, the higher reading stands, as the
+  two are taken together. A probe claims the version of the Claude Code installed here, as
+  `claude --version` gives it, asked at most once an hour and given 5 seconds, output and all, so a
+  CLI that hangs, or leaves a program running that holds its output open, holds the probes up no
+  longer. A probe follows no redirect, which would carry its token along.
 
 ## Cache and thinking facts the design rests on
 
@@ -150,63 +149,61 @@ lost (see Choosing an account).
 
 1. **Candidates:** accounts where every window that applies to the request's model has room: the
    5-hour window where the account has one, the shared weekly window, and that model's own weekly
-   window if it has one. A
-   window's room ends at the account's reserve (see Reserves): with a reserve of 0.1, a window
-   reading 90% has none. That holds the router's own choices alone: a pin runs its accounts to
-   their limits (see Pinning).
-2. **Score:** perishability = the room left in the shared weekly window ÷ time until it resets,
-   the room ending at the reserve: (1 − reserve − utilization) ÷ hours to reset. Hours to reset
-   count as 1 at the least, a week whose reset has passed counts as its full room, to the reserve,
-   over the week's length, and an account whose weekly reset isn't known has no score, so it's
-   never the best candidate, though a global pin naming it still sends requests there while none
-   of the accounts it names has a score. The highest score wins, so quota that resets tomorrow is
-   used before quota that resets next week, and an account with little left scores low unless its
-   week resets soon. Among candidates scoring at least 0.8 of the highest, the one whose 5-hour
-   window resets soonest wins: whatever is left in a window at its reset is lost, and with the
-   windows staggered (see Priming), the accounts' resets are spread through the day. One whose
-   5-hour window has lapsed, its reset passed with nothing read since, whose reset isn't known, or
-   that has no 5-hour window, comes after those whose reset is to come. Between equal resets, or
-   two of those, the higher score wins, then the account that has used less of the shortest window
-   that applies, its 5-hour window, or its week where it has none, then the first configured.
-3. **Pressure:** several busy sessions on one account run its 5-hour window out together, then
-   move at once, each rebuilding its cache on another account; scoring by the week alone doesn't
-   see it coming. So the router keeps, of each of each account's windows, the levels its use was
-   read at, each with when it was first read so and when last: its baseline, the level read last
-   before the last 30 minutes, and each higher level since, within the window as it now runs. A
-   later reset, a new window, clears them, and so does a reading taken as current that has fallen
-   by a tenth of the window or more, as a reset made by hand leaves it (see `usage`, the printout);
-   a smaller dip stands as the window's reading but is no level, so climbing back from it reads as
-   no use. A window's recent rate is its rise from its baseline to its latest level, never less than
-   0, over the last 30 minutes when the baseline was read again after they began, its use holding
-   there till then; else over the time since the baseline was last read: an account is read only
-   on its own traffic, its primes, a probe before a choice once 15 minutes stale, and the router's
-   own rounds, as a rule once nothing has read it in 5 minutes (see Priming), so use outside the
-   router, as in the Claude apps, arrives as one rise across a gap, which came at no telling when
-   within it, and 20% read two hours on reads 10% an hour, not 40% for half an hour.
-   A window with a baseline and no level since has been quiet, and reads 0, so a burst holds its
-   rate for the 30 minutes after it, then drops to 0. Without a baseline, as for a window started
-   less than 30 minutes ago, the rise is from its first level, over the time since it was first
-   read, which must be 10 minutes back at least. The weekly windows' projections go by it too (see
-   `usage`, the printout). The 5-hour window's rate is its recent rate, or, without a baseline or a
-   level 10 minutes back, its use since it started, once 5% of it has passed, as the dashboard's
-   projection measures it. An account is under pressure when, at that rate, its 5-hour window
-   reaches where the account runs out before it resets: where its reserve starts, or its limit where
-   the request may spend the reserve, as a pin spends its accounts' (see Pinning); one without a
-   5-hour window never is, as pressure is judged on the 5-hour alone. A choice made
-   afresh sets the candidates under pressure aside first, then scores the rest as step 2 says,
-   keeping an idle session's own account unless another is well ahead; when every candidate is under
-   pressure, pressure changes nothing, so it never leaves a request without an account. It weighs
-   only choices made afresh: a new session's, a request's without a session, a session's idle past
-   its cache's hour, or whose account can't serve the request, or whose own pin yields, and a
-   session the global pin moves; and within the global pin's accounts first, so it never sends a
-   request past the pin. A session's own pin is never weighed, and a session staying where it is,
-   sticky or bound, never moves for it. An account the scoring can't rate, as one whose week's reset
-   isn't known, is no relief from pressure: with the global pin naming it and one under pressure,
-   requests go to the one under pressure, as though every candidate were, rather than to the one
-   whose quota can't be judged, as they would once none of the pin's accounts can be scored at all
-   (step 4 of the order below). The readings outlast a restart: as it starts, the router takes them
-   up, baselines included, from its readings history, which holds each change of a window's use (see
-   Files), but for a window that has reset since.
+   window if it has one. A window's room ends at the account's reserve (see Reserves): with a
+   reserve of 0.1, a window reading 90% has none. That holds the router's own choices alone: a pin
+   runs its accounts to their limits (see Pinning).
+2. **Score:** perishability = the room left in the shared weekly window ÷ time until it resets, the
+   room ending at the reserve: (1 − reserve − utilization) ÷ hours to reset. Hours to reset count as
+   1 at the least, a week whose reset has passed counts as its full room, to the reserve, over the
+   week's length, and an account whose weekly reset isn't known has no score, so it's never the best
+   candidate, though a global pin naming it still sends requests there while none of the accounts it
+   names has a score. The highest score wins, so quota that resets tomorrow is used before quota
+   that resets next week, and an account with little left scores low unless its week resets soon.
+   Among candidates scoring at least 0.8 of the highest, the one whose 5-hour window resets soonest
+   wins: whatever is left in a window at its reset is lost, and with the windows staggered (see
+   Priming), the accounts' resets are spread through the day. One whose 5-hour window has lapsed,
+   its reset passed with nothing read since, whose reset isn't known, or that has no 5-hour window,
+   comes after those whose reset is to come. Between equal resets, or two of those, the higher score
+   wins, then the account that has used less of the shortest window that applies, its 5-hour window,
+   or its week where it has none, then the first configured.
+3. **Pressure:** several busy sessions on one account run its 5-hour window out together, then move
+   at once, each rebuilding its cache on another account; scoring by the week alone doesn't see it
+   coming. So the router keeps, of each of each account's windows, the levels its use was read at,
+   each with when it was first read so and when last: its baseline, the level read last before the
+   last 30 minutes, and each higher level since, within the window as it now runs. A later reset, a
+   new window, clears them, and so does a reading taken as current that has fallen by a tenth of the
+   window or more, as a reset made by hand leaves it (see `usage`, the printout); a smaller dip
+   stands as the window's reading but is no level, so climbing back from it reads as no use. A
+   window's recent rate is its rise from its baseline to its latest level, never less than 0, over
+   the last 30 minutes when the baseline was read again after they began, its use holding there till
+   then; else over the time since the baseline was last read: an account is read only on its own
+   traffic, its primes, a probe before a choice once 15 minutes stale, and the router's own rounds,
+   as a rule once nothing has read it in 5 minutes (see Priming), so use outside the router, as in
+   the Claude apps, arrives as one rise across a gap, which came at no telling when within it, and
+   20% read two hours on reads 10% an hour, not 40% for half an hour. A window with a baseline and
+   no level since has been quiet, and reads 0, so a burst holds its rate for the 30 minutes after
+   it, then drops to 0. Without a baseline, as for a window started less than 30 minutes ago, the
+   rise is from its first level, over the time since it was first read, which must be 10 minutes
+   back at least. The weekly windows' projections go by it too (see `usage`, the printout). The
+   5-hour window's rate is its recent rate, or, without a baseline or a level 10 minutes back, its
+   use since it started, once 5% of it has passed, as the dashboard's projection measures it. An
+   account is under pressure when, at that rate, its 5-hour window reaches where the account runs
+   out before it resets: where its reserve starts, or its limit where the request may spend the
+   reserve, as a pin spends its accounts' (see Pinning); one without a 5-hour window never is, as
+   pressure is judged on the 5-hour alone. A choice made afresh sets the candidates under pressure
+   aside first, then scores the rest as step 2 says, keeping an idle session's own account unless
+   another is well ahead; when every candidate is under pressure, pressure changes nothing, so it
+   never leaves a request without an account. It weighs only choices made afresh: a new session's, a
+   request's without a session, a session's idle past its cache's hour, or whose account can't serve
+   the request, or whose own pin yields, and a session the global pin moves; and within the global
+   pin's accounts first, so it never sends a request past the pin. A session's own pin is never
+   weighed, and a session staying where it is, sticky or bound, never moves for it. An account the
+   scoring can't rate, as one whose week's reset isn't known, is no relief from pressure: with the
+   global pin naming it and one under pressure, requests go to the one under pressure, as though
+   every candidate were, rather than to the one whose quota can't be judged, as they would once none
+   of the pin's accounts can be scored at all (step 4 of the order below). The readings outlast a
+   restart: as it starts, the router takes them up, baselines included, from its readings history,
+   which holds each change of a window's use (see Files), but for a window that has reset since.
 4. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
    (`x-claude-code-session-id`) and the model, and remembered as it's chosen, then forgotten unless
    the request is answered with success. Caches are per model anyway, so a session's Haiku calls can
@@ -485,16 +482,16 @@ routed, as the new primary's, while it has a usable token (see Accounts and toke
 Any account can keep a reserve, which `reserve` in its table sets (see Config).
 
 - **The reserve** is the share of every window, the 5-hour window where the account has one, the
-  shared weekly window and each model's own weekly, that the router leaves unused on an account: 0 unless set, on the
-  primary as on the others. Once a window that applies to a request reads at or above 1 less the
-  reserve, the router's own choices pass the account over: new sessions skip it, and a session on
-  it moves as at a limit. Scoring counts only the room before the reserve. The router never sends
-  a request to an account held back only by its reserve, even when no account has room, as that
-  would spend it. A pin does spend it, running its account to its limit: the pin is the user's
-  choice, where the reserve holds back the router's (see Pinning). So an account with a reserve
-  keeps that share of every window for use outside the router, such as the Claude apps on the
-  primary, where that use can take it past the reserve, as intended, and one without is used right
-  up to its limits.
+  shared weekly window and each model's own weekly, that the router leaves unused on an account: 0
+  unless set, on the primary as on the others. Once a window that applies to a request reads at or
+  above 1 less the reserve, the router's own choices pass the account over: new sessions skip it,
+  and a session on it moves as at a limit. Scoring counts only the room before the reserve. The
+  router never sends a request to an account held back only by its reserve, even when no account has
+  room, as that would spend it. A pin does spend it, running its account to its limit: the pin is
+  the user's choice, where the reserve holds back the router's (see Pinning). So an account with a
+  reserve keeps that share of every window for use outside the router, such as the Claude apps on
+  the primary, where that use can take it past the reserve, as intended, and one without is used
+  right up to its limits.
 - Readings come off responses, so one large turn can take an account a point or two past its
   reserve before the router sees it. A launch that goes direct, without the router, as `run` does
   only when told to (see Launching), can spend the reserve of the account it goes out on.
@@ -521,19 +518,18 @@ come back one at a time rather than together: once all are spent, the wait for t
   set, or on Pro or Max, keeps the step. The skip changes nothing in the config: a day set before
   stays, and the router, reading no 5-hour window, has nothing to prime. A new Ultra subscriber,
   whose account keeps a temporary 5-hour window till it's verified, isn't offered priming for it.
-- **The schedule:** with N accounts that have usable tokens and a 5-hour window, resets fall
-  every 5 hours ÷ N; the
-  first falls half a step after the day starts; each account, in config order, has its slot five
-  hours before its first reset, taken back to the ten-minute mark that falls in, as the API takes
-  back the start of the window a prime starts: so the slot is where the window starts, and the
-  reset it reads five hours after, as the schedule shows. Taken back rather than rounded, a slot
-  only ever moves earlier, so every prime still falls before the day starts, so the day's first
-  requests don't disturb the schedule, and may fall the evening before; and every slot moves by
-  the same rule, so the steps between them stay within ten minutes of each other, as even as the
-  marks allow where 5 hours ÷ N isn't a whole number of ten minutes. A slot's prime goes 5 seconds
-  after it, as a prime after a reset does (see below): sent on the mark, a prime the API took in
-  a moment before it, by its own clock, would start the window ten minutes earlier. For a day
-  starting at 08:00:
+- **The schedule:** with N accounts that have usable tokens and a 5-hour window, resets fall every 5
+  hours ÷ N; the first falls half a step after the day starts; each account, in config order, has
+  its slot five hours before its first reset, taken back to the ten-minute mark that falls in, as
+  the API takes back the start of the window a prime starts: so the slot is where the window starts,
+  and the reset it reads five hours after, as the schedule shows. Taken back rather than rounded, a
+  slot only ever moves earlier, so every prime still falls before the day starts, so the day's first
+  requests don't disturb the schedule, and may fall the evening before; and every slot moves by the
+  same rule, so the steps between them stay within ten minutes of each other, as even as the marks
+  allow where 5 hours ÷ N isn't a whole number of ten minutes. A slot's prime goes 5 seconds after
+  it, as a prime after a reset does (see below): sent on the mark, a prime the API took in a moment
+  before it, by its own clock, would start the window ten minutes earlier. For a day starting at
+  08:00:
 
   | Accounts | Primed | Resets |
   |---|---|---|
@@ -551,13 +547,13 @@ come back one at a time rather than together: once all are spent, the wait for t
   to prime, and no slot, till an answer reports it again. An account whose window is already
   running, as after a late night, gets none, and its slot shifts for that day. The log notes each
   prime at `info`, with the reset it read, or as `no window to prime` where it read no 5-hour
-  window, as the prime that finds a verified Ultra account's gone does. A
-  prime fails when it reads nothing (`prime failed`), or when the 5-hour window still reads as
-  lapsed once it's done (`prime didn't start the window`): either is noted at `warn`, and the prime
-  is sent again five minutes on. An account that can take no request anyway (see No accidental
-  windows), or whose token is refused, isn't primed while it's so, as a prime couldn't start its
-  window, but the moment it could be, once its limit or refusal ends, or its spent window resets;
-  it's still probed where the probe rules allow, which is how a reset made by hand is seen.
+  window, as the prime that finds a verified Ultra account's gone does. A prime fails when it reads
+  nothing (`prime failed`), or when the 5-hour window still reads as lapsed once it's done
+  (`prime didn't start the window`): either is noted at `warn`, and the prime is sent again five
+  minutes on. An account that can take no request anyway (see No accidental windows), or whose token
+  is refused, isn't primed while it's so, as a prime couldn't start its window, but the moment it
+  could be, once its limit or refusal ends, or its spent window resets; it's still probed where the
+  probe rules allow, which is how a reset made by hand is seen.
 - **Through the day,** whenever an account's window resets, in use or not, the router primes it 5
   seconds on, so its windows stay back to back: the API's clock may be a little behind the Mac's,
   and a prime it took in before the reset would start nothing, and go again five minutes later,
@@ -573,38 +569,39 @@ come back one at a time rather than together: once all are spent, the wait for t
   another time zone restarts the router, which keeps them at their times of day in that zone (see
   The router looking after itself).
 - The router works the schedule out as it starts, and again whenever an account gains a usable token
-  or loses it, and where, at a look, the accounts with a 5-hour window to prime have changed,
-  noting `priming schedule worked out again` in the log; a change to the accounts or the day is a change to the config, which restarts the
-  router (see The router looking after itself). `status` shows the schedule. `status` shows
-  the next reset among the 5-hour windows and, from the router, the next prime; the dashboard's
-  COMING UP gives the next few resets and primes, and a lapsed window says when its account is next
-  primed (see The Overview).
+  or loses it, and at each look, where the accounts with a 5-hour window to prime have changed; any
+  change in the accounts with slots, a token gained or lost among them, is noted in the log as
+  `priming schedule worked out again`; a change to the accounts or the day is a change to the
+  config, which restarts the router (see The router looking after itself). `status` shows the
+  schedule. `status` shows the next reset among the 5-hour windows and, from the router, the next
+  prime; the dashboard's COMING UP gives the next few resets and primes, and a lapsed window says
+  when its account is next primed (see The Overview).
 - Early starts, late nights, use in the Claude apps and the router's probe before a week resets
   can start a window off the schedule, which shifts that account's slot for the day.
 - The first primes confirmed the window's mechanics: each reset a prime read fell five hours after
   its slot, the ten-minute mark it goes 5 seconds after (see Observed).
 
 **No accidental windows.** A probe is a request, so probing an idle account starts its 5-hour
-window, where it has one. The router never probes an account whose 5-hour window has lapsed, its last reading's reset
-passed with nothing read since, except to prime it, and on its rounds, where the window it starts
-resets before the account's prime (see The router's rounds): that window reads empty, and the
-account's weekly readings stand. This covers the probes as the router starts, before it decides
-afresh, when no account has room, and for `POST /refresh`. The one exception is an account that can
-take no request anyway: a limit holds back its every request, or a window every model shares reads
-spent, as last read, as when its week is spent, the limit or not, as a restart keeps the reading but
-not the limit. A probe that starts its window costs nothing then, and a probe is how a limit lifted
-before its reset, as by a reset made by hand on claude.ai, is seen, the reading showing its windows
-with room lifting the limit. A limit reached in one model's week alone is no exception, as the
-account takes other models' requests, nor is a refused token or model. Readings persist in
-`state.json`, with the model families each window has been seen to count, so a restart needs no
-probe but its rounds' (see The router's rounds). An account never read has no window known to have
-lapsed: it's probed as the router starts, unless a probe of it ended in the last minute, by a choice
-or `POST /refresh` made meanwhile, or by the router before, as `state.json` keeps it (see The
-router's rounds). Should that probe fail, or the account first gain a token while the router runs,
-it's probed on its rounds, or sooner where a choice made afresh or `POST /refresh` needs it, at any
-hour, which may start its window off the schedule, once. Probing without the router, and with
-`--probe`, is unchanged: it's asked for; so is the probe that checks a token `accounts add`,
-`accounts token` or `setup` is given.
+window, where it has one. The router never probes an account whose 5-hour window has lapsed, its
+last reading's reset passed with nothing read since, except to prime it, and on its rounds, where
+the window it starts resets before the account's prime (see The router's rounds): that window reads
+empty, and the account's weekly readings stand. This covers the probes as the router starts, before
+it decides afresh, when no account has room, and for `POST /refresh`. The one exception is an
+account that can take no request anyway: a limit holds back its every request, or a window every
+model shares reads spent, as last read, as when its week is spent, the limit or not, as a restart
+keeps the reading but not the limit. A probe that starts its window costs nothing then, and a probe
+is how a limit lifted before its reset, as by a reset made by hand on claude.ai, is seen, the
+reading showing its windows with room lifting the limit. A limit reached in one model's week alone
+is no exception, as the account takes other models' requests, nor is a refused token or model.
+Readings persist in `state.json`, with the model families each window has been seen to count, so a
+restart needs no probe but its rounds' (see The router's rounds). An account never read has no
+window known to have lapsed: it's probed as the router starts, unless a probe of it ended in the
+last minute, by a choice or `POST /refresh` made meanwhile, or by the router before, as `state.json`
+keeps it (see The router's rounds). Should that probe fail, or the account first gain a token while
+the router runs, it's probed on its rounds, or sooner where a choice made afresh or `POST /refresh`
+needs it, at any hour, which may start its window off the schedule, once. Probing without the
+router, and with `--probe`, is unchanged: it's asked for; so is the probe that checks a token
+`accounts add`, `accounts token` or `setup` is given.
 
 **The router's rounds.** Every answer the router relays carries its account's whole usage, wherever
 it was used: the Claude apps on a phone, claude.ai, Claude Code run directly. So an account in use
@@ -2174,18 +2171,19 @@ pressed, the dashboard keeps its own.
 scrollback and be compared by eye with one printed an hour before. Its frames are in the Paper file
 *Switchboard · usage*, on its page **FINAL · usage · signed off 4 Oct 2026 · revised 6 Oct**; its
 references are `testdata/vhs/reference/usage-160` (the matrix), `usage-120`, `usage-80` and
-`usage-52` (the windows stacked), `usage-5h-160` and `usage-5h-52` (`--5h`),
-`usage-by-account-160` and `usage-by-account-52` (`--by account`), `usage-one-account-160` (one
-account), and, of accounts without a 5-hour window (below), `usage-ultra-160`, every account on a
-verified Ultra plan, and `usage-mixed-160`, `usage-mixed-52` and `usage-mixed-by-account-160`, side
-alone keeping its 5-hour. Each reference starts at the header and ends at the key line. The Overview's USAGE draws
-the same block (see The Overview).
+`usage-52` (the windows stacked), `usage-5h-160` and `usage-5h-52` (`--5h`), `usage-by-account-160`
+and `usage-by-account-52` (`--by account`), `usage-one-account-160` (one account), and, of accounts
+without a 5-hour window (below), `usage-ultra-160`, every account on a verified Ultra plan, and
+`usage-mixed-160`, `usage-mixed-52` and `usage-mixed-by-account-160`, side alone keeping its 5-hour.
+Each reference starts at the header and ends at the key line. The Overview's USAGE draws the same
+block (see The Overview).
 
 - **The windows:** `--5h`, `--week`, and one flag for each model's own window switchboard knows,
   named for its model (`--fable`), each print the header, that window alone in either layout, and
-  the key line. Given together, they print the windows given, in the order of care (see below). A flag for a window no account reports fails, naming the windows there are
-  (settled in the plan), as `--5h` does where every account is on a verified Ultra plan:
-  `no account reports the 5-hour window: give --week`.
+  the key line. Given together, they print the windows given, in the order of care (see below). A
+  flag for a window no account reports fails, naming the windows there are (settled in the plan), as
+  `--5h` does where every account is on a verified Ultra plan: `no account reports the 5-hour
+  window: give --week`.
 - **The layout:** `--by window` or `--by account`. `[usage] by` in the config sets the default for
   `usage` and the dashboard alike, `window` unless set (see Config); the flag beats it.
 - **Where it reads,** as `status` does: the router's status document while the router answers,
@@ -2415,51 +2413,50 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
 - **The pool,** wherever there's more than one account, totals the room new sessions can go to now:
   every account on auto, only those the global pin names when pinned. Each window's room is summed
   to each account's cap, `cap − used` and never below 0, with nothing from the 5-hour window of an
-  account at its limit or its cap, nor from any window of an account without a usable token, refused or not read. Its
-  percentage is its accounts' mean use of the window, each as its row shows it, leaving out one
-  without a usable token, not read, whose token is refused, or that hasn't reported the window;
-  where none is left it shows `—`, its bar empty, as a window nothing is read of (the owner's call,
-  17 October 2026: a share of the room used read a 5% reserve as 1% used when every account read
-  0%). Its bar fills to its percentage, coloured as every bar is, with no cap's mark; its even pace
-  is the mean of its accounts'. Its words are the room, their reserves counted, to one decimal
-  place: `1.5` in bold `text.secondary`, then ` of 3 left` in `text.muted`, `of` the number of its
-  accounts that have the window, its `Of`; pinned, the first window's words add ` · pinned`, in
-  `text.muted`, and the smaller pool shows in `of 2`. It keeps a window every model shares only
+  account at its limit or its cap, nor from any window of an account without a usable token, refused
+  or not read. Its percentage is its accounts' mean use of the window, each as its row shows it,
+  leaving out one without a usable token, not read, whose token is refused, or that hasn't reported
+  the window; where none is left it shows `—`, its bar empty, as a window nothing is read of (the
+  owner's call, 17 October 2026: a share of the room used read a 5% reserve as 1% used when every
+  account read 0%). Its bar fills to its percentage, coloured as every bar is, with no cap's mark;
+  its even pace is the mean of its accounts'. Its words are the room, their reserves counted, to one
+  decimal place: `1.5` in bold `text.secondary`, then ` of 3 left` in `text.muted`, `of` the number
+  of its accounts that have the window, its `Of`; pinned, the first window's words add ` · pinned`,
+  in `text.muted`, and the smaller pool shows in `of 2`. It keeps a window every model shares only
   where at least two of its accounts have it, or all of them do, so a pin of one keeps its pool, as
   the moment's `PoolLacks` says: where it doesn't, its cell in the matrix draws blank, so the
   columns hold, a stacked section has no pool row or rule, and its block by account leaves that
   window's rows blank. Before anything is read, it keeps its `—` and labels. The status document
-  gives it (see The status document). With one account there's no pool: it would repeat the
-  account.
+  gives it (see The status document). With one account there's no pool: it would repeat the account.
 - **A window an account doesn't have:** a verified Ultra account's answers report the week and no
   5-hour window (see Observed). An account read, with a usable token, that reports a window every
-  model shares and not another, which isn't among its failures, doesn't have that one, as the
-  moment judges it (`WindowNone`); one unread or without a usable token may, and keeps its rows, so
-  the layout doesn't jump as the router starts. A model's own window is never one an account
-  doesn't have, as its absence proves nothing: it reads as not read. A window no account has goes,
-  its column, section and rows, and its flag fails as for a window no account reports. Side by
-  side, in the matrix and by account, the account's window shows no bar or percentage, only its
-  words, from where its bar would start: `no 5-hour limit`, or `no limit` where the words are short
-  or the window's label beside them names it, in `text.subtle` (signed off in Paper, 1 November
-  2026). Stacked, a window's section leaves the account out. `status`'s text lists it under the
-  account as `5-hour  no 5-hour window`, and the status document leaves it out of the account's
-  `windows`, as any window not read (see The status document).
+  model shares and not another, which isn't among its failures, doesn't have that one, as the moment
+  judges it (`WindowNone`); one unread or without a usable token may, and keeps its rows, so the
+  layout doesn't jump as the router starts. A model's own window is never one an account doesn't
+  have, as its absence proves nothing: it reads as not read. A window no account has goes, its
+  column, section and rows, and its flag fails as for a window no account reports. Side by side, in
+  the matrix and by account, the account's window shows no bar or percentage, only its words, from
+  where its bar would start: `no 5-hour limit`, or `no limit` where the words are short or the
+  window's label beside them names it, in `text.subtle` (signed off in Paper, 1 November 2026).
+  Stacked, a window's section leaves the account out. `status`'s text lists it under the account as
+  `5-hour  no 5-hour window`, and the status document leaves it out of the account's `windows`, as
+  any window not read (see The status document).
 - **Every window shows, used or not, but each model's own on `w`:** the windows every model shares
-  show on every account that may have them, as nothing read before any is. Each model's own window, as Fable's week,
-  any window the policy doesn't share, so a new model's falls under it with no change, shows on
-  `w`, remembered in the preferences and hidden at first (the owner's call, 17 October 2026). It
-  shows then on every account, at 0% as at 40%, as probes read every model family's window before
-  any use; an account that hasn't reported it shows it as nothing read. Hidden, one shows all the
-  same for as long as it nears its limit on any account: held at it, at the account's cap, running
-  out, or nearing where it runs out, within 10 points, as the moment judges each window
-  (`WindowNow`'s `Held`, `Capped`, `RunsOut` and `Nearing`). The toggle is for the live views
-  alone, display and nothing else: USAGE by window and by account, the Switchboard's lines, a session's page and Accounts' Detail, its figures of now. Runway's `<` `>`
-  step between the week and the 5-hour alone, where an account has one, and the routing card shows
-  those two, so neither
-  has a model's window to hide. `usage`'s printout keeps every window, as do History's records,
-  the Log, Accounts' records (limits hit, past weeks) and every JSON; routing and scoring never
-  read it. The moment's `Listed(models)` owns which windows a live view lists, with `w`'s state;
-  the views guard holds drawing packages from asking the policy which windows are shared.
+  show on every account that may have them, as nothing read before any is. Each model's own window,
+  as Fable's week, any window the policy doesn't share, so a new model's falls under it with no
+  change, shows on `w`, remembered in the preferences and hidden at first (the owner's call, 17
+  October 2026). It shows then on every account, at 0% as at 40%, as probes read every model
+  family's window before any use; an account that hasn't reported it shows it as nothing read.
+  Hidden, one shows all the same for as long as it nears its limit on any account: held at it, at
+  the account's cap, running out, or nearing where it runs out, within 10 points, as the moment
+  judges each window (`WindowNow`'s `Held`, `Capped`, `RunsOut` and `Nearing`). The toggle is for
+  the live views alone, display and nothing else: USAGE by window and by account, the Switchboard's
+  lines, a session's page and Accounts' Detail, its figures of now. Runway's `<` `>` step between
+  the week and the 5-hour alone, where an account has one, and the routing card shows those two, so
+  neither has a model's window to hide. `usage`'s printout keeps every window, as do History's
+  records, the Log, Accounts' records (limits hit, past weeks) and every JSON; routing and scoring
+  never read it. The moment's `Listed(models)` owns which windows a live view lists, with `w`'s
+  state; the views guard holds drawing packages from asking the policy which windows are shared.
 - **The order of care:** the week, the 5-hour window, then each model's own week (the owner's call,
   17 October 2026). In general, the windows every model shares, the policy's, longest first; then
   each model's own, as any window the policy doesn't share is, a new model's among them, in
@@ -2521,9 +2518,9 @@ folded), `overview-six-accounts-160`, `overview-ten-accounts-160`, `overview-def
 `overview-sessions-216`, `overview-everything-216x106`, `overview-phone-52`, and, of accounts
 without a 5-hour window, `overview-ultra-108x44` and `overview-ultra-73x61`, every account on a
 verified Ultra plan, and `overview-mixed-108x44`, `overview-mixed-73x61` and
-`overview-mixed-by-account-160`, side alone keeping its 5-hour. Frames 1 to 12 draw the key line as it was before the keys were swept (`0 auto
-1-3 pin  m move`), and frames 2 and 3 ROUTING's `0 back to auto`. This section holds over them, with
-`p pin` and `p back to auto`.
+`overview-mixed-by-account-160`, side alone keeping its 5-hour. Frames 1 to 12 draw the key line as
+it was before the keys were swept (`0 auto 1-3 pin  m move`), and frames 2 and 3 ROUTING's
+`0 back to auto`. This section holds over them, with `p pin` and `p back to auto`.
 
 **Size never decides what shows.** Every section is a toggle, at every size, and the toggles are
 remembered; size decides how much room each section shown gets. The page is one screen that never
@@ -2562,11 +2559,10 @@ title row and the status line say what the header would. By window:
   and `w − n − 30` cells wide: 62 at 108 columns with the sample's 16-cell name column, 114 at 160,
   170 at 216. Room chooses which, as "Room", below, says. The matrix's bars follow `usage`'s rule:
   15 cells for two windows at 108 columns, 30 at 138, 16 for three at 160.
-- **One window,** as where no account has a 5-hour window (see `usage`, the printout) and `w`
-  hides each model's own, has big bars no taller than its matrix, so USAGE draws them wherever they
-  fit, at each step it gives way, each step measuring its own, as Paper's `phone-all-ultra` draws
-  them (signed off 1 November 2026); two windows or more keep the matrix at each step it gives
-  way to.
+- **One window,** as where no account has a 5-hour window (see `usage`, the printout) and `w` hides
+  each model's own, has big bars no taller than its matrix, so USAGE draws them wherever they fit,
+  at each step it gives way, each step measuring its own, as Paper's `phone-all-ultra` draws them
+  (signed off 1 November 2026); two windows or more keep the matrix at each step it gives way to.
 - **Where they don't,** as on a phone, `usage`'s stacked layout at that width: at 73 columns its
   bars 27 cells beside a 16-cell name column, its words in full; at 52 its bars at their least, 12,
   its words in the 16 cells left, in full where they fit.
@@ -2995,9 +2991,9 @@ Oct**, and kept in `testdata/vhs/reference/` as `accounts-compare-160`, `account
 `accounts-compare-month-160`, `accounts-compare-bad-hour-160`, `accounts-detail-all-160`,
 `accounts-detail-work-160`, `accounts-detail-limit-160`, `accounts-detail-sessions-160`,
 `accounts-detail-one-160`, `accounts-detail-mixed-160` (work without a 5-hour window),
-`accounts-phone-compare-52` and `accounts-phone-detail-52`: 160 columns by 37, and a phone's 52. The frames show the keys from before the sweep of 7 and 8 October 2026, `p`
-for the period and `0 auto  1-3 pin  m move`; where they and this section differ, this section
-holds.
+`accounts-phone-compare-52` and `accounts-phone-detail-52`: 160 columns by 37, and a phone's 52. The
+frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the period and
+`0 auto  1-3 pin  m move`; where they and this section differ, this section holds.
 
 **Rules Accounts and History share:**
 
@@ -3253,11 +3249,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   `text.subtle` where its bar would start, its name beside it, as `usage` by account has it. For
   `all accounts`, every account's window together, its words its room, `1.2 of 3 left`, of the
   accounts that have it, as the pool's are. Its row is laid by flex as the stack's is (see Stacked):
-  the names as wide as the widest of every window listed in its shortest whole form, `Sonnet
-  wk`, never cut, and at least 8 cells; a cell on, the bars, at least 16, two fewer than the
-  stack's, so four weeks still fit at 108 columns; and the percentage and the words, in the
-  cells of their form at its widest, ending a cell before THIS WEEK. The bars take what's left,
-  at most 40: 16 at 108 columns, 40 from 131.
+  the names as wide as the widest of every window listed in its shortest whole form, `Sonnet wk`,
+  never cut, and at least 8 cells; a cell on, the bars, at least 16, two fewer than the stack's, so
+  four weeks still fit at 108 columns; and the percentage and the words, in the cells of their form
+  at its widest, ending a cell before THIS WEEK. The bars take what's left, at most 40: 16 at 108
+  columns, 40 from 131.
 - **THIS WEEK,** on USAGE's row, from row 8, its title, then an item a row, labels 10 wide in
   `text.subtle`: `requests`; `limits`, each window's hits, `week ×1 · 5-hour ×2`, or for `all
   accounts`, how many; `plan`, by its name, or for `all accounts`, the plans summed, `$600/mo`;
@@ -3738,22 +3734,21 @@ data, as from 118 columns. Narrower, each strip's name takes the row over it (Na
   each day the family's worth that day, every account's, in the family's own steps, the strips on
   one scale; its count its share of the eight weeks' worth, bold `text.secondary`, then ` of use` in
   `text.subtle`, `59% of use`.
-- **BY ACCOUNT,** three rows after the last family,
-  `the share of its week each day used, on one scale` after it: two rows apart, a strip an account,
-  its name and marks at column 0, each day the points of its week it used that day, in `viz.day.1`
-  to `viz.day.4`, every account on one scale, and a red `▪`, `state.destructive`, in the middle of a
-  day it hit a 5-hour limit; its count how many it hit, bold `state.destructive`, or `text.faint`
-  at none, then ` 5-hour limits` in `text.subtle`. They're history, as the ledger recorded them,
-  so an account without a 5-hour window, as a verified Ultra account, keeps its strip's
-  count and red marks, of the days before it lost the window, and every limit History counts
-  elsewhere stays so too. Past six accounts it scrolls within itself, with
-  `j/k` or the wheel, and the row over the key says what's out of view:
-  `▼ 4 more accounts below   ·   j/k or the wheel to scroll them`, `▼` in `accent.key`, the words in
-  `text.muted`, `j/k` bold `accent.key`. Shorter than History's frames, 37 rows, Days is drawn whole
-  and scrolls a row at a time over its key; where everything fits, as at 138 by 30, nothing scrolls.
-  Where holding the key on the view's last rows would leave the strips fewer than 2 rows over it, a
-  strip's first and the line saying what's below, as at a phone's least, the key scrolls with them
-  instead, a blank row under the last strip (settled in the plan).
+- **BY ACCOUNT,** three rows after the last family, `the share of its week each day used, on one
+  scale` after it: two rows apart, a strip an account, its name and marks at column 0, each day the
+  points of its week it used that day, in `viz.day.1` to `viz.day.4`, every account on one scale,
+  and a red `▪`, `state.destructive`, in the middle of a day it hit a 5-hour limit; its count how
+  many it hit, bold `state.destructive`, or `text.faint` at none, then ` 5-hour limits` in
+  `text.subtle`. They're history, as the ledger recorded them. A verified Ultra account keeps the
+  count and red marks of the days before it lost its 5-hour window, as every limit History counts
+  elsewhere is kept. Past six accounts it scrolls within itself, with `j/k` or the wheel, and the
+  row over the key says what's out of view: `▼ 4 more accounts below   ·   j/k or the wheel to
+  scroll them`, `▼` in `accent.key`, the words in `text.muted`, `j/k` bold `accent.key`. Shorter
+  than History's frames, 37 rows, Days is drawn whole and scrolls a row at a time over its key;
+  where everything fits, as at 138 by 30, nothing scrolls. Where holding the key on the view's last
+  rows would leave the strips fewer than 2 rows over it, a strip's first and the line saying what's
+  below, as at a phone's least, the key scrolls with them instead, a blank row under the last strip
+  (settled in the plan).
 - **The key,** on the view's last row: `less `, the five shades as 2-cell swatches 3 apart, `more`,
   in `text.subtle`, then `  each shade a quarter of the active days` in `text.faint`; then a swatch
   of `viz.day.2` holding the red `▪`, and `a day it hit a 5-hour limit`; then `··` and
@@ -3889,7 +3884,8 @@ table of today's sessions, those running, then those ended. The frames are in th
 2026**; the references are `testdata/vhs/reference/sessions-*`: `sessions-switchboard-160`,
 `sessions-refused-160`, `sessions-moved-160`, `sessions-pinned-160`, `sessions-ten-accounts-160`,
 `sessions-one-account-160`, `sessions-list-160`, `sessions-phone-52`, `sessions-list-phone-52` and
-`sessions-switchboard-mixed-160` (work and personal without a 5-hour window). Columns and rows are at 160 by 37 unless they say otherwise.
+`sessions-switchboard-mixed-160` (work and personal without a 5-hour window). Columns and rows are
+at 160 by 37 unless they say otherwise.
 
 **The heading row,** row 4: `SESSIONS` in `text.subtle`; three spaces; the sub-tabs, `Switchboard`
 and `List`, each with a space either side, the one shown bold `text.primary` on `bg.subtle` and the
@@ -3945,9 +3941,9 @@ where the parts lay it, as Narrower and wider says.
     Pinned, below);
   - a row a window, `Week`, `5-hour`, then each model's own week on `w`, `Fable wk`, a blank row
     between: its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4
-    cells at 131, two cells, and its words, 22 cells, at 137. A window the account doesn't have
-    (see `usage`, the printout) shows `no limit` in `text.subtle` from where its bar would start,
-    its label naming the window, wherever the lines draw it, side by side or in a lane, its bar and
+    cells at 131, two cells, and its words, 22 cells, at 137. A window the account doesn't have (see
+    `usage`, the printout) shows `no limit` in `text.subtle` from where its bar would start, its
+    label naming the window, wherever the lines draw it, side by side or in a lane, its bar and
     percentage in each step's.
 
   The lines start on row 6, each 3 blank rows after the one before where the view's rows hold them
@@ -4359,9 +4355,9 @@ order, each at least its least and at most its natural:
 ### Runway
 
 When each account has room, as a timeline: a lane per account, then the pool's lane, named `Σ pool`,
-over the window the view is named for. The frames are in the Paper file *Switchboard ·
-Sessions and Runway*, on the page **FINAL · Sessions and Runway · signed off · 8 Oct 2026**; the
-references are `testdata/vhs/reference/runway-*`: `runway-5-hour-160`, `runway-week-160`,
+over the window the view is named for. The frames are in the Paper file *Switchboard · Sessions and
+Runway*, on the page **FINAL · Sessions and Runway · signed off · 8 Oct 2026**; the references are
+`testdata/vhs/reference/runway-*`: `runway-5-hour-160`, `runway-week-160`,
 `runway-stepped-back-160`, `runway-ten-accounts-160` and `runway-phone-52`; and with the account
 column collapsed, `runway-collapsed-160`, `runway-collapsed-108x43` and `runway-phone-collapsed-52`;
 and of accounts without a 5-hour window, `runway-ultra-160`, every account on a verified Ultra plan,
@@ -4384,12 +4380,12 @@ view's window under its name:
 - **5-hour:** from the hour before now, taken back to its ten minutes, 13:40 at 14:42, for 22 hours
   40 minutes: about 9.4 minutes a column at 160.
 - At every width, the lanes keep their span, and the minutes a column scale with their width.
-- **The windows offered** are the moment's (`views.RunwayWindowsOf`): the 5-hour view only while
-  an account has a 5-hour window or may have one (see `usage`, the printout), and it lists only
-  those accounts, its pool's lane where the pool keeps the window. With no account on a 5-hour,
-  as with every account on a verified Ultra plan, the heading shows `week` with no `<` or `>`, and
-  the key line has no `< > window`. A 5-hour view kept in the preferences is kept as it is, the
-  week shown in its place, and shows again once an account has a 5-hour window.
+- **The windows offered** are the moment's (`views.RunwayWindowsOf`): the 5-hour view only while an
+  account has a 5-hour window or may have one (see `usage`, the printout), and it lists only those
+  accounts, its pool's lane where the pool keeps the window. With no account on a 5-hour, as with
+  every account on a verified Ultra plan, the heading shows `week` with no `<` or `>`, and the key
+  line has no `< > window`. A 5-hour view kept in the preferences is kept as it is, the week shown
+  in its place, and shows again once an account has a 5-hour window.
 
 The window shown is kept in the preferences file, as is the account column collapsed or not (see
 The account column collapsed); a step back never is, so the dashboard opens live (settled in the
@@ -4531,9 +4527,8 @@ blank row; with two, on the row after its words.
   column isn't widened for it (the owner's call, 21 October 2026): the pool's room in the view's
   window, in `usage`'s words for the pool: `5-hour ` or `week ` in `text.subtle`, `1.5` bold
   `text.secondary`, and ` of 3 left` in `text.muted`, of the accounts that have the window, its
-  `Of`; whole parts left off its end that don't fit
-  before the frame's edge. No words follow it: the pool's columns say when fewer than all of it
-  have room (the owner's call, 17 October 2026).
+  `Of`; whole parts left off its end that don't fit before the frame's edge. No words follow it: the
+  pool's columns say when fewer than all of it have room (the owner's call, 17 October 2026).
 - **The pool's accounts** are every account on auto, and the pin's while one holds: its room is then
   `of 2`, the room's words add ` · pinned`, as `usage`'s pool row does, and an account out of the
   pool has its lane, label and use faded as Sessions fades its line (see Sessions), the words under
@@ -4657,12 +4652,12 @@ at every width:
 
 `a names` has its word faint while the labels are collapsed, as a hidden section's is. The line
 holds it whole from 100 columns; a phone's line leaves it to `?`, as it would cost its `tab views`.
-`<` and `>` step between the week and the 5-hour views, where both are offered; `←` steps back and `→` forward; `a`
-collapses the account column and expands it again; `j`, `k`,
-PgUp, PgDn and the wheel scroll the lanes at (f); `p`, `R`, `t`, `?` and `q` are as on every page
-(see Keys). `?` help (see The page), `HELP · RUNWAY`, lists the page's keys first, `t`, `R` and
-`j`/`k` among them; then it explains the lanes' marks and colours, the pool's lane and its room,
-stepping back and how far it reaches, the minutes a column, and COMING UP.
+`<` and `>` step between the week and the 5-hour views, where both are offered; `←` steps back and
+`→` forward; `a` collapses the account column and expands it again; `j`, `k`, PgUp, PgDn and the
+wheel scroll the lanes at (f); `p`, `R`, `t`, `?` and `q` are as on every page (see Keys). `?` help
+(see The page), `HELP · RUNWAY`, lists the page's keys first, `t`, `R` and `j`/`k` among them; then
+it explains the lanes' marks and colours, the pool's lane and its room, stepping back and how far it
+reaches, the minutes a column, and COMING UP.
 
 **Other states.**
 
@@ -4715,10 +4710,10 @@ Every account's room drawn at once, on a page its user makes their own: sections
 Overview's are, first a burn-down for every account in each window, as v0.1's cards drew them, then
 whichever other charts are turned on (the owner's calls, 24 and 25 October 2026). Its frames are in
 the Paper file *Switchboard · Graphs*, on its page **FINAL · Graphs tab · signed off 25 Oct 2026**,
-round 2's, approved by the owner on 25 October 2026: the page as it opens at 160 by 37, 108 by 44 and a
-phone's 73 by 61, and at 173 by 53 with WEEK, POOL, GLANCE and WHEN YOU WORK shown. The file's first
-page, round 1, holds the burn-downs drawn as a second view on Runway, which the owner turned down,
-and the charts these sections were picked from. Its references, made with the build, are
+round 2's, approved by the owner on 25 October 2026: the page as it opens at 160 by 37, 108 by 44
+and a phone's 73 by 61, and at 173 by 53 with WEEK, POOL, GLANCE and WHEN YOU WORK shown. The file's
+first page, round 1, holds the burn-downs drawn as a second view on Runway, which the owner turned
+down, and the charts these sections were picked from. Its references, made with the build, are
 `testdata/vhs/reference/graphs-*`, named in the plan, and of accounts without a 5-hour window,
 `graphs-ultra-160x37` and `graphs-glance-ultra-108x44`, every account on a verified Ultra plan, and
 `graphs-mixed-160x37` and `graphs-glance-mixed-108x44`, side alone keeping its 5-hour. Where the
@@ -4751,13 +4746,13 @@ for each row more its tabs take), in an order that never changes, a section hidd
 The sections are the owner's pick of round 1's charts, for now (25 October 2026); the rest, a
 burn-up, the burn rate, the week by day, sessions over the day, the model mix and worth against the
 plan, wait in the backlog (see Backlog, graphs-page). The keys were left to the design by the owner
-(25 October 2026): `w` week, `f` five, `o` pool, `g` glance, `h` hours. The windows drawn are the two
-every model shares, as on Runway: a model's own window has no card, and `w` is WEEK's here, where on
-the pages that list windows as they stand it shows the models' own (see Keys). A 5-hour window
-goes where no account has one, as Runway's goes (see Runway, and `usage`, the printout): 5-HOUR's
-section, `f` and `f`'s words on the key line and in help, GLANCE's 5-HOUR column, and the lanes
-the watch builds for it; a 5-HOUR kept shown in the preferences is kept as it is, and shows again
-once an account has a 5-hour window.
+(25 October 2026): `w` week, `f` five, `o` pool, `g` glance, `h` hours. The windows drawn are the
+two every model shares, as on Runway: a model's own window has no card, and `w` is WEEK's here,
+where on the pages that list windows as they stand it shows the models' own (see Keys). A 5-hour
+window goes where no account has one, as Runway's goes (see Runway, and `usage`, the printout):
+5-HOUR's section, `f` and `f`'s words on the key line and in help, GLANCE's 5-HOUR column, and the
+lanes the watch builds for it; a 5-HOUR kept shown in the preferences is kept as it is, and shows
+again once an account has a 5-hour window.
 
 - **A section's heading** is the Overview's (see The Overview): its name in `text.subtle`; three
   spaces and its description, where it has one; a space, a rule of `─` in `border` and a space;
@@ -4850,12 +4845,12 @@ so one look compares every account (the owner's call, 24 October 2026):
 `text.subtle`, `pool` in `text.secondary`, three spaces, then each window's room as Runway's pool
 lane words it, the week's then the 5-hour's, three spaces apart: the window in `text.subtle`, the
 room bold `text.secondary` and ` of 3 left` in `text.muted`, of the accounts that have the window,
-its `Of`, `week 1.2 of 3 left   5-hour 1.5 of 3 left`; pinned, ` · pinned` after the first, as
-`usage` has it. Where it doesn't fit, whole parts go from the end, the 5-hour's first. It says both
-windows whichever sections show, as it's the pool's room, not a window's, but for a window the
-pool doesn't keep (see `usage`, the printout): with fewer than two of its accounts on a 5-hour,
-and not all of them, it has no 5-hour part. With one account there's no pool, and no
-line.
+its `Of`, `week 1.2 of 3 left   5-hour 1.5 of 3 left`; pinned, ` ·
+pinned` after the first, as `usage` has it. Where it doesn't fit, whole parts go from the end, the
+5-hour's first. It says both windows whichever sections show, as it's the pool's room, not a
+window's, but for a window the pool doesn't keep (see `usage`, the printout): with fewer than two of
+its accounts on a 5-hour, and not all of them, it has no 5-hour part. With one account there's no
+pool, and no line.
 
 **v0.1's legend,** while a burn-down section shows, is the view's last row: `▆▆ room left   ⠂⠄⡀
 where it's heading   ✕ runs out   ⠠ ⠠ reserve`, each mark in its ink, a lasting window's, and its
@@ -4913,8 +4908,8 @@ burn-down a row high:
   space; the room left, `66%`, as the cards say it; two spaces; and `usage`'s words for the window,
   as its matrix gives them, `19%/day till Sun 21:00`, `out ~Sat 06:00`, `at cap · back 17:10`,
   padded to the widest their bounds allow, so the next window holds still. A window the account
-  doesn't have draws its sparkline empty, and its words are `no 5-hour limit` in `text.subtle`, as
-  `usage`'s matrix gives them.
+  doesn't have draws its sparkline empty and its room left blank, and its words are
+  `no 5-hour limit` in `text.subtle`, as `usage`'s matrix gives them.
 - **The pool,** under `usage`'s rule: `Σ pool`, its windows' sparklines of the pool's room, as POOL
   counts it, each from its accounts' earliest start to their latest reset, charted against the
   accounts that have the window, its `Of`, and its room, `1.2 of 3 left`, of them; no sparkline or
@@ -5497,9 +5492,9 @@ one:
 
 One session, its whole life: what it's doing now and where it runs; how busy it's been, from its
 first request to now; which accounts it ran on and what it took of each; and its turns, newest
-first, each opening into its requests. The Overview shows every account now, Accounts who used
-them and History when; a session's page follows one session. It's a full page, not a tab, and draws
-no projection. It's drawn in the Paper file *Switchboard · Session and Log*, on its page **FINAL ·
+first, each opening into its requests. The Overview shows every account now, Accounts who used them
+and History when; a session's page follows one session. It's a full page, not a tab, and draws no
+projection. It's drawn in the Paper file *Switchboard · Session and Log*, on its page **FINAL ·
 session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/reference/session-*`,
 `session-mixed-160` and `session-mixed-ultra-160` among them, of a session on an account with a
 5-hour window and on one without.
@@ -5598,9 +5593,8 @@ least, each measured for the session's own kind:
   account it's on with both marks' cells, `▲` and `◆`, whichever it carries now. Then its right
   at its least, its shortest form at its widest for the session: `23h 59m`, `resumed yesterday
   22:10` once resumed, or `ran 23h 59m` once over;
-- row 7: its windows whole, the widest name and every window listed at `100%`, or at its words
-  where an account doesn't have it, `no 5-hour limit`, so the row holds still as the session
-  moves.
+- row 7: its windows whole, the widest name and every window listed at `100%`, or at its words where
+  an account doesn't have it, `no 5-hour limit`, so the row holds still as the session moves.
 
 Names in both rows are drawn as a label's column holds them, 24 cells at the most, cut with `…` past
 it, their marks kept. Where the rows are wide, the right takes the fullest of its forms that fits
@@ -5648,11 +5642,11 @@ yielding from 99 (155), and `resumed`, today or the day before, from 133 (165).
   last-used model goes to, and row 7 each, the ribbon and a turn's `on` following its main thread's
   (settled in the plan). At the right, while it runs, ending at the last column: the account in
   `text.secondary` and ` now  ` in `text.subtle`, then each of its windows, three spaces apart, its
-  name in `text.muted` and its use bold in its level's colour (see `usage`, the printout):
-  `side now  week 78%   5-hour 13%   fable week 4%`, in the order of care. Every window shows, used
-  or not, each model's own on `w` (see The Overview). A window the account doesn't have (see
-  `usage`, the printout) says so in place of its name and use, in `text.subtle`: `personal now
-  week 66%   no 5-hour limit`.
+  name in `text.muted` and its use bold in its level's colour (see `usage`, the printout): `side now
+  week 78%   5-hour 13%   fable week 4%`, in the order of care. Every window shows, used or not,
+  each model's own on `w` (see The Overview). A window the account doesn't have (see `usage`, the
+  printout) says so in place of its name and use, in `text.subtle`:
+  `personal now week 66%   no 5-hour limit`.
 - **Account names are white** wherever named: bold `text.primary` where it runs (`on side`) and on
   an account's own row, `text.secondary` everywhere else, the story's labels and a turn's `on` among
   them, so a name reads as an account and not a word.
@@ -6019,9 +6013,8 @@ key moves no session. Its frames are in the Paper file *Switchboard · Routing*,
 · routing · signed off · 7 Oct 2026**; its references are `testdata/vhs/reference/routing-*`:
 `routing-auto-160` (new sessions' card as it opens, on auto), `routing-two-160` (two accounts
 picked), `routing-move-160` (`m` ticked), `routing-session-160` (a session's card) and
-`routing-limit-160` (an account at its cap and one at its limit), and `routing-mixed-160` (work
-and personal without a 5-hour window). No page's own frames draw it: it's
-one card, drawn over any page.
+`routing-limit-160` (an account at its cap and one at its limit), and `routing-mixed-160` (work and
+personal without a 5-hour window). No page's own frames draw it: it's one card, drawn over any page.
 
 Two things are routed by hand, and **the page decides which,** never what's focused or chosen:
 
@@ -6096,12 +6089,12 @@ On the Overview, `r` hides ROUTING, which touches no routing.
      `text.subtle` not; a session's card picks one, `●` and `○` the same. A row's mark is its one
      mark: an account's state has no dot.
    - **The state,** a word: `open` in `state.positive`, or `closed` in the colour of why.
-   - **The windows,** in the order of care: `week 66%` and `5-hour 39%`, the words in `text.muted` and the figures in
-     bold, coloured by level as `usage` colours them, in their columns so they read down; kept for a
-     closed account, as it can still be picked or they say why it's closed. A window the account
-     doesn't have (see `usage`, the printout) reads `no 5-hour limit` in `text.subtle` in its
-     place, its column as wide as those words wherever any account's may say them, so the rows
-     hold still; with no account on a 5-hour, the card shows the week alone.
+   - **The windows,** in the order of care: `week 66%` and `5-hour 39%`, the words in `text.muted`
+     and the figures in bold, coloured by level as `usage` colours them, in their columns so they
+     read down; kept for a closed account, as it can still be picked or they say why it's closed. A
+     window the account doesn't have (see `usage`, the printout) reads `no 5-hour limit` in
+     `text.subtle` in its place, its column as wide as those words wherever any account's may say
+     them, so the rows hold still; with no account on a 5-hour, the card shows the week alone.
    - **At the right edge:** a closed account's reason, in the colour of why, `at its cap till
      17:10`; else its sessions running, the count in bold `text.secondary` and ` running` in
      `text.muted`; else nothing.
@@ -7705,67 +7698,69 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   hold a prompt) and `exit` (status and duration): at `info` for the router, at `debug` for
   commands, so a statusline running `status` every few seconds doesn't flood `cli.log`. `run`
   becomes `claude`, by `exec`, before it would log its exit: its last record is the launch.
-- **The router's own events:** at `info`, each prime, with the reset it read; an account held back
-  by its reserve, and let go at its reset; each choice that passes an account over as under
-  pressure, with its rate and when it runs out at it (`passed over under pressure`), the routed
-  line's reason naming it too; a limit a 429 to a request sent before a reset made by hand
-  reaches, passed over as the request goes out again (`limit from before a reset passed over`); a
-  token file read again after a 401, and whether it held a different token; a token replaced
-  while the router was away, which it finds as it starts; a token file found holding another
-  token, an account gaining a usable token, and one losing it, with why; the tokens directory made
-  private as the router starts, and what bringing the skill up to
+- **The router's own events:** at `info`, each prime, with the reset it read, or that it read no
+  window to prime (`no window to prime`); the priming schedule worked out again over other accounts
+  (`priming schedule worked out again`); a window every model shares an account's whole reading
+  retires (`no longer reports the window`), and one read again after it was
+  (`reports the window again`); an account held back by its reserve, and let go at its reset; each
+  choice that passes an account over as under pressure, with its rate and when it runs out at it
+  (`passed over under pressure`), the routed line's reason naming it too; a limit a 429 to a request
+  sent before a reset made by hand reaches, passed over as the request goes out again
+  (`limit from before a reset passed over`); a token file read again after a 401, and whether it
+  held a different token; a token replaced while the router was away, which it finds as it starts; a
+  token file found holding another token, an account gaining a usable token, and one losing it, with
+  why; the tokens directory made private as the router starts, and what bringing the skill up to
   date did; a config change, and an upgrade; the tokens of an account the config no longer
   configures counting as the primary's; a restart either makes due, once, and the restart as it
   goes: `replacing itself`, with the binary's path, why, and the listeners handed over, as the
   variable names them, and, from the router it becomes, after its `start`, with its version, each
   listener it takes up; each try again of a binary that isn't there; and a restart a signal stops.
-  At `warn`: as the router starts, each account without a usable token, and, when none has one,
-  that nothing will be routed until one has; a prime that failed, or didn't start the window; a
-  config change refused, as invalid at two looks in a row; a restart that couldn't replace the
-  process, and exits instead; and listeners handed over that couldn't be taken up. At `debug`, a
-  token file found holding no usable token at one look, which the account's token outlasts; a
-  config file found making no valid config at one look; of a probe on a token its account has
-  since replaced, or that ends while it has none usable, its failure or a window it couldn't read,
-  as neither is kept, though a prime's
-  failure is warned of as any is; a window a probe couldn't read, which is warned of as a probe
-  first finds it unread since it was last read, then once a half hour at most, until it's read or
-  its account starts afresh (`window unread`);
-  and why the first request after a session's compaction leaves it where it is, and, where it's
-  known, what the account judged would have left of its week (`stays after compaction`, see
-  Choosing an account). Of the readings
-  history (see Files): at `info`, how many readings the router took up from it as it started
-  (`took up the readings history`), and that it's written again after failing (`writing the
-  readings history again`); at `warn`, that its directory can't be made private (`can't make the
-  readings history private`), that it can't be written, once until it can be (`can't write the
-  readings history`), that readings were dropped from it for its falling behind, once until it
-  catches up (`readings history fell behind`), that a reading can't be put as a line, once
-  (`readings history can't hold a reading`), how many of its lines couldn't be read as a reading
-  as it was taken up (`readings history lines unread`), a file or its directory that can't be
-  read (`can't read the readings history`), and a file cut short or damaged as it was read
-  (`readings history read short`), each file once until it reads to its end again, as
-  `GET /history` reads them again and again; a file that couldn't be compressed (`can't compress
-  the readings history`); and a file, or the directory, that couldn't be pruned (`can't prune the
-  readings history`). Of the request ledger (see The request ledger): at `info`, each day it
-  summarises, and summarises again (`summarised a day of the request ledger`, with the day and its
-  lines), and that it's written again after failing (`writing the request ledger again`); at
-  `warn`, that its directory can't be made private, that it can't be written, once until it can be
-  (`can't write the request ledger`), that lines were dropped from it for its falling behind, once
-  until it catches up (`request ledger fell behind`), that a request's line can't be put as JSON,
-  once, a file that can't be read or was read short, as the readings history's are warned of, how
-  many of a day's lines couldn't be read as a line as it was summarised (`request ledger lines
-  unread`), a summary that doesn't read as its day's, which is summarised again (`can't read the
-  request ledger's summary of a day; summarising it from its lines`), a file that couldn't be
-  compressed or pruned, a day that couldn't be summarised, as one of its files, or its summary,
-  can't be read, at each round until it can be (`can't summarise the request ledger`), a summary
-  that couldn't be marked afresh once it was found to stand, whose day's lines are counted again
-  at the next round (`can't mark the request ledger's summary of a day; its lines are counted
-  again at the next round`), or stamped, which is read again at the next round (`can't stamp the
-  request ledger's summary of a day; it's read again at the next round`), and that
-  the router stopped with requests it routed still in flight, whose lines go unwritten, saying how
-  many (`requests still in flight as the router stops; their lines go unwritten`). Of the router's
-  events' files (see The router's events), at `warn`, as the request ledger's are: lines dropped for
-  the queue's falling behind, once until it catches up; a write that fails, once until one succeeds;
-  a file read short; and a file that couldn't be compressed or pruned.
+  At `warn`: as the router starts, each account without a usable token, and, when none has one, that
+  nothing will be routed until one has; a prime that failed, or didn't start the window; a config
+  change refused, as invalid at two looks in a row; a restart that couldn't replace the process, and
+  exits instead; and listeners handed over that couldn't be taken up. At `debug`, a token file found
+  holding no usable token at one look, which the account's token outlasts; a config file found
+  making no valid config at one look; of a probe on a token its account has since replaced, or that
+  ends while it has none usable, its failure or a window it couldn't read, as neither is kept,
+  though a prime's failure is warned of as any is; a window a probe couldn't read, which is warned
+  of as a probe first finds it unread since it was last read, then once a half hour at most, until
+  it's read or its account starts afresh (`window unread`); and why the first request after a
+  session's compaction leaves it where it is, and, where it's known, what the account judged would
+  have left of its week (`stays after compaction`, see Choosing an account). Of the readings history
+  (see Files): at `info`, how many readings the router took up from it as it started
+  (`took up the readings history`), and that it's written again after failing
+  (`writing the readings history again`); at `warn`, that its directory can't be made private
+  (`can't make the readings history private`), that it can't be written, once until it can be
+  (`can't write the readings history`), that readings were dropped from it for its falling behind,
+  once until it catches up (`readings history fell behind`), that a reading can't be put as a line,
+  once (`readings history can't hold a reading`), how many of its lines couldn't be read as a
+  reading as it was taken up (`readings history lines unread`), a file or its directory that can't
+  be read (`can't read the readings history`), and a file cut short or damaged as it was read
+  (`readings history read short`), each file once until it reads to its end again, as `GET /history`
+  reads them again and again; a file that couldn't be compressed
+  (`can't compress the readings history`); and a file, or the directory, that couldn't be pruned
+  (`can't prune the readings history`). Of the request ledger (see The request ledger): at `info`,
+  each day it summarises, and summarises again (`summarised a day of the request ledger`, with the
+  day and its lines), and that it's written again after failing
+  (`writing the request ledger again`); at `warn`, that its directory can't be made private, that it
+  can't be written, once until it can be (`can't write the request ledger`), that lines were dropped
+  from it for its falling behind, once until it catches up (`request ledger fell behind`), that a
+  request's line can't be put as JSON, once, a file that can't be read or was read short, as the
+  readings history's are warned of, how many of a day's lines couldn't be read as a line as it was
+  summarised (`request ledger lines unread`), a summary that doesn't read as its day's, which is
+  summarised again (`can't read the request ledger's summary of a day; summarising it from its
+  lines`), a file that couldn't be compressed or pruned, a day that couldn't be summarised, as one
+  of its files, or its summary, can't be read, at each round until it can be
+  (`can't summarise the request ledger`), a summary that couldn't be marked afresh once it was found
+  to stand, whose day's lines are counted again at the next round (`can't mark the request ledger's
+  summary of a day; its lines are counted again at the next round`), or stamped, which is read again
+  at the next round (`can't stamp the request ledger's summary of a day; it's read again at the next
+  round`), and that the router stopped with requests it routed still in flight, whose lines go
+  unwritten, saying how many (`requests still in flight as the router stops; their lines go
+  unwritten`). Of the router's events' files (see The router's events), at `warn`, as the request
+  ledger's are: lines dropped for the queue's falling behind, once until it catches up; a write that
+  fails, once until one succeeds; a file read short; and a file that couldn't be compressed or
+  pruned.
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -8189,33 +8184,32 @@ hiding it behind the provider would take a wider interface than it's worth:
   account's last readings, with the model families each window has been seen to count, when each
   window was last read, and when a window started again, as its reading's `restarted_at`, so a
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
-  `windows_absent` (see How it works), and beside them how its probes went, `probed`,
-  `probe_error` and `misses` (see The router's rounds), and the hashes of every configured account's
-  tokens, with a usable token or not: see Accounts and tokens; and the token-year
-  notifications told, an account's against the token they were told for: see Notifications),
-  `control.sock`, `tokens/`, `logs/`,
-  `history/` and `ledger/`. `state.json` is versioned, the version changing only when a router
-  couldn't read what another wrote: an older file, without readings, loads as having none, one
-  whose readings lack `restarted_at` as windows that run a whole length before their resets, which
-  a router from before, ignoring the field, takes them all for, one whose readings lack when each
-  window was read as windows unread (see The router's rounds), one without the probes as accounts
-  none of whose probes has ended, which a router from before them, ignoring the fields, takes them
-  all for, one without `windows_absent` as accounts that have every window they report, a reading
-  that holds nothing else as none, and a pin that names its account
-  alone, as pins did before they named several, as a pin to that one. It's rewritten whole (written
-  beside it, synced, and renamed over it) a second after a change and on the way out, but once a
-  minute at most while its only changes are routine: those every request makes, its session's
-  assignment used again and the reading off its answer, and those every probe makes, how it went
-  and a reading, extra usage among it, as before; and drops assignments unused for 7 days, with the pins of
-  the sessions it forgets, and the hashes of tokens replaced 7 days before, at start and then
-  hourly. At start it also drops the assignments and the sessions' own pins of accounts no longer
-  configured, those accounts from the global pin, which goes with the last of them, and their
-  readings, and keeps their token hashes as the primary's former tokens, which an account
-  configured again takes back (see Accounts and tokens);
-  those of a configured account whose token file can't be read are kept, as the file may only have
-  been caught while it's rewritten, and choices pass the account over until it has a token. A
-  corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it;
-  the newest 3 set aside are kept, and older ones removed as another is set aside.
+  `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
+  and `misses` (see The router's rounds), and the hashes of every configured account's tokens, with
+  a usable token or not: see Accounts and tokens; and the token-year notifications told, an
+  account's against the token they were told for: see Notifications), `control.sock`, `tokens/`,
+  `logs/`, `history/` and `ledger/`. `state.json` is versioned, the version changing only when a
+  router couldn't read what another wrote: an older file, without readings, loads as having none,
+  one whose readings lack `restarted_at` as windows that run a whole length before their resets,
+  which a router from before, ignoring the field, takes them all for, one whose readings lack when
+  each window was read as windows unread (see The router's rounds), one without the probes as
+  accounts none of whose probes has ended, which a router from before them, ignoring the fields,
+  takes them all for, one without `windows_absent` as accounts that have every window they report, a
+  reading that holds nothing else as none, and a pin that names its account alone, as pins did
+  before they named several, as a pin to that one. It's rewritten whole (written beside it, synced,
+  and renamed over it) a second after a change and on the way out, but once a minute at most while
+  its only changes are routine: those every request makes, its session's assignment used again and
+  the reading off its answer, and those every probe makes, how it went and a reading, extra usage
+  among it, as before; and drops assignments unused for 7 days, with the pins of the sessions it
+  forgets, and the hashes of tokens replaced 7 days before, at start and then hourly. At start it
+  also drops the assignments and the sessions' own pins of accounts no longer configured, those
+  accounts from the global pin, which goes with the last of them, and their readings, and keeps
+  their token hashes as the primary's former tokens, which an account configured again takes back
+  (see Accounts and tokens); those of a configured account whose token file can't be read are kept,
+  as the file may only have been caught while it's rewritten, and choices pass the account over
+  until it has a token. A corrupt one is set aside as `state.json.corrupt-<unix time>`, and the
+  router starts without it; the newest 3 set aside are kept, and older ones removed as another is
+  set aside.
 - **Readings history:** `<state dir>/history/readings-<local date>.jsonl`, a file a day, 0600 in a
   0700 directory, for looking back at how the accounts were used. The router appends a line, as
   the file is opened to append, for each reading that changes how a window of an account reads,
@@ -8380,7 +8374,7 @@ id    = "side"
 label = "Side"
 plan  = "max"
 
-[prime]                            # optional: start the 5-hour windows, where accounts have them, on a staggered schedule
+[prime]                            # optional: stagger the 5-hour windows accounts have
 day = "08:00-23:00"                # local time; an end before the start means past midnight
 
 [notifications]                    # optional: which desktop notifications to post
@@ -8514,10 +8508,10 @@ fails as it is; one that parses has every problem reported at once:
 - The session key is `X-Claude-Code-Session-Id` plus the request's model. A request without the
   header is never remembered, and but for a launch pin it carries, is decided afresh every time,
   as a new session's is.
-- Which windows apply to a request: `5h` and `7d` apply to every model, where the account has
-  them: a verified Ultra account has no `5h` (see How it works). Any other window applies
-  to the model families it has been seen on (responses and probes reveal this), and to every model
-  until it has been seen. A family is read from the model id: haiku, sonnet, opus or fable.
+- Which windows apply to a request: `5h` and `7d` apply to every model, where the account has them:
+  a verified Ultra account has no `5h` (see How it works). Any other window applies to the model
+  families it has been seen on (responses and probes reveal this), and to every model until it has
+  been seen. A family is read from the model id: haiku, sonnet, opus or fable.
 - Whether a model's thinking is bound to the account that produced it is read from the model id
   too, against the list in `internal/claude`: an id starting `claude-sonnet-5-5`, Claude Sonnet
   5.5's, today.
@@ -8557,7 +8551,7 @@ probing.
 | `fallback` | Why a probed document isn't the router's, when the router was asked first: `{router: "not running"}`, or `{router: "unhealthy", reason}`. Left out otherwise, and when probing was asked for |
 | `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, passing over those under pressure while another isn't, as Choosing an account says. From the router, with a global pin, it's where a new session goes, as step 4 of the order Choosing an account gives says: the best of the accounts the pin names while one has room, their reserves spent, or the first of them with room when none can be scored; else the best of every account. Left out when none qualifies, as when none has room, or none has been read yet |
 | `primary` | The primary account's id |
-| `prime` | The priming schedule, when the config sets a day and an account has a usable token: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token and that window to prime its daily prime, an account whose answers retired it having none (see Priming), `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand, left out when they can't say, as for a window read without a reset, and while the account's token is refused or it can take no request (see Priming). Left out otherwise |
+| `prime` | The priming schedule, when the config sets a day and an account has a usable token: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token its daily prime, an account without that window having none (see Priming), `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand, left out when they can't say, as for a window read without a reset, and while the account's token is refused or it can take no request (see Priming). Left out otherwise |
 | `pin` | *router* The global pin, `{accounts, account, since, move}`: `accounts` the ids of the accounts it names, in the config's order, and `account` the first of them, as a pin named its one account before pins named several; left out when there's none |
 | `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again; and `held` why its binary refuses to start, as it said, which holds the restart until the config file or the binary changes, left out while it isn't held. Left out while none is due (see The router looking after itself) |
@@ -9528,9 +9522,9 @@ any of it. Times are the Mac's, UTC+1.
   ones carrying the week without the 5-hour were that account's, after it lost the window, and none
   carried the 5-hour without the week; a probe, taking every model family's windows together, lacks
   the 5-hour only where every family's answer did. The router kept the account's last 5-hour
-  reading, which aged into a lapsed window it primed every five minutes, each prime failing to
-  start it. Hence a whole reading retiring a window it doesn't report, learnt from the answers and
-  never the plan (see How it works), and the views' rule for a window an account doesn't have (see
+  reading, which aged into a lapsed window it primed every five minutes, each prime failing to start
+  it. Hence a whole reading retiring a window it doesn't report, learnt from the answers and never
+  the plan (see How it works), and the views' rule for a window an account doesn't have (see
   `usage`, the printout).
 
 ## Checks owed
