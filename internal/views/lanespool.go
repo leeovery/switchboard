@@ -4,9 +4,9 @@ import "slices"
 
 // Pool is the pool's lane: Of, how many of the pool's accounts, the pin's
 // while it holds, have or may have the window the view is named for, as
-// poolCounts has it, none where there's no pool's lane, as with one account,
-// or one lane; Key, that window's key, whose room the pool's room line
-// gives; and each column's count of them with room.
+// poolCounts has it, none where there's no pool's lane, as with one account;
+// Key, that window's key, whose room the pool's room line gives; and each
+// column's count of them with room.
 type Pool struct {
 	Of      int
 	Key     string
@@ -34,13 +34,14 @@ func (p Pool) Limited() bool {
 }
 
 // poolOf is the pool's lane over the accounts' lanes given, as Pool has it:
-// none where there's one lane, nor where the pool has none, as poolCounts
-// has it.
+// none where the moment has no pool, as with one account, nor where the pool
+// has none, as poolCounts has it, though a lane of one is left, as where a
+// pin names one account.
 func (from LanesFrom) poolOf(lanes []Lane) Pool {
-	if len(lanes) < 2 {
+	in := from.Moment.Pool().Accounts
+	if len(in) == 0 {
 		return Pool{}
 	}
-	in := from.Moment.Pool().Accounts
 	members := slices.DeleteFunc(slices.Clone(lanes), func(l Lane) bool { return !slices.Contains(in, l.ID) })
 	of, ok := from.poolCounts(len(members))
 	if !ok {
