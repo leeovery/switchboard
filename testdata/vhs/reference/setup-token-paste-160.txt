@@ -8,7 +8,7 @@ ACCOUNTS  ───────────────────────�
 
      ACCOUNT         LABEL         PLAN       RESERVE    TOKEN
 
-  1  work ◆          Work          Max 20x    none                                 expires 27 Oct 2027  ·  365 days left
+  1  work ◆          Work          Ultra      none                                 expires 27 Oct 2027  ·  365 days left
 
 ▌ +  add an account
                                         ╭─ PASTE A TOKEN · PERSONAL ───────────────────────────────────────────────────╮

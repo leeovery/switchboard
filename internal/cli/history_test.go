@@ -412,7 +412,7 @@ func TestHistorysTextCountsOneAsOne(t *testing.T) {
 		Days:   aDayOfARequest,
 		Totals: views.Totals{Accounts: []views.AccountTotals{{Account: "work", LongestRun: 1}, {All: true, LongestRun: 1}}},
 		Plans: []views.PlanCost{
-			{Account: "work", Plan: "max20x", Price: &price}, {All: true, Price: &price, Plans: views.PlansKnown{Known: 1, Of: 1}},
+			{Account: "work", Plan: "ultra", Price: &price}, {All: true, Price: &price, Plans: views.PlansKnown{Known: 1, Of: 1}},
 		},
 		Capacity: views.Capacity{Weeks: 1, Verdict: "about right", Accounts: []views.AccountVerdict{{Account: "work", Verdict: "hits its limit most weeks", Weeks: 1, Limits: 1, LeftAtReset: new(0.0)}}},
 	}
@@ -459,8 +459,8 @@ func TestHistorysTotalsSayTheirFiguresAsTheDashboardDoes(t *testing.T) {
 			want: "  worth                   <$0.01\n"},
 		{name: "worth part unpriced", totals: views.AccountTotals{Amount: dollars(150), Unpriced: []string{"no_usage"}},
 			want: "  worth                   $1.50+\n"},
-		{name: "the plan's price a month, its thousands set apart", plan: views.PlanCost{Plan: "max20x", Price: dollars(100_000)},
-			want: "  plan                    Max 20x · $1,000/mo\n"},
+		{name: "the plan's price a month, its thousands set apart", plan: views.PlanCost{Plan: "ultra", Price: dollars(100_000)},
+			want: "  plan                    Ultra · $1,000/mo\n"},
 		{name: "against its price to a tenth, a half rounded to the even one", plan: views.PlanCost{Cost: dollars(4600), Ratio: new(3.85)},
 			want: "  against its price       3.8× its $46\n"},
 		{name: "against a price of thousands, set apart", plan: views.PlanCost{Cost: dollars(138_000), Ratio: new(1.0)},

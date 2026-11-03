@@ -72,7 +72,7 @@ const (
 )
 
 // What the add card says: what an account is, over its fields.
-const addCardIntro = "Each account is one Claude subscription: a Pro or Max plan."
+const addCardIntro = "Each account is one Claude subscription: a Pro, Max or Ultra plan."
 
 // addTokenSays is what the add card says of the token setup makes next, in
 // text.secondary, in the lines the card breaks it into.

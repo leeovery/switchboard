@@ -20,10 +20,10 @@ import "slices"
 //
 // Beside the models, it prices the plans a subscription is on, a month, in US
 // dollars, each at the price it launched at, unchanged since: Pro on 7
-// September 2023, and the two Max plans on 9 April 2025. And it names the
-// models' versions, a row each, by family, in the order Families gives,
-// Opus, Sonnet, Fable, then Haiku, and within a family newest first, by the
-// day each launched.
+// September 2023, and Max and Ultra, launched as Max 5x and Max 20x, on 9
+// April 2025. And it names the models' versions, a row each, by family, in
+// the order Families gives, Opus, Sonnet, Fable, then Haiku, and within a
+// family newest first, by the day each launched.
 var Pricing = Table{AsOf: "2026-10-11", Plans: plans, Versions: versions, Models: []Model{
 	priced("2026-09-01", 10, 12.50, 20, 0.25, 50, usOnly, "claude-fable-5-1"),
 	priced("2026-06-09", 10, 12.50, 20, 1, 50, usOnly, "claude-fable-5"),
@@ -44,8 +44,8 @@ var Pricing = Table{AsOf: "2026-10-11", Plans: plans, Versions: versions, Models
 // plans are the plans the price table prices.
 var plans = []Plan{
 	plan("pro", "Pro", 1, "2023-09-07", 20),
-	plan("max5x", "Max 5x", 5, "2025-04-09", 100),
-	plan("max20x", "Max 20x", 20, "2025-04-09", 200),
+	plan("max", "Max", 5, "2025-04-09", 100),
+	plan("ultra", "Ultra", 10, "2025-04-09", 200),
 }
 
 // versions are the version table's rows.

@@ -81,7 +81,7 @@ func TestWeeksPageIsTheEightWeeksToThisOneEachAccountsPeakInEach(t *testing.T) {
 // could go.
 func TestWeeksPageJudgesAnAccountThatCouldGoOnTheFigureBesideIt(t *testing.T) {
 	days := peaking(map[string][]float64{"work": slices.Repeat([]float64{0.5}, 7), "spare": slices.Repeat([]float64{0.104}, 7)})
-	page := weeksPageOf(days, config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "spare", Plan: "pro"}})
+	page := weeksPageOf(days, config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "spare", Plan: "pro"}})
 	spare := page.Accounts[1]
 	if spare.Used == nil {
 		t.Fatalf("spare's use isn't given, its verdict %q", spare.Verdict)
@@ -138,7 +138,7 @@ func TestWeeksPageComparesTheWeeksShortWithoutTheOneToDropWithNows(t *testing.T)
 			// By their plans, the rest cover spare: none is short with or
 			// without it, which isn't the same weeks short, as there are none.
 			name:     "none short either way",
-			accounts: config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side", Plan: "max5x"}, {ID: "spare", Plan: "pro"}},
+			accounts: config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "side", Plan: "max"}, {ID: "spare", Plan: "pro"}},
 			peaks: map[string][]float64{"work": {0.5, 0.6, 0.4, 0.5, 0.6, 0.5, 0.4}, "side": {0.2, 0.2, 0.3, 0.2, 0.2, 0.3, 0.2},
 				"spare": {0.05, 0.1, 0, 0.05, 0.1, 0.05, 0}},
 			drop: "spare", price: &price, noneShortWithout: true,
@@ -150,16 +150,16 @@ func TestWeeksPageComparesTheWeeksShortWithoutTheOneToDropWithNows(t *testing.T)
 			drop:  "side", sameWeeks: true, noneShortWithout: true,
 		},
 		{
-			// Work, on Pro, hit its limit the first week, which side, on Max
-			// 20x, would have covered; but without work, side would have hit
-			// its own the second.
-			name: "as many weeks short, but others", accounts: config.Accounts{{ID: "work", Plan: "pro"}, {ID: "side", Plan: "max20x"}},
+			// Work, on Pro, hit its limit the first week, which side, on
+			// Ultra, would have covered; but without work, side would have
+			// hit its own the second.
+			name: "as many weeks short, but others", accounts: config.Accounts{{ID: "work", Plan: "pro"}, {ID: "side", Plan: "ultra"}},
 			peaks: map[string][]float64{"work": {1, 0.5}, "side": {0, 0.98}},
 			drop:  "work", price: &price,
 		},
 		{
-			// Side, on Max 20x, would have covered work's limit, on Pro.
-			name: "fewer weeks short", accounts: config.Accounts{{ID: "work", Plan: "pro"}, {ID: "side", Plan: "max20x"}},
+			// Side, on Ultra, would have covered work's limit, on Pro.
+			name: "fewer weeks short", accounts: config.Accounts{{ID: "work", Plan: "pro"}, {ID: "side", Plan: "ultra"}},
 			peaks: map[string][]float64{"work": {1, 0.5}, "side": {0, 0.5}},
 			drop:  "work", price: &price, noneShortWithout: true,
 		},

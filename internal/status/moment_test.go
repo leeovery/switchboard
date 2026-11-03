@@ -433,21 +433,47 @@ func TestTheWindowsShownAndHiddenAreNamed(t *testing.T) {
 	}
 }
 
-func TestAWindowAnAccountHasntReportedStandsUnread(t *testing.T) {
-	doc := routerDocOf(readAt("work", windowIn("5h", 0.2, 3*time.Hour)), status.Account{ID: "personal", Label: "personal"})
+// A window an account hasn't reported stands unread, or without a usable
+// token; but one every model shares stands as none, of no such limit, where
+// the account lacks it: read, with a usable token, reporting another such
+// window, and its probe not failing to read it. A model's own window is
+// never lacking, as only that model's answers report it.
+func TestAWindowAnAccountHasntReportedStandsUnreadUnlessItLacksIt(t *testing.T) {
+	week, session := windowIn("7d", 0.3, 3*day), windowIn("5h", 0.2, 3*time.Hour)
+	failed := readAt("failed", week)
+	failed.Failures = []quota.Failure{{Label: "Session", Window: "5h", Error: "HTTP 529"}}
+	doc := routerDocOf(
+		readAt("read", session, week),
+		status.Account{ID: "unread", Label: "unread", TokenSet: true},
+		status.Account{ID: "tokenless", Label: "tokenless"},
+		with(readAt("tokenless-read", week), func(a *status.Account) { a.TokenSet = false }),
+		failed,
+		readAt("lacking", week),
+		readAt("fable-only", windowIn("7d_oi", 0.2, 3*day)),
+	)
 	m := doc.At(built, policy)
 	tests := []struct {
-		account string
-		want    status.WindowKind
+		name, account, key string
+		want               status.WindowNow
+		ok                 bool
 	}{
-		{account: "work", want: status.WindowUnread},
-		{account: "personal", want: status.WindowTokenless},
+		{name: "read", account: "read", key: "5h", want: status.WindowNow{WindowName: status.WindowName{Key: "5h", Label: "Session", Name: "5-hour"}, Kind: status.WindowOpen}, ok: true},
+		{name: "unread", account: "unread", key: "5h", want: status.WindowNow{WindowName: status.WindowName{Key: "5h"}, Kind: status.WindowUnread}},
+		{name: "tokenless", account: "tokenless", key: "5h", want: status.WindowNow{WindowName: status.WindowName{Key: "5h"}, Kind: status.WindowTokenless}},
+		{name: "tokenless, though read", account: "tokenless-read", key: "5h", want: status.WindowNow{WindowName: status.WindowName{Key: "5h"}, Kind: status.WindowTokenless}},
+		{name: "its probe failed to read it", account: "failed", key: "5h", want: status.WindowNow{WindowName: status.WindowName{Key: "5h"}, Kind: status.WindowUnread}},
+		{name: "a model's own window", account: "read", key: "7d_oi", want: status.WindowNow{WindowName: status.WindowName{Key: "7d_oi"}, Kind: status.WindowUnread}},
+		{name: "reporting only a model's own window", account: "fable-only", key: "5h", want: status.WindowNow{WindowName: status.WindowName{Key: "5h"}, Kind: status.WindowUnread}},
+		{name: "lacking it", account: "lacking", key: "5h", want: status.WindowNow{WindowName: status.WindowName{Key: "5h", Label: "5h", Name: "5-hour"}, Kind: status.WindowNone}},
 	}
 	for _, tt := range tests {
-		a, _ := m.Account(tt.account)
-		if w, ok := a.Window("7d"); ok || w.Key != "7d" || w.Kind != tt.want {
-			t.Errorf("%s's week, unreported, stands as %+v, %v; want of kind %d alone, and false", tt.account, w, ok, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			a, _ := m.Account(tt.account)
+			w, ok := a.Window(tt.key)
+			if ok != tt.ok || w.WindowName != tt.want.WindowName || w.Kind != tt.want.Kind {
+				t.Errorf("%s's Window(%q) = %+v of kind %d, %v; want %+v of kind %d, %v", tt.account, tt.key, w.WindowName, w.Kind, ok, tt.want.WindowName, tt.want.Kind, tt.ok)
+			}
+		})
 	}
 	if _, ok := m.Account("spare"); ok {
 		t.Errorf("Account(\"spare\") reports one, want none: the document has no such account")
@@ -1147,6 +1173,79 @@ func TestAHeldMomentIsItsDocumentsAtItsNow(t *testing.T) {
 		if got := tt.held.Of(tt.doc, tt.now, tt.policy); got != tt.want {
 			t.Errorf("%s: Of() = %v, want %v", tt.name, got, tt.want)
 		}
+	}
+}
+
+// A held moment knows which windows every model shares each account has or
+// may have as the moment does, held before the moment is worked out or
+// after; an account the document doesn't hold yet, and any of none held,
+// may have every one.
+func TestAHeldMomentKnowsTheWindowsEachAccountHasAsTheMomentDoes(t *testing.T) {
+	week := windowIn("7d", 0.3, 3*day)
+	doc := routerDocOf(
+		readAt("work", windowIn("5h", 0.2, 3*time.Hour), week),
+		readAt("ultra", week),
+		status.Account{ID: "unread", Label: "unread", TokenSet: true},
+		readAt("fable-only", windowIn("7d_oi", 0.2, 3*day)),
+	)
+	m := doc.At(built, policy)
+	ultra, _ := m.Account("ultra")
+	if w, _ := ultra.Window("5h"); w.Kind != status.WindowNone {
+		t.Fatalf("ultra's 5-hour is of kind %d, not lacking, so the case proves nothing", w.Kind)
+	}
+	for _, held := range []*status.HeldMoment{doc.HoldAt(built, policy), m.Held()} {
+		for _, a := range m.Accounts {
+			for _, key := range []string{"5h", "7d", "7d_oi"} {
+				w, _ := a.Window(key)
+				if got, want := held.Has(key, a.ID), w.Kind != status.WindowNone; got != want {
+					t.Errorf("Has(%q, %q) = %v, want %v, as the moment has the window, of kind %d", key, a.ID, got, want, w.Kind)
+				}
+			}
+		}
+		if !held.Has("5h", "spare") {
+			t.Error(`Has("5h", "spare") = false, want true: an account the document doesn't hold yet may have it`)
+		}
+	}
+	var none *status.HeldMoment
+	if !none.Has("5h", "work") {
+		t.Error(`none held: Has("5h", "work") = false, want true`)
+	}
+}
+
+// A held moment says some account it holds has, or may have, a window every
+// model shares, as the moment's SharedWindows keep it, held before the
+// moment is worked out or after: false only where it holds accounts and
+// every one lacks it, as a verified Ultra account lacks the 5-hour; one not
+// read yet may have it, as may any of none held, or of a moment not held.
+func TestAHeldMomentSaysWhetherAnyAccountHasAWindowAsTheMomentKeepsIt(t *testing.T) {
+	week := windowIn("7d", 0.3, 3*day)
+	ultra := func(id string) status.Account { return readAt(id, week) }
+	tests := []struct {
+		name string
+		doc  status.Document
+		want bool
+	}{
+		{name: "none held", doc: routerDocOf(), want: true},
+		{name: "every one held lacking it", doc: routerDocOf(ultra("work"), ultra("personal")), want: false},
+		{name: "one not read yet, which may have it", doc: routerDocOf(ultra("work"), status.Account{ID: "side", Label: "side", TokenSet: true}), want: true},
+		{name: "one with it", doc: routerDocOf(ultra("work"), readAt("side", windowIn("5h", 0.2, 3*time.Hour), week)), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.doc.At(built, policy)
+			if kept := slices.Contains(m.SharedWindows(), "5h"); kept != tt.want {
+				t.Fatalf("SharedWindows() keeps the 5-hour %t, want %t", kept, tt.want)
+			}
+			for _, held := range []*status.HeldMoment{tt.doc.HoldAt(built, policy), m.Held()} {
+				if got := held.AnyHas("5h"); got != tt.want {
+					t.Errorf("AnyHas(%q) = %t, want %t", "5h", got, tt.want)
+				}
+			}
+		})
+	}
+	var none *status.HeldMoment
+	if !none.AnyHas("5h") {
+		t.Error(`a moment not held: AnyHas("5h") = false, want true`)
 	}
 }
 

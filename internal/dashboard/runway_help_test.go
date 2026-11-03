@@ -4,8 +4,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -49,16 +51,36 @@ func TestRunwayHelpListsItsKeysThenEachPartInTheDesignsOrder(t *testing.T) {
 	}
 }
 
-// One account has no pool's lane, so help leaves the pool out, as the page
-// does; lanes not built yet are taken as the pool's.
-func TestRunwayHelpLeavesThePoolOutWithOneAccount(t *testing.T) {
+// pinnedToOneUnread are Runway's 5-hour lanes as views builds them over the
+// auto world the frames were drawn of, the global pin naming side, nothing
+// read of it yet: a pool's lane of one.
+func pinnedToOneUnread() *views.Lanes {
+	doc := framesDoc()
+	doc.Accounts = slices.Clone(doc.Accounts)
+	for i, a := range doc.Accounts {
+		if a.ID == "side" {
+			doc.Accounts[i] = status.Account{ID: a.ID, Label: a.Label, TokenSet: true}
+		}
+	}
+	doc.Pin = status.Pin{Accounts: []string{"side"}, Since: routedAt.Add(-time.Hour)}
+	m := doc.WorkedOut(claudeLike).At(routedAt, claudeLike)
+	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, 136), Window: views.RunwayFiveHour})
+	return &lanes
+}
+
+// Where there's no pool's lane, as with one account, or two lanes no pool's
+// lane is drawn under, help leaves the pool out, as the page does; lanes not
+// built yet are taken as the pool's.
+func TestRunwayHelpLeavesThePoolOutWithNoPoolsLane(t *testing.T) {
 	tests := []struct {
 		name  string
 		lanes *views.Lanes
 		want  []string
 	}{
-		{name: "one account", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}}}, want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
-		{name: "two accounts", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}, {ID: "personal"}}}, want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "one account", lanes: lanesOf(1), want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "two accounts", lanes: lanesOf(2), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "a pin of one not read yet, a pool's lane of one", lanes: pinnedToOneUnread(), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "two lanes, no pool's lane", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}, {ID: "side"}}}, want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 		{name: "lanes not built yet", want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
 	}
 	for _, tt := range tests {
@@ -145,7 +167,7 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the use under a name", "its use of the view's window"},
 		{"the labels collapsed", "a collapses the labels, to give the lanes more room"},
 		{"a collapsed label", "its number and its marks alone, as 2 ◆, and under them its use, as 66%"},
-		{"the pool's room collapsed", "under Σ, of how many accounts the pool is, as 1.2/3"},
+		{"the pool's room collapsed", "under Σ, of how many of the pool's accounts have the window, as 1.2/3"},
 		{"a stale account", "read 14:20 where its last read failed; and not read before its first"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},
 		{"a run of stretches", "a stretch says lifts 19:00, when its own hold lifts, and only the last says back"},
@@ -171,6 +193,9 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"stepping back a week", "first to this week from its first day, as week_starts begins weeks"},
 		{"stepping forward", "from today, or this week, to the live view"},
 		{"the other window", "< and > show the other window's live view"},
+		{"the week alone", "Where no account has a 5-hour window, as a verified Ultra account has none, there's only the week, and < > leaves the key line"},
+		{"a 5-hour view kept", "a 5-hour view kept shows the week, and the 5-hour again once an account has one"},
+		{"the 5-hour view's lanes", "The 5-hour view lists only the accounts that have one, or may yet"},
 		{"how far back", "reaches back as far as the day summaries, which are kept for good"},
 		{"past the readings' keep", "draws its lanes from its summary's limits and resets alone"},
 		{"a day stepped back to", "no now, nothing dimmed, no COMING UP and no room line"},

@@ -10,14 +10,15 @@ import (
 // draws it beside Σ pool: Timeline, the columns it's charted across, from the
 // earliest start of its accounts' windows to the latest of their resets, as
 // each window's Start and Length have them; Key, the window's; Of, how many
-// accounts the pool has; and its room in each column, its accounts' summed
-// in accounts' worth, each as PoolStack counts it, known where any's is, and
-// the share of all of theirs that leaves used, as status.PoolUsed has it. It
-// has no columns where there's no pool, as with one account, or the pool has
-// no such window, or none of its accounts' spans in it is known, or no
-// columns. Each look's is built once, by Look, from the last look's, which
-// holds each column it judged before now's while what that's judged from
-// stands.
+// of the pool's accounts have or may have the window, as the pool's window
+// counts them; and its room in each column, its accounts' summed in
+// accounts' worth, each as PoolStack counts it, known where any's is, and
+// the share of those Of counts that leaves used, as status.PoolUsed has it.
+// It has no columns where there's no pool, as with one account, or the pool
+// has no such window, as where it lacks it, or none of its accounts' spans
+// in it is known, or no columns. Each look's is built once, by Look, from
+// the last look's, which holds each column it judged before now's while what
+// that's judged from stands.
 type PoolSpan struct {
 	Timeline Timeline
 	Key      string
@@ -40,6 +41,10 @@ type PoolSpan struct {
 func (p PoolSpan) Look(from PoolRoomFrom) PoolSpan {
 	m := from.Moment
 	held := PoolSpan{then: p.then, past: p.past}
+	pooled, ok := poolWindow(m, from.Key)
+	if !ok {
+		return held
+	}
 	tl, ok := poolSpanOf(m, from.Key, from.Columns)
 	if !ok {
 		return held
@@ -48,7 +53,7 @@ func (p PoolSpan) Look(from PoolRoomFrom) PoolSpan {
 	if !ok {
 		return held
 	}
-	span := PoolSpan{Timeline: tl, Key: from.Key, Of: len(m.Pool().Accounts), Columns: make([]PoolRoomColumn, tl.Columns), then: p.then, past: past}
+	span := PoolSpan{Timeline: tl, Key: from.Key, Of: pooled.Of, Columns: make([]PoolRoomColumn, tl.Columns), then: p.then, past: past}
 	rooms := make([]AccountRoom, len(accounts))
 	for c := range span.Columns {
 		for i, a := range accounts {

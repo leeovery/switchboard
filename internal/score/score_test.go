@@ -514,6 +514,14 @@ func TestPick(t *testing.T) {
 			want: "a", wantOK: true,
 		},
 		{
+			name: "a tie between accounts reporting only the week, as verified Ultra ones do, goes to the less of its week used",
+			candidates: []score.Candidate{
+				{ID: "a", Windows: []quota.Window{window("7d", 0.9, 10*time.Hour)}},
+				{ID: "b", Windows: []quota.Window{window("7d", 0.7, 30*time.Hour)}},
+			},
+			want: "b", wantOK: true,
+		},
+		{
 			name:       "a full tie goes to the first given",
 			candidates: []score.Candidate{account("a", 0.2, 0.5, 48*time.Hour), account("b", 0.2, 0.5, 48*time.Hour)},
 			want:       "a", wantOK: true,

@@ -79,7 +79,7 @@ wanted):
   signed in to, and gives the address to open in a private window, so the browser's own session
   is left alone. Whether `setup-token` can be told the account, as `claude auth login --email` can,
   is to check.
-- **What setup asks.** Each account's plan, Pro, Max 5x or Max 20x, saying what it's for, and its
+- **What setup asks.** Each account's plan, Pro, Max or Ultra, saying what it's for, and its
   reserve. It catches an account added twice, by the organization id the API answers with: reported
   of setup tokens, to check.
 - **After setup.** `accounts edit` changes an account's label, plan, primary or reserve, and
@@ -106,7 +106,7 @@ the service's, below.
   to paste into one (Safari). It takes the token from setup-token's screen once it says it's made, checks it with
   the API as `accounts add` does, and saves it, saying it's good until a year from then. `p` pastes
   a token instead, and where reading the screen fails, setup shows setup-token's own and pasting
-  goes on as before. Then its plan: Pro, Max 5x or Max 20x, saying History prices its use against
+  goes on as before. Then its plan: Pro, Max or Ultra, saying History prices its use against
   it; Enter leaves it unset.
 - **After the accounts:** the primary, as now, then its reserve: the share of its windows the router
   leaves for the Claude apps, as a percentage; Enter for none. Other accounts' reserves are set with

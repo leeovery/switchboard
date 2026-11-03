@@ -45,7 +45,7 @@ func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 
 // A young ledger's plans are priced from its first day, whatever the period
 // it began in, on Accounts, history and the Tokens row of the week alike: of
-// work's Max 20x and side's Pro, $220 a month, from a Wednesday, this week's
+// work's Ultra and side's Pro, $220 a month, from a Wednesday, this week's
 // 5 days at 12/365 of a month to its end, the last 30 days' and the last 12
 // weeks' the days to today and to this week's end; and from the period's
 // first day, whole. A ledger that holds no day yet, as on a fresh install,

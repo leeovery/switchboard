@@ -20,6 +20,11 @@ const (
 	// WindowUnread is a window nothing has been read of: of an account
 	// nothing has been read of, or one the account hasn't reported.
 	WindowUnread
+	// WindowNone is a window every model shares that the account's reads
+	// don't carry: it has no such limit, as a verified Ultra account has no
+	// 5-hour window. Only an account's Window gives it, of a window the
+	// account lacks, as lacking says.
+	WindowNone
 	// WindowLimited is a window Claude's limit holds: it reads spent, or the
 	// router's limit names it, or names no window. Its room is back At, zero
 	// where that's unknown.
@@ -70,6 +75,9 @@ type windowStates struct {
 	// its token's or a model family's; idle where it's idle, as idleAt judges
 	// it; and pressed where it's under pressure, as underPressure judges it.
 	refusing, idle, pressed bool
+	// lacks are the keys of the windows every model shares that the account
+	// lacks, as lacking has them.
+	lacks []string
 }
 
 // windowStatesOf are how doc's account a's windows stand at now, as policy
@@ -80,6 +88,7 @@ func (d Document) windowStatesOf(a Account, now time.Time, policy score.Policy) 
 	s := windowStates{
 		doc: d, account: a, now: now, policy: policy, reached: a.reachedReserve(now),
 		refusing: a.Refused.holds(now), idle: a.idleAt(now, policy), pressed: a.underPressure(now),
+		lacks: a.lacking(policy),
 	}
 	s.stood = standing{lapsed: a.lapsedAt(now, policy), refused: a.tokenRefused(now)}
 	s.stood.held, s.stood.limited = a.held(now, policy)
@@ -89,6 +98,43 @@ func (d Document) windowStatesOf(a Account, now time.Time, policy score.Policy) 
 	}
 	s.back, s.last = s.stood.back(s.capBack, a.Refused.Until)
 	return s
+}
+
+// lacking are the keys of the windows every model shares, as policy has
+// them, that account a lacks, in the policy's order: those its reads don't
+// carry, though it has a usable token, was read, and reported another such
+// window, and that its last probe didn't fail to read. An account without a
+// usable token, or nothing read, may have any of them; and a model's own
+// window is never lacking, as only that model's answers report it.
+func (a Account) lacking(policy score.Policy) []string {
+	if !a.TokenSet || a.FetchedAt.IsZero() || !slices.ContainsFunc(policy.Shared, a.reports) {
+		return nil
+	}
+	var lacks []string
+	for _, key := range policy.Shared {
+		if !a.reports(key) && !a.failed(key) {
+			lacks = append(lacks, key)
+		}
+	}
+	return lacks
+}
+
+// lacksWindow reports whether the account lacks the window every model
+// shares with the given key, as lacking says.
+func (s windowStates) lacksWindow(key string) bool {
+	return slices.Contains(s.lacks, key)
+}
+
+// reports reports whether the account's reads carry the window with the
+// given key.
+func (a Account) reports(key string) bool {
+	return slices.ContainsFunc(a.Windows, func(w quota.Window) bool { return w.Key == key })
+}
+
+// failed reports whether the account's last probe expected the window with
+// the given key but couldn't read it.
+func (a Account) failed(key string) bool {
+	return slices.ContainsFunc(a.Failures, func(f quota.Failure) bool { return f.Window == key })
 }
 
 // capped reports whether the account's window with the given key has reached

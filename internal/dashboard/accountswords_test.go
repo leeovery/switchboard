@@ -50,7 +50,7 @@ func (f accountsFramed) row() views.AccountsRow {
 		if all {
 			price, cost = usd(600), usd(138)
 		} else {
-			row.Plan.Plan, row.PlanName = "max20x", "Max 20x"
+			row.Plan.Plan, row.PlanName = "ultra", "Ultra"
 		}
 		row.Plan.Price, row.Plan.Against = price, views.Against{Cost: cost, Ratio: new(f.ratio)}
 	}

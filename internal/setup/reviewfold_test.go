@@ -56,7 +56,7 @@ func TestCheckedFoldsEachAnswerIntoTheReview(t *testing.T) {
 	checked := checkedAll(t, s, read)
 
 	want := []setup.Reviewed{
-		{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking, Organization: "org-work"}},
+		{ID: "work", Label: "Work", Plan: "ultra", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking, Organization: "org-work"}},
 		{ID: "personal", Label: "Personal", Token: setup.TokenStanding{State: setup.TokenWorking, Year: personalYear, Organization: "org-personal"}},
 		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenNotTaken}},
 	}
@@ -250,7 +250,7 @@ func TestAnAnswerOfATokenStillReadLeavesItUnchecked(t *testing.T) {
 }
 
 func TestAnAccountsPlanIsNamedAsThePriceTableNamesIt(t *testing.T) {
-	tests := []struct{ plan, want string }{{"max20x", "Max 20x"}, {"pro", "Pro"}, {"", ""}, {"unknown", ""}}
+	tests := []struct{ plan, want string }{{"ultra", "Ultra"}, {"pro", "Pro"}, {"", ""}, {"unknown", ""}}
 	for _, tt := range tests {
 		if got := (setup.Reviewed{Plan: tt.plan}).PlanName(); got != tt.want {
 			t.Errorf("plan %q is named %q, want %q", tt.plan, got, tt.want)

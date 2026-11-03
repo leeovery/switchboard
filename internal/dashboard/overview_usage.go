@@ -269,14 +269,10 @@ type usageViews struct {
 	leaner   []usageViews
 }
 
-// views are the block's views, laid out once as it is, and once more with
-// its big bars where it has them, as enlarges says; and once as it is at each
-// step it gives way.
+// views are the block's views as it is, and as it is at each step it gives
+// way, as viewsAsLaid has each.
 func (b usageBlock) views() usageViews {
 	v := b.viewsAsLaid()
-	if b.enlarges() {
-		v.big = b.enlarged().height()
-	}
 	for given := givenApart; given <= givenKey; given++ {
 		lean := b
 		lean.given = given
@@ -285,11 +281,17 @@ func (b usageBlock) views() usageViews {
 	return v
 }
 
-// viewsAsLaid are the block's views as it's laid out, and in no other form.
+// viewsAsLaid are the block's views as it's laid out, its rows measured once
+// so, and once more with its big bars where it has them, as enlarges says;
+// else its big bars' rows are its own.
 func (b usageBlock) viewsAsLaid() usageViews {
 	all := b.height()
+	big := all
+	if b.enlarges() {
+		big = b.enlarged().height()
+	}
 	return usageViews{
-		block: b, big: all, all: all,
+		block: b, big: big, all: all,
 		whole: sync.OnceValues(func() (laid, *canvas) {
 			c := growing(b.width)
 			return b.lay(c, 0), c
@@ -401,11 +403,15 @@ func (v usageViews) shown(rows, offset int) usageShown {
 	return usageShown{block: v.block, whole: whole, paged: p, from: from, to: to}
 }
 
-// fitted is the block as USAGE draws it in rows rows: at its most, as
-// enlarged has it, where that's past its least and fits; else as it's laid
-// out. Only the rows given choose, never what it holds.
+// fitted is the block as USAGE draws it in rows rows, as it is or at a step
+// it gives way: with its big bars, as enlarged has them, where they take no
+// fewer rows than it does laid out, and fit, as with one window, whose big
+// bars take its matrix's rows; else as it's laid out. A step it gives way to
+// is never given more rows than its own matrix takes, as the planner has it,
+// so two windows or more draw the matrix at every step. Only the rows given
+// choose, never what it holds.
 func (v usageViews) fitted(rows int) usageBlock {
-	if v.all < v.big && v.big <= rows {
+	if v.all <= v.big && v.big <= rows {
 		return v.block.enlarged()
 	}
 	return v.block

@@ -133,7 +133,7 @@ func (r Reviewed) PlanName() string {
 }
 
 // PlanName is the plan, one of config.Plans, as the price table names it,
-// such as "Max 20x": "" for "", none, or one the table doesn't know.
+// such as "Ultra": "" for "", none, or one the table doesn't know.
 func PlanName(plan string) string {
 	if p, ok := ledger.Pricing.Plan(plan); ok {
 		return p.Name

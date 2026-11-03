@@ -129,7 +129,7 @@ func TestLayoutsFitTheNumbersTheyDraw(t *testing.T) {
 	if got := configuredNames(held.numbering(), config); !sameNumbers(got, drawn) {
 		t.Errorf("GLANCE lays its names out numbered %q, want %q, as drawn", numbersIn(got), numbersIn(drawn))
 	}
-	if laid, bare := layGlance(held.numbering(), config, 300), layGlance(status.Numbering{}, config, 300); laid.column != bare.column+1 {
+	if laid, bare := layGlance(held.numbering(), config, runwayWindows, 300), layGlance(status.Numbering{}, config, runwayWindows, 300); laid.column != bare.column+1 {
 		t.Errorf("GLANCE's name column is %d cells, want a cell more than the %d of numbers from 1 to 9", laid.column, bare.column)
 	}
 	if laid, bare := held.listNames(), f.listNames(); laid != bare+1 {

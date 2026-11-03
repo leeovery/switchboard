@@ -215,8 +215,10 @@ type printout struct {
 
 // printouts are usage's printouts: the auto world's every window, by window,
 // at each width a layout changes at; its 5-hour window alone, as --5h prints
-// it; by account, as --by account prints it; and work alone, with six
-// sessions on it, as its frame counts them.
+// it; by account, as --by account prints it; work alone, with six sessions
+// on it, as its frame counts them; and the worlds of verified Ultra
+// accounts, all three's and the mixed one's, the mixed one's on a phone and
+// by account too.
 var printouts = []printout{
 	{name: "usage-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.auto},
 	{name: "usage-120", size: watch.Size{Width: 120, Height: 36}, world: accountWorlds.auto},
@@ -227,6 +229,10 @@ var printouts = []printout{
 	{name: "usage-by-account-160", size: watch.Size{Width: 160, Height: 31}, world: accountWorlds.auto, by: dashboard.ByAccount},
 	{name: "usage-by-account-52", size: watch.Size{Width: 52, Height: 38}, world: accountWorlds.auto, by: dashboard.ByAccount},
 	{name: "usage-one-account-160", size: watch.Size{Width: 160, Height: 7}, world: accountWorlds.alone},
+	{name: "usage-ultra-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.ultra},
+	{name: "usage-mixed-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.mixed},
+	{name: "usage-mixed-52", size: watch.Size{Width: 52, Height: 30}, world: accountWorlds.mixed},
+	{name: "usage-mixed-by-account-160", size: watch.Size{Width: 160, Height: 31}, world: accountWorlds.mixed, by: dashboard.ByAccount},
 }
 
 // called is the printout's name.
@@ -321,9 +327,13 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // hour; by account; each model's own window shown, with w; side's Fable week
 // nearing its limit, shown with them hidden; USAGE alone; SESSIONS shown
 // too, the rest folded; six accounts and ten; at 216 columns, with SESSIONS,
-// and everything shown; on a phone; and the routing card opened
+// and everything shown; on a phone; over the worlds of verified Ultra
+// accounts, all three's and the mixed one's, on a phone and on an iPad, the
+// mixed one's with SESSIONS shown, as Paper drew it, and the mixed one's by
+// account; and the routing card opened
 // on auto, with two picked, with one picked and m ticked, and over routing's
-// world of a limit, with side picked. History's frames, each reached from
+// world of a limit, with side picked, and over the mixed world, where work
+// and personal have no 5-hour limit. History's frames, each reached from
 // the Overview with tab twice, then the keys to its view: the Year, and
 // filtered to Opus 5.5; Weeks, its table and its columns, and of ten
 // accounts; Days, and of ten; Tokens by account, and by model; and the Year
@@ -349,19 +359,23 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // frames, each reached through the Log, its story's scale pinned at 8: d28c's
 // page, and on a phone; 9c2e's; b9c4's, ended yesterday; f41a's, over its
 // world, come back this morning; d28c's with ↓ to turn 12 and enter; and
-// the routing card over 9c2e's page, with p and 3. Where no frame draws it,
+// the routing card over 9c2e's page, with p and 3; and over the mixed world,
+// d28c's, on side, and 9c2e's, on personal, which has no 5-hour limit.
+// Where no frame draws it,
 // to judge by eye: d28c's page loading, its read under way. Then Accounts'
 // frames, each reached from the Overview with tab: Compare as it opens, over
 // the auto world, ten accounts' and the bad hour's, and with >, the last 30
 // days; Detail with ], all accounts chosen, ↓ to work, and over the bad
-// hour's world, ↓ twice to personal; where no frame draws them, to judge by
+// hour's world, ↓ twice to personal, and over the mixed world, ↓ to work;
+// where no frame draws them, to judge by
 // eye, side chosen as Detail opens on Accounts, its list holding the focus,
 // and → and ↓ into its SESSIONS, d28c selected; side's SESSIONS, d28c
 // selected, opening on Accounts, so the stream first opens there, telling
 // each request in flight as it went; Detail alone, over work alone's
 // world; and on a phone, Compare, and Detail of work. Then Sessions' frames, each reached from the
 // Overview with tab three times: the Switchboard and, with ], the List, over
-// the scene's world, wide and on a phone; and, each as a later look has it,
+// the scene's world, wide and on a phone; the Switchboard over the mixed
+// world; and, each as a later look has it,
 // the Switchboard kept from a look before its moment that saw its sessions
 // in the frame's order, then left for Runway and come back to with
 // shift-tab, so its stream opens afresh: of ten accounts, of work alone, and
@@ -374,7 +388,10 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // Then Runway's frames, each reached from the Overview with tab four times:
 // the week, which it opens on, wide and on a phone; the 5-hour view, with >;
 // Wednesday, > then ← twice, today and the day before; all over the auto
-// world; and the week of ten accounts. Among each view's, at the owner's
+// world; the week of ten accounts; over the mixed world of verified Ultra
+// accounts, the week, and the 5-hour view, with >, side's lane alone; and
+// over the world of all three verified Ultra, the week, the only view it
+// offers. Among each view's, at the owner's
 // sizes, each named for its size, the frames a fluid layout is checked by:
 // the Overview on a phone, an iPad and a phone on its side; Accounts'
 // Compare on a phone and Detail of work on its side; History's Year and
@@ -402,10 +419,16 @@ var pages = []page{
 	{name: "overview-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto},
 	{name: "overview-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto},
 	{name: "overview-138x15", size: watch.Size{Width: 138, Height: 15}, world: accountWorlds.auto},
+	{name: "overview-ultra-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.ultra},
+	{name: "overview-ultra-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.ultra},
+	{name: "overview-mixed-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.mixed},
+	{name: "overview-mixed-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.mixed, keys: keysOf("s")},
+	{name: "overview-mixed-by-account-160", size: wide(42), world: accountWorlds.mixed, keys: keysOf("b")},
 	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},
 	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
 	{name: "routing-limit-160", size: wide(37), world: accountWorlds.limit, keys: keysOf("p", "3")},
+	{name: "routing-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: keysOf("p")},
 	{name: "history-year-160", size: wide(37), world: accountWorlds.auto, keys: toHistory()},
 	{name: "history-year-opus-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("v")},
 	{name: "history-year-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toHistory()},
@@ -457,6 +480,8 @@ var pages = []page{
 	{name: "session-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "session-138x15", size: watch.Size{Width: 138, Height: 15}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "routing-session-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e", keysOf("p", "3")...), scale: storyScale},
+	{name: "session-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toSession("d28c"), scale: storyScale},
+	{name: "session-mixed-ultra-160", size: wide(37), world: accountWorlds.mixed, keys: toSession("9c2e"), scale: storyScale},
 	{name: "page-session-loading", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale, loading: true},
 	{name: "accounts-compare-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-compare-month-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts(">")},
@@ -466,6 +491,7 @@ var pages = []page{
 	{name: "accounts-detail-all-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts("]")},
 	{name: "accounts-detail-work-160", size: wide(37), world: accountWorlds.auto, keys: toDetail(downKey)},
 	{name: "accounts-detail-limit-160", size: wide(37), world: accountWorlds.badHour, keys: toDetail(downKey, downKey)},
+	{name: "accounts-detail-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toDetail(downKey)},
 	{name: "accounts-detail-token-160", size: wide(37), world: accountWorlds.tokensEnding, keys: toDetail(downKey)},
 	{name: "accounts-compare-token-160", size: wide(37), world: accountWorlds.tokensEnding, keys: toAccounts()},
 	{
@@ -489,6 +515,7 @@ var pages = []page{
 	{name: "accounts-detail-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toDetail(downKey)},
 	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]")},
+	{name: "sessions-switchboard-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toSessions()},
 	{name: "sessions-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions("]")},
 	{name: "sessions-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.scene, keys: toSessions()},
@@ -523,6 +550,9 @@ var pages = []page{
 	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(">"), leftKey, leftKey)},
 	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
+	{name: "runway-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toRunway()},
+	{name: "runway-mixed-5-hour-160", size: wide(37), world: accountWorlds.mixed, keys: toRunway(">")},
+	{name: "runway-ultra-160", size: wide(37), world: accountWorlds.ultra, keys: toRunway()},
 	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-collapsed-160", size: wide(37), world: accountWorlds.auto, keys: toRunway("a")},
 	{name: "runway-collapsed-108x43", size: watch.Size{Width: 108, Height: 43}, world: accountWorlds.auto, keys: toRunway("a")},
@@ -539,6 +569,10 @@ var pages = []page{
 	{name: "graphs-glance-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toGraphs("f", "g")},
 	{name: "graphs-glance-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs("f", "g")},
 	{name: "graphs-pool-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs("f", "o")},
+	{name: "graphs-mixed-160x37", size: wide(37), world: accountWorlds.mixed, keys: toGraphs()},
+	{name: "graphs-ultra-160x37", size: wide(37), world: accountWorlds.ultra, keys: toGraphs()},
+	{name: "graphs-glance-mixed-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.mixed, keys: toGraphs("f", "g")},
+	{name: "graphs-glance-ultra-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.ultra, keys: toGraphs("g")},
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's

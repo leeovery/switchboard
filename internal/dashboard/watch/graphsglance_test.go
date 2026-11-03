@@ -15,13 +15,13 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// glanceKeys are the keys of the windows GLANCE draws, in the policy of the
-// harness's moment, in Runway's order.
+// glanceKeys are the keys of the windows GLANCE draws, at the harness's
+// moment, in Runway's order.
 func glanceKeys(r *runwayed) []string {
-	policy := r.model.moment(r.model.now()).Policy()
+	m := r.model.moment(r.model.now())
 	var keys []string
 	for _, w := range views.RunwayWindows() {
-		keys = append(keys, w.KeyIn(policy))
+		keys = append(keys, w.KeyIn(m))
 	}
 	return keys
 }

@@ -91,7 +91,7 @@ func checkCardAgrees(t *testing.T, m status.Moment, rows []RoutingRow) {
 			t.Errorf("%s: the card closes it by its cap: %v; ROUTING says it's %q", a.ID, row.Capped, a.Routing)
 		}
 		session, _ := a.Window(claudeLike.Started)
-		want := Figure{}
+		want := Figure{None: session.Kind == status.WindowNone}
 		if !drawsEmpty(session.Kind) {
 			want = Figure{Used: session.Used, Read: true, Stale: session.Kind == status.WindowStale}
 		}

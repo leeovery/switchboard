@@ -151,9 +151,9 @@ func TestTurnedComparesColumnsHoldTheirLeasts(t *testing.T) {
 func TestTurnedComparesPlansHoldStillAcrossADatedPriceChange(t *testing.T) {
 	accounts := slices.Clone(threeFramed)
 	for i := range accounts {
-		accounts[i].Plan = "max20x"
+		accounts[i].Plan = "ultra"
 	}
-	table := ledger.Table{Plans: []ledger.Plan{{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{
+	table := ledger.Table{Plans: []ledger.Plan{{ID: "ultra", Name: "Ultra", Size: 10, Prices: []ledger.PlanPrice{
 		{From: "2025-04-09", Monthly: 200 * ledger.Dollar}, {From: "2026-09-21", Monthly: 4000 * ledger.Dollar},
 	}}}}
 	var heads []string
@@ -186,7 +186,7 @@ func TestTurnedComparesPlansHoldStillAcrossADatedPriceChange(t *testing.T) {
 // known, within its share.
 func TestTurnedComparesAgainstItIsWholeAt40(t *testing.T) {
 	accounts := slices.Clone(threeFramed)
-	accounts[0].Plan, accounts[1].Plan = "max20x", "max20x"
+	accounts[0].Plan, accounts[1].Plan = "ultra", "ultra"
 	page := phonePage(t)
 	page.Rows[2].Plan.Price, page.All.Plan.Price = nil, usd(400)
 	page.All.Plan.Plans = views.PlansKnown{Known: 2, Of: 3}

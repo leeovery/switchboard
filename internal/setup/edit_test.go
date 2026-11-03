@@ -23,7 +23,7 @@ func TestEditAccountWritesAsAccountsEditDoes(t *testing.T) {
 		change accounts.Change
 	}{
 		{name: "a label", id: "personal", edit: setup.Edit{Label: new("Home")}, change: accounts.Change{Label: new("Home")}},
-		{name: "a plan", id: "personal", edit: setup.Edit{Plan: new("max5x")}, change: accounts.Change{Plan: new("max5x")}},
+		{name: "a plan", id: "personal", edit: setup.Edit{Plan: new("max5x")}, change: accounts.Change{Plan: new("max")}},
 		{name: "a plan set to none", id: "work", edit: setup.Edit{Plan: new("none")}, change: accounts.Change{Plan: new("")}},
 		{name: "the primary", id: "side", edit: setup.Edit{Primary: true}, change: accounts.Change{Primary: true}},
 		{name: "a reserve, as a percentage", id: "personal", edit: setup.Edit{Reserve: new("2.5%")}, change: accounts.Change{Reserve: new(0.025)}},
@@ -63,7 +63,7 @@ func TestEditAccountRefuses(t *testing.T) {
 	}{
 		{name: "a label of blanks", edit: setup.Edit{Label: new("  \u200b")}, field: setup.LabelField, why: "is blank, showing nothing"},
 		{name: "a label hiding the character after a sign", edit: setup.Edit{Label: new("\u0600Home")}, field: setup.LabelField, why: "holds a sign that joins the character after it, such as an Arabic number sign, which can hide that character"},
-		{name: "a plan config doesn't know", edit: setup.Edit{Plan: new("max")}, field: setup.PlanField, why: "must be pro, max5x, max20x or none"},
+		{name: "a plan config doesn't know", edit: setup.Edit{Plan: new("max10x")}, field: setup.PlanField, why: "must be pro, max, ultra or none"},
 		{name: "a reserve without its %", edit: setup.Edit{Reserve: new("5")}, field: setup.ReserveField, why: "must be written as a percentage, such as 5%, as a number alone could be a share or a percentage"},
 		{name: "a reserve that isn't a percentage", edit: setup.Edit{Reserve: new("lots")}, field: setup.ReserveField, why: "must be a percentage, to two decimal places at most, such as 5% or 2.5%, or 0 for none"},
 		{name: "a reserve of the whole window", edit: setup.Edit{Reserve: new("100%")}, field: setup.ReserveField, why: "must be at least 0% and less than 100%, the share of every window the router leaves unused"},
@@ -290,7 +290,7 @@ func TestAskingReserve(t *testing.T) {
 // An account's plan as its edit card chooses it: its own, or none, among
 // config.PlanChoices.
 func TestPlanChosen(t *testing.T) {
-	for _, tt := range []struct{ plan, want string }{{"", "none"}, {"max5x", "max5x"}} {
+	for _, tt := range []struct{ plan, want string }{{"", "none"}, {"max", "max"}} {
 		got := (setup.Reviewed{Plan: tt.plan}).PlanChosen()
 		if got != tt.want || !slices.Contains(config.PlanChoices(), got) {
 			t.Errorf("PlanChosen of %q = %q, want %q, one of config.PlanChoices", tt.plan, got, tt.want)

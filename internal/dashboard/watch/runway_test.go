@@ -159,6 +159,30 @@ func TestRunwaysWindowIsKeptAsItChangesAndAStepBackNever(t *testing.T) {
 	}
 }
 
+// A 5-hour view kept shows the week's live view, its lanes built over it,
+// while no account has a 5-hour window, as none does where every account is
+// verified Ultra, < and > showing nothing else; the preferences keep the
+// 5-hour all along, never told otherwise, and it shows again once an
+// account has one.
+func TestAKeptFiveHourViewShowsTheWeekWhileNoAccountHasOne(t *testing.T) {
+	r := runwayHarnessOf(t, routerDocument(verifiedUltra()...), dashboard.Runway, nil)
+	prefs := &fakePrefs{}
+	r.model.cfg.Prefs = prefs
+	r.keyed("> <")
+	if shown := r.model.runwayTab.shown; shown.Window != views.RunwayWeek || r.from.Window != views.RunwayWeek || shown.Kept().Window != "5-hour" || prefs.updates != 0 {
+		t.Fatalf("with no 5-hour window, after > and <, Runway shows %q, its lanes built over %q, keeping %+v, updated %d times; want the week, the 5-hour kept, never updated",
+			shown.Window, r.from.Window, shown.Kept(), prefs.updates)
+	}
+	read := routerDocument(three()...)
+	read.GeneratedAt = read.GeneratedAt.Add(time.Millisecond)
+	r.source.router = &read
+	r.tickUntilAsked()
+	if shown := r.model.runwayTab.shown; shown.Window != views.RunwayFiveHour || r.from.Window != views.RunwayFiveHour || prefs.updates != 0 {
+		t.Errorf("once accounts have a 5-hour window, Runway shows %q, its lanes built over %q, the preferences updated %d times; want the 5-hour kept, never updated",
+			shown.Window, r.from.Window, prefs.updates)
+	}
+}
+
 // a collapses Runway's account column and expands it again, keeping each,
 // whatever the view or step shows, its lanes built afresh over the columns
 // its labels give up and given back: 155 at 160 collapsed, 146 expanded.

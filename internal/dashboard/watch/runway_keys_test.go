@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -30,16 +31,29 @@ func runwayKeysHarness(t *testing.T, doc status.Document, width int, keys string
 // all fit.
 var scrolledSize = tea.WindowSizeMsg{Width: 160, Height: 30}
 
-// Runway's key lines are the design's: < > window and ←→ day, or ←→ week
-// in the week view, live or stepped back to, as the key line stays the live
-// view's; a names, its word faint while the labels are collapsed; p pin
-// where a pin can be set; and a phone's keeping < > and ←→, tab views
-// leading, and leaving a to help.
+// verifiedUltra are three's accounts as verified Ultra accounts read: their
+// weeks alone, with no 5-hour window.
+func verifiedUltra() []status.Account {
+	accounts := three()
+	for i := range accounts {
+		accounts[i].Windows = slices.DeleteFunc(accounts[i].Windows, func(w quota.Window) bool { return w.Key == "5h" })
+	}
+	return accounts
+}
+
+// Runway's key lines are the design's: < > window, where Runway offers
+// another window, and ←→ day, or ←→ week in the week view, live or stepped
+// back to, as the key line stays the live view's; a names, its word faint
+// while the labels are collapsed; p pin where a pin can be set; and a
+// phone's keeping < > and ←→, tab views leading, and leaving a to help.
+// Where no account has a 5-hour window, there's only the week, and no < >.
 func TestRunwaysKeyLinesAreTheDesigns(t *testing.T) {
 	const (
-		day  = "tab views   < > window  ←→ day    a names    p pin    ? help  q quit"
-		week = "tab views   < > window  ←→ week    a names    p pin    ? help  q quit"
+		day   = "tab views   < > window  ←→ day    a names    p pin    ? help  q quit"
+		week  = "tab views   < > window  ←→ week    a names    p pin    ? help  q quit"
+		alone = "tab views   ←→ week    a names    p pin    ? help  q quit"
 	)
+	ultra := routerDocument(verifiedUltra()...)
 	tests := []struct {
 		name  string
 		doc   status.Document
@@ -60,6 +74,10 @@ func TestRunwaysKeyLinesAreTheDesigns(t *testing.T) {
 		{name: "a phone", width: 52, want: "tab views   < > window   ←→ week   ? keys   q quit"},
 		{name: "a phone, collapsed", width: 52, keys: "a", want: "tab views   < > window   ←→ week   ? keys   q quit"},
 		{name: "a phone in the 5-hour view", width: 52, keys: ">", want: "tab views   < > window   ←→ day   ? keys   q quit"},
+		{name: "every account verified Ultra", doc: ultra, want: alone},
+		{name: "every account verified Ultra, after >", doc: ultra, keys: ">", want: alone},
+		{name: "every account verified Ultra, a week stepped back to", doc: ultra, keys: "left left", want: alone},
+		{name: "a phone, every account verified Ultra", doc: ultra, width: 52, want: "tab views   ←→ week   ? keys   q quit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -81,17 +99,24 @@ func TestRunwaysKeyLinesAreTheDesigns(t *testing.T) {
 }
 
 // Help over Runway lists its keys first, as the key line words them: tab,
-// < > and ←→, a, p, t in colour, R, ? and q.
+// < > where Runway offers another window, and ←→, a, p, t in colour, R, ?
+// and q.
 func TestRunwaysHelpListsItsKeys(t *testing.T) {
 	for _, tt := range []struct {
 		name, keys string
+		accounts   []status.Account
 		want       []string
 	}{
 		{name: "the week view, which Runway opens on", want: []string{"tab views", "< > window", "←→ week", "a names", "p pin", "t themes", "R refresh", "? help", "q quit"}},
 		{name: "the 5-hour view", keys: ">", want: []string{"tab views", "< > window", "←→ day", "a names", "p pin", "t themes", "R refresh", "? help", "q quit"}},
+		{name: "every account verified Ultra", accounts: verifiedUltra(), want: []string{"tab views", "←→ week", "a names", "p pin", "t themes", "R refresh", "? help", "q quit"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			h := routedHarness(t, routerDocument(three()...))
+			accounts := tt.accounts
+			if accounts == nil {
+				accounts = three()
+			}
+			h := routedHarness(t, routerDocument(accounts...))
 			h.model.cfg.Themes = &fakeThemes{}
 			h.model.cfg.Readings, h.model.view = &filedReadings{}, dashboard.Runway
 			h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)

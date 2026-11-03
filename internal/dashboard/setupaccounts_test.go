@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +32,7 @@ func yearLeft(days int) status.TokenYear {
 // token's year; and side, its token refused.
 func frame3Review() setup.Review {
 	return setup.Review{At: now, Accounts: []setup.Reviewed{
-		{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking}},
+		{ID: "work", Label: "Work", Plan: "ultra", Reserve: 0.05, Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking}},
 		{ID: "personal", Label: "Personal", Token: setup.TokenStanding{State: setup.TokenWorking, Year: yearLeft(21)}},
 		{ID: "side", Label: "Side", Plan: "pro", Token: setup.TokenStanding{State: setup.TokenNotTaken}},
 	}}
@@ -55,7 +56,7 @@ func TestTheAccountsPageIsFrame3sTable(t *testing.T) {
 		4:                "ACCOUNTS  " + strings.Repeat("─", 138) + "  3 accounts",
 		6:                "  Each token was checked with the API just now.",
 		accountsHeadsRow: "     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN",
-		accountsFirstRow: "  1  work ◆          Work          Max 20x    5%         " + strings.Repeat("╌", 24) + "  working · expiry date unknown",
+		accountsFirstRow: "  1  work ◆          Work          Ultra      5%         " + strings.Repeat("╌", 24) + "  working · expiry date unknown",
 		12:               "  2  personal        Personal      not set    none       " + strings.Repeat("█", 23) + "   expires 19 Oct 2026  ·  21 days left",
 		14:               "▌ 3  side            Side          Pro        none       ✗ rejected: revoked or expired",
 		accountsAddRow:   "  +  add an account",
@@ -257,6 +258,34 @@ func TestTheAccountsPagesKeys(t *testing.T) {
 	c := setupDrawn(accountsScreen(frame3Review(), 3), 160, 37)
 	if got := inkAt(c, 5, accountsAddRow); got != (ink{token: theme.TextPrimary, on: reviewChosenOn}) {
 		t.Errorf("+ add an account chosen, its words are in %+v, want text.primary on bg.selection", got)
+	}
+}
+
+func TestTheAccountsPagesOnwardKeyNamesTheStepEnterGoesTo(t *testing.T) {
+	onPlans := func(plans ...string) setup.Review {
+		review := frame3Review()
+		review.Accounts = slices.Clone(review.Accounts)
+		for i := range review.Accounts {
+			review.Accounts[i].Plan = plans[i%len(plans)]
+		}
+		return review
+	}
+	tests := []struct {
+		name   string
+		review setup.Review
+		want   string
+	}{
+		{name: "every account on Ultra: the Service, as Priming is skipped", review: onPlans("ultra"), want: "enter next: Service   q quit"},
+		{name: "Ultra beside Max: Priming", review: onPlans("ultra", "max"), want: "enter next: Priming   q quit"},
+		{name: "Ultra beside a plan unset: Priming", review: onPlans("ultra", ""), want: "enter next: Priming   q quit"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := setupDrawn(accountsScreen(tt.review, 0), 160, 37)
+			if got := rowOf(c, 36); !strings.HasSuffix(got, tt.want) {
+				t.Errorf("the key line reads\n%q\nwant it to end %q", got, tt.want)
+			}
+		})
 	}
 }
 

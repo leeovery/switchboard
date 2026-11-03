@@ -710,7 +710,7 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 			t.Errorf("unread, %s is on row %d, want %d, where it stands once read", part, rowWith(unread, part), rowWith(read, part))
 		}
 	}
-	for label, want := range map[string]string{"requests": "—", "limits": "—", "plan": "Max 20x", "worth": "—", "extra use": "off"} {
+	for label, want := range map[string]string{"requests": "—", "limits": "—", "plan": "Ultra", "worth": "—", "extra use": "off"} {
 		y := rowWith(onFresh, padded(label, thisWeekLabels))
 		if y < 0 {
 			t.Fatalf("no %s in THIS WEEK", label)
@@ -897,7 +897,7 @@ func TestDetailsWideFormKeepsItsWordsWhole(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	whole := []string{
 		"Week ", "34%  19%/day till Sun 21:00", "5-hour ", "95%  at cap · back 17:10",
-		"requests  1,204", "limits    5-hour ×2", "plan      Max 20x", "worth     $184  4.0×", "extra use off",
+		"requests  1,204", "limits    5-hour ×2", "plan      Ultra", "worth     $184  4.0×", "extra use off",
 	}
 	const (
 		full  = "hits its limit most weeks   limit hit 3 of the last 7 weeks · 9% left at a reset, on average"
@@ -1245,6 +1245,26 @@ func TestDetailFillsEveryAccountsBarsAndAllAccounts(t *testing.T) {
 		if got, ok := filled[ref]; !ok || math.Abs(got-used) > 1e-9 {
 			t.Errorf("%+v fills %v, want %v", ref, got, used)
 		}
+	}
+}
+
+// Detail of an account with no 5-hour window keeps its 5-hour row, labelled,
+// and says so from where its bar would start, in text.subtle, usage's short
+// words, as its label names the window: no bar, no percentage.
+func TestDetailOfAnAccountWithNoFiveHourLimitSaysSo(t *testing.T) {
+	doc := usageWorld(extraOff, usageLacking("work"))
+	c := detailFrame(Look{}, framedAccounts, "work", "", nil, nil).page(doc, routedAt)
+	rows := textOf(c.rows(Look{}))
+	y := rowWith(rows, "no limit")
+	if y < 0 {
+		t.Fatalf("Detail of work doesn't say no limit:\n%s", strings.Join(rows, "\n"))
+	}
+	words := columnOf(rows[y], "no limit")
+	if got, want := textFrom(c, words-10, words+len("no limit")+10, y), " 5-hour   no limit          "; got != want {
+		t.Errorf("its 5-hour row reads %q about its words, want %q: its label, its words, no bar or percentage", got, want)
+	}
+	if got := c.at(words, y).ink; got != dimInk {
+		t.Errorf("no limit is in %+v, want text.subtle", got)
 	}
 }
 

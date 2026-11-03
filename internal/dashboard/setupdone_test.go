@@ -39,12 +39,12 @@ func doneScreen(changes ...func(*Setup)) Setup {
 	review := setup.Review{Accounts: []setup.Reviewed{
 		{ID: "work", Primary: true, Reserve: 0.05, Token: working}, {ID: "personal", Token: working}, {ID: "side", Token: working},
 	}}
-	day := config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}
+	primed := setup.Primed{Day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}}
 	serviced := setup.Serviced{Said: []setup.Said{serviceInstalled, serviceUpdated, routerHealthy}, Router: &router.Health{OK: true}}
 	skill := setup.Said{Mark: setup.Done, Label: "Up to date", Detail: "~/.claude/skills/switchboard/SKILL.md"}
 	return setupScreen(append([]func(*Setup){func(s *Setup) {
 		s.At, s.Passed = SetupDone, SetupSteps()[:SetupDone]
-		s.Summary = setup.Summary{At: setup.StepDone, Review: &review, Day: &day, Service: &serviced, Link: notFirst(), Skill: &skill}
+		s.Summary = setup.Summary{At: setup.StepDone, Review: &review, Primed: &primed, Service: &serviced, Link: notFirst(), Skill: &skill}
 	}}, changes...)...)
 }
 
@@ -71,6 +71,19 @@ func TestDoneSaysEachStepsLineThenWhatsNext(t *testing.T) {
 	for y := range rows {
 		if _, said := want[y]; !said && y > 2 && rows[y] != "" {
 			t.Errorf("row %d reads %q, want it blank", y, rows[y])
+		}
+	}
+}
+
+func TestDoneSaysPrimingSkippedOnARowOfItsOwnAtEveryWidth(t *testing.T) {
+	skipped := doneScreen(func(s *Setup) {
+		s.Primed = &setup.Primed{Day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}, Skipped: true}
+	})
+	for _, width := range []int{160, 95} {
+		rows := textOf(skipped.Draw(width, 37, Look{}))
+		want := textsAt(width, map[int]string{2: "✓", 5: "Priming", 26: "skipped: every account is on Ultra, with no 5-hour window to start"})
+		if rows[8] != want || rows[9] != "" {
+			t.Errorf("at %d columns, Done's Priming rows read\n%q\n%q\nwant\n%q\nthen a blank", width, rows[8], rows[9], want)
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -39,7 +40,9 @@ type graphsTab struct {
 // graphsBuilt is m with Graphs' lanes built afresh at the moment of the
 // message taken in, while it shows with no session's page over it, once a
 // moment: of each window it reads, as graphsWindows has them, none where
-// neither a burn-down section nor GLANCE shows, over Runway's live view of
+// neither a burn-down section nor GLANCE shows, nor of one the moment
+// doesn't offer, as views.RunwayWindowsOf has them, as the 5-hour where no
+// account has or may have one, over Runway's live view of
 // it, as graphsTimeline has it, as views.Lanes builds them from the last
 // look's, of the readings history's live tail and the readings the watch
 // read itself, and the ledger's days they're judged by, as Runway's are;
@@ -57,7 +60,11 @@ func (m Model) graphsBuilt() Model {
 	read, look := r.readingsOf(live, live), lanesLooking(t.look)
 	lanes := make(map[views.RunwayWindow]views.Lanes)
 	shown := make(map[views.RunwayWindow]dashboard.WindowLanes)
+	offered := views.RunwayWindowsOf(mo)
 	for _, w := range m.graphsWindows() {
+		if !slices.Contains(offered, w) {
+			continue
+		}
 		tl := m.graphsTimeline(w, mo, now)
 		built := look(t.lanes[w], views.LanesFrom{
 			Moment: mo, Readings: read, Days: m.runwayDays(tl, now), Kept: r.kept, Seen: r.seen.from(), Timeline: tl, Window: w,
@@ -96,7 +103,7 @@ func (m Model) graphsSpans(t graphsTab, mo status.Moment, read []readings.Readin
 	spans := make(map[views.RunwayWindow]views.PoolSpan, len(views.RunwayWindows()))
 	for _, w := range views.RunwayWindows() {
 		spans[w] = look(t.spans[w], views.PoolRoomFrom{
-			Moment: mo, Readings: read, ReadThrough: m.runwayTab.live.through, Key: w.KeyIn(mo.Policy()), Columns: dashboard.GraphsGlanceColumns,
+			Moment: mo, Readings: read, ReadThrough: m.runwayTab.live.through, Key: w.KeyIn(mo), Columns: dashboard.GraphsGlanceColumns,
 		})
 	}
 	return spans

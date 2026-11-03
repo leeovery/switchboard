@@ -4,11 +4,13 @@ import (
 	"cmp"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -85,7 +87,30 @@ func TestRunwayOpensOnTheWeek(t *testing.T) {
 	}
 }
 
+// withoutFiveHour is doc, the accounts with the given ids reading as
+// verified Ultra accounts do, with no 5-hour window, worked out again.
+func withoutFiveHour(doc status.Document, ids ...string) status.Document {
+	doc.Accounts = slices.Clone(doc.Accounts)
+	for i, a := range doc.Accounts {
+		if slices.Contains(ids, a.ID) {
+			doc.Accounts[i].Windows = slices.DeleteFunc(slices.Clone(a.Windows), func(w quota.Window) bool { return w.Key == "5h" })
+		}
+	}
+	return doc.WorkedOut(claudeLike)
+}
+
+// offeredMoment is the moment at routedAt of the auto world the frames were
+// drawn of, as framesDoc has it, the accounts with the given ids without a
+// 5-hour window, as withoutFiveHour has them.
+func offeredMoment(lacking ...string) status.Moment {
+	return withoutFiveHour(framesDoc(), lacking...).At(routedAt, claudeLike)
+}
+
+// autoAccounts are the ids of the auto world's accounts.
+var autoAccounts = []string{"work", "personal", "side"}
+
 func TestLessAndMoreShowTheOtherWindowsLiveViewRound(t *testing.T) {
+	offering := func(r RunwayShown) RunwayShown { return r.Offering(offeredMoment()) }
 	tests := []struct {
 		name    string
 		from    RunwayShown
@@ -93,13 +118,15 @@ func TestLessAndMoreShowTheOtherWindowsLiveViewRound(t *testing.T) {
 		want    views.RunwayWindow
 		changed bool
 	}{
-		{name: "> from the week, which it opens on", from: RunwayShown{}, by: 1, want: views.RunwayFiveHour, changed: true},
-		{name: "< from the week, round", from: RunwayShown{}, by: -1, want: views.RunwayFiveHour, changed: true},
-		{name: "> from the 5-hour, round", from: RunwayShown{Window: views.RunwayFiveHour}, by: 1, want: views.RunwayWeek, changed: true},
-		{name: "< from the 5-hour", from: RunwayShown{Window: views.RunwayFiveHour}, by: -1, want: views.RunwayWeek, changed: true},
-		{name: "from a day stepped back", from: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}, by: 1, want: views.RunwayWeek, changed: true},
-		{name: "round to a day stepped back's own window", from: RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}, by: 2, want: views.RunwayFiveHour, changed: true},
-		{name: "round to the live view shown", from: RunwayShown{}, by: 2, want: views.RunwayWeek},
+		{name: "> from the week, which it opens on", from: offering(RunwayShown{}), by: 1, want: views.RunwayFiveHour, changed: true},
+		{name: "< from the week, round", from: offering(RunwayShown{}), by: -1, want: views.RunwayFiveHour, changed: true},
+		{name: "> from the 5-hour, round", from: offering(RunwayShown{Window: views.RunwayFiveHour}), by: 1, want: views.RunwayWeek, changed: true},
+		{name: "< from the 5-hour", from: offering(RunwayShown{Window: views.RunwayFiveHour}), by: -1, want: views.RunwayWeek, changed: true},
+		{name: "from a day stepped back", from: offering(RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}), by: 1, want: views.RunwayWeek, changed: true},
+		{name: "round to a day stepped back's own window", from: offering(RunwayShown{Window: views.RunwayFiveHour, Back: civilDay(9, 30)}), by: 2, want: views.RunwayFiveHour, changed: true},
+		{name: "round to the live view shown", from: offering(RunwayShown{}), by: 2, want: views.RunwayWeek},
+		{name: "the week alone offered", from: RunwayShown{}.Offering(offeredMoment(autoAccounts...)), by: 1, want: views.RunwayWeek},
+		{name: "none offered yet, before the first look", from: RunwayShown{}, by: 1, want: views.RunwayWeek},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -108,6 +135,72 @@ func TestLessAndMoreShowTheOtherWindowsLiveViewRound(t *testing.T) {
 				t.Errorf("Windowed(%d) = %+v, %t, want the live view of %q, %t", tt.by, got, changed, tt.want, tt.changed)
 			}
 		})
+	}
+}
+
+// The heading names the window between < and >, each a step to click, where
+// Runway offers another window; where it offers the week alone, as where no
+// account has a 5-hour window, it names it bare, with nothing to click.
+func TestRunwaysHeadingStepsOnlyWhereItOffersAnotherWindow(t *testing.T) {
+	tests := []struct {
+		name  string
+		shown RunwayShown
+		right string
+		steps int
+	}{
+		{name: "both windows offered", shown: RunwayShown{}.Offering(offeredMoment()), right: "< week >", steps: 2},
+		{name: "the 5-hour shown", shown: RunwayShown{Window: views.RunwayFiveHour}.Offering(offeredMoment()), right: "< 5-hour >", steps: 2},
+		{name: "the week alone offered", shown: RunwayShown{Window: views.RunwayFiveHour}.Offering(offeredMoment(autoAccounts...)), right: "week"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, pieces := laidOn(tt.shown.heading(), 160, false)
+			steps := 0
+			for _, p := range pieces {
+				if p.click.On == OnStep {
+					steps++
+				}
+			}
+			if got := rowOf(c, 0); !strings.HasSuffix(got, "─  "+tt.right) || steps != tt.steps {
+				t.Errorf("the heading reads %q, with %d steps to click; want it ending %q, with %d", got, steps, tt.right, tt.steps)
+			}
+		})
+	}
+}
+
+// Runway offers the 5-hour only while some account has one: a 5-hour view
+// kept shows the week's live view while none has, a day stepped back to let
+// go, < and > having nothing else to show, the preferences keeping the
+// 5-hour all along; and once one has, the 5-hour shows again. A 5-hour view
+// shown while one account has it stays.
+func TestAKeptFiveHourViewShowsTheWeekWhileNoAccountHasOne(t *testing.T) {
+	kept := RunwayKept(theme.RunwayPrefs{Window: "5-hour", Collapsed: true})
+	kept.Back = civilDay(9, 30)
+	steps := []struct {
+		name     string
+		lacking  []string
+		want     views.RunwayWindow
+		back     bool
+		switches bool
+	}{
+		{name: "every account with one", want: views.RunwayFiveHour, back: true, switches: true},
+		{name: "side alone with one", lacking: []string{"work", "personal"}, want: views.RunwayFiveHour, back: true, switches: true},
+		{name: "none with one", lacking: autoAccounts, want: views.RunwayWeek},
+		{name: "none with one, looked at again", lacking: autoAccounts, want: views.RunwayWeek},
+		{name: "personal with one again", lacking: []string{"work", "side"}, want: views.RunwayFiveHour, switches: true},
+	}
+	r := kept
+	for _, step := range steps {
+		r = r.Offering(offeredMoment(step.lacking...))
+		if r.Window != step.want || r.Back.IsZero() == step.back || r.Switches() != step.switches {
+			t.Fatalf("%s, Runway shows %q, stepped back %t, switching %t; want %q, %t, %t", step.name, r.Window, !r.Back.IsZero(), r.Switches(), step.want, step.back, step.switches)
+		}
+		if got := r.Kept(); got != (theme.RunwayPrefs{Window: "5-hour", Collapsed: true}) {
+			t.Fatalf("%s, Runway keeps %+v, want the 5-hour, collapsed, as kept", step.name, got)
+		}
+		if _, changed := r.Windowed(1); changed != step.switches {
+			t.Errorf("%s, > changes the view %t, want %t", step.name, changed, step.switches)
+		}
 	}
 }
 
@@ -186,7 +279,7 @@ func TestRunwaysHeadingNamesItsWindowAndTheDaysSteppedBackTo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := tt.shown
+			r := tt.shown.Offering(offeredMoment())
 			r.Timeline = r.TimelineAt(runwayAt(), time.Monday, 160)
 			h := r.heading()
 			if h.name != "RUNWAY" || h.period != tt.wantPeriod || !reflect.DeepEqual(h.state, tt.wantState) {

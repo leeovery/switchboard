@@ -73,12 +73,20 @@ so the API never sees one. These are its headers:
 
 Every response carries the utilization and reset time of each of the account's windows:
 
-- The 5-hour window.
+- The 5-hour window, where the account has one.
 - The weekly window that every model shares.
 - A model's own weekly window, where the model has one.
 
 Only a 429 that refuses the request itself carries none. Switchboard reads the windows off every
 response, so looking costs next to nothing.
+
+A verified Ultra account has no 5-hour window: its answers carry the week and nothing for the
+5-hour. Switchboard learns this from the answers, never from the plan. When a successful answer, or
+a probe the API admitted, reports the week and not the 5-hour, the router drops the 5-hour it held
+for that account, logging `no longer reports the window`. It remembers this across a restart. If a
+later answer reports the 5-hour again, the window comes back, logged as `reports the window again`.
+The router never primes an account without a 5-hour window, nor judges its pressure. The dashboard
+says `no 5-hour limit` for it.
 
 To read an account without traffic, switchboard probes it. A probe is one request per model family,
 each capped at one output token. Switchboard probes an account only in these cases:
@@ -103,7 +111,9 @@ window resets. This has two effects:
 
 Among the accounts that score at least 0.8 of the best, the one whose 5-hour window resets soonest
 wins. Whatever is left in a window when it resets is lost. With [priming](#priming), the accounts'
-resets are spread through the day.
+resets are spread through the day. An account without a 5-hour window comes after those with a reset
+to come. Between two such accounts, the higher score wins, then the one that has used less of its
+week.
 
 ### Sticky sessions, for the cache
 
@@ -141,8 +151,8 @@ window and steers sessions off an account that is heading for its limit.
   router next reads the account, so an account gone quiet reads quiet. For a window with no reading
   from 10 minutes back, the rate is its use since the window started.
 - **Under pressure:** an account is under pressure when, at that rate, its window reaches its
-  reserve before the window resets. For an account without a reserve, or a pinned account, the
-  mark is its limit instead.
+  reserve before the window resets. For an account without a reserve, or a pinned account, the mark
+  is its limit instead. An account without a 5-hour window is never under pressure.
 - **What moves:** a request that needs an account chosen afresh goes to the best of the accounts
   not under pressure, the pin's accounts first. These are the requests that move:
   - A new session.
@@ -389,7 +399,8 @@ priming it.
 
 ### The schedule
 
-With N accounts that have usable tokens, switchboard works out the schedule in these steps:
+With N accounts that have usable tokens and a 5-hour window, switchboard works out the schedule in
+these steps:
 
 1. Resets fall every 5 hours ÷ N. The first falls half a step after the day starts.
 2. Each account, in config order, is primed five hours before its first reset. That time is the
@@ -425,6 +436,10 @@ A prime is a probe: one request per model family, Haiku and Fable, each capped a
 The Fable request falls back to the previous Fable when the newest doesn't answer. A prime goes to an account whose
 5-hour window isn't running.
 
+- **No window to prime:** an account whose answers carry no 5-hour window, as a verified Ultra
+  account's, gets no slot. The router works the schedule out again for the others, and logs
+  `no window to prime` for the prime that finds the window gone. Where every account is on Ultra,
+  [`setup`](commands.md#setup) skips its Priming step and says why.
 - **A window already running:** an account whose window is already running, as after a late night,
   gets no prime. Its slot shifts for the day.
 - **A prime that fails:** a prime that reads nothing, or doesn't start the window, is logged as a
@@ -441,8 +456,9 @@ The Fable request falls back to the previous Fable when the newest doesn't answe
 
 ### No accidental windows
 
-A probe is a request, so probing an idle account starts its window. The router never probes an
-account whose 5-hour window has lapsed, except in these cases:
+A probe is a request, so probing an idle account starts its window, where it has one. An account
+without a 5-hour window has none to lapse, so it's probed as any account with room is. The router
+never probes an account whose 5-hour window has lapsed, except in these cases:
 
 - To prime it.
 - On its rounds, where the window the probe starts resets before the account's slot.

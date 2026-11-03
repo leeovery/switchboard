@@ -20,7 +20,7 @@ func TestCheckAddingWritesNothing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CheckAdding error = %v", err)
 		}
-		if want := (config.NewAccount{ID: "spare", Label: "Spare", Plan: "max5x"}); got != want {
+		if want := (config.NewAccount{ID: "spare", Label: "Spare", Plan: "max"}); got != want {
 			t.Errorf("CheckAdding gives %+v, want %+v", got, want)
 		}
 		if got := w.readConfig(t); got != frameConfig {
@@ -58,7 +58,7 @@ func TestCheckAddingRefuses(t *testing.T) {
 		{name: "an id an account has in another case", adding: setup.Adding{ID: "Side", Plan: config.PlanNone}, field: setup.IDField, why: `differs from "side" only in case, so they'd share a token file, as macOS ignores case in file names`},
 		{name: "a label of blanks", adding: setup.Adding{ID: "spare", Label: " \u200b", Plan: config.PlanNone}, field: setup.LabelField, why: "is blank, showing nothing"},
 		{name: "a label hiding the character after a sign", adding: setup.Adding{ID: "spare", Label: "\u0600Spare", Plan: config.PlanNone}, field: setup.LabelField, why: "holds a sign that joins the character after it, such as an Arabic number sign, which can hide that character"},
-		{name: "a plan config doesn't know", adding: setup.Adding{ID: "spare", Plan: "max"}, field: setup.PlanField, why: "must be pro, max5x, max20x or none"},
+		{name: "a plan config doesn't know", adding: setup.Adding{ID: "spare", Plan: "max10x"}, field: setup.PlanField, why: "must be pro, max, ultra or none"},
 		{name: "an id an account has already and a wrong label, the label said", adding: setup.Adding{ID: "personal", Label: "  ", Plan: config.PlanNone}, field: setup.LabelField, why: "is blank, showing nothing"},
 		{name: "a wrong id and a wrong label, the id said", adding: setup.Adding{ID: "-spare", Label: "  ", Plan: config.PlanNone}, field: setup.IDField, why: "must start with a letter or digit and contain only letters, digits, '-' and '_'"},
 	}

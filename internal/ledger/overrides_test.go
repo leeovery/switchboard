@@ -2,6 +2,8 @@ package ledger_test
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
@@ -17,7 +19,7 @@ var changing = ledger.Table{AsOf: today, Models: []ledger.Model{{IDs: []string{"
 		WebSearch: dollars(0.01), USOnlyPercent: 110},
 	{From: "2026-10-06", Input: dollars(3e-6), Output: dollars(15e-6), CacheRead: dollars(0.3e-6), CacheWrite5m: dollars(3.75e-6), CacheWrite1h: dollars(6e-6),
 		WebSearch: dollars(0.01), USOnlyPercent: 110},
-}}}, Plans: []ledger.Plan{{ID: "max5x", Name: "Max 5x", Size: 5, Prices: []ledger.PlanPrice{{From: "2025-04-09", Monthly: dollars(100)}}}}}
+}}}, Plans: []ledger.Plan{{ID: "max", Name: "Max", Size: 5, Prices: []ledger.PlanPrice{{From: "2025-04-09", Monthly: dollars(100)}}}}}
 
 // everyKind is a usage of a million tokens of each kind, and a thousand web
 // searches.
@@ -97,18 +99,37 @@ func TestAModelTheTableDoesntKnowIsPricedOnlyWhereTheConfigGivesEveryPrice(t *te
 }
 
 func TestTheConfigsPriceOfAPlanPricesEveryDayAlike(t *testing.T) {
-	table := overridden(t, changing, config.Prices{Plans: map[string]float64{"max5x": 90.5}})
-	plan, ok := table.Plan("max5x")
+	table := overridden(t, changing, config.Prices{Plans: map[string]float64{"max": 90.5}})
+	plan, ok := table.Plan("max")
 	if !ok {
-		t.Fatal("Plan(max5x) isn't priced")
+		t.Fatal("Plan(max) isn't priced")
 	}
 	for _, day := range []string{"2020-01-01", "2025-04-09", today} {
 		if got := plan.Price(day); got != dollars(90.5) {
 			t.Errorf("Price(%s) = %s, want $90.50, the config's", day, got.Cents())
 		}
 	}
-	if plan.Name != "Max 5x" || plan.Size != 5 || !table.Overridden {
-		t.Errorf("Plan(max5x) = %+v, overridden: %v; want Max 5x, of 5 Pros, and the table overridden", plan, table.Overridden)
+	if plan.Name != "Max" || plan.Size != 5 || !table.Overridden {
+		t.Errorf("Plan(max) = %+v, overridden: %v; want Max, of 5 Pros, and the table overridden", plan, table.Overridden)
+	}
+}
+
+// The config's price of a plan by its old name prices the plan by its new,
+// as the table names it, which the table would pass over were it given the
+// old.
+func TestTheConfigsPriceOfAPlanByItsOldNamePricesIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[[account]]\nid = \"work\"\n\n[prices.plans]\nmax20x = 180\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	plan, ok := overridden(t, ledger.Pricing, cfg.Prices).Plan("ultra")
+	if got := plan.Price(today); !ok || got != dollars(180) {
+		t.Errorf("Plan(ultra) is priced %s, priced: %v; want $180.00, the config's", got.Cents(), ok)
 	}
 }
 
@@ -124,7 +145,7 @@ func TestATableIsOverriddenOnlyWhereTheConfigsPricesStandInPlaceOfItsOwn(t *test
 		{name: "some prices of a model the table doesn't know", prices: config.Prices{Models: map[string]config.ModelPrices{"claude-test-9": {Input: new(1.0)}}},
 			passed: []string{"claude-test-9"}},
 		{name: "a price of a model it knows", prices: config.Prices{Models: map[string]config.ModelPrices{"claude-test-1": {Output: new(0.0)}}}, want: true},
-		{name: "a plan's", prices: config.Prices{Plans: map[string]float64{"max5x": 100}}, want: true},
+		{name: "a plan's", prices: config.Prices{Plans: map[string]float64{"max": 100}}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -141,7 +162,7 @@ func TestTheConfigsPricesLeaveTheTableTheyreGivenAsItIs(t *testing.T) {
 		before.Models[i].Prices = slices.Clone(before.Models[i].Prices)
 	}
 	overridden(t, changing, config.Prices{
-		Plans:  map[string]float64{"max5x": 1},
+		Plans:  map[string]float64{"max": 1},
 		Models: map[string]config.ModelPrices{"claude-test-1": {Input: new(1.0)}, "claude-test-2": {Input: new(1.0), Output: new(1.0), CacheRead: new(1.0), CacheWrite5m: new(1.0), CacheWrite1h: new(1.0)}},
 	})
 	if !reflect.DeepEqual(changing, before) {

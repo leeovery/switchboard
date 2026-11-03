@@ -236,7 +236,7 @@ func leftShort(row views.AccountsRow, k ink) []part {
 }
 
 // planParts say an account's plan as Compare's VALUE does, by its name, then
-// its price a month, in text.subtle: "Max 20x · $200/mo"; of every
+// its price a month, in text.subtle: "Ultra · $200/mo"; of every
 // account's, the known plans' prices summed, then how many plans that is,
 // as views.PlansKnown words it, "$600/mo · 3 plans", or of how many,
 // "$400/mo · 2 of 3 plans"; a dash where none is known.
@@ -252,7 +252,7 @@ func planParts(row views.AccountsRow, k ink) []part {
 }
 
 // planForms say an account's plan in Compare's VALUE, in its forms: as
-// planParts says it, "Max 20x · $200/mo"; of every account's where some
+// planParts says it, "Ultra · $200/mo"; of every account's where some
 // plans aren't known, then its plans known compact, "$400/mo · 2/3"; then as
 // turned Compare says it, as planPriced has it, "$200/mo", dropping the
 // plan's name and the plans' count.
@@ -265,7 +265,7 @@ func planForms(row views.AccountsRow, k ink) partForms {
 }
 
 // planNamed says an account's plan as Detail's THIS WEEK does, by its name
-// alone, "Max 20x"; of every account's, as planPriced says it.
+// alone, "Ultra"; of every account's, as planPriced says it.
 func planNamed(row views.AccountsRow, k ink) []part {
 	if row.Plan.All || row.Plan.Price == nil {
 		return planPriced(row, k)

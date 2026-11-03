@@ -38,6 +38,29 @@ func TestGraphsPoolsLineSaysBothWindowsRoomDroppingWholePartsFromTheEnd(t *testi
 	}
 }
 
+// The pool's line says each window's room of as many of its accounts as
+// have or may have it, as the pool's window counts them, not as many as it
+// has: a verified Ultra account among three leaves its 5-hour of two; and
+// it says nothing of a window the pool lacks, as the 5-hour where one of
+// three has it.
+func TestGraphsPoolsLineSaysEachWindowsRoomOfTheAccountsWithIt(t *testing.T) {
+	tests := []struct {
+		name    string
+		lacking []string
+		want    string
+	}{
+		{name: "one without the 5-hour", lacking: []string{"side"}, want: "Σ pool   week 1.4 of 3 left   5-hour 0.4 of 2 left"},
+		{name: "one alone with the 5-hour", lacking: []string{"work", "personal"}, want: "Σ pool   week 1.4 of 3 left"},
+	}
+	f := graphsFrame(160, 37, GraphsSections{})
+	for _, tt := range tests {
+		m := f.Moment(withoutFiveHour(threeRouted(), tt.lacking...), now)
+		if got := f.poolLine(m, 160).plain(); got != tt.want {
+			t.Errorf("%s: the pool's line reads %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
 // The pool's line keeps its row, laid out by the config, whatever the
 // document holds: blank where it has no pool, as with no account in it yet,
 // or one, as usage's pool row says none then; and Σ pool alone where its

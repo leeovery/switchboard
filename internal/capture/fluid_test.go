@@ -190,6 +190,7 @@ var knownBreaks = []known{
 	// What's left at the foot where USAGE takes the rows it must, the foot's
 	// blank row among them, short of every folded section's least: of six
 	// accounts at 73x61, stacked, ROUTING open under it; by account at 138x30,
+	// as the auto world's and the mixed one's, whose blocks are as tall,
 	// 2 rows, where ROUTING unfolded takes 6 more and COMING UP and LATELY 5,
 	// a blank row before each among them, and the blank rows between its
 	// accounts give way only 2; and of ten accounts side by side, their blank
@@ -203,7 +204,7 @@ var knownBreaks = []known{
 	},
 	{
 		byDesign: "2 rows under USAGE by account, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"138x30"}, fixtures: []string{"overview-by-account-160"},
+		sizes: []string{"138x30"}, fixtures: []string{"overview-by-account-160", "overview-mixed-by-account-160"},
 	},
 	{
 		byDesign: "3 rows under USAGE's ten accounts side by side, short of every folded section's least", rule: foldWithRowsSpare,

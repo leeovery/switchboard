@@ -267,13 +267,52 @@ func TestPrimingAndSetDay(t *testing.T) {
 			switch {
 			case err != nil:
 				t.Fatalf("Priming() error = %v", err)
-			case got != set:
+			case got.Day != set:
 				t.Errorf("SetDay(%q) = %v, but Priming() = %v", tt.day, set, got)
-			case dayOf(got) != tt.want:
-				t.Errorf("Priming() = %q, want %q", dayOf(got), tt.want)
+			case dayOf(got.Day) != tt.want:
+				t.Errorf("Priming() = %q, want %q", dayOf(got.Day), tt.want)
 			}
 			if got := w.readConfig(t); got != tt.wantConfig {
 				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.wantConfig)
+			}
+		})
+	}
+}
+
+func TestPrimingIsSkippedWhereEveryAccountIsOnUltra(t *testing.T) {
+	account := func(id, plan string) string {
+		return "[[account]]\nid = \"" + id + "\"\nplan = \"" + plan + "\"\n\n"
+	}
+	unset := "[[account]]\nid = \"side\"\n\n"
+	const day = "[prime]\nday = \"08:00-23:00\"\n"
+	tests := []struct {
+		name   string
+		config string
+		want   bool
+	}{
+		{name: "no config: no account", want: false},
+		{name: "a config of no account", config: day, want: false},
+		{name: "every account on Ultra, a day set", config: account("work", "ultra") + account("side", "ultra") + day, want: true},
+		{name: "one account, on Ultra", config: account("work", "ultra"), want: true},
+		{name: "Ultra beside Max", config: account("work", "ultra") + account("side", "max"), want: false},
+		{name: "Ultra beside Pro", config: account("work", "ultra") + account("side", "pro"), want: false},
+		{name: "Ultra beside a plan unset", config: account("work", "ultra") + unset, want: false},
+		{name: "every plan unset", config: unset, want: false},
+		{name: "max20x, loaded as Ultra", config: account("work", "max20x") + account("side", "ultra"), want: true},
+		{name: "max5x, loaded as Max", config: account("work", "max5x") + account("side", "ultra"), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			if tt.config != "" {
+				w.writeConfig(t, tt.config)
+			}
+			got, err := w.setup(t).Priming()
+			if err != nil {
+				t.Fatalf("Priming() error = %v", err)
+			}
+			if got.Skipped != tt.want {
+				t.Errorf("Priming() skips the step: %t, want %t", got.Skipped, tt.want)
 			}
 		})
 	}

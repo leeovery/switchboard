@@ -10,15 +10,16 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/setup"
 )
 
-// primingForm is the Priming page as the screen holds it: the day priming
-// is on over, as it was last read or set; the day as it was read, as its
+// primingForm is the Priming page as the screen holds it: the step as it was
+// read, its day as it was last read or set; the day as it was read, as its
 // field first shows it; the field Your day, and whether it's typed in; and
 // why setup refused the day typed, where it did. Why the step failed, where
 // it did, is the walk's, as the summary says it.
 type primingForm struct {
-	set     config.Day
+	set     setup.Primed
 	read    string
 	day     entry
 	typing  bool
@@ -36,36 +37,39 @@ func (f primingForm) typed() string {
 	return strings.TrimSpace(f.day.value())
 }
 
-// primedMsg is the day priming spreads the resets over, as the step read it
-// on reaching it, or why it couldn't.
+// primedMsg is the Priming step as it read it on reaching it, or why it
+// couldn't.
 type primedMsg struct {
-	day config.Day
-	err error
+	primed setup.Primed
+	err    error
 }
 
 // readDay is the Priming step's action: Priming.
 func readDay(steps Steps) job {
 	return func(context.Context) tea.Msg {
-		day, err := steps.Priming()
-		return primedMsg{day: day, err: err}
+		primed, err := steps.Priming()
+		return primedMsg{primed: primed, err: err}
 	}
 }
 
-// primed takes in the day the step read, its field holding it, typed in, as
-// done; none where priming is off. Where it couldn't be read, the step
-// failed.
-func (m Model) primed(msg primedMsg) Model {
+// primed takes in the step as it read it, as done: skipped, moving on, as
+// movedOn has it; else its field holding the day, typed in, none where
+// priming is off. Where it couldn't be read, the step failed.
+func (m Model) primed(msg primedMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		m.walk = m.walk.finished(msg.err)
-		return m
+		return m, nil
 	}
 	var read string
-	if msg.day != (config.Day{}) {
-		read = msg.day.String()
+	if day := msg.primed.Day; day != (config.Day{}) {
+		read = day.String()
 	}
-	m.priming = &primingForm{set: msg.day, read: read, day: entryOf(read), typing: true}
+	m.priming = &primingForm{set: msg.primed, read: read, day: entryOf(read), typing: true}
 	m.walk = m.walk.finished(nil)
-	return m
+	if msg.primed.Skipped {
+		return m.movedOn()
+	}
+	return m, nil
 }
 
 // dayEntered acts on enter at the Priming page, once its day is read: a day
@@ -120,7 +124,7 @@ func (m Model) daySet(msg daySetMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	f := *m.priming
-	f.set = msg.day
+	f.set.Day = msg.day
 	m.priming = &f
 	return m.movedOn()
 }

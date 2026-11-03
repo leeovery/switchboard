@@ -200,7 +200,7 @@ func leftText(left map[string]float64) string {
 	return strings.Join(shares, apart)
 }
 
-// planText says an account's plan and its price a month, as "Max 20x ·
+// planText says an account's plan and its price a month, as "Ultra ·
 // $200/mo", or of every account's, the plans' prices summed and how many
 // plans that is, as views.PlansKnown words it, "$220/mo · 2 of 3 plans": a
 // dash where none is known.

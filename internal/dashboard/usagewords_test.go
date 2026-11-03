@@ -33,6 +33,8 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 		{name: "running out today", state: state(status.WindowRunsOut, on(1, 16, 5)), full: "out ~16:05", short: "out ~16:05", ink: warningInk},
 		{name: "running out another day", state: state(status.WindowRunsOut, on(3, 6, 0)), full: "out ~Sat 06:00", short: "out ~Sat", ink: warningInk},
 		{name: "not started", state: state(status.WindowNotStarted, time.Time{}), full: "not started", short: "not started", ink: mutedInk},
+		{name: "no 5-hour window", state: lacking("5-hour"), full: "no 5-hour limit", short: "no limit", ink: dimInk},
+		{name: "no week, its name as a sentence has it", state: lacking("Week"), full: "no week limit", short: "no limit", ink: dimInk},
 		{
 			name: "the allowance an hour", state: state(status.WindowOpen, on(1, 16, 30)), allowance: quota.Allowance{Share: 0.339, Per: quota.PerHour},
 			full: "34%/h till 16:30", short: "34%/h · 16:30", ink: mutedInk,
@@ -67,6 +69,11 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 			}
 		})
 	}
+}
+
+// lacking is a window named as given that its account has no such limit of.
+func lacking(name string) status.WindowNow {
+	return status.WindowNow{Name: name, Kind: status.WindowNone}
 }
 
 func TestWordsAreInFullFrom70ColumnsWhereTheyFitTheirRoom(t *testing.T) {

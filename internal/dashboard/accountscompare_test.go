@@ -44,7 +44,7 @@ func comparedVersions(t *testing.T) []ledger.Version {
 // compareFramed is a row of Compare's frames: an account's, or every
 // account's, as accountsFramed has it; the requests and sessions it served;
 // its share of use of each of comparedIDs, as a percentage, -1 where it used
-// none; and where its plan isn't Max 20x over a week, $46, its plan's name,
+// none; and where its plan isn't Ultra over a week, $46, its plan's name,
 // its price a month, and what it costs over the period.
 type compareFramed struct {
 	accountsFramed
@@ -100,7 +100,7 @@ var (
 )
 
 // tenRow is an account's row of accounts-compare-ten-160 past its first
-// three, on Max 20x.
+// three, on Ultra.
 func tenRow(id string, requests, sessions, off int, limits map[string]int, atCap int, left, worth, ratio float64, shares []int) compareFramed {
 	return compareFramed{
 		id: id, off: off, limits: limits, atCap: atCap, left: new(left), worth: worth, ratio: ratio, planKnown: true,
@@ -109,11 +109,11 @@ func tenRow(id string, requests, sessions, off int, limits map[string]int, atCap
 }
 
 // tenRows are the rows of accounts-compare-ten-160: the first three as
-// accounts-compare-160's; client; spare, on Max 5x; lab; team, extra, ops
+// accounts-compare-160's; client; spare, on Max; lab; team, extra, ops
 // and studio, out of view; and every account's, on ten plans.
 func tenRows() []compareFramed {
 	spare := tenRow("spare", 96, 1, 0, nil, 0, 0.91, 9, 0.4, []int{12, -1, 74, 6, -1, 8})
-	spare.plan, spare.price, spare.cost = "Max 5x", 100, 23
+	spare.plan, spare.price, spare.cost = "Max", 100, 23
 	all := compareFramed{
 		on: 10, limits: map[string]int{"5h": 7}, atCap: 9*60 + 57, worth: 1342, ratio: 3.4, planKnown: true,
 		requests: 12598, sessions: 51, shares: []int{53, 4, 35, 4, 1, 3}, price: 1700, cost: 392,
@@ -693,7 +693,7 @@ func TestAPeriodWithNothingRecordedSaysADashForEachOfItsFigures(t *testing.T) {
 		33: "  against its price       —                                 —                                —                                —",
 	}
 	theirOwn := map[int]string{
-		30: "  plan                    Max 20x · $200/mo                 Max 20x · $200/mo                Max 20x · $200/mo                $600/mo · 3 plans",
+		30: "  plan                    Ultra · $200/mo                   Ultra · $200/mo                  Ultra · $200/mo                  $600/mo · 3 plans",
 		31: "  extra usage             off                               off                              off                              off on all",
 	}
 	tests := []struct {

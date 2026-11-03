@@ -17,7 +17,8 @@ import (
 // moment, in either view, and at every moment Runway has to get right that
 // holds now: now's column stands as the moment has the account stand; the
 // use under a name, live, is its view's window's, as usage has it; the
-// pool's lane counts the moment's pool, its room of the view's window;
+// pool's lane counts as the moment's pool counts the view's window, where it
+// has it, its room of that window;
 // COMING UP lists what the moment does, in its order; a stretch holding now
 // is back as the moment has the account back from every hold, or, where a
 // window runs out before then, as it resets, the run-out carrying the hold
@@ -28,8 +29,8 @@ func TestRunwaysLanesAgreeWithTheMoment(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			m, now := c.from.Moment, c.from.Timeline.NowColumn()
 			l := views.Lanes{}.Look(c.from)
-			for i, lane := range l.Accounts {
-				a := m.Accounts[i]
+			for _, lane := range l.Accounts {
+				a, _ := m.Account(lane.ID)
 				if got, want := lane.Cells[now], asRouted(a); got != want && (want != views.CellRoom || !got.HasRoom()) {
 					t.Errorf("%s's now's column is %d, want %d, as it's routed (%d)", a.ID, got, want, a.Routing.Kind)
 				}
@@ -45,8 +46,8 @@ func TestRunwaysLanesAgreeWithTheMoment(t *testing.T) {
 					}
 				}
 			}
-			if want := poolOf(m); l.Pool.Of != want {
-				t.Errorf("the pool is of %d, want %d", l.Pool.Of, want)
+			if want, ok := poolWindowOf(m, viewKeys[c.from.Window]); ok && len(l.Accounts) >= 2 && l.Pool.Of != want {
+				t.Errorf("the pool is of %d, want %d, as the moment's pool counts the view's window", l.Pool.Of, want)
 			}
 			if want := viewKeys[c.from.Window]; l.Pool.Of > 0 && l.Pool.Key != want {
 				t.Errorf("the pool's room is of the window %q, want %q, the view's", l.Pool.Key, want)
@@ -136,13 +137,16 @@ func carriedOn(a status.AccountNow, back, carried time.Time) bool {
 	})
 }
 
-// poolOf is how many accounts the moment's pool has, none where it has one
-// account, which has no pool's lane.
-func poolOf(m status.Moment) int {
-	if len(m.Accounts) < 2 {
-		return 0
+// poolWindowOf is how many of the moment's pool's accounts it counts in the
+// window with the given key, as its Of has it, reporting false where the
+// pool has no such window.
+func poolWindowOf(m status.Moment, key string) (int, bool) {
+	pool := m.Pool()
+	i := slices.IndexFunc(pool.Windows, func(w status.PoolWindowNow) bool { return w.Key == key })
+	if i < 0 {
+		return 0, false
 	}
-	return len(m.Pool().Accounts)
+	return pool.Windows[i].Of, true
 }
 
 // inOrderAmong reports whether each of some is among all, in all's order.

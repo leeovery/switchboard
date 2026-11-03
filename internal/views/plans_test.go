@@ -39,7 +39,7 @@ func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 			// account's sums work's and side's: (4 + 2) / 220.
 			name: "over the last 30 days, a month",
 			days: sinceJuly,
-			want: `[{"account":"work","plan":"max20x","price":200,"cost":200,"against":0.02,"worth":4,"unpriced":["claude-opus-9"]},` +
+			want: `[{"account":"work","plan":"ultra","price":200,"cost":200,"against":0.02,"worth":4,"unpriced":["claude-opus-9"]},` +
 				`{"account":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","worth":1},` +
 				`{"all":true,"price":220,"cost":220,"against":0.02727272727272727,"plans":{"known":2,"of":3},"worth":6,"unpriced":["claude-opus-9"]}]`,
 		},
@@ -48,15 +48,15 @@ func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 			// worth.
 			name: "the empty ledger",
 			days: []ledger.Summary{day("2026-10-07")},
-			want: `[{"account":"work","plan":"max20x","price":200,"cost":6.575342465753,"against":0},` +
+			want: `[{"account":"work","plan":"ultra","price":200,"cost":6.575342465753,"against":0},` +
 				`{"account":"side","plan":"pro","price":20,"cost":0.657534246575,"against":0},` +
 				`{"account":"spare"},{"all":true,"price":220,"cost":7.232876712328,"against":0,"plans":{"known":2,"of":3}}]`,
 		},
 		{
 			name:   "at the config's price of a plan",
 			days:   sinceJuly,
-			prices: config.Prices{Plans: map[string]float64{"max20x": 160}},
-			want: `[{"account":"work","plan":"max20x","price":160,"cost":160,"against":0.025,"worth":4,"unpriced":["claude-opus-9"]},` +
+			prices: config.Prices{Plans: map[string]float64{"ultra": 160}},
+			want: `[{"account":"work","plan":"ultra","price":160,"cost":160,"against":0.025,"worth":4,"unpriced":["claude-opus-9"]},` +
 				`{"account":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","worth":1},` +
 				`{"all":true,"price":180,"cost":180,"against":0.03333333333333333,"plans":{"known":2,"of":3},"worth":6,"unpriced":["claude-opus-9"]}]`,
 		},
@@ -86,7 +86,7 @@ func TestAPlansCostIsProratedAsThePeriodAskedFor(t *testing.T) {
 		name       string
 		from       string
 		weekStarts time.Weekday
-		// want is what work's Max 20x and side's Pro cost, and every
+		// want is what work's Ultra and side's Pro cost, and every
 		// account's together.
 		want string
 	}{
@@ -151,8 +151,8 @@ func TestOnTheWeeksFirstDayTheDaysAskedForFromItAreThisWeek(t *testing.T) {
 
 func TestAPeriodAPlanPriceChangedInCostsItsPriceOnItsFirstDay(t *testing.T) {
 	in := input(sinceJuly)
-	in.From, in.Accounts = on("2026-09-08"), config.Accounts{{ID: "work", Plan: "max20x"}}
-	in.Prices.Plans = []ledger.Plan{{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{
+	in.From, in.Accounts = on("2026-09-08"), config.Accounts{{ID: "work", Plan: "ultra"}}
+	in.Prices.Plans = []ledger.Plan{{ID: "ultra", Name: "Ultra", Size: 10, Prices: []ledger.PlanPrice{
 		{From: "2025-04-09", Monthly: 200 * ledger.Dollar}, {From: "2026-09-09", Monthly: 300 * ledger.Dollar},
 	}}}
 
@@ -165,9 +165,9 @@ func TestAPeriodAPlanPriceChangedInCostsItsPriceOnItsFirstDay(t *testing.T) {
 // has cost, whatever the day, and every account's those summed, its plans
 // counted: an account whose plan isn't known has no price.
 func TestThePlansAtTheirMostAreEachPlansMostAndTheirSum(t *testing.T) {
-	accounts := config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "personal", Plan: "pro"}, {ID: "side"}}
+	accounts := config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "personal", Plan: "pro"}, {ID: "side"}}
 	table := ledger.Table{Plans: []ledger.Plan{
-		{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{{From: "2025-04-09", Monthly: 300 * ledger.Dollar}, {From: "2026-09-09", Monthly: 200 * ledger.Dollar}}},
+		{ID: "ultra", Name: "Ultra", Size: 10, Prices: []ledger.PlanPrice{{From: "2025-04-09", Monthly: 300 * ledger.Dollar}, {From: "2026-09-09", Monthly: 200 * ledger.Dollar}}},
 		{ID: "pro", Name: "Pro", Size: 1, Prices: []ledger.PlanPrice{{From: "2023-09-07", Monthly: 20 * ledger.Dollar}, {From: "2026-09-09", Monthly: 25 * ledger.Dollar}}},
 	}}
 	got := views.PlansAtMost(accounts, table)
@@ -175,7 +175,7 @@ func TestThePlansAtTheirMostAreEachPlansMostAndTheirSum(t *testing.T) {
 		account, plan, monthly string
 		all                    bool
 	}{
-		{account: "work", plan: "max20x", monthly: "$300/mo"},
+		{account: "work", plan: "ultra", monthly: "$300/mo"},
 		{account: "personal", plan: "pro", monthly: "$25/mo"},
 		{account: "side"},
 		{all: true, monthly: "$325/mo"},
@@ -198,7 +198,7 @@ func TestAMonthOrWeekTheDaysAskedForBeginPartWayThroughCostsItsDays(t *testing.T
 		name string
 		from string
 		// months and weeks are what BY MONTH's months and Tokens' weeks
-		// cost, work's Max 20x and side's Pro together.
+		// cost, work's Ultra and side's Pro together.
 		months, weeks string
 	}{
 		{

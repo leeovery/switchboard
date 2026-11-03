@@ -56,7 +56,7 @@ switchboard usage [--5h] [--week] [--<model>] [--by window|account] [--probe] [-
 | Flag | What it does |
 |---|---|
 | `--5h`, `--week` | Print that window alone, with the header and the key line. Given together, they print the windows given, in the order of care: the week, the 5-hour window, then each model's own. |
-| `--<model>` | Print a model's own window, as `--week` does the week. There's a flag for each model with a window of its own, named for it: `--fable` is for Fable's week. A flag for a window no account reports fails, naming the windows there are. |
+| `--<model>` | Print a model's own window, as `--week` does the week. There's a flag for each model with a window of its own, named for it: `--fable` is for Fable's week. A flag for a window no account reports fails, naming the windows there are, as `--5h` does where every account is on a verified Ultra plan. An unverified Ultra account keeps its 5-hour window, and `--5h` works. |
 | `--by window\|account` | Lay the windows out by window, comparing the accounts one window at a time, or by account, keeping each account's windows together. Overrides [`[usage] by`](configuration.md#usage-keys). Where neither says, it's by window. |
 | `--probe` | Probe every account, even while the router runs. |
 | `-r`, `--refresh` | Have the router first read every account it may, as the dashboard's `R` does, and wait for it, ten seconds at most. Without the router, or with `--probe`, every account is probed anyway. |
@@ -96,6 +96,7 @@ row shows these parts:
 | `limit · back 15:54` | Claude's limit holds the window. |
 | `at cap · back 17:10` | The window's use has reached the cap, and the cap holds the account back. |
 | `out ~Sat 06:00` | The window runs out before its reset, at its recent rate. |
+| `no 5-hour limit` | The account has no 5-hour window, as a verified Ultra account hasn't. It shows in place of the bar: `no limit` where the room is short, and by account, where the window's label beside it names the window. |
 | `not started` | A 5-hour window hasn't started yet. |
 | `19%/day till Sun 21:00` | Otherwise, the window's allowance: what can be spent of it an hour or a day and still last to its reset. |
 | `34% till 16:30` | In place of the allowance, under an hour from the 5-hour window's reset, or under a day from a week's reset: the room itself. |
@@ -114,12 +115,19 @@ pool wherever there's more than one account:
 - The pool's row, `Σ pool`, comes last, under a rule.
 - Its percentage is its accounts' mean use, each as its row shows it. An account without a usable
   token, nothing read, or whose token is refused, is left out of it.
-- Its words are the room left to the accounts' caps, in accounts' worth, such as `1.5 of 3 left`.
-  When pinned, they add ` · pinned`.
+- Its words are the room left to the accounts' caps, in accounts' worth, such as `1.5 of 3 left`,
+  out of the accounts that have the window. When pinned, they add ` · pinned`.
+- A window that fewer than two of the pool's accounts have, and not all of them, has no pool figure:
+  side by side its part of the pool's row is blank, and stacked its section has no pool.
 - An account outside the pool has its number drawn faintly.
 
 **Every window shows,** used or not. A model's own window, such as Fable's week, shows on every
 account, at 0% as at 40%.
+
+**A window an account doesn't have** is learnt from its answers, never from its plan: a verified
+Ultra account's carry no 5-hour window. Stacked, the window's section leaves the account out. A
+window no account has isn't shown at all. An account not read yet may have any window, so it keeps
+its rows.
 
 **The width** shapes the layout:
 
@@ -388,7 +396,9 @@ The steps are:
    account has already isn't saved. `p` on the token card pastes a token you made with `claude
    setup-token` instead; a pasted token shows as dots, never the token.
 2. **Priming.** Asks for your day, as `HH:MM-HH:MM`, holding the day set, if any, and writes it to
-   `[prime]` where it changed. Left empty, priming stays off; cleared, it's turned off.
+   `[prime]` where it changed. Left empty, priming stays off; cleared, it's turned off. Where every
+   account is on Ultra, setup skips this step and says so: a verified Ultra account has no 5-hour
+   window to start. A day already set is left as it is.
 3. **The service.** Runs as its page opens, asking nothing. Installs the LaunchAgent when it isn't
    installed and no router answers or runs. Installs it again when launchd hasn't loaded it and no
    router answers, when it runs another
@@ -542,7 +552,7 @@ switchboard accounts remove <id>
 | Flag | What it does |
 |---|---|
 | `--label <label>` | `add` and `edit`: show the account as `<label>`. Default: the id, which `--label ""` goes back to. |
-| `--plan <plan>` | `edit`: the plan the account's subscription is on: `pro`, `max5x` or `max20x`, or `none` to leave it unknown. |
+| `--plan <plan>` | `edit`: the plan the account's subscription is on: `pro`, `max` or `ultra`, or `none` to leave it unknown. A plan's old name, `max5x` or `max20x`, works too, and the config is written with its new. |
 | `--primary` | `add` and `edit`: make the account the primary, the account the browser and the Claude apps use, in place of the one that was. |
 | `--reserve <percent>` | `edit`: the share of every window the router leaves unused on the account, as a percentage to two decimal places at most, such as `5%` or `2.5%`, from `0%` up to but not including `100%`. `0` or `0%` takes the reserve away. |
 | `--paste` | `token`: take a token made with `claude setup-token`, pasted, in place of making one. |
@@ -682,7 +692,7 @@ Examples:
 ```bash
 switchboard accounts add work --label Work --primary
 switchboard accounts add side --label Side
-switchboard accounts edit side --plan max5x --reserve 5%
+switchboard accounts edit side --plan max --reserve 5%
 switchboard accounts token side
 pbpaste | switchboard accounts token side
 switchboard accounts remove side
@@ -816,7 +826,8 @@ as text or JSON, then fails with the config's error on stderr. Without the route
 
 The text shows, in order:
 
-- each window's utilization, when it resets and where it's heading;
+- each window's utilization, when it resets and where it's heading, or `no 5-hour window` for an
+  account without one;
 - what holds an account back, such as a limit it reached or its reserve;
 - whether an account is under pressure, with the rate it goes by, such as
   `under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at 20:10`;

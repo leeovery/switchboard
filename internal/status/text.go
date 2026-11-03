@@ -346,21 +346,26 @@ func RefusalAnswer(code int, family string) string {
 
 // writeAccount writes the account a, judged as j, as it stands at the
 // moment: its title, marking the primary, its windows with their names
-// width wide, in the order of care, as CompareWindows has it, each as
-// accountWindow has it, and whatever couldn't be read.
+// width wide, each as accountWindow has it, and those every model shares it
+// lacks, as lacking has them, each as lackingWindow has it, in the order of
+// care, as CompareWindows has it; and whatever couldn't be read.
 func (m Moment) writeAccount(b *strings.Builder, a AccountNow, j judgedAccount, width int) {
 	title := a.Title()
 	if a.Primary {
 		title += " (primary)"
 	}
 	fmt.Fprintf(b, "%s\n", title)
-	listed := make([]int, len(a.Windows))
-	for i := range listed {
-		listed[i] = i
+	type listed struct{ key, line string }
+	lines := make([]listed, 0, len(a.Windows)+len(j.states.lacks))
+	for i, w := range a.Windows {
+		lines = append(lines, listed{w.Key, m.accountWindow(a, w, j.windows[i], width)})
 	}
-	slices.SortStableFunc(listed, func(x, y int) int { return m.CompareWindows(a.Windows[x].Key, a.Windows[y].Key) })
-	for _, i := range listed {
-		fmt.Fprintf(b, "  %s\n", m.accountWindow(a, a.Windows[i], j.windows[i], width))
+	for _, key := range j.states.lacks {
+		lines = append(lines, listed{key, lackingWindow(m.NameOf(key), width)})
+	}
+	slices.SortStableFunc(lines, func(x, y listed) int { return m.CompareWindows(x.key, y.key) })
+	for _, l := range lines {
+		fmt.Fprintf(b, "  %s\n", l.line)
 	}
 	for _, f := range a.Failures {
 		fmt.Fprintf(b, "  %s offline: %s\n", prose.Clean(f.Label), prose.Clean(f.Error))
@@ -444,6 +449,12 @@ func (m Moment) accountWindow(a AccountNow, wn WindowNow, w judged, width int) s
 	return windowLine(name, wn.Used, width, windowNotes(w.stands, wn, m.Now))
 }
 
+// lackingWindow shows a window an account lacks by its name, nameWidth wide,
+// saying it has none, as in "5-hour  no 5-hour window".
+func lackingWindow(name string, nameWidth int) string {
+	return fmt.Sprintf("%-*s  no %s window", nameWidth, name, InProse(name))
+}
+
 // windowLine shows a window's name, nameWidth wide, and how much of it is
 // used, then the notes given of it.
 func windowLine(name string, used float64, nameWidth int, notes []string) string {
@@ -473,13 +484,18 @@ func windowNotes(stands quota.Window, w WindowNow, now time.Time) []string {
 	return notes
 }
 
-// nameWidth is the length of the longest name of a window at the moment,
-// which lines the windows of every account up.
+// nameWidth is the length of the longest name of a window at the moment, of
+// those the accounts have and those they lack, as lacking has them, which
+// lines the windows of every account up.
 func (m Moment) nameWidth() int {
 	width := 0
-	for _, account := range m.doc.Accounts {
+	widen := func(key string) { width = max(width, utf8.RuneCountInString(m.NameOf(key))) }
+	for i, account := range m.doc.Accounts {
 		for _, w := range account.Windows {
-			width = max(width, utf8.RuneCountInString(m.NameOf(w.Key)))
+			widen(w.Key)
+		}
+		for _, key := range m.judged[i].states.lacks {
+			widen(key)
 		}
 	}
 	return width

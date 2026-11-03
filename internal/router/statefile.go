@@ -145,13 +145,16 @@ func (s savedUsage) read() int {
 }
 
 // savedReading is an account's windows as last read, and when, and when each
-// window was, by its key, and its extra usage; and how its probes went: when
-// one last ended, why the last read nothing, and how many in a row did. A
-// file from before kept none of the probes, which reads as none ended.
+// window was, by its key, the keys of the windows its whole readings stopped
+// reporting, in order, and its extra usage; and how its probes went: when one
+// last ended, why the last read nothing, and how many in a row did. A file
+// from before kept none of the probes, which reads as none ended, and no
+// window retired.
 type savedReading struct {
 	ReadAt        time.Time            `json:"read_at,omitzero"`
 	Windows       []quota.Window       `json:"windows,omitempty"`
 	WindowsReadAt map[string]time.Time `json:"windows_read_at,omitempty"`
+	WindowsAbsent []string             `json:"windows_absent,omitempty"`
 	Extra         quota.ExtraUsage     `json:"extra_usage,omitzero"`
 	Probed        time.Time            `json:"probed,omitzero"`
 	ProbeError    string               `json:"probe_error,omitempty"`

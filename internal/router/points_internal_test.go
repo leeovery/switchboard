@@ -199,6 +199,20 @@ func TestGETHistoryPlacesEachWindowAsItRunsNow(t *testing.T) {
 	}
 }
 
+func TestGETHistoryGivesNoPointsOfAWindowAnAccountsAnswersNoLongerReport(t *testing.T) {
+	clock := &testClock{}
+	r, _ := newChartedRouter(t, clock)
+	readAs(r, clock, "work", at13(30), using(session, 0.2))
+	readAs(r, clock, "work", at13(40), using(session, 0.25))
+	clock.now = chartedAt
+	r.state.recordAnswer("work", []quota.Window{week}, r.state.mark(), true)
+
+	got := historyAnswer(t, r, "window=5h&step=5m")
+	if want := (AccountHistory{ID: "work"}); !reflect.DeepEqual(got.Accounts[0], want) {
+		t.Errorf("work's history is\n%+v\nwant\n%+v: no session to place", got.Accounts[0], want)
+	}
+}
+
 func TestGETHistoryReadsTheDaysTheWindowSpansAndTheReadingsHeldSince(t *testing.T) {
 	clock := &testClock{}
 	r, dir := newChartedRouter(t, clock)

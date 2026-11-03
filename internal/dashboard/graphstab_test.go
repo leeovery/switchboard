@@ -239,6 +239,141 @@ func TestGraphsEverySectionHiddenTheFirstRowSaysHowToBringThemBack(t *testing.T)
 	}
 }
 
+// Graphs offers 5-HOUR while any account the moment holds has, or may have,
+// the 5-hour, as its AnyHas has it, so never where every one it holds lacks
+// it, though one configured that the router doesn't hold yet may have it;
+// and while there's a card to draw, a card for each configured account that
+// has, or may have, it, as Has has them, or none is configured, so never
+// where the config has dropped the one account held with it; with no moment
+// held, it's offered; and every other section always.
+func TestGraphsOffersFiveHourWhileAnyAccountHasOrMayHaveIt(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []string
+		lacking  []string
+		unheld   bool
+		want     bool
+		charted  []string
+	}{
+		{name: "every account with one", accounts: trioIDs, want: true, charted: trioIDs},
+		{name: "side alone with one", accounts: trioIDs, lacking: []string{"work", "personal"}, want: true, charted: []string{"side"}},
+		{name: "none with one", accounts: trioIDs, lacking: trioIDs},
+		{name: "none held with one, and one the router doesn't hold yet", accounts: append(slices.Clone(trioIDs), "client"), lacking: trioIDs, charted: []string{"client"}},
+		{name: "the one held with one dropped from the config", accounts: []string{"work", "personal"}, lacking: []string{"work", "personal"}},
+		{name: "none configured, none held with one", lacking: trioIDs},
+		{name: "none configured, every one held with one", want: true},
+		{name: "no moment held", accounts: trioIDs, lacking: trioIDs, unheld: true, want: true, charted: trioIDs},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accounts := configured(tt.accounts...)
+			held := withoutFiveHour(trio(), tt.lacking...).HoldAt(printNow, printPolicy)
+			if tt.unheld {
+				held = nil
+			}
+			for _, s := range EveryGraphsSection() {
+				if got, want := GraphsOffers(s, accounts, held, printPolicy), tt.want || s != GraphsFiveHour; got != want {
+					t.Errorf("Graphs offers %s %t, want %t", s.heading(), got, want)
+				}
+			}
+			var charted []string
+			for _, a := range fiveHourCharted(accounts, held, printPolicy) {
+				charted = append(charted, a.ID)
+			}
+			if !slices.Equal(charted, tt.charted) {
+				t.Errorf("5-HOUR charts %q, want %q", charted, tt.charted)
+			}
+		})
+	}
+}
+
+// Where no account has the 5-hour, 5-HOUR goes, and f with it: from the
+// page, its headings' targets and the toggles every section hidden names; a
+// 5-HOUR kept, as the sections shown keep it, shows again once an account
+// has the 5-hour.
+func TestGraphsFiveHourGoesWhereNoAccountHasOne(t *testing.T) {
+	const hidden = "every section is hidden:  w week  o pool  g glance  h when"
+	fiveHour := GraphsSectionsNamed([]string{"5-hour"})
+	tests := []struct {
+		name    string
+		shown   GraphsSections
+		lacking []string
+		keys    []string
+		first   string
+	}{
+		{name: "at first, every account with one", keys: []string{"w", "f"}, first: "WEEK "},
+		{name: "at first, side alone with one", lacking: []string{"work", "personal"}, keys: []string{"w", "f"}, first: "WEEK "},
+		{name: "at first, none with one", lacking: trioIDs, keys: []string{"w"}, first: "WEEK "},
+		{name: "5-HOUR alone kept, none with one", shown: fiveHour, lacking: trioIDs, first: hidden},
+		{name: "5-HOUR alone kept, side with one", shown: fiveHour, lacking: []string{"work", "personal"}, keys: []string{"f"}, first: "5-HOUR "},
+		{name: "every one hidden, none with one", shown: GraphsSectionsNamed([]string{}), lacking: trioIDs, first: hidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := withoutFiveHour(trio(), tt.lacking...)
+			f := graphsFrame(160, 120, tt.shown)
+			text := textOf(f.Draw(doc, printNow))
+			var keys []string
+			for _, target := range f.Targets(doc, printNow) {
+				if target.On == OnPress {
+					keys = append(keys, target.Key)
+				}
+			}
+			if !strings.HasPrefix(text[f.top()], tt.first) || !slices.Equal(keys, tt.keys) {
+				t.Errorf("the view's top reads %q, its headings' targets pressing %q; want it to start %q, and %q pressed", text[f.top()], keys, tt.first, tt.keys)
+			}
+			if has, want := slices.ContainsFunc(text, func(row string) bool { return strings.HasPrefix(row, "5-HOUR ") }), slices.Contains(tt.keys, "f"); has != want {
+				t.Errorf("the page reads\n%s\nwant 5-HOUR on it %t", strings.Join(text, "\n"), want)
+			}
+		})
+	}
+}
+
+// Graphs offers no 5-HOUR, nor GLANCE a 5-HOUR column, where every account
+// the router holds lacks the 5-hour, as verified Ultra ones do, though one
+// configured that the router doesn't hold yet, as after accounts add, may
+// have it, as Runway offers no 5-hour then, at the same moment; nor where
+// the config has dropped the one account held with it, till the router
+// holds the config's accounts, though Runway still offers it, as no card
+// would draw it.
+func TestGraphsOffersNoFiveHourWithoutAnAccountToChartItFor(t *testing.T) {
+	tests := []struct {
+		name       string
+		lacking    []string
+		configured []string
+		runway     []views.RunwayWindow
+	}{
+		{
+			name: "every account held lacking it, one configured not held yet", lacking: trioIDs,
+			configured: append(slices.Clone(trioIDs), "client"), runway: []views.RunwayWindow{views.RunwayWeek},
+		},
+		{
+			name: "the one held with it dropped from the config", lacking: []string{"work", "personal"},
+			configured: []string{"work", "personal"}, runway: runwayWindows,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := withoutFiveHour(trio(), tt.lacking...)
+			f := graphsFrame(160, 120, everyGraphsSection()).At(doc, printNow)
+			f.Graphs.Accounts = configured(tt.configured...)
+			if got := views.RunwayWindowsOf(f.Moment(doc, printNow)); !slices.Equal(got, tt.runway) {
+				t.Fatalf("Runway offers %q, want %q", got, tt.runway)
+			}
+			if f.graphsOffers(GraphsFiveHour) {
+				t.Error("Graphs offers 5-HOUR, want it gone")
+			}
+			if got := f.graphsLaid().glance.windows; !slices.Equal(got, []views.RunwayWindow{views.RunwayWeek}) {
+				t.Errorf("GLANCE draws %q, want the week alone", got)
+			}
+			text := textOf(f.Draw(doc, printNow))
+			if slices.ContainsFunc(text, func(row string) bool { return strings.Contains(row, "5-HOUR") }) {
+				t.Errorf("the page reads\n%s\nwant no 5-HOUR on it, neither section nor GLANCE's column", strings.Join(text, "\n"))
+			}
+		})
+	}
+}
+
 // pressed are the keys the targets a click on which presses one press, in
 // their order, and the rows they're on.
 func pressed(f Frame) (keys []string, rows []int) {

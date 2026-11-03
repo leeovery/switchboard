@@ -789,7 +789,7 @@ func TestHistoryJSONPricesThePlansAndStartsTheWeeksAsTheConfigSays(t *testing.T)
 	// plans are priced from then to today, 4 days at 12/365 of a month:
 	// work's costs them, and side's isn't known, so every account's worth
 	// against them is over 1 of the 2 plans.
-	want := `[{"account":"work","plan":"max20x","price":200,"cost":26.301369863014,"against":0.005959841666666598,"worth":0.156752,"unpriced":["claude-opus-9"]},` +
+	want := `[{"account":"work","plan":"ultra","price":200,"cost":26.301369863014,"against":0.005959841666666598,"worth":0.156752,"unpriced":["claude-opus-9"]},` +
 		`{"account":"side","worth":0.01502,"unpriced":["no_usage"]},` +
 		`{"all":true,"price":200,"cost":26.301369863014,"against":0.005959841666666598,"plans":{"known":1,"of":2},"worth":0.156752,"unpriced":["claude-opus-9"]}]`
 	var plans bytes.Buffer

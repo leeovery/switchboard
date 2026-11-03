@@ -57,7 +57,7 @@ func (a NewAccount) taken() (NewAccount, error) {
 	if err := errors.Join(checkID(name, a.ID), labelErr, checkPlan(name, a.Plan)); err != nil {
 		return NewAccount{}, err
 	}
-	a.Label = label
+	a.Label, a.Plan = label, planNamed(a.Plan)
 	return a, nil
 }
 
@@ -202,6 +202,20 @@ func (d *Draft) Labelled(id string) bool {
 	return i >= 0 && d.file.Accounts[i].Label != ""
 }
 
+// PlanAlias returns the alias the draft names the plan of the account with
+// the given id by, where it names it by the name it had before the plans were
+// renamed: else "".
+func (d *Draft) PlanAlias(id string) string {
+	i := d.index(id)
+	if i < 0 {
+		return ""
+	}
+	if plan := d.file.Accounts[i].Plan; planNamed(plan) != plan {
+		return plan
+	}
+	return ""
+}
+
 // SetPrimary makes the account with the given id the primary: it marks it so
 // in place of the value any primary it sets gives, keeping a comment beside
 // it, else below the last key of its [[account]] table, and takes primary off
@@ -278,12 +292,14 @@ func (d *Draft) SetLabel(id, given string) error {
 
 // SetPlan sets the plan of the account with the given id, one of Plans, as
 // setAccountKey sets a key: "" takes it out, leaving the plan unknown. It
-// fails, matching ErrNotConfigured, when no account has the id, and for a
-// plan that isn't one of Plans.
+// writes the plan by the name Plans give it, given an alias, and in place of
+// one the file gives. It fails, matching ErrNotConfigured, when no account
+// has the id, and for a plan that isn't one of Plans.
 func (d *Draft) SetPlan(id, plan string) error {
 	if err := checkPlan(accountNamed(id), plan); err != nil {
 		return err
 	}
+	plan = planNamed(plan)
 	return d.setAccountKey(id, "plan", written(plan), func(a *fileAccount) { a.Plan = plan })
 }
 

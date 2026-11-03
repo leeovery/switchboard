@@ -35,7 +35,7 @@ func glanceWhole(f Frame) (*canvas, graphsLaid) {
 // configured accounts given: GLANCE's natural, glanceWhenGap and WHEN YOU
 // WORK's natural.
 func pairsFrom(accounts config.Accounts) int {
-	return glancePart(status.Numbering{}, accounts).Natural + glanceWhenGap + hoursPart().Natural
+	return glancePart(status.Numbering{}, accounts, runwayWindows).Natural + glanceWhenGap + hoursPart().Natural
 }
 
 // GLANCE is drawn under its heading and blank row, from the section's left,
@@ -57,7 +57,7 @@ func TestGraphsDrawsGlanceInItsRows(t *testing.T) {
 		f := glanceFrame(t, tt.width, tt.height, "week", "glance")
 		c, laid := glanceWhole(f)
 		body := placedOf(t, laid, GraphsGlance).body(tt.width)
-		l := layGlance(f.numbering(), f.Graphs.Accounts, tt.width)
+		l := layGlance(f.numbering(), f.Graphs.Accounts, runwayWindows, tt.width)
 		if l.stacked != tt.stacked || (l.words < fullWidest()) != tt.narrowed || l.rows() != body.rows {
 			t.Errorf("at %d columns, GLANCE is laid stacked %t, its words %d cells of %d, in %d rows of a body of %d; want stacked %t, its words narrowed %t, in its body's rows",
 				tt.width, l.stacked, l.words, fullWidest(), l.rows(), body.rows, tt.stacked, tt.narrowed)
@@ -80,12 +80,12 @@ func TestGraphsDrawsGlanceInItsRows(t *testing.T) {
 // the width. So with the sample's names, from 175 columns, GLANCE's natural
 // 113; and so of one account and of four, one named at a label's most.
 func TestGlanceSitsBesideWhenYouWorkWhereBothFitAtTheirNaturals(t *testing.T) {
-	if got := pairsFrom(trioConfigured()); got != 175 || glancePart(status.Numbering{}, trioConfigured()).Natural != 113 {
-		t.Errorf("with the sample's names, GLANCE's natural is %d and the pair fits from %d columns, want 113 and 175", glancePart(status.Numbering{}, trioConfigured()).Natural, got)
+	if got := pairsFrom(trioConfigured()); got != 175 || glancePart(status.Numbering{}, trioConfigured(), runwayWindows).Natural != 113 {
+		t.Errorf("with the sample's names, GLANCE's natural is %d and the pair fits from %d columns, want 113 and 175", glancePart(status.Numbering{}, trioConfigured(), runwayWindows).Natural, got)
 	}
 	four := append(trioConfigured(), config.Account{ID: "lab", Label: "research-lab-and-consult"})
 	for _, accounts := range []config.Accounts{trioConfigured(), trioConfigured()[:1], four} {
-		from, natural := pairsFrom(accounts), glancePart(status.Numbering{}, accounts).Natural
+		from, natural := pairsFrom(accounts), glancePart(status.Numbering{}, accounts, runwayWindows).Natural
 		for _, width := range []int{from, from + 40} {
 			f := graphsFrame(width, 80, GraphsSectionsNamed([]string{"glance", "when"}))
 			f.Graphs.Accounts = accounts
@@ -137,7 +137,7 @@ func TestGlanceBesideWhenYouWorkTakesTheTallersRows(t *testing.T) {
 		l := f.graphsLaid()
 		g, w := placedOf(t, l, GraphsGlance), placedOf(t, l, GraphsWhen)
 		own := map[GraphsSection]int{
-			GraphsGlance: layGlance(status.Numbering{}, tt.accounts, g.across.Size).rows(),
+			GraphsGlance: layGlance(status.Numbering{}, tt.accounts, runwayWindows, g.across.Size).rows(),
 			GraphsWhen:   whenRows(w.across.Size, f.Look),
 		}
 		other := GraphsGlance + GraphsWhen - tt.taller
@@ -155,7 +155,7 @@ func TestGlanceBesideWhenYouWorkTakesTheTallersRows(t *testing.T) {
 func TestGraphsHeadsGlanceAndWhenYouWorkSideBySide(t *testing.T) {
 	f := glanceFrame(t, 180, 53, "glance", "when")
 	rows := textOf(f.Draw(trio(), printNow))
-	natural := glancePart(f.numbering(), f.Graphs.Accounts).Natural
+	natural := glancePart(f.numbering(), f.Graphs.Accounts, runwayWindows).Natural
 	wantAt := map[string]flex.Span{"g": {Size: natural}, "h": {At: natural + glanceWhenGap, Size: 180 - natural - glanceWhenGap}}
 	keys, _ := pressed(f)
 	if !slices.Equal(keys, []string{"g", "h"}) {
@@ -196,7 +196,7 @@ func TestGraphsDrawsGlanceAndWhenYouWorkEachInItsOwnColumns(t *testing.T) {
 		c, laid := glanceWhole(f)
 		g, w := placedOf(t, laid, GraphsGlance), placedOf(t, laid, GraphsWhen)
 		want := newCanvas(width, laid.rows)
-		l := layGlance(f.numbering(), f.Graphs.Accounts, g.across.Size)
+		l := layGlance(f.numbering(), f.Graphs.Accounts, runwayWindows, g.across.Size)
 		glance{m: f.Moment(trio(), printNow), trails: f.Trails, pools: f.Graphs.Spans, look: f.Look}.draw(want, l, 0, g.at+sectionHead)
 		hoursGrid{page: sample, look: f.Look}.draw(want, w.across.At, w.at+sectionHead, hoursLaid(w.across.Size))
 		if x, y, differ := sameRows(c, want, g.at+sectionHead, laid.rows); differ {

@@ -16,7 +16,7 @@ import (
 
 // threeAccounts are work, personal and side, as Accounts' frames configure
 // them.
-var threeAccounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "personal", Primary: true, Plan: "max20x"}, {ID: "side", Plan: "max20x"}}
+var threeAccounts = config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "personal", Primary: true, Plan: "ultra"}, {ID: "side", Plan: "ultra"}}
 
 // accountsPageOf is Accounts' page over this week of the days given, the
 // accounts configured as given, now Wednesday 7 October.

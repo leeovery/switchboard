@@ -16,7 +16,8 @@ type Pool struct {
 	Accounts []string `json:"accounts"`
 	// Pinned is set when they're the accounts the global pin names.
 	Pinned bool `json:"pinned,omitempty"`
-	// Windows are a window each that any of them has, shortest first.
+	// Windows are a window each that any of them has, shortest first, as
+	// kept has them.
 	Windows []PoolWindow `json:"windows"`
 }
 
@@ -24,6 +25,9 @@ type Pool struct {
 type PoolWindow struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
+	// Of is how many of its accounts have it or may have it: those that
+	// don't lack it, as lacking has them.
+	Of int `json:"of"`
 	// Room is the room its accounts have left in it, summed in accounts'
 	// worth, 1.5 being an account and a half.
 	Room float64 `json:"room"`
@@ -320,12 +324,7 @@ func (d Document) pool(accounts []judgedAccount) Pool {
 	if !d.pooled() {
 		return Pool{}
 	}
-	var members []judgedAccount
-	for _, j := range accounts {
-		if d.inPool(j.states.account.ID) {
-			members = append(members, j)
-		}
-	}
+	members := d.members(accounts)
 	p := Pool{Pinned: !d.Pin.IsZero(), Windows: []PoolWindow{}}
 	var keys []string
 	for _, m := range members {
@@ -338,9 +337,60 @@ func (d Document) pool(accounts []judgedAccount) Pool {
 	}
 	slices.SortFunc(keys, quota.CompareKeys)
 	for _, key := range keys {
-		p.Windows = append(p.Windows, poolWindow(members, key))
+		if w := poolWindow(members, key); w.kept(len(members)) {
+			p.Windows = append(p.Windows, w)
+		}
 	}
 	return p
+}
+
+// members are the accounts judged that new sessions can go to, as inPool
+// says, in their order.
+func (d Document) members(accounts []judgedAccount) []judgedAccount {
+	var members []judgedAccount
+	for _, j := range accounts {
+		if d.inPool(j.states.account.ID) {
+			members = append(members, j)
+		}
+	}
+	return members
+}
+
+// kept reports whether a pool of the given number of members keeps the
+// window, as keeps judges it.
+func (w PoolWindow) kept(members int) bool {
+	return keeps(w.Of, members)
+}
+
+// keeps reports whether a pool of the given number of members keeps a
+// window of members of them have or may have: at least two, or every one.
+func keeps(of, members int) bool {
+	return of >= 2 || of == members
+}
+
+// poolLacks reports whether the pool of the accounts judged leaves out the
+// window with the given key because its members lack it, as lacking has
+// those that do: keeps wouldn't keep it, counting those that have it or may
+// have it. A window nothing has been read of is lacked by none, nor is any
+// where there's no pool.
+func (d Document) poolLacks(accounts []judgedAccount, key string) bool {
+	if !d.pooled() {
+		return false
+	}
+	members := d.members(accounts)
+	return !keeps(haveOrMay(members, key), len(members))
+}
+
+// haveOrMay is how many of the members given have the window with the given
+// key or may have it: those that don't lack it, as lacking has them.
+func haveOrMay(members []judgedAccount, key string) int {
+	n := 0
+	for _, m := range members {
+		if !m.states.lacksWindow(key) {
+			n++
+		}
+	}
+	return n
 }
 
 // pooled reports whether the document has a pool: it has several accounts,
@@ -356,11 +406,12 @@ func (d Document) inPool(id string) bool {
 }
 
 // poolWindow is the window with the given key of the members given, as one:
-// the room each has left in it, as poolRoom has it, summed; their use of it,
-// those usedOf counts, averaged; and their even paces in it, as it stands,
-// where it's running, as paceOf has each, averaged.
+// how many have it or may have it, as lacking has those that don't; the room
+// each has left in it, as poolRoom has it, summed; their use of it, those
+// usedOf counts, averaged; and their even paces in it, as it stands, where
+// it's running, as paceOf has each, averaged.
 func poolWindow(members []judgedAccount, key string) PoolWindow {
-	pw := PoolWindow{Key: key}
+	pw := PoolWindow{Key: key, Of: haveOrMay(members, key)}
 	var used, paces float64
 	var counted, running int
 	for _, m := range members {

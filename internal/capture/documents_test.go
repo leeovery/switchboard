@@ -292,8 +292,8 @@ func TestTheWorldsKeepEachWorldAndItsRecords(t *testing.T) {
 
 func TestTheWorldsAccountsAreTheSpecsInConfigOrder(t *testing.T) {
 	want := []string{
-		"work reserve 0.05 max20x", "personal primary max20x", "side max20x", "client max20x", "spare max5x",
-		"lab max20x", "team max20x", "extra max5x", "ops max5x", "studio max20x",
+		"work reserve 0.05 ultra", "personal primary ultra", "side ultra", "client ultra", "spare max",
+		"lab ultra", "team ultra", "extra max", "ops max", "studio ultra",
 	}
 	for i, a := range tenAccounts {
 		got := a.ID

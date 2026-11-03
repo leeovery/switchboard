@@ -7,9 +7,9 @@ import (
 
 // Plan is a plan a subscription is on, as the price table prices it.
 type Plan struct {
-	// ID names it as the config does, as max5x.
+	// ID names it as the config does, as ultra.
 	ID string
-	// Name names it as the views show it, as Max 5x.
+	// Name names it as the views show it, as Ultra.
 	Name string
 	// Size is its size in Pros, which History's replay of a week weighs an
 	// account on it by.

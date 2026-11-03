@@ -107,13 +107,19 @@ type usageRow struct {
 // all set, all accounts' window, which is never the pool's, by its key; its
 // bar; its words, and whether they say it runs out; and, while the Overview
 // cues its words, how far their cue has faded, nil where they aren't cued.
+// With none set, its account, or the pool, has no such window: it draws its
+// words alone, where its bar would start, and the pool's has none. Labelled
+// says the window's name labels it already, beside it, so those words say
+// "no limit" without naming the window again.
 type gauge struct {
-	of      Ref
-	all     bool
-	bar     usageBar
-	words   usageWords
-	runsOut bool
-	cue     *float64
+	of       Ref
+	all      bool
+	none     bool
+	labelled bool
+	bar      usageBar
+	words    usageWords
+	runsOut  bool
+	cue      *float64
 }
 
 // newUsageBlock is the usage block of the moment m, width cells wide, drawn
@@ -138,7 +144,7 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 		}
 		b.rows = append(b.rows, row)
 	}
-	if row, ok := poolRow(m.Pool(), names, b.windows); ok {
+	if row, ok := poolRow(m, names, b.windows); ok {
 		b.rows = append(b.rows, row)
 	}
 	return b
@@ -156,30 +162,39 @@ func usageWindows(keys []string, name func(key string) string) []shownWindow {
 
 // accountGauge is account a's window with the given key, as it stands at
 // now, as its row draws it: empty, and nothing on it, where the account has
-// no usable token or nothing is read of the window; else filled to its use,
-// with its cap's mark and even pace's, and faded where it's stale.
+// no usable token, nothing is read of the window, or it has no such window,
+// which draws its words alone; else filled to its use, with its cap's mark
+// and even pace's, and faded where it's stale.
 func accountGauge(a status.AccountNow, key string, now time.Time) gauge {
 	w, _ := a.Window(key)
 	bar := usageBar{used: w.Used, capAt: a.Cap, pace: w.Pace, stale: w.Kind == status.WindowStale}
 	if drawsEmpty(w.Kind) {
 		bar = usageBar{empty: true}
 	}
-	return gauge{of: Ref{Account: a.ID, Window: key}, bar: bar, words: wordsOf(w, now), runsOut: w.RunsOut}
+	return gauge{
+		of: Ref{Account: a.ID, Window: key}, none: w.Kind == status.WindowNone, bar: bar,
+		words: wordsOf(w, now), runsOut: w.RunsOut,
+	}
 }
 
 // drawsEmpty reports whether a window of the given kind draws an empty bar:
-// where its account has no usable token or nothing is read of it.
+// where its account has no usable token, nothing is read of it, or it has no
+// such window.
 func drawsEmpty(kind status.WindowKind) bool {
-	return kind == status.WindowTokenless || kind == status.WindowUnread
+	return kind == status.WindowTokenless || kind == status.WindowUnread || kind == status.WindowNone
 }
 
 // poolRow is pool's row under the rows of accounts named as names has them,
 // of the windows shown, its Σ in their number column, reporting false where
 // there's no pool, as with one account: each window's bar filled to its
 // accounts' mean use, with their even pace and no cap's mark, empty where no
-// account's use is counted, and its words its room, the first it has words
-// for saying it's pinned, where it is.
-func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (usageRow, bool) {
+// account's use is counted, and its words its room of how many of its
+// accounts have the window, as its Of counts them, the first it has words
+// for saying it's pinned, where it is; nothing drawn of a window it leaves
+// out as its accounts lack it, as m's PoolLacks says; and of any other it
+// hasn't, its bar empty.
+func poolRow(m status.Moment, names []accountName, windows []shownWindow) (usageRow, bool) {
+	pool := m.Pool()
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
@@ -188,7 +203,8 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 	for _, w := range windows {
 		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindowNow) bool { return p.Key == w.key })
 		if j < 0 {
-			row.gauges = append(row.gauges, gauge{bar: usageBar{empty: true}})
+			lacks := m.PoolLacks(w.key)
+			row.gauges = append(row.gauges, gauge{none: lacks, bar: usageBar{empty: !lacks}})
 			continue
 		}
 		p := pool.Windows[j]
@@ -196,7 +212,7 @@ func poolRow(pool status.PoolNow, names []accountName, windows []shownWindow) (u
 		if p.Used != nil {
 			bar = usageBar{used: *p.Used, capAt: 1, pace: p.Pace}
 		}
-		row.gauges = append(row.gauges, gauge{of: Ref{Window: w.key}, bar: bar, words: poolWords(p.Room, len(pool.Accounts), pinned)})
+		row.gauges = append(row.gauges, gauge{of: Ref{Window: w.key}, bar: bar, words: poolWords(p.Room, p.Of, pinned)})
 		pinned = false
 	}
 	return row, true
@@ -609,7 +625,8 @@ func (b usageBlock) underHeading() int {
 
 // stacked draws the block's windows one under another, each a section, its
 // heading, then a row an account, the pool last, from row y, a blank line
-// between sections, as before the key line.
+// between sections, as before the key line. A section has only the rows of
+// its window, as having has them.
 func (b usageBlock) stacked(c *canvas, y int) laid {
 	bar := b.bar()
 	all := laid{end: y}
@@ -619,7 +636,7 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		}
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
 		first := y + b.underHeading()
-		section := b.each(c, first, 2, func(r usageRow, y int) int {
+		section := b.having(i).each(c, first, 2, func(r usageRow, y int) int {
 			c.line(1, y, r.name)
 			b.gauge(c, r.gauges[i], b.names, y, bar, b.width-afterWords)
 			return y
@@ -631,6 +648,15 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		y, all.end = section.end, section.end
 	}
 	return all
+}
+
+// having is the block with only the rows that have its window i: none of an
+// account without it, and none of the pool where it lacks it, as poolRow has
+// it, so the pool's row and its rule go once fewer than two accounts have it.
+// An account unread, or without a usable token, may have it, so keeps its row.
+func (b usageBlock) having(i int) usageBlock {
+	b.rows = slices.DeleteFunc(slices.Clone(b.rows), func(r usageRow) bool { return r.gauges[i].none })
+	return b
 }
 
 // each draws the block's rows from row y, each as draw draws it from the row
@@ -688,9 +714,12 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 	l := b.each(c, y, blocksApart, func(r usageRow, y int) int {
 		c.line(0, y, r.name)
 		for j, g := range r.gauges {
+			if r.pool && g.none {
+				continue
+			}
 			at := y + b.windowRow(j)
 			c.line(labelAt, at, line{{prose.Cut(status.Short(b.windows[j].name), cells-1), dimInk}})
-			b.gauge(c, g, labelAt+cells, at, bar, end)
+			b.gauge(c, g.besideLabel(), labelAt+cells, at, bar, end)
 		}
 		return y + b.blockRows() - 1
 	})
@@ -742,8 +771,13 @@ func (b usageBlock) labels() (at, cells int, above bool) {
 // gauge draws g from x along row y: its bar, bar cells long, marked as its
 // window's; a cell; its percentage, right-aligned in its cells; two cells;
 // and its words, ending before column end, in the form wordsIn has them,
-// picked out while they're cued, as cue picks them out.
+// picked out while they're cued, as cue picks them out. Of a window its
+// account or the pool hasn't, it draws its words alone, from x.
 func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar, end int) {
+	if g.none {
+		c.line(x, y, b.wordsIn(g, end-x))
+		return
+	}
 	g.bar.draw(c, b.look, x, y, bar)
 	c.barred(x, y, bar, g.of)
 	at := x + bar + 1
@@ -755,13 +789,24 @@ func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar, end int) {
 }
 
 // wordsIn are g's words as the block draws them in room cells: where its
-// words are laid, in full wherever they fit them, as fitted has them; else
-// as said has them by the block's width.
+// account has no limit in the window and a label beside it names the
+// window, short, as in "5-hour no limit"; where its words are laid, in full
+// wherever they fit them, as fitted has them; else as said has them by the
+// block's width.
 func (b usageBlock) wordsIn(g gauge, room int) line {
-	if b.laid {
+	switch {
+	case g.none && g.labelled:
+		return g.words.short.fitWhole(room)
+	case b.laid:
 		return g.led(g.words.fitted(room))
 	}
 	return g.said(b.width, room)
+}
+
+// besideLabel is g drawn beside its window's label, which names the window.
+func (g gauge) besideLabel() gauge {
+	g.labelled = true
+	return g
 }
 
 // percentage is g's percentage, as its bar has it, numbered as its window's

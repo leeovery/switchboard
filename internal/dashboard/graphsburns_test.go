@@ -131,6 +131,49 @@ func TestGraphsDrawsEveryAccountsCardWhereThePageLaysItOut(t *testing.T) {
 	}
 }
 
+// 5-HOUR has a card only for each account that has, or may have, the
+// 5-hour, in the config's order, numbered as every view numbers it, from the
+// first of the columns WEEK's lie in, its rows of cards as many as that
+// takes; WEEK has every account's all along.
+func TestGraphsFiveHourHasACardOnlyForEachAccountWithTheFiveHour(t *testing.T) {
+	tests := []struct {
+		name    string
+		lacking []string
+		width   int
+		want    []string
+		down    int
+	}{
+		{name: "every account with one", width: 160, want: []string{"1 work", "2 personal", "3 side"}, down: 1},
+		{name: "side alone with one", lacking: []string{"work", "personal"}, width: 160, want: []string{"3 side"}, down: 1},
+		{name: "personal and side with one", lacking: []string{"work"}, width: 160, want: []string{"2 personal", "3 side"}, down: 1},
+		{name: "two across, every account with one", width: 108, want: []string{"1 work", "2 personal", "3 side"}, down: 2},
+		{name: "two across, personal and side with one", lacking: []string{"work"}, width: 108, want: []string{"2 personal", "3 side"}, down: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := withoutFiveHour(trio(), tt.lacking...)
+			f := cardsPage(doc, printNow, tt.width, 200, trioIDs...).At(doc, printNow)
+			c, sections := pageCards(f, doc, printNow)
+			if len(sections[GraphsWeek]) != len(trioIDs) {
+				t.Errorf("WEEK has %d cards, want every account's, %d", len(sections[GraphsWeek]), len(trioIDs))
+			}
+			cards, across := sections[GraphsFiveHour], cardsAcross(len(trioIDs), tt.width)
+			var labels []string
+			rows := map[int]bool{}
+			for i, card := range cards {
+				labels = append(labels, strings.Join(strings.Fields(labelOf(c, card))[:2], " "))
+				rows[card.label] = true
+				if want := across[i%len(across)].At; card.chart.x != want {
+					t.Errorf("5-HOUR's card %d is at column %d, want %d, as WEEK's columns lie", i+1, card.chart.x, want)
+				}
+			}
+			if !slices.Equal(labels, tt.want) || len(rows) != tt.down {
+				t.Errorf("5-HOUR's cards are %q, on %d rows of cards; want %q, on %d", labels, len(rows), tt.want, tt.down)
+			}
+		})
+	}
+}
+
 // A card's words are on a row of their own under its label where the page
 // has rows to spare for them, as at 160 by 37; else on the label's row,
 // ending at the card's last column, as at 108 by 44.

@@ -582,7 +582,7 @@ func (d detailDrawn) usage(c *canvas, y int) {
 	for i, w := range d.windows() {
 		row := y + 1 + i*windowsApart
 		c.line(d.l.panel, row, line{{prose.Cut(status.Short(w.name), l.names), dimInk}})
-		b.gauge(c, d.gauge(w.key), d.l.panel+l.at, row, l.bar, end)
+		b.gauge(c, d.gauge(w.key).besideLabel(), d.l.panel+l.at, row, l.bar, end)
 	}
 }
 

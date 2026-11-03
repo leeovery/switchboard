@@ -253,9 +253,9 @@ func (c *fakeClock) Now() time.Time {
 // of the account's own, as tokenOf has it, failing with reviewErr where it's
 // set; ReviewOf with that review's row, its token as checked has it, where
 // it has it, of the account's own, failing with checkErr where it's set,
-// keeping each id it's asked of in checks; Priming
-// with day, failing with primingErr where it's set; SetDay as
-// config.ParseDay does, keeping each day it's given in set, failing with
+// keeping each id it's asked of in checks; Priming with day, the step
+// skipped where skipped is set, failing with primingErr where it's set;
+// SetDay as config.ParseDay does, keeping each day it's given in set, failing with
 // setErr where it's set; Service with serviced, failing with serviceErr
 // where it's set; Link with found, failing with linkErr where it's set;
 // AskAgain with the first of again, each once, else what it's given,
@@ -280,6 +280,7 @@ type fakeSteps struct {
 	checkErr   error
 	checks     []string
 	day        config.Day
+	skipped    bool
 	primingErr error
 	set        []string
 	setErr     error
@@ -572,11 +573,11 @@ func (s *fakeSteps) replace(id string) {
 	s.replaced[id]++
 }
 
-func (s *fakeSteps) Priming() (config.Day, error) {
+func (s *fakeSteps) Priming() (setup.Primed, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.primings++
-	return s.day, s.primingErr
+	return setup.Primed{Day: s.day, Skipped: s.skipped}, s.primingErr
 }
 
 func (s *fakeSteps) SetDay(day string) (config.Day, error) {

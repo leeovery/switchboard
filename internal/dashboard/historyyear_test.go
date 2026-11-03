@@ -33,7 +33,7 @@ type framedMonth struct {
 	from     string
 }
 
-// The frames' world: three accounts on Max 20x, $600 a month, the months'
+// The frames' world: three accounts on Ultra, $600 a month, the months'
 // names over the first week holding four of their days, two cells a week
 // from the grid's first column, from Monday 29 September 2025; and the
 // frames' day, Thursday 1 October 2026, whose month, October, is the current

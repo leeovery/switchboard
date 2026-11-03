@@ -189,13 +189,15 @@ func TestAnAccountsFiguresAreItsWindowsAsUsageReadsThem(t *testing.T) {
 	refused.Refused = status.Refusal{Until: now.Add(time.Hour).UTC(), Status: 401}
 	tokenless := readAccount("tokenless", sessionOf(0.3, time.Hour))
 	tokenless.TokenSet = false
+	weekFailed := readAccount("short", sessionOf(0.39, time.Hour))
+	weekFailed.Failures = []quota.Failure{{Label: "Week", Window: "7d", Error: "HTTP 529 · Overloaded"}}
 	tests := []struct {
 		name          string
 		account       status.Account
 		session, week Figure
 	}{
 		{name: "read", account: readAccount("read", sessionOf(0.39, time.Hour), weekOf(0.66, 3*quota.Day)), session: Figure{Used: 0.39, Read: true}, week: Figure{Used: 0.66, Read: true}},
-		{name: "its week not reported", account: readAccount("short", sessionOf(0.39, time.Hour)), session: Figure{Used: 0.39, Read: true}},
+		{name: "its week not read, its probe failing to", account: weekFailed, session: Figure{Used: 0.39, Read: true}},
 		{name: "its 5-hour reset since it was read", account: readAccount("reset", sessionOf(0.8, -time.Minute), weekOf(0.66, 3*quota.Day)), session: Figure{Read: true}, week: Figure{Used: 0.66, Read: true}},
 		{name: "as last read, its token refused", account: refused, session: Figure{Used: 0.3, Read: true, Stale: true}, week: Figure{Used: 0.5, Read: true, Stale: true}},
 		{name: "without a token, none", account: tokenless},
@@ -223,6 +225,74 @@ func TestAnAccountNotReadYetIsOpenItsFiguresFaint(t *testing.T) {
 		if s.text == "—" && s.ink != faintInk {
 			t.Errorf("its figure — is drawn in %+v, want text.faint", s.ink)
 		}
+	}
+}
+
+// An account with no 5-hour window, as a verified Ultra account has none,
+// says so in text.subtle in place of its 5-hour figure, usage's words in
+// full; the card's windows column widens to hold them, so the other rows'
+// figures keep their columns.
+func TestAnAccountWithNoFiveHourLimitSaysSoInPlaceOfItsFigure(t *testing.T) {
+	doc := routerDoc("", 0, readAccount("work", weekOf(0.34, 3*quota.Day)), readAccount("side", sessionOf(0.13, time.Hour), weekOf(0.78, 3*quota.Day)))
+	r := RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}
+	if got, want := r.Rows[1].Windows[1], (RoutingWindow{Key: "5h", Name: "5-hour", None: true}); got != want {
+		t.Fatalf("work's 5-hour is %+v, want %+v", got, want)
+	}
+	at := r.columns(90)
+	work, side := r.choice(r.Rows[1], at, 90)[0], r.choice(r.Rows[2], at, 90)[0]
+	tests := []struct {
+		name string
+		row  line
+		want string
+	}{
+		{name: "work", row: work, want: "□ 1 work  open      week 34%   no 5-hour limit"},
+		{name: "side", row: side, want: "□ 2 side  open      week 78%   5-hour 13%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := strings.TrimRight(tt.row.plain(), " "); got != tt.want {
+				t.Errorf("its row reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+	if i := slices.IndexFunc(work, func(s span) bool { return s.text == "no 5-hour limit" }); i < 0 || work[i].ink != dimInk {
+		t.Errorf("work's row is %+v, want no 5-hour limit in text.subtle, one span", work)
+	}
+	every := RoutingCard{Rows: RoutingRows(routerDoc("", 0, readAccount("work", sessionOf(0.3, time.Hour), weekOf(0.34, 3*quota.Day))).At(now, claudeLike), nil, views.Stream{})}
+	if got, want := r.widestUses(), every.widestUses()+len("no 5-hour limit")-len("5-hour 100%"); got != want {
+		t.Errorf("the windows take %d cells, want %d, room for no 5-hour limit where 5-hour 100%% would be", got, want)
+	}
+}
+
+// With every account without a 5-hour window, the card shows one window,
+// the week, and its second slot draws nothing: no gap, no figure, nothing
+// after the week's.
+func TestWithNoAccountsFiveHourTheCardShowsTheWeekAlone(t *testing.T) {
+	doc := routerDoc("", 0, readAccount("work", weekOf(0.34, 3*quota.Day)), readAccount("side", weekOf(0.78, 3*quota.Day)))
+	r := RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}
+	for _, row := range r.Rows[1:] {
+		if row.Windows[1] != (RoutingWindow{}) {
+			t.Errorf("%s's second window is %+v, want none", row.Name, row.Windows[1])
+		}
+	}
+	if got, want := r.widestUses(), len("week 100%"); got != want {
+		t.Errorf("the windows take %d cells, want %d, the week's alone", got, want)
+	}
+	at := r.columns(90)
+	tests := []struct {
+		name string
+		row  RoutingRow
+		want string
+	}{
+		{name: "work", row: r.Rows[1], want: "□ 1 work  open      week 34%"},
+		{name: "side", row: r.Rows[2], want: "□ 2 side  open      week 78%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := strings.TrimRight(r.choice(tt.row, at, 90)[0].plain(), " "); got != tt.want {
+				t.Errorf("its row reads %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

@@ -42,7 +42,8 @@ func (f Frame) burnDownsHelp() helpPart {
 			said("A card an account, in the config's order, its room over its own window, from the window's start to its reset, " +
 				"a column a cell: each card keeps its own clock, so its days or hours, and now's │, fall where its window puts " +
 				"them, not where another card's do. The room left is filled to now, each column to the room its middle had, " +
-				"as the readings history tells it."),
+				"as the readings history tells it. 5-HOUR has a card only for each account that has a 5-hour window, or may " +
+				"yet, as one not read yet may: a verified Ultra account has none."),
 			said("Over the card, the account's number, name and marks, and its words: the room it has left, as 66% left, its " +
 				"figure coloured as switchboard usage colours a use, then what Runway says under its lane in that window's " +
 				"view, as at its cap 14:31  ·  back 17:10 or runs out ~Sat 06:00 at its pace, inked as Runway inks them, " +
@@ -62,8 +63,10 @@ func (f Frame) burnDownsHelp() helpPart {
 				"number it. One without a usable token has no room all along; a stale one is faded, and one out of the pool " +
 				"faint."),
 			said("Under the cards, Σ pool: the pool's room in each window, the week's then the 5-hour's, as Runway's pool lane " +
-				"words it, as week 1.2 of 3 left, whichever sections show, and pinned after the first while a pin holds the " +
-				"pool. With one account there's no pool, and no line."),
+				"words it, as week 1.2 of 3 left, of the accounts that have the window, whichever sections show, and pinned " +
+				"after the first while a pin holds the pool. With one account there's no pool, and no line; where fewer than " +
+				"two of the pool's accounts have a 5-hour window, and not every one of them does, the pool has none, and " +
+				"the line says the week's alone."),
 		},
 		glyphs: glyphs,
 	}
@@ -101,9 +104,13 @@ func glanceHelp() helpPart {
 				"5-hour, each a burn-down a row high. A sparkline of " + strconv.Itoa(sparkCells) + " cells is the window's " +
 				"room from its start to its reset, in the window's ink as the cards have it, faint from now where it's " +
 				"heading, and ✕ where it runs out; then the room left now, as 66%; then switchboard usage's words for the " +
-				"window, as 19%/day till Sun 21:00, out ~Sat 06:00 or at cap · back 17:10."),
+				"window, as 19%/day till Sun 21:00, out ~Sat 06:00 or at cap · back 17:10. An account without a 5-hour " +
+				"window, as a verified Ultra account, reads no 5-hour limit, its sparkline empty; where no account has one, " +
+				"the 5-HOUR column goes."),
 			said("Under the accounts, Σ pool: the pool's room over each window, as POOL counts it, from its accounts' earliest " +
-				"start to their latest reset, and its room, as 1.2 of 3 left."),
+				"start to their latest reset, and its room, as 1.2 of 3 left, of the accounts that have the window. Where " +
+				"fewer than two of its accounts have a 5-hour window, and not every one of them does, the pool has none, " +
+				"and nothing under 5-HOUR."),
 			said("GLANCE takes the width it needs whole, and no more. Narrower, its words take switchboard usage's short forms, " +
 				"then its names narrow; narrower still, its windows stack, the week's rows over the 5-hour's. It sits beside " +
 				"WHEN YOU WORK where both show and both fit whole, 10 cells apart; elsewhere WHEN YOU WORK comes under it."),
@@ -143,12 +150,14 @@ func graphsRoomHelp() helpPart {
 		says: []line{
 			said("`w`, `f`, `o`, `g` and `h` show and hide WEEK, 5-HOUR, POOL, GLANCE and WHEN YOU WORK, at any size, always " +
 				"in that order, and they're kept for next time: the size decides how much room each gets, never whether it " +
-				"shows."),
+				"shows. Where no account has a 5-hour window, 5-HOUR and `f` are gone; 5-HOUR kept shown shows again once " +
+				"an account has one."),
 			said("Rows to spare go first to each card's words, a row of their own, then to the charts, the cards' and POOL's, " +
 				"every one the same height, up to " + strconv.Itoa(mostChart) + " rows. Short of room, the page scrolls whole, a row at a time, with `j` " +
 				"and `k`, a page with PgUp and PgDn, three rows with the wheel, the row over the key line saying what's out of " +
 				"view; the legend stays at " +
-				"the foot. The layout changes only on a key, a resize or the config, never as the data does."),
+				"the foot. The layout changes only on a key, a resize or the config, never as the data does, but where an " +
+				"account's 5-hour window goes or comes back."),
 			said("The charts move on with the clock: now's column, the room to it and where it's heading, a column at a time " +
 				"as each column's moment passes."),
 		},

@@ -47,10 +47,10 @@ type setupScreen struct {
 
 // setupScreens are setup's screen's fixtures: the Accounts page on a first
 // run, no router running and no account, its add card open as it opens at
-// once, work's ID and Label typed and Max 20x chosen, then tab round to
+// once, work's ID and Label typed and Ultra chosen, then tab round to
 // Label again, as frame 1 has it; the Accounts page run again, each token
 // checked, side chosen, as frame 3 has it; the same, personal
-// chosen, its edit card open, its Plan chosen and moved to Max 5x, as frame
+// chosen, its edit card open, its Plan chosen and moved to Max, as frame
 // 6 has it; the Priming page, its day read, typed in, as frame 7 has it;
 // the Service page, the service installed again and its router healthy, as
 // frame 4 has it; the claude link page, zsh running Claude Code's own
@@ -59,7 +59,8 @@ type setupScreen struct {
 // it, or zsh running switchboard's, the session hook installed, as frame 12
 // has it; the Skill page, the skill installed, as frame 9 has it; Done,
 // every step walked through from Priming, the claude link made but not
-// first on PATH, the offer declined, as frame 5 has it; and on a first run,
+// first on PATH, the offer declined, as frame 5 has it, or the same, every
+// account on Ultra, Priming skipped as it's reached; and on a first run,
 // work added, its token made, then personal, its token being made in a
 // private Firefox window, setup-token waiting on its approval for 21
 // seconds, as frame 2 has it, or stopped with an error, as frame 10 has it;
@@ -83,6 +84,7 @@ var setupScreens = []setupScreen{
 	{name: "setup-link-by-hand-160", size: wide(37), step: dashboard.SetupLink, steps: linkLeft, keys: keysOf("n")},
 	{name: "setup-link-done-160", size: wide(37), step: dashboard.SetupLink, steps: linkThrough},
 	{name: "setup-done-160", size: wide(37), step: dashboard.SetupPriming, steps: linkLeft, keys: slices.Concat(repeated(enterKey, 2), keysOf("n"), repeated(enterKey, 3))},
+	{name: "setup-priming-skipped-160", size: wide(37), step: dashboard.SetupPriming, steps: everyAccountUltra, keys: slices.Concat(repeated(enterKey, 1), keysOf("n"), repeated(enterKey, 3))},
 }
 
 // setupShown is setup's screen as a fixture draws it: the step it opens on;
@@ -97,7 +99,7 @@ type setupShown struct {
 }
 
 // typingWork are the keys that type work into the add card, as frame 1 has
-// it: its ID, then its Label, then Max 20x chosen.
+// it: its ID, then its Label, then Ultra chosen.
 func typingWork() []tea.KeyPressMsg {
 	return slices.Concat(keysOf("w", "o", "r", "k"), []tea.KeyPressMsg{tabKey}, keysOf("W", "o", "r", "k"), []tea.KeyPressMsg{tabKey, leftKey})
 }
@@ -114,7 +116,7 @@ func addingPersonal() []tea.KeyPressMsg {
 }
 
 // addedThree are the keys that add work on a first run, as typingWork types
-// it, then personal on Max 5x and side on Pro, from + add an account, each
+// it, then personal on Max and side on Pro, from + add an account, each
 // token made, leaving side's row chosen.
 func addedThree() []tea.KeyPressMsg {
 	adding := func(id, label string, lefts int) []tea.KeyPressMsg {
@@ -349,7 +351,7 @@ func firstRun(now time.Time) setupSteps {
 }
 
 // reviewed are the steps as they stand on a run again, at now, as frame 3
-// has them: a router up and healthy; work, the primary, on Max 20x, 5%
+// has them: a router up and healthy; work, the primary, on Ultra, 5%
 // reserved, its token working, its year unknown; personal, its plan not
 // set, its token working, 21 days left of its year; and side, on Pro, its
 // token refused.
@@ -359,9 +361,9 @@ func reviewed(now time.Time) setupSteps {
 	return setupSteps{
 		standing: setup.RouterStanding{State: setup.RouterHealthy},
 		review: setup.Review{At: now, Accounts: []setup.Reviewed{
-			{ID: "work", Label: "Work", Plan: "max20x", Reserve: 0.05, Primary: true, Token: read(status.TokenYear{})},
+			{ID: "work", Label: "Work", Plan: config.PlanUltra, Reserve: 0.05, Primary: true, Token: read(status.TokenYear{})},
 			{ID: "personal", Label: "Personal", Token: read(year)},
-			{ID: "side", Label: "Side", Plan: "pro", Token: read(status.TokenYear{})},
+			{ID: "side", Label: "Side", Plan: config.PlanPro, Token: read(status.TokenYear{})},
 		}},
 		checked: map[string]setup.TokenStanding{
 			"work":     {State: setup.TokenWorking},
@@ -445,6 +447,17 @@ func linkLeft(now time.Time) setupSteps {
 	return steps
 }
 
+// everyAccountUltra are the steps as linkLeft has them, at now, but for
+// every account on Ultra, so the Priming step's skipped, its day set still.
+func everyAccountUltra(now time.Time) setupSteps {
+	steps := linkLeft(now)
+	steps.review.Accounts = slices.Clone(steps.review.Accounts)
+	for i := range steps.review.Accounts {
+		steps.review.Accounts[i].Plan = config.PlanUltra
+	}
+	return steps
+}
+
 // linkMade is the claude link's row, made in switchboard's bin directory,
 // as setup says it.
 var linkMade = setup.Said{Mark: setup.Done, Label: "Link", Detail: "~/.local/share/switchboard/bin/claude → switchboard"}
@@ -513,9 +526,14 @@ func testToken(id string) tokens.Token {
 	return token
 }
 
-// Priming is the day as given.
-func (s setupSteps) Priming() (config.Day, error) {
-	return s.day, nil
+// Priming is the day as given, the step skipped as setup skips it for the
+// accounts as Review has them.
+func (s setupSteps) Priming() (setup.Primed, error) {
+	review, err := s.Review()
+	if err != nil {
+		return setup.Primed{}, err
+	}
+	return setup.Primed{Day: s.day, Skipped: review.SkipsPriming()}, nil
 }
 
 // SetDay parses the day as setup does, writing nothing.
