@@ -28,6 +28,8 @@ var folders = []struct {
 	precision time.Duration
 }{
 	{name: "a folder keeping nanoseconds"},
+	{name: "a folder keeping 100 nanoseconds, as SMB", precision: 100 * time.Nanosecond},
+	{name: "a folder keeping microseconds", precision: time.Microsecond},
 	{name: "a folder keeping 10 milliseconds, as exFAT", precision: 10 * time.Millisecond},
 	{name: "a folder keeping whole seconds", precision: time.Second},
 }

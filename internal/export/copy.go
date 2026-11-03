@@ -27,9 +27,9 @@ const (
 
 // coarserTimes are the precisions coarser than the nanosecond a folder's
 // file system may keep a file's modification time to, by truncating it:
-// exFAT's 10 milliseconds, and the whole second of HFS+ and many network
-// shares.
-var coarserTimes = []time.Duration{10 * time.Millisecond, time.Second}
+// the 100 nanoseconds SMB carries, the microsecond, exFAT's 10
+// milliseconds, and the whole second of HFS+ and some network shares.
+var coarserTimes = []time.Duration{100 * time.Nanosecond, time.Microsecond, 10 * time.Millisecond, time.Second}
 
 // unreadable is why a file of the state directory couldn't be read, so its
 // day is passed over, as no write into the folder failed.

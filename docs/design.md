@@ -7717,8 +7717,9 @@ then the schedule.
 
 - **A compressed day,** whose day ended two days ago or more, as `internal/dayfile` compresses a
   day, is copied byte for byte, with its modification time, and passed over where the folder's copy
-  has the same size and the same time as the folder's disk keeps it: exactly, or cut to the 10
-  milliseconds exFAT keeps or the second some disks keep, the source's time cut alike. A disk
+  has the same size and the same time as the folder's disk keeps it: exactly, or cut to the 100
+  nanoseconds SMB keeps, the microsecond, the 10 milliseconds exFAT keeps or the second some disks
+  keep, the source's time cut alike. A disk
   that keeps times more coarsely still, as FAT's two seconds, or rounds them, has some unchanged
   files written again at each export, but never a changed one passed over, as a summary's next
   version is stamped a second on (see The request ledger).
