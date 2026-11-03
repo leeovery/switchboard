@@ -325,7 +325,7 @@ no window joined. A window that `joined` leaves out was held from `at`.
 | `restart` | A restart the router has due, and, as `held`, why the binary it would become refuses to start, where that holds it. |
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |
-| `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each window gives `of`, how many of the pool's accounts have it, an account not read yet counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |
+| `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each window gives `of`, how many of the pool's accounts have it, an account not read yet, or without a usable token, counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |
 | `coming_up` | Each limit, cap or refused token lifting, window running out or resetting, and prime, soonest first. |
 | `accounts` | Each account, in the config's order. See below. |
 

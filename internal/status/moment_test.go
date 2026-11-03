@@ -1212,6 +1212,43 @@ func TestAHeldMomentKnowsTheWindowsEachAccountHasAsTheMomentDoes(t *testing.T) {
 	}
 }
 
+// A held moment says some account it holds has, or may have, a window every
+// model shares, as the moment's SharedWindows keep it, held before the
+// moment is worked out or after: false only where it holds accounts and
+// every one lacks it, as a verified Ultra account lacks the 5-hour; one not
+// read yet may have it, as may any of none held, or of a moment not held.
+func TestAHeldMomentSaysWhetherAnyAccountHasAWindowAsTheMomentKeepsIt(t *testing.T) {
+	week := windowIn("7d", 0.3, 3*day)
+	ultra := func(id string) status.Account { return readAt(id, week) }
+	tests := []struct {
+		name string
+		doc  status.Document
+		want bool
+	}{
+		{name: "none held", doc: routerDocOf(), want: true},
+		{name: "every one held lacking it", doc: routerDocOf(ultra("work"), ultra("personal")), want: false},
+		{name: "one not read yet, which may have it", doc: routerDocOf(ultra("work"), status.Account{ID: "side", Label: "side", TokenSet: true}), want: true},
+		{name: "one with it", doc: routerDocOf(ultra("work"), readAt("side", windowIn("5h", 0.2, 3*time.Hour), week)), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.doc.At(built, policy)
+			if kept := slices.Contains(m.SharedWindows(), "5h"); kept != tt.want {
+				t.Fatalf("SharedWindows() keeps the 5-hour %t, want %t", kept, tt.want)
+			}
+			for _, held := range []*status.HeldMoment{tt.doc.HoldAt(built, policy), m.Held()} {
+				if got := held.AnyHas("5h"); got != tt.want {
+					t.Errorf("AnyHas(%q) = %t, want %t", "5h", got, tt.want)
+				}
+			}
+		})
+	}
+	var none *status.HeldMoment
+	if !none.AnyHas("5h") {
+		t.Error(`a moment not held: AnyHas("5h") = false, want true`)
+	}
+}
+
 // factsOf is the moment m as its fields alone have it.
 func factsOf(m status.Moment) status.Moment {
 	return status.Moment{

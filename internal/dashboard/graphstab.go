@@ -122,19 +122,21 @@ func sectionWindows(s GraphsSection) []views.RunwayWindow {
 // GraphsOffers reports whether Graphs offers the section, laying it out and
 // listing and taking its key, of the configured accounts given, at the moment
 // h holds, without working the moment out, as policy names its windows:
-// 5-HOUR only where any of them has, or may have, the 5-hour, as
-// fiveHourCharted has them, or none is configured, as the moment's
-// SharedWindows keep a window; every other section always.
+// 5-HOUR only as fiveHourOffered has it; every other section always.
 func GraphsOffers(s GraphsSection, accounts config.Accounts, h *status.HeldMoment, policy score.Policy) bool {
-	return s != GraphsFiveHour || fiveHourOffered(accounts, fiveHourCharted(accounts, h, policy))
+	return s != GraphsFiveHour || fiveHourOffered(accounts, h, policy)
 }
 
-// fiveHourOffered reports whether Graphs charts the 5-hour, of the
-// configured accounts given, those that have, or may have, it as charted:
-// where any does, or none is configured, as the moment's SharedWindows keep
-// a window.
-func fiveHourOffered(accounts, charted config.Accounts) bool {
-	return len(accounts) == 0 || len(charted) > 0
+// fiveHourOffered reports whether Graphs offers the 5-hour, the window a
+// request starts, as policy names it, of the configured accounts given, at
+// the moment h holds: where some account h holds has, or may have, it, as
+// its AnyHas has it, as Runway offers its 5-hour; and there's a card to
+// draw, some configured account having, or maybe having, it, as
+// fiveHourCharted has them, or none being configured. It offers less than
+// AnyHas allows where the config has dropped the one account held with it,
+// till the router holds the config's accounts.
+func fiveHourOffered(accounts config.Accounts, h *status.HeldMoment, policy score.Policy) bool {
+	return h.AnyHas(policy.Started) && (len(accounts) == 0 || len(fiveHourCharted(accounts, h, policy)) > 0)
 }
 
 // fiveHourCharted are the configured accounts given that 5-HOUR lays out a

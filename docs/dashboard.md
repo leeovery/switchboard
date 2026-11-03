@@ -456,9 +456,10 @@ and the dashboard remembers which show.
 | WHEN YOU WORK | `h` | hidden | Requests by the hour of the day and the day of the week, over the last four weeks |
 
 The windows charted are the two every model shares, as on Runway: a model's own window has no card.
-5-HOUR has a card only for each account with a 5-hour window. Where no account has one, 5-HOUR goes,
-with its `f` key, and GLANCE has no 5-hour column; a 5-HOUR you left shown comes back once an
-account has one. With every section hidden, the page's first row says which keys bring them back.
+5-HOUR has a card only for each account with a 5-hour window, or that counts as having one, as the
+Window term has it. Where no account has one or counts as having one, 5-HOUR goes, with its `f` key,
+and GLANCE has no 5-hour column, as Runway has no 5-hour view; a 5-HOUR you left shown comes back
+once an account has one. With every section hidden, the page's first row says which keys bring them back.
 
 ### The burn-down cards
 
