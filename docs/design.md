@@ -7767,13 +7767,11 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   or once it fails of its own, a 400 or a 500, so a copy as big as the export never stays to keep
   a full disk full; a router stopping leaves it, as work it took up may still read it, for the
   next import to remove. A stage the command can't finish it removes itself. A second import while
-  one runs is refused. A file iCloud Drive hasn't downloaded yet, its placeholder
-  `.<name>.icloud` in its place, is passed over, and the command says how many of a folder's, as
-  `switchboard: passed over 12 files iCloud Drive hasn't downloaded yet in <folder>: download
-  them (in Finder, Download Now) and import again`, counting only those of files staging takes.
-  A day whose own compressed file doesn't read, so no member can be added after it, is passed
-  over, warned of in the router's log by its date, and counted nowhere, as a compress passes it
-  over, and the import goes on.
+  one runs is refused. A file iCloud Drive hasn't downloaded yet keeps its name, as macOS 14 and
+  later keep one, so staging reads it as any other, and reading it downloads it. A day whose own
+  compressed file doesn't read, so no member can be added after it, is passed over, warned of in
+  the router's log by its date, and counted nowhere, as a compress passes it over, and the import
+  goes on.
 - **A day the Mac doesn't hold:** its file is copied in, with its modification time, where its day
   ended two days ago or more; else its lines are appended to the day's plain file, which the
   router compresses as it does its own.
@@ -9706,6 +9704,9 @@ What's built but hasn't been seen against the real thing:
 - Before `[export] dir` is built: a launchd agent run from an unsigned binary, replaced as an
   upgrade replaces it, writing into iCloud Drive and into a folder a File Provider keeps, as
   Dropbox's is, to see whether macOS asks first, and whether its answer outlives the upgrade.
+- `import` from a folder in iCloud Drive whose files haven't been downloaded, with the Mac
+  offline: staging's read of a file not downloaded should fail, and the import with it, removing
+  what it staged.
 - `claude doctor` with the link in place.
 - Background sessions (`claude --bg`) going through the router.
 - *Milestone 5:* asking the terminal its background colour and setting it (OSC 11, putting it back

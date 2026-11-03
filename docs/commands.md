@@ -1328,13 +1328,6 @@ An import repeated adds nothing, and says `imported 1 folder: nothing new`, or, 
 holds days past keeping, tells of them left out again: `imported 1 folder: 12 days past keeping
 left out`.
 
-A file of a folder that iCloud Drive hasn't downloaded yet is passed over, and `import` says how
-many as it carries on with the rest:
-
-```
-switchboard: passed over 12 files iCloud Drive hasn't downloaded yet in ~/Library/Mobile Documents/com~apple~CloudDocs/switchboard/mac-0123456789abcdef: download them (in Finder, Download Now) and import again
-```
-
 Against a router from before `import`, as one whose restart into an upgrade is still due, `import`
 fails, saying to restart it with `switchboard service restart`, or, run by hand, to stop it and
 run `switchboard serve` again, then import again.

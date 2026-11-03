@@ -283,32 +283,6 @@ func TestStagePassesOverALinkOrAFolderByADaysFilesName(t *testing.T) {
 	}
 }
 
-func TestUndownloadedCountsThePlaceholdersOfTheFilesStagingTakes(t *testing.T) {
-	one := macsFolder(t, t.TempDir(), installOne, export.Version)
-	writeFile(t, requests.compressed(one, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
-	for _, path := range []string{
-		filepath.Join(one, "ledger", ".requests-"+day2+".jsonl.gz.icloud"),
-		filepath.Join(one, "ledger", ".day-"+day2+".json.icloud"),
-		filepath.Join(one, "history", ".readings-"+day2+".jsonl.gz.icloud"),
-		// Of files staging passes over, or in a directory not theirs.
-		filepath.Join(one, "ledger", ".requests-"+day2+".jsonl.icloud"),
-		filepath.Join(one, "ledger", ".notes.txt.icloud"),
-		filepath.Join(one, "ledger", ".icloud"),
-		filepath.Join(one, "history", ".day-"+day2+".json.icloud"),
-		filepath.Join(one, ".export.json.icloud"),
-		filepath.Join(one, "ledger", "requests-"+day1+".jsonl.gz.icloud"),
-	} {
-		writeFile(t, path, []byte("a placeholder\n"), exportNow)
-	}
-
-	if got, err := export.Undownloaded(one); err != nil || got != 3 {
-		t.Errorf("Undownloaded() = %d, %v; want 3, the placeholders of files staging takes", got, err)
-	}
-	if got, err := export.Undownloaded(macsFolder(t, t.TempDir(), installTwo, export.Version)); err != nil || got != 0 {
-		t.Errorf("Undownloaded() of a folder of no history = %d, %v; want none", got, err)
-	}
-}
-
 func TestStageRemovesWhatAnImportCutShortLeftFirst(t *testing.T) {
 	one := macsFolder(t, t.TempDir(), installOne, export.Version)
 	writeFile(t, requests.compressed(one, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)

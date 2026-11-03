@@ -31,8 +31,7 @@ doesn't hold are added, so an import repeated adds nothing. A day's summary
 is copied in where the Mac holds no line of the day, and no summary of it,
 or one that counts no line where the folder's counts some. A day's lines
 past keeping, as [ledger] keep and [history] keep say, are left out, and its
-summary taken in as that says. A file iCloud Drive hasn't downloaded yet is
-passed over, saying how many.
+summary taken in as that says.
 
 It copies the folders into the state directory, then has the router take
 them in, waiting however long that takes, so it needs the router running:
@@ -84,9 +83,8 @@ func (a *app) importHistory(ctx context.Context, out, errOut io.Writer, dir stri
 // importThrough has the router whose state directory is state import the
 // Macs' folders in dir, and returns what it took in: having asked it first
 // whether it's running an import, refusing, touching nothing, where it is;
-// then staging the folders foldersIn finds, as export.Stage stages them,
-// having said of each what undownloaded says; then asking it to take them
-// in, and waiting for its answer.
+// then staging the folders foldersIn finds, as export.Stage stages them;
+// then asking it to take them in, and waiting for its answer.
 func importThrough(ctx context.Context, client *router.Client, errOut io.Writer, state, dir string) (router.Imported, error) {
 	switch running, err := client.ImportRunning(ctx); {
 	case err != nil:
@@ -96,9 +94,6 @@ func importThrough(ctx context.Context, client *router.Client, errOut io.Writer,
 	}
 	folders, err := foldersIn(errOut, dir)
 	if err != nil {
-		return router.Imported{}, err
-	}
-	if err := undownloaded(errOut, folders); err != nil {
 		return router.Imported{}, err
 	}
 	if err := export.Stage(router.ImportDir(state), folders); err != nil {
@@ -122,28 +117,6 @@ func fromImport(err error) error {
 		return errRouterBeforeImport
 	}
 	return fromRouter(err)
-}
-
-// undownloaded says on errOut, a line each, of each of the Macs' folders
-// holding files iCloud Drive hasn't downloaded yet, as export.Undownloaded
-// counts them, how many it passes over, the import carrying on without
-// them. It fails where a folder can't be looked at.
-func undownloaded(errOut io.Writer, folders []string) error {
-	for _, folder := range folders {
-		n, err := export.Undownloaded(folder)
-		if err != nil {
-			return fmt.Errorf("can't import from %s: %w", folder, err)
-		}
-		if n == 0 {
-			continue
-		}
-		said := "switchboard: passed over " + prose.Counted(n, "file") + " iCloud Drive hasn't downloaded yet in " + folder +
-			": download them (in Finder, Download Now) and import again"
-		if _, err := fmt.Fprintln(errOut, said); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // foldersIn returns the Macs' folders to import from dir, as export.Folders

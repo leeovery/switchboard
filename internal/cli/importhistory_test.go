@@ -432,27 +432,6 @@ func TestImportOfNothingButFoldersWhoseExportJSONDoesntReadSaysSoThenFails(t *te
 	}
 }
 
-func TestImportSaysHowManyFilesItPassedOverAsICloudDriveHasntDownloadedThemThenCarriesOn(t *testing.T) {
-	deps, state := importDeps(t)
-	dir := t.TempDir()
-	one := importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
-	for _, name := range []string{".requests-2026-10-03.jsonl.gz.icloud", ".day-2026-10-03.json.icloud", ".notes.txt.icloud"} {
-		writeStateFile(t, ledger.Dir(one), name, []byte("a placeholder\n"))
-	}
-	importFolder(t, filepath.Join(dir, "mac-fedcba9876543210"))
-	post, asStaged := answeringAsStaged(t, state, router.Imported{Folders: 2, Days: router.ImportedDays{Added: 1}})
-	(&imports{post: post}).serve(t, state)
-
-	want := result{
-		stdout: "imported 2 folders: 1 day added\n",
-		stderr: "switchboard: passed over 2 files iCloud Drive hasn't downloaded yet in " + one + ": download them (in Finder, Download Now) and import again\n",
-	}
-	if got := run(t, deps, "import", dir); got != want {
-		t.Errorf("switchboard import = %+v, want %+v", got, want)
-	}
-	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"), filepath.Join("2", "ledger", "requests-2026-10-02.jsonl.gz"))
-}
-
 func TestImportThatCantStageAFolderLeavesNothingStaged(t *testing.T) {
 	deps, state := importDeps(t)
 	i := &imports{post: answering(router.Imported{Folders: 2})}
