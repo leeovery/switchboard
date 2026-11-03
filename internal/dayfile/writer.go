@@ -61,6 +61,8 @@ type Writer[T any] struct {
 	onPruning func(now time.Time)
 	spare     func(date string) bool
 	queue     chan T
+	// work takes what Do hands Run's goroutine to do, as Run takes it up.
+	work chan func()
 	// dropping is set once what's noted is dropped for the queue being full,
 	// until a write succeeds.
 	dropping atomic.Bool
@@ -75,7 +77,7 @@ type Writer[T any] struct {
 // the lines linesOf returns of it, as opts say.
 func NewWriter[T any](files *Files, linesOf func(T) Lines, opts WriterOptions) *Writer[T] {
 	return &Writer[T]{files: files, linesOf: linesOf, keep: opts.Keep, now: opts.Now, items: opts.Items, onRound: opts.Round, onPruning: opts.Pruning,
-		spare: opts.Spare, queue: make(chan T, opts.Queue)}
+		spare: opts.Spare, queue: make(chan T, opts.Queue), work: make(chan func())}
 }
 
 // Note queues v for Run to write. It never waits: with the queue full, v is
@@ -91,8 +93,8 @@ func (w *Writer[T]) Note(v T) {
 }
 
 // Run writes what's noted, making its round as it starts and every pruneLook
-// after, until ctx ends, when it writes what's still queued. It makes the
-// files' directory private as it starts.
+// after, and does what Do hands it, until ctx ends, when it writes what's
+// still queued. It makes the files' directory private as it starts.
 func (w *Writer[T]) Run(ctx context.Context) {
 	w.files.makePrivate()
 	w.round()
@@ -102,6 +104,8 @@ func (w *Writer[T]) Run(ctx context.Context) {
 		select {
 		case v := <-w.queue:
 			w.write(v)
+		case work := <-w.work:
+			work()
 		case <-look.C:
 			w.round()
 		case <-ctx.Done():
@@ -109,6 +113,38 @@ func (w *Writer[T]) Run(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// Do does work on Run's goroutine, between its writes and its rounds, so
+// nothing else is done with the files while it runs, and returns nil once
+// it's done; or ctx's error once ctx has ended, having done none where Run
+// hadn't taken it up yet, and leaving it to run to its end where it had. It
+// waits for Run to take it up as long as ctx lets it, Run running or not.
+func (w *Writer[T]) Do(ctx context.Context, work func()) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	done := make(chan struct{})
+	select {
+	case w.work <- func() {
+		work()
+		close(done)
+	}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// RoundNow makes the Writer's round at once, as it makes one every pruneLook,
+// on Run's goroutine, and returns as Do does.
+func (w *Writer[T]) RoundNow(ctx context.Context) error {
+	return w.Do(ctx, w.round)
 }
 
 // round has the Writer's Round, where it has one, keep what it keeps of the
@@ -138,7 +174,7 @@ func (w *Writer[T]) spared(now time.Time) func(date string) bool {
 	if w.spare == nil || w.keep == Forever {
 		return nil
 	}
-	past, err := w.files.dates(func(day time.Time) bool { return !now.Before(pastKeeping(day, w.keep)) })
+	past, err := w.files.dates(func(day time.Time) bool { return pastKeepingAt(day, now, w.keep) })
 	if err != nil {
 		return func(string) bool { return true }
 	}

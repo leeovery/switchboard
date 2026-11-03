@@ -777,20 +777,21 @@ func TestADaysFileIsCompressedOnceItEndedTwoDaysAgo(t *testing.T) {
 	}
 }
 
+// doneInZones are days in a time zone, and the date of the day whose start
+// each is done with at, so its file is compressed. The clocks go back in
+// London on 25 Oct 2026, forward in Sydney on 4 Oct 2026, and forward over
+// midnight in Santiago on 6 Sep 2026, so that day starts at 01:00.
+var doneInZones = []struct {
+	name, zone, date, done string
+}{
+	{name: "two days on", zone: "UTC", date: "2026-10-07", done: "2026-10-10"},
+	{name: "two days on, the clocks going back between", zone: "Europe/London", date: "2026-10-24", done: "2026-10-27"},
+	{name: "two days on, the clocks going forward between", zone: "Australia/Sydney", date: "2026-10-02", done: "2026-10-05"},
+	{name: "two days on, as the clocks go forward over midnight", zone: "America/Santiago", date: "2026-09-03", done: "2026-09-06"},
+}
+
 func TestADaysFileIsCompressedAsTheDayTwoDaysAfterItsEndStartsInItsZone(t *testing.T) {
-	// The clocks go back in London on 25 Oct 2026, forward in Sydney on 4 Oct
-	// 2026, and forward over midnight in Santiago on 6 Sep 2026, so that day
-	// starts at 01:00. done is the date of the day whose start the file is
-	// compressed at.
-	tests := []struct {
-		name, zone, date, done string
-	}{
-		{name: "two days on", zone: "UTC", date: "2026-10-07", done: "2026-10-10"},
-		{name: "two days on, the clocks going back between", zone: "Europe/London", date: "2026-10-24", done: "2026-10-27"},
-		{name: "two days on, the clocks going forward between", zone: "Australia/Sydney", date: "2026-10-02", done: "2026-10-05"},
-		{name: "two days on, as the clocks go forward over midnight", zone: "America/Santiago", date: "2026-09-03", done: "2026-09-06"},
-	}
-	for _, tt := range tests {
+	for _, tt := range doneInZones {
 		t.Run(tt.name+", "+tt.zone, func(t *testing.T) {
 			loc := zone(t, tt.zone)
 			day, _, _ := dayIn(tt.date, loc)

@@ -58,11 +58,21 @@ func (f *Files) addPlain(date string) error {
 	if held == lines.Size() {
 		return nil
 	}
+	return compressed.addMember(path, func(member io.Writer) error {
+		_, err := io.Copy(member, compressed.adding(lines, held))
+		return err
+	})
+}
+
+// addMember writes the file afresh at path, the one it was opened from: whole,
+// as it's written, then a gzip member of its own holding what write writes, to
+// the writer it's given, beside where it goes, and renamed into place.
+func (c compressedDay) addMember(path string, write func(member io.Writer) error) error {
 	return atomicfile.WriteFrom(path, 0o600, func(w io.Writer) error {
-		if _, err := io.Copy(w, compressed.written()); err != nil {
+		if _, err := io.Copy(w, c.written()); err != nil {
 			return err
 		}
-		return gzipTo(w, compressed.adding(lines, held))
+		return gzipTo(w, write)
 	})
 }
 
@@ -213,10 +223,20 @@ func (c compressedDay) endsWith(from int64, want *io.SectionReader) (bool, error
 // looks for.
 func (c compressedDay) adding(plain *io.SectionReader, held int64) io.Reader {
 	rest := io.NewSectionReader(plain, held, plain.Size()-held)
-	if held == 0 && c.cutShort {
-		return io.MultiReader(strings.NewReader("\n"), rest)
+	if held == 0 {
+		return io.MultiReader(c.lineStart(), rest)
 	}
 	return rest
+}
+
+// lineStart reads what starts the lines added after the file's own, where
+// none of them is held already: a line ending, where its lines end in one cut
+// short, so the first added starts a line of its own; else nothing.
+func (c compressedDay) lineStart() io.Reader {
+	if c.cutShort {
+		return strings.NewReader("\n")
+	}
+	return strings.NewReader("")
 }
 
 // written reads the file as it's written, from its start.
@@ -285,10 +305,9 @@ func sameFor(a, b io.Reader, n int64) (bool, error) {
 	return true, nil
 }
 
-// gzipTo writes what lines gives to w, compressed, as a gzip member of its
-// own.
-func gzipTo(w io.Writer, lines io.Reader) error {
+// gzipTo writes what write writes, to the writer it's given, to w,
+// compressed, as a gzip member of its own.
+func gzipTo(w io.Writer, write func(member io.Writer) error) error {
 	member := gzip.NewWriter(w)
-	_, err := io.Copy(member, lines)
-	return errors.Join(err, member.Close())
+	return errors.Join(write(member), member.Close())
 }

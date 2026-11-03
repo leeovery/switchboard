@@ -13,11 +13,13 @@
 // what's to be written never waits, and makes a round of them every hour, and
 // before each prune, which what else is kept of the days, as the request
 // ledger's summaries, can be kept on, on every round, or just before each
-// prune.
+// prune. A Writer takes in a day staged to import on its goroutine too,
+// between its writes and its rounds, adding the lines its files don't hold.
 package dayfile
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
 	"math"
@@ -64,9 +66,10 @@ type Files struct {
 	// Logger logs what can't be done with them.
 	Logger *slog.Logger
 
-	// mu is held to write while the files are pruned and compressed, and to
-	// read while they're read or appended to: a reader of a file appended to
-	// meanwhile finds at worst its last line cut short.
+	// mu is held to write while the files are pruned and compressed, or a
+	// compressed file is written for a day imported, and to read while
+	// they're read or appended to: a reader of a file appended to meanwhile
+	// finds at worst its last line cut short.
 	mu sync.RWMutex
 	// warned holds the files a read has warned of, as files that can't be
 	// read or read short, so each is warned of once until it reads again.
@@ -253,17 +256,26 @@ func (f *Files) Append(lines Lines) error {
 	return nil
 }
 
-// appendLines appends lines to the file at path, making it, the user's alone,
-// when it isn't there, and ending first the line it ends in, should that be
-// cut short.
+// appendLines appends lines to the file at path, in one write, as appendWith
+// appends.
 func appendLines(path string, lines []byte) error {
+	return appendWith(path, func(w io.Writer) error {
+		_, err := w.Write(lines)
+		return err
+	})
+}
+
+// appendWith appends what write writes, to the writer it's given, to the file
+// at path, making it, the user's alone, when it isn't there, and ending first
+// the line it ends in, should that be cut short.
+func appendWith(path string, write func(w io.Writer) error) error {
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return err
 	}
 	err = endCutShort(file)
 	if err == nil {
-		_, err = file.Write(lines)
+		err = write(file)
 	}
 	return errors.Join(err, file.Close())
 }
@@ -396,11 +408,11 @@ func (f *Files) prune(now time.Time, keep time.Duration, spared func(date string
 // meanwhile. What it can't do is logged, and left to the next prune.
 func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration, spared bool) {
 	switch {
-	case keep != Forever && !spared && !now.Before(pastKeeping(day, keep)):
+	case !spared && pastKeepingAt(day, now, keep):
 		if err := os.Remove(f.path(file)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			f.Logger.Warn("can't prune the "+f.Name, "file", file.name(f.Prefix), "error", err)
 		}
-	case !now.Before(doneWith(day)) && !file.compressed:
+	case doneWithAt(day, now) && !file.compressed:
 		if err := f.compress(file.date); err != nil {
 			f.Logger.Warn("can't compress the "+f.Name, "file", file.name(f.Prefix), "error", err)
 		}
@@ -413,6 +425,19 @@ func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration, spare
 // between.
 func doneWith(day time.Time) time.Time {
 	return DayStart(endOf(day), compressAfter)
+}
+
+// doneWithAt reports whether the day that starts at day, in its time zone, is
+// done with at now, as doneWith says.
+func doneWithAt(day, now time.Time) bool {
+	return !now.Before(doneWith(day))
+}
+
+// pastKeepingAt reports whether the files of the day that starts at day, in
+// its time zone, kept as long as keep says, are past keeping at now, as
+// pastKeeping says: never where keep is Forever.
+func pastKeepingAt(day, now time.Time, keep time.Duration) bool {
+	return keep != Forever && !now.Before(pastKeeping(day, keep))
 }
 
 // pastKeeping returns when the files of the day that starts at day, in its
