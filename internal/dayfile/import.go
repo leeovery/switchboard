@@ -44,8 +44,8 @@ type Imported struct {
 // Import takes in the file at staged, which holds the lines of the local day
 // with the given date as export writes a day's, a gzip member or more of
 // lines, by the Writer's own keep and clock, as take says, on Run's
-// goroutine, as Do does work. It returns what it did, or ctx's error where
-// ctx ended first, as Do says.
+// goroutine, as Do does work. It returns what it did, or, where it didn't
+// wait for that, why, as Do says: ctx's error, or ErrStopped.
 func (w *Writer[T]) Import(ctx context.Context, date, staged string) (Imported, error) {
 	day, _, ok := Day(date)
 	if !ok {
@@ -73,9 +73,10 @@ type stagedDay struct {
 // take takes the staged day in at now, the files kept as long as keep says.
 // A day past keeping, as a prune tells one, is left out. A day the files
 // hold none of has the staged file copied in whole, as copyIn copies it,
-// where it's done with, as a compress tells one; else its lines appended to
-// its plain file, as addLines adds them, which a prune compresses as it does
-// any. A day the files hold has the staged lines it doesn't hold, as ReadDay
+// where it's done with, as a compress tells one, and the file reads to its
+// end; else its lines appended to its plain file, as addLines adds them,
+// which a prune compresses as it does any. A day the files hold has the
+// staged lines it doesn't hold, as ReadDay
 // reads them, added: appended to its plain file where it has one, else as a
 // gzip member of their own after its compressed file's.
 func (f *Files) take(s stagedDay, now time.Time, keep time.Duration) (Imported, error) {
@@ -113,10 +114,12 @@ func (f *Files) merge(s stagedDay, held lineSet) (Imported, error) {
 // add adds the staged day, which the files hold none of, at now, as take
 // says.
 func (f *Files) add(s stagedDay, now time.Time) (Imported, error) {
+	copied := false
 	var err error
 	if doneWithAt(s.day, now) {
-		err = f.copyIn(s)
-	} else {
+		copied, err = f.copyIn(s)
+	}
+	if err == nil && !copied {
 		_, err = f.addLines(s.path, make(lineSet), f.appending(s.date))
 	}
 	if err != nil {
@@ -127,26 +130,35 @@ func (f *Files) add(s stagedDay, now time.Time) (Imported, error) {
 
 // copyIn copies the staged file in whole, byte for byte, as the compressed
 // file of its day, last modified when it was, beside where it goes and
-// renamed into place, as compressing a day writes one.
-func (f *Files) copyIn(s stagedDay) error {
-	src, err := os.Open(s.path)
+// renamed into place, as compressing a day writes one, reporting whether it
+// did. It copies none that doesn't read to its end, as measure reads a
+// compressed file through, as one cut short, which the day would read short
+// for good, a member never to be added after the damage; nor one that holds
+// no lines, as one empty: either is left to addLines, which takes in the lines
+// that read, warning of the rest, and fails where the file can't be opened.
+func (f *Files) copyIn(s stagedDay) (bool, error) {
+	staged, err := openCompressed(s.path)
 	if err != nil {
-		return err
+		return false, nil
 	}
-	defer func() { _ = src.Close() }()
-	info, err := src.Stat()
+	defer staged.close()
+	if staged.length == 0 {
+		return false, nil
+	}
+	info, err := staged.file.Stat()
 	if err != nil {
-		return err
+		return false, err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := os.MkdirAll(f.Dir, 0o700); err != nil {
-		return err
+		return false, err
 	}
-	return atomicfile.WriteModified(f.path(compressedFile(s.date)), 0o600, info.ModTime(), func(w io.Writer) error {
-		_, err := io.Copy(w, src)
+	err = atomicfile.WriteModified(f.path(compressedFile(s.date)), 0o600, info.ModTime(), func(w io.Writer) error {
+		_, err := io.Copy(w, staged.written())
 		return err
 	})
+	return err == nil, err
 }
 
 // lineSet is a set of lines, held by their hashes: none of the lines
@@ -285,9 +297,10 @@ func (f *Files) readStaged(path string, take func(line []byte) bool) error {
 	return nil
 }
 
-// eachJSON hands take each line, no longer than most, its line ending
-// included, of what src gives through gzip that reads as JSON, until take
-// reports false, and returns why the read ended short, if it did.
+// eachJSON hands take each line of what src gives through gzip that reads as
+// JSON, without its line ending, until take reports false, passing over each
+// that runs to more than most with its line ending, and returns why the read
+// ended short, if it did.
 func eachJSON(src io.Reader, most int, take func(line []byte) bool) error {
 	members, err := gzip.NewReader(src)
 	if err != nil {

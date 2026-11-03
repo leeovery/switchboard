@@ -2,6 +2,8 @@ package dayfile
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -63,6 +65,10 @@ type Writer[T any] struct {
 	queue     chan T
 	// work takes what Do hands Run's goroutine to do, as Run takes it up.
 	work chan func()
+	// stopped is closed as Run returns, and made afresh as a Run after it
+	// starts, as one Writer can be run again; runs guards it.
+	stopped chan struct{}
+	runs    sync.Mutex
 	// dropping is set once what's noted is dropped for the queue being full,
 	// until a write succeeds.
 	dropping atomic.Bool
@@ -77,7 +83,7 @@ type Writer[T any] struct {
 // the lines linesOf returns of it, as opts say.
 func NewWriter[T any](files *Files, linesOf func(T) Lines, opts WriterOptions) *Writer[T] {
 	return &Writer[T]{files: files, linesOf: linesOf, keep: opts.Keep, now: opts.Now, items: opts.Items, onRound: opts.Round, onPruning: opts.Pruning,
-		spare: opts.Spare, queue: make(chan T, opts.Queue), work: make(chan func())}
+		spare: opts.Spare, queue: make(chan T, opts.Queue), work: make(chan func()), stopped: make(chan struct{})}
 }
 
 // Note queues v for Run to write. It never waits: with the queue full, v is
@@ -96,6 +102,7 @@ func (w *Writer[T]) Note(v T) {
 // after, and does what Do hands it, until ctx ends, when it writes what's
 // still queued. It makes the files' directory private as it starts.
 func (w *Writer[T]) Run(ctx context.Context) {
+	defer close(w.starting())
 	w.files.makePrivate()
 	w.round()
 	look := time.NewTicker(pruneLook)
@@ -115,11 +122,38 @@ func (w *Writer[T]) Run(ctx context.Context) {
 	}
 }
 
+// ErrStopped is the error of work handed to a Writer whose Run has returned,
+// which nothing takes up.
+var ErrStopped = errors.New("the writer has stopped")
+
+// starting returns what a Run starting closes as it returns: the Writer's
+// stopped, made afresh where a Run before closed it.
+func (w *Writer[T]) starting() chan struct{} {
+	w.runs.Lock()
+	defer w.runs.Unlock()
+	select {
+	case <-w.stopped:
+		w.stopped = make(chan struct{})
+	default:
+	}
+	return w.stopped
+}
+
+// stoppedRun returns what's closed once Run has returned, until a Run after
+// it starts.
+func (w *Writer[T]) stoppedRun() <-chan struct{} {
+	w.runs.Lock()
+	defer w.runs.Unlock()
+	return w.stopped
+}
+
 // Do does work on Run's goroutine, between its writes and its rounds, so
 // nothing else is done with the files while it runs, and returns nil once
-// it's done; or ctx's error once ctx has ended, having done none where Run
-// hadn't taken it up yet, and leaving it to run to its end where it had. It
-// waits for Run to take it up as long as ctx lets it, Run running or not.
+// it's done. It waits for Run to take the work up as long as ctx lets it,
+// Run not yet started included, returning ctx's error once ctx has ended
+// and ErrStopped at once where Run has returned, either having done none of
+// it. Once Run has taken it up, the work runs to its end, but ctx ending
+// first returns ctx's error.
 func (w *Writer[T]) Do(ctx context.Context, work func()) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -130,13 +164,26 @@ func (w *Writer[T]) Do(ctx context.Context, work func()) error {
 		work()
 		close(done)
 	}:
+	case <-w.stoppedRun():
+		return ErrStopped
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+	return doneBy(ctx, done)
+}
+
+// doneBy waits for done to close, returning nil, or for ctx to end,
+// returning its error: nil where both have, so work that's done is never
+// reported undone.
+func doneBy(ctx context.Context, done <-chan struct{}) error {
+	select {
+	case <-done:
+	case <-ctx.Done():
 	}
 	select {
 	case <-done:
 		return nil
-	case <-ctx.Done():
+	default:
 		return ctx.Err()
 	}
 }

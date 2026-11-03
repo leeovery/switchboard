@@ -206,9 +206,9 @@ func TestADayTheFilesDontHoldIsCopiedInOnceItsDoneWithElseAppendedToItsPlainFile
 
 func TestADayCopiedInIsCopiedAsItIsWithItsModificationTime(t *testing.T) {
 	const date = "2026-09-25"
-	// The first member ends in a line cut short, the second holds a line that
-	// isn't JSON, and the third is cut short.
-	staged := append(gzipOf(t, linesOf(`{"n":1}`)+`{"n":`, linesOf("not json", `{"n":2}`)), gzipOf(t, linesOf(`{"n":3}`))[:12]...)
+	// The first member ends in a line cut short, and the second holds a line
+	// that isn't JSON: the file reads to its end all the same.
+	staged := gzipOf(t, linesOf(`{"n":1}`)+`{"n":`, linesOf("not json", `{"n":2}`))
 	f := requestLedger(t.TempDir())
 
 	taking(t, f, stage(t, date, staged), start, twoWeeks)
@@ -441,6 +441,7 @@ func TestADamagedStagedFileIsTakenInAsFarAsItReadsAndWarnedOf(t *testing.T) {
 		want    []string
 	}{
 		{name: "a day the files don't hold", now: DayStart(day, 2), want: []string{`{"n":1}`, `{"n":2}`}},
+		{name: "a day the files don't hold, done with", now: start, want: []string{`{"n":1}`, `{"n":2}`}},
 		{name: "a day of a plain file", plain: linesOf(`{"n":0}`), now: start, want: []string{`{"n":0}`, `{"n":1}`, `{"n":2}`}},
 		{name: "a day of a compressed file", members: []string{linesOf(`{"n":0}`)}, now: start, want: []string{`{"n":0}`, `{"n":1}`, `{"n":2}`}},
 	}
@@ -459,6 +460,82 @@ func TestADamagedStagedFileIsTakenInAsFarAsItReadsAndWarnedOf(t *testing.T) {
 				t.Errorf("log reads\n%s\nwant the staged file warned of once, as reading short", log)
 			}
 		})
+	}
+}
+
+func TestADamagedFileOfADayDoneWithIsTakenInAsItsLinesAndWholeLater(t *testing.T) {
+	first, rest := linesOf(`{"n":1}`, `{"n":2}`), linesOf(`{"n":3}`)
+	whole := gzipOf(t, first, rest)
+	// Cut short partway through its second member, as a file half synced is.
+	damaged := whole[:len(gzipOf(t, first))+5]
+	f := requestLedger(t.TempDir())
+
+	if got := taking(t, f, stage(t, earlierDate, damaged), start, twoWeeks); got != (Imported{Taken: Added}) {
+		t.Errorf("the damaged file taken in, the day = %+v, want it added", got)
+	}
+	if got := heldIn(t, f, plainFile(earlierDate)); got != first || holdsCompressed(f, earlierDate) {
+		t.Errorf("the damaged file taken in, the day's plain file holds %q, a compressed file there = %v; want the lines it read, %q, and no compressed file",
+			got, holdsCompressed(f, earlierDate), first)
+	}
+	if got := taking(t, f, stage(t, earlierDate, whole), start, twoWeeks); got != (Imported{Taken: Merged, Lines: 1}) {
+		t.Errorf("the whole file taken in after, the day = %+v, want it merged, gaining the line the damage left out", got)
+	}
+	compressingDay(t, f)
+	if got := heldIn(t, f, compressedFile(earlierDate)); got != first+rest {
+		t.Errorf("compressed after, the day's file holds %q, want %q: every line once", got, first+rest)
+	}
+}
+
+// holdsCompressed reports whether f holds a compressed file of the local day
+// with the given date.
+func holdsCompressed(f *Files, date string) bool {
+	_, err := os.Stat(f.path(compressedFile(date)))
+	return err == nil
+}
+
+func TestAStagedFileOfNoLinesTakesNothingIn(t *testing.T) {
+	const date = "2026-09-25"
+	day, _, _ := Day(date)
+	tests := []struct {
+		name string
+		// data is the staged file, and now when it's taken in.
+		data []byte
+		now  time.Time
+	}{
+		{name: "an empty file, the day done with", data: []byte{}, now: start},
+		{name: "an empty file, the day not yet done with", data: []byte{}, now: DayStart(day, 2)},
+		{name: "a member of no lines, the day done with", data: gzipOf(t, ""), now: start},
+		{name: "a member of no lines, the day not yet done with", data: gzipOf(t, ""), now: DayStart(day, 2)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := requestLedger(t.TempDir())
+
+			if got := taking(t, f, stage(t, date, tt.data), tt.now, twoWeeks); got != (Imported{Taken: Added}) || holdsDay(f, date) {
+				t.Errorf("take(%s) = %+v, the files holding the day = %v; want nothing taken in", date, got, holdsDay(f, date))
+			}
+		})
+	}
+}
+
+func TestADayImportedAfterACompressStoppedPartwayHoldsEachLineOnceCompressed(t *testing.T) {
+	f := requestLedger(t.TempDir())
+	writeDay(t, f, compressedFile(earlierDate), linesOf(`{"n":1}`))
+	appendingPlain(t, f, linesOf(`{"n":2}`))
+	// The compress stops once it has written the compressed file, which then
+	// ends with the plain file's lines, before it removes the plain one.
+	addingPlain(t, f)
+
+	got := taking(t, f, stage(t, earlierDate, gzipOf(t, linesOf(`{"n":1}`, `{"n":2}`, `{"n":3}`))), start, twoWeeks)
+	if got != (Imported{Taken: Merged, Lines: 1}) {
+		t.Errorf("take(%s) = %+v, want it merged, gaining the one line it didn't hold", earlierDate, got)
+	}
+	compressingDay(t, f)
+	if got, want := heldIn(t, f, compressedFile(earlierDate)), linesOf(`{"n":1}`, `{"n":2}`, `{"n":3}`); got != want {
+		t.Errorf("compressed after, the day's file holds %q, want %q: every line once", got, want)
+	}
+	if read, _, _ := wholeDay(f, earlierDate); !slices.Equal(read, []string{`{"n":1}`, `{"n":2}`, `{"n":3}`}) {
+		t.Errorf("compressed after, the day reads %q, want every line once", read)
 	}
 }
 
@@ -607,7 +684,7 @@ func TestRoundNowMakesTheWritersRoundAtOnce(t *testing.T) {
 	})
 }
 
-func TestACallerWaitsForAWriterNotRunningOnlyAsLongAsItsContext(t *testing.T) {
+func TestACallerWaitsForAWriterNotYetRunningAsLongAsItsContextAndNeverForOneStopped(t *testing.T) {
 	calls := []struct {
 		name string
 		call func(ctx context.Context, w *Writer[noted], s stagedDay) error
@@ -626,23 +703,77 @@ func TestACallerWaitsForAWriterNotRunningOnlyAsLongAsItsContext(t *testing.T) {
 				rounds := 0
 				w := NewWriter(f, linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: at(start), Items: "readings", Round: func(time.Time) { rounds++ }})
 				s := stage(t, DateOf(start), gzipOf(t, linesOf(`{"n":1}`)))
-				waiting := func(when string, ran int) {
+				calling := func(ctx context.Context, when string, want error, ran int) {
 					t.Helper()
-					ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
-					defer cancel()
-					if err := c.call(ctx, w, s); !errors.Is(err, context.DeadlineExceeded) {
-						t.Errorf("%s, %s() = %v, want its context's end", when, c.name, err)
+					if err := c.call(ctx, w, s); !errors.Is(err, want) {
+						t.Errorf("%s, %s() = %v, want %v", when, c.name, err, want)
 					}
 					if rounds != ran || holdsDay(f, s.date) {
 						t.Errorf("%s, %d rounds were made, the files holding the day = %v; want %d, and nothing taken in", when, rounds, holdsDay(f, s.date), ran)
 					}
 				}
+				ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+				defer cancel()
 
-				waiting("before Run starts", 0)
+				calling(ctx, "before Run starts", context.DeadlineExceeded, 0)
 				running(t, w)()
-				waiting("once Run has stopped", 1)
+				// Waiting for the test's own context would never end.
+				calling(t.Context(), "once Run has stopped", ErrStopped, 1)
 			})
 		})
+	}
+}
+
+func TestAWriterRunAgainTakesUpWorkAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := testWriter(readingsHistory(t.TempDir()), at(start), 1)
+		running(t, w)()
+		stop := running(t, w)
+		defer stop()
+		synctest.Wait()
+		done := false
+
+		if err := w.Do(t.Context(), func() { done = true }); err != nil || !done {
+			t.Errorf("Do() = %v, the work done = %v; want it done by the Run started after the one that stopped", err, done)
+		}
+	})
+}
+
+func TestACallerWhoseContextEndsAsItsWorkRunsIsToldSoAndTheWorkFinishes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := testWriter(readingsHistory(t.TempDir()), at(start), 1)
+		stop := running(t, w)
+		defer stop()
+		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+		defer cancel()
+		finished := make(chan struct{})
+
+		err := w.Do(ctx, func() {
+			time.Sleep(2 * time.Minute)
+			close(finished)
+		})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("Do() = %v, want its context's end, which came first", err)
+		}
+		select {
+		case <-finished:
+		case <-time.After(time.Hour):
+			t.Error("the work never finished, want it run to its end once taken up")
+		}
+	})
+}
+
+func TestWorkDoneAsItsCallersContextEndsIsReportedDone(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	done := make(chan struct{})
+	close(done)
+	// A choice between the two made at random would make the other in a few
+	// tries.
+	for range 100 {
+		if err := doneBy(ctx, done); err != nil {
+			t.Fatalf("doneBy() = %v, the work done and the context ended both; want it reported done", err)
+		}
 	}
 }
 
