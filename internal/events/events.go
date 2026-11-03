@@ -137,6 +137,13 @@ func (w *Writer) Run(ctx context.Context) {
 	w.writer.Run(ctx)
 }
 
+// Import takes in the day of lines with the given date staged at staged, as
+// export writes a day's, as dayfile.Writer's Import does: on Run's goroutine,
+// by the files' keep and clock.
+func (w *Writer) Import(ctx context.Context, date, staged string) (dayfile.Imported, error) {
+	return w.writer.Import(ctx, date, staged)
+}
+
 // lines returns line as the files' lines, filed under the local day it's
 // written on: none, should it not be put as JSON, which is logged once.
 func (w *Writer) lines(line Line) dayfile.Lines {

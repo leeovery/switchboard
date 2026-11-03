@@ -21,7 +21,7 @@ import (
 // of one was named by a clock set ahead. Where the files can't be listed,
 // which is warned of, it returns none.
 func (f *Files) Newest(now time.Time, n int) []string {
-	dates, err := f.dates(func(day time.Time) bool { return !afterTomorrow(day, now) })
+	dates, err := f.dates(func(l listed) bool { return !afterTomorrow(l.day, now) })
 	if err != nil {
 		f.Logger.Warn("can't read the "+f.Name, "dir", f.Dir, "error", err)
 	}
@@ -32,14 +32,38 @@ func (f *Files) Newest(now time.Time, n int) []string {
 // by the dates the files' names give: none where their directory isn't
 // there. It fails where they can't be listed.
 func (f *Files) All() ([]string, error) {
-	return f.dates(func(time.Time) bool { return true })
+	return f.dates(func(listed) bool { return true })
+}
+
+// Compressed returns the dates of the days whose compressed files, as export
+// writes a day's, the files' directory holds, oldest first, passing over
+// anything else: a day's plain file, a temporary file, and a link or a
+// directory by a compressed file's name, none of them a day's to take. None
+// where the directory isn't there. It fails where it can't be listed.
+func (f *Files) Compressed() ([]string, error) {
+	return f.dates(func(l listed) bool { return l.file.compressed && l.entry.Type().IsRegular() })
+}
+
+// CompressedDate returns the date of the local day whose compressed file has
+// the given name, reporting false for a name that isn't one of the files'
+// compressed files'.
+func (f *Files) CompressedDate(name string) (string, bool) {
+	file, _, ok := f.named(name)
+	return file.date, ok && file.compressed
+}
+
+// listed is one of the files as their directory lists it: the file, the
+// start of its local day, and its entry.
+type listed struct {
+	file  dayFile
+	day   time.Time
+	entry fs.DirEntry
 }
 
 // dates returns the dates of the local days the files are of, each once,
-// oldest first, but for those whose day, by its start, keep reports false
-// of: none where their directory isn't there. It fails where they can't be
-// listed.
-func (f *Files) dates(keep func(day time.Time) bool) ([]string, error) {
+// oldest first, but for those of a file keep reports false of: none where
+// their directory isn't there. It fails where they can't be listed.
+func (f *Files) dates(keep func(listed) bool) ([]string, error) {
 	entries, err := f.List()
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -49,7 +73,7 @@ func (f *Files) dates(keep func(day time.Time) bool) ([]string, error) {
 	}
 	var dates []string
 	for _, e := range entries {
-		if file, day, ok := f.named(e.Name()); ok && keep(day) {
+		if file, day, ok := f.named(e.Name()); ok && keep(listed{file: file, day: day, entry: e}) {
 			dates = append(dates, file.date)
 		}
 	}

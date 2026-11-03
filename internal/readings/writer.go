@@ -46,6 +46,13 @@ func (w *Writer) Run(ctx context.Context) {
 	w.writer.Run(ctx)
 }
 
+// Import takes in the day of readings with the given date staged at staged,
+// as export writes a day's, as dayfile.Writer's Import does: on Run's
+// goroutine, by the history's keep and clock.
+func (w *Writer) Import(ctx context.Context, date, staged string) (dayfile.Imported, error) {
+	return w.writer.Import(ctx, date, staged)
+}
+
 // lines returns taken as the history's lines, each filed under the local day
 // it was read on. A reading that can't be put as a line, as one of a use that
 // isn't a number, goes unwritten, logged once.

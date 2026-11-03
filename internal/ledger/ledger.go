@@ -77,8 +77,10 @@ func SummaryFile(dir, date string) string {
 }
 
 // SummaryDates returns the dates of the days the ledger in dir holds a
-// summary of, oldest first: none where dir isn't there. It fails where dir
-// can't be listed.
+// summary of, oldest first, as a regular file, as the ledger writes one,
+// passing over a link or a directory by a summary's name, so none is
+// followed out of dir: none where dir isn't there. It fails where dir can't
+// be listed.
 func SummaryDates(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	switch {
@@ -89,11 +91,17 @@ func SummaryDates(dir string) ([]string, error) {
 	}
 	var dates []string
 	for _, e := range entries {
-		if date, ok := datedName(e.Name(), summaryPrefix, summarySuffix); ok {
+		if date, ok := SummaryDate(e.Name()); ok && e.Type().IsRegular() {
 			dates = append(dates, date)
 		}
 	}
 	return dates, nil
+}
+
+// SummaryDate returns the date of the local day the summary with the given
+// name is of, reporting false for a name that isn't a summary's.
+func SummaryDate(name string) (string, bool) {
+	return datedName(name, summaryPrefix, summarySuffix)
 }
 
 // datedName returns the date of the local day the file with the given name
@@ -447,14 +455,25 @@ func (d days) held(date string) (stamped, error) {
 	if err != nil {
 		return stamped{}, err
 	}
-	var summary Summary
-	if err := json.Unmarshal(data, &summary); err != nil {
-		return stamped{}, fmt.Errorf("%w: %w", errNotTheDaysSummary, err)
-	}
-	if summary.Day != date {
-		return stamped{}, fmt.Errorf("%w: it's of %q", errNotTheDaysSummary, summary.Day)
+	summary, err := summaryIn(data, date)
+	if err != nil {
+		return stamped{}, err
 	}
 	return stamped{Summary: summary, written: data, stamp: stamp}, nil
+}
+
+// summaryIn returns the summary data holds, as a summary is written, of the
+// local day with the given date, failing with errNotTheDaysSummary where it
+// doesn't read as the day's, as one cut short, or whose day is another's.
+func summaryIn(data []byte, date string) (Summary, error) {
+	var summary Summary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		return Summary{}, fmt.Errorf("%w: %w", errNotTheDaysSummary, err)
+	}
+	if summary.Day != date {
+		return Summary{}, fmt.Errorf("%w: it's of %q", errNotTheDaysSummary, summary.Day)
+	}
+	return summary, nil
 }
 
 // readStamped returns what the file at path holds, and when it was last

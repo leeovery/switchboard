@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -272,6 +273,38 @@ func TestTheRecentRatesOutlastARestart(t *testing.T) {
 	}
 	if pace, _ := after.state.usage["work"].pace(testPolicy, now); !pace.Recent || math.Abs(pace.Rate-0.1/since) > 1e-9 {
 		t.Errorf("after the restart, work's session is used at %+v, want its recent rate, as before it", pace)
+	}
+}
+
+func TestTheRecentRatesOutlastARestartAfterAnImportMergedReadingsOutOfTime(t *testing.T) {
+	now := start.Add(21 * time.Minute)
+	dir := t.TempDir()
+	h := newHistory(config.History{}, at(now))
+	h.open(dir)
+	stop := keeping(t, h)
+	// The Mac read work's session at 55% and 60%; another Mac read it at 50%
+	// before both, and its readings are merged in after them.
+	writeLines(t, h, workRead(start.Add(10*time.Minute), 0.55), workRead(start.Add(20*time.Minute), 0.6))
+	staged := filepath.Join(t.TempDir(), "readings.jsonl.gz")
+	if err := os.WriteFile(staged, gzipOf(t, linesOf(t, workRead(start, 0.5))), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if took, err := h.importDay(t.Context(), dayfile.DateOf(start), staged); err != nil || took.Lines != 1 {
+		t.Fatalf("importDay() = %+v, %v, want the other Mac's reading merged in", took, err)
+	}
+	stop()
+	if data, err := os.ReadFile(filepath.Join(dir, plainFile(dayfile.DateOf(start)).name())); err != nil || !strings.HasSuffix(string(data), linesOf(t, workRead(start, 0.5))) {
+		t.Fatalf("the day's file holds %q (%v), want the reading merged in last, out of time", data, err)
+	}
+
+	s := newTestState(&testClock{now: now})
+	read := session
+	read.Utilization = 0.6
+	s.usage["work"].windows["5h"] = read
+	s.seed(h.readBack(now))
+	// The rise from 50% is over the 21 minutes since it was read.
+	if pace, ok := s.usage["work"].pace(testPolicy, now); !ok || !pace.Recent || math.Abs(pace.Rate-0.1/(21*time.Minute).Hours()) > 1e-9 {
+		t.Errorf("after the restart, work's session is used at %+v, %v, want its recent rate, its readings taken up in time order", pace, ok)
 	}
 }
 

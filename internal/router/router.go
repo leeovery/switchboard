@@ -246,6 +246,8 @@ type Router struct {
 	// inFlight counts the proxy's requests in flight.
 	inFlight *inFlight
 	upkeep   *upkeep
+	// imports take in the history import stages, one import at a time.
+	imports *imports
 	// notifications is nil when the router posts none.
 	notifications *notifications
 	started       time.Time
@@ -314,6 +316,7 @@ func New(cfg Config) (*Router, error) {
 		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told),
 		history:   history,
 		ledger:    requests,
+		imports:   newImports(),
 		probes:    probes,
 		health:    health,
 		proxy: &proxy{

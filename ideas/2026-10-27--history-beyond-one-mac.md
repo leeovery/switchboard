@@ -35,3 +35,18 @@ hour at most, and the readings of one account, read by both Macs, are one accoun
 Macs read them.
 
 Later, too: `setup` on a new Mac offering to import a folder.
+
+## Limits import accepts, 3 November 2026
+
+Two Macs' summaries of one day can't be merged, as a summary counts requests without saying which
+they were, so where both know of the day's requests one is kept and the other's requests go
+uncounted. Import keeps the Mac's own, or the first folder's, where it counts any request:
+
+- a day past keeping on both Macs, each with its own summary: the first's stands;
+- a day one folder brings as its summary alone, its lines past its Mac's keep, and another brings
+  as lines: whichever comes second is counted only as far as the first's count;
+- a Mac whose lines of a day were pruned under a shorter keep, the keep since raised, taking in
+  another Mac's lines of the day: the round takes each model's higher count, not their sum.
+
+Each needs Macs kept differently, or a keep changed, and fails short, never doubled. One history
+read across Macs, above, would count each Mac's requests apart.

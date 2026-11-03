@@ -42,6 +42,9 @@ var (
 	// be asked for its request stream: one from before GET /stream doesn't
 	// know the path.
 	ErrNoStream = errors.New("the router can't be asked for its request stream")
+	// ErrNoImport is what Import fails with, wrapped, when the router can't
+	// be asked to import: one from before POST /import doesn't know the path.
+	ErrNoImport = errors.New("the router can't be asked to import")
 )
 
 const (
@@ -238,6 +241,40 @@ func (c *Client) History(ctx context.Context, window string, step time.Duration)
 	return h, nil
 }
 
+// Import has the router take in the history import staged in its state
+// directory, as ImportDir says, and returns what it took in. It waits for the
+// answer as long as ctx lets it, as an import takes as long as the history it
+// brings in. It fails, saying why, when the router refuses, as while another
+// import runs, and with ErrNoImport when it can't be asked, as a router from
+// before POST /import can't.
+func (c *Client) Import(ctx context.Context) (Imported, error) {
+	var imported Imported
+	if err := noImport(c.ask(ctx, http.MethodPost, "/import", nil, &imported)); err != nil {
+		return Imported{}, err
+	}
+	return imported, nil
+}
+
+// ImportRunning asks whether the router is running an import now. It fails
+// with ErrNoImport when it can't be asked, as a router from before POST
+// /import can't.
+func (c *Client) ImportRunning(ctx context.Context) (bool, error) {
+	var running importRunning
+	if err := noImport(c.call(ctx, clientTimeout, http.MethodGet, "/import", nil, &running)); err != nil {
+		return false, err
+	}
+	return running.Running, nil
+}
+
+// noImport is err, a call's of /import, as ErrNoImport where the router
+// doesn't know the path, as one from before POST /import doesn't.
+func noImport(err error) error {
+	if d, ok := errors.AsType[declined](err); ok && d.status == http.StatusNotFound && d.reason == "" {
+		return fmt.Errorf("%w: %w", ErrNoImport, err)
+	}
+	return err
+}
+
 // Stream opens the router's request stream, and returns what befalls each
 // routed request as it happens, starting with each request in flight as it
 // opens, until ctx ends or the router ends the stream, as it does for a
@@ -307,6 +344,12 @@ func readStream(ctx context.Context, body io.Reader, events chan<- StreamEvent) 
 func (c *Client) call(ctx context.Context, timeout time.Duration, method, path string, body, answer any) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	return c.ask(ctx, method, path, body, answer)
+}
+
+// ask sends the router a request for path, with body as JSON unless it's
+// nil, and decodes its answer into answer, as long as ctx lets it.
+func (c *Client) ask(ctx context.Context, method, path string, body, answer any) error {
 	resp, err := c.send(ctx, method, path, body)
 	if err != nil {
 		return err

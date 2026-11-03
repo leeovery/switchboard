@@ -477,6 +477,33 @@ func TestAllTakesEveryDayByItsFilesNames(t *testing.T) {
 	}
 }
 
+func TestCompressedTakesTheDaysOfRegularCompressedFilesAlone(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	for _, file := range []dayFile{compressedFile("2026-09-26"), compressedFile("2026-09-20"), plainFile("2026-09-22"), plainFile("2026-09-26")} {
+		writeDay(t, f, file, linesOf("a"))
+	}
+	outside := filepath.Join(t.TempDir(), "elsewhere.jsonl.gz")
+	if err := os.WriteFile(outside, gzipOf(t, linesOf("not the files'")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, f.path(compressedFile("2026-09-23"))); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(f.path(compressedFile("2026-09-24")), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(f.path(compressedFile("2026-09-25"))+".tmp", nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, err := f.Compressed(); !slices.Equal(got, []string{"2026-09-20", "2026-09-26"}) || err != nil {
+		t.Errorf("Compressed() = %q, %v; want the days of the regular compressed files alone, oldest first, no link, folder or plain file", got, err)
+	}
+	if got, err := readingsHistory(filepath.Join(t.TempDir(), "none")).Compressed(); len(got) > 0 || err != nil {
+		t.Errorf("Compressed() of files with no directory = %q, %v; want none", got, err)
+	}
+}
+
 func TestADaysStatGivesItsFilesSizesAndWhenEachWasModified(t *testing.T) {
 	const date = "2026-09-25"
 	plain, compressed := linesOf("one", "two"), gzipOf(t, linesOf("zero"))

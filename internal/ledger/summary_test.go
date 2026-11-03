@@ -2010,6 +2010,18 @@ func TestTheSummariesAreFoundByTheirDates(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// A link by a summary's name leads out of the ledger, and a folder by one
+	// holds none.
+	outside := filepath.Join(t.TempDir(), "elsewhere.json")
+	if err := os.WriteFile(outside, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "day-2026-10-06.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "day-2026-10-07.json"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := ledger.SummaryDates(dir)
 	if want := []string{"2026-10-03", "2026-10-05"}; err != nil || !slices.Equal(got, want) {

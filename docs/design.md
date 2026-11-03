@@ -7687,8 +7687,8 @@ and `import` brings a folder's history into a Mac's own, so the next Mac has the
 folder kept somewhere else, as one Dropbox or iCloud Drive syncs, holds it should the Mac be lost
 (the owner's choice on 3 November 2026). Switchboard writes the folder and reads it, and nothing
 more: what keeps the folder safe, or carries it to another Mac, is the folder's own business.
-Switchboard never talks to a cloud. Export is built; still to be built, in this order: import,
-then the schedule.
+Switchboard never talks to a cloud. Export and import are built; the schedule is still to be
+built.
 
 - **What goes:** what can't be built again, the request ledger's lines, the days' summaries, the
   readings history and the router's events. Not the files the router builds from them, the days'
@@ -7758,10 +7758,20 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   without it as Commands says. The command copies the folders' files into `<state dir>/import/`,
   removing any an import cut short left there first, so the router reads nothing outside the state
   directory, as macOS may bar a launchd agent from folders a terminal reaches; then asks the
-  router, `POST /import`, to take them in, and waits for its answer however long it takes. The
-  router takes them in between its rounds, so no day is compressed, summarised or pruned as it
-  changes, nor a line appended to it but through the import, and removes `import/` once it's done.
-  A second import while one runs is refused.
+  router, `POST /import`, to take them in, and waits for its answer however long it takes. It holds
+  `<state dir>/import.lock` from before it asks the router until the router answers, and asks
+  `GET /import` first, so one run again while the router still imports, as after an interrupt,
+  refuses rather than stage over what the router reads. The router takes them in between its
+  rounds, so no day is compressed, summarised or pruned as it
+  changes, nor a line appended to it but through the import, and removes `import/` once it's done,
+  or once it fails of its own, a 400 or a 500, so a copy as big as the export never stays to keep
+  a full disk full; a router stopping leaves it, as work it took up may still read it, for the
+  next import to remove. A stage the command can't finish it removes itself. A second import while
+  one runs is refused. A file iCloud Drive hasn't downloaded yet keeps its name, as macOS 14 and
+  later keep one, so staging reads it as any other, and reading it downloads it. A day whose own
+  compressed file doesn't read, so no member can be added after it, is passed over, warned of in
+  the router's log by its date, and counted nowhere, as a compress passes it over, and the import
+  goes on.
 - **A day the Mac doesn't hold:** its file is copied in, with its modification time, where its day
   ended two days ago or more; else its lines are appended to the day's plain file, which the
   router compresses as it does its own.
@@ -7770,18 +7780,29 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   compressed file's, written beside it and renamed into place. No two Macs write the same line, as
   each holds its time and what sets it apart (see Files), so a line held already is one imported
   before, or the Mac's own come back, and an import repeated adds nothing.
-- **Summaries:** a day's summary is copied in, with its stamp, where the Mac had neither a summary
-  nor any line of the day before the import, as of a day the Mac never saw, or one past keeping
-  whose summary is its only record; else the Mac's own stands, and the round summarises again each
-  day whose lines changed, as its files' sizes tell it, building its digest, parts, head and rows
-  again too (see The request ledger).
+- **Summaries:** a day's summary is copied in, with its stamp, where the Mac holds no line of the
+  day and no summary of it, as of a day the Mac never saw, or one past keeping whose summary is its
+  only record; or where the Mac's summary counts no request, as one a round summarised from the
+  readings alone, as it does once the readings history covers a day (see The request ledger), and
+  the folder's counts some: the Mac then knows nothing of the day's requests, and the folder's
+  summary knows more. One that counts none gives way to none, so an import repeated copies none
+  again. The day's lines and its summary
+  are taken in as one, on the ledger's writer, so whatever it ran before, a round, a stop or an
+  import cut short, the look sees the day's lines as the take left them. The readings history's
+  writer isn't held off: its summarising before a prune may summarise the day from the lines just
+  taken in, between the take and the look, and the folder's summary then gives way to that one,
+  which loses no request. Else the Mac's own stands, and the round summarises again each day whose
+  lines changed, as its files' sizes tell it, building its digest, parts, head and rows again too
+  (see The request ledger).
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
 - **Then** the router runs a round at once, so History, Accounts and the data verbs have the days
   within minutes, and answers `{"folders": 1, "days": {"added": 27, "merged": 3, "past_keep": 12},
-  "lines": 1204, "summaries": 27}`, `lines` those added to days both held. The command prints
-  `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out`.
+  "lines": 1204, "summaries": 27}`, `lines` those added to days both held, a day that gained nothing counting for none, so an import
+  repeated adds nothing, telling only of the days past keeping again. The command prints
+  `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out, 27 days' summaries`,
+  `summaries` every summary copied in, whichever days they're of.
 
 ### On a schedule
 
@@ -8312,8 +8333,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   and `misses` (see The router's rounds), and the hashes of every configured account's tokens, with
   a usable token or not: see Accounts and tokens; and the token-year notifications told, an
   account's against the token they were told for: see Notifications), `control.sock`, `tokens/`,
-  `logs/`, `history/`, `ledger/`, `install-id`, the id an export names the Mac's folder by, and
-`import/`, while an import runs (see Export and import). `state.json` is versioned, the version changing only when a
+  `logs/`, `history/`, `ledger/`, `install-id`, the id an export names the Mac's folder by,
+`import/`, while an import runs, and `import.lock`, which `import` holds while it stages and waits
+(see Export and import). `state.json` is versioned, the version changing only when a
   router couldn't read what another wrote: an older file, without readings, loads as having none,
   one whose readings lack `restarted_at` as windows that run a whole length before their resets,
   which a router from before, ignoring the field, takes them all for, one whose readings lack when
@@ -8660,6 +8682,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
 | `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
+| `GET /import` | `{"running": true}` while an import runs, else `false`, which `import` asks before it stages (see Export and import) |
 | `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, when the new binary judges it, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, and where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
@@ -9681,6 +9704,9 @@ What's built but hasn't been seen against the real thing:
 - Before `[export] dir` is built: a launchd agent run from an unsigned binary, replaced as an
   upgrade replaces it, writing into iCloud Drive and into a folder a File Provider keeps, as
   Dropbox's is, to see whether macOS asks first, and whether its answer outlives the upgrade.
+- `import` from a folder in iCloud Drive whose files haven't been downloaded, with the Mac
+  offline: staging's read of a file not downloaded should fail, and the import with it, removing
+  what it staged.
 - `claude doctor` with the link in place.
 - Background sessions (`claude --bg`) going through the router.
 - *Milestone 5:* asking the terminal its background colour and setting it (OSC 11, putting it back

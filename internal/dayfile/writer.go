@@ -2,6 +2,8 @@ package dayfile
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -61,6 +63,12 @@ type Writer[T any] struct {
 	onPruning func(now time.Time)
 	spare     func(date string) bool
 	queue     chan T
+	// work takes what Do hands Run's goroutine to do, as Run takes it up.
+	work chan func()
+	// stopped is closed as Run returns, and made afresh as a Run after it
+	// starts, as one Writer can be run again; runs guards it.
+	stopped chan struct{}
+	runs    sync.Mutex
 	// dropping is set once what's noted is dropped for the queue being full,
 	// until a write succeeds.
 	dropping atomic.Bool
@@ -75,7 +83,7 @@ type Writer[T any] struct {
 // the lines linesOf returns of it, as opts say.
 func NewWriter[T any](files *Files, linesOf func(T) Lines, opts WriterOptions) *Writer[T] {
 	return &Writer[T]{files: files, linesOf: linesOf, keep: opts.Keep, now: opts.Now, items: opts.Items, onRound: opts.Round, onPruning: opts.Pruning,
-		spare: opts.Spare, queue: make(chan T, opts.Queue)}
+		spare: opts.Spare, queue: make(chan T, opts.Queue), work: make(chan func()), stopped: make(chan struct{})}
 }
 
 // Note queues v for Run to write. It never waits: with the queue full, v is
@@ -91,9 +99,11 @@ func (w *Writer[T]) Note(v T) {
 }
 
 // Run writes what's noted, making its round as it starts and every pruneLook
-// after, until ctx ends, when it writes what's still queued. It makes the
-// files' directory private as it starts.
+// after, and does what Do hands it, until ctx ends, when it writes what's
+// still queued. It makes the files' directory private as it starts. A
+// Writer runs one Run at a time.
 func (w *Writer[T]) Run(ctx context.Context) {
+	defer close(w.starting())
 	w.files.makePrivate()
 	w.round()
 	look := time.NewTicker(pruneLook)
@@ -102,6 +112,8 @@ func (w *Writer[T]) Run(ctx context.Context) {
 		select {
 		case v := <-w.queue:
 			w.write(v)
+		case work := <-w.work:
+			work()
 		case <-look.C:
 			w.round()
 		case <-ctx.Done():
@@ -109,6 +121,78 @@ func (w *Writer[T]) Run(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// ErrStopped is the error of work handed to a Writer whose Run has returned,
+// which nothing takes up.
+var ErrStopped = errors.New("the writer has stopped")
+
+// starting returns what a Run starting closes as it returns: the Writer's
+// stopped, made afresh where a Run before closed it.
+func (w *Writer[T]) starting() chan struct{} {
+	w.runs.Lock()
+	defer w.runs.Unlock()
+	select {
+	case <-w.stopped:
+		w.stopped = make(chan struct{})
+	default:
+	}
+	return w.stopped
+}
+
+// stoppedRun returns what's closed once Run has returned, until a Run after
+// it starts.
+func (w *Writer[T]) stoppedRun() <-chan struct{} {
+	w.runs.Lock()
+	defer w.runs.Unlock()
+	return w.stopped
+}
+
+// Do does work on Run's goroutine, between its writes and its rounds, so
+// nothing else is done with the files while it runs, and returns nil once
+// it's done. It waits for Run to take the work up as long as ctx lets it,
+// Run not yet started included, returning ctx's error once ctx has ended
+// and ErrStopped at once where Run has returned, either having done none of
+// it. Once Run has taken it up, the work runs to its end, but ctx ending
+// first returns ctx's error.
+func (w *Writer[T]) Do(ctx context.Context, work func()) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	done := make(chan struct{})
+	select {
+	case w.work <- func() {
+		work()
+		close(done)
+	}:
+	case <-w.stoppedRun():
+		return ErrStopped
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return doneBy(ctx, done)
+}
+
+// doneBy waits for done to close, returning nil, or for ctx to end,
+// returning its error: nil where both have, so work that's done is never
+// reported undone.
+func doneBy(ctx context.Context, done <-chan struct{}) error {
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
+	select {
+	case <-done:
+		return nil
+	default:
+		return ctx.Err()
+	}
+}
+
+// RoundNow makes the Writer's round at once, as it makes one every pruneLook,
+// on Run's goroutine, and returns as Do does.
+func (w *Writer[T]) RoundNow(ctx context.Context) error {
+	return w.Do(ctx, w.round)
 }
 
 // round has the Writer's Round, where it has one, keep what it keeps of the
@@ -138,7 +222,7 @@ func (w *Writer[T]) spared(now time.Time) func(date string) bool {
 	if w.spare == nil || w.keep == Forever {
 		return nil
 	}
-	past, err := w.files.dates(func(day time.Time) bool { return !now.Before(pastKeeping(day, w.keep)) })
+	past, err := w.files.dates(func(l listed) bool { return pastKeepingAt(l.day, now, w.keep) })
 	if err != nil {
 		return func(string) bool { return true }
 	}

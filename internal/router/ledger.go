@@ -54,6 +54,18 @@ func (l *requestLedger) run(ctx context.Context) {
 	l.opened.Load().Run(ctx)
 }
 
+// importDay takes in the day of the ledger's staged, as ledger.Ledger's
+// Import does. The ledger must be open.
+func (l *requestLedger) importDay(ctx context.Context, day ledger.StagedDay) (ledger.ImportedDay, error) {
+	return l.opened.Load().Import(ctx, day)
+}
+
+// roundNow has the ledger make its round at once, as ledger.Ledger's RoundNow
+// does. The ledger must be open.
+func (l *requestLedger) roundNow(ctx context.Context) error {
+	return l.opened.Load().RoundNow(ctx)
+}
+
 // summariseEnded has the ledger, once it's opened, summarise the days that
 // have ended at now, as ledger.Ledger.SummariseEnded says: the readings
 // history's writer has it do so just before each prune of its files, so no
