@@ -17,6 +17,7 @@ This page describes every switchboard command: what it does, its flags, and what
 | | [`history`](#history) | Sums up the ledger's days, priced, and judges whether you have enough accounts. |
 | | [`sessions`](#sessions) | Lists today's sessions, or shows one session's page. |
 | | [`events`](#events) | Lists what the router decided and noticed. |
+| [Keeping history](#keeping-history) | [`export`](#export) | Copies this Mac's history into a folder of its own. |
 | [Plumbing](#plumbing) | [`run`](#run) | Starts Claude Code through the router: what `claude` runs. |
 | | [`serve`](#serve) | Runs the router in the foreground. |
 | [Help and version](#help-and-version) | [`help`](#help) | Lists the commands, or shows one command's help. |
@@ -1197,6 +1198,65 @@ Examples:
 ```bash
 switchboard events --since 2d
 switchboard events -f --json | jq 'select(.kind == "limit")'
+```
+
+## Keeping history
+
+### `export`
+
+`export` copies this Mac's history into a folder of its own in `<dir>`. Keep `<dir>` where Dropbox
+or iCloud Drive syncs it, and the history is somewhere else should the Mac be lost. Switchboard
+writes the folder and nothing more: what keeps it safe, or carries it to another Mac, is up to you.
+
+```bash
+switchboard export <dir>
+```
+
+A relative `<dir>` is taken from the working directory. `<dir>` is made if it isn't there, and the
+Mac's folder in it is `mac-<id>`, named by this install's id. So Macs that name the same `<dir>`,
+as a config kept in a dotfiles repository does, never write each other's files.
+
+The Mac's folder holds what switchboard can't build again, in the state directory's own names:
+
+| File | Holds |
+|---|---|
+| `export.json` | `{"version": 1, "install": "<id>", "exported_at": "<time, UTC>"}`: whose folder it is, and when it was last exported to. |
+| `ledger/requests-<date>.jsonl.gz` | The [request ledger](reference.md#the-request-ledger)'s lines, one file for each day. |
+| `ledger/events-<date>.jsonl.gz` | The [router's events](reference.md#the-routers-events), one file for each day. |
+| `ledger/day-<date>.json` | Each [day's summary](reference.md#the-days-summary). |
+| `history/readings-<date>.jsonl.gz` | The [readings history](reference.md#the-readings-history), one file for each day. |
+
+Each day's lines are in one compressed file, which `gzip -dc` reads. It leaves out the files the
+router builds again from the lines, the days' digests, parts, heads and rows, and `state.json`,
+`prefs.json`, the config, the tokens and the logs.
+
+- **What it writes:** a day already in the folder, and unchanged since, is left as it is. A day
+  compressed in the state directory is copied as it is. The last three days, not yet compressed,
+  are compressed on their way, and copied again once a line is added. A line still being written is
+  left for the next export.
+- **Never half written:** every file is written beside where it goes and renamed into place, so a
+  sync never carries one half written.
+- **Nothing removed:** nothing in the folder is ever removed, a day past keeping included. The
+  folder keeps what it's given until you remove it.
+
+It reads the files where they lie, so it needs no router. It prints how many days it exported,
+and how many of them it wrote:
+
+```
+exported 31 days to /Users/you/Dropbox/switchboard/mac-0123456789abcdef: 3 written, 28 as they were
+```
+
+A `<dir>` that's a file, or that can't be made or written, fails, saying so.
+
+The install's id is in `install-id`, in the state directory, made by the first export and never
+replaced. A Mac whose state directory was restored from another's, as Migration Assistant restores
+it, carries the other's id, and exports to its folder. Remove `install-id` to give it an id, and a
+folder, of its own at its next export.
+
+Example:
+
+```bash
+switchboard export ~/Dropbox/switchboard
 ```
 
 ## Plumbing

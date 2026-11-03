@@ -15,7 +15,7 @@ import (
 func TestASummaryThatCantBeStampedIsWarnedOf(t *testing.T) {
 	log := logstest.Capture(t)
 	logger := logs.For("router")
-	d := days{files: filesIn(t.TempDir(), logger), logger: logger}
+	d := days{files: Files(t.TempDir(), logger), logger: logger}
 
 	// There's no summary of the day to stamp, as when it was removed once
 	// written.

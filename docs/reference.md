@@ -83,6 +83,7 @@ The state directory holds these files:
 | `ledger/logday-<date>.json.gz` | Each day's head: every session whose requests the day's lines hold, with the directory it ran in, so the Log's find needn't read every day's lines, and where each chunk of the day's rows lies in its rows file. Its form is switchboard's own too, and it's kept as long as the day's lines. Deleting it is safe: until the router writes it again, the find, the Log and a turn read the day's lines instead. |
 | `ledger/rows-<date>.gz` | Each day's rows, beside its head: a row for each of the day's lines, as the Log shows it, without a price, 256 rows to a gzip stream, each checked against the CRC its head records, so the Log reads a day back, and a turn its own days, without reading the day's lines. Its form is switchboard's own too, and it's kept as long as the day's lines. Deleting it is safe: until the router writes it again with the day's head, the day's lines are read instead. |
 | `ledger/events-<date>.jsonl` | The [router's events](#the-routers-events), one file for each day. |
+| `install-id` | This install's id, 16 lowercase hex characters, which names the Mac's folder an export writes. The first export makes it, and nothing replaces it. See [`export`](commands.md#export). |
 
 Once a day ended two days ago, its files of lines are compressed to `<name>.jsonl.gz`. To read a
 compressed file, use `gzip -dc`.

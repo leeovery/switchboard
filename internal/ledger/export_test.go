@@ -39,7 +39,7 @@ func WriteParts(dir, date string, parts map[string]json.RawMessage) error {
 		return err
 	}
 	file, _ := partsFileOf(built)
-	return days{files: filesIn(dir, nil)}.writeParts(date, file)
+	return days{files: Files(dir, nil)}.writeParts(date, file)
 }
 
 // builtParts returns parts, by their sessions' ids, each as builtPartOf
@@ -61,14 +61,14 @@ func builtParts(parts map[string]json.RawMessage, on map[string]string) (map[str
 // the given date, its sessions' states of the version body, for tests of
 // what's written.
 func ReadDigest(dir, date string, body int) (Digest, error) {
-	return days{files: filesIn(dir, nil)}.digest(date, body)
+	return days{files: Files(dir, nil)}.digest(date, body)
 }
 
 // ReadPart returns the part of a session ref points at in the parts file the
 // ledger in dir holds of the local day with the given date, as readMember
 // reads it, for tests of what's written.
 func ReadPart(dir, date string, ref PartRef) (json.RawMessage, error) {
-	return days{files: filesIn(dir, nil)}.readMember(date, ref.Member)
+	return days{files: Files(dir, nil)}.readMember(date, ref.Member)
 }
 
 // ReadTimes returns the times of the part of a session ref points at in the
@@ -79,7 +79,7 @@ func ReadTimes(dir, date string, ref PartRef) (json.RawMessage, error) {
 	if ref.Times == nil {
 		return nil, fmt.Errorf("the part of %s at %+v has no times", date, ref.Member)
 	}
-	return days{files: filesIn(dir, nil)}.readMember(date, *ref.Times)
+	return days{files: Files(dir, nil)}.readMember(date, *ref.Times)
 }
 
 // SessionsAsOf returns the sessions with the given ids as of the start of
@@ -133,7 +133,7 @@ func WriteDigestWithParts(dir string, digest Digest, parts map[string]json.RawMe
 	if err != nil {
 		return Digest{}, err
 	}
-	return days{files: filesIn(dir, nil)}.writeDigest(digest, built)
+	return days{files: Files(dir, nil)}.writeDigest(digest, built)
 }
 
 // WriteDayHead writes head as the ledger in dir holds the head of its day,
@@ -153,7 +153,7 @@ func WriteDayHead(dir string, head DayHead) error {
 // the two.
 func WriteRows(dir, date string, chunks []BuiltChunk) error {
 	file, _ := rowsFileOf(chunks)
-	return days{files: filesIn(dir, nil)}.writeRows(date, file)
+	return days{files: Files(dir, nil)}.writeRows(date, file)
 }
 
 // HeadsHeld returns each day's head the router's digester holds from pass to
@@ -172,7 +172,7 @@ func (l *Ledger) HeadsHeld() map[string]DayHead {
 // ReadDayHead returns the head the ledger in dir holds of the local day with
 // the given date, its side of the version body, for tests of what's written.
 func ReadDayHead(dir, date string, body int) (DayHead, error) {
-	return days{files: filesIn(dir, nil)}.dayHead(date, body)
+	return days{files: Files(dir, nil)}.dayHead(date, body)
 }
 
 // RestsOn returns what a state folded from s rests on, as the lookup found

@@ -333,7 +333,7 @@ type look struct {
 // the given date.
 func (d days) lookAt(date string) look {
 	var l look
-	if info, err := os.Stat(summaryFile(d.files.Dir, date)); err == nil {
+	if info, err := os.Stat(SummaryFile(d.files.Dir, date)); err == nil {
 		l.summary = info
 	}
 	l.files, l.err = d.files.Stat(date)

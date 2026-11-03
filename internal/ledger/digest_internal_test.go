@@ -36,7 +36,7 @@ const statesVersion = 3
 func digestDays(t *testing.T) days {
 	t.Helper()
 	logger := logs.For("router")
-	return days{files: filesIn(t.TempDir(), logger), logger: logger}
+	return days{files: Files(t.TempDir(), logger), logger: logger}
 }
 
 // headOf is the head of a digest of the local day with the given date, of

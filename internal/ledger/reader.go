@@ -41,7 +41,7 @@ func NewReader(stateDir string, now func() time.Time, caps Caps, logger *slog.Lo
 // logger.
 func daysIn(stateDir string, caps Caps, logger *slog.Logger) (d days, history *dayfile.Files) {
 	history = readings.Files(readings.Dir(stateDir), logger)
-	return days{files: filesIn(Dir(stateDir), logger), history: HistoryIn(history), caps: caps, logger: logger}, history
+	return days{files: Files(Dir(stateDir), logger), history: HistoryIn(history), caps: caps, logger: logger}, history
 }
 
 // HistoryIn returns the readings history in files, as readings.Files gives

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
@@ -234,6 +235,35 @@ func TestWriteChecked(t *testing.T) {
 				t.Errorf("the directory holds %v (%v), want the file alone", entries, err)
 			}
 		})
+	}
+}
+
+func TestWriteModifiedRenamesTheFileIntoPlaceWithTheTimeGiven(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "file")
+	write(t, path)
+	modified := time.Date(2026, 9, 28, 13, 12, 0, 123456789, time.UTC)
+
+	err := atomicfile.WriteModified(path, 0o600, modified, func(w io.Writer) error {
+		// Written beside the old, which is still in place.
+		if data, err := os.ReadFile(path); err != nil || string(data) != "old\n" {
+			t.Errorf("as it's written, the file holds %q (%v), want the old", data, err)
+		}
+		_, err := io.WriteString(w, "new\n")
+		return err
+	})
+	if err != nil {
+		t.Fatalf("WriteModified() error = %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.ModTime().Equal(modified) || info.Mode().Perm() != 0o600 {
+		t.Fatalf("the file is %v (%v), want it modified at %v, 0600", info, err, modified)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "new\n" {
+		t.Errorf("the file holds %q (%v), want the new", data, err)
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
+		t.Errorf("the directory holds %v (%v), want the file alone", entries, err)
 	}
 }
 

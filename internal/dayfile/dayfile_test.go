@@ -163,6 +163,13 @@ func TestADaysFilesAreNamedForItsDate(t *testing.T) {
 	}
 }
 
+func TestADaysCompressedFileIsNamedForItsDate(t *testing.T) {
+	dir := t.TempDir()
+	if got, want := readingsHistory(dir).CompressedPath("2026-09-28"), filepath.Join(dir, "readings-2026-09-28.jsonl.gz"); got != want {
+		t.Errorf("CompressedPath(2026-09-28) = %q, want %q", got, want)
+	}
+}
+
 func TestADaysDateGivesWhenItStartsAndEnds(t *testing.T) {
 	start, end, ok := Day("2026-09-28")
 	if !ok || !start.Equal(time.Date(2026, 9, 28, 0, 0, 0, 0, time.Local)) || !end.Equal(time.Date(2026, 9, 29, 0, 0, 0, 0, time.Local)) {
