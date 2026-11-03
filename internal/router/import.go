@@ -98,10 +98,17 @@ func (i *imports) run(take func(ctx context.Context) (Imported, error)) (Importe
 	}
 	defer i.running.Store(false)
 	imported, err := take(i.ctx)
-	if err != nil && (i.ctx.Err() != nil || errors.Is(err, dayfile.ErrStopped)) {
+	if err != nil && i.stopped(err) {
 		return Imported{}, errImportStopped
 	}
 	return imported, err
+}
+
+// stopped reports whether err, an import's, is of the router stopping: its
+// lifetime ended, or a writer stopped. Work it handed a writer may then
+// still be under way.
+func (i *imports) stopped(err error) bool {
+	return i.ctx.Err() != nil || errors.Is(err, dayfile.ErrStopped)
 }
 
 // stop cuts short the import under way, and any asked for after.
@@ -149,19 +156,31 @@ func importStatus(err error) int {
 }
 
 // importStaged takes in the folders staged in the state directory's import
-// directory, as ImportDir says, in the order staged, as importFolder takes
-// each in; then has the ledger make its round at once, so the days taken in
-// are summarised and digested; then removes the import directory, every
-// piece of work it handed a writer having returned, so none still reads it.
-// It fails with errNothingStaged where the directory holds no folder, and as
-// importFolder does, leaving the directory as it is, and what it took in
-// before.
+// directory, as ImportDir says, as takeStaged does; then removes the import
+// directory, done with or failed, unless the router stopped: every piece of
+// work it handed a writer has then returned, so none still reads it, and a
+// failed import's copy, as big as the export, never stays to fill the disk.
+// It fails as takeStaged does, keeping what it took in before.
 func (r *Router) importStaged(ctx context.Context) (Imported, error) {
 	// The ledger's events are opened last of the history's files.
 	if r.eventFiles == nil {
 		return Imported{}, errHistoryUnkept
 	}
 	dir := ImportDir(r.cfg.StateDir)
+	imported, err := r.takeStaged(ctx, dir)
+	if err == nil || !r.imports.stopped(err) {
+		if err := os.RemoveAll(dir); err != nil {
+			logger.Warn("can't remove what was staged to import; the next import removes it", "dir", dir, "error", err)
+		}
+	}
+	return imported, err
+}
+
+// takeStaged takes in the folders staged in dir, in the order staged, as
+// importFolder takes each in; then has the ledger make its round at once, so
+// the days taken in are summarised and digested. It fails with
+// errNothingStaged where dir holds no folder, and as importFolder does.
+func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 	folders, err := stagedFolders(dir)
 	switch {
 	case err != nil:
@@ -181,9 +200,6 @@ func (r *Router) importStaged(ctx context.Context) (Imported, error) {
 	imported := took.imported(len(folders))
 	logger.Info("imported", "folders", imported.Folders, "added", imported.Days.Added, "merged", imported.Days.Merged,
 		"past_keep", imported.Days.PastKeep, "lines", imported.Lines, "summaries", imported.Summaries)
-	if err := os.RemoveAll(dir); err != nil {
-		logger.Warn("can't remove what was staged to import; the next import removes it", "dir", dir, "error", err)
-	}
 	return imported, nil
 }
 

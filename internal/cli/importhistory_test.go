@@ -432,6 +432,62 @@ func TestImportOfNothingButFoldersWhoseExportJSONDoesntReadSaysSoThenFails(t *te
 	}
 }
 
+func TestImportSaysHowManyFilesItPassedOverAsICloudDriveHasntDownloadedThemThenCarriesOn(t *testing.T) {
+	deps, state := importDeps(t)
+	dir := t.TempDir()
+	one := importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
+	for _, name := range []string{".requests-2026-10-03.jsonl.gz.icloud", ".day-2026-10-03.json.icloud", ".notes.txt.icloud"} {
+		writeStateFile(t, ledger.Dir(one), name, []byte("a placeholder\n"))
+	}
+	importFolder(t, filepath.Join(dir, "mac-fedcba9876543210"))
+	post, asStaged := answeringAsStaged(t, state, router.Imported{Folders: 2, Days: router.ImportedDays{Added: 1}})
+	(&imports{post: post}).serve(t, state)
+
+	want := result{
+		stdout: "imported 2 folders: 1 day added\n",
+		stderr: "switchboard: passed over 2 files iCloud Drive hasn't downloaded yet in " + one + ": download them (in Finder, Download Now) and import again\n",
+	}
+	if got := run(t, deps, "import", dir); got != want {
+		t.Errorf("switchboard import = %+v, want %+v", got, want)
+	}
+	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"), filepath.Join("2", "ledger", "requests-2026-10-02.jsonl.gz"))
+}
+
+func TestImportThatCantStageAFolderLeavesNothingStaged(t *testing.T) {
+	deps, state := importDeps(t)
+	i := &imports{post: answering(router.Imported{Folders: 2})}
+	i.serve(t, state)
+	dir := t.TempDir()
+	importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
+	unreadable := filepath.Join(ledger.Dir(importFolder(t, filepath.Join(dir, "mac-fedcba9876543210"))), "requests-2026-10-02.jsonl.gz")
+	if err := os.Chmod(unreadable, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := run(t, deps, "import", dir); got.code != 1 || !strings.Contains(got.stderr, unreadable) {
+		t.Errorf("switchboard import = %+v, want it to fail, naming %s", got, unreadable)
+	}
+	if _, err := os.Stat(router.ImportDir(state)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("%s: %v, want what was staged removed", router.ImportDir(state), err)
+	}
+	if n := i.posted.Load(); n != 0 {
+		t.Errorf("the router was asked to import %d times, want none", n)
+	}
+}
+
+func TestImportAgainstARouterFromBeforeImportSaysToRestartIt(t *testing.T) {
+	deps, state := importDeps(t)
+	serveRouter(t, router.SocketPath(state), new(atomic.Int64), nil)
+
+	want := result{stderr: "Error: the router running is older than this switchboard: restart it with switchboard service restart (or, run by hand, stop it and run switchboard serve again), then import again\n", code: 1}
+	if got := run(t, deps, "import", importFolder(t, t.TempDir())); got != want {
+		t.Errorf("switchboard import = %+v, want %+v", got, want)
+	}
+	if _, err := os.Stat(router.ImportDir(state)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("%s: %v, want nothing staged for a router that can't import", router.ImportDir(state), err)
+	}
+}
+
 func TestImportNeedsOneFolder(t *testing.T) {
 	deps, _ := importDeps(t)
 	for _, args := range [][]string{{"import"}, {"import", ""}, {"import", t.TempDir(), t.TempDir()}} {

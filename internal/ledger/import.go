@@ -72,10 +72,7 @@ func (l *Ledger) RoundNow(ctx context.Context) error {
 }
 
 // copySummary copies the summary staged of the day in, its lines taken in as
-// took says, as copyIn copies it, where the ledger holds no line of the day,
-// as holdsNoLine says, and no summary of it that counts one, as countsNoLine
-// says: what the ledger knows of the day's requests is then nothing, and the
-// summary staged knows more. It holds summarising, so no round writes a
+// took says, as copyOver decides, holding summarising, so no round writes a
 // summary between its look and its copy, and reports whether it copied one.
 func (l *Ledger) copySummary(day StagedDay, took dayfile.Imported) (bool, error) {
 	if day.Summary == "" {
@@ -90,18 +87,24 @@ func (l *Ledger) copySummary(day StagedDay, took dayfile.Imported) (bool, error)
 	return copied, nil
 }
 
-// copyOver copies the summary staged of the day in, as copyIn does, over
-// none or one that knows nothing of the day's requests, where holdsNoLine and
-// countsNoLine say the ledger knows nothing of them, its lines taken in as
-// took says, reporting whether it did.
+// copyOver copies the summary staged of the day in, as writeStaged writes
+// it, its lines taken in as took says, where the ledger holds no line of the
+// day, as holdsNoLine says, and its summary gives way to the one staged, as
+// stagedSummary reads it, as givesWay says: what the ledger knows of the
+// day's requests is then nothing, and the summary staged knows more. It
+// reports whether it copied it.
 func (d days) copyOver(day StagedDay, took dayfile.Imported) (bool, error) {
 	if none, err := d.holdsNoLine(day.Date, took); err != nil || !none {
 		return false, err
 	}
-	if none, err := d.countsNoLine(day.Date); err != nil || !none {
+	staged, ok, err := d.stagedSummary(day)
+	if err != nil || !ok {
 		return false, err
 	}
-	return d.copyIn(day)
+	if gives, err := d.givesWay(day.Date, staged.Lines); err != nil || !gives {
+		return false, err
+	}
+	return true, d.writeStaged(day.Date, staged)
 }
 
 // holdsNoLine reports whether the ledger holds no line of the local day with
@@ -123,12 +126,15 @@ func (d days) holdsNoLine(date string, took dayfile.Imported) (bool, error) {
 	return false, err
 }
 
-// countsNoLine reports whether the ledger holds no summary of the local day
-// with the given date that counts a line: none, or one of no line, as a round
-// summarises a day from the readings alone. One that doesn't read as the
-// day's may have counted some, which can't be had again, so it stands, as a
-// round leaves it. It fails where the summary can't be read.
-func (d days) countsNoLine(date string) (bool, error) {
+// givesWay reports whether the ledger's summary of the local day with the
+// given date gives way to one staged counting the given number of lines:
+// where it holds none; or one of no line, as a round summarises a day from
+// the readings alone, where the one staged counts some. So one of no line
+// never replaces another, and an import repeated, or of this Mac's own
+// folder, copies none again. One that doesn't read as the day's may have
+// counted some, which can't be had again, so it stands, as a round leaves
+// it. It fails where the summary can't be read.
+func (d days) givesWay(date string, staged int) (bool, error) {
 	held, err := d.held(date)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -138,29 +144,36 @@ func (d days) countsNoLine(date string) (bool, error) {
 	case err != nil:
 		return false, err
 	}
-	return held.Lines == 0, nil
+	return held.Lines == 0 && staged > 0, nil
 }
 
-// copyIn copies the summary staged of the day in, as the ledger's summary of
-// its day, with its stamp, its modification time, beside where it goes and
-// renamed into place, reporting whether it did. It copies none that doesn't
-// read as the day's, as one cut short as it synced, which is warned of: in
-// place, it would stand in the way of the whole one a later import brings.
-func (d days) copyIn(day StagedDay) (bool, error) {
+// stagedSummary returns the summary staged of the day, as it was written,
+// with its stamp, reporting false where it doesn't read as the day's, as one
+// cut short as it synced, which is warned of: copied in, it would stand in
+// the way of the whole one a later import brings. It fails where it can't be
+// read.
+func (d days) stagedSummary(day StagedDay) (stamped, bool, error) {
 	data, stamp, err := readStamped(day.Summary)
 	if err != nil {
-		return false, err
+		return stamped{}, false, err
 	}
-	if _, err := summaryIn(data, day.Date); err != nil {
+	summary, err := summaryIn(data, day.Date)
+	if err != nil {
 		d.logger.Warn("can't read the request ledger's summary of a day staged to import; it's left out", "day", day.Date, "file", day.Summary, "error", err)
-		return false, nil
+		return stamped{}, false, nil
 	}
+	return stamped{Summary: summary, written: data, stamp: stamp}, true, nil
+}
+
+// writeStaged writes the summary staged as the ledger's summary of the local
+// day with the given date, as it was written, with its stamp, its
+// modification time, beside where it goes and renamed into place.
+func (d days) writeStaged(date string, staged stamped) error {
 	if err := os.MkdirAll(d.files.Dir, 0o700); err != nil {
-		return false, err
+		return err
 	}
-	err = atomicfile.WriteModified(SummaryFile(d.files.Dir, day.Date), 0o600, stamp, func(w io.Writer) error {
-		_, err := w.Write(data)
+	return atomicfile.WriteModified(SummaryFile(d.files.Dir, date), 0o600, staged.stamp, func(w io.Writer) error {
+		_, err := w.Write(staged.written)
 		return err
 	})
-	return err == nil, err
 }

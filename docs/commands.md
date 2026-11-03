@@ -1300,9 +1300,9 @@ What it takes in:
 - **A day this Mac doesn't hold** is copied in.
 - **A day it holds already** gains the lines it doesn't hold. Each line is told apart from every
   other Mac's, so an import repeated, or of a Mac's own folder, adds nothing.
-- **A day's summary** is copied in where this Mac held nothing of the day: neither its summary nor
-  any of its lines. Otherwise this Mac's stands, and the router summarises again each day that
-  gained lines.
+- **A day's summary** is copied in where this Mac holds no line of the day, and either no summary
+  of it, or one that counts no line, as of a day it only probed, where the folder's counts some.
+  Otherwise this Mac's stands, and the router summarises again each day that gained lines.
 - **Days past keeping:** a day's lines older than [`[ledger] keep`](configuration.md#ledger-keys),
   or its readings older than [`[history] keep`](configuration.md#history-keys), are left out, as
   the router would remove them. Their summaries are taken in, as summaries are kept for good.
@@ -1324,7 +1324,20 @@ it says so:
 imported 1 folder: 12 days' summaries, 12 days' lines past keeping left out
 ```
 
-An import repeated says `imported 1 folder: nothing new`.
+An import repeated adds nothing, and says `imported 1 folder: nothing new`, or, where the folder
+holds days past keeping, tells of them left out again: `imported 1 folder: 12 days past keeping
+left out`.
+
+A file of a folder that iCloud Drive hasn't downloaded yet is passed over, and `import` says how
+many as it carries on with the rest:
+
+```
+switchboard: passed over 12 files iCloud Drive hasn't downloaded yet in ~/Library/Mobile Documents/com~apple~CloudDocs/switchboard/mac-0123456789abcdef: download them (in Finder, Download Now) and import again
+```
+
+Against a router from before `import`, as one whose restart into an upgrade is still due, `import`
+fails, saying to restart it with `switchboard service restart`, or, run by hand, to stop it and
+run `switchboard serve` again, then import again.
 
 One import runs at a time. An `import` run while another is running, as after you interrupt one
 and the router carries on with it, is refused, and leaves the running one as it is:

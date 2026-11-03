@@ -200,19 +200,23 @@ func TestTheLedgerHoldsNoLineOfADayAsItsTakeOrElseItsFilesTell(t *testing.T) {
 	}
 }
 
-func TestASummaryCountsNoLineWhereItsNoneOrOfTheReadingsAlone(t *testing.T) {
+func TestASummaryGivesWayWhereItsNoneOrOfTheReadingsAloneAndTheOneStagedCountsALine(t *testing.T) {
 	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
 	tests := []struct {
 		name string
 		// summary is the ledger's summary of the day, none where it's "".
 		summary string
-		want    bool
+		// staged is how many lines the summary staged counts.
+		staged int
+		want   bool
 	}{
-		{name: "none", want: true},
-		{name: "one of the readings alone", summary: `{"version":6,"day":"` + date + `","lines":0}` + "\n", want: true},
-		{name: "one counting a line", summary: `{"version":6,"day":"` + date + `","lines":3}` + "\n"},
-		{name: "one cut short, which may have counted some", summary: `{"version":6,"day":"` + date + `","li`},
-		{name: "one of another day", summary: `{"version":6,"day":"2026-09-17","lines":0}` + "\n"},
+		{name: "none", staged: 2, want: true},
+		{name: "none, against one staged of the readings alone", want: true},
+		{name: "one of the readings alone", summary: `{"version":6,"day":"` + date + `","lines":0}` + "\n", staged: 2, want: true},
+		{name: "one of the readings alone, against another", summary: `{"version":6,"day":"` + date + `","lines":0}` + "\n"},
+		{name: "one counting a line", summary: `{"version":6,"day":"` + date + `","lines":3}` + "\n", staged: 5},
+		{name: "one cut short, which may have counted some", summary: `{"version":6,"day":"` + date + `","li`, staged: 2},
+		{name: "one of another day", summary: `{"version":6,"day":"2026-09-17","lines":0}` + "\n", staged: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -224,9 +228,9 @@ func TestASummaryCountsNoLineWhereItsNoneOrOfTheReadingsAlone(t *testing.T) {
 				}
 			}
 
-			got, err := d.countsNoLine(date)
+			got, err := d.givesWay(date, tt.staged)
 			if err != nil || got != tt.want {
-				t.Errorf("countsNoLine(%s) = %v, %v, want %v", date, got, err, tt.want)
+				t.Errorf("givesWay(%s, %d) = %v, %v, want %v", date, tt.staged, got, err, tt.want)
 			}
 		})
 	}

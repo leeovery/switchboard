@@ -116,7 +116,10 @@ func (f *Files) take(s stagedDay, now time.Time, keep time.Duration) (Imported, 
 }
 
 // merge merges the staged day into the files, which hold the lines held of
-// it, as take says.
+// it, as take says. Where the day's own compressed file doesn't read, as one
+// cut short, so no member can be added after it, the day is passed over,
+// taking nothing in, and warned of, as a compress passes it over, so the
+// rest of an import goes on.
 func (f *Files) merge(s stagedDay, held lineSet) (Imported, error) {
 	stat, err := f.Stat(s.date)
 	if err != nil {
@@ -127,11 +130,19 @@ func (f *Files) merge(s stagedDay, held lineSet) (Imported, error) {
 		to = f.appending(s.date)
 	}
 	added, err := f.addLines(s.path, held, to)
+	if u, ok := errors.AsType[heldUnread](err); ok {
+		f.Logger.Warn("can't import into a day of the "+f.Name+" whose own compressed file doesn't read; it's passed over", "day", s.date, "error", u.error)
+		return Imported{}, nil
+	}
 	if err != nil {
 		return Imported{}, err
 	}
 	return Imported{Taken: Merged, Lines: added}, nil
 }
+
+// heldUnread is why a day's own compressed file couldn't be read, so no
+// member can be added after it.
+type heldUnread struct{ error }
 
 // add adds the staged day, which the files hold none of, at now, as take
 // says.
@@ -244,6 +255,7 @@ func (f *Files) appending(date string) sink {
 // addingMember is the sink that adds a gzip member of its own after the
 // members of the compressed file of the local day with the given date, as
 // compressing the day adds one, its first line starting a line of its own.
+// It fails with heldUnread where the compressed file doesn't read.
 func (f *Files) addingMember(date string) sink {
 	return func(write func(w io.Writer) error) error {
 		f.mu.Lock()
@@ -251,7 +263,7 @@ func (f *Files) addingMember(date string) sink {
 		path := f.path(compressedFile(date))
 		compressed, err := openCompressed(path)
 		if err != nil {
-			return fmt.Errorf("read %s: %w", path, err)
+			return heldUnread{fmt.Errorf("read %s: %w", path, err)}
 		}
 		defer compressed.close()
 		return compressed.addMember(path, func(member io.Writer) error {

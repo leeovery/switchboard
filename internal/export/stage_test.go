@@ -283,6 +283,32 @@ func TestStagePassesOverALinkOrAFolderByADaysFilesName(t *testing.T) {
 	}
 }
 
+func TestUndownloadedCountsThePlaceholdersOfTheFilesStagingTakes(t *testing.T) {
+	one := macsFolder(t, t.TempDir(), installOne, export.Version)
+	writeFile(t, requests.compressed(one, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	for _, path := range []string{
+		filepath.Join(one, "ledger", ".requests-"+day2+".jsonl.gz.icloud"),
+		filepath.Join(one, "ledger", ".day-"+day2+".json.icloud"),
+		filepath.Join(one, "history", ".readings-"+day2+".jsonl.gz.icloud"),
+		// Of files staging passes over, or in a directory not theirs.
+		filepath.Join(one, "ledger", ".requests-"+day2+".jsonl.icloud"),
+		filepath.Join(one, "ledger", ".notes.txt.icloud"),
+		filepath.Join(one, "ledger", ".icloud"),
+		filepath.Join(one, "history", ".day-"+day2+".json.icloud"),
+		filepath.Join(one, ".export.json.icloud"),
+		filepath.Join(one, "ledger", "requests-"+day1+".jsonl.gz.icloud"),
+	} {
+		writeFile(t, path, []byte("a placeholder\n"), exportNow)
+	}
+
+	if got, err := export.Undownloaded(one); err != nil || got != 3 {
+		t.Errorf("Undownloaded() = %d, %v; want 3, the placeholders of files staging takes", got, err)
+	}
+	if got, err := export.Undownloaded(macsFolder(t, t.TempDir(), installTwo, export.Version)); err != nil || got != 0 {
+		t.Errorf("Undownloaded() of a folder of no history = %d, %v; want none", got, err)
+	}
+}
+
 func TestStageRemovesWhatAnImportCutShortLeftFirst(t *testing.T) {
 	one := macsFolder(t, t.TempDir(), installOne, export.Version)
 	writeFile(t, requests.compressed(one, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
@@ -302,14 +328,20 @@ func TestStageRemovesWhatAnImportCutShortLeftFirst(t *testing.T) {
 	}
 }
 
-func TestStageFailsWhereAFolderCantBeRead(t *testing.T) {
-	one := macsFolder(t, t.TempDir(), installOne, export.Version)
-	path := requests.compressed(one, day1)
-	writeFile(t, path, gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+func TestStageFailsWhereAFolderCantBeReadRemovingWhatItStaged(t *testing.T) {
+	staged := macsFolder(t, t.TempDir(), installOne, export.Version)
+	writeFile(t, requests.compressed(staged, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	two := macsFolder(t, t.TempDir(), installTwo, export.Version)
+	path := requests.compressed(two, day1)
+	writeFile(t, path, gzipOf(t, linesOf(`{"n":2}`)), compressedAt)
 	unreadable(t, path)
+	importDir := filepath.Join(t.TempDir(), "import")
 
-	if err := export.Stage(filepath.Join(t.TempDir(), "import"), []string{one}); err == nil || !errors.Is(err, fs.ErrPermission) || !strings.Contains(err.Error(), one) {
-		t.Errorf("Stage() error = %v, want it to fail, naming %s, as its file can't be read", err, one)
+	if err := export.Stage(importDir, []string{staged, two}); err == nil || !errors.Is(err, fs.ErrPermission) || !strings.Contains(err.Error(), two) {
+		t.Errorf("Stage() error = %v, want it to fail, naming %s, as its file can't be read", err, two)
+	}
+	if _, err := os.Stat(importDir); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("once staging failed, %s: %v, want what it staged removed", importDir, err)
 	}
 }
 

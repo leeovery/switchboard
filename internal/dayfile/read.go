@@ -44,6 +44,14 @@ func (f *Files) Compressed() ([]string, error) {
 	return f.dates(func(l listed) bool { return l.file.compressed && l.entry.Type().IsRegular() })
 }
 
+// CompressedDate returns the date of the local day whose compressed file has
+// the given name, reporting false for a name that isn't one of the files'
+// compressed files'.
+func (f *Files) CompressedDate(name string) (string, bool) {
+	file, _, ok := f.named(name)
+	return file.date, ok && file.compressed
+}
+
 // listed is one of the files as their directory lists it: the file, the
 // start of its local day, and its entry.
 type listed struct {

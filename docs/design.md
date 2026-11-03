@@ -7763,8 +7763,17 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   `GET /import` first, so one run again while the router still imports, as after an interrupt,
   refuses rather than stage over what the router reads. The router takes them in between its
   rounds, so no day is compressed, summarised or pruned as it
-  changes, nor a line appended to it but through the import, and removes `import/` once it's done.
-  A second import while one runs is refused.
+  changes, nor a line appended to it but through the import, and removes `import/` once it's done,
+  or once it fails of its own, a 400 or a 500, so a copy as big as the export never stays to keep
+  a full disk full; a router stopping leaves it, as work it took up may still read it, for the
+  next import to remove. A stage the command can't finish it removes itself. A second import while
+  one runs is refused. A file iCloud Drive hasn't downloaded yet, its placeholder
+  `.<name>.icloud` in its place, is passed over, and the command says how many of a folder's, as
+  `switchboard: passed over 12 files iCloud Drive hasn't downloaded yet in <folder>: download
+  them (in Finder, Download Now) and import again`, counting only those of files staging takes.
+  A day whose own compressed file doesn't read, so no member can be added after it, is passed
+  over, warned of in the router's log by its date, and counted nowhere, as a compress passes it
+  over, and the import goes on.
 - **A day the Mac doesn't hold:** its file is copied in, with its modification time, where its day
   ended two days ago or more; else its lines are appended to the day's plain file, which the
   router compresses as it does its own.
@@ -7774,10 +7783,12 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   each holds its time and what sets it apart (see Files), so a line held already is one imported
   before, or the Mac's own come back, and an import repeated adds nothing.
 - **Summaries:** a day's summary is copied in, with its stamp, where the Mac holds no line of the
-  day, and no summary of it that counts one, as of a day the Mac never saw, one past keeping whose
-  summary is its only record, or one a round summarised from the readings alone, as it does once
-  the readings history covers a day (see The request ledger): what the Mac knows of the day's
-  requests is then nothing, and the folder's summary knows more. The day's lines and its summary
+  day and no summary of it, as of a day the Mac never saw, or one past keeping whose summary is its
+  only record; or where the Mac's summary counts no request, as one a round summarised from the
+  readings alone, as it does once the readings history covers a day (see The request ledger), and
+  the folder's counts some: the Mac then knows nothing of the day's requests, and the folder's
+  summary knows more. One that counts none gives way to none, so an import repeated copies none
+  again. The day's lines and its summary
   are taken in as one, on the ledger's writer, so whatever it ran before, a round, a stop or an
   import cut short, the look sees the day's lines as the take left them. The readings history's
   writer isn't held off: its summarising before a prune may summarise the day from the lines just

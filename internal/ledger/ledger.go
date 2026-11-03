@@ -91,11 +91,17 @@ func SummaryDates(dir string) ([]string, error) {
 	}
 	var dates []string
 	for _, e := range entries {
-		if date, ok := datedName(e.Name(), summaryPrefix, summarySuffix); ok && e.Type().IsRegular() {
+		if date, ok := SummaryDate(e.Name()); ok && e.Type().IsRegular() {
 			dates = append(dates, date)
 		}
 	}
 	return dates, nil
+}
+
+// SummaryDate returns the date of the local day the summary with the given
+// name is of, reporting false for a name that isn't a summary's.
+func SummaryDate(name string) (string, bool) {
+	return datedName(name, summaryPrefix, summarySuffix)
 }
 
 // datedName returns the date of the local day the file with the given name

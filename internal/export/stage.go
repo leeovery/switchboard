@@ -1,6 +1,7 @@
 package export
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -67,14 +68,19 @@ func macsFolder(folder string, unread func(folder string)) (bool, error) {
 // in: first removing what's there, as an import cut short leaves it; then
 // copying each folder's files into a folder of its own, named 1, 2, … in the
 // order given, laid out as the folder lays them out, as stageFolder copies
-// them.
+// them. Where one can't be staged, it removes what it staged, so a copy as
+// big as the export, made on a disk it may have filled, never stays.
 func Stage(importDir string, folders []string) error {
 	if err := os.RemoveAll(importDir); err != nil {
 		return fmt.Errorf("remove what an import cut short left in %s: %w", importDir, err)
 	}
 	for i, folder := range folders {
 		if err := stageFolder(folder, filepath.Join(importDir, strconv.Itoa(i+1))); err != nil {
-			return fmt.Errorf("stage %s to import: %w", folder, err)
+			staged := fmt.Errorf("stage %s to import: %w", folder, err)
+			if err := os.RemoveAll(importDir); err != nil {
+				return errors.Join(staged, fmt.Errorf("remove what was staged in %s: %w", importDir, err))
+			}
+			return staged
 		}
 	}
 	return nil

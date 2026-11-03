@@ -25,6 +25,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 )
@@ -497,28 +498,56 @@ func TestTheDaysImportedAreSummarisedBeforeTheImportIsAnswered(t *testing.T) {
 	}
 }
 
-func TestAFailedImportLeavesWhatWasStagedAndWhatItTookInBefore(t *testing.T) {
+func TestAFailedImportRemovesWhatWasStagedAndKeepsWhatItTookInBefore(t *testing.T) {
 	cfg := importConfig(t)
-	taken, damaged := dateOf(9), dateOf(10)
-	// The Mac's own file of the day is cut short, so no member can be added
-	// after it.
-	whole := gzipOf(t, requestLines.linesOf(damaged, 1)...)
-	put(t, requestLines.files(cfg.StateDir).CompressedPath(damaged), whole[:len(whole)-4], now)
+	taken, unread := dateOf(9), dateOf(10)
 	stageLines(t, folder(cfg, 1), readingLines, taken, readingLines.linesOf(taken, 1)...)
-	stageLines(t, folder(cfg, 1), requestLines, damaged, requestLines.linesOf(damaged, 1, 2)...)
-	staged := filesUnder(t, router.ImportDir(cfg.StateDir))
+	stageLines(t, folder(cfg, 1), requestLines, unread, requestLines.linesOf(unread, 1, 2)...)
+	// The day's staged file can't be opened, so it can't be taken in.
+	if err := os.Chmod(requestLines.files(folder(cfg, 1)).CompressedPath(unread), 0); err != nil {
+		t.Fatal(err)
+	}
 
 	runRouter(t, cfg)
 	_, err := router.NewClient(router.SocketPath(cfg.StateDir)).Import(t.Context())
-	if err == nil || errors.Is(err, router.ErrNoImport) || !strings.Contains(err.Error(), damaged) {
-		t.Errorf("Import() error = %v, want why the day damaged couldn't be taken in", err)
+	if err == nil || errors.Is(err, router.ErrNoImport) || !strings.Contains(err.Error(), unread) {
+		t.Errorf("Import() error = %v, want why the day couldn't be taken in", err)
 	}
-	if got := filesUnder(t, router.ImportDir(cfg.StateDir)); !maps.Equal(got, staged) {
-		t.Errorf("once the import failed, what's staged is %v, want it as it was, %v", slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(staged)))
-	}
+	checkUnstaged(t, cfg)
 	if got, want := held(t, readingLines.files(cfg.StateDir), taken), readingLines.linesOf(taken, 1); !slices.Equal(got, want) {
 		t.Errorf("once the import failed, the readings history holds %q of the day taken in before, want %q", got, want)
 	}
+}
+
+func TestADayWhoseOwnCompressedFileIsDamagedIsPassedOverAndTheFolderTakenIn(t *testing.T) {
+	log := logstest.Capture(t)
+	cfg := importConfig(t)
+	damaged, other := dateOf(10), dateOf(9)
+	// The Mac's own readings of the day are cut short, so no member can be
+	// added after them.
+	whole := gzipOf(t, readingLines.linesOf(damaged, 1)...)
+	ownFile := readingLines.files(cfg.StateDir).CompressedPath(damaged)
+	put(t, ownFile, whole[:len(whole)-4], now)
+	was := stateOf(t, ownFile)
+	stageLines(t, folder(cfg, 1), readingLines, damaged, readingLines.linesOf(damaged, 1, 2)...)
+	stageLines(t, folder(cfg, 1), eventLines, other, eventLines.linesOf(other, 1)...)
+	stageLines(t, folder(cfg, 1), requestLines, other, requestLines.linesOf(other, 1)...)
+
+	if got, want := importNow(t, cfg), (router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}}); got != want {
+		t.Errorf("Import() = %+v, want %+v: the day damaged counted nowhere, the folder's other day added", got, want)
+	}
+	if got := stateOf(t, ownFile); got != was {
+		t.Errorf("once imported, the Mac's damaged file of the day is %+v, want it as it was, %+v", got, was)
+	}
+	for _, kind := range []lineKind{eventLines, requestLines} {
+		if got, want := held(t, kind.files(cfg.StateDir), other), kind.linesOf(other, 1); !slices.Equal(got, want) {
+			t.Errorf("once imported, the %s holds %q of the other day, want %q", kind.name, got, want)
+		}
+	}
+	if !log.Has("level=WARN", `msg="can't import into a day of the readings history whose own compressed file doesn't read; it's passed over"`, "day="+damaged) {
+		t.Errorf("log reads\n%s\nwant the day passed over warned of, by its date", log)
+	}
+	checkUnstaged(t, cfg)
 }
 
 func TestAnImportWithNothingStagedIsRefused(t *testing.T) {
@@ -536,16 +565,13 @@ func TestAnImportWithNothingStagedIsRefused(t *testing.T) {
 			for name, data := range tt.stage {
 				put(t, filepath.Join(router.ImportDir(cfg.StateDir), name), []byte(data), stagedOn)
 			}
-			staged := filesUnder(t, router.ImportDir(cfg.StateDir))
 			runRouter(t, cfg)
 
 			_, err := router.NewClient(router.SocketPath(cfg.StateDir)).Import(t.Context())
 			if err == nil || !strings.Contains(err.Error(), "there's nothing staged to import") {
 				t.Errorf("Import() error = %v, want it saying there's nothing staged", err)
 			}
-			if got := filesUnder(t, router.ImportDir(cfg.StateDir)); !maps.Equal(got, staged) {
-				t.Errorf("once refused, the import directory holds %v, want it as it was, %v", got, staged)
-			}
+			checkUnstaged(t, cfg)
 		})
 	}
 }
@@ -596,6 +622,41 @@ func TestImportingTheSameFolderAgainAddsNothing(t *testing.T) {
 	}
 	if after := daysStaged(); !maps.Equal(after, before) {
 		t.Errorf("once imported again, the days' files are\n%v\nwant them as the first import left them\n%v", after, before)
+	}
+}
+
+func TestImportingSummariesOfNoRequestAgainCopiesNoneAgain(t *testing.T) {
+	cfg := importConfig(t)
+	// Days the other Mac only probed, one kept and one past keeping, each
+	// summarised from its readings alone.
+	kept, pastKeep := dateOf(10), dateOf(60)
+	stage := func() {
+		for _, date := range []string{kept, pastKeep} {
+			stageLines(t, folder(cfg, 1), readingLines, date, readingLines.linesOf(date, 1)...)
+			put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), date), []byte(summaryOf(date, 0, 0)), stamped(stagedOn))
+		}
+	}
+	stage()
+	runRouter(t, cfg)
+	client := router.NewClient(router.SocketPath(cfg.StateDir))
+	if first, err := client.Import(t.Context()); err != nil || first.Summaries != 2 {
+		t.Fatalf("Import() = %+v, %v, want the 2 summaries copied in", first, err)
+	}
+	summaries := make(map[string]fileState)
+	for _, date := range []string{kept, pastKeep} {
+		path := ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)
+		summaries[path] = stateOf(t, path)
+	}
+
+	stage()
+	second, err := client.Import(t.Context())
+	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{PastKeep: 1}}); err != nil || second != want {
+		t.Errorf("Import() again = %+v, %v, want %+v: no summary of no request copied over another", second, err, want)
+	}
+	for path, was := range summaries {
+		if got := stateOf(t, path); got != was {
+			t.Errorf("once imported again, %s is %+v, want it as the first import left it, %+v", path, got, was)
+		}
 	}
 }
 

@@ -486,6 +486,24 @@ func TestADamagedFileOfADayDoneWithIsTakenInAsItsLinesAndWholeLater(t *testing.T
 	}
 }
 
+func TestADayWhoseOwnCompressedFileIsDamagedIsPassedOverAndWarnedOf(t *testing.T) {
+	log := logstest.Capture(t)
+	f := requestLedger(t.TempDir())
+	whole := gzipOf(t, linesOf(`{"n":1}`, `{"n":2}`))
+	put(t, f.path(compressedFile(earlierDate)), whole[:len(whole)-4])
+	was := filesIn(t, f)
+
+	if got := taking(t, f, stage(t, earlierDate, gzipOf(t, linesOf(`{"n":1}`, `{"n":3}`))), start, twoWeeks); got != (Imported{}) {
+		t.Errorf("take(%s) = %+v, want nothing taken in: no member can be added after the damage", earlierDate, got)
+	}
+	if got := filesIn(t, f); !maps.Equal(got, was) {
+		t.Errorf("the files are %v, want them as they were, %v", got, was)
+	}
+	if !log.Has("level=WARN", `msg="can't import into a day of the request ledger whose own compressed file doesn't read; it's passed over"`, "day="+earlierDate) {
+		t.Errorf("log reads\n%s\nwant the day passed over warned of, by its date", log)
+	}
+}
+
 // holdsCompressed reports whether f holds a compressed file of the local day
 // with the given date.
 func holdsCompressed(f *Files, date string) bool {
