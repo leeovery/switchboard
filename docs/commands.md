@@ -55,7 +55,7 @@ switchboard usage [--5h] [--week] [--<model>] [--by window|account] [--probe] [-
 
 | Flag | What it does |
 |---|---|
-| `--5h`, `--week` | Print that window alone, with the header and the key line. Given together, they print the windows given, in the order of care: the week, the 5-hour window, then each model's own. |
+| `--5h`, `--week` | Print that window alone, with the header and the key line. Given together, they print the windows given, in the order of care: the week, the 5-hour window, then each model's own. Where no account has a 5-hour window, as when every account is on a verified Ultra plan, `--5h` fails, naming the windows there are. |
 | `--<model>` | Print a model's own window, as `--week` does the week. There's a flag for each model with a window of its own, named for it: `--fable` is for Fable's week. A flag for a window no account reports fails, naming the windows there are. |
 | `--by window\|account` | Lay the windows out by window, comparing the accounts one window at a time, or by account, keeping each account's windows together. Overrides [`[usage] by`](configuration.md#usage-keys). Where neither says, it's by window. |
 | `--probe` | Probe every account, even while the router runs. |
@@ -96,6 +96,7 @@ row shows these parts:
 | `limit · back 15:54` | Claude's limit holds the window. |
 | `at cap · back 17:10` | The window's use has reached the cap, and the cap holds the account back. |
 | `out ~Sat 06:00` | The window runs out before its reset, at its recent rate. |
+| `no 5-hour limit` | The account has no 5-hour window, as a verified Ultra account hasn't. It shows in place of the bar, as `no limit` where the room is short. |
 | `not started` | A 5-hour window hasn't started yet. |
 | `19%/day till Sun 21:00` | Otherwise, the window's allowance: what can be spent of it an hour or a day and still last to its reset. |
 | `34% till 16:30` | In place of the allowance, under an hour from the 5-hour window's reset, or under a day from a week's reset: the room itself. |
@@ -114,12 +115,19 @@ pool wherever there's more than one account:
 - The pool's row, `Σ pool`, comes last, under a rule.
 - Its percentage is its accounts' mean use, each as its row shows it. An account without a usable
   token, nothing read, or whose token is refused, is left out of it.
-- Its words are the room left to the accounts' caps, in accounts' worth, such as `1.5 of 3 left`.
-  When pinned, they add ` · pinned`.
+- Its words are the room left to the accounts' caps, in accounts' worth, such as `1.5 of 3 left`,
+  out of the accounts that have the window. When pinned, they add ` · pinned`.
+- A window that fewer than two of the pool's accounts have, and not all of them, has no pool
+  figure: side by side its part of the pool's row is blank, and stacked its section has no pool.
 - An account outside the pool has its number drawn faintly.
 
 **Every window shows,** used or not. A model's own window, such as Fable's week, shows on every
 account, at 0% as at 40%.
+
+**A window an account doesn't have** is learnt from its answers, never from its plan: a verified
+Ultra account's carry no 5-hour window. Side by side, that account reads `no 5-hour limit` in place
+of its bar. Stacked, the window's section leaves the account out. A window no account has isn't
+shown at all. An account not read yet may have any window, so it keeps its rows.
 
 **The width** shapes the layout:
 
@@ -818,7 +826,8 @@ as text or JSON, then fails with the config's error on stderr. Without the route
 
 The text shows, in order:
 
-- each window's utilization, when it resets and where it's heading;
+- each window's utilization, when it resets and where it's heading, or `no 5-hour window` for an
+  account without one;
 - what holds an account back, such as a limit it reached or its reserve;
 - whether an account is under pressure, with the rate it goes by, such as
   `under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at 20:10`;

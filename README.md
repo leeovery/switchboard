@@ -25,13 +25,13 @@ Switchboard is a local router for Claude Code. With more than one Claude subscri
 
 ## Why Switchboard?
 
-Every Claude subscription has a 5-hour limit and a weekly one, and when you hit one, Claude Code stops. Claude can't see the limits coming, and switching accounts by hand means quitting, resuming and starting again with a cold prompt cache.
+Every Claude subscription has a weekly limit, and most a 5-hour one too, and when you hit one, Claude Code stops. Claude can't see the limits coming, and switching accounts by hand means quitting, resuming and starting again with a cold prompt cache.
 
 - **Limits stop interrupting you.** A request that hits a limit is replayed on another account before Claude Code sees it, and the session carries on.
 - **No quota goes to waste.** New sessions go to the account whose weekly quota is most at risk of going unused.
 - **Claude sees its own limits.** A skill lets Claude read every account's usage, pace and resets, and plan its work around them.
 - **Sessions stay put.** A session keeps its account while its prompt cache is warm, and moves only when it must.
-- **Resets come one at a time.** Switchboard staggers your accounts' 5-hour windows, so when they're all spent, one is back soon.
+- **Resets come one at a time.** Switchboard staggers your accounts' 5-hour windows, where they have them, so when they're all spent, one is back soon.
 - **Every request on record.** Kept for a year, so you can follow any session and see what your use was worth at API prices against what your plans cost.
 - **Your usage, always in view.** A live dashboard shows what's left in each window, when you'll run out at your pace, and when it resets.
 - **You and Claude both steer.** Pin new sessions to an account, or move running ones, from the command line, the dashboard, or by asking Claude.
