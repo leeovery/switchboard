@@ -49,6 +49,7 @@ const logGuardDays = 1
 // it; at the end, it spans from the day the same history read whole spans
 // from.
 func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
+	t.Parallel()
 	midnight := dayfile.DayStart(guardStart, 1)
 	at := logGuardAtOf(midnight)
 	covered, paged, end := at.covered, at.paged, at.end

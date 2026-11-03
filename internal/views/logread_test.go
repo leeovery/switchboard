@@ -310,32 +310,36 @@ func TestGrowingTheLogsReadLeavesTheReadItGrewAsItWas(t *testing.T) {
 // a chunk of the rows for each at most, however many the table holds: never
 // the table.
 func TestCatchingUpALookCopiesAChunkALineWhateverTheTableHolds(t *testing.T) {
+	t.Parallel()
 	for _, n := range []int{300, 3000} {
-		lines := make([]ledger.Line, n)
-		for i := range lines {
-			lines[i] = withID(fmt.Sprintf("r%05d", i), line(fmt.Sprintf("s%05d", i), opus, "work", "new", october(7, 0, 0).Add(time.Duration(i)*5*time.Second), hourUsage))
-		}
-		reading := logReading(now, views.Stream{}, lines...)
-		src := views.LogSources{From: now, Now: now, Read: reading.Read}
-		tabled := views.LogLinesOf(views.LogLines{}, src)
-		for _, k := range []int{1, 4, 16} {
-			var gained []ledger.Line
-			for i := range k {
-				at := october(7, 0, 0).Add(time.Duration(i*n/k)*5*time.Second + time.Second)
-				gained = append(gained, withID(fmt.Sprintf("g%02d%03d", k, i), line(fmt.Sprintf("g%02d%03d", k, i), opus, "work", "new", at, hourUsage)))
+		t.Run(fmt.Sprintf("of %d rows", n), func(t *testing.T) {
+			t.Parallel()
+			lines := make([]ledger.Line, n)
+			for i := range lines {
+				lines[i] = withID(fmt.Sprintf("r%05d", i), line(fmt.Sprintf("s%05d", i), opus, "work", "new", october(7, 0, 0).Add(time.Duration(i)*5*time.Second), hourUsage))
 			}
-			lines = append(lines, gained...)
-			reading = reading.Took(ledgerHolding(now, lines...), heldOf(gained...), false, views.Stream{}, now)
-			src.Read = reading.Read
-			caught := views.LogLinesOf(tabled, src)
-			if copied := caught.Copied() - tabled.Copied(); copied > k {
-				t.Errorf("of %d rows, a look gaining %d lines copied %d chunks, want %d at most", n, k, copied, k)
+			reading := logReading(now, views.Stream{}, lines...)
+			src := views.LogSources{From: now, Now: now, Read: reading.Read}
+			tabled := views.LogLinesOf(views.LogLines{}, src)
+			for _, k := range []int{1, 4, 16} {
+				var gained []ledger.Line
+				for i := range k {
+					at := october(7, 0, 0).Add(time.Duration(i*n/k)*5*time.Second + time.Second)
+					gained = append(gained, withID(fmt.Sprintf("g%02d%03d", k, i), line(fmt.Sprintf("g%02d%03d", k, i), opus, "work", "new", at, hourUsage)))
+				}
+				lines = append(lines, gained...)
+				reading = reading.Took(ledgerHolding(now, lines...), heldOf(gained...), false, views.Stream{}, now)
+				src.Read = reading.Read
+				caught := views.LogLinesOf(tabled, src)
+				if copied := caught.Copied() - tabled.Copied(); copied > k {
+					t.Errorf("of %d rows, a look gaining %d lines copied %d chunks, want %d at most", n, k, copied, k)
+				}
+				if got, want := caught.Rows(src), views.LogRows(src); !sameTable(got, want) {
+					t.Errorf("of %d rows, caught up with %d lines, the table is\n%s\nwant it tabled afresh\n%s", n, k, tableLines(got), tableLines(want))
+				}
+				tabled = caught
 			}
-			if got, want := caught.Rows(src), views.LogRows(src); !sameTable(got, want) {
-				t.Errorf("of %d rows, caught up with %d lines, the table is\n%s\nwant it tabled afresh\n%s", n, k, tableLines(got), tableLines(want))
-			}
-			tabled = caught
-		}
+		})
 	}
 }
 

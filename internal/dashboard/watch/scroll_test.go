@@ -429,6 +429,7 @@ func TestWhereUSAGEsFormChangesItGoesBackToItsTop(t *testing.T) {
 // rows, as j scrolls one: from 14 rows, as under them USAGE shows no rows
 // to scroll.
 func TestTheWheelScrollsUSAGEByRowsWhereverItScrolls(t *testing.T) {
+	t.Parallel()
 	found := 0
 	for _, width := range []int{52, 100, 160} {
 		for height := 14; height <= 40; height++ {

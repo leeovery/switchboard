@@ -101,6 +101,7 @@ func (m metaRead) namesItsRows() string {
 // toward, each with as many, and when the first and the last of them
 // arrived.
 func TestADaysRowsAreTheRecordsOfItsLinesReadRaw(t *testing.T) {
+	t.Parallel()
 	var stood, cut int
 	for _, w := range rowsWorlds {
 		for seed := range uint64(chainSeeds) {
@@ -214,6 +215,7 @@ func TestADayGivingNoLinesHasNoRows(t *testing.T) {
 // lines day by day, pass by pass, are those a ledger opened afresh builds
 // of the same days, from none, byte for byte.
 func TestADaysRowsBuiltDayByDayAreThoseBuiltAfresh(t *testing.T) {
+	t.Parallel()
 	for _, w := range rowsWorlds {
 		for seed := range uint64(chainSeeds) {
 			c := newDigestChain(t, fmt.Sprintf("%s %d", w.name, seed), seed, w.lines(seed))

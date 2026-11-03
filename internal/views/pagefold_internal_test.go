@@ -578,6 +578,7 @@ func sentAlike(b BuiltPage) BuiltPage {
 // first reads a window only some models share, sealed, or as an answer read
 // before what its points sealed comes after.
 func TestThePageFedLookByLookIsThePageBuiltWhole(t *testing.T) {
+	t.Parallel()
 	prices := changingPrices()
 	met := make(map[string]bool)
 	for seed := range uint64(120) {

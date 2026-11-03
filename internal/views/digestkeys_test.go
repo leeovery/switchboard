@@ -83,6 +83,7 @@ const (
 // retyped without the golden failing. But those unwritten has, which it
 // holds none of.
 func TestTheDigestsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("digest-v%d.json", views.DigestVersion)))
 	if err != nil {
 		t.Fatal(err)
@@ -109,6 +110,7 @@ func TestTheDigestsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
 // keeps it: a key the golden left out, as its zero, would be renamed or
 // retyped without the golden failing.
 func TestTheDayHeadsGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("rows-v%d.json", views.RowsVersion)))
 	if err != nil {
 		t.Fatal(err)

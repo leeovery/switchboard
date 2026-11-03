@@ -112,6 +112,7 @@ const (
 // whole again then, its part whole. Of generated worlds, meeting the hard
 // moments the constants above name.
 func TestAPageFoldedDayByDayThroughItsStatesAndPartsIsThePageFoldedWhole(t *testing.T) {
+	t.Parallel()
 	met := make(map[string]bool)
 	for _, w := range pageWorlds {
 		for seed := range uint64(pageSeeds) {

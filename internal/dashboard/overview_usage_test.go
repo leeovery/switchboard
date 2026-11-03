@@ -412,6 +412,7 @@ func tenReadAs(change func(*status.Document)) status.Document {
 // them, the form kept is the form a layout made afresh for the read would
 // have, at every width, height and grouping, models' windows hidden.
 func TestUSAGEsFormKeptWithItsLayoutIsTheFormMadeAfresh(t *testing.T) {
+	t.Parallel()
 	reads := []struct {
 		name string
 		read func(*status.Document)

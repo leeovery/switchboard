@@ -17,6 +17,7 @@ import (
 // key the golden left out, as its zero, would be renamed or retyped without
 // the golden failing.
 func TestTheChunksGoldenHoldsEveryKeyOfItsStoredForms(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("testdata", fmt.Sprintf("rows-chunk-v%d.json", views.RowsVersion)))
 	if err != nil {
 		t.Fatal(err)

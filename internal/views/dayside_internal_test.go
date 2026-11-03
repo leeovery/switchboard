@@ -106,6 +106,7 @@ func sidesRaw(r *sidesRead) []string {
 // find walked back over the sides, at the end, reads no day's lines, and
 // finds what it finds over the days read raw, by id and by directory.
 func TestADaysSideIsItsSessionsReadRaw(t *testing.T) {
+	t.Parallel()
 	var stood int
 	for _, w := range chainWorlds {
 		for seed := range uint64(chainSeeds) {

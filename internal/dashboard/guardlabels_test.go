@@ -17,6 +17,7 @@ func labelBoundSays(name string) string {
 // No file of the dashboard's but labelsOwner names a column of names' least
 // or its most, so every column of names takes its bounds from one owner.
 func TestOnlyTheOwnerNamesAColumnOfNamesBounds(t *testing.T) {
+	t.Parallel()
 	root := sourcecheck.ModuleRoot(t)
 	module := sourcecheck.ModulePath(t, root)
 	used := map[string]sourcecheck.Ban{
