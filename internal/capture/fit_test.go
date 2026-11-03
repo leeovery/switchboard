@@ -25,7 +25,7 @@ import (
 var (
 	sweptWidths  = []int{20, 40, 52, 80, 99, 100, 120, 160, 230}
 	sweptHeights = []int{8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28, 30, 33, 36, 37, 41}
-	fitGrid      = sweepGrid{widths: sweptWidths, heights: sweptHeights, least: sweptHeights[0]}
+	fitGrid      = sweepGrid{widths: sweptWidths, heights: sweptHeights, short: sweptHeights[:1]}
 )
 
 // tallest is the height the fit sweep holds each smaller one to: tall
@@ -361,12 +361,13 @@ func pagingHeights(log bool) []int {
 
 // pagingGrid is the scroll sweep's grid of a view, the Log's or another's:
 // pagingWidths by pagingHeights, a fixture it doesn't page fully held to the
-// least of pagedHeights, where every rule of the sweep holds; the Log's,
-// held to the one rule, to the least it pages at.
+// least it pages at, and to the least of pagedHeights, where every rule of
+// the sweep holds; the Log's, held to the one rule, to the least alone.
 func pagingGrid(log bool) sweepGrid {
-	g := sweepGrid{widths: pagingWidths(log), heights: pagingHeights(log), least: pagedHeights[0]}
+	heights := pagingHeights(log)
+	g := sweepGrid{widths: pagingWidths(log), heights: heights, short: []int{heights[0], pagedHeights[0]}}
 	if log {
-		g.least = g.heights[0]
+		g.short = heights[:1]
 	}
 	return g
 }
