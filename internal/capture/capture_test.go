@@ -384,31 +384,47 @@ var everyInput = []tea.Msg{
 	tea.MouseWheelMsg{X: 40, Y: 12, Button: tea.MouseWheelDown}, tea.MouseWheelMsg{X: 40, Y: 12, Button: tea.MouseWheelUp},
 }
 
-// TestNoFixtureKeyOrWidthPanics draws every fixture at every width from 1 to
-// 240, at its height; then from each fixture, every key, click and turn of
-// the wheel in turn, at every fourth width. A printout, which takes no keys,
-// is drawn as tall as it is.
+// TestNoFixtureKeyOrWidthPanics takes one fixture or two of each view, as
+// sweptFully chooses them, through every width and every key, as
+// takenAtEveryWidth has it; each of the rest takes every key, click and turn
+// of the wheel in turn at its own size. Every printout, which takes no keys,
+// is drawn as tall as it is at every width from 1 to 240.
 func TestNoFixtureKeyOrWidthPanics(t *testing.T) {
+	full := sweptFully(t, takesKeys)
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			f := fixture(t, name)
-			if f.Printout {
+			switch {
+			case f.Printout:
 				for width := 1; width <= 240; width++ {
 					printedAt(t, f, width)
 				}
-				return
-			}
-			m := f.atMoment(f.Size)
-			for width := 1; width <= 240; width++ {
-				m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height})
-			}
-			m = f.atMoment(f.Size)
-			for i, width := 0, 1; width <= 240; i, width = i+1, width+4 {
-				input := everyInput[i%len(everyInput)]
-				m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height}, input)
+			case full[name]:
+				takenAtEveryWidth(t, f)
+			default:
+				m := f.atMoment(f.Size)
+				for _, input := range everyInput {
+					m = drawnAt(t, m, f.Size, input)
+				}
 			}
 		})
+	}
+}
+
+// takenAtEveryWidth draws f at every width from 1 to 240, at its height;
+// then from f, every key, click and turn of the wheel in turn, at every
+// fourth width.
+func takenAtEveryWidth(t *testing.T, f Fixture) {
+	t.Helper()
+	m := f.atMoment(f.Size)
+	for width := 1; width <= 240; width++ {
+		m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height})
+	}
+	m = f.atMoment(f.Size)
+	for i, width := 0, 1; width <= 240; i, width = i+1, width+4 {
+		input := everyInput[i%len(everyInput)]
+		m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height}, input)
 	}
 }
 
