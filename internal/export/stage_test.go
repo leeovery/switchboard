@@ -261,6 +261,28 @@ func TestStagePassesOverWhatTheStateDirectoryDoesntName(t *testing.T) {
 	}
 }
 
+func TestStagePassesOverALinkOrAFolderByADaysFilesName(t *testing.T) {
+	one := macsFolder(t, t.TempDir(), installOne, export.Version)
+	writeFile(t, requests.compressed(one, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	writeFile(t, summary(one, day1), []byte("{\"version\":6}\n"), summarisedAt)
+	outside := t.TempDir()
+	writeFile(t, filepath.Join(outside, "elsewhere.json"), []byte("not the folder's\n"), exportNow)
+	for _, link := range []string{summary(one, day2), requests.compressed(one, day2)} {
+		if err := os.Symlink(filepath.Join(outside, "elsewhere.json"), link); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile(t, filepath.Join(summary(one, "2026-10-05"), "inside"), []byte("not the history's\n"), exportNow)
+	importDir := filepath.Join(t.TempDir(), "import")
+
+	stage(t, importDir, one)
+
+	want := []string{filepath.Join("1", "ledger", "day-"+day1+".json"), filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}
+	if got := filesUnder(t, importDir); !slices.Equal(got, want) {
+		t.Errorf("%s holds %q, want %q alone: no link followed out of the folder, nor a folder by a summary's name taken", importDir, got, want)
+	}
+}
+
 func TestStageRemovesWhatAnImportCutShortLeftFirst(t *testing.T) {
 	one := macsFolder(t, t.TempDir(), installOne, export.Version)
 	writeFile(t, requests.compressed(one, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)

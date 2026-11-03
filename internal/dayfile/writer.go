@@ -222,7 +222,7 @@ func (w *Writer[T]) spared(now time.Time) func(date string) bool {
 	if w.spare == nil || w.keep == Forever {
 		return nil
 	}
-	past, err := w.files.dates(func(day time.Time) bool { return pastKeepingAt(day, now, w.keep) })
+	past, err := w.files.dates(func(l listed) bool { return pastKeepingAt(l.day, now, w.keep) })
 	if err != nil {
 		return func(string) bool { return true }
 	}

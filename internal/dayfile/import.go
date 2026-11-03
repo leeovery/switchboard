@@ -53,13 +53,14 @@ func (w *Writer[T]) Import(ctx context.Context, date, staged string) (Imported, 
 // day with the given date as export writes a day's, a gzip member or more of
 // lines, by the Writer's own keep and clock, as take says, then does then,
 // given what it took in, the two as one piece of work on Run's goroutine, as
-// Do does work: so nothing else is done with the files between them, and
-// then sees them as the take left them. Work taken up runs to its end, which
-// leaves both done, or neither, though a caller whose context ends first
-// returns before it does, as Do says. It returns what it took in, failing
-// where the day couldn't be, doing none of then, and with then's error; or,
-// where it didn't wait for that, why, as Do says: ctx's error, or
-// ErrStopped.
+// Do does work: so the Writer does nothing else between them, and then sees
+// its files as the take left them. Only the Writer is held off: then may see
+// what other goroutines did meanwhile, as to files beside its own. Work
+// taken up runs to its end, which leaves both done, or neither, though a
+// caller whose context ends first returns before it does, as Do says. It
+// returns what it took in, failing where the day couldn't be, doing none of
+// then, and with then's error; or, where it didn't wait for that, why, as Do
+// says: ctx's error, or ErrStopped.
 func (w *Writer[T]) ImportThen(ctx context.Context, date, staged string, then func(Imported) error) (Imported, error) {
 	day, _, ok := Day(date)
 	if !ok {

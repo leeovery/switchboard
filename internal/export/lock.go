@@ -11,8 +11,9 @@ import (
 // its lock on.
 const lockFile = "import.lock"
 
-// ErrImportRunning is what LockImport fails with where another import holds
-// the lock.
+// ErrImportRunning is the error of an import refused as another runs: what
+// LockImport fails with where another import holds the lock, and what the
+// router refuses one with while it runs another.
 var ErrImportRunning = errors.New("an import is running already")
 
 // LockImport takes the import's lock, an exclusive lock on import.lock in the

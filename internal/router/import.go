@@ -16,6 +16,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/export"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 )
@@ -58,9 +59,6 @@ type importRunning struct {
 }
 
 var (
-	// errImportRunning is the error of an import asked for while another
-	// runs.
-	errImportRunning = errors.New("an import is running already")
 	// errNothingStaged is the error of an import with no folder staged.
 	errNothingStaged = errors.New("there's nothing staged to import")
 	// errImportStopped is the error of an import the router stopped partway.
@@ -91,12 +89,12 @@ func newImports() *imports {
 }
 
 // run runs take on the imports' lifetime, and returns what it took in,
-// failing with errImportRunning, running nothing, while another import runs,
-// and with errImportStopped where take failed as the router stopped, as its
-// writers stopping fails it.
+// failing with export.ErrImportRunning, running nothing, while another
+// import runs, and with errImportStopped where take failed as the router
+// stopped, as its writers stopping fails it.
 func (i *imports) run(take func(ctx context.Context) (Imported, error)) (Imported, error) {
 	if !i.running.CompareAndSwap(false, true) {
-		return Imported{}, errImportRunning
+		return Imported{}, export.ErrImportRunning
 	}
 	defer i.running.Store(false)
 	imported, err := take(i.ctx)
@@ -140,7 +138,7 @@ func (r *Router) serveImportRunning(w http.ResponseWriter, _ *http.Request) {
 // as it stops, and 500 where a day couldn't be taken in.
 func importStatus(err error) int {
 	switch {
-	case errors.Is(err, errImportRunning):
+	case errors.Is(err, export.ErrImportRunning):
 		return http.StatusConflict
 	case errors.Is(err, errNothingStaged):
 		return http.StatusBadRequest
@@ -217,11 +215,11 @@ type stagedLines struct {
 	take  func(ctx context.Context, date, staged string) (dayfile.Imported, error)
 }
 
-// importLines takes in each day of the lines staged, as stagedDates finds
-// them, oldest first, adding what it took in to took. It fails where the
-// staged files can't be listed, and as take does.
+// importLines takes in each day of the lines staged, as Files' Compressed
+// finds them, oldest first, adding what it took in to took. It fails where
+// the staged files can't be listed, and as take does.
 func importLines(ctx context.Context, staged stagedLines, took *importing) error {
-	dates, err := stagedDates(staged.files)
+	dates, err := staged.files.Compressed()
 	if err != nil {
 		return fmt.Errorf("read the %s staged to import: %w", staged.files.Name, err)
 	}
@@ -290,36 +288,13 @@ func stagedNumber(name string) (int, bool) {
 	return n, err == nil && n > 0 && strconv.Itoa(n) == name
 }
 
-// stagedDates returns the dates of the days whose compressed files files
-// holds, as export writes a day's, oldest first, passing over anything else,
-// as a temporary file an export cut short left: none where their directory
-// isn't there.
-func stagedDates(files *dayfile.Files) ([]string, error) {
-	entries, err := files.List()
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return nil, nil
-	case err != nil:
-		return nil, err
-	}
-	var dates []string
-	for _, e := range entries {
-		date, ok := files.DateOf(e.Name())
-		if ok && e.Type().IsRegular() && e.Name() == filepath.Base(files.CompressedPath(date)) {
-			dates = append(dates, date)
-		}
-	}
-	slices.Sort(dates)
-	return dates, nil
-}
-
 // stagedLedger returns the request ledger's days staged in dir, oldest first:
-// each whose lines' file it holds, as stagedDates finds them, or whose
-// summary, as a day past keeping where it was exported has its summary
-// alone.
+// each whose lines' file it holds, as Files' Compressed finds them, or whose
+// summary, as ledger.SummaryDates finds them, as a day past keeping where it
+// was exported has its summary alone.
 func stagedLedger(dir string) ([]ledger.StagedDay, error) {
 	files := ledger.Files(dir, logger)
-	lines, err := stagedDates(files)
+	lines, err := files.Compressed()
 	if err != nil {
 		return nil, err
 	}

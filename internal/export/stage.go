@@ -1,15 +1,12 @@
 package export
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
 
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -108,17 +105,19 @@ func stageFolder(folder, dst string) error {
 }
 
 // stagedFiles returns where the files to stage of the Mac's folder at folder
-// are: each day's compressed file of each kind of line, as compressedIn
-// finds them, and each day's summary, passing over anything else, as a
-// temporary file an export cut short left.
+// are: each day's compressed file of each kind of line, as Files' Compressed
+// finds them, and each day's summary, as ledger.SummaryDates finds them,
+// passing over anything else, as a temporary file an export cut short left.
 func stagedFiles(folder string) ([]string, error) {
 	var paths []string
 	for _, files := range linesIn(folder, slog.New(slog.DiscardHandler)) {
-		compressed, err := compressedIn(files)
+		dates, err := files.Compressed()
 		if err != nil {
 			return nil, fmt.Errorf("read the %s: %w", files.Name, err)
 		}
-		paths = append(paths, compressed...)
+		for _, date := range dates {
+			paths = append(paths, files.CompressedPath(date))
+		}
 	}
 	dir := ledger.Dir(folder)
 	dates, err := ledger.SummaryDates(dir)
@@ -127,27 +126,6 @@ func stagedFiles(folder string) ([]string, error) {
 	}
 	for _, date := range dates {
 		paths = append(paths, ledger.SummaryFile(dir, date))
-	}
-	return paths, nil
-}
-
-// compressedIn returns where the compressed files of the days files holds
-// are, as export writes them, passing over anything else, a day's plain file
-// among them: none where their directory isn't there.
-func compressedIn(files *dayfile.Files) ([]string, error) {
-	entries, err := files.List()
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return nil, nil
-	case err != nil:
-		return nil, err
-	}
-	var paths []string
-	for _, e := range entries {
-		date, ok := files.DateOf(e.Name())
-		if path := files.CompressedPath(date); ok && e.Type().IsRegular() && e.Name() == filepath.Base(path) {
-			paths = append(paths, path)
-		}
 	}
 	return paths, nil
 }

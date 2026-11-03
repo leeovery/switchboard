@@ -31,12 +31,17 @@ type ImportedDay struct {
 // between the writer's writes and its rounds: its lines, as the writer's
 // ImportThen takes a day in, by the ledger's keep and clock, then its
 // summary, as copySummary decides, whatever the keep, as summaries are kept
-// for good. So whatever ran before, a round, a stop or an import cut short,
-// the summary is decided on the files as its lines left them. Work taken up
-// runs to its end, which leaves the day with both or neither, though a
-// caller whose context ends first returns before it does, as Do says. It
-// fails as ImportThen does, and where the ledger's files can't be looked at,
-// the staged summary read, or the summary written.
+// for good. So the ledger's writer does nothing between the two, and
+// whatever it ran before, a round, a stop or an import cut short, the
+// summary is decided on the day's lines as the take left them. The readings
+// history's writer isn't held off: its summarising before it prunes, as
+// SummariseEnded's, may summarise the day from the lines just taken in
+// before the summary is decided, and the one staged then gives way to it,
+// as to any summary that counts a line. Work taken up runs to its end,
+// which leaves the day with both or neither, though a caller whose context
+// ends first returns before it does, as Do says. It fails as ImportThen
+// does, and where the ledger's files can't be looked at, the staged summary
+// read, or the summary written.
 func (l *Ledger) Import(ctx context.Context, day StagedDay) (ImportedDay, error) {
 	var copied bool
 	copySummary := func(took dayfile.Imported) (err error) {

@@ -1310,11 +1310,11 @@ What it takes in:
 It needs the router, which writes the history, and fails without it. It copies the folders' files
 into the state directory's `import/`, then has the router take them in, and waits for it, however
 long that takes. The router then summarises the days at once, so `history`, the dashboard and the
-other commands have them within minutes. It prints how many folders it took in, and how it took
-in their days:
+other commands have them within minutes. It prints how many folders it took in, how it took in
+their days, and how many days' summaries it copied in, whichever days they're of:
 
 ```
-imported 1 folder: 27 days added, 3 merged, 12 past keeping left out
+imported 1 folder: 27 days added, 3 merged, 12 past keeping left out, 39 days' summaries
 ```
 
 Where it added and merged no day but copied in summaries, as of days whose lines are past keeping,

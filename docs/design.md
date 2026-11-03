@@ -7778,10 +7778,13 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   summary is its only record, or one a round summarised from the readings alone, as it does once
   the readings history covers a day (see The request ledger): what the Mac knows of the day's
   requests is then nothing, and the folder's summary knows more. The day's lines and its summary
-  are taken in as one, on the ledger's writer, so whatever ran before, a round, a stop or an
-  import cut short, the look and the copy see the same files. Else the Mac's own stands, and the
-  round summarises again each day whose lines changed, as its files' sizes tell it, building its
-  digest, parts, head and rows again too (see The request ledger).
+  are taken in as one, on the ledger's writer, so whatever it ran before, a round, a stop or an
+  import cut short, the look sees the day's lines as the take left them. The readings history's
+  writer isn't held off: its summarising before a prune may summarise the day from the lines just
+  taken in, between the take and the look, and the folder's summary then gives way to that one,
+  which loses no request. Else the Mac's own stands, and the round summarises again each day whose
+  lines changed, as its files' sizes tell it, building its digest, parts, head and rows again too
+  (see The request ledger).
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
@@ -7789,7 +7792,8 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   within minutes, and answers `{"folders": 1, "days": {"added": 27, "merged": 3, "past_keep": 12},
   "lines": 1204, "summaries": 27}`, `lines` those added to days both held, a day that gained nothing counting for none, so an import
   repeated adds nothing, telling only of the days past keeping again. The command prints
-  `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out`.
+  `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out, 27 days' summaries`,
+  `summaries` every summary copied in, whichever days they're of.
 
 ### On a schedule
 

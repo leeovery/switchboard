@@ -117,14 +117,16 @@ func foldersIn(errOut io.Writer, dir string) ([]string, error) {
 }
 
 // importedSaid says what an import took in, as imported counts it: "imported
-// 1 folder: 27 days added, 3 merged, 12 past keeping left out".
+// 1 folder: 27 days added, 3 merged, 12 past keeping left out, 27 days'
+// summaries".
 func importedSaid(imported router.Imported) string {
 	return "imported " + prose.Counted(imported.Folders, "folder") + ": " + daysImported(imported)
 }
 
 // daysImported says how an import took in its days: the summaries copied in,
 // as summariesImported says them, where it added and merged no day; else
-// those added, merged and left out as past keeping, each where there's any;
+// those added, merged and left out as past keeping, each where there's any,
+// then every summary copied in, whichever days they're of, where any was;
 // else nothing new.
 func daysImported(imported router.Imported) string {
 	days := imported.Days
@@ -146,6 +148,9 @@ func daysImported(imported router.Imported) string {
 	}
 	if len(said) == 0 {
 		return "nothing new"
+	}
+	if imported.Summaries > 0 {
+		said = append(said, daysOf(imported.Summaries, "summary", "summaries"))
 	}
 	return strings.Join(said, ", ")
 }

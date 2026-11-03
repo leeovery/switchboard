@@ -5,8 +5,10 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -225,6 +227,84 @@ func TestASummaryCountsNoLineWhereItsNoneOrOfTheReadingsAlone(t *testing.T) {
 			got, err := d.countsNoLine(date)
 			if err != nil || got != tt.want {
 				t.Errorf("countsNoLine(%s) = %v, %v, want %v", date, got, err, tt.want)
+			}
+		})
+	}
+}
+
+// stagedSummaryAlone stages the summary of a day ten days before importedOn,
+// counting the given number of lines, modified at stamp, and no file of the
+// day's lines, as a day past keeping where it was exported is staged, in a
+// directory of the test's own, and returns it.
+func stagedSummaryAlone(t *testing.T, lines int, stamp time.Time) StagedDay {
+	t.Helper()
+	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
+	day := StagedDay{Date: date, Summary: SummaryFile(t.TempDir(), date)}
+	if err := os.WriteFile(day.Summary, []byte(`{"version":6,"day":"`+date+`","lines":`+strconv.Itoa(lines)+`}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(day.Summary, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	return day
+}
+
+func TestASummaryStagedAloneOfADayTheLedgerNeverSawIsCopiedInWithItsStamp(t *testing.T) {
+	logstest.Capture(t)
+	l := runningLedger(t)
+	stamp := importedOn.AddDate(0, 0, -9)
+	day := stagedSummaryAlone(t, 2, stamp)
+	staged, err := os.ReadFile(day.Summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, err := l.Import(t.Context(), day); err != nil || got != (ImportedDay{Summary: true}) {
+		t.Fatalf("Import() = %+v, %v; want the summary alone copied in", got, err)
+	}
+	path := SummaryFile(l.days.files.Dir, day.Date)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("once imported, the ledger's summary of the day: %v, want the one staged", err)
+	}
+	if held, err := os.ReadFile(path); err != nil || string(held) != string(staged) || !info.ModTime().Equal(stamp) {
+		t.Errorf("once imported, the ledger's summary of the day holds %q (%v), modified at %v; want the one staged, %q, with its stamp, %v", held, err, info.ModTime(), staged, stamp)
+	}
+}
+
+func TestASummaryStagedAloneOfADayTheLedgerHoldsLinesOfIsntCopiedIn(t *testing.T) {
+	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
+	tests := []struct {
+		name string
+		// held is the ledger's summary of the day, none where it's "".
+		held string
+	}{
+		{name: "of no summary"},
+		{name: "of a summary counting no line", held: `{"version":6,"day":"` + date + `","lines":0}` + "\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			l := runningLedger(t)
+			if err := os.MkdirAll(l.days.files.Dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(l.days.files.Dir, "requests-"+date+".jsonl"), []byte(`{"request":"own"}`+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			summary := SummaryFile(l.days.files.Dir, date)
+			if tt.held != "" {
+				if err := os.WriteFile(summary, []byte(tt.held), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if got, err := l.Import(t.Context(), stagedSummaryAlone(t, 2, importedOn.AddDate(0, 0, -9))); err != nil || got != (ImportedDay{}) {
+				t.Errorf("Import() = %+v, %v; want nothing taken in: the ledger holds lines of the day", got, err)
+			}
+			held, err := os.ReadFile(summary)
+			if tt.held == "" && !errors.Is(err, fs.ErrNotExist) || tt.held != "" && string(held) != tt.held {
+				t.Errorf("once imported, the ledger's summary of the day holds %q (%v); want it as it was, %q: the lines it holds are its round's to summarise", held, err, tt.held)
 			}
 		})
 	}

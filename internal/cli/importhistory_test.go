@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"net/http"
 	"os"
@@ -133,17 +134,32 @@ func TestImportSaysWhatItTookIn(t *testing.T) {
 		{
 			name:     "days added, merged and past keeping",
 			imported: router.Imported{Folders: 1, Days: router.ImportedDays{Added: 27, Merged: 3, PastKeep: 12}, Lines: 1204, Summaries: 27},
-			want:     "imported 1 folder: 27 days added, 3 merged, 12 past keeping left out",
+			want:     "imported 1 folder: 27 days added, 3 merged, 12 past keeping left out, 27 days' summaries",
 		},
 		{
 			name:     "one day of each, from several folders",
 			imported: router.Imported{Folders: 3, Days: router.ImportedDays{Added: 1, Merged: 1, PastKeep: 1}, Lines: 4, Summaries: 1},
-			want:     "imported 3 folders: 1 day added, 1 merged, 1 past keeping left out",
+			want:     "imported 3 folders: 1 day added, 1 merged, 1 past keeping left out, 1 day's summary",
 		},
 		{
-			name:     "days added alone",
+			name:     "days added, their summaries copied in with them",
 			imported: router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1240}, Summaries: 1240},
+			want:     "imported 1 folder: 1,240 days added, 1,240 days' summaries",
+		},
+		{
+			name:     "days added, and more days' summaries, every one counted",
+			imported: router.Imported{Folders: 1, Days: router.ImportedDays{Added: 200}, Summaries: 500},
+			want:     "imported 1 folder: 200 days added, 500 days' summaries",
+		},
+		{
+			name:     "days added alone, no summary copied in",
+			imported: router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1240}},
 			want:     "imported 1 folder: 1,240 days added",
+		},
+		{
+			name:     "days merged, and summaries of days past keeping",
+			imported: router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 3, PastKeep: 12}, Lines: 41, Summaries: 12},
+			want:     "imported 1 folder: 3 days merged, 12 past keeping left out, 12 days' summaries",
 		},
 		{
 			name:     "days merged alone",
@@ -312,6 +328,26 @@ func TestImportIsRefusedWhileAnotherHoldsTheLockTouchingNothing(t *testing.T) {
 	wantLeftStaged(t, left, i)
 	if n := i.asked.Load(); n != 0 {
 		t.Errorf("the router was asked whether it's importing %d times, want none: the lock refuses first", n)
+	}
+}
+
+func TestImportHoldsTheLockWhileTheRouterTakesTheFoldersIn(t *testing.T) {
+	deps, state := importDeps(t)
+	locked := make(chan error, 1)
+	(&imports{post: func(w http.ResponseWriter, r *http.Request) {
+		unlock, err := export.LockImport(state)
+		if err == nil {
+			unlock()
+		}
+		locked <- err
+		answering(router.Imported{Folders: 1})(w, r)
+	}}).serve(t, state)
+
+	if got := run(t, deps, "import", importFolder(t, t.TempDir())); got.code != 0 {
+		t.Fatalf("switchboard import = %+v, want it to import", got)
+	}
+	if err := <-locked; !errors.Is(err, export.ErrImportRunning) {
+		t.Errorf("LockImport() as the router was asked to import: %v, want ErrImportRunning: the lock held until it answers", err)
 	}
 }
 

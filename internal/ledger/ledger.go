@@ -77,8 +77,10 @@ func SummaryFile(dir, date string) string {
 }
 
 // SummaryDates returns the dates of the days the ledger in dir holds a
-// summary of, oldest first: none where dir isn't there. It fails where dir
-// can't be listed.
+// summary of, oldest first, as a regular file, as the ledger writes one,
+// passing over a link or a directory by a summary's name, so none is
+// followed out of dir: none where dir isn't there. It fails where dir can't
+// be listed.
 func SummaryDates(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	switch {
@@ -89,7 +91,7 @@ func SummaryDates(dir string) ([]string, error) {
 	}
 	var dates []string
 	for _, e := range entries {
-		if date, ok := datedName(e.Name(), summaryPrefix, summarySuffix); ok {
+		if date, ok := datedName(e.Name(), summaryPrefix, summarySuffix); ok && e.Type().IsRegular() {
 			dates = append(dates, date)
 		}
 	}
