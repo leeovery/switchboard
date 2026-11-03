@@ -69,9 +69,9 @@ func (m Moment) lackedByAll(key string) bool {
 	}, key)
 }
 
-// lackedByEvery reports whether every account, of those whose lacks are
-// given, the keys of the windows every model shares it lacks, as lacking has
-// them, lacks the window with the given key: never where there are none.
+// lackedByEvery reports whether every account, given by the keys of the
+// windows every model shares that it lacks, as lacking has them, lacks the
+// one with the given key: never where none is given.
 func lackedByEvery(lacks iter.Seq[[]string], key string) bool {
 	some := false
 	for l := range lacks {

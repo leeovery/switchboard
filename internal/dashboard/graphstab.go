@@ -120,12 +120,23 @@ func sectionWindows(s GraphsSection) []views.RunwayWindow {
 }
 
 // GraphsOffers reports whether Graphs offers the section, laying it out and
-// listing and taking its key, at the moment h holds, without working the
-// moment out, as policy names its windows: 5-HOUR only where some account h
-// holds has, or may have, the 5-hour, the window a request starts, as its
-// AnyHas has it, as Runway offers its 5-hour; every other section always.
-func GraphsOffers(s GraphsSection, h *status.HeldMoment, policy score.Policy) bool {
-	return s != GraphsFiveHour || h.AnyHas(policy.Started)
+// listing and taking its key, of the configured accounts given, at the moment
+// h holds, without working the moment out, as policy names its windows:
+// 5-HOUR only as fiveHourOffered has it; every other section always.
+func GraphsOffers(s GraphsSection, accounts config.Accounts, h *status.HeldMoment, policy score.Policy) bool {
+	return s != GraphsFiveHour || fiveHourOffered(accounts, h, policy)
+}
+
+// fiveHourOffered reports whether Graphs offers the 5-hour, the window a
+// request starts, as policy names it, of the configured accounts given, at
+// the moment h holds: where some account h holds has, or may have, it, as
+// its AnyHas has it, as Runway offers its 5-hour; and there's a card to
+// draw, some configured account having, or maybe having, it, as
+// fiveHourCharted has them, or none being configured. It offers less than
+// AnyHas allows where the config has dropped the one account held with it,
+// till the router holds the config's accounts.
+func fiveHourOffered(accounts config.Accounts, h *status.HeldMoment, policy score.Policy) bool {
+	return h.AnyHas(policy.Started) && (len(accounts) == 0 || len(fiveHourCharted(accounts, h, policy)) > 0)
 }
 
 // fiveHourCharted are the configured accounts given that 5-HOUR lays out a
@@ -152,9 +163,9 @@ func (f Frame) graphsOffered() GraphsSections {
 }
 
 // graphsOffers reports whether Graphs offers the section, as GraphsOffers
-// has it at the moment the frame holds.
+// has it of the configured accounts at the moment the frame holds.
 func (f Frame) graphsOffers(s GraphsSection) bool {
-	return GraphsOffers(s, f.held, f.Policy)
+	return GraphsOffers(s, f.Graphs.Accounts, f.held, f.Policy)
 }
 
 // GraphsGlanceColumns are the columns GLANCE's pool's sparklines take, as

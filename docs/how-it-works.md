@@ -82,11 +82,11 @@ response, so looking costs next to nothing.
 
 A verified Ultra account has no 5-hour window: its answers carry the week and nothing for the
 5-hour. Switchboard learns this from the answers, never from the plan. When a successful answer, or
-a probe the API admitted, reports the week and not the 5-hour, the router drops the 5-hour it held for that account,
-logging `no longer reports the window`. It remembers this across a restart. If a later answer
-reports the 5-hour again, the window comes back, logged as `reports the window again`. The router
-never primes an account without a 5-hour window, nor judges its pressure. The dashboard says
-`no 5-hour limit` for it.
+a probe the API admitted, reports the week and not the 5-hour, the router drops the 5-hour it held
+for that account, logging `no longer reports the window`. It remembers this across a restart. If a
+later answer reports the 5-hour again, the window comes back, logged as `reports the window again`.
+The router never primes an account without a 5-hour window, nor judges its pressure. The dashboard
+says `no 5-hour limit` for it.
 
 To read an account without traffic, switchboard probes it. A probe is one request per model family,
 each capped at one output token. Switchboard probes an account only in these cases:
