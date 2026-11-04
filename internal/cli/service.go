@@ -39,9 +39,10 @@ func newServiceInstallCommand(a *app) *cobra.Command {
 		Use:   "install",
 		Short: "Install the LaunchAgent, which starts the router",
 		Long: `Install the LaunchAgent, which starts the router now, at every login, and
-whenever it stops. It runs this switchboard binary, which must be one that
-lasts, such as Homebrew's or one go install built: a temporary build, such as
-go run's, is refused. The router serves the config --config gives, else the
+whenever it stops. It runs a copy of this switchboard binary of its own, at a
+path that never changes, so what macOS allows the router holds through
+upgrades. This binary must be one that lasts, such as Homebrew's or one go
+install built: a temporary build, such as go run's, is refused. The router serves the config --config gives, else the
 one it finds, as the CLI does; a config the router couldn't serve fails the
 install. It logs at the level --log-level gives, else SWITCHBOARD_LOG_LEVEL's.
 
@@ -62,7 +63,7 @@ usable token, as the router would have nothing to route to.`,
 func newServiceUninstallCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "uninstall",
-		Short: "Stop the router, and remove the LaunchAgent",
+		Short: "Stop the router, and remove the LaunchAgent and the router's copy",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.uninstallService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr())
@@ -214,7 +215,8 @@ func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts se
 	return started(out, svc, installed.Router)
 }
 
-// uninstallService stops the router and removes the LaunchAgent.
+// uninstallService stops the router and removes the LaunchAgent and the
+// router's copy of switchboard.
 func (a *app) uninstallService(ctx context.Context, out, errOut io.Writer) error {
 	svc, err := a.service(errOut)
 	if err != nil {
@@ -254,8 +256,9 @@ func (a *app) restartService(ctx context.Context, out, errOut io.Writer) error {
 	return started(out, svc, h)
 }
 
-// serviceStatus prints whether the LaunchAgent is installed and loaded, and
-// how the router answers.
+// serviceStatus prints whether the LaunchAgent is installed and loaded,
+// whether the router's copy it runs is missing or not run at all, and how
+// the router answers.
 func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
 	svc, err := a.installedService(ctx, errOut)
 	if err != nil {
@@ -288,7 +291,16 @@ func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
 	case !router.IsNotRunning(st.RouterErr):
 		answer = "not answering: " + st.RouterErr.Error()
 	}
-	return writeTable(out, [][]string{{"LaunchAgent", installed}, {"launchd", loaded}, {"router", answer}})
+	rows := [][]string{{"LaunchAgent", installed}}
+	switch {
+	case st.MissingCopy != "":
+		rows = append(rows, []string{"copy", "missing, " + st.MissingCopy + ", so launchd can't run the router: run switchboard service install"})
+	case st.Direct != "":
+		rows = append(rows, []string{"copy", "not run: the LaunchAgent runs " + st.Direct + " itself, as written before the router's copy: run switchboard service install"})
+	case st.LoadedDirect != "":
+		rows = append(rows, []string{"copy", "not run by launchd, which starts " + st.LoadedDirect + " itself, as it loaded the LaunchAgent before the router's copy: run switchboard service install"})
+	}
+	return writeTable(out, append(rows, []string{"launchd", loaded}, []string{"router", answer}))
 }
 
 // started says how the router launchd started answered, failing, with where

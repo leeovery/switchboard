@@ -92,6 +92,10 @@ type job struct {
 	// nor its pid, so whether one runs is unknown.
 	loaded, running, unread bool
 	pid                     int
+	// program is what launchd runs, with its arguments, as it read them from
+	// the plist when it loaded it, the only time it reads them: nil where
+	// print doesn't say them in a way job reads.
+	program []string
 }
 
 // jobPID, jobState and jobRunning are how launchctl print names the process
@@ -101,6 +105,14 @@ var (
 	jobPID     = regexp.MustCompile(`(?m)^\tpid = (\d+)$`)
 	jobState   = regexp.MustCompile(`(?m)^\tstate = `)
 	jobRunning = regexp.MustCompile(`(?m)^\tstate = running$`)
+)
+
+// jobProgram and jobArguments are how launchctl print names the program the
+// job runs and lists its arguments, the program's path first, one a line, two
+// tabs in.
+var (
+	jobProgram   = regexp.MustCompile(`(?m)^\tprogram = (.+)$`)
+	jobArguments = regexp.MustCompile(`(?ms)^\targuments = \{\n(.*?)^\t\}$`)
 )
 
 // job is the service as launchctl print says launchd has it: loaded where it
@@ -122,7 +134,31 @@ func (s *Service) job(ctx context.Context) (job, error) {
 	}
 	j.running = j.running || j.pid != 0
 	j.unread = j.pid == 0 && !jobState.Match(out)
+	j.program = programOf(out)
 	return j, nil
+}
+
+// programOf is the program launchctl print says the job runs, with the
+// arguments it lists after the first: nil where it names no program, lists
+// no arguments, or lists one otherwise than on a line of its own, two tabs
+// in.
+func programOf(out []byte) []string {
+	program, listed := jobProgram.FindSubmatch(out), jobArguments.FindSubmatch(out)
+	if program == nil || listed == nil {
+		return nil
+	}
+	var args []string
+	for line := range strings.Lines(string(listed[1])) {
+		arg, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), "\t\t")
+		if !ok {
+			return nil
+		}
+		args = append(args, arg)
+	}
+	if len(args) == 0 {
+		return nil
+	}
+	return append([]string{string(program[1])}, args[1:]...)
 }
 
 // loaded reports whether launchd has loaded the service, as job says.

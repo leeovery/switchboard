@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/routercopy"
 )
 
 const (
@@ -25,15 +26,17 @@ const (
 )
 
 // configFlag and logLevelFlag are serve's flags for the config file and the
-// level the router logs at, which the service is installed with.
+// level the router logs at, which the service is installed with, and
+// fromFlag its flag naming the binary the router upgrades from.
 const (
 	configFlag   = "--config"
 	logLevelFlag = "--log-level"
+	fromFlag     = "--" + routercopy.FromFlag
 )
 
 // valueFlags are serve's flags that take a value: given without one after
 // =, the argument after the flag is its value, whatever it reads.
-var valueFlags = []string{configFlag, logLevelFlag}
+var valueFlags = []string{fromFlag, configFlag, logLevelFlag}
 
 // carried are the variables the service is given as they're set where it's
 // installed, so it finds its config and its state where the CLI does, and
@@ -61,6 +64,13 @@ type agent struct {
 	// ExitTimeOut is how many seconds launchd gives the program to stop
 	// before it kills it.
 	ExitTimeOut int
+	// own is the router's copy of switchboard, the program, and from the
+	// binary it's made from, which the router upgrades from; built is the
+	// file from led to as describe found it, its links followed, which the
+	// copy is made of: "" for an agent not described.
+	own   routercopy.Copy
+	from  string
+	built string
 }
 
 // variable is one of an environment's variables.
@@ -68,14 +78,19 @@ type variable struct {
 	Name, Value string
 }
 
-// agent describes the LaunchAgent that serves as opts says, with the
-// switchboard binary as describe finds it, the config file and the log level
+// agent describes the LaunchAgent that serves as opts says: the router's
+// copy of switchboard, made from the binary as describe finds it, which
+// serve's --from names as it's given, the config file and the log level
 // given, when they are, the environment opts keep, else the variables
 // carried, and its log in the state directory. launchd runs switchboard
 // itself: the router reads the tokens from their files, so it needs nothing
 // of the user's environment but the variables carried.
 func (s *Service) agent(opts InstallOptions) (agent, error) {
-	program := []string{opts.Executable, "serve"}
+	own, err := s.routerCopy()
+	if err != nil {
+		return agent{}, fmt.Errorf("find the router's copy of switchboard: %w", err)
+	}
+	program := []string{own.Path(), "serve", fromFlag, opts.Executable}
 	config, err := absolute(opts.Config)
 	if err != nil {
 		return agent{}, fmt.Errorf("find the config file: %w", err)
@@ -90,7 +105,15 @@ func (s *Service) agent(opts InstallOptions) (agent, error) {
 	if err != nil {
 		return agent{}, err
 	}
-	return agent{Label: Label, Program: program, Environment: environment, Log: s.Log(), ExitTimeOut: int(exitTimeout / time.Second)}, nil
+	return agent{Label: Label, Program: program, Environment: environment, Log: s.Log(), ExitTimeOut: int(exitTimeout / time.Second), own: own, from: opts.Executable}, nil
+}
+
+// routerCopy is the router's copy of switchboard, where the environment the
+// service is seen in keeps switchboard's data: under the user's home where
+// it sets HOME empty, as the plist names the copy by its path, so the router
+// needn't find a home to run it.
+func (s *Service) routerCopy() (routercopy.Copy, error) {
+	return routercopy.Find(s.cfg.Getenv, func() (string, error) { return cmp.Or(s.home, s.cfg.Home), nil })
 }
 
 // variables are what launchd is to set in the router's environment: those

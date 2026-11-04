@@ -19,6 +19,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/routercopy"
 	"github.com/leeovery/switchboard/internal/service"
 )
 
@@ -41,15 +42,18 @@ func TestServiceInstall(t *testing.T) {
 		t.Errorf("ran launchctl %q, want %q", s.launchd.calls, want)
 	}
 	s.checkPlist(t,
-		"<string>"+s.binary+"</string>\n\t\t<string>serve</string>\n\t</array>",
+		"<array>\n\t\t<string>"+s.routerCopy+"</string>\n\t\t<string>serve</string>\n\t\t<string>--from</string>\n\t\t<string>"+s.binary+"</string>\n\t</array>",
 		"<key>SWITCHBOARD_CONFIG</key>\n\t\t<string>"+s.srv.config+"</string>",
 		"<key>XDG_STATE_HOME</key>\n\t\t<string>"+filepath.Dir(s.srv.state)+"</string>",
 	)
+	if data, err := os.ReadFile(s.routerCopy); err != nil || string(data) != "#!/bin/sh\n" {
+		t.Errorf("the router's copy holds %q (%v), want the switchboard installed", data, err)
+	}
 }
 
 func TestServiceInstallHelpAsksForASwitchboardThatLasts(t *testing.T) {
 	got := run(t, testDeps(nil, t.TempDir()), "service", "install", "--help")
-	want := "It runs this switchboard binary, which must be one that lasts, such as Homebrew's or one go install built: " +
+	want := "This binary must be one that lasts, such as Homebrew's or one go install built: " +
 		"a temporary build, such as go run's, is refused."
 	if help := strings.Join(strings.Fields(got.stdout), " "); got.code != 0 || !strings.Contains(help, want) {
 		t.Errorf("switchboard service install --help = %+v, want help saying %q", got, want)
@@ -72,8 +76,10 @@ func TestServiceInstallWithAConfig(t *testing.T) {
 		t.Errorf("switchboard service install = %+v, want exit status 0, and nothing on stderr", got)
 	}
 	s.checkPlist(t, "<array>\n"+
-		"\t\t<string>"+s.binary+"</string>\n"+
+		"\t\t<string>"+s.routerCopy+"</string>\n"+
 		"\t\t<string>serve</string>\n"+
+		"\t\t<string>--from</string>\n"+
+		"\t\t<string>"+s.binary+"</string>\n"+
 		"\t\t<string>--config</string>\n"+
 		"\t\t<string>"+filepath.Join(dir, "work.toml")+"</string>\n"+
 		"\t</array>")
@@ -161,7 +167,7 @@ func TestServiceInstallHasTheRouterLogAsAsked(t *testing.T) {
 		{
 			name:  "at the level given",
 			args:  []string{"--log-level", "DEBUG"},
-			wants: []string{"\t\t<string>serve</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t</array>"},
+			wants: []string{"</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t</array>"},
 		},
 		{
 			name:  "at the level SWITCHBOARD_LOG_LEVEL names",
@@ -236,6 +242,9 @@ func TestServiceUninstall(t *testing.T) {
 	}
 	if _, err := os.Stat(s.plist); !os.IsNotExist(err) {
 		t.Errorf("the plist: %v, want it gone", err)
+	}
+	if _, err := os.Stat(filepath.Dir(s.routerCopy)); !os.IsNotExist(err) {
+		t.Errorf("the router's copy's directory: %v, want it gone", err)
 	}
 }
 
@@ -335,6 +344,46 @@ func TestServiceStatus(t *testing.T) {
 	}
 }
 
+func TestServiceStatusSaysTheRoutersCopyIsMissing(t *testing.T) {
+	s := newServiceSetup(t)
+	if got := run(t, s.srv.deps, "service", "install"); got.code != 0 {
+		t.Fatalf("switchboard service install = %+v, want exit status 0", got)
+	}
+	if err := os.RemoveAll(filepath.Dir(s.routerCopy)); err != nil {
+		t.Fatal(err)
+	}
+
+	got := run(t, s.srv.deps, "service", "status")
+	want := "copy         missing, " + s.routerCopy + ", so launchd can't run the router: run switchboard service install\n"
+	if got.code != 0 || !strings.Contains(got.stdout, "LaunchAgent  "+s.plist+"\n"+want) {
+		t.Errorf("switchboard service status = %+v, want the copy said missing, after the LaunchAgent:\n%s", got, want)
+	}
+}
+
+func TestServiceStatusSaysTheLaunchAgentRunsSwitchboardItself(t *testing.T) {
+	s := newServiceSetup(t)
+	s.putPlistBeforeTheCopy(t, s.binary)
+
+	got := run(t, s.srv.deps, "service", "status")
+	want := "copy         not run: the LaunchAgent runs " + s.binary + " itself, as written before the router's copy: run switchboard service install\n"
+	if got.code != 0 || !strings.Contains(got.stdout, "LaunchAgent  "+s.plist+"\n"+want) {
+		t.Errorf("switchboard service status = %+v, want the copy said not run, after the LaunchAgent:\n%s", got, want)
+	}
+}
+
+func TestServiceStatusSaysLaunchdStartsSwitchboardItselfAsItLoadedTheServiceBeforeTheCopy(t *testing.T) {
+	s := newServiceSetup(t)
+	s.putKeptPlist(t, shortTempDir(t))
+	// As for a router that moved over, until launchd loads the plist again.
+	s.launchd.loaded, s.launchd.program = true, []string{s.binary, "serve"}
+
+	got := run(t, s.srv.deps, "service", "status")
+	want := "copy         not run by launchd, which starts " + s.binary + " itself, as it loaded the LaunchAgent before the router's copy: run switchboard service install\n"
+	if got.code != 0 || !strings.Contains(got.stdout, "LaunchAgent  "+s.plist+"\n"+want) {
+		t.Errorf("switchboard service status = %+v, want the copy said not run by launchd, after the LaunchAgent:\n%s", got, want)
+	}
+}
+
 func TestServiceStatusOfARouterNotRunning(t *testing.T) {
 	for _, state := range routerStates {
 		t.Run(state.name, func(t *testing.T) {
@@ -372,9 +421,10 @@ func TestServiceIsMacOSOnly(t *testing.T) {
 type serviceSetup struct {
 	srv     *serveSetup
 	launchd *fakeLaunchd
-	// binary is the switchboard installed, its symlinks resolved, and plist
-	// where the service's plist goes.
-	binary, plist string
+	// binary is the switchboard installed, its symlinks resolved, plist
+	// where the service's plist goes, and routerCopy where the router's copy
+	// of switchboard goes.
+	binary, plist, routerCopy string
 }
 
 func newServiceSetup(t *testing.T) *serviceSetup {
@@ -396,7 +446,11 @@ func newServiceSetup(t *testing.T) *serviceSetup {
 		t.Fatal(err)
 	}
 	plist := filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
-	return &serviceSetup{srv: srv, launchd: launchd, binary: binary, plist: plist}
+	own, err := routercopy.Find(srv.deps.Getenv, srv.deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &serviceSetup{srv: srv, launchd: launchd, binary: binary, plist: plist, routerCopy: own.Path()}
 }
 
 // serveRouter answers health checks on the socket at path until the test
@@ -473,7 +527,10 @@ type fakeLaunchd struct {
 	// pid, as formats setup can't read wholly might.
 	pid                  int
 	pidless, stateUnread bool
-	calls                [][]string
+	// program is the program the job runs, with its arguments, as launchd
+	// loaded them, which print says where it's set.
+	program []string
+	calls   [][]string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -507,6 +564,9 @@ func (f *fakeLaunchd) printed(target string) []byte {
 		state = "\tstate = running\n"
 	case f.pid != 0:
 		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
+	}
+	if f.program != nil {
+		state += "\n\tprogram = " + f.program[0] + "\n\targuments = {\n\t\t" + strings.Join(f.program, "\n\t\t") + "\n\t}\n"
 	}
 	return []byte(target + " = {\n" + state + "}\n")
 }

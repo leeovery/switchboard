@@ -889,11 +889,11 @@ func TestARequestBegunAsTheBinaryIsAskedPutsTheRestartOffToTheNextQuietMoment(t 
 	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight, at(start), unheeded)
 	asked := askedOf(r, binaryAnswer{})
 	ask := r.ask
-	r.ask = func(ctx context.Context) (string, error) {
+	r.ask = func(ctx context.Context, path string) (string, error) {
 		if *asked == 0 {
 			inFlight.begin()
 		}
-		return ask(ctx)
+		return ask(ctx, path)
 	}
 	relink(t, s.binary, s.version("1.1"))
 	r.look()
@@ -1032,11 +1032,11 @@ func TestAFileChangedAsTheBinaryIsAskedIsLookedAtAgainBeforeTheRestart(t *testin
 			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
 			asked := askedOf(r, tt.answer)
 			ask := r.ask
-			r.ask = func(ctx context.Context) (string, error) {
+			r.ask = func(ctx context.Context, path string) (string, error) {
 				if *asked == 0 {
 					tt.change(t, s)
 				}
-				return ask(ctx)
+				return ask(ctx, path)
 			}
 			relink(t, s.binary, s.version("1.1"))
 			r.look()
@@ -1150,7 +1150,7 @@ func TestARouterToldToStopAsItAsksItsBinaryNeitherRestartsNorHolds(t *testing.T)
 	var heard []Event
 	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
 	stopped, stop := context.WithCancel(t.Context())
-	r.ask = func(ctx context.Context) (string, error) {
+	r.ask = func(ctx context.Context, _ string) (string, error) {
 		stop()
 		return "", ctx.Err()
 	}
@@ -1267,7 +1267,7 @@ func TestARestartAskedForIsRefusedWhenAFileChangesAsItsChecked(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
 			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
-			r.ask = func(context.Context) (string, error) {
+			r.ask = func(context.Context, string) (string, error) {
 				tt.change(t, s)
 				return tt.answer.refusal, tt.answer.err
 			}
@@ -1351,11 +1351,11 @@ func TestABinaryUnableToAnswerIsLoggedOnlyAsItsRestartedInto(t *testing.T) {
 	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 	asked := askedOf(r, binaryAnswer{err: errors.New("exit status 1")})
 	ask := r.ask
-	r.ask = func(ctx context.Context) (string, error) {
+	r.ask = func(ctx context.Context, path string) (string, error) {
 		if *asked == 0 {
 			writeFile(t, s.kept, twoAccounts)
 		}
-		return ask(ctx)
+		return ask(ctx, path)
 	}
 	relink(t, s.binary, s.version("1.1"))
 	r.look()
@@ -1410,7 +1410,7 @@ type binaryAnswer struct {
 // times it's asked.
 func askedOf(r *restarts, answers ...binaryAnswer) *int {
 	asked := new(int)
-	r.ask = func(context.Context) (string, error) {
+	r.ask = func(context.Context, string) (string, error) {
 		a := answers[min(*asked, len(answers)-1)]
 		*asked++
 		return a.refusal, a.err

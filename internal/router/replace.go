@@ -100,7 +100,8 @@ func (r *Router) drainHandingOver(ctx context.Context, control controlServer, pr
 }
 
 // replace replaces this process with the router's binary, by the path it was
-// started as, which an upgrade leads on to the new version, run as it was,
+// started as: its own copy, which an upgrade has been copied over, or, with
+// none, the link an upgrade leads on to the new version; run as it was,
 // handing it the listeners held, for the router it becomes to take up: no
 // connection is refused meanwhile, and the process, keeping its id, isn't
 // started afresh, which macOS can refuse a binary an upgrade replaced. It

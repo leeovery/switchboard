@@ -17,14 +17,21 @@ import (
 	"github.com/leeovery/switchboard/internal/setup/screen"
 )
 
-// putKeptPlist puts a plist in the service's place that runs this
-// switchboard's serve with args, its router's state under stateHome, as one
-// installed from a shell setting XDG_STATE_HOME to it would.
+// putKeptPlist puts a plist in the service's place that runs the router's
+// copy of this switchboard, and the copy in its place, with serve, --from and
+// args, its router's state under stateHome, as one installed from a shell
+// setting XDG_STATE_HOME to it would.
 func (s *serviceSetup) putKeptPlist(t *testing.T, stateHome string, args ...string) {
 	t.Helper()
 	var program strings.Builder
-	for _, arg := range append([]string{s.binary, "serve"}, args...) {
+	for _, arg := range append([]string{s.routerCopy, "serve", "--from", s.binary}, args...) {
 		program.WriteString("<string>" + arg + "</string>")
+	}
+	if err := os.MkdirAll(filepath.Dir(s.routerCopy), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s.routerCopy, []byte("#!/bin/sh\n"), 0o700); err != nil {
+		t.Fatal(err)
 	}
 	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict><key>Label</key><string>io.github.leeovery.switchboard</string>`+

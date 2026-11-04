@@ -6,8 +6,10 @@
 	<string>io.github.leeovery.switchboard</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/opt/homebrew/bin/switchboard</string>
+		<string>/Users/tester/.local/share/switchboard/router/switchboard</string>
 		<string>serve</string>
+		<string>--from</string>
+		<string>/opt/homebrew/bin/switchboard</string>
 		<string>--config</string>
 		<string>/Users/tester/switchboard &amp; co/config.toml</string>
 		<string>--log-level</string>

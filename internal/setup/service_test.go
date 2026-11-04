@@ -220,10 +220,57 @@ func TestTheServiceStepInstallsTheServiceToRunThisSwitchboard(t *testing.T) {
 
 			w.service(t)
 			plist, err := os.ReadFile(w.plist())
-			if err != nil || !strings.Contains(string(plist), "<array>\n\t\t<string>"+w.switchboard+"</string>\n\t\t<string>serve</string>\n\t</array>") {
-				t.Errorf("the plist reads\n%s(%v)\nwant it to run switchboard serve by the path switchboard was run by, %s", plist, err, w.switchboard)
+			want := "<array>\n\t\t<string>" + w.routerCopy + "</string>\n\t\t<string>serve</string>\n\t\t<string>--from</string>\n\t\t<string>" + w.switchboard + "</string>\n\t</array>"
+			if err != nil || !strings.Contains(string(plist), want) {
+				t.Errorf("the plist reads\n%s(%v)\nwant it to run the router's copy of switchboard, serve's --from naming the path switchboard was run by, %s", plist, err, w.switchboard)
 			}
 		})
+	}
+}
+
+func TestTheServiceStepReinstallsWhereTheRoutersCopyIsMissing(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	if err := os.RemoveAll(filepath.Dir(w.routerCopy)); err != nil {
+		t.Fatal(err)
+	}
+
+	const why = "the router's copy of switchboard it runs, ~/.local/share/switchboard/router/switchboard, was missing\n"
+	if told := w.service(t); !strings.Contains(told, installedRow+updatedRow+why) {
+		t.Errorf("the service step said\n%s\nwant the service installed afresh, saying\n%s", told, updatedRow+why)
+	}
+	if _, err := os.Stat(w.routerCopy); err != nil {
+		t.Errorf("the router's copy: %v, want it made again", err)
+	}
+}
+
+func TestTheServiceStepReinstallsWhereLaunchdStartsSwitchboardItself(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	// As launchd keeps the plist from before the copy loaded for a router
+	// that moved over, until it loads the plist again.
+	w.launchd.program = []string{w.switchboard, "serve"}
+
+	const why = "launchd started <root>/brew/bin/switchboard itself, as it loaded the service before the router's copy\n"
+	if told := w.service(t); !strings.Contains(told, installedRow+updatedRow+why) {
+		t.Errorf("the service step said\n%s\nwant the service installed afresh, saying\n%s", told, updatedRow+why)
+	}
+	if want := []string{w.routerCopy, "serve", "--from", w.switchboard}; !slices.Equal(w.launchd.program, want) {
+		t.Errorf("launchd's job runs %q, want %q: the plist loaded afresh", w.launchd.program, want)
+	}
+}
+
+func TestTheServiceStepLeavesARoutersCopyOtherThanThisSwitchboard(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	// As from an upgrade the router hasn't copied in yet.
+	writeFile(t, w.routerCopy, "#!/bin/sh\n# the version before\n", 0o755)
+
+	if told := w.service(t); strings.Contains(told, updatedRow) {
+		t.Errorf("the service step said\n%s\nwant the service left as it is: the router copies an upgrade in itself", told)
+	}
+	if data, err := os.ReadFile(w.routerCopy); err != nil || string(data) != "#!/bin/sh\n# the version before\n" {
+		t.Errorf("the router's copy holds %q (%v), want it left as it was", data, err)
 	}
 }
 
@@ -254,7 +301,7 @@ func TestTheServiceStepKeepsTheOptionsTheServiceWasInstalledWith(t *testing.T) {
 				w.installServiceWith(t, service.InstallOptions{Executable: w.switchboard, LogLevel: "debug"})
 				w.editPlist(t, withoutProcessType)
 			},
-			want: []string{"<string>serve</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t</array>"},
+			want: []string{"<string>serve</string>\n\t\t<string>--from</string>\n\t\t<string><root>/brew/bin/switchboard</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t</array>"},
 		},
 		{
 			name: "a config file, installed from before ProcessType",
@@ -262,14 +309,26 @@ func TestTheServiceStepKeepsTheOptionsTheServiceWasInstalledWith(t *testing.T) {
 				w.installServiceWith(t, service.InstallOptions{Executable: w.switchboard, Config: w.config})
 				w.editPlist(t, withoutProcessType)
 			},
-			want: []string{"<string>serve</string>\n\t\t<string>--config</string>\n\t\t<string><root>/config/switchboard/config.toml</string>\n\t</array>"},
+			want: []string{"<string>serve</string>\n\t\t<string>--from</string>\n\t\t<string><root>/brew/bin/switchboard</string>\n\t\t<string>--config</string>\n\t\t<string><root>/config/switchboard/config.toml</string>\n\t</array>"},
+		},
+		{
+			name: "a log level, installed before the router's copy, running switchboard itself",
+			install: func(t *testing.T, w *world) {
+				w.installServiceWith(t, service.InstallOptions{Executable: w.switchboard, LogLevel: "debug"})
+				w.editPlist(t, func(plist string) string {
+					return strings.Replace(plist,
+						"<string>"+w.routerCopy+"</string>\n\t\t<string>serve</string>\n\t\t<string>--from</string>\n\t\t<string>"+w.switchboard+"</string>",
+						"<string>"+w.switchboard+"</string>\n\t\t<string>serve</string>", 1)
+				})
+			},
+			want: []string{"<string><root>/home/.local/share/switchboard/router/switchboard</string>\n\t\t<string>serve</string>\n\t\t<string>--from</string>\n\t\t<string><root>/brew/bin/switchboard</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t</array>"},
 		},
 		{
 			name: "a log level, installed from another switchboard",
 			install: func(t *testing.T, w *world) {
 				w.installServiceWith(t, service.InstallOptions{Executable: w.goInstalled(t), LogLevel: "warn"})
 			},
-			want: []string{"<string><root>/brew/bin/switchboard</string>\n\t\t<string>serve</string>\n\t\t<string>--log-level</string>\n\t\t<string>warn</string>\n\t</array>"},
+			want: []string{"<string><root>/home/.local/share/switchboard/router/switchboard</string>\n\t\t<string>serve</string>\n\t\t<string>--from</string>\n\t\t<string><root>/brew/bin/switchboard</string>\n\t\t<string>--log-level</string>\n\t\t<string>warn</string>\n\t</array>"},
 		},
 		{
 			name: "a log level, but another config file than the one setup is given",
@@ -486,7 +545,7 @@ func TestTheServiceStepInstallsAPlistItCantReadBackAsSetupWould(t *testing.T) {
 			}
 			got, err := os.ReadFile(w.plist())
 			for _, want := range []string{
-				"<array>\n\t\t<string>" + w.switchboard + "</string>\n\t\t<string>serve</string>\n\t\t<string>--config</string>\n\t\t<string>" + w.config + "</string>\n\t</array>",
+				"<array>\n\t\t<string>" + w.routerCopy + "</string>\n\t\t<string>serve</string>\n\t\t<string>--from</string>\n\t\t<string>" + w.switchboard + "</string>\n\t\t<string>--config</string>\n\t\t<string>" + w.config + "</string>\n\t</array>",
 				// The shell's, which the router's state is found by.
 				"<key>XDG_STATE_HOME</key>\n\t\t<string>" + filepath.Join(w.root, "state") + "</string>",
 			} {
@@ -1418,12 +1477,17 @@ func TestTheServiceStepSeesTheRouterInTheHomeThePlistSets(t *testing.T) {
 	})
 	w.launchd.stateDir = filepath.Join(home, ".local", "state", "switchboard")
 
-	want := stateApart + installedRow + updatedRow + "its plist had no ProcessType, another StandardOutPath and another StandardErrorPath\n" + tokenless + up(4244)
+	// The router's copy, as its state directory, under the home the plist
+	// sets.
+	want := stateApart + installedRow + updatedRow + "its plist had another program in its ProgramArguments, no ProcessType, another StandardOutPath and another StandardErrorPath\n" + tokenless + up(4244)
 	if told := w.service(t); told != want {
 		t.Errorf("the service step said\n%s\nwant\n%s", told, want)
 	}
 	if checked := []string{filepath.Join(home, ".local", "state", "switchboard") + " " + w.config}; !slices.Equal(w.checked, checked) {
 		t.Errorf("checked the router could start from %q, want %q: the state directory the home decides", w.checked, checked)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".local", "share", "switchboard", "router", "switchboard")); err != nil {
+		t.Errorf("the router's copy: %v, want it made under the home the plist sets", err)
 	}
 }
 

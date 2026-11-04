@@ -56,6 +56,14 @@ func ShellDir(getenv func(string) string, homeDir func() (string, error)) (strin
 	return dataDir(getenv, homeDir, "shell", "switchboard's shell directory")
 }
 
+// RouterDir returns where the router's own copy of switchboard is, the one
+// the LaunchAgent runs: $XDG_DATA_HOME/switchboard/router, else
+// ~/.local/share/switchboard/router. It's never the bin directory, which is
+// on PATH, where the copy would stand in for the switchboard installed.
+func RouterDir(getenv func(string) string, homeDir func() (string, error)) (string, error) {
+	return dataDir(getenv, homeDir, "router", "the router's directory")
+}
+
 // dataDir returns switchboard's directory named name among its data, what it
 // is saying which it is: $XDG_DATA_HOME/switchboard/<name>, else
 // ~/.local/share/switchboard/<name>.

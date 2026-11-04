@@ -152,11 +152,19 @@ type Config struct {
 	// zero Watched is none.
 	ConfigFile Watched
 	// Binary is the switchboard binary the router was started as, by the
-	// path it was run by, such as the Homebrew link the service runs, as
-	// Watch found it before the config was read: once that leads to another
-	// file than the one running while Run runs, as after an upgrade, the
-	// router restarts. The zero Watched is none.
+	// path it was run by, as Watch found it before the config was read: its
+	// own copy, where From names the binary it upgrades from, else the binary
+	// it upgrades from itself, such as the Homebrew link. A supervised router
+	// restarts into it, by that path. The zero Watched is none.
 	Binary Watched
+	// From is the binary the router upgrades from, where Binary is a copy of
+	// its own, as WatchFrom found it before the config was read: the one
+	// service install was run by, such as the Homebrew link. Once that leads
+	// to another file than the one the copy was made from while Run runs, as
+	// after an upgrade, or from the start, the router restarts, copying the
+	// new version over its copy as it does. The zero Watched is none: Binary
+	// is the binary the router upgrades from, watched as From would be.
+	From Watched
 	// Zone is the file the system's time zone is read from, /etc/localtime,
 	// as Watch found it as the router started: a program reads the time zone
 	// once, as it starts, so once that leads to another file, as when the Mac
@@ -170,17 +178,19 @@ type Config struct {
 	Supervised bool
 	// Exec replaces this process with the program at path, run as argv with
 	// env, as launch.Exec does: a supervised router restarts by replacing
-	// itself with its binary, by Binary's path, run as Args with Environ,
+	// itself with its binary, by Binary's path, its own copy where it runs
+	// one, an upgrade copied over it first, run as Args with Environ,
 	// handing its listeners over to the router it becomes, as Handed names
 	// them there. It returns only when it fails, and the router then stops,
 	// as it does with none, for launchd to start it again.
 	Exec func(path string, argv, env []string) error
 	// Check runs a program until it exits, returning what it wrote to its
 	// standard output, as handover.Run does. A supervised router uses it to
-	// ask its binary, by Binary's path, run as Args with Environ, whether it
-	// could start, as handover.Ask asks, before restarting into it, and holds
-	// the restart while it refuses. Nil asks nothing, as of a binary that
-	// can't answer.
+	// ask the binary it restarts into, by Binary's path, or, for an upgrade
+	// copied in, by the path of the new version staged beside its copy, run
+	// as Args with Environ, whether it could start, as handover.Ask asks,
+	// before restarting into it, and holds the restart while it refuses. Nil
+	// asks nothing, as of a binary that can't answer.
 	Check handover.Runner
 	// Args and Environ are the command line and the environment the router
 	// was started with, as os.Args and os.Environ give them.

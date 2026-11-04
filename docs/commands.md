@@ -407,7 +407,9 @@ The steps are:
    switchboard than the one `setup` runs as, when `setup` is given another config file than the one
    the router serves, or when its plist differs from the one `switchboard service install` would
    write with what it was installed with, as after an upgrade that adds a key, and says what
-   differed. Installing it again keeps the `--log-level`, `--config` and environment it was
+   differed, when the router's copy of switchboard it runs is missing, or when launchd still starts
+   switchboard itself, having loaded the LaunchAgent before the router's copy, as after the router
+   moved over to it. Installing it again keeps the `--log-level`, `--config` and environment it was
    installed with, every variable in it, a `HOME` too, as the environment decides where the router
    keeps its state, tokens included. A `--config` given to `setup` takes the place of the kept one
    only where it names another file than the one the router serves. Before it touches a running
@@ -703,11 +705,15 @@ switchboard accounts remove side
 ### `service`
 
 `service` manages the LaunchAgent that keeps the router running. launchd starts
-`switchboard serve` now, at every login, and again whenever it stops, without the light throttling
+`switchboard serve`, from the router's own copy of switchboard, now, at every login, and again whenever it stops, without the light throttling
 it gives a job that doesn't say what kind it is, as every Claude Code request waits on it. `setup`
 installs it. launchd reads the LaunchAgent only as it loads it, so one an older switchboard wrote
 keeps what it said through upgrades and restarts in place: `service install` writes it afresh, and
-restarts the router to load it.
+restarts the router to load it. One written before the router had its own copy is the exception:
+its router moves over to the copy by itself as it starts, after the upgrade that brings the copy,
+writing the LaunchAgent afresh to run it, and launchd runs the copy from the next login on (see
+[Restarting in place](#restarting-in-place)). Where it can't, `service status` says so, and names
+`service install`.
 
 ```bash
 switchboard service install [--log-level <level>]
@@ -730,8 +736,13 @@ in flight, and waits up to 5 seconds for the router to answer.
   checks a new version before restarting into it: the config above all, and the state directory
   its control socket goes in. It fails where the router couldn't start, before it touches the
   router running.
-- **The binary.** The LaunchAgent runs switchboard by the path you ran it by, so a Homebrew link
-  stays the link `brew upgrade` moves on. A temporary build, such as `go run`'s, is refused.
+- **The binary.** The LaunchAgent runs a copy of switchboard of its own, which `install` makes
+  from the switchboard you ran, following its links: `$XDG_DATA_HOME/switchboard/router/switchboard`,
+  else `~/.local/share/switchboard/router/switchboard`. macOS keeps what you allow the router,
+  such as a folder it writes into, against the path of the file it runs, and Homebrew puts each
+  version at a path of its own, so the copy's path never changes. The LaunchAgent names the path
+  you ran switchboard by too, with `serve --from`, so a Homebrew link stays the link
+  `brew upgrade` moves on. A temporary build, such as `go run`'s, is refused.
 - **The environment.** The LaunchAgent carries `--config`, and these variables where they're set:
   `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_DATA_HOME`, `SWITCHBOARD_CONFIG`,
   `SWITCHBOARD_LOG_LEVEL` and `CLAUDE_CONFIG_DIR`. It makes `--config`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`
@@ -761,6 +772,7 @@ on the router:
 | Answering, with a config that isn't valid | The router refuses, as it couldn't start again from that config, and `restart` says why. After an upgrade, the new version judges the config instead where it can answer, as the next row says, so a config only it takes doesn't hold the restart. |
 | Answering, with a binary that refuses to start | The router asks the binary it would become first. Where that refuses, as a newer version can refuse a config the running one takes, the router refuses too, and `restart` says why, in the binary's words. |
 | Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the router checks whether it could restart, the router refuses, and `restart` names what changed and says to try again. |
+| Answering, with an upgrade it can't copy in | Where the router can't copy the upgrade due in beside its own copy, as on a full disk, it refuses, and `restart` says why. |
 | From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
 | Not answering | launchd starts the service afresh at once. `restart` asks the router where the LaunchAgent keeps its state, and the one where your shell does, and starts the service afresh only when neither answers; the first to answer then, at either, is the one launchd started. |
 
@@ -777,10 +789,14 @@ put the config right as it says.
 #### `service uninstall` and `service status`
 
 - **`uninstall`** stops the router, once it has finished its requests in flight, and removes the
-  LaunchAgent.
-- **`status`** shows whether the LaunchAgent is installed and loaded, whether launchd runs a
-  router, and its pid where `launchctl print` names one, or that its state is unread where it says
-  neither, and the health of the router where the LaunchAgent keeps its state, else of the one
+  LaunchAgent and the router's copy of switchboard.
+- **`status`** shows whether the LaunchAgent is installed and loaded, whether the router's copy of
+  switchboard it runs is missing, so launchd can't run the router, or not run at all, as the
+  LaunchAgent was written before the copy and runs switchboard itself, or as launchd loaded it
+  before the copy and, reading it only as it loads it, still starts switchboard itself till the
+  next login, as `launchctl print` names the program, naming `service install` for each, whether
+  launchd runs a router, and its pid where `launchctl print` names one, or that its state
+  is unread where it says neither, and the health of the router where the LaunchAgent keeps its state, else of the one
   where your shell does, saying so. Where it can't read the LaunchAgent's plist back, or work out
   from it where the router keeps its state, `status` and `restart` say so, and look for the router
   where your shell keeps its state. Where only the one at your shell's answers, or there's no
@@ -1424,30 +1440,62 @@ token.
 The router also watches:
 
 - its config file, following links;
-- the binary it was started as: the Homebrew link the service runs; and
+- the binary it upgrades from: for the service's router, the Homebrew link `service install` was
+  run by, which the LaunchAgent names with `--from`, and run by hand, the binary it was started
+  as; and
 - `/etc/localtime`, which says the Mac's time zone.
 
 The service's router restarts when the config changes into one that's valid, when an upgrade leads
-the link to another binary, or when the time zone changes. To restart, it:
+the link to another binary, or when the time zone changes. As it starts, it compares its own copy
+with the binary the link leads to, by size and modification time, and, where the sizes agree but
+the times don't, as on a disk that keeps coarser times, by their bytes. One that differs, as after
+an upgrade made while launchd started it again, has an upgrade due from the start. `service
+install` compares them the same way, and leaves a copy that matches as it is. To restart, it:
 
 1. Waits for a moment with no request in flight.
-2. Asks the binary the link leads to whether it can start from the config.
-3. Saves its state.
-4. Replaces itself in place with the binary the link leads to, handing it the sockets it listens on.
+2. For an upgrade, copies the binary the link leads to in beside its own copy, hidden.
+3. Asks the binary it would become whether it can start from the config: the upgrade copied in,
+   or else its own copy.
+4. For an upgrade, renames the new version it copied in over its own copy.
+5. Saves its state.
+6. Replaces itself in place with its copy, handing it the sockets it listens on.
 
 Some cases go differently:
 
 - **A config that isn't valid** is logged, and the router carries on as it was.
 - **A binary that refuses to start,** as a newer version can refuse a config the running one
   takes, holds the restart: the router carries on as it was, and says why in its log, its events
-  and `status --json`'s `restart`. It asks again once the config or the binary changes. A binary
-  from before the check can't answer, and the router restarts into it as before.
+  and `status --json`'s `restart`. An upgrade copied in is removed, and the copy stays as it was.
+  It asks again once the config or the binary changes. A binary from before the check can't
+  answer, and the router restarts into it as before.
+- **An upgrade it can't copy in,** as on a full disk, is logged once at warn: the router carries
+  on as it was, the restart still due, and copies the upgrade again at its next moment with no
+  request in flight.
 - **A binary that isn't there,** as for a moment while `brew upgrade` moves the link on, is tried
   again for a couple of seconds. If replacing itself still fails, the router exits, and launchd
   starts it again.
 - **Told to stop** while it finishes its requests to restart, the router stops then and there.
 - **Run by hand,** the router logs, once, that a restart is due, and `switchboard status` says to
   run `serve` again.
+
+A router launchd starts from a LaunchAgent written before the router had its own copy, with no
+`--from`, moves over to the copy as it starts, once it has read the config and before it listens.
+It makes the copy of the binary it was started as, following its links, writes the LaunchAgent
+afresh to run the copy, as `service install` writes it, keeping its `--config`, its `--log-level`
+and every variable it sets, and replaces itself in place with the copy, run as it was started with
+`--from` naming that binary. The sockets a router before it handed over pass on to the copy
+untouched, so after the upgrade that brings the copy, a request made meanwhile waits rather than
+being refused. launchd isn't asked anything: it reads the LaunchAgent only as it loads it, so it
+runs the copy from the next login on. Where the router can't move over, as when it can't write the
+LaunchAgent or make the copy, it says why once at warn, leaves the LaunchAgent as it was, and
+carries on from the binary it was started as, and `service status` names `service install`. It
+tries again each time it starts without `--from`, as at the next upgrade or login. It puts moving
+over off, saying so in its log, while `service install` is writing the LaunchAgent, which it leaves
+to install, and where another upgrade has moved the link on as it started, so it never runs a
+version that hasn't been asked whether it can start: it takes that upgrade up as any other, and the
+new version moves over. It puts it off too where its binary couldn't be found as it started, as
+for a moment while an upgrade moves the link on, as then which version it runs isn't known. A
+router run by hand, or started with `--from`, never moves over.
 
 ## Help and version
 
