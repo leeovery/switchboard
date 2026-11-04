@@ -1264,7 +1264,8 @@ func TestStatus(t *testing.T) {
 		waiting   bool
 		// copyGone is the router's copy gone from where the plist has it,
 		// which want's MissingCopy then names, unless the plist is from
-		// before the copy, as beforeCopy has it, running the binary itself.
+		// before the copy, as beforeCopy has it, running the binary itself,
+		// which want's Direct then names.
 		copyGone, beforeCopy bool
 		answer               func(asked int) (router.Health, error)
 		want                 service.Status
@@ -1342,6 +1343,14 @@ func TestStatus(t *testing.T) {
 			want:       service.Status{Installed: true, Loaded: true, Router: &router.Health{OK: true, Version: "1.2.3", PID: 4242}},
 		},
 		{
+			name:       "loaded from before the router's copy, running the binary itself, though the copy is made",
+			installed:  true,
+			loaded:     true,
+			beforeCopy: true,
+			answer:     func(int) (router.Health, error) { return up(4242) },
+			want:       service.Status{Installed: true, Loaded: true, Router: &router.Health{OK: true, Version: "1.2.3", PID: 4242}},
+		},
+		{
 			name:   "none of them",
 			answer: func(int) (router.Health, error) { return router.Health{}, errNotRunning },
 			want:   service.Status{RouterErr: errNotRunning},
@@ -1370,6 +1379,9 @@ func TestStatus(t *testing.T) {
 			case tt.installed && !tt.copyGone:
 				writeBinary(t, s.routerCopy)
 			}
+			if tt.beforeCopy {
+				want.Direct = s.binary
+			}
 
 			st, err := s.svc.Status(t.Context())
 			if err != nil {
@@ -1395,6 +1407,20 @@ func TestStatusOfAServiceUnplacedSaysNoCopyMissing(t *testing.T) {
 
 	if st, err := s.svc.Unplaced().Status(t.Context()); err != nil || st.MissingCopy != "" {
 		t.Errorf("Status() = %+v, %v; want no copy missing: without its plist read back, where it keeps its copy is unknown", st, err)
+	}
+}
+
+func TestStatusOfAPlistRunningACopyElsewhereSaysItNeitherMissingNorDirect(t *testing.T) {
+	s := newSetup(t, nil, func(int) (router.Health, error) { return router.Health{}, errNotRunning })
+	plist, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Made where another XDG_DATA_HOME put it, with --from.
+	s.putPlist(t, runningCopyAt(string(plist), writeBinary(t, filepath.Join(s.root, "data", "switchboard", "router", "switchboard"))))
+
+	if st, err := s.svc.Status(t.Context()); err != nil || st.MissingCopy != "" || st.Direct != "" {
+		t.Errorf("Status() = %+v, %v; want neither a copy missing nor the binary run directly: it runs a copy, with --from", st, err)
 	}
 }
 

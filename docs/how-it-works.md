@@ -319,6 +319,14 @@ can. An upgrade made while launchd started the router again is found as it start
 its first quiet moment. Where it can't copy the new version in, as on a full disk, the router says
 so once in its log, carries on as it is, and copies it again at its next quiet moment.
 
+A service installed before the router had its own copy moves over to it by itself. After the
+upgrade that brings the copy, the router restarts into the new version as ever, then, as it
+starts, makes the copy, writes the LaunchAgent afresh to run it, keeping every variable it sets,
+and restarts into the copy in place, so a request made meanwhile still waits rather than being
+refused. Where it can't, as when it can't write the LaunchAgent, it says why once in its log,
+carries on as it is, and `switchboard service status` says to run `switchboard service install`
+(see [Restarting in place](commands.md#restarting-in-place)).
+
 Before it restarts, the router asks the binary it's about to become whether it can start from your
 config, as a newer version's rules can be stricter than the running one's, such as the 100-character
 limit on labels. If the new version refuses, the router carries on as it is, and says why once: in

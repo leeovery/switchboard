@@ -34,6 +34,12 @@ func (s *Service) Options(ctx context.Context) (InstallOptions, error) {
 	if err != nil {
 		return InstallOptions{}, err
 	}
+	return s.optionsIn(installed)
+}
+
+// optionsIn reads back the options installed, the plist in place's entries,
+// holds, as Options says.
+func (s *Service) optionsIn(installed []entry) (InstallOptions, error) {
 	program, _ := lookup(installed, "ProgramArguments")
 	opts := optionsOf(program.strings())
 	if opts.Executable == "" {
@@ -100,7 +106,14 @@ func (s *Service) readPlist(ctx context.Context) ([]entry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read the service's plist: %w", err)
 	}
+	return s.entriesOf(ctx, data)
+}
+
+// entriesOf is the top dictionary's entries of data, the plist in place as
+// it was read: one that isn't XML through plutil.
+func (s *Service) entriesOf(ctx context.Context, data []byte) ([]entry, error) {
 	if !isXML(data) {
+		var err error
 		// Not wrapped: plutil not there is no plist not there.
 		if data, err = s.asXML(ctx); err != nil {
 			return nil, fmt.Errorf("read the service's plist, %s, through plutil: %v", s.Plist(), err)

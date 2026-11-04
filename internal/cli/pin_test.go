@@ -467,6 +467,22 @@ func (s *serveSetup) route(t *testing.T, session, model string) {
 // does, or as one launched without a pin does when pin is "".
 func (s *serveSetup) routePinned(t *testing.T, session, model, pin string) {
 	t.Helper()
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(s.messages(t, session, model, pin))
+	if err != nil {
+		t.Fatalf("POST /v1/messages through the router: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /v1/messages through the router answered %d (%v), want 200", resp.StatusCode, err)
+	}
+}
+
+// messages is a messages request of the session given, for model, to the
+// router on work's token, as Claude Code launched pinned to pin sends it, or
+// as one launched without a pin does when pin is "".
+func (s *serveSetup) messages(t *testing.T, session, model, pin string) *http.Request {
+	t.Helper()
 	body := `{"model":"` + model + `","max_tokens":1,"messages":[{"role":"user","content":"hello"}]}`
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+s.listen+"/v1/messages", strings.NewReader(body))
 	if err != nil {
@@ -481,13 +497,5 @@ func (s *serveSetup) routePinned(t *testing.T, session, model, pin string) {
 	if pin != "" {
 		req.Header.Set(router.PinHeader, pin)
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("POST /v1/messages through the router: %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if _, err := io.Copy(io.Discard, resp.Body); err != nil || resp.StatusCode != http.StatusOK {
-		t.Fatalf("POST /v1/messages through the router answered %d (%v), want 200", resp.StatusCode, err)
-	}
+	return req
 }

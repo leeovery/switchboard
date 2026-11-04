@@ -34,7 +34,7 @@ directly, agents included. Each format is described field by field.
 | switchboard's files for the shells | `init.zsh`, `init.bash`, `completion.bash` and `init.fish` in `$XDG_DATA_HOME/switchboard/shell/`, else `~/.local/share/switchboard/shell/` |
 | switchboard's line | The last line `setup` adds to your shell's startup file, marked `# switchboard`, where the shell says it reads it: for zsh, `.zshrc` in `$ZDOTDIR` as zsh reports it, else `~/.zshrc`; for bash, the first there of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, the one a login bash reads, as macOS terminals start one, else `~/.bash_profile`; or for fish, `config.fish` in `$__fish_config_dir`, as fish reports it, by default `~/.config/fish` |
 | The LaunchAgent | `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist` |
-| The router's copy | The switchboard the LaunchAgent runs, which `service install` makes: `$XDG_DATA_HOME/switchboard/router/switchboard`, else `~/.local/share/switchboard/router/switchboard` |
+| The router's copy | The switchboard the LaunchAgent runs, which `service install` makes, or the router as it moves over to it from a LaunchAgent written before the copy: `$XDG_DATA_HOME/switchboard/router/switchboard`, else `~/.local/share/switchboard/router/switchboard` |
 | The skill | `skills/switchboard/SKILL.md` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |
 | The session hook | An entry under `hooks.SessionStart` in `settings.json` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |
 

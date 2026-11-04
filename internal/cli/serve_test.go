@@ -1187,9 +1187,10 @@ type replacement struct {
 
 // replaceable has serve run as argv, and replace itself, as the router it
 // runs restarts, with a serve the test runs as exec would run it, once the
-// serve it replaces has gone: in place, with the command line and the
-// environment exec is given, but by a clock a minute on, so it's told from
-// the serve it replaced. The replacement is sent once it runs.
+// serve it replaces has gone: in place, as the binary at the path exec is
+// given, with the command line and the environment it's given, but by a
+// clock a minute on, so it's told from the serve it replaced. The
+// replacement is sent once it runs.
 func (s *serveSetup) replaceable(t *testing.T, argv ...string) <-chan replacement {
 	t.Helper()
 	made := make(chan replacement, 1)
@@ -1199,6 +1200,7 @@ func (s *serveSetup) replaceable(t *testing.T, argv ...string) <-chan replacemen
 		vars := environMap(env)
 		next.Getenv = func(key string) string { return vars[key] }
 		next.Environ = func() []string { return env }
+		next.Executable = func() (string, error) { return path, nil }
 		next.Args = argv
 		next.Now = func() time.Time { return testNow.Add(time.Minute) }
 		next.Exec = func(string, []string, []string) error { return errors.New("no test starts a program") }

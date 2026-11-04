@@ -360,6 +360,17 @@ func TestServiceStatusSaysTheRoutersCopyIsMissing(t *testing.T) {
 	}
 }
 
+func TestServiceStatusSaysTheLaunchAgentRunsSwitchboardItself(t *testing.T) {
+	s := newServiceSetup(t)
+	s.putPlistBeforeTheCopy(t, s.binary)
+
+	got := run(t, s.srv.deps, "service", "status")
+	want := "copy         not run: the LaunchAgent runs " + s.binary + " itself, as written before the router's copy: run switchboard service install\n"
+	if got.code != 0 || !strings.Contains(got.stdout, "LaunchAgent  "+s.plist+"\n"+want) {
+		t.Errorf("switchboard service status = %+v, want the copy said not run, after the LaunchAgent:\n%s", got, want)
+	}
+}
+
 func TestServiceStatusOfARouterNotRunning(t *testing.T) {
 	for _, state := range routerStates {
 		t.Run(state.name, func(t *testing.T) {

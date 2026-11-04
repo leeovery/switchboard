@@ -256,8 +256,9 @@ func (a *app) restartService(ctx context.Context, out, errOut io.Writer) error {
 	return started(out, svc, h)
 }
 
-// serviceStatus prints whether the LaunchAgent is installed and loaded, and
-// how the router answers.
+// serviceStatus prints whether the LaunchAgent is installed and loaded,
+// whether the router's copy it runs is missing or not run at all, and how
+// the router answers.
 func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
 	svc, err := a.installedService(ctx, errOut)
 	if err != nil {
@@ -291,8 +292,11 @@ func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
 		answer = "not answering: " + st.RouterErr.Error()
 	}
 	rows := [][]string{{"LaunchAgent", installed}}
-	if st.MissingCopy != "" {
+	switch {
+	case st.MissingCopy != "":
 		rows = append(rows, []string{"copy", "missing, " + st.MissingCopy + ", so launchd can't run the router: run switchboard service install"})
+	case st.Direct != "":
+		rows = append(rows, []string{"copy", "not run: the LaunchAgent runs " + st.Direct + " itself, as written before the router's copy: run switchboard service install"})
 	}
 	return writeTable(out, append(rows, []string{"launchd", loaded}, []string{"router", answer}))
 }

@@ -256,7 +256,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if err := context.Cause(ctx); err != nil {
 		return Installed{}, err
 	}
-	if err := a.placeCopy(); err != nil {
+	if err := a.placeCopy(a.from); err != nil {
 		return Installed{}, err
 	}
 	before, i, _ := s.answering(ctx)
@@ -293,21 +293,20 @@ func (s *Service) describe(opts InstallOptions) (agent, error) {
 	return s.agent(opts)
 }
 
-// placeCopy makes the agent's copy of the binary it runs from, having
-// removed what copies cut short left beside it, but leaves a copy that
-// matches the binary as it is: the router running it watches its file, and
-// would restart in place for a new one, racing the swap. Replacing it is
-// safe under that router all the same, as a rename leaves it the file it was
-// started from.
-func (a agent) placeCopy() error {
+// placeCopy makes the agent's copy of binary, having removed what copies cut
+// short left beside it, but leaves a copy that matches binary as it is: the
+// router running it watches its file, and would restart in place for a new
+// one, racing the swap. Replacing it is safe under that router all the same,
+// as a rename leaves it the file it was started from.
+func (a agent) placeCopy(binary string) error {
 	if err := a.own.RemoveLeftovers(); err != nil {
 		return err
 	}
-	matches, err := a.own.Matches(a.from)
+	matches, err := a.own.Matches(binary)
 	if err != nil || matches {
 		return err
 	}
-	return a.own.Make(a.from)
+	return a.own.Make(binary)
 }
 
 // tokenless reports whether the router looks set to start with none of the
@@ -466,14 +465,18 @@ type Status struct {
 	// plist in place runs it and it's missing, so launchd can't run the
 	// router: "" otherwise.
 	MissingCopy string
+	// Direct is the switchboard the plist in place runs itself, as one
+	// written before the router's copy does, with no --from: "" otherwise.
+	Direct string
 }
 
 // Status reports whether the service is installed, whether launchd has
-// loaded it, whether the router's copy is missing, and how the router
-// answers.
+// loaded it, whether the router's copy is missing or not run at all, and how
+// the router answers.
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	_, err := os.Stat(s.Plist())
-	st := Status{Installed: err == nil, MissingCopy: s.missingCopy(ctx)}
+	st := Status{Installed: err == nil}
+	st.MissingCopy, st.Direct = s.runsCopy(ctx)
 	j, err := s.job(ctx)
 	if err != nil {
 		return Status{}, err
@@ -487,25 +490,35 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	return st, nil
 }
 
-// missingCopy is where the router's copy of switchboard is, where the plist
-// in place runs it and it's missing: "" otherwise, as for a plist written
-// before the copy, which runs the binary itself, or one that can't be read
-// back, or a service seen without it.
-func (s *Service) missingCopy(ctx context.Context) string {
+// runsCopy says how the plist in place runs the router's copy of
+// switchboard: where it runs the copy and that's missing, the copy's path,
+// as missing; where it runs another program, with no --from, as a plist
+// written before the copy runs the binary itself, that program, as direct.
+// Neither is said of a plist that can't be read back, nor of a service seen
+// without it.
+func (s *Service) runsCopy(ctx context.Context) (missing, direct string) {
 	if s.unplaced {
-		return ""
+		return "", ""
 	}
 	installed, err := s.readPlist(ctx)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	program, _ := lookup(installed, "ProgramArguments")
 	args := program.strings()
 	own, err := s.routerCopy()
-	if err != nil || len(args) == 0 || args[0] != own.Path() || !own.Missing() {
-		return ""
+	if err != nil || len(args) == 0 {
+		return "", ""
 	}
-	return own.Path()
+	_, flags, _ := arguments(args)
+	_, from := lookup(flags, fromFlag)
+	switch {
+	case args[0] == own.Path() && own.Missing():
+		return own.Path(), ""
+	case args[0] != own.Path() && !from:
+		return "", args[0]
+	}
+	return "", ""
 }
 
 // Answered fails, saying where to find out why, when the router launchd
@@ -588,9 +601,8 @@ func absolute(path string) (string, error) {
 	return filepath.Abs(path)
 }
 
-// write writes the agent's plist whole, where any link in its place leads,
-// readable by all as launchd's are, and has logs make the directory launchd
-// writes its log in, which launchd leaves to it.
+// write writes the agent's plist, as writePlist does, and has logs make the
+// directory launchd writes its log in, which launchd leaves to it.
 func (s *Service) write(a agent) error {
 	data, err := a.plist()
 	if err != nil {
@@ -599,12 +611,18 @@ func (s *Service) write(a agent) error {
 	if err := os.MkdirAll(filepath.Dir(s.Plist()), 0o755); err != nil {
 		return fmt.Errorf("create the LaunchAgents directory: %w", err)
 	}
+	if err := logs.MakeDir(filepath.Dir(a.Log)); err != nil {
+		return err
+	}
+	return s.writePlist(data)
+}
+
+// writePlist writes data as the service's plist, whole, where any link in
+// its place leads, readable by all as launchd's are.
+func (s *Service) writePlist(data []byte) error {
 	target, err := atomicfile.Target(s.Plist())
 	if err != nil {
 		return fmt.Errorf("find where the service's plist goes: %w", err)
-	}
-	if err := logs.MakeDir(filepath.Dir(a.Log)); err != nil {
-		return err
 	}
 	if err := atomicfile.Write(target, data, 0o644); err != nil {
 		return fmt.Errorf("write the service's plist: %w", err)

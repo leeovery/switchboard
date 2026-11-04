@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -38,7 +39,9 @@ It takes up a change to a token file as it comes. Run by the service, it
 restarts itself once its config file makes another valid config, an
 upgrade replaces it, or the Mac's time zone changes, replacing itself with
 its binary in place and handing its listeners over, so no request is
-refused; run by hand, it logs that a restart is due.
+refused; run by hand, it logs that a restart is due. Run by a service
+installed before the router had a copy of switchboard of its own, it moves
+over to the copy as it starts, writing the service afresh to run it.
 
 It logs to the router's log, and to the terminal when it runs in one.
 --log-level overrides SWITCHBOARD_LOG_LEVEL.`,
@@ -78,7 +81,9 @@ It logs to the router's log, and to the terminal when it runs in one.
 // completions, up to date. It finds its config file, its binary, the binary
 // it upgrades from, where --from names one, and the time zone's file as they
 // stand before it reads the config, which the router compares them with
-// while it runs, so a change made as it starts calls for a restart too.
+// while it runs, so a change made as it starts calls for a restart too. Run
+// by launchd without --from, once the config is read, it moves over to the
+// router's own copy, as moveOver does.
 func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 	path, err := a.configFile()
 	if err != nil {
@@ -94,6 +99,9 @@ func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	if cfg.Supervised && a.from == "" && a.moveOver(ctx, exe) {
+		return nil
+	}
 	cfg.ConfigFile, cfg.Binary, cfg.From, cfg.Zone = configFile, binary, from, zone
 	tighten(files)
 	a.refreshSkill()
@@ -101,6 +109,52 @@ func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return router.Run(ctx, cfg)
+}
+
+// moveOver moves the router over to its own copy of switchboard, as a
+// router launchd started from a plist written before the copy does, before
+// it listens: the service makes the copy of exe, this binary, and writes its
+// plist afresh to run it, and this process is replaced with the copy, run as
+// it was started, the copy in place of the program, as launchd runs it, with
+// --from naming exe, in the environment it was started in. The listeners a
+// router this one replaced handed over pass on untouched, as their
+// descriptors are left open, and are taken up only by the router it becomes,
+// so a connection made meanwhile waits to be accepted. It reports whether it
+// replaced itself, which a real exec never returns from; where it couldn't,
+// it says why once, at warn, the plist as it was, and the router carries on
+// from exe.
+func (a *app) moveOver(ctx context.Context, exe string) bool {
+	if err := a.movingOver(ctx, exe); err != nil {
+		logger.Warn("can't move over to the router's own copy of switchboard; carrying on from the binary it was started as", "binary", exe, "error", err)
+		return false
+	}
+	return true
+}
+
+// movingOver is moveOver, failing where it can't.
+func (a *app) movingOver(ctx context.Context, exe string) error {
+	if exe == "" {
+		return errors.New("this switchboard binary can't be found")
+	}
+	cfg, err := a.serviceConfig()
+	if err != nil {
+		return err
+	}
+	svc, err := service.New(cfg)
+	if err != nil {
+		return err
+	}
+	return svc.MoveOver(ctx, exe, func(own routercopy.Copy) error {
+		logger.Info("moving over to the router's own copy of switchboard", "copy", own.Path(), "from", exe, "listeners", a.Getenv(handover.Variable))
+		return a.Exec(own.Path(), asCopy(a.Args, own.Path(), exe), a.Environ())
+	})
+}
+
+// asCopy is the command line argv, as os.Args gives it, run as the router's
+// copy at own: own in place of the program, as launchd runs it, and --from
+// naming from added.
+func asCopy(argv []string, own, from string) []string {
+	return slices.Concat([]string{own}, argv[min(1, len(argv)):], []string{"--" + routercopy.FromFlag, from})
 }
 
 // check checks what serve would start the router from, as a router about to

@@ -100,6 +100,13 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   still due (`restart due (upgraded)`), and says why once at warn in its log. It copies the
   upgrade again at each moment with no request in flight, so once there's room it takes the
   upgrade up by itself; `switchboard service restart` meanwhile fails, saying why.
+- **`service status` says the router's copy is not run:** the LaunchAgent was written before the
+  router had its own copy of switchboard, and runs switchboard itself, so macOS asks again what
+  you allow the router after each upgrade. The router moves over to its copy by itself as it
+  starts, and where it can't, as when it can't write the LaunchAgent, its log says why at warn
+  (`can't move over to the router's own copy of switchboard`). Run
+  `switchboard service install` to write the LaunchAgent afresh. See
+  [Restarting in place](commands.md#restarting-in-place).
 - **`claude` won't start, the router down:** with the router not running, not answering, or not
   saying where it listens, `claude` starts nothing and says so. An unhealthy router doesn't stop it:
   `claude` goes through it, saying so. Run [`switchboard service status`](commands.md#service) to

@@ -707,7 +707,11 @@ switchboard accounts remove side
 it gives a job that doesn't say what kind it is, as every Claude Code request waits on it. `setup`
 installs it. launchd reads the LaunchAgent only as it loads it, so one an older switchboard wrote
 keeps what it said through upgrades and restarts in place: `service install` writes it afresh, and
-restarts the router to load it.
+restarts the router to load it. One written before the router had its own copy is the exception:
+its router moves over to the copy by itself as it starts, after the upgrade that brings the copy,
+writing the LaunchAgent afresh to run it, and launchd runs the copy from the next login on (see
+[Restarting in place](#restarting-in-place)). Where it can't, `service status` says so, and names
+`service install`.
 
 ```bash
 switchboard service install [--log-level <level>]
@@ -785,8 +789,9 @@ put the config right as it says.
 - **`uninstall`** stops the router, once it has finished its requests in flight, and removes the
   LaunchAgent and the router's copy of switchboard.
 - **`status`** shows whether the LaunchAgent is installed and loaded, whether the router's copy of
-  switchboard it runs is missing, so launchd can't run the router, naming `service install`,
-  whether launchd runs a router, and its pid where `launchctl print` names one, or that its state
+  switchboard it runs is missing, so launchd can't run the router, or not run at all, as the
+  LaunchAgent was written before the copy and runs switchboard itself, naming `service install`
+  for either, whether launchd runs a router, and its pid where `launchctl print` names one, or that its state
   is unread where it says neither, and the health of the router where the LaunchAgent keeps its state, else of the one
   where your shell does, saying so. Where it can't read the LaunchAgent's plist back, or work out
   from it where the router keeps its state, `status` and `restart` say so, and look for the router
@@ -1466,6 +1471,20 @@ Some cases go differently:
 - **Told to stop** while it finishes its requests to restart, the router stops then and there.
 - **Run by hand,** the router logs, once, that a restart is due, and `switchboard status` says to
   run `serve` again.
+
+A router launchd starts from a LaunchAgent written before the router had its own copy, with no
+`--from`, moves over to the copy as it starts, once it has read the config and before it listens.
+It makes the copy of the binary it was started as, following its links, writes the LaunchAgent
+afresh to run the copy, as `service install` writes it, keeping its `--config`, its `--log-level`
+and every variable it sets, and replaces itself in place with the copy, run as it was started with
+`--from` naming that binary. The sockets a router before it handed over pass on to the copy
+untouched, so after the upgrade that brings the copy, a request made meanwhile waits rather than
+being refused. launchd isn't asked anything: it reads the LaunchAgent only as it loads it, so it
+runs the copy from the next login on. Where the router can't move over, as when it can't write the
+LaunchAgent or make the copy, it says why once at warn, leaves the LaunchAgent as it was, and
+carries on from the binary it was started as, and `service status` names `service install`. It
+tries again each time it starts without `--from`, as at the next upgrade or login. A router run by
+hand, or started with `--from`, never moves over.
 
 ## Help and version
 
