@@ -69,6 +69,12 @@ func (h *history) run(ctx context.Context) {
 	h.writer.Run(ctx)
 }
 
+// roundNow has the history's writer make its round at once, as
+// readings.Writer's RoundNow does. The history must be open.
+func (h *history) roundNow(ctx context.Context) error {
+	return h.writer.RoundNow(ctx)
+}
+
 // importDay takes in the day of readings with the given date staged at
 // staged, as readings.Writer's Import does. The history must be open.
 func (h *history) importDay(ctx context.Context, date, staged string) (dayfile.Imported, error) {

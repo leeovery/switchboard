@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -70,6 +71,7 @@ type Config struct {
 	Notifications Notifications
 	History       History
 	Ledger        Ledger
+	Export        Export
 	Usage         Usage
 	// Prices are the config's prices in place of those switchboard carries.
 	Prices Prices
@@ -193,6 +195,43 @@ type Ledger struct {
 	Keep time.Duration
 }
 
+// Export says where the router exports the history on a schedule.
+type Export struct {
+	// Dir is the folder the router exports into, as the config gives it: an
+	// absolute path, or one starting ~/, the home directory's; "" where the
+	// config gives none, and the router exports nothing.
+	Dir string
+}
+
+// homePrefix begins a path the config gives in the home directory.
+const homePrefix = "~/"
+
+// On reports whether the config turns the export on, by giving it a folder.
+func (e Export) On() bool {
+	return e.Dir != ""
+}
+
+// Folder returns the folder Dir names, cleaned, a ~/ at its start the home
+// directory homeDir returns: "" where it names none. It fails where the home
+// directory can't be found.
+func (e Export) Folder(homeDir func() (string, error)) (string, error) {
+	rest, inHome := strings.CutPrefix(e.Dir, homePrefix)
+	switch {
+	case e.Dir == "":
+		return "", nil
+	case !inHome:
+		return filepath.Clean(e.Dir), nil
+	}
+	home, err := homeDir()
+	if err == nil && !filepath.IsAbs(home) {
+		err = fmt.Errorf("%q isn't an absolute path", home)
+	}
+	if err != nil {
+		return "", fmt.Errorf("find the home directory export.dir is in: %w", err)
+	}
+	return filepath.Join(home, rest), nil
+}
+
 // Usage says how usage and the dashboard lay out the accounts' windows.
 type Usage struct {
 	// By is the layout they open with: the config's, else ByWindow.
@@ -256,6 +295,7 @@ type file struct {
 	Notifications  Notifications `toml:"notifications"`
 	History        fileKeep      `toml:"history"`
 	Ledger         fileKeep      `toml:"ledger"`
+	Export         fileExport    `toml:"export"`
 	Usage          fileUsage     `toml:"usage"`
 	Prices         Prices        `toml:"prices"`
 }
@@ -284,6 +324,12 @@ type filePrime struct {
 type fileKeep struct {
 	// Keep is nil when the table doesn't give one.
 	Keep *string `toml:"keep"`
+}
+
+// fileExport is the [export] table as it's written.
+type fileExport struct {
+	// Dir is nil when the table doesn't give one.
+	Dir *string `toml:"dir"`
 }
 
 // fileUsage is the [usage] table as it's written.
@@ -352,6 +398,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 	day, dayErr := ParseDay(f.Prime.Day)
 	historyKeep, historyErr := parseKeep("history.keep", f.History.Keep, DefaultHistoryKeep)
 	ledgerKeep, ledgerErr := parseKeep("ledger.keep", f.Ledger.Keep, DefaultLedgerKeep)
+	export, exportErr := parseExport(f.Export.Dir)
 	by, byErr := parseUsageBy(f.Usage.By)
 	down, downErr := parseRouterDown(f.WhenRouterDown)
 	err := errors.Join(
@@ -365,6 +412,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		checkWarning(f.Notifications.Warning),
 		historyErr,
 		ledgerErr,
+		exportErr,
 		byErr,
 		checkPrices(f.Prices),
 	)
@@ -381,6 +429,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		Notifications:  f.Notifications,
 		History:        History{Keep: historyKeep},
 		Ledger:         Ledger{Keep: ledgerKeep},
+		Export:         export,
 		Usage:          Usage{By: by},
 		Prices:         f.Prices.renamed(),
 	}, nil

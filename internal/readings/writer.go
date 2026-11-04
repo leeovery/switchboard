@@ -53,6 +53,13 @@ func (w *Writer) Import(ctx context.Context, date, staged string) (dayfile.Impor
 	return w.writer.Import(ctx, date, staged)
 }
 
+// RoundNow makes the writer's round at once, as it makes one every hour,
+// compressing and pruning the history's files where that's due, and returns
+// as dayfile.Writer's RoundNow does.
+func (w *Writer) RoundNow(ctx context.Context) error {
+	return w.writer.RoundNow(ctx)
+}
+
 // lines returns taken as the history's lines, each filed under the local day
 // it was read on. A reading that can't be put as a line, as one of a use that
 // isn't a number, goes unwritten, logged once.

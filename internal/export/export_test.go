@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -420,6 +422,67 @@ func TestTheExportedFilesReadBackAsTheStateDirectorysLines(t *testing.T) {
 	}
 }
 
+func TestTwoExportsAtOnceIntoOneFolderLeaveItWhole(t *testing.T) {
+	state := t.TempDir()
+	for _, k := range kinds {
+		writeFile(t, k.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+		writeFile(t, k.plain(state, day2), []byte(linesOf(`{"n":2}`, `{"n":3}`)), appendedAt)
+	}
+	writeFile(t, summary(state, day1), []byte(`{"date":"`+day1+`"}`+"\n"), summarisedAt)
+
+	// Each time, two exports, as the router's and one run by hand, race
+	// into a folder of their own.
+	for range 10 {
+		dir := t.TempDir()
+		errs := make(chan error, 2)
+		var exporting sync.WaitGroup
+		for range 2 {
+			exporting.Go(func() {
+				_, err := exporter(state).Export(dir)
+				errs <- err
+			})
+		}
+		exporting.Wait()
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("Export() beside another: %v", err)
+			}
+		}
+
+		folder := folderOf(t, state, dir)
+		for _, k := range kinds {
+			for _, date := range []string{day1, day2} {
+				if got, want := linesIn(t, k.files(folder), date), linesIn(t, k.files(state), date); !slices.Equal(got, want) {
+					t.Errorf("of %s, %s's copy reads back as %q, want the state directory's %q", date, k.name, got, want)
+				}
+			}
+		}
+		if got, err := os.ReadFile(summary(folder, day1)); err != nil || string(got) != `{"date":"`+day1+`"}`+"\n" {
+			t.Errorf("the summary's copy reads %q (%v), want the state directory's", got, err)
+		}
+		if _, err := export.ReadManifest(folder); err != nil {
+			t.Errorf("ReadManifest() = %v, want export.json whole", err)
+		}
+		wantNothingHidden(t, folder)
+	}
+}
+
+// wantNothingHidden fails t where the folder at root holds a hidden file, as
+// a write cut short leaves beside where it goes.
+func wantNothingHidden(t *testing.T, root string) {
+	t.Helper()
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err == nil && strings.HasPrefix(d.Name(), ".") {
+			t.Errorf("%s is left in the folder", path)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTheMacsFolderIsMadeTheUsersAlone(t *testing.T) {
 	state, dir := t.TempDir(), filepath.Join(t.TempDir(), "backups")
 	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
@@ -529,5 +592,52 @@ func TestExportingIntoAFolderThatCantBeMadeFails(t *testing.T) {
 	_, err := exporter(state).Export(dir)
 	if err == nil || !strings.Contains(err.Error(), "can't export into "+dir) {
 		t.Errorf("Export() into a folder that can't be made: %v, want it to fail, saying so", err)
+	}
+}
+
+func TestAFolderMissingIsMadeWhereTheFolderItGoesInIsThere(t *testing.T) {
+	for _, noParents := range []bool{false, true} {
+		t.Run(fmt.Sprintf("no parents %v", noParents), func(t *testing.T) {
+			state, dir := t.TempDir(), filepath.Join(t.TempDir(), "backups")
+			writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+			e := exporter(state)
+			e.NoParents = noParents
+
+			r, err := e.Export(dir)
+			if err != nil {
+				t.Fatalf("Export(%s) error = %v", dir, err)
+			}
+			wantResult(t, r, state, dir, 1, 0)
+			if info := look(t, dir); !info.IsDir() || info.Mode().Perm() != 0o700 {
+				t.Errorf("%s is %v, want a folder, 0700", dir, info.Mode())
+			}
+		})
+	}
+}
+
+func TestAFolderWhoseFolderIsntThereIsMadeWithItWithoutNoParents(t *testing.T) {
+	state, dir := t.TempDir(), filepath.Join(t.TempDir(), "unmounted", "backups")
+
+	r := exportInto(t, state, dir)
+
+	wantResult(t, r, state, dir, 0, 0)
+}
+
+func TestAFolderWhoseFolderIsntThereFailsWithNoParentsWritingNothing(t *testing.T) {
+	state, parent := t.TempDir(), filepath.Join(t.TempDir(), "unmounted")
+	dir := filepath.Join(parent, "backups")
+	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	e := exporter(state)
+	e.NoParents = true
+
+	_, err := e.Export(dir)
+	if !errors.Is(err, export.ErrNoFolder) || err.Error() != "can't export into "+dir+": it isn't there, nor the folder it goes in" {
+		t.Errorf("Export() into a folder whose folder isn't there: %v, want it to fail, saying the folder isn't there", err)
+	}
+	if _, err := os.Lstat(parent); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("after the export, %s: %v, want it not there", parent, err)
+	}
+	if _, err := os.Lstat(filepath.Join(state, "install-id")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("after the export, the install's id: %v, want none made", err)
 	}
 }

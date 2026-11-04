@@ -7,6 +7,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -142,6 +143,14 @@ type Config struct {
 	// their states at its end, which the ledger keeps in the day's digest, as
 	// ledger.Digesting says. Nil digests none.
 	Digester ledger.Digester
+	// Export names the folder the router exports the history into while Run
+	// runs, as it starts and hourly after, as export <dir> would: none where
+	// it names no folder. Another the config file comes to name is taken up
+	// from the next export, without waiting for the restart.
+	Export config.Export
+	// HomeDir returns the home directory, which Export's folder can start
+	// in, as ~/. Nil knows of none.
+	HomeDir func() (string, error)
 	// Listen is the proxy's address, and StateDir the directory its control
 	// socket and state file go in: only Run uses them.
 	Listen   string
@@ -219,7 +228,8 @@ type Config struct {
 // the primes and the rounds that read the accounts with no traffic to read
 // them by, the router's own health, what has happened lately, the request stream of
 // what befalls each request as it happens, the request ledger of each once
-// it's done, the control API that reports on it all, the desktop
+// it's done, the exports of its history into the folder the config names,
+// the control API that reports on it all, the desktop
 // notifications of what befalls the accounts, and its upkeep, which keeps it
 // in step with what it was started from.
 type Router struct {
@@ -258,6 +268,8 @@ type Router struct {
 	upkeep   *upkeep
 	// imports take in the history import stages, one import at a time.
 	imports *imports
+	// exports export the history into the folder the config names.
+	exports *exports
 	// notifications is nil when the router posts none.
 	notifications *notifications
 	started       time.Time
@@ -274,6 +286,9 @@ func New(cfg Config) (*Router, error) {
 	cfg.Now = wallClock(cfg.Now)
 	if cfg.Taken == nil {
 		cfg.Taken = unrecorded
+	}
+	if cfg.HomeDir == nil {
+		cfg.HomeDir = noHome
 	}
 	accounts := resolve(cfg.Accounts, cfg.Token, cfg.Taken)
 	upstream, err := url.Parse(cfg.Upstream)
@@ -313,7 +328,7 @@ func New(cfg Config) (*Router, error) {
 		transport.renew()
 		health.wake()
 	}}
-	return &Router{
+	r := &Router{
 		cfg:       cfg,
 		upstream:  upstream,
 		accounts:  accounts,
@@ -350,10 +365,31 @@ func New(cfg Config) (*Router, error) {
 		primer:        primer,
 		rounds:        rounds,
 		inFlight:      inFlight,
-		upkeep:        newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, emit),
 		notifications: notices,
 		started:       cfg.Now().UTC(),
-	}, nil
+	}
+	r.exports = newExports(cfg, r.roundsNow)
+	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, emit)
+	return r, nil
+}
+
+// noHome is the home directory of a router given none: never found.
+func noHome() (string, error) {
+	return "", errors.New("the router was given no home directory")
+}
+
+// roundsNow has the history's writers make their rounds at once, the readings
+// history's, the router's events' and the request ledger's, each compressing
+// and pruning its files where that's due, the ledger summarising the days
+// that have ended too, and returns once they have, failing once ctx has
+// ended or a writer has stopped. The history must be open.
+func (r *Router) roundsNow(ctx context.Context) error {
+	for _, round := range []func(context.Context) error{r.history.roundNow, r.eventFiles.RoundNow, r.ledger.roundNow} {
+		if err := round(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // wallClock reads now without its monotonic reading, which stops while a Mac

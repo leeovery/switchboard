@@ -56,6 +56,9 @@ keep = "30d"
 [ledger]
 keep = "120d"
 
+[export]
+dir = "~/Dropbox/Switchboard"
+
 [usage]
 by = "account"
 
@@ -87,6 +90,7 @@ output = 12.5
 		Notifications: config.Notifications{Room: true, Warning: 0.75, Moves: true},
 		History:       config.History{Keep: 30 * 24 * time.Hour},
 		Ledger:        config.Ledger{Keep: 120 * 24 * time.Hour},
+		Export:        config.Export{Dir: "~/Dropbox/Switchboard"},
 		Usage:         config.Usage{By: config.ByAccount},
 		Prices: config.Prices{
 			Plans: map[string]float64{"max": 90, "pro": 0},
@@ -165,6 +169,9 @@ label = "Personal"
 	}
 	if got.Prime.On() {
 		t.Errorf("Load() primes on %+v, want priming off without a day", got.Prime.Day)
+	}
+	if got.Export.On() {
+		t.Errorf("Load() exports into %q, want the export off without a folder", got.Export.Dir)
 	}
 }
 
@@ -669,6 +676,94 @@ func TestLoadReportsAKeepThatIsntOne(t *testing.T) {
 						t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestLoadReadsTheFolderToExportInto(t *testing.T) {
+	tests := []struct {
+		name, config string
+		want         config.Export
+	}{
+		{name: "an absolute path", config: "[export]\ndir = \"/Volumes/Backup/Switchboard\"\n", want: config.Export{Dir: "/Volumes/Backup/Switchboard"}},
+		{name: "a path in the home directory", config: "[export]\ndir = \"~/Dropbox/Switchboard\"\n", want: config.Export{Dir: "~/Dropbox/Switchboard"}},
+		{name: "the home directory itself", config: "[export]\ndir = \"~/\"\n", want: config.Export{Dir: "~/"}},
+		{name: "none, an [export] without a dir", config: "[export]\n"},
+		{name: "none, without an [export]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config+accountTOML("work"))
+
+			got, err := config.Load(path)
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if got.Export != tt.want || got.Export.On() != (tt.want.Dir != "") {
+				t.Errorf("Load() exports as %+v, on %v; want %+v", got.Export, got.Export.On(), tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadReportsAFolderToExportIntoThatIsntOne(t *testing.T) {
+	tests := []struct {
+		name, given string
+	}{
+		{name: "relative", given: "Dropbox/Switchboard"},
+		{name: "relative to the working directory", given: "./Switchboard"},
+		{name: "the home directory without its slash", given: "~"},
+		{name: "another user's home directory", given: "~work/Switchboard"},
+		{name: "given empty", given: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, "[export]\ndir = \""+tt.given+"\"\n"+accountTOML("work"))
+
+			_, err := config.Load(path)
+			want := []string{fmt.Sprintf("export.dir %q: must be an absolute path, or one starting ~/, the home directory's, such as ~/Dropbox/Switchboard", tt.given)}
+			if got := problems(t, path, err); !slices.Equal(got, want) {
+				t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+			}
+		})
+	}
+}
+
+func TestTheFolderToExportIntoIsFoundInTheHomeDirectory(t *testing.T) {
+	home := func() (string, error) { return "/Users/test", nil }
+	tests := []struct {
+		name, dir, want string
+	}{
+		{name: "an absolute path, as it is", dir: "/Volumes/Backup/Switchboard", want: "/Volumes/Backup/Switchboard"},
+		{name: "an absolute path, cleaned", dir: "/Volumes/Backup/./Switchboard/", want: "/Volumes/Backup/Switchboard"},
+		{name: "a path in the home directory", dir: "~/Dropbox/Switchboard", want: "/Users/test/Dropbox/Switchboard"},
+		{name: "the home directory itself", dir: "~/", want: "/Users/test"},
+		{name: "none", dir: "", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := config.Export{Dir: tt.dir}.Folder(home)
+			if err != nil || got != tt.want {
+				t.Errorf("Folder() = %q, %v; want %q", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestTheFolderToExportIntoCantBeFoundWithoutAHomeDirectory(t *testing.T) {
+	tests := []struct {
+		name    string
+		homeDir func() (string, error)
+	}{
+		{name: "the home directory unknown", homeDir: func() (string, error) { return "", errors.New("$HOME is not defined") }},
+		{name: "a home directory that isn't an absolute path", homeDir: func() (string, error) { return "home", nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := config.Export{Dir: "~/Dropbox/Switchboard"}.Folder(tt.homeDir)
+			if err == nil || !strings.Contains(err.Error(), "find the home directory export.dir is in") {
+				t.Errorf("Folder() = %q, %v; want it to fail, saying it can't find the home directory", got, err)
 			}
 		})
 	}
@@ -1250,6 +1345,7 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		"\n[prime]\nday = \""+tokenShaped+"\"\n"+
 		"\n[history]\nkeep = \""+tokenShaped+"\"\n"+
 		"\n[ledger]\nkeep = \""+tokenShaped+"\"\n"+
+		"\n[export]\ndir = \"/Users/test/"+tokenShaped+"\"\n"+
 		"\n[usage]\nby = \""+tokenShaped+"\"\n"+
 		"\n[prices.plans]\n"+tokenShaped+" = 1\n"+
 		"\n[prices.models."+tokenShaped+"]\ninput = -1\n"+tokenShaped+" = 1\n")
@@ -1266,6 +1362,7 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		`prime.day "[redacted]": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`,
 		`history.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,
 		`ledger.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,
+		`export.dir "/Users/test/[redacted]": holds something shaped like a token, which switchboard never writes: give another folder`,
 		`usage.by "[redacted]": must be window, the accounts compared a window at a time, or account, each account's windows together`,
 		`unknown key "prices.plans.[redacted]"`,
 		`prices.models.[redacted].input "-1": must be a number, 0 or more: the price in US dollars a million tokens`,

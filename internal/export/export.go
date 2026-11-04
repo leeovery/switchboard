@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"time"
@@ -29,11 +30,20 @@ type Exporter struct {
 	StateDir string
 	Now      func() time.Time
 	Logger   *slog.Logger
+	// NoParents, where it's set, makes the folder exported into only while
+	// the folder it goes in is there, so one on a disk that isn't mounted,
+	// as /Volumes/<disk>/…, fails with ErrNoFolder rather than be made on the
+	// Mac's own disk; else it's made with every folder it goes in.
+	NoParents bool
 
 	// looked and wrap, where they're set, are as dayLines has them.
 	looked func(date string)
 	wrap   func(io.Writer) io.Writer
 }
+
+// ErrNoFolder is the error of an export by an Exporter with NoParents into a
+// folder that isn't there, nor the folder it goes in.
+var ErrNoFolder = errors.New("it isn't there, nor the folder it goes in")
 
 // Result is what an export did: the Mac's folder it exported into; how many
 // days, each a date of which the state directory holds a file of any kind,
@@ -67,21 +77,27 @@ func (e DayError) Unwrap() error {
 }
 
 // Export exports the history into the Mac's folder in dir, making each as
-// it's needed, the user's alone: each day's file of lines, as dayLines.export
-// says, and each day's summary, copied as copyFile says; then export.json,
-// saying when. A day's file that can't be read is passed over, and named in
-// the result. It fails where dir is a file, or anything in it can't be made
-// or written, and where the state directory's files can't be listed.
+// it's needed, the user's alone, as NoParents says: each day's file of lines,
+// as dayLines.export says, and each day's summary, copied as copyFile says;
+// then export.json, saying when. A day's file that can't be read is passed
+// over, and named in the result. It fails where dir is a file, or anything in
+// it can't be made or written, and where the state directory's files can't be
+// listed; with NoParents, where dir can't be made, before it writes anything.
 func (e Exporter) Export(dir string) (Result, error) {
 	if info, err := os.Stat(dir); err == nil && !info.IsDir() {
 		return Result{}, fmt.Errorf("can't export into %s: it's a file, not a folder", dir)
+	}
+	if e.NoParents {
+		if err := makeIn(dir); err != nil {
+			return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
+		}
 	}
 	id, err := InstallID(e.StateDir)
 	if err != nil {
 		return Result{}, err
 	}
 	folder := Folder(dir, id)
-	if err := os.MkdirAll(folder, 0o700); err != nil {
+	if err := e.makeFolder(folder); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	x := exporting{written: make(map[string]bool)}
@@ -97,6 +113,30 @@ func (e Exporter) Export(dir string) (Result, error) {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	return x.result(folder), nil
+}
+
+// makeFolder makes the Mac's folder at folder, the user's alone, where it
+// isn't there: with every folder it goes in, but with NoParents, as makeIn
+// makes it.
+func (e Exporter) makeFolder(folder string) error {
+	if e.NoParents {
+		return makeIn(folder)
+	}
+	return os.MkdirAll(folder, 0o700)
+}
+
+// makeIn makes the folder at path, the user's alone, where it isn't there,
+// only while the folder it goes in is, failing with ErrNoFolder where that
+// isn't there either.
+func makeIn(path string) error {
+	err := os.Mkdir(path, 0o700)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return ErrNoFolder
+	case errors.Is(err, fs.ErrExist):
+		return nil
+	}
+	return err
 }
 
 // lines are the files of lines the state directory holds, each beside where

@@ -25,6 +25,7 @@ leaves the rest of the file as it is. There's nothing in it to set. See
 - [`[notifications]` keys](#notifications-keys)
 - [`[history]` keys](#history-keys)
 - [`[ledger]` keys](#ledger-keys)
+- [`[export]` keys](#export-keys)
 - [`[usage]` keys](#usage-keys)
 - [`[prices]` keys](#prices-keys)
 - [Tokens](#tokens)
@@ -66,6 +67,9 @@ keep = "400d"
 
 [ledger]                # optional: this is the default
 keep = "400d"
+
+[export]                # optional: off unless it's set
+dir = "~/Dropbox/Switchboard"   # where the router exports the history, hourly, each Mac into a folder of its own
 
 [usage]                 # optional: this is the default
 by = "window"
@@ -191,6 +195,15 @@ This key sets how long the router keeps the request ledger's lines. See
 - `forever`, which never removes a file.
 
 The day's summary is kept for good, whatever `keep` says.
+
+## `[export]` keys
+
+This key sets a folder the router exports the history into, every hour, as
+[`export`](commands.md#export) would.
+
+| Key | Default | Description |
+|---|---|---|
+| `dir` | None (no export) | The folder to export into: an absolute path, or one starting `~/`, your home folder. Each Mac exports into a folder of its own in it. |
 
 ## `[usage]` keys
 

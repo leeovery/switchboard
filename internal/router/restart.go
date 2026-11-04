@@ -320,6 +320,13 @@ func (r *restarts) configured() config.Accounts {
 	return r.config.accounts
 }
 
+// configuredExport returns the [export] the last valid config the config
+// file has made since the router started gives, which the router takes up
+// from its next export, reporting false while it has made none.
+func (r *restarts) configuredExport() (config.Export, bool) {
+	return r.config.export, r.config.changed
+}
+
 // ready returns what's closed once a supervised router, with a restart due,
 // has no request in flight, or nil while it's not to restart, as while its
 // config file made no valid config at the last look, which the next settles,
@@ -806,9 +813,11 @@ type configFile struct {
 	// as the running version reads it.
 	refusal string
 	// changed is set once the file has made another valid config since the
-	// router started, and accounts are those the last it made configures.
+	// router started, accounts are those the last it made configures, and
+	// export the folder it names to export into.
 	changed  bool
 	accounts config.Accounts
+	export   config.Export
 }
 
 // look looks at the config file again, and reads it once it has changed:
@@ -834,7 +843,7 @@ func (c *configFile) look() {
 		return
 	}
 	c.seen, c.missed = now, false
-	c.valid, c.changed, c.accounts = true, true, cfg.Accounts
+	c.valid, c.changed, c.accounts, c.export = true, true, cfg.Accounts, cfg.Export
 	logger.Info("config changed", "path", c.path)
 }
 

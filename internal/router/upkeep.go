@@ -16,13 +16,15 @@ const watchEvery = 3 * time.Second
 // looking every so often: the accounts' token files, which it takes up in
 // place, and its config file, the binary it upgrades from and the system's
 // time zone, which it restarts to take up, but for the tokens of accounts the
-// config file no longer configures, which count as the primary's at once. It
-// notices the Mac waking from sleep as it looks.
+// config file no longer configures, which count as the primary's at once, and
+// the folder it names to export into, which the exports take up at their
+// next round. It notices the Mac waking from sleep as it looks.
 type upkeep struct {
 	every    time.Duration
 	tokens   *tokenFiles
 	restarts *restarts
 	wakes    *wakes
+	exports  *exports
 }
 
 // newUpkeep returns the upkeep of a router built from cfg, with the accounts
@@ -33,8 +35,8 @@ type upkeep struct {
 // restart as it falls due, restarting once inFlight counts no request in
 // flight, and the binary it restarts into, asked as cfg.Check runs it, an
 // upgrade copied in first where it runs a copy of its own, doesn't refuse to
-// start, and noticing wakes.
-func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, emit func(Event)) *upkeep {
+// start, noticing wakes, and configuring exports as the config file comes to.
+func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, exports *exports, emit func(Event)) *upkeep {
 	replan := func() {}
 	if primer != nil {
 		replan = primer.replan
@@ -58,6 +60,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 		},
 		restarts: restartsFor(cfg, inFlight, emit),
 		wakes:    wakes,
+		exports:  exports,
 	}
 }
 
@@ -73,15 +76,25 @@ func (u *upkeep) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			u.wakes.look()
-			u.tokens.look()
-			u.restarts.look()
-			u.tokens.retire(u.restarts.configured())
+			u.look()
 		case <-u.restarts.ready():
 			if u.restarts.restart(ctx) {
 				return
 			}
 		}
+	}
+}
+
+// look looks at what the router was started from, once, as run does every so
+// often, taking up in place what the config file has come to make of the
+// accounts' tokens and the folder to export into, where it has changed.
+func (u *upkeep) look() {
+	u.wakes.look()
+	u.tokens.look()
+	u.restarts.look()
+	u.tokens.retire(u.restarts.configured())
+	if e, changed := u.restarts.configuredExport(); changed {
+		u.exports.configure(e)
 	}
 }
 

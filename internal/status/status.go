@@ -269,6 +269,20 @@ func (r Restart) Due() bool {
 	return r.Reason != ""
 }
 
+// Export is how the router's export of the history on a schedule stands, as
+// the config's [export] dir sets it, since the router started: zero where the
+// config names no folder.
+type Export struct {
+	// Dir is the folder it exports into, a ~/ the config gives at its start
+	// the home directory.
+	Dir string `json:"dir"`
+	// At is when an export into it last succeeded: zero before one has.
+	At time.Time `json:"at,omitzero"`
+	// Error is why the last export failed, in plain words: "" once one
+	// succeeds.
+	Error string `json:"error,omitempty"`
+}
+
 // Pin sends every new session to the best of Accounts, and with Move, every
 // session that was running on another account when it was set too, on its
 // next request.

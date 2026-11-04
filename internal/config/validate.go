@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -538,6 +539,21 @@ func parseUsageBy(given *string) (Layout, error) {
 		return layout, nil
 	}
 	return ByWindow, wrongValue("usage.by", *given, "must be window, the accounts compared a window at a time, or account, each account's windows together")
+}
+
+// parseExport reads [export] dir: an absolute path, or one starting ~/, the
+// home directory's, holding nothing shaped like a token, which switchboard
+// never writes. None given exports nothing.
+func parseExport(given *string) (Export, error) {
+	switch {
+	case given == nil:
+		return Export{}, nil
+	case redact.HoldsToken(*given):
+		return Export{}, wrongValue("export.dir", *given, "holds something shaped like a token, which switchboard never writes: give another folder")
+	case !filepath.IsAbs(*given) && !strings.HasPrefix(*given, homePrefix):
+		return Export{}, wrongValue("export.dir", *given, "must be an absolute path, or one starting ~/, the home directory's, such as ~/Dropbox/Switchboard")
+	}
+	return Export{Dir: *given}, nil
 }
 
 // parseRouterDown reads when_router_down: stop or direct. None given is

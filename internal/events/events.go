@@ -144,6 +144,13 @@ func (w *Writer) Import(ctx context.Context, date, staged string) (dayfile.Impor
 	return w.writer.Import(ctx, date, staged)
 }
 
+// RoundNow makes the writer's round at once, as it makes one every hour,
+// compressing and pruning the files where that's due, and returns as
+// dayfile.Writer's RoundNow does.
+func (w *Writer) RoundNow(ctx context.Context) error {
+	return w.writer.RoundNow(ctx)
+}
+
 // lines returns line as the files' lines, filed under the local day it's
 // written on: none, should it not be put as JSON, which is logged once.
 func (w *Writer) lines(line Line) dayfile.Lines {
