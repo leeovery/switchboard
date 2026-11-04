@@ -9783,6 +9783,12 @@ any of it. Times are the Mac's, UTC+1.
   background activity under the signer's name, where an ad-hoc signed one was told of by its own
   name. Hence the router's own copy, and signing (see The router looking after itself, and
   Signing).
+- **4 November 2026: a LaunchAgent moving itself over.** A throwaway LaunchAgent, ad-hoc signed,
+  run from a link as Homebrew lays one out, copied itself to a path of its own, wrote its plist
+  afresh to run the copy with `--from` while launchd had it loaded, and `exec`ed the copy: launchd
+  let it, the process keeping its id. Loaded afresh, as at the next login, launchd ran the copy
+  straight away. The system log said nothing of launch constraints or code signing. Hence moving
+  over as Its own copy says.
 
 ## Checks owed
 
@@ -9804,9 +9810,6 @@ What's built but hasn't been seen against the real thing:
   starting it again once it stops at the SIGTERM `launchctl kill` sends.
 - An artifact published from a session the router has moved opening in a browser signed into the
   primary, and whether a conversation request ever refers to an uploaded file by id.
-- The router moving over to its own copy against the real launchd: the plist written afresh
-  while launchd has it loaded, the `exec` into the copy, and the router launchd starts at the next
-  login (see Its own copy).
 - An external disk as `[export] dir`: macOS's permission for removable volumes against the
   router's copy, untested, as the only disk plugged in was a Time Machine disk.
 - `import` from a folder in iCloud Drive whose files haven't been downloaded, with the Mac
