@@ -137,6 +137,27 @@ func TestStageThenCommit(t *testing.T) {
 	f.checkAlone(t)
 }
 
+func TestACommitThatFailsRemovesTheStagedCopy(t *testing.T) {
+	f := newFixture(t)
+	staged, err := f.own.Stage(f.binary(t, "1/switchboard", "version 1\n", modified))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A directory, with something in it, where the copy goes, which no
+	// rename replaces.
+	if err := os.MkdirAll(filepath.Join(f.own.Path(), "kept"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := staged.Commit(); err == nil {
+		t.Fatal("Commit() succeeded, want it to fail to replace a directory")
+	}
+	entries, err := os.ReadDir(filepath.Dir(f.own.Path()))
+	if err != nil || len(entries) != 1 || entries[0].Name() != "switchboard" || !entries[0].IsDir() {
+		t.Errorf("the copy's directory holds %v (%v), want what was there alone, the staged copy removed", entries, err)
+	}
+}
+
 func TestStageThenDiscard(t *testing.T) {
 	f := newFixture(t)
 	if err := f.own.Make(f.binary(t, "1/switchboard", "version 1\n", modified)); err != nil {
@@ -202,6 +223,47 @@ func TestMatches(t *testing.T) {
 				t.Errorf("Matches() = %v, %v; want %v", got, err, tt.want)
 			}
 		})
+	}
+}
+
+func TestMatchesTheBinaryALinkLeadsTo(t *testing.T) {
+	f := newFixture(t)
+	version := f.binary(t, "Cellar/switchboard/1.2.3/bin/switchboard", "version 1.2.3\n", modified)
+	link := filepath.Join(f.root, "opt", "bin", "switchboard")
+	if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(version, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.own.Make(link); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, err := f.own.Matches(link); err != nil || !got {
+		t.Errorf("Matches() of the link = %v, %v; want true, judged by the binary it leads to", got, err)
+	}
+}
+
+func TestMissing(t *testing.T) {
+	f := newFixture(t)
+	if !f.own.Missing() {
+		t.Error("Missing() before the copy is made = false, want true")
+	}
+	if err := f.own.Make(f.binary(t, "1/switchboard", "version 1\n", modified)); err != nil {
+		t.Fatal(err)
+	}
+	if f.own.Missing() {
+		t.Error("Missing() once the copy is made = true, want false")
+	}
+	if err := os.Remove(f.own.Path()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(f.root, "gone"), f.own.Path()); err != nil {
+		t.Fatal(err)
+	}
+	if !f.own.Missing() {
+		t.Error("Missing() of a link that leads nowhere = false, want true")
 	}
 }
 

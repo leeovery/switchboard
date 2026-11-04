@@ -228,6 +228,36 @@ func TestTheServiceStepInstallsTheServiceToRunThisSwitchboard(t *testing.T) {
 	}
 }
 
+func TestTheServiceStepReinstallsWhereTheRoutersCopyIsMissing(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	if err := os.RemoveAll(filepath.Dir(w.routerCopy)); err != nil {
+		t.Fatal(err)
+	}
+
+	const why = "the router's copy of switchboard it runs, ~/.local/share/switchboard/router/switchboard, was missing\n"
+	if told := w.service(t); !strings.Contains(told, installedRow+updatedRow+why) {
+		t.Errorf("the service step said\n%s\nwant the service installed afresh, saying\n%s", told, updatedRow+why)
+	}
+	if _, err := os.Stat(w.routerCopy); err != nil {
+		t.Errorf("the router's copy: %v, want it made again", err)
+	}
+}
+
+func TestTheServiceStepLeavesARoutersCopyOtherThanThisSwitchboard(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	// As from an upgrade the router hasn't copied in yet.
+	writeFile(t, w.routerCopy, "#!/bin/sh\n# the version before\n", 0o755)
+
+	if told := w.service(t); strings.Contains(told, updatedRow) {
+		t.Errorf("the service step said\n%s\nwant the service left as it is: the router copies an upgrade in itself", told)
+	}
+	if data, err := os.ReadFile(w.routerCopy); err != nil || string(data) != "#!/bin/sh\n# the version before\n" {
+		t.Errorf("the router's copy holds %q (%v), want it left as it was", data, err)
+	}
+}
+
 // processType is the ProcessType key, with its value, as install writes it.
 const processType = "\t<key>ProcessType</key>\n\t<string>Interactive</string>\n"
 

@@ -407,7 +407,7 @@ The steps are:
    switchboard than the one `setup` runs as, when `setup` is given another config file than the one
    the router serves, or when its plist differs from the one `switchboard service install` would
    write with what it was installed with, as after an upgrade that adds a key, and says what
-   differed. Installing it again keeps the `--log-level`, `--config` and environment it was
+   differed, or when the router's copy of switchboard it runs is missing. Installing it again keeps the `--log-level`, `--config` and environment it was
    installed with, every variable in it, a `HOME` too, as the environment decides where the router
    keeps its state, tokens included. A `--config` given to `setup` takes the place of the kept one
    only where it names another file than the one the router serves. Before it touches a running
@@ -783,9 +783,10 @@ put the config right as it says.
 
 - **`uninstall`** stops the router, once it has finished its requests in flight, and removes the
   LaunchAgent and the router's copy of switchboard.
-- **`status`** shows whether the LaunchAgent is installed and loaded, whether launchd runs a
-  router, and its pid where `launchctl print` names one, or that its state is unread where it says
-  neither, and the health of the router where the LaunchAgent keeps its state, else of the one
+- **`status`** shows whether the LaunchAgent is installed and loaded, whether the router's copy of
+  switchboard it runs is missing, so launchd can't run the router, naming `service install`,
+  whether launchd runs a router, and its pid where `launchctl print` names one, or that its state
+  is unread where it says neither, and the health of the router where the LaunchAgent keeps its state, else of the one
   where your shell does, saying so. Where it can't read the LaunchAgent's plist back, or work out
   from it where the router keeps its state, `status` and `restart` say so, and look for the router
   where your shell keeps its state. Where only the one at your shell's answers, or there's no

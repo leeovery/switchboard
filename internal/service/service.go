@@ -256,9 +256,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if err := context.Cause(ctx); err != nil {
 		return Installed{}, err
 	}
-	// Safe under a router running the copy: a rename leaves it the file it
-	// was started from.
-	if err := a.own.Make(a.from); err != nil {
+	if err := a.placeCopy(); err != nil {
 		return Installed{}, err
 	}
 	before, i, _ := s.answering(ctx)
@@ -293,6 +291,23 @@ func (s *Service) describe(opts InstallOptions) (agent, error) {
 	}
 	opts.Executable = binary
 	return s.agent(opts)
+}
+
+// placeCopy makes the agent's copy of the binary it runs from, having
+// removed what copies cut short left beside it, but leaves a copy that
+// matches the binary as it is: the router running it watches its file, and
+// would restart in place for a new one, racing the swap. Replacing it is
+// safe under that router all the same, as a rename leaves it the file it was
+// started from.
+func (a agent) placeCopy() error {
+	if err := a.own.RemoveLeftovers(); err != nil {
+		return err
+	}
+	matches, err := a.own.Matches(a.from)
+	if err != nil || matches {
+		return err
+	}
+	return a.own.Make(a.from)
 }
 
 // tokenless reports whether the router looks set to start with none of the
@@ -447,13 +462,18 @@ type Status struct {
 	Router    *router.Health
 	RouterErr error
 	Elsewhere bool
+	// MissingCopy is where the router's copy of switchboard is, where the
+	// plist in place runs it and it's missing, so launchd can't run the
+	// router: "" otherwise.
+	MissingCopy string
 }
 
 // Status reports whether the service is installed, whether launchd has
-// loaded it, and how the router answers.
+// loaded it, whether the router's copy is missing, and how the router
+// answers.
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	_, err := os.Stat(s.Plist())
-	st := Status{Installed: err == nil}
+	st := Status{Installed: err == nil, MissingCopy: s.missingCopy(ctx)}
 	j, err := s.job(ctx)
 	if err != nil {
 		return Status{}, err
@@ -465,6 +485,27 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		st.RouterErr = err
 	}
 	return st, nil
+}
+
+// missingCopy is where the router's copy of switchboard is, where the plist
+// in place runs it and it's missing: "" otherwise, as for a plist written
+// before the copy, which runs the binary itself, or one that can't be read
+// back, or a service seen without it.
+func (s *Service) missingCopy(ctx context.Context) string {
+	if s.unplaced {
+		return ""
+	}
+	installed, err := s.readPlist(ctx)
+	if err != nil {
+		return ""
+	}
+	program, _ := lookup(installed, "ProgramArguments")
+	args := program.strings()
+	own, err := s.routerCopy()
+	if err != nil || len(args) == 0 || args[0] != own.Path() || !own.Missing() {
+		return ""
+	}
+	return own.Path()
 }
 
 // Answered fails, saying where to find out why, when the router launchd

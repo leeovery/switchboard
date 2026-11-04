@@ -461,8 +461,11 @@ func (r *run) apart(svc *service.Service, opts service.InstallOptions) (bool, er
 // stale says why the service, installed with opts, and seen as svc, is to
 // be installed afresh, and whether it is: when it runs another switchboard
 // than this one, setup is given another config file than the router serves,
-// as given says, or its plist differs from the one this switchboard writes;
-// or, saying nothing, "", when launchd hasn't loaded it.
+// as given says, its plist differs from the one this switchboard writes, or
+// the router's copy it runs is missing; or, saying nothing, "", when launchd
+// hasn't loaded it. A copy that differs from this switchboard isn't stale:
+// it does so from an upgrade until the router copies it in, and while the
+// upgrade is held.
 func (r *run) stale(ctx context.Context, svc *service.Service, opts service.InstallOptions, given bool, st service.Status) (string, bool, error) {
 	if opts.Executable != r.switchboard {
 		return fmt.Sprintf("it ran %s, not this switchboard, %s", opts.Executable, r.switchboard), true, nil
@@ -476,6 +479,8 @@ func (r *run) stale(ctx context.Context, svc *service.Service, opts service.Inst
 		return "", false, err
 	case len(drift) > 0:
 		return PlistHad(drift), true, nil
+	case st.MissingCopy != "":
+		return "the router's copy of switchboard it runs, " + r.fromHome(st.MissingCopy) + ", was missing", true, nil
 	}
 	return "", !st.Loaded, nil
 }

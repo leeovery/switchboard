@@ -344,6 +344,22 @@ func TestServiceStatus(t *testing.T) {
 	}
 }
 
+func TestServiceStatusSaysTheRoutersCopyIsMissing(t *testing.T) {
+	s := newServiceSetup(t)
+	if got := run(t, s.srv.deps, "service", "install"); got.code != 0 {
+		t.Fatalf("switchboard service install = %+v, want exit status 0", got)
+	}
+	if err := os.RemoveAll(filepath.Dir(s.routerCopy)); err != nil {
+		t.Fatal(err)
+	}
+
+	got := run(t, s.srv.deps, "service", "status")
+	want := "copy         missing, " + s.routerCopy + ", so launchd can't run the router: run switchboard service install\n"
+	if got.code != 0 || !strings.Contains(got.stdout, "LaunchAgent  "+s.plist+"\n"+want) {
+		t.Errorf("switchboard service status = %+v, want the copy said missing, after the LaunchAgent:\n%s", got, want)
+	}
+}
+
 func TestServiceStatusOfARouterNotRunning(t *testing.T) {
 	for _, state := range routerStates {
 		t.Run(state.name, func(t *testing.T) {

@@ -88,6 +88,67 @@ func TestInstallRunsTheRoutersCopyFromTheBinaryAsItWasRun(t *testing.T) {
 	}
 }
 
+func TestInstallReplacesTheRoutersCopyOnlyWithAnotherBinary(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes the binary at path once it's installed, nil leaving
+		// it as it is.
+		change  func(t *testing.T, path string)
+		replace bool
+	}{
+		{name: "the same binary"},
+		{
+			name: "another binary",
+			change: func(t *testing.T, path string) {
+				if err := os.WriteFile(path, []byte("#!/bin/sh\n# another version\n"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			},
+			replace: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, upOnceStarted(4242))
+			if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.Stat(s.routerCopy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.change != nil {
+				tt.change(t, s.binary)
+			}
+			s.router.answer, s.router.asked = upOnceStarted(4243), 0
+
+			if installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil || installed.Router == nil {
+				t.Fatalf("Install() again = %+v, %v; want the router answering", installed, err)
+			}
+			after, err := os.Stat(s.routerCopy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if replaced := !os.SameFile(before, after); replaced != tt.replace {
+				t.Errorf("the router's copy replaced by another file: %v, want %v: the router running it restarts for a new one", replaced, tt.replace)
+			}
+		})
+	}
+}
+
+func TestInstallRemovesWhatCopiesCutShortLeft(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	leftover := filepath.Join(filepath.Dir(s.routerCopy), ".switchboard.123456")
+	writeBinary(t, leftover)
+
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if entries, err := os.ReadDir(filepath.Dir(s.routerCopy)); err != nil || len(entries) != 1 || entries[0].Name() != "switchboard" {
+		t.Errorf("the router's copy's directory holds %v (%v), want the copy alone", entries, err)
+	}
+}
+
 func TestInstallFailsBeforeTouchingTheServiceWhenTheCopyCantBeMade(t *testing.T) {
 	s := newSetup(t, nil, nil)
 	s.launchctl.refuse = true
@@ -1201,8 +1262,12 @@ func TestStatus(t *testing.T) {
 		stateless bool
 		unread    bool
 		waiting   bool
-		answer    func(asked int) (router.Health, error)
-		want      service.Status
+		// copyGone is the router's copy gone from where the plist has it,
+		// which want's MissingCopy then names, unless the plist is from
+		// before the copy, as beforeCopy has it, running the binary itself.
+		copyGone, beforeCopy bool
+		answer               func(asked int) (router.Health, error)
+		want                 service.Status
 	}{
 		{
 			name:      "installed, loaded and up",
@@ -1260,6 +1325,23 @@ func TestStatus(t *testing.T) {
 			want:      service.Status{Installed: true, Loaded: true, RouterErr: errNotRunning},
 		},
 		{
+			name:      "loaded, its router's copy gone, so none running",
+			installed: true,
+			loaded:    true,
+			copyGone:  true,
+			answer:    func(int) (router.Health, error) { return router.Health{}, errNotRunning },
+			want:      service.Status{Installed: true, Loaded: true, RouterErr: errNotRunning},
+		},
+		{
+			name:       "loaded from before the router's copy, running the binary itself",
+			installed:  true,
+			loaded:     true,
+			copyGone:   true,
+			beforeCopy: true,
+			answer:     func(int) (router.Health, error) { return up(4242) },
+			want:       service.Status{Installed: true, Loaded: true, Router: &router.Health{OK: true, Version: "1.2.3", PID: 4242}},
+		},
+		{
 			name:   "none of them",
 			answer: func(int) (router.Health, error) { return router.Health{}, errNotRunning },
 			want:   service.Status{RouterErr: errNotRunning},
@@ -1272,20 +1354,47 @@ func TestStatus(t *testing.T) {
 			s.launchctl.pidless, s.launchctl.stateless, s.launchctl.stateUnread = tt.pidless, tt.stateless, tt.unread
 			s.launchctl.waiting = tt.waiting
 			if tt.installed {
-				s.putPlist(t, "<plist/>\n")
+				plist, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tt.beforeCopy {
+					plist = []byte(beforeTheCopy(string(plist)))
+				}
+				s.putPlist(t, string(plist))
+			}
+			want := tt.want
+			switch {
+			case tt.copyGone && !tt.beforeCopy:
+				want.MissingCopy = s.routerCopy
+			case tt.installed && !tt.copyGone:
+				writeBinary(t, s.routerCopy)
 			}
 
 			st, err := s.svc.Status(t.Context())
 			if err != nil {
 				t.Fatalf("Status() error = %v", err)
 			}
-			if !reflect.DeepEqual(st, tt.want) {
-				t.Errorf("Status() = %+v, want %+v", st, tt.want)
+			if !reflect.DeepEqual(st, want) {
+				t.Errorf("Status() = %+v, want %+v", st, want)
 			}
 			if want := [][]string{{"print", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
 				t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
 			}
 		})
+	}
+}
+
+func TestStatusOfAServiceUnplacedSaysNoCopyMissing(t *testing.T) {
+	s := newSetup(t, nil, func(int) (router.Health, error) { return router.Health{}, errNotRunning })
+	plist, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.putPlist(t, string(plist))
+
+	if st, err := s.svc.Unplaced().Status(t.Context()); err != nil || st.MissingCopy != "" {
+		t.Errorf("Status() = %+v, %v; want no copy missing: without its plist read back, where it keeps its copy is unknown", st, err)
 	}
 }
 

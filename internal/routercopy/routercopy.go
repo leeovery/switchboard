@@ -161,6 +161,13 @@ func (c Copy) Matches(binary string) (bool, error) {
 	return have.Size() == want.Size() && have.ModTime().Equal(want.ModTime()), nil
 }
 
+// Missing reports whether the copy is known not to be there, nor a file its
+// link leads to: one that can't be looked at isn't counted missing.
+func (c Copy) Missing() bool {
+	_, err := os.Stat(c.path)
+	return errors.Is(err, fs.ErrNotExist)
+}
+
 // RemoveLeftovers removes the hidden copies beside the router's copy that a
 // copy cut short left, or that were staged and neither committed nor
 // discarded: none where its directory isn't there.

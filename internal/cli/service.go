@@ -290,7 +290,11 @@ func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
 	case !router.IsNotRunning(st.RouterErr):
 		answer = "not answering: " + st.RouterErr.Error()
 	}
-	return writeTable(out, [][]string{{"LaunchAgent", installed}, {"launchd", loaded}, {"router", answer}})
+	rows := [][]string{{"LaunchAgent", installed}}
+	if st.MissingCopy != "" {
+		rows = append(rows, []string{"copy", "missing, " + st.MissingCopy + ", so launchd can't run the router: run switchboard service install"})
+	}
+	return writeTable(out, append(rows, []string{"launchd", loaded}, []string{"router", answer}))
 }
 
 // started says how the router launchd started answered, failing, with where
