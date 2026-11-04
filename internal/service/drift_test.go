@@ -128,6 +128,16 @@ func TestDrift(t *testing.T) {
 			},
 			want: []string{"another program in its ProgramArguments"},
 		},
+		{
+			name: "written before the router's copy, running the binary itself",
+			edit: beforeTheCopy,
+			want: []string{"another program in its ProgramArguments", "no --from in its ProgramArguments"},
+		},
+		{
+			name: "running a copy elsewhere",
+			edit: func(plist string) string { return runningCopyAt(plist, "/Users/tester/elsewhere/switchboard") },
+			want: []string{"another program in its ProgramArguments"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

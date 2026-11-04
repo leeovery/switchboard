@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -264,6 +265,66 @@ func TestWriteModifiedRenamesTheFileIntoPlaceWithTheTimeGiven(t *testing.T) {
 	}
 	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
 		t.Errorf("the directory holds %v (%v), want the file alone", entries, err)
+	}
+}
+
+func TestStageModifiedLeavesTheFileBesideWithTheTimeGiven(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "file")
+	write(t, path)
+	modified := time.Date(2026, 9, 28, 13, 12, 0, 123456789, time.UTC)
+
+	staged, err := atomicfile.StageModified(path, 0o755, modified, func(w io.Writer) error {
+		_, err := io.WriteString(w, "new\n")
+		return err
+	})
+	if err != nil {
+		t.Fatalf("StageModified() error = %v", err)
+	}
+	if filepath.Dir(staged) != dir || !strings.HasPrefix(filepath.Base(staged), ".file.") {
+		t.Errorf("staged at %s, want a hidden file beside %s", staged, path)
+	}
+	info, err := os.Stat(staged)
+	if err != nil || !info.ModTime().Equal(modified) || info.Mode().Perm() != 0o755 {
+		t.Fatalf("the staged file is %v (%v), want it modified at %v, 0755", info, err, modified)
+	}
+	if data, err := os.ReadFile(staged); err != nil || string(data) != "new\n" {
+		t.Errorf("the staged file holds %q (%v), want the new", data, err)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "old\n" {
+		t.Errorf("the file holds %q (%v), want the old, left in place", data, err)
+	}
+}
+
+func TestStageModifiedLeavesNothingBesideWhenItFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "file")
+	failed := errors.New("failed")
+
+	_, err := atomicfile.StageModified(path, 0o755, time.Now(), func(io.Writer) error { return failed })
+	if !errors.Is(err, failed) {
+		t.Errorf("StageModified() error = %v, want %v", err, failed)
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+		t.Errorf("the directory holds %v (%v), want nothing", entries, err)
+	}
+}
+
+func TestLeftovers(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "file")
+	write(t, path)
+	staged, err := atomicfile.StageModified(path, 0o600, time.Now(), func(io.Writer) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Neither written beside it: another file's, and one named alike but for
+	// the dot.
+	write(t, filepath.Join(dir, ".other.123"))
+	write(t, filepath.Join(dir, ".file-123"))
+
+	if got, err := atomicfile.Leftovers(path); err != nil || !slices.Equal(got, []string{staged}) {
+		t.Errorf("Leftovers() = %q, %v; want %q", got, err, staged)
 	}
 }
 

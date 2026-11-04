@@ -90,9 +90,10 @@ type world struct {
 	// through plutil, "" for none, and plutilSays what plutil fails with
 	// reading one it doesn't know, "" for its own words.
 	binary, plutilSays string
-	// shellDir is switchboard's shell directory.
-	shellDir string
-	login    *fakeLogin
+	// shellDir is switchboard's shell directory, and routerCopy where the
+	// router's copy of switchboard goes.
+	shellDir, routerCopy string
+	login                *fakeLogin
 	// interrupt is the user's interrupting setup as it asks the login shell.
 	interrupt context.CancelFunc
 	// interrupts are the process's, as setup holds them for a token made.
@@ -118,6 +119,7 @@ func newWorld(t *testing.T) *world {
 		settings:   at("claude", "settings.json"),
 		bin:        at("home", ".local", "share", "switchboard", "bin"),
 		shellDir:   at("home", ".local", "share", "switchboard", "shell"),
+		routerCopy: at("home", ".local", "share", "switchboard", "router", "switchboard"),
 		env:        map[string]string{},
 		launchd:    &fakeLaunchd{home: at("home")},
 		api:        &fakeAPI{},

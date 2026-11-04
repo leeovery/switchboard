@@ -21,6 +21,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/routercopy"
 	"github.com/leeovery/switchboard/internal/service"
 )
 
@@ -52,9 +53,13 @@ func TestInstall(t *testing.T) {
 	}
 }
 
-func TestInstallNamesTheBinaryAsItWasRun(t *testing.T) {
+func TestInstallRunsTheRoutersCopyFromTheBinaryAsItWasRun(t *testing.T) {
 	s := newSetup(t, nil, upOnceStarted(4242))
 	version := writeBinary(t, filepath.Join(s.root, "Cellar", "switchboard", "1.2.3", "bin", "switchboard"))
+	modified := time.Date(2026, 9, 28, 13, 12, 0, 123456789, time.UTC)
+	if err := os.Chtimes(version, time.Time{}, modified); err != nil {
+		t.Fatal(err)
+	}
 	link := filepath.Join(s.root, "opt", "bin", "switchboard")
 	if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
 		t.Fatal(err)
@@ -67,6 +72,34 @@ func TestInstallNamesTheBinaryAsItWasRun(t *testing.T) {
 		t.Fatalf("Install() error = %v", err)
 	}
 	s.checkPlist(t, link, "")
+	plist, err := os.ReadFile(s.plist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<key>ProgramArguments</key>\n\t<array>\n\t\t<string>" + s.routerCopy + "</string>\n\t\t<string>serve</string>\n\t\t<string>--from</string>\n\t\t<string>" + link + "</string>\n\t</array>"
+	if !strings.Contains(string(plist), want) {
+		t.Errorf("the plist reads\n%s\nwant it to run the router's copy, --from naming the link it was run by:\n%s", plist, want)
+	}
+	if data, err := os.ReadFile(s.routerCopy); err != nil || string(data) != "#!/bin/sh\n" {
+		t.Errorf("the router's copy holds %q (%v), want the binary the link leads to", data, err)
+	}
+	if info, err := os.Lstat(s.routerCopy); err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0o755 || !info.ModTime().Equal(modified) {
+		t.Errorf("the router's copy is %v (%v), want a file, 0755, modified as the binary was", info, err)
+	}
+}
+
+func TestInstallFailsBeforeTouchingTheServiceWhenTheCopyCantBeMade(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	s.launchctl.refuse = true
+	// A file where the copy's directory goes.
+	writeBinary(t, filepath.Dir(s.routerCopy))
+
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err == nil {
+		t.Error("Install() succeeded, want it to fail, the router's copy not made")
+	}
+	if _, err := os.Stat(s.plist); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the plist: %v, want none written", err)
+	}
 }
 
 func TestInstallReplacesAPlistThere(t *testing.T) {
@@ -389,6 +422,9 @@ func TestInstallGivenUpBeforeTheWriteDoesNothing(t *testing.T) {
 	if _, err := os.Stat(s.plist); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("the plist is there (%v), want none written", err)
 	}
+	if _, err := os.Stat(s.routerCopy); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the router's copy is there (%v), want none made", err)
+	}
 }
 
 func TestInstallGivenUpOnceItHasWrittenRunsThrough(t *testing.T) {
@@ -600,6 +636,9 @@ func TestInstallRefusesATemporaryBuild(t *testing.T) {
 			if _, err := os.Stat(s.plist); !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("the plist: %v, want none written", err)
 			}
+			if _, err := os.Stat(s.routerCopy); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("the router's copy: %v, want none made", err)
+			}
 		})
 	}
 }
@@ -794,6 +833,9 @@ func TestUninstall(t *testing.T) {
 			if tt.installed {
 				s.putPlist(t, "<plist/>\n")
 			}
+			// Made whether the plist is there or not, as an install cut short
+			// leaves it.
+			writeBinary(t, s.routerCopy)
 
 			removed, err := s.svc.Uninstall(t.Context())
 			if (err == nil) != (tt.wantErr == "") || (err != nil && err.Error() != tt.wantErr) || removed != tt.wantRemoved {
@@ -806,7 +848,33 @@ func TestUninstall(t *testing.T) {
 			if kept := statErr == nil; kept != (tt.installed && tt.wantErr != "") {
 				t.Errorf("the plist is still there: %v, want %v", kept, tt.installed && tt.wantErr != "")
 			}
+			_, statErr = os.Stat(filepath.Dir(s.routerCopy))
+			if kept := statErr == nil; kept != (tt.wantErr != "") {
+				t.Errorf("the router's copy's directory is still there: %v, want %v", kept, tt.wantErr != "")
+			}
 		})
+	}
+}
+
+func TestUninstallRemovesTheCopyWhereThePlistHasTheRouterKeepIt(t *testing.T) {
+	s := newSetup(t, map[string]string{"XDG_DATA_HOME": "<root>/data"}, upOnceStarted(4242))
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+		t.Fatal(err)
+	}
+	installed := filepath.Join(s.root, "data", "switchboard", "router", "switchboard")
+	if _, err := os.Stat(installed); err != nil {
+		t.Fatalf("the router's copy: %v, want it made where XDG_DATA_HOME keeps switchboard's data", err)
+	}
+	// Uninstalled from a shell that doesn't set XDG_DATA_HOME.
+	cfg := s.cfg
+	cfg.Getenv = func(key string) string { return map[string]string{"TMPDIR": s.tmp}[key] }
+	svc := newService(t, cfg)
+
+	if _, err := svc.Uninstall(t.Context()); err != nil {
+		t.Fatalf("Uninstall() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Dir(installed)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the router's copy's directory: %v, want it removed", err)
 	}
 }
 
@@ -1221,19 +1289,59 @@ func TestStatus(t *testing.T) {
 	}
 }
 
-func TestOptionsReadsTheBinaryThePlistRunsAsItNamesIt(t *testing.T) {
+func TestOptionsReadsTheBinaryThePlistWasInstalledFromAsItNamesIt(t *testing.T) {
 	// A path holding what XML escapes.
 	const binary = "/Users/tester/it's <mine> & co/bin/switchboard"
-	s := newSetup(t, nil, nil)
-	written, err := s.svc.PlistOf(service.InstallOptions{Executable: binary, Config: "/Users/tester/work.toml", LogLevel: "debug"})
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		// edit changes the plist install writes, nil leaving it as it is.
+		edit func(plist string) string
+	}{
+		{name: "as install writes it, naming it --from"},
+		{name: "written before the router's copy, running it", edit: beforeTheCopy},
 	}
-	s.putPlist(t, string(written))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, nil)
+			written, err := s.svc.PlistOf(service.InstallOptions{Executable: binary, Config: "/Users/tester/work.toml", LogLevel: "debug"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			plist := string(written)
+			if tt.edit != nil {
+				plist = tt.edit(plist)
+			}
+			s.putPlist(t, plist)
 
-	if opts, err := s.svc.Options(t.Context()); err != nil || opts.Executable != binary {
-		t.Errorf("Options() = %+v, %v; want the binary %q", opts, err, binary)
+			opts, err := s.svc.Options(t.Context())
+			if err != nil || opts.Executable != binary || opts.Config != "/Users/tester/work.toml" || opts.LogLevel != "debug" {
+				t.Errorf("Options() = %+v, %v; want the binary %q, with the config file and the log level", opts, err, binary)
+			}
+		})
 	}
+}
+
+// beforeTheCopy is a plist install wrote, as install wrote it before the
+// router's copy: running the binary --from names, with no --from.
+func beforeTheCopy(plist string) string {
+	lines, i := programLines(plist)
+	lines[i] = lines[i+3]
+	return strings.Join(slices.Delete(lines, i+2, i+4), "\n")
+}
+
+// runningCopyAt is a plist install wrote, running the copy at path.
+func runningCopyAt(plist, path string) string {
+	lines, i := programLines(plist)
+	lines[i] = "\t\t<string>" + path + "</string>"
+	return strings.Join(lines, "\n")
+}
+
+// programLines are the lines of a plist install wrote, with the index of the
+// line naming its program: the copy, then serve, --from and its value.
+func programLines(plist string) ([]string, int) {
+	lines := strings.Split(plist, "\n")
+	// The first array is ProgramArguments.
+	return lines, slices.Index(lines, "\t<array>") + 1
 }
 
 func TestStatusFailsWhenLaunchctlCantSay(t *testing.T) {
@@ -1401,11 +1509,12 @@ type setup struct {
 	cfg service.Config
 	// root holds the rest, its symlinks resolved.
 	root, tmp string
-	// binary is the switchboard to install, and plist where its plist goes.
-	binary, plist string
-	launchctl     *fakeLaunchctl
-	router        *fakeRouter
-	interrupts    *fakeInterrupts
+	// binary is the switchboard to install, plist where its plist goes, and
+	// routerCopy where the router's copy of switchboard goes.
+	binary, plist, routerCopy string
+	launchctl                 *fakeLaunchctl
+	router                    *fakeRouter
+	interrupts                *fakeInterrupts
 }
 
 // fakeInterrupts stands in for the process's interrupts, held as Install
@@ -1490,6 +1599,11 @@ func newSetup(t *testing.T, env map[string]string, answer func(asked int) (route
 		Hold:      s.interrupts.hold,
 	}
 	s.svc = newService(t, s.cfg)
+	own, err := routercopy.Find(getenv, func() (string, error) { return home, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.routerCopy = own.Path()
 	s.plist = filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
 	if got := s.svc.Plist(); got != s.plist {
 		t.Fatalf("Plist() = %s, want %s", got, s.plist)

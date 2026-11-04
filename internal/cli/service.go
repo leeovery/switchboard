@@ -39,9 +39,10 @@ func newServiceInstallCommand(a *app) *cobra.Command {
 		Use:   "install",
 		Short: "Install the LaunchAgent, which starts the router",
 		Long: `Install the LaunchAgent, which starts the router now, at every login, and
-whenever it stops. It runs this switchboard binary, which must be one that
-lasts, such as Homebrew's or one go install built: a temporary build, such as
-go run's, is refused. The router serves the config --config gives, else the
+whenever it stops. It runs a copy of this switchboard binary of its own, at a
+path that never changes, so what macOS allows the router holds through
+upgrades. This binary must be one that lasts, such as Homebrew's or one go
+install built: a temporary build, such as go run's, is refused. The router serves the config --config gives, else the
 one it finds, as the CLI does; a config the router couldn't serve fails the
 install. It logs at the level --log-level gives, else SWITCHBOARD_LOG_LEVEL's.
 
@@ -62,7 +63,7 @@ usable token, as the router would have nothing to route to.`,
 func newServiceUninstallCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "uninstall",
-		Short: "Stop the router, and remove the LaunchAgent",
+		Short: "Stop the router, and remove the LaunchAgent and the router's copy",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.uninstallService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr())
@@ -214,7 +215,8 @@ func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts se
 	return started(out, svc, installed.Router)
 }
 
-// uninstallService stops the router and removes the LaunchAgent.
+// uninstallService stops the router and removes the LaunchAgent and the
+// router's copy of switchboard.
 func (a *app) uninstallService(ctx context.Context, out, errOut io.Writer) error {
 	svc, err := a.service(errOut)
 	if err != nil {

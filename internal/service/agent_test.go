@@ -68,27 +68,36 @@ func TestPlist(t *testing.T) {
 	}
 }
 
-func TestLaunchdRunsSwitchboardItself(t *testing.T) {
+func TestLaunchdRunsTheRoutersCopy(t *testing.T) {
+	// The link Homebrew puts on PATH, which --from names as it is.
 	const binary = "/opt/homebrew/bin/switchboard"
+	const routerCopy = "/Users/tester/.local/share/switchboard/router/switchboard"
 	tests := []struct {
 		name string
+		env  map[string]string
 		opts service.InstallOptions
 		want []string
 	}{
-		{name: "serving", opts: service.InstallOptions{Executable: binary}, want: []string{binary, "serve"}},
+		{name: "serving", opts: service.InstallOptions{Executable: binary}, want: []string{routerCopy, "serve", "--from", binary}},
 		{
 			name: "serving the config given, logging at the level given",
 			opts: service.InstallOptions{Executable: binary, Config: "/Users/tester/it's my/config.toml", LogLevel: "debug"},
-			want: []string{binary, "serve", "--config", "/Users/tester/it's my/config.toml", "--log-level", "debug"},
+			want: []string{routerCopy, "serve", "--from", binary, "--config", "/Users/tester/it's my/config.toml", "--log-level", "debug"},
+		},
+		{
+			name: "its copy where XDG_DATA_HOME keeps switchboard's data",
+			env:  map[string]string{"XDG_DATA_HOME": "/Users/tester/data"},
+			opts: service.InstallOptions{Executable: binary},
+			want: []string{"/Users/tester/data/switchboard/router/switchboard", "serve", "--from", binary},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newService(t, service.Config{Home: "/Users/tester", StateDir: "/Users/tester/.local/state/switchboard", Getenv: func(string) string { return "" }})
+			svc := newService(t, service.Config{Home: "/Users/tester", StateDir: "/Users/tester/.local/state/switchboard", Getenv: func(key string) string { return tt.env[key] }})
 
 			program, err := svc.ProgramOf(tt.opts)
 			if err != nil || !slices.Equal(program, tt.want) {
-				t.Errorf("ProgramOf() = %q, %v, want %q: switchboard itself, needing none of the user's environment", program, err, tt.want)
+				t.Errorf("ProgramOf() = %q, %v, want %q: the router's copy of switchboard, needing none of the user's environment", program, err, tt.want)
 			}
 		})
 	}

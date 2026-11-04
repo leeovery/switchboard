@@ -265,6 +265,10 @@ type app struct {
 	// checking is set by serve's handover.CheckFlag: it checks what the
 	// router would start from, and serves nothing.
 	checking bool
+	// from is the binary the router upgrades from, as serve's
+	// routercopy.FromFlag names it: the one service install was run by, of
+	// which the router runs a copy.
+	from string
 }
 
 // startLog starts this invocation's log, in the role the command plays: the

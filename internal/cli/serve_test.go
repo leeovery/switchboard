@@ -454,6 +454,12 @@ func TestServeChecksWhatItWouldStartFromWhenAsked(t *testing.T) {
 			args:   []string{"serve", "--gone", "--check"},
 			want:   func(string) result { return result{stdout: "unknown flag: --gone\n", code: handover.Refused} },
 		},
+		{
+			name:   "naming the binary it upgrades from, as the service runs its copy",
+			config: "[[account]]\nid = \"work\"\n",
+			args:   []string{"serve", "--from", "/test/opt/bin/switchboard", "--check"},
+			want:   func(string) result { return result{} },
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

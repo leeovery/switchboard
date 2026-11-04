@@ -703,7 +703,7 @@ switchboard accounts remove side
 ### `service`
 
 `service` manages the LaunchAgent that keeps the router running. launchd starts
-`switchboard serve` now, at every login, and again whenever it stops, without the light throttling
+`switchboard serve`, from the router's own copy of switchboard, now, at every login, and again whenever it stops, without the light throttling
 it gives a job that doesn't say what kind it is, as every Claude Code request waits on it. `setup`
 installs it. launchd reads the LaunchAgent only as it loads it, so one an older switchboard wrote
 keeps what it said through upgrades and restarts in place: `service install` writes it afresh, and
@@ -730,8 +730,13 @@ in flight, and waits up to 5 seconds for the router to answer.
   checks a new version before restarting into it: the config above all, and the state directory
   its control socket goes in. It fails where the router couldn't start, before it touches the
   router running.
-- **The binary.** The LaunchAgent runs switchboard by the path you ran it by, so a Homebrew link
-  stays the link `brew upgrade` moves on. A temporary build, such as `go run`'s, is refused.
+- **The binary.** The LaunchAgent runs a copy of switchboard of its own, which `install` makes
+  from the switchboard you ran, following its links: `$XDG_DATA_HOME/switchboard/router/switchboard`,
+  else `~/.local/share/switchboard/router/switchboard`. macOS keeps what you allow the router,
+  such as a folder it writes into, against the path of the file it runs, and Homebrew puts each
+  version at a path of its own, so the copy's path never changes. The LaunchAgent names the path
+  you ran switchboard by too, with `serve --from`, so a Homebrew link stays the link
+  `brew upgrade` moves on. A temporary build, such as `go run`'s, is refused.
 - **The environment.** The LaunchAgent carries `--config`, and these variables where they're set:
   `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_DATA_HOME`, `SWITCHBOARD_CONFIG`,
   `SWITCHBOARD_LOG_LEVEL` and `CLAUDE_CONFIG_DIR`. It makes `--config`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`
@@ -777,7 +782,7 @@ put the config right as it says.
 #### `service uninstall` and `service status`
 
 - **`uninstall`** stops the router, once it has finished its requests in flight, and removes the
-  LaunchAgent.
+  LaunchAgent and the router's copy of switchboard.
 - **`status`** shows whether the LaunchAgent is installed and loaded, whether launchd runs a
   router, and its pid where `launchctl print` names one, or that its state is unread where it says
   neither, and the health of the router where the LaunchAgent keeps its state, else of the one

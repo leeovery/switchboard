@@ -185,6 +185,7 @@ var dataDirs = []struct {
 }{
 	{name: "bin", dir: config.BinDir},
 	{name: "shell", dir: config.ShellDir},
+	{name: "router", dir: config.RouterDir},
 }
 
 func TestDataDirs(t *testing.T) {

@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/routercopy"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/skill"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -55,6 +56,8 @@ It logs to the router's log, and to the terminal when it runs in one.
 		"log at `LEVEL` and above: debug, info, warn or error (default $SWITCHBOARD_LOG_LEVEL, else info)")
 	cmd.Flags().BoolVar(&a.checking, handover.CheckFlag, false, "check what the router would start from, the config above all, and exit")
 	_ = cmd.Flags().MarkHidden(handover.CheckFlag)
+	cmd.Flags().StringVar(&a.from, routercopy.FromFlag, "", "the binary the router upgrades from, of which it runs a copy")
+	_ = cmd.Flags().MarkHidden(routercopy.FromFlag)
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		err = hideTokens(cmd, err)
 		// The command line is read up to a flag it can't take, as one the

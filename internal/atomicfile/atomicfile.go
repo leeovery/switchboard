@@ -148,14 +148,62 @@ func WriteModified(path string, perm fs.FileMode, modified time.Time, write func
 	return writeBeside(path, perm, write, func(tmp string) error { return os.Chtimes(tmp, time.Time{}, modified) })
 }
 
+// StageModified writes what write writes to a hidden file beside path, as
+// WriteModified would, last modified at modified, synced and closed, and
+// returns where, for the caller to rename into place or remove: nothing is
+// left beside path where it fails.
+func StageModified(path string, perm fs.FileMode, modified time.Time, write func(w io.Writer) error) (string, error) {
+	return stage(path, perm, write, func(tmp string) error { return os.Chtimes(tmp, time.Time{}, modified) })
+}
+
+// Leftovers are the files beside path that writes to it left there, cut
+// short, or staged and neither renamed into place nor removed: those named
+// as a file written beside it is.
+func Leftovers(path string) ([]string, error) {
+	dir := filepath.Dir(path)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var found []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), besidePrefix(path)) {
+			found = append(found, filepath.Join(dir, e.Name()))
+		}
+	}
+	return found, nil
+}
+
+// besidePrefix is the name of a file written beside path, before its random
+// part: hidden, path's own name, then a dot.
+func besidePrefix(path string) string {
+	return "." + filepath.Base(path) + "."
+}
+
 // writeBeside writes what write writes to a file beside path, with the
 // permissions perm, then, once it's synced and closed, calls before with its
 // path, and renames it into place: where before fails, nothing is written,
 // and its error is returned.
-func writeBeside(path string, perm fs.FileMode, write func(w io.Writer) error, before func(tmp string) error) (err error) {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+func writeBeside(path string, perm fs.FileMode, write func(w io.Writer) error, before func(tmp string) error) error {
+	tmp, err := stage(path, perm, write, before)
 	if err != nil {
 		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// stage writes what write writes to a hidden file beside path, with the
+// permissions perm, then, once it's synced and closed, calls before with its
+// path, and returns it: where anything fails, before among them, the file is
+// removed.
+func stage(path string, perm fs.FileMode, write func(w io.Writer) error, before func(tmp string) error) (_ string, err error) {
+	tmp, err := os.CreateTemp(filepath.Dir(path), besidePrefix(path)+"*")
+	if err != nil {
+		return "", err
 	}
 	defer func() {
 		if err != nil {
@@ -164,23 +212,23 @@ func writeBeside(path string, perm fs.FileMode, write func(w io.Writer) error, b
 		}
 	}()
 	if err = tmp.Chmod(perm); err != nil {
-		return err
+		return "", err
 	}
 	buffered := bufio.NewWriter(tmp)
 	if err = write(buffered); err != nil {
-		return err
+		return "", err
 	}
 	if err = buffered.Flush(); err != nil {
-		return err
+		return "", err
 	}
 	if err = tmp.Sync(); err != nil {
-		return err
+		return "", err
 	}
 	if err = tmp.Close(); err != nil {
-		return err
+		return "", err
 	}
 	if err = before(tmp.Name()); err != nil {
-		return err
+		return "", err
 	}
-	return os.Rename(tmp.Name(), path)
+	return tmp.Name(), nil
 }

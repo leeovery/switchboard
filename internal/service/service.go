@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/routercopy"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -235,13 +236,14 @@ type Installed struct {
 	Unread error
 }
 
-// Install writes the LaunchAgent's plist, has launchd load it, in place of
-// the one it had loaded if it had, which starts the router, and waits for
-// the router to answer. It refuses a switchboard binary that won't last,
-// such as go run's. Once it begins the swap, as swap has it, it finishes it
-// whatever ctx does, which can take about two minutes at the worst: what it does
-// before and after heeds ctx, failing with its cause once it's done. It says
-// how far the swap got, whether it fails or not.
+// Install makes the router's copy of the switchboard binary, writes the
+// LaunchAgent's plist to run it, has launchd load it, in place of the one it
+// had loaded if it had, which starts the router, and waits for the router to
+// answer. It refuses a switchboard binary that won't last, such as go run's.
+// Once it begins the swap, as swap has it, it finishes it whatever ctx does,
+// which can take about two minutes at the worst: what it does before and
+// after heeds ctx, failing with its cause once it's done. It says how far the
+// swap got, whether it fails or not.
 func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, error) {
 	s, opts, err := s.Planned(ctx, opts)
 	if err != nil {
@@ -249,6 +251,14 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	}
 	a, err := s.describe(opts)
 	if err != nil {
+		return Installed{}, err
+	}
+	if err := context.Cause(ctx); err != nil {
+		return Installed{}, err
+	}
+	// Safe under a router running the copy: a rename leaves it the file it
+	// was started from.
+	if err := a.own.Make(a.from); err != nil {
 		return Installed{}, err
 	}
 	before, i, _ := s.answering(ctx)
@@ -296,13 +306,28 @@ func (s *Service) tokenless(accounts config.Accounts) bool {
 }
 
 // Uninstall has launchd stop the router and forget the service, if it had
-// loaded it, then removes its plist, reporting whether there was one. A
-// service that isn't installed is left as it is.
+// loaded it, then removes its plist, reporting whether there was one, and
+// the router's copy of switchboard, with anything an install cut short left
+// of it, where the plist has the router keep it, else where the service is
+// seen.
 func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
+	own, err := s.installedCopy(ctx)
+	if err != nil {
+		return false, err
+	}
 	if err := s.unload(ctx); err != nil {
 		return false, err
 	}
-	err = os.Remove(s.Plist())
+	removed, err = s.removePlist()
+	if err != nil {
+		return false, err
+	}
+	return removed, own.Remove()
+}
+
+// removePlist removes the service's plist, reporting whether there was one.
+func (s *Service) removePlist() (bool, error) {
+	err := os.Remove(s.Plist())
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return false, nil
@@ -311,6 +336,19 @@ func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
 	}
 	logger.Info("uninstalled the service", "plist", s.Plist())
 	return true, nil
+}
+
+// installedCopy is the router's copy of switchboard as the plist in place has
+// the router see it, else, where it can't be read back or there's none, as
+// the service is seen.
+func (s *Service) installedCopy(ctx context.Context) (routercopy.Copy, error) {
+	seen := s
+	if opts, err := s.Options(ctx); err == nil {
+		if installed, err := s.For(opts); err == nil {
+			seen = installed
+		}
+	}
+	return seen.routerCopy()
 }
 
 // Restart has the router restart, reading the config and the tokens afresh,

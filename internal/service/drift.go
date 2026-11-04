@@ -22,9 +22,10 @@ var byteOrderMark = []byte("\xef\xbb\xbf")
 var errNoPlutil = errors.New("it isn't XML, and there's no plutil to read it")
 
 // Options reads back the options the plist in place was installed with: the
-// binary it runs, the config file and the log level it gives the router, and
-// the variables launchd sets for it, all of them, which Install keeps in
-// place of those where it's installed. A path the plist names relatively is
+// binary it was installed from, which serve's --from names, else, in a plist
+// written before the router's copy, the one it runs; the config file and the
+// log level it gives the router; and the variables launchd sets for it, all
+// of them, which Install keeps in place of those where it's installed. A path the plist names relatively is
 // one under /, as launchd runs the router there. It fails for a plist it
 // can't read, that isn't a plist, or that names no program, as then it names
 // nothing to keep: one that isn't there fails as fs.ErrNotExist.
@@ -133,12 +134,15 @@ func (s *Service) asXML(ctx context.Context) ([]byte, error) {
 }
 
 // optionsOf reads back the options a program, as agent writes it, was
-// installed with: its binary, the first argument, and the flags agent gives
-// it.
+// installed with: its binary, the one --from names, or the first argument,
+// as a program written before the router's copy runs it, and the flags agent
+// gives it.
 func optionsOf(program []string) InstallOptions {
 	plain, flags, _ := arguments(program)
 	var opts InstallOptions
-	if len(plain) > 0 {
+	if from, ok := lookup(flags, fromFlag); ok {
+		opts.Executable = from.Text
+	} else if len(plain) > 0 {
 		opts.Executable = plain[0]
 	}
 	if config, ok := lookup(flags, configFlag); ok {
