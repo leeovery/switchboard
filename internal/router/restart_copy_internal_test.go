@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/routercopy"
 )
@@ -664,78 +665,106 @@ func TestTwoRestartsNeverCopyAnUpgradeInOverEachOther(t *testing.T) {
 	}
 }
 
-func TestARestartWaitingOnOneUnderWayCopiesAndAsksNothingMore(t *testing.T) {
+func TestARestartAfterOneAskedForPutItsUpgradeInPlaceCopiesAndAsksNothing(t *testing.T) {
 	tests := []struct {
 		name string
-		// first restarts r, cleared by the upgrade it copies in, the second
-		// started as first asks it, reporting whether the restart went
-		// ahead; begin begins the first's restart, as a restart asked for is
-		// begun once its answer has gone, the second's done by then.
-		first func(t *testing.T, r *restarts) (began bool, begin func())
-		// second restarts r as the router would, and reports whether the
-		// restart went ahead.
-		second func(t *testing.T, r *restarts) bool
+		// second restarts r as the router would, a restart asked for having
+		// put its upgrade in place, its answer not gone yet, so not begun.
+		second func(t *testing.T, r *restarts)
 	}{
 		{
-			name: "one asked for as one falling due asks",
-			first: func(t *testing.T, r *restarts) (bool, func()) {
-				return r.restart(t.Context()), func() {}
-			},
-			second: func(t *testing.T, r *restarts) bool {
-				_, err := r.restartable(t.Context())
-				return err == nil
+			name: "asked for",
+			second: func(t *testing.T, r *restarts) {
+				if cleared, err := r.restartable(t.Context()); cleared != nil || err != nil {
+					t.Errorf("restartable() = %v, %v; want nil, nil: the restart under way, cleared by nothing", cleared, err)
+				}
 			},
 		},
 		{
-			name: "one falling due as one asked for asks",
-			first: func(t *testing.T, r *restarts) (bool, func()) {
-				cleared, err := r.restartable(t.Context())
-				return err == nil, func() { r.atOnce(cleared) }
+			name: "falling due",
+			second: func(t *testing.T, r *restarts) {
+				if !r.restart(t.Context()) {
+					t.Error("restart() = false, want true: the restart under way")
+				}
 			},
-			second: func(t *testing.T, r *restarts) bool { return r.restart(t.Context()) },
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s, own := newRunningCopy(t)
 			r := copying(s, own, unheeded)
+			copies := countCopies(r)
+			asks := askedAt(t, r, binaryAnswer{})
 			relink(t, s.binary, s.version("1.1"))
 			r.look()
-			var copies atomic.Int32
-			stage := r.stage
-			r.stage = func(path string) (routercopy.Staged, error) {
-				copies.Add(1)
-				return stage(path)
-			}
-			var asks atomic.Int32
-			second := make(chan bool, 1)
-			r.ask = func(context.Context, string) (string, error) {
-				if asks.Add(1) == 1 {
-					go func() { second <- tt.second(t, r) }()
-					// The second waits on the first meanwhile.
-					time.Sleep(200 * time.Millisecond)
-				}
-				return "", nil
+			if _, err := r.restartable(t.Context()); err != nil {
+				t.Fatalf("restartable() = %v, want nil", err)
 			}
 
-			began, begin := tt.first(t, r)
-			if !began {
-				t.Fatal("the first restart didn't go ahead, want it to")
-			}
-			if !<-second {
-				t.Error("the second restart didn't go ahead, want it to, as the restart under way")
-			}
-			begin()
-			if copies.Load() != 1 || asks.Load() != 1 {
-				t.Errorf("the upgrade was copied in %d times and asked %d times, want once each: the second restart, waiting on the first, found it under way", copies.Load(), asks.Load())
-			}
-			if !r.restarting() {
-				t.Error("the router isn't restarting, want it to be")
+			tt.second(t, r)
+
+			if copies.Load() != 1 || len(*asks) != 1 {
+				t.Errorf("the upgrade was copied in %d times and asked %d times, want once each, by the restart asked for", copies.Load(), len(*asks))
 			}
 			checkCopy(t, own, s.version("1.1"))
 			checkAlone(t, own)
 		})
 	}
+}
+
+func TestARestartAskedForThatWaitedOnOneFallingDueFindsItBegun(t *testing.T) {
+	s, own := newRunningCopy(t)
+	r := copying(s, own, unheeded)
+	copies := countCopies(r)
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+	// Only a restart asked for reads the config file, once it has found the
+	// router not restarting, before it takes staging.
+	read := make(chan struct{})
+	load := r.load
+	r.load = func(path string) (*config.Config, error) {
+		close(read)
+		return load(path)
+	}
+	type answer struct {
+		cleared *binaryClearance
+		err     error
+	}
+	asked := make(chan answer, 1)
+	var asks atomic.Int32
+	r.ask = func(context.Context, string) (string, error) {
+		if asks.Add(1) == 1 {
+			go func() {
+				cleared, err := r.restartable(t.Context())
+				asked <- answer{cleared, err}
+			}()
+			<-read
+		}
+		return "", nil
+	}
+
+	if !r.restart(t.Context()) {
+		t.Fatal("restart() = false, want the router restarted")
+	}
+	if got := <-asked; got.cleared != nil || got.err != nil {
+		t.Errorf("restartable() = %v, %v; want nil, nil: the restart begun as it waited, cleared by nothing", got.cleared, got.err)
+	}
+	if copies.Load() != 1 || asks.Load() != 1 {
+		t.Errorf("the upgrade was copied in %d times and asked %d times, want once each, by the restart falling due", copies.Load(), asks.Load())
+	}
+	checkCopy(t, own, s.version("1.1"))
+	checkAlone(t, own)
+}
+
+// countCopies has r count the upgrades it copies in, and returns the count.
+func countCopies(r *restarts) *atomic.Int32 {
+	copies := new(atomic.Int32)
+	stage := r.stage
+	r.stage = func(path string) (routercopy.Staged, error) {
+		copies.Add(1)
+		return stage(path)
+	}
+	return copies
 }
 
 func TestARestartAskedForWithNoUpgradeDueLeavesStagingFreeAsItAsks(t *testing.T) {
