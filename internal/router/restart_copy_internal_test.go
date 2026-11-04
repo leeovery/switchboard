@@ -192,6 +192,10 @@ func TestARestartThatDoesntGoAheadLeavesTheCopyAsItWas(t *testing.T) {
 		restart func(ctx context.Context, r *restarts) bool
 		asking  func(t *testing.T, s startedFrom, r *restarts, stop context.CancelFunc)
 		answer  binaryAnswer
+		// wantKept is whether the upgrade copied in is kept beside the copy
+		// for the next quiet moment, until the router stops looking after
+		// itself, rather than removed at once.
+		wantKept bool
 	}{
 		{
 			name:    "refusing to start",
@@ -199,14 +203,16 @@ func TestARestartThatDoesntGoAheadLeavesTheCopyAsItWas(t *testing.T) {
 			answer:  binaryAnswer{refusal: "invalid config"},
 		},
 		{
-			name:    "a request begun as it's asked",
-			restart: falling,
-			asking:  func(_ *testing.T, _ startedFrom, r *restarts, _ context.CancelFunc) { r.inFlight.begin() },
+			name:     "a request begun as it's asked",
+			restart:  falling,
+			asking:   func(_ *testing.T, _ startedFrom, r *restarts, _ context.CancelFunc) { r.inFlight.begin() },
+			wantKept: true,
 		},
 		{
-			name:    "its link moved on to another version as it's asked",
-			restart: falling,
-			asking:  movedOn,
+			name:     "its link moved on to another version as it's asked",
+			restart:  falling,
+			asking:   movedOn,
+			wantKept: true,
 		},
 		{
 			name:    "the config file saved as it's asked",
@@ -214,11 +220,13 @@ func TestARestartThatDoesntGoAheadLeavesTheCopyAsItWas(t *testing.T) {
 			asking: func(t *testing.T, s startedFrom, _ *restarts, _ context.CancelFunc) {
 				writeFile(t, s.kept, twoAccounts)
 			},
+			wantKept: true,
 		},
 		{
-			name:    "told to stop as it's asked",
-			restart: falling,
-			asking:  func(_ *testing.T, _ startedFrom, _ *restarts, stop context.CancelFunc) { stop() },
+			name:     "told to stop as it's asked",
+			restart:  falling,
+			asking:   func(_ *testing.T, _ startedFrom, _ *restarts, stop context.CancelFunc) { stop() },
+			wantKept: true,
 		},
 		{
 			name:    "asked for, refusing to start",
@@ -259,6 +267,208 @@ func TestARestartThatDoesntGoAheadLeavesTheCopyAsItWas(t *testing.T) {
 			}
 			if len(*asks) != 1 {
 				t.Errorf("the binary was asked %d times, want once", len(*asks))
+			}
+			checkCopy(t, own, s.version("1.0"))
+			if kept := len(beside(t, own)) == 2; kept != tt.wantKept {
+				t.Errorf("the copy's directory holds %v, want the upgrade copied in kept beside it: %v", beside(t, own), tt.wantKept)
+			}
+			r.discardUpgrade()
+			checkAlone(t, own)
+		})
+	}
+}
+
+func TestAnUpgradeCopiedInIsKeptForTheNextQuietMoment(t *testing.T) {
+	s, own := newRunningCopy(t)
+	r := copying(s, own, unheeded)
+	asks := askedAt(t, r, binaryAnswer{})
+	answer := r.ask
+	r.ask = func(ctx context.Context, path string) (string, error) {
+		r.inFlight.begin()
+		return answer(ctx, path)
+	}
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+	if r.restart(t.Context()) {
+		t.Fatal("restart() = true, want it put off: a request began as the upgrade was asked")
+	}
+	kept, err := os.Stat((*asks)[0].path)
+	if err != nil {
+		t.Fatalf("the upgrade copied in: %v, want it kept for the next quiet moment", err)
+	}
+
+	r.inFlight.end()
+	if !r.restart(t.Context()) {
+		t.Fatal("restart() = false at the next quiet moment, want the router restarted")
+	}
+	if len(*asks) != 1 {
+		t.Errorf("the binary was asked %d times, want once: its clearance carried over", len(*asks))
+	}
+	if have, err := os.Stat(own); err != nil || !os.SameFile(have, kept) {
+		t.Errorf("the copy, %s, isn't the upgrade copied in at the quiet moment before, %s (%v): want that put in place, not one copied again", own, (*asks)[0].path, err)
+	}
+	checkCopy(t, own, s.version("1.1"))
+	checkAlone(t, own)
+}
+
+func TestNoUpgradeIsCopiedInWithARequestInFlight(t *testing.T) {
+	s, own := newRunningCopy(t)
+	r := copying(s, own, unheeded)
+	asks := askedAt(t, r, binaryAnswer{})
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+	r.inFlight.begin()
+
+	if r.restart(t.Context()) {
+		t.Fatal("restart() = true with a request in flight, want it put off")
+	}
+	if len(*asks) != 0 {
+		t.Errorf("the binary was asked %d times, want none", len(*asks))
+	}
+	checkCopy(t, own, s.version("1.0"))
+	checkAlone(t, own)
+}
+
+func TestAnUpgradeKeptIsRemovedOnceTheBinaryMovesOn(t *testing.T) {
+	s, own := newRunningCopy(t)
+	r := copying(s, own, unheeded)
+	askedAt(t, r, binaryAnswer{})
+	answer := r.ask
+	r.ask = func(ctx context.Context, path string) (string, error) {
+		r.inFlight.begin()
+		return answer(ctx, path)
+	}
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+	r.restart(t.Context())
+	if len(beside(t, own)) != 2 {
+		t.Fatalf("the copy's directory holds %v, want the upgrade copied in kept beside it", beside(t, own))
+	}
+
+	writeFile(t, s.version("1.2"), "switchboard 1.2")
+	relink(t, s.binary, s.version("1.2"))
+	r.look()
+	checkAlone(t, own)
+}
+
+func TestAnUpgradeCopiedInAsTheLinkMovesOnIsNeverCommittedUnasked(t *testing.T) {
+	s, own := newRunningCopy(t)
+	r := copying(s, own, unheeded)
+	asks := askedAt(t, r, binaryAnswer{}, binaryAnswer{refusal: "invalid config"})
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+	// 1.1 is copied in and cleared, but can't be put in place of the copy,
+	// a directory in its way, which leaves its clearance carried over and
+	// nothing kept.
+	remove(t, own)
+	writeFile(t, filepath.Join(own, "in the way"), "")
+	if r.restart(t.Context()) || len(*asks) != 1 {
+		t.Fatalf("restart() went ahead, or the binary was asked %d times, want it asked once, and held off", len(*asks))
+	}
+	removeAll(t, own)
+	// The link moves on to 1.2 in the moment between the files being looked
+	// at and 1.2 being copied in.
+	writeFile(t, s.version("1.2"), "switchboard 1.2")
+	stage := r.stage
+	r.stage = func(path string) (routercopy.Staged, error) {
+		r.stage = stage
+		relink(t, s.binary, s.version("1.2"))
+		return stage(path)
+	}
+
+	if r.restart(t.Context()) || r.restarting() {
+		t.Fatal("restart() = true, want it put off: what was copied in isn't what the clearance was for")
+	}
+	if _, err := os.Stat(own); err == nil {
+		t.Errorf("the copy is there, holding %q, want nothing put in its place unasked", contents(t, own))
+	}
+	checkNothingBeside(t, own)
+	r.look()
+	if r.restart(t.Context()) || len(*asks) != 2 || (*asks)[1].held != "switchboard 1.2" {
+		t.Errorf("asked %+v, want 1.2 asked before anything is put in place of the copy, and refusing", *asks)
+	}
+	if _, err := os.Stat(own); err == nil {
+		t.Errorf("the copy is there, holding %q, want 1.2, refusing, never put in its place", contents(t, own))
+	}
+}
+
+func TestAnUpgradeWhoseLinkVanishesAsItsCopiedSpendsNoWarning(t *testing.T) {
+	log := logstest.Capture(t)
+	s, own := newRunningCopy(t)
+	r := copying(s, own, unheeded)
+	askedAt(t, r, binaryAnswer{})
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+	stage := r.stage
+	r.stage = func(path string) (routercopy.Staged, error) {
+		r.stage = stage
+		remove(t, s.binary)
+		return stage(path)
+	}
+
+	if r.restart(t.Context()) {
+		t.Fatal("restart() = true, want it put off: the binary's link vanished as it was copied")
+	}
+	if log.Has(`msg="can't copy the upgrade in`) {
+		t.Errorf("log reads\n%s\nwant nothing said at warn: the link vanished for a moment", log)
+	}
+	if ready := r.ready(); ready != nil {
+		t.Errorf("ready() = %v, want none until the next look", ready)
+	}
+	checkNothingBeside(t, own)
+
+	link(t, s.version("1.1"), s.binary)
+	chmod(t, s.version("1.1"), 0o000)
+	r.look()
+	r.restart(t.Context())
+	if !log.Has("level=WARN", `msg="can't copy the upgrade in`, "permission denied") {
+		t.Errorf("log reads\n%s\nwant a copy that can't be made after it warned of", log)
+	}
+}
+
+func TestARestartAskedForAsTheLinkChangesWhileCopiedInIsRefused(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes the binary's link in the moment before it's copied
+		// in.
+		change  func(t *testing.T, s startedFrom)
+		wantErr func(s startedFrom) string
+	}{
+		{
+			name:   "vanishing, as an upgrade moves it on",
+			change: func(t *testing.T, s startedFrom) { remove(t, s.binary) },
+			wantErr: func(s startedFrom) string {
+				return "the router's binary, " + s.binary + ", isn't there, as for a moment while an upgrade moves it on: try again once it is"
+			},
+		},
+		{
+			name: "moving on to another version",
+			change: func(t *testing.T, s startedFrom) {
+				writeFile(t, s.version("1.2"), "switchboard 1.2")
+				relink(t, s.binary, s.version("1.2"))
+			},
+			wantErr: func(s startedFrom) string {
+				return "the router's binary, " + s.binary + ", changed as it checked whether it could restart: try again"
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, own := newRunningCopy(t)
+			r := copying(s, own, unheeded)
+			asks := askedAt(t, r, binaryAnswer{})
+			relink(t, s.binary, s.version("1.1"))
+			stage := r.stage
+			r.stage = func(path string) (routercopy.Staged, error) {
+				tt.change(t, s)
+				return stage(path)
+			}
+
+			if err := askedFor(t, r); err == nil || err.Error() != tt.wantErr(s) {
+				t.Errorf("restartable() = %v, want %q", err, tt.wantErr(s))
+			}
+			if len(*asks) != 0 {
+				t.Errorf("the binary was asked %d times, want none", len(*asks))
 			}
 			checkCopy(t, own, s.version("1.0"))
 			checkAlone(t, own)
@@ -368,6 +578,7 @@ func TestARefusedUpgradeIsHeldTillTheBinaryItUpgradesFromMovesOn(t *testing.T) {
 	if n := strings.Count(log.String(), `msg="restart held`); n != 1 || !log.Has("level=WARN", "path="+s.binary) {
 		t.Errorf("log reads\n%s\nwant the restart held said once, of the binary it upgrades from", log)
 	}
+	checkAlone(t, own)
 
 	writeFile(t, s.version("1.2"), "switchboard 1.2")
 	relink(t, s.binary, s.version("1.2"))
@@ -438,7 +649,7 @@ func TestAnUpgradeThatCantBeCopiedInIsCopiedAgainAtTheNextLook(t *testing.T) {
 			if n := strings.Count(log.String(), `msg="can't copy the upgrade in`); n != 1 || !log.Has(warning...) {
 				t.Errorf("log reads\n%s\nwant a line with %q, once", log, warning)
 			}
-			if n := strings.Count(log.String(), `msg="the upgrade still can't be copied in"`); n != 2 {
+			if n := strings.Count(log.String(), `msg="the upgrade wasn't copied in; copying it again at the next look"`); n != 2 {
 				t.Errorf("log reads\n%s\nwant the copies after the first noted at debug, twice, not %d times", log, n)
 			}
 
@@ -598,10 +809,46 @@ func checkCopy(t *testing.T, own, want string) {
 // copied in left beside it.
 func checkAlone(t *testing.T, own string) {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Dir(own))
-	if err != nil || len(entries) != 1 || entries[0].Name() != filepath.Base(own) {
-		t.Errorf("the copy's directory holds %v (%v), want the copy alone", entries, err)
+	if entries := beside(t, own); len(entries) != 1 || entries[0] != filepath.Base(own) {
+		t.Errorf("the copy's directory holds %v, want the copy alone", entries)
 	}
+}
+
+// checkNothingBeside checks the copy's directory holds nothing, but for the
+// copy where it's there: nothing copied in left there.
+func checkNothingBeside(t *testing.T, own string) {
+	t.Helper()
+	for _, name := range beside(t, own) {
+		if name != filepath.Base(own) {
+			t.Errorf("the copy's directory holds %v, want nothing copied in left there", beside(t, own))
+			return
+		}
+	}
+}
+
+// beside returns the names of what the copy's directory holds, the copy
+// among them where it's there.
+func beside(t *testing.T, own string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Dir(own))
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names
+}
+
+// contents returns what the file at path holds.
+func contents(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }
 
 func chmod(t *testing.T, path string, mode os.FileMode) {

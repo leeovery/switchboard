@@ -62,10 +62,12 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 }
 
 // run looks after the router every so often, until ctx ends or the router
-// restarts.
+// restarts, removing as it returns any upgrade it copied in and kept, so none
+// outlives the router's run.
 func (u *upkeep) run(ctx context.Context) {
 	tick := time.NewTicker(u.every)
 	defer tick.Stop()
+	defer u.restarts.discardUpgrade()
 	for {
 		select {
 		case <-ctx.Done():

@@ -102,6 +102,45 @@ func TestAServiceRestartCopiesInTheUpgradeDueBeforeItAnswers(t *testing.T) {
 	}
 }
 
+func TestARouterStoppedWithAnUpgradeCopiedInKeptLeavesNothingBesideItsCopy(t *testing.T) {
+	s := newSelfWatching(t, true)
+	var arrived <-chan struct{}
+	var release func()
+	s.cfg.Upstream, arrived, release = holdingUpstream(t)
+	execs := replacing(&s.cfg)
+	own := s.runOwnCopy(t)
+	answered := make(chan string, 1)
+	var asking sync.Once
+	// A request begins as the upgrade copied in is asked, which keeps it for
+	// the next quiet moment.
+	s.cfg.Check = func(context.Context, string, []string, []string) ([]byte, error) {
+		asking.Do(func() {
+			go func() { answered <- post("http://" + s.cfg.Listen + "/v1/messages") }()
+			<-arrived
+		})
+		return nil, nil
+	}
+	stop, finished := runStoppable(t, s.cfg)
+
+	s.upgrade(t)
+	waitUntil(t, "the upgrade copied in is kept beside the copy", func() bool {
+		entries, err := os.ReadDir(filepath.Dir(own))
+		return err == nil && len(entries) == 2
+	})
+	stop()
+	release()
+	if got := <-answered; got != `200 {"type":"message"}` {
+		t.Errorf("the request in flight was answered %q, want 200 and its body", got)
+	}
+	if err := <-finished; err != nil {
+		t.Errorf("Run() = %v, want nil", err)
+	}
+	if made := execs.count(); made != 0 {
+		t.Errorf("replaced itself %d times, want none: it was told to stop", made)
+	}
+	checkOwnCopy(t, own, s.current)
+}
+
 func TestARouterRunningItsOwnCopyRemovesWhatCopiesCutShortLeftBesideItAsItStarts(t *testing.T) {
 	s := newSelfWatching(t, true)
 	own := s.runOwnCopy(t)

@@ -65,6 +65,12 @@ type restarts struct {
 	// upgrade is copied over as the router restarts into it: nil where it
 	// runs none, and restarts into binary itself.
 	own *routercopy.Copy
+	// stage copies the binary at path in beside own, as own's Stage does.
+	stage func(path string) (routercopy.Staged, error)
+	// staged is the upgrade copied in beside own at a quiet moment that a
+	// request cut short, kept for the next while it's of the file the binary
+	// it upgrades from leads to: nil while none is.
+	staged *routercopy.Staged
 	// uncopied is set once an upgrade couldn't be copied in, until the next
 	// look, so it's copied again then, never at once; and copyWarned once
 	// that has been said at warn.
@@ -118,6 +124,9 @@ func restartsFor(cfg Config, inFlight *inFlight, emit func(Event)) *restarts {
 	binary, own := cfg.upgradesFrom()
 	r := newRestarts(cfg.ConfigFile, binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now, emit)
 	r.ask, r.own = asking(cfg), own
+	if own != nil {
+		r.stage = own.Stage
+	}
 	return r
 }
 
@@ -191,13 +200,17 @@ func WatchFrom(from, runs string) Watched {
 // notes whether the binary is there, lifts a hold either of the first two has
 // moved on from, tells of a restart they've made due as it falls due, and
 // logs it. An upgrade that couldn't be copied in can be copied again from
-// here on.
+// here on, and one kept that the binary has moved on from is removed.
 func (r *restarts) look() {
 	r.uncopied = false
 	r.config.look()
 	r.binary.look()
 	r.zone.look()
-	r.gone = r.missing(statFile(r.binary.path))
+	binary := statFile(r.binary.path)
+	r.gone = r.missing(binary)
+	if r.staged != nil && copiedFrom(*r.staged).movedTo(binary) {
+		r.discardUpgrade()
+	}
 	r.reconsider()
 	why := r.due()
 	if r.note(why) {
@@ -307,8 +320,9 @@ func (r *restarts) ready() <-chan struct{} {
 // request in flight, and reports whether it did: the config file may have
 // changed since it was last looked at, into a config the router couldn't
 // start again from. An upgrade copied in is put in place of the copy only as
-// the restart begins, and removed where it doesn't. A router restarting
-// already, as asked to, copies and asks nothing more.
+// the restart begins; where a request cuts it short, it's kept for the next
+// quiet moment. A router restarting already, as asked to, copies and asks
+// nothing more.
 func (r *restarts) restart(ctx context.Context) bool {
 	if r.restarting() {
 		return true
@@ -319,18 +333,19 @@ func (r *restarts) restart(ctx context.Context) bool {
 	if why == "" || r.config.missed || r.missing(stood.binary) {
 		return false
 	}
-	next, err := r.successor(stood.binary)
-	if err != nil {
-		r.copyFailed(err)
+	path, ok := r.into(stood.binary)
+	if !ok || !r.clear(ctx, why, stood, path) {
 		return false
 	}
 	// Asking the binary takes a while, in which a request can begin: the
-	// clearance carries the restart over to the next quiet moment.
-	if !r.clear(ctx, why, stood, next.path) || r.inFlight.requests() > 0 {
-		next.discard()
+	// clearance, and the upgrade copied in, carry the restart over to the
+	// next quiet moment.
+	if r.inFlight.requests() > 0 {
 		return false
 	}
-	if err := next.commit(); err != nil {
+	err := commitStaged(r.staged)
+	r.staged = nil
+	if err != nil {
 		r.copyFailed(err)
 		return false
 	}
@@ -338,24 +353,85 @@ func (r *restarts) restart(ctx context.Context) bool {
 	return true
 }
 
-// successor returns the binary the router would restart into, the binary it
-// upgrades from standing as binary: where it runs a copy of its own, and
-// binary has moved on from the one running, as after an upgrade, or the copy
-// is gone, as when removed by hand, a copy of the binary it upgrades from
-// staged beside it; else the binary it runs, by the path it was started as.
-// It fails where that can't be staged.
-func (r *restarts) successor(binary fileState) (successor, error) {
-	if r.own == nil {
-		return successor{path: r.binary.path}, nil
+// into returns the path of the binary the router would restart into, the
+// binary it upgrades from standing as binary, for restart to ask, or reports
+// that it has none yet. Where it runs a copy of its own, and binary has
+// moved on from the one running, as after an upgrade, or the copy is gone,
+// that's a copy of binary beside its copy: the one kept from a quiet moment
+// before, while it's of that file still, else one copied in afresh, but not
+// while a request is in flight, which would put the restart off; one that
+// can't be copied in leaves the router carrying on, as copyFailed says.
+// Otherwise it's the binary the router runs.
+func (r *restarts) into(binary fileState) (string, bool) {
+	if !r.upgrading(binary) {
+		return r.runs(), true
 	}
-	if !r.binary.movedOn(binary) && !r.own.Missing() {
-		return successor{path: r.own.Path()}, nil
+	if r.staged != nil && copiedFrom(*r.staged).same(binary) {
+		return r.staged.Path(), true
 	}
-	staged, err := r.own.Stage(r.binary.path)
+	r.discardUpgrade()
+	if r.inFlight.requests() > 0 {
+		return "", false
+	}
+	staged, err := r.stageOf(binary)
 	if err != nil {
-		return successor{}, err
+		r.copyFailed(err)
+		return "", false
 	}
-	return successor{path: staged.Path(), staged: &staged}, nil
+	r.staged = &staged
+	return staged.Path(), true
+}
+
+// upgrading reports whether the router, running a copy of its own, would
+// restart into a copy of the binary it upgrades from, standing as binary:
+// where binary has moved on from the one running, as after an upgrade, or
+// the copy is gone, as when removed by hand.
+func (r *restarts) upgrading(binary fileState) bool {
+	return r.own != nil && (r.binary.movedOn(binary) || r.own.Missing())
+}
+
+// runs is the path of the binary the router runs: its own copy, or, with
+// none, the binary it upgrades from.
+func (r *restarts) runs() string {
+	if r.own != nil {
+		return r.own.Path()
+	}
+	return r.binary.path
+}
+
+// errMovedOn is stageOf's failure where the file copied in isn't the one
+// the binary stood as, as when its link moved on as it was copied.
+var errMovedOn = errors.New("the binary moved on as it was copied")
+
+// stageOf copies the binary the router upgrades from, standing as binary, in
+// beside the router's copy, for it to be asked whether it could start. It
+// fails where it can't, or with errMovedOn where the file copied isn't the
+// one binary stands as, which it removes: cleared for binary, as a clearance
+// carried from a quiet moment before clears it unasked, it would be another
+// version, never asked, put in place of the copy.
+func (r *restarts) stageOf(binary fileState) (routercopy.Staged, error) {
+	staged, err := r.stage(r.binary.path)
+	if err != nil {
+		return routercopy.Staged{}, err
+	}
+	if !copiedFrom(staged).same(binary) {
+		discardStaged(&staged)
+		return routercopy.Staged{}, errMovedOn
+	}
+	return staged, nil
+}
+
+// copiedFrom is how the file staged was copied from stood as it was copied.
+func copiedFrom(staged routercopy.Staged) fileState {
+	return fileState{info: staged.From()}
+}
+
+// discardUpgrade removes the upgrade copied in and kept for the next quiet
+// moment, if one is: once the binary moves on from it, the restart is held,
+// or the router stops looking after itself.
+func (r *restarts) discardUpgrade() {
+	discardStaged(r.staged)
+	r.staged = nil
 }
 
 // removeLeftovers removes the upgrades copied in beside the router's copy
@@ -371,18 +447,30 @@ func (r *restarts) removeLeftovers() {
 	}
 }
 
-// copyFailed notes that an upgrade couldn't be copied in, as on a full disk,
-// err saying why: the router carries on as it is, the restart due, to copy
-// it again at the next look's quiet moment, never at once. The first is said
-// at warn, and those after it only at debug.
+// copyFailed notes that an upgrade couldn't be copied in, err saying why: the
+// router carries on as it is, the restart due, to copy it again at the next
+// look's quiet moment, never at once. A copy that can't be made, as on a full
+// disk, is said at warn the first time, and only at debug after. The binary
+// gone or moved on as it was copied, as for a moment while an upgrade moves
+// its link on, is said only at debug, so a failure after it is still warned
+// of.
 func (r *restarts) copyFailed(err error) {
 	r.uncopied = true
-	if r.copyWarned {
-		logger.Debug("the upgrade still can't be copied in", "error", err)
+	if r.copyWarned || r.vanished(err) || errors.Is(err, errMovedOn) {
+		logger.Debug("the upgrade wasn't copied in; copying it again at the next look", "error", err)
 		return
 	}
 	r.copyWarned = true
 	logger.Warn("can't copy the upgrade in; carrying on as it is, and copying it again at the next moment with no request in flight", "path", r.binary.path, "error", err)
+}
+
+// vanished reports whether err is the binary the router upgrades from not
+// there as it was opened to be copied, as for a moment while an upgrade moves
+// its link on, which missing would have found had it looked a moment later:
+// the copy's own failures name other paths.
+func (r *restarts) vanished(err error) bool {
+	failed, ok := errors.AsType[*fs.PathError](err)
+	return ok && failed.Path == r.binary.path && errors.Is(err, fs.ErrNotExist)
 }
 
 // clear reports whether the binary at path is clear for the router to
@@ -426,8 +514,10 @@ func (r *restarts) missing(binary fileState) bool {
 // hold holds the restart due for why, the router started again unable to
 // start, as refusal says, as the config file and the binary stood as it was
 // asked: an event tells of it, and the restart due reports it, until a look
-// finds either moved on. Its caller has the log say why, at warn.
+// finds either moved on. An upgrade copied in is removed, as it won't be
+// restarted into meanwhile. Its caller has the log say why, at warn.
 func (r *restarts) hold(stood checked, why, refusal string) {
+	r.discardUpgrade()
 	r.held = &binaryRefusal{stood: stood, why: refusal}
 	r.mu.Lock()
 	r.pending.Held = refusal
@@ -463,10 +553,11 @@ func (r *restarts) files() checked {
 // upgrade it would restart into can't be copied in, where it runs a copy of
 // its own; the binary it would restart into, asked until ctx ends, refuses
 // to start; or the config file or the binary changes as the config file is
-// read or the binary asked. Cleared, an upgrade copied in is in place of the
-// copy, for the restart to go into; otherwise it's removed. A router
-// restarting already can, cleared by nothing. It reads the config file
-// afresh, and is safe for concurrent use.
+// read, the binary copied in or the binary asked. Cleared, an upgrade copied
+// in is in place of the copy, for the restart to go into; otherwise it's
+// removed. A router restarting already can, cleared by nothing. It reads the
+// config file afresh, and is safe for concurrent use, copying in an upgrade
+// of its own rather than the one restart keeps.
 func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if !r.supervised {
 		return nil, errors.New("the router was run by hand, with switchboard serve, so nothing would start it again: stop it, and run it again")
@@ -479,25 +570,56 @@ func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	// asked is.
 	stood := r.files()
 	if r.missing(stood.binary) {
-		return nil, fmt.Errorf("the router's binary, %s, isn't there, as for a moment while an upgrade moves it on: try again once it is", r.binary.path)
+		return nil, r.notThere()
 	}
 	refused := r.refusesConfig()
 	if refused != nil && !r.newBinaryDecides(stood.binary) {
 		return nil, refused
 	}
-	next, err := r.successor(stood.binary)
+	staged, err := r.stagedFor(stood)
 	if err != nil {
-		return nil, uncopiable(err)
-	}
-	cleared, err := r.answered(ctx, stood, refused, next.path)
-	if err != nil {
-		next.discard()
 		return nil, err
 	}
-	if err := next.commit(); err != nil {
+	path := r.runs()
+	if staged != nil {
+		path = staged.Path()
+	}
+	cleared, err := r.answered(ctx, stood, refused, path)
+	if err != nil {
+		discardStaged(staged)
+		return nil, err
+	}
+	if err := commitStaged(staged); err != nil {
 		return nil, uncopiable(err)
 	}
 	return cleared, nil
+}
+
+// stagedFor returns the upgrade copied in beside the router's copy for
+// restartable to ask, the config file and the binary it upgrades from
+// standing as stood, where it would restart into one, as upgrading says, or
+// nil where it wouldn't; or fails, saying why, where it can't be copied in,
+// the binary is gone as it's copied, or it has moved on.
+func (r *restarts) stagedFor(stood checked) (*routercopy.Staged, error) {
+	if !r.upgrading(stood.binary) {
+		return nil, nil
+	}
+	staged, err := r.stageOf(stood.binary)
+	switch {
+	case r.vanished(err):
+		return nil, r.notThere()
+	case errors.Is(err, errMovedOn):
+		return nil, fmt.Errorf("the router's binary, %s, changed as it checked whether it could restart: try again", r.binary.path)
+	case err != nil:
+		return nil, uncopiable(err)
+	}
+	return &staged, nil
+}
+
+// notThere is restartable's refusal while the binary the router upgrades
+// from isn't there.
+func (r *restarts) notThere() error {
+	return fmt.Errorf("the router's binary, %s, isn't there, as for a moment while an upgrade moves it on: try again once it is", r.binary.path)
 }
 
 // uncopiable is restartable's refusal where the upgrade the router would
@@ -720,32 +842,23 @@ func (c *binaryClearance) silence() error {
 	return c.silent
 }
 
-// successor is the binary a restart goes into, by the path it's asked
-// whether it could start by, and, for an upgrade copied in, the new version
-// staged beside the router's copy: put in place of the copy as the restart
-// begins, or removed where it doesn't.
-type successor struct {
-	path   string
-	staged *routercopy.Staged
-}
-
-// commit puts the new version staged in place of the router's copy, for the
-// restart to go into: nothing where none was staged.
-func (s successor) commit() error {
-	if s.staged == nil {
+// commitStaged puts staged, an upgrade copied in, in place of the router's
+// copy, for the restart to go into: nothing for none.
+func commitStaged(staged *routercopy.Staged) error {
+	if staged == nil {
 		return nil
 	}
-	return s.staged.Commit()
+	return staged.Commit()
 }
 
-// discard removes the new version staged, for a restart that doesn't go
-// ahead: nothing where none was staged. One that can't be removed goes as the
-// router next starts.
-func (s successor) discard() {
-	if s.staged == nil {
+// discardStaged removes staged, an upgrade copied in that won't be restarted
+// into: nothing for none. One that can't be removed goes as the router next
+// starts.
+func discardStaged(staged *routercopy.Staged) {
+	if staged == nil {
 		return
 	}
-	if err := s.staged.Discard(); err != nil {
+	if err := staged.Discard(); err != nil {
 		logger.Warn("can't remove the upgrade copied in beside the router's copy; it goes as the router next starts", "error", err)
 	}
 }

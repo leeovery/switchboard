@@ -144,6 +144,30 @@ func TestStageThenCommit(t *testing.T) {
 	f.checkAlone(t)
 }
 
+func TestAStagedCopySaysTheFileItWasMadeOf(t *testing.T) {
+	f := newFixture(t)
+	version := f.binary(t, "Cellar/switchboard/2/bin/switchboard", "version 2\n", modified)
+	link := filepath.Join(f.root, "opt", "bin", "switchboard")
+	if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(version, link); err != nil {
+		t.Fatal(err)
+	}
+
+	staged, err := f.own.Stage(link)
+	if err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+	want, err := os.Stat(version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if from := staged.From(); from == nil || !os.SameFile(from, want) || !from.ModTime().Equal(modified) {
+		t.Errorf("From() = %v, want the file the link leads to, %s, modified at %v", from, version, modified)
+	}
+}
+
 func TestACommitThatFailsRemovesTheStagedCopy(t *testing.T) {
 	f := newFixture(t)
 	staged, err := f.own.Stage(f.binary(t, "1/switchboard", "version 1\n", modified))

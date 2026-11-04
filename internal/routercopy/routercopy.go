@@ -79,11 +79,19 @@ func (c Copy) Make(binary string) error {
 // renamed over it or removed.
 type Staged struct {
 	path, over string
+	from       fs.FileInfo
 }
 
 // Path is where the staged copy is, for it to be run before it's committed.
 func (s Staged) Path() string {
 	return s.path
+}
+
+// From is the file the copy was made of, as it stood once it was opened to
+// be copied, its links followed: for a caller to tell whether that's the
+// file it meant, as a link can move on in the moment before it's opened.
+func (s Staged) From() fs.FileInfo {
+	return s.from
 }
 
 // Commit renames the staged copy over the router's copy, removing it where
@@ -112,30 +120,34 @@ func (c Copy) Stage(binary string) (Staged, error) {
 	if err != nil {
 		return Staged{}, fmt.Errorf("copy %s beside the router's copy, %s: %w", binary, c.path, err)
 	}
-	return Staged{path: staged, over: c.path}, nil
+	return staged, nil
 }
 
 // stage is Stage, unwrapped.
-func (c Copy) stage(binary string) (string, error) {
+func (c Copy) stage(binary string) (Staged, error) {
 	source, err := os.Open(binary)
 	if err != nil {
-		return "", err
+		return Staged{}, err
 	}
 	defer func() { _ = source.Close() }()
 	info, err := source.Stat()
 	if err != nil {
-		return "", err
+		return Staged{}, err
 	}
 	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("%s isn't a file", binary)
+		return Staged{}, fmt.Errorf("%s isn't a file", binary)
 	}
 	if err := c.makeDir(); err != nil {
-		return "", err
+		return Staged{}, err
 	}
-	return atomicfile.StageModified(c.path, fileMode, info.ModTime(), func(w io.Writer) error {
+	staged, err := atomicfile.StageModified(c.path, fileMode, info.ModTime(), func(w io.Writer) error {
 		_, err := io.Copy(w, source)
 		return err
 	})
+	if err != nil {
+		return Staged{}, err
+	}
+	return Staged{path: staged, over: c.path, from: info}, nil
 }
 
 // makeDir makes the copy's directory, private, where it isn't there, and the
