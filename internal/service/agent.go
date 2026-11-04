@@ -65,9 +65,12 @@ type agent struct {
 	// before it kills it.
 	ExitTimeOut int
 	// own is the router's copy of switchboard, the program, and from the
-	// binary it's made from, which the router upgrades from.
-	own  routercopy.Copy
-	from string
+	// binary it's made from, which the router upgrades from; built is the
+	// file from led to as describe found it, its links followed, which the
+	// copy is made of: "" for an agent not described.
+	own   routercopy.Copy
+	from  string
+	built string
 }
 
 // variable is one of an environment's variables.

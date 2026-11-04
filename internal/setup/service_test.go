@@ -244,6 +244,22 @@ func TestTheServiceStepReinstallsWhereTheRoutersCopyIsMissing(t *testing.T) {
 	}
 }
 
+func TestTheServiceStepReinstallsWhereLaunchdStartsSwitchboardItself(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	// As launchd keeps the plist from before the copy loaded for a router
+	// that moved over, until it loads the plist again.
+	w.launchd.program = []string{w.switchboard, "serve"}
+
+	const why = "launchd started <root>/brew/bin/switchboard itself, as it loaded the service before the router's copy\n"
+	if told := w.service(t); !strings.Contains(told, installedRow+updatedRow+why) {
+		t.Errorf("the service step said\n%s\nwant the service installed afresh, saying\n%s", told, updatedRow+why)
+	}
+	if want := []string{w.routerCopy, "serve", "--from", w.switchboard}; !slices.Equal(w.launchd.program, want) {
+		t.Errorf("launchd's job runs %q, want %q: the plist loaded afresh", w.launchd.program, want)
+	}
+}
+
 func TestTheServiceStepLeavesARoutersCopyOtherThanThisSwitchboard(t *testing.T) {
 	w := newWorld(t)
 	w.done(t)

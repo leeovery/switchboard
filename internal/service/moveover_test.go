@@ -32,6 +32,9 @@ func TestMoveOverWritesAPlistFromBeforeTheCopyAfreshToRunIt(t *testing.T) {
 	want := strings.Replace(string(written), "\t</dict>\n\t<key>RunAtLoad</key>", proxyVariable+"\t</dict>\n\t<key>RunAtLoad</key>", 1)
 	s.putPlist(t, beforeTheCopy(want))
 	running := writeVersion(t, filepath.Join(s.root, "Cellar", "switchboard", "1.2.3", "bin", "switchboard"), "switchboard 1.2.3")
+	// The plist's program a link to the binary the router runs as, as
+	// Homebrew's is.
+	relinkTo(t, s.binary, running)
 	var restarted []string
 
 	err = s.svc.MoveOver(t.Context(), moving(running, func(own routercopy.Copy) error {
@@ -133,11 +136,11 @@ func TestMoveOverPutsThePlistBackWhereTheRouterCantRestartIntoTheCopy(t *testing
 func TestMoveOverIsPutOffWhereTheLinkMovedOnFromTheBinaryRunning(t *testing.T) {
 	s := newSetup(t, nil, nil)
 	s.launchctl.refuse = true
-	plist := s.plistBeforeTheCopy(t)
 	running := writeVersion(t, filepath.Join(s.root, "Cellar", "switchboard", "1.0", "bin", "switchboard"), "switchboard 1.0")
 	next := writeVersion(t, filepath.Join(s.root, "Cellar", "switchboard", "1.1", "bin", "switchboard"), "switchboard 1.1")
 	link := filepath.Join(s.root, "opt", "bin", "switchboard")
 	relinkTo(t, link, running)
+	plist := s.plistBeforeTheCopyRunning(t, link)
 	// Found as the router started, before another upgrade moved the link on.
 	m := moving(link, refuseRestart(t))
 	relinkTo(t, link, next)
@@ -258,6 +261,22 @@ func TestMoveOverIsPutOffWhereThePlistKeepsTheCopyElsewhere(t *testing.T) {
 	checkNoCopy(t, s)
 }
 
+func TestMoveOverIsPutOffWhereThePlistsProgramIsntTheBinaryTheRouterRunsAs(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	s.launchctl.refuse = true
+	// Edited by hand to start the router through a shell.
+	lines, i := programLines(s.plistBeforeTheCopy(t))
+	lines[i], lines[i+1] = "\t\t<string>/bin/sh</string>\n\t\t<string>-c</string>", "\t\t<string>exec "+s.binary+" serve</string>"
+	plist := strings.Join(lines, "\n")
+	s.putPlist(t, plist)
+
+	if err := s.svc.MoveOver(t.Context(), moving(s.binary, refuseRestart(t))); !errors.Is(err, service.ErrPutOff) {
+		t.Errorf("MoveOver() error = %v, want service.ErrPutOff: the plist runs a shell, not the binary the router runs as", err)
+	}
+	checkPlistAsItWas(t, s, plist)
+	checkNothingCopied(t, s)
+}
+
 func TestInstallWaitsForAMoveHoldingTheCopysLock(t *testing.T) {
 	s := newSetup(t, nil, upOnceStarted(4242))
 	unlock, err := routercopy.At(s.routerCopy).Lock()
@@ -333,7 +352,14 @@ func checkNothingCopied(t *testing.T, s *setup) {
 // in the service's place, running the setup's binary itself, and returns it.
 func (s *setup) plistBeforeTheCopy(t *testing.T) string {
 	t.Helper()
-	written, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+	return s.plistBeforeTheCopyRunning(t, s.binary)
+}
+
+// plistBeforeTheCopyRunning puts the plist install wrote before the router's
+// copy in the service's place, running binary itself, and returns it.
+func (s *setup) plistBeforeTheCopyRunning(t *testing.T, binary string) string {
+	t.Helper()
+	written, err := s.svc.PlistOf(service.InstallOptions{Executable: binary})
 	if err != nil {
 		t.Fatal(err)
 	}

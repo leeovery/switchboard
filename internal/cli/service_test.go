@@ -371,6 +371,19 @@ func TestServiceStatusSaysTheLaunchAgentRunsSwitchboardItself(t *testing.T) {
 	}
 }
 
+func TestServiceStatusSaysLaunchdStartsSwitchboardItselfAsItLoadedTheServiceBeforeTheCopy(t *testing.T) {
+	s := newServiceSetup(t)
+	s.putKeptPlist(t, shortTempDir(t))
+	// As for a router that moved over, until launchd loads the plist again.
+	s.launchd.loaded, s.launchd.program = true, []string{s.binary, "serve"}
+
+	got := run(t, s.srv.deps, "service", "status")
+	want := "copy         not run by launchd, which starts " + s.binary + " itself, as it loaded the LaunchAgent before the router's copy: run switchboard service install\n"
+	if got.code != 0 || !strings.Contains(got.stdout, "LaunchAgent  "+s.plist+"\n"+want) {
+		t.Errorf("switchboard service status = %+v, want the copy said not run by launchd, after the LaunchAgent:\n%s", got, want)
+	}
+}
+
 func TestServiceStatusOfARouterNotRunning(t *testing.T) {
 	for _, state := range routerStates {
 		t.Run(state.name, func(t *testing.T) {
@@ -514,7 +527,10 @@ type fakeLaunchd struct {
 	// pid, as formats setup can't read wholly might.
 	pid                  int
 	pidless, stateUnread bool
-	calls                [][]string
+	// program is the program the job runs, with its arguments, as launchd
+	// loaded them, which print says where it's set.
+	program []string
+	calls   [][]string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -548,6 +564,9 @@ func (f *fakeLaunchd) printed(target string) []byte {
 		state = "\tstate = running\n"
 	case f.pid != 0:
 		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
+	}
+	if f.program != nil {
+		state += "\n\tprogram = " + f.program[0] + "\n\targuments = {\n\t\t" + strings.Join(f.program, "\n\t\t") + "\n\t}\n"
 	}
 	return []byte(target + " = {\n" + state + "}\n")
 }

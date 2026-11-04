@@ -407,7 +407,9 @@ The steps are:
    switchboard than the one `setup` runs as, when `setup` is given another config file than the one
    the router serves, or when its plist differs from the one `switchboard service install` would
    write with what it was installed with, as after an upgrade that adds a key, and says what
-   differed, or when the router's copy of switchboard it runs is missing. Installing it again keeps the `--log-level`, `--config` and environment it was
+   differed, when the router's copy of switchboard it runs is missing, or when launchd still starts
+   switchboard itself, having loaded the LaunchAgent before the router's copy, as after the router
+   moved over to it. Installing it again keeps the `--log-level`, `--config` and environment it was
    installed with, every variable in it, a `HOME` too, as the environment decides where the router
    keeps its state, tokens included. A `--config` given to `setup` takes the place of the kept one
    only where it names another file than the one the router serves. Before it touches a running
@@ -790,8 +792,10 @@ put the config right as it says.
   LaunchAgent and the router's copy of switchboard.
 - **`status`** shows whether the LaunchAgent is installed and loaded, whether the router's copy of
   switchboard it runs is missing, so launchd can't run the router, or not run at all, as the
-  LaunchAgent was written before the copy and runs switchboard itself, naming `service install`
-  for either, whether launchd runs a router, and its pid where `launchctl print` names one, or that its state
+  LaunchAgent was written before the copy and runs switchboard itself, or as launchd loaded it
+  before the copy and, reading it only as it loads it, still starts switchboard itself till the
+  next login, as `launchctl print` names the program, naming `service install` for each, whether
+  launchd runs a router, and its pid where `launchctl print` names one, or that its state
   is unread where it says neither, and the health of the router where the LaunchAgent keeps its state, else of the one
   where your shell does, saying so. Where it can't read the LaunchAgent's plist back, or work out
   from it where the router keeps its state, `status` and `restart` say so, and look for the router
@@ -1443,8 +1447,10 @@ The router also watches:
 
 The service's router restarts when the config changes into one that's valid, when an upgrade leads
 the link to another binary, or when the time zone changes. As it starts, it compares its own copy
-with the binary the link leads to, by size and modification time, and one that differs, as after
-an upgrade made while launchd started it again, has an upgrade due from the start. To restart, it:
+with the binary the link leads to, by size and modification time, and, where the sizes agree but
+the times don't, as on a disk that keeps coarser times, by their bytes. One that differs, as after
+an upgrade made while launchd started it again, has an upgrade due from the start. `service
+install` compares them the same way, and leaves a copy that matches as it is. To restart, it:
 
 1. Waits for a moment with no request in flight.
 2. For an upgrade, copies the binary the link leads to in beside its own copy, hidden.

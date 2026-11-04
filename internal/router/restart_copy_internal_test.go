@@ -5,7 +5,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -161,8 +163,8 @@ func TestAnUpgradeIsCopiedOverTheRoutersCopyAsTheRestartBegins(t *testing.T) {
 					t.Fatalf("the binary was asked %d times, want once", len(*asks))
 				}
 				asked := (*asks)[0]
-				if filepath.Dir(asked.path) != filepath.Dir(own) || !strings.HasPrefix(filepath.Base(asked.path), ".switchboard.") || asked.held != "switchboard 1.1" {
-					t.Errorf("asked %s, holding %q, want the new version, switchboard 1.1, copied in hidden beside the copy, %s", asked.path, asked.held, own)
+				if asked.path != next(own) || asked.held != "switchboard 1.1" {
+					t.Errorf("asked %s, holding %q, want the new version, switchboard 1.1, copied in beside the copy as %s, always that one name", asked.path, asked.held, next(own))
 				}
 				checkCopy(t, own, s.version("1.1"))
 				checkAlone(t, own)
@@ -588,6 +590,79 @@ func TestARestartPutsInPlaceOnlyTheCopyItAsked(t *testing.T) {
 	checkAlone(t, own)
 }
 
+func TestTwoRestartsNeverCopyAnUpgradeInOverEachOther(t *testing.T) {
+	falling := func(t *testing.T, r *restarts) bool { return r.restart(t.Context()) }
+	asked := func(t *testing.T, r *restarts) bool { return askedFor(t, r) == nil }
+	tests := []struct {
+		name string
+		// first restarts r, refused by the upgrade it copies in, and second
+		// as first asks it, each reporting whether the restart went ahead.
+		first, second func(t *testing.T, r *restarts) bool
+	}{
+		{name: "one falling due as one asked for asks", first: asked, second: falling},
+		{name: "one asked for as one falling due asks", first: falling, second: asked},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, own := newRunningCopy(t)
+			r := copying(s, own, unheeded)
+			relink(t, s.binary, s.version("1.1"))
+			r.look()
+			var mu sync.Mutex
+			var happened []string
+			times := map[string]int{}
+			// note notes what happened, and reports how many times it has.
+			note := func(what string) int {
+				mu.Lock()
+				defer mu.Unlock()
+				happened = append(happened, what)
+				times[what]++
+				return times[what]
+			}
+			copiedAgain := make(chan struct{})
+			stage := r.stage
+			r.stage = func(path string) (routercopy.Staged, error) {
+				if note("copied in") == 2 {
+					close(copiedAgain)
+				}
+				return stage(path)
+			}
+			second := make(chan bool, 1)
+			r.ask = func(_ context.Context, path string) (string, error) {
+				held, err := os.ReadFile(path)
+				if err != nil || path != next(own) || string(held) != "switchboard 1.1" {
+					t.Errorf("asked %s, holding %q (%v), want switchboard 1.1 at %s", path, held, err, next(own))
+				}
+				defer note("answered")
+				if note("asked") > 1 {
+					return "", nil
+				}
+				go func() { second <- tt.second(t, r) }()
+				select {
+				case <-copiedAgain:
+					t.Error("the second restart copied an upgrade in as the first asked the one it copied in, want it to wait till the first is done with it")
+				case <-time.After(200 * time.Millisecond):
+				}
+				return "invalid config", nil
+			}
+
+			if tt.first(t, r) {
+				t.Fatal("the first restart went ahead, want it refused")
+			}
+			if !<-second {
+				t.Fatal("the second restart didn't go ahead, want it to, once the first was done")
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if want := []string{"copied in", "asked", "answered", "copied in", "asked", "answered"}; !slices.Equal(happened, want) {
+				t.Errorf("what happened: %q, want %q: each upgrade copied in, asked and done with before the other", happened, want)
+			}
+			checkCopy(t, own, s.version("1.1"))
+			checkAlone(t, own)
+		})
+	}
+}
+
 func TestARefusedUpgradeIsHeldTillTheBinaryItUpgradesFromMovesOn(t *testing.T) {
 	log := logstest.Capture(t)
 	s, own := newRunningCopy(t)
@@ -792,6 +867,12 @@ func copying(s startedFrom, own string, emit func(Event)) *restarts {
 		Supervised: true,
 		Now:        at(start),
 	}, newInFlight(), emit)
+}
+
+// next is where an upgrade is copied in beside the router's copy, at own, to
+// be asked: always that one name.
+func next(own string) string {
+	return filepath.Join(filepath.Dir(own), ".switchboard.next")
 }
 
 // binaryAsked is a binary the router restarts into, asked whether it could

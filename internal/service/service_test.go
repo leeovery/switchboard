@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"testing/synctest"
@@ -88,6 +89,32 @@ func TestInstallRunsTheRoutersCopyFromTheBinaryAsItWasRun(t *testing.T) {
 	}
 }
 
+func TestInstallCopiesTheVersionTheLinkLedToAsItStarted(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	running := writeVersion(t, filepath.Join(s.root, "Cellar", "switchboard", "1.0", "bin", "switchboard"), "switchboard 1.0")
+	next := writeVersion(t, filepath.Join(s.root, "Cellar", "switchboard", "1.1", "bin", "switchboard"), "switchboard 1.1")
+	link := filepath.Join(s.root, "opt", "bin", "switchboard")
+	relinkTo(t, link, running)
+	cfg := s.cfg
+	var upgraded sync.Once
+	cfg.Getenv = func(key string) string {
+		// Install reads TMPDIR as it judges the binary it was run by, once it
+		// has followed its link: an upgrade lands then.
+		if key == "TMPDIR" {
+			upgraded.Do(func() { relinkTo(t, link, next) })
+		}
+		return s.cfg.Getenv(key)
+	}
+
+	if _, err := newService(t, cfg).Install(t.Context(), service.InstallOptions{Executable: link}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if data, err := os.ReadFile(s.routerCopy); err != nil || string(data) != "switchboard 1.0" {
+		t.Errorf("the router's copy holds %q (%v), want switchboard 1.0, the version the link led to as install started, not the upgrade landing since", data, err)
+	}
+	s.checkPlist(t, link, "")
+}
+
 func TestInstallReplacesTheRoutersCopyOnlyWithAnotherBinary(t *testing.T) {
 	tests := []struct {
 		name string
@@ -130,7 +157,7 @@ func TestInstallReplacesTheRoutersCopyOnlyWithAnotherBinary(t *testing.T) {
 				t.Fatal(err)
 			}
 			if replaced := !os.SameFile(before, after); replaced != tt.replace {
-				t.Errorf("the router's copy replaced by another file: %v, want %v: the router running it restarts for a new one", replaced, tt.replace)
+				t.Errorf("the router's copy replaced by another file: %v, want %v: one that matches the binary already is left as it is", replaced, tt.replace)
 			}
 		})
 	}
@@ -1429,6 +1456,94 @@ func TestStatusOfAPlistRunningACopyElsewhereSaysItNeitherMissingNorDirect(t *tes
 	}
 }
 
+func TestStatusSaysWhereLaunchdsJobRunsSwitchboardItselfThoughThePlistRunsTheCopy(t *testing.T) {
+	// A path holding a space, which print gives as it is.
+	const spaced = "/opt/home brew/bin/switchboard"
+	tests := []struct {
+		name string
+		// beforeCopy has the plist written before the router's copy, running
+		// the binary itself, which Direct then names.
+		beforeCopy bool
+		// printed is what print says of the job's program, given the binary
+		// and the router's copy.
+		printed func(binary, own string) string
+		// want is what LoadedDirect names, given the binary: nil for nothing.
+		want func(binary string) string
+	}{
+		{
+			name:    "loaded from the plist before the copy, as launchd keeps it for a router moved over",
+			printed: func(binary, _ string) string { return printedProgram(binary, "serve") },
+			want:    func(binary string) string { return binary },
+		},
+		{
+			name:    "loaded from the plist before the copy, its path holding a space",
+			printed: func(string, string) string { return printedProgram(spaced, "serve", "--log-level", "debug") },
+			want:    func(string) string { return spaced },
+		},
+		{
+			name:    "loaded as the plist runs the copy",
+			printed: func(binary, own string) string { return printedProgram(own, "serve", "--from", binary) },
+		},
+		{
+			name: "loaded to run a copy elsewhere, with --from",
+			printed: func(binary, _ string) string {
+				return printedProgram("/elsewhere/switchboard", "serve", "--from="+binary)
+			},
+		},
+		{
+			name:    "saying no program",
+			printed: func(binary, _ string) string { return "\targuments = {\n\t\t" + binary + "\n\t\tserve\n\t}\n" },
+		},
+		{
+			name:    "listing no arguments",
+			printed: func(binary, _ string) string { return "\tprogram = " + binary + "\n" },
+		},
+		{
+			name:    "listing none in its arguments",
+			printed: func(binary, _ string) string { return "\tprogram = " + binary + "\n\targuments = {\n\t}\n" },
+		},
+		{
+			name: "listing its arguments in a way it doesn't read",
+			printed: func(binary, _ string) string {
+				return "\tprogram = " + binary + "\n\targuments = {\n\t\t" + binary + "\n\tserve\n\t}\n"
+			},
+		},
+		{
+			name:       "the plist itself from before the copy",
+			beforeCopy: true,
+			printed:    func(binary, _ string) string { return printedProgram(binary, "serve") },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, func(int) (router.Health, error) { return up(4242) })
+			plist, err := s.svc.PlistOf(service.InstallOptions{Executable: s.binary})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.beforeCopy {
+				plist = []byte(beforeTheCopy(string(plist)))
+			}
+			s.putPlist(t, string(plist))
+			writeBinary(t, s.routerCopy)
+			s.launchctl.loaded, s.launchctl.pid = true, 4242
+			s.launchctl.program = tt.printed(s.binary, s.routerCopy)
+			var want, direct string
+			if tt.want != nil {
+				want = tt.want(s.binary)
+			}
+			if tt.beforeCopy {
+				direct = s.binary
+			}
+
+			st, err := s.svc.Status(t.Context())
+			if err != nil || st.LoadedDirect != want || st.Direct != direct || st.MissingCopy != "" {
+				t.Errorf("Status() = %+v, %v; want LoadedDirect %q, Direct %q and no copy missing", st, err, want, direct)
+			}
+		})
+	}
+}
+
 func TestOptionsReadsTheBinaryThePlistWasInstalledFromAsItNamesIt(t *testing.T) {
 	// A path holding what XML escapes.
 	const binary = "/Users/tester/it's <mine> & co/bin/switchboard"
@@ -1829,7 +1944,10 @@ type fakeLaunchctl struct {
 	// the job waits.
 	pid                                      int
 	pidless, stateless, stateUnread, waiting bool
-	calls                                    [][]string
+	// program is what print says of the program the job runs and its
+	// arguments, its lines as they're printed: none where it's "".
+	program string
+	calls   [][]string
 }
 
 // exit is the status this run of subcommand exits with, as exits and fails
@@ -1905,8 +2023,14 @@ func (f *fakeLaunchctl) printed(target string) []byte {
 	case f.pid != 0:
 		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
 	}
-	return []byte(target + " = {\n\tactive count = 1\n" + state +
+	return []byte(target + " = {\n\tactive count = 1\n" + state + f.program +
 		"\tspawn = {\n\t\tpid = 1\n\t}\n\tlast exit code = (never exited)\n}\n")
+}
+
+// printedProgram is what launchctl print says of a job loaded to run
+// program, its path first, as macOS prints it.
+func printedProgram(program ...string) string {
+	return "\n\tprogram = " + program[0] + "\n\targuments = {\n\t\t" + strings.Join(program, "\n\t\t") + "\n\t}\n\n"
 }
 
 // has reports whether launchd has the service loaded now.

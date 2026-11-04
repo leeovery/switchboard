@@ -264,7 +264,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	defer unlock()
-	if err := a.placeCopy(a.from); err != nil {
+	if err := a.placeCopy(); err != nil {
 		return Installed{}, err
 	}
 	before, i, _ := s.answering(ctx)
@@ -291,30 +291,37 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 }
 
 // describe describes the LaunchAgent Install writes for opts, with the
-// switchboard binary as Binary finds it.
+// switchboard binary as Binary finds it, and the file it leads to as it
+// does, which the copy is made of.
 func (s *Service) describe(opts InstallOptions) (agent, error) {
-	binary, err := s.Binary(opts.Executable)
+	binary, built, err := s.binary(opts.Executable)
 	if err != nil {
 		return agent{}, err
 	}
 	opts.Executable = binary
-	return s.agent(opts)
+	a, err := s.agent(opts)
+	if err != nil {
+		return agent{}, err
+	}
+	a.built = built
+	return a, nil
 }
 
-// placeCopy makes the agent's copy of binary, having removed what copies cut
-// short left beside it, but leaves a copy that matches binary as it is: the
-// router running it watches its file, and would restart in place for a new
-// one, racing the swap. Replacing it is safe under that router all the same,
-// as a rename leaves it the file it was started from.
-func (a agent) placeCopy(binary string) error {
+// placeCopy makes the agent's copy of the file its binary led to as it was
+// described, having removed what copies cut short left beside it, so an
+// upgrade landing since isn't copied unjudged. It leaves a copy that matches
+// that file already, as there's nothing to copy. Replacing one is safe all
+// the same under a router running it, as a rename leaves that router the
+// file it was started from.
+func (a agent) placeCopy() error {
 	if err := a.own.RemoveLeftovers(); err != nil {
 		return err
 	}
-	matches, err := a.own.Matches(binary)
+	matches, err := a.own.Matches(a.built)
 	if err != nil || matches {
 		return err
 	}
-	return a.own.Make(binary)
+	return a.own.Make(a.built)
 }
 
 // tokenless reports whether the router looks set to start with none of the
@@ -476,6 +483,11 @@ type Status struct {
 	// Direct is the switchboard the plist in place runs itself, as one
 	// written before the router's copy does, with no --from: "" otherwise.
 	Direct string
+	// LoadedDirect is the switchboard the job launchd has loaded runs itself,
+	// with no --from, where the plist in place runs the router's copy, as
+	// launchd's job does from a router moving over until it loads the plist
+	// again: "" otherwise.
+	LoadedDirect string
 }
 
 // Status reports whether the service is installed, whether launchd has
@@ -484,12 +496,12 @@ type Status struct {
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	_, err := os.Stat(s.Plist())
 	st := Status{Installed: err == nil}
-	st.MissingCopy, st.Direct = s.runsCopy(ctx)
 	j, err := s.job(ctx)
 	if err != nil {
 		return Status{}, err
 	}
 	st.Loaded, st.Running, st.StateUnread, st.PID = j.loaded, j.running, j.unread, j.pid
+	st.MissingCopy, st.Direct, st.LoadedDirect = s.runsCopy(ctx, j.program)
 	if h, i, err := s.answering(ctx); i >= 0 {
 		st.Router, st.Elsewhere = &h, i > 0
 	} else {
@@ -499,34 +511,48 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 }
 
 // runsCopy says how the plist in place runs the router's copy of
-// switchboard: where it runs the copy and that's missing, the copy's path,
-// as missing; where it runs another program, with no --from, as a plist
-// written before the copy runs the binary itself, that program, as direct.
-// Neither is said of a plist that can't be read back, nor of a service seen
-// without it.
-func (s *Service) runsCopy(ctx context.Context) (missing, direct string) {
+// switchboard: where it runs another program itself, as itself says, as a
+// plist written before the copy runs the binary, that program, as direct;
+// where it runs the copy and that's missing, the copy's path, as missing; and
+// where it runs the copy but loaded, the program launchd has loaded, runs
+// another itself, that program, as loadedDirect. None is said of a plist
+// that can't be read back, nor of a service seen without it.
+func (s *Service) runsCopy(ctx context.Context, loaded []string) (missing, direct, loadedDirect string) {
 	if s.unplaced {
-		return "", ""
+		return "", "", ""
 	}
 	installed, err := s.readPlist(ctx)
 	if err != nil {
-		return "", ""
+		return "", "", ""
 	}
 	program, _ := lookup(installed, "ProgramArguments")
 	args := program.strings()
 	own, err := s.routerCopy()
 	if err != nil || len(args) == 0 {
-		return "", ""
+		return "", "", ""
 	}
-	_, flags, _ := arguments(args)
-	_, from := lookup(flags, fromFlag)
-	switch {
-	case args[0] == own.Path() && own.Missing():
-		return own.Path(), ""
-	case args[0] != own.Path() && !from:
-		return "", args[0]
+	if args[0] != own.Path() {
+		return "", itself(args, own), ""
 	}
-	return "", ""
+	if own.Missing() {
+		missing = own.Path()
+	}
+	return missing, "", itself(loaded, own)
+}
+
+// itself is the program a LaunchAgent's program runs, where that's not own,
+// the router's copy, and it's given no --from, so it runs switchboard
+// itself, as one written before the copy does: "" otherwise, and for no
+// program at all.
+func itself(program []string, own routercopy.Copy) string {
+	if len(program) == 0 || program[0] == own.Path() {
+		return ""
+	}
+	_, flags, _ := arguments(program)
+	if _, from := lookup(flags, fromFlag); from {
+		return ""
+	}
+	return program[0]
 }
 
 // Answered fails, saying where to find out why, when the router launchd
@@ -569,18 +595,25 @@ func (s *Service) target() string {
 // version it led to. It fails for a build that won't last, judged by where
 // its links lead.
 func (s *Service) Binary(exe string) (string, error) {
-	path, err := filepath.Abs(exe)
+	path, _, err := s.binary(exe)
+	return path, err
+}
+
+// binary is Binary, with the file the path led to as it was judged, its
+// links followed.
+func (s *Service) binary(exe string) (path, built string, err error) {
+	path, err = filepath.Abs(exe)
 	if err != nil {
-		return "", fmt.Errorf("find this switchboard binary: %w", err)
+		return "", "", fmt.Errorf("find this switchboard binary: %w", err)
 	}
-	built, err := filepath.EvalSymlinks(path)
+	built, err = filepath.EvalSymlinks(path)
 	if err != nil {
-		return "", fmt.Errorf("find this switchboard binary: %w", err)
+		return "", "", fmt.Errorf("find this switchboard binary: %w", err)
 	}
 	if temporary(built, cmp.Or(s.cfg.Getenv("TMPDIR"), "/tmp")) {
-		return "", fmt.Errorf("this switchboard is a temporary build, %s, which won't last: use one that does, such as Homebrew's or one go install built", built)
+		return "", "", fmt.Errorf("this switchboard is a temporary build, %s, which won't last: use one that does, such as Homebrew's or one go install built", built)
 	}
-	return path, nil
+	return path, built, nil
 }
 
 // temporary reports whether the binary at path, its symlinks resolved, is a

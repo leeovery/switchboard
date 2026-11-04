@@ -297,6 +297,8 @@ func (a *app) serviceStatus(ctx context.Context, out, errOut io.Writer) error {
 		rows = append(rows, []string{"copy", "missing, " + st.MissingCopy + ", so launchd can't run the router: run switchboard service install"})
 	case st.Direct != "":
 		rows = append(rows, []string{"copy", "not run: the LaunchAgent runs " + st.Direct + " itself, as written before the router's copy: run switchboard service install"})
+	case st.LoadedDirect != "":
+		rows = append(rows, []string{"copy", "not run by launchd, which starts " + st.LoadedDirect + " itself, as it loaded the LaunchAgent before the router's copy: run switchboard service install"})
 	}
 	return writeTable(out, append(rows, []string{"launchd", loaded}, []string{"router", answer}))
 }

@@ -9,6 +9,7 @@
 package routercopy
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +29,10 @@ const FromFlag = "from"
 const (
 	// name is the copy's file name, in its directory.
 	name = "switchboard"
+	// nextName is the one name StageNext stages a binary at, beside the copy.
+	// It's named as a file written beside the copy is, so one a router left
+	// there is removed with what copies cut short left.
+	nextName = "." + name + ".next"
 	// lockName is the file in the copy's directory whose lock Lock takes.
 	// It isn't named as a file written beside the copy is, so it's never
 	// taken for one a copy cut short left, and it goes with the directory.
@@ -127,6 +132,26 @@ func (c Copy) Stage(binary string) (Staged, error) {
 	return staged, nil
 }
 
+// StageNext stages binary as Stage does, but at one name beside the router's
+// copy that never changes, .switchboard.next, in place of any staged there:
+// macOS keeps what it allows a binary run there against its path, as it does
+// the copy's. It's staged as Stage stages it, then renamed to that name, so
+// what's found there is always whole. Two staged at once write over each
+// other: whoever stages here does so one at a time.
+func (c Copy) StageNext(binary string) (Staged, error) {
+	staged, err := c.Stage(binary)
+	if err != nil {
+		return Staged{}, err
+	}
+	next := filepath.Join(c.dir(), nextName)
+	if err := os.Rename(staged.path, next); err != nil {
+		_ = os.Remove(staged.path)
+		return Staged{}, fmt.Errorf("copy %s beside the router's copy, %s: %w", binary, c.path, err)
+	}
+	staged.path = next
+	return staged, nil
+}
+
 // stage is Stage, unwrapped.
 func (c Copy) stage(binary string) (Staged, error) {
 	source, err := os.Open(binary)
@@ -167,7 +192,9 @@ func (c Copy) makeDir() error {
 }
 
 // Matches reports whether the copy is one of binary, its links followed, as
-// the copy keeps its size and its modification time: no copy matches none.
+// the copy keeps its size and its modification time; and, where the sizes
+// agree but the times don't, as on a disk that keeps coarser times than
+// binary's, by their bytes: no copy matches none.
 func (c Copy) Matches(binary string) (bool, error) {
 	want, err := os.Stat(binary)
 	if err != nil {
@@ -179,8 +206,54 @@ func (c Copy) Matches(binary string) (bool, error) {
 		return false, nil
 	case err != nil:
 		return false, fmt.Errorf("compare the router's copy with %s: %w", binary, err)
+	case have.Size() != want.Size():
+		return false, nil
+	case have.ModTime().Equal(want.ModTime()):
+		return true, nil
 	}
-	return have.Size() == want.Size() && have.ModTime().Equal(want.ModTime()), nil
+	same, err := sameBytes(c.path, binary)
+	if err != nil {
+		return false, fmt.Errorf("compare the router's copy with %s: %w", binary, err)
+	}
+	return same, nil
+}
+
+// sameBytes reports whether the files at a and b hold the same bytes, read
+// only as far as the first that differs.
+func sameBytes(a, b string) (bool, error) {
+	fa, err := os.Open(a)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = fa.Close() }()
+	fb, err := os.Open(b)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = fb.Close() }()
+	bufA, bufB := make([]byte, 64<<10), make([]byte, 64<<10)
+	for {
+		na, errA := io.ReadFull(fa, bufA)
+		nb, errB := io.ReadFull(fb, bufB)
+		if err := errors.Join(unended(errA), unended(errB)); err != nil {
+			return false, err
+		}
+		if !bytes.Equal(bufA[:na], bufB[:nb]) {
+			return false, nil
+		}
+		if na < len(bufA) {
+			return true, nil
+		}
+	}
+}
+
+// unended is err, a full read's failure, where it's more than the file
+// ending first: nil otherwise.
+func unended(err error) error {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil
+	}
+	return err
 }
 
 // Missing reports whether the copy is known not to be there, nor a file its

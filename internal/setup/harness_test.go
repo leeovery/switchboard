@@ -573,6 +573,9 @@ type fakeLaunchd struct {
 	// before, where it's set, is told of each run before it's run, failing it
 	// with the error it returns, where it returns one.
 	before func(args []string) error
+	// program is the program the job runs, with its arguments, as launchd
+	// read them from the plist it loaded, which print says where it's set.
+	program []string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -587,7 +590,7 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 		return []byte("Bootstrap failed: 5: Input/output error\n"), exitStatus(5)
 	case args[0] == "bootstrap":
 		f.loaded = true
-		f.stateDir = f.stateDirOf(args[2])
+		f.stateDir, f.program = f.stateDirOf(args[2]), programIn(args[2])
 		f.start()
 	case !f.loaded:
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
@@ -606,7 +609,8 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 }
 
 // printed is what launchctl print prints of the job target, trimmed to
-// what matters: whether the router runs, and its pid, as the formats set.
+// what matters: whether the router runs, and its pid, as the formats set,
+// and the program it runs.
 func (f *fakeLaunchd) printed(target string) []byte {
 	state := "\tstate = not running\n"
 	switch {
@@ -617,7 +621,31 @@ func (f *fakeLaunchd) printed(target string) []byte {
 	case f.pid != 0:
 		state = fmt.Sprintf("\tstate = running\n\tpid = %d\n", f.pid)
 	}
+	if f.program != nil {
+		state += "\n\tprogram = " + f.program[0] + "\n\targuments = {\n\t\t" + strings.Join(f.program, "\n\t\t") + "\n\t}\n"
+	}
 	return []byte(target + " = {\n" + state + "}\n")
+}
+
+// programArguments is how a plist lists its program and its arguments, and
+// argument how it gives each.
+var (
+	programArguments = regexp.MustCompile(`(?s)<key>ProgramArguments</key>\s*<array>(.*?)</array>`)
+	argument         = regexp.MustCompile(`<string>([^<]*)</string>`)
+)
+
+// programIn is the program the plist at path runs, with its arguments.
+func programIn(path string) []string {
+	plist, _ := os.ReadFile(path)
+	listed := programArguments.FindSubmatch(plist)
+	if listed == nil {
+		return nil
+	}
+	var program []string
+	for _, arg := range argument.FindAllSubmatch(listed[1], -1) {
+		program = append(program, string(arg[1]))
+	}
+	return program
 }
 
 func (f *fakeLaunchd) start() {

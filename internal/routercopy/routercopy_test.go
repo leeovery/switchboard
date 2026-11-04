@@ -1,11 +1,14 @@
 package routercopy_test
 
 import (
+	"cmp"
 	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -211,49 +214,154 @@ func TestStageThenDiscard(t *testing.T) {
 	}
 }
 
+func TestStageNextStagesAtOneNameInPlaceOfAnyStagedThere(t *testing.T) {
+	f := newFixture(t)
+	if err := f.own.Make(f.binary(t, "1/switchboard", "version 1\n", modified)); err != nil {
+		t.Fatal(err)
+	}
+	next := filepath.Join(filepath.Dir(f.own.Path()), ".switchboard.next")
+
+	for _, version := range []string{"2", "3"} {
+		staged, err := f.own.StageNext(f.binary(t, version+"/switchboard", "version "+version+"\n", modified))
+		if err != nil {
+			t.Fatalf("StageNext() of version %s: error = %v", version, err)
+		}
+		if staged.Path() != next {
+			t.Errorf("version %s staged at %s, want %s", version, staged.Path(), next)
+		}
+		if data, err := os.ReadFile(next); err != nil || string(data) != "version "+version+"\n" {
+			t.Errorf("%s holds %q (%v), want version %s, in place of any staged there before", next, data, err, version)
+		}
+		if info, err := os.Stat(next); err != nil || !info.ModTime().Equal(modified) {
+			t.Errorf("%s: %v, want it last modified as the binary was, %v", next, err, modified)
+		}
+	}
+	if names := f.names(t); !slices.Equal(names, []string{".switchboard.next", "switchboard"}) {
+		t.Errorf("the copy's directory holds %v, want the copy and the one staged, nothing more", names)
+	}
+
+	staged, err := f.own.StageNext(f.binary(t, "4/switchboard", "version 4\n", modified))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := staged.Commit(); err != nil {
+		t.Fatalf("Commit() error = %v", err)
+	}
+	if data, err := os.ReadFile(f.own.Path()); err != nil || string(data) != "version 4\n" {
+		t.Errorf("the copy holds %q (%v), want the one staged", data, err)
+	}
+	f.checkAlone(t)
+}
+
+func TestStageNextThatCantPutTheCopyAtItsNameLeavesNothingStaged(t *testing.T) {
+	f := newFixture(t)
+	if err := f.own.Make(f.binary(t, "1/switchboard", "version 1\n", modified)); err != nil {
+		t.Fatal(err)
+	}
+	// A directory holding a file can't be renamed over.
+	blocking := filepath.Join(filepath.Dir(f.own.Path()), ".switchboard.next", "file")
+	if err := os.MkdirAll(filepath.Dir(blocking), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(blocking, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := f.own.StageNext(f.binary(t, "2/switchboard", "version 2\n", modified)); err == nil {
+		t.Fatal("StageNext() succeeded, want it to fail")
+	}
+	if names := f.names(t); !slices.Equal(names, []string{".switchboard.next", "switchboard"}) {
+		t.Errorf("the copy's directory holds %v, want the copy and what stood in the way, nothing staged left", names)
+	}
+}
+
 func TestMatches(t *testing.T) {
+	// long is a binary longer than a read of it, differing from another only
+	// past the first.
+	long := strings.Repeat("switchboard\n", 10_000)
 	tests := []struct {
 		name string
-		// change changes the binary at path once it's copied, nil leaving it.
-		change func(t *testing.T, path string)
+		// content is what the binary holds as it's copied, "version 1\n" for
+		// "".
+		content string
+		// change changes the binary, or the copy of it, at path once it's
+		// copied, nil leaving them.
+		change func(t *testing.T, binary, copied string)
 		want   bool
 	}{
 		{name: "the binary copied", want: true},
+		{name: "the binary copied, longer than a read", content: long, want: true},
 		{
-			name: "modified since, the same size",
-			change: func(t *testing.T, path string) {
-				if err := os.Chtimes(path, time.Time{}, modified.Add(time.Second)); err != nil {
-					t.Fatal(err)
-				}
+			name:   "the copy's time kept coarser, as by a disk keeping whole seconds",
+			change: func(t *testing.T, _, copied string) { touch(t, copied, modified.Truncate(time.Second)) },
+			want:   true,
+		},
+		{
+			name: "the copy's time kept coarser, holding other bytes of the same size",
+			change: func(t *testing.T, _, copied string) {
+				write(t, copied, "version 2\n")
+				touch(t, copied, modified.Truncate(time.Second))
+			},
+		},
+		{
+			name:    "the copy's time kept coarser, longer than a read, holding other bytes past the first",
+			content: long,
+			change: func(t *testing.T, _, copied string) {
+				write(t, copied, long[:len(long)-1]+"!")
+				touch(t, copied, modified.Truncate(time.Second))
+			},
+		},
+		{
+			name:   "modified since, holding the same bytes",
+			change: func(t *testing.T, binary, _ string) { touch(t, binary, modified.Add(time.Second)) },
+			want:   true,
+		},
+		{
+			name: "modified since, holding other bytes of the same size",
+			change: func(t *testing.T, binary, _ string) {
+				write(t, binary, "version 2\n")
+				touch(t, binary, modified.Add(time.Second))
 			},
 		},
 		{
 			name: "another size, modified at the same time",
-			change: func(t *testing.T, path string) {
-				if err := os.WriteFile(path, []byte("version 1, longer\n"), 0o755); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.Chtimes(path, time.Time{}, modified); err != nil {
-					t.Fatal(err)
-				}
+			change: func(t *testing.T, binary, _ string) {
+				write(t, binary, "version 1, longer\n")
+				touch(t, binary, modified)
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixture(t)
-			binary := f.binary(t, "1/switchboard", "version 1\n", modified)
+			binary := f.binary(t, "1/switchboard", cmp.Or(tt.content, "version 1\n"), modified)
 			if err := f.own.Make(binary); err != nil {
 				t.Fatal(err)
 			}
 			if tt.change != nil {
-				tt.change(t, binary)
+				tt.change(t, binary, f.own.Path())
 			}
 
 			if got, err := f.own.Matches(binary); err != nil || got != tt.want {
 				t.Errorf("Matches() = %v, %v; want %v", got, err, tt.want)
 			}
 		})
+	}
+}
+
+// write writes content in place of what the file at path holds.
+func write(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// touch has the file at path last modified at at.
+func touch(t *testing.T, path string, at time.Time) {
+	t.Helper()
+	if err := os.Chtimes(path, time.Time{}, at); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -323,6 +431,9 @@ func TestRemoveLeftovers(t *testing.T) {
 		if _, err := f.own.Stage(binary); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if _, err := f.own.StageNext(binary); err != nil {
+		t.Fatal(err)
 	}
 
 	if err := f.own.RemoveLeftovers(); err != nil {
@@ -477,6 +588,20 @@ func (f fixture) binary(t *testing.T, name, content string, at time.Time) string
 		t.Fatal(err)
 	}
 	return path
+}
+
+// names are the names of what the copy's directory holds, in order.
+func (f fixture) names(t *testing.T) []string {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Dir(f.own.Path()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.Name()
+	}
+	return names
 }
 
 // checkAlone checks the copy's directory holds the copy alone, nothing

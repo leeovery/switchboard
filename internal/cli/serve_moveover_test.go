@@ -136,6 +136,17 @@ func TestServeThatDoesntMoveOverCarriesOnFromTheBinaryItWasStartedAs(t *testing.
 			level: "level=INFO", line: notMovingOverLine, why: "service install is setting the service right",
 		},
 		{
+			name: "the plist edited by hand to run it through a shell",
+			keep: func(t *testing.T, s *movingOver) {
+				program := "<string>" + s.srv.binary + "</string>\n\t\t<string>serve</string>"
+				shell := "<string>/bin/sh</string>\n\t\t<string>-c</string>\n\t\t<string>exec " + s.srv.binary + " serve</string>"
+				if err := os.WriteFile(s.plist, []byte(strings.Replace(s.readPlist(t), program, shell, 1)), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+			level: "level=INFO", line: notMovingOverLine, why: "as for a plist edited by hand",
+		},
+		{
 			name: "an upgrade moving the link on as serve starts",
 			keep: func(_ *testing.T, s *movingOver) {
 				// Serve asks which launchd job it runs as once it has found
