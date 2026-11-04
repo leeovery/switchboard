@@ -71,12 +71,16 @@ type restarts struct {
 	// staging is held by a restart falling due and by one asked for, each
 	// from copying an upgrade in until it's asked and put in place, kept or
 	// removed, as both copy it in at that one name: so neither copies one in
-	// over the other's. It guards staged.
+	// over the other's. It guards staged and committed.
 	staging sync.Mutex
 	// staged is the upgrade copied in beside own at a quiet moment that a
 	// request cut short, kept for the next while it's of the file the binary
 	// it upgrades from leads to: nil while none is.
 	staged *routercopy.Staged
+	// committed is set once a restart asked for has put the upgrade it was
+	// cleared for in place of the copy, for atOnce to begin the restart once
+	// its answer has gone.
+	committed bool
 	// uncopied is set once an upgrade couldn't be copied in, until the next
 	// look, so it's copied again then, never at once; and copyWarned once
 	// that has been said at warn.
@@ -338,8 +342,9 @@ func (r *restarts) ready() <-chan struct{} {
 // start again from. An upgrade copied in is put in place of the copy only as
 // the restart begins; where a request cuts it short, it's kept for the next
 // quiet moment. It holds staging from copying an upgrade in until it's put in
-// place, kept or removed. A router restarting already, as asked to, copies
-// and asks nothing more.
+// place, kept or removed. A restart under way already, as one asked for,
+// has it copy and ask nothing more, found before it takes staging or once it
+// has, as underway says.
 func (r *restarts) restart(ctx context.Context) bool {
 	if r.restarting() {
 		return true
@@ -352,6 +357,9 @@ func (r *restarts) restart(ctx context.Context) bool {
 	}
 	r.staging.Lock()
 	defer r.staging.Unlock()
+	if r.underway() {
+		return true
+	}
 	path, staged, ok := r.into(stood.binary)
 	if !ok || !r.clear(ctx, why, stood, path) {
 		return false
@@ -598,9 +606,8 @@ func (r *restarts) files() checked {
 // read, the binary copied in or the binary asked. Cleared, an upgrade copied
 // in is in place of the copy, for the restart to go into; otherwise it's
 // removed. A router restarting already can, cleared by nothing. It reads the
-// config file afresh, and is safe for concurrent use, holding staging from
-// copying an upgrade in, in place of any restart keeps, until it's put in
-// place or removed.
+// config file afresh, and is safe for concurrent use, holding staging only
+// where it would restart into an upgrade, as upgradable says.
 func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if !r.supervised {
 		return nil, errors.New("the router was run by hand, with switchboard serve, so nothing would start it again: stop it, and run it again")
@@ -619,48 +626,65 @@ func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if refused != nil && !r.newBinaryDecides(stood.binary) {
 		return nil, refused
 	}
+	if r.upgrading(stood.binary) {
+		return r.upgradable(ctx, stood, refused)
+	}
+	return r.answered(ctx, stood, refused, r.runs())
+}
+
+// upgradable is restartable where the router would restart into an upgrade,
+// the config file and the binary it upgrades from standing as stood, refused
+// the running version's refusal of the config, if it refuses it: it holds
+// staging, copies the upgrade in, in place of any restart keeps, asks it,
+// and puts it in place once it's cleared, else removes it. It copies and
+// asks nothing where a restart is under way by the time it holds staging,
+// as underway says, cleared by nothing.
+func (r *restarts) upgradable(ctx context.Context, stood checked, refused error) (*binaryClearance, error) {
 	r.staging.Lock()
 	defer r.staging.Unlock()
+	if r.underway() {
+		return nil, nil
+	}
 	staged, err := r.stagedFor(stood)
 	if err != nil {
 		return nil, err
 	}
-	path := r.runs()
-	if staged != nil {
-		path = staged.Path()
-	}
-	cleared, err := r.answered(ctx, stood, refused, path)
+	cleared, err := r.answered(ctx, stood, refused, staged.Path())
 	if err != nil {
-		discardStaged(staged)
+		discardStaged(&staged)
 		return nil, err
 	}
-	if err := commitStaged(staged); err != nil {
+	if err := staged.Commit(); err != nil {
 		return nil, uncopiable(err)
 	}
+	r.committed = true
 	return cleared, nil
 }
 
+// underway reports whether a restart is under way: the router restarting,
+// or a restart asked for having put its upgrade in place, for atOnce to
+// begin once its answer has gone. Its caller holds staging.
+func (r *restarts) underway() bool {
+	return r.restarting() || r.committed
+}
+
 // stagedFor returns the upgrade copied in beside the router's copy for
-// restartable to ask, the config file and the binary it upgrades from
-// standing as stood, where it would restart into one, as upgrading says, in
-// place of any restart keeps, or nil where it wouldn't; or fails, saying why,
+// upgradable to ask, the config file and the binary it upgrades from
+// standing as stood, in place of any restart keeps; or fails, saying why,
 // where it can't be copied in, the binary is gone as it's copied, or it has
 // moved on. Its caller holds staging.
-func (r *restarts) stagedFor(stood checked) (*routercopy.Staged, error) {
-	if !r.upgrading(stood.binary) {
-		return nil, nil
-	}
+func (r *restarts) stagedFor(stood checked) (routercopy.Staged, error) {
 	r.dropKept()
 	staged, err := r.stageOf(stood.binary)
 	switch {
 	case r.vanished(err):
-		return nil, r.notThere()
+		return routercopy.Staged{}, r.notThere()
 	case errors.Is(err, errMovedOn):
-		return nil, fmt.Errorf("the router's binary, %s, changed as it checked whether it could restart: try again", r.binary.path)
+		return routercopy.Staged{}, fmt.Errorf("the router's binary, %s, changed as it checked whether it could restart: try again", r.binary.path)
 	case err != nil:
-		return nil, uncopiable(err)
+		return routercopy.Staged{}, uncopiable(err)
 	}
-	return &staged, nil
+	return staged, nil
 }
 
 // notThere is restartable's refusal while the binary the router upgrades
