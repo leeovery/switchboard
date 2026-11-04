@@ -18,6 +18,34 @@ jobs:
       sha256_arm64: ${{ steps.checksums.outputs.sha256_arm64 }}
       sha256_amd64: ${{ steps.checksums.outputs.sha256_amd64 }}
     steps:
+      # GoReleaser signs wherever the certificate is set, and skips notarising without failing where
+      # a notary secret is missing; a half-set or mangled signing fails here instead, before it.
+      # Carriage returns are dropped as quill drops them, and a .p12 needs its password.
+      - name: Check the signing secrets
+        env:
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+        run: |
+          if [ -z "$MACOS_SIGN_P12" ]; then
+            echo "MACOS_SIGN_P12 isn't set: this release stays ad-hoc signed"
+            exit 0
+          fi
+          for name in MACOS_SIGN_PASSWORD MACOS_NOTARY_ISSUER_ID MACOS_NOTARY_KEY_ID MACOS_NOTARY_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name isn't set, though MACOS_SIGN_P12 is: set it, or remove MACOS_SIGN_P12 to release ad-hoc signed"
+              exit 1
+            fi
+          done
+          for name in MACOS_SIGN_P12 MACOS_NOTARY_KEY; do
+            if ! printf '%s' "${!name}" | tr -d '\r' | base64 -d >/dev/null 2>&1; then
+              echo "::error::$name isn't base64: set it to the output of base64 -i on its file"
+              exit 1
+            fi
+          done
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -34,6 +62,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
 
       - name: Extract checksums
         id: checksums

@@ -8196,16 +8196,27 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 
 ## Signing
 
-To be built, after the router's own copy and before `[export] dir`. A release's macOS binaries are
-signed with a Developer ID, and notarised, as GoReleaser builds them on Linux, from the
-certificate and an App Store Connect key kept in the repository's secrets, under the identifier
-`io.github.leeovery.switchboard`, the LaunchAgent's label. macOS knows an ad-hoc signed binary, as
-Go's linker signs one, by the hash of its code alone, which every release changes, and a signed one
-by its identifier and its signer, which stay. So what the user allows the router, kept against its
-copy's path and, for some folders, its signature, holds from one release to the next (see Its own
-copy, and Observed), and macOS tells of the router's background activity once, under the signer's
-name, rather than at every upgrade. Homebrew doesn't quarantine a formula's files, so notarising
-serves a binary downloaded by other means. The owner's call, 4 November 2026.
+A release's macOS binaries are signed with a Developer ID, and notarised, as GoReleaser builds them
+on Linux (its `notarize` step, through quill), from the certificate and an App Store Connect key
+kept, as base64, in the repository's secrets, under the identifier `switchboard`, the binary's
+name, as quill signs one and GoReleaser gives no way to name another. macOS knows an ad-hoc signed
+binary, as Go's linker signs one, by the hash of its code alone, which every release changes, and a
+signed one by its identifier and its signer, which stay. So what the user allows the router, kept
+against its copy's path and, for some folders, its signature, holds from one release to the next
+(see Its own copy, and Observed), and macOS tells of the router's background activity once, under
+the signer's name, rather than at every upgrade. The step runs only where the certificate's secret
+is set, so a release without it stays ad-hoc signed, as before; the workflow fails first where the
+certificate is set and another of the secrets isn't, above all a notary secret, without which
+GoReleaser would sign and skip notarising, the release passing, and where the certificate or key
+isn't base64, which GoReleaser would fail on only once the binaries are built; the certificate
+needs its password. It waits for Apple's answer on each binary in turn, up to 17 minutes each, as
+the token Apple is sent lives 2 minutes past the wait and Apple refuses one living past 20, leaving
+a minute for the runner's clock. A refusal or no answer fails the release before its binaries are
+uploaded: mint's release is already published, with its notes and no binaries, and the tap isn't
+told, so Homebrew stays on the version before. The workflow run again signs and asks afresh, where
+the cause was the secrets or Apple's; one in the binary or the config needs a fix and a release of
+its own. Homebrew doesn't quarantine a formula's files, so notarising serves a binary downloaded by
+other means. The owner's call, 4 November 2026.
 
 ## The skill
 
@@ -9815,6 +9826,9 @@ What's built but hasn't been seen against the real thing:
 - `import` from a folder in iCloud Drive whose files haven't been downloaded, with the Mac
   offline: staging's read of a file not downloaded should fail, and the import with it, removing
   what it staged.
+- A signed release: the first one's binary signed by the Developer ID and accepted by Apple's
+  notary service, and the upgrade from it to the next asking nothing again and posting no notice
+  of background activity (see Signing).
 - `claude doctor` with the link in place.
 - Background sessions (`claude --bg`) going through the router.
 - *Milestone 5:* asking the terminal its background colour and setting it (OSC 11, putting it back
@@ -9852,7 +9866,7 @@ why.
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | A reserve spent as a last resort, when no account has room outside one | not wanted: the owner, 24 October 2026, as a reserve is kept for the Claude apps and is honoured | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
-| Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
+| Releases signed with a Developer ID, so macOS stops noticing each upgrade | built (see Signing), the owner's call on 4 November 2026; the first upgrade between two signed releases is the check owed | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after OAuth and setup: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | in the cleanliness release, the owner's choice on 26 October 2026: launchd's log, the files set aside, the waiting moves, the compress and the control socket's gap built; the rest open | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
 | How an account's probes went, forgotten across a restart: a failed probe sent again by the startup probe, and the rounds' backoff started again | built in the cleanliness release, 26 October 2026: `state.json` keeps each account's `probed`, `probe_error` and `misses`, and a restart restores them, a stopped router's probes still counting (see The router's rounds) | [probes-across-a-restart](../ideas/2026-10-23--probes-across-a-restart.md) |

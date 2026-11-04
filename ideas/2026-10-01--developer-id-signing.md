@@ -22,4 +22,5 @@ What it takes:
 The first upgrade between two signed releases confirms it: no notice that switchboard can run in
 the background.
 
-Next, once the certificate is in hand.
+Built, the owner's call on 4 November 2026: see the design's Signing. The first upgrade between
+two signed releases is a check owed.
