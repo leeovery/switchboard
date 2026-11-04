@@ -18,8 +18,9 @@ jobs:
       sha256_arm64: ${{ steps.checksums.outputs.sha256_arm64 }}
       sha256_amd64: ${{ steps.checksums.outputs.sha256_amd64 }}
     steps:
-      # GoReleaser signs wherever the certificate is set, and skips notarising without a word where
+      # GoReleaser signs wherever the certificate is set, and skips notarising without failing where
       # a notary secret is missing; a half-set or mangled signing fails here instead, before it.
+      # Carriage returns are dropped as quill drops them, and a .p12 needs its password.
       - name: Check the signing secrets
         env:
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
@@ -39,7 +40,7 @@ jobs:
             fi
           done
           for name in MACOS_SIGN_P12 MACOS_NOTARY_KEY; do
-            if ! printf '%s' "${!name}" | base64 -d >/dev/null 2>&1; then
+            if ! printf '%s' "${!name}" | tr -d '\r' | base64 -d >/dev/null 2>&1; then
               echo "::error::$name isn't base64: set it to the output of base64 -i on its file"
               exit 1
             fi

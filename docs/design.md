@@ -8206,10 +8206,12 @@ against its copy's path and, for some folders, its signature, holds from one rel
 (see Its own copy, and Observed), and macOS tells of the router's background activity once, under
 the signer's name, rather than at every upgrade. The step runs only where the certificate's secret
 is set, so a release without it stays ad-hoc signed, as before; the workflow fails first where the
-certificate is set and another of the secrets isn't, or the certificate or key isn't base64, as
-GoReleaser would sign and skip notarising without a word. It waits for Apple's answer on each
-binary in turn, up to 18 minutes each, as the token Apple is sent lives 2 minutes past the wait and
-Apple refuses one living past 20. A refusal or no answer fails the release before its binaries are
+certificate is set and another of the secrets isn't, above all a notary secret, without which
+GoReleaser would sign and skip notarising, the release passing, and where the certificate or key
+isn't base64, which GoReleaser would fail on only once the binaries are built; the certificate
+needs its password. It waits for Apple's answer on each binary in turn, up to 17 minutes each, as
+the token Apple is sent lives 2 minutes past the wait and Apple refuses one living past 20, leaving
+a minute for the runner's clock. A refusal or no answer fails the release before its binaries are
 uploaded: mint's release is already published, with its notes and no binaries, and the tap isn't
 told, so Homebrew stays on the version before. The workflow run again signs and asks afresh, where
 the cause was the secrets or Apple's; one in the binary or the config needs a fix and a release of
