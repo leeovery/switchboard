@@ -8125,9 +8125,16 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     variables it holds as `install` keeps them, with no `launchctl` call, and replaces itself with
     the copy, in place, with `--from` naming the path it was started as, the listening sockets
     handed to it passing through untouched. launchd reads the plist only as it loads the service,
-    so the router it starts next, as at the next login, is the copy's. One that can't, as when the
-    plist can't be written, says why once at `warn`, leaves the plist as it was, putting it back
-    where the replacement fails, carries on from the link, and `service status` names `service
+    so the router it starts next, as at the next login, is the copy's. It moves over only to a copy
+    of the very file it runs: one the link has moved on from in the moment before, as a second
+    `brew upgrade` makes, is put off, noted at `info`, and the router carries on from the link,
+    whose upgrade it then takes up as any upgrade, the version it restarts into moving over itself.
+    It's put off as well while `service install` holds the copy's lock, `.lock` in the copy's
+    directory, which `install` holds from making the copy until its plist is written, never across
+    the bootout or the bootstrap, and the move from reading the plist until its `exec`, trying it
+    without waiting: `install` is then setting the service right. One that can't, as when the plist
+    can't be written, says why once at `warn`, leaves the plist as it was, putting it back where
+    the replacement fails, carries on from the link, and `service status` names `service
     install`.
   - `service uninstall` removes the copy with the plist. Run by hand, with `serve`, the router makes
     no copy, and restarts into the link.
