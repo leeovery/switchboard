@@ -8196,15 +8196,18 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 
 ## Signing
 
-To be built, after the router's own copy and before `[export] dir`. A release's macOS binaries are
-signed with a Developer ID, and notarised, as GoReleaser builds them on Linux, from the
-certificate and an App Store Connect key kept in the repository's secrets, under the identifier
-`io.github.leeovery.switchboard`, the LaunchAgent's label. macOS knows an ad-hoc signed binary, as
-Go's linker signs one, by the hash of its code alone, which every release changes, and a signed one
-by its identifier and its signer, which stay. So what the user allows the router, kept against its
-copy's path and, for some folders, its signature, holds from one release to the next (see Its own
-copy, and Observed), and macOS tells of the router's background activity once, under the signer's
-name, rather than at every upgrade. Homebrew doesn't quarantine a formula's files, so notarising
+A release's macOS binaries are signed with a Developer ID, and notarised, as GoReleaser builds
+them on Linux (its `notarize` step, through quill), from the certificate and an App Store Connect
+key kept in the repository's secrets, under the identifier `switchboard`, the binary's name, as
+quill signs one and GoReleaser gives no way to name another. macOS knows an ad-hoc signed binary,
+as Go's linker signs one, by the hash of its code alone, which every release changes, and a signed
+one by its identifier and its signer, which stay. So what the user allows the router, kept against
+its copy's path and, for some folders, its signature, holds from one release to the next (see Its
+own copy, and Observed), and macOS tells of the router's background activity once, under the
+signer's name, rather than at every upgrade. The step runs only where the certificate's secret is
+set, so a release without it stays ad-hoc signed, as before; it waits for Apple's answer, up to
+the 20 minutes GoReleaser allows, and a refusal fails the release before anything is published,
+for the workflow to be run again. Homebrew doesn't quarantine a formula's files, so notarising
 serves a binary downloaded by other means. The owner's call, 4 November 2026.
 
 ## The skill
@@ -9815,6 +9818,9 @@ What's built but hasn't been seen against the real thing:
 - `import` from a folder in iCloud Drive whose files haven't been downloaded, with the Mac
   offline: staging's read of a file not downloaded should fail, and the import with it, removing
   what it staged.
+- A signed release: the first one's binary signed by the Developer ID and accepted by Apple's
+  notary service, and the upgrade from it to the next asking nothing again and posting no notice
+  of background activity (see Signing).
 - `claude doctor` with the link in place.
 - Background sessions (`claude --bg`) going through the router.
 - *Milestone 5:* asking the terminal its background colour and setting it (OSC 11, putting it back
@@ -9852,7 +9858,7 @@ why.
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | A reserve spent as a last resort, when no account has room outside one | not wanted: the owner, 24 October 2026, as a reserve is kept for the Claude apps and is honoured | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
-| Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
+| Releases signed with a Developer ID, so macOS stops noticing each upgrade | built (see Signing), the owner's call on 4 November 2026; the first upgrade between two signed releases is the check owed | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after OAuth and setup: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | in the cleanliness release, the owner's choice on 26 October 2026: launchd's log, the files set aside, the waiting moves, the compress and the control socket's gap built; the rest open | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
 | How an account's probes went, forgotten across a restart: a failed probe sent again by the startup probe, and the rounds' backoff started again | built in the cleanliness release, 26 October 2026: `state.json` keeps each account's `probed`, `probe_error` and `misses`, and a restart restores them, a stopped router's probes still counting (see The router's rounds) | [probes-across-a-restart](../ideas/2026-10-23--probes-across-a-restart.md) |
