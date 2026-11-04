@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-04
+
+Back up and merge your history across Macs with the new `export` and `import` commands.
+
+✨ Added
+- `switchboard export <dir>` copies this Mac's request ledger, summaries, readings history and router events into its own `mac-<id>` folder — keep it in Dropbox or iCloud Drive and the history outlasts the Mac.
+- `switchboard import <dir>` brings in the history from each Mac's exported folder through the running router — repeated imports add nothing, and days past your keep settings are left out.
+
 ## [0.4.0] - 2026-11-03
 
 Support for Ultra accounts that have no 5-hour limit, with plans renamed to Pro, Max and Ultra.
