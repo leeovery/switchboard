@@ -1643,8 +1643,8 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `pin <id>... [--move] [--force]`, `pin auto [--force]` | Set the global pin to the accounts given, replacing any before, or clear it: see Pinning. It needs the router |
 | `pin <id> --session <session>`, `pin auto --session <session>` | Set or clear one running session's own pin, `<session>` being its id or as much of it as is unique. It needs the router |
 | `run [--account <id>] [--direct] [-- <claude args>]` | Start Claude Code connected to the router, its conversation pinned to `--account`'s account if given. `--direct` skips the router and the token, so Claude Code uses its own login. See Launching |
-| `service install [--log-level <level>]` | Install the LaunchAgent, which starts the router: see Launching |
-| `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent; restart the router in place, letting it finish its requests in flight; report the plist, whether launchd has it loaded and the pid of the router it runs, and the router's health. `restart` and `status` see the service through its plist, asking the router where its environment keeps its state, and the one at the shell's too, and `restart` starts the service afresh only when neither answers: see Launching |
+| `service install [--log-level <level>]` | Install the LaunchAgent, which starts the router from a copy of switchboard of its own: see Launching |
+| `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent and the router's copy; restart the router in place, letting it finish its requests in flight; report the plist, whether launchd has it loaded and the pid of the router it runs, and the router's health. `restart` and `status` see the service through its plist, asking the router where its environment keeps its state, and the one at the shell's too, and `restart` starts the service afresh only when neither answers: see Launching |
 | `version` | Print the version, as `--version` does |
 | `help [command]` | List the commands, or print a command's help, as `-h` does |
 
@@ -7688,7 +7688,7 @@ folder kept somewhere else, as one Dropbox or iCloud Drive syncs, holds it shoul
 (the owner's choice on 3 November 2026). Switchboard writes the folder and reads it, and nothing
 more: what keeps the folder safe, or carries it to another Mac, is the folder's own business.
 Switchboard never talks to a cloud. Export and import are built; the schedule is still to be
-built.
+built, after the router's own copy and signing (see On a schedule).
 
 - **What goes:** what can't be built again, the request ledger's lines, the days' summaries, the
   readings history and the router's events. Not the files the router builds from them, the days'
@@ -7812,8 +7812,17 @@ it's set (see Config). An export that fails is logged once until one succeeds,
 and the status document's `export` says how it stands, `{"dir": "<dir>", "at": "<the last export
 that succeeded>", "error": "<why the last failed>"}`, `error` left out once one succeeds, and
 `export` where it isn't set. It never holds a request up, as the readings history never does.
-Built after export and import, once a check says macOS lets the router keep writing where it's
-pointed (see Checks owed).
+- The folder `dir` names is made where it's missing only while its parent is there: one whose
+  parent isn't, as `/Volumes/<disk>` of a disk not mounted, fails, saying the folder isn't there,
+  rather than write the export onto the Mac's own disk where the disk would be.
+- A failure says its cause in plain words: macOS refusing the router the folder, as `macOS refused
+  access to <dir>: allow switchboard in System Settings → Privacy & Security`, or the folder
+  missing. Switchboard writes the folder and nothing more: it doesn't check the folder's sync,
+  remove days from it, write to more than one, or restore from it.
+- Built after the router's own copy and signing (see The router looking after itself, and
+  Signing): macOS asks before the router writes into iCloud Drive, a File Provider's folder, as
+  Dropbox's is, or `~/Documents`, and keeps the answer against the path of the binary, and for
+  `~/Documents` against its signature too (see Observed).
 
 ## Logging
 
@@ -7951,10 +7960,12 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   sessions running on them stay routed once the account's token file goes, as `accounts remove`
   deletes it; a later change that configures the account again gives them back to it (see Accounts
   and tokens).
-- **Upgrades:** it restarts itself when the binary it was started as, the Homebrew link its
-  LaunchAgent runs, leads to a different file from the one running, or to the same file changed
-  since, as after `brew upgrade`. A link that leads nowhere, as it may for a moment while an upgrade
-  moves it on, isn't one.
+- **Upgrades:** it restarts itself when the binary it upgrades from, the Homebrew link `service
+  install` was run by, leads to a different file from the one its own copy was made from, or to the
+  same file changed since, as after `brew upgrade` (see Its own copy). Run by hand, with no copy,
+  the binary it upgrades from is the one it was started as, and the file it compares with the one
+  running. A link that leads nowhere, as it may for a moment while an upgrade moves it on, isn't
+  one.
 - **Time zones:** Go reads the local time zone once, as a program starts, so a router carried on in
   the zone it started in would prime, and end the day, by that zone's clock. It restarts itself
   when `/etc/localtime` leads to another file than it did as the router started, as when the Mac
@@ -7992,8 +8003,9 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   rules refuse, as the label's 100 characters (#142) were the first to, and a router started from
   it would stop, and stop again at each of launchd's starts, every `claude` meanwhile unrouted. So
   before each restart it makes, and each `service restart` asks for, the router runs the binary
-  it's about to become, by the path it was started as, with the command line and the environment
-  it would run it with, but for `SWITCHBOARD_LISTENERS`, and `--check` added: a hidden flag of
+  it's about to become, by the path it was started as, or, for an upgrade, the new copy beside its
+  own (see Its own copy), by that copy's path, with the command line and the environment it would
+  run it with, but for `SWITCHBOARD_LISTENERS`, and `--check` added: a hidden flag of
   `serve`'s that loads what `serve` would start from, the config above all, checks it as `serve`
   would before it listens, building the router as `serve` does and the control socket's path, and
   exits, 0 where it could start, and 78 (`EX_CONFIG`) where it couldn't, saying why on its standard
@@ -8044,8 +8056,9 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   answering what it had accepted (see The control API's last asks), and the state file is saved
   and the events filed after it, so a pin set meanwhile is kept for the router it becomes. The
   control socket goes unanswered only from then until that router takes it up.
-  Then it `exec`s its binary, by the path it was started as, which an upgrade leads on to the new
-  version, with the command line and the environment it was started with. The process keeps its id, so launchd sees no exit, and has
+  Then it `exec`s its binary, by the path it was started as: its own copy, which an upgrade has
+  renamed the new version over, or, run by hand, the link an upgrade leads on to it, with the
+  command line and the environment it was started with. The process keeps its id, so launchd sees no exit, and has
   nothing to start. Its listening sockets, the proxy's and the control socket, stay open
   throughout: they're held as their listeners close, pass through `exec` as descriptors it leaves
   open, and are named to the router it becomes in `SWITCHBOARD_LISTENERS` (`control=9,proxy=8`),
@@ -8074,12 +8087,47 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   a second start succeeded, and meanwhile nothing listened on the proxy's address: running
   sessions' requests failed, and a `claude` started then connected directly. Even a start that
   succeeds leaves a moment with nothing listening. Whether macOS lets the process `exec` the new
-  binary is a check owed.
+  binary is a check owed, and whether a Developer ID signature, the same from one release to the
+  next, ends the refusal (see Signing).
 - **When it can't.** A binary that isn't there, as for a moment while `brew upgrade` moves the
   link on, is tried again half a second on, 5 times in all. Should the `exec` still fail, or the
   router not know its binary, it logs why at `warn`, removes the control socket, and exits for
   launchd to start it again, as before; one that dies as it `exec`s, as macOS refusing it would,
   is started again by launchd all the same.
+- **Its own copy** (to be built). The LaunchAgent's router runs a copy of switchboard of its own,
+  `$XDG_DATA_HOME/switchboard/router/switchboard`, else
+  `~/.local/share/switchboard/router/switchboard`, never the Homebrew link: macOS keeps what the
+  user allows the router, a folder it exports into above all, against the path of the file it runs,
+  and Homebrew puts each version at a path of its own, so every upgrade would be asked again (see
+  Observed). The copy's path never changes, and, signed, neither does its identity (see Signing),
+  so what's allowed once holds. The owner's call, 4 November 2026.
+  - **Made by `service install`,** from the binary it was run by, its links followed, keeping the
+    file's modification time; the LaunchAgent runs the copy with `serve` and `--from` naming the
+    binary `install` was run by, the Homebrew link, as it was given: a hidden flag of `serve`'s
+    naming the binary the router upgrades from.
+  - **An upgrade is copied in.** Once a restart for an upgrade is due, and a moment with no request
+    in flight has come, the router copies the file the link leads to beside its copy, hidden,
+    keeping its modification time, and asks that file first (see The binary asked first): cleared,
+    or unable to answer, as the rules there say, it renames it over its copy and restarts into the
+    copy, in place; refused, it removes it, and holds the restart as for any refusal. So the copy is
+    always the version that last ran or was cleared, and launchd starting the router again, as after
+    a crash, starts one that could. The copy is only ever replaced by a rename, never written into,
+    as macOS remembers a signed binary's signature by its file, and kills one changed in place.
+  - **A copy that can't be made,** as on a full disk, is logged once at `warn`, and the router
+    carries on as it is, copying again at the next moment with no request in flight.
+  - **As it starts,** the router compares its copy with the file the link leads to, by size and
+    modification time: one that differs, as after an upgrade made while launchd started the router
+    again, has an upgrade due from the start. A hidden copy a cut-short copy left beside it, it
+    removes.
+  - **Moving over.** A LaunchAgent's router started without `--from`, as from a plist written
+    before the copy, moves itself over as it starts: it makes the copy, writes the LaunchAgent's
+    plist afresh to run it, keeping every other key and variable the plist holds, and restarts into
+    the copy, in place, with `--from` naming the path it was started as. launchd reads the plist
+    only as it loads the service, so the router it starts next, as at the next login, is the
+    copy's. One that can't, as when the plist can't be written, says why once at `warn`, carries on
+    from the link, and `service status` names `service install`.
+  - `service uninstall` removes the copy with the plist. Run by hand, with `serve`, the router makes
+    no copy, and restarts into the link.
 - **Told to stop.** As a restart begins, the proxy stops taking requests first, its listener
   closed before the drain begins. A signal while it finishes its requests in flight has the router
   stop as at one after all, at once: the sockets it holds close, so nothing waits on the proxy's
@@ -8124,6 +8172,19 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   for launchd to start it again (see Launching).
 - As it starts, the router brings the installed skill up to date (see The skill), and makes the
   tokens directory private when it's there.
+
+## Signing
+
+To be built, after the router's own copy and before `[export] dir`. A release's macOS binaries are
+signed with a Developer ID, and notarised, as GoReleaser builds them on Linux, from the
+certificate and an App Store Connect key kept in the repository's secrets, under the identifier
+`io.github.leeovery.switchboard`, the LaunchAgent's label. macOS knows an ad-hoc signed binary, as
+Go's linker signs one, by the hash of its code alone, which every release changes, and a signed one
+by its identifier and its signer, which stay. So what the user allows the router, kept against its
+copy's path and, for some folders, its signature, holds from one release to the next (see Its own
+copy, and Observed), and macOS tells of the router's background activity once, under the signer's
+name, rather than at every upgrade. Homebrew doesn't quarantine a formula's files, so notarising
+serves a binary downloaded by other means. The owner's call, 4 November 2026.
 
 ## The skill
 
@@ -8455,6 +8516,11 @@ hiding it behind the provider would take a wider interface than it's worth:
   go, cut to its newest 5 MiB as the service starts the router, once past 10 (see Logging).
 - **Service:** `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`, the LaunchAgent's
   plist, 0644, named after its label.
+- **The router's copy:** `$XDG_DATA_HOME/switchboard/router/switchboard`, else
+  `~/.local/share/switchboard/router/switchboard`, 0755, in a directory 0700, the switchboard the
+  LaunchAgent runs, which `service install` makes and the router renames each upgrade over (see Its
+  own copy). Not in switchboard's bin directory, which is on `PATH`, where it would stand in for
+  Homebrew's.
 - **The `claude` link:** a link named `claude` to switchboard, by the path it was run by, alone in
   switchboard's bin directory, `$XDG_DATA_HOME/switchboard/bin`, else
   `~/.local/share/switchboard/bin`, which `setup` makes, and switchboard's file for the shell
@@ -9034,9 +9100,10 @@ verbs).
   seconds: the 30 the router gives requests in flight as it stops, 5 for those it cuts off to
   unwind, 3 for its last notifications to post, and 7 to save its state, and a `ProcessType` of
   `Interactive`, as launchd throttles the CPU and I/O of a job that sets none, and every Claude Code
-  request waits on the router) to run this binary by the path it was run by, so a Homebrew link
-  stays the link an upgrade moves on, with `serve`, any `--config` given, made absolute, and any
-  `--log-level`. It refuses a temporary build, such as `go run`'s, judged by where the binary's
+  request waits on the router) to run the router's own copy of this binary (see Its own copy), with
+  `serve`, `--from` and the path this binary was run by, so a Homebrew link stays the link an
+  upgrade moves on, any `--config` given, made absolute, and any `--log-level`. It refuses a
+  temporary build, such as `go run`'s, judged by where the binary's
   links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_DATA_HOME`, where switchboard's
   shell files are, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`, those two made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're set, so the
   service finds what the CLI does, and brings the skill up to date where `setup` wrote it. Any other
@@ -9074,7 +9141,7 @@ verbs).
   through `setup`, which reinstalls where the plist differs from the one `install` would write,
   keeping the options and the variables it was installed with, once it has checked the router
   could start from them (see Setup). `uninstall` boots it out when loaded, waits for launchd to
-  let it go, and removes the plist. `restart`, with a router answering, asks it to
+  let it go, and removes the plist and the router's copy. `restart`, with a router answering, asks it to
   restart (`POST /restart`): it finishes its requests in flight, within 30 seconds, those it cuts
   off then given 5 more to unwind, then replaces itself in place, keeping its process, or, as it
   says when it can't, exits for launchd to start it again (see The router
@@ -9680,6 +9747,19 @@ any of it. Times are the Mac's, UTC+1.
   it. Hence a whole reading retiring a window it doesn't report, learnt from the answers and never
   the plan (see How it works), and the views' rule for a window an account doesn't have (see
   `usage`, the printout).
+- **4 November 2026: macOS guarding a LaunchAgent's writes.** A throwaway LaunchAgent, on macOS
+  26.7.1, run once a build, listing, writing, renaming and reading back a file in a folder of its
+  own in iCloud Drive, in Dropbox's folder and in `~/Documents`. macOS asked for each before the
+  write, a background agent's prompts shown all the same, `"<name>" wants to access files managed
+  by "iCloud Drive"` (or `"Dropbox"`) and `"<name>" would like to access files in your Documents
+  folder`, naming the binary by its file's name, and the write waited until each was answered.
+  Each answer was kept against the binary's path, its links followed: launchd running a link that
+  an upgrade pointed at a new versioned folder, as Homebrew lays one out, was asked all three
+  again, signed or not. At one path, rebuilt, iCloud Drive's and Dropbox's answers held, signed or
+  not, and `~/Documents`'s only once signed with a Developer ID. Signed, macOS told of the agent's
+  background activity under the signer's name, where an ad-hoc signed one was told of by its own
+  name. Hence the router's own copy, and signing (see The router looking after itself, and
+  Signing).
 
 ## Checks owed
 
@@ -9701,9 +9781,11 @@ What's built but hasn't been seen against the real thing:
   starting it again once it stops at the SIGTERM `launchctl kill` sends.
 - An artifact published from a session the router has moved opening in a browser signed into the
   primary, and whether a conversation request ever refers to an uploaded file by id.
-- Before `[export] dir` is built: a launchd agent run from an unsigned binary, replaced as an
-  upgrade replaces it, writing into iCloud Drive and into a folder a File Provider keeps, as
-  Dropbox's is, to see whether macOS asks first, and whether its answer outlives the upgrade.
+- The router moving over to its own copy against the real launchd: the plist written afresh
+  while launchd has it loaded, the `exec` into the copy, and the router launchd starts at the next
+  login (see Its own copy).
+- An external disk as `[export] dir`: macOS's permission for removable volumes against the
+  router's copy, untested, as the only disk plugged in was a Time Machine disk.
 - `import` from a folder in iCloud Drive whose files haven't been downloaded, with the Mac
   offline: staging's read of a file not downloaded should fail, and the import with it, removing
   what it staged.
