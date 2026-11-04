@@ -1487,7 +1487,9 @@ tries again each time it starts without `--from`, as at the next upgrade or logi
 over off, saying so in its log, while `service install` is writing the LaunchAgent, which it leaves
 to install, and where another upgrade has moved the link on as it started, so it never runs a
 version that hasn't been asked whether it can start: it takes that upgrade up as any other, and the
-new version moves over. A router run by hand, or started with `--from`, never moves over.
+new version moves over. It puts it off too where its binary couldn't be found as it started, as
+for a moment while an upgrade moves the link on, as then which version it runs isn't known. A
+router run by hand, or started with `--from`, never moves over.
 
 ## Help and version
 

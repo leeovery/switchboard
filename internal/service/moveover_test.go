@@ -3,6 +3,7 @@ package service_test
 import (
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -148,6 +149,77 @@ func TestMoveOverIsPutOffWhereTheLinkMovedOnFromTheBinaryRunning(t *testing.T) {
 	checkNothingCopied(t, s)
 }
 
+func TestMoveOverIsPutOffWhereTheBinaryWasntThereAsTheRouterStarted(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	s.launchctl.refuse = true
+	plist := s.plistBeforeTheCopy(t)
+	link := filepath.Join(s.root, "opt", "bin", "switchboard")
+	// Found leading nowhere as the router started, as for a moment while an
+	// upgrade moves the link on, and leading to a version since.
+	relinkTo(t, link, filepath.Join(s.root, "Cellar", "switchboard", "1.0", "bin", "switchboard"))
+	m := moving(link, refuseRestart(t))
+	writeVersion(t, filepath.Join(s.root, "Cellar", "switchboard", "1.0", "bin", "switchboard"), "switchboard 1.0")
+
+	if err := s.svc.MoveOver(t.Context(), m); !errors.Is(err, service.ErrPutOff) {
+		t.Errorf("MoveOver() error = %v, want service.ErrPutOff: which file the router runs isn't known", err)
+	}
+	checkPlistAsItWas(t, s, plist)
+	if _, err := os.Stat(filepath.Dir(s.routerCopy)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the router's copy's directory: %v, want nothing touched", err)
+	}
+}
+
+func TestMoveOverHoldsTheCopysLockAsItRestartsTheRouter(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	s.launchctl.refuse = true
+	s.plistBeforeTheCopy(t)
+	own := routercopy.At(s.routerCopy)
+	refused := errors.New("exec refused")
+
+	err := s.svc.MoveOver(t.Context(), moving(s.binary, func(routercopy.Copy) error {
+		unlock, ok, err := own.TryLock()
+		if ok {
+			unlock()
+		}
+		if ok || err != nil {
+			t.Errorf("TryLock() as the router restarts into its copy = %v, %v; want false, the move holding the lock", ok, err)
+		}
+		return refused
+	}))
+
+	if !errors.Is(err, refused) {
+		t.Fatalf("MoveOver() error = %v, want the restart's", err)
+	}
+	unlock, ok, err := own.TryLock()
+	if !ok || err != nil {
+		t.Fatalf("TryLock() once MoveOver() has returned = %v, %v; want the lock let go", ok, err)
+	}
+	unlock()
+}
+
+func TestInstallLetsTheCopysLockGoBeforeLaunchdSwapsTheService(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	s.launchctl.loaded = true
+	free := map[string]bool{}
+	s.launchctl.ran = func(args []string) {
+		if args[0] != "bootout" && args[0] != "bootstrap" {
+			return
+		}
+		unlock, ok, err := routercopy.At(s.routerCopy).TryLock()
+		if ok {
+			unlock()
+		}
+		free[args[0]] = ok && err == nil
+	}
+
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if want := map[string]bool{"bootout": true, "bootstrap": true}; !maps.Equal(free, want) {
+		t.Errorf("the copy's lock free as launchd was asked: %v, want %v: install lets it go once the plist is written", free, want)
+	}
+}
+
 func TestMoveOverIsPutOffWhileTheCopysLockIsHeld(t *testing.T) {
 	s := newSetup(t, nil, nil)
 	s.launchctl.refuse = true
@@ -223,7 +295,7 @@ func TestInstallWaitsForAMoveHoldingTheCopysLock(t *testing.T) {
 // moving is what a router running binary, as it stands now, moves over with,
 // restarting into its copy as restart does.
 func moving(binary string, restart func(routercopy.Copy) error) service.MovingOver {
-	return service.MovingOver{Binary: binary, Runs: router.Watch(binary).Is, Restart: restart}
+	return service.MovingOver{Binary: binary, Running: router.Watch(binary), Restart: restart}
 }
 
 // relinkTo has the link at path lead to target, replacing any link there

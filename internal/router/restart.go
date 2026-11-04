@@ -200,7 +200,12 @@ func WatchFrom(from, runs string) Watched {
 // as: the same file, unchanged since, as the router compares what it was
 // started from. Nothing is the file of a Watched found not there.
 func (w Watched) Is(info fs.FileInfo) bool {
-	return w.found.there() && w.found.same(fileState{info: info})
+	return w.There() && w.found.same(fileState{info: info})
+}
+
+// There reports whether the file was there as w found it.
+func (w Watched) There() bool {
+	return w.found.there()
 }
 
 // look looks at the config file, the binary and the time zone's file again,

@@ -151,8 +151,8 @@ func (a *app) movingOver(ctx context.Context, exe string, binary router.Watched)
 		return err
 	}
 	return svc.MoveOver(ctx, service.MovingOver{
-		Binary: exe,
-		Runs:   binary.Is,
+		Binary:  exe,
+		Running: binary,
 		Restart: func(own routercopy.Copy) error {
 			logger.Info("moving over to the router's own copy of switchboard", "copy", own.Path(), "from", exe, "listeners", a.Getenv(handover.Variable))
 			return a.Exec(own.Path(), asCopy(a.Args, own.Path(), exe), a.Environ())

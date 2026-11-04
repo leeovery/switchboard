@@ -4,28 +4,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/routercopy"
 )
 
 // ErrPutOff is what MoveOver fails with, wrapped, saying why, where the
 // router isn't to move over this time, but to carry on as it is: service
 // install is changing the service, or the binary the router would copy isn't
-// the one it runs.
+// known to be the one it runs.
 var ErrPutOff = errors.New("moving over put off")
 
 // MovingOver is what a router moves over to its own copy of switchboard
 // with, as MoveOver moves it.
 type MovingOver struct {
 	// Binary is the switchboard the router runs, by the path it was started
-	// as, which the copy is made of, its links followed.
-	Binary string
-	// Runs reports whether a file, as it stood once opened to be copied, is
-	// the very one the router runs.
-	Runs func(fs.FileInfo) bool
+	// as, which the copy is made of, its links followed, and Running that
+	// binary as it was found as the router started, as router.Watch finds
+	// it: the copy is made only of that very file.
+	Binary  string
+	Running router.Watched
 	// Restart restarts the router into the copy, own, in place, and returns
 	// only where it couldn't.
 	Restart func(own routercopy.Copy) error
@@ -43,14 +43,19 @@ type MovingOver struct {
 //
 // It holds the copy's lock throughout, which Install takes as it changes the
 // copy and the plist, so neither writes over what the other is writing. It
-// fails with ErrPutOff where Install holds it; where the plist in place keeps
-// the copy elsewhere than the router's environment does, as one installed
-// since the router started; or where the file copied isn't the one the
-// router runs, as when an upgrade moved its link on as it started, which the
-// router takes up as any other, and moves over then. Otherwise it fails, the
-// plist as it was, where the plist can't be read back or written, the copy
-// can't be made, or m.Restart returns an error.
+// fails with ErrPutOff, touching nothing, where the binary wasn't there as
+// the router started, as for a moment while an upgrade moves its link on, so
+// which file it runs isn't known; where Install holds the lock; where the
+// plist in place keeps the copy elsewhere than the router's environment
+// does, as one installed since the router started; or where the file copied
+// isn't the one the router runs, as when an upgrade moved its link on as it
+// started, which the router takes up as any other, and moves over then.
+// Otherwise it fails, the plist as it was, where the plist can't be read
+// back or written, the copy can't be made, or m.Restart returns an error.
 func (s *Service) MoveOver(ctx context.Context, m MovingOver) error {
+	if !m.Running.There() {
+		return fmt.Errorf("%w: the binary it runs as, %s, couldn't be found as it started", ErrPutOff, m.Binary)
+	}
 	own, err := s.routerCopy()
 	if err != nil {
 		return fmt.Errorf("find the router's copy of switchboard: %w", err)
@@ -113,8 +118,8 @@ func (s *Service) afresh(ctx context.Context, was []byte) (agent, error) {
 
 // copyInto makes own, the router's copy, of m.Binary, having removed what
 // copies cut short left beside it, but only where the file copied is the one
-// the router runs, as m.Runs says: otherwise it removes what it copied, and
-// fails with ErrPutOff.
+// the router runs, as m.Running says: otherwise it removes what it copied,
+// and fails with ErrPutOff.
 func (m MovingOver) copyInto(own routercopy.Copy) error {
 	if err := own.RemoveLeftovers(); err != nil {
 		return err
@@ -123,7 +128,7 @@ func (m MovingOver) copyInto(own routercopy.Copy) error {
 	if err != nil {
 		return err
 	}
-	if !m.Runs(staged.From()) {
+	if !m.Running.Is(staged.From()) {
 		putOff := fmt.Errorf("%w: %s leads to another switchboard than the one running, as after another upgrade", ErrPutOff, m.Binary)
 		if err := staged.Discard(); err != nil {
 			return errors.Join(putOff, err)

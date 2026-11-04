@@ -154,6 +154,31 @@ func TestServeThatDoesntMoveOverCarriesOnFromTheBinaryItWasStartedAs(t *testing.
 			},
 			level: "level=INFO", line: notMovingOverLine, why: "leads to another switchboard than the one running",
 		},
+		{
+			name: "its binary not there as serve starts",
+			keep: func(t *testing.T, s *movingOver) {
+				// Leading nowhere as serve finds its binary, as for a moment
+				// while an upgrade moves the link on, and back by the time it
+				// asks which launchd job it runs as, before it moves over.
+				version, err := os.Readlink(s.srv.binary)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := relink(s.srv.binary, version+".gone"); err != nil {
+					t.Fatal(err)
+				}
+				getenv := s.srv.deps.Getenv
+				var back sync.Once
+				s.srv.deps.Getenv = func(key string) string {
+					if key == "XPC_SERVICE_NAME" {
+						back.Do(func() { _ = relink(s.srv.binary, version) })
+					}
+					return getenv(key)
+				}
+				s.srv.deps.WatchEvery = time.Hour
+			},
+			level: "level=INFO", line: notMovingOverLine, why: "couldn't be found as it started",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
