@@ -17,7 +17,9 @@ builds:
       - -s -w -X main.version={{.Version}}
 
 # Signs and notarises only where the certificate's secret is set: a release without it stays
-# ad-hoc signed, as Go's linker signs it.
+# ad-hoc signed, as Go's linker signs it. The certificate and key are the base64 of the .p12 and
+# the .p8. The token Apple is sent lives the timeout and 2 minutes more, and Apple refuses one that
+# lives past 20.
 notarize:
   macos:
     - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
@@ -31,7 +33,7 @@ notarize:
         key_id: "{{.Env.MACOS_NOTARY_KEY_ID}}"
         key: "{{.Env.MACOS_NOTARY_KEY}}"
         wait: true
-        timeout: 20m
+        timeout: 18m
 
 archives:
   - id: switchboard

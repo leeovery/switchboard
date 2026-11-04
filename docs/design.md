@@ -8196,19 +8196,25 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 
 ## Signing
 
-A release's macOS binaries are signed with a Developer ID, and notarised, as GoReleaser builds
-them on Linux (its `notarize` step, through quill), from the certificate and an App Store Connect
-key kept in the repository's secrets, under the identifier `switchboard`, the binary's name, as
-quill signs one and GoReleaser gives no way to name another. macOS knows an ad-hoc signed binary,
-as Go's linker signs one, by the hash of its code alone, which every release changes, and a signed
-one by its identifier and its signer, which stay. So what the user allows the router, kept against
-its copy's path and, for some folders, its signature, holds from one release to the next (see Its
-own copy, and Observed), and macOS tells of the router's background activity once, under the
-signer's name, rather than at every upgrade. The step runs only where the certificate's secret is
-set, so a release without it stays ad-hoc signed, as before; it waits for Apple's answer, up to
-the 20 minutes GoReleaser allows, and a refusal fails the release before anything is published,
-for the workflow to be run again. Homebrew doesn't quarantine a formula's files, so notarising
-serves a binary downloaded by other means. The owner's call, 4 November 2026.
+A release's macOS binaries are signed with a Developer ID, and notarised, as GoReleaser builds them
+on Linux (its `notarize` step, through quill), from the certificate and an App Store Connect key
+kept, as base64, in the repository's secrets, under the identifier `switchboard`, the binary's
+name, as quill signs one and GoReleaser gives no way to name another. macOS knows an ad-hoc signed
+binary, as Go's linker signs one, by the hash of its code alone, which every release changes, and a
+signed one by its identifier and its signer, which stay. So what the user allows the router, kept
+against its copy's path and, for some folders, its signature, holds from one release to the next
+(see Its own copy, and Observed), and macOS tells of the router's background activity once, under
+the signer's name, rather than at every upgrade. The step runs only where the certificate's secret
+is set, so a release without it stays ad-hoc signed, as before; the workflow fails first where the
+certificate is set and another of the secrets isn't, or the certificate or key isn't base64, as
+GoReleaser would sign and skip notarising without a word. It waits for Apple's answer on each
+binary in turn, up to 18 minutes each, as the token Apple is sent lives 2 minutes past the wait and
+Apple refuses one living past 20. A refusal or no answer fails the release before its binaries are
+uploaded: mint's release is already published, with its notes and no binaries, and the tap isn't
+told, so Homebrew stays on the version before. The workflow run again signs and asks afresh, where
+the cause was the secrets or Apple's; one in the binary or the config needs a fix and a release of
+its own. Homebrew doesn't quarantine a formula's files, so notarising serves a binary downloaded by
+other means. The owner's call, 4 November 2026.
 
 ## The skill
 
