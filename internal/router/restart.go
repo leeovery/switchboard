@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/handover"
+	"github.com/leeovery/switchboard/internal/routercopy"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -29,22 +30,27 @@ const (
 const checkTimeout = 10 * time.Second
 
 // restarts restarts the router once what it was started from has changed:
-// its config file, into another valid config; its binary, which leads to
-// another file than the one running, as after an upgrade; or the system's
-// time zone, whose file does, as when the Mac is taken to another time zone.
-// A restart waits for a moment with no request in flight, and for the config
-// file to make a valid config, which the router started again needs, by the
-// running version's rules but for an upgrade's, as due says; and the
-// binary it restarts into is asked whether it could start, the restart held
-// while it refuses, as a newer version's rules can refuse a config the
-// running version's took, and cleared while the config file and the binary
-// stand as they did when it didn't. Only a supervised router, started again
-// whenever it exits, restarts: any other logs, once, that a restart is due.
-// Either tells of a restart as it falls due, and reports one due, which the
-// status document gives. A supervised router also restarts at once when
-// asked to, as service restart asks.
+// its config file, into another valid config; the binary it upgrades from,
+// which leads to another file than the one running, as after an upgrade; or
+// the system's time zone, whose file does, as when the Mac is taken to
+// another time zone. A restart waits for a moment with no request in flight,
+// and for the config file to make a valid config, which the router started
+// again needs, by the running version's rules but for an upgrade's, as due
+// says; and the binary it restarts into is asked whether it could start, the
+// restart held while it refuses, as a newer version's rules can refuse a
+// config the running version's took, and cleared while the config file and
+// the binary it upgrades from stand as they did when it didn't. A router
+// running a copy of its own copies an upgrade in beside it first, asks that,
+// and puts it in place of the copy only as the restart begins. Only a
+// supervised router, started again whenever it exits, restarts: any other
+// logs, once, that a restart is due. Either tells of a restart as it falls
+// due, and reports one due, which the status document gives. A supervised
+// router also restarts at once when asked to, as service restart asks.
 type restarts struct {
-	config     *configFile
+	config *configFile
+	// binary is the binary the router upgrades from: the one it was started
+	// as, or, where it runs a copy of its own, the one the copy was made
+	// from, as Config.From names it.
 	binary     *ledFile
 	zone       *ledFile
 	supervised bool
@@ -52,9 +58,17 @@ type restarts struct {
 	now        func() time.Time
 	// emit hears of each restart as it falls due, and as it's held.
 	emit func(Event)
-	// ask asks the binary the router restarts into whether it could start,
-	// as asking says: nil asks nothing.
-	ask func(ctx context.Context) (refusal string, err error)
+	// ask asks the binary at path, which the router restarts into, whether
+	// it could start, as asking says: nil asks nothing.
+	ask func(ctx context.Context, path string) (refusal string, err error)
+	// own is the copy of switchboard the router runs, of its own, which an
+	// upgrade is copied over as the router restarts into it: nil where it
+	// runs none, and restarts into binary itself.
+	own *routercopy.Copy
+	// uncopied is set once an upgrade couldn't be copied in, until the next
+	// look, so it's copied again then, never at once; and copyWarned once
+	// that has been said at warn.
+	uncopied, copyWarned bool
 	// load reads the config file at path, as config.Load does, for
 	// restartable to find whether it makes a valid config.
 	load func(path string) (*config.Config, error)
@@ -81,10 +95,12 @@ type restarts struct {
 	pending status.Restart
 }
 
+// newRestarts returns the restarts of a router started from the config file,
+// the binary it upgrades from, and the time zone's file, as Watch found them.
 func newRestarts(file, binary, zone Watched, supervised bool, inFlight *inFlight, now func() time.Time, emit func(Event)) *restarts {
 	return &restarts{
 		config:     &configFile{path: file.path, seen: file.found, valid: true},
-		binary:     &ledFile{path: binary.path, running: binary.found, news: "the binary leads to another file, as after an upgrade"},
+		binary:     &ledFile{path: binary.path, running: binary.found, differs: binary.differs, news: "the binary leads to another file, as after an upgrade"},
 		zone:       &ledFile{path: zone.path, running: zone.found, news: "the time zone's file leads to another, as in another time zone"},
 		supervised: supervised,
 		inFlight:   inFlight,
@@ -95,28 +111,52 @@ func newRestarts(file, binary, zone Watched, supervised bool, inFlight *inFlight
 	}
 }
 
-// asking returns what asks the binary of a router built from cfg whether it
-// could start, as handover.Ask asks it, by Binary's path, run as Args with
-// Environ, as the router restarting would run it, waiting checkTimeout for
-// its answer at most: nil when there's nothing to ask, the router given
+// restartsFor returns the restarts of a router built from cfg, which waits
+// for inFlight to count no request in flight, and tells emit of a restart as
+// it falls due, and as it's held.
+func restartsFor(cfg Config, inFlight *inFlight, emit func(Event)) *restarts {
+	binary, own := cfg.upgradesFrom()
+	r := newRestarts(cfg.ConfigFile, binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now, emit)
+	r.ask, r.own = asking(cfg), own
+	return r
+}
+
+// asking returns what asks a binary a router built from cfg restarts into,
+// by its path, whether it could start, as handover.Ask asks it, run as Args
+// with Environ, as the router restarting would run it, waiting checkTimeout
+// for its answer at most: nil when there's nothing to ask, the router given
 // nothing to run it with, or not knowing its binary.
-func asking(cfg Config) func(ctx context.Context) (string, error) {
+func asking(cfg Config) func(ctx context.Context, path string) (string, error) {
 	if cfg.Check == nil || cfg.Binary.path == "" {
 		return nil
 	}
-	return func(ctx context.Context) (string, error) {
+	return func(ctx context.Context, path string) (string, error) {
 		ctx, cancel := context.WithTimeout(ctx, checkTimeout)
 		defer cancel()
-		return handover.Ask(ctx, cfg.Check, cfg.Binary.path, cfg.Args, cfg.Environ)
+		return handover.Ask(ctx, cfg.Check, path, cfg.Args, cfg.Environ)
 	}
 }
 
+// upgradesFrom returns the binary a router built from cfg upgrades from,
+// which it watches, and the copy of its own it runs, if any: From, Binary its
+// copy, where it's given both; else Binary itself, and no copy.
+func (cfg Config) upgradesFrom() (Watched, *routercopy.Copy) {
+	if cfg.From.path == "" || cfg.Binary.path == "" {
+		return cfg.Binary, nil
+	}
+	own := routercopy.At(cfg.Binary.path)
+	return cfg.From, &own
+}
+
 // Watched is a file a router is started from, which it looks after while it
-// runs, as Watch found it: its config file, its binary, or the system's time
-// zone's. The zero Watched is none.
+// runs, as Watch found it: its config file, the binary it upgrades from, or
+// the system's time zone's. The zero Watched is none.
 type Watched struct {
 	path  string
 	found fileState
+	// differs is set where the file the router runs is known not to be the
+	// one path led to, as WatchFrom finds it of a copy.
+	differs bool
 }
 
 // Watch finds how the file at path stands now, its links followed, for a
@@ -127,11 +167,33 @@ func Watch(path string) Watched {
 	return Watched{path: path, found: statFile(path)}
 }
 
+// WatchFrom finds how the binary a router upgrades from, at from, stands
+// now, as Watch does, for a router running a copy of its own at runs, the
+// path it was started as. Where the copy isn't one of the file from leads to,
+// as routercopy's Matches tells, as after an upgrade made while launchd
+// started the router again, or can't be compared with it, the router has an
+// upgrade due from its first look that finds from leading to a file. "" for
+// either is none.
+func WatchFrom(from, runs string) Watched {
+	if from == "" || runs == "" {
+		return Watched{}
+	}
+	watched := Watch(from)
+	matches, err := routercopy.At(runs).Matches(from)
+	if err != nil {
+		logger.Debug("can't compare the router's copy with the binary it upgrades from; counting it upgraded", "error", err)
+	}
+	watched.differs = !matches
+	return watched
+}
+
 // look looks at the config file, the binary and the time zone's file again,
 // notes whether the binary is there, lifts a hold either of the first two has
 // moved on from, tells of a restart they've made due as it falls due, and
-// logs it.
+// logs it. An upgrade that couldn't be copied in can be copied again from
+// here on.
 func (r *restarts) look() {
+	r.uncopied = false
 	r.config.look()
 	r.binary.look()
 	r.zone.look()
@@ -215,7 +277,7 @@ func (r *restarts) due() string {
 // could start: its rules, not the running version's, then judge the config,
 // where it answers.
 func (r *restarts) newBinaryDecides(binary fileState) bool {
-	return r.ask != nil && r.binary.running.there() && r.binary.running.movedTo(binary)
+	return r.ask != nil && r.binary.movedOn(binary)
 }
 
 // configured returns the accounts the last valid config the config file has
@@ -228,53 +290,115 @@ func (r *restarts) configured() config.Accounts {
 // ready returns what's closed once a supervised router, with a restart due,
 // has no request in flight, or nil while it's not to restart, as while its
 // config file made no valid config at the last look, which the next settles,
-// while its binary wasn't there at the last look, or while its binary refuses
-// to start, until a look finds the config file or the binary moved on.
+// while its binary wasn't there at the last look, while its binary refuses
+// to start, until a look finds the config file or the binary moved on, or
+// once an upgrade couldn't be copied in, until the next look.
 func (r *restarts) ready() <-chan struct{} {
-	if !r.supervised || r.due() == "" || r.config.missed || r.gone || r.held != nil {
+	if !r.supervised || r.due() == "" || r.config.missed || r.gone || r.held != nil || r.uncopied {
 		return nil
 	}
 	return r.inFlight.quiet()
 }
 
 // restart restarts the router, once a look at what it was started from finds
-// a restart still due, its config file making a valid config, and its binary
-// clear to restart into, as clear says, and no request in flight, and reports
-// whether it did: the config file may have changed since it was last looked
-// at, into a config the router couldn't start again from.
+// a restart still due, its config file making a valid config, its binary
+// there, the binary it would restart into, an upgrade copied in where it
+// runs a copy of its own, clear to restart into, as clear says, and no
+// request in flight, and reports whether it did: the config file may have
+// changed since it was last looked at, into a config the router couldn't
+// start again from. An upgrade copied in is put in place of the copy only as
+// the restart begins, and removed where it doesn't. A router restarting
+// already, as asked to, copies and asks nothing more.
 func (r *restarts) restart(ctx context.Context) bool {
+	if r.restarting() {
+		return true
+	}
 	r.look()
 	why := r.due()
-	if why == "" || r.config.missed || !r.clear(ctx, why) {
+	stood := r.files()
+	if why == "" || r.config.missed || r.missing(stood.binary) {
+		return false
+	}
+	next, err := r.successor(stood.binary)
+	if err != nil {
+		r.copyFailed(err)
 		return false
 	}
 	// Asking the binary takes a while, in which a request can begin: the
 	// clearance carries the restart over to the next quiet moment.
-	if r.inFlight.requests() > 0 {
+	if !r.clear(ctx, why, stood, next.path) || r.inFlight.requests() > 0 {
+		next.discard()
+		return false
+	}
+	if err := next.commit(); err != nil {
+		r.copyFailed(err)
 		return false
 	}
 	r.begin(why, r.clearance)
 	return true
 }
 
-// clear reports whether the binary is clear for the router to restart into
-// for why: while the config file and the binary stand as they did when it
-// last answered without refusing to start, it is, unasked; while it isn't
-// there, it isn't; otherwise it's asked, as asked does, until ctx ends, and
-// is unless ctx ends first, either file changes as it's asked, which drops
-// its answer for the next quiet moment to ask again, or it refuses, which
-// holds the restart. A binary that can't answer leaves the running version's
-// rules to decide: while they refuse the config, as they can only for an
-// upgrade, that holds the restart, with their reason.
-func (r *restarts) clear(ctx context.Context, why string) bool {
-	stood := r.files()
-	switch {
-	case r.clearance != nil && r.clearance.stood.same(stood):
-		return true
-	case r.missing(stood.binary):
-		return false
+// successor returns the binary the router would restart into, the binary it
+// upgrades from standing as binary: where it runs a copy of its own, and
+// binary has moved on from the one running, as after an upgrade, or the copy
+// is gone, as when removed by hand, a copy of the binary it upgrades from
+// staged beside it; else the binary it runs, by the path it was started as.
+// It fails where that can't be staged.
+func (r *restarts) successor(binary fileState) (successor, error) {
+	if r.own == nil {
+		return successor{path: r.binary.path}, nil
 	}
-	refusal, silent, err := r.asked(ctx)
+	if !r.binary.movedOn(binary) && !r.own.Missing() {
+		return successor{path: r.own.Path()}, nil
+	}
+	staged, err := r.own.Stage(r.binary.path)
+	if err != nil {
+		return successor{}, err
+	}
+	return successor{path: staged.Path(), staged: &staged}, nil
+}
+
+// removeLeftovers removes the upgrades copied in beside the router's copy
+// that a copy cut short, as by a crash, left there, where it runs a copy of
+// its own: as it starts, before any is copied in, and never as its binary's
+// check, which an upgrade copied in is asked by.
+func (r *restarts) removeLeftovers() {
+	if r.own == nil {
+		return
+	}
+	if err := r.own.RemoveLeftovers(); err != nil {
+		logger.Warn("can't tidy beside the router's copy", "error", err)
+	}
+}
+
+// copyFailed notes that an upgrade couldn't be copied in, as on a full disk,
+// err saying why: the router carries on as it is, the restart due, to copy
+// it again at the next look's quiet moment, never at once. The first is said
+// at warn, and those after it only at debug.
+func (r *restarts) copyFailed(err error) {
+	r.uncopied = true
+	if r.copyWarned {
+		logger.Debug("the upgrade still can't be copied in", "error", err)
+		return
+	}
+	r.copyWarned = true
+	logger.Warn("can't copy the upgrade in; carrying on as it is, and copying it again at the next moment with no request in flight", "path", r.binary.path, "error", err)
+}
+
+// clear reports whether the binary at path is clear for the router to
+// restart into for why, the config file and the binary it upgrades from
+// standing as stood: while they stand as they did when it last answered
+// without refusing to start, it is, unasked; otherwise it's asked, as asked
+// does, until ctx ends, and is unless ctx ends first, either file changes as
+// it's asked, which drops its answer for the next quiet moment to ask again,
+// or it refuses, which holds the restart. A binary that can't answer leaves
+// the running version's rules to decide: while they refuse the config, as
+// they can only for an upgrade, that holds the restart, with their reason.
+func (r *restarts) clear(ctx context.Context, why string, stood checked, path string) bool {
+	if r.clearance != nil && r.clearance.stood.same(stood) {
+		return true
+	}
+	refusal, silent, err := r.asked(ctx, path)
 	switch {
 	case err != nil, !r.files().same(stood):
 		return false
@@ -335,11 +459,14 @@ func (r *restarts) files() checked {
 // can't: it isn't supervised, so nothing would start it again; its binary
 // isn't there; its config file doesn't make a valid config, which the router
 // started again couldn't start from, by the running version's rules but
-// where a new binary decides, as newBinaryDecides says, and answers; its
-// binary, asked until ctx ends, refuses to start; or either changes as the
-// config file is read or the binary asked. A router restarting already can,
-// cleared by nothing. It reads the config file afresh, and is safe for
-// concurrent use.
+// where a new binary decides, as newBinaryDecides says, and answers; the
+// upgrade it would restart into can't be copied in, where it runs a copy of
+// its own; the binary it would restart into, asked until ctx ends, refuses
+// to start; or the config file or the binary changes as the config file is
+// read or the binary asked. Cleared, an upgrade copied in is in place of the
+// copy, for the restart to go into; otherwise it's removed. A router
+// restarting already can, cleared by nothing. It reads the config file
+// afresh, and is safe for concurrent use.
 func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if !r.supervised {
 		return nil, errors.New("the router was run by hand, with switchboard serve, so nothing would start it again: stop it, and run it again")
@@ -358,7 +485,35 @@ func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if refused != nil && !r.newBinaryDecides(stood.binary) {
 		return nil, refused
 	}
-	refusal, silent, err := r.asked(ctx)
+	next, err := r.successor(stood.binary)
+	if err != nil {
+		return nil, uncopiable(err)
+	}
+	cleared, err := r.answered(ctx, stood, refused, next.path)
+	if err != nil {
+		next.discard()
+		return nil, err
+	}
+	if err := next.commit(); err != nil {
+		return nil, uncopiable(err)
+	}
+	return cleared, nil
+}
+
+// uncopiable is restartable's refusal where the upgrade the router would
+// restart into can't be copied in, err saying why.
+func uncopiable(err error) error {
+	return fmt.Errorf("the router can't copy in the upgrade it would restart into: %w", err)
+}
+
+// answered returns what clears the router to restart at once into the binary
+// at path, asked whether it could start until ctx ends, the config file and
+// the binary it upgrades from standing as stood, refused the running
+// version's refusal of the config, if it refuses it; or fails, saying why,
+// where ctx ends first, either file changes as it's asked, it refuses to
+// start, or it can't answer while the running version refuses the config.
+func (r *restarts) answered(ctx context.Context, stood checked, refused error, path string) (*binaryClearance, error) {
+	refusal, silent, err := r.asked(ctx, path)
 	now := r.files()
 	switch {
 	case err != nil:
@@ -398,16 +553,16 @@ func (r *restarts) changed(stood, now checked) string {
 	return strings.Join(named, " and its ")
 }
 
-// asked asks the binary whether it could start, until ctx ends, and returns
-// why it refuses, if it does, and why it couldn't answer, if it couldn't, as
-// one from before the check can't, which refuses nothing, as before there was
-// one to ask; or fails with ctx's error as it ends first. Nothing to ask
-// refuses nothing.
-func (r *restarts) asked(ctx context.Context) (refusal string, silent, err error) {
+// asked asks the binary at path whether it could start, until ctx ends, and
+// returns why it refuses, if it does, and why it couldn't answer, if it
+// couldn't, as one from before the check can't, which refuses nothing, as
+// before there was one to ask; or fails with ctx's error as it ends first.
+// Nothing to ask refuses nothing.
+func (r *restarts) asked(ctx context.Context, path string) (refusal string, silent, err error) {
 	if r.ask == nil {
 		return "", nil, nil
 	}
-	refusal, silent = r.ask(ctx)
+	refusal, silent = r.ask(ctx, path)
 	if ctx.Err() != nil {
 		return "", nil, ctx.Err()
 	}
@@ -491,13 +646,17 @@ func (c *configFile) look() {
 }
 
 // ledFile is a file the router was started from by a path that can come to
-// lead to another: its binary, by the path it was run by, such as the
-// Homebrew link the service runs, or the system's time zone, by
+// lead to another: the binary it upgrades from, by the path it was given,
+// such as the Homebrew link the service runs, or the system's time zone, by
 // /etc/localtime, which a program reads once, as it starts. running is the
-// file the path led to as the router started, which it runs on.
+// file the path led to as the router started, which it runs on, a copy of it
+// where it runs a copy of its own.
 type ledFile struct {
 	path    string
 	running fileState
+	// differs is set where the file the router runs is known not to be the
+	// one the path led to as it started, as where its copy isn't one of it.
+	differs bool
 	// news is what the log says once the path leads to another file.
 	news string
 	// moved is set once it does.
@@ -505,14 +664,26 @@ type ledFile struct {
 }
 
 // look looks at where the path leads now: to another file than the one
-// running, it has moved, as after an upgrade. A path that leads nowhere, as
-// it may for a moment while an upgrade moves it on, hasn't.
+// running, it has moved, as after an upgrade, as movedOn says.
 func (f *ledFile) look() {
-	if f.moved || !f.running.there() || !f.running.movedTo(statFile(f.path)) {
+	if f.moved || !f.movedOn(statFile(f.path)) {
 		return
 	}
 	f.moved = true
 	logger.Info(f.news, "path", f.path)
+}
+
+// movedOn reports whether the path, leading to now, leads to another file
+// than the one running: one there, and the running one known to differ from
+// it, as from the start, or another file than the path led to as the router
+// started, or that file changed. A path that leads nowhere, as it may for a
+// moment while an upgrade moves it on, hasn't, nor one that led nowhere as
+// the router started, unless the running one is known to differ.
+func (f *ledFile) movedOn(now fileState) bool {
+	if f.differs {
+		return now.there()
+	}
+	return f.running.there() && f.running.movedTo(now)
 }
 
 // binaryRefusal is the binary's refusal to start, or, where it couldn't
@@ -547,6 +718,36 @@ func (c *binaryClearance) silence() error {
 		return nil
 	}
 	return c.silent
+}
+
+// successor is the binary a restart goes into, by the path it's asked
+// whether it could start by, and, for an upgrade copied in, the new version
+// staged beside the router's copy: put in place of the copy as the restart
+// begins, or removed where it doesn't.
+type successor struct {
+	path   string
+	staged *routercopy.Staged
+}
+
+// commit puts the new version staged in place of the router's copy, for the
+// restart to go into: nothing where none was staged.
+func (s successor) commit() error {
+	if s.staged == nil {
+		return nil
+	}
+	return s.staged.Commit()
+}
+
+// discard removes the new version staged, for a restart that doesn't go
+// ahead: nothing where none was staged. One that can't be removed goes as the
+// router next starts.
+func (s successor) discard() {
+	if s.staged == nil {
+		return
+	}
+	if err := s.staged.Discard(); err != nil {
+		logger.Warn("can't remove the upgrade copied in beside the router's copy; it goes as the router next starts", "error", err)
+	}
 }
 
 // checked is how the config file and the binary stand, as the binary is

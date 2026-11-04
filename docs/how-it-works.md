@@ -298,7 +298,7 @@ you.
 The service's router restarts itself, once no request is in flight, when any of these happen:
 
 - Its config changes.
-- `brew upgrade` replaces it.
+- `brew upgrade` brings a new version.
 - Your Mac's time zone changes.
 
 So `accounts add`, `accounts edit`, `accounts remove`, an edit by hand, an upgrade and a new time
@@ -308,6 +308,16 @@ restart is due instead.
 The router restarts in place. It runs its new binary in the same process and hands that binary the
 sockets it listens on. A request made meanwhile waits a moment rather than being refused, and a
 `claude` started while the router finishes up is still routed.
+
+The service's router runs a copy of switchboard of its own, at a path that never changes, so what
+you allow it, such as a folder it writes into, holds through upgrades (see
+[`service install`](commands.md#service-install)). After `brew upgrade`, the router copies the new
+version in beside its copy, asks it first, as below, and puts it in place of the copy only as it
+restarts into it: a new version that refuses is removed, so the copy is always the version that
+last ran or was cleared to, and launchd starting the router again after a crash starts one that
+can. An upgrade made while launchd started the router again is found as it starts, and taken up at
+its first quiet moment. Where it can't copy the new version in, as on a full disk, the router says
+so once in its log, carries on as it is, and copies it again at its next quiet moment.
 
 Before it restarts, the router asks the binary it's about to become whether it can start from your
 config, as a newer version's rules can be stricter than the running one's, such as the 100-character

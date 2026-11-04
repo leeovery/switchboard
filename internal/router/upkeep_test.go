@@ -373,9 +373,10 @@ type selfWatching struct {
 	// config is the config file's path, binary the binary's, and zone the
 	// time zone's file's.
 	config, binary, zone string
-	// next is the binary's next version, which an upgrade leads its link to,
-	// and elsewhere another time zone's file, which travel leads zone's to.
-	next, elsewhere string
+	// current is the binary's version its link leads to as it starts, and
+	// next its next, which an upgrade leads it to; and elsewhere another
+	// time zone's file, which travel leads zone's to.
+	current, next, elsewhere string
 }
 
 // newSelfWatching returns what a router, supervised or not, is started with
@@ -388,17 +389,17 @@ func newSelfWatching(t *testing.T, supervised bool) *selfWatching {
 		config:    filepath.Join(dir, "config.toml"),
 		binary:    filepath.Join(dir, "bin", "switchboard"),
 		zone:      filepath.Join(dir, "etc", "localtime"),
+		current:   filepath.Join(dir, "1.0", "switchboard"),
 		next:      filepath.Join(dir, "1.1", "switchboard"),
 		elsewhere: filepath.Join(dir, "zoneinfo", "Etc", "GMT-9"),
 	}
 	writeFile(t, s.config, oneAccount)
-	current := filepath.Join(dir, "1.0", "switchboard")
-	writeFile(t, current, "switchboard 1.0")
+	writeFile(t, s.current, "switchboard 1.0")
 	writeFile(t, s.next, "switchboard 1.1")
 	here := filepath.Join(dir, "zoneinfo", "Etc", "GMT")
 	writeFile(t, here, "TZif Etc/GMT")
 	writeFile(t, s.elsewhere, "TZif Etc/GMT-9")
-	for path, target := range map[string]string{s.binary: current, s.zone: here} {
+	for path, target := range map[string]string{s.binary: s.current, s.zone: here} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
 		}

@@ -49,6 +49,12 @@ func Find(getenv func(string) string, homeDir func() (string, error)) (Copy, err
 	return Copy{path: filepath.Join(dir, name)}, nil
 }
 
+// At returns the router's copy at path, as a router running it knows it: by
+// the path it was started as.
+func At(path string) Copy {
+	return Copy{path: path}
+}
+
 // Path is where the copy is.
 func (c Copy) Path() string {
 	return c.path

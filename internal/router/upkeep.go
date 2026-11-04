@@ -14,10 +14,10 @@ const watchEvery = 3 * time.Second
 
 // upkeep keeps the router in step with what it was started from while it runs,
 // looking every so often: the accounts' token files, which it takes up in
-// place, and its config file, its binary and the system's time zone, which it
-// restarts to take up, but for the tokens of accounts the config file no
-// longer configures, which count as the primary's at once. It notices the
-// Mac waking from sleep as it looks.
+// place, and its config file, the binary it upgrades from and the system's
+// time zone, which it restarts to take up, but for the tokens of accounts the
+// config file no longer configures, which count as the primary's at once. It
+// notices the Mac waking from sleep as it looks.
 type upkeep struct {
 	every    time.Duration
 	tokens   *tokenFiles
@@ -31,15 +31,14 @@ type upkeep struct {
 // state file to keep with changes, working out the schedule of primer, if it
 // primes, again whenever the accounts with tokens change, telling emit of a
 // restart as it falls due, restarting once inFlight counts no request in
-// flight, and the binary, asked as cfg.Check runs it, doesn't refuse to
+// flight, and the binary it restarts into, asked as cfg.Check runs it, an
+// upgrade copied in first where it runs a copy of its own, doesn't refuse to
 // start, and noticing wakes.
 func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, emit func(Event)) *upkeep {
 	replan := func() {}
 	if primer != nil {
 		replan = primer.replan
 	}
-	restarts := newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now, emit)
-	restarts.ask = asking(cfg)
 	return &upkeep{
 		every: cmp.Or(cfg.WatchEvery, watchEvery),
 		tokens: &tokenFiles{
@@ -57,7 +56,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			gained: state.tokenGained,
 			lost:   state.tokenLost,
 		},
-		restarts: restarts,
+		restarts: restartsFor(cfg, inFlight, emit),
 		wakes:    wakes,
 	}
 }
@@ -82,6 +81,12 @@ func (u *upkeep) run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// tidy removes what copies cut short left beside the router's copy, where it
+// runs one, as it starts.
+func (u *upkeep) tidy() {
+	u.restarts.removeLeftovers()
 }
 
 // restartDue is the restart the router has due, zero while none is.

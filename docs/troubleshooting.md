@@ -95,6 +95,11 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   config is put right, each `claude` you start says it couldn't read the config and starts without
   switchboard: unrouted, but within a session still routed. Put the config right as it says, and
   the router restarts at its next quiet moment. See [Restarts](how-it-works.md#restarts).
+- **An upgrade not taken up, as the disk is full:** the router copies a new version in beside its
+  own copy before it restarts into it, and where it can't, it carries on as it is, the restart
+  still due (`restart due (upgraded)`), and says why once at warn in its log. It copies the
+  upgrade again at each moment with no request in flight, so once there's room it takes the
+  upgrade up by itself; `switchboard service restart` meanwhile fails, saying why.
 - **`claude` won't start, the router down:** with the router not running, not answering, or not
   saying where it listens, `claude` starts nothing and says so. An unhealthy router doesn't stop it:
   `claude` goes through it, saying so. Run [`switchboard service status`](commands.md#service) to

@@ -55,13 +55,15 @@ var errCutOff = errors.New("cut off as the router stopped")
 // the control API on a socket in cfg.StateDir, where it keeps its state file
 // too, taking up the listeners cfg.Handed names, where they're at those
 // addresses, in place of listening afresh. A supervised router also restarts
-// once its config file, its binary or the time zone has changed, or it's
-// asked to: it replaces itself with its binary, handing its listeners over,
-// as cfg.Exec says, or else returns nil, for launchd to start it again. It
-// fails when another router already answers there, or when it can't listen.
-// On its way out it stops taking requests, gives those in flight up to 30
-// seconds to finish, and the routed ones it cuts off then up to 5 more to
-// unwind, saves its state, and removes the socket, but for one it hands over.
+// once its config file, the binary it upgrades from or the time zone has
+// changed, or it's asked to: it replaces itself with its binary, handing its
+// listeners over, as cfg.Exec says, or else returns nil, for launchd to start
+// it again. As it starts, it removes what copies cut short left beside its
+// own copy, where it runs one. It fails when another router already answers
+// there, or when it can't listen. On its way out it stops taking requests,
+// gives those in flight up to 30 seconds to finish, and the routed ones it
+// cuts off then up to 5 more to unwind, saves its state, and removes the
+// socket, but for one it hands over.
 func Run(ctx context.Context, cfg Config) error {
 	r, err := New(cfg)
 	if err != nil {
@@ -93,9 +95,10 @@ func (r *Router) run(ctx context.Context) error {
 		return err
 	}
 	r.proxyAddr = ls.proxy.Addr().String()
-	// Only now is the state directory this router's: another starting
-	// alongside would have failed by here.
+	// Only now is the state directory this router's, and its copy with it:
+	// another starting alongside would have failed by here.
 	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
+	r.upkeep.tidy()
 	r.openHistory()
 	r.openLedger(ledger.Dir(r.cfg.StateDir))
 	return r.serve(ctx, ls)

@@ -26,6 +26,7 @@ import (
 	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/routercopy"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/skill"
 	"github.com/leeovery/switchboard/internal/status"
@@ -423,6 +424,86 @@ func TestServeRestartsItselfWhenTheServiceRunsIt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServeRunAsTheServicesCopyCopiesAnUpgradeInAndReplacesItselfWithIt(t *testing.T) {
+	tests := []struct {
+		name string
+		// upgrade runs serve with args, upgrading the binary it upgrades from
+		// as it says, and returns serve's stop.
+		upgrade func(t *testing.T, srv *serveSetup, args ...string) (stop func() result)
+	}{
+		{
+			name: "an upgrade made while it runs",
+			upgrade: func(t *testing.T, srv *serveSetup, args ...string) func() result {
+				stop := srv.start(t, args...)
+				srv.upgrade(t)
+				return stop
+			},
+		},
+		{
+			name: "an upgrade made before it started, as launchd started it again",
+			upgrade: func(t *testing.T, srv *serveSetup, args ...string) func() result {
+				srv.upgrade(t)
+				return srv.launch(t, args...)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"XPC_SERVICE_NAME": service.Label})
+			srv.watch(t)
+			own := srv.runOwnCopy(t)
+			argv := []string{own, "serve", "--from", srv.binary}
+			made := srv.replaceable(t, argv...)
+			stop := tt.upgrade(t, srv, "--from", srv.binary)
+
+			replaced := waitForReplacement(t, made)
+			if got := stop(); got != (result{}) {
+				t.Errorf("switchboard serve = %+v as it replaced itself, want no output", got)
+			}
+			if replaced.path != own || !slices.Equal(replaced.argv, argv) {
+				t.Errorf("serve replaced itself with %s run as %q, want its copy, %s, run as it was, %q", replaced.path, replaced.argv, own, argv)
+			}
+			if held, err := os.ReadFile(own); err != nil || string(held) != "switchboard 1.1" {
+				t.Errorf("the copy holds %q (%v), want the upgrade copied in", held, err)
+			}
+			// The serve it became runs the copy of the upgrade, which matches
+			// it, so it has nothing more due.
+			client := router.NewClient(srv.socket())
+			waitUntil(t, "the router serve became answers", func() bool {
+				h, err := client.Health(t.Context())
+				return err == nil && h.StartedAt.Equal(testNow.Add(time.Minute))
+			})
+			time.Sleep(20 * srv.deps.WatchEvery)
+			if doc, err := client.Status(t.Context()); err != nil || doc.Restart != (status.Restart{}) {
+				t.Errorf("the router serve became reports its restart due as %+v (%v), want none", doc.Restart, err)
+			}
+			if got := replaced.stop(); got.code != 0 {
+				t.Errorf("the switchboard serve it became = %+v, want exit status 0", got)
+			}
+			if log := srv.routerLog(t); !hasLine(log, "level=INFO", `msg="replacing itself" component=router`, "path="+own, "reason=upgraded") {
+				t.Errorf("router.log reads\n%s\nwant serve replacing itself with its copy, upgraded", log)
+			}
+		})
+	}
+}
+
+// runOwnCopy has serve run as a copy of its own of the binary watch gave it,
+// made as service install makes it, its next version built an hour on, as
+// releases are, so the copy tells the two apart; and returns the copy's path.
+func (s *serveSetup) runOwnCopy(t *testing.T) string {
+	t.Helper()
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(s.next, later, later); err != nil {
+		t.Fatal(err)
+	}
+	own := filepath.Join(t.TempDir(), "switchboard", "router", "switchboard")
+	if err := routercopy.At(own).Make(s.binary); err != nil {
+		t.Fatal(err)
+	}
+	s.deps.Executable = func() (string, error) { return own, nil }
+	return own
 }
 
 func TestServeChecksWhatItWouldStartFromWhenAsked(t *testing.T) {
@@ -1061,18 +1142,19 @@ func (s *serveSetup) start(t *testing.T, args ...string) (stop func() result) {
 
 // launch runs switchboard serve with args in the background, until the test
 // calls the stop it returns, which returns what serve printed and exited
-// with, or until the test ends.
+// with, or until the test ends. exited is set before serve runs, as serve
+// replacing itself at once reads it.
 func (s *serveSetup) launch(t *testing.T, args ...string) (stop func() result) {
 	t.Helper()
-	stop, s.exited = launchWith(t, s.deps, append([]string{"serve"}, args...))
-	return stop
+	exited := make(chan struct{})
+	s.exited = exited
+	return launchWith(t, s.deps, append([]string{"serve"}, args...), exited)
 }
 
 // launchWith runs the command line args with deps in the background, until
 // the test calls the stop it returns, which returns what it printed and
-// exited with, or until the test ends. What it returns second closes once
-// it has exited.
-func launchWith(t *testing.T, deps cli.Deps, args []string) (stop func() result, exited <-chan struct{}) {
+// exited with, or until the test ends. finished closes once it has exited.
+func launchWith(t *testing.T, deps cli.Deps, args []string, finished chan struct{}) (stop func() result) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	root := cli.NewRootCommand(deps)
@@ -1082,7 +1164,6 @@ func launchWith(t *testing.T, deps cli.Deps, args []string) (stop func() result,
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
 	var code int
-	finished := make(chan struct{})
 	go func() {
 		code = cli.Execute(root)
 		close(finished)
@@ -1093,7 +1174,7 @@ func launchWith(t *testing.T, deps cli.Deps, args []string) (stop func() result,
 		return result{stdout: stdout.String(), stderr: stderr.String(), code: code}
 	}
 	t.Cleanup(func() { stop() })
-	return stop, finished
+	return stop
 }
 
 // replacement is serve's replacing itself, as the router it runs restarts:
@@ -1124,7 +1205,7 @@ func (s *serveSetup) replaceable(t *testing.T, argv ...string) <-chan replacemen
 		replaced := s.exited
 		go func() {
 			<-replaced
-			stop, _ := launchWith(t, next, cli.Args(argv))
+			stop := launchWith(t, next, cli.Args(argv), make(chan struct{}))
 			made <- replacement{path: path, argv: argv, env: env, stop: stop}
 		}()
 		return nil

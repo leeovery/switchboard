@@ -766,6 +766,7 @@ on the router:
 | Answering, with a config that isn't valid | The router refuses, as it couldn't start again from that config, and `restart` says why. After an upgrade, the new version judges the config instead where it can answer, as the next row says, so a config only it takes doesn't hold the restart. |
 | Answering, with a binary that refuses to start | The router asks the binary it would become first. Where that refuses, as a newer version can refuse a config the running one takes, the router refuses too, and `restart` says why, in the binary's words. |
 | Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the router checks whether it could restart, the router refuses, and `restart` names what changed and says to try again. |
+| Answering, with an upgrade it can't copy in | Where the router can't copy the upgrade due in beside its own copy, as on a full disk, it refuses, and `restart` says why. |
 | From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
 | Not answering | launchd starts the service afresh at once. `restart` asks the router where the LaunchAgent keeps its state, and the one where your shell does, and starts the service afresh only when neither answers; the first to answer then, at either, is the one launchd started. |
 
@@ -1430,24 +1431,35 @@ token.
 The router also watches:
 
 - its config file, following links;
-- the binary it was started as: the Homebrew link the service runs; and
+- the binary it upgrades from: for the service's router, the Homebrew link `service install` was
+  run by, which the LaunchAgent names with `--from`, and run by hand, the binary it was started
+  as; and
 - `/etc/localtime`, which says the Mac's time zone.
 
 The service's router restarts when the config changes into one that's valid, when an upgrade leads
-the link to another binary, or when the time zone changes. To restart, it:
+the link to another binary, or when the time zone changes. As it starts, it compares its own copy
+with the binary the link leads to, by size and modification time, and one that differs, as after
+an upgrade made while launchd started it again, has an upgrade due from the start. To restart, it:
 
 1. Waits for a moment with no request in flight.
-2. Asks the binary the link leads to whether it can start from the config.
-3. Saves its state.
-4. Replaces itself in place with the binary the link leads to, handing it the sockets it listens on.
+2. For an upgrade, copies the binary the link leads to in beside its own copy, hidden.
+3. Asks the binary it would become whether it can start from the config: the upgrade copied in,
+   or else its own copy.
+4. For an upgrade, renames the new version it copied in over its own copy.
+5. Saves its state.
+6. Replaces itself in place with its copy, handing it the sockets it listens on.
 
 Some cases go differently:
 
 - **A config that isn't valid** is logged, and the router carries on as it was.
 - **A binary that refuses to start,** as a newer version can refuse a config the running one
   takes, holds the restart: the router carries on as it was, and says why in its log, its events
-  and `status --json`'s `restart`. It asks again once the config or the binary changes. A binary
-  from before the check can't answer, and the router restarts into it as before.
+  and `status --json`'s `restart`. An upgrade copied in is removed, and the copy stays as it was.
+  It asks again once the config or the binary changes. A binary from before the check can't
+  answer, and the router restarts into it as before.
+- **An upgrade it can't copy in,** as on a full disk, is logged once at warn: the router carries
+  on as it was, the restart still due, and copies the upgrade again at its next moment with no
+  request in flight.
 - **A binary that isn't there,** as for a moment while `brew upgrade` moves the link on, is tried
   again for a couple of seconds. If replacing itself still fails, the router exits, and launchd
   starts it again.

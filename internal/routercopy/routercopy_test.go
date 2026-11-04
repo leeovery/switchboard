@@ -32,6 +32,13 @@ func TestFind(t *testing.T) {
 	}
 }
 
+func TestAtIsTheCopyByThePathItWasStartedAs(t *testing.T) {
+	const path = "/test/data/switchboard/router/switchboard"
+	if got := routercopy.At(path).Path(); got != path {
+		t.Errorf("At(%q).Path() = %q, want it as given", path, got)
+	}
+}
+
 func TestMakeCopiesTheBinaryItsLinksLeadTo(t *testing.T) {
 	f := newFixture(t)
 	version := f.binary(t, "Cellar/switchboard/1.2.3/bin/switchboard", "version 1.2.3\n", modified)
