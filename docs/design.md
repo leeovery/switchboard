@@ -8120,12 +8120,15 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     again, has an upgrade due from the start. A hidden copy a cut-short copy left beside it, it
     removes.
   - **Moving over.** A LaunchAgent's router started without `--from`, as from a plist written
-    before the copy, moves itself over as it starts: it makes the copy, writes the LaunchAgent's
-    plist afresh to run it, keeping every other key and variable the plist holds, and restarts into
-    the copy, in place, with `--from` naming the path it was started as. launchd reads the plist
-    only as it loads the service, so the router it starts next, as at the next login, is the
-    copy's. One that can't, as when the plist can't be written, says why once at `warn`, carries on
-    from the link, and `service status` names `service install`.
+    before the copy, moves itself over as it starts, before it listens: it makes the copy, writes
+    the LaunchAgent's plist afresh to run it, as `install` writes one, keeping the options and the
+    variables it holds as `install` keeps them, with no `launchctl` call, and replaces itself with
+    the copy, in place, with `--from` naming the path it was started as, the listening sockets
+    handed to it passing through untouched. launchd reads the plist only as it loads the service,
+    so the router it starts next, as at the next login, is the copy's. One that can't, as when the
+    plist can't be written, says why once at `warn`, leaves the plist as it was, putting it back
+    where the replacement fails, carries on from the link, and `service status` names `service
+    install`.
   - `service uninstall` removes the copy with the plist. Run by hand, with `serve`, the router makes
     no copy, and restarts into the link.
 - **Told to stop.** As a restart begins, the proxy stops taking requests first, its listener
