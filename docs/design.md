@@ -1644,7 +1644,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `pin <id> --session <session>`, `pin auto --session <session>` | Set or clear one running session's own pin, `<session>` being its id or as much of it as is unique. It needs the router |
 | `run [--account <id>] [--direct] [-- <claude args>]` | Start Claude Code connected to the router, its conversation pinned to `--account`'s account if given. `--direct` skips the router and the token, so Claude Code uses its own login. See Launching |
 | `service install [--log-level <level>]` | Install the LaunchAgent, which starts the router from a copy of switchboard of its own: see Launching |
-| `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent and the router's copy; restart the router in place, letting it finish its requests in flight; report the plist, whether launchd has it loaded and the pid of the router it runs, and the router's health. `restart` and `status` see the service through its plist, asking the router where its environment keeps its state, and the one at the shell's too, and `restart` starts the service afresh only when neither answers: see Launching |
+| `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent and the router's copy; restart the router in place, letting it finish its requests in flight; report the plist, whether launchd has it loaded and the pid of the router it runs, the router's health, and the router's copy where it's missing or not run. `restart` and `status` see the service through its plist, asking the router where its environment keeps its state, and the one at the shell's too, and `restart` starts the service afresh only when neither answers: see Launching |
 | `version` | Print the version, as `--version` does |
 | `help [command]` | List the commands, or print a command's help, as `-h` does |
 
@@ -8094,29 +8094,35 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   router not know its binary, it logs why at `warn`, removes the control socket, and exits for
   launchd to start it again, as before; one that dies as it `exec`s, as macOS refusing it would,
   is started again by launchd all the same.
-- **Its own copy** (to be built). The LaunchAgent's router runs a copy of switchboard of its own,
+- **Its own copy.** The LaunchAgent's router runs a copy of switchboard of its own,
   `$XDG_DATA_HOME/switchboard/router/switchboard`, else
   `~/.local/share/switchboard/router/switchboard`, never the Homebrew link: macOS keeps what the
   user allows the router, a folder it exports into above all, against the path of the file it runs,
   and Homebrew puts each version at a path of its own, so every upgrade would be asked again (see
   Observed). The copy's path never changes, and, signed, neither does its identity (see Signing),
   so what's allowed once holds. The owner's call, 4 November 2026.
-  - **Made by `service install`,** from the binary it was run by, its links followed, keeping the
-    file's modification time; the LaunchAgent runs the copy with `serve` and `--from` naming the
+  - **Made by `service install`,** from the binary it was run by, its links followed as it starts,
+    so an upgrade landing meanwhile isn't copied unjudged, keeping the file's modification time; the LaunchAgent runs the copy with `serve` and `--from` naming the
     binary `install` was run by, the Homebrew link, as it was given: a hidden flag of `serve`'s
     naming the binary the router upgrades from.
   - **An upgrade is copied in.** Once a restart for an upgrade is due, and a moment with no request
-    in flight has come, the router copies the file the link leads to beside its copy, hidden,
-    keeping its modification time, and asks that file first (see The binary asked first): cleared,
+    in flight has come, the router copies the file the link leads to beside its copy, as
+    `.switchboard.next`, always that one name, so what macOS allows the binary asked first, which
+    reads the config, is kept against one path too, keeping its modification time, and asks that
+    file first (see The binary asked first): cleared,
     or unable to answer, as the rules there say, it renames it over its copy and restarts into the
     copy, in place; refused, it removes it, and holds the restart as for any refusal. So the copy is
     always the version that last ran or was cleared, and launchd starting the router again, as after
-    a crash, starts one that could. The copy is only ever replaced by a rename, never written into,
+    a crash, starts one that could, once launchd has loaded a plist that runs the copy: until then,
+    as for the rest of the login a router moved over in (see Moving over), launchd's job still runs
+    the link, as before the copy, and `service status` says so, naming `service install`, which
+    setup runs. The copy is only ever replaced by a rename, never written into,
     as macOS remembers a signed binary's signature by its file, and kills one changed in place.
   - **A copy that can't be made,** as on a full disk, is logged once at `warn`, and the router
     carries on as it is, copying again at the next moment with no request in flight.
   - **As it starts,** the router compares its copy with the file the link leads to, by size and
-    modification time: one that differs, as after an upgrade made while launchd started the router
+    modification time, and, where the sizes agree but the times don't, as on a disk that keeps
+    coarser times, by their bytes: one that differs, as after an upgrade made while launchd started the router
     again, has an upgrade due from the start. A hidden copy a cut-short copy left beside it, it
     removes.
   - **Moving over.** A LaunchAgent's router started without `--from`, as from a plist written
@@ -8129,7 +8135,8 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     of the very file it runs: one the link has moved on from in the moment before, as a second
     `brew upgrade` makes, is put off, noted at `info`, and the router carries on from the link,
     whose upgrade it then takes up as any upgrade, the version it restarts into moving over itself.
-    It's put off as well while `service install` holds the copy's lock, `.lock` in the copy's
+    It's put off as well where the plist's program isn't the binary it runs as, as for a plist
+    edited by hand, and while `service install` holds the copy's lock, `.lock` in the copy's
     directory, which `install` holds from making the copy until its plist is written, never across
     the bootout or the bootstrap, and the move from reading the plist until its `exec`, trying it
     without waiting: `install` is then setting the service right. One that can't, as when the plist
@@ -8138,6 +8145,10 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     install`.
   - `service uninstall` removes the copy with the plist. Run by hand, with `serve`, the router makes
     no copy, and restarts into the link.
+  - **Rolling back** past the copy: a version from before it doesn't know `--from`. One with the
+    binary asked first refuses it, holding the restart until `service install` is run from that
+    version; one from before that is restarted into, and can't start. So a rollback past this
+    release needs `service install` run from the version rolled back to.
 - **Told to stop.** As a restart begins, the proxy stops taking requests first, its listener
   closed before the drain begins. A signal while it finishes its requests in flight has the router
   stop as at one after all, at once: the sockets it holds close, so nothing waits on the proxy's
@@ -9169,7 +9180,9 @@ verbs).
   then launchd starts it again`, and waiting as long. With none answering, there's nothing to
   finish, and `restart` is `launchctl kickstart -k`, waiting up to 5 seconds. Without the service
   loaded, `restart` is an error saying so. `status` reports the plist, whether launchd has it
-  loaded, and the router's health. When no router answers in time, `install` and `restart` fail, the
+  loaded, the router's health, and the router's copy where it's wrong: missing, which launchd can't
+  run, or not run, where the plist, or the job launchd has loaded, runs switchboard itself, each
+  naming `service install`, which setup runs where either holds. When no router answers in time, `install` and `restart` fail, the
   LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why. Each run of
   `launchctl` is cut off after 10 seconds, but a bootout, with the wait for launchd to let the
   service go, after 55: the 45 and 10 more, failing `uninstall` when launchd still has it then, and
