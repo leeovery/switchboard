@@ -557,6 +557,37 @@ func TestACopyGoneIsMadeAfreshAsTheRouterRestarts(t *testing.T) {
 	checkAlone(t, own)
 }
 
+func TestARestartPutsInPlaceOnlyTheCopyItAsked(t *testing.T) {
+	s, own := newRunningCopy(t)
+	r := copying(s, own, unheeded)
+	asks := askedAt(t, r, binaryAnswer{})
+	answer := r.ask
+	r.ask = func(ctx context.Context, path string) (string, error) {
+		if len(*asks) == 0 {
+			r.inFlight.begin()
+		}
+		return answer(ctx, path)
+	}
+	remove(t, own)
+	writeFile(t, s.kept, twoAccounts)
+	if r.restart(t.Context()) {
+		t.Fatal("restart() = true, want it put off: a request began as the copy made afresh was asked")
+	}
+	// Put back by hand, as another file, and the config saved again.
+	writeFile(t, own, "switchboard put back")
+	writeFile(t, s.kept, oneAccount)
+	r.inFlight.end()
+
+	if !r.restart(t.Context()) {
+		t.Fatal("restart() = false at the next quiet moment, want the router restarted")
+	}
+	last := (*asks)[len(*asks)-1]
+	if held := contents(t, own); held != last.held {
+		t.Errorf("the copy holds %q, want what the binary last asked, %s, held: %q", held, last.path, last.held)
+	}
+	checkAlone(t, own)
+}
+
 func TestARefusedUpgradeIsHeldTillTheBinaryItUpgradesFromMovesOn(t *testing.T) {
 	log := logstest.Capture(t)
 	s, own := newRunningCopy(t)

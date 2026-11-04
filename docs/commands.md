@@ -1483,8 +1483,11 @@ being refused. launchd isn't asked anything: it reads the LaunchAgent only as it
 runs the copy from the next login on. Where the router can't move over, as when it can't write the
 LaunchAgent or make the copy, it says why once at warn, leaves the LaunchAgent as it was, and
 carries on from the binary it was started as, and `service status` names `service install`. It
-tries again each time it starts without `--from`, as at the next upgrade or login. A router run by
-hand, or started with `--from`, never moves over.
+tries again each time it starts without `--from`, as at the next upgrade or login. It puts moving
+over off, saying so in its log, while `service install` is writing the LaunchAgent, which it leaves
+to install, and where another upgrade has moved the link on as it started, so it never runs a
+version that hasn't been asked whether it can start: it takes that upgrade up as any other, and the
+new version moves over. A router run by hand, or started with `--from`, never moves over.
 
 ## Help and version
 

@@ -240,6 +240,9 @@ type Installed struct {
 // LaunchAgent's plist to run it, has launchd load it, in place of the one it
 // had loaded if it had, which starts the router, and waits for the router to
 // answer. It refuses a switchboard binary that won't last, such as go run's.
+// It makes the copy and writes the plist holding the copy's lock, waiting
+// for a router moving over to let it go, as MoveOver says, and lets it go
+// before launchd is asked to boot anything out.
 // Once it begins the swap, as swap has it, it finishes it whatever ctx does,
 // which can take about two minutes at the worst: what it does before and
 // after heeds ctx, failing with its cause once it's done. It says how far the
@@ -256,11 +259,16 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if err := context.Cause(ctx); err != nil {
 		return Installed{}, err
 	}
+	unlock, err := a.own.Lock()
+	if err != nil {
+		return Installed{}, err
+	}
+	defer unlock()
 	if err := a.placeCopy(a.from); err != nil {
 		return Installed{}, err
 	}
 	before, i, _ := s.answering(ctx)
-	if swap, err := s.swap(ctx, a); err != nil {
+	if swap, err := s.swap(ctx, a, unlock); err != nil {
 		return Installed{Swap: swap}, err
 	}
 	// With none answering before, one that answers now is launchd's,

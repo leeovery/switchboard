@@ -358,6 +358,83 @@ func TestRemove(t *testing.T) {
 	}
 }
 
+func TestTryLockIsRefusedWhileTheLockIsHeld(t *testing.T) {
+	f := newFixture(t)
+	unlock, err := f.own.Lock()
+	if err != nil {
+		t.Fatalf("Lock() error = %v", err)
+	}
+
+	if _, ok, err := f.own.TryLock(); ok || err != nil {
+		t.Errorf("TryLock() while the lock is held = %v, %v; want false, at once", ok, err)
+	}
+	unlock()
+	again, ok, err := f.own.TryLock()
+	if !ok || err != nil {
+		t.Fatalf("TryLock() once the lock is let go = %v, %v; want it taken", ok, err)
+	}
+	again()
+}
+
+func TestLockWaitsWhileTheLockIsHeld(t *testing.T) {
+	f := newFixture(t)
+	unlock, ok, err := f.own.TryLock()
+	if !ok || err != nil {
+		t.Fatalf("TryLock() = %v, %v; want it taken", ok, err)
+	}
+	locked := make(chan error, 1)
+
+	go func() {
+		release, err := f.own.Lock()
+		if err == nil {
+			release()
+		}
+		locked <- err
+	}()
+
+	select {
+	case err := <-locked:
+		t.Fatalf("Lock() = %v while the lock was held, want it waiting", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	unlock()
+	select {
+	case err := <-locked:
+		if err != nil {
+			t.Errorf("Lock() error = %v once the lock was let go", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("gave up waiting for Lock() once the lock was let go")
+	}
+}
+
+func TestTheLockIsKeptBesideTheCopyAndGoesWithIt(t *testing.T) {
+	f := newFixture(t)
+	unlock, err := f.own.Lock()
+	if err != nil {
+		t.Fatalf("Lock() with no directory: error = %v, want it made", err)
+	}
+	unlock()
+	unlock()
+	lock := filepath.Join(filepath.Dir(f.own.Path()), ".lock")
+
+	if err := f.own.RemoveLeftovers(); err != nil {
+		t.Fatalf("RemoveLeftovers() error = %v", err)
+	}
+	if _, err := os.Stat(lock); err != nil {
+		t.Errorf("the lock once what copies cut short left is removed: %v, want it kept", err)
+	}
+	if info, err := os.Stat(filepath.Dir(f.own.Path())); err != nil || info.Mode().Perm() != 0o700 {
+		t.Errorf("the copy's directory: %v, %v; want it made private", info, err)
+	}
+	if err := f.own.Remove(); err != nil {
+		t.Fatalf("Remove() error = %v", err)
+	}
+	if _, err := os.Stat(lock); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the lock once the copy is removed: %v, want it gone with its directory", err)
+	}
+}
+
 // modified is when the binaries the tests copy were last modified, finer
 // than a second, as the copy keeps it whole.
 var modified = time.Date(2026, 9, 28, 13, 12, 0, 123456789, time.UTC)

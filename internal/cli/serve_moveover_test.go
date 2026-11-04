@@ -12,17 +12,21 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/handover"
+	"github.com/leeovery/switchboard/internal/routercopy"
 	"github.com/leeovery/switchboard/internal/service"
 )
 
-// What serve logs as it moves over to the router's copy, and where it can't.
+// What serve logs as it moves over to the router's copy, where it can't,
+// and where the service puts it off.
 const (
-	movingOverLine   = `msg="moving over to the router's own copy of switchboard" component=cli`
-	cantMoveOverLine = `msg="can't move over to the router's own copy of switchboard; carrying on from the binary it was started as" component=cli`
+	movingOverLine    = `msg="moving over to the router's own copy of switchboard" component=cli`
+	cantMoveOverLine  = `msg="can't move over to the router's own copy of switchboard; carrying on from the binary it was started as" component=cli`
+	notMovingOverLine = `msg="not moving over to the router's own copy of switchboard this time; carrying on from the binary it was started as" component=cli`
 )
 
 // addedByHand is a variable added by hand to the plist switchboard wrote
@@ -80,49 +84,75 @@ func TestServeRunByAServiceFromBeforeTheCopyMovesOverToIt(t *testing.T) {
 	}
 }
 
-func TestServeThatCantMoveOverCarriesOnFromTheBinaryItWasStartedAs(t *testing.T) {
+func TestServeThatDoesntMoveOverCarriesOnFromTheBinaryItWasStartedAs(t *testing.T) {
 	tests := []struct {
 		name string
 		// keep keeps serve from moving over.
 		keep func(t *testing.T, s *movingOver)
-		// why is what the warning says of why, in part.
-		why string
+		// level and line are how serve says it didn't, once, and why what
+		// it says of why, in part.
+		level, line, why string
 	}{
 		{
-			name: "the plist can't be read back",
-			keep: func(t *testing.T, s *movingOver) { s.putUnreadablePlist(t) },
-			why:  "through plutil",
+			name:  "the plist can't be read back",
+			keep:  func(t *testing.T, s *movingOver) { s.putUnreadablePlist(t) },
+			level: "level=WARN", line: cantMoveOverLine, why: "through plutil",
 		},
 		{
 			name: "the copy can't be made",
 			keep: func(t *testing.T, s *movingOver) {
-				// A file where the copy's directory goes.
-				if err := os.MkdirAll(filepath.Dir(filepath.Dir(s.routerCopy)), 0o700); err != nil {
+				// The copy's directory there, its lock with it, but nothing
+				// more can be written into it, as on a full disk.
+				unlock, err := routercopy.At(s.routerCopy).Lock()
+				if err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(filepath.Dir(s.routerCopy), nil, 0o600); err != nil {
-					t.Fatal(err)
-				}
+				unlock()
+				readOnly(t, filepath.Dir(s.routerCopy))
 			},
-			why: "beside the router's copy",
+			level: "level=WARN", line: cantMoveOverLine, why: "beside the router's copy",
 		},
 		{
-			name: "the plist can't be written",
-			keep: func(t *testing.T, s *movingOver) {
-				dir := filepath.Dir(s.plist)
-				if err := os.Chmod(dir, 0o500); err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-			},
-			why: "write the service's plist",
+			name:  "the plist can't be written",
+			keep:  func(t *testing.T, s *movingOver) { readOnly(t, filepath.Dir(s.plist)) },
+			level: "level=WARN", line: cantMoveOverLine, why: "write the service's plist",
 		},
 		{
 			name: "the copy can't be run",
 			keep: func(_ *testing.T, s *movingOver) {
 				s.srv.deps.Exec = func(string, []string, []string) error { return errors.New("exec refused") }
 			},
-			why: "exec refused",
+			level: "level=WARN", line: cantMoveOverLine, why: "exec refused",
+		},
+		{
+			name: "service install holding the copy's lock",
+			keep: func(t *testing.T, s *movingOver) {
+				unlock, err := routercopy.At(s.routerCopy).Lock()
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(unlock)
+			},
+			level: "level=INFO", line: notMovingOverLine, why: "service install is setting the service right",
+		},
+		{
+			name: "an upgrade moving the link on as serve starts",
+			keep: func(_ *testing.T, s *movingOver) {
+				// Serve asks which launchd job it runs as once it has found
+				// its binary, before it moves over.
+				getenv := s.srv.deps.Getenv
+				var moved sync.Once
+				s.srv.deps.Getenv = func(key string) string {
+					if key == "XPC_SERVICE_NAME" {
+						moved.Do(func() { _ = s.srv.moveOn() })
+					}
+					return getenv(key)
+				}
+				// The router's own restart for the upgrade is a test of its
+				// own: it isn't looked for here.
+				s.srv.deps.WatchEvery = time.Hour
+			},
+			level: "level=INFO", line: notMovingOverLine, why: "leads to another switchboard than the one running",
 		},
 	}
 	for _, tt := range tests {
@@ -147,9 +177,9 @@ func TestServeThatCantMoveOverCarriesOnFromTheBinaryItWasStartedAs(t *testing.T)
 				t.Errorf("ran launchctl %q, want launchd left alone", s.launchd.calls)
 			}
 			log := s.srv.routerLog(t)
-			warning := []string{"level=WARN", cantMoveOverLine, "binary=" + s.srv.binary, tt.why}
-			if n := strings.Count(log, cantMoveOverLine); n != 1 || !hasLine(log, warning...) {
-				t.Errorf("router.log reads\n%s\nwant one warning, with %q", log, warning)
+			said := []string{tt.level, tt.line, "binary=" + s.srv.binary, tt.why}
+			if n := strings.Count(log, `msg="can't move over`) + strings.Count(log, `msg="not moving over`); n != 1 || !hasLine(log, said...) {
+				t.Errorf("router.log reads\n%s\nwant it said once why serve didn't move over, with %q", log, said)
 			}
 			if strings.Contains(log, tokenShaped) {
 				t.Errorf("router.log shows something token-shaped:\n%s", log)
@@ -278,6 +308,15 @@ func (s *serviceSetup) putPlistBeforeTheCopy(t *testing.T, binary string) string
 		t.Fatal(err)
 	}
 	return plist
+}
+
+// readOnly has nothing written into the directory dir till the test ends.
+func readOnly(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 }
 
 // readPlist returns what the service's plist holds.

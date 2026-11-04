@@ -21,7 +21,8 @@ import (
 // alone. Interrupted as it swaps, it says so as Config.Finishing does, and
 // once it has swapped, fails with accounts.ErrInterrupted. It says how far
 // it got. The interrupts are let go however it ends, a panic among its ends.
-func (s *Service) swap(ctx context.Context, a agent) (got Swap, err error) {
+// written is called once the plist is written, as swapThrough says.
+func (s *Service) swap(ctx context.Context, a agent, written func()) (got Swap, err error) {
 	h := interrupts.Hold(s.cfg.Hold)
 	defer func() {
 		if interrupted := h.End(); interrupted && err == nil {
@@ -33,7 +34,7 @@ func (s *Service) swap(ctx context.Context, a agent) (got Swap, err error) {
 		return NotSwapped, err
 	}
 	h.Watch(s.cfg.Finishing)
-	if err := s.swapThrough(context.WithoutCancel(ctx), a, loaded); err != nil {
+	if err := s.swapThrough(context.WithoutCancel(ctx), a, loaded, written); err != nil {
 		return SwapFailed, err
 	}
 	return Swapped, nil
@@ -58,9 +59,13 @@ func (s *Service) beforeSwap(ctx context.Context, h *interrupts.Held) (bool, err
 // fails between: once the old service is booted out, nothing starts a router
 // till the new one is loaded, so a bootout that fails is followed by the
 // bootstrap all the same, tried till launchd must have let the old one go. A
-// service launchd still holds only has the bootstrap fail.
-func (s *Service) swapThrough(ctx context.Context, a agent, loaded bool) error {
-	if err := s.write(a); err != nil {
+// service launchd still holds only has the bootstrap fail. written is called
+// once the plist is written, before launchd is asked anything, so what it
+// lets go of is never held while the router stops.
+func (s *Service) swapThrough(ctx context.Context, a agent, loaded bool, written func()) error {
+	err := s.write(a)
+	written()
+	if err != nil {
 		return err
 	}
 	var until time.Time

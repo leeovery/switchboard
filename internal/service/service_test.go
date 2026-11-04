@@ -144,8 +144,13 @@ func TestInstallRemovesWhatCopiesCutShortLeft(t *testing.T) {
 	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
-	if entries, err := os.ReadDir(filepath.Dir(s.routerCopy)); err != nil || len(entries) != 1 || entries[0].Name() != "switchboard" {
-		t.Errorf("the router's copy's directory holds %v (%v), want the copy alone", entries, err)
+	entries, err := os.ReadDir(filepath.Dir(s.routerCopy))
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	if want := []string{".lock", "switchboard"}; err != nil || !slices.Equal(names, want) {
+		t.Errorf("the router's copy's directory holds %q (%v), want the copy and its lock alone: %q", names, err, want)
 	}
 }
 

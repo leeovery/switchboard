@@ -160,6 +160,49 @@ func TestARouterRunningItsOwnCopyRemovesWhatCopiesCutShortLeftBesideItAsItStarts
 	checkOwnCopy(t, own, s.current)
 }
 
+func TestAWatchedFileIsTheVeryFileItWasFoundAs(t *testing.T) {
+	dir := t.TempDir()
+	path, other := filepath.Join(dir, "switchboard"), filepath.Join(dir, "other")
+	writeFile(t, path, "switchboard 1.0")
+	writeFile(t, other, "switchboard 1.1")
+	watched := router.Watch(path)
+	found, elsewhere := statOf(t, path), statOf(t, other)
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(path, later, later); err != nil {
+		t.Fatal(err)
+	}
+	changed := statOf(t, path)
+	tests := []struct {
+		name    string
+		watched router.Watched
+		info    fs.FileInfo
+		want    bool
+	}{
+		{name: "the file as it was found", watched: watched, info: found, want: true},
+		{name: "another file", watched: watched, info: elsewhere},
+		{name: "the file changed since", watched: watched, info: changed},
+		{name: "no file", watched: watched},
+		{name: "a file found not there", watched: router.Watch(filepath.Join(dir, "gone")), info: found},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.watched.Is(tt.info); got != tt.want {
+				t.Errorf("Is() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// statOf returns how the file at path stands.
+func statOf(t *testing.T, path string) fs.FileInfo {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info
+}
+
 // runOwnCopy has the router run a copy of switchboard of its own, made of its
 // binary as it stands, as service install makes it, upgrading from the
 // binary's link, as the service runs it, and returns the copy's path. The

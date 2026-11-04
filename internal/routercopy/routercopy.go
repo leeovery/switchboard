@@ -28,6 +28,10 @@ const FromFlag = "from"
 const (
 	// name is the copy's file name, in its directory.
 	name = "switchboard"
+	// lockName is the file in the copy's directory whose lock Lock takes.
+	// It isn't named as a file written beside the copy is, so it's never
+	// taken for one a copy cut short left, and it goes with the directory.
+	lockName = ".lock"
 	// fileMode is the copy's permissions, and dirMode its directory's, which
 	// holds nothing of anyone else's.
 	fileMode fs.FileMode = 0o755
@@ -207,6 +211,55 @@ func (c Copy) RemoveLeftovers() error {
 		return fmt.Errorf("remove what copies cut short left beside the router's copy: %w", err)
 	}
 	return nil
+}
+
+// Lock takes the copy's lock, waiting while another holds it, and returns
+// what lets it go, which may be called more than once. Whoever changes the
+// copy and the plist that runs it holds it, service install and a router
+// moving over to the copy, so neither writes over what the other is
+// writing. It makes the copy's directory where it isn't there. The lock goes
+// with the process, its exec among its ends.
+func (c Copy) Lock() (unlock func(), err error) {
+	f, err := c.openLock()
+	if err != nil {
+		return nil, err
+	}
+	if err := lock(f); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("lock the router's copy, %s: %w", f.Name(), err)
+	}
+	return func() { _ = f.Close() }, nil
+}
+
+// TryLock takes the copy's lock as Lock does, but where another holds it,
+// reports false at once, holding nothing.
+func (c Copy) TryLock() (unlock func(), ok bool, err error) {
+	f, err := c.openLock()
+	if err != nil {
+		return nil, false, err
+	}
+	switch taken, err := tryLock(f); {
+	case err != nil:
+		_ = f.Close()
+		return nil, false, fmt.Errorf("lock the router's copy, %s: %w", f.Name(), err)
+	case !taken:
+		_ = f.Close()
+		return nil, false, nil
+	}
+	return func() { _ = f.Close() }, true, nil
+}
+
+// openLock opens the file whose lock Lock takes, making it and the copy's
+// directory where they aren't there.
+func (c Copy) openLock() (*os.File, error) {
+	if err := c.makeDir(); err != nil {
+		return nil, fmt.Errorf("make the router's copy's directory, %s: %w", c.dir(), err)
+	}
+	f, err := os.OpenFile(filepath.Join(c.dir(), lockName), os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("open the router's copy's lock: %w", err)
+	}
+	return f, nil
 }
 
 // Remove removes the copy's directory whole, the copy and anything staged

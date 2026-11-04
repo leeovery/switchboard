@@ -196,6 +196,13 @@ func WatchFrom(from, runs string) Watched {
 	return watched
 }
 
+// Is reports whether info, as a file stood, is the very file w was found
+// as: the same file, unchanged since, as the router compares what it was
+// started from. Nothing is the file of a Watched found not there.
+func (w Watched) Is(info fs.FileInfo) bool {
+	return w.found.there() && w.found.same(fileState{info: info})
+}
+
 // look looks at the config file, the binary and the time zone's file again,
 // notes whether the binary is there, lifts a hold either of the first two has
 // moved on from, tells of a restart they've made due as it falls due, and
@@ -333,7 +340,7 @@ func (r *restarts) restart(ctx context.Context) bool {
 	if why == "" || r.config.missed || r.missing(stood.binary) {
 		return false
 	}
-	path, ok := r.into(stood.binary)
+	path, staged, ok := r.into(stood.binary)
 	if !ok || !r.clear(ctx, why, stood, path) {
 		return false
 	}
@@ -343,7 +350,7 @@ func (r *restarts) restart(ctx context.Context) bool {
 	if r.inFlight.requests() > 0 {
 		return false
 	}
-	err := commitStaged(r.staged)
+	err := commitStaged(staged)
 	r.staged = nil
 	if err != nil {
 		r.copyFailed(err)
@@ -354,32 +361,35 @@ func (r *restarts) restart(ctx context.Context) bool {
 }
 
 // into returns the path of the binary the router would restart into, the
-// binary it upgrades from standing as binary, for restart to ask, or reports
-// that it has none yet. Where it runs a copy of its own, and binary has
-// moved on from the one running, as after an upgrade, or the copy is gone,
-// that's a copy of binary beside its copy: the one kept from a quiet moment
-// before, while it's of that file still, else one copied in afresh, but not
-// while a request is in flight, which would put the restart off; one that
-// can't be copied in leaves the router carrying on, as copyFailed says.
-// Otherwise it's the binary the router runs.
-func (r *restarts) into(binary fileState) (string, bool) {
+// binary it upgrades from standing as binary, for restart to ask, with the
+// upgrade copied in that it is, for restart to put in place of the copy, or
+// reports that it has none yet. Where it runs a copy of its own, and binary
+// has moved on from the one running, as after an upgrade, or the copy is
+// gone, that's a copy of binary beside its copy: the one kept from a quiet
+// moment before, while it's of that file still, else one copied in afresh,
+// but not while a request is in flight, which would put the restart off; one
+// that can't be copied in leaves the router carrying on, as copyFailed says.
+// Otherwise it's the binary the router runs, no upgrade, and one kept from
+// before is removed, as it won't be restarted into.
+func (r *restarts) into(binary fileState) (string, *routercopy.Staged, bool) {
 	if !r.upgrading(binary) {
-		return r.runs(), true
+		r.discardUpgrade()
+		return r.runs(), nil, true
 	}
 	if r.staged != nil && copiedFrom(*r.staged).same(binary) {
-		return r.staged.Path(), true
+		return r.staged.Path(), r.staged, true
 	}
 	r.discardUpgrade()
 	if r.inFlight.requests() > 0 {
-		return "", false
+		return "", nil, false
 	}
 	staged, err := r.stageOf(binary)
 	if err != nil {
 		r.copyFailed(err)
-		return "", false
+		return "", nil, false
 	}
 	r.staged = &staged
-	return staged.Path(), true
+	return staged.Path(), r.staged, true
 }
 
 // upgrading reports whether the router, running a copy of its own, would

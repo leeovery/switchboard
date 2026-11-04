@@ -8,7 +8,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/routercopy"
 	"github.com/leeovery/switchboard/internal/service"
 )
@@ -31,13 +33,13 @@ func TestMoveOverWritesAPlistFromBeforeTheCopyAfreshToRunIt(t *testing.T) {
 	running := writeVersion(t, filepath.Join(s.root, "Cellar", "switchboard", "1.2.3", "bin", "switchboard"), "switchboard 1.2.3")
 	var restarted []string
 
-	err = s.svc.MoveOver(t.Context(), running, func(own routercopy.Copy) error {
+	err = s.svc.MoveOver(t.Context(), moving(running, func(own routercopy.Copy) error {
 		restarted = append(restarted, own.Path())
 		if plist, err := os.ReadFile(s.plist); err != nil || string(plist) != want {
 			t.Errorf("as the router restarts into its copy, the plist reads\n%s(%v)\nwant it written afresh already:\n%s", plist, err, want)
 		}
 		return nil
-	})
+	}))
 
 	if err != nil {
 		t.Fatalf("MoveOver() error = %v", err)
@@ -60,7 +62,7 @@ func TestMoveOverWithoutAPlistMakesNoCopy(t *testing.T) {
 	s := newSetup(t, nil, nil)
 	s.launchctl.refuse = true
 
-	err := s.svc.MoveOver(t.Context(), s.binary, refuseRestart(t))
+	err := s.svc.MoveOver(t.Context(), moving(s.binary, refuseRestart(t)))
 
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("MoveOver() error = %v, want fs.ErrNotExist", err)
@@ -74,7 +76,7 @@ func TestMoveOverLeavesAPlistItCantReadAsItWas(t *testing.T) {
 	const plist = "bplist00\xd1\x01\x02"
 	s.putPlist(t, plist)
 
-	if err := s.svc.MoveOver(t.Context(), s.binary, refuseRestart(t)); err == nil {
+	if err := s.svc.MoveOver(t.Context(), moving(s.binary, refuseRestart(t))); err == nil {
 		t.Error("MoveOver() succeeded, want it to fail, the plist unread without plutil")
 	}
 	checkPlistAsItWas(t, s, plist)
@@ -85,13 +87,20 @@ func TestMoveOverLeavesThePlistAsItWasWhereTheCopyCantBeMade(t *testing.T) {
 	s := newSetup(t, nil, nil)
 	s.launchctl.refuse = true
 	plist := s.plistBeforeTheCopy(t)
-	// A file where the copy's directory goes.
-	writeBinary(t, filepath.Dir(s.routerCopy))
+	// The copy's directory there, its lock with it, but nothing more can be
+	// written into it, as on a full disk.
+	unlock, err := routercopy.At(s.routerCopy).Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlock()
+	readOnly(t, filepath.Dir(s.routerCopy))
 
-	if err := s.svc.MoveOver(t.Context(), s.binary, refuseRestart(t)); err == nil {
-		t.Error("MoveOver() succeeded, want it to fail, the router's copy not made")
+	if err := s.svc.MoveOver(t.Context(), moving(s.binary, refuseRestart(t))); err == nil || errors.Is(err, service.ErrPutOff) {
+		t.Errorf("MoveOver() error = %v, want it to fail, the router's copy not made", err)
 	}
 	checkPlistAsItWas(t, s, plist)
+	checkNoCopy(t, s)
 }
 
 func TestMoveOverLeavesThePlistAsItWasWhereItCantBeWritten(t *testing.T) {
@@ -100,7 +109,7 @@ func TestMoveOverLeavesThePlistAsItWasWhereItCantBeWritten(t *testing.T) {
 	plist := s.plistBeforeTheCopy(t)
 	readOnly(t, filepath.Dir(s.plist))
 
-	if err := s.svc.MoveOver(t.Context(), s.binary, refuseRestart(t)); err == nil {
+	if err := s.svc.MoveOver(t.Context(), moving(s.binary, refuseRestart(t))); err == nil {
 		t.Error("MoveOver() succeeded, want it to fail, the plist not written")
 	}
 	checkPlistAsItWas(t, s, plist)
@@ -112,12 +121,140 @@ func TestMoveOverPutsThePlistBackWhereTheRouterCantRestartIntoTheCopy(t *testing
 	plist := s.plistBeforeTheCopy(t)
 	refused := errors.New("exec refused")
 
-	err := s.svc.MoveOver(t.Context(), s.binary, func(routercopy.Copy) error { return refused })
+	err := s.svc.MoveOver(t.Context(), moving(s.binary, func(routercopy.Copy) error { return refused }))
 
 	if !errors.Is(err, refused) {
 		t.Errorf("MoveOver() error = %v, want the restart's", err)
 	}
 	checkPlistAsItWas(t, s, plist)
+}
+
+func TestMoveOverIsPutOffWhereTheLinkMovedOnFromTheBinaryRunning(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	s.launchctl.refuse = true
+	plist := s.plistBeforeTheCopy(t)
+	running := writeVersion(t, filepath.Join(s.root, "Cellar", "switchboard", "1.0", "bin", "switchboard"), "switchboard 1.0")
+	next := writeVersion(t, filepath.Join(s.root, "Cellar", "switchboard", "1.1", "bin", "switchboard"), "switchboard 1.1")
+	link := filepath.Join(s.root, "opt", "bin", "switchboard")
+	relinkTo(t, link, running)
+	// Found as the router started, before another upgrade moved the link on.
+	m := moving(link, refuseRestart(t))
+	relinkTo(t, link, next)
+
+	if err := s.svc.MoveOver(t.Context(), m); !errors.Is(err, service.ErrPutOff) {
+		t.Errorf("MoveOver() error = %v, want service.ErrPutOff: the link leads to a version that isn't running", err)
+	}
+	checkPlistAsItWas(t, s, plist)
+	checkNothingCopied(t, s)
+}
+
+func TestMoveOverIsPutOffWhileTheCopysLockIsHeld(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	s.launchctl.refuse = true
+	plist := s.plistBeforeTheCopy(t)
+	unlock, err := routercopy.At(s.routerCopy).Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+
+	if err := s.svc.MoveOver(t.Context(), moving(s.binary, refuseRestart(t))); !errors.Is(err, service.ErrPutOff) {
+		t.Errorf("MoveOver() error = %v, want service.ErrPutOff: install holds the copy's lock", err)
+	}
+	checkPlistAsItWas(t, s, plist)
+	checkNothingCopied(t, s)
+}
+
+func TestMoveOverIsPutOffWhereThePlistKeepsTheCopyElsewhere(t *testing.T) {
+	s := newSetup(t, map[string]string{"XDG_DATA_HOME": "<root>/data"}, nil)
+	s.launchctl.refuse = true
+	// Installed from a shell keeping switchboard's data elsewhere since the
+	// router started.
+	plist := s.plistBeforeTheCopy(t)
+	cfg := s.cfg
+	cfg.Getenv = func(key string) string {
+		if key == "XDG_DATA_HOME" {
+			return ""
+		}
+		return s.cfg.Getenv(key)
+	}
+
+	if err := newService(t, cfg).MoveOver(t.Context(), moving(s.binary, refuseRestart(t))); !errors.Is(err, service.ErrPutOff) {
+		t.Errorf("MoveOver() error = %v, want service.ErrPutOff: the copy the plist keeps isn't the one whose lock it holds", err)
+	}
+	checkPlistAsItWas(t, s, plist)
+	checkNoCopy(t, s)
+}
+
+func TestInstallWaitsForAMoveHoldingTheCopysLock(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	unlock, err := routercopy.At(s.routerCopy).Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	installed := make(chan error, 1)
+
+	go func() {
+		_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+		installed <- err
+	}()
+
+	select {
+	case err := <-installed:
+		t.Fatalf("Install() = %v while a move held the copy's lock, want it waiting", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	if _, err := os.Stat(s.plist); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the plist while a move held the copy's lock: %v, want none written yet", err)
+	}
+	checkNoCopy(t, s)
+	unlock()
+	select {
+	case err := <-installed:
+		if err != nil {
+			t.Fatalf("Install() error = %v once the move let the lock go", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("gave up waiting for Install() once the move let the lock go")
+	}
+	s.checkPlist(t, s.binary, "")
+}
+
+// moving is what a router running binary, as it stands now, moves over with,
+// restarting into its copy as restart does.
+func moving(binary string, restart func(routercopy.Copy) error) service.MovingOver {
+	return service.MovingOver{Binary: binary, Runs: router.Watch(binary).Is, Restart: restart}
+}
+
+// relinkTo has the link at path lead to target, replacing any link there
+// whole, as an upgrade moves a link on.
+func relinkTo(t *testing.T, path, target string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	moved := path + ".new"
+	if err := os.Symlink(target, moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(moved, path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// checkNothingCopied checks the copy's directory holds nothing but its
+// lock: no copy, and nothing staged left beside where it goes.
+func checkNothingCopied(t *testing.T, s *setup) {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Dir(s.routerCopy))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name() != ".lock" {
+			t.Errorf("the router's copy's directory holds %s, want nothing copied", e.Name())
+		}
+	}
 }
 
 // plistBeforeTheCopy puts the plist install wrote before the router's copy

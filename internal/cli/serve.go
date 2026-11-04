@@ -99,7 +99,7 @@ func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if cfg.Supervised && a.from == "" && a.moveOver(ctx, exe) {
+	if cfg.Supervised && a.from == "" && a.moveOver(ctx, exe, binary) {
 		return nil
 	}
 	cfg.ConfigFile, cfg.Binary, cfg.From, cfg.Zone = configFile, binary, from, zone
@@ -113,26 +113,32 @@ func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 
 // moveOver moves the router over to its own copy of switchboard, as a
 // router launchd started from a plist written before the copy does, before
-// it listens: the service makes the copy of exe, this binary, and writes its
-// plist afresh to run it, and this process is replaced with the copy, run as
-// it was started, the copy in place of the program, as launchd runs it, with
-// --from naming exe, in the environment it was started in. The listeners a
-// router this one replaced handed over pass on untouched, as their
-// descriptors are left open, and are taken up only by the router it becomes,
-// so a connection made meanwhile waits to be accepted. It reports whether it
-// replaced itself, which a real exec never returns from; where it couldn't,
-// it says why once, at warn, the plist as it was, and the router carries on
-// from exe.
-func (a *app) moveOver(ctx context.Context, exe string) bool {
-	if err := a.movingOver(ctx, exe); err != nil {
+// it listens: the service makes the copy of exe, this binary, found as
+// binary as serve started, and writes its plist afresh to run it, and this
+// process is replaced with the copy, run as it was started, the copy in
+// place of the program, as launchd runs it, with --from naming exe, in the
+// environment it was started in. The listeners a router this one replaced
+// handed over pass on untouched, as their descriptors are left open, and are
+// taken up only by the router it becomes, so a connection made meanwhile
+// waits to be accepted. It reports whether it replaced itself, which a real
+// exec never returns from. Where it couldn't, the plist as it was, the
+// router carries on from exe, saying why once: at info where the service put
+// it off, as service.ErrPutOff says, else at warn.
+func (a *app) moveOver(ctx context.Context, exe string, binary router.Watched) bool {
+	err := a.movingOver(ctx, exe, binary)
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, service.ErrPutOff):
+		logger.Info("not moving over to the router's own copy of switchboard this time; carrying on from the binary it was started as", "binary", exe, "why", err)
+	default:
 		logger.Warn("can't move over to the router's own copy of switchboard; carrying on from the binary it was started as", "binary", exe, "error", err)
-		return false
 	}
-	return true
+	return false
 }
 
 // movingOver is moveOver, failing where it can't.
-func (a *app) movingOver(ctx context.Context, exe string) error {
+func (a *app) movingOver(ctx context.Context, exe string, binary router.Watched) error {
 	if exe == "" {
 		return errors.New("this switchboard binary can't be found")
 	}
@@ -144,9 +150,13 @@ func (a *app) movingOver(ctx context.Context, exe string) error {
 	if err != nil {
 		return err
 	}
-	return svc.MoveOver(ctx, exe, func(own routercopy.Copy) error {
-		logger.Info("moving over to the router's own copy of switchboard", "copy", own.Path(), "from", exe, "listeners", a.Getenv(handover.Variable))
-		return a.Exec(own.Path(), asCopy(a.Args, own.Path(), exe), a.Environ())
+	return svc.MoveOver(ctx, service.MovingOver{
+		Binary: exe,
+		Runs:   binary.Is,
+		Restart: func(own routercopy.Copy) error {
+			logger.Info("moving over to the router's own copy of switchboard", "copy", own.Path(), "from", exe, "listeners", a.Getenv(handover.Variable))
+			return a.Exec(own.Path(), asCopy(a.Args, own.Path(), exe), a.Environ())
+		},
 	})
 }
 
