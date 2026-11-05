@@ -437,6 +437,7 @@ func (r *Router) assembled() status.Document {
 	doc.Pin = pin
 	doc.Router = r.health.report()
 	doc.Restart = r.upkeep.restartDue()
+	doc.Export = r.exports.report()
 	doc.Events = r.recent.events()
 	if r.primer != nil {
 		doc.Prime = r.primer.report(now)

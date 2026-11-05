@@ -862,9 +862,11 @@ document as JSON instead. The document holds:
 - every account's windows, each with its even pace, where even use would have put it by now, and
   its allowance, what can be spent of it an hour or a day and still last to its reset;
 - each account's extra usage, where the API reports it;
-- the pool: the room new sessions can go to, summed across its accounts, and their mean use; and
+- the pool: the room new sessions can go to, summed across its accounts, and their mean use;
 - what's coming up, soonest first: each limit or cap lifting, window running out or resetting, and
-  prime.
+  prime; and
+- how the router's hourly export stands, where [`[export]`](configuration.md#export-keys) sets a
+  folder: when one last succeeded, why the last failed, and when the one under way began.
 
 [The status document](reference.md#the-status-document) lists its fields.
 
@@ -1253,8 +1255,9 @@ router builds again from the lines, the days' digests, parts, heads and rows, an
   left for the next export.
 - **Never half written:** every file is written beside where it goes and renamed into place, so a
   sync never carries one half written.
-- **Nothing removed:** nothing in the folder is ever removed, a day past keeping included. The
-  folder keeps what it's given until you remove it.
+- **Nothing removed:** nothing in the folder is removed, a day past keeping included, but the
+  hidden files an export cut short left as it wrote, `.<name>.<digits>`, which each export removes
+  once they're an hour old. The folder keeps what it's given until you remove it.
 
 It reads the files where they lie, so it needs no router. It prints how many days it exported,
 and how many of them it wrote:
@@ -1281,6 +1284,10 @@ The install's id is in `install-id`, in the state directory, made by the first e
 replaced. A Mac whose state directory was restored from another's, as Migration Assistant restores
 it, carries the other's id, and exports to its folder. Remove `install-id` to give it an id, and a
 folder, of its own at its next export.
+
+To have the router export every hour, set [`[export]`](configuration.md#export-keys)'s `dir`. How
+its exports stand is the status document's `export`: see
+[An export that fails](troubleshooting.md#an-export-that-fails).
 
 Example:
 

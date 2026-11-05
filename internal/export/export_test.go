@@ -642,6 +642,22 @@ func TestAFolderWhoseFolderIsntThereFailsWithNoParentsWritingNothing(t *testing.
 	}
 }
 
+func TestAFolderGoneAsTheMacsFolderIsMadeIsNamedOnceWithNoParents(t *testing.T) {
+	state, root := t.TempDir(), t.TempDir()
+	// A link to a disk not mounted is there to make, and gone to make in.
+	dir := filepath.Join(root, "Backup")
+	if err := os.Symlink(filepath.Join(root, "unmounted"), dir); err != nil {
+		t.Fatal(err)
+	}
+	e := exporter(state)
+	e.NoParents = true
+
+	_, err := e.Export(dir)
+	if want := "can't export into " + dir + ": it isn't there"; !errors.Is(err, export.ErrNoFolder) || err.Error() != want {
+		t.Errorf("Export() into a folder gone as the Mac's folder is made: %v, want %q", err, want)
+	}
+}
+
 // readOnly makes the folder at dir one that can't be written, as /Volumes,
 // which only the system writes, is to the user, until the test ends.
 func readOnly(t *testing.T, dir string) {

@@ -198,8 +198,10 @@ The day's summary is kept for good, whatever `keep` says.
 
 ## `[export]` keys
 
-This key sets a folder the router exports the history into, every hour, as
-[`export`](commands.md#export) would.
+This key sets a folder the router exports the history into, as it starts and every hour after, as
+[`export`](commands.md#export) would. The router makes the folder only where the folder it goes in
+is there, so a disk that isn't mounted fails the export. See
+[An export every hour](how-it-works.md#an-export-every-hour).
 
 | Key | Default | Description |
 |---|---|---|

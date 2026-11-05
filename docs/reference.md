@@ -310,7 +310,7 @@ no window joined. A window that `joined` leaves out was held from `at`.
 
 [`status`](commands.md#status) and [`usage`](commands.md#usage) print this document as JSON:
 `{"generated_at", "source", "fallback", "best", "primary", "prime", "pin", "router", "restart",
-"sessions", "events", "pool", "coming_up", "accounts"}`.
+"export", "sessions", "events", "pool", "coming_up", "accounts"}`.
 
 - Times are in UTC, except the priming schedule's times of day, which are local.
 - Utilizations are fractions, and can pass 1.
@@ -327,6 +327,7 @@ no window joined. A window that `joined` leaves out was held from `at`.
 | `pin` | The global pin: the accounts it names, since when, and whether it moved the running sessions. |
 | `router` | The router's health over the last 5 minutes. |
 | `restart` | A restart the router has due, and, as `held`, why the binary it would become refuses to start, where that holds it. |
+| `export` | How the router's hourly export into [`[export]`](configuration.md#export-keys)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |
 | `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each window gives `of`, how many of the pool's accounts have it, an account not read yet, or without a usable token, counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |

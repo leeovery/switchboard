@@ -3,6 +3,7 @@ package router
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -515,6 +516,38 @@ func TestARouterStartingWithARestartDueStartsNoExport(t *testing.T) {
 	}
 }
 
+func TestTheFirstLookEndsOnceARestartDueIsKnown(t *testing.T) {
+	logstest.Capture(t)
+	s := newStartedFrom(t)
+	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+	cfg.ConfigFile, cfg.Supervised = Watch(s.config), true
+	r := newTestRouterOf(t, cfg)
+	firstLook := r.upkeep.firstLook()
+	var lookedAsDue bool
+	r.upkeep.restarts.emit = func(Event) {
+		select {
+		case <-firstLook:
+			lookedAsDue = true
+		default:
+		}
+	}
+	writeFile(t, s.kept, twoAccounts)
+
+	r.upkeep.look()
+
+	if lookedAsDue {
+		t.Error("the first look ended before the restart it found due was known, want it ending after")
+	}
+	select {
+	case <-firstLook:
+	default:
+		t.Error("the first look hasn't ended, want it ended once upkeep has looked")
+	}
+	if !r.restartComing() {
+		t.Error("restartComing() = false after the first look, want a restart coming, as the config file changed")
+	}
+}
+
 func TestTheConfigIsTakenUpFromTheNextRound(t *testing.T) {
 	const (
 		was   = "/Volumes/Backup/Switchboard"
@@ -944,4 +977,38 @@ func TestTheRouterRestartingInPlaceWaitsOnNoExport(t *testing.T) {
 	}
 	held.release()
 	waitFor(t, "the export ends", func() bool { return r.exports.idle() })
+}
+
+func TestTheRoutersDocumentSaysHowTheExportsStand(t *testing.T) {
+	tests := []struct {
+		name string
+		dir  string
+		want status.Export
+	}{
+		{name: "into a folder", dir: "/Volumes/Backup/Switchboard", want: status.Export{Dir: "/Volumes/Backup/Switchboard", At: start}},
+		{name: "into none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+			cfg.Export = config.Export{Dir: tt.dir}
+			r := newTestRouterOf(t, cfg)
+			r.exports.exportInto, r.exports.tend = (&exportAs{}).into, tended
+
+			r.exports.exportNow(t.Context())
+
+			doc := r.Status()
+			if doc.Export != tt.want {
+				t.Errorf("Status().Export = %+v, want %+v", doc.Export, tt.want)
+			}
+			data, err := json.Marshal(doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := bytes.Contains(data, []byte(`"export":`)), tt.dir != ""; got != want {
+				t.Errorf("the document reads\n%s\nwant an export %v", data, want)
+			}
+		})
+	}
 }

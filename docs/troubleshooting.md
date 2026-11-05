@@ -128,6 +128,30 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`: remove
   the line marked `# switchboard` from your shell's startup file, and open a new terminal.
 
+## An export that fails
+
+With [`[export]`](configuration.md#export-keys)'s `dir` set, the router exports every hour. To see
+how its exports stand, run `switchboard status --json | jq .export`: `at` is when the last
+succeeded, `error` why the last failed, and `running` when the one under way began. The router's
+log has a failure at warn, once until an export succeeds, and the first that succeeds after it.
+
+- **`macOS refused access to <dir>`:** macOS asks before the router writes into iCloud Drive,
+  Dropbox or `~/Documents`, and you didn't allow it. Allow switchboard in System Settings →
+  Privacy & Security, and the next export, within the hour, goes through.
+- **`<path> is locked`:** a file or folder in the export is locked in the Finder. Unlock it in its
+  Get Info window.
+- **The folder isn't there:** the router makes `dir` only where the folder it goes in is there, so
+  a disk that isn't mounted isn't written onto the Mac's own disk in its place. Mount the disk, or
+  make the folder `dir` goes in.
+- **`running` for long:** an export waits while macOS's prompt asking whether to allow switchboard
+  is unanswered, and no other into the folder starts until it's answered. Answer the prompt.
+- **A day passed over:** a day's file in the state directory that can't be read is warned of in
+  the router's log, as `couldn't export the request ledger of 2026-10-30; passed over`, and the
+  rest exported. That doesn't fail the export.
+- **To export now:** run [`switchboard export <dir>`](commands.md#export), which needs no router.
+  macOS asks about your terminal apart from the router, so an export that works from the terminal
+  says nothing of what the router is allowed.
+
 ## The logs
 
 The logs are for working out, after the fact, why a session went to an account, why a request

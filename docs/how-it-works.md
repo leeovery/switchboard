@@ -282,6 +282,22 @@ line for each version of an event. These are the events it files:
 
 [`events`](commands.md#events) reads them back.
 
+### An export every hour
+
+With [`[export]`](configuration.md#export-keys)'s `dir` set, the router exports the history into
+it as it starts and every hour after, as [`export`](commands.md#export) would, each Mac into a
+folder of its own.
+
+- **Never in routing's way:** each export runs apart from the router, so one waiting on macOS,
+  which asks before the router writes into iCloud Drive, Dropbox or `~/Documents`, holds up no
+  request, and no restart. No export starts while a restart is coming: the router it becomes
+  exports as it starts.
+- **A disk not there:** the router makes `dir` only where the folder it goes in is there, so a
+  disk not mounted fails the export rather than having it written onto the Mac's own disk.
+- **How it stands:** the status document's `export` says when the last export succeeded, why the
+  last failed, and when the one under way began. A failure is logged once, until an export
+  succeeds. See [An export that fails](troubleshooting.md#an-export-that-fails).
+
 ## Looking after itself
 
 The router takes up changes to tokens and config, and recovers from sleep, without a command from

@@ -68,6 +68,10 @@ type Document struct {
 	// Restart is the restart the router has due: zero when none is, and in a
 	// document that isn't the router's.
 	Restart Restart `json:"restart,omitzero"`
+	// Export is how the router's export of the history on a schedule stands:
+	// zero where the config names no folder, and in a document that isn't
+	// the router's.
+	Export Export `json:"export,omitzero"`
 	// Sessions is how many sessions the router has sent anywhere in the last
 	// hour, each counted once however many accounts its models went to: zero
 	// in a document that isn't the router's.

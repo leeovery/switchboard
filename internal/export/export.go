@@ -96,7 +96,11 @@ func (e Exporter) Export(dir string) (Result, error) {
 		return Result{}, err
 	}
 	folder := Folder(dir, id)
-	if err := e.making(dir)(folder); err != nil {
+	switch err := e.making(dir)(folder); {
+	case errors.Is(err, ErrNoFolder):
+		// The Mac's folder is a level in dir, so the folder not there is dir.
+		return Result{}, fmt.Errorf("can't export into %s: %w", dir, ErrNoFolder)
+	case err != nil:
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	e.removeLeftovers(folder)
