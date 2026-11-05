@@ -786,8 +786,9 @@ accounts:
   primary's alone, marked with the account they came from: should the config configure it again,
   as when an edit by hand is caught half made, it takes them back, an account like any other
   again. While the primary has no usable token, they count no more than its own do.
-- The programs switchboard runs for itself, `claude --version`, `osascript` and `launchctl`, get
-  none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`. `claude --version` gets the
+- The programs switchboard runs for itself, `claude --version`, `osascript`, its notifications'
+  app, `lsregister` and `launchctl`, get none of its environment but `PATH`, `HOME`, `TMPDIR` and
+  `LANG`. `claude --version` gets the
   `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
   npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
   which holds the system's directories alone.
@@ -6892,6 +6893,49 @@ none with `--no-notify`. While the router answers, the dashboard posts none, so 
 twice: probing with `--probe`, it asks after the router before it posts, and posts only when it
 doesn't answer. It sees no limits or moves, which are the router's alone.
 
+**How they're posted: switchboard's own app.** A notification posted through `osascript` is
+Script Editor's: its icon, and a click that opens Script Editor. So a release's switchboard posts
+through a small Mac app of its own, `Switchboard.app`, which carries switchboard's icon and name,
+and which a click on its notification only dismisses. The owner's call, 5 November 2026, the icon
+the Fork of the Paper file *Switchboard · Logo* (round 1, logo 2: one line in, three out, the one
+picked lit, in amber on instrument black).
+
+- **The app:** one Swift file, `internal/notify/app/main.swift`, with its `Info.plist` and icon,
+  as Go reaches macOS's notification API (`UserNotifications`) only from an app bundle, and not
+  from a bare binary. Bundle identifier `io.github.leeovery.switchboard.notify`, named
+  `Switchboard`, with no Dock icon, menu or window (`LSUIElement`). Run with `--post <message>`,
+  it asks macOS whether it may post, posts the message under the title `Switchboard`, and exits:
+  0 posted, 2 not allowed, 1 for anything else. Run with `--authorize`, it asks macOS, which asks
+  the user the first time, and exits once answered, 0 allowed, 2 not. Started with neither, as
+  macOS starts it for a click on one of its notifications, it takes the click, does nothing with
+  it, and exits, within 5 seconds at most.
+- **Shipped inside switchboard:** a release builds the app, signs it (see Signing) and embeds it,
+  zipped, in each binary (`go:embed`, under the build tag `notifyapp`). Nothing changes in the
+  Homebrew formula. A build without the tag, as `go build` or `go install` from source, has no app,
+  and posts through `osascript` as before.
+- **Written out where it's used:** `$XDG_DATA_HOME/switchboard/Switchboard.app`, else
+  `~/.local/share/switchboard/Switchboard.app`, beside the router's copy, whenever what's there
+  isn't the app embedded, as after an upgrade: unzipped beside it under a hidden name of its own,
+  then renamed in, the one there renamed out first and removed, so a running app is never written
+  into, as macOS kills a signed app changed in place; and the embedded zip's SHA-256 kept beside
+  it, which says next time whether it's current. Then registered with Launch Services
+  (`lsregister -f`): macOS refuses an app it doesn't know with "Notifications are not allowed
+  for this application", asking nobody (see Observed). The router writes it as it starts, without
+  holding anything up; `service install`, and so setup, writes it too; any other switchboard that
+  posts, as the dashboard probing without the router, writes it before its first post. One that
+  can't be written, or registered, is logged once at `warn`, and that switchboard posts through
+  `osascript` for the rest of its run. Two writing at once write the same app: one whose rename
+  fails takes the other's, where its sum is the embedded one's.
+- **Allowed once:** macOS asks the user, once, whether `Switchboard` may send notifications, and a
+  notification posted before the answer waits on it past the 5 seconds a post is given, and is
+  dropped as any that fails. So `service install` asks as it writes the app, with `--authorize`,
+  not waiting on the answer: run by setup, the question comes while the user is at the Mac, and
+  setup's screens are unchanged. Turned off, in System Settings → Notifications → Switchboard, a
+  post exits 2, which the router logs once at `warn`, naming where to turn them on, until one
+  posts again.
+- **Run like `osascript`:** with the same minimal environment, the same 5-second bound, and the
+  same rules for a notification that fails. Elsewhere than macOS, nothing is posted, as before.
+
 ## The request ledger
 
 The readings history says how each window's use changed; the request ledger says what used it. It
@@ -8268,11 +8312,16 @@ binary can't have its ticket stapled, so macOS looks it up online.
 
 - **Built before the tag,** in mint's `pre_tag`, once the gate has passed (`scripts/release-build`):
   from a clean checkout of what's to be tagged, where untracked files, which no checkout of the
-  commit holds, stop nothing, in a folder of its own outside the repository, for arm64 and amd64,
-  the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each signed by `codesign` with
-  the login keychain's Developer ID Application certificate, the hardened runtime and a secure
-  timestamp, under the identifier `io.github.leeovery.switchboard`, the LaunchAgent's label, and run
-  to check it reports that version; the two sent together to Apple's notary service by
+  commit holds, stop nothing, in a folder of its own outside the repository. First the
+  notifications' app (see Notifications, "How they're posted"): `swiftc` for arm64 and x86_64,
+  joined by `lipo`, put together as a bundle with its `Info.plist` and icon, signed as the binaries
+  are but under its own identifier, `io.github.leeovery.switchboard.notify`, verified, and zipped
+  into the checkout for the binaries to embed. Then switchboard, for arm64 and amd64, with the
+  build tag `notifyapp`, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each
+  signed by `codesign` with the login keychain's Developer ID Application certificate, the
+  hardened runtime and a secure timestamp, under the identifier `io.github.leeovery.switchboard`,
+  the LaunchAgent's label, and run to check it reports that version; the two, with the app, sent
+  together to Apple's notary service by
   `notarytool`, under the keychain profile `notarytool`, the Mac's one login for notarising, made
   once with `xcrun notarytool store-credentials notarytool`, and waited on until it answers, for
   about an hour at most, as mint gives a hook no time limit; then archived and summed under the
@@ -8285,10 +8334,11 @@ binary can't have its ticket stapled, so macOS looks it up online.
 - **Uploaded after it,** in mint's `post_release` (`scripts/release-upload`): the files kept for the
   version uploaded to the release mint made, then the tap told the version and the two archives'
   sums, as the latest release only, and its update waited on, for 15 minutes at most by the clock,
-  or until `gh` has failed to read it for a minute. Under mint, a release GitHub doesn't name the latest, asked a few times, fails, with the command
-  that tells the tap; by hand, an older version's leaves the formula where it is. A pre-release,
-  such as `1.2.3-rc.1`, is built and uploaded, but Homebrew isn't told, as mint marks no GitHub
-  release a pre-release and GitHub would name it the latest. The files are taken only where the
+  or until `gh` has failed to read it for a minute. Under mint, a release GitHub doesn't name the
+  latest, asked a few times, fails, with the command that tells the tap; by hand, an older
+  version's leaves the formula where it is. A pre-release, such as `1.2.3-rc.1`, is built and
+  uploaded, but Homebrew isn't told, as mint marks no GitHub release a pre-release and GitHub
+  would name it the latest. The files are taken only where the
   commit they were built from lies under the tag with nothing a build reads changed between, as
   mint's own commits, its changelog and its answers in `.mint.toml`, change nothing; else they're
   built again from the tag. A failure here leaves the release without its binaries and Homebrew on
@@ -8301,7 +8351,8 @@ binary can't have its ticket stapled, so macOS looks it up online.
   and what's left after it is moving files already right. Waiting on Apple costs nothing: a tag
   without its binaries reaches no one, as Homebrew follows the tap.
 - **Where it runs:** a release can be cut only on an Apple-silicon Mac with Rosetta, as each
-  binary is run to check its version, and with the certificate and the profile. The first run is
+  binary is run to check its version, Xcode's command line tools, for the app's `swiftc`, and the
+  certificate and the profile. The first run is
   at the Mac, as `scripts/release-build 0.0.0-check`, which signs and notarises and releases
   nothing: macOS asks there to let `codesign` use the certificate's key and `notarytool` its
   profile, answered "Always Allow". A release run from elsewhere, as over SSH, waits on that
@@ -8458,7 +8509,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/sessionhook` | The session hook: what `hook session-start` tells a session that didn't start through switchboard, and switchboard's entry in Claude Code's `settings.json`, installed or put right, the rest of the file left as it is |
 | `internal/service` | The LaunchAgent: its plist, and driving `launchctl` |
 | `internal/interrupts` | Holding the process's interrupts, SIGINT, SIGTERM and SIGHUP, with SIGPIPE, through work that must run to its end once begun: the service's swap, and a made token's save. One the process ignores, as under `nohup`, stays ignored |
-| `internal/notify` | Posting desktop notifications, and the wording and warning threshold the router's and the dashboard's share |
+| `internal/notify` | Posting desktop notifications, through switchboard's own app where a release embeds it (writing it out, registering it, asking macOS once) and through `osascript` otherwise, and the wording and warning threshold the router's and the dashboard's share; the app's Swift source, `Info.plist` and icon in `internal/notify/app` |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]`, and telling text that holds one |
@@ -8646,6 +8697,10 @@ hiding it behind the provider would take a wider interface than it's worth:
   LaunchAgent runs, which `service install` makes and the router renames each upgrade over (see Its
   own copy). Not in switchboard's bin directory, which is on `PATH`, where it would stand in for
   Homebrew's.
+- **The notifications' app:** `$XDG_DATA_HOME/switchboard/Switchboard.app`, else
+  `~/.local/share/switchboard/Switchboard.app`, the app a release's switchboard posts through,
+  written out from the one embedded, with `.Switchboard.app.sum` beside it, the embedded zip's
+  SHA-256 (see Notifications, "How they're posted").
 - **The `claude` link:** a link named `claude` to switchboard, by the path it was run by, alone in
   switchboard's bin directory, `$XDG_DATA_HOME/switchboard/bin`, else
   `~/.local/share/switchboard/bin`, which `setup` makes, and switchboard's file for the shell
@@ -9901,10 +9956,21 @@ any of it. Times are the Mac's, UTC+1.
   in all, so whether `exec` gets past a write waiting on one couldn't be seen. Why it differed
   from 4 November is unknown. Hence a restart in place never goes over an export (see On a
   schedule).
+- **5 November 2026: an app of its own posting.** A throwaway app on macOS 26.7.1, one Swift file
+  posting through `UserNotifications`, ad-hoc signed, at a path under a hidden folder, its
+  executable run directly from a shell: unregistered, macOS refused at once ("Notifications are
+  not allowed for this application"), asking nobody; registered with `lsregister -f`, it asked
+  the owner once, was allowed, and posted. The owner's click on the notification started the app
+  from its hidden folder with no arguments; it was told of the click, and quit, nothing shown.
+  Hence switchboard's app is registered each time it's written (see Notifications, "How they're
+  posted").
 
 ## Checks owed
 
 What's built but hasn't been seen against the real thing:
+
+- The notifications' app posting for the router run by launchd, and macOS's question coming from
+  `service install`'s `--authorize`: the check in Observed ran the app from a shell.
 
 - What a burst 429 looks like, and that it, or one at the edge of a limit, carries the usage
   headers: passing a 429 without them through at once rests on one observation, the quota check
