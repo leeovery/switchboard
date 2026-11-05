@@ -7736,13 +7736,16 @@ Switchboard never talks to a cloud. Export and import are built, and the export 
   place, so a sync never carries one half written. An export cut short, as by a router stopping,
   leaves the file it was writing so named: each export, the router's or the command's, first
   removes those in the Mac's folder, its `ledger/` and its `history/` that last changed an hour
-  ago or more, by the time any change to a file sets, never the time it was modified, which a
-  write sets back to its source's just before its rename, so one another export is writing still,
-  as one run by hand beside the router's, is left alone; one it can't remove is warned of, the
-  router's once until it's gone (see On a schedule). Nothing else in the folder is removed, a day
-  past the Mac's keep included: the folder keeps what it was given until its owner removes it.
-  Nothing in it is read but its files' names, sizes and times and the headers of the days not yet
-  compressed, as a file read in a folder iCloud Drive or Dropbox keeps may first be downloaded.
+  ago or more, never by the time it was modified, which a write sets back to its source's just
+  before its rename, but by the later of its ctime and its birthtime: setting the modified time
+  sets the birthtime back with it on APFS, while its ctime moves on, and on FAT and exFAT macOS
+  gives the modified time as the ctime, while the birthtime stays. So one another export is
+  writing still, as one run by hand beside the router's, is left alone. One it can't remove is
+  warned of, the router's once until an export no longer meets it (see On a schedule). Nothing
+  else in the folder is removed, a day past the Mac's keep included: the folder keeps what it was
+  given until its owner removes it. Nothing in it is read but its files' names, sizes and times
+  and the headers of the days not yet compressed, as a file read in a folder iCloud Drive or
+  Dropbox keeps may first be downloaded.
 - **A day that can't be read** from the state directory, as one whose file can't be opened, is
   passed over, and the export goes on with the rest. A file that can't be written into the folder
   stops it at once, and `export.json` is written only once every file has been.

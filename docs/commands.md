@@ -1257,7 +1257,7 @@ router builds again from the lines, the days' digests, parts, heads and rows, an
   sync never carries one half written.
 - **Nothing removed:** nothing in the folder is removed, a day past keeping included, but the
   hidden files an export cut short left as it wrote, `.<name>.<digits>`, which each export removes
-  once they're an hour old. The folder keeps what it's given until you remove it.
+  an hour after they last changed. The folder keeps what it's given until you remove it.
 
 It reads the files where they lie, so it needs no router. It prints how many days it exported,
 and how many of them it wrote:

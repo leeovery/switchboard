@@ -150,6 +150,11 @@ log has a failure at warn, once until an export succeeds, and the first that suc
 - **A day passed over:** a day's file in the state directory that can't be read is warned of in
   the router's log, as `couldn't export the request ledger of 2026-10-30; passed over`, and the
   rest exported. That doesn't fail the export.
+- **`can't remove a file an export cut short left; trying again at each round`:** an export cut
+  short, as by the router stopping mid-export, left a hidden `.<name>.<digits>` file in the
+  export, which the router can't remove. That doesn't fail the export. The line names the file:
+  check its permissions, and whether it or its folder is locked in the Finder, or remove it by
+  hand.
 - **To export now:** run [`switchboard export <dir>`](commands.md#export), which needs no router.
   macOS asks about your terminal apart from the router, so an export that works from the terminal
   says nothing of what the router is allowed.

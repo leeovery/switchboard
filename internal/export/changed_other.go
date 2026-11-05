@@ -8,7 +8,7 @@ import (
 )
 
 // changed is when the file info describes was last modified, which stands
-// for when it last changed where only macOS's ctime is read.
+// for when it last changed where only macOS's times are read.
 func changed(info fs.FileInfo) time.Time {
 	return info.ModTime()
 }
