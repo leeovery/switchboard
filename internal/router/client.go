@@ -47,6 +47,18 @@ var (
 	ErrNoImport = errors.New("the router can't be asked to import")
 )
 
+// ExportUnderWay is why a router refuses to restart while its export of the
+// history into Dir is under way, which it never restarts in place over: a
+// router up and answering, which restarts when asked again once the export
+// ends.
+type ExportUnderWay struct {
+	Dir string
+}
+
+func (e ExportUnderWay) Error() string {
+	return "an export into " + e.Dir + " is under way: try again once it ends"
+}
+
 const (
 	// clientTimeout bounds each of a Client's calls, so a router that's stuck
 	// can't hang its caller.
@@ -209,12 +221,17 @@ func (c *Client) Refresh(ctx context.Context, maxAge time.Duration) (status.Docu
 // its binary, reading the config and the tokens afresh, or else exits for
 // launchd to start it again. It returns the router that took the request,
 // and which it means to do. It fails, saying why, when the router refuses,
-// as one run by hand does, or one whose binary refuses to start, and with
-// ErrNoRestart when it can't be asked.
+// as one run by hand does, or one whose binary refuses to start, with
+// ExportUnderWay while an export runs, and with ErrNoRestart when it can't
+// be asked.
 func (c *Client) Restart(ctx context.Context) (Restart, error) {
 	var restart Restart
 	err := c.call(ctx, restartTimeout, http.MethodPost, "/restart", nil, &restart)
-	if d, ok := errors.AsType[declined](err); ok && d.reason != "" {
+	d, ok := errors.AsType[declined](err)
+	switch {
+	case ok && d.exporting != "":
+		return Restart{}, ExportUnderWay{Dir: d.exporting}
+	case ok && d.reason != "":
 		return Restart{}, d
 	}
 	if err != nil {
@@ -397,12 +414,13 @@ func newControlRequest(ctx context.Context, method, path string, body any) (*htt
 	return http.NewRequestWithContext(ctx, method, "http://switchboard"+path, content)
 }
 
-// declined is a call answered with other than 200: the status, and the
-// reason the router gave, which is "" when the answer gave none.
+// declined is a call answered with other than 200: the status, the reason
+// the router gave, which is "" when the answer gave none, and the folder of
+// the export under way it gave, as problem's Exporting has it.
 type declined struct {
-	status       int
-	reason       string
-	method, path string
+	status            int
+	reason, exporting string
+	method, path      string
 }
 
 func (d declined) Error() string {
@@ -416,7 +434,7 @@ func (d declined) Error() string {
 func refused(resp *http.Response, method, path string) error {
 	var p problem
 	_ = json.NewDecoder(io.LimitReader(resp.Body, maxControlBody)).Decode(&p)
-	return declined{status: resp.StatusCode, reason: p.Error, method: method, path: path}
+	return declined{status: resp.StatusCode, reason: p.Error, exporting: p.Exporting, method: method, path: path}
 }
 
 // isDial reports whether err is a failure to connect at all: there's no

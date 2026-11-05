@@ -1128,6 +1128,16 @@ func TestRestart(t *testing.T) {
 				"switchboard service restart restarts it now, cutting off requests still in flight after 30 seconds",
 		},
 		{
+			name:    "the service's router, waiting for an export to end, which service restart can't get past",
+			restart: status.Restart{Reason: "config changed", Since: since, InFlight: 1, Exporting: "/Volumes/Backup/Switchboard"},
+			want:    "restart due since Mon 13:02 (config changed), once the export into /Volumes/Backup/Switchboard ends: an unanswered macOS prompt can hold it",
+		},
+		{
+			name:    "an export's folder from elsewhere, cleaned",
+			restart: status.Restart{Reason: "config changed", Since: since, Exporting: "/Volumes/Backup\x1b[2J"},
+			want:    "restart due since Mon 13:02 (config changed), once the export into /Volumes/Backup [2J ends: an unanswered macOS prompt can hold it",
+		},
+		{
 			name:    "a router run by hand",
 			restart: status.Restart{Reason: "time zone changed", Since: since, ByHand: true},
 			want:    "restart due since Mon 13:02 (time zone changed): run switchboard serve again to take it up",

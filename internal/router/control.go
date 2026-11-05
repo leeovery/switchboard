@@ -167,6 +167,10 @@ const refreshWait = 10 * time.Second
 // problem is what the control API answers a request it won't serve with.
 type problem struct {
 	Error string `json:"error"`
+	// Exporting is the folder of the export of the history under way that a
+	// restart was refused for, as ExportUnderWay has it: "" for any other
+	// refusal.
+	Exporting string `json:"exporting,omitempty"`
 }
 
 // Control is the control API: GET /health says the router is alive, and
@@ -198,7 +202,11 @@ func (r *Router) Control() http.Handler {
 	mux.HandleFunc("POST /restart", func(w http.ResponseWriter, req *http.Request) {
 		cleared, err := r.upkeep.restartable(req.Context())
 		if err != nil {
-			writeProblem(w, http.StatusConflict, err.Error())
+			refusal := problem{Error: err.Error()}
+			if under, ok := errors.AsType[ExportUnderWay](err); ok {
+				refusal.Exporting = under.Dir
+			}
+			writeProblemOf(w, http.StatusConflict, refusal)
 			return
 		}
 		writeJSON(w, Restart{Health: r.healthNow(), InPlace: r.replaceable()})
@@ -597,9 +605,14 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 // writeProblem answers with status, and message saying why.
 func writeProblem(w http.ResponseWriter, status int, message string) {
+	writeProblemOf(w, status, problem{Error: message})
+}
+
+// writeProblemOf answers with status and the problem p, as writeProblem does.
+func writeProblemOf(w http.ResponseWriter, status int, p problem) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(problem{Error: message})
+	_ = json.NewEncoder(w).Encode(p)
 }
 
 // checkSocketPath fails when path is too long for a unix socket, which

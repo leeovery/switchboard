@@ -34,14 +34,15 @@ var refusingOps = []string{"open", "mkdir", "stat", "lstat", "fdopendir", "readd
 // export <dir> writes it: as the router starts, once it has first looked at
 // what it was started from, and every exportEvery after, each once the
 // history's writers have compressed what's due, so a day compressed goes as
-// its final file. An export never holds the router up: each runs on a
-// goroutine of its own, which nothing waits on, the router stopping
-// included, as a write into a folder macOS guards waits until the user
-// answers its prompt; and a round that comes while one into the same folder
-// runs starts none. A failure is logged once until an export succeeds. What
-// the router keeps of them, for the status document, is how they stand since
-// it started: the folder, when an export into it last succeeded, when the one
-// under way began, and why the last failed, until one succeeds.
+// its final file. An export never holds a request up: each runs on a
+// goroutine of its own, which the router stopping never waits on, as a write
+// into a folder macOS guards waits until the user answers its prompt, though
+// a restart in place does, as restarts says; and a round that comes while
+// one into the same folder runs starts none. A failure is logged once until
+// an export succeeds. What the router keeps of them, for the status
+// document, is how they stand since it started: the folder, when an export
+// into it last succeeded, when the one under way began, and why the last
+// failed, until one succeeds.
 type exports struct {
 	every   time.Duration
 	now     func() time.Time
@@ -206,21 +207,40 @@ func (x *exports) end(dir string) {
 
 // quiet returns what's closed once no export runs, into any folder.
 func (x *exports) quiet() <-chan struct{} {
+	x.mu.Lock()
+	defer x.mu.Unlock()
 	return x.underWay.quiet()
+}
+
+// runningInto returns the folder an export runs into, as into says.
+func (x *exports) runningInto() string {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	return x.into()
+}
+
+// into returns the folder an export runs into: the one configured where
+// that's one, else the first by name, as the one configured before; "" while
+// none runs. Its caller holds mu.
+func (x *exports) into() string {
+	if _, into := x.running[x.folder]; into {
+		return x.folder
+	}
+	if len(x.running) == 0 {
+		return ""
+	}
+	return slices.Min(slices.Collect(maps.Keys(x.running)))
 }
 
 // holdOff holds every export off from beginning, for a restart asked for to
 // begin with none running, until release lets them begin again, as where
 // that restart is refused; or, where one runs, holds nothing off, and
-// returns the folder it runs into, the one configured where that's one.
+// returns the folder it runs into, as into says.
 func (x *exports) holdOff() (running string, ok bool) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
-	if _, into := x.running[x.folder]; into {
-		return x.folder, false
-	}
-	if len(x.running) > 0 {
-		return slices.Min(slices.Collect(maps.Keys(x.running))), false
+	if dir := x.into(); dir != "" {
+		return dir, false
 	}
 	x.heldOff++
 	return "", true

@@ -1149,10 +1149,13 @@ show.
      naming the router's. Run so, setup finds the router's config file its own, and changes
      nothing. The log level is never said.
    Nothing asks first, and `service install` stays the way to force a reinstall. Otherwise setup
-   restarts the router when none answers, and says it's up. It never restarts the router for
-   setup's changes to the config or a token: the router takes them up itself (see The router
-   looking after itself), and setup says so, where the router finds setup's config file and token
-   files.
+   restarts the router when none answers, and says it's up. One that answers by then after all, as
+   one starting might, is asked to restart, and one that refuses as an export of the history is
+   under way is up and answering, as the restart was to have it: setup says so on its Router row,
+   `healthy · 127.0.0.1:4747 · v0.2.10 · not restarted, as an export into <dir> is under way`, and
+   goes on (see On a schedule). It never restarts the router for setup's changes to the config or a
+   token: the router takes them up itself (see The router looking after itself), and setup says so,
+   where the router finds setup's config file and token files.
 
    **Its page** (frame 4), THE SERVICE: `launchd keeps the router running: it starts at login, and
    restarts it if it stops.` The step runs as the page opens, nothing asked, and says what it found
@@ -8231,11 +8234,16 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   gives a restart due, why and since when, and how many requests are in flight (see The status
   document). `status` says so under its router line:
   `restart due since Mon 14:02 (config changed), once no request is in flight (3 now): switchboard
-  service restart restarts it now, cutting off requests still in flight after 30 seconds`, or, run
-  by hand, `…: run switchboard serve again to take it up`, or, held, `restart due since Mon 14:02
+  service restart restarts it now, cutting off requests still in flight after 30 seconds`, or, while
+  an export of the history runs, into the folder configured or one no longer, `restart due since
+  Mon 14:02 (config changed), once the export into /Volumes/Backup/Switchboard ends: an unanswered
+  macOS prompt can hold it`, with no advice, as `service restart` is refused meanwhile, or, run by
+  hand, `…: run switchboard serve again to take it up`, or, held, `restart due since Mon 14:02
   (upgraded), held: <why the binary refuses>`, with no advice, as neither a quiet moment nor
   `service restart` gets past it; and the dashboard's status line, `restart due (config changed)`,
-  or `restart held (upgraded)` (see The page). `service restart` asks the router to restart now
+  or `restart held (upgraded)` (see The page). The log line saying a restart is due names the
+  export it waits for where one runs, `restart due; restarting once the export under way ends and
+  no request is in flight`, with its folder. `service restart` asks the router to restart now
   (`POST /restart`): it gives its requests in flight up to 30 seconds, and those it cuts off then up
   to 5 more to unwind, answering on the control socket meanwhile, so a `claude` started then is
   routed, its requests waiting on the proxy's socket for the router it becomes, then replaces itself
@@ -8833,7 +8841,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /import` | `{"running": true}` while an import runs, else `false`, which `import` asks before it stages (see Export and import) |
 | `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |
-| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, when the new binary judges it, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself), and while an export of the history runs, naming its folder, to be tried again once it ends (see On a schedule). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
+| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, when the new binary judges it, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself), and while an export of the history runs, naming its folder, to be tried again once it ends, the folder given as `exporting` beside `error` too, for a caller to tell a router up and answering (see On a schedule). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
 standard library's plain 404 or 405. Times are given in UTC.
@@ -8856,7 +8864,7 @@ probing.
 | `prime` | The priming schedule, when the config sets a day and an account has a usable token: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token its daily prime, an account without that window having none (see Priming), `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand, left out when they can't say, as for a window read without a reset, and while the account's token is refused or it can take no request (see Priming). Left out otherwise |
 | `pin` | *router* The global pin, `{accounts, account, since, move}`: `accounts` the ids of the accounts it names, in the config's order, and `account` the first of them, as a pin named its one account before pins named several; left out when there's none |
 | `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
-| `restart` | *router* A restart it has due: `{reason, since, in_flight, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again; and `held` why its binary refuses to start, as it said, which holds the restart until the config file or the binary changes, left out while it isn't held. Left out while none is due (see The router looking after itself) |
+| `restart` | *router* A restart it has due: `{reason, since, in_flight, exporting, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, `exporting` the folder of the export of the history under way then, which the restart waits for, the folder configured still or not, left out while none is (see On a schedule), and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again; and `held` why its binary refuses to start, as it said, which holds the restart until the config file or the binary changes, left out while it isn't held. Left out while none is due (see The router looking after itself) |
 | `export` | *router* How the export on a schedule stands, since the router started: `{dir, at, error, running}`, `dir` the folder `[export] dir` names, resolved, `at` when an export into it last succeeded, `error` why the last failed, in plain words, and `running` when the export under way began, as one waiting on macOS's prompt waits; `at` left out before one has succeeded, `error` once one succeeds, and `running` while none is under way. Left out where `[export] dir` isn't set (see On a schedule) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |

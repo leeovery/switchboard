@@ -260,6 +260,9 @@ type Restart struct {
 	// InFlight is how many requests the router had in flight as it gave the
 	// document.
 	InFlight int `json:"in_flight"`
+	// Exporting is the folder of the export of the history under way as it
+	// gave the document, which the restart waits for: "" while none is.
+	Exporting string `json:"exporting,omitempty"`
 	// ByHand is set when the router was run by hand, with serve.
 	ByHand bool `json:"by_hand,omitempty"`
 	// Held says why the router's binary refuses to start, as it said, which

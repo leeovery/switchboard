@@ -783,9 +783,10 @@ can't replace itself, `…, then launchd starts it again`. Then it waits up to 5
 router to answer.
 
 When the router has a restart due, it waits for a moment with no request in flight, and no export
-running. To have the restart now, run `switchboard service restart`, as `switchboard status` says. When the restart is
-held, as the binary the router would become refuses to start, `status` gives the refusal instead:
-put the config right as it says.
+running. To have the restart now, run `switchboard service restart`, as `switchboard status` says.
+While an export is under way, `status` names the export the restart waits for instead, as `service
+restart` is refused until it ends. When the restart is held, as the binary the router would become
+refuses to start, `status` gives the refusal instead: put the config right as it says.
 
 #### `service uninstall` and `service status`
 
@@ -855,7 +856,8 @@ The text shows, in order:
 - the priming schedule;
 - the best account to use next; and
 - last, where the usage came from, with the router's health. Under it comes a restart the router
-  has due, if any, with how to have it now.
+  has due, if any, with how to have it now, or, while an export is under way, the export it waits
+  for, as `service restart` refuses until that ends.
 
 When its output isn't a terminal, such as in a pipe or an agent's shell, `status` prints the status
 document as JSON instead. The document holds:
@@ -1460,14 +1462,18 @@ the times don't, as on a disk that keeps coarser times, by their bytes. One that
 an upgrade made while launchd started it again, has an upgrade due from the start. `service
 install` compares them the same way, and leaves a copy that matches as it is. To restart, it:
 
-1. Waits for a moment with no request in flight, and no [export](configuration.md#export-keys)
-   running.
-2. For an upgrade, copies the binary the link leads to in beside its own copy, hidden.
+1. Waits until no [export](configuration.md#export-keys) is running, and for a moment with no
+   request in flight.
+2. For an upgrade, copies the binary the link leads to in beside its own copy, hidden, while no
+   request is in flight.
 3. Asks the binary it would become whether it can start from the config: the upgrade copied in,
-   or else its own copy.
-4. For an upgrade, renames the new version it copied in over its own copy.
-5. Saves its state.
-6. Replaces itself in place with its copy, handing it the sockets it listens on.
+   or else its own copy. Once an export ends, it can ask with a request still in flight, and keeps
+   the answer.
+4. Where a request is in flight by then, waits for the next moment with none, asking nothing
+   again.
+5. For an upgrade, renames the new version it copied in over its own copy.
+6. Saves its state.
+7. Replaces itself in place with its copy, handing it the sockets it listens on.
 
 Some cases go differently:
 

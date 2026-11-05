@@ -814,9 +814,11 @@ func TestARestartAskedForGoesOverNoExport(t *testing.T) {
 	const dir = "/Volumes/Backup/Switchboard"
 	tests := []struct {
 		name string
-		// running is whether an export runs as the restart is asked for, and
-		// gone whether the router's binary is gone, which refuses it.
-		running, gone bool
+		// running is whether an export runs as the restart is asked for;
+		// elsewhere whether the config has moved the exports on to another
+		// folder since it began; and gone whether the router's binary is
+		// gone, which refuses the restart.
+		running, elsewhere, gone bool
 		// wantErr is why the restart is refused, the router started from s:
 		// "" for none.
 		wantErr func(s startedFrom) string
@@ -826,6 +828,11 @@ func TestARestartAskedForGoesOverNoExport(t *testing.T) {
 	}{
 		{
 			name: "refused while an export runs", running: true,
+			wantErr:      func(startedFrom) string { return "an export into " + dir + " is under way: try again once it ends" },
+			wantExported: true,
+		},
+		{
+			name: "refused while an export runs into a folder no longer configured", running: true, elsewhere: true,
 			wantErr:      func(startedFrom) string { return "an export into " + dir + " is under way: try again once it ends" },
 			wantExported: true,
 		},
@@ -849,6 +856,9 @@ func TestARestartAskedForGoesOverNoExport(t *testing.T) {
 			if tt.running {
 				x.round(t.Context())
 				held.await(t)
+			}
+			if tt.elsewhere {
+				x.configure(config.Export{Dir: "/Volumes/Other/Switchboard"})
 			}
 			if tt.gone {
 				remove(t, s.binary)
@@ -1059,7 +1069,7 @@ func TestTheRouterStoppingWaitsOnNoExport(t *testing.T) {
 }
 
 func TestARestartDueMidExportWaitsForTheExportToEnd(t *testing.T) {
-	logstest.Capture(t)
+	log := logstest.Capture(t)
 	s := newStartedFrom(t)
 	cfg, binary, execs := replacingConfig(t)
 	cfg.ConfigFile = Watch(s.config)
@@ -1080,9 +1090,60 @@ func TestARestartDueMidExportWaitsForTheExportToEnd(t *testing.T) {
 	if _, err := NewClient(SocketPath(cfg.StateDir)).Health(t.Context()); err != nil {
 		t.Errorf("Health() while the restart waits = %v, want the router answering", err)
 	}
+	if !log.Has("level=INFO", `msg="restart due; restarting once the export under way ends and no request is in flight"`, "dir="+cfg.Export.Dir) {
+		t.Errorf("log reads\n%s\nwant the restart due logged as waiting on the export", log)
+	}
 	held.release()
 
 	wantReplaced(t, finished, execs, binary, 5*time.Second)
+}
+
+func TestTheStatusSaysWhichExportARestartWaitsFor(t *testing.T) {
+	tests := []struct {
+		name string
+		// kept is whether the config change that makes the restart due keeps
+		// the folder the export runs into, else dropping [export].
+		kept bool
+	}{
+		{name: "the folder kept", kept: true},
+		{name: "the folder dropped"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			s := newStartedFrom(t)
+			cfg, _, _ := replacingConfig(t)
+			cfg.ConfigFile = Watch(s.config)
+			r := newTestRouterOf(t, cfg)
+			held := newHeldExport(t)
+			r.exports.exportInto = held.into
+			runRouter(t, r)
+			client := NewClient(SocketPath(cfg.StateDir))
+			held.await(t)
+			changed := twoAccounts
+			if tt.kept {
+				changed += fmt.Sprintf("\n[export]\ndir = %q\n", cfg.Export.Dir)
+			}
+			writeFile(t, s.kept, changed)
+			waitFor(t, "the restart falls due", func() bool { return r.upkeep.restartDue().Due() })
+
+			doc, err := client.Status(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := doc.Restart.Exporting; got != cfg.Export.Dir {
+				t.Errorf("the document's restart waits on the export into %q, want %q", got, cfg.Export.Dir)
+			}
+			text := doc.Restart.Text(time.Now())
+			if !strings.Contains(text, "once the export into "+cfg.Export.Dir+" ends") || strings.Contains(text, "restarts it now") {
+				t.Errorf("Restart.Text() = %q, want it waiting on the export, offering no service restart", text)
+			}
+			_, err = client.Restart(t.Context())
+			if under, ok := errors.AsType[ExportUnderWay](err); !ok || under.Dir != cfg.Export.Dir {
+				t.Errorf("Restart() = %v, want it refused for the export into %s", err, cfg.Export.Dir)
+			}
+		})
+	}
 }
 
 func TestARestartAskedForWhileAnExportRunsIsRefused(t *testing.T) {
@@ -1096,8 +1157,9 @@ func TestARestartAskedForWhileAnExportRunsIsRefused(t *testing.T) {
 	held.await(t)
 
 	_, err := client.Restart(t.Context())
-	if want := "an export into " + cfg.Export.Dir + " is under way: try again once it ends"; err == nil || err.Error() != want {
-		t.Errorf("Restart() with an export under way = %v, want %q", err, want)
+	under, typed := errors.AsType[ExportUnderWay](err)
+	if want := "an export into " + cfg.Export.Dir + " is under way: try again once it ends"; !typed || under.Dir != cfg.Export.Dir || err.Error() != want {
+		t.Errorf("Restart() with an export under way = %v, want ExportUnderWay, %q", err, want)
 	}
 	if _, err := client.Health(t.Context()); err != nil {
 		t.Errorf("Health() once the restart was refused = %v, want the router answering", err)

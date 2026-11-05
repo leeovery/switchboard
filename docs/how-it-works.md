@@ -369,8 +369,9 @@ been seen to refuse that, while it lets the router run the new binary in place, 
 upgrade showed.
 
 With many long sessions, a moment with no request in flight, and no export running, can be hours
-coming. While a restart is due, `switchboard status` and the dashboard say so. To restart now,
-run `switchboard service restart`. See [`serve`](commands.md#serve).
+coming. While a restart is due, `switchboard status` and the dashboard say so, `status` naming the
+export it waits for where one runs. To restart now, run `switchboard service restart`, which
+refuses while an export runs. See [`serve`](commands.md#serve).
 
 ## The primary
 

@@ -147,9 +147,10 @@ log has a failure at warn, once until an export succeeds, and the first that suc
   make the folder `dir` goes in.
 - **`running` for long:** an export waits while macOS's prompt asking whether to allow switchboard
   is unanswered, and no other into the folder starts until it's answered. Nor does the router
-  restart in place meanwhile, so an upgrade or a config change waits, and `service restart` says
-  `an export into <dir> is under way: try again once it ends`. Answer the prompt, or allow
-  switchboard in System Settings → Privacy & Security.
+  restart in place meanwhile, so an upgrade or a config change waits, `switchboard status` says
+  the restart waits for the export, and `service restart` says `an export into <dir> is under
+  way: try again once it ends`. Answer the prompt, or allow switchboard in System Settings →
+  Privacy & Security.
 - **A day passed over:** a day's file in the state directory that can't be read is warned of in
   the router's log, as `couldn't export the request ledger of 2026-10-30; passed over`, and the
   rest exported. That doesn't fail the export.

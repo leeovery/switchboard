@@ -117,6 +117,14 @@ func TestServiceSaysEachOutcomeAsTheServicePageShowsIt(t *testing.T) {
 			wantRouter: true,
 		},
 		{
+			name: "its router not answering, then answering mid-export as it's asked to restart: up as it is",
+			lay: func(_ *testing.T, w *world) {
+				w.launchd.pid, w.launchd.late, w.launchd.exporting = 0, true, "/Volumes/Backup/Switchboard"
+			},
+			want:       []said{{setup.Done, "Router", "healthy · 127.0.0.1:4747 · not restarted, as an export into /Volumes/Backup/Switchboard is under way"}},
+			wantRouter: true,
+		},
+		{
 			name: "a router run by hand answering: failed, with no router of the service's",
 			lay:  func(_ *testing.T, w *world) { w.launchd.pid, w.launchd.byHand = 0, 5000 },
 			want: []said{{setup.Failed, "Router run by hand", "a router run some other way answers, pid 5000, while launchd has the service loaded, but runs no router: " +

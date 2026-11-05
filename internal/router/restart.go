@@ -139,12 +139,14 @@ func newRestarts(file, binary, zone Watched, supervised bool, inFlight *inFlight
 }
 
 // exportsUnderWay are the exports a restart in place waits on: quiet returns
-// what's closed once none runs; holdOff holds every one off from beginning,
-// for a restart asked for to begin with none running, or, where one runs,
-// holds nothing off, and returns the folder it runs into; and release lets
-// them begin again, as where that restart is refused.
+// what's closed once none runs, and runningInto the folder of one running,
+// "" while none is; holdOff holds every one off from beginning, for a
+// restart asked for to begin with none running, or, where one runs, holds
+// nothing off, and returns the folder it runs into; and release lets them
+// begin again, as where that restart is refused.
 type exportsUnderWay interface {
 	quiet() <-chan struct{}
+	runningInto() string
 	holdOff() (running string, ok bool)
 	release()
 }
@@ -153,6 +155,8 @@ type exportsUnderWay interface {
 type noExports struct{}
 
 func (noExports) quiet() <-chan struct{} { return newInFlight().quiet() }
+
+func (noExports) runningInto() string { return "" }
 
 func (noExports) holdOff() (string, bool) { return "", true }
 
@@ -273,6 +277,10 @@ func (r *restarts) look() {
 		return
 	}
 	r.told = true
+	if dir := r.exports.runningInto(); r.supervised && dir != "" {
+		logger.Info("restart due; restarting once the export under way ends and no request is in flight", "reason", why, "dir", dir)
+		return
+	}
 	if r.supervised {
 		logger.Info("restart due; restarting once no request is in flight", "reason", why)
 		return
@@ -316,13 +324,14 @@ func (r *restarts) coming() bool {
 }
 
 // report is the restart due as what the router was started from last looked,
-// with the requests in flight now, or zero while none is.
+// with what it waits on now, the requests in flight and the folder of the
+// export under way, configured still or not, or zero while none is.
 func (r *restarts) report() status.Restart {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	pending := r.pending
+	r.mu.Unlock()
 	if pending.Due() {
-		pending.InFlight = r.inFlight.requests()
+		pending.InFlight, pending.Exporting = r.inFlight.requests(), r.exports.runningInto()
 	}
 	return pending
 }
@@ -705,7 +714,7 @@ func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	}
 	dir, held := r.exports.holdOff()
 	if !held {
-		return nil, fmt.Errorf("an export into %s is under way: try again once it ends", dir)
+		return nil, ExportUnderWay{Dir: dir}
 	}
 	cleared, err := r.clearedAtOnce(ctx)
 	if err != nil {
