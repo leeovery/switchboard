@@ -29,17 +29,17 @@ var refusingOps = []string{"open", "mkdir", "stat", "lstat", "fdopendir", "readd
 
 // exports are the router's exports of the history into the folder the
 // config's [export] dir names, each Mac into a folder of its own in it, as
-// export <dir> writes it: as the router starts, and every exportEvery after,
-// each once the history's writers have compressed what's due, so a day
-// compressed goes as its final file. An export never holds the router up:
-// each runs on a goroutine of its own, which nothing waits on, the router
-// stopping included, as a write into a folder macOS guards waits until the
-// user answers its prompt; and a round that comes while one into the same
-// folder runs starts none. A failure is logged once until an export
-// succeeds. What the router keeps of them, for the status document, is how
-// they stand since it started: the folder, when an export into it last
-// succeeded, when the one under way began, and why the last failed, until
-// one succeeds.
+// export <dir> writes it: as the router starts, once it has first looked at
+// what it was started from, and every exportEvery after, each once the
+// history's writers have compressed what's due, so a day compressed goes as
+// its final file. An export never holds the router up: each runs on a
+// goroutine of its own, which nothing waits on, the router stopping
+// included, as a write into a folder macOS guards waits until the user
+// answers its prompt; and a round that comes while one into the same folder
+// runs starts none. A failure is logged once until an export succeeds. What
+// the router keeps of them, for the status document, is how they stand since
+// it started: the folder, when an export into it last succeeded, when the one
+// under way began, and why the last failed, until one succeeds.
 type exports struct {
 	every   time.Duration
 	now     func() time.Time
@@ -116,9 +116,16 @@ func (x *exports) report() status.Export {
 	return status.Export{Dir: x.folder, At: x.at, Running: x.running[x.folder], Error: x.why}
 }
 
-// run makes a round at once, then every x.every, until ctx ends, leaving the
-// exports still running then to run on, unwaited.
-func (x *exports) run(ctx context.Context) {
+// run makes a round once looked closes, as once the router has first looked
+// at what it was started from, so a router that starts with a restart due
+// starts no export, then every x.every, until ctx ends, leaving the exports
+// still running then to run on, unwaited.
+func (x *exports) run(ctx context.Context, looked <-chan struct{}) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-looked:
+	}
 	tick := time.NewTicker(x.every)
 	defer tick.Stop()
 	for {
@@ -206,6 +213,12 @@ func (x *exports) export(ctx context.Context, target exportTarget) {
 // success after logged too; and each day's file it couldn't read, as
 // noteUnread says, which fails no export.
 func (x *exports) note(dir string, r export.Result, err error) {
+	// Saying why can look at the folder, which a disk that has stopped
+	// answering holds up: never while holding mu, which report waits on.
+	var why string
+	if err != nil {
+		why = plainly(dir, err)
+	}
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	if dir != x.folder {
@@ -213,7 +226,7 @@ func (x *exports) note(dir string, r export.Result, err error) {
 	}
 	failing := x.why != ""
 	if err != nil {
-		x.why = plainly(dir, err)
+		x.why = why
 		if !failing {
 			logger.Warn("can't export the history; trying again at each round", "dir", dir, "error", x.why)
 		}
@@ -241,23 +254,41 @@ func (x *exports) noteUnread(unread []export.DayError) {
 	}
 }
 
-// plainly is why an export into dir failed, as err says, in plain words:
-// macOS refusing the router the folder, as refusedByMacOS says, saying where
-// to allow it; else err's own words, which say where the folder isn't there.
+// plainly is why an export into dir failed, as err says, in plain words: a
+// refusal, as refusedIn finds one, by a file or folder locked, as lockedBy
+// finds it, saying so; else by macOS, saying where to allow the router the
+// folder; else err's own words, which say where the folder isn't there.
 func plainly(dir string, err error) string {
-	if refusedByMacOS(dir, err) {
-		return "macOS refused access to " + dir + ": allow switchboard in System Settings → Privacy & Security"
+	failed, ok := refusedIn(dir, err)
+	if !ok {
+		return err.Error()
 	}
-	return err.Error()
+	if path, ok := lockedBy(failed.Path); ok {
+		return path + " is locked: unlock it in the Finder, in Get Info"
+	}
+	return "macOS refused access to " + dir + ": allow switchboard in System Settings → Privacy & Security"
 }
 
-// refusedByMacOS reports whether err is macOS refusing the router the folder
-// dir: an EPERM from one of refusingOps on a path in it. One from anything
-// else, as a rename onto a file the Finder has locked, or setting the time of
-// a file made already, says its own cause.
-func refusedByMacOS(dir string, err error) bool {
+// refusedIn returns err's failure where it's an EPERM from one of refusingOps
+// on a path in dir, as macOS refusing the router a folder it guards gives it,
+// and a file or folder locked: reporting false for any other, as a rename
+// onto a file the Finder has locked, or setting the time of a file made
+// already, which says its own cause.
+func refusedIn(dir string, err error) (*fs.PathError, bool) {
 	failed, ok := errors.AsType[*fs.PathError](err)
-	return ok && errors.Is(failed.Err, syscall.EPERM) && slices.Contains(refusingOps, failed.Op) && inFolder(dir, failed.Path)
+	return failed, ok && errors.Is(failed.Err, syscall.EPERM) && slices.Contains(refusingOps, failed.Op) && inFolder(dir, failed.Path)
+}
+
+// lockedBy returns what refused a change to path as locked, as locked says:
+// path itself, or the folder it's in, which refuses a file or folder made in
+// it; reporting false where neither is locked.
+func lockedBy(path string) (string, bool) {
+	for _, p := range []string{path, filepath.Dir(path)} {
+		if locked(p) {
+			return p, true
+		}
+	}
+	return "", false
 }
 
 // inFolder reports whether path is the folder dir, or a path in it.

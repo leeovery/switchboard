@@ -428,23 +428,91 @@ func TestARoundWhileAnExportRunsStartsNone(t *testing.T) {
 	waitFor(t, "the export ends", func() bool { return x.idle() })
 }
 
-func TestTheExportsExportAsTheyStart(t *testing.T) {
+func TestTheExportsExportOnceTheRouterHasFirstLooked(t *testing.T) {
 	logstest.Capture(t)
 	held := newHeldExport(t)
 	x := testExports("/Volumes/Backup/Switchboard", held.into)
 	ctx, cancel := context.WithCancel(t.Context())
-	ran := make(chan struct{})
+	looked, ran := make(chan struct{}), make(chan struct{})
 
 	go func() {
 		defer close(ran)
-		x.run(ctx)
+		x.run(ctx, looked)
 	}()
+	close(looked)
 
 	held.await(t)
 	cancel()
 	<-ran
 	held.release()
 	waitFor(t, "the export ends", func() bool { return x.idle() })
+}
+
+func TestTheExportsStoppingBeforeTheRouterHasLookedExportNothing(t *testing.T) {
+	logstest.Capture(t)
+	fake := &exportAs{}
+	x := testExports("/Volumes/Backup/Switchboard", fake.into)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	x.run(ctx, make(chan struct{}))
+
+	waitFor(t, "no export runs", func() bool { return x.idle() })
+	if got := fake.folders(); len(got) > 0 {
+		t.Errorf("exported into %q before the router first looked, want nothing", got)
+	}
+}
+
+func TestARouterStartingWithARestartDueStartsNoExport(t *testing.T) {
+	logstest.Capture(t)
+	s := newStartedFrom(t)
+	cfg := exportingConfig(t)
+	cfg.ConfigFile = Watch(s.config)
+	binary := filepath.Join(t.TempDir(), "switchboard")
+	stageFile(t, binary, []byte("switchboard\n"))
+	cfg.Binary, cfg.Supervised = Watch(binary), true
+	cfg.Args, cfg.Environ = []string{binary, "serve"}, []string{"HOME=/Users/test"}
+	// Long enough that an export begun as the router starts is asked well
+	// before its first look.
+	cfg.WatchEvery = 500 * time.Millisecond
+	execs := make(chan string, 1)
+	cfg.Exec = func(path string, _, _ []string) error {
+		execs <- path
+		return nil
+	}
+	r := newTestRouterOf(t, cfg)
+	held := newHeldExport(t)
+	r.exports.exportInto = held.into
+	// The config file changes as the router starts, so its first look finds
+	// a restart due.
+	writeFile(t, s.kept, twoAccounts)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	finished := make(chan error, 1)
+
+	go func() { finished <- r.run(ctx) }()
+
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Errorf("Run() = %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("gave up waiting for the router to restart, with a restart due from its first look")
+	}
+	select {
+	case path := <-execs:
+		if path != binary {
+			t.Errorf("the router replaced itself with %s, want %s", path, binary)
+		}
+	default:
+		t.Error("the router stopped without replacing itself, want it restarting")
+	}
+	held.release()
+	waitFor(t, "no export runs", func() bool { return r.exports.idle() })
+	if got := held.asked.Load(); got != 0 {
+		t.Errorf("an export was asked %d times, want none: the router it becomes exports as it starts", got)
+	}
 }
 
 func TestTheConfigIsTakenUpFromTheNextRound(t *testing.T) {
@@ -571,19 +639,46 @@ func TestARestartComesWhereTheRouterTakesItUpItself(t *testing.T) {
 	tests := []struct {
 		name       string
 		supervised bool
-		// change changes what the router was started from, as the case has
-		// it.
+		// change changes what the router, running a copy of its own, was
+		// started from, as the case has it, and has it look, or try to
+		// restart.
 		change func(t *testing.T, s startedFrom, r *restarts)
 		want   bool
 	}{
-		{name: "none due", supervised: true, change: func(*testing.T, startedFrom, *restarts) {}},
+		{name: "none due", supervised: true, change: func(_ *testing.T, _ startedFrom, r *restarts) { r.look() }},
 		{name: "one due", supervised: true, change: configChanged, want: true},
+		{
+			name: "one due, waiting for a moment with no request in flight", supervised: true,
+			change: func(t *testing.T, s startedFrom, r *restarts) {
+				r.inFlight.begin()
+				t.Cleanup(r.inFlight.end)
+				configChanged(t, s, r)
+			},
+			want: true,
+		},
 		{name: "one due to a router run by hand", change: configChanged},
 		{
 			name: "one due that its binary holds", supervised: true,
 			change: func(t *testing.T, s startedFrom, r *restarts) {
+				askedAt(t, r, binaryAnswer{refusal: "the config won't do"})
 				configChanged(t, s, r)
-				r.hold(r.files(), restartForConfig, "the config won't do")
+				putOff(t, r)
+			},
+		},
+		{
+			name: "one due with its binary gone", supervised: true,
+			change: func(t *testing.T, s startedFrom, r *restarts) {
+				remove(t, s.binary)
+				configChanged(t, s, r)
+			},
+		},
+		{
+			name: "an upgrade that can't be copied in", supervised: true,
+			change: func(t *testing.T, s startedFrom, r *restarts) {
+				relink(t, s.binary, s.version("1.1"))
+				chmod(t, s.version("1.1"), 0o000)
+				r.look()
+				putOff(t, r)
 			},
 		},
 		{
@@ -595,14 +690,29 @@ func TestARestartComesWhereTheRouterTakesItUpItself(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logstest.Capture(t)
-			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), tt.supervised, newInFlight(), at(start), unheeded)
+			s, own := newRunningCopy(t)
+			r := restartsFor(Config{
+				ConfigFile: Watch(s.config),
+				Binary:     Watch(own),
+				From:       WatchFrom(s.binary, own),
+				Zone:       Watch(s.zone),
+				Supervised: tt.supervised,
+				Now:        at(start),
+			}, newInFlight(), unheeded)
 
 			tt.change(t, s, r)
 			if got := r.coming(); got != tt.want {
 				t.Errorf("coming() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// putOff has r try to restart, failing the test where it does.
+func putOff(t *testing.T, r *restarts) {
+	t.Helper()
+	if r.restart(t.Context()) {
+		t.Fatal("restart() = true, want it put off")
 	}
 }
 
@@ -744,6 +854,17 @@ func TestAConfigChangeIsHandedToTheExports(t *testing.T) {
 	}
 }
 
+// exportingConfig is the config of a router run as importingConfig's is,
+// exporting into a folder of the test's own, which looks at what it was
+// started from often, so its first export comes soon after it starts.
+func exportingConfig(t *testing.T) Config {
+	t.Helper()
+	cfg := importingConfig(t)
+	cfg.Export = config.Export{Dir: filepath.Join(t.TempDir(), "Switchboard")}
+	cfg.WatchEvery = 50 * time.Millisecond
+	return cfg
+}
+
 // stopsWithin is how long a router's stop, or its restart in place, may take
 // with nothing in flight, waiting on no export: a few milliseconds on a
 // machine at rest, so one that waited on an export held for seconds would
@@ -752,8 +873,7 @@ const stopsWithin = time.Second
 
 func TestTheRouterStoppingWaitsOnNoExport(t *testing.T) {
 	logstest.Capture(t)
-	cfg := importingConfig(t)
-	cfg.Export = config.Export{Dir: filepath.Join(t.TempDir(), "Switchboard")}
+	cfg := exportingConfig(t)
 	r := newTestRouterOf(t, cfg)
 	held := newHeldExport(t)
 	r.exports.exportInto = held.into
@@ -779,8 +899,7 @@ func TestTheRouterStoppingWaitsOnNoExport(t *testing.T) {
 
 func TestTheRouterRestartingInPlaceWaitsOnNoExport(t *testing.T) {
 	logstest.Capture(t)
-	cfg := importingConfig(t)
-	cfg.Export = config.Export{Dir: filepath.Join(t.TempDir(), "Switchboard")}
+	cfg := exportingConfig(t)
 	binary := filepath.Join(t.TempDir(), "switchboard")
 	stageFile(t, binary, []byte("switchboard\n"))
 	cfg.Binary, cfg.Supervised = Watch(binary), true

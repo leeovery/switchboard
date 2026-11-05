@@ -86,14 +86,15 @@ func makeBelow(root, dir string) error {
 }
 
 // makeIn makes the folder at path, the user's alone, where it isn't there,
-// in the folder it goes in, failing with ErrNoFolder where that isn't there.
+// in the folder it goes in, failing with ErrNoFolder, naming that folder,
+// where it isn't there.
 func makeIn(path string) error {
 	err := os.Mkdir(path, 0o700)
 	switch {
 	case err == nil, errors.Is(err, fs.ErrExist):
 		return nil
 	case errors.Is(err, fs.ErrNotExist):
-		return ErrNoFolder
+		return fmt.Errorf("%s: %w", filepath.Dir(path), ErrNoFolder)
 	}
 	return err
 }

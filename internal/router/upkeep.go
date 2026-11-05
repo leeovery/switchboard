@@ -3,6 +3,7 @@ package router
 import (
 	"cmp"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -25,6 +26,9 @@ type upkeep struct {
 	restarts *restarts
 	wakes    *wakes
 	exports  *exports
+	// looked closes once upkeep has first looked, as look does.
+	looked     chan struct{}
+	lookedOnce sync.Once
 }
 
 // newUpkeep returns the upkeep of a router built from cfg, with the accounts
@@ -61,6 +65,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 		restarts: restartsFor(cfg, inFlight, emit),
 		wakes:    wakes,
 		exports:  exports,
+		looked:   make(chan struct{}),
 	}
 }
 
@@ -87,7 +92,8 @@ func (u *upkeep) run(ctx context.Context) {
 
 // look looks at what the router was started from, once, as run does every so
 // often, taking up in place what the config file has come to make of the
-// accounts' tokens and the folder to export into, where it has changed.
+// accounts' tokens and the folder to export into, where it has changed, and
+// closing firstLook's channel the first time.
 func (u *upkeep) look() {
 	u.wakes.look()
 	u.tokens.look()
@@ -96,6 +102,13 @@ func (u *upkeep) look() {
 	if e, changed := u.restarts.configuredExport(); changed {
 		u.exports.configure(e)
 	}
+	u.lookedOnce.Do(func() { close(u.looked) })
+}
+
+// firstLook returns what's closed once upkeep has first looked at what the
+// router was started from, so a restart due as the router starts is known.
+func (u *upkeep) firstLook() <-chan struct{} {
+	return u.looked
 }
 
 // tidy removes what copies cut short left beside the router's copy, where it

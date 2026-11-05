@@ -225,7 +225,7 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 		looked.Go(func() { r.primer.run(looking) })
 	}
 	looked.Go(func() { r.rounds.run(looking) })
-	looked.Go(func() { r.exports.run(looking) })
+	looked.Go(func() { r.exports.run(looking, r.upkeep.firstLook()) })
 	// The requests still in flight as the router stops change what's to be
 	// saved, and what's to be told of, and each has its line in the ledger,
 	// so writing and notifying outlast ctx, as keeping and filing do.

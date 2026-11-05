@@ -713,6 +713,12 @@ func TestAMacsFolderGoneMidExportIsMadeAgainOnlyWithoutNoParents(t *testing.T) {
 			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("Export() = %v, want %v", err, tt.wantErr)
 			}
+			// A failure names the folder that went, not the day's file it was
+			// writing.
+			want := "can't export into " + dir + ": export the request ledger of " + day1 + ": " + folderOf(t, state, dir) + ": it isn't there"
+			if err != nil && err.Error() != want {
+				t.Errorf("Export() says %q, want %q", err, want)
+			}
 			if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) != tt.noParents {
 				t.Errorf("after the export, %s: %v; want it made again %v", dir, err, !tt.noParents)
 			}

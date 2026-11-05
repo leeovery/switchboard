@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -100,6 +101,10 @@ type restarts struct {
 	// gone is set while the binary wasn't there at the last look, as missing
 	// says.
 	gone bool
+	// waits is whether the router waits to restart, as waiting says, as the
+	// last look, or attempt to restart, left it: kept for coming to read on
+	// any goroutine, as what waiting reads changes only on upkeep's.
+	waits atomic.Bool
 	// restarted closes as the router restarts, reason then saying why.
 	restarted chan struct{}
 	beginning sync.Once
@@ -221,9 +226,11 @@ func (w Watched) There() bool {
 // look looks at the config file, the binary and the time zone's file again,
 // notes whether the binary is there, lifts a hold either of the first two has
 // moved on from, tells of a restart they've made due as it falls due, and
-// logs it. An upgrade that couldn't be copied in can be copied again from
-// here on, and one kept that the binary has moved on from is removed.
+// logs it, noting whether the router waits to restart. An upgrade that
+// couldn't be copied in can be copied again from here on, and one kept that
+// the binary has moved on from is removed.
 func (r *restarts) look() {
+	defer r.noteWaiting()
 	r.uncopied = false
 	r.config.look()
 	r.binary.look()
@@ -276,18 +283,10 @@ func (r *restarts) note(why string) (fell bool) {
 }
 
 // coming reports whether the router is to restart itself: restarting
-// already, or with a restart due that it takes up of itself, being
-// supervised, and that its binary doesn't hold. It's safe for concurrent
-// use.
+// already, or waiting to, as waiting says, as the last look, or attempt to
+// restart, left it. It's safe for concurrent use.
 func (r *restarts) coming() bool {
-	select {
-	case <-r.restarted:
-		return true
-	default:
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.pending.Due() && !r.pending.ByHand && r.pending.Held == ""
+	return r.restarting() || r.waits.Load()
 }
 
 // report is the restart due as what the router was started from last looked,
@@ -342,14 +341,26 @@ func (r *restarts) configuredExport() (config.Export, bool) {
 	return r.config.export, r.config.changed
 }
 
-// ready returns what's closed once a supervised router, with a restart due,
-// has no request in flight, or nil while it's not to restart, as while its
+// waiting reports whether a supervised router, with a restart due, waits
+// only for a moment with no request in flight to restart: not while its
 // config file made no valid config at the last look, which the next settles,
 // while its binary wasn't there at the last look, while its binary refuses
-// to start, until a look finds the config file or the binary moved on, or
+// to start, until a look finds the config file or the binary moved on, nor
 // once an upgrade couldn't be copied in, until the next look.
+func (r *restarts) waiting() bool {
+	return r.supervised && r.due() != "" && !r.config.missed && !r.gone && r.held == nil && !r.uncopied
+}
+
+// noteWaiting notes whether the router waits to restart, as waiting says,
+// for coming.
+func (r *restarts) noteWaiting() {
+	r.waits.Store(r.waiting())
+}
+
+// ready returns what's closed once the router, waiting to restart, as
+// waiting says, has no request in flight, or nil while it isn't waiting.
 func (r *restarts) ready() <-chan struct{} {
-	if !r.supervised || r.due() == "" || r.config.missed || r.gone || r.held != nil || r.uncopied {
+	if !r.waiting() {
 		return nil
 	}
 	return r.inFlight.quiet()
@@ -366,8 +377,10 @@ func (r *restarts) ready() <-chan struct{} {
 // quiet moment. It holds staging from copying an upgrade in until it's put in
 // place, kept or removed. A restart under way already, as one asked for,
 // has it copy and ask nothing more, found before it takes staging or once it
-// has, as underway says.
+// has, as underway says. Put off, it notes whether the router still waits to
+// restart.
 func (r *restarts) restart(ctx context.Context) bool {
+	defer r.noteWaiting()
 	if r.restarting() {
 		return true
 	}
