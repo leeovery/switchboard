@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+#
+# Builds a release's binaries on this Mac, signed with its Developer ID and
+# notarised, before mint tags it: mint's pre_tag runs it after scripts/gated,
+# with the version about to be tagged in MINT_NEW_VERSION. It builds HEAD in a
+# checkout of its own outside the repository, for arm64 and amd64, signs each,
+# sends both to Apple's notary service and waits on its answer, then archives
+# and sums them under the names the Homebrew formula reads, and keeps them,
+# with the commit built, in ~/Library/Caches/switchboard/release/<version>/,
+# for scripts/release-upload once the release is made. Any failure exits
+# non-zero, so mint stops before the tag.
+#
+# By hand it builds the version given, as scripts/release-build 0.0.0-check,
+# which checks signing and notarising without releasing anything; a ref after
+# the version builds that ref, as scripts/release-upload builds a tag's tree.
+# Each run logs to ~/Library/Logs/switchboard/release-<version>.log.
+set -euo pipefail
+
+scripts=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# shellcheck source=scripts/release-common
+. "$scripts/release-common"
+
+identifier=io.github.leeovery.switchboard
+identity="Developer ID Application"
+profile=switchboard
+work=
+
+usage() {
+	release_fail "Usage: scripts/release-build [<version> [<ref>]]"
+}
+
+check_platform() {
+	[[ $(uname -s) == Darwin ]] || release_fail "release-build signs with macOS's codesign and notarytool: run it on a Mac."
+}
+
+check_version() {
+	[[ -n $1 ]] || release_fail "No version to build: mint gives it as MINT_NEW_VERSION; by hand, give it, as scripts/release-build 0.0.0-check."
+	release_valid_version "$1" || release_fail "$1 isn't a version, as 1.2.3 or 1.2.3-check."
+}
+
+# check_head checks that HEAD is what mint is about to tag $1 on: a tree with
+# nothing uncommitted and no tag $1 yet.
+check_head() {
+	[[ -z $(git status --porcelain) ]] || release_fail "The checkout has changes: release-build builds HEAD, so commit or remove them."
+	if git rev-parse -q --verify "refs/tags/$1" >/dev/null; then
+		release_fail "$1 is tagged already, so HEAD isn't what's to be tagged: build the tag, as scripts/release-build ${1#v} $1."
+	fi
+}
+
+# commit_of is the commit ref $1 names.
+commit_of() {
+	git rev-parse -q --verify "$1^{commit}" || release_fail "$1 names no commit to build."
+}
+
+check_identity() {
+	local count
+	count=$(security find-identity -v -p codesigning | grep -c "\"$identity: ") || true
+	case $count in
+	0) release_fail "The keychain has no valid $identity certificate to sign with: add it, with its private key, to the login keychain." ;;
+	1) ;;
+	*) release_fail "The keychain has $count valid $identity certificates, and codesign can't choose one: remove all but one." ;;
+	esac
+}
+
+check_profile() {
+	if ! xcrun notarytool history --keychain-profile "$profile" >/dev/null; then
+		release_fail "notarytool can't use the keychain profile $profile: make it with xcrun notarytool store-credentials $profile."
+	fi
+}
+
+# arch_flag is arch(1)'s name for Go's arch $1.
+arch_flag() {
+	case $1 in
+	amd64) echo x86_64 ;;
+	*) echo "$1" ;;
+	esac
+}
+
+# build builds version $2 from the checkout $1 for arch $3 into $4.
+build() {
+	(cd "$1" && CGO_ENABLED=0 GOOS=darwin GOARCH=$3 go build -trimpath \
+		-ldflags "-s -w -X main.version=$2" -o "$4" ./cmd/switchboard)
+}
+
+sign() {
+	codesign --force --options runtime --timestamp --identifier "$identifier" --sign "$identity" "$1"
+}
+
+# check_binary checks the signature of the binary $1, built for arch $2, and
+# that it reports version $3.
+check_binary() {
+	local details reported
+	codesign --verify --strict "$1" || release_fail "$1's signature doesn't verify."
+	details=$(codesign --display --verbose=2 "$1" 2>&1)
+	if ! grep -qx "Identifier=$identifier" <<<"$details" ||
+		! grep -q "^Authority=$identity: " <<<"$details" ||
+		! grep -q "^CodeDirectory .*(runtime)" <<<"$details"; then
+		echo "$details"
+		release_fail "$1 isn't signed as $identifier by a $identity, with the hardened runtime."
+	fi
+	reported=$(arch "-$(arch_flag "$2")" "$1" --version) || release_fail "$1 doesn't run here, so its version can't be checked."
+	[[ $reported == "switchboard version $3" ]] || release_fail "$1 reports \"$reported\", not switchboard version $3."
+}
+
+# field is the field $1 of notarytool's JSON answer $2; nothing when it has
+# none.
+field() {
+	plutil -extract "$1" raw -o - - <<<"$2" 2>/dev/null || true
+}
+
+# notarise sends the folder $1 to Apple's notary service, zipped as $2, and
+# waits on its answer.
+notarise() {
+	local result id status
+	ditto -c -k --keepParent "$1" "$2"
+	echo "Sending the binaries to Apple's notary service, and waiting on its answer…"
+	result=$(xcrun notarytool submit "$2" --keychain-profile "$profile" --wait --output-format json || true)
+	id=$(field id "$result")
+	status=$(field status "$result")
+	if [[ -z $id ]]; then
+		echo "$result"
+		release_fail "Apple's notary service took no submission."
+	fi
+	# A wait cut short, as by a dropped connection, ends in progress or with
+	# no answer at all, so it's waited on again, a few times.
+	status=${status:-In Progress}
+	for _ in 1 2 3; do
+		[[ $status == "In Progress" ]] || break
+		echo "Submission $id: in progress; waiting again…"
+		status=$(field status "$(xcrun notarytool wait "$id" --keychain-profile "$profile" --output-format json || true)")
+		status=${status:-In Progress}
+	done
+	echo "Submission $id: $status"
+	if [[ $status == "In Progress" ]]; then
+		release_fail "Apple hasn't answered yet: xcrun notarytool wait $id --keychain-profile $profile says when it has; then run release-build again."
+	fi
+	if [[ $status != Accepted ]]; then
+		xcrun notarytool log "$id" --keychain-profile "$profile" || true
+		release_fail "Apple's notary service refused the binaries, as its log above says."
+	fi
+}
+
+# archive archives the binary $1 alone, named switchboard, into $2.
+archive() {
+	COPYFILE_DISABLE=1 tar --create --gzip --file "$2" --format ustar \
+		--no-mac-metadata --no-xattrs --no-acls --no-fflags \
+		--uid 0 --gid 0 --uname root --gname wheel \
+		--directory "$(dirname "$1")" switchboard
+}
+
+# sum writes the checksums file of version $1's archives in the folder $2.
+sum() {
+	local names=() arch
+	for arch in "${release_arches[@]}"; do
+		names+=("$(release_archive "$1" "$arch")")
+	done
+	(cd "$2" && shasum -a 256 "${names[@]}" | LC_ALL=C sort -k 2) >"$2/$(release_checksums "$1")"
+}
+
+# keep puts the folder $1 in place of what's kept for version $2.
+keep() {
+	local kept
+	kept=$(release_kept "$2")
+	rm -rf "$kept"
+	mkdir -p "$(dirname "$kept")"
+	mv "$1" "$kept"
+	echo "Kept in $kept:"
+	ls -l "$kept"
+}
+
+# clean_up removes the checkout built from, and the rest of $work.
+clean_up() {
+	git worktree remove --force "$work/tree" 2>/dev/null || true
+	rm -rf "$work"
+}
+
+main() {
+	[[ $# -le 2 ]] || usage
+	check_platform
+	local version ref=${2:-} tag
+	if [[ $# -ge 1 ]]; then
+		version=$1
+		tag=v$version
+	else
+		version=${MINT_NEW_VERSION:-}
+		tag=${MINT_VERSION_TAG:-v$version}
+	fi
+	check_version "$version"
+	cd "$scripts/.."
+	release_log release-build "$version"
+	if [[ -z $ref ]]; then
+		check_head "$tag"
+		ref=HEAD
+	fi
+	local commit
+	commit=$(commit_of "$ref")
+	check_identity
+	check_profile
+
+	work=$(mktemp -d)
+	trap clean_up EXIT
+	git worktree add --quiet --detach "$work/tree" "$commit"
+	echo "Building switchboard $version from $commit"
+
+	local arch bin out=$work/out
+	mkdir "$work/bin" "$out"
+	for arch in "${release_arches[@]}"; do
+		bin=$work/bin/darwin_$arch/switchboard
+		build "$work/tree" "$version" "$arch" "$bin"
+		sign "$bin"
+		check_binary "$bin" "$arch" "$version"
+	done
+	notarise "$work/bin" "$work/notarise.zip"
+	for arch in "${release_arches[@]}"; do
+		archive "$work/bin/darwin_$arch/switchboard" "$out/$(release_archive "$version" "$arch")"
+	done
+	sum "$version" "$out"
+	echo "$commit" >"$out/commit"
+	keep "$out" "$version"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+	main "$@"
+fi
