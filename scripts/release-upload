@@ -36,11 +36,13 @@ resend=
 latest_asks=5
 latest_pause=3
 # The tap's run is looked for every 2 seconds for a minute, then watched
-# every 10 seconds for 15 minutes, as one queued behind another tool's
-# update holds post_release.
-found_asks=30
-found_pause=2
-watch_asks=90
+# every 10 seconds, for 15 minutes in all from its dispatch, as one queued
+# behind another tool's update holds post_release; gh failing to read it
+# for a minute ends the watch too. In seconds.
+tap_wait=900
+find_wait=60
+unread_wait=60
+find_pause=2
 watch_pause=10
 
 usage() {
@@ -123,7 +125,7 @@ is_latest() {
 	done
 	[[ -n $latest ]] || tap_failed "Finding the latest release failed, so the tap wasn't told"
 	[[ -z $2 ]] || tap_failed "GitHub names $latest the latest release, not $1, just made, so the tap wasn't told"
-	echo "$1 isn't the latest release, $latest, so the formula stays on $latest."
+	echo "$1 isn't the latest release, as GitHub's latest is $latest, so the formula isn't moved."
 	return 1
 }
 
@@ -135,34 +137,40 @@ tell_tap() {
 	# run started beside it isn't taken for it.
 	local title="Update switchboard to v$1"
 	local runs=(gh run list -R "$tap" --workflow update-formula.yml --event repository_dispatch --limit 20 --json "databaseId,displayTitle")
-	local before run="" ask
+	local before run="" sent
 	before=$("${runs[@]}" --jq '[.[].databaseId] | max // 0') || tap_failed "Listing $tap's update-formula runs failed"
 	"${dispatch[@]}" || tap_failed "Sending $tap version $1 failed"
-	for ((ask = 1; ask <= found_asks; ask++)); do
+	sent=$(release_now)
+	while (($(release_now) - sent < find_wait)); do
 		run=$("${runs[@]}" --jq "[.[] | select(.databaseId > $before and .displayTitle == \"$title\") | .databaseId] | min // empty" || true)
 		[[ -z $run ]] || break
-		sleep "$found_pause"
+		sleep "$find_pause"
 	done
 	[[ -n $run ]] || tap_failed "$tap started no update-formula run within a minute of being sent version $1"
 	local url="https://github.com/$tap/actions/runs/$run"
 	echo "Sent $tap version $1; its update is $url"
-	watch_run "$run" "$url"
+	watch_run "$run" "$url" $((sent + tap_wait))
 	echo "The formula is on $1: $url"
 }
 
-# watch_run waits on the tap's run $1, at the URL $2, until it ends, for 15
-# minutes at most.
+# watch_run waits on the tap's run $1, at the URL $2, until it ends, or until
+# release_now reaches $3.
 watch_run() {
-	local state ask
-	for ((ask = 1; ask <= watch_asks; ask++)); do
-		state=$(gh run view "$1" -R "$tap" --json "status,conclusion" --jq '.status + " " + .conclusion') || state=
-		case $state in
-		"completed success") return ;;
-		completed\ *) tap_failed "$tap's update of the formula failed (${state#completed }), at $2" ;;
-		esac
+	local state unread=
+	while (($(release_now) < $3)); do
+		if state=$(gh run view "$1" -R "$tap" --json "status,conclusion" --jq '.status + " " + .conclusion'); then
+			unread=
+			case $state in
+			"completed success") return ;;
+			completed\ *) tap_failed "$tap's update of the formula failed (${state#completed }), at $2" ;;
+			esac
+		else
+			unread=${unread:-$(release_now)}
+			(($(release_now) - unread < unread_wait)) || tap_failed "gh can't read $tap's update of the formula, as it says above, at $2"
+		fi
 		sleep "$watch_pause"
 	done
-	release_fail "$tap's update of the formula is still going after 15 minutes, at $2: the formula moves once it ends there."
+	tap_failed "$tap's update of the formula is still going after 15 minutes, at $2, and the formula moves once it ends there"
 }
 
 main() {

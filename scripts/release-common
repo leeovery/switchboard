@@ -34,6 +34,12 @@ release_prerelease() {
 	[[ $1 == *-* ]]
 }
 
+# release_now is the seconds the script has run, by which its waits are
+# bounded.
+release_now() {
+	echo "$SECONDS"
+}
+
 # release_fail says why the run stops, and stops it.
 release_fail() {
 	echo "$1" >&2

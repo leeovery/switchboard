@@ -8267,14 +8267,15 @@ quarantine a formula's files, so notarising serves a binary downloaded by other 
 binary can't have its ticket stapled, so macOS looks it up online.
 
 - **Built before the tag,** in mint's `pre_tag`, once the gate has passed (`scripts/release-build`):
-  from a clean checkout of what's to be tagged, in a folder of its own outside the repository, for
-  arm64 and amd64, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each signed
-  by `codesign` with the login keychain's Developer ID Application certificate, the hardened
-  runtime and a secure timestamp, under the identifier `io.github.leeovery.switchboard`, the
-  LaunchAgent's label, and run to check it reports that version; the two sent together to Apple's
-  notary service by `notarytool`, under the keychain profile `switchboard`, and waited on until it
-  answers, for about an hour at most, as mint gives a hook no time limit; then archived and summed
-  under the names the Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
+  from a clean checkout of what's to be tagged, where untracked files, which no checkout of the
+  commit holds, stop nothing, in a folder of its own outside the repository, for arm64 and amd64,
+  the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each signed by `codesign` with
+  the login keychain's Developer ID Application certificate, the hardened runtime and a secure
+  timestamp, under the identifier `io.github.leeovery.switchboard`, the LaunchAgent's label, and run
+  to check it reports that version; the two sent together to Apple's notary service by
+  `notarytool`, under the keychain profile `switchboard`, and waited on until it answers, for about
+  an hour at most, as mint gives a hook no time limit; then archived and summed under the names the
+  Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
   `switchboard_<version>_checksums.txt`, and kept, with the commit they were built from, in
   `~/Library/Caches/switchboard/release/<version>/`, in place of any other version's, as one
   release is made at a time. A failure anywhere in that, the build, the signing, the certificate
@@ -8282,15 +8283,18 @@ binary can't have its ticket stapled, so macOS looks it up online.
   tag, for mint to be run again once it's put right: nothing is public yet.
 - **Uploaded after it,** in mint's `post_release` (`scripts/release-upload`): the files kept for the
   version uploaded to the release mint made, then the tap told the version and the two archives'
-  sums, as the latest release only, and its update waited on, for 15 minutes at most. A
-  pre-release, such as `1.2.3-rc.1`, is built and uploaded, but Homebrew isn't told, as mint
-  marks no GitHub release a pre-release and GitHub would name it the latest. The files are taken
-  only where the commit they were built from lies under the tag with nothing a build reads changed
-  between, as mint's own commits, its changelog and its answers in `.mint.toml`, change nothing;
-  else they're built again from the tag, as they are for a version whose files a later build
-  replaced. A failure here leaves the release without its binaries and Homebrew on the version
-  before, as mint only warns; `scripts/release-upload <version>`, run by hand, finishes it,
-  uploading what's kept, which needs no signing or Apple again.
+  sums, as the latest release only, and its update waited on, for 15 minutes at most by the clock.
+  Under mint, a release GitHub doesn't name the latest, asked a few times, fails, with the command
+  that tells the tap; by hand, an older version's leaves the formula where it is. A pre-release,
+  such as `1.2.3-rc.1`, is built and uploaded, but Homebrew isn't told, as mint marks no GitHub
+  release a pre-release and GitHub would name it the latest. The files are taken only where the
+  commit they were built from lies under the tag with nothing a build reads changed between, as
+  mint's own commits, its changelog and its answers in `.mint.toml`, change nothing; else they're
+  built again from the tag. A failure here leaves the release without its binaries and Homebrew on
+  the version before, as mint only warns; `scripts/release-upload <version>`, run by hand,
+  finishes it, uploading what's kept, which needs no signing or Apple again. Only the latest
+  version built is kept, so finishing an older one, or one after a `0.0.0-check` run, builds it
+  again, which signs and goes to Apple.
 - **Why before the tag:** every failure that's about the binary, or the means of signing it, comes
   before mint's point of no return, so a release is never published that can't have its binaries,
   and what's left after it is moving files already right. Waiting on Apple costs nothing: a tag

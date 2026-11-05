@@ -25,9 +25,10 @@ scripts=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 identifier=io.github.leeovery.switchboard
 identity="Developer ID Application"
 profile=switchboard
-# Each of notarytool's waits on Apple, of which there are four at most, so
-# mint, which has no timeout of its own for a hook, waits about an hour.
-notary_wait=15m
+# notarytool waits on Apple this many seconds at a time, this many times at
+# most, so mint, which gives a hook no time limit, waits about an hour.
+notary_wait=900
+notary_waits=4
 work=
 
 usage() {
@@ -96,7 +97,7 @@ sign() {
 # cant_run says why the binary $1, built for arch $2, doesn't run here, and
 # what puts that right, and stops.
 cant_run() {
-	if [[ $(uname -m) != arm64 ]]; then
+	if [[ $(sysctl -in hw.optional.arm64) != 1 ]]; then
 		release_fail "$1 doesn't run on this Intel Mac, so its version can't be checked: a release needs an Apple-silicon Mac with Rosetta."
 	fi
 	if [[ $2 == amd64 ]] && ! arch -x86_64 /usr/bin/true 2>/dev/null; then
@@ -130,29 +131,35 @@ field() {
 # notarise sends the folder $1 to Apple's notary service, zipped as $2, and
 # waits on its answer.
 notarise() {
-	local result id status
+	local result id status="In Progress" round started elapsed
 	ditto -c -k --keepParent "$1" "$2"
-	echo "Sending the binaries to Apple's notary service, and waiting on its answer…"
-	result=$(xcrun notarytool submit "$2" --keychain-profile "$profile" --wait --timeout "$notary_wait" --output-format json || true)
+	echo "Sending the binaries to Apple's notary service…"
+	result=$(xcrun notarytool submit "$2" --keychain-profile "$profile" --no-wait --output-format json || true)
 	id=$(field id "$result")
-	status=$(field status "$result")
 	if [[ -z $id ]]; then
 		echo "$result"
 		release_fail "notarytool gave no submission id, as its output above says: xcrun notarytool history --keychain-profile $profile shows what Apple has."
 	fi
-	# A wait that runs out, or is cut short, as by a dropped connection, ends
-	# in progress or with no answer at all, so it's waited on again, a few
-	# times.
-	status=${status:-In Progress}
-	for _ in 1 2 3; do
-		[[ $status == "In Progress" ]] || break
-		echo "Submission $id: in progress; waiting again…"
-		status=$(field status "$(xcrun notarytool wait "$id" --keychain-profile "$profile" --timeout "$notary_wait" --output-format json || true)")
+	local again="xcrun notarytool wait $id --keychain-profile $profile says when Apple has answered, and mint can then be run again."
+	for ((round = 1; round <= notary_waits; round++)); do
+		echo "Submission $id: waiting on Apple's answer…"
+		started=$(release_now)
+		result=$(xcrun notarytool wait "$id" --keychain-profile "$profile" --timeout "$notary_wait" --output-format json || true)
+		elapsed=$(($(release_now) - started))
+		status=$(field status "$result")
+		# A wait that ran its time ends with no answer, or in progress; one
+		# with no answer well before then failed, as on a locked keychain or
+		# with no network, and waiting again would only fail again.
+		if [[ -z $status ]] && ((elapsed < notary_wait - 60)); then
+			echo "$result"
+			release_fail "notarytool's wait on submission $id failed after $elapsed seconds, as it says above: $again"
+		fi
 		status=${status:-In Progress}
+		[[ $status == "In Progress" ]] || break
 	done
 	echo "Submission $id: $status"
 	if [[ $status == "In Progress" ]]; then
-		release_fail "Apple hasn't answered submission $id in about an hour: xcrun notarytool wait $id --keychain-profile $profile says when it has, and mint can then be run again."
+		release_fail "Apple hasn't answered submission $id in about an hour: $again"
 	fi
 	if [[ $status != Accepted ]]; then
 		xcrun notarytool log "$id" --keychain-profile "$profile" || true
