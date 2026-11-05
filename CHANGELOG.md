@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-05
+
+Two bodies of work here: the router's own copy of switchboard that keeps macOS permissions through upgrades, and scheduled history export. They're roughly co-equal, so the headline names both.
+
+The router keeps macOS permissions through upgrades and can export history to a folder on a schedule.
+
+✨ Added
+- Scheduled history export — set `[export] dir` in the config (an absolute path or one starting `~/`) and the router exports the history there at start and hourly, with no restart needed to change the folder.
+- Export state in the router's status — shows the folder, when it last succeeded, when a running export began, and why the last one failed, with plain guidance for macOS permission refusals and locked files.
+- `switchboard service status` reports when the router's copy is missing or not being run by launchd, and says to run `switchboard service install`.
+
+🔧 Changed
+- The LaunchAgent now runs the router's own copy of switchboard at a fixed path — what macOS allows the router holds through upgrades, and upgrades are copied over it at restart.
+- A router started from a service installed before the copy existed moves over to the copy as it starts, and puts the plist back if the move fails.
+- `switchboard service uninstall` also removes the router's copy.
+- Restarts wait for a running export to end, and `service restart` is refused meanwhile, as is shown in the restart-due status.
+- `switchboard service restart` during setup says the router is up and not restarted when an export is under way.
+- Exports clean up files that interrupted writes left behind, and warn once about any that can't be removed.
+- An export into a folder on an unmounted disk fails rather than creating the folder on the Mac's own disk.
+
 ## [0.4.1] - 2026-11-04
 
 Back up and merge your history across Macs with the new `export` and `import` commands.
