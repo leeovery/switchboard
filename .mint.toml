@@ -36,4 +36,4 @@ pre_tag = ['scripts/gated', 'scripts/release-build']
 post_release = ['scripts/release-upload']
 
 [release]
-diff_exclude = ["testdata/", "art/", "internal/views/viewstest/", "demo/", "internal/testguard/", "internal/tokens/tokenstest/", "internal/skill/SKILL.md"]
+diff_exclude = ["testdata/", "art/", "internal/views/viewstest/", "demo/", "internal/testguard/", "internal/tokens/tokenstest/", "internal/skill/SKILL.md", ".github/workflows/", ".gitignore", ".goreleaser.yaml"]
