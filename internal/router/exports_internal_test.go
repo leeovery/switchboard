@@ -2,6 +2,7 @@ package router
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -81,6 +82,7 @@ func testExports(dir string, exportInto func(dir string) (export.Result, error))
 		restarting: noRestart,
 		supervised: true,
 		running:    make(map[string]time.Time),
+		underWay:   newInFlight(),
 	}
 	x.configure(config.Export{Dir: dir})
 	return x
@@ -529,48 +531,21 @@ func TestTheExportsStoppingBeforeTheRouterHasLookedExportNothing(t *testing.T) {
 func TestARouterStartingWithARestartDueStartsNoExport(t *testing.T) {
 	logstest.Capture(t)
 	s := newStartedFrom(t)
-	cfg := exportingConfig(t)
+	cfg, binary, execs := replacingConfig(t)
 	cfg.ConfigFile = Watch(s.config)
-	binary := filepath.Join(t.TempDir(), "switchboard")
-	stageFile(t, binary, []byte("switchboard\n"))
-	cfg.Binary, cfg.Supervised = Watch(binary), true
-	cfg.Args, cfg.Environ = []string{binary, "serve"}, []string{"HOME=/Users/test"}
 	// Long enough that an export begun as the router starts is asked well
 	// before its first look.
 	cfg.WatchEvery = 500 * time.Millisecond
-	execs := make(chan string, 1)
-	cfg.Exec = func(path string, _, _ []string) error {
-		execs <- path
-		return nil
-	}
 	r := newTestRouterOf(t, cfg)
 	held := newHeldExport(t)
 	r.exports.exportInto = held.into
 	// The config file changes as the router starts, so its first look finds
 	// a restart due.
 	writeFile(t, s.kept, twoAccounts)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	finished := make(chan error, 1)
 
-	go func() { finished <- r.run(ctx) }()
+	finished := runRouter(t, r)
 
-	select {
-	case err := <-finished:
-		if err != nil {
-			t.Errorf("Run() = %v, want nil", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("gave up waiting for the router to restart, with a restart due from its first look")
-	}
-	select {
-	case path := <-execs:
-		if path != binary {
-			t.Errorf("the router replaced itself with %s, want %s", path, binary)
-		}
-	default:
-		t.Error("the router stopped without replacing itself, want it restarting")
-	}
+	wantReplaced(t, finished, execs, binary, 5*time.Second)
 	held.release()
 	waitFor(t, "no export runs", func() bool { return r.exports.idle() })
 	if got := held.asked.Load(); got != 0 {
@@ -803,6 +778,97 @@ func TestARestartComesWhereTheRouterTakesItUpItself(t *testing.T) {
 	}
 }
 
+func TestARestartDueWaitsForTheExportUnderWayToEnd(t *testing.T) {
+	logstest.Capture(t)
+	s := newStartedFrom(t)
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+	held := newHeldExport(t)
+	x := testExports("/Volumes/Backup/Switchboard", held.into)
+	r.exports = x
+	x.round(t.Context())
+	held.await(t)
+
+	configChanged(t, s, r)
+	if !r.coming() {
+		t.Error("coming() = false with the export under way, want the restart coming, so no other export begins")
+	}
+	select {
+	case <-r.ready():
+		t.Fatal("ready() closed with an export under way, want it waiting for the export to end")
+	default:
+	}
+	putOff(t, r)
+
+	held.release()
+	select {
+	case <-r.ready():
+	case <-time.After(5 * time.Second):
+		t.Fatal("ready() didn't close once the export ended")
+	}
+	if !r.restart(t.Context()) {
+		t.Error("restart() = false once the export ended, want the router restarting")
+	}
+}
+
+func TestARestartAskedForGoesOverNoExport(t *testing.T) {
+	const dir = "/Volumes/Backup/Switchboard"
+	tests := []struct {
+		name string
+		// running is whether an export runs as the restart is asked for, and
+		// gone whether the router's binary is gone, which refuses it.
+		running, gone bool
+		// wantErr is why the restart is refused, the router started from s:
+		// "" for none.
+		wantErr func(s startedFrom) string
+		// wantExported is whether a round after exports: not while the
+		// restart cleared holds every export off.
+		wantExported bool
+	}{
+		{
+			name: "refused while an export runs", running: true,
+			wantErr:      func(startedFrom) string { return "an export into " + dir + " is under way: try again once it ends" },
+			wantExported: true,
+		},
+		{name: "cleared with none running", wantErr: func(startedFrom) string { return "" }},
+		{
+			name: "refused for another reason", gone: true,
+			wantErr: func(s startedFrom) string {
+				return "the router's binary, " + s.binary + ", isn't there, as for a moment while an upgrade moves it on: try again once it is"
+			},
+			wantExported: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
+			held := newHeldExport(t)
+			x := testExports(dir, held.into)
+			r.exports = x
+			if tt.running {
+				x.round(t.Context())
+				held.await(t)
+			}
+			if tt.gone {
+				remove(t, s.binary)
+			}
+
+			_, err := r.restartable(t.Context())
+			if got, want := fmt.Sprint(err), cmp.Or(tt.wantErr(s), "<nil>"); got != want {
+				t.Errorf("restartable() = %s, want %s", got, want)
+			}
+			held.release()
+			waitFor(t, "no export runs", func() bool { return x.idle() })
+			before := held.asked.Load()
+			x.exportNow(t.Context())
+			if got := held.asked.Load() > before; got != tt.wantExported {
+				t.Errorf("a round after exported %v, want %v", got, tt.wantExported)
+			}
+		})
+	}
+}
+
 // putOff has r try to restart, failing the test where it does.
 func putOff(t *testing.T, r *restarts) {
 	t.Helper()
@@ -992,8 +1058,64 @@ func TestTheRouterStoppingWaitsOnNoExport(t *testing.T) {
 	waitFor(t, "the export ends", func() bool { return r.exports.idle() })
 }
 
-func TestTheRouterRestartingInPlaceWaitsOnNoExport(t *testing.T) {
+func TestARestartDueMidExportWaitsForTheExportToEnd(t *testing.T) {
 	logstest.Capture(t)
+	s := newStartedFrom(t)
+	cfg, binary, execs := replacingConfig(t)
+	cfg.ConfigFile = Watch(s.config)
+	r := newTestRouterOf(t, cfg)
+	held := newHeldExport(t)
+	r.exports.exportInto = held.into
+	finished := runRouter(t, r)
+	held.await(t)
+
+	writeFile(t, s.kept, twoAccounts)
+	waitFor(t, "the restart falls due", func() bool { return r.upkeep.restartDue().Due() })
+	// Looks enough for a restart that didn't wait on the export to have come.
+	select {
+	case err := <-finished:
+		t.Fatalf("the router stopped with an export under way, Run() = %v, want it waiting until the export ends", err)
+	case <-time.After(10 * cfg.WatchEvery):
+	}
+	if _, err := NewClient(SocketPath(cfg.StateDir)).Health(t.Context()); err != nil {
+		t.Errorf("Health() while the restart waits = %v, want the router answering", err)
+	}
+	held.release()
+
+	wantReplaced(t, finished, execs, binary, 5*time.Second)
+}
+
+func TestARestartAskedForWhileAnExportRunsIsRefused(t *testing.T) {
+	logstest.Capture(t)
+	cfg, binary, execs := replacingConfig(t)
+	r := newTestRouterOf(t, cfg)
+	held := newHeldExport(t)
+	r.exports.exportInto = held.into
+	finished := runRouter(t, r)
+	client := NewClient(SocketPath(cfg.StateDir))
+	held.await(t)
+
+	_, err := client.Restart(t.Context())
+	if want := "an export into " + cfg.Export.Dir + " is under way: try again once it ends"; err == nil || err.Error() != want {
+		t.Errorf("Restart() with an export under way = %v, want %q", err, want)
+	}
+	if _, err := client.Health(t.Context()); err != nil {
+		t.Errorf("Health() once the restart was refused = %v, want the router answering", err)
+	}
+	held.release()
+	waitFor(t, "the export ends", func() bool { return r.exports.idle() })
+	if _, err := client.Restart(t.Context()); err != nil {
+		t.Fatalf("Restart() once the export ended = %v", err)
+	}
+
+	wantReplaced(t, finished, execs, binary, stopsWithin)
+}
+
+// replacingConfig is the config of a supervised router run as
+// exportingConfig's is, which replaces itself with its binary, returned, as
+// it restarts, telling execs of the path it execs.
+func replacingConfig(t *testing.T) (Config, string, chan string) {
+	t.Helper()
 	cfg := exportingConfig(t)
 	binary := filepath.Join(t.TempDir(), "switchboard")
 	stageFile(t, binary, []byte("switchboard\n"))
@@ -1004,30 +1126,32 @@ func TestTheRouterRestartingInPlaceWaitsOnNoExport(t *testing.T) {
 		execs <- path
 		return nil
 	}
-	r := newTestRouterOf(t, cfg)
-	held := newHeldExport(t)
-	r.exports.exportInto = held.into
+	return cfg, binary, execs
+}
+
+// runRouter runs r until the test ends, returning what Run's error comes on
+// as it returns.
+func runRouter(t *testing.T, r *Router) <-chan error {
+	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+	t.Cleanup(cancel)
 	finished := make(chan error, 1)
 	go func() { finished <- r.run(ctx) }()
-	client := NewClient(SocketPath(cfg.StateDir))
-	waitFor(t, "the router answers", func() bool {
-		_, err := client.Health(t.Context())
-		return err == nil
-	})
-	held.await(t)
+	return finished
+}
 
-	if _, err := client.Restart(t.Context()); err != nil {
-		t.Fatalf("Restart() = %v", err)
-	}
+// wantReplaced waits up to within for a router's Run to return, as finished
+// tells, failing the test where it doesn't, or where it hadn't replaced
+// itself with binary, as execs tells.
+func wantReplaced(t *testing.T, finished <-chan error, execs <-chan string, binary string, within time.Duration) {
+	t.Helper()
 	select {
 	case err := <-finished:
 		if err != nil {
 			t.Errorf("Run() = %v, want nil", err)
 		}
-	case <-time.After(stopsWithin):
-		t.Fatalf("the router's restart in place took more than %v, waiting on the export held", stopsWithin)
+	case <-time.After(within):
+		t.Fatalf("gave up waiting %v for the router to restart", within)
 	}
 	select {
 	case path := <-execs:
@@ -1037,8 +1161,6 @@ func TestTheRouterRestartingInPlaceWaitsOnNoExport(t *testing.T) {
 	default:
 		t.Error("the router stopped without replacing itself, want it handing over and exec'ing its binary")
 	}
-	held.release()
-	waitFor(t, "the export ends", func() bool { return r.exports.idle() })
 }
 
 func TestTheRoutersDocumentSaysHowTheExportsStand(t *testing.T) {

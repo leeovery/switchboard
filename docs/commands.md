@@ -773,6 +773,7 @@ on the router:
 | Answering, with a binary that refuses to start | The router asks the binary it would become first. Where that refuses, as a newer version can refuse a config the running one takes, the router refuses too, and `restart` says why, in the binary's words. |
 | Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the router checks whether it could restart, the router refuses, and `restart` names what changed and says to try again. |
 | Answering, with an upgrade it can't copy in | Where the router can't copy the upgrade due in beside its own copy, as on a full disk, it refuses, and `restart` says why. |
+| Answering, mid-export | Where an [export on a schedule](configuration.md#export-keys) is under way, the router refuses, as it never restarts in place over one, and `restart` says `an export into <dir> is under way: try again once it ends`. |
 | From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
 | Not answering | launchd starts the service afresh at once. `restart` asks the router where the LaunchAgent keeps its state, and the one where your shell does, and starts the service afresh only when neither answers; the first to answer then, at either, is the one launchd started. |
 
@@ -781,8 +782,8 @@ When the router restarts, `restart` says so,
 can't replace itself, `…, then launchd starts it again`. Then it waits up to 50 seconds for the new
 router to answer.
 
-When the router has a restart due, it waits for a moment with no request in flight. To have the
-restart now, run `switchboard service restart`, as `switchboard status` says. When the restart is
+When the router has a restart due, it waits for a moment with no request in flight, and no export
+running. To have the restart now, run `switchboard service restart`, as `switchboard status` says. When the restart is
 held, as the binary the router would become refuses to start, `status` gives the refusal instead:
 put the config right as it says.
 
@@ -1459,7 +1460,8 @@ the times don't, as on a disk that keeps coarser times, by their bytes. One that
 an upgrade made while launchd started it again, has an upgrade due from the start. `service
 install` compares them the same way, and leaves a copy that matches as it is. To restart, it:
 
-1. Waits for a moment with no request in flight.
+1. Waits for a moment with no request in flight, and no [export](configuration.md#export-keys)
+   running.
 2. For an upgrade, copies the binary the link leads to in beside its own copy, hidden.
 3. Asks the binary it would become whether it can start from the config: the upgrade copied in,
    or else its own copy.

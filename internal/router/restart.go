@@ -56,7 +56,12 @@ type restarts struct {
 	zone       *ledFile
 	supervised bool
 	inFlight   *inFlight
-	now        func() time.Time
+	// exports are the router's exports of the history, which a restart in
+	// place never goes over, as a write into a folder macOS guards can wait
+	// on its prompt for as long as it's unanswered, which nothing knows exec
+	// gets past.
+	exports exportsUnderWay
+	now     func() time.Time
 	// emit hears of each restart as it falls due, and as it's held.
 	emit func(Event)
 	// ask asks the binary at path, which the router restarts into, whether
@@ -125,12 +130,33 @@ func newRestarts(file, binary, zone Watched, supervised bool, inFlight *inFlight
 		zone:       &ledFile{path: zone.path, running: zone.found, news: "the time zone's file leads to another, as in another time zone"},
 		supervised: supervised,
 		inFlight:   inFlight,
+		exports:    noExports{},
 		now:        now,
 		emit:       emit,
 		load:       config.Load,
 		restarted:  make(chan struct{}),
 	}
 }
+
+// exportsUnderWay are the exports a restart in place waits on: quiet returns
+// what's closed once none runs; holdOff holds every one off from beginning,
+// for a restart asked for to begin with none running, or, where one runs,
+// holds nothing off, and returns the folder it runs into; and release lets
+// them begin again, as where that restart is refused.
+type exportsUnderWay interface {
+	quiet() <-chan struct{}
+	holdOff() (running string, ok bool)
+	release()
+}
+
+// noExports are the exports of restarts made without any, which never run.
+type noExports struct{}
+
+func (noExports) quiet() <-chan struct{} { return newInFlight().quiet() }
+
+func (noExports) holdOff() (string, bool) { return "", true }
+
+func (noExports) release() {}
 
 // restartsFor returns the restarts of a router built from cfg, which waits
 // for inFlight to count no request in flight, and tells emit of a restart as
@@ -358,12 +384,37 @@ func (r *restarts) noteWaiting() {
 }
 
 // ready returns what's closed once the router, waiting to restart, as
-// waiting says, has no request in flight, or nil while it isn't waiting.
+// waiting says, is quiet, as quiet says, or nil while it isn't waiting.
 func (r *restarts) ready() <-chan struct{} {
 	if !r.waiting() {
 		return nil
 	}
-	return r.inFlight.quiet()
+	return r.quiet()
+}
+
+// quiet returns what's closed once no request is in flight and no export
+// runs, the moment a restart in place waits for: while an export runs, what's
+// closed once none does, for the restart to look again. An export doesn't
+// begin while the restart is coming, so exports one after another never
+// keep it waiting.
+func (r *restarts) quiet() <-chan struct{} {
+	exports := r.exports.quiet()
+	select {
+	case <-exports:
+		return r.inFlight.quiet()
+	default:
+		return exports
+	}
+}
+
+// quietNow reports whether the router is quiet now, as quiet says.
+func (r *restarts) quietNow() bool {
+	select {
+	case <-r.quiet():
+		return true
+	default:
+		return false
+	}
 }
 
 // restart restarts the router, once a look at what it was started from finds
@@ -402,7 +453,7 @@ func (r *restarts) restart(ctx context.Context) bool {
 	// Asking the binary takes a while, in which a request can begin: the
 	// clearance, and the upgrade copied in, carry the restart over to the
 	// next quiet moment.
-	if r.inFlight.requests() > 0 {
+	if !r.quietNow() {
 		return false
 	}
 	err := commitStaged(staged)
@@ -637,12 +688,14 @@ func (r *restarts) files() checked {
 // where a new binary decides, as newBinaryDecides says, and answers; the
 // upgrade it would restart into can't be copied in, where it runs a copy of
 // its own; the binary it would restart into, asked until ctx ends, refuses
-// to start; or the config file or the binary changes as the config file is
-// read, the binary copied in or the binary asked. Cleared, an upgrade copied
-// in is in place of the copy, for the restart to go into; otherwise it's
-// removed. A router restarting already can, cleared by nothing. It reads the
-// config file afresh, and is safe for concurrent use, holding staging only
-// where it would restart into an upgrade, as upgradable says.
+// to start; the config file or the binary changes as the config file is
+// read, the binary copied in or the binary asked; or an export runs, which a
+// restart in place never goes over. Cleared, an upgrade copied in is in
+// place of the copy, for the restart to go into; otherwise it's removed; and
+// no export begins from then on, as one would run as the router restarted.
+// A router restarting already can, cleared by nothing. It reads the config
+// file afresh, and is safe for concurrent use, holding staging only where it
+// would restart into an upgrade, as upgradable says.
 func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if !r.supervised {
 		return nil, errors.New("the router was run by hand, with switchboard serve, so nothing would start it again: stop it, and run it again")
@@ -650,6 +703,19 @@ func (r *restarts) restartable(ctx context.Context) (*binaryClearance, error) {
 	if r.restarting() {
 		return nil, nil
 	}
+	dir, held := r.exports.holdOff()
+	if !held {
+		return nil, fmt.Errorf("an export into %s is under way: try again once it ends", dir)
+	}
+	cleared, err := r.clearedAtOnce(ctx)
+	if err != nil {
+		r.exports.release()
+	}
+	return cleared, err
+}
+
+// clearedAtOnce is restartable, for a supervised router not yet restarting.
+func (r *restarts) clearedAtOnce(ctx context.Context) (*binaryClearance, error) {
 	// The files are found as they stand before the config file is read, so a
 	// save landing as it's read is caught, as one landing as the binary is
 	// asked is.

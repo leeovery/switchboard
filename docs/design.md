@@ -7847,16 +7847,25 @@ history never does.
   the cause in its own words. A day's file in the state directory that can't be read, and a file
   a write cut short left that can't be removed, are each warned of, once until an export no
   longer meets it, and fail no export, the day passed over as `export` passes it over.
-- **Never holding the router:** each export runs on a goroutine of its own, which nothing waits
-  on, the router stopping or restarting in place included, as a write into iCloud Drive, a File
-  Provider's folder, as Dropbox's is, or `~/Documents` waits in the kernel until the user answers
-  macOS's prompt (see Observed, 4 November 2026). Exports into two folders, as the folder before a
-  config changed it and the one after, may run at once; never two into one, a round that comes
-  while one runs into its folder starting none. The first export waits for the router's first look
-  at what it was started from, and none starts while a restart is coming, the router restarting
-  or one due that it will take up itself, so no export starts in a router about to be replaced:
-  the router it becomes exports as it starts. One already under way when a restart falls due, as
-  an upgrade landing mid-export, isn't waited on (see Checks owed).
+- **Never holding the router:** each export runs on a goroutine of its own, so no request waits
+  on one, as a write into iCloud Drive, a File Provider's folder, as Dropbox's is, or
+  `~/Documents` waits in the kernel until the user answers macOS's prompt (see Observed, 4
+  November 2026). Exports into two folders, as the folder before a config changed it and the one
+  after, may run at once; never two into one, a round that comes while one runs into its folder
+  starting none. The first export waits for the router's first look at what it was started from,
+  and none starts while a restart is coming, the router restarting or one due that it will take up
+  itself: the router it becomes exports as it starts.
+- **Never replaced over an export:** whether `exec` gets past a thread waiting on macOS's prompt
+  couldn't be seen (see Observed, 5 November 2026), so a restart in place waits for a moment with
+  no export running, as it waits for one with no request in flight, the router routing on the
+  version it runs meanwhile: an export waiting on a prompt nobody answers holds an upgrade, or a
+  config change, until it's answered. As no export starts while the restart is coming, exports one
+  after another never keep it waiting. `service restart` (`POST /restart`) is refused while one
+  runs, `an export into <dir> is under way: try again once it ends`, as a restart asked for
+  doesn't wait for a quiet moment but drains what's in flight, which would stop the proxy taking
+  requests for as long as the prompt stood; and from finding none running until it begins, no
+  export starts. A stop, at a signal or as launchd boots the service out, waits on no export (see
+  Checks owed).
 - Switchboard writes the folder and nothing more: it doesn't check the folder's sync, remove days
   from it, write to more than one, or restore from it.
 - Built after the router's own copy and signing (see The router looking after itself, and
@@ -8217,9 +8226,10 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 - Only the LaunchAgent's router restarts itself: launchd sets `XPC_SERVICE_NAME` to the label of
   the job it runs, which the router checks against the service's. Run by hand with `serve`, the
   router logs, once, that a restart is due instead of restarting.
-- **A restart due shows.** With many long sessions, a moment with no request in flight can be
-  hours coming, so the status document gives a restart due, why and since when, and how many
-  requests are in flight (see The status document). `status` says so under its router line:
+- **A restart due shows.** With many long sessions, a moment with no request in flight, and no
+  export of the history running (see On a schedule), can be hours coming, so the status document
+  gives a restart due, why and since when, and how many requests are in flight (see The status
+  document). `status` says so under its router line:
   `restart due since Mon 14:02 (config changed), once no request is in flight (3 now): switchboard
   service restart restarts it now, cutting off requests still in flight after 30 seconds`, or, run
   by hand, `…: run switchboard serve again to take it up`, or, held, `restart due since Mon 14:02
@@ -8823,7 +8833,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /import` | `{"running": true}` while an import runs, else `false`, which `import` asks before it stages (see Export and import) |
 | `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |
-| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, when the new binary judges it, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, and where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
+| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, when the new binary judges it, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself), and while an export of the history runs, naming its folder, to be tried again once it ends (see On a schedule). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
 standard library's plain 404 or 405. Times are given in UTC.
@@ -9841,6 +9851,12 @@ any of it. Times are the Mac's, UTC+1.
   let it, the process keeping its id. Loaded afresh, as at the next login, launchd ran the copy
   straight away. The system log said nothing of launch constraints or code signing. Hence moving
   over as Its own copy says.
+- **5 November 2026: no prompt at all.** The same kind of throwaway LaunchAgent, unsigned at a new
+  path, run from another volume and then from the home folder, wrote into `~/Documents`,
+  `~/Desktop`, `~/Downloads`, Dropbox's folder and iCloud Drive without any prompt, three tries
+  in all, so whether `exec` gets past a write waiting on one couldn't be seen. Why it differed
+  from 4 November is unknown. Hence a restart in place never goes over an export (see On a
+  schedule).
 
 ## Checks owed
 
@@ -9867,9 +9883,9 @@ What's built but hasn't been seen against the real thing:
 - What macOS returns to the router when it refuses it a folder in the export: `macOS refused
   access` rests on an EPERM from opening, making, looking at or listing a path in it, assumed;
   only the prompts were seen (see Observed).
-- Whether `exec` and the router's exit go through while one of its writes waits on macOS's prompt,
-  against the real launchd: no export starts while a restart is coming, but one begun before a
-  restart fell due may still be waiting as the router replaces itself or stops.
+- Whether the router's exit goes through while one of its writes waits on macOS's prompt, against
+  the real launchd: a restart in place waits for no export running, so a stop, at a signal or as
+  launchd boots the service out, is the only case left.
 - `import` from a folder in iCloud Drive whose files haven't been downloaded, with the Mac
   offline: staging's read of a file not downloaded should fail, and the import with it, removing
   what it staged.

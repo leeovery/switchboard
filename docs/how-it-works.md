@@ -291,7 +291,11 @@ folder of its own.
 - **Never in routing's way:** each export runs apart from the router, so no request waits on one,
   even one waiting on macOS, which asks before the router writes into iCloud Drive, Dropbox or
   `~/Documents`. No export starts while a restart is coming, as the router it becomes exports as
-  it starts, and one already under way when a restart falls due isn't waited on.
+  it starts.
+- **Never restarted over:** the router restarts in place only with no export running, routing on
+  meanwhile, and `service restart` refuses while one runs. So an export waiting on macOS's prompt
+  holds an upgrade, or `service restart`, until it's answered: answer the prompt, or allow
+  switchboard in System Settings → Privacy & Security. A stop doesn't wait on an export.
 - **A disk not there:** the router makes `dir` only where the folder it goes in is there, so a
   disk not mounted fails the export rather than having it written onto the Mac's own disk.
 - **How it stands:** the status document's `export` says when the last export succeeded, why the
@@ -364,9 +368,9 @@ Restarting in place also means launchd isn't asked to start an upgraded binary a
 been seen to refuse that, while it lets the router run the new binary in place, as the first such
 upgrade showed.
 
-With many long sessions, a moment with no request in flight can be hours coming. While a restart is
-due, `switchboard status` and the dashboard say so. To restart now, run `switchboard service
-restart`. See [`serve`](commands.md#serve).
+With many long sessions, a moment with no request in flight, and no export running, can be hours
+coming. While a restart is due, `switchboard status` and the dashboard say so. To restart now,
+run `switchboard service restart`. See [`serve`](commands.md#serve).
 
 ## The primary
 

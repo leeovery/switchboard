@@ -185,10 +185,11 @@ type problem struct {
 // restarts the router at once, as it restarts itself but for waiting for a
 // moment with no request in flight, answering, before it goes, as GET /health
 // does, and whether it means to restart in place; it refuses, saying why, when
-// it can't restart, as run by hand, with its binary refusing to start, or
-// with the upgrade it would restart into unable to be copied in. POST
-// /import takes in the history import staged, answering with what it took in,
-// one import at a time, and GET /import says whether one is running.
+// it can't restart, as run by hand, with its binary refusing to start, with
+// the upgrade it would restart into unable to be copied in, or with an
+// export of the history under way, which it never restarts in place over.
+// POST /import takes in the history import staged, answering with what it
+// took in, one import at a time, and GET /import says whether one is running.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {

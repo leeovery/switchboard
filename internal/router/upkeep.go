@@ -37,14 +37,17 @@ type upkeep struct {
 // state file to keep with changes, working out the schedule of primer, if it
 // primes, again whenever the accounts with tokens change, telling emit of a
 // restart as it falls due, restarting once inFlight counts no request in
-// flight, and the binary it restarts into, asked as cfg.Check runs it, an
-// upgrade copied in first where it runs a copy of its own, doesn't refuse to
-// start, noticing wakes, and configuring exports as the config file comes to.
+// flight and none of exports runs, and the binary it restarts into, asked as
+// cfg.Check runs it, an upgrade copied in first where it runs a copy of its
+// own, doesn't refuse to start, noticing wakes, and configuring exports as
+// the config file comes to.
 func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, exports *exports, emit func(Event)) *upkeep {
 	replan := func() {}
 	if primer != nil {
 		replan = primer.replan
 	}
+	restarts := restartsFor(cfg, inFlight, emit)
+	restarts.exports = exports
 	return &upkeep{
 		every: cmp.Or(cfg.WatchEvery, watchEvery),
 		tokens: &tokenFiles{
@@ -62,7 +65,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			gained: state.tokenGained,
 			lost:   state.tokenLost,
 		},
-		restarts: restartsFor(cfg, inFlight, emit),
+		restarts: restarts,
 		wakes:    wakes,
 		exports:  exports,
 		looked:   make(chan struct{}),

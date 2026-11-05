@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -75,8 +76,13 @@ type exports struct {
 	// that it couldn't remove, by their paths.
 	unread, unremoved map[string]bool
 	// running are the folders exports run into, each by when the export into
-	// it began, in UTC.
-	running map[string]time.Time
+	// it began, in UTC, and underWay counts them, for a restart in place to
+	// wait until none runs.
+	running  map[string]time.Time
+	underWay *inFlight
+	// heldOff counts the restarts asked for that hold every export off from
+	// beginning, as holdOff says.
+	heldOff int
 }
 
 // newExports returns the exports of a router built from cfg, into the folder
@@ -93,6 +99,7 @@ func newExports(cfg Config, tend func(ctx context.Context) error, restarting fun
 		restarting: restarting,
 		supervised: cfg.Supervised,
 		running:    make(map[string]time.Time),
+		underWay:   newInFlight(),
 	}
 	x.configure(cfg.Export)
 	return x
@@ -166,9 +173,10 @@ type exportTarget struct {
 }
 
 // begin notes an export into the folder configured beginning, and returns
-// the folder, reporting false, beginning none, where none is configured, or
-// one into it runs still. One into another folder, as the one configured
-// before, held as a write macOS guards is, holds none up.
+// the folder, reporting false, beginning none, where none is configured, one
+// into it runs still, or a restart is coming, or asked for, as holdOff
+// says. One into another folder, as the one configured before, held as a
+// write macOS guards is, holds none up.
 func (x *exports) begin() (exportTarget, bool) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -179,8 +187,12 @@ func (x *exports) begin() (exportTarget, bool) {
 	case running:
 		logger.Debug("the last export is still running; this round exports nothing", "dir", x.folder)
 		return target, false
+	case x.heldOff > 0 || x.restarting():
+		logger.Debug("a restart is coming; this round exports nothing", "dir", x.folder)
+		return target, false
 	}
 	x.running[x.folder] = x.now().UTC()
+	x.underWay.begin()
 	return target, true
 }
 
@@ -189,15 +201,45 @@ func (x *exports) end(dir string) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	delete(x.running, dir)
+	x.underWay.end()
+}
+
+// quiet returns what's closed once no export runs, into any folder.
+func (x *exports) quiet() <-chan struct{} {
+	return x.underWay.quiet()
+}
+
+// holdOff holds every export off from beginning, for a restart asked for to
+// begin with none running, until release lets them begin again, as where
+// that restart is refused; or, where one runs, holds nothing off, and
+// returns the folder it runs into, the one configured where that's one.
+func (x *exports) holdOff() (running string, ok bool) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	if _, into := x.running[x.folder]; into {
+		return x.folder, false
+	}
+	if len(x.running) > 0 {
+		return slices.Min(slices.Collect(maps.Keys(x.running))), false
+	}
+	x.heldOff++
+	return "", true
+}
+
+// release lets exports begin again, as one holdOff held them off for.
+func (x *exports) release() {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	x.heldOff--
 }
 
 // export has the history's writers compress what's due, then exports into
 // target, noting how it went, as note does: nothing once ctx has ended, or a
-// writer has stopped, as the router stops; nor while the router is to
-// restart itself, as when the config naming the folder has just changed, as
-// the router it becomes exports as it starts. Begun now, an export macOS
-// holds on its prompt would still be waiting in the kernel as the router
-// replaces itself, as nothing knows yet whether that cuts the wait short.
+// writer has stopped, as the router stops; nor where a restart has come due
+// meanwhile, as when the config naming the folder has just changed, as the
+// router it becomes exports as it starts, and an export begun now would
+// hold the restart off until it ended, as one macOS holds on its prompt does
+// until that's answered.
 func (x *exports) export(ctx context.Context, target exportTarget) {
 	if target.unfound != nil {
 		x.note(target.dir, export.Result{}, target.unfound)
