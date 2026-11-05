@@ -7,7 +7,8 @@
 # MINT_VERSION_TAG. What's kept is uploaded only where the commit built lies
 # under the tag with nothing a build reads changed since, as mint's own
 # commits, its changelog and its answers in .mint.toml, change nothing;
-# otherwise the tag's tree is built again first.
+# otherwise the tag's tree is built again first. The formula follows the
+# latest release alone, never a pre-release.
 #
 # mint only warns when a post_release hook fails, so by hand,
 # scripts/release-upload <version> finishes the release of v<version>,
@@ -25,6 +26,22 @@ scripts=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 bookkeeping=(CHANGELOG.md .mint.toml)
 
 tap=leeovery/homebrew-tools
+# The dispatch that tells the tap a version, and the command that sends it
+# again, which prepare_dispatch makes.
+dispatch=()
+resend=
+# GitHub's answer to which release is the latest can lag the release's
+# creation, so under mint it's asked this many times, this many seconds
+# apart.
+latest_asks=5
+latest_pause=3
+# The tap's run is looked for every 2 seconds for a minute, then watched
+# every 10 seconds for 15 minutes, as one queued behind another tool's
+# update holds post_release.
+found_asks=30
+found_pause=2
+watch_asks=90
+watch_pause=10
 
 usage() {
 	release_fail "Usage: scripts/release-upload [<version>]"
@@ -71,47 +88,81 @@ sha_of() {
 	awk -v name="$2" '$2 == name { print $1 }' "$1"
 }
 
-# tell_tap sends the tap version $1 with the archives' sums from the
-# checksums file $2, and waits on its update of the formula.
-tell_tap() {
+# prepare_dispatch makes the dispatch that tells the tap version $1, with the
+# archives' sums from the checksums file $2, and the command that sends it.
+prepare_dispatch() {
 	local arm64 amd64
 	arm64=$(sha_of "$2" "$(release_archive "$1" arm64)")
 	amd64=$(sha_of "$2" "$(release_archive "$1" amd64)")
-	local dispatch=(gh api "repos/$tap/dispatches" --silent
+	dispatch=(gh api "repos/$tap/dispatches" --silent
 		-f event_type=update-formula -f "client_payload[tool]=switchboard" -f "client_payload[version]=$1"
 		-f "client_payload[sha256_arm64]=$arm64" -f "client_payload[sha256_amd64]=$amd64")
-	local resend
 	printf -v resend '%q ' "${dispatch[@]}"
 	resend=${resend% }
-
-	# GitHub accepts a dispatch before any run starts, so the run it starts is
-	# found by its id, the first newer than the last before it, and by the
-	# workflow's run-name, for switchboard and this version, so another tool's
-	# run started beside it isn't taken for it. The workflow's own timeout
-	# bounds the wait on it.
-	local title="Update switchboard to v$1"
-	local runs=(gh run list -R "$tap" --workflow update-formula.yml --event repository_dispatch --limit 20 --json "databaseId,displayTitle")
-	local before run=""
-	before=$("${runs[@]}" --jq '[.[].databaseId] | max // 0') || tap_failed "Listing $tap's update-formula runs failed" "$resend"
-	"${dispatch[@]}" || tap_failed "Sending $tap version $1 failed" "$resend"
-	for _ in {1..30}; do
-		run=$("${runs[@]}" --jq "[.[] | select(.databaseId > $before and .displayTitle == \"$title\") | .databaseId] | min // empty" || true)
-		[[ -z $run ]] || break
-		sleep 2
-	done
-	[[ -n $run ]] || tap_failed "$tap started no update-formula run within a minute of being sent version $1" "$resend"
-	local url="https://github.com/$tap/actions/runs/$run"
-	echo "Sent $tap version $1; its update is $url"
-	gh run watch "$run" -R "$tap" --exit-status --interval 5 >/dev/null || tap_failed "$tap's update of the formula to $1 failed, at $url" "$resend"
-	echo "The formula is on $1: $url"
 }
 
 # tap_failed says what failed of telling the tap, $1, and how to send it
-# again, $2, and stops.
+# again, and stops.
 tap_failed() {
 	echo "$1; the binaries are uploaded. Send it again with"
-	echo "$2"
+	echo "$resend"
 	exit 1
+}
+
+# is_latest reports whether tag $1 is the latest release, the only one the
+# formula follows, as brew takes any other version as an upgrade. Under mint,
+# as $2 says, it's the release just made, so any other answer, asked again
+# a few times, fails.
+is_latest() {
+	local latest asks=1 ask
+	[[ -z $2 ]] || asks=$latest_asks
+	for ((ask = 1; ask <= asks; ask++)); do
+		latest=$(gh release view --json tagName --jq .tagName) || latest=
+		[[ $latest != "$1" ]] || return 0
+		((ask == asks)) || sleep "$latest_pause"
+	done
+	[[ -n $latest ]] || tap_failed "Finding the latest release failed, so the tap wasn't told"
+	[[ -z $2 ]] || tap_failed "GitHub names $latest the latest release, not $1, just made, so the tap wasn't told"
+	echo "$1 isn't the latest release, $latest, so the formula stays on $latest."
+	return 1
+}
+
+# tell_tap sends the tap version $1 and waits on its update of the formula.
+tell_tap() {
+	# GitHub accepts a dispatch before any run starts, so the run it starts is
+	# found by its id, the first newer than the last before it, and by the
+	# workflow's run-name, for switchboard and this version, so another tool's
+	# run started beside it isn't taken for it.
+	local title="Update switchboard to v$1"
+	local runs=(gh run list -R "$tap" --workflow update-formula.yml --event repository_dispatch --limit 20 --json "databaseId,displayTitle")
+	local before run="" ask
+	before=$("${runs[@]}" --jq '[.[].databaseId] | max // 0') || tap_failed "Listing $tap's update-formula runs failed"
+	"${dispatch[@]}" || tap_failed "Sending $tap version $1 failed"
+	for ((ask = 1; ask <= found_asks; ask++)); do
+		run=$("${runs[@]}" --jq "[.[] | select(.databaseId > $before and .displayTitle == \"$title\") | .databaseId] | min // empty" || true)
+		[[ -z $run ]] || break
+		sleep "$found_pause"
+	done
+	[[ -n $run ]] || tap_failed "$tap started no update-formula run within a minute of being sent version $1"
+	local url="https://github.com/$tap/actions/runs/$run"
+	echo "Sent $tap version $1; its update is $url"
+	watch_run "$run" "$url"
+	echo "The formula is on $1: $url"
+}
+
+# watch_run waits on the tap's run $1, at the URL $2, until it ends, for 15
+# minutes at most.
+watch_run() {
+	local state ask
+	for ((ask = 1; ask <= watch_asks; ask++)); do
+		state=$(gh run view "$1" -R "$tap" --json "status,conclusion" --jq '.status + " " + .conclusion') || state=
+		case $state in
+		"completed success") return ;;
+		completed\ *) tap_failed "$tap's update of the formula failed (${state#completed }), at $2" ;;
+		esac
+		sleep "$watch_pause"
+	done
+	release_fail "$tap's update of the formula is still going after 15 minutes, at $2: the formula moves once it ends there."
 }
 
 main() {
@@ -133,7 +184,7 @@ main() {
 	local finish="scripts/release-upload $version, run again, finishes it."
 
 	git rev-parse -q --verify "refs/tags/$tag" >/dev/null || release_fail "No tag $tag: release-upload uploads to a tagged release."
-	gh release view "$tag" >/dev/null || release_fail "No GitHub release $tag to upload to: $finish"
+	gh release view "$tag" >/dev/null || release_fail "gh finds no GitHub release $tag, as it says above, as when mint's publish fails: it must be made, as gh release create $tag --verify-tag, before scripts/release-upload $version can finish."
 
 	local kept why
 	kept=$(release_kept "$version")
@@ -150,13 +201,15 @@ main() {
 	gh release upload "$tag" "${files[@]}" --clobber || release_fail "Uploading to $tag failed: $finish"
 	echo "Uploaded $(release_checksums "$version") and the archives to $tag"
 
-	local latest
-	latest=$(gh release view --json tagName --jq .tagName) || release_fail "Finding the latest release failed: $finish"
-	if [[ $tag != "$latest" ]]; then
-		echo "$tag isn't the latest release, $latest, so the formula stays on $latest."
+	# mint marks no GitHub release a pre-release, so GitHub would name one
+	# the latest.
+	if release_prerelease "$version"; then
+		echo "$version is a pre-release, so Homebrew isn't told: the formula stays on the latest release."
 		return
 	fi
-	tell_tap "$version" "${files[0]}"
+	prepare_dispatch "$version" "${files[0]}"
+	is_latest "$tag" "${MINT_NEW_VERSION:+mint}" || return 0
+	tell_tap "$version"
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

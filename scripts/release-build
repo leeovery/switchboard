@@ -4,11 +4,13 @@
 # notarised, before mint tags it: mint's pre_tag runs it after scripts/gated,
 # with the version about to be tagged in MINT_NEW_VERSION. It builds HEAD in a
 # checkout of its own outside the repository, for arm64 and amd64, signs each,
-# sends both to Apple's notary service and waits on its answer, then archives
-# and sums them under the names the Homebrew formula reads, and keeps them,
-# with the commit built, in ~/Library/Caches/switchboard/release/<version>/,
-# for scripts/release-upload once the release is made. Any failure exits
-# non-zero, so mint stops before the tag.
+# sends both to Apple's notary service and waits on its answer, for about an
+# hour at most, then archives and sums them under the names the Homebrew
+# formula reads, and keeps them, with the commit built, in
+# ~/Library/Caches/switchboard/release/<version>/, in place of any other
+# version's, for scripts/release-upload once the release is made. Any failure
+# exits non-zero, so mint stops before the tag. It runs each binary to check
+# its version, so it needs an Apple-silicon Mac with Rosetta.
 #
 # By hand it builds the version given, as scripts/release-build 0.0.0-check,
 # which checks signing and notarising without releasing anything; a ref after
@@ -23,6 +25,9 @@ scripts=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 identifier=io.github.leeovery.switchboard
 identity="Developer ID Application"
 profile=switchboard
+# Each of notarytool's waits on Apple, of which there are four at most, so
+# mint, which has no timeout of its own for a hook, waits about an hour.
+notary_wait=15m
 work=
 
 usage() {
@@ -38,10 +43,11 @@ check_version() {
 	release_valid_version "$1" || release_fail "$1 isn't a version, as 1.2.3 or 1.2.3-check."
 }
 
-# check_head checks that HEAD is what mint is about to tag $1 on: a tree with
-# nothing uncommitted and no tag $1 yet.
+# check_head checks that HEAD is what mint is about to tag $1 on: tracked
+# files with nothing uncommitted, as untracked ones never reach a build of
+# the commit, and no tag $1 yet.
 check_head() {
-	[[ -z $(git status --porcelain) ]] || release_fail "The checkout has changes: release-build builds HEAD, so commit or remove them."
+	[[ -z $(git status --porcelain --untracked-files=no) ]] || release_fail "The checkout has changes: release-build builds HEAD, so commit or remove them."
 	if git rev-parse -q --verify "refs/tags/$1" >/dev/null; then
 		release_fail "$1 is tagged already, so HEAD isn't what's to be tagged: build the tag, as scripts/release-build ${1#v} $1."
 	fi
@@ -64,7 +70,7 @@ check_identity() {
 
 check_profile() {
 	if ! xcrun notarytool history --keychain-profile "$profile" >/dev/null; then
-		release_fail "notarytool can't use the keychain profile $profile: make it with xcrun notarytool store-credentials $profile."
+		release_fail "notarytool can't use the keychain profile $profile, as it says above. If the profile isn't made, make it with xcrun notarytool store-credentials $profile; a locked keychain, or no network, fails the same way."
 	fi
 }
 
@@ -83,7 +89,20 @@ build() {
 }
 
 sign() {
-	codesign --force --options runtime --timestamp --identifier "$identifier" --sign "$identity" "$1"
+	codesign --force --options runtime --timestamp --identifier "$identifier" --sign "$identity" "$1" ||
+		release_fail "codesign couldn't sign $1, as it says above. The login keychain may be locked, as over SSH (security unlock-keychain), or macOS may be asking on the Mac's screen to let codesign use the key."
+}
+
+# cant_run says why the binary $1, built for arch $2, doesn't run here, and
+# what puts that right, and stops.
+cant_run() {
+	if [[ $(uname -m) != arm64 ]]; then
+		release_fail "$1 doesn't run on this Intel Mac, so its version can't be checked: a release needs an Apple-silicon Mac with Rosetta."
+	fi
+	if [[ $2 == amd64 ]] && ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+		release_fail "$1 needs Rosetta to run, so its version can't be checked: install it with softwareupdate --install-rosetta --agree-to-license."
+	fi
+	release_fail "$1 doesn't run here, so its version can't be checked."
 }
 
 # check_binary checks the signature of the binary $1, built for arch $2, and
@@ -98,7 +117,7 @@ check_binary() {
 		echo "$details"
 		release_fail "$1 isn't signed as $identifier by a $identity, with the hardened runtime."
 	fi
-	reported=$(arch "-$(arch_flag "$2")" "$1" --version) || release_fail "$1 doesn't run here, so its version can't be checked."
+	reported=$(arch "-$(arch_flag "$2")" "$1" --version) || cant_run "$1" "$2"
 	[[ $reported == "switchboard version $3" ]] || release_fail "$1 reports \"$reported\", not switchboard version $3."
 }
 
@@ -114,25 +133,26 @@ notarise() {
 	local result id status
 	ditto -c -k --keepParent "$1" "$2"
 	echo "Sending the binaries to Apple's notary service, and waiting on its answer…"
-	result=$(xcrun notarytool submit "$2" --keychain-profile "$profile" --wait --output-format json || true)
+	result=$(xcrun notarytool submit "$2" --keychain-profile "$profile" --wait --timeout "$notary_wait" --output-format json || true)
 	id=$(field id "$result")
 	status=$(field status "$result")
 	if [[ -z $id ]]; then
 		echo "$result"
-		release_fail "Apple's notary service took no submission."
+		release_fail "notarytool gave no submission id, as its output above says: xcrun notarytool history --keychain-profile $profile shows what Apple has."
 	fi
-	# A wait cut short, as by a dropped connection, ends in progress or with
-	# no answer at all, so it's waited on again, a few times.
+	# A wait that runs out, or is cut short, as by a dropped connection, ends
+	# in progress or with no answer at all, so it's waited on again, a few
+	# times.
 	status=${status:-In Progress}
 	for _ in 1 2 3; do
 		[[ $status == "In Progress" ]] || break
 		echo "Submission $id: in progress; waiting again…"
-		status=$(field status "$(xcrun notarytool wait "$id" --keychain-profile "$profile" --output-format json || true)")
+		status=$(field status "$(xcrun notarytool wait "$id" --keychain-profile "$profile" --timeout "$notary_wait" --output-format json || true)")
 		status=${status:-In Progress}
 	done
 	echo "Submission $id: $status"
 	if [[ $status == "In Progress" ]]; then
-		release_fail "Apple hasn't answered yet: xcrun notarytool wait $id --keychain-profile $profile says when it has; then run release-build again."
+		release_fail "Apple hasn't answered submission $id in about an hour: xcrun notarytool wait $id --keychain-profile $profile says when it has, and mint can then be run again."
 	fi
 	if [[ $status != Accepted ]]; then
 		xcrun notarytool log "$id" --keychain-profile "$profile" || true
@@ -157,11 +177,13 @@ sum() {
 	(cd "$2" && shasum -a 256 "${names[@]}" | LC_ALL=C sort -k 2) >"$2/$(release_checksums "$1")"
 }
 
-# keep puts the folder $1 in place of what's kept for version $2.
+# keep keeps the folder $1 as version $2's, in place of what's kept for any
+# version: one release is made at a time, and an upload of another that
+# finds nothing kept builds it again from its tag.
 keep() {
 	local kept
 	kept=$(release_kept "$2")
-	rm -rf "$kept"
+	rm -rf "$(dirname "$kept")"
 	mkdir -p "$(dirname "$kept")"
 	mv "$1" "$kept"
 	echo "Kept in $kept:"

@@ -8271,29 +8271,40 @@ binary can't have its ticket stapled, so macOS looks it up online.
   arm64 and amd64, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each signed
   by `codesign` with the login keychain's Developer ID Application certificate, the hardened
   runtime and a secure timestamp, under the identifier `io.github.leeovery.switchboard`, the
-  LaunchAgent's label; the two sent together to Apple's notary service by `notarytool`, under the
-  keychain profile `switchboard`, and waited on until it answers; then archived and summed under
-  the names the Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
+  LaunchAgent's label, and run to check it reports that version; the two sent together to Apple's
+  notary service by `notarytool`, under the keychain profile `switchboard`, and waited on until it
+  answers, for about an hour at most, as mint gives a hook no time limit; then archived and summed
+  under the names the Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
   `switchboard_<version>_checksums.txt`, and kept, with the commit they were built from, in
-  `~/Library/Caches/switchboard/release/<version>/`. A failure anywhere in that, the build, the
-  signing, the certificate or the notary's login gone, or Apple refusing or not answering, stops
-  the release before its tag, for mint to be run again once it's put right: nothing is public yet.
+  `~/Library/Caches/switchboard/release/<version>/`, in place of any other version's, as one
+  release is made at a time. A failure anywhere in that, the build, the signing, the certificate
+  or the notary's login gone, or Apple refusing or not answering, stops the release before its
+  tag, for mint to be run again once it's put right: nothing is public yet.
 - **Uploaded after it,** in mint's `post_release` (`scripts/release-upload`): the files kept for the
   version uploaded to the release mint made, then the tap told the version and the two archives'
-  sums, as the latest release only, and its update waited on. The files are taken only where the
-  commit they were built from lies under the tag with nothing a build reads changed between, as
-  mint's own commit, its notes and changelog, changes nothing; else they're built again from the
-  tag. A failure here leaves the release without its binaries and Homebrew on the version before,
-  as mint only warns; `scripts/release-upload <version>`, run by hand, finishes it, uploading what's
-  kept, which needs no signing or Apple again.
+  sums, as the latest release only, and its update waited on, for 15 minutes at most. A
+  pre-release, such as `1.2.3-rc.1`, is built and uploaded, but Homebrew isn't told, as mint
+  marks no GitHub release a pre-release and GitHub would name it the latest. The files are taken
+  only where the commit they were built from lies under the tag with nothing a build reads changed
+  between, as mint's own commits, its changelog and its answers in `.mint.toml`, change nothing;
+  else they're built again from the tag, as they are for a version whose files a later build
+  replaced. A failure here leaves the release without its binaries and Homebrew on the version
+  before, as mint only warns; `scripts/release-upload <version>`, run by hand, finishes it,
+  uploading what's kept, which needs no signing or Apple again.
 - **Why before the tag:** every failure that's about the binary, or the means of signing it, comes
   before mint's point of no return, so a release is never published that can't have its binaries,
   and what's left after it is moving files already right. Waiting on Apple costs nothing: a tag
   without its binaries reaches no one, as Homebrew follows the tap.
+- **Where it runs:** a release can be cut only on an Apple-silicon Mac with Rosetta, as each
+  binary is run to check its version, and with the certificate and the profile. The first run is
+  at the Mac, as `scripts/release-build 0.0.0-check`, which signs and notarises and releases
+  nothing: macOS asks there to let `codesign` use the certificate's key and `notarytool` its
+  profile, answered "Always Allow". A release run from elsewhere, as over SSH, waits on that
+  dialog, or fails on a locked keychain, before the tag either way.
 - Each run logs to `~/Library/Logs/switchboard/release-<version>.log`, as mint shows nothing of a
-  hook that succeeds and only the stderr of one that fails. A release can be cut only on a Mac with
-  the certificate and the profile; mint's dry run runs neither hook. The owner's call, 5 November
-  2026, in place of signing in GitHub's workflow from secrets (built 4 November, never used).
+  hook that succeeds and only the stderr of one that fails. mint's dry run runs neither hook. The
+  owner's call, 5 November 2026, in place of signing in GitHub's workflow from secrets (built 4
+  November, never used).
 
 ## The skill
 
