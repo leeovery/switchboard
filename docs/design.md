@@ -7846,8 +7846,9 @@ history never does.
   config changed it and the one after, may run at once; never two into one, a round that comes
   while one runs into its folder starting none. The first export waits for the router's first look
   at what it was started from, and none starts while a restart is coming, the router restarting
-  or one due that it will take up itself, so the router is never replaced over a write waiting on
-  macOS's prompt: the router it becomes exports as it starts.
+  or one due that it will take up itself, so no export starts in a router about to be replaced:
+  the router it becomes exports as it starts. One already under way when a restart falls due, as
+  an upgrade landing mid-export, isn't waited on (see Checks owed).
 - Switchboard writes the folder and nothing more: it doesn't check the folder's sync, remove days
   from it, write to more than one, or restore from it.
 - Built after the router's own copy and signing (see The router looking after itself, and
