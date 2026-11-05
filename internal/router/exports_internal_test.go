@@ -68,9 +68,9 @@ func (e *exportAs) folders() []string {
 	return slices.Clone(e.asked)
 }
 
-// testExports are exports into the folder dir names, by start's clock,
-// exporting with exportInto, the history's writers tended at once, the home
-// directory /Users/test, and no restart coming.
+// testExports are the service's router's exports into the folder dir names,
+// by start's clock, exporting with exportInto, the history's writers tended
+// at once, the home directory /Users/test, and no restart coming.
 func testExports(dir string, exportInto func(dir string) (export.Result, error)) *exports {
 	x := &exports{
 		every:      time.Hour,
@@ -79,6 +79,7 @@ func testExports(dir string, exportInto func(dir string) (export.Result, error))
 		exportInto: exportInto,
 		tend:       tended,
 		restarting: noRestart,
+		supervised: true,
 		running:    make(map[string]time.Time),
 	}
 	x.configure(config.Export{Dir: dir})
@@ -181,7 +182,7 @@ func TestAnExportsFailureSaysItsCauseInPlainWords(t *testing.T) {
 		{name: "macOS refusing a look at the folder", err: failed("stat", dir, syscall.EPERM), refused: true},
 		{name: "macOS refusing the folder's listing", err: failed("readdir", filepath.Join(folder, "ledger"), syscall.EPERM), refused: true},
 		{
-			name: "a rename onto a file the Finder has locked",
+			name: "a rename refused onto a file that isn't locked",
 			err: fmt.Errorf("can't export into %s: %w", dir, &os.LinkError{
 				Op: "rename", Old: filepath.Join(folder, ".export.json.123"), New: filepath.Join(folder, "export.json"), Err: syscall.EPERM,
 			}),
@@ -204,6 +205,37 @@ func TestAnExportsFailureSaysItsCauseInPlainWords(t *testing.T) {
 			}
 			if got := x.report().Error; got != want {
 				t.Errorf("report().Error = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestMacOSRefusingTheRouterSaysWhatToAllow(t *testing.T) {
+	const dir = "/Users/test/Documents/Switchboard"
+	refused := fmt.Errorf("can't export into %s: %w", dir, &fs.PathError{Op: "mkdir", Path: filepath.Join(dir, "mac-0123456789abcdef"), Err: syscall.EPERM})
+	tests := []struct {
+		name       string
+		supervised bool
+		want       string
+	}{
+		{name: "the service's router", supervised: true, want: macOSRefused(dir)},
+		{
+			name: "a router run by hand, which macOS counts as part of its terminal",
+			want: "macOS refused access to " + dir + ": allow the terminal app the router runs in, in System Settings → Privacy & Security",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+			cfg.Export, cfg.Supervised = config.Export{Dir: dir}, tt.supervised
+			x := newExports(cfg, tended, noRestart)
+			x.exportInto = func(string) (export.Result, error) { return export.Result{}, refused }
+
+			x.exportNow(t.Context())
+
+			if got := x.report().Error; got != tt.want {
+				t.Errorf("report().Error = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -339,36 +371,66 @@ func TestAnExportIntoAFolderInTheHomeDirectory(t *testing.T) {
 	}
 }
 
-func TestADayAnExportCouldntReadIsWarnedOfOnceAndFailsNoExport(t *testing.T) {
-	log := logstest.Capture(t)
-	const dir = "/Volumes/Backup/Switchboard"
-	unread := export.DayError{What: "the request ledger of 2026-09-26", Date: "2026-09-26", Err: errors.New("permission denied")}
-	warned := []string{"level=WARN", `msg="couldn't export the request ledger of 2026-09-26; passed over"`, `error="permission denied"`}
+func TestWhatAnExportPassesOverIsWarnedOfOnceAndFailsNoExport(t *testing.T) {
+	const (
+		dir    = "/Volumes/Backup/Switchboard"
+		folder = dir + "/mac-0123456789abcdef"
+	)
+	kinds := []struct {
+		name string
+		// met is what an export that meets what's warned of did.
+		met    export.Result
+		warned []string
+	}{
+		{
+			name:   "a day's file it couldn't read",
+			met:    export.Result{Unread: []export.DayError{{What: "the request ledger of 2026-09-26", Date: "2026-09-26", Err: errors.New("permission denied")}}},
+			warned: []string{"level=WARN", `msg="couldn't export the request ledger of 2026-09-26; passed over"`, `error="permission denied"`},
+		},
+		{
+			name: "a file a write cut short left that it couldn't remove",
+			met:  export.Result{Unremoved: []export.Leftover{{Path: folder + "/ledger/.requests-2026-09-26.jsonl.gz.123", Err: errors.New("permission denied")}}},
+			warned: []string{
+				"level=WARN", `msg="can't remove a file an export cut short left; trying again at each round"`,
+				"path=" + folder + "/ledger/.requests-2026-09-26.jsonl.gz.123", `error="permission denied"`,
+			},
+		},
+	}
 	steps := []struct {
 		name       string
-		unread     []export.DayError
+		met        bool
 		wantWarned int
 	}{
-		{name: "passed over", unread: []export.DayError{unread}, wantWarned: 1},
-		{name: "passed over again", unread: []export.DayError{unread}, wantWarned: 1},
-		{name: "read", wantWarned: 1},
-		{name: "passed over once more", unread: []export.DayError{unread}, wantWarned: 2},
+		{name: "met", met: true, wantWarned: 1},
+		{name: "met again", met: true, wantWarned: 1},
+		{name: "not met", wantWarned: 1},
+		{name: "met once more", met: true, wantWarned: 2},
 	}
-	fake := &exportAs{}
-	x := testExports(dir, fake.into)
-	for _, step := range steps {
-		fake.set(export.Result{Folder: dir + "/mac-0123456789abcdef", AsTheyWere: 1, Unread: step.unread}, nil)
-		x.exportNow(t.Context())
+	for _, kind := range kinds {
+		t.Run(kind.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			fake := &exportAs{}
+			x := testExports(dir, fake.into)
+			for _, step := range steps {
+				var r export.Result
+				if step.met {
+					r = kind.met
+				}
+				r.Folder, r.AsTheyWere = folder, 1
+				fake.set(r, nil)
+				x.exportNow(t.Context())
 
-		if got, want := x.report(), (status.Export{Dir: dir, At: start}); got != want {
-			t.Errorf("%s, report() = %+v, want %+v", step.name, got, want)
-		}
-		if got := timesLogged(log, warned...); got != step.wantWarned {
-			t.Errorf("%s, the day passed over is warned of %d times, want %d; log reads\n%s", step.name, got, step.wantWarned, log)
-		}
-		if log.Has(exportFailed) {
-			t.Errorf("%s, log reads\n%s\nwant no failed export", step.name, log)
-		}
+				if got, want := x.report(), (status.Export{Dir: dir, At: start}); got != want {
+					t.Errorf("%s, report() = %+v, want %+v", step.name, got, want)
+				}
+				if got := timesLogged(log, kind.warned...); got != step.wantWarned {
+					t.Errorf("%s, it's warned of %d times, want %d; log reads\n%s", step.name, got, step.wantWarned, log)
+				}
+				if log.Has(exportFailed) {
+					t.Errorf("%s, log reads\n%s\nwant no failed export", step.name, log)
+				}
+			}
+		})
 	}
 }
 

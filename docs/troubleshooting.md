@@ -137,7 +137,9 @@ log has a failure at warn, once until an export succeeds, and the first that suc
 
 - **`macOS refused access to <dir>`:** macOS asks before the router writes into iCloud Drive,
   Dropbox or `~/Documents`, and you didn't allow it. Allow switchboard in System Settings →
-  Privacy & Security, and the next export, within the hour, goes through.
+  Privacy & Security, and the next export, within the hour, goes through. macOS asks about a
+  router you run by hand, with `switchboard serve`, as part of the terminal you run it in, so
+  then it says to allow that terminal app.
 - **`<path> is locked`:** a file or folder in the export is locked in the Finder. Unlock it in its
   Get Info window.
 - **The folder isn't there:** the router makes `dir` only where the folder it goes in is there, so

@@ -205,7 +205,7 @@ is there, so a disk that isn't mounted fails the export. See
 
 | Key | Default | Description |
 |---|---|---|
-| `dir` | None (no export) | The folder to export into: an absolute path, or one starting `~/`, your home folder. Each Mac exports into a folder of its own in it. |
+| `dir` | None (no export) | The folder to export into: an absolute path, or one starting `~/`, your home folder. Each Mac exports into a folder of its own in it. Left empty, as left out, the router exports nothing. |
 
 ## `[usage]` keys
 

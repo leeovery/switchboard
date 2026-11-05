@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -53,6 +54,10 @@ type exports struct {
 	tend func(ctx context.Context) error
 	// restarting reports whether the router is to restart itself.
 	restarting func() bool
+	// supervised is set where the router is started again whenever it exits,
+	// as the service's is, rather than run by hand from a terminal, which
+	// macOS counts the router as part of.
+	supervised bool
 
 	mu sync.Mutex
 	// configured is the [export] the exports go by, and folder the folder it
@@ -66,8 +71,9 @@ type exports struct {
 	at  time.Time
 	why string
 	// unread are the days' files the last export that succeeded couldn't
-	// read, by what they are.
-	unread map[string]bool
+	// read, by what they are, and unremoved the files writes cut short left
+	// that it couldn't remove, by their paths.
+	unread, unremoved map[string]bool
 	// running are the folders exports run into, each by when the export into
 	// it began, in UTC.
 	running map[string]time.Time
@@ -85,6 +91,7 @@ func newExports(cfg Config, tend func(ctx context.Context) error, restarting fun
 		exportInto: export.Exporter{StateDir: cfg.StateDir, Now: cfg.Now, Logger: logger, NoParents: true}.Export,
 		tend:       tend,
 		restarting: restarting,
+		supervised: cfg.Supervised,
 		running:    make(map[string]time.Time),
 	}
 	x.configure(cfg.Export)
@@ -102,7 +109,7 @@ func (x *exports) configure(e config.Export) {
 	}
 	dir, err := e.Folder(x.homeDir)
 	x.configured, x.folder, x.unfound = e, cmp.Or(dir, e.Dir), err
-	x.at, x.why, x.unread = time.Time{}, "", nil
+	x.at, x.why, x.unread, x.unremoved = time.Time{}, "", nil, nil
 }
 
 // report is how the exports stand, for the status document: zero where the
@@ -210,14 +217,16 @@ func (x *exports) export(ctx context.Context, target exportTarget) {
 // note notes how the export into dir went, r saying what it did, or err why
 // it failed, where dir is the folder configured still: a failure, logged once
 // until an export succeeds, as one failing already has a why, and the first
-// success after logged too; and each day's file it couldn't read, as
-// noteUnread says, which fails no export.
+// success after logged too; and each day's file it couldn't read, and each
+// file writes cut short left that it couldn't remove, neither of which fails
+// an export, each warned of once until an export no longer meets it, as
+// warnedOnce says.
 func (x *exports) note(dir string, r export.Result, err error) {
 	// Saying why can look at the folder, which a disk that has stopped
 	// answering holds up: never while holding mu, which report waits on.
 	var why string
 	if err != nil {
-		why = plainly(dir, err)
+		why = x.plainly(dir, err)
 	}
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -236,47 +245,76 @@ func (x *exports) note(dir string, r export.Result, err error) {
 		logger.Info("exporting the history again", "dir", dir)
 	}
 	x.at, x.why = x.now().UTC(), ""
-	x.noteUnread(r.Unread)
+	x.unread = warnedOnce(x.unread, r.Unread, func(u export.DayError) string { return u.What }, func(u export.DayError) {
+		logger.Warn("couldn't export "+u.What+"; passed over", "error", u.Err)
+	})
+	x.unremoved = warnedOnce(x.unremoved, r.Unremoved, func(l export.Leftover) string { return l.Path }, func(l export.Leftover) {
+		logger.Warn("can't remove a file an export cut short left; trying again at each round", "path", l.Path, "error", l.Err)
+	})
 	logger.Debug("exported the history", "folder", r.Folder, "written", r.Written, "as_they_were", r.AsTheyWere)
 }
 
-// noteUnread warns of each of unread, the days' files an export passed over
-// as it couldn't read them, that the export before read, so one is warned of
-// once until an export reads it.
-func (x *exports) noteUnread(unread []export.DayError) {
-	was := x.unread
-	x.unread = make(map[string]bool, len(unread))
-	for _, u := range unread {
-		x.unread[u.What] = true
-		if !was[u.What] {
-			logger.Warn("couldn't export "+u.What+"; passed over", "error", u.Err)
+// warnedOnce warns of each of met, what an export met that it's to warn of,
+// as warn does, that was, what the export before met, by key, doesn't hold,
+// and returns what this one met, by key: so each is warned of once until an
+// export no longer meets it.
+func warnedOnce[T any](was map[string]bool, met []T, key func(T) string, warn func(T)) map[string]bool {
+	now := make(map[string]bool, len(met))
+	for _, m := range met {
+		now[key(m)] = true
+		if !was[key(m)] {
+			warn(m)
 		}
 	}
+	return now
 }
 
-// plainly is why an export into dir failed, as err says, in plain words: a
-// refusal, as refusedIn finds one, by a file or folder locked, as lockedBy
-// finds it, saying so; else by macOS, saying where to allow the router the
-// folder; else err's own words, which say where the folder isn't there.
-func plainly(dir string, err error) string {
-	failed, ok := refusedIn(dir, err)
-	if !ok {
+// plainly is why an export into dir failed, as err says, in plain words: an
+// EPERM refusing a change to a path in it, as refusedChange finds one, where
+// a file or folder is locked, as lockedBy finds it, saying so; else where
+// macOS could have refused the router the folder, saying where to allow it,
+// as refusedByMacOS words it; else err's own words, which say where the
+// folder isn't there.
+func (x *exports) plainly(dir string, err error) string {
+	path, byMacOS := refusedChange(dir, err)
+	if path == "" {
 		return err.Error()
 	}
-	if path, ok := lockedBy(failed.Path); ok {
-		return path + " is locked: unlock it in the Finder, in Get Info"
+	if locked, ok := lockedBy(path); ok {
+		return locked + " is locked: unlock it in the Finder, in Get Info"
+	}
+	if byMacOS {
+		return x.refusedByMacOS(dir)
+	}
+	return err.Error()
+}
+
+// refusedByMacOS is what an export into dir that macOS refused says: where to
+// allow the router the folder, switchboard, or, run by hand, the terminal app
+// it runs in, which macOS counts it as part of.
+func (x *exports) refusedByMacOS(dir string) string {
+	if !x.supervised {
+		return "macOS refused access to " + dir + ": allow the terminal app the router runs in, in System Settings → Privacy & Security"
 	}
 	return "macOS refused access to " + dir + ": allow switchboard in System Settings → Privacy & Security"
 }
 
-// refusedIn returns err's failure where it's an EPERM from one of refusingOps
-// on a path in dir, as macOS refusing the router a folder it guards gives it,
-// and a file or folder locked: reporting false for any other, as a rename
-// onto a file the Finder has locked, or setting the time of a file made
-// already, which says its own cause.
-func refusedIn(dir string, err error) (*fs.PathError, bool) {
-	failed, ok := errors.AsType[*fs.PathError](err)
-	return failed, ok && errors.Is(failed.Err, syscall.EPERM) && slices.Contains(refusingOps, failed.Op) && inFolder(dir, failed.Path)
+// refusedChange returns the path in dir that err is an EPERM refusing a
+// change to, "" for none, and reports whether macOS refusing the router a
+// folder it guards could have given it: one from one of refusingOps could;
+// one from a rename onto the path, which only a lock gives, or from setting
+// the time of a file made already, couldn't.
+func refusedChange(dir string, err error) (path string, byMacOS bool) {
+	if !errors.Is(err, syscall.EPERM) {
+		return "", false
+	}
+	if failed, ok := errors.AsType[*os.LinkError](err); ok && inFolder(dir, failed.New) {
+		return failed.New, false
+	}
+	if failed, ok := errors.AsType[*fs.PathError](err); ok && inFolder(dir, failed.Path) {
+		return failed.Path, slices.Contains(refusingOps, failed.Op)
+	}
+	return "", false
 }
 
 // lockedBy returns what refused a change to path as locked, as locked says:

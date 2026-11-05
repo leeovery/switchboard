@@ -15,9 +15,9 @@ import (
 )
 
 // leftoverAge is how long ago a file staged in a Mac's folder must last have
-// been modified for an export to take it for one a write cut short left, as
-// a router stopping mid-export leaves one, rather than one another export,
-// as one run by hand beside the router's, is writing still.
+// changed for an export to take it for one a write cut short left, as a
+// router stopping mid-export leaves one, rather than one another export, as
+// one run by hand beside the router's, is writing still.
 const leftoverAge = time.Hour
 
 // ErrNoFolder is the error of an export by an Exporter with NoParents into a
@@ -25,18 +25,19 @@ const leftoverAge = time.Hour
 // mounted, or one gone as it exports, as with its disk ejected.
 var ErrNoFolder = errors.New("it isn't there")
 
-// makeDir makes dir, the folder exported into, the user's alone, where it
-// isn't there, in the folder it goes in, which must be there: failing with
-// ErrNoFolder where that isn't there either, or where dir can't be made in
-// it, saying why, as /Volumes/<disk> of a disk not mounted can't be, in a
-// folder only the system can write. A dir there already is never made, as a
-// disk's mount point in such a folder is there.
+// makeDir makes dir, the folder exported into, where it isn't there, as
+// makeIn makes it: failing with ErrNoFolder where the folder it goes in isn't
+// there either, or where dir can't be made in it, saying why, as
+// /Volumes/<disk> of a disk not mounted can't be, in a folder only the
+// system can write. A dir there already is never made, as a disk's mount
+// point in such a folder is there, though making it can fail for want of
+// the right to write in that folder before it finds that.
 func makeDir(dir string) error {
-	err := os.Mkdir(dir, 0o700)
+	err := makeIn(dir)
 	switch {
-	case err == nil, errors.Is(err, fs.ErrExist):
+	case err == nil:
 		return nil
-	case errors.Is(err, fs.ErrNotExist):
+	case errors.Is(err, ErrNoFolder):
 		return fmt.Errorf("%w, nor the folder it goes in", ErrNoFolder)
 	}
 	info, look := os.Stat(dir)
@@ -100,13 +101,13 @@ func makeIn(path string) error {
 }
 
 // removeLeftovers removes the files staged in the Mac's folder at folder, and
-// in the folders in it an export writes into, that were last modified
-// leftoverAge or more before now, as leftover says: those writes cut short
-// left, as an export a router stopping cut short leaves them, which sync as
-// any file does. One that can't be removed is warned of; a folder that can't
-// be listed is passed over, as the export's writes into it say why, where
-// they fail.
-func (e Exporter) removeLeftovers(folder string) {
+// in the folders in it an export writes into, that last changed leftoverAge
+// or more before now, as leftover says: those writes cut short left, as an
+// export a router stopping cut short leaves them, which sync as any file
+// does. It returns those it couldn't remove. A folder that can't be listed
+// is passed over, as the export's writes into it say why, where they fail.
+func (e Exporter) removeLeftovers(folder string) []Leftover {
+	var unremoved []Leftover
 	for _, dir := range []string{folder, ledger.Dir(folder), readings.Dir(folder)} {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -118,19 +119,22 @@ func (e Exporter) removeLeftovers(folder string) {
 			}
 			path := filepath.Join(dir, entry.Name())
 			if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				e.Logger.Warn("can't remove a file an export cut short left", "path", path, "error", err)
+				unremoved = append(unremoved, Leftover{Path: path, Err: err})
 			}
 		}
 	}
+	return unremoved
 }
 
 // leftover reports whether entry is a file staged beside one an export
-// writes, as atomicfile names it, last modified leftoverAge or more before
-// now.
+// writes, as atomicfile names it, that last changed leftoverAge or more
+// before now, as changed says: never by when it was last modified, which a
+// write staging a file sets back to its source's, as old as that may be,
+// just before renaming it into place.
 func (e Exporter) leftover(entry fs.DirEntry) bool {
 	if _, staged := atomicfile.LeftoverOf(entry.Name()); !staged || !entry.Type().IsRegular() {
 		return false
 	}
 	info, err := entry.Info()
-	return err == nil && e.Now().Sub(info.ModTime()) >= leftoverAge
+	return err == nil && e.Now().Sub(changed(info)) >= leftoverAge
 }

@@ -543,10 +543,10 @@ func parseUsageBy(given *string) (Layout, error) {
 
 // parseExport reads [export] dir: an absolute path, or one starting ~/, the
 // home directory's, holding nothing shaped like a token, which switchboard
-// never writes. None given exports nothing.
+// never writes. None given, or one given empty, exports nothing.
 func parseExport(given *string) (Export, error) {
 	switch {
-	case given == nil:
+	case given == nil, *given == "":
 		return Export{}, nil
 	case redact.HoldsToken(*given):
 		return Export{}, wrongValue("export.dir", *given, "holds something shaped like a token, which switchboard never writes: give another folder")

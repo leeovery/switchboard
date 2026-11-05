@@ -288,10 +288,10 @@ With [`[export]`](configuration.md#export-keys)'s `dir` set, the router exports 
 it as it starts and every hour after, as [`export`](commands.md#export) would, each Mac into a
 folder of its own.
 
-- **Never in routing's way:** each export runs apart from the router, so one waiting on macOS,
-  which asks before the router writes into iCloud Drive, Dropbox or `~/Documents`, holds up no
-  request, and no restart. No export starts while a restart is coming: the router it becomes
-  exports as it starts.
+- **Never in routing's way:** each export runs apart from the router, so no request waits on one,
+  even one waiting on macOS, which asks before the router writes into iCloud Drive, Dropbox or
+  `~/Documents`. No export starts while a restart is coming, as the router it becomes exports as
+  it starts, and one already under way when a restart falls due isn't waited on.
 - **A disk not there:** the router makes `dir` only where the folder it goes in is there, so a
   disk not mounted fails the export rather than having it written onto the Mac's own disk.
 - **How it stands:** the status document's `export` says when the last export succeeded, why the

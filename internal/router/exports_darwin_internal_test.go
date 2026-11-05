@@ -4,6 +4,7 @@ package router
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -11,24 +12,31 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/export"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
-func TestAFolderLockedInTheFinderIsSaidToBeLocked(t *testing.T) {
+func TestAFileOrFolderLockedInTheFinderIsSaidToBeLocked(t *testing.T) {
 	tests := []struct {
 		name string
 		// locks makes what the case locks, of the folder exported into, dir,
-		// and the Mac's folder in it, folder, and returns it.
-		locks func(t *testing.T, dir, folder string) string
+		// and the Mac's folder in it, folder, exported into by x, and returns
+		// it.
+		locks func(t *testing.T, x *exports, dir, folder string) string
 	}{
-		{name: "the folder exported into", locks: func(_ *testing.T, dir, _ string) string { return dir }},
+		{name: "the folder exported into", locks: func(_ *testing.T, _ *exports, dir, _ string) string { return dir }},
 		{
 			name: "the Mac's folder in it",
-			locks: func(t *testing.T, _, folder string) string {
+			locks: func(t *testing.T, _ *exports, _, folder string) string {
 				if err := os.Mkdir(folder, 0o700); err != nil {
 					t.Fatal(err)
 				}
 				return folder
+			},
+		},
+		{
+			name: "a file in that, which an export renames its new one onto",
+			locks: func(t *testing.T, x *exports, _, folder string) string {
+				x.exportNow(t.Context())
+				return filepath.Join(folder, "export.json")
 			},
 		},
 	}
@@ -40,17 +48,16 @@ func TestAFolderLockedInTheFinderIsSaidToBeLocked(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			locked := tt.locks(t, dir, export.Folder(dir, id))
-			lock(t, locked)
 			cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 			cfg.StateDir, cfg.Export = state, config.Export{Dir: dir}
 			x := newExports(cfg, tended, noRestart)
+			locked := tt.locks(t, x, dir, export.Folder(dir, id))
+			lock(t, locked)
 
 			x.exportNow(t.Context())
 
-			want := status.Export{Dir: dir, Error: locked + " is locked: unlock it in the Finder, in Get Info"}
-			if got := x.report(); got != want {
-				t.Errorf("report() = %+v, want %+v", got, want)
+			if got, want := x.report().Error, locked+" is locked: unlock it in the Finder, in Get Info"; got != want {
+				t.Errorf("report().Error = %q, want %q", got, want)
 			}
 		})
 	}

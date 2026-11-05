@@ -66,7 +66,8 @@ var errUnexported = errors.New("some days couldn't be exported")
 // export exports the history in the state directory into the Mac's folder in
 // dir, taken from the working directory where it's relative, and says what
 // it did, then, on errOut, each day's file it couldn't read, failing with
-// errUnexported where there's any.
+// errUnexported where there's any. A file writes cut short left that it
+// couldn't remove is logged, at warn.
 func (a *app) export(out, errOut io.Writer, dir string) error {
 	dir, err := a.absolute(dir)
 	if err != nil {
@@ -79,6 +80,9 @@ func (a *app) export(out, errOut io.Writer, dir string) error {
 	r, err := export.Exporter{StateDir: state, Now: a.Now, Logger: logger}.Export(dir)
 	if err != nil {
 		return err
+	}
+	for _, l := range r.Unremoved {
+		logger.Warn("can't remove a file an export cut short left", "path", l.Path, "error", l.Err)
 	}
 	if _, err := fmt.Fprintf(out, "exported %s to %s: %s written, %s as they were\n",
 		prose.Counted(r.Days(), "day"), r.Folder, prose.Grouped(r.Written), prose.Grouped(r.AsTheyWere)); err != nil {

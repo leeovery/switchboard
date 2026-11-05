@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/export"
@@ -743,12 +745,9 @@ func TestAMacsFolderGoneMidExportIsMadeAgainOnlyWithoutNoParents(t *testing.T) {
 }
 
 func TestAnExportRemovesWhatWritesCutShortLeftAnHourAgoOrMore(t *testing.T) {
-	state, dir := t.TempDir(), t.TempDir()
-	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
-	folder := folderOf(t, state, dir)
 	files := []struct {
 		name string
-		// path is the file's, in the Mac's folder, last modified ago before
+		// path is the file's, in the Mac's folder, last changed ago before
 		// the export.
 		path        string
 		ago         time.Duration
@@ -763,15 +762,74 @@ func TestAnExportRemovesWhatWritesCutShortLeftAnHourAgoOrMore(t *testing.T) {
 		{name: "a file iCloud Drive hasn't downloaded", path: "ledger/.requests-2026-10-01.jsonl.gz.icloud", ago: 24 * time.Hour},
 	}
 	for _, f := range files {
-		writeFile(t, filepath.Join(folder, f.path), []byte("staged\n"), exportNow.Add(-f.ago))
+		t.Run(f.name, func(t *testing.T) {
+			state, dir := t.TempDir(), t.TempDir()
+			writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+			path := filepath.Join(folderOf(t, state, dir), f.path)
+			// Last modified long before, as a write staging a file sets it
+			// back to its source's: it last changed as it was written, and the
+			// export runs ago after that, by its clock.
+			writeFile(t, path, []byte("staged\n"), compressedAt)
+			e := exporter(state)
+			written := time.Now()
+			e.Now = func() time.Time { return written.Add(f.ago) }
+
+			if _, err := e.Export(dir); err != nil {
+				t.Fatalf("Export() error = %v", err)
+			}
+
+			_, err := os.Lstat(path)
+			if removed := errors.Is(err, fs.ErrNotExist); removed != f.wantRemoved {
+				t.Errorf("after the export, %v; want it removed %v", err, f.wantRemoved)
+			}
+		})
+	}
+}
+
+func TestAFileAnotherExportStagedIsLeftForItToRenameIntoPlace(t *testing.T) {
+	state, dir := t.TempDir(), t.TempDir()
+	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	path := filepath.Join(folderOf(t, state, dir), "ledger", "requests-2026-10-01.jsonl.gz")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	// Staged by another export just now, last modified as its source was, a
+	// month before, for it to rename into place.
+	staged, err := atomicfile.StageModified(path, 0o600, now.AddDate(0, 0, -30), func(w io.Writer) error {
+		_, err := w.Write([]byte("staged\n"))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := exporter(state)
+	e.Now = func() time.Time { return now }
+
+	if _, err := e.Export(dir); err != nil {
+		t.Fatalf("Export() error = %v", err)
 	}
 
-	exportInto(t, state, dir)
+	if err := os.Rename(staged, path); err != nil {
+		t.Errorf("the other export's rename: %v, want its file left for it", err)
+	}
+}
 
-	for _, f := range files {
-		_, err := os.Lstat(filepath.Join(folder, f.path))
-		if removed := errors.Is(err, fs.ErrNotExist); removed != f.wantRemoved {
-			t.Errorf("%s: after the export, %v; want it removed %v", f.name, err, f.wantRemoved)
-		}
+func TestALeftoverThatCantBeRemovedIsNamedAndFailsNoExport(t *testing.T) {
+	state, dir := t.TempDir(), t.TempDir()
+	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	path := filepath.Join(readings.Dir(folderOf(t, state, dir)), ".readings-2026-10-08.jsonl.gz.789")
+	writeFile(t, path, []byte("staged\n"), compressedAt)
+	readOnly(t, filepath.Dir(path))
+	e := exporter(state)
+	written := time.Now()
+	e.Now = func() time.Time { return written.Add(2 * time.Hour) }
+
+	r, err := e.Export(dir)
+	if err != nil {
+		t.Fatalf("Export() error = %v", err)
+	}
+	if len(r.Unremoved) != 1 || r.Unremoved[0].Path != path || !errors.Is(r.Unremoved[0].Err, fs.ErrPermission) {
+		t.Errorf("Export() left %+v unremoved, want %s alone, for want of permission", r.Unremoved, path)
 	}
 }

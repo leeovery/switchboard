@@ -690,6 +690,7 @@ func TestLoadReadsTheFolderToExportInto(t *testing.T) {
 		{name: "a path in the home directory", config: "[export]\ndir = \"~/Dropbox/Switchboard\"\n", want: config.Export{Dir: "~/Dropbox/Switchboard"}},
 		{name: "the home directory itself", config: "[export]\ndir = \"~/\"\n", want: config.Export{Dir: "~/"}},
 		{name: "none, an [export] without a dir", config: "[export]\n"},
+		{name: "none, a dir given empty", config: "[export]\ndir = \"\"\n"},
 		{name: "none, without an [export]"},
 	}
 	for _, tt := range tests {
@@ -715,7 +716,6 @@ func TestLoadReportsAFolderToExportIntoThatIsntOne(t *testing.T) {
 		{name: "relative to the working directory", given: "./Switchboard"},
 		{name: "the home directory without its slash", given: "~"},
 		{name: "another user's home directory", given: "~work/Switchboard"},
-		{name: "given empty", given: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

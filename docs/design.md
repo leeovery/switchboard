@@ -7735,11 +7735,13 @@ Switchboard never talks to a cloud. Export and import are built, and the export 
 - **Every file** is written beside where it goes, as `.<its name>.<digits>`, and renamed into
   place, so a sync never carries one half written. An export cut short, as by a router stopping,
   leaves the file it was writing so named: each export, the router's or the command's, first
-  removes those in the Mac's folder, its `ledger/` and its `history/` last modified an hour ago or
-  more, so one another export is writing still, as one run by hand beside the router's, is left
-  alone; one it can't remove is warned of. Nothing else in the folder is removed, a day past the
-  Mac's keep included: the folder keeps what it was given until its owner removes it. Nothing in
-  it is read but its files' names, sizes and times and the headers of the days not yet
+  removes those in the Mac's folder, its `ledger/` and its `history/` that last changed an hour
+  ago or more, by the time any change to a file sets, never the time it was modified, which a
+  write sets back to its source's just before its rename, so one another export is writing still,
+  as one run by hand beside the router's, is left alone; one it can't remove is warned of, the
+  router's once until it's gone (see On a schedule). Nothing else in the folder is removed, a day
+  past the Mac's keep included: the folder keeps what it was given until its owner removes it.
+  Nothing in it is read but its files' names, sizes and times and the headers of the days not yet
   compressed, as a file read in a folder iCloud Drive or Dropbox keeps may first be downloaded.
 - **A day that can't be read** from the state directory, as one whose file can't be opened, is
   passed over, and the export goes on with the rest. A file that can't be written into the folder
@@ -7834,11 +7836,14 @@ history never does.
   Mac's folder in it go mid-export, as with its disk ejected, neither is made again.
 - **In plain words:** a failure says its cause: macOS refusing the router a path in the folder,
   as an EPERM from opening, making, looking at or listing one, `macOS refused access to <dir>:
-  allow switchboard in System Settings → Privacy & Security`; a file or folder the Finder has
-  locked, `<path> is locked: unlock it in the Finder, in Get Info`; the folder not there, as above;
-  else the cause in its own words. A day's file in the state directory that can't be read is
-  warned of, once until an export reads it, and passed over, as `export` passes it over, and fails
-  no export.
+  allow switchboard in System Settings → Privacy & Security`, or, from a router run by hand, which
+  macOS counts as part of the terminal it runs in, `macOS refused access to <dir>: allow the
+  terminal app the router runs in, in System Settings → Privacy & Security`; a file or folder the
+  Finder has locked, as an EPERM from any change to it or in it, a rename onto a file included,
+  `<path> is locked: unlock it in the Finder, in Get Info`; the folder not there, as above; else
+  the cause in its own words. A day's file in the state directory that can't be read, and a file
+  a write cut short left that can't be removed, are each warned of, once until an export no
+  longer meets it, and fail no export, the day passed over as `export` passes it over.
 - **Never holding the router:** each export runs on a goroutine of its own, which nothing waits
   on, the router stopping or restarting in place included, as a write into iCloud Drive, a File
   Provider's folder, as Dropbox's is, or `~/Documents` waits in the kernel until the user answers
@@ -8717,7 +8722,7 @@ fails as it is; one that parses has every problem reported at once:
   events too, a file a day beside the ledger's lines, `events-<local date>.jsonl`, for as long as it
   keeps the lines (see The router's events).
 - **`[export]`**: `dir` is an absolute path, or one starting `~/`, the home directory's; off unless
-  it's set (see Export and import).
+  it's set, an empty `dir` as unset (see Export and import).
 - **`week_starts`** is a day of the week, by its name in English, in any case, as `monday` or
   `Sunday`; `monday` unless given. It's the day the dashboard's calendar weeks start on: the weeks
   History and Accounts count by, in History's grid, weeks, days and tokens and Accounts' this week
