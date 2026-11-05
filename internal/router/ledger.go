@@ -66,6 +66,12 @@ func (l *requestLedger) roundNow(ctx context.Context) error {
 	return l.opened.Load().RoundNow(ctx)
 }
 
+// tendNow has the ledger compress and prune its files at once where that's
+// due, as ledger.Ledger's TendNow does. The ledger must be open.
+func (l *requestLedger) tendNow(ctx context.Context) error {
+	return l.opened.Load().TendNow(ctx)
+}
+
 // summariseEnded has the ledger, once it's opened, summarise the days that
 // have ended at now, as ledger.Ledger.SummariseEnded says: the readings
 // history's writer has it do so just before each prune of its files, so no

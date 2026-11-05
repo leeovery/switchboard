@@ -5,7 +5,7 @@
 // them out, each day's lines in one compressed file, and an export.json
 // saying whose folder it is. It writes a file only where it has changed
 // since it was last exported, every one beside where it goes and renamed
-// into place, and never removes one. It stages the Macs' folders an import
+// into place, and removes none but those writes cut short left. It stages the Macs' folders an import
 // brings in, too, in the state directory, for the router to take in.
 package export
 
@@ -29,6 +29,13 @@ type Exporter struct {
 	StateDir string
 	Now      func() time.Time
 	Logger   *slog.Logger
+	// NoParents, where it's set, makes the folder exported into only while
+	// the folder it goes in is there, and only where it can be made in it, so
+	// one on a disk that isn't mounted, as /Volumes/<disk>/…, fails with
+	// ErrNoFolder rather than be made on the Mac's own disk; and makes no
+	// folder in the Mac's folder once that's gone, as with its disk ejected
+	// mid-export. Else each is made with every folder it goes in.
+	NoParents bool
 
 	// looked and wrap, where they're set, are as dayLines has them.
 	looked func(date string)
@@ -37,12 +44,14 @@ type Exporter struct {
 
 // Result is what an export did: the Mac's folder it exported into; how many
 // days, each a date of which the state directory holds a file of any kind,
-// it wrote a file of, and how many it left as they were; and the days' files
-// it couldn't read, and so passed over.
+// it wrote a file of, and how many it left as they were; the days' files it
+// couldn't read, and so passed over; and the files writes cut short left in
+// the Mac's folder that it couldn't remove.
 type Result struct {
 	Folder              string
 	Written, AsTheyWere int
 	Unread              []DayError
+	Unremoved           []Leftover
 }
 
 // Days returns how many days the export exported.
@@ -66,26 +75,47 @@ func (e DayError) Unwrap() error {
 	return e.Err
 }
 
+// Leftover is a file a write cut short left in the Mac's folder, as
+// removeLeftovers finds one, that an export couldn't remove: its Path, and
+// why.
+type Leftover struct {
+	Path string
+	Err  error
+}
+
 // Export exports the history into the Mac's folder in dir, making each as
-// it's needed, the user's alone: each day's file of lines, as dayLines.export
-// says, and each day's summary, copied as copyFile says; then export.json,
-// saying when. A day's file that can't be read is passed over, and named in
-// the result. It fails where dir is a file, or anything in it can't be made
-// or written, and where the state directory's files can't be listed.
+// it's needed, the user's alone, as NoParents says, and removing first what
+// writes cut short left in it, as removeLeftovers says: each day's file of
+// lines, as dayLines.export says, and each day's summary, copied as copyFile
+// says; then export.json, saying when. A day's file that can't be read is
+// passed over, and named in the result, as is a file writes cut short left
+// that can't be removed. It fails where dir is a file, or
+// anything in it can't be made or written, and where the state directory's
+// files can't be listed; with NoParents, where dir can't be made, before it
+// writes anything.
 func (e Exporter) Export(dir string) (Result, error) {
 	if info, err := os.Stat(dir); err == nil && !info.IsDir() {
 		return Result{}, fmt.Errorf("can't export into %s: it's a file, not a folder", dir)
+	}
+	if e.NoParents {
+		if err := makeDir(dir); err != nil {
+			return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
+		}
 	}
 	id, err := InstallID(e.StateDir)
 	if err != nil {
 		return Result{}, err
 	}
 	folder := Folder(dir, id)
-	if err := os.MkdirAll(folder, 0o700); err != nil {
+	switch err := e.making(dir)(folder); {
+	case errors.Is(err, ErrNoFolder):
+		// The Mac's folder is a level in dir, so the folder not there is dir.
+		return Result{}, fmt.Errorf("can't export into %s: %w", dir, ErrNoFolder)
+	case err != nil:
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
-	x := exporting{written: make(map[string]bool)}
-	for _, lines := range e.lines(folder) {
+	x := exporting{written: make(map[string]bool), mkdir: e.making(folder), unremoved: e.removeLeftovers(folder)}
+	for _, lines := range e.lines(folder, x.mkdir) {
 		if err := x.lines(lines); err != nil {
 			return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 		}
@@ -100,12 +130,12 @@ func (e Exporter) Export(dir string) (Result, error) {
 }
 
 // lines are the files of lines the state directory holds, each beside where
-// the Mac's folder at folder holds them.
-func (e Exporter) lines(folder string) []dayLines {
+// the Mac's folder at folder holds them, made by mkdir.
+func (e Exporter) lines(folder string, mkdir func(dir string) error) []dayLines {
 	src, dst := linesIn(e.StateDir, e.Logger), linesIn(folder, e.Logger)
 	lines := make([]dayLines, len(src))
 	for i := range src {
-		lines[i] = dayLines{src: src[i], dst: dst[i], looked: e.looked, wrap: e.wrap}
+		lines[i] = dayLines{src: src[i], dst: dst[i], mkdir: mkdir, looked: e.looked, wrap: e.wrap}
 	}
 	return lines
 }
@@ -122,10 +152,14 @@ func linesIn(root string, logger *slog.Logger) []*dayfile.Files {
 }
 
 // exporting is what an export has done so far: whether it wrote a file of
-// each day, by its date, and the days' files it couldn't read.
+// each day, by its date, the days' files it couldn't read, and the files
+// writes cut short left that it couldn't remove; and mkdir, what makes the
+// folders in the Mac's folder it writes into.
 type exporting struct {
-	written map[string]bool
-	unread  []DayError
+	written   map[string]bool
+	unread    []DayError
+	unremoved []Leftover
+	mkdir     func(dir string) error
 }
 
 // lines exports each day lines' files in the state directory hold.
@@ -144,14 +178,14 @@ func (x *exporting) lines(lines dayLines) error {
 }
 
 // summaries copies each day's summary the ledger in src holds to the ledger
-// in dst, as copyFile copies it.
+// in dst, as copyFile copies it, making the folder as x.mkdir does.
 func (x *exporting) summaries(src, dst string) error {
 	dates, err := ledger.SummaryDates(src)
 	if err != nil {
 		return fmt.Errorf("read the request ledger's summaries: %w", err)
 	}
 	for _, date := range dates {
-		did, err := copyFile(ledger.SummaryFile(src, date), ledger.SummaryFile(dst, date))
+		did, err := copyFile(ledger.SummaryFile(src, date), ledger.SummaryFile(dst, date), x.mkdir)
 		if err := x.note("the request ledger's summary of "+date, date, did, err); err != nil {
 			return err
 		}
@@ -179,7 +213,7 @@ func (x *exporting) note(what, date string, did outcome, err error) error {
 
 // result is the result of the export into folder.
 func (x *exporting) result(folder string) Result {
-	r := Result{Folder: folder, Unread: x.unread}
+	r := Result{Folder: folder, Unread: x.unread, Unremoved: x.unremoved}
 	for _, wroteAny := range x.written {
 		if wroteAny {
 			r.Written++

@@ -5,8 +5,8 @@ import (
 	"sync"
 )
 
-// inFlight counts the proxy's requests in flight, and says when there are
-// none. It's safe for concurrent use.
+// inFlight counts what's in flight, as the proxy's requests or the exports
+// running, and says when none is. It's safe for concurrent use.
 type inFlight struct {
 	mu sync.Mutex
 	n  int

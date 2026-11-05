@@ -71,6 +71,13 @@ func (l *Ledger) RoundNow(ctx context.Context) error {
 	return l.writer.RoundNow(ctx)
 }
 
+// TendNow has the ledger compress and prune its files of lines at once where
+// that's due, as dayfile.Writer's TendNow does: where it makes the round, it
+// summarises the days that have ended first, as every round does.
+func (l *Ledger) TendNow(ctx context.Context) error {
+	return l.writer.TendNow(ctx)
+}
+
 // copySummary copies the summary staged of the day in, its lines taken in as
 // took says, as copyOver decides, holding summarising, so no round writes a
 // summary between its look and its copy, and reports whether it copied one.

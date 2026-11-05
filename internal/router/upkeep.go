@@ -3,6 +3,7 @@ package router
 import (
 	"cmp"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -16,13 +17,18 @@ const watchEvery = 3 * time.Second
 // looking every so often: the accounts' token files, which it takes up in
 // place, and its config file, the binary it upgrades from and the system's
 // time zone, which it restarts to take up, but for the tokens of accounts the
-// config file no longer configures, which count as the primary's at once. It
-// notices the Mac waking from sleep as it looks.
+// config file no longer configures, which count as the primary's at once, and
+// the folder it names to export into, which the exports take up at their
+// next round. It notices the Mac waking from sleep as it looks.
 type upkeep struct {
 	every    time.Duration
 	tokens   *tokenFiles
 	restarts *restarts
 	wakes    *wakes
+	exports  *exports
+	// looked closes once upkeep has first looked, as look does.
+	looked     chan struct{}
+	lookedOnce sync.Once
 }
 
 // newUpkeep returns the upkeep of a router built from cfg, with the accounts
@@ -31,14 +37,17 @@ type upkeep struct {
 // state file to keep with changes, working out the schedule of primer, if it
 // primes, again whenever the accounts with tokens change, telling emit of a
 // restart as it falls due, restarting once inFlight counts no request in
-// flight, and the binary it restarts into, asked as cfg.Check runs it, an
-// upgrade copied in first where it runs a copy of its own, doesn't refuse to
-// start, and noticing wakes.
-func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, emit func(Event)) *upkeep {
+// flight and none of exports runs, and the binary it restarts into, asked as
+// cfg.Check runs it, an upgrade copied in first where it runs a copy of its
+// own, doesn't refuse to start, noticing wakes, and configuring exports as
+// the config file comes to.
+func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, exports *exports, emit func(Event)) *upkeep {
 	replan := func() {}
 	if primer != nil {
 		replan = primer.replan
 	}
+	restarts := restartsFor(cfg, inFlight, emit)
+	restarts.exports = exports
 	return &upkeep{
 		every: cmp.Or(cfg.WatchEvery, watchEvery),
 		tokens: &tokenFiles{
@@ -56,8 +65,10 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			gained: state.tokenGained,
 			lost:   state.tokenLost,
 		},
-		restarts: restartsFor(cfg, inFlight, emit),
+		restarts: restarts,
 		wakes:    wakes,
+		exports:  exports,
+		looked:   make(chan struct{}),
 	}
 }
 
@@ -73,10 +84,7 @@ func (u *upkeep) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			u.wakes.look()
-			u.tokens.look()
-			u.restarts.look()
-			u.tokens.retire(u.restarts.configured())
+			u.look()
 		case <-u.restarts.ready():
 			if u.restarts.restart(ctx) {
 				return
@@ -85,10 +93,37 @@ func (u *upkeep) run(ctx context.Context) {
 	}
 }
 
+// look looks at what the router was started from, once, as run does every so
+// often, taking up in place what the config file has come to make of the
+// accounts' tokens and the folder to export into, where it has changed, and
+// closing firstLook's channel the first time.
+func (u *upkeep) look() {
+	u.wakes.look()
+	u.tokens.look()
+	u.restarts.look()
+	u.tokens.retire(u.restarts.configured())
+	if e, changed := u.restarts.configuredExport(); changed {
+		u.exports.configure(e)
+	}
+	u.lookedOnce.Do(func() { close(u.looked) })
+}
+
+// firstLook returns what's closed once upkeep has first looked at what the
+// router was started from, so a restart due as the router starts is known.
+func (u *upkeep) firstLook() <-chan struct{} {
+	return u.looked
+}
+
 // tidy removes what copies cut short left beside the router's copy, where it
 // runs one, as it starts.
 func (u *upkeep) tidy() {
 	u.restarts.removeLeftovers()
+}
+
+// restartComing reports whether the router is to restart itself, as
+// restarts' coming says.
+func (u *upkeep) restartComing() bool {
+	return u.restarts.coming()
 }
 
 // restartDue is the restart the router has due, zero while none is.

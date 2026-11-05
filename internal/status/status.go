@@ -68,6 +68,10 @@ type Document struct {
 	// Restart is the restart the router has due: zero when none is, and in a
 	// document that isn't the router's.
 	Restart Restart `json:"restart,omitzero"`
+	// Export is how the router's export of the history on a schedule stands:
+	// zero where the config names no folder, and in a document that isn't
+	// the router's.
+	Export Export `json:"export,omitzero"`
 	// Sessions is how many sessions the router has sent anywhere in the last
 	// hour, each counted once however many accounts its models went to: zero
 	// in a document that isn't the router's.
@@ -256,6 +260,11 @@ type Restart struct {
 	// InFlight is how many requests the router had in flight as it gave the
 	// document.
 	InFlight int `json:"in_flight"`
+	// Exporting is the folder of the export of the history under way as it
+	// gave the document, which the restart waits for: "" while none is, and
+	// where none would hold it, as for a router run by hand, or a restart
+	// held.
+	Exporting string `json:"exporting,omitempty"`
 	// ByHand is set when the router was run by hand, with serve.
 	ByHand bool `json:"by_hand,omitempty"`
 	// Held says why the router's binary refuses to start, as it said, which
@@ -267,6 +276,23 @@ type Restart struct {
 // Due reports whether a restart is due.
 func (r Restart) Due() bool {
 	return r.Reason != ""
+}
+
+// Export is how the router's export of the history on a schedule stands, as
+// the config's [export] dir sets it, since the router started: zero where the
+// config names no folder.
+type Export struct {
+	// Dir is the folder it exports into, a ~/ the config gives at its start
+	// the home directory.
+	Dir string `json:"dir"`
+	// At is when an export into it last succeeded: zero before one has.
+	At time.Time `json:"at,omitzero"`
+	// Running is when the export into it under way began, as one waiting on
+	// macOS asking the user to allow it waits: zero while none is.
+	Running time.Time `json:"running,omitzero"`
+	// Error is why the last export failed, in plain words: "" once one
+	// succeeds.
+	Error string `json:"error,omitempty"`
 }
 
 // Pin sends every new session to the best of Accounts, and with Move, every

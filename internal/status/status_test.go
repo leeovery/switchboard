@@ -1339,6 +1339,72 @@ func TestDocumentJSON(t *testing.T) {
 }`,
 		},
 		{
+			name: "the router's, exporting since its last export failed",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Export: status.Export{
+					Dir:     "/Volumes/Backup/Switchboard",
+					At:      generated.Add(-2 * time.Hour),
+					Error:   "/Volumes/Backup/Switchboard isn't there",
+					Running: generated.Add(-time.Minute),
+				},
+				Accounts: []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 0,
+    "failures": 0
+  },
+  "export": {
+    "dir": "/Volumes/Backup/Switchboard",
+    "at": "2026-09-28T11:12:00Z",
+    "running": "2026-09-28T13:11:00Z",
+    "error": "/Volumes/Backup/Switchboard isn't there"
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true
+    }
+  ]
+}`,
+		},
+		{
+			name: "the router's, exporting into a folder it hasn't yet exported into",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Export:      status.Export{Dir: "/Users/test/Dropbox/Switchboard"},
+				Accounts:    []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 0,
+    "failures": 0
+  },
+  "export": {
+    "dir": "/Users/test/Dropbox/Switchboard"
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true
+    }
+  ]
+}`,
+		},
+		{
 			name: "the router's, with what has happened lately",
 			doc: status.Document{
 				GeneratedAt: generated,

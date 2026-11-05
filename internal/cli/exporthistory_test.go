@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/export"
@@ -104,6 +105,29 @@ func TestExportIntoAFileFails(t *testing.T) {
 
 	if got, want := run(t, deps, "export", dir), (result{stderr: "Error: can't export into " + dir + ": it's a file, not a folder\n", code: 1}); got != want {
 		t.Errorf("switchboard export into a file = %+v, want %+v", got, want)
+	}
+}
+
+func TestExportLogsAFileAWriteCutShortLeftThatItCouldntRemove(t *testing.T) {
+	deps := testDeps(nil, t.TempDir())
+	writeStateFile(t, ledger.Dir(stateDir(t, deps)), "day-2026-10-02.json", []byte("{}\n"))
+	dir := t.TempDir()
+	history := readings.Dir(macsFolder(t, deps, dir))
+	writeStateFile(t, history, ".readings-2026-10-08.jsonl.gz.789", []byte("staged\n"))
+	if err := os.Chmod(history, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(history, 0o700) })
+	// The export runs two hours after the file was left, by its clock.
+	left := time.Now()
+	deps.Now = func() time.Time { return left.Add(2 * time.Hour) }
+
+	if got := run(t, deps, "export", dir); got.code != 0 {
+		t.Fatalf("switchboard export = %+v, want it exported", got)
+	}
+	path := filepath.Join(history, ".readings-2026-10-08.jsonl.gz.789")
+	if log := readLog(t, deps, "cli.log"); !hasLine(log, "level=WARN", `msg="can't remove a file an export cut short left"`, "path="+path, "permission denied") {
+		t.Errorf("cli.log reads\n%s\nwant the file that couldn't be removed warned of", log)
 	}
 }
 

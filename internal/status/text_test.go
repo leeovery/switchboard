@@ -1128,8 +1128,23 @@ func TestRestart(t *testing.T) {
 				"switchboard service restart restarts it now, cutting off requests still in flight after 30 seconds",
 		},
 		{
+			name:    "the service's router, waiting for an export to end, which service restart can't get past",
+			restart: status.Restart{Reason: "config changed", Since: since, InFlight: 1, Exporting: "/Volumes/Backup/Switchboard"},
+			want:    "restart due since Mon 13:02 (config changed), once the export into /Volumes/Backup/Switchboard ends: an unanswered macOS prompt can hold it",
+		},
+		{
+			name:    "an export's folder from elsewhere, cleaned",
+			restart: status.Restart{Reason: "config changed", Since: since, Exporting: "/Volumes/Backup\x1b[2J"},
+			want:    "restart due since Mon 13:02 (config changed), once the export into /Volumes/Backup [2J ends: an unanswered macOS prompt can hold it",
+		},
+		{
 			name:    "a router run by hand",
 			restart: status.Restart{Reason: "time zone changed", Since: since, ByHand: true},
+			want:    "restart due since Mon 13:02 (time zone changed): run switchboard serve again to take it up",
+		},
+		{
+			name:    "a router run by hand, with an export under way, which it waits on no more than requests",
+			restart: status.Restart{Reason: "time zone changed", Since: since, ByHand: true, Exporting: "/Volumes/Backup/Switchboard"},
 			want:    "restart due since Mon 13:02 (time zone changed): run switchboard serve again to take it up",
 		},
 		{
@@ -1141,6 +1156,11 @@ func TestRestart(t *testing.T) {
 			name:    "held, its binary refusing to start, which neither waiting nor service restart gets past",
 			restart: status.Restart{Reason: "upgraded", Since: since, InFlight: 1, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
 			want:    "restart due since Mon 13:02 (upgraded), held: invalid config /test/config.toml: account work: its label is longer than 100 characters",
+		},
+		{
+			name:    "held, with an export under way, which the end of gets it no further",
+			restart: status.Restart{Reason: "upgraded", Since: since, Held: "invalid config", Exporting: "/Volumes/Backup/Switchboard"},
+			want:    "restart due since Mon 13:02 (upgraded), held: invalid config",
 		},
 	}
 	for _, tt := range tests {

@@ -53,6 +53,12 @@ func (w *Writer) Import(ctx context.Context, date, staged string) (dayfile.Impor
 	return w.writer.Import(ctx, date, staged)
 }
 
+// TendNow has the writer compress and prune the history's files at once
+// where that's due, as dayfile.Writer's TendNow does.
+func (w *Writer) TendNow(ctx context.Context) error {
+	return w.writer.TendNow(ctx)
+}
+
 // lines returns taken as the history's lines, each filed under the local day
 // it was read on. A reading that can't be put as a line, as one of a use that
 // isn't a number, goes unwritten, logged once.

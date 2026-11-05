@@ -4,7 +4,7 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 11 -->
+<!-- switchboard skill version: 12 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
@@ -24,8 +24,10 @@ prints the bare account id there too, for a statusline, and JSON only with `--js
   Ultra account hasn't, has been used lately, and whether that has it under pressure, running out
   before it resets; and its sessions. With the accounts come the pool, the room new sessions can go
   to, summed across its accounts; what's coming up, soonest first, as a limit lifting, a window
-  running out or resetting, or a prime; the global pin, the account best used next, and the router's
-  health.
+  running out or resetting, or a prime; the global pin, the account best used next, the router's
+  health, and, where the config's `[export] dir` names a folder, how the router's hourly export of
+  the history into it stands: when one last succeeded, why the last failed, in plain words, and
+  when the one under way began, as one waiting on macOS asking the user to allow it waits.
 - After a limit is reset by hand on claude.ai, run `switchboard status --refresh`, which has the
   router first probe each account that can take no request, however lately it read it, but never
   twice in a minute, so it sees the reset.

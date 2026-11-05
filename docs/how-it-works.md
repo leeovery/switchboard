@@ -282,6 +282,26 @@ line for each version of an event. These are the events it files:
 
 [`events`](commands.md#events) reads them back.
 
+### An export every hour
+
+With [`[export]`](configuration.md#export-keys)'s `dir` set, the router exports the history into
+it as it starts and every hour after, as [`export`](commands.md#export) would, each Mac into a
+folder of its own.
+
+- **Never in routing's way:** each export runs apart from the router, so no request waits on one,
+  even one waiting on macOS, which asks before the router writes into iCloud Drive, Dropbox or
+  `~/Documents`. No export starts while a restart is coming, as the router it becomes exports as
+  it starts.
+- **Never restarted over:** the router restarts in place only with no export running, routing on
+  meanwhile, and `service restart` refuses while one runs. So an export waiting on macOS's prompt
+  holds an upgrade, or `service restart`, until it's answered: answer the prompt, or allow
+  switchboard in System Settings → Privacy & Security. A stop doesn't wait on an export.
+- **A disk not there:** the router makes `dir` only where the folder it goes in is there, so a
+  disk not mounted fails the export rather than having it written onto the Mac's own disk.
+- **How it stands:** the status document's `export` says when the last export succeeded, why the
+  last failed, and when the one under way began. A failure is logged once, until an export
+  succeeds. See [An export that fails](troubleshooting.md#an-export-that-fails).
+
 ## Looking after itself
 
 The router takes up changes to tokens and config, and recovers from sleep, without a command from
@@ -348,9 +368,10 @@ Restarting in place also means launchd isn't asked to start an upgraded binary a
 been seen to refuse that, while it lets the router run the new binary in place, as the first such
 upgrade showed.
 
-With many long sessions, a moment with no request in flight can be hours coming. While a restart is
-due, `switchboard status` and the dashboard say so. To restart now, run `switchboard service
-restart`. See [`serve`](commands.md#serve).
+With many long sessions, a moment with no request in flight, and no export running, can be hours
+coming. While a restart is due, `switchboard status` and the dashboard say so, `status` naming the
+export it waits for where one runs. To restart now, run `switchboard service restart`, which
+refuses while an export runs. See [`serve`](commands.md#serve).
 
 ## The primary
 

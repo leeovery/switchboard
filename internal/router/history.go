@@ -69,6 +69,13 @@ func (h *history) run(ctx context.Context) {
 	h.writer.Run(ctx)
 }
 
+// tendNow has the history's writer compress and prune its files at once
+// where that's due, as readings.Writer's TendNow does. The history must be
+// open.
+func (h *history) tendNow(ctx context.Context) error {
+	return h.writer.TendNow(ctx)
+}
+
 // importDay takes in the day of readings with the given date staged at
 // staged, as readings.Writer's Import does. The history must be open.
 func (h *history) importDay(ctx context.Context, date, staged string) (dayfile.Imported, error) {

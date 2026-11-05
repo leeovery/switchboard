@@ -4,15 +4,19 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/export"
@@ -420,6 +424,67 @@ func TestTheExportedFilesReadBackAsTheStateDirectorysLines(t *testing.T) {
 	}
 }
 
+func TestTwoExportsAtOnceIntoOneFolderLeaveItWhole(t *testing.T) {
+	state := t.TempDir()
+	for _, k := range kinds {
+		writeFile(t, k.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+		writeFile(t, k.plain(state, day2), []byte(linesOf(`{"n":2}`, `{"n":3}`)), appendedAt)
+	}
+	writeFile(t, summary(state, day1), []byte(`{"date":"`+day1+`"}`+"\n"), summarisedAt)
+
+	// Each time, two exports, as the router's and one run by hand, race
+	// into a folder of their own.
+	for range 10 {
+		dir := t.TempDir()
+		errs := make(chan error, 2)
+		var exporting sync.WaitGroup
+		for range 2 {
+			exporting.Go(func() {
+				_, err := exporter(state).Export(dir)
+				errs <- err
+			})
+		}
+		exporting.Wait()
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("Export() beside another: %v", err)
+			}
+		}
+
+		folder := folderOf(t, state, dir)
+		for _, k := range kinds {
+			for _, date := range []string{day1, day2} {
+				if got, want := linesIn(t, k.files(folder), date), linesIn(t, k.files(state), date); !slices.Equal(got, want) {
+					t.Errorf("of %s, %s's copy reads back as %q, want the state directory's %q", date, k.name, got, want)
+				}
+			}
+		}
+		if got, err := os.ReadFile(summary(folder, day1)); err != nil || string(got) != `{"date":"`+day1+`"}`+"\n" {
+			t.Errorf("the summary's copy reads %q (%v), want the state directory's", got, err)
+		}
+		if _, err := export.ReadManifest(folder); err != nil {
+			t.Errorf("ReadManifest() = %v, want export.json whole", err)
+		}
+		wantNothingHidden(t, folder)
+	}
+}
+
+// wantNothingHidden fails t where the folder at root holds a hidden file, as
+// a write cut short leaves beside where it goes.
+func wantNothingHidden(t *testing.T, root string) {
+	t.Helper()
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err == nil && strings.HasPrefix(d.Name(), ".") {
+			t.Errorf("%s is left in the folder", path)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTheMacsFolderIsMadeTheUsersAlone(t *testing.T) {
 	state, dir := t.TempDir(), filepath.Join(t.TempDir(), "backups")
 	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
@@ -529,5 +594,242 @@ func TestExportingIntoAFolderThatCantBeMadeFails(t *testing.T) {
 	_, err := exporter(state).Export(dir)
 	if err == nil || !strings.Contains(err.Error(), "can't export into "+dir) {
 		t.Errorf("Export() into a folder that can't be made: %v, want it to fail, saying so", err)
+	}
+}
+
+func TestAFolderMissingIsMadeWhereTheFolderItGoesInIsThere(t *testing.T) {
+	for _, noParents := range []bool{false, true} {
+		t.Run(fmt.Sprintf("no parents %v", noParents), func(t *testing.T) {
+			state, dir := t.TempDir(), filepath.Join(t.TempDir(), "backups")
+			writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+			e := exporter(state)
+			e.NoParents = noParents
+
+			r, err := e.Export(dir)
+			if err != nil {
+				t.Fatalf("Export(%s) error = %v", dir, err)
+			}
+			wantResult(t, r, state, dir, 1, 0)
+			if info := look(t, dir); !info.IsDir() || info.Mode().Perm() != 0o700 {
+				t.Errorf("%s is %v, want a folder, 0700", dir, info.Mode())
+			}
+		})
+	}
+}
+
+func TestAFolderWhoseFolderIsntThereIsMadeWithItWithoutNoParents(t *testing.T) {
+	state, dir := t.TempDir(), filepath.Join(t.TempDir(), "unmounted", "backups")
+
+	r := exportInto(t, state, dir)
+
+	wantResult(t, r, state, dir, 0, 0)
+}
+
+func TestAFolderWhoseFolderIsntThereFailsWithNoParentsWritingNothing(t *testing.T) {
+	state, parent := t.TempDir(), filepath.Join(t.TempDir(), "unmounted")
+	dir := filepath.Join(parent, "backups")
+	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	e := exporter(state)
+	e.NoParents = true
+
+	_, err := e.Export(dir)
+	if !errors.Is(err, export.ErrNoFolder) || err.Error() != "can't export into "+dir+": it isn't there, nor the folder it goes in" {
+		t.Errorf("Export() into a folder whose folder isn't there: %v, want it to fail, saying the folder isn't there", err)
+	}
+	if _, err := os.Lstat(parent); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("after the export, %s: %v, want it not there", parent, err)
+	}
+	if _, err := os.Lstat(filepath.Join(state, "install-id")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("after the export, the install's id: %v, want none made", err)
+	}
+}
+
+func TestAFolderGoneAsTheMacsFolderIsMadeIsNamedOnceWithNoParents(t *testing.T) {
+	state, root := t.TempDir(), t.TempDir()
+	// A link to a disk not mounted is there to make, and gone to make in.
+	dir := filepath.Join(root, "Backup")
+	if err := os.Symlink(filepath.Join(root, "unmounted"), dir); err != nil {
+		t.Fatal(err)
+	}
+	e := exporter(state)
+	e.NoParents = true
+
+	_, err := e.Export(dir)
+	if want := "can't export into " + dir + ": it isn't there"; !errors.Is(err, export.ErrNoFolder) || err.Error() != want {
+		t.Errorf("Export() into a folder gone as the Mac's folder is made: %v, want %q", err, want)
+	}
+}
+
+// readOnly makes the folder at dir one that can't be written, as /Volumes,
+// which only the system writes, is to the user, until the test ends.
+func readOnly(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+}
+
+func TestAFolderThatCantBeMadeWhereItGoesFailsWithNoParentsSayingItIsntThere(t *testing.T) {
+	state, volumes := t.TempDir(), t.TempDir()
+	dir := filepath.Join(volumes, "Backup")
+	readOnly(t, volumes)
+	e := exporter(state)
+	e.NoParents = true
+
+	_, err := e.Export(dir)
+	want := "can't export into " + dir + ": it isn't there, and can't be made: mkdir " + dir + ": permission denied"
+	if !errors.Is(err, export.ErrNoFolder) || err.Error() != want {
+		t.Errorf("Export() into a folder that can't be made where it goes: %v, want %q", err, want)
+	}
+	if _, err := os.Lstat(filepath.Join(state, "install-id")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("after the export, the install's id: %v, want none made", err)
+	}
+}
+
+func TestAFolderThereInOneThatCantBeWrittenIsExportedIntoWithNoParents(t *testing.T) {
+	state, volumes := t.TempDir(), t.TempDir()
+	dir := filepath.Join(volumes, "Backup")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	readOnly(t, volumes)
+	e := exporter(state)
+	e.NoParents = true
+
+	r, err := e.Export(dir)
+	if err != nil {
+		t.Fatalf("Export() into a disk's mount point, as it were: %v", err)
+	}
+	wantResult(t, r, state, dir, 0, 0)
+}
+
+func TestAMacsFolderGoneMidExportIsMadeAgainOnlyWithoutNoParents(t *testing.T) {
+	tests := []struct {
+		name      string
+		noParents bool
+		wantErr   error
+	}{
+		{name: "made again, with every folder it goes in", noParents: false},
+		{name: "not made again, with no parents", noParents: true, wantErr: export.ErrNoFolder},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state, dir := t.TempDir(), filepath.Join(t.TempDir(), "backups")
+			writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+			e := exporter(state)
+			e.NoParents = tt.noParents
+			// The folder goes as the first day's looked at, as when its disk is
+			// ejected.
+			ejected := sync.OnceFunc(func() {
+				if err := os.RemoveAll(dir); err != nil {
+					t.Error(err)
+				}
+			})
+
+			_, err := export.WithLooked(e, func(string) { ejected() }).Export(dir)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("Export() = %v, want %v", err, tt.wantErr)
+			}
+			// A failure names the folder that went, not the day's file it was
+			// writing.
+			want := "can't export into " + dir + ": export the request ledger of " + day1 + ": " + folderOf(t, state, dir) + ": it isn't there"
+			if err != nil && err.Error() != want {
+				t.Errorf("Export() says %q, want %q", err, want)
+			}
+			if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) != tt.noParents {
+				t.Errorf("after the export, %s: %v; want it made again %v", dir, err, !tt.noParents)
+			}
+		})
+	}
+}
+
+func TestAnExportRemovesWhatWritesCutShortLeftAnHourAgoOrMore(t *testing.T) {
+	files := []struct {
+		name string
+		// path is the file's, in the Mac's folder, last changed ago before
+		// the export.
+		path        string
+		ago         time.Duration
+		wantRemoved bool
+	}{
+		{name: "export.json, staged two hours before", path: ".export.json.123", ago: 2 * time.Hour, wantRemoved: true},
+		{name: "a day's file, staged an hour before", path: "ledger/.requests-2026-10-02.jsonl.gz.456", ago: time.Hour, wantRemoved: true},
+		{name: "a readings file, staged a day before", path: "history/.readings-2026-10-08.jsonl.gz.789", ago: 24 * time.Hour, wantRemoved: true},
+		{name: "a summary, staged a day before", path: "ledger/.day-2026-10-02.json.4321", ago: 24 * time.Hour, wantRemoved: true},
+		{name: "a day's file, staged half an hour before, as another export writes it still", path: "ledger/.requests-2026-10-08.jsonl.gz.111", ago: 30 * time.Minute},
+		{name: "a file of the Finder's", path: ".DS_Store", ago: 24 * time.Hour},
+		{name: "a file iCloud Drive hasn't downloaded", path: "ledger/.requests-2026-10-01.jsonl.gz.icloud", ago: 24 * time.Hour},
+	}
+	for _, f := range files {
+		t.Run(f.name, func(t *testing.T) {
+			state, dir := t.TempDir(), t.TempDir()
+			writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+			path := filepath.Join(folderOf(t, state, dir), f.path)
+			// Last modified long before, as a write staging a file sets it
+			// back to its source's: it last changed as it was written, and the
+			// export runs ago after that, by its clock.
+			writeFile(t, path, []byte("staged\n"), compressedAt)
+			e := exporter(state)
+			written := time.Now()
+			e.Now = func() time.Time { return written.Add(f.ago) }
+
+			if _, err := e.Export(dir); err != nil {
+				t.Fatalf("Export() error = %v", err)
+			}
+
+			_, err := os.Lstat(path)
+			if removed := errors.Is(err, fs.ErrNotExist); removed != f.wantRemoved {
+				t.Errorf("after the export, %v; want it removed %v", err, f.wantRemoved)
+			}
+		})
+	}
+}
+
+func TestAFileAnotherExportStagedIsLeftForItToRenameIntoPlace(t *testing.T) {
+	state, dir := t.TempDir(), t.TempDir()
+	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	path := filepath.Join(folderOf(t, state, dir), "ledger", "requests-2026-10-01.jsonl.gz")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	// Staged by another export just now, last modified as its source was, a
+	// month before, for it to rename into place.
+	staged, err := atomicfile.StageModified(path, 0o600, now.AddDate(0, 0, -30), func(w io.Writer) error {
+		_, err := w.Write([]byte("staged\n"))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := exporter(state)
+	e.Now = func() time.Time { return now }
+
+	if _, err := e.Export(dir); err != nil {
+		t.Fatalf("Export() error = %v", err)
+	}
+
+	if err := os.Rename(staged, path); err != nil {
+		t.Errorf("the other export's rename: %v, want its file left for it", err)
+	}
+}
+
+func TestALeftoverThatCantBeRemovedIsNamedAndFailsNoExport(t *testing.T) {
+	state, dir := t.TempDir(), t.TempDir()
+	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	path := filepath.Join(readings.Dir(folderOf(t, state, dir)), ".readings-2026-10-08.jsonl.gz.789")
+	writeFile(t, path, []byte("staged\n"), compressedAt)
+	readOnly(t, filepath.Dir(path))
+	e := exporter(state)
+	written := time.Now()
+	e.Now = func() time.Time { return written.Add(2 * time.Hour) }
+
+	r, err := e.Export(dir)
+	if err != nil {
+		t.Fatalf("Export() error = %v", err)
+	}
+	if len(r.Unremoved) != 1 || r.Unremoved[0].Path != path || !errors.Is(r.Unremoved[0].Err, fs.ErrPermission) {
+		t.Errorf("Export() left %+v unremoved, want %s alone, for want of permission", r.Unremoved, path)
 	}
 }

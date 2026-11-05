@@ -531,7 +531,8 @@ func (w *world) checkUnchanged(t *testing.T, before map[string]string) {
 // the next unanswered health checks go unanswered all the same, as while a
 // router starts. Asked to restart, the router restarts in place, keeping its
 // pid, unless old is set, when it can't be asked, as one from before routers
-// restarted when asked can't.
+// restarted when asked can't, or exporting is, when it refuses, its export
+// under way.
 type fakeLaunchd struct {
 	// home is the user's, and stateDir the state directory of the router
 	// the plist launchd loaded runs, as its XDG_STATE_HOME and its HOME find
@@ -554,6 +555,13 @@ type fakeLaunchd struct {
 	pidless, stateUnread, printFails bool
 	bootoutSays                      string
 	old                              bool
+	// exporting is the folder of the export the running router has under
+	// way, refusing to restart meanwhile: "" for none.
+	exporting string
+	// late has launchd start a router as the service is printed once a
+	// health check has gone unanswered, missed noting one has, as one
+	// launchd starts while setup looks.
+	late, missed bool
 	// version is the version the routers answer with, and unhealthy why
 	// the router launchd runs answers unhealthy: "" for healthy. One run by
 	// hand answers healthy.
@@ -584,6 +592,10 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 		if err := f.before(args); err != nil {
 			return nil, err
 		}
+	}
+	if args[0] == "print" && f.late && f.missed {
+		f.late = false
+		f.start()
 	}
 	switch {
 	case args[0] == "bootstrap" && f.loaded:
@@ -735,6 +747,7 @@ func (f *fakeLaunchd) Health(ctx context.Context) (router.Health, error) {
 	unanswered := f.unanswered > 0
 	f.unanswered = max(f.unanswered-1, 0)
 	if f.pid == 0 || unanswered {
+		f.missed = true
 		return router.Health{}, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning)
 	}
 	return f.router(), nil
@@ -753,6 +766,9 @@ func (f *fakeLaunchd) router() router.Health {
 func (f *fakeLaunchd) Restart(context.Context) (router.Restart, error) {
 	if f.old {
 		return router.Restart{}, fmt.Errorf("%w: the router answered POST /restart with 404 Not Found", router.ErrNoRestart)
+	}
+	if f.exporting != "" {
+		return router.Restart{}, router.ExportUnderWay{Dir: f.exporting}
 	}
 	took := f.router()
 	f.restarts++

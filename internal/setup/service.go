@@ -157,12 +157,22 @@ func (r *run) service(ctx context.Context) error {
 		return r.restart(ctx, svc, opts)
 	}
 	r.health = st.Router
-	said := RouterUp(*st.Router)
+	r.tell(r.asItStands(*st.Router, shared, ""))
+	return nil
+}
+
+// asItStands is the Said of the service's router up, answering as h says, as
+// it stood, not restarted, for unrestarted where that says why: where it
+// finds what setup changed, as shared says, it takes that up on its own.
+func (r *run) asItStands(h router.Health, shared bool, unrestarted string) Said {
+	said := RouterUp(h)
+	if unrestarted != "" {
+		said.Detail += " · " + unrestarted
+	}
 	if r.changed && shared {
 		said.Detail += " · takes up setup's changes on its own"
 	}
-	r.tell(said)
-	return nil
+	return said
 }
 
 // status is how svc stands, as Status says; but where launchd runs a router
@@ -548,7 +558,7 @@ func (r *run) install(ctx context.Context, svc *service.Service, opts service.In
 	for _, warning := range installed.Warnings {
 		r.tell(Said{Mark: Warning, Label: "Warning", Detail: warning})
 	}
-	return r.up(ctx, svc, opts, installed.Router, placesAfter)
+	return r.up(ctx, svc, opts, installed.Router, placesAfter, "")
 }
 
 // swapIn installs svc's LaunchAgent as opts says, giving it setup's accounts
@@ -575,48 +585,59 @@ func (r *run) swapIn(ctx context.Context, svc *service.Service, opts *service.In
 // didn't answer, and says how the one launchd starts answers, and where it
 // finds what setup does elsewhere, as placesOfStarted says. Should the
 // router answer by then after all, as one starting might, it's restarted,
-// saying first that it's finishing its requests in flight.
+// saying first that it's finishing its requests in flight; but one that
+// refuses as an export is under way is up and answering, as the restart was
+// to have it, and is said to be, as asItStands says.
 func (r *run) restart(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
 	h, err := svc.Restart(ctx, func(how service.Restarting) {
 		finishing := fmt.Sprintf("finishing its requests in flight, then %s", how)
 		r.tell(Said{Mark: Warning, Label: restartingLabel, Detail: finishing})
 	})
+	if under, ok := errors.AsType[router.ExportUnderWay](err); ok {
+		return r.up(ctx, svc, opts, svc.Await(ctx, launch.AskTimeout), true, "not restarted, as an export into "+r.fromHome(under.Dir)+" is under way")
+	}
 	if err != nil {
 		return err
 	}
 	r.tell(Said{Mark: Warning, Label: restartedLabel, Detail: "the router didn't answer"})
-	return r.up(ctx, svc, opts, h, true)
+	return r.up(ctx, svc, opts, h, true, "")
 }
 
 // placesOfStarted says where the router launchd started, svc's, installed
 // with opts, finds its state, its config or Claude Code's config elsewhere
 // than setup, as apart does, seen where it answers: saying so first where
 // that's where this shell keeps its state, not where the plist does.
-func (r *run) placesOfStarted(ctx context.Context, svc *service.Service, opts service.InstallOptions) error {
+func (r *run) placesOfStarted(ctx context.Context, svc *service.Service, opts service.InstallOptions) (shared bool, err error) {
 	running, elsewhere := svc.Found(ctx)
 	if elsewhere {
 		const started = "launchd started the router where this shell keeps its state, not where the service's plist does: " + installAdvice + ", lines them up"
 		r.tell(Said{Mark: Warning, Label: "Elsewhere", Detail: started})
 	}
-	_, err := r.apart(running, opts)
-	return err
+	return r.apart(running, opts)
 }
 
 // up says how the router svc's launchd started, installed with opts,
 // answered, failing, saying where to find out why, when it didn't; and, with
 // placesAfter set, once it answers, where it finds what setup does
-// elsewhere, as placesOfStarted says.
-func (r *run) up(ctx context.Context, svc *service.Service, opts service.InstallOptions, h *router.Health, placesAfter bool) error {
+// elsewhere, as placesOfStarted says. Where unrestarted says why it wasn't
+// restarted after all, it's said as it stands, as asItStands says.
+func (r *run) up(ctx context.Context, svc *service.Service, opts service.InstallOptions, h *router.Health, placesAfter bool, unrestarted string) error {
 	if err := svc.Answered(h); err != nil {
 		return err
 	}
+	var shared bool
 	if placesAfter {
-		if err := r.placesOfStarted(ctx, svc, opts); err != nil {
+		var err error
+		if shared, err = r.placesOfStarted(ctx, svc, opts); err != nil {
 			return err
 		}
 	}
 	r.health = h
-	r.tell(RouterUp(*h))
+	said := RouterUp(*h)
+	if unrestarted != "" {
+		said = r.asItStands(*h, shared, unrestarted)
+	}
+	r.tell(said)
 	return nil
 }
 

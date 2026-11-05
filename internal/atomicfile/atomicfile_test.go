@@ -328,6 +328,25 @@ func TestLeftovers(t *testing.T) {
 	}
 }
 
+func TestLeftoverOfNamesTheFileOneWasStagedBeside(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "requests-2026-10-02.jsonl.gz")
+	staged, err := atomicfile.StageModified(path, 0o600, time.Now(), func(io.Writer) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := atomicfile.LeftoverOf(filepath.Base(staged)); !ok || got != filepath.Base(path) {
+		t.Errorf("LeftoverOf(%q) = %q, %v; want %q", filepath.Base(staged), got, ok, filepath.Base(path))
+	}
+	for _, name := range []string{
+		"export.json", ".DS_Store", ".export.json.icloud", ".export.json.", ".export.json.12a", ".file-123", "..123", ".123",
+	} {
+		if got, ok := atomicfile.LeftoverOf(name); ok {
+			t.Errorf("LeftoverOf(%q) = %q, true; want it taken for no file staged", name, got)
+		}
+	}
+}
+
 // write writes a file at path, making its directory.
 func write(t *testing.T, path string) {
 	t.Helper()

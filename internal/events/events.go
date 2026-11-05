@@ -144,6 +144,12 @@ func (w *Writer) Import(ctx context.Context, date, staged string) (dayfile.Impor
 	return w.writer.Import(ctx, date, staged)
 }
 
+// TendNow has the writer compress and prune the files at once where that's
+// due, as dayfile.Writer's TendNow does.
+func (w *Writer) TendNow(ctx context.Context) error {
+	return w.writer.TendNow(ctx)
+}
+
 // lines returns line as the files' lines, filed under the local day it's
 // written on: none, should it not be put as JSON, which is logged once.
 func (w *Writer) lines(line Line) dayfile.Lines {

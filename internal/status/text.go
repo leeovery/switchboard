@@ -282,9 +282,13 @@ func (d Document) Names(ids []string) string {
 // restarted, as in "restart due since Mon 14:02 (config changed), once no
 // request is in flight (3 now): switchboard service restart restarts it now,
 // cutting off requests still in flight after 30 seconds"; the router run by
-// hand, once it's run again; or held, its binary refusing to start, why it
-// refuses, and nothing of how it's to come, as in "restart due since Mon
-// 14:02 (upgraded), held: invalid config".
+// hand, once it's run again; with an export of the history under way, once
+// it ends, and nothing of service restart, which is refused meanwhile, as in
+// "restart due since Mon 14:02 (config changed), once the export into
+// /Volumes/Backup/Switchboard ends: an unanswered macOS prompt can hold it";
+// or held, its binary refusing to start, why it refuses, and nothing of how
+// it's to come, as in "restart due since Mon 14:02 (upgraded), held: invalid
+// config".
 func (r Restart) Text(now time.Time) string {
 	due := "restart due since " + prose.Clock(now, r.Since) + " (" + prose.Clean(r.Reason) + ")"
 	switch {
@@ -292,6 +296,8 @@ func (r Restart) Text(now time.Time) string {
 		return due + ", held: " + prose.Clean(r.Held)
 	case r.ByHand:
 		return due + ": run switchboard serve again to take it up"
+	case r.Exporting != "":
+		return due + ", once the export into " + prose.Clean(r.Exporting) + " ends: an unanswered macOS prompt can hold it"
 	}
 	return fmt.Sprintf("%s, once no request is in flight (%d now): switchboard service restart restarts it now, "+
 		"cutting off requests still in flight after 30 seconds", due, r.InFlight)
