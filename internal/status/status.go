@@ -278,6 +278,9 @@ type Export struct {
 	Dir string `json:"dir"`
 	// At is when an export into it last succeeded: zero before one has.
 	At time.Time `json:"at,omitzero"`
+	// Running is when the export into it under way began, as one waiting on
+	// macOS asking the user to allow it waits: zero while none is.
+	Running time.Time `json:"running,omitzero"`
 	// Error is why the last export failed, in plain words: "" once one
 	// succeeds.
 	Error string `json:"error,omitempty"`

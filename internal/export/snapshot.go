@@ -38,7 +38,7 @@ func (d dayLines) snapshot(date string, stat dayfile.DayStat) (outcome, error) {
 		return asItWas, nil
 	}
 	var read, written error
-	err := writeFile(dst, stat.PlainModified, func(w io.Writer) error {
+	err := writeFile(dst, stat.PlainModified, d.mkdir, func(w io.Writer) error {
 		if d.wrap != nil {
 			w = d.wrap(w)
 		}

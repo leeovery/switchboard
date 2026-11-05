@@ -195,6 +195,19 @@ func (w *Writer[T]) RoundNow(ctx context.Context) error {
 	return w.Do(ctx, w.round)
 }
 
+// TendNow makes the Writer's round at once where the files are due their
+// prune, as on its first round of a day, compressing and pruning them, on
+// Run's goroutine, and returns as Do does. Where they've been pruned on the
+// day already, it does nothing, so its Round keeps what it keeps no more
+// often than its own rounds do, nor warns of more.
+func (w *Writer[T]) TendNow(ctx context.Context) error {
+	return w.Do(ctx, func() {
+		if !w.prunedOn(w.now()) {
+			w.round()
+		}
+	})
+}
+
 // round has the Writer's Round, where it has one, keep what it keeps of the
 // files' days, then prunes the files on a day they haven't been pruned on,
 // noting the day it did, after its Pruning, where it has one, sparing the

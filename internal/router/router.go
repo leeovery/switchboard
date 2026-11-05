@@ -368,7 +368,7 @@ func New(cfg Config) (*Router, error) {
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}
-	r.exports = newExports(cfg, r.roundsNow)
+	r.exports = newExports(cfg, r.tendHistory, r.restartComing)
 	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, emit)
 	return r, nil
 }
@@ -378,18 +378,24 @@ func noHome() (string, error) {
 	return "", errors.New("the router was given no home directory")
 }
 
-// roundsNow has the history's writers make their rounds at once, the readings
-// history's, the router's events' and the request ledger's, each compressing
-// and pruning its files where that's due, the ledger summarising the days
-// that have ended too, and returns once they have, failing once ctx has
-// ended or a writer has stopped. The history must be open.
-func (r *Router) roundsNow(ctx context.Context) error {
-	for _, round := range []func(context.Context) error{r.history.roundNow, r.eventFiles.RoundNow, r.ledger.roundNow} {
-		if err := round(ctx); err != nil {
+// tendHistory has the history's writers, the readings history's, the
+// router's events' and the request ledger's, each compress and prune its
+// files at once where that's due, as on its first round of a day, and
+// returns once they have, failing once ctx has ended or a writer has
+// stopped. The history must be open.
+func (r *Router) tendHistory(ctx context.Context) error {
+	for _, tend := range []func(context.Context) error{r.history.tendNow, r.eventFiles.TendNow, r.ledger.tendNow} {
+		if err := tend(ctx); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// restartComing reports whether the router is to restart itself, as
+// upkeep's restartComing says.
+func (r *Router) restartComing() bool {
+	return r.upkeep.restartComing()
 }
 
 // wallClock reads now without its monotonic reading, which stops while a Mac

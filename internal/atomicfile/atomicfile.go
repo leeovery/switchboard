@@ -174,6 +174,22 @@ func Leftovers(path string) ([]string, error) {
 	return found, nil
 }
 
+// LeftoverOf returns the name of the file that one with the given name was
+// written beside, as Write and its kin write beside it, where it's named as
+// such a file is: hidden, that file's name, a dot, then the digits that set
+// it apart. It reports false for any other name, as one a sync service keeps
+// beside a file, such as iCloud Drive's .<name>.icloud for one it hasn't
+// downloaded, which is never one of switchboard's. A file so named is one
+// being written, or one a write cut short left.
+func LeftoverOf(name string) (string, bool) {
+	rest, hidden := strings.CutPrefix(name, ".")
+	i := strings.LastIndexByte(rest, '.')
+	if !hidden || i <= 0 || i == len(rest)-1 || strings.Trim(rest[i+1:], "0123456789") != "" {
+		return "", false
+	}
+	return rest[:i], true
+}
+
 // besidePrefix is the name of a file written beside path, before its random
 // part: hidden, path's own name, then a dot.
 func besidePrefix(path string) string {

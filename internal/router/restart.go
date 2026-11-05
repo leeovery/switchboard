@@ -275,6 +275,21 @@ func (r *restarts) note(why string) (fell bool) {
 	return false
 }
 
+// coming reports whether the router is to restart itself: restarting
+// already, or with a restart due that it takes up of itself, being
+// supervised, and that its binary doesn't hold. It's safe for concurrent
+// use.
+func (r *restarts) coming() bool {
+	select {
+	case <-r.restarted:
+		return true
+	default:
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.pending.Due() && !r.pending.ByHand && r.pending.Held == ""
+}
+
 // report is the restart due as what the router was started from last looked,
 // with the requests in flight now, or zero while none is.
 func (r *restarts) report() status.Restart {

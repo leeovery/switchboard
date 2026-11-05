@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -764,6 +765,29 @@ func TestRoundNowMakesTheWritersRoundAtOnce(t *testing.T) {
 		}
 		if want := []time.Time{start, start}; !slices.EqualFunc(rounds, want, time.Time.Equal) {
 			t.Errorf("rounds were made at %v, want %v: as the writer started, and again at once", rounds, want)
+		}
+	})
+}
+
+func TestTendNowMakesTheWritersRoundOnlyWhereItsFilesAreDueTheirPrune(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var now atomic.Pointer[time.Time]
+		now.Store(&start)
+		var rounds []time.Time
+		w := NewWriter(readingsHistory(t.TempDir()), linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: func() time.Time { return *now.Load() },
+			Items: "readings", Round: func(at time.Time) { rounds = append(rounds, at) }})
+		stop := running(t, w)
+		defer stop()
+		nextDay := start.AddDate(0, 0, 1)
+
+		for _, at := range []time.Time{start, nextDay, nextDay} {
+			now.Store(&at)
+			if err := w.TendNow(t.Context()); err != nil {
+				t.Fatalf("TendNow() at %v = %v", at, err)
+			}
+		}
+		if want := []time.Time{start, nextDay}; !slices.EqualFunc(rounds, want, time.Time.Equal) {
+			t.Errorf("rounds were made at %v, want %v: as the writer started, and on the next day alone", rounds, want)
 		}
 	})
 }

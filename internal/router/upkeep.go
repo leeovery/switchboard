@@ -104,6 +104,12 @@ func (u *upkeep) tidy() {
 	u.restarts.removeLeftovers()
 }
 
+// restartComing reports whether the router is to restart itself, as
+// restarts' coming says.
+func (u *upkeep) restartComing() bool {
+	return u.restarts.coming()
+}
+
 // restartDue is the restart the router has due, zero while none is.
 func (u *upkeep) restartDue() status.Restart {
 	return u.restarts.report()

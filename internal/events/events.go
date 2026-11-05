@@ -144,11 +144,10 @@ func (w *Writer) Import(ctx context.Context, date, staged string) (dayfile.Impor
 	return w.writer.Import(ctx, date, staged)
 }
 
-// RoundNow makes the writer's round at once, as it makes one every hour,
-// compressing and pruning the files where that's due, and returns as
-// dayfile.Writer's RoundNow does.
-func (w *Writer) RoundNow(ctx context.Context) error {
-	return w.writer.RoundNow(ctx)
+// TendNow has the writer compress and prune the files at once where that's
+// due, as dayfile.Writer's TendNow does.
+func (w *Writer) TendNow(ctx context.Context) error {
+	return w.writer.TendNow(ctx)
 }
 
 // lines returns line as the files' lines, filed under the local day it's

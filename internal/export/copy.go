@@ -42,13 +42,15 @@ func (u unreadable) Unwrap() error {
 }
 
 // dayLines are the files a day of one kind of line in the state directory,
-// src, and where the Mac's folder holds them, dst. looked, where it's set, is
-// called with each day's date once its files are looked at, before they're
-// read, as another process may prune them between the two, as tests do there;
-// and wrap, where it's set, is given what a snapshot is written to, and
-// returns what to write it to, as tests of writes that fail have it.
+// src, and where the Mac's folder holds them, dst, its folder made by mkdir.
+// looked, where it's set, is called with each day's date once its files are
+// looked at, before they're read, as another process may prune them between
+// the two, as tests do there; and wrap, where it's set, is given what a
+// snapshot is written to, and returns what to write it to, as tests of writes
+// that fail have it.
 type dayLines struct {
 	src, dst *dayfile.Files
+	mkdir    func(dir string) error
 	looked   func(date string)
 	wrap     func(io.Writer) io.Writer
 }
@@ -69,17 +71,17 @@ func (d dayLines) export(date string) (outcome, error) {
 		d.looked(date)
 	}
 	if stat.PlainModified.IsZero() {
-		return copyFile(d.src.CompressedPath(date), d.dst.CompressedPath(date))
+		return copyFile(d.src.CompressedPath(date), d.dst.CompressedPath(date), d.mkdir)
 	}
 	return d.snapshot(date, stat)
 }
 
 // copyFile copies the file at src to dst, byte for byte, with its
-// modification time: not where dst is as long, and its time is src's as its
-// file system keeps it, as keptAs says; nor where src has gone, as a day
-// pruned since it was listed has. Where src can't be read, it fails with an
-// unreadable.
-func copyFile(src, dst string) (outcome, error) {
+// modification time, its folder made by mkdir: not where dst is as long, and
+// its time is src's as its file system keeps it, as keptAs says; nor where
+// src has gone, as a day pruned since it was listed has. Where src can't be
+// read, it fails with an unreadable.
+func copyFile(src, dst string, mkdir func(dir string) error) (outcome, error) {
 	file, err := os.Open(src)
 	if errors.Is(err, fs.ErrNotExist) {
 		return gone, nil
@@ -95,7 +97,7 @@ func copyFile(src, dst string) (outcome, error) {
 	if was, err := os.Stat(dst); err == nil && was.Size() == info.Size() && keptAs(info.ModTime(), was.ModTime()) {
 		return asItWas, nil
 	}
-	err = writeFile(dst, info.ModTime(), func(w io.Writer) error {
+	err = writeFile(dst, info.ModTime(), mkdir, func(w io.Writer) error {
 		_, err := io.Copy(w, readFailing{file})
 		return err
 	})
@@ -139,9 +141,9 @@ func (f readFailing) Read(p []byte) (int, error) {
 
 // writeFile writes what write writes to a file at path, the user's alone,
 // last modified at modified, beside where it goes and renamed into place,
-// making its directory, the user's alone, where it isn't there.
-func writeFile(path string, modified time.Time, write func(w io.Writer) error) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+// making its directory with mkdir first.
+func writeFile(path string, modified time.Time, mkdir func(dir string) error, write func(w io.Writer) error) error {
+	if err := mkdir(filepath.Dir(path)); err != nil {
 		return err
 	}
 	return atomicfile.WriteModified(path, 0o600, modified, write)

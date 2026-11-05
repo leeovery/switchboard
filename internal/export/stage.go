@@ -91,7 +91,7 @@ func Stage(importDir string, folders []string) error {
 // copies it, with its modification time: the files stagedFiles finds, and
 // nothing else the folder holds.
 func stageFolder(folder, dst string) error {
-	if err := os.MkdirAll(dst, 0o700); err != nil {
+	if err := makeAll(dst); err != nil {
 		return err
 	}
 	paths, err := stagedFiles(folder)
@@ -103,7 +103,7 @@ func stageFolder(folder, dst string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := copyFile(path, filepath.Join(dst, rel)); err != nil {
+		if _, err := copyFile(path, filepath.Join(dst, rel), makeAll); err != nil {
 			return err
 		}
 	}

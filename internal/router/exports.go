@@ -4,8 +4,11 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"io/fs"
+	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -18,18 +21,25 @@ import (
 // its config names.
 const exportEvery = time.Hour
 
+// refusingOps are the operations on a path macOS refuses a program, with
+// EPERM, in a folder it guards that the user hasn't let the program into:
+// opening a file, a new one included, making a folder, and looking at or
+// listing one.
+var refusingOps = []string{"open", "mkdir", "stat", "lstat", "fdopendir", "readdir", "readdirent"}
+
 // exports are the router's exports of the history into the folder the
 // config's [export] dir names, each Mac into a folder of its own in it, as
 // export <dir> writes it: as the router starts, and every exportEvery after,
-// each once the history's writers have made their rounds, so a day a round
-// compresses goes as its final file. An export never holds the router up:
+// each once the history's writers have compressed what's due, so a day
+// compressed goes as its final file. An export never holds the router up:
 // each runs on a goroutine of its own, which nothing waits on, the router
 // stopping included, as a write into a folder macOS guards waits until the
-// user answers its prompt; and a round that comes while one runs starts
-// none. A failure is logged once until an export succeeds. What the router
-// keeps of them, for the status document, is how they stand since it
-// started: the folder, when an export into it last succeeded, and why the
-// last failed, until one succeeds.
+// user answers its prompt; and a round that comes while one into the same
+// folder runs starts none. A failure is logged once until an export
+// succeeds. What the router keeps of them, for the status document, is how
+// they stand since it started: the folder, when an export into it last
+// succeeded, when the one under way began, and why the last failed, until
+// one succeeds.
 type exports struct {
 	every   time.Duration
 	now     func() time.Time
@@ -37,11 +47,12 @@ type exports struct {
 	// exportInto exports the history into dir, as export.Exporter's Export
 	// does.
 	exportInto func(dir string) (export.Result, error)
-	// rounds has the history's writers make their rounds at once, returning
-	// once they have, or failing once ctx has ended or a writer has stopped.
-	rounds func(ctx context.Context) error
-	// running is set while an export runs.
-	running atomic.Bool
+	// tend has the history's writers compress and prune their files where
+	// that's due, returning once they have, or failing once ctx has ended or
+	// a writer has stopped.
+	tend func(ctx context.Context) error
+	// restarting reports whether the router is to restart itself.
+	restarting func() bool
 
 	mu sync.Mutex
 	// configured is the [export] the exports go by, and folder the folder it
@@ -57,18 +68,24 @@ type exports struct {
 	// unread are the days' files the last export that succeeded couldn't
 	// read, by what they are.
 	unread map[string]bool
+	// running are the folders exports run into, each by when the export into
+	// it began, in UTC.
+	running map[string]time.Time
 }
 
 // newExports returns the exports of a router built from cfg, into the folder
-// its Export names, from its state directory, by its clock, once rounds has
-// had the history's writers make their rounds.
-func newExports(cfg Config, rounds func(ctx context.Context) error) *exports {
+// its Export names, from its state directory, by its clock, each once tend
+// has had the history's writers compress what's due, and none while
+// restarting reports the router is to restart.
+func newExports(cfg Config, tend func(ctx context.Context) error, restarting func() bool) *exports {
 	x := &exports{
 		every:      exportEvery,
 		now:        cfg.Now,
 		homeDir:    cfg.HomeDir,
 		exportInto: export.Exporter{StateDir: cfg.StateDir, Now: cfg.Now, Logger: logger, NoParents: true}.Export,
-		rounds:     rounds,
+		tend:       tend,
+		restarting: restarting,
+		running:    make(map[string]time.Time),
 	}
 	x.configure(cfg.Export)
 	return x
@@ -96,11 +113,11 @@ func (x *exports) report() status.Export {
 	if !x.configured.On() {
 		return status.Export{}
 	}
-	return status.Export{Dir: x.folder, At: x.at, Error: x.why}
+	return status.Export{Dir: x.folder, At: x.at, Running: x.running[x.folder], Error: x.why}
 }
 
-// run makes a round at once, then every x.every, until ctx ends, leaving an
-// export still running then to run on, unwaited.
+// run makes a round at once, then every x.every, until ctx ends, leaving the
+// exports still running then to run on, unwaited.
 func (x *exports) run(ctx context.Context) {
 	tick := time.NewTicker(x.every)
 	defer tick.Stop()
@@ -115,52 +132,68 @@ func (x *exports) run(ctx context.Context) {
 }
 
 // round starts an export into the folder configured, on a goroutine of its
-// own, as exportNow makes it: none where no folder is configured, nor while
-// one runs.
+// own, as export makes it, where begin begins one.
 func (x *exports) round(ctx context.Context) {
-	target := x.target()
-	switch {
-	case !target.on:
-		return
-	case !x.running.CompareAndSwap(false, true):
-		logger.Debug("the last export is still running; this round exports nothing", "dir", target.dir)
+	target, began := x.begin()
+	if !began {
 		return
 	}
 	go func() {
-		defer x.running.Store(false)
-		x.exportNow(ctx)
+		defer x.end(target.dir)
+		x.export(ctx, target)
 	}()
 }
 
-// exportTarget is the folder the exports go by: dir, or its dir as given
-// where unfound says why it can't be found; and whether one is configured.
+// exportTarget is the folder an export goes into: dir, or the config's dir
+// as given where unfound says why its folder can't be found.
 type exportTarget struct {
 	dir     string
 	unfound error
-	on      bool
 }
 
-// target is the folder configured.
-func (x *exports) target() exportTarget {
+// begin notes an export into the folder configured beginning, and returns
+// the folder, reporting false, beginning none, where none is configured, or
+// one into it runs still. One into another folder, as the one configured
+// before, held as a write macOS guards is, holds none up.
+func (x *exports) begin() (exportTarget, bool) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
-	return exportTarget{dir: x.folder, unfound: x.unfound, on: x.configured.On()}
+	target := exportTarget{dir: x.folder, unfound: x.unfound}
+	switch _, running := x.running[x.folder]; {
+	case !x.configured.On():
+		return target, false
+	case running:
+		logger.Debug("the last export is still running; this round exports nothing", "dir", x.folder)
+		return target, false
+	}
+	x.running[x.folder] = x.now().UTC()
+	return target, true
 }
 
-// exportNow has the history's writers make their rounds, then exports into
-// the folder configured, noting how it went, as note does: nothing where none
-// is configured, nor once ctx has ended, or a writer has stopped, as the
-// router stops.
-func (x *exports) exportNow(ctx context.Context) {
-	target := x.target()
-	switch {
-	case !target.on:
-		return
-	case target.unfound != nil:
+// end notes the export into dir ended.
+func (x *exports) end(dir string) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	delete(x.running, dir)
+}
+
+// export has the history's writers compress what's due, then exports into
+// target, noting how it went, as note does: nothing once ctx has ended, or a
+// writer has stopped, as the router stops; nor while the router is to
+// restart itself, as when the config naming the folder has just changed, as
+// the router it becomes exports as it starts. Begun now, an export macOS
+// holds on its prompt would still be waiting in the kernel as the router
+// replaces itself, as nothing knows yet whether that cuts the wait short.
+func (x *exports) export(ctx context.Context, target exportTarget) {
+	if target.unfound != nil {
 		x.note(target.dir, export.Result{}, target.unfound)
 		return
 	}
-	if err := x.rounds(ctx); err != nil {
+	if err := x.tend(ctx); err != nil {
+		return
+	}
+	if x.restarting() {
+		logger.Debug("a restart is coming; the router it becomes exports as it starts", "dir", target.dir)
 		return
 	}
 	r, err := x.exportInto(target.dir)
@@ -209,12 +242,26 @@ func (x *exports) noteUnread(unread []export.DayError) {
 }
 
 // plainly is why an export into dir failed, as err says, in plain words:
-// macOS refusing the router the folder, as it refuses a program the user
-// hasn't allowed into a folder it guards, saying where to allow it; else
-// err's own words, which say where the folder isn't there.
+// macOS refusing the router the folder, as refusedByMacOS says, saying where
+// to allow it; else err's own words, which say where the folder isn't there.
 func plainly(dir string, err error) string {
-	if errors.Is(err, syscall.EPERM) {
+	if refusedByMacOS(dir, err) {
 		return "macOS refused access to " + dir + ": allow switchboard in System Settings → Privacy & Security"
 	}
 	return err.Error()
+}
+
+// refusedByMacOS reports whether err is macOS refusing the router the folder
+// dir: an EPERM from one of refusingOps on a path in it. One from anything
+// else, as a rename onto a file the Finder has locked, or setting the time of
+// a file made already, says its own cause.
+func refusedByMacOS(dir string, err error) bool {
+	failed, ok := errors.AsType[*fs.PathError](err)
+	return ok && errors.Is(failed.Err, syscall.EPERM) && slices.Contains(refusingOps, failed.Op) && inFolder(dir, failed.Path)
+}
+
+// inFolder reports whether path is the folder dir, or a path in it.
+func inFolder(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

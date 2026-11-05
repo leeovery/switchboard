@@ -641,3 +641,115 @@ func TestAFolderWhoseFolderIsntThereFailsWithNoParentsWritingNothing(t *testing.
 		t.Errorf("after the export, the install's id: %v, want none made", err)
 	}
 }
+
+// readOnly makes the folder at dir one that can't be written, as /Volumes,
+// which only the system writes, is to the user, until the test ends.
+func readOnly(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+}
+
+func TestAFolderThatCantBeMadeWhereItGoesFailsWithNoParentsSayingItIsntThere(t *testing.T) {
+	state, volumes := t.TempDir(), t.TempDir()
+	dir := filepath.Join(volumes, "Backup")
+	readOnly(t, volumes)
+	e := exporter(state)
+	e.NoParents = true
+
+	_, err := e.Export(dir)
+	want := "can't export into " + dir + ": it isn't there, and can't be made: mkdir " + dir + ": permission denied"
+	if !errors.Is(err, export.ErrNoFolder) || err.Error() != want {
+		t.Errorf("Export() into a folder that can't be made where it goes: %v, want %q", err, want)
+	}
+	if _, err := os.Lstat(filepath.Join(state, "install-id")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("after the export, the install's id: %v, want none made", err)
+	}
+}
+
+func TestAFolderThereInOneThatCantBeWrittenIsExportedIntoWithNoParents(t *testing.T) {
+	state, volumes := t.TempDir(), t.TempDir()
+	dir := filepath.Join(volumes, "Backup")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	readOnly(t, volumes)
+	e := exporter(state)
+	e.NoParents = true
+
+	r, err := e.Export(dir)
+	if err != nil {
+		t.Fatalf("Export() into a disk's mount point, as it were: %v", err)
+	}
+	wantResult(t, r, state, dir, 0, 0)
+}
+
+func TestAMacsFolderGoneMidExportIsMadeAgainOnlyWithoutNoParents(t *testing.T) {
+	tests := []struct {
+		name      string
+		noParents bool
+		wantErr   error
+	}{
+		{name: "made again, with every folder it goes in", noParents: false},
+		{name: "not made again, with no parents", noParents: true, wantErr: export.ErrNoFolder},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state, dir := t.TempDir(), filepath.Join(t.TempDir(), "backups")
+			writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+			e := exporter(state)
+			e.NoParents = tt.noParents
+			// The folder goes as the first day's looked at, as when its disk is
+			// ejected.
+			ejected := sync.OnceFunc(func() {
+				if err := os.RemoveAll(dir); err != nil {
+					t.Error(err)
+				}
+			})
+
+			_, err := export.WithLooked(e, func(string) { ejected() }).Export(dir)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("Export() = %v, want %v", err, tt.wantErr)
+			}
+			if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) != tt.noParents {
+				t.Errorf("after the export, %s: %v; want it made again %v", dir, err, !tt.noParents)
+			}
+		})
+	}
+}
+
+func TestAnExportRemovesWhatWritesCutShortLeftAnHourAgoOrMore(t *testing.T) {
+	state, dir := t.TempDir(), t.TempDir()
+	writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	folder := folderOf(t, state, dir)
+	files := []struct {
+		name string
+		// path is the file's, in the Mac's folder, last modified ago before
+		// the export.
+		path        string
+		ago         time.Duration
+		wantRemoved bool
+	}{
+		{name: "export.json, staged two hours before", path: ".export.json.123", ago: 2 * time.Hour, wantRemoved: true},
+		{name: "a day's file, staged an hour before", path: "ledger/.requests-2026-10-02.jsonl.gz.456", ago: time.Hour, wantRemoved: true},
+		{name: "a readings file, staged a day before", path: "history/.readings-2026-10-08.jsonl.gz.789", ago: 24 * time.Hour, wantRemoved: true},
+		{name: "a summary, staged a day before", path: "ledger/.day-2026-10-02.json.4321", ago: 24 * time.Hour, wantRemoved: true},
+		{name: "a day's file, staged half an hour before, as another export writes it still", path: "ledger/.requests-2026-10-08.jsonl.gz.111", ago: 30 * time.Minute},
+		{name: "a file of the Finder's", path: ".DS_Store", ago: 24 * time.Hour},
+		{name: "a file iCloud Drive hasn't downloaded", path: "ledger/.requests-2026-10-01.jsonl.gz.icloud", ago: 24 * time.Hour},
+	}
+	for _, f := range files {
+		writeFile(t, filepath.Join(folder, f.path), []byte("staged\n"), exportNow.Add(-f.ago))
+	}
+
+	exportInto(t, state, dir)
+
+	for _, f := range files {
+		_, err := os.Lstat(filepath.Join(folder, f.path))
+		if removed := errors.Is(err, fs.ErrNotExist); removed != f.wantRemoved {
+			t.Errorf("%s: after the export, %v; want it removed %v", f.name, err, f.wantRemoved)
+		}
+	}
+}

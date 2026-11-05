@@ -68,18 +68,42 @@ func (e *exportAs) folders() []string {
 }
 
 // testExports are exports into the folder dir names, by start's clock,
-// exporting with exportInto, the history's writers' rounds made at once, and
-// the home directory /Users/test.
+// exporting with exportInto, the history's writers tended at once, the home
+// directory /Users/test, and no restart coming.
 func testExports(dir string, exportInto func(dir string) (export.Result, error)) *exports {
 	x := &exports{
 		every:      time.Hour,
 		now:        at(start),
 		homeDir:    func() (string, error) { return "/Users/test", nil },
 		exportInto: exportInto,
-		rounds:     func(context.Context) error { return nil },
+		tend:       tended,
+		restarting: noRestart,
+		running:    make(map[string]time.Time),
 	}
 	x.configure(config.Export{Dir: dir})
 	return x
+}
+
+// tended has the history's writers tended at once, as none is kept.
+func tended(context.Context) error { return nil }
+
+// noRestart is a router that isn't to restart.
+func noRestart() bool { return false }
+
+// exportNow makes a round as round does, but on the caller's goroutine,
+// returning once its export has ended.
+func (x *exports) exportNow(ctx context.Context) {
+	if target, began := x.begin(); began {
+		defer x.end(target.dir)
+		x.export(ctx, target)
+	}
+}
+
+// idle reports whether no export runs, into any folder.
+func (x *exports) idle() bool {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	return len(x.running) == 0
 }
 
 // timesLogged is how many of the lines log holds hold every one of parts.
@@ -139,42 +163,85 @@ func TestAnExportsFailureIsLoggedOnceUntilOneSucceeds(t *testing.T) {
 }
 
 func TestAnExportsFailureSaysItsCauseInPlainWords(t *testing.T) {
+	const dir = "/Users/test/Documents/Switchboard"
+	folder := filepath.Join(dir, "mac-0123456789abcdef")
+	failed := func(op, path string, err error) error {
+		return fmt.Errorf("can't export into %s: %w", dir, &fs.PathError{Op: op, Path: path, Err: err})
+	}
+	tests := []struct {
+		name string
+		err  error
+		// refused is set where macOS refusing the router the folder is
+		// what's said, else the error's own words.
+		refused bool
+	}{
+		{name: "macOS refusing a file made in the folder", err: failed("open", filepath.Join(folder, ".export.json.123"), syscall.EPERM), refused: true},
+		{name: "macOS refusing a folder made in it", err: failed("mkdir", filepath.Join(folder, "ledger"), syscall.EPERM), refused: true},
+		{name: "macOS refusing a look at the folder", err: failed("stat", dir, syscall.EPERM), refused: true},
+		{name: "macOS refusing the folder's listing", err: failed("readdir", filepath.Join(folder, "ledger"), syscall.EPERM), refused: true},
+		{
+			name: "a rename onto a file the Finder has locked",
+			err: fmt.Errorf("can't export into %s: %w", dir, &os.LinkError{
+				Op: "rename", Old: filepath.Join(folder, ".export.json.123"), New: filepath.Join(folder, "export.json"), Err: syscall.EPERM,
+			}),
+		},
+		{name: "a time set on a file made already", err: failed("chtimes", filepath.Join(folder, ".export.json.123"), syscall.EPERM)},
+		{name: "a file opened outside the folder", err: failed("open", "/Users/test/.local/state/switchboard/install-id", syscall.EPERM)},
+		{name: "a folder named alike beside it", err: failed("open", dir+"-old/export.json", syscall.EPERM)},
+		{name: "a file that can't be written", err: failed("open", filepath.Join(folder, ".export.json.123"), syscall.EACCES)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			x := testExports(dir, func(string) (export.Result, error) { return export.Result{}, tt.err })
+
+			x.exportNow(t.Context())
+
+			want := tt.err.Error()
+			if tt.refused {
+				want = macOSRefused(dir)
+			}
+			if got := x.report().Error; got != want {
+				t.Errorf("report().Error = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestAFolderTheExportCantHaveIsSaidPlainly(t *testing.T) {
 	tests := []struct {
 		name string
 		// folder is the folder to export into, in root, made as the case
 		// has it.
 		folder func(t *testing.T, root string) string
-		// exportInto, where it's set, exports in place of the router's own
-		// exporter.
-		exportInto func(dir string) (export.Result, error)
-		want       func(dir string) string
+		// want is what the export into dir says, its Mac's folder at folder.
+		want func(dir, folder string) string
 	}{
 		{
-			name:   "macOS refusing the router the folder",
-			folder: func(_ *testing.T, root string) string { return filepath.Join(root, "Documents", "Switchboard") },
-			exportInto: func(dir string) (export.Result, error) {
-				return export.Result{}, fmt.Errorf("can't export into %s: %w", dir, &fs.PathError{Op: "open", Path: filepath.Join(dir, "export.json"), Err: syscall.EPERM})
-			},
-			want: macOSRefused,
-		},
-		{
-			name:   "the folder not there, nor the one it goes in, as a disk not mounted",
+			name:   "not there, nor the folder it goes in",
 			folder: func(_ *testing.T, root string) string { return filepath.Join(root, "Volumes", "Backup", "Switchboard") },
-			want: func(dir string) string {
+			want: func(dir, _ string) string {
 				return "can't export into " + dir + ": it isn't there, nor the folder it goes in"
 			},
 		},
 		{
-			name: "anything else, as a folder that can't be written",
+			name: "not there, and not to be made where it goes, as a disk not mounted in /Volumes",
 			folder: func(t *testing.T, root string) string {
-				if err := os.Chmod(root, 0o500); err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() { _ = os.Chmod(root, 0o700) })
-				return filepath.Join(root, "Switchboard")
+				readOnly(t, root)
+				return filepath.Join(root, "Backup")
 			},
-			want: func(dir string) string {
-				return "can't export into " + dir + ": mkdir " + dir + ": permission denied"
+			want: func(dir, _ string) string {
+				return "can't export into " + dir + ": it isn't there, and can't be made: mkdir " + dir + ": permission denied"
+			},
+		},
+		{
+			name: "there, but not to be written",
+			folder: func(t *testing.T, root string) string {
+				readOnly(t, root)
+				return root
+			},
+			want: func(dir, folder string) string {
+				return "can't export into " + dir + ": mkdir " + folder + ": permission denied"
 			},
 		},
 	}
@@ -185,18 +252,29 @@ func TestAnExportsFailureSaysItsCauseInPlainWords(t *testing.T) {
 			dir := tt.folder(t, t.TempDir())
 			cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 			cfg.StateDir, cfg.Export = state, config.Export{Dir: dir}
-			x := newExports(cfg, func(context.Context) error { return nil })
-			if tt.exportInto != nil {
-				x.exportInto = tt.exportInto
-			}
+			x := newExports(cfg, tended, noRestart)
 
 			x.exportNow(t.Context())
 
-			if got, want := x.report(), (status.Export{Dir: dir, Error: tt.want(dir)}); got != want {
+			id, err := export.InstallID(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := x.report(), (status.Export{Dir: dir, Error: tt.want(dir, export.Folder(dir, id))}); got != want {
 				t.Errorf("report() = %+v, want %+v", got, want)
 			}
 		})
 	}
+}
+
+// readOnly makes the folder at dir one that can't be written, as /Volumes,
+// which only the system writes, is to the user, until the test ends.
+func readOnly(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 }
 
 func TestAnExportIntoAFolderNotThereWritesNothing(t *testing.T) {
@@ -205,7 +283,7 @@ func TestAnExportIntoAFolderNotThereWritesNothing(t *testing.T) {
 	parent := filepath.Join(root, "Volumes", "Backup")
 	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 	cfg.StateDir, cfg.Export = state, config.Export{Dir: filepath.Join(parent, "Switchboard")}
-	x := newExports(cfg, func(context.Context) error { return nil })
+	x := newExports(cfg, tended, noRestart)
 
 	x.exportNow(t.Context())
 
@@ -341,13 +419,13 @@ func TestARoundWhileAnExportRunsStartsNone(t *testing.T) {
 	}
 
 	held.release()
-	waitFor(t, "the export ends", func() bool { return !x.running.Load() })
+	waitFor(t, "the export ends", func() bool { return x.idle() })
 	x.round(t.Context())
 	held.await(t)
 	if got := held.asked.Load(); got != 2 {
 		t.Errorf("once the export ended, it's been asked %d times, want 2", got)
 	}
-	waitFor(t, "the export ends", func() bool { return !x.running.Load() })
+	waitFor(t, "the export ends", func() bool { return x.idle() })
 }
 
 func TestTheExportsExportAsTheyStart(t *testing.T) {
@@ -366,7 +444,7 @@ func TestTheExportsExportAsTheyStart(t *testing.T) {
 	cancel()
 	<-ran
 	held.release()
-	waitFor(t, "the export ends", func() bool { return !x.running.Load() })
+	waitFor(t, "the export ends", func() bool { return x.idle() })
 }
 
 func TestTheConfigIsTakenUpFromTheNextRound(t *testing.T) {
@@ -409,21 +487,131 @@ func TestTheConfigIsTakenUpFromTheNextRound(t *testing.T) {
 	}
 }
 
-func TestAnExportOfAFolderNoLongerConfiguredIsntKept(t *testing.T) {
+func TestAnExportIntoAFolderIsntHeldOffByOneIntoTheFolderBefore(t *testing.T) {
 	logstest.Capture(t)
 	const was, other = "/Volumes/Backup/Switchboard", "/Volumes/Other/Switchboard"
-	held := newHeldExport(t)
-	x := testExports(was, held.into)
+	held, fake := newHeldExport(t), &exportAs{}
+	x := testExports(was, func(dir string) (export.Result, error) {
+		if dir == was {
+			return held.into(dir)
+		}
+		return fake.into(dir)
+	})
 	x.round(t.Context())
 	held.await(t)
 
 	x.configure(config.Export{Dir: other})
-	held.release()
-	waitFor(t, "the export ends", func() bool { return !x.running.Load() })
-
-	if got, want := x.report(), (status.Export{Dir: other}); got != want {
-		t.Errorf("report() = %+v, want %+v, nothing kept of the export into %s", got, want, was)
+	x.exportNow(t.Context())
+	if got := fake.folders(); !slices.Equal(got, []string{other}) {
+		t.Errorf("with the export into %s held, the next round exported into %q, want %s", was, got, other)
 	}
+	if got, want := x.report(), (status.Export{Dir: other, At: start}); got != want {
+		t.Errorf("report() = %+v, want %+v", got, want)
+	}
+
+	held.release()
+	waitFor(t, "the export held ends", func() bool { return x.idle() })
+	if got, want := x.report(), (status.Export{Dir: other, At: start}); got != want {
+		t.Errorf("once the export held ends, report() = %+v, want %+v, nothing kept of it", got, want)
+	}
+}
+
+func TestTheReportSaysWhenTheExportUnderWayBegan(t *testing.T) {
+	logstest.Capture(t)
+	const dir = "/Users/test/Documents/Switchboard"
+	clock := &setClock{now: start}
+	held := newHeldExport(t)
+	x := testExports(dir, held.into)
+	x.now = clock.read
+
+	x.round(t.Context())
+	held.await(t)
+	clock.set(start.Add(time.Hour))
+	if got, want := x.report(), (status.Export{Dir: dir, Running: start}); got != want {
+		t.Errorf("with the export held, as on macOS's prompt, report() = %+v, want %+v", got, want)
+	}
+
+	held.release()
+	waitFor(t, "the export ends", func() bool { return x.idle() })
+	if got, want := x.report(), (status.Export{Dir: dir, At: start.Add(time.Hour)}); got != want {
+		t.Errorf("once the export ends, report() = %+v, want %+v", got, want)
+	}
+}
+
+func TestARouterAboutToRestartStartsNoExport(t *testing.T) {
+	tests := []struct {
+		name         string
+		restarting   bool
+		want         status.Export
+		wantExported []string
+	}{
+		{name: "a restart coming", restarting: true, want: status.Export{Dir: "/Volumes/Backup/Switchboard"}},
+		{name: "none coming", want: status.Export{Dir: "/Volumes/Backup/Switchboard", At: start}, wantExported: []string{"/Volumes/Backup/Switchboard"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			fake := &exportAs{}
+			x := testExports("/Volumes/Backup/Switchboard", fake.into)
+			x.restarting = func() bool { return tt.restarting }
+
+			x.exportNow(t.Context())
+
+			if got := fake.folders(); !slices.Equal(got, tt.wantExported) {
+				t.Errorf("exported into %q, want %q", got, tt.wantExported)
+			}
+			if got := x.report(); got != tt.want {
+				t.Errorf("report() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestARestartComesWhereTheRouterTakesItUpItself(t *testing.T) {
+	tests := []struct {
+		name       string
+		supervised bool
+		// change changes what the router was started from, as the case has
+		// it.
+		change func(t *testing.T, s startedFrom, r *restarts)
+		want   bool
+	}{
+		{name: "none due", supervised: true, change: func(*testing.T, startedFrom, *restarts) {}},
+		{name: "one due", supervised: true, change: configChanged, want: true},
+		{name: "one due to a router run by hand", change: configChanged},
+		{
+			name: "one due that its binary holds", supervised: true,
+			change: func(t *testing.T, s startedFrom, r *restarts) {
+				configChanged(t, s, r)
+				r.hold(r.files(), restartForConfig, "the config won't do")
+			},
+		},
+		{
+			name: "one under way", supervised: true,
+			change: func(_ *testing.T, _ startedFrom, r *restarts) { r.begin(restartForConfig, nil) },
+			want:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), tt.supervised, newInFlight(), at(start), unheeded)
+
+			tt.change(t, s, r)
+			if got := r.coming(); got != tt.want {
+				t.Errorf("coming() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// configChanged changes the config file of s into another valid config, and
+// has r look at it.
+func configChanged(t *testing.T, s startedFrom, r *restarts) {
+	t.Helper()
+	writeFile(t, s.kept, twoAccounts)
+	r.look()
 }
 
 // exportedKinds are the kinds of the history's files of lines, each by the
@@ -471,7 +659,7 @@ func runHistory(t *testing.T, r *Router) {
 		cancel()
 		running.Wait()
 	})
-	if err := r.roundsNow(t.Context()); err != nil {
+	if err := r.tendHistory(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -520,20 +708,47 @@ func TestAnExportFollowsTheRoundsCompress(t *testing.T) {
 }
 
 func TestAConfigChangeIsHandedToTheExports(t *testing.T) {
-	logstest.Capture(t)
-	s := newStartedFrom(t)
-	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
-	cfg.ConfigFile = Watch(s.config)
-	r := newTestRouterOf(t, cfg)
-	dir := filepath.Join(t.TempDir(), "Switchboard")
+	tests := []struct {
+		name       string
+		supervised bool
+		// wantExported is whether the next round exports into the folder:
+		// not where the change makes a restart due that the router takes up
+		// itself, as the router it becomes exports as it starts.
+		wantExported bool
+	}{
+		{name: "the service's router", supervised: true},
+		{name: "a router run by hand", wantExported: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			s := newStartedFrom(t)
+			cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+			cfg.ConfigFile, cfg.Supervised = Watch(s.config), tt.supervised
+			r := newTestRouterOf(t, cfg)
+			fake := &exportAs{}
+			r.exports.exportInto, r.exports.tend = fake.into, tended
+			dir := filepath.Join(t.TempDir(), "Switchboard")
 
-	writeFile(t, s.kept, "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"side\"\n\n[export]\ndir = \""+dir+"\"\n")
-	r.upkeep.look()
+			writeFile(t, s.kept, "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"side\"\n\n[export]\ndir = \""+dir+"\"\n")
+			r.upkeep.look()
+			if got, want := r.exports.report(), (status.Export{Dir: dir}); got != want {
+				t.Errorf("once the config file names a folder, report() = %+v, want %+v", got, want)
+			}
+			r.exports.exportNow(t.Context())
 
-	if got, want := r.exports.report(), (status.Export{Dir: dir}); got != want {
-		t.Errorf("once the config file names a folder, report() = %+v, want %+v", got, want)
+			if got := len(fake.folders()) > 0; got != tt.wantExported {
+				t.Errorf("the next round exported into %q, want an export %v", fake.folders(), tt.wantExported)
+			}
+		})
 	}
 }
+
+// stopsWithin is how long a router's stop, or its restart in place, may take
+// with nothing in flight, waiting on no export: a few milliseconds on a
+// machine at rest, so one that waited on an export held for seconds would
+// take more.
+const stopsWithin = time.Second
 
 func TestTheRouterStoppingWaitsOnNoExport(t *testing.T) {
 	logstest.Capture(t)
@@ -543,6 +758,9 @@ func TestTheRouterStoppingWaitsOnNoExport(t *testing.T) {
 	held := newHeldExport(t)
 	r.exports.exportInto = held.into
 	_, stop := runImporting(t, r)
+	// Released before the router's stopped as the test ends, so a stop that
+	// waits on it fails the test rather than hang it.
+	t.Cleanup(held.release)
 	held.await(t)
 
 	stopped := make(chan error, 1)
@@ -552,9 +770,59 @@ func TestTheRouterStoppingWaitsOnNoExport(t *testing.T) {
 		if err != nil {
 			t.Errorf("Run() = %v, want nil", err)
 		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("the router's stop is waiting on the export held")
+	case <-time.After(stopsWithin):
+		t.Fatalf("the router's stop took more than %v, waiting on the export held", stopsWithin)
 	}
 	held.release()
-	waitFor(t, "the export ends", func() bool { return !r.exports.running.Load() })
+	waitFor(t, "the export ends", func() bool { return r.exports.idle() })
+}
+
+func TestTheRouterRestartingInPlaceWaitsOnNoExport(t *testing.T) {
+	logstest.Capture(t)
+	cfg := importingConfig(t)
+	cfg.Export = config.Export{Dir: filepath.Join(t.TempDir(), "Switchboard")}
+	binary := filepath.Join(t.TempDir(), "switchboard")
+	stageFile(t, binary, []byte("switchboard\n"))
+	cfg.Binary, cfg.Supervised = Watch(binary), true
+	cfg.Args, cfg.Environ = []string{binary, "serve"}, []string{"HOME=/Users/test"}
+	execs := make(chan string, 1)
+	cfg.Exec = func(path string, _, _ []string) error {
+		execs <- path
+		return nil
+	}
+	r := newTestRouterOf(t, cfg)
+	held := newHeldExport(t)
+	r.exports.exportInto = held.into
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	finished := make(chan error, 1)
+	go func() { finished <- r.run(ctx) }()
+	client := NewClient(SocketPath(cfg.StateDir))
+	waitFor(t, "the router answers", func() bool {
+		_, err := client.Health(t.Context())
+		return err == nil
+	})
+	held.await(t)
+
+	if _, err := client.Restart(t.Context()); err != nil {
+		t.Fatalf("Restart() = %v", err)
+	}
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Errorf("Run() = %v, want nil", err)
+		}
+	case <-time.After(stopsWithin):
+		t.Fatalf("the router's restart in place took more than %v, waiting on the export held", stopsWithin)
+	}
+	select {
+	case path := <-execs:
+		if path != binary {
+			t.Errorf("the router replaced itself with %s, want %s", path, binary)
+		}
+	default:
+		t.Error("the router stopped without replacing itself, want it handing over and exec'ing its binary")
+	}
+	held.release()
+	waitFor(t, "the export ends", func() bool { return r.exports.idle() })
 }
