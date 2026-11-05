@@ -8283,8 +8283,8 @@ binary can't have its ticket stapled, so macOS looks it up online.
   tag, for mint to be run again once it's put right: nothing is public yet.
 - **Uploaded after it,** in mint's `post_release` (`scripts/release-upload`): the files kept for the
   version uploaded to the release mint made, then the tap told the version and the two archives'
-  sums, as the latest release only, and its update waited on, for 15 minutes at most by the clock.
-  Under mint, a release GitHub doesn't name the latest, asked a few times, fails, with the command
+  sums, as the latest release only, and its update waited on, for 15 minutes at most by the clock,
+  or until `gh` has failed to read it for a minute. Under mint, a release GitHub doesn't name the latest, asked a few times, fails, with the command
   that tells the tap; by hand, an older version's leaves the formula where it is. A pre-release,
   such as `1.2.3-rc.1`, is built and uploaded, but Homebrew isn't told, as mint marks no GitHub
   release a pre-release and GitHub would name it the latest. The files are taken only where the

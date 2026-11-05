@@ -154,10 +154,10 @@ tell_tap() {
 }
 
 # watch_run waits on the tap's run $1, at the URL $2, until it ends, or until
-# release_now reaches $3.
+# release_now reaches $3, reading it once more at the end.
 watch_run() {
 	local state unread=
-	while (($(release_now) < $3)); do
+	while :; do
 		if state=$(gh run view "$1" -R "$tap" --json "status,conclusion" --jq '.status + " " + .conclusion'); then
 			unread=
 			case $state in
@@ -168,8 +168,10 @@ watch_run() {
 			unread=${unread:-$(release_now)}
 			(($(release_now) - unread < unread_wait)) || tap_failed "gh can't read $tap's update of the formula, as it says above, at $2"
 		fi
+		(($(release_now) < $3)) || break
 		sleep "$watch_pause"
 	done
+	[[ -z $unread ]] || tap_failed "gh can't read $tap's update of the formula after 15 minutes, as it says above, at $2"
 	tap_failed "$tap's update of the formula is still going after 15 minutes, at $2, and the formula moves once it ends there"
 }
 
