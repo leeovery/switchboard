@@ -8256,27 +8256,60 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 
 ## Signing
 
-A release's macOS binaries are signed with a Developer ID, and notarised, as GoReleaser builds them
-on Linux (its `notarize` step, through quill), from the certificate and an App Store Connect key
-kept, as base64, in the repository's secrets, under the identifier `switchboard`, the binary's
-name, as quill signs one and GoReleaser gives no way to name another. macOS knows an ad-hoc signed
-binary, as Go's linker signs one, by the hash of its code alone, which every release changes, and a
-signed one by its identifier and its signer, which stay. So what the user allows the router, kept
-against its copy's path and, for some folders, its signature, holds from one release to the next
-(see Its own copy, and Observed), and macOS tells of the router's background activity once, under
-the signer's name, rather than at every upgrade. The step runs only where the certificate's secret
-is set, so a release without it stays ad-hoc signed, as before; the workflow fails first where the
-certificate is set and another of the secrets isn't, above all a notary secret, without which
-GoReleaser would sign and skip notarising, the release passing, and where the certificate or key
-isn't base64, which GoReleaser would fail on only once the binaries are built; the certificate
-needs its password. It waits for Apple's answer on each binary in turn, up to 17 minutes each, as
-the token Apple is sent lives 2 minutes past the wait and Apple refuses one living past 20, leaving
-a minute for the runner's clock. A refusal or no answer fails the release before its binaries are
-uploaded: mint's release is already published, with its notes and no binaries, and the tap isn't
-told, so Homebrew stays on the version before. The workflow run again signs and asks afresh, where
-the cause was the secrets or Apple's; one in the binary or the config needs a fix and a release of
-its own. Homebrew doesn't quarantine a formula's files, so notarising serves a binary downloaded by
-other means. The owner's call, 4 November 2026.
+A release's macOS binaries are built, signed with a Developer ID and notarised on the owner's Mac,
+where the certificate and the notary's login live, in its keychain; nothing of either is in GitHub.
+macOS knows an ad-hoc signed binary, as Go's linker signs one, by the hash of its code alone, which
+every release changes, and a signed one by its identifier and its signer, which stay. So what the
+user allows the router, kept against its copy's path and, for some folders, its signature, holds
+from one release to the next (see Its own copy, and Observed), and macOS tells of the router's
+background activity once, under the signer's name, rather than at every upgrade. Homebrew doesn't
+quarantine a formula's files, so notarising serves a binary downloaded by other means; a bare
+binary can't have its ticket stapled, so macOS looks it up online.
+
+- **Built before the tag,** in mint's `pre_tag`, once the gate has passed (`scripts/release-build`):
+  from a clean checkout of what's to be tagged, where untracked files, which no checkout of the
+  commit holds, stop nothing, in a folder of its own outside the repository, for arm64 and amd64,
+  the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each signed by `codesign` with
+  the login keychain's Developer ID Application certificate, the hardened runtime and a secure
+  timestamp, under the identifier `io.github.leeovery.switchboard`, the LaunchAgent's label, and run
+  to check it reports that version; the two sent together to Apple's notary service by
+  `notarytool`, under the keychain profile `notarytool`, the Mac's one login for notarising, made
+  once with `xcrun notarytool store-credentials notarytool`, and waited on until it answers, for
+  about an hour at most, as mint gives a hook no time limit; then archived and summed under the
+  names the Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
+  `switchboard_<version>_checksums.txt`, and kept, with the commit they were built from, in
+  `~/Library/Caches/switchboard/release/<version>/`, in place of any other version's, as one
+  release is made at a time. A failure anywhere in that, the build, the signing, the certificate
+  or the notary's login gone, or Apple refusing or not answering, stops the release before its
+  tag, for mint to be run again once it's put right: nothing is public yet.
+- **Uploaded after it,** in mint's `post_release` (`scripts/release-upload`): the files kept for the
+  version uploaded to the release mint made, then the tap told the version and the two archives'
+  sums, as the latest release only, and its update waited on, for 15 minutes at most by the clock,
+  or until `gh` has failed to read it for a minute. Under mint, a release GitHub doesn't name the latest, asked a few times, fails, with the command
+  that tells the tap; by hand, an older version's leaves the formula where it is. A pre-release,
+  such as `1.2.3-rc.1`, is built and uploaded, but Homebrew isn't told, as mint marks no GitHub
+  release a pre-release and GitHub would name it the latest. The files are taken only where the
+  commit they were built from lies under the tag with nothing a build reads changed between, as
+  mint's own commits, its changelog and its answers in `.mint.toml`, change nothing; else they're
+  built again from the tag. A failure here leaves the release without its binaries and Homebrew on
+  the version before, as mint only warns; `scripts/release-upload <version>`, run by hand,
+  finishes it, uploading what's kept, which needs no signing or Apple again. Only the latest
+  version built is kept, so finishing an older one, or one after a `0.0.0-check` run, builds it
+  again, which signs and goes to Apple.
+- **Why before the tag:** every failure that's about the binary, or the means of signing it, comes
+  before mint's point of no return, so a release is never published that can't have its binaries,
+  and what's left after it is moving files already right. Waiting on Apple costs nothing: a tag
+  without its binaries reaches no one, as Homebrew follows the tap.
+- **Where it runs:** a release can be cut only on an Apple-silicon Mac with Rosetta, as each
+  binary is run to check its version, and with the certificate and the profile. The first run is
+  at the Mac, as `scripts/release-build 0.0.0-check`, which signs and notarises and releases
+  nothing: macOS asks there to let `codesign` use the certificate's key and `notarytool` its
+  profile, answered "Always Allow". A release run from elsewhere, as over SSH, waits on that
+  dialog, or fails on a locked keychain, before the tag either way.
+- Each run logs to `~/Library/Logs/switchboard/release-<version>.log`, as mint shows nothing of a
+  hook that succeeds and only the stderr of one that fails. mint's dry run runs neither hook. The
+  owner's call, 5 November 2026, in place of signing in GitHub's workflow from secrets (built 4
+  November, never used).
 
 ## The skill
 
@@ -9720,7 +9753,8 @@ Overview keeps its five other sections and By account with ROUTING beside, and a
 that kept GRAPHS reads without it. The focus, which only GRAPHS showed, went with it: `↑` and `↓`
 scroll USAGE where it scrolls, and do nothing where it shows every account (#171).
 
-The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
+The release, through mint, a Homebrew tap and a build on the owner's Mac (see Signing), follows
+milestone 3.
 
 ## Observed
 
@@ -9922,8 +9956,8 @@ What's built but hasn't been seen against the real thing:
 
 - No personal data in the repo or its history, ever: no account emails or labels, tokens, token
   file paths or machine names. Examples use placeholders.
-- Public, under the MIT licence, and released through GoReleaser to a Homebrew tap. Built for its
-  author, and general only where that's free.
+- Public, under the MIT licence, and released through mint to a Homebrew tap, built and signed on
+  its author's Mac. Built for its author, and general only where that's free.
 
 ## Backlog
 
@@ -9939,7 +9973,7 @@ why.
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | A reserve spent as a last resort, when no account has room outside one | not wanted: the owner, 24 October 2026, as a reserve is kept for the Claude apps and is honoured | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
-| Releases signed with a Developer ID, so macOS stops noticing each upgrade | built (see Signing), the owner's call on 4 November 2026; the first upgrade between two signed releases is the check owed | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
+| Releases signed with a Developer ID, so macOS stops noticing each upgrade | built (see Signing), the owner's call on 4 November 2026, moved onto the owner's Mac, before the tag, on 5 November; the first upgrade between two signed releases is the check owed | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after OAuth and setup: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | in the cleanliness release, the owner's choice on 26 October 2026: launchd's log, the files set aside, the waiting moves, the compress and the control socket's gap built; the rest open | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
 | How an account's probes went, forgotten across a restart: a failed probe sent again by the startup probe, and the rounds' backoff started again | built in the cleanliness release, 26 October 2026: `state.json` keeps each account's `probed`, `probe_error` and `misses`, and a restart restores them, a stopped router's probes still counting (see The router's rounds) | [probes-across-a-restart](../ideas/2026-10-23--probes-across-a-restart.md) |

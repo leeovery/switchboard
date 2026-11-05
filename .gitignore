@@ -1,5 +1,4 @@
 /switchboard
-/dist/
 *.test
 *.out
 .claude/settings.local.json
