@@ -8273,9 +8273,10 @@ binary can't have its ticket stapled, so macOS looks it up online.
   the login keychain's Developer ID Application certificate, the hardened runtime and a secure
   timestamp, under the identifier `io.github.leeovery.switchboard`, the LaunchAgent's label, and run
   to check it reports that version; the two sent together to Apple's notary service by
-  `notarytool`, under the keychain profile `switchboard`, and waited on until it answers, for about
-  an hour at most, as mint gives a hook no time limit; then archived and summed under the names the
-  Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
+  `notarytool`, under the keychain profile `notarytool`, the Mac's one login for notarising, made
+  once with `xcrun notarytool store-credentials notarytool`, and waited on until it answers, for
+  about an hour at most, as mint gives a hook no time limit; then archived and summed under the
+  names the Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
   `switchboard_<version>_checksums.txt`, and kept, with the commit they were built from, in
   `~/Library/Caches/switchboard/release/<version>/`, in place of any other version's, as one
   release is made at a time. A failure anywhere in that, the build, the signing, the certificate

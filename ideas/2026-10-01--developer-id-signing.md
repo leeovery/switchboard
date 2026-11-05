@@ -15,8 +15,8 @@ What it takes:
 
 - A Developer ID Application certificate, from the Apple Developer Program, in the login keychain
   of the Mac that cuts releases.
-- notarytool's login for notarisation, saved in that keychain as the profile `switchboard`
-  (`xcrun notarytool store-credentials switchboard`).
+- notarytool's login for notarisation, saved in that keychain as the profile `notarytool`, the
+  Mac's one, whatever it notarises (`xcrun notarytool store-credentials notarytool`).
 - The release built, signed and notarised on that Mac in mint's `pre_tag` (`scripts/release-build`),
   and uploaded in its `post_release` (`scripts/release-upload`).
 

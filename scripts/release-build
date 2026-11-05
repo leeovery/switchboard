@@ -24,7 +24,9 @@ scripts=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 identifier=io.github.leeovery.switchboard
 identity="Developer ID Application"
-profile=switchboard
+# notarytool's login is the Mac's, whatever it notarises, so its profile is
+# named for notarytool, not for switchboard.
+profile=notarytool
 # notarytool waits on Apple this many seconds at a time, this many times at
 # most, so mint, which gives a hook no time limit, waits about an hour.
 notary_wait=900
