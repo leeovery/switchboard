@@ -277,7 +277,7 @@ func (r *restarts) look() {
 		return
 	}
 	r.told = true
-	if dir := r.exports.runningInto(); r.supervised && dir != "" {
+	if dir := r.report().Exporting; dir != "" {
 		logger.Info("restart due; restarting once the export under way ends and no request is in flight", "reason", why, "dir", dir)
 		return
 	}
@@ -324,14 +324,20 @@ func (r *restarts) coming() bool {
 }
 
 // report is the restart due as what the router was started from last looked,
-// with what it waits on now, the requests in flight and the folder of the
-// export under way, configured still or not, or zero while none is.
+// with what it waits on now, or zero while none is: the requests in flight,
+// and, where the router restarts itself and its binary's refusal doesn't
+// hold the restart, the folder of the export under way, configured still or
+// not.
 func (r *restarts) report() status.Restart {
 	r.mu.Lock()
 	pending := r.pending
 	r.mu.Unlock()
-	if pending.Due() {
-		pending.InFlight, pending.Exporting = r.inFlight.requests(), r.exports.runningInto()
+	if !pending.Due() {
+		return pending
+	}
+	pending.InFlight = r.inFlight.requests()
+	if !pending.ByHand && pending.Held == "" {
+		pending.Exporting = r.exports.runningInto()
 	}
 	return pending
 }

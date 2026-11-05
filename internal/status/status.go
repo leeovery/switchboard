@@ -261,7 +261,9 @@ type Restart struct {
 	// document.
 	InFlight int `json:"in_flight"`
 	// Exporting is the folder of the export of the history under way as it
-	// gave the document, which the restart waits for: "" while none is.
+	// gave the document, which the restart waits for: "" while none is, and
+	// where none would hold it, as for a router run by hand, or a restart
+	// held.
 	Exporting string `json:"exporting,omitempty"`
 	// ByHand is set when the router was run by hand, with serve.
 	ByHand bool `json:"by_hand,omitempty"`

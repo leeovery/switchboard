@@ -1152,10 +1152,12 @@ show.
    restarts the router when none answers, and says it's up. One that answers by then after all, as
    one starting might, is asked to restart, and one that refuses as an export of the history is
    under way is up and answering, as the restart was to have it: setup says so on its Router row,
-   `healthy · 127.0.0.1:4747 · v0.2.10 · not restarted, as an export into <dir> is under way`, and
-   goes on (see On a schedule). It never restarts the router for setup's changes to the config or a
-   token: the router takes them up itself (see The router looking after itself), and setup says so,
-   where the router finds setup's config file and token files.
+   `healthy · 127.0.0.1:4747 · v0.2.10 · not restarted, as an export into <dir> is under way`, with
+   `· takes up setup's changes on its own` after it where setup changed the config or a token and
+   the router finds them, as below, and goes on (see On a schedule). It never restarts the router
+   for setup's changes to the config or a token: the router takes them up itself (see The router
+   looking after itself), and setup says so, where the router finds setup's config file and token
+   files.
 
    **Its page** (frame 4), THE SERVICE: `launchd keeps the router running: it starts at login, and
    restarts it if it stops.` The step runs as the page opens, nothing asked, and says what it found

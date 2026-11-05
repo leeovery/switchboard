@@ -1143,6 +1143,11 @@ func TestRestart(t *testing.T) {
 			want:    "restart due since Mon 13:02 (time zone changed): run switchboard serve again to take it up",
 		},
 		{
+			name:    "a router run by hand, with an export under way, which it waits on no more than requests",
+			restart: status.Restart{Reason: "time zone changed", Since: since, ByHand: true, Exporting: "/Volumes/Backup/Switchboard"},
+			want:    "restart due since Mon 13:02 (time zone changed): run switchboard serve again to take it up",
+		},
+		{
 			name:    "a reason from elsewhere, cleaned",
 			restart: status.Restart{Reason: "upgraded\x1b[2J", Since: since, ByHand: true},
 			want:    "restart due since Mon 13:02 (upgraded [2J): run switchboard serve again to take it up",
@@ -1151,6 +1156,11 @@ func TestRestart(t *testing.T) {
 			name:    "held, its binary refusing to start, which neither waiting nor service restart gets past",
 			restart: status.Restart{Reason: "upgraded", Since: since, InFlight: 1, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
 			want:    "restart due since Mon 13:02 (upgraded), held: invalid config /test/config.toml: account work: its label is longer than 100 characters",
+		},
+		{
+			name:    "held, with an export under way, which the end of gets it no further",
+			restart: status.Restart{Reason: "upgraded", Since: since, Held: "invalid config", Exporting: "/Volumes/Backup/Switchboard"},
+			want:    "restart due since Mon 13:02 (upgraded), held: invalid config",
 		},
 	}
 	for _, tt := range tests {

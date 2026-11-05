@@ -887,6 +887,49 @@ func putOff(t *testing.T, r *restarts) {
 	}
 }
 
+func TestARestartReportsTheExportUnderWayOnlyWhereThatHoldsIt(t *testing.T) {
+	const dir = "/Volumes/Backup/Switchboard"
+	tests := []struct {
+		name       string
+		supervised bool
+		// held is whether the binary refuses to start as the restart is
+		// tried, before the export begins, which holds the restart.
+		held bool
+		want string
+	}{
+		{name: "the service's router, waiting for the export", supervised: true, want: dir},
+		{name: "a router run by hand, which waits for nothing"},
+		{name: "held, its binary refusing to start, which the export ending gets no further", supervised: true, held: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), tt.supervised, newInFlight(), at(start), unheeded)
+			exporting := newHeldExport(t)
+			x := testExports(dir, exporting.into)
+			r.exports = x
+			askedOf(r, binaryAnswer{refusal: "invalid config"})
+			relink(t, s.binary, s.version("1.1"))
+			if tt.held {
+				r.look()
+				r.restart(t.Context())
+			}
+			x.round(t.Context())
+			exporting.await(t)
+			r.look()
+
+			got := r.report()
+			if got.Exporting != tt.want || got.ByHand == tt.supervised || (got.Held != "") != tt.held {
+				t.Errorf("report() = %+v, want the restart waiting on the export into %q", got, tt.want)
+			}
+			if logged := log.Has(`msg="restart due; restarting once the export under way ends`); logged != (tt.want != "") {
+				t.Errorf("log reads\n%s\nwant the restart due logged as waiting on the export: %v", log, tt.want != "")
+			}
+		})
+	}
+}
+
 // configChanged changes the config file of s into another valid config, and
 // has r look at it.
 func configChanged(t *testing.T, s startedFrom, r *restarts) {
@@ -1126,6 +1169,11 @@ func TestTheStatusSaysWhichExportARestartWaitsFor(t *testing.T) {
 			}
 			writeFile(t, s.kept, changed)
 			waitFor(t, "the restart falls due", func() bool { return r.upkeep.restartDue().Due() })
+			configured := ""
+			if tt.kept {
+				configured = cfg.Export.Dir
+			}
+			waitFor(t, "the exports take the config up", func() bool { return r.exports.report().Dir == configured })
 
 			doc, err := client.Status(t.Context())
 			if err != nil {

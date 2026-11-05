@@ -62,8 +62,10 @@ func TestServiceSaysEachOutcomeAsTheServicePageShowsIt(t *testing.T) {
 	tests := []struct {
 		name string
 		// lay changes the world, which is done, before the step.
-		lay        func(t *testing.T, w *world)
-		want       []said
+		lay  func(t *testing.T, w *world)
+		want []said
+		// wantRouter is whether the step ends with the service's router
+		// answering, which it fails without.
 		wantRouter bool
 	}{
 		{
@@ -158,7 +160,10 @@ func TestServiceSaysEachOutcomeAsTheServicePageShowsIt(t *testing.T) {
 				tt.lay(t, w)
 			}
 
-			got, _ := w.setup(t).Service(t.Context())
+			got, err := w.setup(t).Service(t.Context())
+			if (err != nil) == tt.wantRouter {
+				t.Errorf("Service() error = %v, want one: %v", err, !tt.wantRouter)
+			}
 			var marked []said
 			for _, s := range w.rootedSaid(got.Said) {
 				marked = append(marked, said{s.Mark, s.Label, s.Detail})
@@ -337,11 +342,17 @@ func dayOf(day config.Day) string {
 func TestSetDayTellsTheServiceOfAChangedDayAlone(t *testing.T) {
 	const takesUp = " · takes up setup's changes on its own"
 	tests := []struct {
-		name, day   string
+		name, day string
+		// exporting lays the service's router not answering as the step
+		// begins, then answering mid-export as it's asked to restart, which
+		// it refuses, so it isn't restarted after all.
+		exporting   bool
 		wantTakesUp bool
 	}{
 		{name: "a day changed", day: "07:00-22:00", wantTakesUp: true},
 		{name: "a day left as it was", day: "08:00-23:00"},
+		{name: "a day changed, the router not restarted for an export", day: "07:00-22:00", exporting: true, wantTakesUp: true},
+		{name: "a day left as it was, the router not restarted for an export", day: "08:00-23:00", exporting: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -352,12 +363,19 @@ func TestSetDayTellsTheServiceOfAChangedDayAlone(t *testing.T) {
 			if _, err := s.SetDay(tt.day); err != nil {
 				t.Fatalf("SetDay(%q) error = %v", tt.day, err)
 			}
+			if tt.exporting {
+				w.launchd.pid, w.launchd.late, w.launchd.exporting = 0, true, "/Volumes/Backup/Switchboard"
+			}
 			got, err := s.Service(t.Context())
 			if err != nil || len(got.Said) != 1 {
 				t.Fatalf("Service() = %+v, %v; want the router alone", got, err)
 			}
-			if takes := strings.HasSuffix(got.Said[0].Detail, takesUp); takes != tt.wantTakesUp {
-				t.Errorf("Service() said %q, want the router taking up setup's changes: %v", got.Said[0].Detail, tt.wantTakesUp)
+			detail := got.Said[0].Detail
+			if unrestarted := strings.Contains(detail, " · not restarted, as an export into /Volumes/Backup/Switchboard is under way"); unrestarted != tt.exporting {
+				t.Errorf("Service() said %q, want the router not restarted for the export: %v", detail, tt.exporting)
+			}
+			if takes := strings.HasSuffix(detail, takesUp); takes != tt.wantTakesUp {
+				t.Errorf("Service() said %q, want the router taking up setup's changes: %v", detail, tt.wantTakesUp)
 			}
 		})
 	}
