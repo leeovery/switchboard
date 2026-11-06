@@ -107,7 +107,6 @@ func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 	tighten(files)
 	a.refreshSkill()
 	a.refreshShellFiles(root)
-	go a.Notifier.Prepare()
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return router.Run(ctx, cfg)

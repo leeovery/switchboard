@@ -380,8 +380,11 @@ and posts through `osascript`, whose notifications are Script Editor's.
 
 macOS asks once whether `Switchboard` may send notifications, when the router first starts on a
 release with the app: after `setup` installs the service, or after `brew upgrade` brings that
-release. Notifications wait for your answer. Turned off, they're turned on again in System
-Settings → Notifications → Switchboard. [`service uninstall`](commands.md#service-uninstall-and-service-status)
+release. The dashboard, posting without the router, asks too, before its first notification.
+Notifications wait for your answer, up to 5 minutes, then go on through the app. The router never
+waits on the question: it asks on the side, routing all the while, and stopping or restarting it
+ends the asking. Turned off, they're turned on again in System Settings → Notifications →
+Switchboard. [`service uninstall`](commands.md#service-uninstall-and-service-status)
 removes the app. See
 [Notifications that don't show](troubleshooting.md#notifications-that-dont-show).
 

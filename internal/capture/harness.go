@@ -316,7 +316,7 @@ func (c *clock) read() time.Time {
 type quiet struct{}
 
 // Notify posts nothing.
-func (quiet) Notify(string) error {
+func (quiet) Notify(context.Context, string) error {
 	return nil
 }
 

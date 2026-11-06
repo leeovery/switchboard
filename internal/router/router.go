@@ -129,8 +129,8 @@ type Config struct {
 	// nothing.
 	Events func(Event)
 	// Notifier posts the desktop notifications Notifications asks for, and
-	// those of the tokens' years, which it has no say in, while Run runs. Nil
-	// posts none.
+	// those of the tokens' years, which it has no say in, while Run runs,
+	// readied as Run starts, until it stops. Nil posts none.
 	Notifier      Notifier
 	Notifications config.Notifications
 	// History says how long the readings history is kept: a zero Keep keeps

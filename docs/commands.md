@@ -795,8 +795,12 @@ refuses to start, `status` gives the refusal instead: put the config right as it
 #### `service uninstall` and `service status`
 
 - **`uninstall`** stops the router, once it has finished its requests in flight, and removes the
-  LaunchAgent and the router's copy of switchboard, then the notifications' app, with the files
-  beside it, unregistered from macOS first.
+  LaunchAgent and the router's copy of switchboard, then the notifications' app: it unregisters
+  `Switchboard.app` from macOS and removes it, with the files beside it, its sum, its lock and any
+  folders an interrupted write left. It waits up to 30 seconds while another switchboard writes
+  the app, and leaves the app be where that takes longer. Where the app can't be unregistered, it
+  removes it all the same. Whatever of this fails, it says so, and the service is uninstalled
+  regardless.
 - **`status`** shows whether the LaunchAgent is installed and loaded, whether the router's copy of
   switchboard it runs is missing, so launchd can't run the router, or not run at all, as the
   LaunchAgent was written before the copy and runs switchboard itself, or as launchd loaded it

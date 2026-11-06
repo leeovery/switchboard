@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/childenv"
 	"github.com/leeovery/switchboard/internal/config"
@@ -28,6 +29,10 @@ const (
 	// reasonSize is how much of the end of what a program writes to its
 	// errors is kept, for its last line to say why it failed.
 	reasonSize = 512
+	// waitDelay is how long a program, once killed or exited, gets for its
+	// errors to be read to their end: something it started can hold them
+	// open past every bound.
+	waitDelay = time.Second
 )
 
 // ErrNotAllowed is what a post through switchboard's app fails with when
@@ -41,13 +46,13 @@ var logger = logs.For("notify")
 type Off struct{}
 
 // Notify does nothing.
-func (Off) Notify(string) error { return nil }
+func (Off) Notify(context.Context, string) error { return nil }
 
 // Prepare does nothing.
-func (Off) Prepare() {}
+func (Off) Prepare(context.Context) {}
 
 // Uninstall does nothing.
-func (Off) Uninstall() error { return nil }
+func (Off) Uninstall(context.Context) error { return nil }
 
 // Desktop posts to macOS's Notification Centre: through switchboard's own
 // app where the build embeds one, and it could be written out, else through
@@ -60,6 +65,9 @@ type Desktop struct {
 	run func(ctx context.Context, env []string, name string, args ...string) error
 	// appPath returns where the app is written out.
 	appPath func() (string, error)
+	// lockWait is how long it waits for another switchboard writing the app
+	// out, holding the lock beside it.
+	lockWait time.Duration
 	// app is the app embedded, nil where there's none.
 	app *app
 }
@@ -71,38 +79,47 @@ type Desktop struct {
 // it.
 func NewDesktop(getenv func(string) string, homeDir func() (string, error)) Desktop {
 	return Desktop{
-		goos:    runtime.GOOS,
-		env:     childenv.Minimal(getenv),
-		run:     runCommand,
-		appPath: func() (string, error) { return config.AppPath(getenv, homeDir) },
-		app:     newApp(embedded),
+		goos:     runtime.GOOS,
+		env:      childenv.Minimal(getenv),
+		run:      runCommand,
+		appPath:  func() (string, error) { return config.AppPath(getenv, homeDir) },
+		lockWait: lockWait,
+		app:      newApp(embedded),
 	}
 }
 
 // Notify posts message under switchboard's name, readying the app first
-// where it hasn't been yet: once a process, as ready says. Through the app,
-// a post macOS doesn't allow fails with ErrNotAllowed.
-func (d Desktop) Notify(message string) error {
+// where it hasn't been yet: once a process, as ready says. Where ctx ends
+// before the app is readied, it posts nothing, returning ctx's error, but
+// once the app's readied, a post takes its own time, whatever ctx says, so
+// the router's last notifications, posted as its context ends, go out.
+// Through the app, a post macOS doesn't allow fails with ErrNotAllowed.
+func (d Desktop) Notify(ctx context.Context, message string) error {
 	if d.goos != "darwin" {
 		return nil
 	}
-	if exe, ok := d.ready(); ok {
-		return d.post(exe, message)
+	exe, err := d.ready(ctx)
+	switch {
+	case err != nil:
+		return fmt.Errorf("post notification: stopped waiting for its app to be readied: %w", err)
+	case exe != "":
+		return d.post(ctx, exe, message)
 	}
-	return d.script(message)
+	return d.script(ctx, message)
 }
 
 // Prepare readies the app, where one is embedded, as the first post would,
-// so the question whether it may post comes as the router starts.
-func (d Desktop) Prepare() {
+// so the question whether it may post comes as the router starts, until ctx
+// ends.
+func (d Desktop) Prepare(ctx context.Context) {
 	if d.goos == "darwin" {
-		d.ready()
+		_, _ = d.ready(ctx)
 	}
 }
 
 // post posts message through the app's executable, exe.
-func (d Desktop) post(exe, message string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func (d Desktop) post(ctx context.Context, exe, message string) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 	err := d.run(ctx, d.env, exe, "--post", message)
 	if notAllowedBy(err) {
@@ -122,8 +139,8 @@ func notAllowedBy(err error) bool {
 }
 
 // script posts message through osascript.
-func (d Desktop) script(message string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func (d Desktop) script(ctx context.Context, message string) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 	if err := d.run(ctx, d.env, "osascript", "-e", displayNotification(message)); err != nil {
 		return fmt.Errorf("post notification: %w", err)
@@ -145,6 +162,7 @@ func quote(s string) string {
 func runCommand(ctx context.Context, env []string, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = env
+	cmd.WaitDelay = waitDelay
 	var stderr tail
 	cmd.Stderr = &stderr
 	return withReason(cmd.Run(), stderr.b)
@@ -164,7 +182,8 @@ func withReason(err error, stderr []byte) error {
 	return err
 }
 
-// tail keeps the last reasonSize bytes written to it.
+// tail keeps the last reasonSize bytes written to it, less what's left of a
+// character cut in two at their start.
 type tail struct {
 	b []byte
 }
@@ -172,7 +191,19 @@ type tail struct {
 func (t *tail) Write(p []byte) (int, error) {
 	t.b = append(t.b, p...)
 	if extra := len(t.b) - reasonSize; extra > 0 {
-		t.b = bytes.Clone(t.b[extra:])
+		t.b = bytes.Clone(fromRuneStart(t.b[extra:]))
 	}
 	return len(p), nil
+}
+
+// fromRuneStart is b from the first of its bytes that starts a character,
+// past the rest of one cut in two at its start: b itself where none of its
+// first few does, as what's not UTF-8 isn't cut short.
+func fromRuneStart(b []byte) []byte {
+	for i := range min(len(b), utf8.UTFMax) {
+		if utf8.RuneStart(b[i]) {
+			return b[i:]
+		}
+	}
+	return b
 }

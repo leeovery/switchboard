@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -48,17 +48,18 @@ const (
 // registered and asked about once a process, as ready says.
 type app struct {
 	zipped []byte
-	// wait is how long it waits for another switchboard writing it out, and
-	// ask how long for the answer to whether it may post.
-	wait, ask time.Duration
+	// ask is how long it waits for the answer to whether it may post.
+	ask time.Duration
 	// rename renames a file, as os.Rename does: tests replace it to have
 	// putting the app in place fail.
 	rename func(oldpath, newpath string) error
 
-	once sync.Once
-	// exe is the app's executable once it's written out and registered, ""
-	// where it couldn't be.
-	exe string
+	// started is set by the first to ready the app, and readied closed once
+	// that's done, exe then its executable, "" where it couldn't be written
+	// out and registered.
+	started atomic.Bool
+	readied chan struct{}
+	exe     string
 }
 
 // newApp returns the app zipped, or nil where nothing's zipped.
@@ -66,30 +67,60 @@ func newApp(zipped []byte) *app {
 	if len(zipped) == 0 {
 		return nil
 	}
-	return &app{zipped: zipped, wait: lockWait, ask: askWait, rename: os.Rename}
+	return &app{zipped: zipped, ask: askWait, rename: os.Rename, readied: make(chan struct{})}
 }
 
-// ready returns the app's executable, written out and registered, and
-// whether it is, having asked macOS whether it may post, waiting for the
-// answer: it's done once a process, any other asking meanwhile waiting for
-// it, so the first post waits on the question. One that can't be written out
-// or registered is logged once, and none is ready for the rest of the
-// process, which posts through osascript.
-func (d Desktop) ready() (string, bool) {
+// ready returns the app's executable, as readyApp readies it, once a process,
+// under the context of the first to ask for it: any other waits for that,
+// until its own context ends, when it returns that context's error, as the
+// first does where its context cuts the readying short. It returns "" where
+// there's no app to post through, as none is embedded, or it couldn't be
+// written out and registered.
+func (d Desktop) ready(ctx context.Context) (string, error) {
 	a := d.app
 	if a == nil {
-		return "", false
+		return "", nil
 	}
-	a.once.Do(func() {
-		exe, err := d.writeOut(a)
-		if err != nil {
-			logger.Warn("can't write out the notifications' app, so notifications are posted through osascript", "error", err)
-			return
-		}
-		d.authorize(exe, a.ask)
+	if a.started.CompareAndSwap(false, true) {
+		exe, err := d.readyApp(ctx, a)
 		a.exe = exe
-	})
-	return a.exe, a.exe != ""
+		close(a.readied)
+		if err != nil {
+			return "", err
+		}
+	}
+	// Once readied, the app is posted through whatever ctx says, which a
+	// select of both, choosing at random, wouldn't promise.
+	select {
+	case <-a.readied:
+		return a.exe, nil
+	default:
+	}
+	select {
+	case <-a.readied:
+		return a.exe, nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+// readyApp writes the app out and registers it, then has it ask macOS whether
+// it may post, waiting for the answer, so the first post waits on the
+// question, returning its executable: "" where it can't be written out or
+// registered, which is logged, the posts then going through osascript. All of
+// it ends once ctx does, returning ctx's error, a readying cut short that
+// warns of nothing, and the executable where only the answer was still to
+// come.
+func (d Desktop) readyApp(ctx context.Context, a *app) (string, error) {
+	exe, err := d.writeOut(ctx, a)
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		logger.Warn("can't write out the notifications' app, so notifications are posted through osascript", "error", err)
+		return "", nil
+	}
+	return exe, d.authorize(ctx, exe, a.ask)
 }
 
 // writeOut writes the app out, where what's there isn't it already, and
@@ -99,12 +130,12 @@ func (d Desktop) ready() (string, bool) {
 // registers the app even where it was there already, as Launch Services can
 // lose an app it knew, as when its database is reset, and refuses its
 // notifications then, asking nobody.
-func (d Desktop) writeOut(a *app) (string, error) {
+func (d Desktop) writeOut(ctx context.Context, a *app) (string, error) {
 	path, err := d.appPath()
 	if err != nil {
 		return "", err
 	}
-	unlock, err := lockBeside(path, a.wait)
+	unlock, err := lockBeside(ctx, path, d.lockWait)
 	if err != nil {
 		return "", err
 	}
@@ -115,35 +146,42 @@ func (d Desktop) writeOut(a *app) (string, error) {
 	if err := writeApp(a.zipped, path, a.rename); err != nil {
 		return "", err
 	}
-	if err := d.launchServices("-f", path); err != nil {
+	if err := d.launchServices(ctx, "-f", path); err != nil {
 		return "", fmt.Errorf("register %s with Launch Services: %w", path, err)
 	}
 	return filepath.Join(path, executable), nil
 }
 
 // authorize has the app at exe ask macOS whether it may post, which asks the
-// user the first time, waiting at most wait for the answer. Allowed or not,
-// it's answered: a post not allowed fails as ErrNotAllowed. One that fails
+// user the first time, waiting at most wait for the answer, or until ctx
+// ends, which ends the asking and returns ctx's error. Allowed or not, it's
+// answered: a post not allowed fails as ErrNotAllowed. One that fails
 // otherwise, or isn't answered in time, is logged, and the posts go on
 // through the app.
-func (d Desktop) authorize(exe string, wait time.Duration) {
-	ctx, cancel := context.WithTimeout(context.Background(), wait)
+func (d Desktop) authorize(ctx context.Context, exe string, wait time.Duration) error {
+	asking, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
-	err := d.run(ctx, d.env, exe, "--authorize")
-	if err == nil || notAllowedBy(err) {
-		return
-	}
-	if ctx.Err() != nil {
+	err := d.run(asking, d.env, exe, "--authorize")
+	switch {
+	case err == nil || notAllowedBy(err):
+		return nil
+	case ctx.Err() != nil:
+		return ctx.Err()
+	case asking.Err() != nil:
 		err = fmt.Errorf("not answered within %s: %w", wait, err)
 	}
 	logger.Warn("can't ask macOS whether Switchboard may post notifications; posting through its app all the same", "error", err)
+	return nil
 }
 
-// Uninstall unregisters the app written out from Launch Services and removes
-// it, with its sum and its lock, as the service's uninstall does: where
-// there's no app, it does nothing. One that can't be unregistered is logged,
-// and removed all the same.
-func (d Desktop) Uninstall() error {
+// Uninstall removes the app written out, as the service's uninstall does:
+// under the lock beside it, so no switchboard writes it meanwhile, it sweeps
+// away what writes cut short left, unregisters the app from Launch Services,
+// where it's there, and removes it, with its sum, then lets the lock go and
+// removes that. One that can't be unregistered is removed all the same, and
+// the error says so. Where the lock isn't had, it removes nothing; where the
+// app's directory isn't there, there's nothing to remove.
+func (d Desktop) Uninstall(ctx context.Context) error {
 	if d.goos != "darwin" {
 		return nil
 	}
@@ -151,34 +189,53 @@ func (d Desktop) Uninstall() error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Lstat(path); errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Stat(filepath.Dir(path)); errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
-	if err := d.launchServices("-u", path); err != nil {
-		logger.Warn("can't unregister the notifications' app from Launch Services; removing it all the same", "path", path, "error", err)
+	unlock, err := lockBeside(ctx, path, d.lockWait)
+	if err != nil {
+		return fmt.Errorf("remove the notifications' app: %w", err)
 	}
-	errs := []error{os.RemoveAll(path)}
-	for _, beside := range []string{sumPath(path), lockPath(path)} {
-		if err := os.Remove(beside); !errors.Is(err, fs.ErrNotExist) {
-			errs = append(errs, err)
-		}
-	}
-	if err := errors.Join(errs...); err != nil {
+	errs := d.remove(ctx, path)
+	unlock()
+	if err := errors.Join(append(errs, removeFile(lockPath(path)))...); err != nil {
 		return fmt.Errorf("remove the notifications' app: %w", err)
 	}
 	return nil
 }
 
+// remove sweeps away what writes cut short left beside the app at path,
+// unregisters it from Launch Services, where it's there, and removes it, with
+// its sum, returning what failed.
+func (d Desktop) remove(ctx context.Context, path string) []error {
+	errs := []error{sweep(filepath.Dir(path))}
+	if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+		if err := d.launchServices(ctx, "-u", path); err != nil {
+			errs = append(errs, fmt.Errorf("unregister %s from Launch Services: %w", path, err))
+		}
+	}
+	return append(errs, os.RemoveAll(path), removeFile(sumPath(path)))
+}
+
+// removeFile removes the file at path, where it's there.
+func removeFile(path string) error {
+	if err := os.Remove(path); !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
 // launchServices runs lsregister with flag on the app at path.
-func (d Desktop) launchServices(flag, path string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), registerTimeout)
+func (d Desktop) launchServices(ctx context.Context, flag, path string) error {
+	ctx, cancel := context.WithTimeout(ctx, registerTimeout)
 	defer cancel()
 	return d.run(ctx, d.env, lsregister, flag, path)
 }
 
 // lockBeside takes the lock beside the app at path, making its directory
-// where it isn't there, waiting at most wait while another holds it.
-func lockBeside(path string, wait time.Duration) (unlock func(), err error) {
+// where it isn't there, waiting at most wait while another holds it, and
+// taking none once ctx has ended.
+func lockBeside(ctx context.Context, path string, wait time.Duration) (unlock func(), err error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("make the notifications' app's directory: %w", err)
 	}
@@ -187,7 +244,7 @@ func lockBeside(path string, wait time.Duration) (unlock func(), err error) {
 		return nil, fmt.Errorf("open the notifications' app's lock: %w", err)
 	}
 	deadline := time.Now().Add(wait)
-	for {
+	for ctx.Err() == nil {
 		taken, err := tryLock(f)
 		switch {
 		case err != nil:
@@ -199,19 +256,28 @@ func lockBeside(path string, wait time.Duration) (unlock func(), err error) {
 			_ = f.Close()
 			return nil, fmt.Errorf("another switchboard held the notifications' app's lock, %s, past %s", f.Name(), wait)
 		}
-		time.Sleep(min(lockPoll, time.Until(deadline)))
+		select {
+		case <-ctx.Done():
+		case <-time.After(min(lockPoll, time.Until(deadline))):
+		}
 	}
+	_ = f.Close()
+	return nil, fmt.Errorf("wait for the notifications' app's lock: %w", ctx.Err())
 }
 
 // sweep removes the folders writes cut short left in dir, beside the app: no
 // other writer is mid-write while the lock is held.
 func sweep(dir string) error {
-	left, err := filepath.Glob(filepath.Join(dir, stagingPattern))
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("look for what writes of the notifications' app cut short left: %w", err)
 	}
-	for _, folder := range left {
-		if err := os.RemoveAll(folder); err != nil {
+	for _, e := range entries {
+		// Match fails only on a malformed pattern, which stagingPattern isn't.
+		if left, _ := filepath.Match(stagingPattern, e.Name()); !left {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(dir, e.Name())); err != nil {
 			return fmt.Errorf("remove what a write of the notifications' app cut short left: %w", err)
 		}
 	}

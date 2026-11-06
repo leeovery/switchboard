@@ -792,7 +792,7 @@ func TestNotificationsNotAllowedAreWarnedOfOnceUntilOnePosts(t *testing.T) {
 	notAllowed := fmt.Errorf("post notification: %w", notify.ErrNotAllowed)
 	send := func(account string, err error) {
 		h.notifier.fail(err)
-		h.n.send(notify.RoomAgain(account, account+" · title"))
+		h.n.send(t.Context(), notify.RoomAgain(account, account+" · title"))
 	}
 	const warned = `level=WARN msg="macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard, or, where they're on, switchboard service restart registers its app again" component=router`
 	const dropped = `level=DEBUG msg="notification not allowed" component=router`
@@ -846,6 +846,25 @@ func TestStoppingTellsOfTheLimitsStillGatheringAtOnce(t *testing.T) {
 	})
 }
 
+func TestAPostWaitingOnItsReadyingStopsWaitingAsNotificationsStop(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		h := newNotifying(t, config.Notifications{Moves: true})
+		h.notifier.readied = make(chan struct{})
+		h.start()
+		h.hear(Moved{Session: "s", Model: opus, From: "2", To: "1", Reason: "moved by pin"})
+
+		began := time.Now()
+		h.stop()
+		if waited := time.Since(began); waited != 0 {
+			t.Errorf("stopping took %v with a post waiting on its readying, want no wait", waited)
+		}
+		if !log.Has("level=WARN", `msg="notification failed"`, "account=2", `error="context canceled"`) || log.Has("stopped waiting for notifications to post") {
+			t.Errorf("log reads\n%s\nwant the post waiting dropped as notifications stopped, and no wait cut short", log)
+		}
+	})
+}
+
 func TestStoppingWaitsForANotifierThatHangsAShortWhileAtMost(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
@@ -873,7 +892,9 @@ func TestStoppingTellsOfALimitStillQueued(t *testing.T) {
 
 		reached, _ := h.state.limit("2", []string{"5h"}, h.began.Add(time.Hour), h.state.mark())
 		h.n.hear(reached)
-		h.n.finish()
+		stopped, stop := context.WithCancel(t.Context())
+		stop()
+		h.n.finish(stopped)
 		h.expect("2 · two hit its 5-hour limit, back at Sat 01:00")
 	})
 }
@@ -1022,25 +1043,38 @@ func forcedBy(limit int, session, from, to string) Moved {
 }
 
 // noting is a notifier that notes each message it's given, and fails as fail
-// has it. While hold is open, each post waits for it to close.
+// has it. While hold is open, each post waits for it to close, whatever its
+// context says, as a notifier can hang; while readied is open, each waits for
+// that to close, or for its context to end, as a post waits on what it's
+// posted through to be readied, failing with its context's error.
 type noting struct {
-	hold chan struct{}
+	hold, readied chan struct{}
 
 	mu       sync.Mutex
 	err      error
 	messages []string
 }
 
-func (n *noting) Notify(message string) error {
+func (n *noting) Notify(ctx context.Context, message string) error {
 	n.mu.Lock()
 	n.messages = append(n.messages, message)
 	err := n.err
 	n.mu.Unlock()
+	if n.readied != nil {
+		select {
+		case <-n.readied:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	if n.hold != nil {
 		<-n.hold
 	}
 	return err
 }
+
+// Prepare readies nothing.
+func (n *noting) Prepare(context.Context) {}
 
 // fail has each post from now on fail with err, or none when it's nil.
 func (n *noting) fail(err error) {

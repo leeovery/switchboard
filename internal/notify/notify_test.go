@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/redact"
 )
@@ -41,7 +42,7 @@ func TestDesktopNotify(t *testing.T) {
 		return nil
 	}}
 
-	if err := desktop.Notify(`work · "Work": Week at 91%`); err != nil {
+	if err := desktop.Notify(t.Context(), `work · "Work": Week at 91%`); err != nil {
 		t.Fatalf("Notify() error = %v", err)
 	}
 	want := []string{"osascript", "-e", `display notification "work · \"Work\": Week at 91%" with title "Switchboard"`}
@@ -69,7 +70,7 @@ func TestDesktopRunsOsascriptWithoutTheTokens(t *testing.T) {
 		return nil
 	}
 
-	if err := desktop.Notify("work · Work has room again"); err != nil {
+	if err := desktop.Notify(t.Context(), "work · Work has room again"); err != nil {
 		t.Fatalf("Notify() error = %v", err)
 	}
 	if want := []string{"PATH=/usr/bin:/bin", "HOME=/home/tester", "TMPDIR=" + tmp, "LANG=en_GB.UTF-8"}; !slices.Equal(env, want) {
@@ -81,7 +82,7 @@ func TestDesktopNotifyFails(t *testing.T) {
 	failed := errors.New("exit status 1")
 	desktop := Desktop{goos: "darwin", run: func(context.Context, []string, string, ...string) error { return failed }}
 
-	if err := desktop.Notify("work · Work has room again"); !errors.Is(err, failed) {
+	if err := desktop.Notify(t.Context(), "work · Work has room again"); !errors.Is(err, failed) {
 		t.Errorf("Notify() error = %v, want it to wrap %v", err, failed)
 	}
 }
@@ -92,13 +93,13 @@ func TestDesktopPostsNothingOffMacOS(t *testing.T) {
 		return nil
 	}}
 
-	if err := desktop.Notify("work · Work has room again"); err != nil {
+	if err := desktop.Notify(t.Context(), "work · Work has room again"); err != nil {
 		t.Errorf("Notify() error = %v, want none", err)
 	}
 }
 
 func TestOff(t *testing.T) {
-	if err := (Off{}).Notify("work · Work has room again"); err != nil {
+	if err := (Off{}).Notify(t.Context(), "work · Work has room again"); err != nil {
 		t.Errorf("Notify() error = %v, want none", err)
 	}
 }
@@ -141,5 +142,20 @@ func TestTheEndOfWhatAProgramSaysIsKept(t *testing.T) {
 	}
 	if len(kept.b) != reasonSize || !strings.HasSuffix(string(kept.b), "\nthe last line") {
 		t.Errorf("kept %d bytes, ending %q, want the last %d", len(kept.b), kept.b[max(0, len(kept.b)-20):], reasonSize)
+	}
+}
+
+func TestTheEndOfWhatAProgramSaysStartsAtAWholeCharacter(t *testing.T) {
+	var kept tail
+	// 600 bytes of three-byte characters: the last 512 begin a third of the
+	// way through one.
+	if _, err := kept.Write([]byte(strings.Repeat("€", 200))); err != nil {
+		t.Fatal(err)
+	}
+	if want := reasonSize - reasonSize%3; !utf8.Valid(kept.b) || len(kept.b) != want {
+		t.Errorf("kept %d bytes, starting %q, want the last %d, from the first whole character", len(kept.b), kept.b[:min(len(kept.b), 3)], want)
+	}
+	if got := withReason(exitStatus(1), kept.b); !utf8.ValidString(got.Error()) {
+		t.Errorf("withReason() = %q, want it UTF-8", got)
 	}
 }

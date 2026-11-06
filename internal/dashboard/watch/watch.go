@@ -88,9 +88,10 @@ func full(r status.Read) bool {
 	return r.Probe
 }
 
-// Notifier posts a desktop notification.
+// Notifier posts a desktop notification, waiting while what it posts
+// through is readied, until ctx ends.
 type Notifier interface {
-	Notify(message string) error
+	Notify(ctx context.Context, message string) error
 }
 
 // Config is what a watch is given.
@@ -1290,7 +1291,7 @@ func (m Model) post(alerts []notify.Notice, asked bool) tea.Cmd {
 			return nil
 		}
 		for _, a := range alerts {
-			if err := notifier.Notify(a.Message); err != nil {
+			if err := notifier.Notify(ctx, a.Message); err != nil {
 				logger.Warn("notification failed", "account", a.Account, "news", a.News, "error", err)
 				continue
 			}

@@ -775,7 +775,7 @@ func TestServeRunByHandLogsThatARestartIsDue(t *testing.T) {
 	}
 }
 
-func TestServeReadiesItsNotificationsWithoutWaitingForThem(t *testing.T) {
+func TestServesRouterReadiesItsNotificationsAndItsStopEndsTheReadying(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	notifier := &recordingNotifier{hold: make(chan struct{})}
 	t.Cleanup(func() { close(notifier.hold) })
@@ -791,6 +791,9 @@ func TestServeReadiesItsNotificationsWithoutWaitingForThem(t *testing.T) {
 	}
 	if prepared, uninstalled := notifier.counts(); prepared != 1 || uninstalled != 0 {
 		t.Errorf("the notifications were readied %d times and uninstalled %d, want once and never", prepared, uninstalled)
+	}
+	if !notifier.readyingCut() {
+		t.Error("the router stopped with its notifications' readying still going, want its stop to have ended it")
 	}
 }
 

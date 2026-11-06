@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -53,7 +54,7 @@ func TestTheAppIsWrittenOutRegisteredAndPostedThrough(t *testing.T) {
 			s := newAppSetup(t, zipped)
 			tt.before(t, s.path)
 
-			if err := s.desktop.Notify(message); err != nil {
+			if err := s.desktop.Notify(t.Context(), message); err != nil {
 				t.Fatalf("Notify() error = %v", err)
 			}
 
@@ -82,7 +83,7 @@ func TestACurrentAppIsntWrittenAgainButIsRegistered(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.desktop.Notify(message); err != nil {
+	if err := s.desktop.Notify(t.Context(), message); err != nil {
 		t.Fatalf("Notify() error = %v", err)
 	}
 
@@ -161,7 +162,7 @@ func TestAnAppThatCantBeWrittenOutLeavesItToOsascript(t *testing.T) {
 			s := newAppSetup(t, tt.zipped(t))
 
 			for range 2 {
-				if err := s.desktop.Notify(message); err != nil {
+				if err := s.desktop.Notify(t.Context(), message); err != nil {
 					t.Fatalf("Notify() error = %v", err)
 				}
 			}
@@ -182,9 +183,9 @@ func TestAnAppThatCantBeRegisteredLeavesItToOsascriptForTheRestOfTheRun(t *testi
 	s := newAppSetup(t, zipOf(t, appEntries("new")...))
 	s.programs.fail("lsregister", exitStatus(1))
 
-	s.desktop.Prepare()
+	s.desktop.Prepare(t.Context())
 	for range 2 {
-		if err := s.desktop.Notify(message); err != nil {
+		if err := s.desktop.Notify(t.Context(), message); err != nil {
 			t.Fatalf("Notify() error = %v", err)
 		}
 	}
@@ -211,7 +212,7 @@ func TestASecondWriterWaitsForTheFirstAndOnlyRegistersWhatItWrote(t *testing.T) 
 	}
 
 	posted := make(chan error, 1)
-	go func() { posted <- s.desktop.Notify(message) }()
+	go func() { posted <- s.desktop.Notify(t.Context(), message) }()
 	select {
 	case err := <-posted:
 		t.Fatalf("Notify() = %v while another writer held the lock, want it waiting", err)
@@ -234,10 +235,10 @@ func TestASecondWriterWaitsForTheFirstAndOnlyRegistersWhatItWrote(t *testing.T) 
 func TestALockHeldPastTheWaitLeavesItToOsascript(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newAppSetup(t, zipOf(t, appEntries("new")...))
-	s.desktop.app.wait = 2 * lockPoll
+	s.desktop.lockWait = 2 * lockPoll
 	defer holdLock(t, s.path)()
 
-	if err := s.desktop.Notify(message); err != nil {
+	if err := s.desktop.Notify(t.Context(), message); err != nil {
 		t.Fatalf("Notify() error = %v", err)
 	}
 
@@ -261,7 +262,7 @@ func TestAnAppThatCantBePutInPlaceLeavesTheOneThereInPlace(t *testing.T) {
 		return os.Rename(oldpath, newpath)
 	}
 
-	if err := s.desktop.Notify(message); err != nil {
+	if err := s.desktop.Notify(t.Context(), message); err != nil {
 		t.Fatalf("Notify() error = %v", err)
 	}
 
@@ -290,7 +291,7 @@ func TestAPostThroughTheApp(t *testing.T) {
 			s := newAppSetup(t, zipOf(t, appEntries("new")...))
 			s.programs.fail("--post", tt.exit)
 
-			err := s.desktop.Notify(message)
+			err := s.desktop.Notify(t.Context(), message)
 			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("Notify() error = %v, want %v", err, tt.wantErr)
 			}
@@ -306,7 +307,7 @@ func TestTheFirstPostWaitsForMacOSToBeAskedWhetherItMayPost(t *testing.T) {
 	answer := s.programs.hold("--authorize")
 
 	posted := make(chan error, 1)
-	go func() { posted <- s.desktop.Notify(message) }()
+	go func() { posted <- s.desktop.Notify(t.Context(), message) }()
 	s.programs.waitFor(t, "--authorize")
 	select {
 	case err := <-posted:
@@ -330,14 +331,190 @@ func TestMacOSIsAskedWithTheLockLetGo(t *testing.T) {
 	answer := s.programs.hold("--authorize")
 	defer close(answer)
 
-	go s.desktop.Prepare()
+	go s.desktop.Prepare(t.Context())
 	s.programs.waitFor(t, "--authorize")
 
-	unlock, err := lockBeside(s.path, 0)
+	unlock, err := lockBeside(t.Context(), s.path, 0)
 	if err != nil {
 		t.Fatalf("another writer couldn't take the lock while macOS was asked (%v), want it let go", err)
 	}
 	unlock()
+}
+
+func TestEndingTheReadyingsContextEndsTheAskAndThePostWaitingOnIt(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newAppSetup(t, zipOf(t, appEntries("new")...))
+		s.programs.hold("--authorize")
+		ctx, stop := context.WithCancel(t.Context())
+		readied := make(chan struct{})
+		go func() {
+			defer close(readied)
+			s.desktop.Prepare(ctx)
+		}()
+		synctest.Wait()
+		posted := make(chan error, 1)
+		go func() { posted <- s.desktop.Notify(ctx, message) }()
+		synctest.Wait()
+
+		stop()
+		synctest.Wait()
+
+		select {
+		case <-readied:
+		default:
+			t.Error("the readying goes on once its context ended, want it ended at once")
+		}
+		select {
+		case err := <-posted:
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("Notify() error = %v, want %v", err, context.Canceled)
+			}
+		default:
+			t.Error("Notify() still waits once the readying's context ended, want it returned at once")
+		}
+		if got, want := s.programs.killed(), []string{"--authorize"}; !slices.Equal(got, want) {
+			t.Errorf("killed %q, want %q: the ask ended with the readying's context", got, want)
+		}
+		want := [][]string{{lsregister, "-f", s.path}, {s.exe(), "--authorize"}}
+		if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
+			t.Errorf("ran %q, want %q: nothing posted", got, want)
+		}
+	})
+}
+
+func TestAReadyingCutShortWarnsOfNothingAndCountsAsDone(t *testing.T) {
+	tests := []struct {
+		name string
+		// held is the program the readying is cut short in, as fail knows it.
+		held string
+		// want is what's run, the readying cut short, and a post then made.
+		want func(s *appSetup) [][]string
+	}{
+		{
+			name: "registering the app, which leaves the posts to osascript",
+			held: "lsregister",
+			want: func(s *appSetup) [][]string { return [][]string{{lsregister, "-f", s.path}, osascript()} },
+		},
+		{
+			name: "asking macOS, which leaves them to the app, never asking again",
+			held: "--authorize",
+			want: func(s *appSetup) [][]string { return s.throughApp(message) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				s := newAppSetup(t, zipOf(t, appEntries("new")...))
+				s.programs.hold(tt.held)
+				ctx, stop := context.WithCancel(t.Context())
+				go s.desktop.Prepare(ctx)
+				synctest.Wait()
+
+				stop()
+				synctest.Wait()
+				if err := s.desktop.Notify(ctx, message); err != nil {
+					t.Fatalf("Notify(), once the readying was cut short, error = %v", err)
+				}
+
+				if got := s.programs.killed(); !slices.Equal(got, []string{tt.held}) {
+					t.Errorf("killed %q, want %s alone", got, tt.held)
+				}
+				if got, want := s.programs.ran(), tt.want(s); !slices.EqualFunc(got, want, slices.Equal) {
+					t.Errorf("ran %q, want %q", got, want)
+				}
+				if log.Has("level=WARN") {
+					t.Errorf("log reads\n%s\nwant no warning: a readying cut short neither asked nor failed", log)
+				}
+			})
+		})
+	}
+}
+
+func TestAReadyingCutShortWaitingForTheLockWritesNothing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		s := newAppSetup(t, zipOf(t, appEntries("new")...))
+		defer holdLock(t, s.path)()
+		ctx, stop := context.WithCancel(t.Context())
+		readied := make(chan struct{})
+		go func() {
+			defer close(readied)
+			s.desktop.Prepare(ctx)
+		}()
+		synctest.Wait()
+
+		stop()
+		synctest.Wait()
+
+		select {
+		case <-readied:
+		default:
+			t.Fatal("the readying still waits for the lock once its context ended, want it ended at once")
+		}
+		if _, err := os.Stat(s.path); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("the app is there (%v), want none written", err)
+		}
+		if err := s.desktop.Notify(ctx, message); err != nil {
+			t.Fatalf("Notify() error = %v", err)
+		}
+		s.expectOsascriptAlone(t, 1)
+		if log.Has("level=WARN") {
+			t.Errorf("log reads\n%s\nwant no warning: a readying cut short neither asked nor failed", log)
+		}
+	})
+}
+
+func TestAPostWhoseContextEndsFirstPostsNothingWhileTheReadyingGoesOn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newAppSetup(t, zipOf(t, appEntries("new")...))
+		answer := s.programs.hold("--authorize")
+		go s.desktop.Prepare(t.Context())
+		synctest.Wait()
+		ctx, giveUp := context.WithCancel(t.Context())
+		posted := make(chan error, 1)
+		go func() { posted <- s.desktop.Notify(ctx, message) }()
+		synctest.Wait()
+
+		giveUp()
+		synctest.Wait()
+
+		select {
+		case err := <-posted:
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("Notify() error = %v, want %v", err, context.Canceled)
+			}
+		default:
+			t.Fatal("Notify() still waits once its own context ended, want it returned at once")
+		}
+		if killed := s.programs.killed(); len(killed) > 0 {
+			t.Errorf("killed %q, want the ask going on: the readying's context goes on", killed)
+		}
+		close(answer)
+		if err := s.desktop.Notify(t.Context(), message); err != nil {
+			t.Fatalf("Notify(), once answered, error = %v", err)
+		}
+		want := s.throughApp(message)
+		if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
+			t.Errorf("ran %q, want %q: asked once, posted once answered, and the post given up on never", got, want)
+		}
+	})
+}
+
+func TestAPostOnceTheAppIsReadiedGoesOutWhateverItsContextSays(t *testing.T) {
+	s := newAppSetup(t, zipOf(t, appEntries("new")...))
+	s.desktop.Prepare(t.Context())
+	ended, end := context.WithCancel(t.Context())
+	end()
+
+	if err := s.desktop.Notify(ended, message); err != nil {
+		t.Fatalf("Notify(), its context ended, error = %v", err)
+	}
+
+	want := s.throughApp(message)
+	if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("ran %q, want %q: posted, as the router's last notifications are as its context ends", got, want)
+	}
 }
 
 func TestAPostMacOSDoesntAllowOnceAskedFailsAsNotAllowed(t *testing.T) {
@@ -346,7 +523,7 @@ func TestAPostMacOSDoesntAllowOnceAskedFailsAsNotAllowed(t *testing.T) {
 	s.programs.fail("--authorize", exitStatus(2))
 	s.programs.fail("--post", exitStatus(2))
 
-	if err := s.desktop.Notify(message); !errors.Is(err, ErrNotAllowed) {
+	if err := s.desktop.Notify(t.Context(), message); !errors.Is(err, ErrNotAllowed) {
 		t.Errorf("Notify() error = %v, want %v", err, ErrNotAllowed)
 	}
 	want := s.throughApp(message)
@@ -389,7 +566,7 @@ func TestAnAskThatFailsIsWarnedOfOnceAndThePostsGoThroughTheApp(t *testing.T) {
 			tt.fail(s)
 
 			for range 2 {
-				if err := s.desktop.Notify(message); err != nil {
+				if err := s.desktop.Notify(t.Context(), message); err != nil {
 					t.Fatalf("Notify() error = %v", err)
 				}
 			}
@@ -410,8 +587,8 @@ func TestTheAppIsWrittenOutOnceAProcess(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 4 {
-		wg.Go(s.desktop.Prepare)
-		wg.Go(func() { _ = s.desktop.Notify(message) })
+		wg.Go(func() { s.desktop.Prepare(t.Context()) })
+		wg.Go(func() { _ = s.desktop.Notify(t.Context(), message) })
 	}
 	wg.Wait()
 
@@ -431,12 +608,12 @@ func TestNothingIsRunOffMacOS(t *testing.T) {
 	s := newAppSetup(t, zipOf(t, appEntries("new")...))
 	s.desktop.goos = "linux"
 
-	s.desktop.Prepare()
-	if err := s.desktop.Notify(message); err != nil {
+	s.desktop.Prepare(t.Context())
+	if err := s.desktop.Notify(t.Context(), message); err != nil {
 		t.Errorf("Notify() error = %v, want none", err)
 	}
 	put(t, zipOf(t, appEntries("new")...), s.path)
-	if err := s.desktop.Uninstall(); err != nil {
+	if err := s.desktop.Uninstall(t.Context()); err != nil {
 		t.Errorf("Uninstall() error = %v, want none", err)
 	}
 
@@ -450,8 +627,8 @@ func TestNothingIsWrittenOffMacOS(t *testing.T) {
 	s := newAppSetup(t, zipOf(t, appEntries("new")...))
 	s.desktop.goos = "linux"
 
-	s.desktop.Prepare()
-	if err := s.desktop.Notify(message); err != nil {
+	s.desktop.Prepare(t.Context())
+	if err := s.desktop.Notify(t.Context(), message); err != nil {
 		t.Errorf("Notify() error = %v, want none", err)
 	}
 	if _, err := os.Stat(filepath.Dir(s.path)); !errors.Is(err, fs.ErrNotExist) {
@@ -462,8 +639,8 @@ func TestNothingIsWrittenOffMacOS(t *testing.T) {
 func TestWithoutAnAppNothingIsReadiedOrAsked(t *testing.T) {
 	s := newAppSetup(t, nil)
 
-	s.desktop.Prepare()
-	if err := s.desktop.Notify(message); err != nil {
+	s.desktop.Prepare(t.Context())
+	if err := s.desktop.Notify(t.Context(), message); err != nil {
 		t.Fatalf("Notify() error = %v", err)
 	}
 
@@ -496,7 +673,7 @@ func put(t *testing.T, zipped []byte, path string) {
 // writing it out would, until release is called.
 func holdLock(t *testing.T, path string) (release func()) {
 	t.Helper()
-	unlock, err := lockBeside(path, 0)
+	unlock, err := lockBeside(t.Context(), path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -571,15 +748,7 @@ func (s *appSetup) expectOsascriptAlone(t *testing.T, n int) {
 // beside returns the names in the app's directory.
 func (s *appSetup) beside(t *testing.T) []string {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Dir(s.path))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		t.Fatal(err)
-	}
-	var names []string
-	for _, e := range entries {
-		names = append(names, e.Name())
-	}
-	return names
+	return names(t, filepath.Dir(s.path))
 }
 
 func (s *appSetup) read(t *testing.T, path string) string {
@@ -597,11 +766,12 @@ func osascript() []string {
 }
 
 // programs stands in for the programs a Desktop runs, noting each, failing
-// as it's told, and waiting where it's held.
+// as it's told, and waiting where it's held, noting each killed meanwhile.
 type programs struct {
 	mu    sync.Mutex
 	runs  [][]string
 	envs  [][]string
+	kills []string
 	fails map[string]error
 	holds map[string]chan struct{}
 }
@@ -635,10 +805,21 @@ func (p *programs) run(ctx context.Context, env []string, name string, args ...s
 		select {
 		case <-held:
 		case <-ctx.Done():
+			p.mu.Lock()
+			p.kills = append(p.kills, k)
+			p.mu.Unlock()
 			return errors.New("signal: killed")
 		}
 	}
 	return err
+}
+
+// killed returns the programs killed as their contexts ended while they were
+// held, each known as fail knows it.
+func (p *programs) killed() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.kills)
 }
 
 func (p *programs) ran() [][]string {
