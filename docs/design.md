@@ -6927,8 +6927,9 @@ a notification's size they were lost.
   refuses an app it doesn't know with "Notifications are not allowed for this application",
   asking nobody (see Observed), and a registration lost, as when Launch Services' database is
   rebuilt, comes back at the next router start. The router writes it as it starts, without
-  holding anything up; `service install`, and so setup, writes it too; any other switchboard that
-  posts, as the dashboard probing without the router, writes it before its first post. One that
+  holding anything up; any other switchboard that posts, as the dashboard probing without the
+  router, writes it before its first post. Any staging folders a writer cut short left beside it
+  are swept under the lock before a write. One that
   can't be written, or registered, is logged once at `warn`, and that switchboard posts through
   `osascript` for the rest of its run. Two writing at once take turns, under a lock beside it,
   `.Switchboard.app.lock`, held across the write and the registration and waited on for 30
@@ -6936,10 +6937,15 @@ a notification's size they were lost.
   registering; a lock not had in that time counts as a write that failed.
 - **Allowed once:** macOS asks the user, once, whether `Switchboard` may send notifications, and a
   notification posted before the answer waits on it past the 5 seconds a post is given, and is
-  dropped as any that fails. So `service install` asks as it writes the app, with `--authorize`,
-  not waiting on the answer: run by setup, the question comes while the user is at the Mac, and
-  setup's screens are unchanged. Turned off, in System Settings → Notifications → Switchboard, a
-  post exits 2, which the router logs once at `warn`, naming where to turn them on, until one
+  dropped as any that fails. So a switchboard asks before its first post, once it has written and
+  registered the app, outside the lock, with `--authorize`, and its posts wait on the answer, for
+  as long as the app gives the question: the router as it starts, without holding anything up, so
+  the question comes as setup starts it, or as `brew upgrade` brings the first release with the
+  app, while the user is at the Mac, and setup's screens are unchanged. Once answered, macOS
+  answers at once. An ask that fails, or isn't answered in time, is logged once at `warn`, with
+  the app's reason, and the posts go on through the app. Turned off, in System Settings →
+  Notifications → Switchboard, a post exits 2, which the router logs once at `warn`, naming where
+  to turn them on, and that a router restart registers the app again where they're on, until one
   posts again.
 - **Run like `osascript`:** with the same minimal environment, the same 5-second bound, and the
   same rules for a notification that fails. Elsewhere than macOS, nothing is posted, as before.
@@ -8249,7 +8255,8 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     can't be written, says why once at `warn`, leaves the plist as it was, putting it back where
     the replacement fails, carries on from the link, and `service status` names `service
     install`.
-  - `service uninstall` removes the copy with the plist. Run by hand, with `serve`, the router makes
+  - `service uninstall` removes the copy with the plist, and the notifications' app with its sum
+    and lock, unregistered from Launch Services first. Run by hand, with `serve`, the router makes
     no copy, and restarts into the link.
   - **Rolling back** past the copy: a version from before it doesn't know `--from`. One with the
     binary asked first refuses it, holding the restart until `service install` is run from that
@@ -8362,8 +8369,9 @@ binary can't have its ticket stapled, so macOS looks it up online.
   and what's left after it is moving files already right. Waiting on Apple costs nothing: a tag
   without its binaries reaches no one, as Homebrew follows the tap.
 - **Where it runs:** a release can be cut only on an Apple-silicon Mac with Rosetta, as each
-  binary is run to check its version, Xcode 26 or later, for the app's `swiftc` and `actool`, which
-  its command line tools alone don't have, and the certificate and the profile. The first run is
+  binary is run to check its version, Xcode 26 or later, chosen with `xcode-select`, for the app's
+  `swiftc` and `actool`, which its command line tools alone don't have, and the certificate and the
+  profile. The first run is
   at the Mac, as `scripts/release-build 0.0.0-check`, which signs and notarises and releases
   nothing: macOS asks there to let `codesign` use the certificate's key and `notarytool` its
   profile, answered "Always Allow". A release run from elsewhere, as over SSH, waits on that
@@ -9981,7 +9989,7 @@ any of it. Times are the Mac's, UTC+1.
 What's built but hasn't been seen against the real thing:
 
 - The notifications' app posting for the router run by launchd, and macOS's question coming from
-  `service install`'s `--authorize`: the check in Observed ran the app from a shell. And how
+  the router's `--authorize`: the check in Observed ran the app from a shell. And how
   macOS answers an app whose notifications the user turned off, a plain no or its "not allowed"
   error, both taken for 2.
 
