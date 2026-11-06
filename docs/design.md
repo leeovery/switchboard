@@ -6930,8 +6930,10 @@ a notification's size they were lost.
   holding anything up; `service install`, and so setup, writes it too; any other switchboard that
   posts, as the dashboard probing without the router, writes it before its first post. One that
   can't be written, or registered, is logged once at `warn`, and that switchboard posts through
-  `osascript` for the rest of its run. Two writing at once write the same app: one whose rename
-  fails takes the other's, where its sum is the embedded one's.
+  `osascript` for the rest of its run. Two writing at once take turns, under a lock beside it,
+  `.Switchboard.app.lock`, held across the write and the registration and waited on for 30
+  seconds at most, so the second finds the app current and never renames out one the first is
+  registering; a lock not had in that time counts as a write that failed.
 - **Allowed once:** macOS asks the user, once, whether `Switchboard` may send notifications, and a
   notification posted before the answer waits on it past the 5 seconds a post is given, and is
   dropped as any that fails. So `service install` asks as it writes the app, with `--authorize`,
