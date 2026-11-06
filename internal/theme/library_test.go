@@ -83,7 +83,7 @@ func TestListPassesOverDotfiles(t *testing.T) {
 	symlink(t, "someone@machine.42:1790933400", filepath.Join(dir, ".#lake.theme"))
 	lib := theme.NewLibrary(dir)
 
-	if got, want := listed(lib.List()), []string{"amber", "exchange", "lake", "nord", "terminal", "tokyo-night", "tokyo-night-day"}; !slices.Equal(got, want) {
+	if got, want := listed(lib.List()), []string{"amber", "exchange", "gitlab-dark-grey", "horizon", "lake", "nord", "nord-wave", "terminal", "tokyo-night", "tokyo-night-day"}; !slices.Equal(got, want) {
 		t.Errorf("List() lists %q, want %q, past the files whose names start with a dot", got, want)
 	}
 }
@@ -129,8 +129,8 @@ func TestListListsEveryThemeLoadedOrNot(t *testing.T) {
 		t.Errorf("List() problem = %v, want none", got.Problem)
 	}
 	want := []string{
-		"amber", "broken: missing tokens", "dangling: unreadable", "exchange", "lake", "linked", "nord",
-		"nord.theme: reserved name", "shout.THEME: bad name", "terminal", "tokyo-night", "tokyo-night-day", "Upper.theme: bad name",
+		"amber", "broken: missing tokens", "dangling: unreadable", "exchange", "gitlab-dark-grey", "horizon", "lake", "linked", "nord",
+		"nord-wave", "nord.theme: reserved name", "shout.THEME: bad name", "terminal", "tokyo-night", "tokyo-night-day", "Upper.theme: bad name",
 	}
 	if listed := listed(got); !slices.Equal(listed, want) {
 		t.Errorf("List() lists\n%q\nwant\n%q", listed, want)
@@ -160,7 +160,7 @@ func TestListWithoutAThemesDirectoryListsTheBuiltIns(t *testing.T) {
 		if got.Problem != nil {
 			t.Errorf("List() of %q: problem = %v, want none, as no directory is no theme", dir, got.Problem)
 		}
-		if listed, want := listed(got), []string{"amber", "exchange", "nord", "terminal", "tokyo-night", "tokyo-night-day"}; !slices.Equal(listed, want) {
+		if listed, want := listed(got), []string{"amber", "exchange", "gitlab-dark-grey", "horizon", "nord", "nord-wave", "terminal", "tokyo-night", "tokyo-night-day"}; !slices.Equal(listed, want) {
 			t.Errorf("List() of %q lists %q, want the built-ins, %q", dir, listed, want)
 		}
 	}

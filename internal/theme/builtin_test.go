@@ -16,7 +16,7 @@ func TestTheBuiltIns(t *testing.T) {
 	for _, b := range theme.Builtins() {
 		slugs = append(slugs, b.Slug)
 	}
-	if want := []string{"amber", "exchange", "nord", "terminal", "tokyo-night", "tokyo-night-day"}; !slices.Equal(slugs, want) {
+	if want := []string{"amber", "exchange", "gitlab-dark-grey", "horizon", "nord", "nord-wave", "terminal", "tokyo-night", "tokyo-night-day"}; !slices.Equal(slugs, want) {
 		t.Errorf("Builtins() = %q, want %q", slugs, want)
 	}
 	for _, slug := range []string{theme.DefaultLight, theme.DefaultDark, theme.Terminal} {
@@ -87,6 +87,9 @@ func TestAThemeSuitsTheBackgroundsOfItsOwnDarkness(t *testing.T) {
 		onDark, onLight bool
 	}{
 		{slug: "nord", onDark: true},
+		{slug: "nord-wave", onDark: true},
+		{slug: "horizon", onDark: true},
+		{slug: "gitlab-dark-grey", onDark: true},
 		{slug: "amber", onDark: true},
 		{slug: "tokyo-night-day", onLight: true},
 		{slug: theme.Terminal, onDark: true, onLight: true},
@@ -196,6 +199,15 @@ func TestTheBuiltInsAsTheirSheetsDrawThem(t *testing.T) {
 			theme.Canvas: "#1B1714", theme.TextPrimary: "#F4EEDF", theme.AccentKey: "#C9A44C",
 			theme.VizRamp3: "#E07A3F", theme.VizReserve: "#EDAE49", theme.VizTrack: "#241E19", theme.VizPace: "#F4EEDF",
 			theme.VizAccount1: "#7FB069", theme.VizAccount2: "#C9A44C", theme.VizAccount3: "#E07A3F", theme.VizAccount4: "#D9CDB2",
+		}},
+		{slug: "nord-wave", want: map[theme.Token]string{
+			theme.Canvas: "#212121", theme.TextPrimary: "#ECEFF4", theme.StateDestructive: "#CB6B74", theme.BgSelection: "#3B4252",
+		}},
+		{slug: "horizon", want: map[theme.Token]string{
+			theme.Canvas: "#1C1E26", theme.TextPrimary: "#E5E5E5", theme.AccentPrimary: "#EE64AC", theme.AccentAttention: "#FAB795",
+		}},
+		{slug: "gitlab-dark-grey", want: map[theme.Token]string{
+			theme.Canvas: "#222222", theme.TextPrimary: "#FFFFFF", theme.AccentPrimary: "#AD95E9", theme.BgSelection: "#3A3644",
 		}},
 	}
 	for _, tt := range tests {

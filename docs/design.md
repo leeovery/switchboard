@@ -6363,7 +6363,10 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   palette and its light one, each tuned against its own canvas, the latter the light half of the
   default pair; `amber`, an amber CRT; `exchange`, a telephone exchange's brass and walnut, its cap
   the default `accent.attention`, where its own `viz.reserve` drew it blue (settled in the plan);
-  and `terminal`, for a terminal with a transparent or image background, which paints no background
+  three the owner had as theme files and asked for built in, 6 November 2026, each a sixteen-colour
+  terminal scheme ported onto the base tokens: `nord-wave`, Nord on a neutral near-black canvas,
+  `horizon`, Horizon's pink and peach on a cool blue-grey, and `gitlab-dark-grey`, GitLab's Dark
+  Grey, neutral greys with a violet selection; and `terminal`, for a terminal with a transparent or image background, which paints no background
   and uses the terminal's own 16 colours. `nord` gives the families, the versions and the days the
   shades the signed-off frames are drawn in, where its base tokens don't. `terminal` is built in,
   not a file, as `#RRGGBB` can't name the terminal's colours, and where the others paint a cell's
@@ -9993,8 +9996,10 @@ any of it. Times are the Mac's, UTC+1.
 
 What's built but hasn't been seen against the real thing:
 
-- The notifications' app posting for the router run by launchd, and macOS's question coming from
-  the router's `--authorize`: the check in Observed ran the app from a shell. And how
+- A notification the router run by launchd posts itself. Seen on 6 November 2026, with 0.5.1:
+  launchd's router wrote the app out, registered it and asked, and macOS put the question, which
+  the owner allowed; a post through the written app from a shell then showed, with switchboard's
+  name and icon, and a click on it only dismissed it. And how
   macOS answers an app whose notifications the user turned off, a plain no or its "not allowed"
   error, both taken for 2.
 
