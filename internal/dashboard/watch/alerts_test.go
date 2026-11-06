@@ -415,7 +415,7 @@ func TestNotificationsArePostedUnderTheDashboardsContext(t *testing.T) {
 	h.clock.now = at(13, 20, 0)
 	h.read(sessionAndWeek(0.2, 0.91))
 	if under := h.notifier.under; len(under) != 1 || under[0] != t.Context() {
-		t.Errorf("posted under %v, want the dashboard's context alone, so a post waiting ends as the dashboard does", under)
+		t.Errorf("posted under %v, want the dashboard's context alone", under)
 	}
 }
 

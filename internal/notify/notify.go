@@ -90,9 +90,8 @@ func NewDesktop(getenv func(string) string, homeDir func() (string, error)) Desk
 
 // Notify posts message under switchboard's name, readying the app first
 // where it hasn't been yet: once a process, as ready says. Where ctx ends
-// before the app is readied, it posts nothing, returning ctx's error, but
-// once the app's readied, a post takes its own time, whatever ctx says, so
-// the router's last notifications, posted as its context ends, go out.
+// before the app is readied, it posts nothing, returning ctx's error, and
+// where it ends while posting, the post is ended, as it is at its own bound.
 // Through the app, a post macOS doesn't allow fails with ErrNotAllowed.
 func (d Desktop) Notify(ctx context.Context, message string) error {
 	if d.goos != "darwin" {
@@ -119,7 +118,7 @@ func (d Desktop) Prepare(ctx context.Context) {
 
 // post posts message through the app's executable, exe.
 func (d Desktop) post(ctx context.Context, exe, message string) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	err := d.run(ctx, d.env, exe, "--post", message)
 	if notAllowedBy(err) {
@@ -140,7 +139,7 @@ func notAllowedBy(err error) bool {
 
 // script posts message through osascript.
 func (d Desktop) script(ctx context.Context, message string) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	if err := d.run(ctx, d.env, "osascript", "-e", displayNotification(message)); err != nil {
 		return fmt.Errorf("post notification: %w", err)

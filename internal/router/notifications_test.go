@@ -101,7 +101,7 @@ func TestAStoppingRouterEndsItsNotificationsReadyingAndThePostWaitingOnIt(t *tes
 	if !notifier.readyingCut() {
 		t.Error("the router stopped with its notifications' readying going on, want its stop to have ended it")
 	}
-	if log.Has("stopped waiting for notifications to post") {
+	if log.Has("ended the notifications still posting") {
 		t.Errorf("log reads\n%s\nwant the post waiting on the readying ended with it, not waited for", log)
 	}
 }

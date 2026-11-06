@@ -387,7 +387,7 @@ func TestAReadyingCutShortWarnsOfNothingAndCountsAsDone(t *testing.T) {
 		name string
 		// held is the program the readying is cut short in, as fail knows it.
 		held string
-		// want is what's run, the readying cut short, and a post then made.
+		// want is what's run, the readying cut short, and a post made after.
 		want func(s *appSetup) [][]string
 	}{
 		{
@@ -396,7 +396,7 @@ func TestAReadyingCutShortWarnsOfNothingAndCountsAsDone(t *testing.T) {
 			want: func(s *appSetup) [][]string { return [][]string{{lsregister, "-f", s.path}, osascript()} },
 		},
 		{
-			name: "asking macOS, which leaves them to the app, never asking again",
+			name: "asking macOS, which leaves them to the app, each post asking macOS itself",
 			held: "--authorize",
 			want: func(s *appSetup) [][]string { return s.throughApp(message) },
 		},
@@ -413,7 +413,7 @@ func TestAReadyingCutShortWarnsOfNothingAndCountsAsDone(t *testing.T) {
 
 				stop()
 				synctest.Wait()
-				if err := s.desktop.Notify(ctx, message); err != nil {
+				if err := s.desktop.Notify(t.Context(), message); err != nil {
 					t.Fatalf("Notify(), once the readying was cut short, error = %v", err)
 				}
 
@@ -455,7 +455,7 @@ func TestAReadyingCutShortWaitingForTheLockWritesNothing(t *testing.T) {
 		if _, err := os.Stat(s.path); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("the app is there (%v), want none written", err)
 		}
-		if err := s.desktop.Notify(ctx, message); err != nil {
+		if err := s.desktop.Notify(t.Context(), message); err != nil {
 			t.Fatalf("Notify() error = %v", err)
 		}
 		s.expectOsascriptAlone(t, 1)
@@ -501,19 +501,48 @@ func TestAPostWhoseContextEndsFirstPostsNothingWhileTheReadyingGoesOn(t *testing
 	})
 }
 
-func TestAPostOnceTheAppIsReadiedGoesOutWhateverItsContextSays(t *testing.T) {
-	s := newAppSetup(t, zipOf(t, appEntries("new")...))
-	s.desktop.Prepare(t.Context())
-	ended, end := context.WithCancel(t.Context())
-	end()
-
-	if err := s.desktop.Notify(ended, message); err != nil {
-		t.Fatalf("Notify(), its context ended, error = %v", err)
+func TestAPostEndsAsItsContextDoes(t *testing.T) {
+	tests := []struct {
+		name string
+		// zipped is whether the build embeds the app, and held the program
+		// that posts, as fail knows it.
+		zipped bool
+		held   string
+	}{
+		{name: "through the app", zipped: true, held: "--post"},
+		{name: "through osascript", held: "osascript"},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var zipped []byte
+				if tt.zipped {
+					zipped = zipOf(t, appEntries("new")...)
+				}
+				s := newAppSetup(t, zipped)
+				s.desktop.Prepare(t.Context())
+				s.programs.hold(tt.held)
+				ctx, end := context.WithCancel(t.Context())
+				posted := make(chan error, 1)
+				go func() { posted <- s.desktop.Notify(ctx, message) }()
+				synctest.Wait()
 
-	want := s.throughApp(message)
-	if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
-		t.Errorf("ran %q, want %q: posted, as the router's last notifications are as its context ends", got, want)
+				end()
+				synctest.Wait()
+
+				select {
+				case err := <-posted:
+					if err == nil {
+						t.Error("Notify() = nil, its post ended, want an error")
+					}
+				default:
+					t.Fatal("Notify() still posts once its context ended, want it returned at once")
+				}
+				if got := s.programs.killed(); !slices.Equal(got, []string{tt.held}) {
+					t.Errorf("killed %q, want %s, ended with the post's context", got, tt.held)
+				}
+			})
+		})
 	}
 }
 

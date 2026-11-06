@@ -89,13 +89,6 @@ func (d Desktop) ready(ctx context.Context) (string, error) {
 			return "", err
 		}
 	}
-	// Once readied, the app is posted through whatever ctx says, which a
-	// select of both, choosing at random, wouldn't promise.
-	select {
-	case <-a.readied:
-		return a.exe, nil
-	default:
-	}
 	select {
 	case <-a.readied:
 		return a.exe, nil

@@ -846,26 +846,41 @@ func TestStoppingTellsOfTheLimitsStillGatheringAtOnce(t *testing.T) {
 	})
 }
 
-func TestAPostWaitingOnItsReadyingStopsWaitingAsNotificationsStop(t *testing.T) {
+func TestOnceStoppingNotificationsPostAndLookNoMore(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
-		h := newNotifying(t, config.Notifications{Moves: true})
-		h.notifier.readied = make(chan struct{})
+		// 2's token's year is due to be told of once the day turns, 5 hours
+		// on. Started 7 seconds in, notifications look 8 seconds before that
+		// and 7 after, and the move whose post parks comes between, so the
+		// look that follows it, were it to run, would find the year due.
+		h := newYearNotifying(t, config.Notifications{Moves: true}, localOn(31, 1))
+		h.notifier.hold = make(chan struct{})
+		h.after(7 * time.Second)
 		h.start()
-		h.hear(Moved{Session: "s", Model: opus, From: "2", To: "1", Reason: "moved by pin"})
+		h.after(5*time.Hour - 6*time.Second)
+		parked := Moved{Session: "a", Model: opus, From: "2", To: "1", Reason: "moved by pin"}
+		h.hear(parked)
+		// With the post parked, another move queues, and the next look falls
+		// due.
+		h.n.hear(Moved{Session: "b", Model: opus, From: "3", To: "1", Reason: "moved by pin"})
+		h.after(10 * time.Second)
 
 		began := time.Now()
 		h.stop()
 		if waited := time.Since(began); waited != 0 {
-			t.Errorf("stopping took %v with a post waiting on its readying, want no wait", waited)
+			t.Errorf("stopping took %v with a post parked, want no wait", waited)
 		}
-		if !log.Has("level=WARN", `msg="notification failed"`, "account=2", `error="context canceled"`) || log.Has("stopped waiting for notifications to post") {
-			t.Errorf("log reads\n%s\nwant the post waiting dropped as notifications stopped, and no wait cut short", log)
+		h.expect(moveNotice(parked, h.state.standings(time.Now())).Message)
+		if told := h.n.years.saved(); len(told) > 0 {
+			t.Errorf("told of the tokens' years %v, want none: no look once stopping", told)
+		}
+		if !log.Has("level=WARN", `msg="notification failed"`, "account=2", `error="context canceled"`) {
+			t.Errorf("log reads\n%s\nwant the post parked dropped as notifications stopped", log)
 		}
 	})
 }
 
-func TestStoppingWaitsForANotifierThatHangsAShortWhileAtMost(t *testing.T) {
+func TestStoppingEndsTheLastNotificationsStillPostingAtTheirBound(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
 		h := newNotifying(t, config.Notifications{Limits: true})
@@ -875,13 +890,38 @@ func TestStoppingWaitsForANotifierThatHangsAShortWhileAtMost(t *testing.T) {
 
 		began := time.Now()
 		h.stop()
-		if waited := time.Since(began); waited != 3*time.Second {
-			t.Errorf("stopping took %v with the notifier hanging, want 3s", waited)
+		if waited := time.Since(began); waited != finishWait {
+			t.Errorf("stopping took %v with the limit's post going on, want %v", waited, finishWait)
 		}
-		if !log.Has("level=WARN", `msg="stopped waiting for notifications to post"`, "after=3s") {
-			t.Errorf("log reads\n%s\nwant the wait cut short", log)
+		if got, want := h.notifier.cutShort(), h.notifier.posted(); len(got) != 1 || !slices.Equal(got, want) {
+			t.Errorf("cut short %q of the posts %q, want the limit's, ended before stopping ended", got, want)
 		}
-		close(h.notifier.hold)
+		if !log.Has("level=WARN", `msg="ended the notifications still posting as the router stopped"`, "after=3s") {
+			t.Errorf("log reads\n%s\nwant the posts still going ended", log)
+		}
+	})
+}
+
+func TestStoppingTellsOfTheLimitsGatheringWherePostingTakesAWhile(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		h := newNotifying(t, config.Notifications{Limits: true})
+		h.notifier.hold = make(chan struct{})
+		h.start()
+		h.limit("2", []string{"5h"}, time.Hour)
+		time.AfterFunc(finishWait-time.Second, func() { close(h.notifier.hold) })
+
+		began := time.Now()
+		h.stop()
+		if waited := time.Since(began); waited != finishWait-time.Second {
+			t.Errorf("stopping took %v, want %v, as long as the post took", waited, finishWait-time.Second)
+		}
+		if cut := h.notifier.cutShort(); len(cut) > 0 {
+			t.Errorf("cut short %q, want the limit's post, done in time, gone out", cut)
+		}
+		if !log.Has("level=INFO", "msg=notification", "account=2") || log.Has("ended the notifications still posting") {
+			t.Errorf("log reads\n%s\nwant the limit's notification gone out", log)
+		}
 	})
 }
 
@@ -1043,16 +1083,16 @@ func forcedBy(limit int, session, from, to string) Moved {
 }
 
 // noting is a notifier that notes each message it's given, and fails as fail
-// has it. While hold is open, each post waits for it to close, whatever its
-// context says, as a notifier can hang; while readied is open, each waits for
-// that to close, or for its context to end, as a post waits on what it's
-// posted through to be readied, failing with its context's error.
+// has it. While hold is open, each post waits for it to close, or for its
+// context to end, as a post through an app whose question no one has
+// answered does, failing then with its context's error, noted as cut short.
 type noting struct {
-	hold, readied chan struct{}
+	hold chan struct{}
 
 	mu       sync.Mutex
 	err      error
 	messages []string
+	cut      []string
 }
 
 func (n *noting) Notify(ctx context.Context, message string) error {
@@ -1060,17 +1100,26 @@ func (n *noting) Notify(ctx context.Context, message string) error {
 	n.messages = append(n.messages, message)
 	err := n.err
 	n.mu.Unlock()
-	if n.readied != nil {
-		select {
-		case <-n.readied:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	if n.hold == nil {
+		return err
 	}
-	if n.hold != nil {
-		<-n.hold
+	select {
+	case <-n.hold:
+		return err
+	case <-ctx.Done():
+		n.mu.Lock()
+		n.cut = append(n.cut, message)
+		n.mu.Unlock()
+		return ctx.Err()
 	}
-	return err
+}
+
+// cutShort returns the messages whose posts were cut short as their contexts
+// ended.
+func (n *noting) cutShort() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return slices.Clone(n.cut)
 }
 
 // Prepare readies nothing.
