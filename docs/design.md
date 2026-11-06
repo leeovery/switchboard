@@ -6926,8 +6926,8 @@ a notification's size they were lost.
   (`lsregister -f`) once a run, as it's first written or posted through, current or not: macOS
   refuses an app it doesn't know with "Notifications are not allowed for this application",
   asking nobody (see Observed), and a registration lost, as when Launch Services' database is
-  rebuilt, comes back at the next router start. The router writes it as it starts, without
-  holding anything up; any other switchboard that posts, as the dashboard probing without the
+  rebuilt, comes back at the next router start. The router writes it as it starts, on a goroutine
+  of its own its stop ends, holding nothing up; any other switchboard that posts, as the dashboard probing without the
   router, writes it before its first post. Any staging folders a writer cut short left beside it
   are swept under the lock before a write. One that
   can't be written, or registered, is logged once at `warn`, and that switchboard posts through
@@ -6939,10 +6939,12 @@ a notification's size they were lost.
   notification posted before the answer waits on it past the 5 seconds a post is given, and is
   dropped as any that fails. So a switchboard asks before its first post, once it has written and
   registered the app, outside the lock, with `--authorize`, and its posts wait on the answer, for
-  as long as the app gives the question: the router as it starts, without holding anything up, so
-  the question comes as setup starts it, or as `brew upgrade` brings the first release with the
-  app, while the user is at the Mac, and setup's screens are unchanged. Once answered, macOS
-  answers at once. An ask that fails, or isn't answered in time, is logged once at `warn`, with
+  as long as the app gives the question, 5 minutes, or until that switchboard stops: stopping
+  ends the app asking, so the router's stop, or its restart in place, is never held up by a post
+  waiting. The router asks as it starts, on a goroutine of its own its stop ends, so the question
+  comes as setup starts it, or as `brew upgrade` brings the first release with the app, while
+  the user is at the Mac, and setup's screens are unchanged; a dashboard posting without the
+  router asks before its first post. Once answered, macOS answers at once. An ask that fails, or isn't answered in time, is logged once at `warn`, with
   the app's reason, and the posts go on through the app. Turned off, in System Settings →
   Notifications → Switchboard, a post exits 2, which the router logs once at `warn`, naming where
   to turn them on, and that a router restart registers the app again where they're on, until one
