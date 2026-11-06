@@ -163,7 +163,7 @@ field() {
 notarise() {
 	local result id status="In Progress" round started elapsed
 	ditto -c -k --keepParent "$1" "$2"
-	echo "Sending the binaries and the app to Apple's notary service…"
+	echo "Sending what was built to Apple's notary service…"
 	result=$(xcrun notarytool submit "$2" --keychain-profile "$profile" --no-wait --output-format json || true)
 	id=$(field id "$result")
 	if [[ -z $id ]]; then
@@ -193,7 +193,7 @@ notarise() {
 	fi
 	if [[ $status != Accepted ]]; then
 		xcrun notarytool log "$id" --keychain-profile "$profile" || true
-		release_fail "Apple's notary service refused the binaries and the app, as its log above says."
+		release_fail "Apple's notary service refused what was built, as its log above says."
 	fi
 }
 

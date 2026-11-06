@@ -6903,10 +6903,13 @@ picked lit, in amber on instrument black).
 - **The app:** one Swift file, `internal/notify/app/main.swift`, with its `Info.plist` and icon,
   as Go reaches macOS's notification API (`UserNotifications`) only from an app bundle, and not
   from a bare binary. Bundle identifier `io.github.leeovery.switchboard.notify`, named
-  `Switchboard`, with no Dock icon, menu or window (`LSUIElement`). Run with `--post <message>`,
-  it asks macOS whether it may post, posts the message under the title `Switchboard`, and exits:
-  0 posted, 2 not allowed, 1 for anything else. Run with `--authorize`, it asks macOS, which asks
-  the user the first time, and exits once answered, 0 allowed, 2 not. Started with neither, as
+  `Switchboard`, with no Dock icon, menu or window (`LSUIElement`); built by hand without a
+  Developer ID (`scripts/notify-app`), it's `io.github.leeovery.switchboard.notify.dev`, so a copy
+  tried by hand never stands in for the real one. Run with `--post <message>`, it asks macOS
+  whether it may post, posts the message under the title `Switchboard`, and exits: 0 posted, 2
+  not allowed, as macOS says plainly or with its "not allowed" error, 1 for anything else. Run
+  with `--authorize`, it asks macOS, which asks the user the first time, and exits once answered,
+  0 allowed, 2 not, 1 for anything else. Started with neither, as
   macOS starts it for a click on one of its notifications, it takes the click, does nothing with
   it, and exits, within 5 seconds at most.
 - **Shipped inside switchboard:** a release builds the app, signs it (see Signing) and embeds it,
@@ -6922,7 +6925,7 @@ picked lit, in amber on instrument black).
   (`lsregister -f`) once a run, as it's first written or posted through, current or not: macOS
   refuses an app it doesn't know with "Notifications are not allowed for this application",
   asking nobody (see Observed), and a registration lost, as when Launch Services' database is
-  rebuilt, comes back at the next router start. A refusal with an error exits 1, not 2. The router writes it as it starts, without
+  rebuilt, comes back at the next router start. The router writes it as it starts, without
   holding anything up; `service install`, and so setup, writes it too; any other switchboard that
   posts, as the dashboard probing without the router, writes it before its first post. One that
   can't be written, or registered, is logged once at `warn`, and that switchboard posts through
@@ -8318,8 +8321,9 @@ binary can't have its ticket stapled, so macOS looks it up online.
   notifications' app (see Notifications, "How they're posted"): `swiftc` for arm64 and x86_64,
   joined by `lipo`, put together as a bundle with its `Info.plist` and icon, signed as the binaries
   are but under its own identifier, `io.github.leeovery.switchboard.notify`, verified, and zipped
-  into the checkout for the binaries to embed. Then switchboard, for arm64 and amd64, with the
-  build tag `notifyapp`, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each
+  into the checkout for the binaries to embed; a tree from before the app, an older tag built
+  again to finish its upload, is built as it was, with no app and no tag. Then switchboard, for
+  arm64 and amd64, with the build tag `notifyapp`, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each
   signed by `codesign` with the login keychain's Developer ID Application certificate, the
   hardened runtime and a secure timestamp, under the identifier `io.github.leeovery.switchboard`,
   the LaunchAgent's label, and run to check it reports that version; the two, with the app, sent
@@ -9972,7 +9976,9 @@ any of it. Times are the Mac's, UTC+1.
 What's built but hasn't been seen against the real thing:
 
 - The notifications' app posting for the router run by launchd, and macOS's question coming from
-  `service install`'s `--authorize`: the check in Observed ran the app from a shell.
+  `service install`'s `--authorize`: the check in Observed ran the app from a shell. And how
+  macOS answers an app whose notifications the user turned off, a plain no or its "not allowed"
+  error, both taken for 2.
 
 - What a burst 429 looks like, and that it, or one at the edge of a limit, carries the usage
   headers: passing a 429 without them through at once rests on one observation, the quota check
