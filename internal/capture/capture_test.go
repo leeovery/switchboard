@@ -274,7 +274,7 @@ func TestAThemeFileTakingABuiltInsSlugIsListedAsReserved(t *testing.T) {
 
 	var named []string
 	for _, e := range listing(fileNord).Entries {
-		if strings.HasPrefix(e.Name, "nord") {
+		if e.Name == "nord" || e.Name == "nord.theme" {
 			named = append(named, e.Name+" "+e.Slug)
 		}
 	}
