@@ -3,10 +3,21 @@ import UserNotifications
 
 let notAllowed: Int32 = 2
 
-// UserNotifications calls back on a queue of its own, and exit there would run
-// atexit handlers under AppKit's run loop on the main thread.
+// Exit on UserNotifications' queue would run the atexit handlers there while
+// AppKit's run loop carries on on the main thread.
 func finish(_ code: Int32) {
     DispatchQueue.main.async { exit(code) }
+}
+
+// macOS may answer an app whose notifications the user turned off with
+// notificationsNotAllowed rather than a plain no.
+func finish(_ error: Error) {
+    warn(error.localizedDescription)
+    if let error = error as? UNError, error.code == .notificationsNotAllowed {
+        finish(notAllowed)
+    } else {
+        finish(EXIT_FAILURE)
+    }
 }
 
 func exitAfter(_ seconds: Double, _ code: Int32) {
@@ -47,8 +58,7 @@ final class Delegate: NSObject, UNUserNotificationCenterDelegate {
 func authorize(then: @escaping @Sendable () -> Void) {
     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
         if let error {
-            warn(error.localizedDescription)
-            finish(EXIT_FAILURE)
+            finish(error)
         } else if granted {
             then()
         } else {
@@ -64,8 +74,7 @@ func post(_ message: String) {
     let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
     UNUserNotificationCenter.current().add(request) { error in
         if let error {
-            warn(error.localizedDescription)
-            finish(EXIT_FAILURE)
+            finish(error)
         } else {
             finish(EXIT_SUCCESS)
         }
