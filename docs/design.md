@@ -6898,7 +6898,8 @@ Script Editor's: its icon, and a click that opens Script Editor. So a release's 
 through a small Mac app of its own, `Switchboard.app`, which carries switchboard's icon and name,
 and which a click on its notification only dismisses. The owner's call, 5 November 2026, the icon
 the Fork of the Paper file *Switchboard · Logo* (round 1, logo 2: one line in, three out, the one
-picked lit, in amber on instrument black).
+picked lit, in amber on instrument black), its two unlit branches brightened on 6 November, as at
+a notification's size they were lost.
 
 - **The app:** one Swift file, `internal/notify/app/main.swift`, with its `Info.plist` and icon,
   as Go reaches macOS's notification API (`UserNotifications`) only from an app bundle, and not
@@ -8319,7 +8320,9 @@ binary can't have its ticket stapled, so macOS looks it up online.
   from a clean checkout of what's to be tagged, where untracked files, which no checkout of the
   commit holds, stop nothing, in a folder of its own outside the repository. First the
   notifications' app (see Notifications, "How they're posted"): `swiftc` for arm64 and x86_64,
-  joined by `lipo`, put together as a bundle with its `Info.plist` and icon, signed as the binaries
+  joined by `lipo`, put together as a bundle with its `Info.plist` and its icon, compiled by
+  `actool` from Icon Composer's layered format (`AppIcon.icon`), as macOS 26 sets an icon of the
+  older kind on a white plate, with the older kind beside it for the macOS before; signed as the binaries
   are but under its own identifier, `io.github.leeovery.switchboard.notify`, verified, and zipped
   into the checkout for the binaries to embed; a tree from before the app, an older tag built
   again to finish its upload, is built as it was, with no app and no tag. Then switchboard, for
@@ -8357,8 +8360,8 @@ binary can't have its ticket stapled, so macOS looks it up online.
   and what's left after it is moving files already right. Waiting on Apple costs nothing: a tag
   without its binaries reaches no one, as Homebrew follows the tap.
 - **Where it runs:** a release can be cut only on an Apple-silicon Mac with Rosetta, as each
-  binary is run to check its version, Xcode's command line tools, for the app's `swiftc`, and the
-  certificate and the profile. The first run is
+  binary is run to check its version, Xcode 26 or later, for the app's `swiftc` and `actool`, which
+  its command line tools alone don't have, and the certificate and the profile. The first run is
   at the Mac, as `scripts/release-build 0.0.0-check`, which signs and notarises and releases
   nothing: macOS asks there to let `codesign` use the certificate's key and `notarytool` its
   profile, answered "Always Allow". A release run from elsewhere, as over SSH, waits on that

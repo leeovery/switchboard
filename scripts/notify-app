@@ -13,7 +13,6 @@ set -euo pipefail
 src=$(cd "$(dirname "${BASH_SOURCE[0]}")/../internal/notify/app" && pwd -P)
 identifier=io.github.leeovery.switchboard.notify
 arches=(arm64 x86_64)
-icon_sizes=(16 32 128 256 512)
 work=
 
 fail() {
@@ -46,15 +45,16 @@ info() {
 	plutil -replace CFBundleVersion -string "$version" "$1"
 }
 
-# icon writes the icon at $1 from the 1024-pixel master.
+# icon compiles the icon into the Resources folder $1, from Icon Composer's
+# layered format, as macOS 26 sets an icon of the older kind on a white plate.
+# actool exits 0 having made nothing, so what it makes is checked.
 icon() {
-	local set=$work/AppIcon.iconset size
-	mkdir "$set"
-	for size in "${icon_sizes[@]}"; do
-		sips -z "$size" "$size" "$src/AppIcon.png" --out "$set/icon_${size}x${size}.png" >/dev/null
-		sips -z $((size * 2)) $((size * 2)) "$src/AppIcon.png" --out "$set/icon_${size}x${size}@2x.png" >/dev/null
-	done
-	iconutil -c icns -o "$1" "$set"
+	local out
+	out=$(xcrun actool "$src/AppIcon.icon" --compile "$1" --platform macosx \
+		--minimum-deployment-target 13.0 --app-icon AppIcon \
+		--output-partial-info-plist "$work/icon.plist" \
+		--output-format human-readable-text 2>&1) || fail "actool failed: $out"
+	[[ -f $1/Assets.car && -f $1/AppIcon.icns ]] || fail "actool made no icon: $out"
 }
 
 # sign signs the app $1 as identity $2, or ad hoc where $2 is empty, under
@@ -83,7 +83,7 @@ main() {
 	mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 	compile "$app/Contents/MacOS/Switchboard"
 	info "$app/Contents/Info.plist" "$version" "$id"
-	icon "$app/Contents/Resources/AppIcon.icns"
+	icon "$app/Contents/Resources"
 	sign "$app" "$identity" "$id"
 }
 
