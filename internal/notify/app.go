@@ -197,10 +197,13 @@ func swapIn(fresh, path, aside string, rename func(oldpath, newpath string) erro
 	}
 	movedAside := err == nil
 	if err := rename(fresh, path); err != nil {
+		err = fmt.Errorf("put the notifications' app in place: %w", err)
 		if movedAside {
-			_ = rename(aside, path)
+			if back := rename(aside, path); back != nil {
+				err = errors.Join(err, fmt.Errorf("put the one there back: %w", back))
+			}
 		}
-		return fmt.Errorf("put the notifications' app in place: %w", err)
+		return err
 	}
 	return nil
 }
