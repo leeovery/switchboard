@@ -6879,7 +6879,9 @@ posts, but for a token's year, which has no key: see Config.
 Room again and warnings compare an account with how it last stood, so neither tells of how the
 accounts stood as the router started, nor of an account's first reading. A limit's notification
 always goes out, and so does a token's year's: no quiet minute holds either back. As the router
-stops, the limits' still gathering go out at once, within 3 seconds. Any other goes out only a
+stops, the limits' still gathering go out at once, within 3 seconds, and nothing else is posted
+once it's stopping; a post still going at the end of those 3 seconds is ended, so none outlives
+the router or its restart in place. Any other goes out only a
 minute or more after the last posted about its account, a limit's included: one due sooner is
 dropped, and the log says so at debug. One that fails to post is logged at warn, and dropped too;
 not having gone out, it starts no quiet minute. The log names accounts by id alone. Notifications
@@ -6939,12 +6941,13 @@ a notification's size they were lost.
   notification posted before the answer waits on it past the 5 seconds a post is given, and is
   dropped as any that fails. So a switchboard asks before its first post, once it has written and
   registered the app, outside the lock, with `--authorize`, and its posts wait on the answer, for
-  as long as the app gives the question, 5 minutes, or until that switchboard stops: stopping
+  as long as the app gives the question, 5 minutes, or, in the router, until it stops: its stop
   ends the app asking, so the router's stop, or its restart in place, is never held up by a post
   waiting. The router asks as it starts, on a goroutine of its own its stop ends, so the question
   comes as setup starts it, or as `brew upgrade` brings the first release with the app, while
   the user is at the Mac, and setup's screens are unchanged; a dashboard posting without the
-  router asks before its first post. Once answered, macOS answers at once. An ask that fails, or isn't answered in time, is logged once at `warn`, with
+  router asks before its first post, and one that quits leaves its question up for the user to
+  answer, as quitting waits on no post. Once answered, macOS answers at once. An ask that fails, or isn't answered in time, is logged once at `warn`, with
   the app's reason, and the posts go on through the app. Turned off, in System Settings →
   Notifications → Switchboard, a post exits 2, which the router logs once at `warn`, naming where
   to turn them on, and that a router restart registers the app again where they're on, until one
