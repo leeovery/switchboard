@@ -99,7 +99,7 @@ func TestRefusesWhatTheCommandLineCantMean(t *testing.T) {
 		{name: "a fixture and a scenario", args: []string{"--fixture", "overview-default-160", "--scenario", "routing"}, want: "--scenario and --fixture: name one"},
 		{name: "a scenario printed", args: []string{"--scenario", "routing", "--print"}, want: "--print takes a fixture: a scenario plays in time, full screen"},
 		{name: "a scenario's size", args: []string{"--scenario", "routing", "--size", "80x24"}, want: "--size takes --print: full screen, the terminal gives the size"},
-		{name: "a scenario in a theme there isn't", args: []string{"--scenario", "routing", "--theme", "solarized"}, want: `--theme "solarized" names no built-in theme (built in: amber, exchange, nord, terminal, tokyo-night, tokyo-night-day), nor a .theme file`},
+		{name: "a scenario in a theme there isn't", args: []string{"--scenario", "routing", "--theme", "solarized"}, want: `--theme "solarized" names no built-in theme (built in: amber, exchange, gitlab-dark-grey, horizon, nord, nord-wave, terminal, tokyo-night, tokyo-night-day), nor a .theme file`},
 		{name: "a scenario without a terminal", args: []string{"--scenario", "routing"}, want: "a scenario plays full screen: it needs a terminal"},
 		{name: "frames for no fixture", args: []string{"--frames", empty, "usage-160", "sessions-2"}, want: `--frames: unknown fixture "sessions-2" ` + available},
 		{name: "frames where none is kept", args: []string{"--frames", empty}, want: "--frames: " + empty + " keeps no frames: name those to write after it"},
@@ -251,7 +251,7 @@ func TestRefusesAThemeThatDoesntLoad(t *testing.T) {
 	tests := []struct {
 		name, theme, want string
 	}{
-		{name: "no such built-in", theme: "solarized", want: `--theme "solarized" names no built-in theme (built in: amber, exchange, nord, terminal, tokyo-night, tokyo-night-day), nor a .theme file`},
+		{name: "no such built-in", theme: "solarized", want: `--theme "solarized" names no built-in theme (built in: amber, exchange, gitlab-dark-grey, horizon, nord, nord-wave, terminal, tokyo-night, tokyo-night-day), nor a .theme file`},
 		{name: "a broken file", theme: broken, want: `--theme "` + broken + `" doesn't load: missing tokens: missing text.primary`},
 		{name: "no such file", theme: filepath.Join(t.TempDir(), "gone.theme"), want: "doesn't load: unreadable"},
 	}

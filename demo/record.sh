@@ -13,7 +13,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-stills=" runway-week graphs phone theme-tokyo-night theme-tokyo-night-day theme-nord theme-terminal theme-amber theme-exchange help history-year accounts-compare log-requests session overview sessions theme-picker "
+stills=" runway-week graphs phone theme-tokyo-night theme-tokyo-night-day theme-nord theme-nord-wave theme-horizon theme-gitlab-dark-grey theme-terminal theme-amber theme-exchange help history-year accounts-compare log-requests session overview sessions theme-picker "
 
 names=("$@")
 if [ ${#names[@]} -eq 0 ]; then

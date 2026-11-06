@@ -1,7 +1,8 @@
 # The README's themes clip: t opens the theme picker over the Overview, and
 # each theme the cursor reaches redraws the dashboard in it, live. It
-# previews tokyo-night-day, terminal on the way past, nord, exchange and
-# amber, and esc puts tokyo-night back. capturetool plays the
+# previews tokyo-night-day, terminal on the way past, nord-wave, nord,
+# horizon, gitlab-dark-grey, exchange and amber, and esc puts tokyo-night
+# back. capturetool plays the
 # routing scenario (internal/capture/scenarios.go) behind it: no key pins
 # anything.
 #
@@ -41,12 +42,18 @@ Sleep 1400ms
 Up
 Sleep 250ms
 Up
-# terminal, on the way to nord.
+# terminal, on the way to nord-wave.
 Sleep 500ms
 Up
 Sleep 1300ms
 Up
-# exchange, then amber.
+# nord, horizon, gitlab-dark-grey, exchange, then amber.
+Sleep 1300ms
+Up
+Sleep 1300ms
+Up
+Sleep 1300ms
+Up
 Sleep 1300ms
 Up
 Sleep 1400ms

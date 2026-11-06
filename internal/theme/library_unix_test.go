@@ -35,7 +35,7 @@ func TestTheThemesDirectoryIsReadForRegularFilesAlone(t *testing.T) {
 	}()
 	select {
 	case got := <-done:
-		if want := []string{"amber", "exchange", "lake", "nord", "terminal", "tokyo-night", "tokyo-night-day"}; !slices.Equal(got.listed, want) {
+		if want := []string{"amber", "exchange", "gitlab-dark-grey", "horizon", "lake", "nord", "nord-wave", "terminal", "tokyo-night", "tokyo-night-day"}; !slices.Equal(got.listed, want) {
 			t.Errorf("List() lists %q, want %q, past the FIFO and the device", got.listed, want)
 		}
 		if p, ok := errors.AsType[*theme.Problem](got.err); !ok || p.Reason != "not found" {

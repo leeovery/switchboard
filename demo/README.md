@@ -39,6 +39,9 @@ demo/record.sh routing help   # the tapes named
 | `theme-tokyo-night` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night.webp`, a still: the Overview in `tokyo-night` |
 | `theme-tokyo-night-day` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night-day.webp`, a still: the Overview in `tokyo-night-day` |
 | `theme-nord` | fixture `overview-default-160` | 160 × 37 | `art/theme-nord.webp`, a still: the Overview in `nord` |
+| `theme-nord-wave` | fixture `overview-default-160` | 160 × 37 | `art/theme-nord-wave.webp`, a still: the Overview in `nord-wave` |
+| `theme-horizon` | fixture `overview-default-160` | 160 × 37 | `art/theme-horizon.webp`, a still: the Overview in `horizon` |
+| `theme-gitlab-dark-grey` | fixture `overview-default-160` | 160 × 37 | `art/theme-gitlab-dark-grey.webp`, a still: the Overview in `gitlab-dark-grey` |
 | `theme-terminal` | fixture `overview-default-160` | 160 × 37 | `art/theme-terminal.webp`, a still: the Overview in `terminal` |
 | `theme-amber` | fixture `overview-default-160` | 160 × 37 | `art/theme-amber.webp`, a still: the Overview in `amber` |
 | `theme-exchange` | fixture `overview-default-160` | 160 × 37 | `art/theme-exchange.webp`, a still: the Overview in `exchange` |

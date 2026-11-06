@@ -191,11 +191,10 @@ func TestATerminalThemeShownMidwayPutsBackTheBackgroundFound(t *testing.T) {
 			h, _ := themedHarness(t, theme.Choice{})
 			h.start()
 			h.answer(tt.answer)
-			h.typed("t")
-			h.typed("down")
+			h.typed("t", "down", "down")
 
 			if h.drawnIn() != theme.Terminal {
-				t.Fatalf("the cursor moved down from nord to %s, want terminal", h.drawnIn())
+				t.Fatalf("the cursor moved down from nord past nord-wave to %s, want terminal", h.drawnIn())
 			}
 			if got := hexOf(h.model.View().BackgroundColor); got != tt.want {
 				t.Errorf("shown the terminal's theme, the terminal's background is set to %s, want %s", got, tt.want)
@@ -319,10 +318,10 @@ func TestThePickerShowsEachThemeAsTheCursorReachesIt(t *testing.T) {
 		h.typed("down")
 		reached = append(reached, h.drawnIn())
 	}
-	if want := []string{"terminal", "tokyo-night", "tokyo-night-day", "tokyo-night-day", "tokyo-night-day", "tokyo-night-day", "tokyo-night-day"}; !slices.Equal(reached, want) {
+	if want := []string{"nord-wave", "terminal", "tokyo-night", "tokyo-night-day", "tokyo-night-day", "tokyo-night-day", "tokyo-night-day"}; !slices.Equal(reached, want) {
 		t.Errorf("moving down from nord, the screen is drawn in %q, want %q, stopping at the last", reached, want)
 	}
-	for range 7 {
+	for range themes.listing.Entries {
 		h.typed("up")
 	}
 	if got := h.drawnIn(); got != "amber" {
@@ -336,8 +335,9 @@ func TestThePickerShowsEachThemeAsTheCursorReachesIt(t *testing.T) {
 func TestEnterSetsOneTheme(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
 	h.typed("t")
-	h.typed("up")
-	h.typed("up")
+	for range themes.listing.Entries {
+		h.typed("up")
+	}
 	h.typed("enter")
 
 	if want := []theme.Choice{theme.One("amber")}; !slices.Equal(themes.kept, want) {
@@ -357,11 +357,7 @@ func TestEnterSetsOneTheme(t *testing.T) {
 
 func TestDAndLSetTheHalvesOfThePair(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
-	h.typed("t")
-	h.typed("down")
-	h.typed("d")
-	h.typed("down")
-	h.typed("l")
+	h.typed("t", "down", "down", "d", "down", "l")
 
 	want := []theme.Choice{{Dark: "terminal"}, {Light: "tokyo-night", Dark: "terminal"}}
 	if !slices.Equal(themes.kept, want) {
@@ -390,10 +386,7 @@ func TestAHalfOverOneThemeAsksFirst(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h, themes := settledThemedHarness(t, theme.One("amber"))
-			h.typed("t")
-			h.typed("down")
-			h.typed("down")
-			h.typed("l")
+			h.typed("t", "down", "down", "down", "down", "l")
 
 			if view := h.view(); !strings.Contains(view, "clear amber?  y / n") || !strings.Contains(view, "│ y confirm") {
 				t.Errorf("setting a half over one theme, the screen reads\n%s\nwant it to ask first", view)
@@ -472,13 +465,13 @@ func TestAPickIsSetInTheChoiceAsItStandsNow(t *testing.T) {
 		{
 			name: "a half, beside the other half kept since",
 			now:  theme.Choice{Light: "exchange"},
-			keys: []string{"t", "down", "d"},
+			keys: []string{"t", "down", "down", "d"},
 			want: []theme.Choice{{Light: "exchange", Dark: "terminal"}},
 		},
 		{
 			name: "a half, over one theme kept since, asking first",
 			now:  theme.One("amber"),
-			keys: []string{"t", "down", "l", "y"},
+			keys: []string{"t", "down", "down", "l", "y"},
 			asks: true,
 			want: []theme.Choice{{Light: "terminal"}},
 		},
@@ -492,7 +485,7 @@ func TestAPickIsSetInTheChoiceAsItStandsNow(t *testing.T) {
 		{
 			name: "one theme, the pair kept since cleared",
 			now:  theme.Choice{Light: "exchange", Dark: "amber"},
-			keys: []string{"t", "down", "enter"},
+			keys: []string{"t", "down", "down", "enter"},
 			want: []theme.Choice{theme.One("terminal")},
 		},
 	}
@@ -530,7 +523,7 @@ func TestThePickerReadsAndKeepsOutsideUpdate(t *testing.T) {
 		h.model = next.(Model)
 		h.deliver(h.run(cmd)...)
 	}
-	if want := []theme.Choice{theme.One("terminal")}; themes.lists != 1 || !slices.Equal(themes.kept, want) {
+	if want := []theme.Choice{theme.One("nord-wave")}; themes.lists != 1 || !slices.Equal(themes.kept, want) {
 		t.Errorf("listed %d times, kept %+v; want the themes listed once, and %+v kept, once each command ran", themes.lists, themes.kept, want)
 	}
 }

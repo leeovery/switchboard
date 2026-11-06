@@ -1047,7 +1047,7 @@ It never remembers:
 ## Themes
 
 <div align="center">
-<img src="../art/themes.webp" alt="The theme picker over the Overview, the dashboard redrawn in each theme the cursor reaches: tokyo-night-day, terminal, nord, exchange and amber, then tokyo-night again" width="840">
+<img src="../art/themes.webp" alt="The theme picker over the Overview, the dashboard redrawn in each theme the cursor reaches: tokyo-night-day, terminal, nord-wave, nord, horizon, gitlab-dark-grey, exchange and amber, then tokyo-night again" width="840">
 </div>
 
 The dashboard is drawn in a theme. A theme names its colours by what they mean and how prominent
@@ -1058,8 +1058,10 @@ they are, never by hue.
 |  |  |
 |:---:|:---:|
 | <img src="../art/theme-tokyo-night.webp" alt="The Overview in tokyo-night" width="420"><br>`tokyo-night`<br>Tokyo Night. | <img src="../art/theme-tokyo-night-day.webp" alt="The Overview in tokyo-night-day" width="420"><br>`tokyo-night-day`<br>Tokyo Night, for a light terminal. |
-| <img src="../art/theme-nord.webp" alt="The Overview in nord" width="420"><br>`nord`<br>The dashboard's palette from the start. | <img src="../art/theme-amber.webp" alt="The Overview in amber" width="420"><br>`amber`<br>An amber CRT. |
-| <img src="../art/theme-exchange.webp" alt="The Overview in exchange" width="420"><br>`exchange`<br>A telephone exchange's brass and walnut. | <img src="../art/theme-terminal.webp" alt="The Overview in terminal" width="420"><br>`terminal`<br>For a terminal with a transparent or image background. It paints no background, and draws in the terminal's own sixteen colours: here, a Tokyo Night terminal's. |
+| <img src="../art/theme-nord.webp" alt="The Overview in nord" width="420"><br>`nord`<br>The dashboard's palette from the start. | <img src="../art/theme-nord-wave.webp" alt="The Overview in nord-wave" width="420"><br>`nord-wave`<br>Nord on a neutral near-black. |
+| <img src="../art/theme-horizon.webp" alt="The Overview in horizon" width="420"><br>`horizon`<br>Horizon's pink and peach on a cool blue-grey. | <img src="../art/theme-gitlab-dark-grey.webp" alt="The Overview in gitlab-dark-grey" width="420"><br>`gitlab-dark-grey`<br>GitLab's Dark Grey: neutral greys with a violet selection. |
+| <img src="../art/theme-amber.webp" alt="The Overview in amber" width="420"><br>`amber`<br>An amber CRT. | <img src="../art/theme-exchange.webp" alt="The Overview in exchange" width="420"><br>`exchange`<br>A telephone exchange's brass and walnut. |
+| <img src="../art/theme-terminal.webp" alt="The Overview in terminal" width="420"><br>`terminal`<br>For a terminal with a transparent or image background. It paints no background, and draws in the terminal's own sixteen colours: here, a Tokyo Night terminal's. | |
 
 ### One theme, or a pair
 
