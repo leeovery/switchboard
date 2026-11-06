@@ -134,14 +134,14 @@ func (n *notifications) run(ctx context.Context) {
 }
 
 // finish deals with the events still queued, as the router stops, ctx having
-// ended, posting no move of theirs, and tells of every limit still gathering
-// at once: a limit's notification always goes out. Its posts get finishWait,
-// under a context of their own, and it waits for them to end, so a post
-// still going then is ended, and none outlives it.
+// ended, and tells of every limit still gathering at once: a limit's
+// notification always goes out. Its posts get finishWait between them, under
+// a context of their own, and it waits for them to end, so a post still going
+// then is ended, and none outlives it.
 func (n *notifications) finish(ctx context.Context) {
-	n.takeQueued(ctx)
 	posting, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishWait)
 	defer cancel()
+	n.takeQueued(posting)
 	n.tell(posting, n.limits.all())
 	if posting.Err() != nil {
 		logger.Warn("ended the notifications still posting as the router stopped", "after", finishWait)

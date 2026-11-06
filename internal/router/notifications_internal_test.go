@@ -846,7 +846,7 @@ func TestStoppingTellsOfTheLimitsStillGatheringAtOnce(t *testing.T) {
 	})
 }
 
-func TestOnceStoppingNotificationsPostAndLookNoMore(t *testing.T) {
+func TestOnceStoppingNotificationsLookNoMore(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
 		// 2's token's year is due to be told of once the day turns, 5 hours
@@ -860,9 +860,7 @@ func TestOnceStoppingNotificationsPostAndLookNoMore(t *testing.T) {
 		h.after(5*time.Hour - 6*time.Second)
 		parked := Moved{Session: "a", Model: opus, From: "2", To: "1", Reason: "moved by pin"}
 		h.hear(parked)
-		// With the post parked, another move queues, and the next look falls
-		// due.
-		h.n.hear(Moved{Session: "b", Model: opus, From: "3", To: "1", Reason: "moved by pin"})
+		// With the post parked, the next look falls due.
 		h.after(10 * time.Second)
 
 		began := time.Now()
@@ -876,6 +874,78 @@ func TestOnceStoppingNotificationsPostAndLookNoMore(t *testing.T) {
 		}
 		if !log.Has("level=WARN", `msg="notification failed"`, "account=2", `error="context canceled"`) {
 			t.Errorf("log reads\n%s\nwant the post parked dropped as notifications stopped", log)
+		}
+	})
+}
+
+func TestOnceStoppingALookPostsNoMore(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newNotifying(t, config.Notifications{Room: true})
+		h.notifier.hold = make(chan struct{})
+		for _, id := range []string{"2", "3"} {
+			h.read(id, h.session(1, time.Minute), h.week(0.5, 3*day))
+		}
+		h.start()
+		// The look a minute on finds both with room again, and the first's
+		// post parks.
+		h.after(time.Minute)
+
+		h.stop()
+		if got := h.notifier.posted(); len(got) != 1 {
+			t.Errorf("posted %q, want the one parked as notifications stopped alone", got)
+		}
+	})
+}
+
+func TestStoppingPostsTheMovesStillQueuedWithTheLimitsGathering(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		h := newNotifying(t, config.Notifications{Limits: true, Moves: true})
+		h.notifier.hold = make(chan struct{})
+		h.start()
+		h.limit("3", []string{"5h"}, time.Hour)
+		parked := Moved{Session: "a", Model: opus, From: "2", To: "1", Reason: "moved by pin"}
+		h.hear(parked)
+		queued := Moved{Session: "b", Model: opus, From: "1", To: "2", Reason: "moved by pin"}
+		h.n.hear(queued)
+		// The question's answered a second into the stop.
+		time.AfterFunc(time.Second, func() { close(h.notifier.hold) })
+
+		began := time.Now()
+		h.stop()
+		if waited := time.Since(began); waited != time.Second {
+			t.Errorf("stopping took %v, want 1s, as long as posting took", waited)
+		}
+		got := h.notifier.posted()
+		accounts := h.state.standings(time.Now())
+		if want := []string{moveNotice(parked, accounts).Message, moveNotice(queued, accounts).Message}; len(got) != 3 || !slices.Equal(got[:2], want) || !strings.HasPrefix(got[2], "3 · three hit its 5-hour limit") {
+			t.Errorf("posted %q, want the move parked, then the move queued and 3's limit, told of as they stopped", got)
+		}
+		if log.Has("ended the notifications still posting") {
+			t.Errorf("log reads\n%s\nwant the last notifications gone out in time", log)
+		}
+	})
+}
+
+func TestStoppingEndsAQueuedMovesPostStillGoingAtTheBound(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		h := newNotifying(t, config.Notifications{Moves: true})
+		h.notifier.hold = make(chan struct{})
+		h.start()
+		h.hear(Moved{Session: "a", Model: opus, From: "2", To: "1", Reason: "moved by pin"})
+		h.n.hear(Moved{Session: "b", Model: opus, From: "1", To: "2", Reason: "moved by pin"})
+
+		began := time.Now()
+		h.stop()
+		if waited := time.Since(began); waited != finishWait {
+			t.Errorf("stopping took %v with the queued move's post going on, want %v", waited, finishWait)
+		}
+		if got, want := h.notifier.cutShort(), h.notifier.posted(); len(got) != 2 || !slices.Equal(got, want) {
+			t.Errorf("cut short %q of the posts %q, want both: the parked move's as notifications stopped, the queued one's at the bound", got, want)
+		}
+		if !log.Has("level=WARN", `msg="ended the notifications still posting as the router stopped"`, "after=3s") {
+			t.Errorf("log reads\n%s\nwant the post still going ended", log)
 		}
 	})
 }
