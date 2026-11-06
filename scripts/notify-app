@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+#
+# Builds switchboard's notifications' app, Switchboard.app, from
+# internal/notify/app into the folder given: one binary for arm64 and x86_64,
+# its Info.plist carrying the version given and its icon. scripts/release-build
+# runs it, signing with the Developer ID, and embeds the app in each binary.
+# By hand, with no identity, it signs the app ad hoc, for trying it, as
+# scripts/notify-app /some/folder 0.0.0.
+set -euo pipefail
+
+src=$(cd "$(dirname "${BASH_SOURCE[0]}")/../internal/notify/app" && pwd -P)
+identifier=io.github.leeovery.switchboard.notify
+arches=(arm64 x86_64)
+icon_sizes=(16 32 128 256 512)
+work=
+
+fail() {
+	echo "$1" >&2
+	exit 1
+}
+
+usage() {
+	fail "Usage: scripts/notify-app <out-dir> <version> [<identity>]"
+}
+
+# compile builds the app's binary for each arch, joined into $1.
+compile() {
+	local arch thin=()
+	for arch in "${arches[@]}"; do
+		swiftc -O -target "$arch-apple-macos13" -o "$work/Switchboard-$arch" "$src/main.swift"
+		thin+=("$work/Switchboard-$arch")
+	done
+	lipo -create -output "$1" "${thin[@]}"
+}
+
+# info writes the Info.plist at $1 for version $2. Apple reads a bundle's
+# versions as integers and dots alone, so a pre-release's is its release's.
+info() {
+	local version=${2%%-*}
+	cp "$src/Info.plist" "$1"
+	plutil -replace CFBundleShortVersionString -string "$version" "$1"
+	plutil -replace CFBundleVersion -string "$version" "$1"
+}
+
+# icon writes the icon at $1 from the 1024-pixel master.
+icon() {
+	local set=$work/AppIcon.iconset size
+	mkdir "$set"
+	for size in "${icon_sizes[@]}"; do
+		sips -z "$size" "$size" "$src/AppIcon.png" --out "$set/icon_${size}x${size}.png" >/dev/null
+		sips -z $((size * 2)) $((size * 2)) "$src/AppIcon.png" --out "$set/icon_${size}x${size}@2x.png" >/dev/null
+	done
+	iconutil -c icns -o "$1" "$set"
+}
+
+# sign signs the app $1 as identity $2, or ad hoc where $2 is empty.
+sign() {
+	local args=(--force --options runtime --identifier "$identifier")
+	if [[ -n $2 ]]; then
+		args+=(--timestamp --sign "$2")
+	else
+		args+=(--sign -)
+	fi
+	codesign "${args[@]}" "$1"
+	codesign --verify --strict --deep "$1"
+}
+
+main() {
+	[[ $# -eq 2 || $# -eq 3 ]] || usage
+	local out=$1 version=$2 identity=${3:-}
+	[[ -n $version ]] || usage
+	local app=$out/Switchboard.app
+	work=$(mktemp -d)
+	trap 'rm -rf "$work"' EXIT
+
+	rm -rf "$app"
+	mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+	compile "$app/Contents/MacOS/Switchboard"
+	info "$app/Contents/Info.plist" "$version"
+	icon "$app/Contents/Resources/AppIcon.icns"
+	sign "$app" "$identity"
+}
+
+main "$@"

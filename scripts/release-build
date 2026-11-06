@@ -3,9 +3,12 @@
 # Builds a release's binaries on this Mac, signed with its Developer ID and
 # notarised, before mint tags it: mint's pre_tag runs it after scripts/gated,
 # with the version about to be tagged in MINT_NEW_VERSION. It builds HEAD in a
-# checkout of its own outside the repository, for arm64 and amd64, signs each,
-# sends both to Apple's notary service and waits on its answer, for about an
-# hour at most, then archives and sums them under the names the Homebrew
+# checkout of its own outside the repository: first the notifications' app,
+# Switchboard.app, with scripts/notify-app, signed and zipped into the checkout
+# for the binaries to embed; then switchboard, for arm64 and amd64, with the
+# build tag notifyapp, each signed. It sends the binaries and the app to
+# Apple's notary service and waits on its answer, for about an hour at most,
+# then archives and sums the binaries under the names the Homebrew
 # formula reads, and keeps them, with the commit built, in
 # ~/Library/Caches/switchboard/release/<version>/, in place of any other
 # version's, for scripts/release-upload once the release is made. Any failure
@@ -23,6 +26,9 @@ scripts=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 . "$scripts/release-common"
 
 identifier=io.github.leeovery.switchboard
+app_identifier=io.github.leeovery.switchboard.notify
+# Where the binaries embed the app from, in the checkout built.
+app_zip=internal/notify/app/Switchboard.app.zip
 identity="Developer ID Application"
 # notarytool's login is the Mac's, whatever it notarises, so its profile is
 # named for notarytool, not for switchboard.
@@ -31,6 +37,7 @@ profile=notarytool
 # most, so mint, which gives a hook no time limit, waits about an hour.
 notary_wait=900
 notary_waits=4
+keychain_hint="The login keychain may be locked, as over SSH (security unlock-keychain), or macOS may be asking on the Mac's screen to let codesign use the key."
 work=
 
 usage() {
@@ -87,13 +94,25 @@ arch_flag() {
 
 # build builds version $2 from the checkout $1 for arch $3 into $4.
 build() {
-	(cd "$1" && CGO_ENABLED=0 GOOS=darwin GOARCH=$3 go build -trimpath \
+	(cd "$1" && CGO_ENABLED=0 GOOS=darwin GOARCH=$3 go build -trimpath -tags notifyapp \
 		-ldflags "-s -w -X main.version=$2" -o "$4" ./cmd/switchboard)
 }
 
 sign() {
 	codesign --force --options runtime --timestamp --identifier "$identifier" --sign "$identity" "$1" ||
-		release_fail "codesign couldn't sign $1, as it says above. The login keychain may be locked, as over SSH (security unlock-keychain), or macOS may be asking on the Mac's screen to let codesign use the key."
+		release_fail "codesign couldn't sign $1, as it says above. $keychain_hint"
+}
+
+# build_app builds the notifications' app with the checkout $1's
+# scripts/notify-app, at version $2, signed, into the folder $3, and zips it
+# into the checkout for the binaries to embed.
+build_app() {
+	"$1/scripts/notify-app" "$3" "$2" "$identity" ||
+		release_fail "scripts/notify-app couldn't build or sign the notifications' app, as it says above. Where codesign failed: $keychain_hint"
+	check_signature "$3/Switchboard.app" "$app_identifier"
+	# ditto otherwise zips extended attributes, as macOS's provenance, as
+	# AppleDouble ._ files, which unzipped into the bundle break its seal.
+	ditto -c -k --norsrc --noextattr --noqtn --noacl --keepParent "$3/Switchboard.app" "$1/$app_zip"
 }
 
 # cant_run says why the binary $1, built for arch $2, doesn't run here, and
@@ -108,18 +127,25 @@ cant_run() {
 	release_fail "$1 doesn't run here, so its version can't be checked."
 }
 
-# check_binary checks the signature of the binary $1, built for arch $2, and
-# that it reports version $3.
-check_binary() {
-	local details reported
+# check_signature checks that $1 is signed as $2 by a Developer ID, with the
+# hardened runtime.
+check_signature() {
+	local details
 	codesign --verify --strict "$1" || release_fail "$1's signature doesn't verify."
 	details=$(codesign --display --verbose=2 "$1" 2>&1)
-	if ! grep -qx "Identifier=$identifier" <<<"$details" ||
+	if ! grep -qx "Identifier=$2" <<<"$details" ||
 		! grep -q "^Authority=$identity: " <<<"$details" ||
 		! grep -q "^CodeDirectory .*(runtime)" <<<"$details"; then
 		echo "$details"
-		release_fail "$1 isn't signed as $identifier by a $identity, with the hardened runtime."
+		release_fail "$1 isn't signed as $2 by a $identity, with the hardened runtime."
 	fi
+}
+
+# check_binary checks the signature of the binary $1, built for arch $2, and
+# that it reports version $3.
+check_binary() {
+	local reported
+	check_signature "$1" "$identifier"
 	reported=$(arch "-$(arch_flag "$2")" "$1" --version) || cant_run "$1" "$2"
 	[[ $reported == "switchboard version $3" ]] || release_fail "$1 reports \"$reported\", not switchboard version $3."
 }
@@ -135,7 +161,7 @@ field() {
 notarise() {
 	local result id status="In Progress" round started elapsed
 	ditto -c -k --keepParent "$1" "$2"
-	echo "Sending the binaries to Apple's notary service…"
+	echo "Sending the binaries and the app to Apple's notary service…"
 	result=$(xcrun notarytool submit "$2" --keychain-profile "$profile" --no-wait --output-format json || true)
 	id=$(field id "$result")
 	if [[ -z $id ]]; then
@@ -165,7 +191,7 @@ notarise() {
 	fi
 	if [[ $status != Accepted ]]; then
 		xcrun notarytool log "$id" --keychain-profile "$profile" || true
-		release_fail "Apple's notary service refused the binaries, as its log above says."
+		release_fail "Apple's notary service refused the binaries and the app, as its log above says."
 	fi
 }
 
@@ -235,6 +261,7 @@ main() {
 
 	local arch bin out=$work/out
 	mkdir "$work/bin" "$out"
+	build_app "$work/tree" "$version" "$work/bin"
 	for arch in "${release_arches[@]}"; do
 		bin=$work/bin/darwin_$arch/switchboard
 		build "$work/tree" "$version" "$arch" "$bin"
