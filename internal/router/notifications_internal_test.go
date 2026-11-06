@@ -836,140 +836,117 @@ func TestStoppingTellsOfTheLimitsStillGatheringAtOnce(t *testing.T) {
 		h.start()
 		h.limit("2", []string{"5h"}, time.Hour)
 		h.hear(forced("a", "2", "1"))
+		queued := Moved{Session: "b", Model: opus, From: "3", To: "1", Reason: "moved by pin"}
+		h.n.hear(queued)
 
 		began := time.Now()
 		h.stop()
 		if waited := time.Since(began); waited != 0 {
 			t.Errorf("stopping took %v, want no wait, even with a limit gathering", waited)
 		}
-		h.expect("2 · two hit its 5-hour limit, back at Sat 01:00 — 1 session moved to 1 · one")
+		h.expect(moveNotice(queued, h.state.standings(time.Now())).Message, "2 · two hit its 5-hour limit, back at Sat 01:00 — 1 session moved to 1 · one")
 	})
 }
 
-func TestOnceStoppingNotificationsLookNoMore(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		log := logstest.Capture(t)
-		// 2's token's year is due to be told of once the day turns, 5 hours
-		// on. Started 7 seconds in, notifications look 8 seconds before that
-		// and 7 after, and the move whose post parks comes between, so the
-		// look that follows it, were it to run, would find the year due.
-		h := newYearNotifying(t, config.Notifications{Moves: true}, localOn(31, 1))
-		h.notifier.hold = make(chan struct{})
-		h.after(7 * time.Second)
-		h.start()
-		h.after(5*time.Hour - 6*time.Second)
-		parked := Moved{Session: "a", Model: opus, From: "2", To: "1", Reason: "moved by pin"}
-		h.hear(parked)
-		// With the post parked, the next look falls due.
-		h.after(10 * time.Second)
+func TestAStopMidPostPostsAllThatsLeftWhereItsAnsweredInTime(t *testing.T) {
+	for _, tt := range midPost {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				h, want := tt.park(t)
+				// The question's answered a second into the stop.
+				time.AfterFunc(time.Second, func() { close(h.notifier.hold) })
 
-		began := time.Now()
-		h.stop()
-		if waited := time.Since(began); waited != 0 {
-			t.Errorf("stopping took %v with a post parked, want no wait", waited)
-		}
-		h.expect(moveNotice(parked, h.state.standings(time.Now())).Message)
-		if told := h.n.years.saved(); len(told) > 0 {
-			t.Errorf("told of the tokens' years %v, want none: no look once stopping", told)
-		}
-		if !log.Has("level=WARN", `msg="notification failed"`, "account=2", `error="context canceled"`) {
-			t.Errorf("log reads\n%s\nwant the post parked dropped as notifications stopped", log)
-		}
-	})
+				began := time.Now()
+				h.stop()
+				if waited := time.Since(began); waited != time.Second {
+					t.Errorf("stopping took %v, want 1s, as long as posting took", waited)
+				}
+				h.expect(want...)
+				if cut := h.notifier.cutShort(); len(cut) > 0 || log.Has("as the router stopped") {
+					t.Errorf("cut short %q, and log reads\n%s\nwant every post gone out in time", cut, log)
+				}
+			})
+		})
+	}
 }
 
-func TestOnceStoppingALookPostsNoMore(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		h := newNotifying(t, config.Notifications{Room: true})
-		h.notifier.hold = make(chan struct{})
-		for _, id := range []string{"2", "3"} {
-			h.read(id, h.session(1, time.Minute), h.week(0.5, 3*day))
-		}
-		h.start()
-		// The look a minute on finds both with room again, and the first's
-		// post parks.
-		h.after(time.Minute)
+func TestAStopMidPostEndsAllThatsLeftAtItsDeadline(t *testing.T) {
+	const (
+		ended = `level=WARN msg="ended the notifications still posting as the router stopped"`
+		after = `level=DEBUG msg="notification ended as the router stopped"`
+	)
+	for _, tt := range midPost {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				h, want := tt.park(t)
 
-		h.stop()
-		if got := h.notifier.posted(); len(got) != 1 {
-			t.Errorf("posted %q, want the one parked as notifications stopped alone", got)
-		}
-	})
+				began := time.Now()
+				h.stop()
+				if waited := time.Since(began); waited != finishWait {
+					t.Errorf("stopping took %v with the question unanswered, want %v", waited, finishWait)
+				}
+				h.expect(want...)
+				if cut := h.notifier.cutShort(); !slices.Equal(cut, want) {
+					t.Errorf("cut short %q, want every post, %q: the first at the deadline, the rest at once", cut, want)
+				}
+				if strings.Count(log.String(), ended) != 1 || !log.Has(ended, "after=3s") || strings.Count(log.String(), after) != len(want)-1 {
+					t.Errorf("log reads\n%s\nwant the first post ended warned of, and the %d after it at debug", log, len(want)-1)
+				}
+			})
+		})
+	}
 }
 
-func TestStoppingPostsTheMovesStillQueuedWithTheLimitsGathering(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		log := logstest.Capture(t)
-		h := newNotifying(t, config.Notifications{Limits: true, Moves: true})
-		h.notifier.hold = make(chan struct{})
-		h.start()
-		h.limit("3", []string{"5h"}, time.Hour)
-		parked := Moved{Session: "a", Model: opus, From: "2", To: "1", Reason: "moved by pin"}
-		h.hear(parked)
-		queued := Moved{Session: "b", Model: opus, From: "1", To: "2", Reason: "moved by pin"}
-		h.n.hear(queued)
-		// The question's answered a second into the stop.
-		time.AfterFunc(time.Second, func() { close(h.notifier.hold) })
-
-		began := time.Now()
-		h.stop()
-		if waited := time.Since(began); waited != time.Second {
-			t.Errorf("stopping took %v, want 1s, as long as posting took", waited)
-		}
-		got := h.notifier.posted()
-		accounts := h.state.standings(time.Now())
-		if want := []string{moveNotice(parked, accounts).Message, moveNotice(queued, accounts).Message}; len(got) != 3 || !slices.Equal(got[:2], want) || !strings.HasPrefix(got[2], "3 · three hit its 5-hour limit") {
-			t.Errorf("posted %q, want the move parked, then the move queued and 3's limit, told of as they stopped", got)
-		}
-		if log.Has("ended the notifications still posting") {
-			t.Errorf("log reads\n%s\nwant the last notifications gone out in time", log)
-		}
-	})
-}
-
-func TestStoppingEndsAQueuedMovesPostStillGoingAtTheBound(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		log := logstest.Capture(t)
-		h := newNotifying(t, config.Notifications{Moves: true})
-		h.notifier.hold = make(chan struct{})
-		h.start()
-		h.hear(Moved{Session: "a", Model: opus, From: "2", To: "1", Reason: "moved by pin"})
-		h.n.hear(Moved{Session: "b", Model: opus, From: "1", To: "2", Reason: "moved by pin"})
-
-		began := time.Now()
-		h.stop()
-		if waited := time.Since(began); waited != finishWait {
-			t.Errorf("stopping took %v with the queued move's post going on, want %v", waited, finishWait)
-		}
-		if got, want := h.notifier.cutShort(), h.notifier.posted(); len(got) != 2 || !slices.Equal(got, want) {
-			t.Errorf("cut short %q of the posts %q, want both: the parked move's as notifications stopped, the queued one's at the bound", got, want)
-		}
-		if !log.Has("level=WARN", `msg="ended the notifications still posting as the router stopped"`, "after=3s") {
-			t.Errorf("log reads\n%s\nwant the post still going ended", log)
-		}
-	})
-}
-
-func TestStoppingEndsTheLastNotificationsStillPostingAtTheirBound(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		log := logstest.Capture(t)
-		h := newNotifying(t, config.Notifications{Limits: true})
-		h.notifier.hold = make(chan struct{})
-		h.start()
-		h.limit("2", []string{"5h"}, time.Hour)
-
-		began := time.Now()
-		h.stop()
-		if waited := time.Since(began); waited != finishWait {
-			t.Errorf("stopping took %v with the limit's post going on, want %v", waited, finishWait)
-		}
-		if got, want := h.notifier.cutShort(), h.notifier.posted(); len(got) != 1 || !slices.Equal(got, want) {
-			t.Errorf("cut short %q of the posts %q, want the limit's, ended before stopping ended", got, want)
-		}
-		if !log.Has("level=WARN", `msg="ended the notifications still posting as the router stopped"`, "after=3s") {
-			t.Errorf("log reads\n%s\nwant the posts still going ended", log)
-		}
-	})
+// midPost are stops that come with a post parked, waiting on macOS's
+// question, and more to post after it: park builds notifications whose posts
+// wait while their hold is open, starts them and parks a post, returning them
+// and what they're to post by the end of the stop.
+var midPost = []struct {
+	name string
+	park func(t *testing.T) (*notifying, []string)
+}{
+	{
+		name: "in a look, a token's year to tell of after it",
+		park: func(t *testing.T) (*notifying, []string) {
+			// 2 has room again as the day turns, 5 hours on, and its token's
+			// year is told of then too.
+			h := newYearNotifying(t, config.Notifications{Room: true}, localOn(31, 1))
+			h.notifier.hold = make(chan struct{})
+			h.read("2", h.session(1, 5*time.Hour), h.week(0.5, 3*day))
+			h.start()
+			h.after(5 * time.Hour)
+			return h, []string{"2 · two has room again", yearSaid("expires 31 Jan 2000 · 30 days left")}
+		},
+	},
+	{
+		name: "telling of two limits due at once",
+		park: func(t *testing.T) (*notifying, []string) {
+			h := newNotifying(t, config.Notifications{Limits: true})
+			h.notifier.hold = make(chan struct{})
+			h.start()
+			h.limit("2", []string{"5h"}, time.Hour)
+			h.limit("3", []string{"5h"}, time.Hour)
+			h.after(gatherFor)
+			return h, []string{"2 · two hit its 5-hour limit, back at Sat 01:00", "3 · three hit its 5-hour limit, back at Sat 01:00"}
+		},
+	},
+	{
+		name: "a move queued behind it, and a limit gathering",
+		park: func(t *testing.T) (*notifying, []string) {
+			h := newNotifying(t, config.Notifications{Limits: true, Moves: true})
+			h.notifier.hold = make(chan struct{})
+			h.start()
+			h.limit("3", []string{"5h"}, time.Hour)
+			parked := Moved{Session: "a", Model: opus, From: "2", To: "1", Reason: "moved by pin"}
+			h.hear(parked)
+			queued := Moved{Session: "b", Model: opus, From: "1", To: "2", Reason: "moved by pin"}
+			h.n.hear(queued)
+			accounts := h.state.standings(time.Now())
+			return h, []string{moveNotice(parked, accounts).Message, moveNotice(queued, accounts).Message, "3 · three hit its 5-hour limit, back at Sat 01:00"}
+		},
+	},
 }
 
 func TestStoppingTellsOfTheLimitsGatheringWherePostingTakesAWhile(t *testing.T) {
@@ -1002,9 +979,7 @@ func TestStoppingTellsOfALimitStillQueued(t *testing.T) {
 
 		reached, _ := h.state.limit("2", []string{"5h"}, h.began.Add(time.Hour), h.state.mark())
 		h.n.hear(reached)
-		stopped, stop := context.WithCancel(t.Context())
-		stop()
-		h.n.finish(stopped)
+		h.n.finish(t.Context())
 		h.expect("2 · two hit its 5-hour limit, back at Sat 01:00")
 	})
 }

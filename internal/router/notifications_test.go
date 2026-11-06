@@ -124,7 +124,8 @@ func askPinned(url, pin string) (int, error) {
 }
 
 // notes is a notifier that notes each message it's given. While hold is open,
-// each post waits for it to close.
+// each post waits for it to close, or for its context to end, failing then
+// with the context's error.
 type notes struct {
 	hold chan struct{}
 
@@ -132,14 +133,19 @@ type notes struct {
 	messages []string
 }
 
-func (n *notes) Notify(_ context.Context, message string) error {
+func (n *notes) Notify(ctx context.Context, message string) error {
 	n.mu.Lock()
 	n.messages = append(n.messages, message)
 	n.mu.Unlock()
-	if n.hold != nil {
-		<-n.hold
+	if n.hold == nil {
+		return nil
 	}
-	return nil
+	select {
+	case <-n.hold:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Prepare readies nothing.

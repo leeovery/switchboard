@@ -1275,9 +1275,10 @@ func untilStep(now time.Time, step time.Duration) time.Duration {
 	return step - time.Duration(now.UnixNano()%int64(step))
 }
 
-// post posts the alerts in turn, noting each in the log. Of a document probed
-// as asked, it asks after the router first, and posts none while it answers,
-// as the router posts its own.
+// post posts the alerts in turn, noting each in the log, until the model's
+// context ends, as the dashboard quits. Of a document probed as asked, it
+// asks after the router first, and posts none while it answers, as the router
+// posts its own.
 func (m Model) post(alerts []notify.Notice, asked bool) tea.Cmd {
 	if len(alerts) == 0 {
 		return nil
@@ -1291,6 +1292,9 @@ func (m Model) post(alerts []notify.Notice, asked bool) tea.Cmd {
 			return nil
 		}
 		for _, a := range alerts {
+			if ctx.Err() != nil {
+				return nil
+			}
 			if err := notifier.Notify(ctx, a.Message); err != nil {
 				logger.Warn("notification failed", "account", a.Account, "news", a.News, "error", err)
 				continue

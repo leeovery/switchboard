@@ -25,9 +25,10 @@ const (
 	// queueSize is how many events can wait to be dealt with. Past that, an
 	// event is dropped rather than hold the router up.
 	queueSize = 256
-	// finishWait bounds how long the notifications due as the router stops
-	// get to post, so a post that hangs can't hold it up: one still going
-	// then is ended.
+	// finishWait is how long, from the router's stop, what's still posting,
+	// the moves still queued and the limits still gathering have between
+	// them to post, so a post that hangs can't hold it up: one still going
+	// then is ended, and any after it fail at once.
 	finishWait = 3 * time.Second
 )
 
@@ -68,6 +69,9 @@ type notifications struct {
 	// refused is whether the last notification sent wasn't allowed, as
 	// notify.ErrNotAllowed says, which is warned of once until one posts.
 	refused bool
+	// ended is whether a post has been ended as the router stopped, which is
+	// warned of once.
+	ended bool
 }
 
 func newNotifications(settings config.Notifications, notifier Notifier, state *state, years *yearsTold, now func() time.Time) *notifications {
@@ -107,45 +111,54 @@ func (n *notifications) prepare(ctx context.Context) {
 }
 
 // run deals with the events heard, and looks at the accounts, posting what
-// they call for, until ctx ends, when it finishes. Its first look calls for
-// no room again or warning, as there's nothing yet to compare the accounts
-// with, but tells of how the tokens' years stand. Each post is given ctx,
-// so one waiting on what the notifications are posted through to be readied
-// waits no longer than run does, and once ctx has ended, as the router
-// stops, nothing is posted but finish's.
+// they call for, until ctx ends, when it finishes the round under way, and
+// then finishes. Its first look calls for no room again or warning, as
+// there's nothing yet to compare the accounts with, but tells of how the
+// tokens' years stand. Every post is made under one context, live while ctx
+// is and for finishWait after, so what's posting as the router stops, and
+// all it posts after, share that deadline, and none outlives run.
 func (n *notifications) run(ctx context.Context) {
+	posting, end := postingFor(ctx)
+	defer end()
 	ticker := time.NewTicker(lookEvery)
 	defer ticker.Stop()
-	n.lookAfresh(ctx)
+	n.lookAfresh(posting)
 	for ctx.Err() == nil {
 		select {
 		case <-ctx.Done():
 		case e := <-n.events:
 			accounts, now := n.standings()
-			n.take(ctx, e, accounts)
-			n.look(ctx, accounts, now)
+			n.take(posting, e, accounts)
+			n.look(posting, accounts, now)
 		case <-ticker.C:
-			n.lookAfresh(ctx)
+			n.lookAfresh(posting)
 		case <-n.wake():
-			n.tellDue(ctx)
+			n.tell(posting, n.limits.due(time.Now()))
 		}
 	}
-	n.finish(ctx)
+	n.finish(posting)
 }
 
-// finish deals with the events still queued, as the router stops, ctx having
-// ended, and tells of every limit still gathering at once: a limit's
-// notification always goes out. Its posts get finishWait between them, under
-// a context of their own, and it waits for them to end, so a post still going
-// then is ended, and none outlives it.
-func (n *notifications) finish(ctx context.Context) {
-	posting, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishWait)
-	defer cancel()
+// postingFor returns the context notifications are posted under: live while
+// ctx is, and for finishWait after it ends; and what ends it at once.
+func postingFor(ctx context.Context) (context.Context, context.CancelFunc) {
+	posting, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	startClock := context.AfterFunc(ctx, func() {
+		deadline := time.AfterFunc(finishWait, cancel)
+		context.AfterFunc(posting, func() { deadline.Stop() })
+	})
+	return posting, func() {
+		startClock()
+		cancel()
+	}
+}
+
+// finish deals with the events still queued, as the router stops, and tells
+// of every limit still gathering at once: a limit's notification always goes
+// out. Its posts are made under posting, and share its deadline.
+func (n *notifications) finish(posting context.Context) {
 	n.takeQueued(posting)
 	n.tell(posting, n.limits.all())
-	if posting.Err() != nil {
-		logger.Warn("ended the notifications still posting as the router stopped", "after", finishWait)
-	}
 }
 
 // takeQueued deals with each event still queued, as take does.
@@ -187,13 +200,8 @@ func (n *notifications) take(ctx context.Context, e Event, accounts standings) {
 
 // look posts what the accounts, as they stand at now, call for since the last
 // look: a token's year last, whatever went out just before, as no quiet
-// minute holds it back, so it quiets nothing due at the same look. Once ctx
-// has ended it looks no more, so a token's year it would post nothing of
-// isn't counted told.
+// minute holds it back, so it quiets nothing due at the same look.
 func (n *notifications) look(ctx context.Context, accounts standings, now time.Time) {
-	if ctx.Err() != nil {
-		return
-	}
 	for _, notice := range n.lookout.look(accounts) {
 		n.post(ctx, notice)
 	}
@@ -216,14 +224,6 @@ func (n *notifications) wake() <-chan time.Time {
 		return nil
 	}
 	return time.After(time.Until(due))
-}
-
-// tellDue tells of the limits done gathering, as tell does, but for once ctx
-// has ended, when they're left gathering, for finish to tell of.
-func (n *notifications) tellDue(ctx context.Context) {
-	if ctx.Err() == nil {
-		n.tell(ctx, n.limits.due(time.Now()))
-	}
 }
 
 // tell posts the notifications of the limits done gathering, whatever went
@@ -249,19 +249,16 @@ func (n *notifications) post(ctx context.Context, notice notify.Notice) {
 }
 
 // send posts a notice, which once it's out is the latest about its account,
-// and notes how that went in the log. Once ctx has ended, as the router
-// stops, it posts nothing.
+// and notes how that went in the log.
 func (n *notifications) send(ctx context.Context, notice notify.Notice) {
-	if ctx.Err() != nil {
-		logger.Debug("notification dropped: the router is stopping", "account", notice.Account, "news", notice.News)
-		return
-	}
 	err := n.notifier.Notify(ctx, notice.Message)
 	switch {
 	case err == nil:
 		n.refused = false
 		n.posted[notice.Account] = time.Now()
 		logger.Info("notification", "account", notice.Account, "news", notice.News)
+	case ctx.Err() != nil:
+		n.endedByStop(notice)
 	case !errors.Is(err, notify.ErrNotAllowed):
 		logger.Warn("notification failed", "account", notice.Account, "news", notice.News, "error", err)
 	case n.refused:
@@ -271,4 +268,15 @@ func (n *notifications) send(ctx context.Context, notice notify.Notice) {
 		logger.Warn("macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard, or, where they're on, switchboard service restart registers its app again",
 			"account", notice.Account, "news", notice.News)
 	}
+}
+
+// endedByStop notes a notice whose post the deadline after the router's stop
+// ended, or that came after it: the first at warn, any after at debug.
+func (n *notifications) endedByStop(notice notify.Notice) {
+	if n.ended {
+		logger.Debug("notification ended as the router stopped", "account", notice.Account, "news", notice.News)
+		return
+	}
+	n.ended = true
+	logger.Warn("ended the notifications still posting as the router stopped", "after", finishWait, "account", notice.Account, "news", notice.News)
 }

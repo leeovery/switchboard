@@ -1,11 +1,14 @@
 package watch
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -416,6 +419,26 @@ func TestNotificationsArePostedUnderTheDashboardsContext(t *testing.T) {
 	h.read(sessionAndWeek(0.2, 0.91))
 	if under := h.notifier.under; len(under) != 1 || under[0] != t.Context() {
 		t.Errorf("posted under %v, want the dashboard's context alone", under)
+	}
+}
+
+func TestADashboardQuittingPostsNoMore(t *testing.T) {
+	log := logstest.Capture(t)
+	h := newHarness(t, document(account("work", "Work", refused(session(1, 30*time.Minute)), week(0.85))))
+	ctx, quit := context.WithCancel(t.Context())
+	h.model = New(ctx, h.config(Size{Width: 80, Height: 24}))
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
+	// The dashboard quits as its first post goes out, which fails with it.
+	h.notifier.then, h.notifier.err = quit, context.Canceled
+	h.start()
+
+	h.clock.now = at(13, 20, 0)
+	h.read(document(account("work", "Work", session(0.02, 5*time.Hour), week(0.91))))
+	if want := []string{"work · Work has room again"}; !slices.Equal(h.notifier.posted, want) {
+		t.Errorf("posted %q, want %q alone: nothing more once the dashboard quit", h.notifier.posted, want)
+	}
+	if n := strings.Count(log.String(), `msg="notification failed"`); n != 1 {
+		t.Errorf("log reads\n%s\nwant the one post cut short by the quit warned of alone", log)
 	}
 }
 

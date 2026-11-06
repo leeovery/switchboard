@@ -113,8 +113,10 @@ func TestARestartingRouterReplacesItselfInPlace(t *testing.T) {
 func TestARouterRestartingInPlaceKeepsWhatItsControlAPIChangesAsItStops(t *testing.T) {
 	s := newSelfWatching(t, true)
 	s.cfg.Upstream = newAccountsAPI(t).URL
-	// A move's notification hangs, as a notifier can, so what the router runs
-	// beside its servers is slow to stop.
+	// A move's notification hangs, as one through an app whose question no
+	// one has answered does, so what the router runs beside its servers is
+	// slow to stop: the post goes on till the notifications' deadline, 3
+	// seconds after the stop.
 	notifier := &notes{hold: make(chan struct{})}
 	s.cfg.Notifier, s.cfg.Notifications = notifier, config.Notifications{Moves: true}
 	execs := replacing(&s.cfg)
