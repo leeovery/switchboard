@@ -6942,8 +6942,8 @@ a notification's size they were lost.
   dropped as any that fails. So a switchboard asks before its first post, once it has written and
   registered the app, outside the lock, with `--authorize`, and its posts wait on the answer, for
   as long as the app gives the question, 5 minutes, or, in the router, until it stops: its stop
-  ends the app asking, so the router's stop, or its restart in place, is never held up by a post
-  waiting. The router asks as it starts, on a goroutine of its own its stop ends, so the question
+  ends the app asking, and a post still waiting on the answer has the 3 seconds the stop gives
+  every post, so the router's stop, or its restart in place, is held up no longer. The router asks as it starts, on a goroutine of its own its stop ends, so the question
   comes as setup starts it, or as `brew upgrade` brings the first release with the app, while
   the user is at the Mac, and setup's screens are unchanged; a dashboard posting without the
   router asks before its first post, and one that quits leaves its question up for the user to
