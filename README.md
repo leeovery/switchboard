@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🎛️ Switchboard
+<img src="art/logo.webp" alt="Switchboard's logo: one line in and three out, the one picked lit, in amber on black" width="128">
+
+# Switchboard
 
 **Automatic account routing for Claude Code**
 
