@@ -6918,9 +6918,11 @@ picked lit, in amber on instrument black).
   isn't the app embedded, as after an upgrade: unzipped beside it under a hidden name of its own,
   then renamed in, the one there renamed out first and removed, so a running app is never written
   into, as macOS kills a signed app changed in place; and the embedded zip's SHA-256 kept beside
-  it, which says next time whether it's current. Then registered with Launch Services
-  (`lsregister -f`): macOS refuses an app it doesn't know with "Notifications are not allowed
-  for this application", asking nobody (see Observed). The router writes it as it starts, without
+  it, which says next time whether it's current. Registered with Launch Services
+  (`lsregister -f`) once a run, as it's first written or posted through, current or not: macOS
+  refuses an app it doesn't know with "Notifications are not allowed for this application",
+  asking nobody (see Observed), and a registration lost, as when Launch Services' database is
+  rebuilt, comes back at the next router start. A refusal with an error exits 1, not 2. The router writes it as it starts, without
   holding anything up; `service install`, and so setup, writes it too; any other switchboard that
   posts, as the dashboard probing without the router, writes it before its first post. One that
   can't be written, or registered, is logged once at `warn`, and that switchboard posts through
