@@ -235,7 +235,7 @@ func (n *notifications) send(notice notify.Notice) {
 		logger.Debug("notification not allowed", "account", notice.Account, "news", notice.News)
 	default:
 		n.refused = true
-		logger.Warn("macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard",
+		logger.Warn("macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard, or, where they're on, switchboard service restart registers its app again",
 			"account", notice.Account, "news", notice.News)
 	}
 }

@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 func TestQuote(t *testing.T) {
@@ -97,5 +100,46 @@ func TestDesktopPostsNothingOffMacOS(t *testing.T) {
 func TestOff(t *testing.T) {
 	if err := (Off{}).Notify("work · Work has room again"); err != nil {
 		t.Errorf("Notify() error = %v, want none", err)
+	}
+}
+
+func TestAFailingProgramSaysWhyAsItsLastLineDoes(t *testing.T) {
+	failed := exitStatus(1)
+	tests := []struct {
+		name   string
+		err    error
+		stderr string
+		want   string
+	}{
+		{name: "succeeding", stderr: "a warning\n"},
+		{name: "saying nothing", err: failed, want: "exit status 1"},
+		{name: "saying why last", err: failed, stderr: "first\nThe operation couldn't be completed.\n\n", want: "exit status 1: The operation couldn't be completed."},
+		{name: "saying something token-shaped", err: failed, stderr: "refused sk-ant-oat01-abc_DEF-123\n", want: "exit status 1: refused " + redact.Placeholder},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := withReason(tt.err, []byte(tt.stderr))
+			switch {
+			case tt.err == nil && got != nil:
+				t.Errorf("withReason() = %v, want nil", got)
+			case tt.err != nil && (got == nil || got.Error() != tt.want || !errors.Is(got, tt.err)):
+				t.Errorf("withReason() = %v, want %q, wrapping %v", got, tt.want, tt.err)
+			}
+		})
+	}
+}
+
+func TestTheEndOfWhatAProgramSaysIsKept(t *testing.T) {
+	var kept tail
+	for range 100 {
+		if _, err := kept.Write([]byte("0123456789")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := kept.Write([]byte("\nthe last line")); err != nil {
+		t.Fatal(err)
+	}
+	if len(kept.b) != reasonSize || !strings.HasSuffix(string(kept.b), "\nthe last line") {
+		t.Errorf("kept %d bytes, ending %q, want the last %d", len(kept.b), kept.b[max(0, len(kept.b)-20):], reasonSize)
 	}
 }

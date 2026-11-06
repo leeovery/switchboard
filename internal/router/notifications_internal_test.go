@@ -794,7 +794,7 @@ func TestNotificationsNotAllowedAreWarnedOfOnceUntilOnePosts(t *testing.T) {
 		h.notifier.fail(err)
 		h.n.send(notify.RoomAgain(account, account+" · title"))
 	}
-	const warned = `level=WARN msg="macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard" component=router`
+	const warned = `level=WARN msg="macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard, or, where they're on, switchboard service restart registers its app again" component=router`
 	const dropped = `level=DEBUG msg="notification not allowed" component=router`
 
 	send("1", notAllowed)

@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -48,9 +49,6 @@ func TestServiceInstall(t *testing.T) {
 	)
 	if data, err := os.ReadFile(s.routerCopy); err != nil || string(data) != "#!/bin/sh\n" {
 		t.Errorf("the router's copy holds %q (%v), want the switchboard installed", data, err)
-	}
-	if _, authorized := s.srv.deps.Notifier.(*recordingNotifier).counts(); authorized != 1 {
-		t.Errorf("the notifier was asked to authorize %d times, want once", authorized)
 	}
 }
 
@@ -248,6 +246,22 @@ func TestServiceUninstall(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Dir(s.routerCopy)); !os.IsNotExist(err) {
 		t.Errorf("the router's copy's directory: %v, want it gone", err)
+	}
+	if _, uninstalled := s.srv.deps.Notifier.(*recordingNotifier).counts(); uninstalled != 2 {
+		t.Errorf("the notifications' app was removed %d times, want once each uninstall", uninstalled)
+	}
+}
+
+func TestServiceUninstallSaysWhereTheNotificationsAppCantBeRemoved(t *testing.T) {
+	s := newServiceSetup(t)
+	if got := run(t, s.srv.deps, "service", "install"); got.code != 0 {
+		t.Fatalf("switchboard service install = %+v, want exit status 0", got)
+	}
+	s.srv.deps.Notifier.(*recordingNotifier).failUninstall = errors.New("remove the notifications' app: permission denied")
+
+	got := run(t, s.srv.deps, "service", "uninstall")
+	if got.code != 0 || got.stdout != "uninstalled: removed "+s.plist+"\n" || !strings.Contains(got.stderr, "remove the notifications' app: permission denied") {
+		t.Errorf("switchboard service uninstall = %+v, want it uninstalled, saying the app couldn't be removed", got)
 	}
 }
 

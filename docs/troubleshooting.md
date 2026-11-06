@@ -171,8 +171,15 @@ Notifications come from switchboard's own app, `Switchboard` (see
 - **Turned off:** macOS asked once whether `Switchboard` may send notifications, and they were
   turned off. Turn them on in System Settings → Notifications → Switchboard. Until you do, the
   router's log says so at warn, once until a notification goes out:
-  `macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard`.
-- **Never asked:** run [`switchboard service install`](commands.md#service-install), which asks.
+  `macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard, or, where they're on, switchboard service restart registers its app again`.
+- **On, but not allowed all the same:** macOS can lose track of the app. Run
+  [`switchboard service restart`](commands.md#service-restart): the router registers the app again
+  as it starts.
+- **Never asked:** macOS asks when the router first starts on a release with the app. Run
+  [`switchboard service restart`](commands.md#service-restart) to have it ask. Where the question
+  can't be put, the router's log says
+  `can't ask macOS whether Switchboard may post notifications; posting through its app all the same`,
+  with macOS's reason.
 - **Posted as Script Editor:** where switchboard can't write out or register its app, its log says
   `can't write out the notifications' app, so notifications are posted through osascript`, with
   why, and it posts through `osascript` until it next starts. A switchboard built from source has
