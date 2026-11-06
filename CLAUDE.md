@@ -111,7 +111,9 @@ notifications. Ever.
   runs, and testguard then fails a run whose tests all passed. If that link is its only complaint
   and there's no `--- FAIL`, the run passed. testguard also fails a run where a real startup file
   (`~/.zshrc`, `~/.bash_profile`, `~/.bash_login`, `~/.profile` or fish's `config.fish`) changes
-  during it, as when you edit your dotfiles mid-run: with no `--- FAIL`, that run passed too.
+  during it, as when you edit your dotfiles mid-run: with no `--- FAIL`, that run passed too. So
+  does one where the real router restarts on a new version mid-run, as after `brew upgrade`, and
+  writes out the notifications' app and its sum again.
 - **Never loosen a guard to make a test pass.** A test that needs what a guard blocks is a finding:
   inject it instead.
 

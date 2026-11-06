@@ -541,17 +541,63 @@ func tokenPath(t *testing.T, deps cli.Deps, id string) string {
 	return filepath.Join(stateDir(t, deps), "tokens", id)
 }
 
-// recordingNotifier notes each notification it's given, and posts none.
+// recordingNotifier notes each notification it's given, and posts none, and
+// counts the times it's prepared and uninstalled. Prepare waits for hold to
+// close, where it's set, or for its context to end, noting that it did, and
+// Uninstall fails with failUninstall.
 type recordingNotifier struct {
-	mu       sync.Mutex
-	messages []string
+	mu                    sync.Mutex
+	messages              []string
+	prepared, uninstalled int
+	cut                   bool
+	hold                  chan struct{}
+	failUninstall         error
 }
 
-func (n *recordingNotifier) Notify(message string) error {
+func (n *recordingNotifier) Notify(_ context.Context, message string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.messages = append(n.messages, message)
 	return nil
+}
+
+func (n *recordingNotifier) Prepare(ctx context.Context) {
+	n.mu.Lock()
+	n.prepared++
+	hold := n.hold
+	n.mu.Unlock()
+	if hold == nil {
+		return
+	}
+	select {
+	case <-hold:
+	case <-ctx.Done():
+		n.mu.Lock()
+		n.cut = true
+		n.mu.Unlock()
+	}
+}
+
+func (n *recordingNotifier) Uninstall(context.Context) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.uninstalled++
+	return n.failUninstall
+}
+
+// counts returns the times it's been prepared, and uninstalled.
+func (n *recordingNotifier) counts() (prepared, uninstalled int) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.prepared, n.uninstalled
+}
+
+// readyingCut reports whether its readying was cut short, its context ending
+// while hold was open.
+func (n *recordingNotifier) readyingCut() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.cut
 }
 
 // posted returns the notifications given so far.

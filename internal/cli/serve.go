@@ -78,12 +78,13 @@ It logs to the router's log, and to the terminal when it runs in one.
 // serve runs the router on the config's accounts until it's interrupted or
 // terminated, or restarts itself, having made the tokens directory private
 // and brought the skill and switchboard's files for the shells, of root's
-// completions, up to date. It finds its config file, its binary, the binary
-// it upgrades from, where --from names one, and the time zone's file as they
-// stand before it reads the config, which the router compares them with
-// while it runs, so a change made as it starts calls for a restart too. Run
-// by launchd without --from, once the config is read, it moves over to the
-// router's own copy, as moveOver does.
+// completions, up to date. It readies what its notifications are posted
+// through on a goroutine of its own, holding nothing up. It finds its config
+// file, its binary, the binary it upgrades from, where --from names one, and
+// the time zone's file as they stand before it reads the config, which the
+// router compares them with while it runs, so a change made as it starts
+// calls for a restart too. Run by launchd without --from, once the config is
+// read, it moves over to the router's own copy, as moveOver does.
 func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 	path, err := a.configFile()
 	if err != nil {

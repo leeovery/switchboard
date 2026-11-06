@@ -203,7 +203,8 @@ func listen(addr string) (net.Listener, error) {
 // rounds the accounts nothing has read lately, looking after itself, keeping
 // the state file, the readings history, the request ledger and what has
 // happened lately, filing its events, exporting the history into the folder
-// the config names, and posting notifications, then cuts short any import
+// the config names, and readying what it posts notifications through and
+// posting them, its stop ending the readying, then cuts short any import
 // under way, leaves any export under way unwaited, shuts both down, writes
 // what's left to write, and restarting, replaces itself, handing their
 // listeners over. Restarting in place, it stops all it runs beside them, but
@@ -235,6 +236,7 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	running.Go(func() { r.ledger.run(background) })
 	running.Go(func() { r.recent.run(background) })
 	if r.notifications != nil {
+		running.Go(func() { r.notifications.prepare(background) })
 		running.Go(func() { r.notifications.run(background) })
 	}
 	stopBackground := func() {

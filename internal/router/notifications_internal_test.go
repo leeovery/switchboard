@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
@@ -784,6 +786,33 @@ func TestANotificationThatFailsIsLogged(t *testing.T) {
 	})
 }
 
+func TestNotificationsNotAllowedAreWarnedOfOnceUntilOnePosts(t *testing.T) {
+	log := logstest.Capture(t)
+	h := newNotifying(t, config.Notifications{Room: true})
+	notAllowed := fmt.Errorf("post notification: %w", notify.ErrNotAllowed)
+	send := func(account string, err error) {
+		h.notifier.fail(err)
+		h.n.send(t.Context(), notify.RoomAgain(account, account+" · title"))
+	}
+	const warned = `level=WARN msg="macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard, or, where they're on, switchboard service restart registers its app again" component=router`
+	const dropped = `level=DEBUG msg="notification not allowed" component=router`
+
+	send("1", notAllowed)
+	send("2", notAllowed)
+	if got := strings.Count(log.String(), warned); got != 1 || !log.Has(warned, "account=1") || !log.Has(dropped, "account=2") {
+		t.Errorf("log reads\n%s\nwant the first not allowed warned of, naming where they're turned on, and the next at debug", log)
+	}
+	send("3", nil)
+	send("1", notAllowed)
+	if got := strings.Count(log.String(), warned); got != 2 || !log.Has(warned, "account=1", `news="room again"`) {
+		t.Errorf("log reads\n%s\nwant one not allowed once one has posted warned of again", log)
+	}
+	if log.Has(`msg="notification failed"`) {
+		t.Errorf("log reads\n%s\nwant none not allowed logged as any other failure", log)
+	}
+	h.expect("1 · title has room again", "2 · title has room again", "3 · title has room again", "1 · title has room again")
+}
+
 func TestANotificationThatFailsDoesntQuietItsAccount(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newNotifying(t, config.Notifications{Room: true, Warning: 0.9})
@@ -807,33 +836,140 @@ func TestStoppingTellsOfTheLimitsStillGatheringAtOnce(t *testing.T) {
 		h.start()
 		h.limit("2", []string{"5h"}, time.Hour)
 		h.hear(forced("a", "2", "1"))
+		queued := Moved{Session: "b", Model: opus, From: "3", To: "1", Reason: "moved by pin"}
+		h.n.hear(queued)
 
 		began := time.Now()
 		h.stop()
 		if waited := time.Since(began); waited != 0 {
 			t.Errorf("stopping took %v, want no wait, even with a limit gathering", waited)
 		}
-		h.expect("2 · two hit its 5-hour limit, back at Sat 01:00 — 1 session moved to 1 · one")
+		h.expect(moveNotice(queued, h.state.standings(time.Now())).Message, "2 · two hit its 5-hour limit, back at Sat 01:00 — 1 session moved to 1 · one")
 	})
 }
 
-func TestStoppingWaitsForANotifierThatHangsAShortWhileAtMost(t *testing.T) {
+func TestAStopMidPostPostsAllThatsLeftWhereItsAnsweredInTime(t *testing.T) {
+	for _, tt := range midPost {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				h, want := tt.park(t)
+				// The question's answered a second into the stop.
+				time.AfterFunc(time.Second, func() { close(h.notifier.hold) })
+
+				began := time.Now()
+				h.stop()
+				if waited := time.Since(began); waited != time.Second {
+					t.Errorf("stopping took %v, want 1s, as long as posting took", waited)
+				}
+				h.expect(want...)
+				if cut := h.notifier.cutShort(); len(cut) > 0 || log.Has("as the router stopped") {
+					t.Errorf("cut short %q, and log reads\n%s\nwant every post gone out in time", cut, log)
+				}
+				tt.expectTold(t, h)
+			})
+		})
+	}
+}
+
+func TestAStopMidPostEndsAllThatsLeftAtItsDeadline(t *testing.T) {
+	const (
+		ended = `level=WARN msg="ended the notifications still posting as the router stopped"`
+		after = `level=DEBUG msg="notification ended as the router stopped"`
+	)
+	for _, tt := range midPost {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				h, want := tt.park(t)
+
+				began := time.Now()
+				h.stop()
+				if waited := time.Since(began); waited != finishWait {
+					t.Errorf("stopping took %v with the question unanswered, want %v", waited, finishWait)
+				}
+				h.expect(want...)
+				if cut := h.notifier.cutShort(); !slices.Equal(cut, want) {
+					t.Errorf("cut short %q, want every post, %q: the first at the deadline, the rest at once", cut, want)
+				}
+				if strings.Count(log.String(), ended) != 1 || !log.Has(ended, "after=3s") || strings.Count(log.String(), after) != len(want)-1 {
+					t.Errorf("log reads\n%s\nwant the first post ended warned of, and the %d after it at debug", log, len(want)-1)
+				}
+				tt.expectTold(t, h)
+			})
+		})
+	}
+}
+
+// midPost are stops that come with a post parked, waiting on macOS's
+// question, and more to post after it: park builds notifications whose posts
+// wait while their hold is open, starts them and parks a post, returning them
+// and what they're to post by the end of the stop; told are the accounts
+// whose tokens' years count as told by then, posted or not.
+var midPost = []midPostStop{
+	{
+		name: "in a look, a token's year to tell of after it",
+		park: func(t *testing.T) (*notifying, []string) {
+			// 2 has room again as the day turns, 5 hours on, and its token's
+			// year is told of then too.
+			h := newYearNotifying(t, config.Notifications{Room: true}, localOn(31, 1))
+			h.notifier.hold = make(chan struct{})
+			h.read("2", h.session(1, 5*time.Hour), h.week(0.5, 3*day))
+			h.start()
+			h.after(5 * time.Hour)
+			return h, []string{"2 · two has room again", yearSaid("expires 31 Jan 2000 · 30 days left")}
+		},
+		told: []string{"2"},
+	},
+	{
+		name: "telling of two limits due at once",
+		park: func(t *testing.T) (*notifying, []string) {
+			h := newNotifying(t, config.Notifications{Limits: true})
+			h.notifier.hold = make(chan struct{})
+			h.start()
+			h.limit("2", []string{"5h"}, time.Hour)
+			h.limit("3", []string{"5h"}, time.Hour)
+			h.after(gatherFor)
+			return h, []string{"2 · two hit its 5-hour limit, back at Sat 01:00", "3 · three hit its 5-hour limit, back at Sat 01:00"}
+		},
+	},
+	{
+		name: "a move queued behind it, and a limit gathering",
+		park: func(t *testing.T) (*notifying, []string) {
+			h := newNotifying(t, config.Notifications{Limits: true, Moves: true})
+			h.notifier.hold = make(chan struct{})
+			h.start()
+			h.limit("3", []string{"5h"}, time.Hour)
+			parked := Moved{Session: "a", Model: opus, From: "2", To: "1", Reason: "moved by pin"}
+			h.hear(parked)
+			queued := Moved{Session: "b", Model: opus, From: "1", To: "2", Reason: "moved by pin"}
+			h.n.hear(queued)
+			accounts := h.state.standings(time.Now())
+			return h, []string{moveNotice(parked, accounts).Message, moveNotice(queued, accounts).Message, "3 · three hit its 5-hour limit, back at Sat 01:00"}
+		},
+	},
+}
+
+func TestStoppingTellsOfTheLimitsGatheringWherePostingTakesAWhile(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
 		h := newNotifying(t, config.Notifications{Limits: true})
 		h.notifier.hold = make(chan struct{})
 		h.start()
 		h.limit("2", []string{"5h"}, time.Hour)
+		time.AfterFunc(finishWait-time.Second, func() { close(h.notifier.hold) })
 
 		began := time.Now()
 		h.stop()
-		if waited := time.Since(began); waited != 3*time.Second {
-			t.Errorf("stopping took %v with the notifier hanging, want 3s", waited)
+		if waited := time.Since(began); waited != finishWait-time.Second {
+			t.Errorf("stopping took %v, want %v, as long as the post took", waited, finishWait-time.Second)
 		}
-		if !log.Has("level=WARN", `msg="stopped waiting for notifications to post"`, "after=3s") {
-			t.Errorf("log reads\n%s\nwant the wait cut short", log)
+		if cut := h.notifier.cutShort(); len(cut) > 0 {
+			t.Errorf("cut short %q, want the limit's post, done in time, gone out", cut)
 		}
-		close(h.notifier.hold)
+		if !log.Has("level=INFO", "msg=notification", "account=2") || log.Has("ended the notifications still posting") {
+			t.Errorf("log reads\n%s\nwant the limit's notification gone out", log)
+		}
 	})
 }
 
@@ -844,9 +980,25 @@ func TestStoppingTellsOfALimitStillQueued(t *testing.T) {
 
 		reached, _ := h.state.limit("2", []string{"5h"}, h.began.Add(time.Hour), h.state.mark())
 		h.n.hear(reached)
-		h.n.finish()
+		h.n.finish(t.Context())
 		h.expect("2 · two hit its 5-hour limit, back at Sat 01:00")
 	})
+}
+
+// midPostStop is a stop that comes with a post parked: see midPost.
+type midPostStop struct {
+	name string
+	park func(t *testing.T) (*notifying, []string)
+	told []string
+}
+
+// expectTold fails the test unless the tokens' years told of by the end of
+// the stop are those of the accounts the stop says.
+func (m midPostStop) expectTold(t *testing.T, h *notifying) {
+	t.Helper()
+	if got := slices.Sorted(maps.Keys(h.n.years.saved())); !slices.Equal(got, m.told) {
+		t.Errorf("the tokens' years of %q count as told, want those of %q", got, m.told)
+	}
 }
 
 // numbered are accounts named as the design's examples name them: 1 · one,
@@ -993,25 +1145,47 @@ func forcedBy(limit int, session, from, to string) Moved {
 }
 
 // noting is a notifier that notes each message it's given, and fails as fail
-// has it. While hold is open, each post waits for it to close.
+// has it. While hold is open, each post waits for it to close, or for its
+// context to end, as a post through an app whose question no one has
+// answered does, failing then with its context's error, noted as cut short.
 type noting struct {
 	hold chan struct{}
 
 	mu       sync.Mutex
 	err      error
 	messages []string
+	cut      []string
 }
 
-func (n *noting) Notify(message string) error {
+func (n *noting) Notify(ctx context.Context, message string) error {
 	n.mu.Lock()
 	n.messages = append(n.messages, message)
 	err := n.err
 	n.mu.Unlock()
-	if n.hold != nil {
-		<-n.hold
+	if n.hold == nil {
+		return err
 	}
-	return err
+	select {
+	case <-n.hold:
+		return err
+	case <-ctx.Done():
+		n.mu.Lock()
+		n.cut = append(n.cut, message)
+		n.mu.Unlock()
+		return ctx.Err()
+	}
 }
+
+// cutShort returns the messages whose posts were cut short as their contexts
+// ended.
+func (n *noting) cutShort() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return slices.Clone(n.cut)
+}
+
+// Prepare readies nothing.
+func (n *noting) Prepare(context.Context) {}
 
 // fail has each post from now on fail with err, or none when it's nil.
 func (n *noting) fail(err error) {

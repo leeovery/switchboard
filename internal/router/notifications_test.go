@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
 )
 
@@ -72,6 +74,38 @@ func TestAHangingNotifierNeverHoldsUpRouting(t *testing.T) {
 	}
 }
 
+func TestAStoppingRouterEndsItsNotificationsReadyingAndThePostWaitingOnIt(t *testing.T) {
+	log := logstest.Capture(t)
+	cfg := runConfig(t, newAccountsAPI(t).URL)
+	notifier := newUnanswered(t)
+	cfg.Notifier, cfg.Notifications = notifier, config.Notifications{Moves: true}
+	stop := runRouter(t, cfg)
+	waitUntil(t, "the notifications are readying", notifier.readying)
+	for _, pin := range []string{"work", "side"} {
+		if status, err := askPinned("http://"+cfg.Listen, pin); err != nil || status != http.StatusOK {
+			t.Fatalf("a request pinned to %s was answered %d (%v), want 200", pin, status, err)
+		}
+	}
+	waitUntil(t, "the move's post waits on the readying", func() bool { return len(notifier.posted()) == 1 })
+
+	stopped := make(chan error, 1)
+	go func() { stopped <- stop() }()
+	select {
+	case err := <-stopped:
+		if err != nil {
+			t.Errorf("Run() = %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the router's stop was held up by its notifications' readying")
+	}
+	if !notifier.readyingCut() {
+		t.Error("the router stopped with its notifications' readying going on, want its stop to have ended it")
+	}
+	if log.Has("ended the notifications still posting") {
+		t.Errorf("log reads\n%s\nwant the post waiting on the readying ended with it, not waited for", log)
+	}
+}
+
 // askPinned sends a messages request of the tests' session through the proxy
 // at url, pinned to pin, and returns the status it's answered with.
 func askPinned(url, pin string) (int, error) {
@@ -90,7 +124,8 @@ func askPinned(url, pin string) (int, error) {
 }
 
 // notes is a notifier that notes each message it's given. While hold is open,
-// each post waits for it to close.
+// each post waits for it to close, or for its context to end, failing then
+// with the context's error.
 type notes struct {
 	hold chan struct{}
 
@@ -98,19 +133,113 @@ type notes struct {
 	messages []string
 }
 
-func (n *notes) Notify(message string) error {
+func (n *notes) Notify(ctx context.Context, message string) error {
 	n.mu.Lock()
 	n.messages = append(n.messages, message)
 	n.mu.Unlock()
-	if n.hold != nil {
-		<-n.hold
+	if n.hold == nil {
+		return nil
 	}
-	return nil
+	select {
+	case <-n.hold:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
+
+// Prepare readies nothing.
+func (n *notes) Prepare(context.Context) {}
 
 // posted returns the messages given so far.
 func (n *notes) posted() []string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return slices.Clone(n.messages)
+}
+
+// unanswered is a notifier readied as notify.Desktop is, asking a question
+// no one answers: its readying holds until its context ends, or the test
+// does, and each post waits on it, or until its own context ends, failing
+// with that context's error. It notes each message.
+type unanswered struct {
+	// asking is closed as the readying begins, readied as it ends, and
+	// testEnded as the test does.
+	asking, readied chan struct{}
+	testEnded       <-chan struct{}
+
+	mu       sync.Mutex
+	prepared int
+	cut      bool
+	messages []string
+}
+
+func newUnanswered(t *testing.T) *unanswered {
+	return &unanswered{asking: make(chan struct{}), readied: make(chan struct{}), testEnded: t.Context().Done()}
+}
+
+func (u *unanswered) Prepare(ctx context.Context) {
+	u.mu.Lock()
+	u.prepared++
+	first := u.prepared == 1
+	u.mu.Unlock()
+	if !first {
+		return
+	}
+	close(u.asking)
+	select {
+	case <-ctx.Done():
+		u.mu.Lock()
+		u.cut = true
+		u.mu.Unlock()
+	case <-u.testEnded:
+	}
+	close(u.readied)
+}
+
+func (u *unanswered) Notify(ctx context.Context, message string) error {
+	u.mu.Lock()
+	u.messages = append(u.messages, message)
+	u.mu.Unlock()
+	select {
+	case <-u.readied:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// readying reports whether the readying has begun.
+func (u *unanswered) readying() bool {
+	select {
+	case <-u.asking:
+		return true
+	default:
+		return false
+	}
+}
+
+// done reports whether the readying has ended.
+func (u *unanswered) done() bool {
+	select {
+	case <-u.readied:
+		return true
+	default:
+		return false
+	}
+}
+
+// readyingCut reports whether the readying ended as its context did, having
+// begun once alone.
+func (u *unanswered) readyingCut() bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.cut && u.prepared == 1
+}
+
+// posted returns the messages given so far.
+func (u *unanswered) posted() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return slices.Clone(u.messages)
 }

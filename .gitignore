@@ -3,3 +3,4 @@
 *.out
 .claude/settings.local.json
 .claude/worktrees/
+/internal/notify/app/Switchboard.app.zip

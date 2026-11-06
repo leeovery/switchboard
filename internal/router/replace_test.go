@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -112,10 +113,12 @@ func TestARestartingRouterReplacesItselfInPlace(t *testing.T) {
 func TestARouterRestartingInPlaceKeepsWhatItsControlAPIChangesAsItStops(t *testing.T) {
 	s := newSelfWatching(t, true)
 	s.cfg.Upstream = newAccountsAPI(t).URL
-	// A move's notification hangs, as a notifier can, so what the router runs
-	// beside its servers is slow to stop.
+	// A move's notification hangs, as one through an app whose question no
+	// one has answered does, so what the router runs beside its servers is
+	// slow to stop: the post goes on till the test lets it go, well within
+	// the minute the notifications are given past the stop.
 	notifier := &notes{hold: make(chan struct{})}
-	s.cfg.Notifier, s.cfg.Notifications = notifier, config.Notifications{Moves: true}
+	s.cfg.Notifier, s.cfg.Notifications, s.cfg.NotifyFor = notifier, config.Notifications{Moves: true}, time.Minute
 	execs := replacing(&s.cfg)
 	r := startRouter(t, s.cfg)
 	client := router.NewClient(router.SocketPath(s.cfg.StateDir))
@@ -162,6 +165,40 @@ func TestARouterRestartingInPlaceKeepsWhatItsControlAPIChangesAsItStops(t *testi
 	}
 	if lines, err := os.ReadFile(filed[0]); err != nil || !strings.Contains(string(lines), `"kind":"pin","account":"side"`) {
 		t.Errorf("the events filed read\n%s\n(%v), want the pin to side, set as it stopped, among them", lines, err)
+	}
+}
+
+func TestARouterRestartingInPlaceEndsItsNotificationsReadyingBeforeItReplacesItself(t *testing.T) {
+	s := newSelfWatching(t, true)
+	s.cfg.Upstream = newAccountsAPI(t).URL
+	notifier := newUnanswered(t)
+	s.cfg.Notifier, s.cfg.Notifications = notifier, config.Notifications{Moves: true}
+	execs := replacing(&s.cfg)
+	// exec keeps the process's children, so the readying's ask must have ended
+	// by then.
+	var readiedAtExec atomic.Bool
+	exec := s.cfg.Exec
+	s.cfg.Exec = func(path string, argv, env []string) error {
+		readiedAtExec.Store(notifier.done())
+		return exec(path, argv, env)
+	}
+	r := startRouter(t, s.cfg)
+	waitUntil(t, "the notifications are readying", notifier.readying)
+	for _, pin := range []string{"work", "side"} {
+		if status, err := askPinned("http://"+s.cfg.Listen, pin); err != nil || status != http.StatusOK {
+			t.Fatalf("a request pinned to %s was answered %d (%v), want 200", pin, status, err)
+		}
+	}
+	waitUntil(t, "the move's post waits on the readying", func() bool { return len(notifier.posted()) == 1 })
+
+	if _, err := router.NewClient(router.SocketPath(s.cfg.StateDir)).Restart(t.Context()); err != nil {
+		t.Fatalf("Restart() error = %v", err)
+	}
+	r.waitForExit(t)
+
+	execs.only(t)
+	if !readiedAtExec.Load() || !notifier.readyingCut() {
+		t.Error("the router replaced itself with its notifications' readying going on, want its restart to have ended it first")
 	}
 }
 

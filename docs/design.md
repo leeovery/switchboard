@@ -6879,8 +6879,10 @@ posts, but for a token's year, which has no key: see Config.
 Room again and warnings compare an account with how it last stood, so neither tells of how the
 accounts stood as the router started, nor of an account's first reading. A limit's notification
 always goes out, and so does a token's year's: no quiet minute holds either back. As the router
-stops, the limits' still gathering go out at once, within 3 seconds. Any other goes out only a
-minute or more after the last posted about its account, a limit's included: one due sooner is
+stops, what it's posting, the moves still queued and the limits still gathering go out at once,
+all within 3 seconds of the stop, after which a post still going is ended and any left fail, as
+a post that fails does, so none outlives the router or its restart in place. Any other goes out
+only a minute or more after the last posted about its account, a limit's included: one due sooner is
 dropped, and the log says so at debug. One that fails to post is logged at warn, and dropped too;
 not having gone out, it starts no quiet minute. The log names accounts by id alone. Notifications
 never hold a request up: the router queues the limits and moves it tells of, 256 at most, dropping
@@ -6898,15 +6900,19 @@ Script Editor's: its icon, and a click that opens Script Editor. So a release's 
 through a small Mac app of its own, `Switchboard.app`, which carries switchboard's icon and name,
 and which a click on its notification only dismisses. The owner's call, 5 November 2026, the icon
 the Fork of the Paper file *Switchboard · Logo* (round 1, logo 2: one line in, three out, the one
-picked lit, in amber on instrument black).
+picked lit, in amber on instrument black), its two unlit branches brightened on 6 November, as at
+a notification's size they were lost.
 
 - **The app:** one Swift file, `internal/notify/app/main.swift`, with its `Info.plist` and icon,
   as Go reaches macOS's notification API (`UserNotifications`) only from an app bundle, and not
   from a bare binary. Bundle identifier `io.github.leeovery.switchboard.notify`, named
-  `Switchboard`, with no Dock icon, menu or window (`LSUIElement`). Run with `--post <message>`,
-  it asks macOS whether it may post, posts the message under the title `Switchboard`, and exits:
-  0 posted, 2 not allowed, 1 for anything else. Run with `--authorize`, it asks macOS, which asks
-  the user the first time, and exits once answered, 0 allowed, 2 not. Started with neither, as
+  `Switchboard`, with no Dock icon, menu or window (`LSUIElement`); built by hand without a
+  Developer ID (`scripts/notify-app`), it's `io.github.leeovery.switchboard.notify.dev`, so a copy
+  tried by hand never stands in for the real one. Run with `--post <message>`, it asks macOS
+  whether it may post, posts the message under the title `Switchboard`, and exits: 0 posted, 2
+  not allowed, as macOS says plainly or with its "not allowed" error, 1 for anything else. Run
+  with `--authorize`, it asks macOS, which asks the user the first time, and exits once answered,
+  0 allowed, 2 not, 1 for anything else. Started with neither, as
   macOS starts it for a click on one of its notifications, it takes the click, does nothing with
   it, and exits, within 5 seconds at most.
 - **Shipped inside switchboard:** a release builds the app, signs it (see Signing) and embeds it,
@@ -6918,20 +6924,33 @@ picked lit, in amber on instrument black).
   isn't the app embedded, as after an upgrade: unzipped beside it under a hidden name of its own,
   then renamed in, the one there renamed out first and removed, so a running app is never written
   into, as macOS kills a signed app changed in place; and the embedded zip's SHA-256 kept beside
-  it, which says next time whether it's current. Then registered with Launch Services
-  (`lsregister -f`): macOS refuses an app it doesn't know with "Notifications are not allowed
-  for this application", asking nobody (see Observed). The router writes it as it starts, without
-  holding anything up; `service install`, and so setup, writes it too; any other switchboard that
-  posts, as the dashboard probing without the router, writes it before its first post. One that
+  it, which says next time whether it's current. Registered with Launch Services
+  (`lsregister -f`) once a run, as it's first written or posted through, current or not: macOS
+  refuses an app it doesn't know with "Notifications are not allowed for this application",
+  asking nobody (see Observed), and a registration lost, as when Launch Services' database is
+  rebuilt, comes back at the next router start. The router writes it as it starts, on a goroutine
+  of its own its stop ends, holding nothing up; any other switchboard that posts, as the dashboard probing without the
+  router, writes it before its first post. Any staging folders a writer cut short left beside it
+  are swept under the lock before a write. One that
   can't be written, or registered, is logged once at `warn`, and that switchboard posts through
-  `osascript` for the rest of its run. Two writing at once write the same app: one whose rename
-  fails takes the other's, where its sum is the embedded one's.
+  `osascript` for the rest of its run. Two writing at once take turns, under a lock beside it,
+  `.Switchboard.app.lock`, held across the write and the registration and waited on for 30
+  seconds at most, so the second finds the app current and never renames out one the first is
+  registering; a lock not had in that time counts as a write that failed.
 - **Allowed once:** macOS asks the user, once, whether `Switchboard` may send notifications, and a
   notification posted before the answer waits on it past the 5 seconds a post is given, and is
-  dropped as any that fails. So `service install` asks as it writes the app, with `--authorize`,
-  not waiting on the answer: run by setup, the question comes while the user is at the Mac, and
-  setup's screens are unchanged. Turned off, in System Settings → Notifications → Switchboard, a
-  post exits 2, which the router logs once at `warn`, naming where to turn them on, until one
+  dropped as any that fails. So a switchboard asks before its first post, once it has written and
+  registered the app, outside the lock, with `--authorize`, and its posts wait on the answer, for
+  as long as the app gives the question, 5 minutes, or, in the router, until it stops: its stop
+  ends the app asking, and a post still waiting on the answer has the 3 seconds the stop gives
+  every post, so the router's stop, or its restart in place, is held up no longer. The router asks as it starts, on a goroutine of its own its stop ends, so the question
+  comes as setup starts it, or as `brew upgrade` brings the first release with the app, while
+  the user is at the Mac, and setup's screens are unchanged; a dashboard posting without the
+  router asks before its first post, and one that quits leaves its question up for the user to
+  answer, as quitting waits on no post. Once answered, macOS answers at once. An ask that fails, or isn't answered in time, is logged once at `warn`, with
+  the app's reason, and the posts go on through the app. Turned off, in System Settings →
+  Notifications → Switchboard, a post exits 2, which the router logs once at `warn`, naming where
+  to turn them on, and that a router restart registers the app again where they're on, until one
   posts again.
 - **Run like `osascript`:** with the same minimal environment, the same 5-second bound, and the
   same rules for a notification that fails. Elsewhere than macOS, nothing is posted, as before.
@@ -8241,7 +8260,8 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     can't be written, says why once at `warn`, leaves the plist as it was, putting it back where
     the replacement fails, carries on from the link, and `service status` names `service
     install`.
-  - `service uninstall` removes the copy with the plist. Run by hand, with `serve`, the router makes
+  - `service uninstall` removes the copy with the plist, and the notifications' app with its sum
+    and lock, unregistered from Launch Services first. Run by hand, with `serve`, the router makes
     no copy, and restarts into the link.
   - **Rolling back** past the copy: a version from before it doesn't know `--from`. One with the
     binary asked first refuses it, holding the restart until `service install` is run from that
@@ -8314,10 +8334,13 @@ binary can't have its ticket stapled, so macOS looks it up online.
   from a clean checkout of what's to be tagged, where untracked files, which no checkout of the
   commit holds, stop nothing, in a folder of its own outside the repository. First the
   notifications' app (see Notifications, "How they're posted"): `swiftc` for arm64 and x86_64,
-  joined by `lipo`, put together as a bundle with its `Info.plist` and icon, signed as the binaries
+  joined by `lipo`, put together as a bundle with its `Info.plist` and its icon, compiled by
+  `actool` from Icon Composer's layered format (`AppIcon.icon`), as macOS 26 sets an icon of the
+  older kind on a white plate, with the older kind beside it for the macOS before; signed as the binaries
   are but under its own identifier, `io.github.leeovery.switchboard.notify`, verified, and zipped
-  into the checkout for the binaries to embed. Then switchboard, for arm64 and amd64, with the
-  build tag `notifyapp`, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each
+  into the checkout for the binaries to embed; a tree from before the app, an older tag built
+  again to finish its upload, is built as it was, with no app and no tag. Then switchboard, for
+  arm64 and amd64, with the build tag `notifyapp`, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each
   signed by `codesign` with the login keychain's Developer ID Application certificate, the
   hardened runtime and a secure timestamp, under the identifier `io.github.leeovery.switchboard`,
   the LaunchAgent's label, and run to check it reports that version; the two, with the app, sent
@@ -8351,8 +8374,9 @@ binary can't have its ticket stapled, so macOS looks it up online.
   and what's left after it is moving files already right. Waiting on Apple costs nothing: a tag
   without its binaries reaches no one, as Homebrew follows the tap.
 - **Where it runs:** a release can be cut only on an Apple-silicon Mac with Rosetta, as each
-  binary is run to check its version, Xcode's command line tools, for the app's `swiftc`, and the
-  certificate and the profile. The first run is
+  binary is run to check its version, Xcode 26 or later, chosen with `xcode-select`, for the app's
+  `swiftc` and `actool`, which its command line tools alone don't have, and the certificate and the
+  profile. The first run is
   at the Mac, as `scripts/release-build 0.0.0-check`, which signs and notarises and releases
   nothing: macOS asks there to let `codesign` use the certificate's key and `notarytool` its
   profile, answered "Always Allow". A release run from elsewhere, as over SSH, waits on that
@@ -9970,7 +9994,9 @@ any of it. Times are the Mac's, UTC+1.
 What's built but hasn't been seen against the real thing:
 
 - The notifications' app posting for the router run by launchd, and macOS's question coming from
-  `service install`'s `--authorize`: the check in Observed ran the app from a shell.
+  the router's `--authorize`: the check in Observed ran the app from a shell. And how
+  macOS answers an app whose notifications the user turned off, a plain no or its "not allowed"
+  error, both taken for 2.
 
 - What a burst 429 looks like, and that it, or one at the edge of a limit, carries the usage
   headers: passing a 429 without them through at once rests on one observation, the quota check

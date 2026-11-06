@@ -216,7 +216,8 @@ func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts se
 }
 
 // uninstallService stops the router and removes the LaunchAgent and the
-// router's copy of switchboard.
+// router's copy of switchboard, then the notifications' app, saying on errOut
+// where that can't be removed, or unregistered.
 func (a *app) uninstallService(ctx context.Context, out, errOut io.Writer) error {
 	svc, err := a.service(errOut)
 	if err != nil {
@@ -225,6 +226,9 @@ func (a *app) uninstallService(ctx context.Context, out, errOut io.Writer) error
 	removed, err := svc.Uninstall(ctx)
 	if err != nil {
 		return err
+	}
+	if err := a.Notifier.Uninstall(ctx); err != nil {
+		launch.Notice(errOut, redact.Text(err.Error()))
 	}
 	said := "the service isn't installed"
 	if removed {

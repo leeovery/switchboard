@@ -137,9 +137,14 @@ type Deps struct {
 	ZoneFile string
 }
 
-// Notifier posts a desktop notification.
+// Notifier posts a desktop notification, as notify.Desktop does: Prepare
+// readies what it posts through, as the router does as it starts, and
+// Uninstall removes what it wrote to post through, as the service's
+// uninstall does.
 type Notifier interface {
-	Notify(message string) error
+	Notify(ctx context.Context, message string) error
+	Prepare(ctx context.Context)
+	Uninstall(ctx context.Context) error
 }
 
 // roleAnnotation is the annotation a command logs its role under, when it

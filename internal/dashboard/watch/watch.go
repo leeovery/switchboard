@@ -88,9 +88,10 @@ func full(r status.Read) bool {
 	return r.Probe
 }
 
-// Notifier posts a desktop notification.
+// Notifier posts a desktop notification, waiting while what it posts
+// through is readied, until ctx ends.
 type Notifier interface {
-	Notify(message string) error
+	Notify(ctx context.Context, message string) error
 }
 
 // Config is what a watch is given.
@@ -1274,9 +1275,10 @@ func untilStep(now time.Time, step time.Duration) time.Duration {
 	return step - time.Duration(now.UnixNano()%int64(step))
 }
 
-// post posts the alerts in turn, noting each in the log. Of a document probed
-// as asked, it asks after the router first, and posts none while it answers,
-// as the router posts its own.
+// post posts the alerts in turn, noting each in the log, until the model's
+// context ends, as the dashboard quits. Of a document probed as asked, it
+// asks after the router first, and posts none while it answers, as the router
+// posts its own.
 func (m Model) post(alerts []notify.Notice, asked bool) tea.Cmd {
 	if len(alerts) == 0 {
 		return nil
@@ -1290,7 +1292,10 @@ func (m Model) post(alerts []notify.Notice, asked bool) tea.Cmd {
 			return nil
 		}
 		for _, a := range alerts {
-			if err := notifier.Notify(a.Message); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			if err := notifier.Notify(ctx, a.Message); err != nil {
 				logger.Warn("notification failed", "account", a.Account, "news", a.News, "error", err)
 				continue
 			}

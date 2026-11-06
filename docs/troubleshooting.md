@@ -163,6 +163,30 @@ log has a failure at warn, once until an export succeeds, and the first that suc
   macOS asks about your terminal apart from the router, so an export that works from the terminal
   says nothing of what the router is allowed.
 
+## Notifications that don't show
+
+Notifications come from switchboard's own app, `Switchboard` (see
+[Switchboard's own notifications](configuration.md#switchboards-own-notifications)).
+
+- **Turned off:** macOS asked once whether `Switchboard` may send notifications, and they were
+  turned off. Turn them on in System Settings → Notifications → Switchboard. Until you do, the
+  router's log says so at warn, once until a notification goes out:
+  `macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard, or, where they're on, switchboard service restart registers its app again`.
+- **On, but not allowed all the same:** macOS can lose track of the app. Run
+  [`switchboard service restart`](commands.md#service-restart): the router registers the app again
+  as it starts.
+- **Never asked:** macOS asks when the router first starts on a release with the app. Run
+  [`switchboard service restart`](commands.md#service-restart) to have it ask. Where the question
+  can't be put, the router's log says
+  `can't ask macOS whether Switchboard may post notifications; posting through its app all the same`,
+  with macOS's reason.
+- **Posted as Script Editor:** where switchboard can't write out or register its app, its log says
+  `can't write out the notifications' app, so notifications are posted through osascript`, with
+  why, and it posts through `osascript` until it next starts. A switchboard built from source has
+  no app, and always does.
+- **A notification that fails:** the router's log has it at warn as `notification failed`, and
+  drops it. See [How often notifications go out](configuration.md#how-often-notifications-go-out).
+
 ## The logs
 
 The logs are for working out, after the fact, why a session went to an account, why a request

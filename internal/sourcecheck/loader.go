@@ -62,17 +62,20 @@ type Loader struct {
 	others    map[platform]*Loader
 }
 
-// platform is a GOOS and GOARCH a package is built for.
+// platform is a GOOS and GOARCH a package is built for, and the build tag
+// it's built with, if any.
 type platform struct {
-	goos, goarch string
+	goos, goarch, tag string
 }
 
 // platforms are those a file this platform doesn't build is read as built
 // for, the first that builds it: one built for none of them can't be
-// judged.
+// judged. The last is a release's build, with the notifications' app
+// embedded.
 var platforms = []platform{
-	{"linux", "amd64"}, {"darwin", "arm64"}, {"windows", "amd64"}, {"freebsd", "amd64"},
-	{"openbsd", "amd64"}, {"plan9", "amd64"}, {"js", "wasm"}, {"wasip1", "wasm"},
+	{"linux", "amd64", ""}, {"darwin", "arm64", ""}, {"windows", "amd64", ""}, {"freebsd", "amd64", ""},
+	{"openbsd", "amd64", ""}, {"plan9", "amd64", ""}, {"js", "wasm", ""}, {"wasip1", "wasm", ""},
+	{"darwin", "arm64", "notifyapp"},
 }
 
 // NewLoader returns a loader of the module at root with the given path,
@@ -141,6 +144,9 @@ func (l *Loader) builtBy(dir, name string) *Loader {
 	for _, p := range platforms {
 		ctx := l.ctx
 		ctx.GOOS, ctx.GOARCH = p.goos, p.goarch
+		if p.tag != "" {
+			ctx.BuildTags = append(slices.Clone(ctx.BuildTags), p.tag)
+		}
 		if built, err := ctx.MatchFile(filepath.Join(l.root, dir), name); err != nil || !built {
 			continue
 		}

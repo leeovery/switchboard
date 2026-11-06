@@ -6,6 +6,7 @@
 package router
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -129,8 +130,8 @@ type Config struct {
 	// nothing.
 	Events func(Event)
 	// Notifier posts the desktop notifications Notifications asks for, and
-	// those of the tokens' years, which it has no say in, while Run runs. Nil
-	// posts none.
+	// those of the tokens' years, which it has no say in, while Run runs,
+	// readied as Run starts, until it stops. Nil posts none.
 	Notifier      Notifier
 	Notifications config.Notifications
 	// History says how long the readings history is kept: a zero Keep keeps
@@ -221,6 +222,10 @@ type Config struct {
 	// DrainFor is how long requests in flight get to finish once Run's
 	// router is stopping, before it cuts them off. Zero means 30 seconds.
 	DrainFor time.Duration
+	// NotifyFor is how long, from Run's router stopping, what it's still
+	// posting, the moves still queued and the limits still gathering get to
+	// post, before what's still going is ended. Zero means 3 seconds.
+	NotifyFor time.Duration
 }
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
@@ -307,6 +312,7 @@ func New(cfg Config) (*Router, error) {
 	var notices *notifications
 	if cfg.Notifier != nil {
 		notices = newNotifications(cfg.Notifications, cfg.Notifier, state, told, cfg.Now)
+		notices.postFor = cmp.Or(cfg.NotifyFor, finishWait)
 		listeners = append(listeners, notices.hear)
 	}
 	emit := hearing(listeners...)

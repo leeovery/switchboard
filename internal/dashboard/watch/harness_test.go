@@ -628,14 +628,21 @@ func countReads(asked []status.Read, r status.Read) int {
 	return n
 }
 
-// fakeNotifier records what it's asked to post, and fails when err is set.
+// fakeNotifier records what it's asked to post, and the context of each
+// post, and fails when err is set. Each post calls then, where it's set.
 type fakeNotifier struct {
 	posted []string
+	under  []context.Context
 	err    error
+	then   func()
 }
 
-func (n *fakeNotifier) Notify(message string) error {
+func (n *fakeNotifier) Notify(ctx context.Context, message string) error {
 	n.posted = append(n.posted, message)
+	n.under = append(n.under, ctx)
+	if n.then != nil {
+		n.then()
+	}
 	return n.err
 }
 

@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# Builds switchboard's notifications' app, Switchboard.app, from
+# internal/notify/app into the folder given: one binary for arm64 and x86_64,
+# its Info.plist carrying the version given and its icon. scripts/release-build
+# runs it, signing with the Developer ID, and embeds the app in each binary.
+# By hand, with no identity, it signs the app ad hoc, for trying it, as
+# scripts/notify-app /some/folder 0.0.0, under the bundle identifier
+# io.github.leeovery.switchboard.notify.dev, so opening one never registers a
+# second copy of the real app with Launch Services.
+set -euo pipefail
+
+src=$(cd "$(dirname "${BASH_SOURCE[0]}")/../internal/notify/app" && pwd -P)
+identifier=io.github.leeovery.switchboard.notify
+arches=(arm64 x86_64)
+work=
+
+fail() {
+	echo "$1" >&2
+	exit 1
+}
+
+usage() {
+	fail "Usage: scripts/notify-app <out-dir> <version> [<identity>]"
+}
+
+# compile builds the app's binary for each arch, joined into $1.
+compile() {
+	local arch thin=()
+	for arch in "${arches[@]}"; do
+		swiftc -O -target "$arch-apple-macos13" -o "$work/Switchboard-$arch" "$src/main.swift"
+		thin+=("$work/Switchboard-$arch")
+	done
+	lipo -create -output "$1" "${thin[@]}"
+}
+
+# info writes the Info.plist at $1 for version $2, under the bundle
+# identifier $3. Apple reads a bundle's versions as integers and dots alone,
+# so a pre-release's is its release's.
+info() {
+	local version=${2%%-*}
+	cp "$src/Info.plist" "$1"
+	plutil -replace CFBundleIdentifier -string "$3" "$1"
+	plutil -replace CFBundleShortVersionString -string "$version" "$1"
+	plutil -replace CFBundleVersion -string "$version" "$1"
+}
+
+# icon compiles the icon into the Resources folder $1, from Icon Composer's
+# layered format, as macOS 26 sets an icon of the older kind on a white plate.
+# actool exits 0 having made nothing, so what it makes is checked.
+icon() {
+	local out
+	out=$(xcrun actool "$src/AppIcon.icon" --compile "$1" --platform macosx \
+		--minimum-deployment-target 13.0 --app-icon AppIcon \
+		--output-partial-info-plist "$work/icon.plist" \
+		--output-format human-readable-text 2>&1) || fail "actool failed: $out"
+	[[ -f $1/Assets.car && -f $1/AppIcon.icns ]] || fail "actool made no icon: $out"
+}
+
+# sign signs the app $1 as identity $2, or ad hoc where $2 is empty, under
+# the identifier $3.
+sign() {
+	local args=(--force --options runtime --identifier "$3")
+	if [[ -n $2 ]]; then
+		args+=(--timestamp --sign "$2")
+	else
+		args+=(--sign -)
+	fi
+	codesign "${args[@]}" "$1"
+	codesign --verify --strict --deep "$1"
+}
+
+main() {
+	[[ $# -eq 2 || $# -eq 3 ]] || usage
+	local out=$1 version=$2 identity=${3:-}
+	[[ -n $version ]] || usage
+	local app=$out/Switchboard.app id=$identifier
+	[[ -n $identity ]] || id=$identifier.dev
+	work=$(mktemp -d)
+	trap 'rm -rf "$work"' EXIT
+
+	rm -rf "$app"
+	mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+	compile "$app/Contents/MacOS/Switchboard"
+	info "$app/Contents/Info.plist" "$version" "$id"
+	icon "$app/Contents/Resources"
+	sign "$app" "$identity" "$id"
+}
+
+main "$@"
