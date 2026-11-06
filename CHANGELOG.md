@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-11-06
+
+Desktop notifications on macOS now post through a dedicated Switchboard app with its own name and icon.
+
+✨ Added
+- Notifications post from their own Switchboard app on macOS — it asks for permission once as the router starts, and falls back to osascript if the app can't be set up.
+- A warning in the log when macOS blocks Switchboard's notifications, pointing to System Settings → Notifications → Switchboard.
+
+🔧 Changed
+- Notifications still posting when the router stops are cut off after a short deadline (3 seconds by default) — a hung post can no longer hold up shutdown.
+- Failed notification posts now log the last line of the error the program gave, with token-like text hidden.
+
+🗑️ Removed
+- `switchboard service uninstall` now also removes the notifications' app and unregisters it from macOS, reporting any part it can't remove.
+
 ## [0.5.0] - 2026-11-05
 
 Two bodies of work here: the router's own copy of switchboard that keeps macOS permissions through upgrades, and scheduled history export. They're roughly co-equal, so the headline names both.
