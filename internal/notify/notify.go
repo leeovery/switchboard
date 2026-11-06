@@ -3,6 +3,7 @@
 package notify
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,7 +13,9 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/childenv"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 const (
@@ -22,6 +25,9 @@ const (
 	timeout = 5 * time.Second
 	// notAllowed is the app's exit status for a post macOS doesn't allow.
 	notAllowed = 2
+	// reasonSize is how much of the end of what a program writes to its
+	// errors is kept, for its last line to say why it failed.
+	reasonSize = 512
 )
 
 // ErrNotAllowed is what a post through switchboard's app fails with when
@@ -40,8 +46,8 @@ func (Off) Notify(string) error { return nil }
 // Prepare does nothing.
 func (Off) Prepare() {}
 
-// Authorize does nothing.
-func (Off) Authorize() {}
+// Uninstall does nothing.
+func (Off) Uninstall() error { return nil }
 
 // Desktop posts to macOS's Notification Centre: through switchboard's own
 // app where the build embeds one, and it could be written out, else through
@@ -50,10 +56,10 @@ type Desktop struct {
 	goos string
 	// env is the environment the programs it runs run in.
 	env []string
-	// run runs a program to its end, and start starts one without waiting
-	// for it. Tests replace them, so they never post.
-	run   func(ctx context.Context, env []string, name string, args ...string) error
-	start func(env []string, name string, args ...string) error
+	// run runs a program to its end. Tests replace it, so they never post.
+	run func(ctx context.Context, env []string, name string, args ...string) error
+	// appPath returns where the app is written out.
+	appPath func() (string, error)
 	// app is the app embedded, nil where there's none.
 	app *app
 }
@@ -65,15 +71,15 @@ type Desktop struct {
 // it.
 func NewDesktop(getenv func(string) string, homeDir func() (string, error)) Desktop {
 	return Desktop{
-		goos:  runtime.GOOS,
-		env:   childenv.Minimal(getenv),
-		run:   runCommand,
-		start: startCommand,
-		app:   newApp(embedded, getenv, homeDir),
+		goos:    runtime.GOOS,
+		env:     childenv.Minimal(getenv),
+		run:     runCommand,
+		appPath: func() (string, error) { return config.AppPath(getenv, homeDir) },
+		app:     newApp(embedded),
 	}
 }
 
-// Notify posts message under switchboard's name, writing out the app first
+// Notify posts message under switchboard's name, readying the app first
 // where it hasn't been yet: once a process, as ready says. Through the app,
 // a post macOS doesn't allow fails with ErrNotAllowed.
 func (d Desktop) Notify(message string) error {
@@ -86,27 +92,11 @@ func (d Desktop) Notify(message string) error {
 	return d.script(message)
 }
 
-// Prepare writes out the app, where one is embedded, as the first post would,
-// so none waits on it: the router does as it starts.
+// Prepare readies the app, where one is embedded, as the first post would,
+// so the question whether it may post comes as the router starts.
 func (d Desktop) Prepare() {
 	if d.goos == "darwin" {
 		d.ready()
-	}
-}
-
-// Authorize writes out the app, where one is embedded, and has it ask macOS
-// whether it may post, which asks the user the first time, without waiting
-// for the answer.
-func (d Desktop) Authorize() {
-	if d.goos != "darwin" {
-		return
-	}
-	exe, ok := d.ready()
-	if !ok {
-		return
-	}
-	if err := d.start(d.env, exe, "--authorize"); err != nil {
-		logger.Warn("can't ask macOS whether Switchboard may post notifications", "error", err)
 	}
 }
 
@@ -115,14 +105,20 @@ func (d Desktop) post(exe, message string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	err := d.run(ctx, d.env, exe, "--post", message)
-	var exit interface{ ExitCode() int }
-	if errors.As(err, &exit) && exit.ExitCode() == notAllowed {
+	if notAllowedBy(err) {
 		err = ErrNotAllowed
 	}
 	if err != nil {
 		return fmt.Errorf("post notification: %w", err)
 	}
 	return nil
+}
+
+// notAllowedBy reports whether err is the app exiting as macOS doesn't allow
+// its notifications.
+func notAllowedBy(err error) bool {
+	var exit interface{ ExitCode() int }
+	return errors.As(err, &exit) && exit.ExitCode() == notAllowed
 }
 
 // script posts message through osascript.
@@ -149,18 +145,34 @@ func quote(s string) string {
 func runCommand(ctx context.Context, env []string, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = env
-	return cmd.Run()
+	var stderr tail
+	cmd.Stderr = &stderr
+	return withReason(cmd.Run(), stderr.b)
 }
 
-// startCommand starts a program and lets it go: it runs on past this
-// process, which never waits for it, in a process group of its own, so a
-// Ctrl-C ending this process doesn't end it.
-func startCommand(env []string, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	cmd.Env = env
-	cmd.SysProcAttr = detached()
-	if err := cmd.Start(); err != nil {
-		return err
+// withReason is err, a program failing, saying why as the last line it wrote
+// to its errors does, hiding anything token-shaped: err itself where it
+// wrote none.
+func withReason(err error, stderr []byte) error {
+	if err == nil {
+		return nil
 	}
-	return cmd.Process.Release()
+	lines := strings.Split(strings.TrimSpace(string(stderr)), "\n")
+	if last := strings.TrimSpace(lines[len(lines)-1]); last != "" {
+		return fmt.Errorf("%w: %s", err, redact.Text(last))
+	}
+	return err
+}
+
+// tail keeps the last reasonSize bytes written to it.
+type tail struct {
+	b []byte
+}
+
+func (t *tail) Write(p []byte) (int, error) {
+	t.b = append(t.b, p...)
+	if extra := len(t.b) - reasonSize; extra > 0 {
+		t.b = bytes.Clone(t.b[extra:])
+	}
+	return len(p), nil
 }

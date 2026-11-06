@@ -542,13 +542,14 @@ func tokenPath(t *testing.T, deps cli.Deps, id string) string {
 }
 
 // recordingNotifier notes each notification it's given, and posts none, and
-// counts the times it's prepared and asked to authorize. Prepare waits for
-// hold to close, where it's set.
+// counts the times it's prepared and uninstalled. Prepare waits for hold to
+// close, where it's set, and Uninstall fails with failUninstall.
 type recordingNotifier struct {
-	mu                   sync.Mutex
-	messages             []string
-	prepared, authorized int
-	hold                 chan struct{}
+	mu                    sync.Mutex
+	messages              []string
+	prepared, uninstalled int
+	hold                  chan struct{}
+	failUninstall         error
 }
 
 func (n *recordingNotifier) Notify(message string) error {
@@ -568,17 +569,18 @@ func (n *recordingNotifier) Prepare() {
 	}
 }
 
-func (n *recordingNotifier) Authorize() {
+func (n *recordingNotifier) Uninstall() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.authorized++
+	n.uninstalled++
+	return n.failUninstall
 }
 
-// counts returns the times it's been prepared, and asked to authorize.
-func (n *recordingNotifier) counts() (prepared, authorized int) {
+// counts returns the times it's been prepared, and uninstalled.
+func (n *recordingNotifier) counts() (prepared, uninstalled int) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.prepared, n.authorized
+	return n.prepared, n.uninstalled
 }
 
 // posted returns the notifications given so far.

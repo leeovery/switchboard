@@ -139,12 +139,12 @@ type Deps struct {
 
 // Notifier posts a desktop notification, as notify.Desktop does: Prepare
 // readies what it posts through, as the router does as it starts, and
-// Authorize asks the system whether it may post, without waiting for the
-// answer, as the service's install does.
+// Uninstall removes what it wrote to post through, as the service's
+// uninstall does.
 type Notifier interface {
 	Notify(message string) error
 	Prepare()
-	Authorize()
+	Uninstall() error
 }
 
 // roleAnnotation is the annotation a command logs its role under, when it

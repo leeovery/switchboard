@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -56,7 +57,7 @@ func TestTheAppIsWrittenOutRegisteredAndPostedThrough(t *testing.T) {
 				t.Fatalf("Notify() error = %v", err)
 			}
 
-			want := [][]string{{lsregister, "-f", s.path}, {s.exe(), "--post", message}}
+			want := s.throughApp(message)
 			if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
 				t.Errorf("ran %q, want %q", got, want)
 			}
@@ -88,7 +89,7 @@ func TestACurrentAppIsntWrittenAgainButIsRegistered(t *testing.T) {
 	if _, err := os.Stat(marker); err != nil {
 		t.Errorf("the app was written again (%v), want it left as it was", err)
 	}
-	want := [][]string{{lsregister, "-f", s.path}, {s.exe(), "--post", message}}
+	want := s.throughApp(message)
 	if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
 		t.Errorf("ran %q, want %q: registered, as Launch Services can lose it, and posted through", got, want)
 	}
@@ -224,7 +225,7 @@ func TestASecondWriterWaitsForTheFirstAndOnlyRegistersWhatItWrote(t *testing.T) 
 	if _, err := os.Stat(marker); err != nil {
 		t.Errorf("the app was written again (%v), want the first writer's left as it was", err)
 	}
-	want := [][]string{{lsregister, "-f", s.path}, {s.exe(), "--post", message}}
+	want := s.throughApp(message)
 	if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
 		t.Errorf("ran %q, want %q: the app registered and posted through", got, want)
 	}
@@ -300,22 +301,108 @@ func TestAPostThroughTheApp(t *testing.T) {
 	}
 }
 
-func TestAuthorizeStartsTheAppWithoutWaitingForIt(t *testing.T) {
+func TestTheFirstPostWaitsForMacOSToBeAskedWhetherItMayPost(t *testing.T) {
 	s := newAppSetup(t, zipOf(t, appEntries("new")...))
+	answer := s.programs.hold("--authorize")
 
-	s.desktop.Authorize()
-	if err := s.desktop.Notify(message); err != nil {
+	posted := make(chan error, 1)
+	go func() { posted <- s.desktop.Notify(message) }()
+	s.programs.waitFor(t, "--authorize")
+	select {
+	case err := <-posted:
+		t.Fatalf("Notify() = %v before macOS was answered, want it waiting", err)
+	case <-time.After(3 * lockPoll):
+	}
+	close(answer)
+	if err := <-posted; err != nil {
 		t.Fatalf("Notify() error = %v", err)
 	}
 
-	if got, want := s.programs.started(), [][]string{{s.exe(), "--authorize"}}; !slices.EqualFunc(got, want, slices.Equal) {
-		t.Errorf("started %q, want %q, let go", got, want)
-	}
-	want := [][]string{{lsregister, "-f", s.path}, {s.exe(), "--post", message}}
+	want := s.throughApp(message)
 	if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
-		t.Errorf("ran %q, want %q: written out and registered once, the question never waited on", got, want)
+		t.Errorf("ran %q, want %q: written out, registered, asked once, then posted through", got, want)
 	}
 	s.programs.expectMinimalEnvironment(t)
+}
+
+func TestMacOSIsAskedWithTheLockLetGo(t *testing.T) {
+	s := newAppSetup(t, zipOf(t, appEntries("new")...))
+	answer := s.programs.hold("--authorize")
+	defer close(answer)
+
+	go s.desktop.Prepare()
+	s.programs.waitFor(t, "--authorize")
+
+	unlock, err := lockBeside(s.path, 0)
+	if err != nil {
+		t.Fatalf("another writer couldn't take the lock while macOS was asked (%v), want it let go", err)
+	}
+	unlock()
+}
+
+func TestAPostMacOSDoesntAllowOnceAskedFailsAsNotAllowed(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newAppSetup(t, zipOf(t, appEntries("new")...))
+	s.programs.fail("--authorize", exitStatus(2))
+	s.programs.fail("--post", exitStatus(2))
+
+	if err := s.desktop.Notify(message); !errors.Is(err, ErrNotAllowed) {
+		t.Errorf("Notify() error = %v, want %v", err, ErrNotAllowed)
+	}
+	want := s.throughApp(message)
+	if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("ran %q, want %q: posted through the app all the same", got, want)
+	}
+	if log.Has("level=WARN") {
+		t.Errorf("log reads\n%s\nwant no warning: an ask answered no is answered", log)
+	}
+}
+
+func TestAnAskThatFailsIsWarnedOfOnceAndThePostsGoThroughTheApp(t *testing.T) {
+	const cantAsk = `msg="can't ask macOS whether Switchboard may post notifications; posting through its app all the same"`
+	tests := []struct {
+		name string
+		// fail has the ask fail.
+		fail func(s *appSetup)
+		why  string
+	}{
+		{
+			name: "failing",
+			fail: func(s *appSetup) {
+				s.programs.fail("--authorize", fmt.Errorf("%w: The operation couldn't be completed.", exitStatus(1)))
+			},
+			why: "exit status 1: The operation couldn't be completed.",
+		},
+		{
+			name: "unanswered in time",
+			fail: func(s *appSetup) {
+				s.desktop.app.ask = 2 * lockPoll
+				s.programs.hold("--authorize")
+			},
+			why: "not answered within 200ms",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newAppSetup(t, zipOf(t, appEntries("new")...))
+			tt.fail(s)
+
+			for range 2 {
+				if err := s.desktop.Notify(message); err != nil {
+					t.Fatalf("Notify() error = %v", err)
+				}
+			}
+
+			want := s.throughApp(message, message)
+			if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
+				t.Errorf("ran %q, want %q: asked once, then posted through the app", got, want)
+			}
+			if n := strings.Count(log.String(), cantAsk); n != 1 || !log.Has("level=WARN", cantAsk, tt.why) {
+				t.Errorf("log reads\n%s\nwant one warning that macOS couldn't be asked, saying %s", log, tt.why)
+			}
+		})
+	}
 }
 
 func TestTheAppIsWrittenOutOnceAProcess(t *testing.T) {
@@ -340,18 +427,32 @@ func TestTheAppIsWrittenOutOnceAProcess(t *testing.T) {
 	s.expectApp(t, "new")
 }
 
-func TestNothingIsWrittenOrRunOffMacOS(t *testing.T) {
+func TestNothingIsRunOffMacOS(t *testing.T) {
 	s := newAppSetup(t, zipOf(t, appEntries("new")...))
 	s.desktop.goos = "linux"
 
 	s.desktop.Prepare()
-	s.desktop.Authorize()
 	if err := s.desktop.Notify(message); err != nil {
 		t.Errorf("Notify() error = %v, want none", err)
 	}
+	put(t, zipOf(t, appEntries("new")...), s.path)
+	if err := s.desktop.Uninstall(); err != nil {
+		t.Errorf("Uninstall() error = %v, want none", err)
+	}
 
-	if ran, started := s.programs.ran(), s.programs.started(); len(ran)+len(started) > 0 {
-		t.Errorf("ran %q and started %q off macOS, want nothing", ran, started)
+	if ran := s.programs.ran(); len(ran) > 0 {
+		t.Errorf("ran %q off macOS, want nothing", ran)
+	}
+	s.expectApp(t, "new")
+}
+
+func TestNothingIsWrittenOffMacOS(t *testing.T) {
+	s := newAppSetup(t, zipOf(t, appEntries("new")...))
+	s.desktop.goos = "linux"
+
+	s.desktop.Prepare()
+	if err := s.desktop.Notify(message); err != nil {
+		t.Errorf("Notify() error = %v, want none", err)
 	}
 	if _, err := os.Stat(filepath.Dir(s.path)); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("the app's directory is there (%v), want nothing written", err)
@@ -362,7 +463,6 @@ func TestWithoutAnAppNothingIsReadiedOrAsked(t *testing.T) {
 	s := newAppSetup(t, nil)
 
 	s.desktop.Prepare()
-	s.desktop.Authorize()
 	if err := s.desktop.Notify(message); err != nil {
 		t.Fatalf("Notify() error = %v", err)
 	}
@@ -409,10 +509,10 @@ func newAppSetup(t *testing.T, zipped []byte) *appSetup {
 	vars := map[string]string{"PATH": "/usr/bin:/bin", "HOME": home, "CLAUDE_TOKEN_WORK": "test-token-work"}
 	getenv := func(key string) string { return vars[key] }
 	homeDir := func() (string, error) { return home, nil }
-	p := &programs{fails: map[string]error{}}
+	p := &programs{fails: map[string]error{}, holds: map[string]chan struct{}{}}
 	desktop := NewDesktop(getenv, homeDir)
-	desktop.goos, desktop.run, desktop.start = "darwin", p.run, p.start
-	desktop.app = newApp(zipped, getenv, homeDir)
+	desktop.goos, desktop.run = "darwin", p.run
+	desktop.app = newApp(zipped)
 	return &appSetup{
 		path:     filepath.Join(home, ".local", "share", "switchboard", appName),
 		programs: p,
@@ -423,6 +523,16 @@ func newAppSetup(t *testing.T, zipped []byte) *appSetup {
 // exe is the app's executable.
 func (s *appSetup) exe() string {
 	return filepath.Join(s.path, executable)
+}
+
+// throughApp is what's run posting the messages through the app once a
+// process: registering it, asking macOS whether it may post, and posting.
+func (s *appSetup) throughApp(messages ...string) [][]string {
+	ran := [][]string{{lsregister, "-f", s.path}, {s.exe(), "--authorize"}}
+	for _, m := range messages {
+		ran = append(ran, []string{s.exe(), "--post", m})
+	}
+	return ran
 }
 
 // expectApp fails the test unless the app in place is the version given,
@@ -486,13 +596,14 @@ func osascript() []string {
 	return []string{"osascript", "-e", displayNotification(message)}
 }
 
-// programs stands in for the programs a Desktop runs and starts, noting
-// each, and failing as it's told.
+// programs stands in for the programs a Desktop runs, noting each, failing
+// as it's told, and waiting where it's held.
 type programs struct {
-	mu           sync.Mutex
-	runs, starts [][]string
-	envs         [][]string
-	fails        map[string]error
+	mu    sync.Mutex
+	runs  [][]string
+	envs  [][]string
+	fails map[string]error
+	holds map[string]chan struct{}
 }
 
 // fail has the program known as key fail with err: lsregister, osascript, or
@@ -503,20 +614,31 @@ func (p *programs) fail(key string, err error) {
 	p.fails[key] = err
 }
 
-func (p *programs) run(_ context.Context, env []string, name string, args ...string) error {
+// hold has the program known as key, as fail knows it, wait until the
+// channel it returns is closed, or until it's killed as its context ends.
+func (p *programs) hold(key string) chan struct{} {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.runs = append(p.runs, append([]string{name}, args...))
-	p.envs = append(p.envs, env)
-	return p.fails[key(name, args)]
+	held := make(chan struct{})
+	p.holds[key] = held
+	return held
 }
 
-func (p *programs) start(env []string, name string, args ...string) error {
+func (p *programs) run(ctx context.Context, env []string, name string, args ...string) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.starts = append(p.starts, append([]string{name}, args...))
+	p.runs = append(p.runs, append([]string{name}, args...))
 	p.envs = append(p.envs, env)
-	return nil
+	k := key(name, args)
+	err, held := p.fails[k], p.holds[k]
+	p.mu.Unlock()
+	if held != nil {
+		select {
+		case <-held:
+		case <-ctx.Done():
+			return errors.New("signal: killed")
+		}
+	}
+	return err
 }
 
 func (p *programs) ran() [][]string {
@@ -525,10 +647,19 @@ func (p *programs) ran() [][]string {
 	return slices.Clone(p.runs)
 }
 
-func (p *programs) started() [][]string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return slices.Clone(p.starts)
+// waitFor waits until the program known as key, as fail knows it, has run.
+func (p *programs) waitFor(t *testing.T, key string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, ran := range p.ran() {
+			if slices.Contains(ran, key) {
+				return
+			}
+		}
+		time.Sleep(lockPoll / 10)
+	}
+	t.Fatalf("%s never ran", key)
 }
 
 // expectMinimalEnvironment fails the test unless every program ran in the

@@ -754,10 +754,9 @@ in flight, and waits up to 5 seconds for the router to answer.
   writes keeps its state, and for no other.
 - **The tokens.** `install` warns when no account has a usable token, where the router it started
   answers. The router starts all the same, and routes as soon as a token file holds one.
-- **Notifications.** In a release, `install` writes out switchboard's own app, which the router's
-  notifications come from, and macOS asks, the first time, whether `Switchboard` may send them.
-  `install` doesn't wait for your answer. A switchboard built from source has no app, so `install`
-  writes none and macOS asks nothing. See
+- **Notifications.** In a release, the router writes out switchboard's own app as it starts, and
+  macOS asks, the first time, whether `Switchboard` may send notifications. A switchboard built
+  from source has no app, and macOS asks nothing. See
   [Notifications](configuration.md#switchboards-own-notifications).
 - **Once it has begun.** From writing the file to launchd loading it, nothing stops `install`, a
   Ctrl-C included, so the router is never left with nothing to start it: a Ctrl-C then says it's
@@ -796,7 +795,8 @@ refuses to start, `status` gives the refusal instead: put the config right as it
 #### `service uninstall` and `service status`
 
 - **`uninstall`** stops the router, once it has finished its requests in flight, and removes the
-  LaunchAgent and the router's copy of switchboard.
+  LaunchAgent and the router's copy of switchboard, then the notifications' app, with the files
+  beside it, unregistered from macOS first.
 - **`status`** shows whether the LaunchAgent is installed and loaded, whether the router's copy of
   switchboard it runs is missing, so launchd can't run the router, or not run at all, as the
   LaunchAgent was written before the copy and runs switchboard itself, or as launchd loaded it

@@ -789,8 +789,8 @@ func TestServeReadiesItsNotificationsWithoutWaitingForThem(t *testing.T) {
 	if got := stop(); got.code != 0 {
 		t.Errorf("switchboard serve, its notifications still readying, = %+v, want exit status 0", got)
 	}
-	if prepared, authorized := notifier.counts(); prepared != 1 || authorized != 0 {
-		t.Errorf("the notifications were readied %d times and asked to authorize %d, want once and never", prepared, authorized)
+	if prepared, uninstalled := notifier.counts(); prepared != 1 || uninstalled != 0 {
+		t.Errorf("the notifications were readied %d times and uninstalled %d, want once and never", prepared, uninstalled)
 	}
 }
 
