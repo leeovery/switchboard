@@ -6879,10 +6879,10 @@ posts, but for a token's year, which has no key: see Config.
 Room again and warnings compare an account with how it last stood, so neither tells of how the
 accounts stood as the router started, nor of an account's first reading. A limit's notification
 always goes out, and so does a token's year's: no quiet minute holds either back. As the router
-stops, the limits' still gathering, and the moves still queued, go out at once, within 3
-seconds, and nothing else is posted once it's stopping; a post still going at the end of those 3 seconds is ended, so none outlives
-the router or its restart in place. Any other goes out only a
-minute or more after the last posted about its account, a limit's included: one due sooner is
+stops, what it's posting, the moves still queued and the limits still gathering go out at once,
+all within 3 seconds of the stop, after which a post still going is ended and any left fail, as
+a post that fails does, so none outlives the router or its restart in place. Any other goes out
+only a minute or more after the last posted about its account, a limit's included: one due sooner is
 dropped, and the log says so at debug. One that fails to post is logged at warn, and dropped too;
 not having gone out, it starts no quiet minute. The log names accounts by id alone. Notifications
 never hold a request up: the router queues the limits and moves it tells of, 256 at most, dropping
