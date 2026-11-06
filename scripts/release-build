@@ -6,10 +6,11 @@
 # checkout of its own outside the repository: first the notifications' app,
 # Switchboard.app, with scripts/notify-app, signed and zipped into the checkout
 # for the binaries to embed; then switchboard, for arm64 and amd64, with the
-# build tag notifyapp, each signed. It sends the binaries and the app to
-# Apple's notary service and waits on its answer, for about an hour at most,
-# then archives and sums the binaries under the names the Homebrew
-# formula reads, and keeps them, with the commit built, in
+# build tag notifyapp, each signed; a tree made before the app, without
+# scripts/notify-app, is built as it was, with neither. It sends the binaries
+# and the app to Apple's notary service and waits on its answer, for about an
+# hour at most, then archives and sums the binaries under the names the
+# Homebrew formula reads, and keeps them, with the commit built, in
 # ~/Library/Caches/switchboard/release/<version>/, in place of any other
 # version's, for scripts/release-upload once the release is made. Any failure
 # exits non-zero, so mint stops before the tag. It runs each binary to check
@@ -92,9 +93,10 @@ arch_flag() {
 	esac
 }
 
-# build builds version $2 from the checkout $1 for arch $3 into $4.
+# build builds version $2 from the checkout $1 for arch $3 into $4, with the
+# build tags $5.
 build() {
-	(cd "$1" && CGO_ENABLED=0 GOOS=darwin GOARCH=$3 go build -trimpath -tags notifyapp \
+	(cd "$1" && CGO_ENABLED=0 GOOS=darwin GOARCH=$3 go build -trimpath -tags "$5" \
 		-ldflags "-s -w -X main.version=$2" -o "$4" ./cmd/switchboard)
 }
 
@@ -259,12 +261,19 @@ main() {
 	git worktree add --quiet --detach "$work/tree" "$commit"
 	echo "Building switchboard $version from $commit"
 
-	local arch bin out=$work/out
+	local arch bin out=$work/out tags=
 	mkdir "$work/bin" "$out"
-	build_app "$work/tree" "$version" "$work/bin"
+	# A tag made before the app came, rebuilt by scripts/release-upload, is
+	# built as its tree was.
+	if [[ -e $work/tree/scripts/notify-app ]]; then
+		build_app "$work/tree" "$version" "$work/bin"
+		tags=notifyapp
+	else
+		echo "$commit has no scripts/notify-app: building switchboard without the notifications' app, as that tree was."
+	fi
 	for arch in "${release_arches[@]}"; do
 		bin=$work/bin/darwin_$arch/switchboard
-		build "$work/tree" "$version" "$arch" "$bin"
+		build "$work/tree" "$version" "$arch" "$bin" "$tags"
 		sign "$bin"
 		check_binary "$bin" "$arch" "$version"
 	done
