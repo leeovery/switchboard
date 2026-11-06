@@ -110,6 +110,11 @@
   (literal "/usr/bin/open")
   ;; plutil, which the service runs by its path, past PATH's stubs.
   (literal "/usr/bin/plutil")
+  ;; Launch Services' lsregister, which registers the notifications' app, by
+  ;; its path, which leads into the framework's versions; and that app
+  ;; wherever it's written out.
+  (regex #"/LaunchServices\.framework/(Versions/A/)?Support/lsregister$")
+  (regex #"/switchboard/Switchboard\.app/")
   ;; tmux: the system's, or Homebrew's, linked into its Cellar.
   (literal "/usr/bin/tmux")
   (literal "/usr/local/bin/tmux")

@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
@@ -782,6 +784,33 @@ func TestANotificationThatFailsIsLogged(t *testing.T) {
 			t.Errorf("log reads\n%s\nwant no word of the notification going", log)
 		}
 	})
+}
+
+func TestNotificationsNotAllowedAreWarnedOfOnceUntilOnePosts(t *testing.T) {
+	log := logstest.Capture(t)
+	h := newNotifying(t, config.Notifications{Room: true})
+	notAllowed := fmt.Errorf("post notification: %w", notify.ErrNotAllowed)
+	send := func(account string, err error) {
+		h.notifier.fail(err)
+		h.n.send(notify.RoomAgain(account, account+" · title"))
+	}
+	const warned = `level=WARN msg="macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard" component=router`
+	const dropped = `level=DEBUG msg="notification not allowed" component=router`
+
+	send("1", notAllowed)
+	send("2", notAllowed)
+	if got := strings.Count(log.String(), warned); got != 1 || !log.Has(warned, "account=1") || !log.Has(dropped, "account=2") {
+		t.Errorf("log reads\n%s\nwant the first not allowed warned of, naming where they're turned on, and the next at debug", log)
+	}
+	send("3", nil)
+	send("1", notAllowed)
+	if got := strings.Count(log.String(), warned); got != 2 || !log.Has(warned, "account=1", `news="room again"`) {
+		t.Errorf("log reads\n%s\nwant one not allowed once one has posted warned of again", log)
+	}
+	if log.Has(`msg="notification failed"`) {
+		t.Errorf("log reads\n%s\nwant none not allowed logged as any other failure", log)
+	}
+	h.expect("1 · title has room again", "2 · title has room again", "3 · title has room again", "1 · title has room again")
 }
 
 func TestANotificationThatFailsDoesntQuietItsAccount(t *testing.T) {

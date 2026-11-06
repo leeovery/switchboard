@@ -370,6 +370,19 @@ when 30 days or fewer are left, and again at 7, such as
 `token expired …` once it's past. A router started with a token already within either tells only
 the nearest. A restart doesn't tell either again, and a new token starts afresh.
 
+### Switchboard's own notifications
+
+Notifications come from switchboard's own app, `Switchboard`, with switchboard's icon. A click on
+one dismisses it. A release carries the app inside the switchboard binary, and writes it out to
+`$XDG_DATA_HOME/switchboard/Switchboard.app`, else `~/.local/share/switchboard/Switchboard.app`,
+again after each upgrade. A switchboard built from source, as `go install` builds it, has no app,
+and posts through `osascript`, whose notifications are Script Editor's.
+
+macOS asks once whether `Switchboard` may send notifications, when
+[`service install`](commands.md#service-install), or `setup`, installs the service. Turned off,
+they're turned on again in System Settings → Notifications → Switchboard. See
+[Notifications that don't show](troubleshooting.md#notifications-that-dont-show).
+
 ### How often notifications go out
 
 A limit's notification and a token's year's always go out. Any other notification goes out only

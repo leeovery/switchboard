@@ -36,7 +36,7 @@ func main() {
 		ClaudeVersion: claude.InstalledVersion(os.Getenv, os.UserHomeDir, os.Executable),
 		Watch:         watch.Run,
 		SetupScreen:   screen.Run,
-		Notifier:      notify.NewDesktop(),
+		Notifier:      notify.NewDesktop(os.Getenv, os.UserHomeDir),
 		Exec:          launch.Exec,
 		Check:         handover.Run,
 		Launchctl:     service.Launchctl,

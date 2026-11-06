@@ -64,6 +64,13 @@ func RouterDir(getenv func(string) string, homeDir func() (string, error)) (stri
 	return dataDir(getenv, homeDir, "router", "the router's directory")
 }
 
+// AppPath returns where switchboard's notifications' app is written out:
+// $XDG_DATA_HOME/switchboard/Switchboard.app, else
+// ~/.local/share/switchboard/Switchboard.app.
+func AppPath(getenv func(string) string, homeDir func() (string, error)) (string, error) {
+	return dataDir(getenv, homeDir, "Switchboard.app", "the notifications' app")
+}
+
 // dataDir returns switchboard's directory named name among its data, what it
 // is saying which it is: $XDG_DATA_HOME/switchboard/<name>, else
 // ~/.local/share/switchboard/<name>.

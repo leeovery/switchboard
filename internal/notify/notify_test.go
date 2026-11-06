@@ -49,19 +49,18 @@ func TestDesktopNotify(t *testing.T) {
 
 func TestDesktopRunsOsascriptWithoutTheTokens(t *testing.T) {
 	tmp := t.TempDir()
-	for name, value := range map[string]string{
+	vars := map[string]string{
 		"CLAUDE_TOKEN_WORK":       "test-token-work",
 		"CLAUDE_CODE_OAUTH_TOKEN": "test-token-oauth",
 		"PATH":                    "/usr/bin:/bin",
 		"HOME":                    "/home/tester",
 		"TMPDIR":                  tmp,
 		"LANG":                    "en_GB.UTF-8",
-	} {
-		t.Setenv(name, value)
 	}
 	var env []string
-	desktop := NewDesktop()
+	desktop := NewDesktop(func(key string) string { return vars[key] }, func() (string, error) { return "/home/tester", nil })
 	desktop.goos = "darwin"
+	desktop.app = nil
 	desktop.run = func(_ context.Context, e []string, _ string, _ ...string) error {
 		env = e
 		return nil

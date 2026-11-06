@@ -181,8 +181,26 @@ func TestInstallRemovesWhatCopiesCutShortLeft(t *testing.T) {
 	}
 }
 
+func TestInstallAsksWhetherTheRoutersNotificationsMayBePostedBeforeLaunchdStartsIt(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	var asked [][][]string
+	s.cfg.Authorize = func() { asked = append(asked, slices.Clone(s.launchctl.calls)) }
+	s.svc = newService(t, s.cfg)
+
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if len(asked) != 1 || len(asked[0]) > 0 {
+		t.Errorf("asked %d times, launchctl run %q before, want once, before launchctl's run", len(asked), asked)
+	}
+}
+
 func TestInstallFailsBeforeTouchingTheServiceWhenTheCopyCantBeMade(t *testing.T) {
 	s := newSetup(t, nil, nil)
+	s.cfg.Authorize = func() {
+		t.Error("Install() asked whether notifications may be posted, want nothing asked, the copy not made")
+	}
+	s.svc = newService(t, s.cfg)
 	s.launchctl.refuse = true
 	// A file where the copy's directory goes.
 	writeBinary(t, filepath.Dir(s.routerCopy))

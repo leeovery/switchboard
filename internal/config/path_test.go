@@ -178,7 +178,8 @@ func TestStateDirWithoutHomeDirectory(t *testing.T) {
 	}
 }
 
-// dataDirs are switchboard's directories among its data, by their names.
+// dataDirs are switchboard's directories among its data, by their names, and
+// its notifications' app, which sits among them.
 var dataDirs = []struct {
 	name string
 	dir  func(func(string) string, func() (string, error)) (string, error)
@@ -186,6 +187,7 @@ var dataDirs = []struct {
 	{name: "bin", dir: config.BinDir},
 	{name: "shell", dir: config.ShellDir},
 	{name: "router", dir: config.RouterDir},
+	{name: "Switchboard.app", dir: config.AppPath},
 }
 
 func TestDataDirs(t *testing.T) {

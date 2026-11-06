@@ -137,9 +137,14 @@ type Deps struct {
 	ZoneFile string
 }
 
-// Notifier posts a desktop notification.
+// Notifier posts a desktop notification, as notify.Desktop does: Prepare
+// readies what it posts through, as the router does as it starts, and
+// Authorize asks the system whether it may post, without waiting for the
+// answer, as the service's install does.
 type Notifier interface {
 	Notify(message string) error
+	Prepare()
+	Authorize()
 }
 
 // roleAnnotation is the annotation a command logs its role under, when it

@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -58,6 +59,9 @@ type notifications struct {
 	lookout *lookout
 	// posted holds, by account, when a notification about it last went out.
 	posted map[string]time.Time
+	// refused is whether the last notification sent wasn't allowed, as
+	// notify.ErrNotAllowed says, which is warned of once until one posts.
+	refused bool
 }
 
 func newNotifications(settings config.Notifications, notifier Notifier, state *state, years *yearsTold, now func() time.Time) *notifications {
@@ -219,10 +223,19 @@ func (n *notifications) post(notice notify.Notice) {
 // send posts a notice, which once it's out is the latest about its account,
 // and notes how that went in the log.
 func (n *notifications) send(notice notify.Notice) {
-	if err := n.notifier.Notify(notice.Message); err != nil {
+	err := n.notifier.Notify(notice.Message)
+	switch {
+	case err == nil:
+		n.refused = false
+		n.posted[notice.Account] = time.Now()
+		logger.Info("notification", "account", notice.Account, "news", notice.News)
+	case !errors.Is(err, notify.ErrNotAllowed):
 		logger.Warn("notification failed", "account", notice.Account, "news", notice.News, "error", err)
-		return
+	case n.refused:
+		logger.Debug("notification not allowed", "account", notice.Account, "news", notice.News)
+	default:
+		n.refused = true
+		logger.Warn("macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard",
+			"account", notice.Account, "news", notice.News)
 	}
-	n.posted[notice.Account] = time.Now()
-	logger.Info("notification", "account", notice.Account, "news", notice.News)
 }

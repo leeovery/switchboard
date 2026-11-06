@@ -579,6 +579,9 @@ func TestSetupsScreenIsSetupsOwn(t *testing.T) {
 			case !finishing.IsNil():
 				t.Error("the service tells of an interrupt it waits for, which would print over the screen; want it telling none")
 			}
+			if authorize := reflect.ValueOf(s.LaunchAgent).Elem().FieldByName("cfg").FieldByName("Authorize"); !authorize.IsValid() || authorize.IsNil() {
+				t.Error("the service asks nothing whether the router's notifications may be posted as it installs, want it to ask")
+			}
 			maker, ok := s.TokenMaker.(setuptoken.Maker)
 			if !ok || maker.Executable == nil || !sameEnviron(maker.Environ, deps.Environ()) || !slices.Equal(maker.InstallPaths, s.InstallPaths) {
 				t.Errorf("setup makes tokens with %#v, want setuptoken's Maker, in the command's environment, looking where Claude Code installs", s.TokenMaker)
