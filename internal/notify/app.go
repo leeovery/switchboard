@@ -37,6 +37,12 @@ const (
 	// registerTimeout bounds registering the app, which takes well under a
 	// second.
 	registerTimeout = 10 * time.Second
+	// lockName is the file beside the app whose lock writers take turns
+	// under; lockWait is how long one waits for it, and lockPoll how often it
+	// tries for it meanwhile.
+	lockName = "." + appName + ".lock"
+	lockWait = 30 * time.Second
+	lockPoll = 100 * time.Millisecond
 )
 
 // app is switchboard's notifications' app, embedded zipped, and where it's
@@ -45,8 +51,10 @@ type app struct {
 	zipped []byte
 	// path returns where it's written out.
 	path func() (string, error)
+	// wait is how long it waits for another switchboard writing it out.
+	wait time.Duration
 	// rename renames a file, as os.Rename does: tests replace it to have
-	// another writer win.
+	// putting the app in place fail.
 	rename func(oldpath, newpath string) error
 
 	once sync.Once
@@ -64,6 +72,7 @@ func newApp(zipped []byte, getenv func(string) string, homeDir func() (string, e
 	return &app{
 		zipped: zipped,
 		path:   func() (string, error) { return config.AppPath(getenv, homeDir) },
+		wait:   lockWait,
 		rename: os.Rename,
 	}
 }
@@ -89,14 +98,21 @@ func (d Desktop) ready() (string, bool) {
 }
 
 // writeOut writes the app out, where what's there isn't it already, and
-// registers it, returning its executable. It registers the app even where
-// it was there already, as Launch Services can lose an app it knew, as when
-// its database is reset, and refuses its notifications then, asking nobody.
+// registers it, returning its executable, holding the lock beside it
+// throughout, so a second switchboard writing it out at once finds it written
+// and only registers it. It registers the app even where it was there
+// already, as Launch Services can lose an app it knew, as when its database
+// is reset, and refuses its notifications then, asking nobody.
 func (d Desktop) writeOut(a *app) (string, error) {
 	path, err := a.path()
 	if err != nil {
 		return "", err
 	}
+	unlock, err := lockBeside(path, a.wait)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
 	if err := writeApp(a.zipped, path, a.rename); err != nil {
 		return "", err
 	}
@@ -104,6 +120,34 @@ func (d Desktop) writeOut(a *app) (string, error) {
 		return "", err
 	}
 	return filepath.Join(path, executable), nil
+}
+
+// lockBeside takes the lock beside the app at path, making its directory
+// where it isn't there, waiting at most wait while another holds it.
+func lockBeside(path string, wait time.Duration) (unlock func(), err error) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("make the notifications' app's directory: %w", err)
+	}
+	f, err := os.OpenFile(filepath.Join(dir, lockName), os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("open the notifications' app's lock: %w", err)
+	}
+	deadline := time.Now().Add(wait)
+	for {
+		taken, err := tryLock(f)
+		switch {
+		case err != nil:
+			_ = f.Close()
+			return nil, fmt.Errorf("lock the notifications' app, %s: %w", f.Name(), err)
+		case taken:
+			return func() { _ = f.Close() }, nil
+		case !time.Now().Before(deadline):
+			_ = f.Close()
+			return nil, fmt.Errorf("another switchboard held the notifications' app's lock, %s, past %s", f.Name(), wait)
+		}
+		time.Sleep(min(lockPoll, time.Until(deadline)))
+	}
 }
 
 // register registers the app at path with Launch Services.
@@ -120,18 +164,14 @@ func (d Desktop) register(path string) error {
 // already, as the sum beside it says: it's unzipped into a hidden folder
 // beside path, the one there renamed out into that folder, so a running app
 // is never written into, and the new one renamed in, then the folder
-// removed, and the sum written. One whose rename in fails takes the app
-// another writer put there meanwhile, where the sum beside it is the zip's.
+// removed, and the sum written. Its directory must be there, as the lock
+// beside the app makes it.
 func writeApp(zipped []byte, path string, rename func(oldpath, newpath string) error) error {
 	sum := sumOf(zipped)
 	if current(path, sum) {
 		return nil
 	}
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("make the notifications' app's directory: %w", err)
-	}
-	staging, err := os.MkdirTemp(dir, stagingPattern)
+	staging, err := os.MkdirTemp(filepath.Dir(path), stagingPattern)
 	if err != nil {
 		return fmt.Errorf("make a folder to unzip the notifications' app in: %w", err)
 	}
@@ -140,9 +180,6 @@ func writeApp(zipped []byte, path string, rename func(oldpath, newpath string) e
 		return err
 	}
 	if err := swapIn(filepath.Join(staging, appName), path, filepath.Join(staging, "old"), rename); err != nil {
-		if current(path, sum) {
-			return nil
-		}
 		return err
 	}
 	if err := atomicfile.Write(sumPath(path), []byte(sum+"\n"), 0o644); err != nil {
@@ -152,26 +189,27 @@ func writeApp(zipped []byte, path string, rename func(oldpath, newpath string) e
 }
 
 // swapIn renames the app at path out, to aside, where there's one, then the
-// one fresh in to path.
+// one fresh in to path, renaming the one aside back where that fails.
 func swapIn(fresh, path, aside string, rename func(oldpath, newpath string) error) error {
-	if err := rename(path, aside); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	err := rename(path, aside)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("move the notifications' app there out of the way: %w", err)
 	}
+	movedAside := err == nil
 	if err := rename(fresh, path); err != nil {
+		if movedAside {
+			_ = rename(aside, path)
+		}
 		return fmt.Errorf("put the notifications' app in place: %w", err)
 	}
 	return nil
 }
 
 // current reports whether the app at path is the one zipped with the given
-// sum: the sum beside it is that, and its executable is there.
+// sum: the sum beside it is that, and its executable is there to be run.
 func current(path, sum string) bool {
 	held, err := os.ReadFile(sumPath(path))
-	if err != nil || strings.TrimSpace(string(held)) != sum {
-		return false
-	}
-	info, err := os.Stat(filepath.Join(path, executable))
-	return err == nil && info.Mode().IsRegular()
+	return err == nil && strings.TrimSpace(string(held)) == sum && runnable(filepath.Join(path, executable))
 }
 
 // sumPath is where the sum of the app at path is kept, beside it.
@@ -198,10 +236,16 @@ func unzip(zipped []byte, dir string) error {
 			return fmt.Errorf("unzip the notifications' app: %w", err)
 		}
 	}
-	if info, err := os.Stat(filepath.Join(dir, appName, executable)); err != nil || !info.Mode().IsRegular() {
-		return fmt.Errorf("the notifications' app's zip holds no %s", filepath.Join(appName, executable))
+	if !runnable(filepath.Join(dir, appName, executable)) {
+		return fmt.Errorf("the notifications' app's zip holds no %s that can be run", filepath.Join(appName, executable))
 	}
 	return nil
+}
+
+// runnable reports whether the file at path is a plain file that can be run.
+func runnable(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0
 }
 
 // extract unzips f into dir.

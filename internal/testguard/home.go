@@ -60,14 +60,15 @@ func (ws watchers) changes() []string {
 // and XDG_STATE_HOME put them, as getenv reads them; its files among the
 // LaunchAgents in home; its skill in Claude Code's config directory, by
 // default in home, and wherever CLAUDE_CONFIG_DIR puts it; its bin
-// directory, which holds its claude link, and its shell directory, which
-// holds its files for the shells, by default in home, and wherever
-// XDG_DATA_HOME puts them; the shells' startup files, which setup adds its
-// line to, in home, and wherever ZDOTDIR and XDG_CONFIG_HOME put zsh's and
-// fish's; and what's named claude in each directory on PATH. Nothing live
-// writes the config, a theme, a LaunchAgent, the skill, a token file, a file
-// for the shells, a startup file or a claude link as it runs, so any change
-// to one is a test's. A live router writes the rest of its state as
+// directory, which holds its claude link, its shell directory, which holds
+// its files for the shells, and its notifications' app, with its sum, by
+// default in home, and wherever XDG_DATA_HOME puts them; the shells' startup
+// files, which setup adds its line to, in home, and wherever ZDOTDIR and
+// XDG_CONFIG_HOME put zsh's and fish's; and what's named claude in each
+// directory on PATH. Nothing live writes the config, a theme, a LaunchAgent,
+// the skill, a token file, a file for the shells, a startup file or a claude
+// link as it runs, nor the notifications' app but as a router starts after
+// an upgrade, so any change to one is a test's. A live router writes the rest of its state as
 // it runs, its logs, state.json and readings history among it, and a live
 // dashboard its preferences file, as it's used, so of that, only a state
 // directory appearing is a test's; and the OS sandbox denies a test any
@@ -171,11 +172,12 @@ func skillPlaces(home string, getenv func(string) string) []place {
 }
 
 // dataPlaces are where switchboard's bin directory is, which holds its
-// claude link, and its shell directory, which holds its files for the
-// shells: by default in home, and where XDG_DATA_HOME says.
+// claude link, its shell directory, which holds its files for the shells,
+// and its notifications' app, with the sum beside it: by default in home,
+// and where XDG_DATA_HOME says.
 func dataPlaces(home string, getenv func(string) string) []place {
 	var places []place
-	for _, name := range []string{"bin", "shell"} {
+	for _, name := range []string{"bin", "shell", "Switchboard.app", ".Switchboard.app.sum"} {
 		if home != "" {
 			places = append(places, inHome(home, filepath.Join(dataDir, name)))
 		}

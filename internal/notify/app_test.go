@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 )
@@ -30,15 +31,17 @@ func TestTheAppIsWrittenOutRegisteredAndPostedThrough(t *testing.T) {
 	}{
 		{name: "none there", before: func(*testing.T, string) {}},
 		{name: "another version there", before: func(t *testing.T, path string) {
-			if err := writeApp(zipOf(t, appEntries("old")...), path, os.Rename); err != nil {
+			put(t, zipOf(t, appEntries("old")...), path)
+		}},
+		{name: "its sum there but not the app", before: func(t *testing.T, path string) {
+			put(t, zipOf(t, appEntries("new")...), path)
+			if err := os.RemoveAll(path); err != nil {
 				t.Fatal(err)
 			}
 		}},
-		{name: "its sum there but not the app", before: func(t *testing.T, path string) {
-			if err := writeApp(zipOf(t, appEntries("new")...), path, os.Rename); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.RemoveAll(path); err != nil {
+		{name: "its sum there but an executable that can't be run", before: func(t *testing.T, path string) {
+			put(t, zipOf(t, appEntries("new")...), path)
+			if err := os.Chmod(filepath.Join(path, executable), 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}},
@@ -61,7 +64,7 @@ func TestTheAppIsWrittenOutRegisteredAndPostedThrough(t *testing.T) {
 			if got, want := s.read(t, sumPath(s.path)), sumOf(zipped)+"\n"; got != want {
 				t.Errorf("the sum beside the app reads %q, want the zip's, %q", got, want)
 			}
-			if got, want := s.beside(t), []string{sumName, appName}; !slices.Equal(got, want) {
+			if got, want := s.beside(t), []string{lockName, sumName, appName}; !slices.Equal(got, want) {
 				t.Errorf("beside the app are %q, want %q alone", got, want)
 			}
 			s.programs.expectMinimalEnvironment(t)
@@ -72,9 +75,7 @@ func TestTheAppIsWrittenOutRegisteredAndPostedThrough(t *testing.T) {
 func TestACurrentAppIsntWrittenAgainButIsRegistered(t *testing.T) {
 	zipped := zipOf(t, appEntries("new")...)
 	s := newAppSetup(t, zipped)
-	if err := writeApp(zipped, s.path, os.Rename); err != nil {
-		t.Fatal(err)
-	}
+	put(t, zipped, s.path)
 	marker := filepath.Join(s.path, "Contents", "marker")
 	if err := os.WriteFile(marker, nil, 0o644); err != nil {
 		t.Fatal(err)
@@ -132,7 +133,20 @@ func TestAnAppThatCantBeWrittenOutLeavesItToOsascript(t *testing.T) {
 			zipped: func(t *testing.T) []byte {
 				return zipOf(t, entry{name: "Other.app/Contents/MacOS/Switchboard", mode: 0o755, body: "#!/bin/sh\n"})
 			},
-			why: "holds no Switchboard.app/Contents/MacOS/Switchboard",
+			why: "holds no Switchboard.app/Contents/MacOS/Switchboard that can be run",
+		},
+		{
+			name: "an executable zipped without its execute bit",
+			zipped: func(t *testing.T) []byte {
+				entries := appEntries("new")
+				for i, e := range entries {
+					if e.name == appName+"/"+executable {
+						entries[i].mode = 0o666
+					}
+				}
+				return zipOf(t, entries...)
+			},
+			why: "holds no Switchboard.app/Contents/MacOS/Switchboard that can be run",
 		},
 		{
 			name:   "not a zip",
@@ -155,8 +169,8 @@ func TestAnAppThatCantBeWrittenOutLeavesItToOsascript(t *testing.T) {
 			if n := strings.Count(log.String(), cantWrite); n != 1 || !log.Has("level=WARN", cantWrite, tt.why) {
 				t.Errorf("log reads\n%s\nwant one warning that the app can't be written out, saying %s", log, tt.why)
 			}
-			if got := s.beside(t); len(got) > 0 {
-				t.Errorf("beside the app are %q, want nothing: none written, nothing escaped", got)
+			if got, want := s.beside(t), []string{lockName}; !slices.Equal(got, want) {
+				t.Errorf("beside the app are %q, want %q alone: none written, nothing escaped", got, want)
 			}
 		})
 	}
@@ -183,49 +197,77 @@ func TestAnAppThatCantBeRegisteredLeavesItToOsascriptForTheRestOfTheRun(t *testi
 	}
 }
 
-func TestAWriterWhoseRenameFailsTakesTheAppAnotherPutThere(t *testing.T) {
-	tests := []struct {
-		name    string
-		other   string
-		takenIn bool
-	}{
-		{name: "the same app", other: "new", takenIn: true},
-		{name: "another version", other: "old"},
+func TestASecondWriterWaitsForTheFirstAndOnlyRegistersWhatItWrote(t *testing.T) {
+	zipped := zipOf(t, appEntries("new")...)
+	s := newAppSetup(t, zipped)
+	// The first writer holds the lock, has written the app, and has yet to
+	// register it.
+	release := holdLock(t, s.path)
+	put(t, zipped, s.path)
+	marker := filepath.Join(s.path, "Contents", "marker")
+	if err := os.WriteFile(marker, nil, 0o644); err != nil {
+		t.Fatal(err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			log := logstest.Capture(t)
-			s := newAppSetup(t, zipOf(t, appEntries("new")...))
-			// The other writer puts its app in place as this one is about to.
-			s.desktop.app.rename = func(oldpath, newpath string) error {
-				if newpath == s.path {
-					if err := writeApp(zipOf(t, appEntries(tt.other)...), s.path, os.Rename); err != nil {
-						t.Fatal(err)
-					}
-				}
-				return os.Rename(oldpath, newpath)
-			}
 
-			if err := s.desktop.Notify(message); err != nil {
-				t.Fatalf("Notify() error = %v", err)
-			}
+	posted := make(chan error, 1)
+	go func() { posted <- s.desktop.Notify(message) }()
+	select {
+	case err := <-posted:
+		t.Fatalf("Notify() = %v while another writer held the lock, want it waiting", err)
+	case <-time.After(3 * lockPoll):
+	}
+	release()
+	if err := <-posted; err != nil {
+		t.Fatalf("Notify() error = %v", err)
+	}
 
-			s.expectApp(t, tt.other)
-			if tt.takenIn {
-				want := [][]string{{lsregister, "-f", s.path}, {s.exe(), "--post", message}}
-				if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
-					t.Errorf("ran %q, want %q: the other's app taken and posted through", got, want)
-				}
-				if log.Has(cantWrite) {
-					t.Errorf("log reads\n%s\nwant no warning", log)
-				}
-				return
-			}
-			s.expectOsascriptAlone(t, 1)
-			if !log.Has("level=WARN", cantWrite, "put the notifications' app in place") {
-				t.Errorf("log reads\n%s\nwant a warning that the app couldn't be put in place", log)
-			}
-		})
+	if _, err := os.Stat(marker); err != nil {
+		t.Errorf("the app was written again (%v), want the first writer's left as it was", err)
+	}
+	want := [][]string{{lsregister, "-f", s.path}, {s.exe(), "--post", message}}
+	if got := s.programs.ran(); !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("ran %q, want %q: the app registered and posted through", got, want)
+	}
+}
+
+func TestALockHeldPastTheWaitLeavesItToOsascript(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newAppSetup(t, zipOf(t, appEntries("new")...))
+	s.desktop.app.wait = 2 * lockPoll
+	defer holdLock(t, s.path)()
+
+	if err := s.desktop.Notify(message); err != nil {
+		t.Fatalf("Notify() error = %v", err)
+	}
+
+	s.expectOsascriptAlone(t, 1)
+	if !log.Has("level=WARN", cantWrite, "another switchboard held the notifications' app's lock") {
+		t.Errorf("log reads\n%s\nwant a warning that the lock wasn't had in time", log)
+	}
+	if _, err := os.Stat(s.path); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the app is there (%v), want none written without the lock", err)
+	}
+}
+
+func TestAnAppThatCantBePutInPlaceLeavesTheOneThereInPlace(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newAppSetup(t, zipOf(t, appEntries("new")...))
+	put(t, zipOf(t, appEntries("old")...), s.path)
+	s.desktop.app.rename = func(oldpath, newpath string) error {
+		if newpath == s.path && filepath.Base(oldpath) == appName {
+			return errors.New("rename refused")
+		}
+		return os.Rename(oldpath, newpath)
+	}
+
+	if err := s.desktop.Notify(message); err != nil {
+		t.Fatalf("Notify() error = %v", err)
+	}
+
+	s.expectApp(t, "old")
+	s.expectOsascriptAlone(t, 1)
+	if !log.Has("level=WARN", cantWrite, "put the notifications' app in place: rename refused") {
+		t.Errorf("log reads\n%s\nwant a warning that the app couldn't be put in place", log)
 	}
 }
 
@@ -337,6 +379,28 @@ type appSetup struct {
 	path     string
 	programs *programs
 	desktop  Desktop
+}
+
+// put writes the app zipped out at path, as another switchboard would.
+func put(t *testing.T, zipped []byte, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeApp(zipped, path, os.Rename); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// holdLock takes the lock beside the app at path, as another switchboard
+// writing it out would, until release is called.
+func holdLock(t *testing.T, path string) (release func()) {
+	t.Helper()
+	unlock, err := lockBeside(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return unlock
 }
 
 func newAppSetup(t *testing.T, zipped []byte) *appSetup {

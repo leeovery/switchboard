@@ -1,8 +1,9 @@
 ;; The macOS sandbox scripts/test-isolated runs the tests in: nothing beyond
 ;; this machine, no unix socket outside the temporary directory and nothing on
 ;; the router's port, no writes into the home directory but Go's caches, nor
-;; into switchboard's real config, themes, state, preferences, bin directory
-;; and shell directory, or Claude Code's config directory, wherever they are,
+;; into switchboard's real config, themes, state, preferences, bin directory,
+;; shell directory and notifications' app, or Claude Code's config directory,
+;; wherever they are,
 ;; nor a theme wherever its link leads, nor the directories on PATH, and none
 ;; of the real programs tests must never run.
 ;;
@@ -21,6 +22,8 @@
 ;;   PREFS       its preferences file, the dashboard's, in the state directory
 ;;   BIN_DIR     its bin directory, which holds the claude link
 ;;   SHELL_DIR   its shell directory, which holds its files for the shells
+;;   APP         its notifications' app, Switchboard.app
+;;   APP_SUM     the sum beside the app, of the zip it was written from
 ;;   CLAUDE_DIR  Claude Code's config directory, where switchboard's skill goes
 ;;   PATH_DIRS   the directories on PATH outside the home, where a program
 ;;               run by name is found, joined by colons, as PATH joins them
@@ -52,8 +55,9 @@
 
 (deny file-write* (subpath (param "HOME")))
 (allow file-write* (subpath (param "GOCACHE")) (subpath (param "GOMODCACHE")))
-;; The real config, themes, state, preferences, bin directory and shell
-;; directory, and Claude Code's config directory, where the environment puts
+;; The real config, themes, state, preferences, bin directory, shell
+;; directory, notifications' app and its sum, and Claude Code's config
+;; directory, where the environment puts
 ;; them, home or not, and where a link to one leads.
 (deny file-write*
   (literal (param "CONFIG"))
@@ -63,6 +67,8 @@
   (literal (param "PREFS"))
   (subpath (param "BIN_DIR"))
   (subpath (param "SHELL_DIR"))
+  (subpath (param "APP"))
+  (literal (param "APP_SUM"))
   (subpath (param "CLAUDE_DIR")))
 
 ;; The directories on PATH outside the home, such as /opt/homebrew/bin, where

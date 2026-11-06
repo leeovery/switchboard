@@ -248,9 +248,9 @@ type Installed struct {
 // answer. It refuses a switchboard binary that won't last, such as go run's.
 // It makes the copy and writes the plist holding the copy's lock, waiting
 // for a router moving over to let it go, as MoveOver says, and lets it go
-// before launchd is asked to boot anything out. Once the copy's made, it has
-// Authorize ask whether the router's notifications may be posted, before the
-// router it starts readies them itself.
+// before launchd is asked to boot anything out. Once launchd has the new
+// service, it has Authorize ask whether the router's notifications may be
+// posted, the copy's lock let go.
 // Once it begins the swap, as swap has it, it finishes it whatever ctx does,
 // which can take about two minutes at the worst: what it does before and
 // after heeds ctx, failing with its cause once it's done. It says how far the
@@ -275,9 +275,6 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if err := a.placeCopy(); err != nil {
 		return Installed{}, err
 	}
-	if s.cfg.Authorize != nil {
-		s.cfg.Authorize()
-	}
 	before, i, _ := s.answering(ctx)
 	if swap, err := s.swap(ctx, a, unlock); err != nil {
 		return Installed{Swap: swap}, err
@@ -291,6 +288,9 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	h, at := s.waitForRouter(ctx, waitFor, before, StartWait)
 	if err := context.Cause(ctx); err != nil {
 		return Installed{Swap: Swapped}, err
+	}
+	if s.cfg.Authorize != nil {
+		s.cfg.Authorize()
 	}
 	installed := Installed{Swap: Swapped, Router: h, Unread: opts.unread}
 	// Judged where the router answered, whose token files it reads.

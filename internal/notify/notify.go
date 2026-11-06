@@ -153,10 +153,12 @@ func runCommand(ctx context.Context, env []string, name string, args ...string) 
 }
 
 // startCommand starts a program and lets it go: it runs on past this
-// process, which never waits for it.
+// process, which never waits for it, in a process group of its own, so a
+// Ctrl-C ending this process doesn't end it.
 func startCommand(env []string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Env = env
+	cmd.SysProcAttr = detached()
 	if err := cmd.Start(); err != nil {
 		return err
 	}
