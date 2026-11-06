@@ -27,8 +27,9 @@ const (
 	queueSize = 256
 	// finishWait is how long, from the router's stop, what's still posting,
 	// the moves still queued and the limits still gathering have between
-	// them to post, so a post that hangs can't hold it up: one still going
-	// then is ended, and any after it fail at once.
+	// them to post, unless the config says otherwise, so a post that hangs
+	// can't hold it up: one still going then is ended, and any after it fail
+	// at once.
 	finishWait = 3 * time.Second
 )
 
@@ -72,6 +73,9 @@ type notifications struct {
 	// ended is whether a post has been ended as the router stopped, which is
 	// warned of once.
 	ended bool
+	// postFor is how long, from the stop, what's still posting has to post,
+	// as finishWait says.
+	postFor time.Duration
 }
 
 func newNotifications(settings config.Notifications, notifier Notifier, state *state, years *yearsTold, now func() time.Time) *notifications {
@@ -85,6 +89,7 @@ func newNotifications(settings config.Notifications, notifier Notifier, state *s
 		limits:   newLimitNotices(),
 		lookout:  newLookout(settings.Room, settings.Warning),
 		posted:   make(map[string]time.Time),
+		postFor:  finishWait,
 	}
 }
 
@@ -111,14 +116,14 @@ func (n *notifications) prepare(ctx context.Context) {
 }
 
 // run deals with the events heard, and looks at the accounts, posting what
-// they call for, until ctx ends, when it finishes the round under way, and
-// then finishes. Its first look calls for no room again or warning, as
-// there's nothing yet to compare the accounts with, but tells of how the
+// they call for, until ctx ends, when it finishes the round under way, starts
+// no other, and finishes. Its first look calls for no room again or warning,
+// as there's nothing yet to compare the accounts with, but tells of how the
 // tokens' years stand. Every post is made under one context, live while ctx
-// is and for finishWait after, so what's posting as the router stops, and
-// all it posts after, share that deadline, and none outlives run.
+// is and for postFor after, so what's posting as the router stops, and all
+// it posts after, share that deadline, and none outlives run.
 func (n *notifications) run(ctx context.Context) {
-	posting, end := postingFor(ctx)
+	posting, end := postingFor(ctx, n.postFor)
 	defer end()
 	ticker := time.NewTicker(lookEvery)
 	defer ticker.Stop()
@@ -127,24 +132,33 @@ func (n *notifications) run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 		case e := <-n.events:
+			// An event taken once the stop's seen is taken as finish takes
+			// those still queued, without a look.
+			stopped := ctx.Err() != nil
 			accounts, now := n.standings()
 			n.take(posting, e, accounts)
-			n.look(posting, accounts, now)
+			if !stopped {
+				n.look(posting, accounts, now)
+			}
 		case <-ticker.C:
-			n.lookAfresh(posting)
+			if ctx.Err() == nil {
+				n.lookAfresh(posting)
+			}
 		case <-n.wake():
-			n.tell(posting, n.limits.due(time.Now()))
+			if ctx.Err() == nil {
+				n.tell(posting, n.limits.due(time.Now()))
+			}
 		}
 	}
 	n.finish(posting)
 }
 
 // postingFor returns the context notifications are posted under: live while
-// ctx is, and for finishWait after it ends; and what ends it at once.
-func postingFor(ctx context.Context) (context.Context, context.CancelFunc) {
+// ctx is, and for wait after it ends; and what ends it at once.
+func postingFor(ctx context.Context, wait time.Duration) (context.Context, context.CancelFunc) {
 	posting, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	startClock := context.AfterFunc(ctx, func() {
-		deadline := time.AfterFunc(finishWait, cancel)
+		deadline := time.AfterFunc(wait, cancel)
 		context.AfterFunc(posting, func() { deadline.Stop() })
 	})
 	return posting, func() {
@@ -278,5 +292,5 @@ func (n *notifications) endedByStop(notice notify.Notice) {
 		return
 	}
 	n.ended = true
-	logger.Warn("ended the notifications still posting as the router stopped", "after", finishWait, "account", notice.Account, "news", notice.News)
+	logger.Warn("ended the notifications still posting as the router stopped", "after", n.postFor, "account", notice.Account, "news", notice.News)
 }

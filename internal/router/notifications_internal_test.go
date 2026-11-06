@@ -866,6 +866,7 @@ func TestAStopMidPostPostsAllThatsLeftWhereItsAnsweredInTime(t *testing.T) {
 				if cut := h.notifier.cutShort(); len(cut) > 0 || log.Has("as the router stopped") {
 					t.Errorf("cut short %q, and log reads\n%s\nwant every post gone out in time", cut, log)
 				}
+				tt.expectTold(t, h)
 			})
 		})
 	}
@@ -894,6 +895,7 @@ func TestAStopMidPostEndsAllThatsLeftAtItsDeadline(t *testing.T) {
 				if strings.Count(log.String(), ended) != 1 || !log.Has(ended, "after=3s") || strings.Count(log.String(), after) != len(want)-1 {
 					t.Errorf("log reads\n%s\nwant the first post ended warned of, and the %d after it at debug", log, len(want)-1)
 				}
+				tt.expectTold(t, h)
 			})
 		})
 	}
@@ -902,11 +904,9 @@ func TestAStopMidPostEndsAllThatsLeftAtItsDeadline(t *testing.T) {
 // midPost are stops that come with a post parked, waiting on macOS's
 // question, and more to post after it: park builds notifications whose posts
 // wait while their hold is open, starts them and parks a post, returning them
-// and what they're to post by the end of the stop.
-var midPost = []struct {
-	name string
-	park func(t *testing.T) (*notifying, []string)
-}{
+// and what they're to post by the end of the stop; told are the accounts
+// whose tokens' years count as told by then, posted or not.
+var midPost = []midPostStop{
 	{
 		name: "in a look, a token's year to tell of after it",
 		park: func(t *testing.T) (*notifying, []string) {
@@ -919,6 +919,7 @@ var midPost = []struct {
 			h.after(5 * time.Hour)
 			return h, []string{"2 · two has room again", yearSaid("expires 31 Jan 2000 · 30 days left")}
 		},
+		told: []string{"2"},
 	},
 	{
 		name: "telling of two limits due at once",
@@ -982,6 +983,22 @@ func TestStoppingTellsOfALimitStillQueued(t *testing.T) {
 		h.n.finish(t.Context())
 		h.expect("2 · two hit its 5-hour limit, back at Sat 01:00")
 	})
+}
+
+// midPostStop is a stop that comes with a post parked: see midPost.
+type midPostStop struct {
+	name string
+	park func(t *testing.T) (*notifying, []string)
+	told []string
+}
+
+// expectTold fails the test unless the tokens' years told of by the end of
+// the stop are those of the accounts the stop says.
+func (m midPostStop) expectTold(t *testing.T, h *notifying) {
+	t.Helper()
+	if got := slices.Sorted(maps.Keys(h.n.years.saved())); !slices.Equal(got, m.told) {
+		t.Errorf("the tokens' years of %q count as told, want those of %q", got, m.told)
+	}
 }
 
 // numbered are accounts named as the design's examples name them: 1 · one,
