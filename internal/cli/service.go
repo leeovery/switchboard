@@ -141,6 +141,7 @@ func (a *app) serviceConfig() (service.Config, error) {
 		RouterAt: func(dir string) service.Router {
 			return router.NewClient(router.SocketPath(dir))
 		},
+		Authorize: a.Notifier.Authorize,
 	}, nil
 }
 

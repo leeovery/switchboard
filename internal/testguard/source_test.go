@@ -27,6 +27,9 @@ import (
 var processStarters = []string{
 	"internal/claude/version.go:commandOutput",
 	"internal/notify/notify.go:runCommand",
+	// The notifications' app asked whether it may post, let go to wait on the
+	// user's answer: tests pass a fake that notes each start.
+	"internal/notify/notify.go:startCommand",
 	// run's hand-over to claude, and the router's to its own binary as it
 	// restarts, each replacing the process: main passes it to the CLI, and
 	// tests pass a fake that notes what it was given.

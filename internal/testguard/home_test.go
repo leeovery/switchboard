@@ -545,6 +545,29 @@ func TestChangesToTheRealDataDirectories(t *testing.T) {
 			want: []string{"the real ~/.local/share/switchboard/shell/init.zsh was modified"},
 		},
 		{
+			name: "the notifications' app written out beside it",
+			during: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, dataDir, "Switchboard.app", "Contents", "Info.plist"), "<plist/>\n")
+				write(t, filepath.Join(home, dataDir, ".Switchboard.app.sum"), "0123\n")
+			},
+			want: []string{
+				"the real ~/.local/share/switchboard/Switchboard.app was created",
+				"the real ~/.local/share/switchboard/Switchboard.app/Contents was created",
+				"the real ~/.local/share/switchboard/Switchboard.app/Contents/Info.plist was created",
+				"the real ~/.local/share/switchboard/.Switchboard.app.sum was created",
+			},
+		},
+		{
+			name: "the notifications' app's sum rewritten",
+			before: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, dataDir, ".Switchboard.app.sum"), "0123\n")
+			},
+			during: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, dataDir, ".Switchboard.app.sum"), "456789\n")
+			},
+			want: []string{"the real ~/.local/share/switchboard/.Switchboard.app.sum was modified"},
+		},
+		{
 			name: "other programs' data beside it",
 			during: func(t *testing.T, home string) {
 				write(t, filepath.Join(home, ".local", "share", "other", "bin", "claude"), "#!/bin/sh\n")
@@ -1041,6 +1064,13 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 				write(t, filepath.Join(elsewhere, "data", "switchboard", "shell", "init.fish"), "true\n")
 			},
 			want: []string{"the real %[1]s/data/switchboard/shell was created", "the real %[1]s/data/switchboard/shell/init.fish was created"},
+		},
+		{
+			name: "the notifications' app's sum written where XDG_DATA_HOME puts it",
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "data", "switchboard", ".Switchboard.app.sum"), "0123\n")
+			},
+			want: []string{"the real %[1]s/data/switchboard/.Switchboard.app.sum was created"},
 		},
 		{
 			name: "switchboard's line added to zsh's startup file where ZDOTDIR puts it",

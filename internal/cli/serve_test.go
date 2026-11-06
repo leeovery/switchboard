@@ -775,6 +775,25 @@ func TestServeRunByHandLogsThatARestartIsDue(t *testing.T) {
 	}
 }
 
+func TestServeReadiesItsNotificationsWithoutWaitingForThem(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	notifier := &recordingNotifier{hold: make(chan struct{})}
+	t.Cleanup(func() { close(notifier.hold) })
+	srv.deps.Notifier = notifier
+
+	stop := srv.start(t)
+	waitUntil(t, "the notifications are readied", func() bool {
+		prepared, _ := notifier.counts()
+		return prepared == 1
+	})
+	if got := stop(); got.code != 0 {
+		t.Errorf("switchboard serve, its notifications still readying, = %+v, want exit status 0", got)
+	}
+	if prepared, authorized := notifier.counts(); prepared != 1 || authorized != 0 {
+		t.Errorf("the notifications were readied %d times and asked to authorize %d, want once and never", prepared, authorized)
+	}
+}
+
 func TestServeMakesTheTokensDirectoryPrivate(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	dir := filepath.Dir(tokenPath(t, srv.deps, "work"))

@@ -129,14 +129,17 @@ absolute() {
 	esac
 }
 
-# switchboard's real config, themes, state, preferences, bin directory and
-# shell directory, where it finds them, and Claude Code's config directory, where it reads
-# switchboard's skill: read before scrub unsets SWITCHBOARD_CONFIG,
-# SWITCHBOARD_THEMES_DIR and CLAUDE_CONFIG_DIR.
+# switchboard's real config, themes, state, preferences, bin directory, shell
+# directory and notifications' app, with its sum, where it finds them, and
+# Claude Code's config directory, where it reads switchboard's skill: read
+# before scrub unsets SWITCHBOARD_CONFIG, SWITCHBOARD_THEMES_DIR and
+# CLAUDE_CONFIG_DIR.
 config_dir=$(resolved "$(absolute "${XDG_CONFIG_HOME-}" "$HOME/.config")/switchboard")
 state_dir=$(resolved "$(absolute "${XDG_STATE_HOME-}" "$HOME/.local/state")/switchboard")
 bin_dir=$(resolved "$(absolute "${XDG_DATA_HOME-}" "$HOME/.local/share")/switchboard/bin")
 shell_dir=$(resolved "$(absolute "${XDG_DATA_HOME-}" "$HOME/.local/share")/switchboard/shell")
+app=$(resolved "$(absolute "${XDG_DATA_HOME-}" "$HOME/.local/share")/switchboard/Switchboard.app")
+app_sum=$(resolved "$(absolute "${XDG_DATA_HOME-}" "$HOME/.local/share")/switchboard/.Switchboard.app.sum")
 config=$(resolved "$(absolute "${SWITCHBOARD_CONFIG-}" "$config_dir/config.toml")")
 themes_dir=$(resolved "$(absolute "${SWITCHBOARD_THEMES_DIR-}" "$config_dir/themes")")
 prefs=$(resolved "$state_dir/prefs.json")
@@ -212,7 +215,7 @@ sandboxed() {
 		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" \
 		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D THEMES_DIR="$themes_dir" \
 		-D THEME_FILES="$theme_files" -D STATE_DIR="$state_dir" -D PREFS="$prefs" -D BIN_DIR="$bin_dir" \
-		-D SHELL_DIR="$shell_dir" \
+		-D SHELL_DIR="$shell_dir" -D APP="$app" -D APP_SUM="$app_sum" \
 		-D CLAUDE_DIR="$claude_dir" -D PATH_DIRS="$path_dirs" "$@"
 }
 
@@ -362,6 +365,21 @@ denies_running() {
 	denied "running $name, at $program" "execvp() of '$program' failed: Operation not permitted" "$program" "$@"
 }
 
+# denies_running_the_app proves the sandbox denies running the notifications'
+# app wherever it's written out: a stand-in for its program, at its path in
+# a switchboard data directory of the check's own, which would exit 0.
+denies_running_the_app() {
+	local scratch program status=0
+	scratch=$(mktemp -d "$tmp/switchboard-isolation-check.XXXXXX")
+	program=$scratch/switchboard/Switchboard.app/Contents/MacOS/Switchboard
+	mkdir -p "$(dirname "$program")"
+	printf '#!/bin/sh\nexit 0\n' >"$program"
+	chmod +x "$program"
+	denies_running "the notifications' app" "$program" || status=1
+	rm -rf "$scratch"
+	return "$status"
+}
+
 # real_claude prints where the real claude is, found as switchboard finds it:
 # the first program named claude in a directory on PATH, else where its
 # installers put it, passing over switchboard's bin directory, and any claude
@@ -427,10 +445,12 @@ self_check() {
 	denies_writing_in "real state directory" "$state_dir" || status=1
 	denies_writing_in "real bin directory" "$bin_dir" || status=1
 	denies_writing_in "real shell directory" "$shell_dir" || status=1
+	denies_writing_in "real notifications' app" "$app" || status=1
 	denies_writing_in "real Claude Code config directory" "$claude_dir" || status=1
 	denies_writing_on_path || status=1
 	denies_writing_to "real config file" "$config" || status=1
 	denies_writing_to "real preferences file" "$prefs" || status=1
+	denies_writing_to "real notifications' app's sum" "$app_sum" || status=1
 	denies_writing_to_themes || status=1
 	denies_running claude "$(real_claude)" --version || status=1
 	denies_running osascript "$(type -P osascript)" -e 'return 1' || status=1
@@ -438,6 +458,8 @@ self_check() {
 	# open with nothing to open says how it's used.
 	denies_running open "$(type -P open)" || status=1
 	denies_running plutil /usr/bin/plutil -help || status=1
+	denies_running lsregister /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -h || status=1
+	denies_running_the_app || status=1
 	denies_running tmux "$(type -P tmux)" -V || status=1
 	starts_clean || status=1
 	return "$status"

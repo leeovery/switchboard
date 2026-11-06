@@ -541,10 +541,14 @@ func tokenPath(t *testing.T, deps cli.Deps, id string) string {
 	return filepath.Join(stateDir(t, deps), "tokens", id)
 }
 
-// recordingNotifier notes each notification it's given, and posts none.
+// recordingNotifier notes each notification it's given, and posts none, and
+// counts the times it's prepared and asked to authorize. Prepare waits for
+// hold to close, where it's set.
 type recordingNotifier struct {
-	mu       sync.Mutex
-	messages []string
+	mu                   sync.Mutex
+	messages             []string
+	prepared, authorized int
+	hold                 chan struct{}
 }
 
 func (n *recordingNotifier) Notify(message string) error {
@@ -552,6 +556,29 @@ func (n *recordingNotifier) Notify(message string) error {
 	defer n.mu.Unlock()
 	n.messages = append(n.messages, message)
 	return nil
+}
+
+func (n *recordingNotifier) Prepare() {
+	n.mu.Lock()
+	n.prepared++
+	hold := n.hold
+	n.mu.Unlock()
+	if hold != nil {
+		<-hold
+	}
+}
+
+func (n *recordingNotifier) Authorize() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.authorized++
+}
+
+// counts returns the times it's been prepared, and asked to authorize.
+func (n *recordingNotifier) counts() (prepared, authorized int) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.prepared, n.authorized
 }
 
 // posted returns the notifications given so far.

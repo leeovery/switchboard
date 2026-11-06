@@ -49,6 +49,9 @@ func TestServiceInstall(t *testing.T) {
 	if data, err := os.ReadFile(s.routerCopy); err != nil || string(data) != "#!/bin/sh\n" {
 		t.Errorf("the router's copy holds %q (%v), want the switchboard installed", data, err)
 	}
+	if _, authorized := s.srv.deps.Notifier.(*recordingNotifier).counts(); authorized != 1 {
+		t.Errorf("the notifier was asked to authorize %d times, want once", authorized)
+	}
 }
 
 func TestServiceInstallHelpAsksForASwitchboardThatLasts(t *testing.T) {
