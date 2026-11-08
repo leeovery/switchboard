@@ -163,7 +163,7 @@ type savedReading struct {
 
 // load takes in the state file at path, as the router starts, and keeps in it
 // from then on what the router knows that should outlast it, telling the
-// state the global pin it kept, as setPin says. What it held that can no
+// state the global pin it kept, as recallPin says. What it held that can no
 // longer be used is left out, and the file is to be written again without it.
 func (f *stateFile) load(path string) {
 	f.path = path
@@ -171,7 +171,7 @@ func (f *stateFile) load(path string) {
 	saved := f.read(now)
 	tokens := f.accounts.recall(saved.Tokens, now)
 	sessions := f.sessions.recall(saved.savedSessions, f.accounts, now)
-	f.state.setPin(f.sessions.globalPin().Accounts)
+	f.state.recallPin(f.sessions.globalPin().Accounts)
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
 	told := f.told.recall(saved.TokenYears, f.accounts.includes)
 	if tokens || sessions || usage || told {

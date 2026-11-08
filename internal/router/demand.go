@@ -60,9 +60,23 @@ func (s *state) roomy(week func(id string) (quota.Window, bool), at time.Time) b
 	return ok
 }
 
-// setPin notes that the global pin names the accounts with the ids given
-// from now on, or none, as the router judges the pool's room.
-func (s *state) setPin(ids []string) {
+// repin notes that the global pin names the accounts with the ids given from
+// now on, or none, and judges the pool's room afresh then, as judgeRoom says,
+// so a pin that spends an account's reserve gives the pool room from its own
+// moment.
+func (s *state) repin(ids []string) {
+	at := s.now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pin = slices.Clone(ids)
+	s.judgeRoom(s.weekHeld, at)
+}
+
+// recallPin takes in the global pin the state file kept, as the router
+// starts, as repin does, but judging nothing: seed, taking up the history
+// after it, judges the pool's room by it, and the pool judged at now first
+// would have the day's rate take every time seed replays as now.
+func (s *state) recallPin(ids []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pin = slices.Clone(ids)

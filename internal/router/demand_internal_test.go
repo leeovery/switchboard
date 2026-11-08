@@ -399,9 +399,9 @@ func TestThePoolHasRoomWhereTheRouterWouldSendANewSession(t *testing.T) {
 		{name: "a limit holding back every request on work", prepare: then(readWork(0.5), func(s *state) { s.limit("work", nil, far, s.mark()) })},
 		{name: "a limit on work's session alone", prepare: then(readWork(0.5), func(s *state) { s.limit("work", []string{"5h"}, far, s.mark()) }), want: true},
 		{name: "work's week at its reserve", prepare: readWork(0.9)},
-		{name: "work's week at its reserve, the global pin naming it", prepare: then(readWork(0.9), func(s *state) { s.setPin([]string{"work"}) }), want: true},
-		{name: "work's week at its limit, the global pin naming it", prepare: then(readWork(1), func(s *state) { s.setPin([]string{"work"}) })},
-		{name: "work's week at its reserve, the global pin naming side, unread", prepare: then(readWork(0.9), func(s *state) { s.setPin([]string{"side"}) })},
+		{name: "work's week at its reserve, the global pin naming it", prepare: then(readWork(0.9), func(s *state) { s.repin([]string{"work"}) }), want: true},
+		{name: "work's week at its limit, the global pin naming it", prepare: then(readWork(1), func(s *state) { s.repin([]string{"work"}) })},
+		{name: "work's week at its reserve, the global pin naming side, unread", prepare: then(readWork(0.9), func(s *state) { s.repin([]string{"side"}) })},
 		{
 			name:    "personal's week read with room, but its token missing",
 			prepare: func(s *state) { s.usage["personal"].windows["7d"] = weekUsed(0.1) },
@@ -420,22 +420,32 @@ func TestThePoolHasRoomWhereTheRouterWouldSendANewSession(t *testing.T) {
 
 func TestThePoolHasRoomOnAnAccountAtItsReserveWhileTheGlobalPinNamesIt(t *testing.T) {
 	// Work keeps a tenth back, and its week is at its reserve; nothing else
-	// has been read.
+	// has been read, nor is read again. The global pin names work an hour in,
+	// and is cleared three hours in.
 	clock := &testClock{now: start}
 	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
 	cfg.Accounts = workReserved()
 	r := newTestRouterOf(t, cfg)
 	r.state.record("work", []quota.Window{weekUsed(0.92)}, r.state.mark())
 
+	clock.now = start.Add(time.Hour)
 	if err := r.pin(PinRequest{Accounts: []string{"work"}, By: ByCLI}); err != nil {
 		t.Fatalf("pin() = %v", err)
 	}
-	if !roomAt(r.state, start) {
+	if !roomAt(r.state, clock.now) {
 		t.Error("pinned, the pool has no room, want room on work to its limit, as the pin spends its reserve")
 	}
+	clock.now = start.Add(3 * time.Hour)
+	if got := r.state.document().Demand; got == nil || got.Hours != 2 {
+		t.Errorf("two hours after the pin, the pool's demand is %+v, want it measured over 2 hours: room from the pin's own moment", got)
+	}
 	r.unpin(false, ByCLI)
-	if roomAt(r.state, start) {
+	if roomAt(r.state, clock.now) {
 		t.Error("unpinned, the pool has room, want none, work held back by its reserve")
+	}
+	clock.now = start.Add(4 * time.Hour)
+	if got := r.state.document().Demand; got == nil || got.Hours != 2 {
+		t.Errorf("an hour after the pin was cleared, the pool's demand is %+v, want it measured over 2 hours: none from the clearing's own moment", got)
 	}
 }
 

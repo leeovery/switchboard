@@ -268,7 +268,7 @@ type state struct {
 	sizes map[string]float64
 	day   forecast.Day
 	// pin holds the ids of the accounts the global pin names, as the router
-	// last told it, as setPin has it: none while there's no pin.
+	// last told it, as repin and recallPin have it: none while there's no pin.
 	pin []string
 }
 

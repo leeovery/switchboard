@@ -472,10 +472,9 @@ func (g *glances) of(model string) view {
 
 // pin sends every new session to the best of the accounts the request names,
 // with Move, every running session on another account too, and with Force,
-// clears every session's own pin, telling it as Pinned, and telling the
-// state, which judges the pool's room by the pin, as setPin says. It fails,
-// saying why, for anyone asking but ByCLI or ByDashboard, for no account, or
-// for one nothing can go out on, and then tells nothing.
+// clears every session's own pin, as pinTo has it, telling it as Pinned. It
+// fails, saying why, for anyone asking but ByCLI or ByDashboard, for no
+// account, or for one nothing can go out on, and then tells nothing.
 func (r *Router) pin(p PinRequest) error {
 	if err := p.By.check(); err != nil {
 		return err
@@ -484,8 +483,7 @@ func (r *Router) pin(p PinRequest) error {
 	if err != nil {
 		return err
 	}
-	cleared := r.sessions.setPin(status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
-	r.state.setPin(ids)
+	cleared := r.pinTo(status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
 	attrs := []any{"accounts", strings.Join(ids, ","), "move", p.Move}
 	if p.Force {
 		attrs = append(attrs, "force", true, "sessions_unpinned", cleared)
@@ -496,12 +494,10 @@ func (r *Router) pin(p PinRequest) error {
 }
 
 // unpin clears the global pin, so every session is routed on its merits but
-// for those with pins of their own, and with force, clears theirs too,
-// telling it as Unpinned unless it cleared nothing, and telling the state, as
-// pin does.
+// for those with pins of their own, and with force, clears theirs too, as
+// clearPin has it, telling it as Unpinned unless it cleared nothing.
 func (r *Router) unpin(force bool, by By) {
-	was, cleared := r.sessions.unpin(force)
-	r.state.setPin(nil)
+	was, cleared := r.clearPin(force)
 	accounts := strings.Join(was.Accounts, ",")
 	switch {
 	case force:
@@ -512,6 +508,29 @@ func (r *Router) unpin(force bool, by By) {
 	if !was.IsZero() || cleared > 0 {
 		r.emit(Unpinned{Accounts: was.Accounts, Force: force, By: by})
 	}
+}
+
+// pinTo sets the global pin, as the sessions' setPin does, and tells the
+// state, which judges the pool's room by it, as repin says: one step, under
+// pinning, so no other change of the pin comes between the two. It returns
+// how many sessions had a pin of their own, cleared with force.
+func (r *Router) pinTo(pin status.Pin, force bool) (cleared int) {
+	r.pinning.Lock()
+	defer r.pinning.Unlock()
+	cleared = r.sessions.setPin(pin, force)
+	r.state.repin(pin.Accounts)
+	return cleared
+}
+
+// clearPin clears the global pin, as the sessions' unpin does, and tells the
+// state, as pinTo does. It returns the pin as it was, and how many sessions
+// had a pin of their own, cleared with force.
+func (r *Router) clearPin(force bool) (was status.Pin, cleared int) {
+	r.pinning.Lock()
+	defer r.pinning.Unlock()
+	was, cleared = r.sessions.unpin(force)
+	r.state.repin(nil)
+	return was, cleared
 }
 
 // pinSession sends the requests of the session with the given id to the

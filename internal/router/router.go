@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -243,6 +244,10 @@ type Router struct {
 	accounts accounts
 	state    *state
 	sessions *sessions
+	// pinning is held across each change of the global pin and its telling
+	// the state, so no other change comes between them, and the state's copy
+	// is the pin the sessions hold.
+	pinning sync.Mutex
 	// scheduler is the proxy's chooser, which also says where it would send
 	// each session's next request, as the sessions are listed.
 	scheduler *scheduler
