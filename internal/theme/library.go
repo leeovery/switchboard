@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/logs"
 )
 
@@ -266,4 +267,32 @@ func readFile(path, slug string) (Theme, *Problem) {
 		return Theme{}, &Problem{Reason: unreadable, Detail: err.Error(), Err: err}
 	}
 	return parse(slug, data)
+}
+
+// RemoveFiles removes the theme files in the themes directory, the ones
+// List names, a link among them removed and never what it leads to; then the
+// directory, once nothing else is in it. Anything else in it is left alone,
+// as a directory the environment names may hold other things of the user's.
+// It reports how many it removed, going on past one it can't remove, and
+// failing, saying why.
+func (l *Library) RemoveFiles() (int, error) {
+	files, err := l.files()
+	if err != nil {
+		return 0, fmt.Errorf("read the themes directory: %w", err)
+	}
+	removed := 0
+	var errs []error
+	for _, path := range files {
+		if err := os.Remove(path); err != nil {
+			errs = append(errs, fmt.Errorf("remove the theme %s: %w", path, err))
+			continue
+		}
+		removed++
+	}
+	if l.dir != "" {
+		if _, err := atomicfile.RemoveIfEmpty(l.dir); err != nil {
+			errs = append(errs, fmt.Errorf("remove the themes directory: %w", err))
+		}
+	}
+	return removed, errors.Join(errs...)
 }
