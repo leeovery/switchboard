@@ -47,8 +47,8 @@ func (f Fast) Rate(at time.Time) float64 {
 	return f.rate * decay(at.Sub(f.at), fastTau)
 }
 
-// countable reports whether v, a rise or an answer's weight, is one to take
-// in: more than nothing, and a number short of endless.
+// countable reports whether v, a rise, an answer's weight or an account's
+// size, is one to take in: more than nothing, and a number short of endless.
 func countable(v float64) bool {
 	return v > 0 && !math.IsInf(v, 1)
 }
