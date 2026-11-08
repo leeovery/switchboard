@@ -63,6 +63,22 @@ func TestClientHealthOfARouterFromBeforeItStrippedItsOwnHeaders(t *testing.T) {
 	}
 }
 
+// asGiven is doc as the router's client is given it, through JSON: its facts
+// alone, without the weeks its forecast played, which a document keeps for
+// its own moments.
+func asGiven(t *testing.T, doc status.Document) status.Document {
+	t.Helper()
+	data, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var given status.Document
+	if err := json.Unmarshal(data, &given); err != nil {
+		t.Fatal(err)
+	}
+	return given
+}
+
 func TestClientStatus(t *testing.T) {
 	up := newUpstream(t, answerWith(http.StatusOK, session, week))
 	rt := newRouter(t, up.URL)
@@ -88,7 +104,7 @@ func TestClientStatus(t *testing.T) {
 			{ID: "side", Label: "Side", TokenSet: true},
 		},
 	}.WorkedOut(claude.Policy())
-	if !reflect.DeepEqual(got, want) {
+	if want := asGiven(t, want); !reflect.DeepEqual(got, want) {
 		t.Errorf("Status() =\n%+v\nwant\n%+v", got, want)
 	}
 }
@@ -330,7 +346,7 @@ func TestClientRefresh(t *testing.T) {
 			{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}},
 		},
 	}.WorkedOut(claude.Policy())
-	if !reflect.DeepEqual(got, want) {
+	if want := asGiven(t, want); !reflect.DeepEqual(got, want) {
 		t.Errorf("Refresh() =\n%+v\nwant the document with what the probes read\n%+v", got, want)
 	}
 	if probed, want := prober.probed(), []string{sideToken, workToken}; !reflect.DeepEqual(probed, want) {
@@ -397,7 +413,7 @@ func TestTheRoutersDocumentIsWorkedOutOnceItsPinIsSet(t *testing.T) {
 	for i := range bare.Accounts {
 		bare.Accounts[i].Windows = asRead(bare.Accounts[i].Windows)
 	}
-	if again := bare.WorkedOut(claude.Policy()); !reflect.DeepEqual(again, doc) {
+	if again := asGiven(t, bare.WorkedOut(claude.Policy())); !reflect.DeepEqual(again, doc) {
 		t.Errorf("Pin() gave\n%+v\nwant what its own fields work out to\n%+v", doc, again)
 	}
 }
