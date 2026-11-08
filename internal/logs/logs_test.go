@@ -275,6 +275,38 @@ func TestMirror(t *testing.T) {
 	}
 }
 
+func TestMirrorOnlyKeepsNoFileAndDoesntWarnOfIt(t *testing.T) {
+	tests := []struct {
+		name string
+		dir  string
+	}{
+		{name: "a directory given", dir: filepath.Join(t.TempDir(), "logs")},
+		{name: "no directory", dir: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			var mirror bytes.Buffer
+			logs.Init(logs.Options{Dir: tt.dir, MirrorOnly: true, Mirror: &mirror})
+			logs.For("tool").Warn("mirrored", "account", "work")
+			logs.Close(0)
+
+			if !hasLine(mirror.String(), "level=WARN", `msg=mirrored`, "component=tool", "account=work") {
+				t.Errorf("mirror took\n%s\nwant the record", mirror.String())
+			}
+			if strings.Contains(mirror.String(), "log file") {
+				t.Errorf("mirror took\n%s\nwant no word of a log file", mirror.String())
+			}
+			if _, err := os.Stat(tt.dir); tt.dir != "" && !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("Stat(%s) error = %v, want no log directory made", tt.dir, err)
+			}
+			if entries, err := os.ReadDir("."); err != nil || len(entries) > 0 {
+				t.Errorf("working directory holds %v (%v), want nothing written there", entries, err)
+			}
+		})
+	}
+}
+
 func TestLoggingWhenTheFileCantBeOpened(t *testing.T) {
 	blocked := filepath.Join(t.TempDir(), "logs")
 	if err := os.WriteFile(blocked, nil, 0o600); err != nil {

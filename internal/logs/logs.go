@@ -67,6 +67,10 @@ type Options struct {
 	// Mirror, when set, is written every record as well as the file, and
 	// still is when the file can't be: the terminal the router runs in.
 	Mirror io.Writer
+	// MirrorOnly, when set, writes records to Mirror alone, Dir passed over,
+	// with no file kept, and so no warning that it can't be written: for a
+	// program with no log directory of its own, such as a development tool.
+	MirrorOnly bool
 	// Version is switchboard's, and Command the command path run, such as
 	// "switchboard status", for the start record. Never the arguments: run
 	// passes Claude Code's through, and they can hold a prompt.
@@ -124,13 +128,14 @@ func StdLogger(component string, level slog.Level) *log.Logger {
 // Init starts logging for the process. From here on, records from every
 // logger For has given or will give, and what the standard library's log
 // package is given, go to the role's file in opts.Dir, and to opts.Mirror,
-// secrets hidden; the first notes the start. Init never fails: when the file
-// can't be opened, records go only to the mirror, if there is one. Another
-// Init replaces this one without noting an exit.
+// or to the mirror alone with MirrorOnly, secrets hidden; the first notes the
+// start. Init never fails: when the file can't be opened, records go only to
+// the mirror, if there is one. Another Init replaces this one without noting
+// an exit.
 func Init(opts Options) {
 	role := cmp.Or(opts.Role, RoleCLI)
 	level, unknown := opts.level()
-	file, err := openFile(opts.Dir, role)
+	file, err := opts.file(role)
 	s := &session{handler: newHandler(output(file, opts.Mirror), level), role: role, started: time.Now(), file: file}
 	if old := current.Swap(s); old != nil {
 		old.close()
@@ -159,6 +164,14 @@ func Close(status int) {
 	if current.CompareAndSwap(s, nil) {
 		s.close()
 	}
+}
+
+// file opens the role's log file in o.Dir, where o keeps one.
+func (o Options) file(role Role) (*logFile, error) {
+	if o.MirrorOnly {
+		return nil, nil
+	}
+	return openFile(o.Dir, role)
 }
 
 // output is where records are written: the file, the mirror, both, or

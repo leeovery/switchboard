@@ -44,26 +44,34 @@ func historyIn(stateDir string, configured config.Accounts, policy score.Policy,
 	return history{readings: read, lines: lines}, nil
 }
 
-// played are the forecasts made at each hour of a history: the router's, as
-// status works them out of the document a playback builds then, and the
-// baseline's, of that document without the router's demand, as a week goes
-// at the pace its use since it started sets; from the first hour after the
-// history's first reading to the hour of its last.
+// warmUp is how far into a history its forecasts start to be scored: the two
+// days of the readings history a restarted router seeds its state from, so
+// none is scored off a colder start than the router's own.
+const warmUp = 48 * time.Hour
+
+// played are the forecasts made at the hours of a history that are scored:
+// the router's, as status works them out of the document a playback builds
+// then, and the baseline's, of that document without the router's demand, as
+// a week goes at the pace its use since it started sets. It plays from the
+// first hour after the history's first reading to the hour of its last, and
+// scores from the first hour warmUp after that reading on, which can be after
+// the last: then none is scored.
 type played struct {
 	forecasts, baseline []forecast
-	from, to            time.Time
+	from, scored, to    time.Time
 }
 
 // playBack plays h back through a playback of the accounts configured, as
-// policy judges them, and returns the forecasts made at each hour, as played
-// has them: at each, all that h holds by then taken in first.
+// policy judges them, and returns the forecasts made at the hours scored, as
+// played has them: at each hour, all that h holds by then taken in first.
 func playBack(configured config.Accounts, policy score.Policy, h history) played {
 	p := router.NewPlayback(configured, policy)
 	next, stop := iter.Pull(h.lines)
 	defer stop()
 	line, more := next()
 	read := h.readings
-	pl := played{from: read[0].At.Truncate(time.Hour).Add(time.Hour), to: read[len(read)-1].At.Truncate(time.Hour)}
+	first, last := read[0].At, read[len(read)-1].At
+	pl := played{from: first.Truncate(time.Hour).Add(time.Hour), scored: hourFrom(first.Add(warmUp)), to: last.Truncate(time.Hour)}
 	for hour := pl.from; !hour.After(pl.to); hour = hour.Add(time.Hour) {
 		for ; len(read) > 0 && !read[0].At.After(hour); read = read[1:] {
 			p.Read(read[0])
@@ -71,12 +79,29 @@ func playBack(configured config.Accounts, policy score.Policy, h history) played
 		for ; more && !line.At.After(hour); line, more = next() {
 			p.Line(line.Line)
 		}
-		doc := p.Document(hour)
-		pl.forecasts = append(pl.forecasts, forecastsIn(doc, policy, hour)...)
-		doc.Demand = nil
-		pl.baseline = append(pl.baseline, forecastsIn(doc.WorkedOut(policy), policy, hour)...)
+		pl.take(p.Document(hour), policy, hour)
 	}
 	return pl
+}
+
+// take takes in the forecasts doc, built at hour, as policy judges it, makes,
+// the router's and the baseline's, where hour is scored.
+func (pl *played) take(doc status.Document, policy score.Policy, hour time.Time) {
+	if hour.Before(pl.scored) {
+		return
+	}
+	pl.forecasts = append(pl.forecasts, forecastsIn(doc, policy, hour)...)
+	doc.Demand = nil
+	pl.baseline = append(pl.baseline, forecastsIn(doc.WorkedOut(policy), policy, hour)...)
+}
+
+// hourFrom is the first hour at t or after it.
+func hourFrom(t time.Time) time.Time {
+	hour := t.Truncate(time.Hour)
+	if hour.Before(t) {
+		return hour.Add(time.Hour)
+	}
+	return hour
 }
 
 // forecastsIn are where doc, at at, as policy judges it, has each account's

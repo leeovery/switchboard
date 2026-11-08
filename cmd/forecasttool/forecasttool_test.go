@@ -18,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 )
@@ -111,43 +112,47 @@ func scoring(t *testing.T, now time.Time, args ...string) string {
 }
 
 // shortHistory is a history of three accounts' weeks, all forecast short:
-// work's, 10% used two days in, resetting 120 hours in, rises a thousandth an
-// hour till a reading 60 hours in finds it run out; side's, half used five
-// days in, rises a thousandth an hour to its reset, 48 hours in, short, and
-// is read again an hour later; personal's, a fifth used, resets after the
-// history ends, short. A message of work's session answers every hour. It
-// returns the config and the state directory, and the time after it.
+// work's, begun as the history begins and resetting a week in, rises a
+// thousandth an hour from none till a reading 108 hours in finds it run out;
+// side's, 45.2% used five days in, rises a thousandth an hour to its reset,
+// 96 hours in, short, and is read again an hour later; personal's, a fifth
+// used, resets after the history ends, short. A message of work's session
+// answers every hour. It returns the config and the state directory, and the
+// time after it.
 func shortHistory(t *testing.T) (configPath, stateDir string, now time.Time) {
 	t.Helper()
-	read := hourly("work", begins, 60, 0.1, hoursIn(120))
-	read = append(read, readings.Reading{At: hoursIn(60), Account: "work", Key: "7d", Utilization: 1, ResetsAt: hoursIn(120), Status: quota.StatusRejected})
-	read = append(read, hourly("side", begins, 48, 0.5, hoursIn(48))...)
-	read = append(read, weekRead("side", hoursIn(49), 0.01, hoursIn(48+7*24)), weekRead("personal", begins, 0.2, hoursIn(144)))
+	read := hourly("work", begins, 108, 0, hoursIn(168))
+	read = append(read, readings.Reading{At: hoursIn(108), Account: "work", Key: "7d", Utilization: 1, ResetsAt: hoursIn(168), Status: quota.StatusRejected})
+	read = append(read, hourly("side", begins, 96, 0.452, hoursIn(96))...)
+	read = append(read, weekRead("side", hoursIn(97), 0.01, hoursIn(96+7*24)), weekRead("personal", begins, 0.2, hoursIn(150)))
 	var lines []*ledger.Line
-	for i := range 60 {
+	for i := range 108 {
 		lines = append(lines, messageOf(hoursIn(float64(i))))
 	}
 	configPath = configOf(t, account{id: "work"}, account{id: "side"}, account{id: "personal"})
-	now = hoursIn(70)
+	now = hoursIn(118)
 	return configPath, stateOf(t, now, configPath, read, lines), now
 }
 
 func TestScoresAWeekForecastShortThatRanOutAndOneThatHeadedShort(t *testing.T) {
-	// Work's week is forecast short at each hour of its 59 before it runs
-	// out, 60 hours before its reset: 60 hours late, all in its first 40%.
-	// Side's is forecast short at each of its 47 before its reset, as it was:
-	// on time, all in 40–70%. Personal's resets after the history ends, and
-	// side's next week too, so they're never scored. Each week heads short
-	// at its pace since it started too.
+	// Each hour is forecast from an hour in, and scored from two days in.
+	// Work's week is forecast short at each of its 60 hours scored before it
+	// runs out, 60 hours before its reset: 60 hours late, all in its first
+	// 40%. Side's is forecast short at each of its 48 scored before its
+	// reset, as it was: on time, all in 40–70%. Personal's resets after the
+	// history ends, and side's next week too, so they're never scored. Each
+	// week heads short at its pace since it started too. Neither week's move
+	// from the hour before scoring starts counts.
 	configPath, stateDir, now := shortHistory(t)
 
 	got := scoring(t, now, "--state", stateDir, "--config", configPath)
-	scores := `  0–40% used                59   60.0h     0%   100%    0.0h
-  40–70% used               47    0.0h     0%     0%    0.0h
+	scores := `  0–40% used                60   60.0h     0%   100%    0.0h
+  40–70% used               48    0.0h     0%     0%    0.0h
   70–100% used               0       –      –      –       –
-  all                      106   33.4h     0%    56%    0.0h
+  all                      108   33.3h     0%    56%    0.0h
 `
-	want := "forecasts of each week at each hour, 2026-09-07 01:00 UTC to 2026-09-09 12:00 UTC, of work, side, personal\n\n" +
+	want := "forecasts of each week at each hour, 2026-09-07 01:00 UTC to 2026-09-11 12:00 UTC, of work, side, personal\n" +
+		"scored from 2026-09-09 00:00 UTC, two days in\n\n" +
 		"                     forecasts     off  early   late   moved\n" +
 		"the router's forecast\n" + scores + "pace since start\n" + scores + "\n" + legend
 	if got != want {
@@ -155,74 +160,94 @@ func TestScoresAWeekForecastShortThatRanOutAndOneThatHeadedShort(t *testing.T) {
 	}
 }
 
-func TestScoresAWeekThatRunsOutBesideItsPaceSinceItStarted(t *testing.T) {
-	// Work's week, two days in, resetting 120 hours in, is read 35.5% used,
-	// and every minute after, a point an hour, till it runs out 64.5 hours in;
-	// a message of its session answers every ten minutes. Side, keeping half
-	// back, is half used, and personal used up, both resetting after work's
-	// week, so the pool's use is work's alone.
-	var read []readings.Reading
-	for k := range 3871 {
-		read = append(read, weekRead("work", begins.Add(time.Duration(k)*time.Minute), float64(2130+k)/6000, hoursIn(120)))
+func TestSaysNothingCouldBeScoredOfAHistoryShorterThanTwoDays(t *testing.T) {
+	// The history's last reading is a minute short of two days in.
+	configPath := configOf(t, account{id: "work"})
+	read := []readings.Reading{weekRead("work", begins, 0.1, hoursIn(150)), weekRead("work", hoursIn(48).Add(-time.Minute), 0.2, hoursIn(150))}
+	now := hoursIn(60)
+	stateDir := stateOf(t, now, configPath, read, nil)
+
+	got := scoring(t, now, "--state", stateDir, "--config", configPath)
+	want := "forecasts of each week at each hour, 2026-09-07 01:00 UTC to 2026-09-08 23:00 UTC, of work\n" +
+		"nothing could be scored: the history ends before 2026-09-09 00:00 UTC, two days in, where scoring starts\n"
+	if got != want {
+		t.Errorf("printed\n%s\nwant\n%s", got, want)
 	}
-	read = append(read, weekRead("side", begins, 0.5, hoursIn(130)),
-		readings.Reading{At: begins, Account: "personal", Key: "7d", Utilization: 1, ResetsAt: hoursIn(130), Status: quota.StatusRejected})
+	var printed report
+	if err := json.Unmarshal([]byte(scoring(t, now, "--state", stateDir, "--config", configPath, "--json")), &printed); err != nil {
+		t.Fatal(err)
+	}
+	if printed.Scored || !printed.ScoredFrom.Equal(hoursIn(48)) || printed.Forecast.All.Forecasts > 0 || printed.Baseline.All.Forecasts > 0 {
+		t.Errorf("printed %+v, want nothing scored, scoring from two days in", printed)
+	}
+}
+
+func TestScoresAWeekThatRunsOutBesideItsPaceSinceItStarted(t *testing.T) {
+	// Work's week, begun as the history begins and resetting a week in, is
+	// read every minute: rising 0.4 of a point an hour for a day, then a point
+	// an hour, till it runs out 114.4 hours in; a message of its session
+	// answers every ten minutes. Side, keeping half back, is half used, and
+	// personal used up, both resetting after work's week, so the pool's use
+	// is work's alone.
+	var read []readings.Reading
+	for k := range 6865 {
+		read = append(read, weekRead("work", begins.Add(time.Duration(k)*time.Minute), float64(4*min(k, 1440)+10*max(k-1440, 0))/60000, hoursIn(168)))
+	}
+	read = append(read, weekRead("side", begins, 0.5, hoursIn(178)),
+		readings.Reading{At: begins, Account: "personal", Key: "7d", Utilization: 1, ResetsAt: hoursIn(178), Status: quota.StatusRejected})
 	var lines []*ledger.Line
-	for at := begins; at.Before(hoursIn(64.5)); at = at.Add(10 * time.Minute) {
+	for at := begins; at.Before(hoursIn(114.4)); at = at.Add(10 * time.Minute) {
 		lines = append(lines, messageOf(at))
 	}
 	configPath := configOf(t, account{id: "work"}, account{id: "side", reserve: 0.5}, account{id: "personal"})
-	now := hoursIn(70)
+	now := hoursIn(120)
 	stateDir := stateOf(t, now, configPath, read, lines)
 
 	var got report
 	if err := json.Unmarshal([]byte(scoring(t, now, "--state", stateDir, "--config", configPath, "--json")), &got); err != nil {
 		t.Fatal(err)
 	}
-	if !got.From.Equal(hoursIn(1)) || !got.To.Equal(hoursIn(64)) {
-		t.Errorf("it forecast from %v to %v, want an hour in to 64 hours in, the hour of the last reading", got.From, got.To)
+	if !got.From.Equal(hoursIn(1)) || !got.ScoredFrom.Equal(hoursIn(48)) || !got.To.Equal(hoursIn(114)) || !got.Scored {
+		t.Errorf("it forecast from %v, scored from %v, to %v, scored %v; want from an hour in, scored from two days in, to 114 hours in, the hour of the last reading",
+			got.From, got.ScoredFrom, got.To, got.Scored)
 	}
-	// The router's forecasts, at each of the 64 hours, all work's: at a point
-	// an hour, the day's rate, they run out within 2 minutes of 64.5 hours
-	// in, moving under 2 minutes an hour on average, but for the first
-	// four, the router's rates still taking up the history: at the first,
-	// with an hour of it, at the fast rate alone, 0.637% an hour, 36.12 hours
-	// late; at the next three, the fast rate below the day's, 0.38, 0.13 and
-	// 0.03 hours late.
-	forecast := got.Forecast
+	// The router's forecasts, at each of the 67 hours scored, all work's,
+	// the day before them a point an hour, as the day's rate is: they run
+	// out within 2 minutes of 114.4 hours in, moving under 2 minutes an hour
+	// on average. The first is at 33.6% used, and its move from the hour
+	// before, unscored, isn't counted.
 	tests := []struct {
-		name        string
-		got         row
-		forecasts   int
-		late, moves int
-		off, moved  float64
-		within      float64
+		name      string
+		got       row
+		forecasts int
+		moves     int
 	}{
-		{name: "0–40%", got: forecast.ByUse[0], forecasts: 4, late: 1, moves: 3, off: (36.123 + 0.384 + 0.126 + 0.030) / 4, moved: (35.739 + 0.258 + 0.096) / 3, within: 0.05},
-		{name: "40–70%", got: forecast.ByUse[1], forecasts: 30, moves: 30, within: 0.03},
-		{name: "70–100%", got: forecast.ByUse[2], forecasts: 30, moves: 30, within: 0.03},
+		{name: "0–40%", got: got.Forecast.ByUse[0], forecasts: 7, moves: 6},
+		{name: "40–70%", got: got.Forecast.ByUse[1], forecasts: 30, moves: 30},
+		{name: "70–100%", got: got.Forecast.ByUse[2], forecasts: 30, moves: 30},
+		{name: "all", got: got.Forecast.All, forecasts: 67, moves: 66},
 	}
+	within := (2 * time.Minute).Hours()
 	for _, tt := range tests {
 		t.Run("the router's "+tt.name, func(t *testing.T) {
 			r := tt.got
-			if r.Forecasts != tt.forecasts || r.Early != 0 || r.Late != tt.late || r.Moves != tt.moves ||
-				math.Abs(r.OffHours-tt.off) > tt.within || math.Abs(r.MovedHours-tt.moved) > tt.within {
-				t.Errorf("scored %+v, want %d forecasts, none early, %d late, off %.3f hours, %d moves of %.3f hours, each to within %v",
-					r, tt.forecasts, tt.late, tt.off, tt.moves, tt.moved, tt.within)
+			if r.Forecasts != tt.forecasts || r.Early != 0 || r.Late != 0 || r.Moves != tt.moves || r.OffHours > within || r.MovedHours > within {
+				t.Errorf("scored %+v, want %d forecasts, none early or late, off under %v hours, %d moves of under %v hours",
+					r, tt.forecasts, within, tt.moves, within)
 			}
 		})
 	}
-	// The pace since the week started, two days before the history, 35.5% in
-	// those two days, then a point an hour, runs out at j + (48 + j)(1 − u)/u
-	// hours in at the jth hour, u used: 21.75 hours late at the first, 11.77 at the
-	// 16th, and so late by more than 12 hours at the first 15.
+	// The pace since the week started, 0.01t − 0.144 used at the tth hour,
+	// runs out at t/u: 28.46 hours late at the first, 12.47 at the 68th
+	// hour and 11.97 at the 69th, so late by more than 12 hours at the
+	// first 21.
 	baseline := sheet{
 		ByUse: []row{
-			{UsedFrom: 0, UsedTo: 0.4, Forecasts: 4, OffHours: 20.423252690896177, Late: 4, Moves: 3, MovedHours: 0.8670019074042585},
-			{UsedFrom: 0.4, UsedTo: 0.7, Forecasts: 30, OffHours: 10.816593842242723, Late: 11, Moves: 30, MovedHours: 0.45533193698205565},
-			{UsedFrom: 0.7, UsedTo: 1, Forecasts: 30, OffHours: 2.36127530978274, Moves: 30, MovedHours: 0.1807599146813241},
+			{UsedFrom: 0, UsedTo: 0.4, Forecasts: 7, OffHours: 25.062364092889396, Late: 7, Moves: 6, MovedHours: 1.0822510822510822},
+			{UsedFrom: 0.4, UsedTo: 0.7, Forecasts: 30, OffHours: 12.409393413987152, Late: 14, Moves: 30, MovedHours: 0.522466039707419},
+			{UsedFrom: 0.7, UsedTo: 1, Forecasts: 30, OffHours: 2.6996434414975607, Moves: 30, MovedHours: 0.2077274615704196},
 		},
-		All: row{UsedFrom: 0, UsedTo: 1, Forecasts: 64, OffHours: 7.453579458192946, Late: 15, Moves: 63, MovedHours: 0.34418668685895504},
+		All: row{UsedFrom: 0, UsedTo: 1, Forecasts: 67, OffHours: 9.383696333056227, Late: 21, Moves: 66, MovedHours: 0.43029259896729777},
 	}
 	if !sameSheet(got.Baseline, baseline) {
 		t.Errorf("the pace since start scored\n%+v\nwant\n%+v", got.Baseline, baseline)
@@ -238,13 +263,16 @@ func TestPrintsTheScoresAsJSONWithJSON(t *testing.T) {
 	}
 	scored := sheet{
 		ByUse: []row{
-			{UsedFrom: 0, UsedTo: 0.4, Forecasts: 59, OffHours: 60, Late: 59, Moves: 58},
-			{UsedFrom: 0.4, UsedTo: 0.7, Forecasts: 47, Moves: 46},
+			{UsedFrom: 0, UsedTo: 0.4, Forecasts: 60, OffHours: 60, Late: 60, Moves: 59},
+			{UsedFrom: 0.4, UsedTo: 0.7, Forecasts: 48, Moves: 47},
 			{UsedFrom: 0.7, UsedTo: 1},
 		},
-		All: row{UsedFrom: 0, UsedTo: 1, Forecasts: 106, OffHours: 59 * 60.0 / 106, Late: 59, Moves: 104},
+		All: row{UsedFrom: 0, UsedTo: 1, Forecasts: 108, OffHours: 60 * 60.0 / 108, Late: 60, Moves: 106},
 	}
-	want := report{From: hoursIn(1), To: hoursIn(60), Accounts: []string{"work", "side", "personal"}, Forecast: scored, Baseline: scored}
+	want := report{
+		From: hoursIn(1), To: hoursIn(108), ScoredFrom: hoursIn(48), Scored: true, Accounts: []string{"work", "side", "personal"},
+		Forecast: scored, Baseline: scored,
+	}
 	if !sameReport(got, want) {
 		t.Errorf("printed\n%+v\nwant\n%+v", got, want)
 	}
@@ -253,8 +281,8 @@ func TestPrintsTheScoresAsJSONWithJSON(t *testing.T) {
 // sameReport reports whether two reports match, their hours to within
 // rounding.
 func sameReport(a, b report) bool {
-	return a.From.Equal(b.From) && a.To.Equal(b.To) && strings.Join(a.Accounts, ",") == strings.Join(b.Accounts, ",") &&
-		sameSheet(a.Forecast, b.Forecast) && sameSheet(a.Baseline, b.Baseline)
+	return a.From.Equal(b.From) && a.To.Equal(b.To) && a.ScoredFrom.Equal(b.ScoredFrom) && a.Scored == b.Scored &&
+		strings.Join(a.Accounts, ",") == strings.Join(b.Accounts, ",") && sameSheet(a.Forecast, b.Forecast) && sameSheet(a.Baseline, b.Baseline)
 }
 
 // sameSheet reports whether two sheets match, their hours to within
@@ -313,12 +341,47 @@ func TestFailsOnAStateDirectoryWithoutAReadingsHistory(t *testing.T) {
 	}
 }
 
+func TestSaysWhatTheReadersCantReadOnStderr(t *testing.T) {
+	configPath, stateDir, now := shortHistory(t)
+	days, err := filepath.Glob(filepath.Join(ledger.Dir(stateDir), "requests-*.jsonl"))
+	if err != nil || len(days) == 0 {
+		t.Fatalf("the ledger holds %v (%v), want its days", days, err)
+	}
+	unreadable, err := os.OpenFile(days[0], os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unreadable.WriteString("not a line of the ledger\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := unreadable.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	logTo(&stderr)
+	err = run([]string{"--state", stateDir, "--config", configPath}, &stdout, &stderr, func() time.Time { return now })
+	logs.Close(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr.String(), `level=WARN msg="request ledger lines unread" component=forecasttool`) {
+		t.Errorf("stderr took\n%s\nwant the ledger's line it couldn't read", stderr.String())
+	}
+	if strings.Contains(stderr.String(), "log file") {
+		t.Errorf("stderr took\n%s\nwant no word of a log file", stderr.String())
+	}
+}
+
 func TestItsHelpSaysWhatThePlaybackHasNoneOf(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if err := run([]string{"--help"}, &stdout, &stderr, time.Now); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"--state", "--config", "neither has a default", "reaches a limit", "token refused", "no global pin"} {
+	for _, want := range []string{
+		"--state", "--config", "neither has a default", "reaches a limit", "token refused", "no global pin",
+		"router was down", "two days after the history's first", "nothing could be scored", "they say on stderr",
+	} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Errorf("--help says\n%s\nwant it to say %q", stderr.String(), want)
 		}

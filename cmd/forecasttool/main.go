@@ -35,10 +35,20 @@ import (
 var logger = logs.For("forecasttool")
 
 func main() {
+	logTo(os.Stderr)
+	status := 0
 	if err := run(os.Args[1:], os.Stdout, os.Stderr, time.Now); err != nil {
 		fmt.Fprintln(os.Stderr, "forecasttool:", err)
-		os.Exit(1)
+		status = 1
 	}
+	logs.Close(status)
+	os.Exit(status)
+}
+
+// logTo starts the tool's logging, to stderr alone: it keeps no log file, as
+// it has no state directory of its own to keep one in.
+func logTo(stderr io.Writer) {
+	logs.Init(logs.Options{MirrorOnly: true, Mirror: stderr, Command: "forecasttool"})
 }
 
 // errUnnamed is the error of a command line that doesn't name what the tool
@@ -64,7 +74,14 @@ Both --state and --config are needed, and neither has a default: it reads
 what they name alone. What the history doesn't record, the playback has none
 of: no account reaches a limit or has its token refused, as none has for a
 router just started, and no global pin holds, as none of the pin's history is
-kept.
+kept. Hours the router was down are forecast from what it read last, as it
+would have forecast them, but for a week that has reset since, which isn't.
+
+It scores only the forecasts made from two days after the history's first
+reading on, and the moves between them: two days is what a restarted router
+seeds its state from, so none is scored off a cold start. Of a history
+shorter than that, it says nothing could be scored. What the readers can't
+read of the state directory, they say on stderr.
 
 `
 

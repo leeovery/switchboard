@@ -12,14 +12,17 @@ import (
 )
 
 // report is what the tool tells of a history: the first and last hours it
-// forecast at, the accounts configured, and how the router's forecasts
-// scored, and the baseline's beside them.
+// forecast at; the first it scored, two days in, and whether it scored any,
+// as it didn't where that's after the last; the accounts configured; and how
+// the router's forecasts scored, and the baseline's beside them.
 type report struct {
-	From     time.Time `json:"from"`
-	To       time.Time `json:"to"`
-	Accounts []string  `json:"accounts"`
-	Forecast sheet     `json:"forecast"`
-	Baseline sheet     `json:"baseline"`
+	From       time.Time `json:"from"`
+	To         time.Time `json:"to"`
+	ScoredFrom time.Time `json:"scored_from"`
+	Scored     bool      `json:"scored"`
+	Accounts   []string  `json:"accounts"`
+	Forecast   sheet     `json:"forecast"`
+	Baseline   sheet     `json:"baseline"`
 }
 
 // sheet is how a set of forecasts scored, by how much of their week was used
@@ -49,7 +52,7 @@ type row struct {
 // scored against what became of their weeks, as o has it.
 func reportOf(configured config.Accounts, pl played, o outcomes) report {
 	return report{
-		From: pl.from, To: pl.to, Accounts: configured.IDs(),
+		From: pl.from, To: pl.to, ScoredFrom: pl.scored, Scored: !pl.scored.After(pl.to), Accounts: configured.IDs(),
 		Forecast: sheetOf(scoresOf(pl.forecasts, o)), Baseline: sheetOf(scoresOf(pl.baseline, o)),
 	}
 }
@@ -106,27 +109,44 @@ forecast of its week, either way, on average.
 `
 
 // writeTable writes r to w as a table: the router's forecasts' scores, then
-// the baseline's, each by how much of the week was used, and all together.
+// the baseline's, each by how much of the week was used, and all together;
+// or, where it scored none, that nothing could be scored.
 func writeTable(w io.Writer, r report) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "forecasts of each week at each hour, %s to %s, of %s\n\n",
-		r.From.UTC().Format(hourLayout), r.To.UTC().Format(hourLayout), strings.Join(r.Accounts, ", "))
-	fmt.Fprintf(&b, "%-20s %9s %7s %6s %6s %7s\n", "", "forecasts", "off", "early", "late", "moved")
+	fmt.Fprintf(&b, "forecasts of each week at each hour, %s to %s, of %s\n",
+		hourOf(r.From), hourOf(r.To), strings.Join(r.Accounts, ", "))
+	if r.Scored {
+		fmt.Fprintf(&b, "scored from %s, two days in\n\n", hourOf(r.ScoredFrom))
+		writeSheets(&b, r)
+	} else {
+		fmt.Fprintf(&b, "nothing could be scored: the history ends before %s, two days in, where scoring starts\n", hourOf(r.ScoredFrom))
+	}
+	if _, err := io.WriteString(w, b.String()); err != nil {
+		return fmt.Errorf("write the scores: %w", err)
+	}
+	return nil
+}
+
+// hourOf is the hour at, as the table says it.
+func hourOf(at time.Time) string {
+	return at.UTC().Format(hourLayout)
+}
+
+// writeSheets writes r's sheets to b as the table's rows, under its columns'
+// names, with what they are below them.
+func writeSheets(b *strings.Builder, r report) {
+	fmt.Fprintf(b, "%-20s %9s %7s %6s %6s %7s\n", "", "forecasts", "off", "early", "late", "moved")
 	for _, part := range []struct {
 		name  string
 		sheet sheet
 	}{{"the router's forecast", r.Forecast}, {"pace since start", r.Baseline}} {
 		b.WriteString(part.name + "\n")
 		for _, row := range part.sheet.ByUse {
-			writeRow(&b, fmt.Sprintf("%d–%d%% used", prose.WholePercent(row.UsedFrom), prose.WholePercent(row.UsedTo)), row)
+			writeRow(b, fmt.Sprintf("%d–%d%% used", prose.WholePercent(row.UsedFrom), prose.WholePercent(row.UsedTo)), row)
 		}
-		writeRow(&b, "all", part.sheet.All)
+		writeRow(b, "all", part.sheet.All)
 	}
 	b.WriteString("\n" + legend)
-	if _, err := io.WriteString(w, b.String()); err != nil {
-		return fmt.Errorf("write the scores: %w", err)
-	}
-	return nil
 }
 
 // writeRow writes r to b as a line of the table, named label: a dash for
