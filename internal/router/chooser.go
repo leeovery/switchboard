@@ -92,6 +92,14 @@ type Attempt struct {
 	Why string
 }
 
+// remembered reports whether the request's session is remembered on the
+// account with the given id, chosen for the request: one is chosen, "" being
+// none, the request names its session, and it isn't the client's quota
+// check.
+func (r Request) remembered(account string) bool {
+	return r.Session != "" && account != "" && !r.Check
+}
+
 // tried returns the ids of the accounts the request has gone out on.
 func (r Request) tried() []string {
 	ids := make([]string, len(r.Tried))

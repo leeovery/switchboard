@@ -86,19 +86,26 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 }
 
 // takeUp takes up read, readings of the history in the order read, as seed
-// does. s.mu must be held.
+// does, but those of accounts not configured. s.mu must be held.
 func (s *state) takeUp(taking seeding, read []readings.Reading) {
 	for _, r := range read {
-		u, configured := s.usage[r.Account]
-		if !configured {
-			continue
+		if u, configured := s.usage[r.Account]; configured {
+			s.takeUpReading(taking, u, r)
 		}
-		of, w := windowOf{account: r.Account, key: r.Key}, r.Window()
-		rise := u.note(taking.last[of], w, r.At)
-		taking.last[of] = w
-		s.rose(r.Account, r.Key, rise, r.At)
-		s.judgeSeeded(taking, r.At)
 	}
+}
+
+// takeUpReading takes up r, a reading of the history of the account whose
+// usage u is, after those taking has taken up: into its window's trail and
+// fast rate, as note says, from the reading of the window taken up last, and
+// the pool's day rate, as rose says, the pool judged for room at it, as
+// judgeSeeded says. s.mu must be held.
+func (s *state) takeUpReading(taking seeding, u *usage, r readings.Reading) {
+	of, w := windowOf{account: r.Account, key: r.Key}, r.Window()
+	rise := u.note(taking.last[of], w, r.At)
+	taking.last[of] = w
+	s.rose(r.Account, r.Key, rise, r.At)
+	s.judgeSeeded(taking, r.At)
 }
 
 // judgeSeeded judges the pool's room at at as the history has been taken up
