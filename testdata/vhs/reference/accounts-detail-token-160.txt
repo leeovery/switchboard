@@ -8,7 +8,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │              token expires 22 Oct 2026 · 21 days left — switchboard setup makes a new one
  1 work        ●    │
                     │   USAGE                                                                                        THIS WEEK
- 2 personal ◆  ●    │   Week                  ▋       ┃                ╎   34%  19%/day till Sun 21:00               requests  1,204
+ 2 personal ◆  ●    │   Week                  ▋       ┃                ╎   34%  out ~Sat 19:20                       requests  1,204
                     │                                                                                                limits    5-hour ×2
  3 side        ●    │   5-hour                       ┃                 ╎   95%  at cap · back 17:10                  plan      Ultra
                     │                                                                                                worth     $184  4.0×

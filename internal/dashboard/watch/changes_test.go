@@ -270,11 +270,11 @@ func TestStatesProbedAfterTheRouterStartAfresh(t *testing.T) {
 // workWeek is work's week, as a window's cue is keyed.
 var workWeek = dashboard.Ref{Account: "work", Window: "7d"}
 
-// runningOut is three, work's week used lately fast enough to run out ~10
-// hours on, long before it resets.
+// runningOut is three, work's week used lately fast enough to run out ~50
+// hours on, a day before it resets, as the forecast plays the pool's use.
 func runningOut() []status.Account {
 	accounts := three()
-	accounts[0].Rates = []status.Rate{{Window: "7d", Rate: 0.05, Since: start.Add(-30 * time.Minute).UTC()}}
+	accounts[0].Rates = []status.Rate{{Window: "7d", Rate: 0.01, Since: start.Add(-30 * time.Minute).UTC(), Fast: 0.01}}
 	return accounts
 }
 
@@ -286,7 +286,7 @@ func (h *harness) turnedOut() []dashboard.Ref {
 }
 
 func TestTheFirstLookPicksOutNoWindowsWords(t *testing.T) {
-	h := routedHarness(t, routerDocument(runningOut()...))
+	h := routedHarness(t, forecastDocument(runningOut()...))
 	h.start()
 
 	if got := h.turnedOut(); len(got) > 0 {
@@ -297,7 +297,7 @@ func TestTheFirstLookPicksOutNoWindowsWords(t *testing.T) {
 func TestAWindowsWordsALookSeesTurnToOutArePickedOutFadingBack(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
-	h.startRouter(routerDocument(runningOut()...))
+	h.startRouter(forecastDocument(runningOut()...))
 	seen := h.tickUntilAsked()
 
 	tests := []struct {
@@ -326,10 +326,10 @@ func TestAWindowsWordsALookSeesTurnToOutArePickedOutFadingBack(t *testing.T) {
 }
 
 func TestAWindowsWordsCueDrawsFramesOnlyOnScreen(t *testing.T) {
-	// runsOut has an account's week used lately fast enough to run out long
+	// runsOut has an account's week used lately fast enough to run out a day
 	// before it resets, its bar and its numbers as they were.
 	runsOut := func(a *status.Account) {
-		a.Rates = []status.Rate{{Window: "7d", Rate: 0.05, Since: start.Add(-30 * time.Minute).UTC()}}
+		a.Rates = []status.Rate{{Window: "7d", Rate: 0.01, Since: start.Add(-30 * time.Minute).UTC(), Fast: 0.01}}
 	}
 	h := tenOnAShortScreen(t, tenWith(runsOut))
 	for _, read := range []struct {
@@ -365,9 +365,9 @@ func TestWindowsWordsThatDontTurnToOutArentPickedOut(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := routedHarness(t, routerDocument(tt.before...))
+			h := routedHarness(t, forecastDocument(tt.before...))
 			h.start()
-			h.startRouter(routerDocument(tt.then...))
+			h.startRouter(forecastDocument(tt.then...))
 			h.tickUntilAsked()
 			if got := h.turnedOut(); len(got) > 0 {
 				t.Errorf("picked out %v, want none: no window's words turned to out ~", got)
@@ -379,7 +379,7 @@ func TestWindowsWordsThatDontTurnToOutArentPickedOut(t *testing.T) {
 func TestAWindowsWordsTheClockTurnsToOutArePickedOutAsItTicks(t *testing.T) {
 	accounts := runningOut()
 	accounts[0].Limit = status.Limit{Windows: []string{"7d"}, Until: start.Add(10 * time.Second).UTC()}
-	h := newHarness(t, document(accounts...))
+	h := newHarness(t, forecastDocument(accounts...))
 	h.start()
 	h.tickUntil(start.Add(9 * time.Second))
 	if got := h.turnedOut(); len(got) > 0 {

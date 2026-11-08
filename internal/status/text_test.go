@@ -775,25 +775,30 @@ func TestTextSaysASessionNotedLapsedHasntStartedThoughItsProbeFailed(t *testing.
 	}
 }
 
-func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
+func TestTextSaysAWeeksRunOutWithoutTheRateItGoesBy(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	// The week, 99% used, began three days ago: its use since it started
 	// runs it out at 14:55, and 7% an hour at 14:20.
 	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.99, ResetsAt: time.Date(2026, 10, 2, 13, 12, 0, 0, time.UTC)}
 	tests := []struct {
-		name  string
-		rates []status.Rate
+		name   string
+		demand *status.Demand
+		rates  []status.Rate
 		// heading is where the week heads, as its line says.
 		heading string
 	}{
-		{name: "at its rate over the last half hour, sooner", rates: []status.Rate{{Window: "7d", Rate: 0.07, Since: now.Add(-30 * time.Minute)}}, heading: "runs out ~Mon 14:20 at its rate over the last 30 min"},
 		{
-			name:    "at its rate over the 18 minutes it's measured over, sooner",
-			rates:   []status.Rate{{Window: "7d", Rate: 0.07, Since: now.Add(-18 * time.Minute)}},
-			heading: "runs out ~Mon 14:20 at its rate over the last 18 min",
+			name:    "as the forecast plays the pool's use, at 7% an hour",
+			demand:  &status.Demand{Day: 0.07, Hours: 24},
+			rates:   []status.Rate{{Window: "7d", Rate: 0.07, Since: now.Add(-30 * time.Minute), Fast: 0.07}},
+			heading: "runs out ~Mon 14:20",
 		},
-		{name: "at its use since it started, its recent rate slower", rates: []status.Rate{{Window: "7d", Rate: 0.001, Since: now.Add(-30 * time.Minute)}}, heading: "runs out ~Mon 14:55"},
-		{name: "without a recent rate", heading: "runs out ~Mon 14:55"},
+		{
+			name:    "without the router's demand, at its use since it started, though 7% an hour lately runs it out sooner",
+			rates:   []status.Rate{{Window: "7d", Rate: 0.07, Since: now.Add(-30 * time.Minute)}},
+			heading: "runs out ~Mon 14:55",
+		},
+		{name: "without the router's demand or a recent rate, at its use since it started", heading: "runs out ~Mon 14:55"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -801,6 +806,7 @@ func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 				GeneratedAt: now.UTC(),
 				Source:      status.SourceRouter,
 				Router:      status.Health{Healthy: true},
+				Demand:      tt.demand,
 				Accounts: []status.Account{{
 					ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
 					Windows: []quota.Window{week, sessionRead()}, Pressure: status.Pressure{Window: "5h"}, Rates: tt.rates,

@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"math"
@@ -14,6 +15,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
@@ -343,10 +345,11 @@ func TestTheReadingsTheAnswersReadDrawOnRunwayAtTheNextLook(t *testing.T) {
 
 // A look at the router as a scenario plays reads its base in place: its
 // year of readings, lines and events are never copied, so a look allocates
-// far fewer times than the year has readings, and fewer bytes than a copy of
-// them, however far the scenario has played: what it allocates is what has
-// played since. The race detector triples what a look allocates, so the
-// bytes are held to a copy's, not under it.
+// far fewer times than the year has readings, beyond what the one play of
+// the forecast of the document it works out afresh allocates, and fewer
+// bytes than a copy of them, however far the scenario has played: what it
+// allocates is what has played since. The race detector triples what a look
+// allocates, so the bytes are held to a copy's, not under it.
 func TestALookReadsTheBaseInPlace(t *testing.T) {
 	s, err := ScenarioNamed("routing")
 	if err != nil {
@@ -365,14 +368,36 @@ func TestALookReadsTheBaseInPlace(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	year := len(tl.base.world.history)
-	if allocs := testing.AllocsPerRun(5, look); allocs > float64(year)/10 {
-		t.Errorf("a look allocates %v times, want under a tenth of the year's %d readings", allocs, year)
+	doc, _, err := tl.Read(t.Context(), status.Read{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	year, played := len(tl.base.world.history), playAllocs(t, doc)
+	if allocs := testing.AllocsPerRun(5, look); allocs > float64(year)/10+played {
+		t.Errorf("a look allocates %v times, want under a tenth of the year's %d readings and the %v of its forecast's play", allocs, year, played)
 	}
 	yearSize := uint64(year) * uint64(reflect.TypeFor[readings.Reading]().Size())
 	if size := allocated(look); size > yearSize {
 		t.Errorf("a look allocates %d bytes, want under the year's readings' own, %d, as a copy of them alone would", size, yearSize)
 	}
+}
+
+// playAllocs is how many times one play of the forecast of the document doc,
+// worked out, allocates: doc read back as JSON gives it, without the weeks
+// it played, works its moment out playing them afresh, where doc works the
+// same moment out from its own.
+func playAllocs(t *testing.T, doc status.Document) float64 {
+	t.Helper()
+	data, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var given status.Document
+	if err := json.Unmarshal(data, &given); err != nil {
+		t.Fatal(err)
+	}
+	at, policy := doc.GeneratedAt, claude.Policy()
+	return testing.AllocsPerRun(5, func() { given.At(at, policy) }) - testing.AllocsPerRun(5, func() { doc.At(at, policy) })
 }
 
 // allocated is how many bytes do allocates, as the runtime counts them.

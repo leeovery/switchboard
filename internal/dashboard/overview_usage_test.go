@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // usageAccount is an account read a minute before routedAt, labelled as
@@ -69,18 +70,20 @@ func TestEveryLiveViewListsAModelsWindowWhileWShowsThemOrItNearsItsLimit(t *test
 // usageWorld is the world the Overview's frames are drawn of, as change
 // leaves it, with what's worked out of it: work, capped at 95%, at its cap in
 // its 5-hour window; personal, the primary, its week running out ~Sat 06:00
-// at its recent rate; and side, where new sessions go.
+// as the forecast plays the pool's use, which is personal's alone, as fast as
+// it's used lately; and side, where new sessions go.
 func usageWorld(change ...func(*status.Document)) status.Document {
 	work := usageAccount("work", 0.95, routedClock(1, 17, 10), 0.34, 0.12, routedClock(4, 21, 0))
 	work.Reserve = 0.05
 	personal := usageAccount("personal", 0.39, routedClock(1, 16, 30), 0.66, 0, routedClock(4, 2, 0))
 	personal.Primary = true
-	runsOut := time.Date(2026, 10, 3, 6, 0, 30, 0, time.UTC).Sub(routedAt).Hours()
-	personal.Rates = []status.Rate{{Window: "7d", Rate: 0.34 / runsOut, Since: routedAt.Add(-30 * time.Minute)}}
+	rate := 0.34 / time.Date(2026, 10, 3, 6, 0, 30, 0, time.UTC).Sub(routedAt).Hours()
+	personal.Rates = []status.Rate{{Window: "7d", Rate: rate, Since: routedAt.Add(-30 * time.Minute), Fast: rate}}
 	side := usageAccount("side", 0.13, routedClock(1, 18, 50), 0.78, 0.04, routedClock(5, 10, 0))
+	accounts := []status.Account{work, personal, side}
 	doc := status.Document{
 		GeneratedAt: routedAt, Source: status.SourceRouter, Best: "side", Primary: "personal",
-		Router: status.Health{Healthy: true}, Sessions: 6, Accounts: []status.Account{work, personal, side},
+		Router: status.Health{Healthy: true}, Sessions: 6, Accounts: accounts, Demand: viewstest.DemandOf(accounts),
 	}
 	for _, c := range change {
 		c(&doc)

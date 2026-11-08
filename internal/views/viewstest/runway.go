@@ -157,9 +157,10 @@ func reserving(a status.Account, reserve float64) status.Account {
 }
 
 // rated is a, the router having seen its window with the given key used at
-// the rate given, a share of it an hour, over the half hour before at.
+// the rate given, a share of it an hour, over the half hour before at, as
+// its recent rate and its fast rate.
 func rated(a status.Account, key string, rate float64, at time.Time) status.Account {
-	a.Rates = append(slices.Clip(a.Rates), status.Rate{Window: key, Rate: rate, Since: at.Add(-30 * time.Minute)})
+	a.Rates = append(slices.Clip(a.Rates), status.Rate{Window: key, Rate: rate, Since: at.Add(-30 * time.Minute), Fast: rate})
 	return a
 }
 
@@ -1264,7 +1265,7 @@ func pressed(a status.Account, rate float64, at time.Time) status.Account {
 // primed at 12:10 reaching its cap at 14:31:03 till 17:10, its week at 34%
 // till Sunday 21:00, and on Wednesday its 5-hour at its cap at 14:58 and its
 // limit at 15:02 till 17:10; personal, the primary, its 5-hour primed at
-// 11:30 at 39% till 16:30, its week at 66% till Sunday 02:00, at a pace that
+// 11:30 at 39% till 16:30, its week at 66% till Sunday 02:00, at a rate that
 // runs it out on Saturday at 06:00, and on Wednesday its 5-hour at its limit
 // from 19:12:40 till 23:58; and side, its 5-hour primed at 13:50 at 13% till
 // 18:50, its week at 78% till Monday 10:00, and on Wednesday its 5-hour at

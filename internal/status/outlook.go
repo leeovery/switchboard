@@ -74,13 +74,15 @@ type Upcoming struct {
 }
 
 // WorkedOut is the document with what's worked out of it as of when it was
-// built, as policy judges its windows: each window's even pace and
-// allowance, the pool, and what's coming up, each as the document stands at
-// that moment, as At has it, by the rules a view reads it by then, of its
-// accounts judged then alone. It goes by the document's own fields alone, so
-// one that has them already is given back as it was, and one from a router
-// from before it gave them gains them as that router's own would have.
+// built, as policy judges its windows: its weeks' forecast, played afresh,
+// as forecasted has it, each window's even pace and allowance, the pool, and
+// what's coming up, each as the document stands at that moment, as At has
+// it, by the rules a view reads it by then, of its accounts judged then
+// alone. It goes by the document's own fields alone, so one that has them
+// already is given back as it was, and one from a router from before it gave
+// them gains them as that router's own would have.
 func (d Document) WorkedOut(policy score.Policy) Document {
+	d = d.forecasted(policy)
 	judged := d.judgeAll(d.GeneratedAt, policy)
 	pool, coming := d.pool(judged), d.comingUp(judged, d.GeneratedAt)
 	d.Accounts = slices.Clone(d.Accounts)
@@ -93,12 +95,12 @@ func (d Document) WorkedOut(policy score.Policy) Document {
 
 // AccountWorkedOut is the document's account with the given id, its windows
 // with their even pace and allowance, as WorkedOut works them out, without
-// the pool or what's coming up; reporting false where the document has no
-// such account.
+// the forecast, where they run out, the pool or what's coming up; reporting
+// false where the document has no such account.
 func (d Document) AccountWorkedOut(id string, policy score.Policy) (Account, bool) {
 	a, ok := d.Account(id)
 	if ok {
-		a.Windows = d.judgeAccount(a, d.GeneratedAt, policy).measured()
+		a.Windows = d.windowStatesOf(a, d.GeneratedAt, policy).measuredWindows()
 	}
 	return a, ok
 }

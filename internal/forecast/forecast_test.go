@@ -172,6 +172,26 @@ func TestASteadyWeekRunsOutWhereItsRoomIsSpentAtItsRate(t *testing.T) {
 	}
 }
 
+func TestARunOutFallsOnItsTimeNotAHairBefore(t *testing.T) {
+	tests := []struct {
+		name string
+		in   time.Duration
+	}{
+		{name: "within a step", in: 79 * time.Minute},
+		{name: "at a step's end", in: time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rate := 0.05 / tt.in.Hours()
+			a := account("work", week(0.9, 6*quota.Day), fast(rate), reserved(0.05))
+
+			out := outOf(t, Forecast(Pool{Now: now, Policy: policy, Accounts: []Account{a}, Day: rate}), "work")
+
+			checkRunsOut(t, "work", out, now.Add(tt.in), 0)
+		})
+	}
+}
+
 func TestABurstOrALullRunsOutWhereItsFadingUseReachesItsRoom(t *testing.T) {
 	tests := []struct {
 		name      string

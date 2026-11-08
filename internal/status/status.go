@@ -90,6 +90,13 @@ type Document struct {
 	// router's.
 	Demand   *Demand   `json:"demand,omitempty"`
 	Accounts []Account `json:"accounts"`
+
+	// weeks is where each account's shared week is heading, as the
+	// document's forecast has it: played once, by WorkedOut, or as the first
+	// moment of a document that wasn't is worked out, for every window and
+	// moment of it to read, as the document stood then; nil where it has
+	// nothing to play, or it isn't played yet.
+	weeks *weeksAhead
 }
 
 // The kinds of event the router tells of, as an Event's Kind says.
@@ -614,29 +621,22 @@ func (a Account) AsOf(policy score.Policy, now time.Time) Account {
 type Heading struct {
 	score.Projection
 	// Recent is set when it heads there at that recent rate, rather than at
-	// the pace its use since it started sets, and Since is when that rate is
-	// measured from.
+	// the pace its use since it started sets, or as a week's forecast has it,
+	// and Since is when that rate is measured from.
 	Recent bool
 	Since  time.Time
 }
 
-// project says where the account's window w is heading at now: at the pace
-// its use since it started sets, or at the rate the router saw it used over
-// the last half hour, where it has that rate, when that has it run out
-// sooner, as score.Sooner judges, so a burst of use shows before the average
-// catches up with it. The window the router watches for pressure always goes
-// at that recent rate, so it heads where the router judges it to.
-func (a Account) project(w quota.Window, now time.Time) Heading {
-	average := Heading{Projection: score.Project(w, now)}
-	rate, ok := a.rate(w.Key)
-	if !ok {
-		return average
+// project says where the account's window w is heading at now, as policy
+// names the window pressure is judged in: that one at the rate the router saw
+// it used over the last half hour, where it has that rate, so it heads where
+// the router judges it to; any other, and that one without the rate, at the
+// pace its use since it started sets.
+func (a Account) project(w quota.Window, now time.Time, policy score.Policy) Heading {
+	if rate, ok := a.rate(w.Key); ok && w.Key == policy.Pressure {
+		return Heading{Projection: score.ProjectAt(w, rate.Rate, now), Recent: true, Since: rate.Since}
 	}
-	recent := Heading{Projection: score.ProjectAt(w, rate.Rate, now), Recent: true, Since: rate.Since}
-	if w.Key == a.Pressure.Window || score.Sooner(average.Projection, recent.Projection) {
-		return recent
-	}
-	return average
+	return Heading{Projection: score.Project(w, now)}
 }
 
 // RunOut is where an account's window runs out at the pace it's heading at:
@@ -648,15 +648,28 @@ type RunOut struct {
 	Heading
 }
 
-// project says where doc's account a's window w is heading at now: as the
-// account's project says, from when the document was read, as readAt has it,
-// so it stays put while the document does rather than moving with the clock;
-// and nowhere once the window has reset since.
-func (d Document) project(a Account, w quota.Window, now time.Time) Heading {
+// project says where doc's account a's window w is heading at now, as policy
+// names its roles, and when that reaches its floor, as floor has it, before
+// it resets, At zero where it doesn't: from when the document was read, as
+// readAt has it, so it stays put while the document does rather than moving
+// with the clock; and nowhere once the window has reset since. The shared
+// week, while it has room left, heads as the document's forecast has it,
+// where it has one, as headingOf says; any other window, and the week of a
+// document without a forecast, as the account's project says, reaching its
+// floor where score.Reaches has it.
+func (d Document) project(a Account, w quota.Window, now time.Time, policy score.Policy) RunOut {
+	out := RunOut{Reserve: d.reserveHolds(a)}
 	if w.ResetBy(now) {
-		return Heading{}
+		return out
 	}
-	return a.project(w, d.readAt(now))
+	if ahead, ok := d.weekAhead(a.ID, w, policy); ok && !score.Spent(w) {
+		out.Heading, out.At = headingOf(ahead)
+		return out
+	}
+	from := d.readAt(now)
+	out.Heading = a.project(w, from, policy)
+	out.At, _ = score.Reaches(w, out.Projection, d.floor(a), from)
+	return out
 }
 
 // readAt is when doc was read, which its projections go from, as the
@@ -665,21 +678,23 @@ func (d Document) readAt(now time.Time) time.Time {
 	return cmp.Or(d.GeneratedAt, now)
 }
 
-// runOutOf says where the account a's window w runs out at now, as the
-// router's pressure judges it and the dashboard shows it, reporting false
-// where it doesn't before it resets: where its use, heading as doc's project
-// says, reaches its floor, which is its reserve, where that would hold the
-// account back, as reserveHolds says, else its limit. A run-out the clock has
-// reached, as of a document left on screen while the router doesn't answer,
-// is past, not to come: there's none, and nowhere it heads.
-func (d Document) runOutOf(a Account, w quota.Window, now time.Time) (RunOut, bool) {
-	out := RunOut{Heading: d.project(a, w, now), Reserve: d.reserveHolds(a)}
-	at, ok := score.Reaches(w, out.Projection, d.floor(a), d.readAt(now))
-	if ok && !at.After(now) {
+// runOutOf says where the account a's window w runs out at now, as policy
+// names its roles, as the router's pressure judges it and the dashboard shows
+// it, reporting false where it doesn't before it resets: where its use,
+// heading as doc's project says, reaches its floor, which is its reserve,
+// where that would hold the account back, as reserveHolds says, else its
+// limit. A run-out the clock has reached, as of a document left on screen
+// while the router doesn't answer, is past, not to come: there's none, and
+// nowhere it heads.
+func (d Document) runOutOf(a Account, w quota.Window, now time.Time, policy score.Policy) (RunOut, bool) {
+	out := d.project(a, w, now, policy)
+	switch {
+	case out.At.IsZero():
+		return out, false
+	case !out.At.After(now):
 		return RunOut{}, false
 	}
-	out.At = at
-	return out, ok
+	return out, true
 }
 
 // reserveHolds reports whether the account's reserve holds it back once its
@@ -692,8 +707,25 @@ func (d Document) reserveHolds(a Account) bool {
 // rate returns how fast the router has seen the account's window with the
 // given key used lately, reporting false when it has no recent rate of it.
 func (a Account) rate(key string) (Rate, bool) {
+	r, ok := a.ratesOf(key)
+	if !ok || !r.recent() {
+		return Rate{}, false
+	}
+	return r, true
+}
+
+// fast is the router's fast rate of the account's window with the given key,
+// a share of it an hour: 0 where it gives none.
+func (a Account) fast(key string) float64 {
+	r, _ := a.ratesOf(key)
+	return r.Fast
+}
+
+// ratesOf returns the rates the router gives of the account's window with the
+// given key, reporting false where it gives none.
+func (a Account) ratesOf(key string) (Rate, bool) {
 	i := slices.IndexFunc(a.Rates, func(r Rate) bool { return r.Window == key })
-	if i < 0 || !a.Rates[i].recent() {
+	if i < 0 {
 		return Rate{}, false
 	}
 	return a.Rates[i], true

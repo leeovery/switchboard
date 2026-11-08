@@ -1,6 +1,7 @@
 package forecast
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -256,7 +257,7 @@ func (p *play) fill(i int, amount float64, t time.Time) float64 {
 		return 0
 	}
 	w.Utilization += room
-	ran := t.Add(time.Duration(min((a.Floor-tr.from)/tr.offered, 1) * float64(playStep)))
+	ran := t.Add(time.Duration(math.Round(min((a.Floor-tr.from)/tr.offered, 1) * float64(playStep))))
 	if tr.open && ran.Before(w.ResetsAt) {
 		tr.out, tr.open = Out{RunsOut: ran, AtReset: a.Floor}, false
 	}

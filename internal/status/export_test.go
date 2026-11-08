@@ -1,8 +1,10 @@
 package status
 
 import (
+	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -31,13 +33,14 @@ func (a Account) ReachedReserve(now time.Time) []string {
 }
 
 // Project is the account's project.
-func (a Account) Project(w quota.Window, now time.Time) Heading {
-	return a.project(w, now)
+func (a Account) Project(w quota.Window, now time.Time, policy score.Policy) Heading {
+	return a.project(w, now, policy)
 }
 
-// Project is the document's project.
-func (d Document) Project(a Account, w quota.Window, now time.Time) Heading {
-	return d.project(a, w, now)
+// Project is where the document's project has its account a's window w
+// heading, its weeks played as withWeeks plays them.
+func (d Document) Project(a Account, w quota.Window, now time.Time, policy score.Policy) Heading {
+	return d.withWeeks(policy).project(a, w, now, policy).Heading
 }
 
 // ReserveHolds is reserveHolds.
@@ -68,9 +71,29 @@ func (d Document) Floor(a Account) float64 {
 	return d.floor(a)
 }
 
-// RunsOut is runOutOf.
-func (d Document) RunsOut(a Account, w quota.Window, now time.Time) (RunOut, bool) {
-	return d.runOutOf(a, w, now)
+// RunsOut is runOutOf, the document's weeks played as withWeeks plays them.
+func (d Document) RunsOut(a Account, w quota.Window, now time.Time, policy score.Policy) (RunOut, bool) {
+	return d.withWeeks(policy).runOutOf(a, w, now, policy)
+}
+
+// AsGiven is the document as JSON gives it: without the weeks its forecast
+// played, which it keeps for its moments alone.
+func (d Document) AsGiven() Document {
+	d.weeks = nil
+	return d
+}
+
+// CountForecasts has every document's weeks played as they are, counted,
+// until the test ends: it returns the count so far.
+func CountForecasts(t *testing.T) func() int {
+	t.Helper()
+	was, played := playWeeks, 0
+	playWeeks = func(p forecast.Pool) map[string]forecast.Out {
+		played++
+		return was(p)
+	}
+	t.Cleanup(func() { playWeeks = was })
+	return func() int { return played }
 }
 
 // Holds is the limit's holds.

@@ -11,7 +11,7 @@ ACCOUNTS   Compare  Detail
 ● at its cap
 
 USAGE
-Week            ▏   ┃        ╎  34%  19%/day · Sun
+Week            ▏   ┃        ╎  34%  out ~Sat
 
 5-hour              ┃        ╎  95%  back 17:10
 

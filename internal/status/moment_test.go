@@ -114,7 +114,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	}
 	var pressureOut status.RunOut
 	if session, ok := a.Window(a.Pressure.Window); ok {
-		pressureOut, _ = doc.RunsOut(a, session, now)
+		pressureOut, _ = doc.RunsOut(a, session, now, policy)
 	}
 	pool := m.Pool()
 	outOfQuota := held && hold.Every || doc.CapHolds(a, now, policy)
@@ -182,7 +182,7 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 	}
 	if want.Kind != status.WindowTokenless && want.Kind != status.WindowUnread {
 		stands, _ := a.WindowAt(w.Key, now, policy)
-		out, runsOut := doc.RunsOut(a, w, now)
+		out, runsOut := doc.RunsOut(a, w, now, policy)
 		want.Used, want.Pace, want.Next = stands.Utilization, got.Pace, stands.ResetsAt
 		want.Allowance, want.Room = got.Allowance, got.Room
 		want.Start, want.Length, _ = stands.Span()
@@ -202,7 +202,7 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 			want.Projected = &share
 		}
 		want.Nearing = want.Projected != nil && !runsOut && *want.Projected >= doc.Floor(a)-status.Near-score.Tolerance
-		want.InUse = dashboardInUse(stands, doc.Project(a, w, now).Projection)
+		want.InUse = dashboardInUse(stands, doc.Project(a, w, now, policy).Projection)
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("%s's %s stands as\n%+v\nwant\n%+v", a.ID, w.Key, got, want)
@@ -294,7 +294,7 @@ func dashboardWindowsOf(doc status.Document, now time.Time) (shown, hidden []str
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
 			stands, _ := a.WindowAt(w.Key, now, policy)
-			used[w.Key] = used[w.Key] || policy.IsShared(w.Key) || dashboardInUse(stands, doc.Project(a, w, now).Projection)
+			used[w.Key] = used[w.Key] || policy.IsShared(w.Key) || dashboardInUse(stands, doc.Project(a, w, now, policy).Projection)
 		}
 		for _, f := range a.Failures {
 			used[f.Window] = true
