@@ -1,7 +1,6 @@
 package forecast
 
 import (
-	"math"
 	"slices"
 	"time"
 
@@ -32,7 +31,8 @@ type Account struct {
 	// Floor is where its room ends: 1 − Reserve where its reserve holds it
 	// back, else 1, as the caller works it out.
 	Floor float64
-	// Size is how big its week is, in Pro weeks.
+	// Size is how big its week is, in Pro weeks: 1 where it isn't a positive
+	// number.
 	Size float64
 	// Fast is its week's fast rate, a share of it an hour.
 	Fast float64
@@ -52,7 +52,7 @@ type Pool struct {
 	// Day is the pool's day's rate, in Pro weeks an hour.
 	Day float64
 	// Held is the share of an account's fast rate still on it after so
-	// long: e^(−h / 6h) where it's nil.
+	// long: the default hold curve where it's nil.
 	Held func(after time.Duration) float64
 }
 
@@ -92,9 +92,11 @@ type play struct {
 	// which the candidates' windows are cut from.
 	weeks  []quota.Window
 	tracks []track
-	// candidates is kept from one choice to the next, so gathering them
-	// allocates nothing.
+	// candidates are those a new session can go to, gathered afresh for each
+	// choice into the one slice, and takers each one's place among the
+	// accounts, as one ID can name more than one.
 	candidates []score.Candidate
+	takers     []int
 	// applies counts the week alone of a candidate's windows: the window the
 	// policy's perishability is measured on.
 	applies func(key string) bool
@@ -115,33 +117,33 @@ type track struct {
 	from, offered float64
 }
 
-// newPlay starts the pool's use playing from its Now.
+// newPlay starts the pool's use playing from its Now, its accounts its own.
 func newPlay(pool Pool) *play {
 	if pool.Held == nil {
-		pool.Held = heldWithoutCurve
+		pool.Held = defaultHold
 	}
+	pool.Accounts = slices.Clone(pool.Accounts)
 	week := pool.Policy.Perishable
 	p := &play{
 		Pool:       pool,
 		weeks:      make([]quota.Window, len(pool.Accounts)),
 		tracks:     make([]track, len(pool.Accounts)),
 		candidates: make([]score.Candidate, 0, len(pool.Accounts)),
+		takers:     make([]int, 0, len(pool.Accounts)),
 		applies:    func(key string) bool { return key == week },
 		at:         pool.Now,
 		next:       pool.Now,
 	}
-	for i, a := range pool.Accounts {
+	for i := range pool.Accounts {
+		a := &pool.Accounts[i]
+		if !countable(a.Size) {
+			a.Size = 1
+		}
 		p.fast += a.Size * a.Fast
 		p.weeks[i] = a.Week
 		p.tracks[i] = track{holds: true, open: !a.Week.ResetsAt.IsZero(), from: a.Week.Utilization}
 	}
 	return p
-}
-
-// heldWithoutCurve is the share of an account's fast rate still on it after
-// so long, where the pool gives no hold curve: e^(−h / 6h).
-func heldWithoutCurve(after time.Duration) float64 {
-	return math.Exp(-float64(after) / float64(6*time.Hour))
 }
 
 // playTo plays the pool's use forward, a step at a time, to until, and brings
@@ -169,7 +171,7 @@ func (p *play) step(t time.Time) {
 // demand is the pool's use, in Pro weeks, in a step whose middle comes so
 // long after its Now: never less than none.
 func (p *play) demand(after time.Duration) float64 {
-	rate := p.Day + (p.fast-p.Day)*math.Exp(-float64(after)/float64(demandFade))
+	rate := p.Day + (p.fast-p.Day)*decay(after, demandFade)
 	return max(rate, 0) * playStep.Hours()
 }
 
@@ -209,25 +211,29 @@ func (p *play) holding(i int, t time.Time) bool {
 // account chosen runs out, until it's all placed or no account has room.
 func (p *play) place(t time.Time, rest float64) {
 	for rest > 0 {
-		c, ok := p.Policy.Choose(p.takers(t), p.Pinned, p.applies, "", t)
+		p.gather(t)
+		c, ok := p.Policy.Choose(p.candidates, p.Pinned, p.applies, "", t)
 		if !ok {
 			return
 		}
-		rest = p.fill(slices.IndexFunc(p.Accounts, func(a Account) bool { return a.ID == c.ID }), rest, t)
+		chosen := slices.IndexFunc(p.candidates, func(candidate score.Candidate) bool { return candidate.ID == c.ID })
+		rest = p.fill(p.takers[chosen], rest, t)
 	}
 }
 
-// takers are the candidates for a new session at t: the accounts that take
-// new sessions, whose week's reset is known, with room, each with its week
-// alone, as it stands.
-func (p *play) takers(t time.Time) []score.Candidate {
-	p.candidates = p.candidates[:0]
+// gather makes the candidates for a new session at t: the accounts that take
+// new sessions and have room, each with its week alone, as it stands. One
+// whose week's reset isn't known has no score: Choose sends it new sessions
+// only where the global pin names it and none of the pin's accounts it can
+// score has room, as the router does.
+func (p *play) gather(t time.Time) {
+	p.candidates, p.takers = p.candidates[:0], p.takers[:0]
 	for i, a := range p.Accounts {
-		if a.Takes && !a.Week.ResetsAt.IsZero() && p.room(i, t) > score.Tolerance {
+		if a.Takes && p.room(i, t) > score.Tolerance {
 			p.candidates = append(p.candidates, score.Candidate{ID: a.ID, Windows: p.weeks[i : i+1 : i+1], Reserve: a.Reserve})
+			p.takers = append(p.takers, i)
 		}
 	}
-	return p.candidates
 }
 
 // room is how much of account i's week is left at t before its use reaches

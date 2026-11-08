@@ -210,12 +210,47 @@ func ownersPool() Pool {
 	}
 }
 
-func TestAWeekCarryingThePoolRunsOutNoSoonerThanAnotherWeekComesBack(t *testing.T) {
+func TestAWeekCarryingThePoolLastsAsTheOtherWeeksComeBack(t *testing.T) {
 	out := outOf(t, Forecast(ownersPool()), "2")
 
-	if back := now.Add(17 * time.Hour); !out.RunsOut.IsZero() && !out.RunsOut.After(back) {
-		t.Errorf("Forecast()[%q].RunsOut = %v, want none, or after account 3's reset at %v, as its fast rate alone puts it at %v",
-			"2", out.RunsOut, back, now.Add(hours(0.81/0.06)))
+	// Its fast rate alone runs it out 13.5 hours on; each of the others,
+	// coming back, takes the new sessions while it scores higher.
+	checkRunsOut(t, "2", out, time.Time{}, 0)
+	checkAtReset(t, "2", out, 0.9908, 0.005)
+}
+
+func TestAWeekCarryingThePoolRunsOutWithoutTheResetsThatSaveIt(t *testing.T) {
+	alone := hoursUntil(func(h float64) float64 { return fading(0.06*ultra, 0.013*ultra, h) }, 0.81*ultra)
+	tests := []struct {
+		name string
+		// away are the accounts whose weeks don't come back within the
+		// forecast, resetting a week on.
+		away []string
+		// want is when account 2 runs out, within tolerance.
+		want, tolerance time.Duration
+	}{
+		{
+			name: "no other week comes back, so it takes the pool's use alone",
+			away: []string{"1", "3", "4"}, want: hours(alone), tolerance: playStep,
+		},
+		{
+			name: "account 1's alone comes back, at 28 hours",
+			away: []string{"3", "4"}, want: 5*quota.Day + 7*time.Hour, tolerance: 6 * time.Hour,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ownersPool()
+			for i, a := range p.Accounts {
+				if slices.Contains(tt.away, a.ID) {
+					p.Accounts[i].Week.ResetsAt = now.Add(playSpan)
+				}
+			}
+
+			out := outOf(t, Forecast(p), "2")
+
+			checkRunsOut(t, "2", out, now.Add(tt.want), tt.tolerance)
+		})
 	}
 }
 
@@ -392,13 +427,21 @@ func TestAWeekThatResetsIsForecastToItsResetAlone(t *testing.T) {
 	checkAtReset(t, "work", out, 0.2+0.05*resetsIn.Hours(), 1e-9)
 }
 
-func TestAnAccountWithoutAKnownResetHasNoOutButHoldsItsUse(t *testing.T) {
+func TestAnAccountWithoutAKnownResetHasNoOutButTakesWhatAPinSendsIt(t *testing.T) {
 	tests := []struct {
 		name   string
 		pinned []string
+		// want is how long until personal runs out.
+		want time.Duration
 	}{
-		{"unpinned", nil},
-		{"the global pin naming it", []string{"work"}},
+		{
+			name: "unpinned, it holds its use, and personal takes the rest",
+			want: 16*time.Hour + 45*time.Minute,
+		},
+		{
+			name:   "pinned, it takes the rest too, till its room runs out at 13h20, then personal takes it all",
+			pinned: []string{"work"}, want: 13*time.Hour + 20*time.Minute + 8*time.Hour + 22*time.Minute + 30*time.Second,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -419,8 +462,7 @@ func TestAnAccountWithoutAKnownResetHasNoOutButHoldsItsUse(t *testing.T) {
 			if out, ok := outs["work"]; ok {
 				t.Errorf("Forecast()[%q] = %+v, want none", "work", out)
 			}
-			// personal takes what work doesn't hold.
-			checkRunsOut(t, "personal", outOf(t, outs, "personal"), now.Add(16*time.Hour+45*time.Minute), time.Second)
+			checkRunsOut(t, "personal", outOf(t, outs, "personal"), now.Add(tt.want), time.Second)
 		})
 	}
 }
@@ -446,6 +488,47 @@ func TestAWeekStartingWithoutRoomStaysWhereItIs(t *testing.T) {
 				t.Errorf("Forecast()[%q] = %+v, want %+v", "work", out, want)
 			}
 		})
+	}
+}
+
+func TestASizeThatIsntAPositiveNumberCountsAsOne(t *testing.T) {
+	for _, size := range []float64{0, -5, math.NaN(), math.Inf(1)} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			p := Pool{
+				Now:    now,
+				Policy: policy,
+				Accounts: []Account{
+					account("work", week(0.4975, 5*quota.Day), sized(size), fast(0.06), refusingNewSessions),
+					account("personal", week(0.4, 6*quota.Day)),
+				},
+				Day:  0.06,
+				Held: holding(0.5),
+			}
+
+			outs := Forecast(p)
+
+			// work holds half its fast rate, a Pro's, and personal takes the
+			// rest, then all of it once work runs out.
+			checkRunsOut(t, "work", outOf(t, outs, "work"), now.Add(16*time.Hour+45*time.Minute), time.Second)
+			checkRunsOut(t, "personal", outOf(t, outs, "personal"), now.Add(18*time.Hour+22*time.Minute+30*time.Second), time.Second)
+		})
+	}
+}
+
+func TestAccountsSharingAnIDAreForecastToTheEnd(t *testing.T) {
+	p := Pool{
+		Now:    now,
+		Policy: policy,
+		Accounts: []Account{
+			account("work", week(0.99, 5*quota.Day)),
+			account("work", week(0, 6*quota.Day)),
+		},
+		Day:  0.06,
+		Held: holding(0),
+	}
+
+	if outs := Forecast(p); len(outs) != 1 {
+		t.Errorf("Forecast() = %v, want an Out for %q alone", outs, "work")
 	}
 }
 
