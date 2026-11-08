@@ -847,9 +847,13 @@ It takes away, in this order:
    of switchboard and the notifications' app.
 2. **The startup line** `setup` added, taken out of each shell's startup file it's in, found by its
    `# switchboard` mark: `~/.zshrc`, and `.zshrc` in `$ZDOTDIR`; `~/.bash_profile`, `~/.bash_login`
-   and `~/.profile`; and fish's `config.fish`. Every other line is kept as it was, and a startup file
-   linked to from your dotfiles is written where the link leads. Then switchboard's own files for
-   the shells, which the line loads, with bash's completions.
+   and `~/.profile`; and fish's `config.fish`. Only the line as `setup` writes it, at the start of
+   its line, is taken out: an indented copy may be all there is of an `if` block of yours, which
+   the shell couldn't read left empty, so it's left where it is, and `uninstall` names the file for
+   you to take it out yourself; with switchboard's files gone, it does nothing. Every other line is
+   kept as it was, and the file is rewritten in place, where a link to it leads, so it stays the
+   file it was, hard links, owner and permissions with it. Then switchboard's own files for the
+   shells, which the line loads, with bash's completions.
 3. **The session hook**: switchboard's entry in Claude Code's SessionStart hooks, in
    `settings.json`, every other setting and hook left as it is. A settings file Claude Code
    couldn't read is left as it is, and `uninstall` says why.
@@ -857,22 +861,27 @@ It takes away, in this order:
 5. **The `claude` link** in switchboard's bin directory, where it's switchboard's own, a link to a
    `switchboard`: anything else named `claude` there is left alone, and `uninstall` says so. Then
    the bin directory and switchboard's data directory, `~/.local/share/switchboard`, each once
-   nothing else is in it.
+   nothing else is in it: where something's still in the data directory, `uninstall` says it's
+   kept.
 
 The config, the accounts' token files and everything recorded in the state directory, the ledger,
 the readings, the events, the logs and the router's state, stay, so a reinstall carries on where it
 left off. `--all` takes them too: the config directory, with any themes of your own, and the state
-directory, wherever the environment puts them, as the rest of switchboard finds them. The history
+directory, wherever the environment puts them, as the rest of switchboard finds them. A config file
+`SWITCHBOARD_CONFIG` or `--config` puts outside the config directory goes alone; of a themes
+directory `SWITCHBOARD_THEMES_DIR` puts there, only the `.theme` files go, then the directory where
+nothing else is in it, as it may hold other files of yours. The history
 nothing can bring back goes only when you ask: nothing asks first either way, as the flag is the
 asking.
 
 `uninstall` never touches the [export's folder](configuration.md#export-keys), wherever it is. Where
-it's inside a directory `--all` removes, it's kept, with the directories on the way to it, and
-`uninstall` says so; where the config can't be read to tell where it is, `--all` keeps the config
+it's inside a directory `--all` removes, however its path names it, through a link included, it's
+kept, with the directories on the way to it, and `uninstall` says so; where the config can't be read to tell where it is, `--all` keeps the config
 and the state directory, and says why. Nor does it touch switchboard's binary, which is
 Homebrew's.
 
-It prints a line for each piece, saying it's removed, not there, or failed and why, then that the
+It prints a line for each piece, saying it's removed, not there, or failed and why, the service's
+saying both where its LaunchAgent went but the notifications' app couldn't, then that the
 accounts' setup tokens stay valid on Anthropic's side until their year is out, whether or not
 their files are removed, and last, to run `brew uninstall switchboard`:
 
