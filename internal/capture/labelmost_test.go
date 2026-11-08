@@ -33,10 +33,11 @@ const mostLabelled = 24
 
 // headed are the rows the guard passes over, as they say a name whole and
 // are cut at the frame's edge, never as a label: COMING UP's and LATELY's
-// lines, each led by its time to the minute, as "16:30" or "~Fri 12:20",
-// where the Log's rows are led by theirs to the second; and a section's
-// heading folded to what it holds, as "SESSIONS 6 running".
-var headed = regexp.MustCompile(`^\s*(COMING UP|LATELY|SESSIONS|ROUTING|USAGE|~?(\pL{3} )?\d\d:\d\d )`)
+// lines, each led by its time to the minute, as "16:30" or "~Fri 12:20", or
+// a run-out's more than a day ahead by its day alone, as "~Fri", where the
+// Log's rows are led by theirs to the second; and a section's heading folded
+// to what it holds, as "SESSIONS 6 running".
+var headed = regexp.MustCompile(`^\s*(COMING UP|LATELY|SESSIONS|ROUTING|USAGE|~?(\pL{3} )?\d\d:\d\d |~\pL{3} )`)
 
 // labelledWorld is a world of the scene's accounts, each labelled as labels
 // has it, or its own where it has none, kept by the name given.

@@ -2885,8 +2885,8 @@ shorter ones bring it in, as with names of 3 cells, to 82 columns:
 LATELY's words are as long as its room holds, as LATELY's rule below says; COMING UP's are the same
 at every width.
 
-- **COMING UP,** soonest first: the time, padded to the longest, as `16:30`, `~Sat 06:00` or
-  `Sun 02:00`, in `text.secondary`; two spaces; the account in bold `text.primary`, then what
+- **COMING UP,** soonest first: the time, padded to the longest, as `16:30`, `~Sat 06:00`, `~Sat`
+  or `Sun 02:00`, in `text.secondary`; two spaces; the account in bold `text.primary`, then what
   happens in `text.muted`; at the section's right, how long until it, `in 1h 48m`, in
   `text.subtle`. A run-out's row is all in `accent.attention`, its time and countdown too. It lists,
   as the status document gives them (see The status document):
