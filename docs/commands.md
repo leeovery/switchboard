@@ -946,9 +946,10 @@ The text shows, in order:
 
 - each window's utilization, when it resets and where it's heading, or `no 5-hour window` for an
   account without one. A week goes by its
-  [forecast](how-it-works.md#where-a-week-runs-out), as `on pace for 92%` or `runs out ~Tue`; the
-  5-hour window by its recent rate, as `runs out ~17:25 at its rate over the last 30 min`. A
-  run-out shows its time within a day, and its day alone further ahead;
+  [forecast](how-it-works.md#where-a-week-runs-out) from the router, as `on pace for 92%` or
+  `runs out ~Tue`; probed, or a model's own week, at its pace since it started; the 5-hour window
+  by its recent rate, as `runs out ~17:25 at its rate over the last 30 min`. A run-out shows its
+  time within a day, and its day alone further ahead;
 - what holds an account back, such as a limit it reached or its reserve;
 - whether an account is under pressure, with the rate it goes by, such as
   `under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at 20:10`;

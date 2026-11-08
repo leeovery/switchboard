@@ -178,11 +178,12 @@ choices and its pressure go by their own rates.
 - **Where the use goes:** use already on an account stays there for a while, as its sessions do,
   but on an account whose token is refused or missing: the router sends its requests elsewhere.
   The rest goes where a new session would go at that moment, among the pin's accounts while a
-  global pin holds. Accounts count by their plan's size, a Max week as five Pro weeks.
+  global pin holds. Accounts count by their plan's size, a Max week as five Pro weeks, but where
+  any account's plan isn't known, every account counts as one.
 - **When a week runs out:** where its use reaches its reserve before it resets, or its limit
   without one or while a global pin spends it. Otherwise its forecast use at the reset is what `on pace for 92%` says.
-- **Without the router,** as when `status` probes the accounts itself, a week goes at the pace its
-  use since it started sets.
+- **Without the router's rates,** as when `status` probes the accounts itself, or from an older
+  router that gives none, a week goes at the pace its use since it started sets.
 
 The 5-hour window doesn't take part: its run-out goes at its recent rate, as
 [pressure](#pressure) judges it. A run-out within a day shows its time, as `out ~16:05` or
