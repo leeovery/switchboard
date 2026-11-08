@@ -388,16 +388,16 @@ func TestServiceStatusSaysTheLaunchAgentRunsSwitchboardItself(t *testing.T) {
 	}
 }
 
-func TestServiceStatusSaysLaunchdStartsSwitchboardItselfAsItLoadedTheServiceBeforeTheCopy(t *testing.T) {
+func TestServiceStatusSaysLaunchdRunsTheCopyFromTheNextLoginWhereItLoadedTheServiceBeforeIt(t *testing.T) {
 	s := newServiceSetup(t)
 	s.putKeptPlist(t, shortTempDir(t))
 	// As for a router that moved over, until launchd loads the plist again.
 	s.launchd.loaded, s.launchd.program = true, []string{s.binary, "serve"}
 
 	got := run(t, s.srv.deps, "service", "status")
-	want := "copy         not run by launchd, which starts " + s.binary + " itself, as it loaded the LaunchAgent before the router's copy: run switchboard service install\n"
+	want := "copy         run by launchd from the next login, as it loaded the LaunchAgent before the router's copy and starts " + s.binary + " itself till then: switchboard service install has it run the copy now\n"
 	if got.code != 0 || !strings.Contains(got.stdout, "LaunchAgent  "+s.plist+"\n"+want) {
-		t.Errorf("switchboard service status = %+v, want the copy said not run by launchd, after the LaunchAgent:\n%s", got, want)
+		t.Errorf("switchboard service status = %+v, want the copy said run by launchd from the next login, after the LaunchAgent:\n%s", got, want)
 	}
 }
 

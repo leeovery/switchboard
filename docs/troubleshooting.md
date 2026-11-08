@@ -107,10 +107,11 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   (`can't move over to the router's own copy of switchboard`). Run
   `switchboard service install` to write the LaunchAgent afresh. See
   [Restarting in place](commands.md#restarting-in-place).
-- **`service status` says the router's copy is not run by launchd:** launchd reads the LaunchAgent
-  only as it loads it, at login, so after the router moved over to its copy, launchd starting the
-  router again, as after a crash, starts switchboard itself, as before the copy, until the next
-  login: an upgrade landed since, never asked whether it could start, may refuse the config. Run
+- **`service status` says launchd runs the router's copy from the next login:** launchd reads the
+  LaunchAgent only as it loads it, at login, so after the router moved over to its copy, launchd
+  starting the router again, as after a crash, starts switchboard itself, as before the copy, until
+  the next login: an upgrade landed since, never asked whether it could start, may refuse the
+  config. The next login sets it right by itself. To have launchd run the copy now, run
   `switchboard service install`, which has launchd load the LaunchAgent afresh; `setup` runs it
   too.
 - **`claude` won't start, the router down:** with the router not running, not answering, or not

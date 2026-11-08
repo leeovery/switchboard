@@ -803,9 +803,10 @@ refuses to start, `status` gives the refusal instead: put the config right as it
   regardless.
 - **`status`** shows whether the LaunchAgent is installed and loaded, whether the router's copy of
   switchboard it runs is missing, so launchd can't run the router, or not run at all, as the
-  LaunchAgent was written before the copy and runs switchboard itself, or as launchd loaded it
-  before the copy and, reading it only as it loads it, still starts switchboard itself till the
-  next login, as `launchctl print` names the program, naming `service install` for each, whether
+  LaunchAgent was written before the copy and runs switchboard itself, naming `service install`
+  for each, or run by launchd only from the next login, as it loaded the LaunchAgent before the
+  copy and, reading it only as it loads it, starts switchboard itself till then, as `launchctl
+  print` names the program, saying `service install` has it run the copy now, whether
   launchd runs a router, and its pid where `launchctl print` names one, or that its state
   is unread where it says neither, and the health of the router where the LaunchAgent keeps its state, else of the one
   where your shell does, saying so. Where it can't read the LaunchAgent's plist back, or work out
