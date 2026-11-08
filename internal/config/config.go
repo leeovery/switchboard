@@ -359,12 +359,17 @@ func Load(path string) (*Config, error) {
 func decodeFile(path string, data []byte) (file, toml.MetaData, error) {
 	f, meta, err := decode(string(data))
 	if err != nil {
-		// Not wrapped: the decoder's text quotes the key it stopped at, which
-		// can be a token pasted by mistake, as one without a value or given
-		// twice would be.
-		return file{}, toml.MetaData{}, fmt.Errorf("parse config %s: %s", path, redact.Text(err.Error()))
+		return file{}, toml.MetaData{}, unparsed(path, err)
 	}
 	return f, meta, nil
+}
+
+// unparsed is the error of the config file at path, which the decoder
+// couldn't read, as err says. It isn't wrapped: the decoder's text quotes the
+// key it stopped at, which can be a token pasted by mistake, as one without a
+// value or given twice would be.
+func unparsed(path string, err error) error {
+	return fmt.Errorf("parse config %s: %s", path, redact.Text(err.Error()))
 }
 
 // decode reads text as a config file's, with its defaults filled in where it

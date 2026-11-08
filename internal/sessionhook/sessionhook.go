@@ -1,7 +1,8 @@
 // Package sessionhook is the hook switchboard puts in Claude Code's settings,
 // which every session runs as it starts, however it was started: what it
 // tells a session that didn't start through switchboard, and switchboard's
-// entry in the settings, which setup installs or puts right.
+// entry in the settings, which setup installs or puts right, and uninstall
+// takes out.
 package sessionhook
 
 import (

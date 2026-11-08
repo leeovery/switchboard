@@ -98,6 +98,11 @@ func (o *object) set(key string, value json.RawMessage) {
 	*o = append(*o, member{key: key, value: value})
 }
 
+// remove takes every member named key out of o.
+func (o *object) remove(key string) {
+	*o = slices.DeleteFunc(*o, func(m member) bool { return m.key == key })
+}
+
 // index is where get finds key among o's members, or -1.
 func (o object) index(key string) int {
 	for i, m := range slices.Backward(o) {

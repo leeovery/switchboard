@@ -68,6 +68,8 @@ Or, with Go 1.27 or later:
 go install github.com/leeovery/switchboard/cmd/switchboard@latest
 ```
 
+To take it away again, run `switchboard uninstall` first, then `brew uninstall switchboard`. It keeps your config, tokens and history for a reinstall, unless you add `--all`. See [`uninstall`](docs/commands.md#uninstall).
+
 ## Quick start
 
 ```bash
