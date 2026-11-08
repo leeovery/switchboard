@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -151,6 +152,11 @@ type Notifier interface {
 // isn't the CLI: serve runs as the router.
 const roleAnnotation = "log-role"
 
+// unmadeAnnotation marks a command that logs only into a state directory
+// that's there, making none: uninstall, which can remove it, and finds none
+// run again.
+const unmadeAnnotation = "log-unmade"
+
 var logger = logs.For("cli")
 
 // NewRootCommand builds the switchboard command tree.
@@ -171,7 +177,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
 	root.SetFlagErrorFunc(hideTokens)
-	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newDashboardCommand(a), newRequestsCommand(a),
+	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newUninstallCommand(a), newStatusCommand(a), newUsageCommand(a), newDashboardCommand(a), newRequestsCommand(a),
 		newHistoryCommand(a), newSessionsCommand(a), newEventsCommand(a), newExportCommand(a), newImportCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a),
 		newServiceCommand(a), newVersionCommand(a), newHookCommand(a))
 	return root
@@ -282,6 +288,9 @@ type app struct {
 // state directory it logs nowhere.
 func (a *app) startLog(cmd *cobra.Command) {
 	dir, _ := a.logDir()
+	if _, unmade := cmd.Annotations[unmadeAnnotation]; unmade && !a.stateThere() {
+		dir = ""
+	}
 	role := logs.Role(cmd.Annotations[roleAnnotation])
 	if a.checking {
 		role = logs.RoleCLI
@@ -307,6 +316,16 @@ func mirror(cmd *cobra.Command, role logs.Role) io.Writer {
 		return f
 	}
 	return nil
+}
+
+// stateThere reports whether the state directory is there.
+func (a *app) stateThere() bool {
+	state, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(state)
+	return err == nil
 }
 
 // logDir is where the logs live, in the state directory.
