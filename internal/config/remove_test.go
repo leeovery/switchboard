@@ -58,33 +58,69 @@ func TestPlaces(t *testing.T) {
 		name string
 		env  map[string]string
 		file string
-		want []string
+		want config.Places
 	}{
-		{name: "where they usually are: the directory alone", file: dir + "/config.toml", want: []string{dir}},
+		{name: "where they usually are: the directory alone", file: dir + "/config.toml", want: config.Places{Dir: dir}},
 		{
 			name: "a config file and themes elsewhere: each as well",
 			env:  map[string]string{"SWITCHBOARD_THEMES_DIR": "/data/themes"},
 			file: "/etc/switchboard.toml",
-			want: []string{dir, "/etc/switchboard.toml", "/data/themes"},
+			want: config.Places{Dir: dir, File: "/etc/switchboard.toml", Themes: "/data/themes"},
 		},
 		{
 			name: "themes in the directory, where a variable puts them",
 			env:  map[string]string{"SWITCHBOARD_THEMES_DIR": dir + "/mine"},
 			file: dir + "/config.toml",
-			want: []string{dir},
+			want: config.Places{Dir: dir},
 		},
 		{
 			name: "a config file beside the directory, by a name it begins",
 			file: dir + ".toml",
-			want: []string{dir, dir + ".toml"},
+			want: config.Places{Dir: dir, File: dir + ".toml"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, err := config.Places(envFrom(tt.env), home, tt.file); err != nil || !slices.Equal(got, tt.want) {
-				t.Errorf("Places() = %q, %v; want %q", got, err, tt.want)
+			if got, err := config.PlacesOf(envFrom(tt.env), home, tt.file); err != nil || got != tt.want {
+				t.Errorf("PlacesOf() = %+v, %v; want %+v", got, err, tt.want)
 			}
 		})
+	}
+}
+
+func TestPlacesFindsAConfigFileInTheDirectoryThroughALink(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ".config", "switchboard")
+	writeIn(t, filepath.Join(dir, "config.toml"))
+	link := filepath.Join(root, "linked")
+	if err := os.Symlink(dir, link); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{"XDG_CONFIG_HOME": filepath.Join(root, ".config")}
+
+	got, err := config.PlacesOf(envFrom(env), func() (string, error) { return root, nil }, filepath.Join(link, "config.toml"))
+	if want := (config.Places{Dir: dir}); err != nil || got != want {
+		t.Errorf("PlacesOf() = %+v, %v; want %+v", got, err, want)
+	}
+}
+
+func TestRemoveFile(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "work.toml")
+	writeIn(t, file)
+
+	if got, err := config.RemoveFile(file); err != nil || got != config.Removed {
+		t.Errorf("RemoveFile() = %v, %v; want %v", got, err, config.Removed)
+	}
+	if got, err := config.RemoveFile(file); err != nil || got != config.NotThere {
+		t.Errorf("RemoveFile(), again = %v, %v; want %v", got, err, config.NotThere)
+	}
+	writeIn(t, filepath.Join(dir, "configs", "work.toml"))
+	if got, err := config.RemoveFile(filepath.Join(dir, "configs")); err == nil || !strings.Contains(err.Error(), "is a directory, not a config file, so it's left alone") {
+		t.Errorf("RemoveFile() of a directory = %v, %v; want it refused", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "configs", "work.toml")); err != nil {
+		t.Errorf("what's in the directory: %v, want it kept", err)
 	}
 }
 
@@ -191,6 +227,27 @@ func TestRemoveAll(t *testing.T) {
 				t.Errorf("RemoveAll() of a directory that isn't there = %v, %v; want %v", got, err, config.NotThere)
 			}
 		})
+	}
+}
+
+func TestRemoveAllKeepsAFolderNamedThroughALink(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "switchboard")
+	writeIn(t, filepath.Join(dir, "state.json"))
+	writeIn(t, filepath.Join(dir, "exports", "mac-1", "export.json"))
+	// The export's folder, named through a link to the directory's parent.
+	link := filepath.Join(t.TempDir(), "state")
+	if err := os.Symlink(parent, link); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := config.RemoveAll(dir, filepath.Join(link, "switchboard", "exports"))
+	if err != nil || got != config.KeptFor {
+		t.Fatalf("RemoveAll() = %v, %v; want %v", got, err, config.KeptFor)
+	}
+	want := []string{"switchboard", "switchboard/exports", "switchboard/exports/mac-1", "switchboard/exports/mac-1/export.json"}
+	if left := tree(t, parent); !slices.Equal(left, want) {
+		t.Errorf("RemoveAll() left %q, want %q", left, want)
 	}
 }
 

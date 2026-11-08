@@ -36,35 +36,42 @@ func ExportFolderOf(path string, homeDir func() (string, error)) (string, error)
 	return export.Folder(homeDir)
 }
 
-// Places returns where switchboard's config is, file being the config file
-// read: the config directory, as Dir gives it, then file and the themes
-// directory, as ThemesDir gives it, each where the environment, or the
-// command line, puts it outside that directory.
-func Places(getenv func(string) string, homeDir func() (string, error), file string) ([]string, error) {
+// Places are where switchboard's config is: Dir, the config directory, as
+// Dir gives it; and File, the config file read, and Themes, the themes
+// directory, as ThemesDir gives it, each "" where it's in Dir, as it is but
+// where the environment, or the command line, puts it elsewhere.
+type Places struct {
+	Dir, File, Themes string
+}
+
+// PlacesOf returns where switchboard's config is, file being the config file
+// read.
+func PlacesOf(getenv func(string) string, homeDir func() (string, error), file string) (Places, error) {
 	dir, err := Dir(getenv, homeDir)
 	if err != nil {
-		return nil, err
+		return Places{}, err
 	}
 	themes, err := ThemesDir(getenv, homeDir)
 	if err != nil {
-		return nil, err
+		return Places{}, err
 	}
-	places := []string{dir}
-	for _, place := range []string{file, themes} {
-		if !holds(dir, place) {
-			places = append(places, place)
-		}
+	places := Places{Dir: dir}
+	if !holds(dir, file) {
+		places.File = file
+	}
+	if !holds(dir, themes) {
+		places.Themes = themes
 	}
 	return places, nil
 }
 
-// Removal is what RemoveAll did to a directory.
+// Removal is what RemoveAll, or RemoveFile, did.
 type Removal int
 
 const (
-	// NotThere is a directory that wasn't there.
+	// NotThere is a directory, or a file, that wasn't there.
 	NotThere Removal = iota
-	// Removed is a directory removed, with everything in it.
+	// Removed is a directory removed, with everything in it, or a file.
 	Removed
 	// KeptFor is a directory removed but for the folder kept in it, and the
 	// directories on the way there.
@@ -74,8 +81,9 @@ const (
 // RemoveAll removes dir, with everything in it but keep, a folder that's to
 // stay wherever it is, as the export's does, and the directories on the way
 // to it from dir: dir goes whole where keep is "" or isn't in it, and stays
-// whole where keep is dir. A file at dir is removed as a directory would
-// be. It goes on past what it can't remove, and fails, saying why.
+// whole where keep is dir. keep is found in dir however either is named, by
+// what each is, not by its path. It goes on past what it can't remove, and
+// fails, saying why.
 func RemoveAll(dir, keep string) (Removal, error) {
 	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
 		return NotThere, nil
@@ -91,10 +99,28 @@ func RemoveAll(dir, keep string) (Removal, error) {
 	return KeptFor, removeAllBut(dir, keep)
 }
 
+// RemoveFile removes the file at path, and reports whether it was there. A
+// directory there is left alone, and RemoveFile fails, saying so.
+func RemoveFile(path string) (Removal, error) {
+	info, err := os.Lstat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return NotThere, nil
+	case err != nil:
+		return NotThere, fmt.Errorf("look at %s: %w", path, err)
+	case info.IsDir():
+		return NotThere, fmt.Errorf("%s is a directory, not a config file, so it's left alone", path)
+	}
+	if err := os.Remove(path); err != nil {
+		return NotThere, fmt.Errorf("remove %s: %w", path, err)
+	}
+	return Removed, nil
+}
+
 // removeAllBut removes everything in dir but keep, and the directories on
 // the way to it, which dir holds.
 func removeAllBut(dir, keep string) error {
-	if filepath.Clean(dir) == filepath.Clean(keep) {
+	if sameFile(dir, keep) {
 		return nil
 	}
 	entries, err := os.ReadDir(dir)
@@ -115,12 +141,41 @@ func removeAllBut(dir, keep string) error {
 	return errors.Join(errs...)
 }
 
-// holds reports whether path is dir, or in it, as written: "" is in
+// holds reports whether path is dir, or in it: as written, or else as what
+// each is, path's links followed, so a path named through a link, or in
+// another case on a filesystem that matches names in any, is found. "" is in
 // nothing.
 func holds(dir, path string) bool {
 	if path == "" {
 		return false
 	}
-	rel, err := filepath.Rel(dir, path)
-	return err == nil && filepath.IsLocal(rel)
+	if rel, err := filepath.Rel(dir, path); err == nil && filepath.IsLocal(rel) {
+		return true
+	}
+	at, err := os.Stat(dir)
+	if err != nil {
+		return false
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		resolved = filepath.Clean(path)
+	}
+	for p := resolved; ; p = filepath.Dir(p) {
+		if info, err := os.Stat(p); err == nil && os.SameFile(at, info) {
+			return true
+		}
+		if filepath.Dir(p) == p {
+			return false
+		}
+	}
+}
+
+// sameFile reports whether a and b are the one file, links followed.
+func sameFile(a, b string) bool {
+	ai, err := os.Stat(a)
+	if err != nil {
+		return false
+	}
+	bi, err := os.Stat(b)
+	return err == nil && os.SameFile(ai, bi)
 }

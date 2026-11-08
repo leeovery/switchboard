@@ -15,6 +15,7 @@ import (
 func TestRemovingTheLine(t *testing.T) {
 	const home = "/home/tester"
 	initDir := filepath.Join(home, ".local", "share", "switchboard", "shell")
+	removed := shell.LineRemoval{Removed: true}
 	for _, sh := range shell.Shells {
 		ours := shell.Line(sh, shell.InitFile(initDir, sh), home)
 		another := shell.Line(sh, shell.InitFile("/data/switchboard/shell", sh), home)
@@ -23,9 +24,9 @@ func TestRemovingTheLine(t *testing.T) {
 			// text is the startup file's, or none where there's no file.
 			text *string
 			want string
-			// wantRemoved is whether RemoveLine says it took one out, the
-			// file left as it was where it didn't.
-			wantRemoved bool
+			// wantFound is what RemoveLine says it found and did, the file
+			// left as it was where it took nothing out.
+			wantFound shell.LineRemoval
 		}{
 			{name: "no file"},
 			{name: "an empty file", text: new("")},
@@ -33,17 +34,22 @@ func TestRemovingTheLine(t *testing.T) {
 			{
 				name: "ours last, as setup adds it: every other line kept, byte for byte",
 				text: new("export EDITOR=vi\r\n\talias ll='ls -l'  \n\n" + ours + "\n"),
-				want: "export EDITOR=vi\r\n\talias ll='ls -l'  \n\n", wantRemoved: true,
+				want: "export EDITOR=vi\r\n\talias ll='ls -l'  \n\n", wantFound: removed,
 			},
 			{
-				name: "ours among others, indented",
-				text: new("export EDITOR=vi\n  " + ours + "\nalias ll='ls -l'"),
-				want: "export EDITOR=vi\nalias ll='ls -l'", wantRemoved: true,
+				name: "ours, indented in a block of the user's: left where it is, said",
+				text: new("if true; then\n  " + ours + "\nfi\n"),
+				want: "if true; then\n  " + ours + "\nfi\n", wantFound: shell.LineRemoval{Indented: true},
 			},
-			{name: "ours last, without a newline", text: new("export EDITOR=vi\n" + ours), want: "export EDITOR=vi\n", wantRemoved: true},
-			{name: "ours twice: both taken out", text: new(ours + "\nexport EDITOR=vi\n" + ours + "\n"), want: "export EDITOR=vi\n", wantRemoved: true},
-			{name: "ours alone: the file left empty", text: new(ours + "\n"), want: "", wantRemoved: true},
-			{name: "another switchboard's, kept", text: new(another + "\n" + ours + "\n"), want: another + "\n", wantRemoved: true},
+			{
+				name: "ours, indented by a tab, and as setup writes it: the one taken out, the other said",
+				text: new("\t" + ours + "\n" + ours + "\n"),
+				want: "\t" + ours + "\n", wantFound: shell.LineRemoval{Removed: true, Indented: true},
+			},
+			{name: "ours last, without a newline", text: new("export EDITOR=vi\n" + ours), want: "export EDITOR=vi\n", wantFound: removed},
+			{name: "ours twice: both taken out", text: new(ours + "\nexport EDITOR=vi\n" + ours + "\n"), want: "export EDITOR=vi\n", wantFound: removed},
+			{name: "ours alone: the file left empty", text: new(ours + "\n"), want: "", wantFound: removed},
+			{name: "another switchboard's, kept", text: new(another + "\n" + ours + "\n"), want: another + "\n", wantFound: removed},
 			{name: "ours, commented out: kept", text: new("# " + ours + "\n"), want: "# " + ours + "\n"},
 		}
 		for _, tt := range tests {
@@ -56,9 +62,9 @@ func TestRemovingTheLine(t *testing.T) {
 					}
 				}
 
-				removed, err := shell.RemoveLine(sh, file, home, shell.InitFile(initDir, sh))
-				if err != nil || removed != tt.wantRemoved {
-					t.Fatalf("RemoveLine() = %v, %v; want %v", removed, err, tt.wantRemoved)
+				found, err := shell.RemoveLine(sh, file, home, shell.InitFile(initDir, sh))
+				if err != nil || found != tt.wantFound {
+					t.Fatalf("RemoveLine() = %+v, %v; want %+v", found, err, tt.wantFound)
 				}
 				if tt.text == nil {
 					if _, err := os.Stat(file); !errors.Is(err, fs.ErrNotExist) {
@@ -89,8 +95,8 @@ func TestTheLineSetupAddsIsRemovedAgain(t *testing.T) {
 				if err := shell.AddLine(file, shell.Line(sh, init, home)); err != nil {
 					t.Fatal(err)
 				}
-				if removed, err := shell.RemoveLine(sh, file, home, init); err != nil || !removed {
-					t.Errorf("RemoveLine() = %v, %v for the line for %s; want it removed", removed, err, init)
+				if found, err := shell.RemoveLine(sh, file, home, init); err != nil || found != (shell.LineRemoval{Removed: true}) {
+					t.Errorf("RemoveLine() = %+v, %v for the line for %s; want it removed", found, err, init)
 				}
 				checkFile(t, file, before)
 			}
@@ -107,13 +113,41 @@ func TestRemovingTheLineThroughALink(t *testing.T) {
 	file := filepath.Join(home, ".zshrc")
 	link(t, filepath.Join("..", "dotfiles", "zshrc"), file)
 
-	if removed, err := shell.RemoveLine(shell.Zsh, file, home, init); err != nil || !removed {
-		t.Fatalf("RemoveLine() = %v, %v; want it removed", removed, err)
+	if found, err := shell.RemoveLine(shell.Zsh, file, home, init); err != nil || !found.Removed {
+		t.Fatalf("RemoveLine() = %+v, %v; want it removed", found, err)
 	}
 	checkFile(t, kept, "export EDITOR=vi\n")
 	if info, err := os.Lstat(file); err != nil || info.Mode()&fs.ModeSymlink == 0 {
 		t.Errorf("the link is %v (%v), want it a link still", info, err)
 	}
+}
+
+func TestRemovingTheLineKeepsTheFile(t *testing.T) {
+	home := t.TempDir()
+	init := shell.InitFile(filepath.Join(home, ".local", "share", "switchboard", "shell"), shell.Bash)
+	file := filepath.Join(home, ".bash_profile")
+	write(t, file, "export EDITOR=vi\n"+shell.Line(shell.Bash, init, home)+"\n")
+	if err := os.Chmod(file, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	hard := filepath.Join(home, "dotfiles", "bash_profile")
+	if err := os.MkdirAll(filepath.Dir(hard), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(file, hard); err != nil {
+		t.Fatal(err)
+	}
+	before := stat(t, file)
+
+	if found, err := shell.RemoveLine(shell.Bash, file, home, init); err != nil || !found.Removed {
+		t.Fatalf("RemoveLine() = %+v, %v; want it removed", found, err)
+	}
+	after := stat(t, file)
+	if !os.SameFile(before, after) || after.Mode() != 0o640 {
+		t.Errorf("the file is %v, mode %v; want the same file, mode %v, rewritten in place", after, after.Mode(), before.Mode())
+	}
+	checkFile(t, file, "export EDITOR=vi\n")
+	checkFile(t, hard, "export EDITOR=vi\n")
 }
 
 func TestRemovingTheLineFailsSayingWhy(t *testing.T) {
@@ -125,14 +159,13 @@ func TestRemovingTheLineFailsSayingWhy(t *testing.T) {
 	file := filepath.Join(dir, ".zshrc")
 	text := "export EDITOR=vi\n" + shell.Line(shell.Zsh, init, dir) + "\n"
 	write(t, file, text)
-	if err := os.Chmod(dir, 0o500); err != nil {
+	if err := os.Chmod(file, 0o444); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 
-	removed, err := shell.RemoveLine(shell.Zsh, file, dir, init)
+	found, err := shell.RemoveLine(shell.Zsh, file, dir, init)
 	if err == nil || !strings.Contains(err.Error(), "remove switchboard's line from "+file) || !errors.Is(err, fs.ErrPermission) {
-		t.Errorf("RemoveLine() = %v, %v; want it to fail, saying why", removed, err)
+		t.Errorf("RemoveLine() = %+v, %v; want it to fail, saying why", found, err)
 	}
 	checkFile(t, file, text)
 }
@@ -177,23 +210,27 @@ func TestRemovingTheLines(t *testing.T) {
 	for file, sh := range files {
 		write(t, file, theirs+shell.Line(sh, shell.InitFile(dir, sh), home)+"\n")
 	}
-	write(t, filepath.Join(home, ".bash_profile"), theirs)
+	indented := "if true; then\n  " + shell.Line(shell.Bash, shell.InitFile(dir, shell.Bash), home) + "\nfi\n"
+	write(t, filepath.Join(home, ".bash_profile"), indented)
 
-	removed, err := shell.RemoveLines(home, dir, getenv)
+	lines, err := shell.RemoveLines(home, dir, getenv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{filepath.Join(zdotdir, ".zshrc"), filepath.Join(home, ".zshrc"), filepath.Join(home, ".profile"), filepath.Join(home, ".config", "fish", "config.fish")}
-	if !slices.Equal(removed, want) {
-		t.Errorf("RemoveLines() = %q, want %q", removed, want)
+	want := shell.Lines{
+		Removed:  []string{filepath.Join(zdotdir, ".zshrc"), filepath.Join(home, ".zshrc"), filepath.Join(home, ".profile"), filepath.Join(home, ".config", "fish", "config.fish")},
+		Indented: []string{filepath.Join(home, ".bash_profile")},
+	}
+	if !slices.Equal(lines.Removed, want.Removed) || !slices.Equal(lines.Indented, want.Indented) {
+		t.Errorf("RemoveLines() = %q, want %q", lines, want)
 	}
 	for file := range files {
 		checkFile(t, file, theirs)
 	}
-	checkFile(t, filepath.Join(home, ".bash_profile"), theirs)
+	checkFile(t, filepath.Join(home, ".bash_profile"), indented)
 
-	if removed, err := shell.RemoveLines(home, dir, getenv); err != nil || removed != nil {
-		t.Errorf("RemoveLines(), again = %q, %v; want none taken out", removed, err)
+	if lines, err := shell.RemoveLines(home, dir, getenv); err != nil || lines.Removed != nil {
+		t.Errorf("RemoveLines(), again = %q, %v; want none taken out", lines, err)
 	}
 }
 
@@ -206,12 +243,12 @@ func TestRemovingTheLinesGoesOnPastAFileItCant(t *testing.T) {
 	}
 	write(t, filepath.Join(home, ".bash_profile"), shell.Line(shell.Bash, shell.InitFile(dir, shell.Bash), home)+"\n")
 
-	removed, err := shell.RemoveLines(home, dir, func(string) string { return "" })
+	lines, err := shell.RemoveLines(home, dir, func(string) string { return "" })
 	if err == nil || !strings.Contains(err.Error(), filepath.Join(home, ".zshrc")) {
 		t.Errorf("RemoveLines() error = %v, want it to name the .zshrc it can't read", err)
 	}
-	if want := []string{filepath.Join(home, ".bash_profile")}; !slices.Equal(removed, want) {
-		t.Errorf("RemoveLines() = %q, want %q", removed, want)
+	if want := []string{filepath.Join(home, ".bash_profile")}; !slices.Equal(lines.Removed, want) {
+		t.Errorf("RemoveLines() took the line out of %q, want %q", lines.Removed, want)
 	}
 }
 

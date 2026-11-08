@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/skill"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 func newUninstallCommand(a *app) *cobra.Command {
@@ -115,8 +118,8 @@ func (a *app) uninstallPieces(ctx context.Context, u *uninstalling, errOut io.Wr
 }
 
 // uninstallTheData removes switchboard's data directory, once nothing's
-// left in it, saying so only where it did, or failed to: one with anything
-// left in it, the piece left there says why.
+// left in it, saying so, or that it's kept, as something's still in it:
+// nothing where it isn't there.
 func (a *app) uninstallTheData(u *uninstalling) {
 	dir, err := config.DataDir(a.Getenv, a.HomeDir)
 	if err != nil {
@@ -129,7 +132,15 @@ func (a *app) uninstallTheData(u *uninstalling) {
 		u.fail(dataLabel, err)
 	case removed:
 		u.done(dataLabel, "removed "+dir)
+	case there(dir):
+		u.warn(dataLabel, "kept "+dir+": something's still in it")
 	}
+}
+
+// there reports whether there's anything at path.
+func there(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
 }
 
 // uninstallTheService takes the service away, as service uninstall does.
@@ -142,7 +153,11 @@ func (a *app) uninstallTheService(ctx context.Context, u *uninstalling, errOut i
 	case err != nil:
 		u.fail(serviceLabel, err)
 	case removal.app != nil:
-		u.fail(serviceLabel, removal.app)
+		did := notThere
+		if removal.removed {
+			did = "removed " + removal.plist
+		}
+		u.broke(serviceLabel, did+", but the notifications' app: "+oneLine(removal.app))
 	case removal.removed:
 		u.done(serviceLabel, "removed "+removal.plist)
 	default:
@@ -165,14 +180,17 @@ func (a *app) uninstallTheShell(u *uninstalling) {
 		u.fail(shellLabel, err)
 		return
 	}
-	files, err := shell.RemoveLines(home, dir, a.Getenv)
-	for _, file := range files {
+	lines, err := shell.RemoveLines(home, dir, a.Getenv)
+	for _, file := range lines.Removed {
 		u.done(lineLabel, "removed from "+file)
+	}
+	for _, file := range lines.Indented {
+		u.warn(lineLabel, "left alone: an indented copy in "+file+", which may be all of a block of yours, so it's yours to take out: with switchboard's files gone it does nothing")
 	}
 	switch {
 	case err != nil:
 		u.fail(lineLabel, err)
-	case len(files) == 0:
+	case len(lines.Removed) == 0 && len(lines.Indented) == 0:
 		u.done(lineLabel, notThere)
 	}
 	removed, err := shell.RemoveFiles(dir)
@@ -235,7 +253,8 @@ func (a *app) uninstallTheLink(u *uninstalling) {
 
 // uninstallAll removes the config and the state directory, keeping the
 // export's folder wherever it is: both, where the config can't say where
-// that is.
+// that is. A config file the environment puts outside the config directory
+// goes alone, and of a themes directory it puts there, the theme files.
 func (a *app) uninstallAll(u *uninstalling) {
 	file, err := a.configFile()
 	if err != nil {
@@ -249,13 +268,12 @@ func (a *app) uninstallAll(u *uninstalling) {
 		u.fail(stateLabel, why)
 		return
 	}
-	places, err := config.Places(a.Getenv, a.HomeDir, file)
-	if err != nil {
-		u.fail(configLabel, err)
-	}
 	kept := false
-	for _, place := range places {
-		kept = u.removeAll(configLabel, place, export) || kept
+	if places, err := config.PlacesOf(a.Getenv, a.HomeDir, file); err != nil {
+		u.fail(configLabel, err)
+	} else {
+		kept = u.removeAll(configLabel, places.Dir, export)
+		u.removeElsewhere(places)
 	}
 	if state, err := config.StateDir(a.Getenv, a.HomeDir); err != nil {
 		u.fail(stateLabel, err)
@@ -264,6 +282,28 @@ func (a *app) uninstallAll(u *uninstalling) {
 	}
 	if kept {
 		u.done(exportLabel, "kept "+export+": the export's folder, which uninstall never removes")
+	}
+}
+
+// removeElsewhere removes the config file places puts outside the config
+// directory, that file alone, and the theme files in the themes directory it
+// puts there, saying what became of each.
+func (u *uninstalling) removeElsewhere(places config.Places) {
+	if places.File != "" {
+		removal, err := config.RemoveFile(places.File)
+		u.removal(configLabel, places.File, removal, err)
+	}
+	if places.Themes == "" {
+		return
+	}
+	removed, err := theme.NewLibrary(places.Themes).RemoveFiles()
+	switch {
+	case err != nil:
+		u.fail(configLabel, err)
+	case removed > 0:
+		u.done(configLabel, "removed the theme files from "+places.Themes)
+	default:
+		u.done(configLabel, "no theme files in "+places.Themes)
 	}
 }
 
@@ -299,8 +339,27 @@ func (u *uninstalling) warn(label, detail string) {
 
 // fail says label's piece failed, as err says.
 func (u *uninstalling) fail(label string, err error) {
+	u.broke(label, "failed: "+oneLine(err))
+}
+
+// broke says label's piece failed, as detail says.
+func (u *uninstalling) broke(label, detail string) {
 	u.failed = true
-	u.say(failedMark, label, "failed: "+redact.Text(err.Error()))
+	u.say(failedMark, label, detail)
+}
+
+// oneLine is err's text on one line, as a row says it: the errors joined in
+// it, as from several files, each after the one before and "; ", and any
+// other line break the same, anything shaped like a token hidden.
+func oneLine(err error) string {
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var parts []string
+		for _, e := range joined.Unwrap() {
+			parts = append(parts, oneLine(e))
+		}
+		return strings.Join(parts, "; ")
+	}
+	return strings.ReplaceAll(redact.Text(err.Error()), "\n", "; ")
 }
 
 func (u *uninstalling) say(mark, label, detail string) {
@@ -326,13 +385,20 @@ func (u *uninstalling) outcome(label, detail string, removed bool, err error) {
 // in it.
 func (u *uninstalling) removeAll(label, place, keep string) bool {
 	removal, err := config.RemoveAll(place, keep)
+	u.removal(label, place, removal, err)
+	return removal == config.KeptFor
+}
+
+// removal says what became of place, as removal and err say, under label.
+func (u *uninstalling) removal(label, place string, removal config.Removal, err error) {
 	switch {
 	case err != nil:
 		u.fail(label, err)
 	case removal == config.NotThere:
 		u.done(label, notThere+": "+place)
+	case removal == config.KeptFor:
+		u.done(label, "removed all but the export's folder from "+place)
 	default:
 		u.done(label, "removed "+place)
 	}
-	return removal == config.KeptFor
 }

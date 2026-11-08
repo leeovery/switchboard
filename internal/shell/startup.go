@@ -180,68 +180,105 @@ func FindLine(sh Shell, file, home string) (Found, error) {
 	return found, nil
 }
 
+// LineRemoval is what RemoveLine found of switchboard's line in a startup
+// file, and did.
+type LineRemoval struct {
+	// Removed is whether a copy of the line was taken out.
+	Removed bool
+	// Indented is whether an indented copy was found, and left where it is.
+	Indented bool
+}
+
 // RemoveLine takes switchboard's line for sh that sources initFile, sh's
 // file of switchboard's, out of the startup file at file, $HOME in it
-// standing for home, wherever it is in it, and every other copy of it, and
-// reports whether there was one. Every other line is kept as it was, byte for
-// byte, a line of switchboard's sourcing another switchboard's file among
-// them. The file is written whole, by its mode, at the end of file's links,
-// as a startup file kept with the user's dotfiles is linked to. A file that
-// isn't there holds no line.
-func RemoveLine(sh Shell, file, home, initFile string) (bool, error) {
+// standing for home, wherever it is in it, every copy of it that starts its
+// line, as setup writes it, and reports what it found and did. An indented
+// copy is left where it is, and reported: it may be the only line of a block
+// of the user's, which would be left empty, and the shell couldn't read it.
+// Every other line is kept as it was, byte for byte, a line of switchboard's
+// sourcing another switchboard's file among them. The file is rewritten in
+// place, at the end of file's links, as AddLine appends to it, so it keeps
+// its inode, its links, hard ones included, its mode, owner and attributes.
+// A file that isn't there holds no line.
+func RemoveLine(sh Shell, file, home, initFile string) (LineRemoval, error) {
 	target, err := atomicfile.Target(file)
 	if err != nil {
-		return false, fmt.Errorf("follow %s: %w", file, err)
+		return LineRemoval{}, fmt.Errorf("follow %s: %w", file, err)
 	}
 	data, err := os.ReadFile(target)
 	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
+		return LineRemoval{}, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("read %s: %w", file, err)
+		return LineRemoval{}, fmt.Errorf("read %s: %w", file, err)
 	}
 	var kept strings.Builder
-	removed := false
+	var found LineRemoval
 	for line := range strings.Lines(string(data)) {
-		if path := sources(sh, line, home); path != "" && filepath.Clean(path) == filepath.Clean(initFile) {
-			removed = true
+		path := sources(sh, line, home)
+		switch {
+		case path == "" || filepath.Clean(path) != filepath.Clean(initFile):
+		case strings.TrimLeft(line, " \t") != line:
+			found.Indented = true
+		default:
+			found.Removed = true
 			continue
 		}
 		kept.WriteString(line)
 	}
-	if !removed {
-		return false, nil
+	if !found.Removed {
+		return found, nil
 	}
-	info, err := os.Stat(target)
+	if err := rewrite(target, kept.String()); err != nil {
+		return LineRemoval{}, fmt.Errorf("remove switchboard's line from %s: %w", file, err)
+	}
+	return found, nil
+}
+
+// rewrite writes text in place of what the file at path holds, in the file
+// itself, which keeps everything of its own but what it holds.
+func rewrite(path, text string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0)
 	if err != nil {
-		return false, fmt.Errorf("read %s: %w", file, err)
+		return err
 	}
-	if err := atomicfile.Write(target, []byte(kept.String()), info.Mode().Perm()); err != nil {
-		return false, fmt.Errorf("remove switchboard's line from %s: %w", file, err)
+	if _, err := f.WriteString(text); err != nil {
+		_ = f.Close()
+		return err
 	}
-	return true, nil
+	return f.Close()
+}
+
+// Lines is what RemoveLines did: the startup files it took switchboard's
+// line out of, and those it left an indented copy in, as RemoveLine leaves
+// one.
+type Lines struct {
+	Removed, Indented []string
 }
 
 // RemoveLines takes switchboard's line for each shell, sourcing that shell's
 // file in dir, switchboard's shell directory, out of each startup file it
-// may be in, as StartupFiles names them, the user's home being home, and
-// returns the files it took one out of. It goes on past a file it can't
-// take it out of, and fails, saying why.
-func RemoveLines(home, dir string, getenv func(string) string) ([]string, error) {
-	var removed []string
+// may be in, as StartupFiles names them, the user's home being home, as
+// RemoveLine takes it out, and says what it did. It goes on past a file it
+// can't take it out of, and fails, saying why.
+func RemoveLines(home, dir string, getenv func(string) string) (Lines, error) {
+	var lines Lines
 	var errs []error
 	for _, sh := range Shells {
 		for _, file := range StartupFiles(sh, home, getenv) {
-			took, err := RemoveLine(sh, file, home, InitFile(dir, sh))
+			found, err := RemoveLine(sh, file, home, InitFile(dir, sh))
 			if err != nil {
 				errs = append(errs, err)
 			}
-			if took {
-				removed = append(removed, file)
+			if found.Removed {
+				lines.Removed = append(lines.Removed, file)
+			}
+			if found.Indented {
+				lines.Indented = append(lines.Indented, file)
 			}
 		}
 	}
-	return removed, errors.Join(errs...)
+	return lines, errors.Join(errs...)
 }
 
 // AddLine adds line to the end of the startup file at file, on a line of its

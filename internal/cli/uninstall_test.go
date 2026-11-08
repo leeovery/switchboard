@@ -139,10 +139,11 @@ func (w *uninstallWorld) removedRows() string {
 }
 
 // rowsBut are uninstall's lines for w's pieces, each removed but those
-// instead names, by their labels, which say what it gives in their place:
-// nothing, where it gives "".
+// instead names, by their labels, which say what it gives in place of all
+// that label's lines.
 func (w *uninstallWorld) rowsBut(instead map[string]string) string {
 	var rows strings.Builder
+	said := make(map[string]bool)
 	for _, row := range [][2]string{
 		{"Service", "removed " + w.plist},
 		{"Startup line", "removed from " + w.startupFiles[0]},
@@ -154,8 +155,11 @@ func (w *uninstallWorld) rowsBut(instead map[string]string) string {
 		{"claude link", "removed " + w.link},
 		{"Data", "removed " + w.dataDir},
 	} {
-		if said, ok := instead[row[0]]; ok {
-			rows.WriteString(said)
+		if in, ok := instead[row[0]]; ok {
+			if !said[row[0]] {
+				rows.WriteString(in)
+			}
+			said[row[0]] = true
 			continue
 		}
 		rows.WriteString(uninstallRow("✓", row[0], row[1]))
@@ -252,6 +256,8 @@ func TestUninstallAllHonoursTheEnvironmentsPlaces(t *testing.T) {
 	state := filepath.Join(elsewhere, "state")
 	writeAt(t, configFile, "[[account]]\nid = \"work\"\n")
 	writeAt(t, filepath.Join(themes, "lake.theme"), "")
+	// Another tool's file, beside the themes.
+	writeAt(t, filepath.Join(themes, "starship.toml"), "")
 	writeAt(t, filepath.Join(state, "switchboard", "tokens", "work"), "test-token-work\n")
 	writeAt(t, filepath.Join(elsewhere, "kept"), "the user's")
 	env := map[string]string{"SWITCHBOARD_CONFIG": configFile, "SWITCHBOARD_THEMES_DIR": themes, "XDG_STATE_HOME": state}
@@ -261,15 +267,18 @@ func TestUninstallAllHonoursTheEnvironmentsPlaces(t *testing.T) {
 	for _, want := range []string{
 		uninstallRow("✓", "Config", "removed "+w.configDir),
 		uninstallRow("✓", "Config", "removed "+configFile),
-		uninstallRow("✓", "Config", "removed "+themes),
+		uninstallRow("✓", "Config", "removed the theme files from "+themes),
 		uninstallRow("✓", "State", "removed "+filepath.Join(state, "switchboard")),
 	} {
 		if got.code != 0 || !strings.Contains(got.stdout, want) {
 			t.Errorf("switchboard uninstall --all = %+v, want exit status 0, and a line\n%s", got, want)
 		}
 	}
-	if left := entries(t, elsewhere); !slices.Equal(left, []string{"kept", "state"}) {
-		t.Errorf("%s holds %q, want what the user keeps there alone, and the state directory's parent", elsewhere, left)
+	if left := entries(t, elsewhere); !slices.Equal(left, []string{"kept", "state", "themes"}) {
+		t.Errorf("%s holds %q, want what the user keeps there alone, the state directory's parent, and the themes directory", elsewhere, left)
+	}
+	if left := entries(t, themes); !slices.Equal(left, []string{"starship.toml"}) {
+		t.Errorf("the themes directory holds %q, want the other tool's file alone", left)
 	}
 	// The state directory XDG_STATE_HOME names is the one removed: the
 	// home's is left.
@@ -284,7 +293,7 @@ func TestUninstallAllKeepsTheExportsFolder(t *testing.T) {
 
 	got := run(t, w.deps, "uninstall", "--all")
 	want := uninstallRow("✓", "Config", "removed "+w.configDir) +
-		uninstallRow("✓", "State", "removed "+w.stateDir) +
+		uninstallRow("✓", "State", "removed all but the export's folder from "+w.stateDir) +
 		uninstallRow("✓", "Export", "kept "+export+": the export's folder, which uninstall never removes") +
 		uninstallEnd
 	if got.code != 0 || !strings.HasSuffix(got.stdout, want) {
@@ -328,10 +337,10 @@ func TestUninstallGoesOnPastAPieceThatFails(t *testing.T) {
 			breaks: func(_ *testing.T, w *uninstallWorld) {
 				w.deps.Launchctl = func(context.Context, ...string) ([]byte, error) { return nil, errors.New("launchctl isn't there") }
 			},
-			instead: func(*uninstallWorld) map[string]string {
+			instead: func(w *uninstallWorld) map[string]string {
 				return map[string]string{
 					"Service": uninstallRow("✗", "Service", "failed: launchctl print "+target+": launchctl isn't there"),
-					"Data":    "",
+					"Data":    uninstallRow("!", "Data", "kept "+w.dataDir+": something's still in it"),
 				}
 			},
 			kept: func(w *uninstallWorld) []string { return []string{w.plist, w.routerCopy} },
@@ -341,8 +350,25 @@ func TestUninstallGoesOnPastAPieceThatFails(t *testing.T) {
 			breaks: func(_ *testing.T, w *uninstallWorld) {
 				w.deps.Notifier.(*recordingNotifier).failUninstall = errors.New("remove the notifications' app: permission denied")
 			},
-			instead: func(*uninstallWorld) map[string]string {
-				return map[string]string{"Service": uninstallRow("✗", "Service", "failed: remove the notifications' app: permission denied")}
+			instead: func(w *uninstallWorld) map[string]string {
+				return map[string]string{"Service": uninstallRow("✗", "Service", "removed "+w.plist+", but the notifications' app: remove the notifications' app: permission denied")}
+			},
+		},
+		{
+			name: "two startup files that can't be read: both said on the one line",
+			breaks: func(t *testing.T, w *uninstallWorld) {
+				for _, file := range w.startupFiles[:2] {
+					if err := os.Remove(file); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Mkdir(file, 0o700); err != nil {
+						t.Fatal(err)
+					}
+				}
+			},
+			instead: func(w *uninstallWorld) map[string]string {
+				return map[string]string{"Startup line": uninstallRow("✓", "Startup line", "removed from "+w.startupFiles[2]) +
+					uninstallRow("✗", "Startup line", "failed: read "+w.startupFiles[0]+": read "+w.startupFiles[0]+": is a directory; read "+w.startupFiles[1]+": read "+w.startupFiles[1]+": is a directory")}
 			},
 		},
 		{
@@ -390,12 +416,29 @@ func TestUninstallLeavesAClaudeThatIsntSwitchboardsAlone(t *testing.T) {
 
 	got := run(t, w.deps, "uninstall")
 	want := uninstallRow("!", "claude link", "left alone: "+w.link+" isn't switchboard's link, so it's someone else's")
-	if got.code != 0 || !strings.Contains(got.stdout, want) || strings.Contains(got.stdout, "Data") {
+	want += uninstallRow("!", "Data", "kept "+w.dataDir+": something's still in it")
+	if got.code != 0 || !strings.Contains(got.stdout, want) {
 		t.Errorf("switchboard uninstall = %+v, want exit status 0, the link left alone, and the data directory kept for it, as\n%s", got, want)
 	}
 	if target, err := os.Readlink(w.link); err != nil || target != "/usr/local/bin/claude" {
 		t.Errorf("the claude in switchboard's bin directory leads to %q (%v), want it left alone", target, err)
 	}
+}
+
+func TestUninstallLeavesAnIndentedLineWhereItIs(t *testing.T) {
+	w := newUninstallWorld(t)
+	profile := w.startupFiles[1]
+	indented := "if [ -n \"$PS1\" ]; then\n  " + shell.Line(shell.Bash, shell.InitFile(w.shellDir, shell.Bash), w.home) + "\nfi\n"
+	writeAt(t, profile, indented)
+
+	got := run(t, w.deps, "uninstall")
+	want := w.rowsBut(map[string]string{"Startup line": uninstallRow("✓", "Startup line", "removed from "+w.startupFiles[0]) +
+		uninstallRow("✓", "Startup line", "removed from "+w.startupFiles[2]) +
+		uninstallRow("!", "Startup line", "left alone: an indented copy in "+profile+", which may be all of a block of yours, so it's yours to take out: with switchboard's files gone it does nothing")})
+	if want := (result{stdout: want + keptRow + uninstallEnd}); got != want {
+		t.Errorf("switchboard uninstall = %+v\nwant %+v", got, want)
+	}
+	checkText(t, profile, indented)
 }
 
 func TestUninstallOffMacOSHasNoService(t *testing.T) {
