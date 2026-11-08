@@ -175,7 +175,8 @@ choices and its pressure go by their own rates.
   hour or so stands from that. That gap fades from now on, about a third of it left after three
   hours and a twentieth after nine, so the pool's use returns to the day's level: a burst lifts the
   next few hours, and a quiet evening never promises a week.
-- **Where the use goes:** use already on an account stays there for a while, as its sessions do.
+- **Where the use goes:** use already on an account stays there for a while, as its sessions do,
+  but on an account whose token is refused or missing: the router sends its requests elsewhere.
   The rest goes where a new session would go at that moment, among the pin's accounts while a
   global pin holds. Accounts count by their plan's size, a Max week as five Pro weeks.
 - **When a week runs out:** where its use reaches its reserve before it resets, or its limit

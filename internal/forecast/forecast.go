@@ -37,8 +37,9 @@ type Account struct {
 	Size float64
 	// Fast is its week's fast rate, a share of it an hour.
 	Fast float64
-	// Takes is set where new sessions can go to it: its token usable, and
-	// not refused.
+	// Takes is set where requests can go to it: its token usable, and not
+	// refused. One that can't holds none of its use, which goes where a new
+	// session would, as the router sends its requests elsewhere.
 	Takes bool
 }
 
@@ -72,12 +73,13 @@ type Out struct {
 // but for an account whose week's reset isn't known. The pool's use runs at
 // the day's rate, plus how far its fast rate, every account's together,
 // stands from it now, fading with a time constant of 3 hours. What of it an
-// account holds, its own fast rate as Held keeps it, stays on it while its
-// week runs and it has room, each hold scaled down where they add up to more
-// than the pool's use; the rest goes where a new session would go, as
-// Policy.Choose chooses among the accounts that take new sessions, each
-// judged by its week alone, until no account has room. A week that resets
-// comes back empty, a week from resetting again, and holds nothing more.
+// account holds, its own fast rate as Held keeps it, stays on it while it
+// takes requests, its week runs and it has room, each hold scaled down where
+// they add up to more than the pool's use; the rest goes where a new session
+// would go, as Policy.Choose chooses among the accounts that take requests,
+// each judged by its week alone, until no account has room. A week that
+// resets comes back empty, a week from resetting again, and holds nothing
+// more.
 func Forecast(p Pool) map[string]Out {
 	run := newPlay(p)
 	run.playTo(p.Now.Add(playSpan))
@@ -201,10 +203,10 @@ func (p *play) hold(t time.Time, after time.Duration, demand float64) float64 {
 	return rest
 }
 
-// holding reports whether account i holds its use at t: its week hasn't
-// reset, and it has room.
+// holding reports whether account i holds its use at t: it takes requests,
+// its week hasn't reset, and it has room.
 func (p *play) holding(i int, t time.Time) bool {
-	return p.tracks[i].holds && p.room(i, t) > score.Tolerance
+	return p.Accounts[i].Takes && p.tracks[i].holds && p.room(i, t) > score.Tolerance
 }
 
 // place sends rest, the pool's use in the step that starts at t that no

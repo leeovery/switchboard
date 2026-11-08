@@ -218,6 +218,19 @@ func TestTheForecastPlaysThePoolsUseAsTheDocumentHasIt(t *testing.T) {
 			want: map[string]heading{"work": runsOutIn(50 * time.Hour), "side": {kind: status.WindowStale, projected: score.OnPace, atReset: 0.2}},
 		},
 		{
+			// work's own use, 2% of its week an hour, all the pool's, goes to
+			// side from now, which runs out from 10% in 45 hours, where work,
+			// holding it, would run out in 25 and side 45 after.
+			name: "an account whose token is refused holds none of its use, which goes where a new session would",
+			doc: forecasting(routerDocOf(
+				on(readAt("work", windowIn("7d", 0.5, 3*day)), fastAt("7d", 0.02), func(a *status.Account) {
+					a.Refused = status.Refusal{Until: built.Add(day), Status: 401}
+				}),
+				readAt("side", windowIn("7d", 0.1, 3*day)),
+			), 0.02, holdingAll...),
+			want: map[string]heading{"side": runsOutIn(45 * time.Hour), "work": {kind: status.WindowStale, projected: score.OnPace, atReset: 0.5}},
+		},
+		{
 			name: "an account without a usable token takes no new sessions",
 			doc: forecasting(routerDocOf(
 				on(readAt("work", windowIn("7d", 0.5, 3*day)), fastAt("7d", 0.01)),

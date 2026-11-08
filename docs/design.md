@@ -547,6 +547,9 @@ built:
   than a day of answers in it, the curve is `e^(−h / 6h)`. The status document carries it at 1, 3,
   6, 12, 24 and 48 hours; between them it's read as straight lines, and past 48 hours it falls
   straight to none at 96.
+- **An account that can't take requests,** its token refused or none usable, holds none of its
+  use: the router sends its sessions' requests elsewhere, and its use goes where a new session
+  would. Nor does a new session go to it.
 - **The rest goes where a new session would go** at that moment, as Choosing an account's steps 1
   and 2 choose one, among the global pin's accounts while one holds. Each account's 5-hour window is
   left out: its resets and limits come and go within a day, and nothing forecasts them.
