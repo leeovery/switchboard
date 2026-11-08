@@ -12,6 +12,10 @@ var ratesFrom = time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
 // ratesAt is d after ratesFrom.
 func ratesAt(d time.Duration) time.Time { return ratesFrom.Add(d) }
 
+// nearEstimate reports whether got lies within tol of want: never where
+// either isn't a number.
+func nearEstimate(got, want, tol float64) bool { return math.Abs(got-want) <= tol }
+
 func TestFastRate(t *testing.T) {
 	tick := Fast{}.Rose(0.01, ratesFrom)
 	tests := []struct {
@@ -38,7 +42,7 @@ func TestFastRate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.fast.Rate(tt.at); math.Abs(got-tt.want) > 1e-12 {
+			if got := tt.fast.Rate(tt.at); !nearEstimate(got, tt.want, 1e-12) {
 				t.Errorf("Rate(%v) = %v, want %v", tt.at.Sub(ratesFrom), got, tt.want)
 			}
 		})
@@ -175,7 +179,7 @@ func TestDayRate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, over, ok := tt.day.Rate(tt.at)
-			if math.Abs(got-tt.want) > 1e-12 || over != tt.wantOver || ok != tt.wantOK {
+			if !nearEstimate(got, tt.want, 1e-12) || over != tt.wantOver || ok != tt.wantOK {
 				t.Errorf("Rate(%v) = %v, %v, %v, want %v, %v, %v", tt.at.Sub(ratesFrom), got, over, ok, tt.want, tt.wantOver, tt.wantOK)
 			}
 		})
@@ -213,7 +217,7 @@ func TestDayStaysSmallAcrossAWeek(t *testing.T) {
 	// 24 hours of room back from the week's end span 48 hours, a rise every
 	// 10 minutes of them: 2.88 Pro weeks.
 	got, over, ok := day.Rate(ratesAt(7 * 24 * time.Hour))
-	if math.Abs(got-2.88/24) > 1e-9 || over != 24*time.Hour || !ok {
+	if !nearEstimate(got, 2.88/24, 1e-9) || over != 24*time.Hour || !ok {
 		t.Errorf("Rate(a week) = %v, %v, %v, want %v, 24h, true", got, over, ok, 2.88/24)
 	}
 	if most := int(48 * time.Hour / step); len(day.rises) > most || len(day.rooms) > 5 {
@@ -230,7 +234,7 @@ func TestDayWithoutRoomKeepsItsRisesAsOne(t *testing.T) {
 	if len(day.rises) != 1 {
 		t.Errorf("after a week without room: %d rises kept, want 1", len(day.rises))
 	}
-	if got, over, ok := day.Rate(ratesAt(7 * 24 * time.Hour)); math.Abs(got-9.85/3) > 1e-9 || over != 3*time.Hour || !ok {
+	if got, over, ok := day.Rate(ratesAt(7 * 24 * time.Hour)); !nearEstimate(got, 9.85/3, 1e-9) || over != 3*time.Hour || !ok {
 		t.Errorf("Rate(a week) = %v, %v, %v, want %v, 3h, true", got, over, ok, 9.85/3)
 	}
 }

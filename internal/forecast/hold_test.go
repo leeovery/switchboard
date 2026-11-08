@@ -35,7 +35,7 @@ func defaultPoints() []Point {
 // nearPoints reports whether two curves' points lie at the same hours, with
 // shares within a rounding of each other.
 func nearPoints(a, b []Point) bool {
-	return slices.EqualFunc(a, b, func(p, q Point) bool { return p.After == q.After && math.Abs(p.Share-q.Share) < 1e-12 })
+	return slices.EqualFunc(a, b, func(p, q Point) bool { return p.After == q.After && nearEstimate(p.Share, q.Share, 1e-12) })
 }
 
 func TestHoldPoints(t *testing.T) {
@@ -142,8 +142,9 @@ func TestHoldStoredFormOfAnotherShapeReadsAsTheDefault(t *testing.T) {
 		name   string
 		stored string
 	}{
-		{"null", `null`},
 		{"the zero Hold's", string(zero)},
+		{"a weight of another type", `{"weights":[0,1,0,0,0,0,"x"],` + times + `}`},
+		{"a time that isn't one", `{"first_answer":"2026-11-02T09:00:00Z","weights":[0,1,0,0,0,0,0],"weighed_at":"nope"}`},
 		{"6 bins", `{"weights":[0,1,0,0,0,0],` + times + `}`},
 		{"8 bins", `{"weights":[0,1,0,0,0,0,0,0],` + times + `}`},
 		{"no fields", `{}`},
@@ -229,7 +230,7 @@ func TestCurve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Curve(tt.points)(tt.after); math.Abs(got-tt.want) > 1e-12 {
+			if got := Curve(tt.points)(tt.after); !nearEstimate(got, tt.want, 1e-12) {
 				t.Errorf("Curve(%v)(%v) = %v, want %v", tt.points, tt.after, got, tt.want)
 			}
 		})
@@ -263,7 +264,7 @@ func TestWeight(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Weight(tt.input, tt.output, tt.cacheWrite, tt.cacheRead); math.Abs(got-tt.want) > 1e-12 {
+			if got := Weight(tt.input, tt.output, tt.cacheWrite, tt.cacheRead); !nearEstimate(got, tt.want, 1e-12) {
 				t.Errorf("Weight(%d, %d, %d, %d) = %v, want %v", tt.input, tt.output, tt.cacheWrite, tt.cacheRead, got, tt.want)
 			}
 		})
