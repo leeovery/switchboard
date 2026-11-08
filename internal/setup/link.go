@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/claude"
 )
 
@@ -143,4 +144,63 @@ func (r *run) putLink(link string, did LinkMade, done Said) error {
 	r.made = did
 	r.tell(done)
 	return nil
+}
+
+// LinkRemoval is what RemoveLink did to the claude link.
+type LinkRemoval int
+
+const (
+	// NoLink is nothing named claude in switchboard's bin directory.
+	NoLink LinkRemoval = iota
+	// LinkRemoved is switchboard's claude link, removed.
+	LinkRemoved
+	// LinkNotOurs is something named claude that isn't switchboard's link,
+	// left alone.
+	LinkNotOurs
+)
+
+// switchboardName is the name of the binary switchboard's claude link leads
+// to, by whatever path.
+const switchboardName = "switchboard"
+
+// RemoveLink removes switchboard's claude link from bin, switchboard's bin
+// directory, where it's switchboard's own: a link leading to a binary named
+// switchboard, as Link makes it, wherever that is now. Anything else named
+// claude there is left alone, as someone else's. Then it removes bin, once
+// nothing else is in it.
+func RemoveLink(bin string) (LinkRemoval, error) {
+	removal, err := removeLink(ClaudeLink(bin))
+	if err != nil {
+		return removal, err
+	}
+	if _, err := atomicfile.RemoveIfEmpty(bin); err != nil {
+		return removal, fmt.Errorf("remove switchboard's bin directory: %w", err)
+	}
+	return removal, nil
+}
+
+// removeLink removes the claude link at link where it's switchboard's own,
+// as RemoveLink says.
+func removeLink(link string) (LinkRemoval, error) {
+	info, err := os.Lstat(link)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return NoLink, nil
+	case err != nil:
+		return NoLink, fmt.Errorf("look at switchboard's claude link: %w", err)
+	case info.Mode()&fs.ModeSymlink == 0:
+		return LinkNotOurs, nil
+	}
+	target, err := os.Readlink(link)
+	switch {
+	case err != nil:
+		return NoLink, fmt.Errorf("look at switchboard's claude link: %w", err)
+	case filepath.Base(target) != switchboardName:
+		return LinkNotOurs, nil
+	}
+	if err := os.Remove(link); err != nil {
+		return NoLink, fmt.Errorf("remove switchboard's claude link: %w", err)
+	}
+	logger.Info("removed switchboard's claude link", "link", link)
+	return LinkRemoved, nil
 }

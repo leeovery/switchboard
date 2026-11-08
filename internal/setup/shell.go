@@ -477,7 +477,13 @@ func (r *run) shellName() string {
 
 // claudeLink is switchboard's claude link.
 func (r *run) claudeLink() string {
-	return filepath.Join(r.Bin, claude.Command)
+	return ClaudeLink(r.Bin)
+}
+
+// ClaudeLink is switchboard's claude link in bin, switchboard's bin
+// directory.
+func ClaudeLink(bin string) string {
+	return filepath.Join(bin, claude.Command)
 }
 
 // fromHome writes path from ~ where it's in the home, as the user reads it.
