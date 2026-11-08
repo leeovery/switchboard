@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -93,6 +94,30 @@ func StartupFile(sh Shell, home, configDir string) string {
 	return filepath.Join(home, ".bash_profile")
 }
 
+// StartupFiles returns every startup file of sh's that switchboard's line
+// may have gone at the end of, the user's home being home, as setup can't
+// say which it chose without asking the shell: for zsh, .zshrc in $ZDOTDIR,
+// where getenv gives one, and in the home; for bash, each of ~/.bash_profile,
+// ~/.bash_login and ~/.profile, as the first there when setup ran may not be
+// now; and for fish, config.fish in $XDG_CONFIG_HOME/fish, where getenv
+// gives one, and in ~/.config/fish. Each is named once.
+func StartupFiles(sh Shell, home string, getenv func(string) string) []string {
+	var files []string
+	switch sh {
+	case Zsh:
+		files = []string{StartupFile(Zsh, home, getenv("ZDOTDIR")), StartupFile(Zsh, home, "")}
+	case Bash:
+		files = []string{filepath.Join(home, ".bash_profile"), filepath.Join(home, ".bash_login"), filepath.Join(home, ".profile")}
+	case Fish:
+		var xdg string
+		if dir := getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
+			xdg = filepath.Join(dir, "fish")
+		}
+		files = []string{StartupFile(Fish, home, xdg), StartupFile(Fish, home, "")}
+	}
+	return slices.Compact(files)
+}
+
 // RivalStartupFile returns the startup file a new terminal may read in place
 // of file, sh's as the shell said it reads it, the user's home being home:
 // for zsh, ~/.zshrc, where file, .zshrc in the ZDOTDIR the shell reported,
@@ -153,6 +178,70 @@ func FindLine(sh Shell, file, home string) (Found, error) {
 		}
 	}
 	return found, nil
+}
+
+// RemoveLine takes switchboard's line for sh that sources initFile, sh's
+// file of switchboard's, out of the startup file at file, $HOME in it
+// standing for home, wherever it is in it, and every other copy of it, and
+// reports whether there was one. Every other line is kept as it was, byte for
+// byte, a line of switchboard's sourcing another switchboard's file among
+// them. The file is written whole, by its mode, at the end of file's links,
+// as a startup file kept with the user's dotfiles is linked to. A file that
+// isn't there holds no line.
+func RemoveLine(sh Shell, file, home, initFile string) (bool, error) {
+	target, err := atomicfile.Target(file)
+	if err != nil {
+		return false, fmt.Errorf("follow %s: %w", file, err)
+	}
+	data, err := os.ReadFile(target)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read %s: %w", file, err)
+	}
+	var kept strings.Builder
+	removed := false
+	for line := range strings.Lines(string(data)) {
+		if path := sources(sh, line, home); path != "" && filepath.Clean(path) == filepath.Clean(initFile) {
+			removed = true
+			continue
+		}
+		kept.WriteString(line)
+	}
+	if !removed {
+		return false, nil
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		return false, fmt.Errorf("read %s: %w", file, err)
+	}
+	if err := atomicfile.Write(target, []byte(kept.String()), info.Mode().Perm()); err != nil {
+		return false, fmt.Errorf("remove switchboard's line from %s: %w", file, err)
+	}
+	return true, nil
+}
+
+// RemoveLines takes switchboard's line for each shell, sourcing that shell's
+// file in dir, switchboard's shell directory, out of each startup file it
+// may be in, as StartupFiles names them, the user's home being home, and
+// returns the files it took one out of. It goes on past a file it can't
+// take it out of, and fails, saying why.
+func RemoveLines(home, dir string, getenv func(string) string) ([]string, error) {
+	var removed []string
+	var errs []error
+	for _, sh := range Shells {
+		for _, file := range StartupFiles(sh, home, getenv) {
+			took, err := RemoveLine(sh, file, home, InitFile(dir, sh))
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if took {
+				removed = append(removed, file)
+			}
+		}
+	}
+	return removed, errors.Join(errs...)
 }
 
 // AddLine adds line to the end of the startup file at file, on a line of its
