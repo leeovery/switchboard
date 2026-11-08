@@ -265,28 +265,48 @@ func TestTheForecastPlaysThePoolsUseAsTheDocumentHasIt(t *testing.T) {
 	}
 }
 
-// A week reset since it was read enters the pool as it stands as the document
-// was built, empty, its next reset a week on, and holding its account's use,
-// so the forecast plays the fresh week, not the reading. side, read at 99%
-// two hours before the document was built, reset an hour before it, holds
-// its own use, 2.5% of its week an hour, all of the pool's, and runs its
-// fresh week out 40 hours on; work, where the global pin sends new sessions,
-// takes none before its own week resets in 30.
+// A week reset since it was read shows no run-out, as it never has, but it
+// enters the pool as it stands as the document was built, empty, its next
+// reset a week on, and holding its account's use, so the forecast plays the
+// fresh week, not the reading, and that shows in where the pool's other
+// weeks run out. side, read at 99% two hours before the document was built,
+// holds its own use, 2.5% of its week an hour, all of the pool's; work, half
+// used, is where the global pin sends what side doesn't hold. Reset an hour
+// before the document was built, side's fresh week holds it for 40 hours
+// before work takes it and runs out 20 hours later; still to reset, side
+// runs out 24 minutes on, and work 20 hours after.
 func TestAWeekResetSinceItWasReadIsForecastAfresh(t *testing.T) {
-	side := on(readAt("side", windowIn("7d", 0.99, -time.Hour)), fastAt("7d", 0.025), func(a *status.Account) {
-		a.FetchedAt = built.Add(-2 * time.Hour)
-	})
-	doc := forecasting(pinnedTo(routerDocOf(readAt("work", windowIn("7d", 0.5, 30*time.Hour)), side), "work"), 0.025, holdingAll...).
-		WorkedOut(policy)
-
-	work, _ := doc.At(built, policy).Account("work")
-	w, _ := work.Window("7d")
-	if got, want := headingOf(w), onPaceFor(0.5); !got.near(want, time.Minute, 1e-3) {
-		t.Errorf("work's week heads %+v, want %+v: side's fresh week holds the pool's use", got, want)
+	tests := []struct {
+		name       string
+		resetsIn   time.Duration
+		side, work heading
+	}{
+		{name: "reset since it was read", resetsIn: -time.Hour, side: heading{kind: status.WindowOpen}, work: runsOutIn(60 * time.Hour)},
+		{name: "still to reset", resetsIn: 6 * day, side: runsOutIn(24 * time.Minute), work: runsOutIn(20*time.Hour + 24*time.Minute)},
 	}
-	fresh, _ := side.WindowAt("7d", built, policy)
-	if out, ok := doc.RunsOut(side, fresh, built, policy); !ok || out.At.Sub(built.Add(40*time.Hour)).Abs() > time.Minute {
-		t.Errorf("side's fresh week runs out at %v (%t), want 40 hours after the document was built", out.At, ok)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			side := on(readAt("side", windowIn("7d", 0.99, tt.resetsIn)), fastAt("7d", 0.025), func(a *status.Account) {
+				a.FetchedAt = built.Add(-2 * time.Hour)
+			})
+			doc := pinnedTo(routerDocOf(readAt("work", windowIn("7d", 0.5, 3*day)), side), "work")
+			doc = forecasting(doc, 0.025, holdingAll...).WorkedOut(policy)
+			m := doc.At(built, policy)
+			for id, want := range map[string]heading{"side": tt.side, "work": tt.work} {
+				a, _ := m.Account(id)
+				w, _ := a.Window("7d")
+				if got := headingOf(w); !got.near(want, time.Minute, 1e-3) {
+					t.Errorf("%s's week heads %+v, want %+v", id, got, want)
+				}
+				if id == "side" && w.ResetSinceRead != (tt.resetsIn < 0) {
+					t.Errorf("side's week reads reset since it was read %t, want %t", w.ResetSinceRead, tt.resetsIn < 0)
+				}
+			}
+			coming := slices.ContainsFunc(doc.ComingUp, func(u status.Upcoming) bool { return u.Account == "side" && u.Kind == status.UpcomingRunsOut })
+			if want := !tt.side.out.IsZero(); coming != want {
+				t.Errorf("side running out coming up is %t, want %t: ComingUp = %+v", coming, want, doc.ComingUp)
+			}
+		})
 	}
 }
 
