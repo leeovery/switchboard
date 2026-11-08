@@ -316,11 +316,13 @@ type fakeSteps struct {
 	reopens   []setup.Making
 	reopenErr error
 	// pastes are the pastes PasteToken is asked to save, each ending as
-	// pasteEnds has it, saved where it's nil, but where pasteErr fails it.
+	// pasteEnds has it, saved where it's nil, but where pasteErr fails it;
+	// where pasteUntilGone is set, each is told it, and held, as PasteToken
+	// has it.
 	pastes         []fakePaste
 	pasteEnds      *setup.Tokened
 	pasteErr       error
-	pasteUntilGone bool
+	pasteUntilGone chan<- struct{}
 	standings      int
 	reviews        int
 	primings       int
@@ -462,10 +464,11 @@ type fakePaste struct {
 	pasted string
 }
 
-// PasteToken keeps the paste, and, once its context ends, where
-// pasteUntilGone is set, as the screen's does once it has gone, ends as
-// pasteEnds has it, the token saved where it's nil, as ended has a token
-// saved, failing with pasteErr where it's set.
+// PasteToken keeps the paste, and, where pasteUntilGone is set, tells it the
+// paste has begun, then holds it till its context ends, as the screen's
+// does once it has gone; then ends as pasteEnds has it, the token saved
+// where it's nil, as ended has a token saved, failing with pasteErr where
+// it's set.
 func (s *fakeSteps) PasteToken(ctx context.Context, f setup.TokenFor, pasted string) (setup.Tokened, error) {
 	s.mu.Lock()
 	s.pastes = append(s.pastes, fakePaste{f: f, pasted: pasted})
@@ -474,7 +477,8 @@ func (s *fakeSteps) PasteToken(ctx context.Context, f setup.TokenFor, pasted str
 		ends = *s.pasteEnds
 	}
 	s.mu.Unlock()
-	if held {
+	if held != nil {
+		held <- struct{}{}
 		<-ctx.Done()
 	}
 	if err != nil {
