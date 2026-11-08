@@ -76,6 +76,13 @@ func (d Document) RunsOut(a Account, w quota.Window, now time.Time, policy score
 	return d.withWeeks(policy).runOutOf(a, w, now, policy)
 }
 
+// AsGiven is the document as JSON gives it: without the weeks its forecast
+// played, which it keeps for its moments alone.
+func (d Document) AsGiven() Document {
+	d.weeks = nil
+	return d
+}
+
 // CountForecasts has every document's weeks played as they are, counted,
 // until the test ends: it returns the count so far.
 func CountForecasts(t *testing.T) func() int {

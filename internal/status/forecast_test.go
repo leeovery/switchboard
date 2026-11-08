@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -246,6 +247,67 @@ func TestTheForecastPlaysThePoolsUseAsTheDocumentHasIt(t *testing.T) {
 				if got := headingOf(w); !got.near(want, time.Minute, 1e-3) {
 					t.Errorf("%s's week heads %+v, want %+v", id, got, want)
 				}
+			}
+		})
+	}
+}
+
+// A week reset since it was read enters the pool as it stands as the document
+// was built, empty, its next reset a week on, and holding its account's use,
+// so the forecast plays the fresh week, not the reading. side, read at 99%
+// two hours before the document was built, reset an hour before it, holds
+// its own use, 2.5% of its week an hour, all of the pool's, and runs its
+// fresh week out 40 hours on; work, where the global pin sends new sessions,
+// takes none before its own week resets in 30.
+func TestAWeekResetSinceItWasReadIsForecastAfresh(t *testing.T) {
+	side := on(readAt("side", windowIn("7d", 0.99, -time.Hour)), fastAt("7d", 0.025), func(a *status.Account) {
+		a.FetchedAt = built.Add(-2 * time.Hour)
+	})
+	doc := forecasting(pinnedTo(routerDocOf(readAt("work", windowIn("7d", 0.5, 30*time.Hour)), side), "work"), 0.025, holdingAll...).
+		WorkedOut(policy)
+
+	work, _ := doc.At(built, policy).Account("work")
+	w, _ := work.Window("7d")
+	if got, want := headingOf(w), onPaceFor(0.5); !got.near(want, time.Minute, 1e-3) {
+		t.Errorf("work's week heads %+v, want %+v: side's fresh week holds the pool's use", got, want)
+	}
+	fresh, _ := side.WindowAt("7d", built, policy)
+	if out, ok := doc.RunsOut(side, fresh, built, policy); !ok || out.At.Sub(built.Add(40*time.Hour)).Abs() > time.Minute {
+		t.Errorf("side's fresh week runs out at %v (%t), want 40 hours after the document was built", out.At, ok)
+	}
+}
+
+// A week never read enters the pool as nothing read: the forecast has no Out
+// of it, and plays a new session to it only where the global pin names it
+// and none of the pin's accounts with a week read has room. Else work, its
+// week half used, takes the pool's use, 1% of a week an hour as it fades in
+// from none, and runs out 53 hours on.
+func TestAWeekNeverReadTakesNewSessionsOnlyWhereThePinNamesIt(t *testing.T) {
+	unread := readAt("side", windowIn("5h", 0.1, 2*time.Hour))
+	tests := []struct {
+		name string
+		pin  []string
+		want heading
+	}{
+		{name: "nothing pinned", want: runsOutIn(53 * time.Hour)},
+		{name: "pinned to the account never read", pin: []string{"side"}, want: onPaceFor(0.5)},
+		{name: "pinned to it and to an account read with room", pin: []string{"side", "work"}, want: runsOutIn(53 * time.Hour)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := routerDocOf(readAt("work", windowIn("7d", 0.5, 3*day)), unread)
+			if tt.pin != nil {
+				doc = pinnedTo(doc, tt.pin...)
+			}
+			doc = forecasting(doc, 0.01).WorkedOut(policy)
+
+			work, _ := doc.At(built, policy).Account("work")
+			w, _ := work.Window("7d")
+			if got := headingOf(w); !got.near(tt.want, time.Minute, 1e-3) {
+				t.Errorf("work's week heads %+v, want %+v", got, tt.want)
+			}
+			if got := doc.Project(unread, quota.Window{Key: "7d"}, built, policy); got != (status.Heading{}) {
+				t.Errorf("side's week, never read, heads %+v, want nowhere: the forecast has no Out of it", got)
 			}
 		})
 	}
