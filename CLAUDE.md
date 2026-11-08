@@ -107,13 +107,13 @@ notifications. Ever.
   model, keeps the detector in its own tests.
 - **The full lists** of what each guard watches and denies are in `internal/testguard` and
   `scripts/`: read them before changing either.
-- **A known false failure:** Claude Code's updater re-creates `~/.local/bin/claude` during long
-  runs, and testguard then fails a run whose tests all passed. If that link is its only complaint
-  and there's no `--- FAIL`, the run passed. testguard also fails a run where a real startup file
+- **Known false failures:** testguard fails a run whose tests all passed where a real startup file
   (`~/.zshrc`, `~/.bash_profile`, `~/.bash_login`, `~/.profile` or fish's `config.fish`) changes
-  during it, as when you edit your dotfiles mid-run: with no `--- FAIL`, that run passed too. So
-  does one where the real router restarts on a new version mid-run, as after `brew upgrade`, and
-  writes out the notifications' app and its sum again.
+  during it, as when you edit your dotfiles mid-run, or where switchboard is upgraded mid-run, as
+  by `brew upgrade`: what switchboard's `claude` link leads to changes, and the real router
+  restarts on the new version and writes out the notifications' app and its sum again, or where
+  Claude Code updates itself to a new version mid-run and moves `~/.local/bin/claude` on to it.
+  If that's all it names and there's no `--- FAIL`, the run passed.
 - **Never loosen a guard to make a test pass.** A test that needs what a guard blocks is a finding:
   inject it instead.
 

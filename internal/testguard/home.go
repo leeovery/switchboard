@@ -67,8 +67,10 @@ func (ws watchers) changes() []string {
 // XDG_CONFIG_HOME put zsh's and fish's; and what's named claude in each
 // directory on PATH. Nothing live writes the config, a theme, a LaunchAgent,
 // the skill, a token file, a file for the shells, a startup file or a claude
-// link as it runs, nor the notifications' app but as a router starts after
-// an upgrade, so any change to one is a test's. A live router writes the rest of its state as
+// link as it runs, but as Claude Code's updater moves its own on to a new
+// version, nor the notifications' app but as a router starts after
+// an upgrade, nor what a claude link leads to but as an upgrade puts it, so
+// any change to one is a test's. A live router writes the rest of its state as
 // it runs, its logs, state.json and readings history among it, and a live
 // dashboard its preferences file, as it's used, so of that, only a state
 // directory appearing is a test's; and the OS sandbox denies a test any
@@ -306,18 +308,25 @@ func followed(path string) (entry, bool) {
 	if err != nil {
 		return entry{}, false
 	}
-	return entry{kind: info.Mode().Type(), size: info.Size(), modTime: info.ModTime().UnixNano()}, true
+	return entry{stat: statOf(info)}, true
 }
 
-// asItIs notes what's at path itself, a link as a link, with where it leads,
-// so one made, or made to lead elsewhere, even nowhere, is seen.
+// asItIs notes what's at path itself, a link as a link: where it leads, so
+// one made, or made to lead elsewhere, even nowhere, is seen, and what's
+// there, followed, so a change to that is seen too. Its own times are no
+// part of it, so a link made again to where it led, as Claude Code's
+// updater makes its own, is no change.
 func asItIs(path string) (entry, bool) {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return entry{}, false
 	}
+	if info.Mode().Type() != fs.ModeSymlink {
+		return entry{stat: statOf(info)}, true
+	}
 	target, _ := os.Readlink(path)
-	return entry{kind: info.Mode().Type(), size: info.Size(), modTime: info.ModTime().UnixNano(), target: target}, true
+	led, _ := followed(path)
+	return entry{kind: fs.ModeSymlink, target: target, leads: led.stat}, true
 }
 
 // mentionsSwitchboard reports whether a file's name mentions switchboard, in
@@ -349,13 +358,24 @@ func exists(path string) bool {
 // snapshot is what a place holds, by how a report names each path.
 type snapshot map[string]entry
 
-// entry is what's at a path: its type, size and modification time, and where
-// it leads, when it's a link taken as one.
+// entry is what's at a path: as stat has it, or, when it's a link taken as
+// one, where it leads, and what's there, as stat has it, none where it leads
+// nowhere.
 type entry struct {
+	stat
+	target string
+	leads  stat
+}
+
+// stat is what's at a path itself: its type, size and modification time.
+type stat struct {
 	kind    fs.FileMode
 	size    int64
 	modTime int64
-	target  string
+}
+
+func statOf(info fs.FileInfo) stat {
+	return stat{kind: info.Mode().Type(), size: info.Size(), modTime: info.ModTime().UnixNano()}
 }
 
 // diff lists what differs from before to after, a line a path, in order.
