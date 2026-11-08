@@ -93,6 +93,22 @@ func Install(path string) error {
 	return nil
 }
 
+// Uninstall removes the skill at path, then its directory, once nothing
+// else is in it, and reports whether there was one.
+func Uninstall(path string) (bool, error) {
+	err := os.Remove(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("remove the skill: %w", err)
+	}
+	if _, err := atomicfile.RemoveIfEmpty(filepath.Dir(path)); err != nil {
+		return true, fmt.Errorf("remove the skill's directory: %w", err)
+	}
+	return true, nil
+}
+
 // Refreshed is what Refresh found installed, and what it did.
 type Refreshed struct {
 	// Installed is whether a copy of the skill is installed.
