@@ -544,7 +544,9 @@ built:
   model shares weigh them (input 1, output 5, cache writes 1.25, cache reads 0.1). A session's time
   on its account counts from when it came to the account, and a choice that keeps it there doesn't
   start it again. The router keeps the curve in its state file, so it outlasts a restart. With less
-  than a day of answers in it, the curve is `e^(−h / 6h)`.
+  than a day of answers in it, the curve is `e^(−h / 6h)`. The status document carries it at 1, 3,
+  6, 12, 24 and 48 hours; between them it's read as straight lines, and past 48 hours it falls
+  straight to none at 96.
 - **The rest goes where a new session would go** at that moment, as Choosing an account's steps 1
   and 2 choose one, among the global pin's accounts while one holds. Each account's 5-hour window is
   left out: its resets and limits come and go within a day, and nothing forecasts them.
