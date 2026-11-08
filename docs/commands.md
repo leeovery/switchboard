@@ -876,8 +876,11 @@ asking.
 
 `uninstall` never touches the [export's folder](configuration.md#export-keys), wherever it is. Where
 it's inside a directory `--all` removes, however its path names it, through a link included, it's
-kept, with the directories on the way to it, and `uninstall` says so; where the config can't be read to tell where it is, `--all` keeps the config
-and the state directory, and says why. Nor does it touch switchboard's binary, which is
+kept, with the directories on the way to it, and `uninstall` says so; where it's the directory
+itself, the directory is kept whole. A config or state directory that's a link, as to your
+dotfiles, is removed as a link, alone, and what it leads to is left whole. Where the config can't
+be read to tell where the export's folder is, `--all` keeps the config and the state directory,
+and says why. Nor does it touch switchboard's binary, which is
 Homebrew's.
 
 It prints a line for each piece, saying it's removed, not there, or failed and why, the service's

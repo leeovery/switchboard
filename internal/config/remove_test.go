@@ -193,7 +193,7 @@ func TestRemoveAll(t *testing.T) {
 		{
 			name: "the directory itself kept: left whole",
 			keep: "switchboard",
-			want: config.KeptFor,
+			want: config.Kept,
 			wantLeft: []string{
 				"switchboard", "switchboard/ledger", "switchboard/ledger/day-2026-11-08.json", "switchboard/ledger/exports",
 				"switchboard/ledger/exports/mac-1", "switchboard/ledger/exports/mac-1/export.json", "switchboard/logs", "switchboard/logs/cli.log",
@@ -227,6 +227,46 @@ func TestRemoveAll(t *testing.T) {
 				t.Errorf("RemoveAll() of a directory that isn't there = %v, %v; want %v", got, err, config.NotThere)
 			}
 		})
+	}
+}
+
+func TestRemoveAllOfAFolderToKeepThatIsntThereRemovesItWhole(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "switchboard")
+	writeIn(t, filepath.Join(dir, "state.json"))
+
+	got, err := config.RemoveAll(dir, filepath.Join(dir, "exports"))
+	if err != nil || got != config.Removed {
+		t.Errorf("RemoveAll() = %v, %v; want %v", got, err, config.Removed)
+	}
+	if left := tree(t, parent); left != nil {
+		t.Errorf("RemoveAll() left %q, want nothing", left)
+	}
+}
+
+func TestRemoveAllOfALinkRemovesTheLinkAlone(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "dotfiles", "switchboard")
+	writeIn(t, filepath.Join(target, "config.toml"))
+	writeIn(t, filepath.Join(target, "exports", "mac-1", "export.json"))
+	dir := filepath.Join(root, ".config", "switchboard")
+	if err := os.MkdirAll(filepath.Dir(dir), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, dir); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := config.RemoveAll(dir, filepath.Join(target, "exports"))
+	if err != nil || got != config.Removed {
+		t.Errorf("RemoveAll() = %v, %v; want %v", got, err, config.Removed)
+	}
+	if _, err := os.Lstat(dir); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the link: %v, want it gone", err)
+	}
+	want := []string{"config.toml", "exports", "exports/mac-1", "exports/mac-1/export.json"}
+	if left := tree(t, target); !slices.Equal(left, want) {
+		t.Errorf("what the link led to holds %q, want it whole, %q", left, want)
 	}
 }
 

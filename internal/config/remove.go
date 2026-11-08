@@ -76,27 +76,36 @@ const (
 	// KeptFor is a directory removed but for the folder kept in it, and the
 	// directories on the way there.
 	KeptFor
+	// Kept is a directory that's the folder kept itself, left whole.
+	Kept
 )
 
 // RemoveAll removes dir, with everything in it but keep, a folder that's to
 // stay wherever it is, as the export's does, and the directories on the way
-// to it from dir: dir goes whole where keep is "" or isn't in it, and stays
-// whole where keep is dir. keep is found in dir however either is named, by
-// what each is, not by its path. It goes on past what it can't remove, and
-// fails, saying why.
+// to it from dir. dir goes whole where keep is "" or isn't in it, or isn't
+// there to keep, and stays whole where it's keep. keep is found in dir
+// however either is named, by what each is, not by its path. A dir that's a
+// link is removed alone, never what it leads to. It goes on past what it
+// can't remove, and fails, saying why.
 func RemoveAll(dir, keep string) (Removal, error) {
-	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
+	info, err := os.Lstat(dir)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
 		return NotThere, nil
-	} else if err != nil {
+	case err != nil:
 		return NotThere, fmt.Errorf("look at %s: %w", dir, err)
-	}
-	if !holds(dir, keep) {
-		if err := os.RemoveAll(dir); err != nil {
-			return Removed, fmt.Errorf("remove %s: %w", dir, err)
+	case info.Mode()&fs.ModeSymlink == 0 && sameFile(dir, keep):
+		return Kept, nil
+	case info.Mode()&fs.ModeSymlink == 0 && holds(dir, keep):
+		kept, err := removeAllBut(dir, keep)
+		if kept {
+			return KeptFor, err
 		}
-		return Removed, nil
 	}
-	return KeptFor, removeAllBut(dir, keep)
+	if err := os.RemoveAll(dir); err != nil {
+		return Removed, fmt.Errorf("remove %s: %w", dir, err)
+	}
+	return Removed, nil
 }
 
 // RemoveFile removes the file at path, and reports whether it was there. A
@@ -118,27 +127,31 @@ func RemoveFile(path string) (Removal, error) {
 }
 
 // removeAllBut removes everything in dir but keep, and the directories on
-// the way to it, which dir holds.
-func removeAllBut(dir, keep string) error {
+// the way to it, which dir holds, and reports whether it came to keep, and
+// kept it.
+func removeAllBut(dir, keep string) (bool, error) {
 	if sameFile(dir, keep) {
-		return nil
+		return true, nil
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", dir, err)
+		return false, fmt.Errorf("read %s: %w", dir, err)
 	}
+	kept := false
 	var errs []error
 	for _, e := range entries {
 		path := filepath.Join(dir, e.Name())
 		if e.IsDir() && holds(path, keep) {
-			errs = append(errs, removeAllBut(path, keep))
+			in, err := removeAllBut(path, keep)
+			kept = kept || in
+			errs = append(errs, err)
 			continue
 		}
 		if err := os.RemoveAll(path); err != nil {
 			errs = append(errs, fmt.Errorf("remove %s: %w", path, err))
 		}
 	}
-	return errors.Join(errs...)
+	return kept, errors.Join(errs...)
 }
 
 // holds reports whether path is dir, or in it: as written, or else as what

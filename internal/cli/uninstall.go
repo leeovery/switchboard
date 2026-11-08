@@ -348,17 +348,10 @@ func (u *uninstalling) broke(label, detail string) {
 	u.say(failedMark, label, detail)
 }
 
-// oneLine is err's text on one line, as a row says it: the errors joined in
-// it, as from several files, each after the one before and "; ", and any
-// other line break the same, anything shaped like a token hidden.
+// oneLine is err's text on one line, as a row says it: each line break, as
+// between the errors joined from several files, a "; ", anything shaped like
+// a token hidden.
 func oneLine(err error) string {
-	if joined, ok := err.(interface{ Unwrap() []error }); ok {
-		var parts []string
-		for _, e := range joined.Unwrap() {
-			parts = append(parts, oneLine(e))
-		}
-		return strings.Join(parts, "; ")
-	}
 	return strings.ReplaceAll(redact.Text(err.Error()), "\n", "; ")
 }
 
@@ -398,6 +391,8 @@ func (u *uninstalling) removal(label, place string, removal config.Removal, err 
 		u.done(label, notThere+": "+place)
 	case removal == config.KeptFor:
 		u.done(label, "removed all but the export's folder from "+place)
+	case removal == config.Kept:
+		u.done(label, "kept "+place+": it's the export's folder")
 	default:
 		u.done(label, "removed "+place)
 	}

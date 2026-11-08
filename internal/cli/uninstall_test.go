@@ -305,6 +305,20 @@ func TestUninstallAllKeepsTheExportsFolder(t *testing.T) {
 	}
 }
 
+func TestUninstallAllKeepsTheStateDirectoryWhereItsTheExportsFolder(t *testing.T) {
+	w := newUninstallWorld(t)
+	writeAt(t, filepath.Join(w.configDir, "config.toml"), "[[account]]\nid = \"work\"\n[export]\ndir = \"~/.local/state/switchboard\"\n")
+
+	got := run(t, w.deps, "uninstall", "--all")
+	want := uninstallRow("✓", "Config", "removed "+w.configDir) +
+		uninstallRow("✓", "State", "kept "+w.stateDir+": it's the export's folder") +
+		uninstallEnd
+	if got.code != 0 || !strings.HasSuffix(got.stdout, want) {
+		t.Errorf("switchboard uninstall --all = %+v, want exit status 0, ending\n%s", got, want)
+	}
+	checkThere(t, filepath.Join(w.stateDir, "tokens", "work"))
+}
+
 func TestUninstallAllKeepsTheConfigAndStateWhereItCantTellWhereTheExportGoes(t *testing.T) {
 	w := newUninstallWorld(t)
 	writeAt(t, filepath.Join(w.configDir, "config.toml"), "[export\n")
@@ -368,7 +382,7 @@ func TestUninstallGoesOnPastAPieceThatFails(t *testing.T) {
 			},
 			instead: func(w *uninstallWorld) map[string]string {
 				return map[string]string{"Startup line": uninstallRow("✓", "Startup line", "removed from "+w.startupFiles[2]) +
-					uninstallRow("✗", "Startup line", "failed: read "+w.startupFiles[0]+": read "+w.startupFiles[0]+": is a directory; read "+w.startupFiles[1]+": read "+w.startupFiles[1]+": is a directory")}
+					uninstallRow("✗", "Startup line", "failed: read "+w.startupFiles[0]+": is a directory; read "+w.startupFiles[1]+": is a directory")}
 			},
 		},
 		{

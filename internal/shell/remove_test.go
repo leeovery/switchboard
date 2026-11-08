@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/shell"
@@ -168,6 +169,49 @@ func TestRemovingTheLineFailsSayingWhy(t *testing.T) {
 		t.Errorf("RemoveLine() = %+v, %v; want it to fail, saying why", found, err)
 	}
 	checkFile(t, file, text)
+}
+
+func TestRemovingTheLinePutsTheFileBackWhereAWriteFails(t *testing.T) {
+	tests := []struct {
+		name string
+		// fails is how many writes fail, each having written half of what
+		// it was given, as a disk filling up leaves one.
+		fails   int
+		wantErr string
+		// wantKept is whether the file is to be left as it was: where it
+		// can't be put back, what's in it is whatever the writes left.
+		wantKept bool
+	}{
+		{name: "the line's removal", fails: 1, wantErr: "no space left on device: <file> is put back as it was", wantKept: true},
+		{name: "and putting it back", fails: 2, wantErr: "no space left on device, and <file> couldn't be put back as it was, so it may be damaged: no space left on device"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			init := shell.InitFile(filepath.Join(home, ".local", "share", "switchboard", "shell"), shell.Zsh)
+			file := filepath.Join(home, ".zshrc")
+			text := "export EDITOR=vi\n" + shell.Line(shell.Zsh, init, home) + "\n"
+			write(t, file, text)
+			writes := 0
+			shell.SetWriteAt(t, func(f *os.File, b []byte, off int64) (int, error) {
+				writes++
+				if writes > tt.fails {
+					return f.WriteAt(b, off)
+				}
+				n, _ := f.WriteAt(b[:len(b)/2], off)
+				return n, syscall.ENOSPC
+			})
+
+			_, err := shell.RemoveLine(shell.Zsh, file, home, init)
+			want := "remove switchboard's line from " + file + ": " + strings.ReplaceAll(tt.wantErr, "<file>", file)
+			if err == nil || err.Error() != want || !errors.Is(err, syscall.ENOSPC) {
+				t.Errorf("RemoveLine() error = %v, want %q", err, want)
+			}
+			if got, _ := os.ReadFile(file); tt.wantKept && string(got) != text {
+				t.Errorf("the file reads %q, want it as it was, %q", got, text)
+			}
+		})
+	}
 }
 
 func TestTheStartupFilesTheLineMayBeIn(t *testing.T) {

@@ -210,7 +210,8 @@ func RemoveLine(sh Shell, file, home, initFile string) (LineRemoval, error) {
 		return LineRemoval{}, nil
 	}
 	if err != nil {
-		return LineRemoval{}, fmt.Errorf("read %s: %w", file, err)
+		// Not wrapped: the error names the file already.
+		return LineRemoval{}, err
 	}
 	var kept strings.Builder
 	var found LineRemoval
@@ -229,24 +230,46 @@ func RemoveLine(sh Shell, file, home, initFile string) (LineRemoval, error) {
 	if !found.Removed {
 		return found, nil
 	}
-	if err := rewrite(target, kept.String()); err != nil {
+	if err := rewrite(target, []byte(kept.String()), data); err != nil {
 		return LineRemoval{}, fmt.Errorf("remove switchboard's line from %s: %w", file, err)
 	}
 	return found, nil
 }
 
-// rewrite writes text in place of what the file at path holds, in the file
-// itself, which keeps everything of its own but what it holds.
-func rewrite(path, text string) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0)
+// writeAt writes b to f at off, as f.WriteAt does: a seam, so tests can
+// fail a write.
+var writeAt = (*os.File).WriteAt
+
+// rewrite writes text in place of was, what the file at path holds, in the
+// file itself, which keeps everything of its own but what it holds: over it,
+// from its start, then cut to text's length, so nothing of was is lost before
+// text is all written. Where the writing fails, it writes was back, and says
+// the file is as it was; where that fails too, that it may be damaged.
+func rewrite(path string, text, was []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY, 0)
 	if err != nil {
 		return err
 	}
-	if _, err := f.WriteString(text); err != nil {
-		_ = f.Close()
+	if err = replace(f, text); err != nil {
+		if back := replace(f, was); back != nil {
+			err = fmt.Errorf("%w, and %s couldn't be put back as it was, so it may be damaged: %w", err, path, back)
+		} else {
+			err = fmt.Errorf("%w: %s is put back as it was", err, path)
+		}
+	}
+	if closed := f.Close(); err == nil {
+		err = closed
+	}
+	return err
+}
+
+// replace writes text over what f holds, from its start, and cuts it to
+// text's length.
+func replace(f *os.File, text []byte) error {
+	if _, err := writeAt(f, text, 0); err != nil {
 		return err
 	}
-	return f.Close()
+	return f.Truncate(int64(len(text)))
 }
 
 // Lines is what RemoveLines did: the startup files it took switchboard's
