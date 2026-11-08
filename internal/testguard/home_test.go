@@ -520,7 +520,7 @@ func TestChangesToTheRealDataDirectories(t *testing.T) {
 			want: []string{"the real ~/.local/share/switchboard/bin was modified", "the real ~/.local/share/switchboard/bin/claude was modified"},
 		},
 		{
-			name: "what the claude link leads to upgraded, which is no change of the link's",
+			name: "what the claude link leads to changed",
 			before: func(t *testing.T, home string) {
 				write(t, filepath.Join(home, "brew", "switchboard"), "#!/bin/sh\n")
 				symlink(t, filepath.Join(home, "brew", "switchboard"), filepath.Join(home, link))
@@ -528,6 +528,7 @@ func TestChangesToTheRealDataDirectories(t *testing.T) {
 			during: func(t *testing.T, home string) {
 				write(t, filepath.Join(home, "brew", "switchboard"), "#!/bin/sh\nexit 0\n")
 			},
+			want: []string{"the real ~/.local/share/switchboard/bin/claude was modified"},
 		},
 		{
 			name:   "a file for the shells written beside it",
@@ -676,8 +677,8 @@ func TestALinkIsNotedAsALinkWithWhereItLeads(t *testing.T) {
 	symlink(t, filepath.Join(dir, "gone"), link)
 
 	noted, ok := asItIs(link)
-	if !ok || noted.kind != fs.ModeSymlink || noted.target != filepath.Join(dir, "gone") {
-		t.Errorf("asItIs() = %+v, %v; want the link noted as a link, leading to %s", noted, ok, filepath.Join(dir, "gone"))
+	if !ok || noted.kind != fs.ModeSymlink || noted.target != filepath.Join(dir, "gone") || noted.leads != (stat{}) {
+		t.Errorf("asItIs() = %+v, %v; want the link noted as a link, leading to %s, where nothing is", noted, ok, filepath.Join(dir, "gone"))
 	}
 }
 
@@ -717,6 +718,40 @@ func TestChangesToClaudeOnTheRealPath(t *testing.T) {
 			want: []string{"the real %[1]s/claude was created"},
 		},
 		{
+			name: "a link made again to where it led, as Claude Code's updater does, which is no change",
+			before: func(t *testing.T, first, second string) {
+				write(t, filepath.Join(second, "versions", "2.1.300"), "#!/bin/sh\n")
+				symlink(t, filepath.Join(second, "versions", "2.1.300"), filepath.Join(first, "claude"))
+			},
+			during: func(t *testing.T, first, second string) {
+				if err := os.Remove(filepath.Join(first, "claude")); err != nil {
+					t.Fatal(err)
+				}
+				symlink(t, filepath.Join(second, "versions", "2.1.300"), filepath.Join(first, "claude"))
+			},
+		},
+		{
+			name: "what a link leads to changed",
+			before: func(t *testing.T, first, second string) {
+				write(t, filepath.Join(second, "versions", "2.1.300"), "#!/bin/sh\n")
+				symlink(t, filepath.Join(second, "versions", "2.1.300"), filepath.Join(first, "claude"))
+			},
+			during: func(t *testing.T, _, second string) {
+				write(t, filepath.Join(second, "versions", "2.1.300"), "#!/bin/sh\nexit 0\n")
+			},
+			want: []string{"the real %[1]s/claude was modified"},
+		},
+		{
+			name: "what a link that led nowhere leads to made",
+			before: func(t *testing.T, first, _ string) {
+				symlink(t, filepath.Join(first, "switchboard"), filepath.Join(first, "claude"))
+			},
+			during: func(t *testing.T, first, _ string) {
+				write(t, filepath.Join(first, "switchboard"), "#!/bin/sh\n")
+			},
+			want: []string{"the real %[1]s/claude was modified"},
+		},
+		{
 			name: "a link made to lead elsewhere",
 			before: func(t *testing.T, first, _ string) {
 				symlink(t, filepath.Join(first, "switchboard"), filepath.Join(first, "claude"))
@@ -754,6 +789,22 @@ func TestChangesToClaudeOnTheRealPath(t *testing.T) {
 				symlink(t, filepath.Join(first, "switchboard"), filepath.Join(second, "claude"))
 			},
 			want: []string{"the real %[2]s/claude was modified"},
+		},
+		{
+			name: "a file put in a link's place, though the same as what it led to",
+			before: func(t *testing.T, first, second string) {
+				write(t, filepath.Join(second, "claude"), "#!/bin/sh\n")
+				symlink(t, filepath.Join(second, "claude"), filepath.Join(first, "claude"))
+			},
+			during: func(t *testing.T, first, second string) {
+				if err := os.Remove(filepath.Join(first, "claude")); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Rename(filepath.Join(second, "claude"), filepath.Join(first, "claude")); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: []string{"the real %[1]s/claude was modified", "the real %[2]s/claude was removed"},
 		},
 		{
 			name: "a link removed",
