@@ -177,7 +177,7 @@ func (f *stateFile) load(path string) {
 	saved := f.read(now)
 	tokens := f.accounts.recall(saved.Tokens, now)
 	sessions := f.sessions.recall(saved.savedSessions, f.accounts, now)
-	f.state.recallPin(f.sessions.globalPin().Accounts)
+	f.state.recallPin(f.sessions.globalPin())
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
 	told := f.told.recall(saved.TokenYears, f.accounts.includes)
 	if tokens || sessions || usage || told {

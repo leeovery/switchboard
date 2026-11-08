@@ -271,9 +271,9 @@ type state struct {
 	// sessions had been on their accounts, as answered takes them in, which
 	// the state file keeps.
 	hold forecast.Hold
-	// pin holds the ids of the accounts the global pin names, as the router
-	// last told it, as repin and recallPin have it: none while there's no pin.
-	pin []string
+	// pin is the global pin, as the router last told it, as repin and
+	// recallPin have it: zero while there's none.
+	pin status.Pin
 }
 
 func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed, routine func()) *state {
@@ -358,7 +358,7 @@ func (s *state) take(id string, windows []quota.Window, at time.Time, sent momen
 	for key, rise := range risen {
 		s.rose(id, key, rise, at)
 	}
-	s.judgeRoom(s.weekHeld, at)
+	s.judgeRoom(s.weekHeld, s.pin.Accounts, at)
 	for _, key := range back {
 		logger.Info("reports the window again", "account", id, "window", key)
 	}

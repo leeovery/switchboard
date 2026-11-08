@@ -518,7 +518,7 @@ func (r *Router) pinTo(pin status.Pin, force bool) (cleared int) {
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
 	cleared = r.sessions.setPin(pin, force)
-	r.state.repin(pin.Accounts)
+	r.state.repin(pin)
 	return cleared
 }
 
@@ -529,7 +529,7 @@ func (r *Router) clearPin(force bool) (was status.Pin, cleared int) {
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
 	was, cleared = r.sessions.unpin(force)
-	r.state.repin(nil)
+	r.state.repin(status.Pin{})
 	return was, cleared
 }
 
