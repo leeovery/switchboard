@@ -479,15 +479,16 @@ func TestARestartedRouterJudgesThePoolsRoomByTheGlobalPinItKept(t *testing.T) {
 
 func TestARestartJudgesThePoolsRoomByTheGlobalPinFromWhenItWasSet(t *testing.T) {
 	// Work keeps a tenth back, and nothing else is read. Its week reads 50%,
-	// and its reserve an hour on; the global pin names it three hours on. Six
-	// hours on, the router restarts.
+	// and its reserve an hour on; the global pin names it three hours on, and
+	// a case reads its week again. Six hours on, the router restarts.
 	tests := []struct {
 		name string
-		// readAfter is set where work's week reads 94% five hours on, after
-		// the pin.
-		readAfter bool
+		// readAgain is how long on work's week reads 94%, no sooner than the
+		// pin: never where it's zero.
+		readAgain time.Duration
 	}{
-		{name: "the pin set between two readings", readAfter: true},
+		{name: "the pin set between two readings", readAgain: 5 * time.Hour},
+		{name: "a reading at the pin's own moment", readAgain: 3 * time.Hour},
 		{name: "the pin set after the last reading"},
 	}
 	for _, tt := range tests {
@@ -507,8 +508,8 @@ func TestARestartJudgesThePoolsRoomByTheGlobalPinFromWhenItWasSet(t *testing.T) 
 			if err := live.pin(PinRequest{Accounts: []string{"work"}, By: ByCLI}); err != nil {
 				t.Fatalf("pin() = %v", err)
 			}
-			if tt.readAfter {
-				clock.now = start.Add(5 * time.Hour)
+			if tt.readAgain > 0 {
+				clock.now = start.Add(tt.readAgain)
 				live.state.record("work", []quota.Window{weekUsed(0.94)}, live.state.mark())
 			}
 			clock.now = start.Add(6 * time.Hour)
