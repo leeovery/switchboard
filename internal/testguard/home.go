@@ -67,7 +67,8 @@ func (ws watchers) changes() []string {
 // XDG_CONFIG_HOME put zsh's and fish's; and what's named claude in each
 // directory on PATH. Nothing live writes the config, a theme, a LaunchAgent,
 // the skill, a token file, a file for the shells, a startup file or a claude
-// link as it runs, nor the notifications' app but as a router starts after
+// link as it runs, but as Claude Code's updater moves its own on to a new
+// version, nor the notifications' app but as a router starts after
 // an upgrade, nor what a claude link leads to but as an upgrade puts it, so
 // any change to one is a test's. A live router writes the rest of its state as
 // it runs, its logs, state.json and readings history among it, and a live

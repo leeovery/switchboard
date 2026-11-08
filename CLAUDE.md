@@ -111,8 +111,9 @@ notifications. Ever.
   (`~/.zshrc`, `~/.bash_profile`, `~/.bash_login`, `~/.profile` or fish's `config.fish`) changes
   during it, as when you edit your dotfiles mid-run, or where switchboard is upgraded mid-run, as
   by `brew upgrade`: what switchboard's `claude` link leads to changes, and the real router
-  restarts on the new version and writes out the notifications' app and its sum again. If that's
-  all it names and there's no `--- FAIL`, the run passed.
+  restarts on the new version and writes out the notifications' app and its sum again, or where
+  Claude Code updates itself to a new version mid-run and moves `~/.local/bin/claude` on to it.
+  If that's all it names and there's no `--- FAIL`, the run passed.
 - **Never loosen a guard to make a test pass.** A test that needs what a guard blocks is a finding:
   inject it instead.
 

@@ -478,7 +478,10 @@ func (s *fakeSteps) PasteToken(ctx context.Context, f setup.TokenFor, pasted str
 	}
 	s.mu.Unlock()
 	if held != nil {
-		held <- struct{}{}
+		select {
+		case held <- struct{}{}:
+		case <-ctx.Done():
+		}
 		<-ctx.Done()
 	}
 	if err != nil {
