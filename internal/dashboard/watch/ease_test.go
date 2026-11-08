@@ -151,7 +151,7 @@ func TestFramesRunOnlyWhileBarsMove(t *testing.T) {
 // terminal 17 rows tall: ops and studio are scrolled out of view.
 var tenIDs = []string{"work", "personal", "side", "client", "spare", "lab", "team", "extra", "ops", "studio"}
 
-// tenWith is the router's document of ten accounts, each using a quarter of
+// tenWith is forecastDocument of ten accounts, each using a quarter of
 // its session and half its week, those with the ids given changed as change
 // says; the pin keeps work and studio out of the pool, so their changes move
 // nothing on screen but their own.
@@ -163,7 +163,7 @@ func tenWith(change func(*status.Account), ids ...string) status.Document {
 	for _, id := range ids {
 		change(&accounts[slices.Index(tenIDs, id)])
 	}
-	doc := routerDocument(accounts...)
+	doc := forecastDocument(accounts...)
 	doc.Pin = status.Pin{Accounts: slices.DeleteFunc(slices.Clone(tenIDs), func(a string) bool { return a == "work" || a == "studio" })}
 	return doc.WorkedOut(policy)
 }

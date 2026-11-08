@@ -66,14 +66,15 @@ func TestTheWorldsDocumentsWorkOutAsTheFramesDrawThem(t *testing.T) {
 		{
 			name: "auto, as usage and the Overview draw it", world: worlds.auto(), best: "side",
 			words: []string{
-				"work 5h 95% pace 51%", "work 7d 34% pace 53% 19%/day", "work 7d_oi 12% pace 53% 25%/day",
-				"personal 5h 39% pace 64% 34%/hour", "personal 7d 66% pace 65% out Sat 06:00", "personal 7d_oi 0% pace 65% 40%/day",
-				"side 5h 13% pace 17% 21%/hour", "side 7d_oi 4% pace 46% 25%/day",
+				"work 5h 95% pace 51%", "work 7d 34% pace 53% out Sat 19:20", "work 7d_oi 12% pace 53% 25%/day",
+				"personal 5h 39% pace 64% 34%/hour", "personal 7d 66% pace 65% out Sat 05:45", "personal 7d_oi 0% pace 65% 40%/day",
+				"side 5h 13% pace 17% 21%/hour", "side 7d 78% pace 46% out Fri 16:08", "side 7d_oi 4% pace 46% 25%/day",
 				"pool 5h 49% 1.5 left", "pool 7d 59% 1.2 left", "pool 7d_oi 5% 2.8 left",
 			},
 			comingUp: []string{
 				"Thu 16:30 personal reset 5h", "Thu 17:10 work back at its cap", "Thu 18:50 side reset 5h",
-				"Sat 06:00 personal runs_out 7d", "Sun 02:00 personal reset 7d", "Sun 21:00 work reset 7d", "Mon 10:00 side reset 7d",
+				"Fri 16:08 side runs_out 7d", "Sat 05:45 personal runs_out 7d", "Sun 02:00 personal reset 7d", "Sun 21:00 work reset 7d",
+				"Mon 10:00 side reset 7d",
 			},
 		},
 		{

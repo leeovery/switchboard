@@ -54,11 +54,12 @@ func TestTheWindowsShown(t *testing.T) {
 			wantHidden: []string{"7d_oi"},
 		},
 		{
-			name: "a model's own one account is heading to use",
+			name: "a model's own no account has used, hidden however fast it's used lately",
 			accounts: []status.Account{
 				using(readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0, 4*quota.Day)), "7d_oi", 0.01),
 			},
-			wantShown: []string{"5h", "7d", "7d_oi"},
+			wantShown:  []string{"5h", "7d"},
+			wantHidden: []string{"7d_oi"},
 		},
 		{name: "nothing read", accounts: []status.Account{{ID: "work", TokenSet: true}}},
 	}
