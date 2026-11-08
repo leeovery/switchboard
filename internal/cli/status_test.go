@@ -272,7 +272,7 @@ func TestStatusListsTheRoutersSessions(t *testing.T) {
 	}
 
 	got := run(t, srv.deps, "status", "--pretty")
-	want := result{stdout: workAtStatus + "  2 sessions\n\n" + othersAtStatus(t, srv.deps) + `
+	want := result{stdout: workRouted + "  2 sessions\n\n" + othersAtStatus(t, srv.deps) + `
 sessions
   0b5c6f2e  haiku on work  ·  seen just now
   18bb978f  haiku on work  ·  pinned to side  ·  seen just now
