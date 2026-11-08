@@ -554,6 +554,8 @@ func TestForecastingNoAccountsGivesNone(t *testing.T) {
 func TestForecastGivesTheSameEachTimeAndLeavesThePoolAsItWas(t *testing.T) {
 	p := ownersPool()
 	p.Pinned = []string{"2", "3"}
+	// A size the forecast counts as 1, which it mustn't write back.
+	p.Accounts[3].Size = 0
 	accounts, pinned := slices.Clone(p.Accounts), slices.Clone(p.Pinned)
 
 	first, second := Forecast(p), Forecast(p)
