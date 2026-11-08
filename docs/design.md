@@ -10227,6 +10227,7 @@ why.
 | Other agents than Claude Code | deferred | [other-agents](../ideas/2026-09-30--other-agents.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
 | One owner of switchboard's file locks, the four packages that each take a `flock` their own way | open: a refactor, any time | [one-file-lock](../ideas/2026-11-04--one-file-lock.md) |
+| The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
 | Prompt-cache keep-warm | parked | [prompt-cache-keep-warm](../ideas/2026-09-30--prompt-cache-keep-warm.md) |
 | An artifact proxy, one browser for every account's artifacts | open | [artifact-proxy](../ideas/2026-09-30--artifact-proxy.md) |
 | Intercepting traffic that ignores `ANTHROPIC_BASE_URL` | not planned | [local-ca-interception](../ideas/2026-09-30--local-ca-interception.md) |
