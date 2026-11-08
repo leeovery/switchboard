@@ -163,6 +163,30 @@ window and steers sessions off an account that is heading for its limit.
 - **What stays:** running sessions stay where they are, and a session's own pin holds. When every
   account is under pressure, pressure changes nothing.
 
+### Where a week runs out
+
+An account's own pace is a poor guide to when its week runs out, because the router decides where
+use goes. An account carrying the pool's use now hands new sessions on once another account's week
+resets with more room. So switchboard forecasts each week by playing the pool's use forward, a week
+ahead, through the router's own choice of account. The forecast is only for showing: the router's
+choices and its pressure go by their own rates.
+
+- **How fast the pool is used:** the pool's use over the last day, and how far its use of the last
+  hour or so stands from that. A burst counts in full for the next few hours and then fades back to
+  the day's level, so a quiet evening never promises a week.
+- **Where the use goes:** use already on an account stays there for a while, as its sessions do.
+  The rest goes where a new session would go at that moment, among the pin's accounts while a
+  global pin holds. Accounts count by their plan's size, a Max week as five Pro weeks.
+- **When a week runs out:** where its use reaches its reserve before it resets, or its limit
+  without one or while a global pin spends it. Otherwise its forecast use at the reset is what `on pace for 92%` says.
+- **Without the router,** as when `status` probes the accounts itself, a week goes at the pace its
+  use since it started sets.
+
+The 5-hour window doesn't take part: its run-out goes at its recent rate, as
+[pressure](#pressure) judges it. A run-out within a day shows its time, as `out ~16:05` or
+`out ~Mon 05:22`; further ahead it shows its day alone, as `out ~Tue`, because a forecast days out
+can miss by a day.
+
 ### Limits and refusals
 
 The API can refuse a request, or answer that an account has reached a limit. The router handles each
@@ -220,6 +244,7 @@ The router keeps these in `state.json`, so a restart doesn't scatter sessions or
 - Each session's account.
 - The pins.
 - Each account's last readings.
+- How long use stays on its account, which the [weeks' forecast](#where-a-week-runs-out) goes by.
 
 ### A readings history
 
@@ -229,8 +254,8 @@ back at how the accounts were used.
 
 - **How long it's kept:** 400 days, unless [`[history]`](configuration.md#history-keys) sets another
   length. That can be `forever`.
-- **At startup:** the router takes up the readings of the two newest days, so the recent rates
-  outlast a restart.
+- **At startup:** the router takes up the readings of the two newest days, so the recent rates,
+  and the rates the weeks' forecast goes by, outlast a restart.
 - **Never in routing's way:** a line switchboard can't write goes unwritten, and is logged once.
 
 ### A request ledger
@@ -620,8 +645,8 @@ The full design, including the cache facts it rests on, is in [the design docume
 session needs it explained. See [`setup`](commands.md#setup).
 
 - **Claude reads the limits itself:** `switchboard status` gives Claude every account's windows. For
-  each window, it says how much is used, how fast it's going, when it runs out at that pace, and
-  when it resets. So Claude can plan its work around them. It's worth it with a single account.
+  each window, it says how much is used, where it's heading and when it runs out, and when it
+  resets. So Claude can plan its work around them. It's worth it with a single account.
 
   For example, ask Claude to use what's left of a week before the week resets at 08:00, without
   reaching 100%. Claude paces its work through the night by the rate and run-out that switchboard

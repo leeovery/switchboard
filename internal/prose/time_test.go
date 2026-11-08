@@ -322,6 +322,32 @@ func TestPastShowsMoreOfATimeTheFurtherBackItsDayIs(t *testing.T) {
 	}
 }
 
+// A run-out within a day of now reads as Dated has it; further ahead, its
+// weekday alone, in now's time zone.
+func TestARunOutReadsAsDatedWithinADayElseItsWeekday(t *testing.T) {
+	now := time.Date(2026, 10, 1, 14, 42, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{name: "later today", t: now.Add(81 * time.Minute), want: "16:03"},
+		{name: "across midnight", t: now.Add(10 * time.Hour), want: "Fri 00:42"},
+		{name: "exactly a day ahead", t: now.Add(24 * time.Hour), want: "Fri 14:42"},
+		{name: "a minute over a day", t: now.Add(24*time.Hour + time.Minute), want: "Fri"},
+		{name: "days ahead", t: now.Add(4 * 24 * time.Hour), want: "Mon"},
+		{name: "in UTC, within a day, tomorrow in now's time zone", t: time.Date(2026, 10, 1, 23, 30, 0, 0, time.UTC), want: "Fri 00:30"},
+		{name: "in UTC, more than a day ahead, its day in now's time zone", t: time.Date(2026, 10, 2, 23, 30, 0, 0, time.UTC), want: "Sat"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.RunOut(now, tt.t); got != tt.want {
+				t.Errorf("RunOut(%v, %v) = %q, want %q", now, tt.t, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDatedShowsTheDayOnAnyOtherDay(t *testing.T) {
 	now := time.Date(2026, 10, 1, 14, 42, 7, 0, time.FixedZone("UTC+1", 60*60))
 	tests := []struct {

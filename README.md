@@ -105,7 +105,7 @@ For routing, recording, priming and the rest in detail, see [How it works](docs/
 
 `setup` installs a Claude Code skill that tells Claude what switchboard does. With it, Claude can:
 
-- **Read the limits.** `switchboard status` gives Claude every account's usage, its pace, when it runs out at that pace, and when it resets. Ask Claude to use what's left of this week before it resets at 08:00 without reaching 100%, and it paces its work through the night.
+- **Read the limits.** `switchboard status` gives Claude every account's usage, where it's heading, when it runs out, and when it resets. Ask Claude to use what's left of this week before it resets at 08:00 without reaching 100%, and it paces its work through the night.
 - **Look back.** `sessions`, `requests`, `history` and `events` give Claude your sessions, their requests, your days and what the router did.
 - **Steer when you ask.** Claude can pin new sessions to an account, move running ones, or pin its own session.
 

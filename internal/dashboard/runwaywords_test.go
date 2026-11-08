@@ -84,6 +84,8 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 	refusing := status.AccountNow{ID: "work", Read: true, TokenRefused: true, Refusal: status.Refusal{Until: routedClock(1, 15, 0), Status: 401}}
 	weekOut := stretchOf(week.Timeline, views.CellLimited, routedClock(3, 6, 0), routedClock(4, 2, 0), 51, 66)
 	weekOut.Projected, weekOut.AsItResets = true, true
+	weekSoon := stretchOf(week.Timeline, views.CellLimited, routedClock(2, 6, 0), routedClock(4, 2, 0), 31, 66)
+	weekSoon.Projected, weekSoon.AsItResets = true, true
 	tests := []struct {
 		name    string
 		shown   RunwayShown
@@ -141,8 +143,12 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 			want: "no token", inks: []ink{exhaustedInk},
 		},
 		{
-			name: "the week's run-out, back as its week resets", shown: week, stretch: weekOut,
-			want: "runs out ~Sat 06:00 at its pace  ·  back Sun 02:00, as its week resets", inks: []ink{alertInk, mutedInk, mutedInk},
+			name: "the week's run-out more than a day ahead, by its day alone", shown: week, stretch: weekOut,
+			want: "runs out ~Sat at its pace  ·  back Sun 02:00, as its week resets", inks: []ink{alertInk, mutedInk, mutedInk},
+		},
+		{
+			name: "the week's run-out within a day, by its time", shown: week, stretch: weekSoon,
+			want: "runs out ~Fri 06:00 at its pace  ·  back Sun 02:00, as its week resets", inks: []ink{alertInk, mutedInk, mutedInk},
 		},
 	}
 	for _, tt := range tests {

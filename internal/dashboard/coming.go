@@ -23,8 +23,8 @@ const (
 const afterTime = "  "
 
 // projected marks the time of a window running out in COMING UP, as in
-// "~Sat 06:00"; and primed is what it says befalls an account primed, the
-// shortest of what it says befalls one.
+// "~Sat 06:00" or "~Sat"; and primed is what it says befalls an account
+// primed, the shortest of what it says befalls one.
 const (
 	projected = "~"
 	primed    = " is primed"
@@ -204,10 +204,11 @@ func (h happening) said(now time.Time, column int) line {
 
 // when is when it comes, as its line says it, in now's time zone: as in
 // "16:30" today, or "Sun 02:00" on another day; a window running out,
-// projected, after a ~, as in "~Sat 06:00".
+// projected, after a ~, as prose.RunOut tells it, as in "~Sat 06:00" within
+// a day, or "~Sat" further ahead.
 func (h happening) when(now time.Time) string {
 	if h.runsOut {
-		return projected + prose.Dated(now, h.at)
+		return projected + prose.RunOut(now, h.at)
 	}
 	return prose.Dated(now, h.at)
 }

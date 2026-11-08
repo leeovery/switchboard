@@ -26,12 +26,12 @@ func TestEveryWidthDrawsTheSwitchboardsPartsWhereItsColumnsPutThem(t *testing.T)
 		ln, _ := laid.line("personal")
 		k, personal := laid.columns, f.top()+ln.top
 		c := f.page(doc, routedAt)
-		from, words, runsOut := "▸ from work", "19%/day till Sun 21:00", "out ~Sat 06:00"
+		from, words, runsOut := "▸ from work", "19%/day till Sun 21:00", "out ~Sat"
 		if k.fromShort {
 			from = "▸ work"
 		}
 		if k.shortWords {
-			words, runsOut = "19%/day · Sun", "out ~Sat"
+			words = "19%/day · Sun"
 		}
 		bar := k.lines + 1 + firstLabelCells
 		checks := []struct{ what, got, want string }{

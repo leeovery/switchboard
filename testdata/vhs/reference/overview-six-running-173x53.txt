@@ -6,17 +6,17 @@ USAGE  ────────────────────────�
 
                 WEEK                                                                           5-HOUR
 
-1 work                                   ┃                   ╎   34%  out ~Sun 20:18                                   ┃                   ▋╎   95%  at cap · back 17:10
+1 work                                   ┃                   ╎   34%  out ~Sun                                         ┃                   ▋╎   95%  at cap · back 17:10
 
-2 personal ◆                                  ┃                  66%  out ~Sat 11:52                             ▍           ┃                  39%  34%/h till 16:30
+2 personal ◆                                  ┃                  66%  out ~Sat                                   ▍           ┃                  39%  34%/h till 16:30
 
-3 side ▲                             ┃              ▋            78%  out ~Fri 18:34                 ▏ ┃                                        13%  21%/h till 18:50
+3 side ▲                             ┃              ▋            78%  out ~Fri                       ▏ ┃                                        13%  21%/h till 18:50
 
-4 client                              ▏  ┃                       47%  out ~Sun 07:54                              ┃    ▌                        52%  16%/h till 17:40
+4 client                              ▏  ┃                       47%  out ~Sun                                    ┃    ▌                        52%  16%/h till 17:40
 
-5 spare           ▍           ┃                                   5%  out ~Tue 12:06            ┃                                                4%  20%/h till 19:35
+5 spare           ▍           ┃                                   5%  out ~Tue                  ┃                                                4%  20%/h till 19:35
 
-6 lab                                 ┃    ▎                     58%  out ~Sat 16:59                                     ┃      ▍               71%  out ~16:05
+6 lab                                 ┃    ▎                     58%  out ~Sat                                           ┃      ▍               71%  out ~16:05
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool                                ▌┃                         48%  3.1 of 6 left                              ┃  ▌                           46%  3.2 of 6 left
 

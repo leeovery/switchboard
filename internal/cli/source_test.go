@@ -33,7 +33,7 @@ import (
 // router gives it, its week as it forecasts the pool's use, which it has
 // seen none of.
 var (
-	workAtStatus = workWhere("runs out ~Mon 14:34")
+	workAtStatus = workWhere("runs out ~14:34")
 	workRouted   = workWhere("on pace for 93%")
 )
 

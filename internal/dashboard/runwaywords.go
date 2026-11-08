@@ -159,7 +159,7 @@ func (v laneView) stretchPhrase(s views.LaneStretch, a status.AccountNow, agains
 // that's as the view's window resets, that it is, as ", as its 5-hour
 // resets".
 func (v laneView) stretchParts(s views.LaneStretch, a status.AccountNow, against time.Time) []line {
-	head, k, resets := headOf(s, a, v.timeline.NowColumn(), against)
+	head, k, resets := headOf(s, a, v.timeline, against)
 	parts := []line{{{head, k}}}
 	ends, lifts := s.Ends()
 	if ends.IsZero() {
@@ -181,8 +181,10 @@ func (v laneView) stretchParts(s views.LaneStretch, a status.AccountNow, against
 const atItsPace = " at its pace"
 
 // headOf is what's said first of the stretch s without room of the account
-// a, now's column now, times told against the time given, in its ink, and
-// whether its back is said to be as the view's window resets, where it is:
+// a, on the timeline tl, times told against the time given, but a run-out's,
+// told at tl's now as prose.RunOut tells it, as only a view holding now
+// projects one, in its ink, and whether its back is said to be as the view's
+// window resets, where it is:
 // at its cap, as "at its cap 14:31", or a run-out reaching it, as "reaches
 // its cap ~15:45 at its pace"; a run-out reaching its limit, as "runs out
 // ~16:05 at its pace"; each bold in accent.attention, and each back as the
@@ -191,13 +193,13 @@ const atItsPace = " at its pace"
 // holding it gave, as refusedWith has it; or without a token, "no token";
 // each bold in state.destructive, and none back as the window resets, as
 // each lifts whenever it does. A start no one told leaves its time unsaid.
-func headOf(s views.LaneStretch, a status.AccountNow, now int, against time.Time) (string, ink, bool) {
+func headOf(s views.LaneStretch, a status.AccountNow, tl views.Timeline, against time.Time) (string, ink, bool) {
 	when := ""
 	if !s.Start.IsZero() {
 		when = " " + prose.Dated(against, s.Start)
 	}
 	if s.Projected {
-		when = " ~" + prose.Dated(against, s.Start)
+		when = " ~" + prose.RunOut(tl.Now, s.Start)
 	}
 	switch {
 	case s.Cell == views.CellCapped && s.Projected:
@@ -209,7 +211,7 @@ func headOf(s views.LaneStretch, a status.AccountNow, now int, against time.Time
 	case s.Cell == views.CellLimited:
 		return status.AtLimit + when, exhaustedInk, false
 	case s.Cell == views.CellRefused:
-		return "token refused" + refusedWith(s, a, now) + when, exhaustedInk, false
+		return "token refused" + refusedWith(s, a, tl.NowColumn()) + when, exhaustedInk, false
 	}
 	return "no token", exhaustedInk, false
 }

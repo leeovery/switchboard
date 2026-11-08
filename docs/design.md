@@ -4974,8 +4974,8 @@ them at the section's width, from a day before now, for a week:
   mixed with the canvas so 50% of it shows.
 - **Now:** `│` in `text.primary` down now's column, through every row.
 - **Under it,** Runway's axis, its three rows as Runway draws them at that width; then its key: each
-  account's `█` in its hue and its name in `text.muted`, a faint `█` and ` faint: heading, at its
-  recent rate`, and `│ now`, four spaces apart, flowed onto as many rows as its width needs.
+  account's `█` in its hue and its name in `text.muted`, a faint `█` and ` faint: heading, as
+  forecast`, and `│ now`, four spaces apart, flowed onto as many rows as its width needs.
 - **Without colour,** as `NO_COLOR` draws, the accounts can't be told apart, so POOL draws the
   pool's total alone, in `█`, and its key says `the pool's room; its accounts by colour alone`.
 
@@ -5068,7 +5068,7 @@ it's heading, a column at a time as each column's moment passes. Nothing travels
 
 **`?` help,** `HELP · GRAPHS`, lists every key first, the toggles, `j`/`k`, PgUp, PgDn, `p`, `t` and
 `R` among them, the scroll keys always, as the page can scroll at any size; then each section: a burn-down's room, where it's heading and why its line is
-straight, the recent rate held, `✕`, the reserve, the window's ink and each card's own clock; the
+straight, to where a week's forecast or the 5-hour's recent rate takes it, `✕`, the reserve, the window's ink and each card's own clock; the
 pool's line; POOL's stack and its faint heading; GLANCE's sparklines and words; and WHEN YOU WORK's
 shades, the weeks it counts and the requests it counts.
 

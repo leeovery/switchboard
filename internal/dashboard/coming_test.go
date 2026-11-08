@@ -289,14 +289,14 @@ func TestCOMINGUPPadsItsTimesToTheLongestOfThoseShown(t *testing.T) {
 	doc := comingOf(
 		status.Upcoming{At: now.Add(time.Hour).UTC(), Account: "personal", Kind: status.UpcomingBack},
 		status.Upcoming{At: now.Add(2 * time.Hour).UTC(), Account: "side", Kind: status.UpcomingReset, Window: "5h"},
-		status.Upcoming{At: now.Add(2 * quota.Day).UTC(), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"},
+		status.Upcoming{At: now.Add(22 * time.Hour).UTC(), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"},
 	)
 	f := frameOf(216, 10)
 	tests := []struct {
 		rows int
 		want []string
 	}{
-		{rows: 3, want: []string{"14:12       personal back from its limit", "15:12       side's 5-hour resets", "~Wed 13:12  personal's week runs out at its pace"}},
+		{rows: 3, want: []string{"14:12       personal back from its limit", "15:12       side's 5-hour resets", "~Tue 11:12  personal's week runs out at its pace"}},
 		{rows: 2, want: []string{"14:12  personal back from its limit", "15:12  side's 5-hour resets"}},
 	}
 	for _, tt := range tests {
@@ -345,7 +345,7 @@ func TestCOMINGUPTakesItsLinesAndTwoRows(t *testing.T) {
 func TestCOMINGUPFoldsToItsFirstLineButItsCountdownThenAnEllipsisWhereItHasMore(t *testing.T) {
 	runsOut := status.Upcoming{At: now.Add(2 * quota.Day).UTC(), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"}
 	resets := status.Upcoming{At: now.Add(3 * quota.Day).UTC(), Account: "side", Kind: status.UpcomingReset, Window: "7d"}
-	first := line{{"~Wed 13:12  ", warningInk}, {"personal", titleInk}, {"'s week runs out at its pace", warningInk}}
+	first := line{{"~Wed  ", warningInk}, {"personal", titleInk}, {"'s week runs out at its pace", warningInk}}
 	tests := []struct {
 		name   string
 		coming []status.Upcoming
@@ -380,15 +380,19 @@ func TestCOMINGUPNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 	}
 }
 
+// COMING UP's time carries its weekday on another day, even within a day;
+// a run-out's, more than a day ahead, is its weekday alone.
 func TestCOMINGUPsTimeCarriesItsWeekdayOnAnotherDayEvenWithinADay(t *testing.T) {
 	tests := map[string]struct {
 		h    happening
 		want string
 	}{
-		"later today":               {happening{at: now.Add(2 * time.Hour)}, "15:12"},
-		"tomorrow, within a day":    {happening{at: now.Add(22 * time.Hour)}, "Tue 11:12"},
-		"running out tomorrow":      {happening{at: now.Add(22 * time.Hour), runsOut: true}, "~Tue 11:12"},
-		"running out in a few days": {happening{at: now.Add(5 * quota.Day), runsOut: true}, "~Sat 13:12"},
+		"later today":                 {happening{at: now.Add(2 * time.Hour)}, "15:12"},
+		"tomorrow, within a day":      {happening{at: now.Add(22 * time.Hour)}, "Tue 11:12"},
+		"in a few days":               {happening{at: now.Add(5 * quota.Day)}, "Sat 13:12"},
+		"running out tomorrow":        {happening{at: now.Add(22 * time.Hour), runsOut: true}, "~Tue 11:12"},
+		"running out in a day and 2h": {happening{at: now.Add(26 * time.Hour), runsOut: true}, "~Tue"},
+		"running out in a few days":   {happening{at: now.Add(5 * quota.Day), runsOut: true}, "~Sat"},
 	}
 	for name, tt := range tests {
 		if got := tt.h.when(now); got != tt.want {

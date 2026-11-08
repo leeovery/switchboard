@@ -401,7 +401,8 @@ one.
 Each column of a lane is one cell, showing room, at its cap, or at its limit. The past is dimmed.
 
 Words under a lane say where a stretch without room starts and when the account is back. For
-example, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`. Where one hold runs
+example, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`, or, more than a day
+ahead, its day alone, `runs out ~Sat at its pace`. Where one hold runs
 straight into another, the first says when it lifts, and only the last says when the account is
 back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
 
@@ -470,7 +471,7 @@ many side by side as fit at 35 cells or more each, the rest on the rows under.
 
 Over the chart, a card has the account's number, name and marks, and its words: the room left,
 such as `66% left`, then what Runway says under the account's lane in that window, such as
-`at its cap 14:31  ·  back 17:10` or `runs out ~Sat 06:00 at its pace`. The words come from
+`at its cap 14:31  ·  back 17:10` or `runs out ~Sat at its pace`. The words come from
 Runway's live view as Runway would draw it at the same width. So a hold shorter than one of
 Runway's columns can go unsaid on a card, as on Runway, and a wider terminal, or Runway's labels
 collapsed with `a`, can bring it out.
@@ -478,9 +479,11 @@ collapsed with `a`, can bring it out.
 The chart:
 
 - **The room left** is filled solid up to now, each column to the room the window had then.
-- **Where it's heading** is a dotted line from now to the reset. It's straight, as it holds the
-  rate the window has been used at lately, the pace Runway's words go by. It falls to where the
-  window runs out, then runs along the floor it meets, its cap or empty, to the reset; or it ends
+- **Where it's heading** is a dotted line from now to the reset, straight to where the window is
+  forecast to be: a week's as the router would spread the pool's use (see
+  [Where a week runs out](how-it-works.md#where-a-week-runs-out)), the 5-hour's holding the rate
+  it's been used at lately. That's the pace Runway's words go by. It falls to where the window runs
+  out, then runs along the floor it meets, its cap or empty, to the reset; or it ends
   at the room the window will have left at its reset.
 - **`✕`** marks where the window runs out. Where its cap or its limit already holds it, `✕` marks
   the column the hold began in, where that's known.
@@ -513,8 +516,8 @@ at its pace to its cap, and is back at 17:10.
 
 POOL charts the pool's room over Runway's week view, from a day before now, for a week. Each
 account's room is stacked from the foot, in its own colour, so the stack's top edge is the pool's
-total. Before now, each account's room as it stood; from now, drawn faint, where it's heading at
-its recent rate: to where it runs out, along its floor to its reset, then full. Runway's axis runs
+total. Before now, each account's room as it stood; from now, drawn faint, where it's heading as
+forecast: to where it runs out, along its floor to its reset, then full. Runway's axis runs
 under it, and a key names each account's colour. Without colour, the accounts can't be told apart,
 so POOL draws the pool's total alone.
 

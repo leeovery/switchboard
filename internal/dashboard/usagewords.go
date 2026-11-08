@@ -43,15 +43,16 @@ func (b usageBlock) widestWords() int {
 
 // fullWidest are the most cells a window's words take in full: the widest of
 // every kind wordsOf words, each with its time at its widest, on another day
-// within the week, as Dated shows it with its weekday, and an allowance at
-// its most, the whole window in a day. A reading over a week back, said by
+// within the week, as Dated shows it with its weekday, both within a day, as
+// a run-out's has it, and two days on; and an allowance at its most, the
+// whole window in a day. A reading over a week back, said by
 // its date, is wider: where its words don't fit, they're short, which says
 // the date still.
 var fullWidest = sync.OnceValue(func() int {
 	now := time.Date(2026, time.September, 28, 12, 0, 0, 0, time.UTC)
 	widest := 0
 	for kind := status.WindowTokenless; kind <= status.WindowOpen; kind++ {
-		for _, at := range []time.Time{now.AddDate(0, 0, 2).Add(9 * time.Hour), now.AddDate(0, 0, -6)} {
+		for _, at := range []time.Time{now.Add(21 * time.Hour), now.AddDate(0, 0, 2).Add(9 * time.Hour), now.AddDate(0, 0, -6)} {
 			w := status.WindowNow{Kind: kind, At: at, Allowance: quota.Allowance{Share: 1, Per: quota.PerDay}}
 			widest = max(widest, wordsOf(w, now).full.width())
 		}
@@ -70,7 +71,8 @@ func alike(words string, k ink) usageWords {
 // isn't started; that its account has no such limit; or its allowance, to its
 // reset. A time reads as Dated has it
 // in full, and short, its time today and only its weekday for another day;
-// but a reading's, as lastRead has it.
+// but a reading's, as lastRead has it, and a run-out's in full, as RunOut
+// has it.
 func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	switch w.Kind {
 	case status.WindowTokenless:
@@ -87,7 +89,7 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	case status.WindowCapped:
 		return heldBack("at cap", w.At, now, warningInk)
 	case status.WindowRunsOut:
-		return usageWords{full: line{{"out ~" + prose.Dated(now, w.At), warningInk}}, short: line{{"out ~" + prose.Brief(now, w.At), warningInk}}}
+		return usageWords{full: line{{"out ~" + prose.RunOut(now, w.At), warningInk}}, short: line{{"out ~" + prose.Brief(now, w.At), warningInk}}}
 	case status.WindowNotStarted:
 		return alike("not started", mutedInk)
 	default:

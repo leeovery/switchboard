@@ -6,9 +6,9 @@ WEEK
 
  1 work             ▏ ┃    ╎  34%  19%/day · Sun
 
- 2 personal ◆          ▉┃     66%  out ~Sat 13:47
+ 2 personal ◆          ▉┃     66%  out ~Sat
 
- 3 side ▲            ┃   ▍    78%  out ~Fri 18:42
+ 3 side ▲            ┃   ▍    78%  out ~Fri
 ────────────────────────────────────────────────────
  Σ pool                ┃      59%  1.2 of 3 left
 

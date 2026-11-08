@@ -13,7 +13,7 @@ WEEK  ────────────────────────�
                                        │⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⠉⠉⠒⠒⠤✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
  ╵Mon      ╵Tue       ╵Wed      ╵Thu       ╵Fri      ╵Sat      ╵Sun
 
-2 personal ◆                 34% left  ·  runs out ~Sat 05:45 at its pace
+2 personal ◆    34% left  ·  runs out ~Sat at its pace  ·  back Sun 02:00
               ▇▆▅▄▃▃▃▃▃▃▂                      │
                           ▆▄▂▂▂▂▂▂▂            │
                                     ▅▃▁        │
@@ -21,7 +21,7 @@ WEEK  ────────────────────────�
                                                │      ⠉⠉⠑⠒⠒⠤⠤⢄⣀⣀✕⣀⣀⣀⣀⣀⣀⣀⣀
          ╵Mon      ╵Tue       ╵Wed      ╵Thu       ╵Fri      ╵Sat
 
-3 side ▲  22% left  ·  runs out ~Fri 16:08 at its pace  ·  back Mon 10:00
+3 side ▲        22% left  ·  runs out ~Fri at its pace  ·  back Mon 10:00
  ▆▅▄▃▃▃▃▃▃▂                      │
             ▆▃▁▁▁▁▁▁▁            │
                      ▇▄▁         │
