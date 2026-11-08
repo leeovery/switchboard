@@ -184,7 +184,7 @@ lost (see Choosing an account).
    no level since has been quiet, and reads 0, so a burst holds its rate for the 30 minutes after
    it, then drops to 0. Without a baseline, as for a window started less than 30 minutes ago, the
    rise is from its first level, over the time since it was first read, which must be 10 minutes
-   back at least. The weekly windows' projections go by it too (see `usage`, the printout). The
+   back at least. The weeks' forecasts go by rates of their own (see Forecasting run-outs). The
    5-hour window's rate is its recent rate, or, without a baseline or a level 10 minutes back, its
    use since it started, once 5% of it has passed, as the dashboard's projection measures it. An
    account is under pressure when, at that rate, its 5-hour window reaches where the account runs
@@ -498,6 +498,73 @@ Any account can keep a reserve, which `reserve` in its table sets (see Config).
 - The dashboard marks where each reserve starts on its bars, and `status` and the dashboard say
   when a reserve holds its account back, or, on an account the global pin names, that the pin is
   spending it; a session's own pin spending it reads as the reserve holding the account back.
+
+## Forecasting run-outs
+
+Where each account's week runs out, as the dashboard, `usage` and `status` show it, is forecast by
+playing the pool's use forward through the router's own choice of account (the owner's call, 8
+November 2026). An account's own pace is a poor guide to it, as the router decides where use goes:
+an account carrying the pool's use now hands new sessions on once another's week resets with more
+room to spend. Nor does a half hour's rate say much of a week: a week's use reads in whole
+percents, so its rise over 30 minutes reads 0, 2, 4 or 6% an hour, and a busy half hour carried
+through the night ran a week out days early. The forecast is for showing alone. The router's
+choices, its pressure and its moves at a compaction go by their own rates (see Choosing an
+account), and the 5-hour window's projection keeps its recent rate, as the router judges pressure
+by it.
+
+**The rates,** each smoothed exponentially, as a load average is, and worked out by the router
+from its readings, the readings history's two newest days taken up as it starts:
+
+- **The fast rate,** each account's, of its week: its rises, each counting less as it ages, with a
+  time constant of an hour, so one point's tick reads as a point over the hour, not as 2% an hour
+  for the half hour after it.
+- **The day's rate,** the pool's: its accounts' rises over the last 24 hours in which some account
+  had room for a new session, as Choosing an account's step 1 has it, divided by those hours. Hours
+  when none had room weren't quiet, and don't count. With less than 2 hours of it, as on a new
+  install, the day's rate is the pool's fast rate.
+- **The pool's use** `h` hours on is the day's rate, plus how far the pool's fast rate stands from
+  it now, fading with a time constant of 3 hours: `rate(h) = day + (fast − day) · e^(−h / 3h)`. A
+  burst counts in full for the next few hours and fades, its whole weight `(fast − day) · 3h` however
+  far ahead; a lull pulls the next few hours down, then use returns to the day's level, so a quiet
+  evening never promises a week; and a run-out days away goes nearly all at the day's rate. It's
+  mean reversion, as an Ornstein–Uhlenbeck process forecasts: no shape of the day or the week is
+  learned, and each install's rates are its own.
+
+**Accounts' sizes.** Use moves between accounts in Pro weeks: a Pro week is 1, a Max week 5 and an
+Ultra week 20, the plans' published multiples. Where any account's plan isn't known, every account
+counts as the same size, as the pool's room counts them.
+
+**Where the use goes,** stepped every 10 minutes for a week from when the status document was
+built:
+
+- **Use already on an account stays there** as its sessions do. The share of an account's fast rate
+  still on it `h` hours on is the hold curve's: of the use the router has sent, each answer
+  counting less as it ages, with a time constant of a week, the share that came from sessions on
+  their account for `h` hours or more, weighed by the answer's tokens as the price ratios every
+  model shares weigh them (input 1, output 5, cache writes 1.25, cache reads 0.1). A session's time
+  on its account counts from when it came to the account, and a choice that keeps it there doesn't
+  start it again. The router keeps the curve in its state file, so it outlasts a restart. With less
+  than a day of answers in it, the curve is `e^(−h / 6h)`.
+- **The rest goes where a new session would go** at that moment, as Choosing an account's steps 1
+  and 2 choose one, among the global pin's accounts while one holds. Each account's 5-hour window is
+  left out: its resets and limits come and go within a day, and nothing forecasts them.
+- **A week that resets** comes back with all its room, and its fast rate gone.
+- **An account's room** ends where Choosing an account says: at its reserve, or at its limit where
+  the global pin spends the reserve.
+- **A week runs out** where its use reaches where its room ends before it resets: `out ~…` shows
+  only then. Its use at its reset, the forecast's, is what `on pace for 92%` says.
+
+**Without the router's rates,** as a probed document has none, a week goes at the pace its use since
+it started sets, once 5% of it has passed, and has no projection before then.
+
+**How a run-out reads:** within a day of now, as every time reads, `out ~16:05` or `out ~Mon 05:22`;
+more than a day ahead, its day alone, `out ~Tue`, as a forecast days out misses by a day or more
+(the owner's call, 8 November 2026). The status document gives the time whole.
+
+**Checked on a history,** never against the real install in tests: `cmd/forecasttool`, a program of
+its own as `cmd/capturetool` is, plays a readings history and request ledger back, forecasting at
+each hour as the router would have, and scores each forecast against when the week ran out (see
+Packages).
 
 ## Priming
 
@@ -1870,8 +1937,8 @@ Every view speaks as `usage` does:
   window is compared across accounts on one aligned scale, never an account's windows alone.
 - **`┃`,** in `viz.pace`, is even pace: where use would be now, spent evenly across the window.
   **`╎`,** in `viz.reserve`, is an account's cap. Neither is a forecast: no view draws where use is
-  heading, and the one warning, `out ~16:05`, shows only where the recent rate runs a window out
-  before its reset.
+  heading, and the one warning, `out ~16:05`, shows only where a window's projection runs it out
+  before its reset (see Forecasting run-outs).
 - **An account's cap** is where its reserve starts, 1 less its `reserve`: the dashboard and `usage`
   call it the cap, the config the reserve (see Reserves). `state.destructive` is kept for Claude's
   own limits, and for a token refused; a cap is movable, so it's `accent.attention`.
@@ -2352,7 +2419,7 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   | Its token is refused, or its last read failed: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
   | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54` | `state.destructive` |
   | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `back 17:10` | `accent.attention` |
-  | It runs out before its reset at its recent rate | `out ~Sat 06:00`, `out ~16:05` | `out ~Sat`, `out ~16:05` | `accent.attention` |
+  | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~Mon`, `out ~16:05` | `accent.attention` |
   | The account doesn't have the window (below) | `no 5-hour limit` | `no limit` | `text.subtle` |
   | A 5-hour window not started (settled in the plan) | `not started` | `not started` | `text.muted` |
   | The reset is less than an hour away for the 5-hour window, or a day for a week (settled in the plan) | `34% till 16:30` | `34% · 16:30` | as the allowance |
@@ -2384,21 +2451,20 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
 - **A global pin spends the caps** of the accounts it names (see Pinning): theirs count to 100%, as
   an account without a cap's do, and never read `at cap`; the cap's mark stays on their bars
   (settled in the plan).
-- **Running out** goes by the window's projection. It goes at the pace its use since it started
-  sets, once 5% of it has passed; or, from the router, at its recent rate, its rise over the last 30
-  minutes (see Choosing an account), where that has it run out sooner or end more used. So a week at
-  99%, on pace since it started to run out at 17:42 but used at 7% an hour lately, runs out at
-  17:25, never later than its use lately says, and eases back as use slows. The 5-hour window, whose
-  rate the router judges pressure by, goes at that recent rate whenever there is one, so `usage`
-  shows where the router takes it to be heading. A probed reading has no recent rate, so it goes at
-  the pace since its start, and still warns (settled in the plan). The projection goes from when the
+- **Running out** goes by the window's projection. A week's is its forecast (see Forecasting
+  run-outs). The 5-hour window, whose rate the router judges pressure by, goes at its recent rate,
+  its rise over the last 30 minutes (see Choosing an account), whenever there is one, so `usage`
+  shows where the router takes it to be heading; else at the pace its use since it started sets,
+  once 5% of it has passed. A probed reading has no recent rate, so it goes at the pace since its
+  start, and still warns (settled in the plan). The projection goes from when the
   status document was built, its `generated_at`, so it stays put while a document stays on screen;
   countdowns count from now. A window runs out where its use reaches the cap, where the cap holds
   the account back, else its limit, and `out ~…` shows only where that comes before the window
   resets. The router's pressure goes by the same projection. Nothing draws it: no extension of a
   bar, no `→ 54%`.
-- **`status` projects the same way,** its text keeping its words until it's designed afresh:
-  `runs out ~Mon 17:25 at its rate over the last 30 min`, `over the last 18 min` for a window with
+- **`status` projects the same way,** its text keeping its words until it's designed afresh: a
+  week's `runs out ~Tue`, and the 5-hour window's
+  `runs out ~17:25 at its rate over the last 30 min`, `over the last 18 min` for a window with
   no level from before the half hour, or `over the last 2h` across a gap in its readings; and its
   pressure line adds the rate it goes by and the reset it runs out before,
   `under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at
@@ -8506,6 +8572,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 |---|---|
 | `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, working directory, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
 | `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text (`--print`) or in colour (`--ansi`), at its frame's size or one given (`--size`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot; plays a scenario of `internal/capture`'s in real time, for the README's demos (`--scenario`); and writes the frames in `testdata/vhs/reference/` from their fixtures, every one it keeps or those named (`--frames`). Capture's tests hold each fixture to its frame's text and ANSI, cell for cell (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
+| `cmd/forecasttool` | A program of its own, never a switchboard command, as `cmd/capturetool` is: plays a readings history and request ledger back from a state directory it's given, forecasting each account's week at each hour as the router would have, and scores each forecast against when the week ran out: how far off, how often early or late by more than 12 hours, and how far it moved from one hour to the next, by how much of the week was used. Run on the real install only on the owner's word |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print; a data verb in its form for a person on a terminal, else its JSON (see The data verbs) |
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin and shell directories |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, with the record of when each was taken, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
@@ -8520,6 +8587,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, and a line's limits kept small, as the views hold them, with their stored form, as a day's digest keeps the windows a page's points hold, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, the headers that name the prompt a request serves, its class and its agent, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, a window's rate of use, the allowance, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak, an account without a 5-hour window coming after those with a reset to come, and the best-account pick. Pure functions of a snapshot and a clock |
+| `internal/forecast` | The weeks' forecast (see Forecasting run-outs): the fast and day's rates and the hold curve, each kept as readings and answers arrive, and the pool's use played forward through `internal/score`'s choice of account, to where each week runs out. Pure functions and values handed the clock, as `internal/score`'s are; the router keeps the rates and the curve, `cmd/forecasttool` replays them, and `internal/status` forecasts with them |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab and the router's notifications read |
 | `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find reads of it (see The request ledger). It opens nothing itself; it reads through the readers it's given |
@@ -8989,6 +9057,7 @@ probing.
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
 | `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
+| `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on. Left out when the router has read no account |
 | `accounts` | Every configured account, in the config's order, as below |
 
 Each account:
@@ -8998,6 +9067,7 @@ Each account:
 | `id`, `label` | As configured |
 | `primary` | `true` on the primary; left out otherwise |
 | `reserve` | Its reserve; left out at 0 |
+| `plan` | Its plan, as configured: `pro`, `max` or `ultra`; left out when it isn't known |
 | `token_set` | Whether its token file is present and usable |
 | `token_taken` | When switchboard took its token, as the record it wrote beside the token says (see Accounts and tokens); left out when that isn't known, as of a token written by anything else |
 | `token_good_until` | When its token's year is up: `token_taken` and 365 days, a setup token's lifetime; left out with `token_taken` |
@@ -9011,7 +9081,7 @@ Each account:
 | `limit` | *router* A limit it reached, while it holds: `{id, windows, until}`, `id` the limit's identity, which it keeps while it holds, reached again, as the router counts its limits from 1 as it starts, and which the limit's event gives as its `limit`; `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
 | `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, since, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, and `since` when it's measured from, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets, while the account can take a request of some model, as one refused a model or held back in a model's own week still can: the account is under pressure (see Choosing an account). Of an account that can take no request, pressure isn't what passes it over, and `under` is left out. Left out when the rate can't be said, as when the window isn't running, or the account has no 5-hour window |
-| `rates` | *router* How fast its windows have been used lately: `[{window, rate, since}]`, in `windows`' order, `window` a window's key, `since` when the rate is measured from, and `rate` its rise from the level of its use read last before the last 30 minutes to its latest, as a share of it an hour: over those 30 minutes when that level was read again after they began, else over the time since it was last read, a rise across a gap in its readings spread over the gap; or, with no level that far back, from its first, over the time since, 10 minutes at least. Never negative, and 0 for a window read but unused since (see Choosing an account). The projections go by them (see `usage`, the printout). Left out when no window has one |
+| `rates` | *router* How fast its windows have been used lately: `[{window, rate, since, fast}]`, in `windows`' order, `window` a window's key, `since` when the rate is measured from, and `rate` its rise from the level of its use read last before the last 30 minutes to its latest, as a share of it an hour: over those 30 minutes when that level was read again after they began, else over the time since it was last read, a rise across a gap in its readings spread over the gap; or, with no level that far back, from its first, over the time since, 10 minutes at least. Never negative, and 0 for a window read but unused since (see Choosing an account). The 5-hour window's projection goes by its `rate` (see `usage`, the printout). `fast` is the window's fast rate, a share of it an hour, which a week's forecast goes by (see Forecasting run-outs); left out at 0. Left out when no window has either |
 | `sessions` | *router* How many sessions have been routed to it in the last hour; left out at 0 |
 
 ### The router's events
