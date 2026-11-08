@@ -1,6 +1,7 @@
 package shell_test
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
@@ -174,8 +175,8 @@ func TestRemovingTheLineFailsSayingWhy(t *testing.T) {
 func TestRemovingTheLinePutsTheFileBackWhereAWriteFails(t *testing.T) {
 	tests := []struct {
 		name string
-		// fails is how many writes fail, each having written half of what
-		// it was given, as a disk filling up leaves one.
+		// fails is how many writes fail, each having written x over half of
+		// what it was given, as a disk filling up leaves one cut short.
 		fails   int
 		wantErr string
 		// wantKept is whether the file is to be left as it was: where it
@@ -198,7 +199,7 @@ func TestRemovingTheLinePutsTheFileBackWhereAWriteFails(t *testing.T) {
 				if writes > tt.fails {
 					return f.WriteAt(b, off)
 				}
-				n, _ := f.WriteAt(b[:len(b)/2], off)
+				n, _ := f.WriteAt(bytes.Repeat([]byte("x"), len(b)/2), off)
 				return n, syscall.ENOSPC
 			})
 
@@ -207,10 +208,48 @@ func TestRemovingTheLinePutsTheFileBackWhereAWriteFails(t *testing.T) {
 			if err == nil || err.Error() != want || !errors.Is(err, syscall.ENOSPC) {
 				t.Errorf("RemoveLine() error = %v, want %q", err, want)
 			}
-			if got, _ := os.ReadFile(file); tt.wantKept && string(got) != text {
-				t.Errorf("the file reads %q, want it as it was, %q", got, text)
+			got, _ := os.ReadFile(file)
+			if kept := string(got) == text; kept != tt.wantKept {
+				t.Errorf("the file reads %q, want it as it was, %q: %v", got, text, tt.wantKept)
 			}
 		})
+	}
+}
+
+func TestRemovingTheLinePutsTheFileBackWhereItCantBeCut(t *testing.T) {
+	home := t.TempDir()
+	init := shell.InitFile(filepath.Join(home, ".local", "share", "switchboard", "shell"), shell.Zsh)
+	file := filepath.Join(home, ".zshrc")
+	text := "export EDITOR=vi\n" + shell.Line(shell.Zsh, init, home) + "\n"
+	write(t, file, text)
+	cuts := 0
+	shell.SetTruncate(t, func(f *os.File, size int64) error {
+		cuts++
+		if cuts == 1 {
+			return syscall.EIO
+		}
+		return f.Truncate(size)
+	})
+
+	_, err := shell.RemoveLine(shell.Zsh, file, home, init)
+	if want := "remove switchboard's line from " + file + ": input/output error: " + file + " is put back as it was"; err == nil || err.Error() != want {
+		t.Errorf("RemoveLine() error = %v, want %q", err, want)
+	}
+	checkFile(t, file, text)
+}
+
+func TestRemovingTheLineNamesALinkedFileItCantRead(t *testing.T) {
+	dir := t.TempDir()
+	kept := filepath.Join(dir, "dotfiles", "zshrc")
+	if err := os.MkdirAll(kept, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dir, "home", ".zshrc")
+	link(t, kept, file)
+
+	_, err := shell.RemoveLine(shell.Zsh, file, filepath.Join(dir, "home"), "/data/switchboard/shell/init.zsh")
+	if want := file + ": read " + kept + ": is a directory"; err == nil || err.Error() != want {
+		t.Errorf("RemoveLine() error = %v, want %q", err, want)
 	}
 }
 

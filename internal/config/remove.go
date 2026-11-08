@@ -83,7 +83,8 @@ const (
 // RemoveAll removes dir, with everything in it but keep, a folder that's to
 // stay wherever it is, as the export's does, and the directories on the way
 // to it from dir. dir goes whole where keep is "" or isn't in it, or isn't
-// there to keep, and stays whole where it's keep. keep is found in dir
+// there to keep, and stays whole where it's keep. Where keep is there in
+// dir, or the way to it can't be read, dir is never removed whole. keep is found in dir
 // however either is named, by what each is, not by its path. A dir that's a
 // link is removed alone, never what it leads to. It goes on past what it
 // can't remove, and fails, saying why.
@@ -98,7 +99,7 @@ func RemoveAll(dir, keep string) (Removal, error) {
 		return Kept, nil
 	case info.Mode()&fs.ModeSymlink == 0 && holds(dir, keep):
 		kept, err := removeAllBut(dir, keep)
-		if kept {
+		if kept || err != nil || !missing(keep) {
 			return KeptFor, err
 		}
 	}
@@ -181,6 +182,12 @@ func holds(dir, path string) bool {
 			return false
 		}
 	}
+}
+
+// missing reports whether there's nothing at path.
+func missing(path string) bool {
+	_, err := os.Stat(path)
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 // sameFile reports whether a and b are the one file, links followed.

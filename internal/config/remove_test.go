@@ -244,6 +244,32 @@ func TestRemoveAllOfAFolderToKeepThatIsntThereRemovesItWhole(t *testing.T) {
 	}
 }
 
+func TestRemoveAllKeepsTheFolderWhereTheWayToItCantBeRead(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root can read any directory")
+	}
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "switchboard")
+	writeIn(t, filepath.Join(dir, "state.json"))
+	writeIn(t, filepath.Join(dir, "ledger", "exports", "mac-1", "export.json"))
+	ledger := filepath.Join(dir, "ledger")
+	if err := os.Chmod(ledger, 0o300); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(ledger, 0o700) })
+
+	got, err := config.RemoveAll(dir, filepath.Join(ledger, "exports"))
+	if got != config.KeptFor || err == nil || !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("RemoveAll() = %v, %v; want %v, failing for want of permission", got, err, config.KeptFor)
+	}
+	if err := os.Chmod(ledger, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(ledger, "exports", "mac-1", "export.json")); err != nil {
+		t.Errorf("the export's folder: %v, want it kept", err)
+	}
+}
+
 func TestRemoveAllOfALinkRemovesTheLinkAlone(t *testing.T) {
 	root := t.TempDir()
 	target := filepath.Join(root, "dotfiles", "switchboard")

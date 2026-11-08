@@ -209,7 +209,10 @@ func RemoveLine(sh Shell, file, home, initFile string) (LineRemoval, error) {
 	if errors.Is(err, fs.ErrNotExist) {
 		return LineRemoval{}, nil
 	}
-	if err != nil {
+	switch {
+	case err != nil && target != file:
+		return LineRemoval{}, fmt.Errorf("%s: %w", file, err)
+	case err != nil:
 		// Not wrapped: the error names the file already.
 		return LineRemoval{}, err
 	}
@@ -236,9 +239,12 @@ func RemoveLine(sh Shell, file, home, initFile string) (LineRemoval, error) {
 	return found, nil
 }
 
-// writeAt writes b to f at off, as f.WriteAt does: a seam, so tests can
-// fail a write.
-var writeAt = (*os.File).WriteAt
+// writeAt writes b to f at off, as f.WriteAt does, and truncate cuts f to
+// size, as f.Truncate does: seams, so tests can fail either.
+var (
+	writeAt  = (*os.File).WriteAt
+	truncate = (*os.File).Truncate
+)
 
 // rewrite writes text in place of was, what the file at path holds, in the
 // file itself, which keeps everything of its own but what it holds: over it,
@@ -269,7 +275,7 @@ func replace(f *os.File, text []byte) error {
 	if _, err := writeAt(f, text, 0); err != nil {
 		return err
 	}
-	return f.Truncate(int64(len(text)))
+	return truncate(f, int64(len(text)))
 }
 
 // Lines is what RemoveLines did: the startup files it took switchboard's
