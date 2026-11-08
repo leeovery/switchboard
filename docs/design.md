@@ -8540,7 +8540,38 @@ first session after it says so.
   says the line and column it can't read, or that the file starts with a byte order mark, or
   whose `hooks` isn't an object or `SessionStart` an array, it leaves as it is, saying what's
   wrong, and setup carries on. Only setup writes it. Taking it away is the
-  uninstall's (`ideas/2026-10-27--uninstall.md`).
+  uninstall's (see Uninstall).
+
+## Uninstall
+
+**Chosen by the owner, 8 November 2026** (see [uninstall](../ideas/2026-10-27--uninstall.md)).
+`switchboard uninstall` takes away what setup put on the Mac, so nothing switchboard leaves keeps
+working on the user's behalf. `brew uninstall` can't run it, as Homebrew has no uninstall hook, so
+the formula's caveats name it, to run first.
+
+- **What goes, in this order:** the service, as `service uninstall` takes it away (the router
+  stopped once its requests in flight are done, the LaunchAgent, the router's copy and the
+  notifications' app), first, so no router brings the skill back up to date as it goes; the line
+  setup added to the shell's startup file, found by its mark as setup finds it, and switchboard's
+  own files for each shell that line hands off to, completion's with them; switchboard's own entry
+  in Claude Code's SessionStart hooks, every other setting and hook left as it is; the skill, in
+  Claude Code's config directory; and the `claude` link in switchboard's bin directory, the
+  directory too once empty.
+- **What stays, unless `--all`:** the config, the accounts' token files and everything recorded in
+  the state directory: the ledger, the readings, the events, the logs and the router's state. A
+  reinstall then carries on where it left off, and the history, which nothing can bring back, goes
+  only when asked for. `--all` takes them too. Nothing asks first either way: the flag is the
+  asking.
+- **Never touched:** the export's folder, `[export] dir`, wherever it is: it's the user's, on
+  another disk or in iCloud as often as not. Nor switchboard's binary, which is Homebrew's: the
+  last line says to run `brew uninstall switchboard`.
+- **What it says:** a line a piece, as setup's rows say a fact: removed, or not there, or failed
+  and why. A piece that fails doesn't stop the rest; the command then fails, after the last, as
+  `service uninstall` does. It says once, at the end, that the accounts' setup tokens stay valid on
+  Anthropic's side until their year is out, removed here or not.
+- **The formula's caveats** name `switchboard uninstall`, to run before `brew uninstall`, once a
+  release carries it, in the tap's formula (`leeovery/homebrew-tools`), whose caveats the tap's
+  update keeps.
 
 ## What doesn't go through the router
 
@@ -10162,7 +10193,7 @@ why.
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | chosen by the owner on 27 October 2026, with setup's flow step by step: setup tokens alone, which setup makes itself by running `claude setup-token`; each account's plan, the primary's reserve, a review of each account on a run again, `accounts edit`, and a warning before a token's year is up; designed as setup's full screen, its calls approved on 28 October 2026, and built in #190–#218 (see Setup), all but `usage` showing a token's year | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
 | One history across several Macs at once, each Mac's History counting the others' requests from their exported folders | later: only where two Macs run switchboard on the same accounts at once (the owner, 3 November 2026); export and import, and the export on a schedule, taken up (see Export and import) | [history-beyond-one-mac](../ideas/2026-10-27--history-beyond-one-mac.md) |
-| An uninstall: everything switchboard put on the Mac taken away, the service, the shell's startup line, the session hook, the skill and the `claude` link | asked for by the owner on 27 October 2026, as setup took on the startup line and the hook; what goes of the config, tokens and history to settle | [uninstall](../ideas/2026-10-27--uninstall.md) |
+| An uninstall: everything switchboard put on the Mac taken away, the service, the shell's startup line, the session hook, the skill and the `claude` link | asked for by the owner on 27 October 2026, as setup took on the startup line and the hook; settled by the owner on 8 November 2026: the config, tokens and history stay unless `--all`, the export's folder never touched (see Uninstall) | [uninstall](../ideas/2026-10-27--uninstall.md) |
 | Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
 | The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
