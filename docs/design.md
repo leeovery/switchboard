@@ -8235,8 +8235,10 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     always the version that last ran or was cleared, and launchd starting the router again, as after
     a crash, starts one that could, once launchd has loaded a plist that runs the copy: until then,
     as for the rest of the login a router moved over in (see Moving over), launchd's job still runs
-    the link, as before the copy, and `service status` says so, naming `service install`, which
-    setup runs. The copy is only ever replaced by a rename, never written into,
+    the link, as before the copy, and `service status` says launchd runs the copy from the next
+    login, and that `service install`, which setup runs, has it run the copy now: the owner's call,
+    8 November 2026, as the next login sets it right by itself. The copy is only ever replaced by a
+    rename, never written into,
     as macOS remembers a signed binary's signature by its file, and kills one changed in place.
   - **A copy that can't be made,** as on a full disk, is logged once at `warn`, and the router
     carries on as it is, copying again at the next moment with no request in flight.
@@ -9368,8 +9370,10 @@ verbs).
   finish, and `restart` is `launchctl kickstart -k`, waiting up to 5 seconds. Without the service
   loaded, `restart` is an error saying so. `status` reports the plist, whether launchd has it
   loaded, the router's health, and the router's copy where it's wrong: missing, which launchd can't
-  run, or not run, where the plist, or the job launchd has loaded, runs switchboard itself, each
-  naming `service install`, which setup runs where either holds. When no router answers in time, `install` and `restart` fail, the
+  run, or not run, where the plist runs switchboard itself, each naming `service install`; or run
+  by launchd from the next login, where the job it has loaded runs switchboard itself, saying
+  `service install` has it run the copy now. setup runs `service install` where the plist or the
+  loaded job runs switchboard itself. When no router answers in time, `install` and `restart` fail, the
   LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why. Each run of
   `launchctl` is cut off after 10 seconds, but a bootout, with the wait for launchd to let the
   service go, after 55: the 45 and 10 more, failing `uninstall` when launchd still has it then, and
@@ -10110,6 +10114,7 @@ why.
 | Spending extra usage: a way to say carry on, and be billed, once every account is at its limit | later | [spending-extra-usage](../ideas/2026-10-08--spending-extra-usage.md) |
 | A notice when a session moves, through a hook | deferred | [move-notice](../ideas/2026-09-30--move-notice.md) |
 | Other agents than Claude Code | deferred | [other-agents](../ideas/2026-09-30--other-agents.md) |
+| The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
 | One owner of switchboard's file locks, the four packages that each take a `flock` their own way | open: a refactor, any time | [one-file-lock](../ideas/2026-11-04--one-file-lock.md) |
 | Prompt-cache keep-warm | parked | [prompt-cache-keep-warm](../ideas/2026-09-30--prompt-cache-keep-warm.md) |
 | An artifact proxy, one browser for every account's artifacts | open | [artifact-proxy](../ideas/2026-09-30--artifact-proxy.md) |
