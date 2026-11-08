@@ -282,9 +282,12 @@ type AsRead struct {
 }
 
 // At is the document as it stands at now, as policy judges its windows: each
-// fact a view reads of it, worked out once, as Moment has them. Its pool is
-// worked out the first time it's asked for.
+// fact a view reads of it, worked out once, as Moment has them, its weeks by
+// the forecast WorkedOut played, or, where it played none, as withWeeks
+// plays them, for the moment and every moment of it at another time. Its
+// pool is worked out the first time it's asked for.
 func (d Document) At(now time.Time, policy score.Policy) Moment {
+	d = d.withWeeks(policy)
 	judged := d.judgeAll(now, policy)
 	m := Moment{
 		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter, Probed: d.Source == SourceProbe,
@@ -572,8 +575,24 @@ func (j judgedAccount) window(key string) (judged, bool) {
 // measured are the account's windows as read, each with its even pace and
 // its allowance as judged, as the document gives them.
 func (j judgedAccount) measured() []quota.Window {
-	windows := slices.Clone(j.states.account.Windows)
-	for i, w := range j.windows {
+	return withMeasures(j.states.account.Windows, j.windows)
+}
+
+// measuredWindows are the account's windows as read, each with its even pace
+// and its allowance, as measured has them, as the document gives them.
+func (s windowStates) measuredWindows() []quota.Window {
+	measured := make([]judged, len(s.account.Windows))
+	for i, w := range s.account.Windows {
+		measured[i] = s.measured(w)
+	}
+	return withMeasures(s.account.Windows, measured)
+}
+
+// withMeasures are the windows read, each with the even pace and allowance
+// of the one measured in its place.
+func withMeasures(read []quota.Window, measured []judged) []quota.Window {
+	windows := slices.Clone(read)
+	for i, w := range measured {
 		windows[i].Pace, windows[i].Allowance = w.pace, w.allowance
 	}
 	return windows

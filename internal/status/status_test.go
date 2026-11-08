@@ -114,11 +114,11 @@ func TestCollectGivesThePrimaryAndTheWindowsAtEachReserve(t *testing.T) {
 func TestAnAccountsWindowsProjected(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	// The session began two hours ago, 30% used: its use since it started
-	// ends it at 75%. The week began five days ago, 50% used: its use since
-	// it started ends it at 70%.
+	// ends it at 75%. The week and Fable's began five days ago, 50% used:
+	// their use since they started ends them at 70%.
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.3, ResetsAt: now.Add(3 * time.Hour)}
 	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: now.Add(2 * 24 * time.Hour)}
-	watched := status.Pressure{Window: "5h"}
+	fable := quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.5, ResetsAt: now.Add(2 * 24 * time.Hour)}
 	sinceStarted := func(atReset float64) status.Heading {
 		return status.Heading{Kind: score.OnPace, AtReset: atReset}
 	}
@@ -127,75 +127,53 @@ func TestAnAccountsWindowsProjected(t *testing.T) {
 		return status.Rate{Window: key, Rate: rate, Since: now.Add(-30 * time.Minute)}
 	}
 	tests := []struct {
-		name     string
-		pressure status.Pressure
-		rates    []status.Rate
-		window   quota.Window
-		want     status.Heading
+		name   string
+		rates  []status.Rate
+		window quota.Window
+		want   status.Heading
 	}{
 		{
-			name:     "the session, at its recent rate, running out",
-			pressure: watched,
-			rates:    []status.Rate{recent("5h", 0.3)},
-			window:   session,
-			want:     status.Heading{Kind: score.RunsOut, At: now.Add(2*time.Hour + 20*time.Minute), Recent: true},
-		},
-		{
-			name:     "the session, at its recent rate, though its use since it started ends it more used",
-			pressure: watched,
-			rates:    []status.Rate{recent("5h", 0.05)},
-			window:   session,
-			want:     status.Heading{Kind: score.OnPace, AtReset: 0.45, Recent: true},
-		},
-		{
-			name:     "the session, without a recent rate, at its use since it started",
-			pressure: watched,
-			window:   session,
-			want:     sinceStarted(0.75),
-		},
-		{
-			name:   "the session, probed, at its use since it started",
+			name:   "the session, at its recent rate, running out",
+			rates:  []status.Rate{recent("5h", 0.3)},
 			window: session,
-			want:   sinceStarted(0.75),
+			want:   status.Heading{Kind: score.RunsOut, At: now.Add(2*time.Hour + 20*time.Minute), Recent: true},
 		},
 		{
-			name:     "the week, at its recent rate, which has it run out sooner",
-			pressure: watched,
-			rates:    []status.Rate{recent("5h", 0.3), recent("7d", 0.03)},
-			window:   week,
-			want:     status.Heading{Kind: score.RunsOut, At: now.Add(16*time.Hour + 40*time.Minute), Recent: true},
+			name:   "the session, at its recent rate, though its use since it started ends it more used",
+			rates:  []status.Rate{recent("5h", 0.05)},
+			window: session,
+			want:   status.Heading{Kind: score.OnPace, AtReset: 0.45, Recent: true},
 		},
+		{name: "the session, without a recent rate, at its use since it started", window: session, want: sinceStarted(0.75)},
 		{
-			name:     "the week, at its recent rate, which ends it more used",
-			pressure: watched,
-			rates:    []status.Rate{recent("7d", 0.01)},
-			window:   week,
-			want:     status.Heading{Kind: score.OnPace, AtReset: 0.98, Recent: true},
-		},
-		{
-			name:     "the week, at its use since it started, its recent rate slower",
-			pressure: watched,
-			rates:    []status.Rate{recent("7d", 0.001)},
-			window:   week,
-			want:     sinceStarted(0.7),
-		},
-		{
-			name:     "the week, without a recent rate, at its use since it started",
-			pressure: watched,
-			rates:    []status.Rate{recent("5h", 0.3)},
-			window:   week,
-			want:     sinceStarted(0.7),
-		},
-		{
-			name:   "the week, probed, at its use since it started",
+			name:   "the week, at its use since it started, though its recent rate has it run out sooner",
+			rates:  []status.Rate{recent("5h", 0.3), recent("7d", 0.03)},
 			window: week,
+			want:   sinceStarted(0.7),
+		},
+		{
+			name:   "the week, at its use since it started, though its recent rate ends it more used",
+			rates:  []status.Rate{recent("7d", 0.01)},
+			window: week,
+			want:   sinceStarted(0.7),
+		},
+		{
+			name:   "the week, without a recent rate, at its use since it started",
+			rates:  []status.Rate{recent("5h", 0.3)},
+			window: week,
+			want:   sinceStarted(0.7),
+		},
+		{
+			name:   "a model's own week, at its use since it started, though its recent rate has it run out sooner",
+			rates:  []status.Rate{recent("7d_oi", 0.03)},
+			window: fable,
 			want:   sinceStarted(0.7),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := status.Account{ID: "work", Windows: []quota.Window{session, week}, Pressure: tt.pressure, Rates: tt.rates}
-			got := a.Project(tt.window, now)
+			a := status.Account{ID: "work", Windows: []quota.Window{session, week, fable}, Rates: tt.rates}
+			got := a.Project(tt.window, now, policy)
 			if got.Kind != tt.want.Kind || math.Abs(got.AtReset-tt.want.AtReset) > 1e-9 || !got.At.Equal(tt.want.At) || got.Recent != tt.want.Recent {
 				t.Errorf("Project() = %+v, want %+v", got, tt.want)
 			}
@@ -228,7 +206,7 @@ func TestWhereAnAccountsWindowRunsOut(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a := status.Account{ID: "work", Reserve: tt.reserve, Windows: []quota.Window{tt.window}, Pressure: pressed, Rates: rates}
 			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{a}}
-			got, ok := doc.RunsOut(a, tt.window, now)
+			got, ok := doc.RunsOut(a, tt.window, now, policy)
 			if ok != tt.wantOK || !got.At.Round(time.Second).Equal(tt.want) || (ok && got.Reserve != tt.wantReserve) {
 				t.Errorf("RunsOut() = %+v, %v, want at %s, at the reserve %v, %v", got, ok, tt.want, tt.wantReserve, tt.wantOK)
 			}
@@ -250,30 +228,37 @@ func TestAProjectionStaysPutWhileTheDocumentDoes(t *testing.T) {
 	read := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	// The session, 58% used two hours in, heads at its pace for 97% by its
 	// reset in three, and at 30% an hour lately reaches its limit in 1h 24m;
-	// the week, used at its pace, runs out in a day.
+	// the week, used at its pace, runs out in a day, and as the forecast
+	// plays it, at 1% an hour, in 20 hours.
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.58, ResetsAt: read.Add(3 * time.Hour)}
 	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.8, ResetsAt: read.Add(4 * 24 * time.Hour)}
 	paced := status.Account{ID: "work", FetchedAt: read.Add(-time.Minute), Windows: []quota.Window{session, week}}
 	rated := paced
-	rated.Rates = []status.Rate{{Window: "5h", Rate: 0.3, Since: read.Add(-30 * time.Minute)}}
-	for _, a := range []status.Account{paced, rated} {
-		doc := status.Document{GeneratedAt: read, Accounts: []status.Account{a}}
+	rated.Rates = []status.Rate{{Window: "5h", Rate: 0.3, Since: read.Add(-30 * time.Minute)}, {Window: "7d", Fast: 0.01}}
+	forecast := status.Document{GeneratedAt: read, Demand: &status.Demand{Day: 0.01}, Accounts: []status.Account{rated}}
+	for _, doc := range []status.Document{
+		{GeneratedAt: read, Accounts: []status.Account{paced}},
+		{GeneratedAt: read, Accounts: []status.Account{rated}},
+		forecast,
+		forecast.WorkedOut(policy),
+	} {
+		a := doc.Accounts[0]
 		for _, w := range a.Windows {
-			first, ok := doc.RunsOut(a, w, read)
-			heading := doc.Project(a, w, read)
+			first, ok := doc.RunsOut(a, w, read, policy)
+			heading := doc.Project(a, w, read, policy)
 			for _, later := range []time.Duration{time.Second, 10 * time.Minute} {
-				again, stillOK := doc.RunsOut(a, w, read.Add(later))
+				again, stillOK := doc.RunsOut(a, w, read.Add(later), policy)
 				if ok != stillOK || !again.At.Equal(first.At) {
 					t.Errorf("%s's %s runs out at %v, %v as read, and at %v, %v %s later, want it put", a.ID, w.Key, first.At, ok, again.At, stillOK, later)
 				}
-				if got := doc.Project(a, w, read.Add(later)); got != heading {
+				if got := doc.Project(a, w, read.Add(later), policy); got != heading {
 					t.Errorf("%s's %s heads for %+v as read, and %+v %s later, want it put", a.ID, w.Key, heading, got, later)
 				}
 			}
 		}
 	}
 	doc := status.Document{GeneratedAt: read, Accounts: []status.Account{paced}}
-	if got := doc.Project(paced, session, session.ResetsAt); got != (status.Heading{}) {
+	if got := doc.Project(paced, session, session.ResetsAt, policy); got != (status.Heading{}) {
 		t.Errorf("once its session has reset, it heads for %+v, want nowhere", got)
 	}
 }
@@ -1789,7 +1774,7 @@ func TestAWindowWithAFastRateAloneIsProjectedAsWithoutARecentRate(t *testing.T) 
 		Rates: []status.Rate{{Window: "5h", Fast: 0.2}},
 	}
 
-	got := a.Project(session, now)
+	got := a.Project(session, now, policy)
 	if got.Recent || got.Kind != score.OnPace || math.Abs(got.AtReset-0.75) > 1e-9 {
 		t.Errorf("Project() = %+v, want at its use since it started, to 75%%: a fast rate is no recent rate", got)
 	}

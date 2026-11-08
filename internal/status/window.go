@@ -231,11 +231,19 @@ type judged struct {
 
 // judge is how the account's window w, read, stands at now, as judged has it.
 func (s windowStates) judge(w quota.Window) judged {
+	j := s.measured(w)
+	j.out, j.runsOut = s.doc.runOutOf(s.account, w, s.now, s.policy)
+	j.room = s.poolRoom(w)
+	return j
+}
+
+// measured is how the account's window w, read, stands at now, as judge has
+// it, but for where it runs out and its room: as it stands, lapsed or not,
+// and its even pace and allowance.
+func (s windowStates) measured(w quota.Window) judged {
 	j := judged{window: w, lapsed: !s.stood.running(w.Key)}
 	j.stands = windowAsOf(w, j.lapsed, s.now)
 	j.pace, j.allowance = s.doc.measure(s.account, s.stood, w.Key, j.stands, s.now)
-	j.out, j.runsOut = s.doc.runOutOf(s.account, w, s.now)
-	j.room = s.poolRoom(w)
 	return j
 }
 
