@@ -15,3 +15,7 @@ Ways out, keeping the guard:
 - or pause Claude Code's updates while the gates run.
 
 Never loosen the guard further than that: a `claude` the tests made or changed must still fail it.
+
+## Built, 8 November 2026
+
+The first way out, on the owner's go: testguard notes a link by its type, where it leads and what's there, followed (its type, size and modification time), never the link's own times or size, one rule for every link it watches. A link made again to the same target is no change; one re-pointed, removed, replaced by a file, or whose file changed, still fails the run. A Claude Code update that moves the link on to a new version still fails it, as a real change of the link.

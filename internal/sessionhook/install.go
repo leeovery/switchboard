@@ -66,38 +66,78 @@ func Install(path, switchboard string) (Outcome, error) {
 	if err != nil {
 		return InPlace, fmt.Errorf("follow %s: %w", path, err)
 	}
-	for range restarts + 1 {
-		outcome, err := installAt(target, Command(switchboard))
-		if !errors.Is(err, errChanged) {
-			if err != nil {
-				return InPlace, fmt.Errorf("%s: %w", path, err)
-			}
-			return outcome, nil
-		}
+	var outcome Outcome
+	err = rewrite(target, func(settings *object) (bool, error) {
+		var err error
+		outcome, err = place(settings, Command(switchboard))
+		return outcome != InPlace, err
+	})
+	switch {
+	case errors.Is(err, errChanged):
+		return InPlace, fmt.Errorf("%s kept changing as the session hook was written into it, so it's left as it is: run setup again", path)
+	case err != nil:
+		return InPlace, fmt.Errorf("%s: %w", path, err)
 	}
-	return InPlace, fmt.Errorf("%s kept changing as the session hook was written into it, so it's left as it is: run setup again", path)
+	return outcome, nil
 }
 
-// installAt puts the entry running command in the settings file at target,
-// failing with errChanged, having written nothing, where the file changed
-// meanwhile.
-func installAt(target, command string) (Outcome, error) {
+// Uninstall takes switchboard's entry out of Claude Code's settings file at
+// path, every one of them where there's more than one, with a group that held
+// it alone, and SessionStart and hooks where nothing's left in them; and
+// reports whether there was one, writing nothing where there wasn't. Every
+// other setting and hook is left as it was, in its order, and the file is
+// written as Install writes it. A file Install would leave as it is,
+// Uninstall leaves so too, failing saying what's wrong; and one that changes
+// as it's written is read again, as Install reads it.
+func Uninstall(path string) (bool, error) {
+	target, err := atomicfile.Target(path)
+	if err != nil {
+		return false, fmt.Errorf("follow %s: %w", path, err)
+	}
+	var removed bool
+	err = rewrite(target, func(settings *object) (bool, error) {
+		var err error
+		removed, err = remove(settings)
+		return removed, err
+	})
+	switch {
+	case errors.Is(err, errChanged):
+		return false, fmt.Errorf("%s kept changing as the session hook was taken out of it, so it's left as it is: run switchboard uninstall again", path)
+	case err != nil:
+		return false, fmt.Errorf("%s: %w", path, err)
+	}
+	return removed, nil
+}
+
+// rewrite has change change the settings in the file at target, and writes
+// them back where it reports it did, starting again from what the file holds
+// then where it changed meanwhile, restarts times at most: past that, it
+// fails with errChanged, having written nothing.
+func rewrite(target string, change func(*object) (bool, error)) error {
+	for range restarts + 1 {
+		if err := rewriteOnce(target, change); !errors.Is(err, errChanged) {
+			return err
+		}
+	}
+	return errChanged
+}
+
+// rewriteOnce is one of rewrite's goes, failing with errChanged, having
+// written nothing, where the file changed meanwhile.
+func rewriteOnce(target string, change func(*object) (bool, error)) error {
 	read, mode, err := readSettings(target)
 	if err != nil {
-		return InPlace, err
+		return err
 	}
 	settings, err := parseSettings(read)
 	if err != nil {
-		return InPlace, err
+		return err
 	}
-	outcome, err := place(&settings, command)
-	if err != nil || outcome == InPlace {
-		return outcome, err
+	changed, err := change(&settings)
+	if err != nil || !changed {
+		return err
 	}
-	if err := writeSettings(target, settings, mode, read); err != nil {
-		return InPlace, err
-	}
-	return outcome, nil
+	return writeSettings(target, settings, mode, read)
 }
 
 // readSettings reads the settings file at path as it is, and its mode: nil,

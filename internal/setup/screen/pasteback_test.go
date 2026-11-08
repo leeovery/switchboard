@@ -133,21 +133,22 @@ func TestRunGivesATokenMadeBackThroughThePasteCard(t *testing.T) {
 	tests := []struct {
 		name string
 		ends setup.Tokened
-		// then are the keys typed at the card the making ends at; pasted,
-		// how the paste ends once the screen has gone, where enter's
-		// pressed, failing with pasteErr where it's set.
-		then     string
+		// pasted is whether enter's pressed at the paste card, which p opens
+		// at the card the making ends at, and ctrl+c once the paste has
+		// begun, which ends once the screen has gone, failing with pasteErr
+		// where it's set; else ctrl+c's pressed at the paste card.
+		pasted   bool
 		pasteErr error
 		unsaved  *setup.Tokened
 		replaced int
 		logged   string
 	}{
-		{name: "unread", ends: madeUnread, then: "px\x03", unsaved: &madeUnread},
-		{name: "not saved", ends: madeNotSaved, then: "px\x03", unsaved: &madeNotSaved},
-		{name: "setup-token's error", ends: notMade, then: "px\x03"},
-		{name: "unread, the paste saved once the screen's gone", ends: madeUnread, then: "px\r\x03", replaced: 1},
+		{name: "unread", ends: madeUnread, unsaved: &madeUnread},
+		{name: "not saved", ends: madeNotSaved, unsaved: &madeNotSaved},
+		{name: "setup-token's error", ends: notMade},
+		{name: "unread, the paste saved once the screen's gone", ends: madeUnread, pasted: true, replaced: 1},
 		{
-			name: "unread, the paste failing once the screen's gone", ends: madeUnread, then: "px\r\x03",
+			name: "unread, the paste failing once the screen's gone", ends: madeUnread, pasted: true,
 			pasteErr: errors.New("write the token file: no space left on device"), unsaved: &madeUnread,
 			logged: "pasting a token failed once setup's screen had gone",
 		},
@@ -157,10 +158,11 @@ func TestRunGivesATokenMadeBackThroughThePasteCard(t *testing.T) {
 			log := logstest.Capture(t)
 			steps := newFakeSteps()
 			steps.making = fakeMaking{steps: []setup.Making{privately, approving}, ends: &tt.ends}
-			steps.pasteUntilGone, steps.pasteErr = true, tt.pasteErr
+			begun := make(chan struct{}, 1)
+			steps.pasteUntilGone, steps.pasteErr = begun, tt.pasteErr
 			reviewed, ended := make(chan struct{}), make(chan struct{})
 			var reviewOnce, endOnce sync.Once
-			term := terminal{keys: "t", ready: reviewed, then: tt.then, thenReady: ended, saw: func(msg tea.Msg) {
+			term := terminal{keys: "t", ready: reviewed, then: "px\x03", thenReady: ended, saw: func(msg tea.Msg) {
 				switch msg.(type) {
 				case reviewMsg:
 					reviewOnce.Do(func() { close(reviewed) })
@@ -168,6 +170,11 @@ func TestRunGivesATokenMadeBackThroughThePasteCard(t *testing.T) {
 					endOnce.Do(func() { close(ended) })
 				}
 			}}
+			if tt.pasted {
+				// ctrl+c typed with enter can end the screen before the paste
+				// takes its turn, which it then never does.
+				term.then, term.last, term.lastReady = "px\r", "\x03", begun
+			}
 			type ran struct {
 				left Left
 				err  error

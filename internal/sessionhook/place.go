@@ -22,19 +22,9 @@ func entry(command string) object {
 // making hooks and its SessionStart where they're missing, and reports what
 // it did.
 func place(settings *object, command string) (Outcome, error) {
-	hooks := object{}
-	if raw, ok := settings.get("hooks"); ok {
-		var err error
-		if hooks, err = parseObject(raw); err != nil {
-			return InPlace, fmt.Errorf("hooks: %w", err)
-		}
-	}
-	var groups []json.RawMessage
-	if raw, ok := hooks.get(Event); ok {
-		var err error
-		if groups, err = parseArray(raw); err != nil {
-			return InPlace, fmt.Errorf("hooks.%s: %w", Event, err)
-		}
+	hooks, groups, err := sessionStart(*settings)
+	if err != nil {
+		return InPlace, err
 	}
 	p := placer{command: command}
 	groups = p.groups(groups)
@@ -44,6 +34,54 @@ func place(settings *object, command string) (Outcome, error) {
 		settings.set("hooks", hooks.encode())
 	}
 	return outcome, nil
+}
+
+// remove takes every one of switchboard's entries out of settings' hooks,
+// with any group that held them alone, and SessionStart and hooks where
+// nothing's left in them, and reports whether there was one.
+func remove(settings *object) (bool, error) {
+	hooks, groups, err := sessionStart(*settings)
+	if err != nil {
+		return false, err
+	}
+	// As though one were kept already, so every one of switchboard's goes.
+	p := placer{kept: true}
+	groups = p.groups(groups)
+	if !p.found {
+		return false, nil
+	}
+	if len(groups) == 0 {
+		hooks.remove(Event)
+	} else {
+		hooks.set(Event, encodeArray(groups))
+	}
+	if len(hooks) == 0 {
+		settings.remove("hooks")
+	} else {
+		settings.set("hooks", hooks.encode())
+	}
+	return true, nil
+}
+
+// sessionStart returns settings' hooks, and SessionStart's groups among
+// them: none of either where they're missing. It fails where either isn't
+// shaped as Claude Code reads it.
+func sessionStart(settings object) (object, []json.RawMessage, error) {
+	hooks := object{}
+	if raw, ok := settings.get("hooks"); ok {
+		var err error
+		if hooks, err = parseObject(raw); err != nil {
+			return nil, nil, fmt.Errorf("hooks: %w", err)
+		}
+	}
+	var groups []json.RawMessage
+	if raw, ok := hooks.get(Event); ok {
+		var err error
+		if groups, err = parseArray(raw); err != nil {
+			return nil, nil, fmt.Errorf("hooks.%s: %w", Event, err)
+		}
+	}
+	return hooks, groups, nil
 }
 
 // placer puts switchboard's entry, running command, among SessionStart's

@@ -219,23 +219,43 @@ func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts se
 // router's copy of switchboard, then the notifications' app, saying on errOut
 // where that can't be removed, or unregistered.
 func (a *app) uninstallService(ctx context.Context, out, errOut io.Writer) error {
-	svc, err := a.service(errOut)
+	removal, err := a.removeService(ctx, errOut)
 	if err != nil {
 		return err
 	}
-	removed, err := svc.Uninstall(ctx)
-	if err != nil {
-		return err
-	}
-	if err := a.Notifier.Uninstall(ctx); err != nil {
-		launch.Notice(errOut, redact.Text(err.Error()))
+	if removal.app != nil {
+		launch.Notice(errOut, redact.Text(removal.app.Error()))
 	}
 	said := "the service isn't installed"
-	if removed {
-		said = "uninstalled: removed " + svc.Plist()
+	if removal.removed {
+		said = "uninstalled: removed " + removal.plist
 	}
 	_, err = fmt.Fprintln(out, said)
 	return err
+}
+
+// serviceRemoval is what removeService did: whether there was a LaunchAgent
+// to remove, and where its plist was; and why the notifications' app
+// couldn't be removed, or unregistered, where it couldn't.
+type serviceRemoval struct {
+	removed bool
+	plist   string
+	app     error
+}
+
+// removeService stops the router and removes the LaunchAgent and the
+// router's copy of switchboard, then the notifications' app, as the
+// service's uninstall does, and says what it did.
+func (a *app) removeService(ctx context.Context, errOut io.Writer) (serviceRemoval, error) {
+	svc, err := a.service(errOut)
+	if err != nil {
+		return serviceRemoval{}, err
+	}
+	removed, err := svc.Uninstall(ctx)
+	if err != nil {
+		return serviceRemoval{}, err
+	}
+	return serviceRemoval{removed: removed, plist: svc.Plist(), app: a.Notifier.Uninstall(ctx)}, nil
 }
 
 // restartService restarts the router, saying how while a router finishes its

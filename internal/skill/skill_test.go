@@ -276,6 +276,68 @@ func TestADirectoryWhereTheSkillGoes(t *testing.T) {
 	}
 }
 
+func TestUninstall(t *testing.T) {
+	tests := []struct {
+		name string
+		// lay lays out Claude Code's config directory, at config, before the
+		// skill is uninstalled.
+		lay         func(t *testing.T, config string)
+		wantRemoved bool
+		// wantDir is whether the skill's directory is left.
+		wantDir bool
+	}{
+		{name: "never installed", lay: func(*testing.T, string) {}},
+		{name: "installed: it goes, with its directory", lay: installed("the skill"), wantRemoved: true},
+		{
+			name: "installed, beside a file of the user's: the directory kept for it",
+			lay: func(t *testing.T, config string) {
+				installed("the skill")(t, config)
+				write(t, filepath.Join(filepath.Dir(skillIn(config)), "notes.md"), "the user's", 0o644)
+			},
+			wantRemoved: true,
+			wantDir:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := filepath.Join(t.TempDir(), ".claude")
+			tt.lay(t, config)
+			path := skillIn(config)
+
+			removed, err := skill.Uninstall(path)
+			if err != nil || removed != tt.wantRemoved {
+				t.Fatalf("Uninstall() = %v, %v, want %v", removed, err, tt.wantRemoved)
+			}
+			if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("the skill: %v, want it gone", err)
+			}
+			if _, err := os.Stat(filepath.Dir(path)); (err == nil) != tt.wantDir {
+				t.Errorf("the skill's directory: %v, want it there: %v", err, tt.wantDir)
+			}
+			if removed, err := skill.Uninstall(path); err != nil || removed {
+				t.Errorf("Uninstall(), again = %v, %v, want nothing there to remove", removed, err)
+			}
+		})
+	}
+}
+
+func TestUninstallFailsWhereItCantRemoveTheSkill(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root can remove from any directory")
+	}
+	config := filepath.Join(t.TempDir(), ".claude")
+	installed("the skill")(t, config)
+	dir := filepath.Dir(skillIn(config))
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	if removed, err := skill.Uninstall(skillIn(config)); err == nil || !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("Uninstall() = %v, %v, want it to fail, for want of permission", removed, err)
+	}
+}
+
 var errNoHome = errors.New("no home directory")
 
 // noHome is a home directory that can't be found.

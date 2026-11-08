@@ -18,6 +18,17 @@ func Path(getenv func(string) string, homeDir func() (string, error)) (string, e
 	return filepath.Join(dir, "switchboard", "config.toml"), nil
 }
 
+// Dir returns switchboard's config directory, where the config file and the
+// dashboard's theme files are unless the environment says otherwise:
+// $XDG_CONFIG_HOME/switchboard, else ~/.config/switchboard.
+func Dir(getenv func(string) string, homeDir func() (string, error)) (string, error) {
+	dir, err := baseDir(getenv, homeDir, "XDG_CONFIG_HOME", ".config")
+	if err != nil {
+		return "", fmt.Errorf("locate the config directory: %w", err)
+	}
+	return filepath.Join(dir, "switchboard"), nil
+}
+
 // ThemesDir returns where the dashboard's theme files are:
 // $SWITCHBOARD_THEMES_DIR, else $XDG_CONFIG_HOME/switchboard/themes, else
 // ~/.config/switchboard/themes.
@@ -40,6 +51,13 @@ func StateDir(getenv func(string) string, homeDir func() (string, error)) (strin
 		return "", fmt.Errorf("locate state directory: %w", err)
 	}
 	return filepath.Join(dir, "switchboard"), nil
+}
+
+// DataDir returns where switchboard keeps what it puts in place to run,
+// which holds its bin, shell and router directories and its notifications'
+// app: $XDG_DATA_HOME/switchboard, else ~/.local/share/switchboard.
+func DataDir(getenv func(string) string, homeDir func() (string, error)) (string, error) {
+	return dataDir(getenv, homeDir, "", "switchboard's data directory")
 }
 
 // BinDir returns switchboard's own directory for PATH, which holds the claude

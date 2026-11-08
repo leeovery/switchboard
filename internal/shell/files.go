@@ -31,6 +31,8 @@ const (
 	Updated
 	// Absent is a file that wasn't there, left so.
 	Absent
+	// Removed is a file that was there, removed.
+	Removed
 )
 
 // File is a file of switchboard's for a shell, where it is, and what became of
@@ -92,7 +94,8 @@ type wanted struct {
 }
 
 // wanted are the files, in turn, and what this switchboard writes in each:
-// each shell's, and bash's completion script after bash's.
+// each shell's, and bash's completion script after bash's, as filesIn has
+// them.
 func (f Files) wanted() ([]wanted, error) {
 	var files []wanted
 	for _, sh := range Shells {
@@ -110,6 +113,46 @@ func (f Files) wanted() ([]wanted, error) {
 		}
 	}
 	return files, nil
+}
+
+// filesIn are switchboard's files for the shells in dir, its shell
+// directory, in turn, as wanted has them: each shell's, and bash's
+// completion script after bash's.
+func filesIn(dir string) []File {
+	var files []File
+	for _, sh := range Shells {
+		files = append(files, File{Shell: sh, Path: InitFile(dir, sh)})
+		if sh == Bash {
+			files = append(files, File{Shell: sh, Path: CompletionFile(dir)})
+		}
+	}
+	return files
+}
+
+// RemoveFiles removes each of switchboard's files for the shells from dir,
+// its shell directory, and reports what became of each, Removed or Absent;
+// then dir, once nothing else is in it. It goes on past a file it can't
+// remove, and fails, saying why, with what became of the others.
+func RemoveFiles(dir string) ([]File, error) {
+	var files []File
+	var errs []error
+	for _, file := range filesIn(dir) {
+		err := os.Remove(file.Path)
+		switch {
+		case err == nil:
+			file.State = Removed
+		case errors.Is(err, fs.ErrNotExist):
+			file.State = Absent
+		default:
+			errs = append(errs, fmt.Errorf("remove switchboard's file %s: %w", file.Path, err))
+			continue
+		}
+		files = append(files, file)
+	}
+	if _, err := atomicfile.RemoveIfEmpty(dir); err != nil {
+		errs = append(errs, fmt.Errorf("remove switchboard's shell directory: %w", err))
+	}
+	return files, errors.Join(errs...)
 }
 
 // bring brings the file to want, writing it when it isn't there only when

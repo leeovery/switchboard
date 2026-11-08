@@ -11,6 +11,7 @@ This page describes every switchboard command: what it does, its flags, and what
 | [Setting up](#setting-up) | [`setup`](#setup) | Walks you through setting switchboard up. |
 | | [`accounts`](#accounts) | Lists, adds and removes accounts, and replaces their tokens. |
 | | [`service`](#service) | Manages the LaunchAgent that keeps the router running. |
+| | [`uninstall`](#uninstall) | Takes away what `setup` put on this Mac, before `brew uninstall`. |
 | [Checking in](#checking-in) | [`status`](#status) | Prints every account's usage as text, or the status document as JSON. |
 | | [`logs`](#logs) | Shows the last lines of the router's log or the CLI's. |
 | [Looking back](#looking-back) | [`requests`](#requests) | Lists the request ledger's requests. |
@@ -824,6 +825,92 @@ Examples:
 switchboard service install
 switchboard service install --log-level debug
 switchboard service status
+```
+
+### `uninstall`
+
+`uninstall` takes away what `setup` put on this Mac, so nothing switchboard leaves keeps working
+on your behalf. Run it before `brew uninstall switchboard`: Homebrew has no way to run it for you.
+
+```bash
+switchboard uninstall [--all]
+```
+
+| Flag | What it does |
+|---|---|
+| `--all` | Takes the config, the accounts' token files and the recorded history too. |
+
+It takes away, in this order:
+
+1. **The service**, as [`service uninstall`](#service-uninstall-and-service-status) does: the
+   router stopped once it has finished its requests in flight, the LaunchAgent, the router's copy
+   of switchboard and the notifications' app.
+2. **The startup line** `setup` added, taken out of each shell's startup file it's in, found by its
+   `# switchboard` mark: `~/.zshrc`, and `.zshrc` in `$ZDOTDIR`; `~/.bash_profile`, `~/.bash_login`
+   and `~/.profile`; and fish's `config.fish`. Only the line as `setup` writes it, at the start of
+   its line, is taken out: an indented copy may be all there is of an `if` block of yours, which
+   the shell couldn't read left empty, so it's left where it is, and `uninstall` names the file for
+   you to take it out yourself; with switchboard's files gone, it does nothing. Every other line is
+   kept as it was, and the file is rewritten in place, where a link to it leads, so it stays the
+   file it was, hard links, owner and permissions with it. Then switchboard's own files for the
+   shells, which the line loads, with bash's completions.
+3. **The session hook**: switchboard's entry in Claude Code's SessionStart hooks, in
+   `settings.json`, every other setting and hook left as it is. A settings file Claude Code
+   couldn't read is left as it is, and `uninstall` says why.
+4. **The skill**, in Claude Code's config directory.
+5. **The `claude` link** in switchboard's bin directory, where it's switchboard's own, a link to a
+   `switchboard`: anything else named `claude` there is left alone, and `uninstall` says so. Then
+   the bin directory and switchboard's data directory, `~/.local/share/switchboard`, each once
+   nothing else is in it: where something's still in the data directory, `uninstall` says it's
+   kept.
+
+The config, the accounts' token files and everything recorded in the state directory, the ledger,
+the readings, the events, the logs and the router's state, stay, so a reinstall carries on where it
+left off. `--all` takes them too: the config directory, with any themes of your own, and the state
+directory, wherever the environment puts them, as the rest of switchboard finds them. A config file
+`SWITCHBOARD_CONFIG` or `--config` puts outside the config directory goes alone; of a themes
+directory `SWITCHBOARD_THEMES_DIR` puts there, only the `.theme` files go, then the directory where
+nothing else is in it, as it may hold other files of yours. The history
+nothing can bring back goes only when you ask: nothing asks first either way, as the flag is the
+asking.
+
+`uninstall` never touches the [export's folder](configuration.md#export-keys), wherever it is. Where
+it's inside a directory `--all` removes, however its path names it, through a link included, it's
+kept, with the directories on the way to it, and `uninstall` says so; where it's the directory
+itself, the directory is kept whole. A config or state directory that's a link, as to your
+dotfiles, is removed as a link, alone, and what it leads to is left whole. Where the config can't
+be read to tell where the export's folder is, `--all` keeps the config and the state directory,
+and says why. Nor does it touch switchboard's binary, which is
+Homebrew's.
+
+It prints a line for each piece, saying it's removed, not there, or failed and why, the service's
+saying both where its LaunchAgent went but the notifications' app couldn't, then that the
+accounts' setup tokens stay valid on Anthropic's side until their year is out, whether or not
+their files are removed, and last, to run `brew uninstall switchboard`:
+
+```text
+✓  Service       removed ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist
+✓  Startup line  removed from ~/.zshrc
+✓  Shell files   removed from ~/.local/share/switchboard/shell
+✓  Session hook  removed from ~/.claude/settings.json
+✓  Skill         removed ~/.claude/skills/switchboard/SKILL.md
+✓  claude link   removed ~/.local/share/switchboard/bin/claude
+✓  Data          removed ~/.local/share/switchboard
+✓  Kept          the config, the accounts' token files and the history: switchboard uninstall --all removes them too
+
+The accounts' setup tokens stay valid on Anthropic's side until their year is out, their files removed here or not.
+Last, brew uninstall switchboard removes switchboard itself.
+```
+
+The paths it prints are whole; they're written from `~` here. A piece that fails doesn't stop the
+rest: `uninstall` goes on to the last, then fails. Run again, it says each piece is not there, and
+succeeds.
+
+Examples:
+
+```bash
+switchboard uninstall
+switchboard uninstall --all
 ```
 
 ## Checking in
