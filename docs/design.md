@@ -549,7 +549,8 @@ built:
   straight to none at 96.
 - **An account that can't take requests,** its token refused or none usable, holds none of its
   use: the router sends its sessions' requests elsewhere, and its use goes where a new session
-  would. Nor does a new session go to it.
+  would. Nor does a new session go to it. A token refused as the document is built is played as
+  refused all week: the router bars it for minutes, but a token refused once is refused again.
 - **The rest goes where a new session would go** at that moment, as Choosing an account's steps 1
   and 2 choose one, among the global pin's accounts while one holds. Each account's 5-hour window is
   left out: its resets and limits come and go within a day, and nothing forecasts them.

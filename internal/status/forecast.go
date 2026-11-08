@@ -61,10 +61,11 @@ func (d Document) weekAhead(id string, w quota.Window, policy score.Policy) (for
 // stands then, as WindowAt has it, so a week reset since it was read stands
 // empty, with its next reset; its room ending at its floor, as floor has it;
 // its size by its plan, as forecast.Sizes has every account's; the router's
-// fast rate of its week; and new sessions going to it while its token is
-// usable and not refused. The pool's use goes to the global pin's accounts
-// while one holds, at the Demand's day rate, held on each account as its
-// hold curve has it.
+// fast rate of its week; and its taking requests, new sessions and the use it
+// holds alike, while its token is usable and not refused as the document was
+// built, held so for the whole play. The pool's use goes to the global pin's
+// accounts while one holds, at the Demand's day rate, held on each account as
+// its hold curve has it.
 func (d Document) forecastPool(policy score.Policy) (forecast.Pool, bool) {
 	if d.Demand == nil || d.GeneratedAt.IsZero() {
 		return forecast.Pool{}, false

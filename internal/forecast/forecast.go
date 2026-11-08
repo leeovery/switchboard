@@ -225,7 +225,7 @@ func (p *play) place(t time.Time, rest float64) {
 }
 
 // gather makes the candidates for a new session at t: the accounts that take
-// new sessions and have room, each with its week alone, as it stands. One
+// requests and have room, each with its week alone, as it stands. One
 // whose week's reset isn't known has no score: Choose sends it new sessions
 // only where the global pin names it and none of the pin's accounts it can
 // score has room, as the router does.
