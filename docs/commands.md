@@ -147,7 +147,8 @@ its rows.
 - **The key line** is one line wherever it fits beside the names, else two. The second line names
   the cap, where a bar draws one.
 - **The words** are in full where they fit, else short, as `back 15:54`, `out ~Sat` and
-  `19%/day · Sun`. As the terminal narrows, the bars shorten to 12 cells first, then the words.
+  `19%/day · Sun`: short, a time on another day than today gives its day alone, a run-out's within
+  a day too. As the terminal narrows, the bars shorten to 12 cells first, then the words.
 - **The name column** is as wide as the longest name, up to 24 cells of label. A label too long for
   it is cut with `…`. It never moves as `▲` moves between accounts.
 
@@ -966,8 +967,8 @@ document as JSON instead. The document holds:
   its allowance, what can be spent of it an hour or a day and still last to its reset;
 - each account's extra usage, where the API reports it;
 - the pool: the room new sessions can go to, summed across its accounts, and their mean use;
-- from the router, the rates each week's forecast goes by: each account's plan, its windows' fast
-  rates, and the pool's use as the forecast takes it;
+- each account's plan, as the config gives it, and, from the router, the rates each week's
+  forecast goes by: each account's windows' fast rates, and the pool's use as the forecast takes it;
 - what's coming up, soonest first: each limit or cap lifting, window running out or resetting, and
   prime; and
 - how the router's hourly export stands, where [`[export]`](configuration.md#export-keys) sets a

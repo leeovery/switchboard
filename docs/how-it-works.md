@@ -172,8 +172,9 @@ ahead, through the router's own choice of account. The forecast is only for show
 choices and its pressure go by their own rates.
 
 - **How fast the pool is used:** the pool's use over the last day, and how far its use of the last
-  hour or so stands from that. A burst counts in full for the next few hours and then fades back to
-  the day's level, so a quiet evening never promises a week.
+  hour or so stands from that. That gap fades from now on, about a third of it left after three
+  hours and a twentieth after nine, so the pool's use returns to the day's level: a burst lifts the
+  next few hours, and a quiet evening never promises a week.
 - **Where the use goes:** use already on an account stays there for a while, as its sessions do.
   The rest goes where a new session would go at that moment, among the pin's accounts while a
   global pin holds. Accounts count by their plan's size, a Max week as five Pro weeks.
