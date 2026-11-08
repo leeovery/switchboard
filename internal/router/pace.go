@@ -4,6 +4,7 @@ import (
 	"iter"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
@@ -14,43 +15,73 @@ import (
 // now runs, by the window's key: the levels its use was read at, each with
 // when it was first and last read so, its baseline, the level read last
 // before the half hour, and each since, in the order read. The pressure
-// window's pace, and each window's recent rate, are measured over them. A
-// router started afresh takes them up from the readings history, as seed
-// says.
+// window's pace, and each window's recent rate, are measured over them, and
+// its fast rate takes in the rises they take, as note says. A router started
+// afresh takes them up from the readings history, as seed says.
 type trails map[string][]score.Reading
 
 // note takes in kept, the reading of a window the account now stands as,
-// taken in at a time, held being the one it stood as before, into the
-// window's trail, as score.Noted says.
-func (t trails) note(held, kept quota.Window, at time.Time) {
-	t[kept.Key] = score.Noted(t[kept.Key], held, kept, at)
+// taken in at a time, held being the one it stood as before: into the
+// window's trail, as score.Noted says, and into its fast rate, as the rise it
+// takes the trail up by, as score.Risen says, the fast rate starting afresh
+// where the trail does. It returns that rise, a share of the window.
+func (u *usage) note(held, kept quota.Window, at time.Time) float64 {
+	rise, afresh := score.Risen(u.trails[kept.Key], held, kept)
+	fast := u.fast[kept.Key]
+	if afresh {
+		fast = forecast.Fast{}
+	}
+	u.fast[kept.Key] = fast.Rose(rise, at)
+	u.trails[kept.Key] = score.Noted(u.trails[kept.Key], held, kept, at)
+	return rise
+}
+
+// forgetRates forgets the trail and the fast rate of the account's window
+// named key.
+func (u *usage) forgetRates(key string) {
+	delete(u.trails, key)
+	delete(u.fast, key)
 }
 
 // seed takes up, as the router starts, the readings history gives, in the
-// order they were read, into the trails of the accounts configured, as though
-// they'd come in as read then: the readings history holds each change of a
-// window's use, so its trail, baseline included, is as it was, and its recent
-// rate outlasts a restart. A window the account doesn't hold, as one its
-// answers no longer report, keeps none of them, and nor does one whose
-// reading, as the state file kept it, has another reset than its readings
-// last read, as when it has reset since. It returns how many the trails keep.
+// order they were read, into the trails and fast rates of the accounts
+// configured, and the pool's day rate, as though they'd come in as read then,
+// the pool judged for room at each, as judgeRoom says, by the weeks as the
+// history has read them by then, or, of an account it hasn't read the week
+// of yet, as the state file kept it: the readings history holds each change
+// of a window's use, so its trail, baseline included, is as it was, and its
+// rates outlast a restart. A window the account doesn't hold, as one its
+// answers no longer report, keeps no trail nor fast rate, and nor does one
+// whose reading, as the state file kept it, has another reset than its
+// readings last read, as when it has reset since. It returns how many
+// readings the trails keep.
 func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	type trailOf struct{ account, window string }
 	last := make(map[trailOf]quota.Window)
-	for r := range history {
-		if u, configured := s.usage[r.Account]; configured {
-			of, w := trailOf{r.Account, r.Key}, r.Window()
-			u.trails.note(last[of], w, r.At)
-			last[of] = w
+	replayed := func(id string) (quota.Window, bool) {
+		if w, ok := last[trailOf{id, s.policy.Perishable}]; ok {
+			return w, true
 		}
+		return s.weekHeld(id)
+	}
+	for r := range history {
+		u, configured := s.usage[r.Account]
+		if !configured {
+			continue
+		}
+		of, w := trailOf{r.Account, r.Key}, r.Window()
+		rise := u.note(last[of], w, r.At)
+		last[of] = w
+		s.rose(r.Account, r.Key, rise, r.At)
+		s.judgeRoom(replayed, r.At)
 	}
 	kept := 0
 	for of, w := range last {
 		u := s.usage[of.account]
 		if held, ok := u.windows[of.window]; !ok || !held.ResetsAt.Equal(w.ResetsAt) {
-			delete(u.trails, of.window)
+			u.forgetRates(of.window)
 		}
 		kept += len(u.trails[of.window])
 	}
@@ -83,9 +114,24 @@ func (u *usage) recentRate(key string, now time.Time) (float64, bool) {
 }
 
 // rates returns how fast each of the account's windows has been used lately,
-// at now, in quota.Sort's order, as status.RatesOf says.
+// at now, in quota.Sort's order, as status.RatesOf says, with its fast rate,
+// as fastRate has it.
 func (u *usage) rates(now time.Time) []status.Rate {
-	return status.RatesOf(u.latest(), u.trails, now)
+	fast := make(map[string]float64, len(u.fast))
+	for key := range u.fast {
+		fast[key] = u.fastRate(key, now)
+	}
+	return status.RatesOf(u.latest(), u.trails, fast, now)
+}
+
+// fastRate returns the fast rate of the account's window named key at now, a
+// share of it an hour: none where the window hasn't been read, or has reset
+// since, as its fast rate is of the window that ran before.
+func (u *usage) fastRate(key string, now time.Time) float64 {
+	if w, ok := u.windows[key]; !ok || w.ResetBy(now) {
+		return 0
+	}
+	return u.fast[key].Rate(now)
 }
 
 // pressure is how the account's pressure window stands at now, as the status

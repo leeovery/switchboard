@@ -110,7 +110,7 @@ func (w accountWorld) account(a config.Account, h history, at time.Time) status.
 	st = st.AsOf(claude.Policy(), at)
 	st.Limit, st.Refused, st.Sessions = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID]
 	trails := held.trails()
-	st.Rates = status.RatesOf(latest, trails, at)
+	st.Rates = status.RatesOf(latest, trails, nil, at)
 	st.Pressure = pressureOf(st, latest, trails, w.pin.Has(a.ID), at)
 	return st
 }

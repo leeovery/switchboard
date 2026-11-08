@@ -87,7 +87,7 @@ var (
 	// none of their fields.
 	wireTypes = []string{
 		"quota.ExtraUsage", "quota.Failure", "quota.Usage", "quota.Window",
-		"status.Account", "status.Document", "status.Limit", "status.Pool", "status.PoolWindow",
+		"status.Account", "status.Demand", "status.Document", "status.HoldPoint", "status.Limit", "status.Pool", "status.PoolWindow",
 		"status.Pressure", "status.Prime", "status.Rate", "status.Slot",
 	}
 	// judges are the functions that judge a window: a view calls none,

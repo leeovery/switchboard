@@ -224,6 +224,40 @@ func TestNoted(t *testing.T) {
 	}
 }
 
+func TestRisen(t *testing.T) {
+	// The session's trail, read at 30% 45 minutes ago, rose to 34% 20 minutes
+	// ago; it was read at 32% since, a dip, which it stands as.
+	trail := []score.Reading{readAt(45*time.Minute, 0.3), readAt(20*time.Minute, 0.34)}
+	held := session(0.32, 2*time.Hour)
+	at := func(utilization float64) quota.Window {
+		w := held
+		w.Utilization = utilization
+		return w
+	}
+	tests := []struct {
+		name       string
+		trail      []score.Reading
+		kept       quota.Window
+		want       float64
+		wantAfresh bool
+	}{
+		{name: "above its latest level, by how far", trail: trail, kept: at(0.37), want: 0.03},
+		{name: "back from a dip to its latest level, by none", trail: trail, kept: at(0.34)},
+		{name: "a dip, by none", trail: trail, kept: at(0.31)},
+		{name: "none before, its first level, by none", kept: at(0.37)},
+		{name: "a reset made by hand, afresh", trail: trail, kept: at(0.2), wantAfresh: true},
+		{name: "another reset, a new window, afresh", trail: trail, kept: session(0.4, time.Minute), wantAfresh: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, afresh := score.Risen(tt.trail, held, tt.kept)
+			if math.Abs(got-tt.want) > 1e-9 || afresh != tt.wantAfresh {
+				t.Errorf("Risen() = %v, %v, want %v, %v", got, afresh, tt.want, tt.wantAfresh)
+			}
+		})
+	}
+}
+
 func TestPressureOf(t *testing.T) {
 	// The session is 40% used, and resets in 3 hours.
 	running := []quota.Window{window("5h", 0.4, 3*time.Hour), window("7d", 0.5, 48*time.Hour)}

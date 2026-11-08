@@ -85,7 +85,11 @@ type Document struct {
 	// ComingUp is what's coming to the accounts after the document was
 	// built, soonest first.
 	ComingUp []Upcoming `json:"coming_up,omitempty"`
-	Accounts []Account  `json:"accounts"`
+	// Demand is the pool's use as the router's forecast takes it: nil where
+	// the router has read no account, and in a document that isn't the
+	// router's.
+	Demand   *Demand   `json:"demand,omitempty"`
+	Accounts []Account `json:"accounts"`
 }
 
 // The kinds of event the router tells of, as an Event's Kind says.
@@ -357,6 +361,9 @@ type Account struct {
 	// Reserve is the share of every window the router leaves unused on the
 	// account.
 	Reserve float64 `json:"reserve,omitempty"`
+	// Plan is the plan the account's subscription is on, as configured, one
+	// of config.Plans: "" where that isn't known.
+	Plan string `json:"plan,omitempty"`
 	// TokenSet is whether the account's token file is there, and usable.
 	TokenSet bool `json:"token_set"`
 	// TokenTaken is when switchboard took the account's token, as it
@@ -391,8 +398,8 @@ type Account struct {
 	// document that isn't the router's.
 	Pressure Pressure `json:"pressure,omitzero"`
 	// Rates are how fast the router has seen the account's windows used
-	// lately, in Usage's order: those it has a recent rate of alone, and none
-	// in a document that isn't the router's.
+	// lately, in Usage's order: those it has a recent rate or a fast rate of
+	// alone, and none in a document that isn't the router's.
 	Rates []Rate `json:"rates,omitempty"`
 	// Sessions is how many sessions the router has sent to the account in the
 	// last hour: zero in a document that isn't the router's.
@@ -433,23 +440,39 @@ func (r Refusal) holds(now time.Time) bool {
 
 // Rate is how fast the router has seen a window used lately, as a share of it
 // an hour, never negative: its rise over the last half hour, as
-// score.RecentRate measures it.
+// score.RecentRate measures it, and its fast rate, as forecast.Fast smooths
+// its rises.
 type Rate struct {
 	// Window is the window's key, such as "7d".
 	Window string  `json:"window"`
 	Rate   float64 `json:"rate"`
-	// Since is when the rate is measured from.
+	// Since is when the rate is measured from: zero where the window has a
+	// fast rate alone, and no recent rate.
 	Since time.Time `json:"since,omitzero"`
+	// Fast is the window's fast rate, which a week's forecast goes by.
+	Fast float64 `json:"fast,omitempty"`
+}
+
+// recent reports whether r gives its window's recent rate: every rate does
+// but one there for the window's fast rate alone, which has no Since.
+func (r Rate) recent() bool {
+	return r.Fast == 0 || !r.Since.IsZero()
 }
 
 // RatesOf returns how fast each of an account's windows, as last read, in the
-// order given, has been used lately, at now, as score.RecentRate judges it
-// over the window's trail, by its key: those that have a recent rate alone.
-func RatesOf(windows []quota.Window, trails map[string][]score.Reading, now time.Time) []Rate {
+// order given, has been used lately, at now, by its key: its recent rate, as
+// score.RecentRate judges it over the window's trail, and its fast rate, as
+// fast gives it then; those that have either alone.
+func RatesOf(windows []quota.Window, trails map[string][]score.Reading, fast map[string]float64, now time.Time) []Rate {
 	var rates []Rate
 	for _, w := range windows {
-		if rate, since, ok := score.RecentRate(w, trails[w.Key], now); ok {
-			rates = append(rates, Rate{Window: w.Key, Rate: rate, Since: since.UTC()})
+		r := Rate{Window: w.Key, Fast: fast[w.Key]}
+		rate, since, recent := score.RecentRate(w, trails[w.Key], now)
+		if recent {
+			r.Rate, r.Since = rate, since.UTC()
+		}
+		if recent || r.Fast > 0 {
+			rates = append(rates, r)
 		}
 	}
 	return rates
@@ -570,9 +593,10 @@ func primable(policy score.Policy, accounts []Account) []string {
 }
 
 // Configured is an account's status as the config gives it, before anything
-// is read of it: its id and label, whether it's the primary, and its reserve.
+// is read of it: its id and label, whether it's the primary, its reserve and
+// its plan.
 func Configured(a config.Account) Account {
-	return Account{ID: a.ID, Label: a.Label, Primary: a.Primary, Reserve: a.Reserve}
+	return Account{ID: a.ID, Label: a.Label, Primary: a.Primary, Reserve: a.Reserve, Plan: a.Plan}
 }
 
 // AsOf is the account, its windows as read, as it stands at now: a window
@@ -669,7 +693,7 @@ func (d Document) reserveHolds(a Account) bool {
 // given key used lately, reporting false when it has no recent rate of it.
 func (a Account) rate(key string) (Rate, bool) {
 	i := slices.IndexFunc(a.Rates, func(r Rate) bool { return r.Window == key })
-	if i < 0 {
+	if i < 0 || !a.Rates[i].recent() {
 		return Rate{}, false
 	}
 	return a.Rates[i], true
