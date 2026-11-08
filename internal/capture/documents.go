@@ -249,13 +249,14 @@ func (h history) takenUp() takenUp {
 	return t
 }
 
-// fastAt are the fast rates of the windows taken up at at, by key: none of
-// one that has reset since it was last read, as the router keeps none.
+// fastAt are the fast rates of the windows taken up at at, by key, as the
+// router gives them: none of one that has reset since it was last read, as
+// it keeps none, nor of one faded below router.FastLeast.
 func (t takenUp) fastAt(at time.Time) map[string]float64 {
 	rates := make(map[string]float64, len(t.fast))
 	for key, f := range t.fast {
-		if !t.last[key].ResetBy(at) {
-			rates[key] = f.Rate(at)
+		if rate := f.Rate(at); rate >= router.FastLeast && !t.last[key].ResetBy(at) {
+			rates[key] = rate
 		}
 	}
 	return rates
@@ -405,8 +406,8 @@ func (t *todayOf) work() {
 // personal takes in personal's readings today as the auto world has them:
 // steady, its 5-hour window primed at 11:30 at 39% now, rising on to the
 // levels given after; its week read at 65% at 13:32:41 and at 66% at 14:20,
-// a rate that has it run out on Saturday at 06:00, before it resets on
-// Sunday at 02:00.
+// which the forecast of the auto world's pool runs out on Saturday at 05:45,
+// before it resets on Sunday at 02:00.
 func (t *todayOf) personal(after ...level) {
 	t.session("personal", t.at(6, 30, 0), false, level{t.at(11, 10, 0), .18})
 	t.session("personal", t.at(11, 30, 0), true, slices.Concat([]level{{t.at(14, 40, 0), .39}}, after)...)
@@ -470,8 +471,8 @@ func (a accountWorlds) autoOf(t *todayOf) accountWorld {
 }
 
 // fableNearing is the auto world with side's Fable week read at 88% at
-// 14:40, running out before it resets at the rate it rose at: nearing its
-// limit, the live views list it while they hide each model's own window.
+// 14:40, running out before it resets at its pace since it started: nearing
+// its limit, the live views list it while they hide each model's own window.
 func (a accountWorlds) fableNearing() accountWorld {
 	return a.kept("fableNearing", func() accountWorld {
 		t := a.today()

@@ -544,11 +544,12 @@ func versionOneAmongTheDays() AccountsMoment {
 }
 
 // probing is Thursday 1 October with no router, the dashboard probing the
-// accounts itself: no sessions listed, no events told.
+// accounts itself: no sessions listed, no events told, and no demand, which
+// only the router measures.
 func probing() AccountsMoment {
 	now := At(14, 42, 7)
 	doc := readDoc(now, readAccount(work, now, window(fiveHour, 0.5, At(17, 10, 0))), readAccount(side, now, window(fiveHour, 0.13, At(18, 50, 0))))
-	doc.Source, doc.Router = status.SourceProbe, status.Health{}
+	doc.Source, doc.Router, doc.Demand = status.SourceProbe, status.Health{}, nil
 	return AccountsMoment{
 		Name: "probing, no sessions and no events", Accounts: config.Accounts{workUltra, sideUltra}, WeekStarts: time.Monday,
 		Days: filing{}.summaries(At(0, 0, 0), now), Doc: doc, Now: now,

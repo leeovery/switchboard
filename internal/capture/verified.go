@@ -190,10 +190,10 @@ func (a accountWorlds) verified(name string, ids ...string) accountWorld {
 
 // ultra is the auto world with all three verified Ultra, as verified has it:
 // work open, its week at 34%, its cap of 95% on its week alone; personal's
-// week running out on Saturday at 06:00; side's at 78%, where new sessions
-// go. Work's cap at 14:31:03 is its token refused instead, as d28c's request
-// of 14:31:13 met it, till 14:41:13, moving its three sessions to side as the
-// cap did.
+// week running out on Saturday at 05:45, as the forecast has it; side's at
+// 78%, where new sessions go. Work's cap at 14:31:03 is its token refused
+// instead, as d28c's request of 14:31:13 met it, till 14:41:13, moving its
+// three sessions to side as the cap did.
 func (a accountWorlds) ultra() accountWorld {
 	return a.verified("ultra", three...)
 }

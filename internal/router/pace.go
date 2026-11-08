@@ -12,10 +12,10 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// fastLeast is the least fast rate, a share of a window an hour, that counts
+// FastLeast is the least fast rate, a share of a window an hour, that counts
 // as one: one faded below it is none, so the window's entry in the rates
 // goes once its use has long stopped.
-const fastLeast = 1e-6
+const FastLeast = 1e-6
 
 // trails are how each of an account's windows has been read lately, as it
 // now runs, by the window's key: the levels its use was read at, each with
@@ -165,12 +165,12 @@ func (u *usage) rates(now time.Time) []status.Rate {
 // fastRate returns the fast rate of the account's window named key at now, a
 // share of it an hour: none where the window hasn't been read, or has reset
 // since, as its fast rate is of the window that ran before, and none where
-// it has faded below fastLeast.
+// it has faded below FastLeast.
 func (u *usage) fastRate(key string, now time.Time) float64 {
 	if w, ok := u.windows[key]; !ok || w.ResetBy(now) {
 		return 0
 	}
-	if rate := u.fast[key].Rate(now); rate >= fastLeast {
+	if rate := u.fast[key].Rate(now); rate >= FastLeast {
 		return rate
 	}
 	return 0
