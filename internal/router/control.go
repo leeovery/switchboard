@@ -472,9 +472,10 @@ func (g *glances) of(model string) view {
 
 // pin sends every new session to the best of the accounts the request names,
 // with Move, every running session on another account too, and with Force,
-// clears every session's own pin, telling it as Pinned. It fails, saying why,
-// for anyone asking but ByCLI or ByDashboard, for no account, or for one
-// nothing can go out on, and then tells nothing.
+// clears every session's own pin, telling it as Pinned, and telling the
+// state, which judges the pool's room by the pin, as setPin says. It fails,
+// saying why, for anyone asking but ByCLI or ByDashboard, for no account, or
+// for one nothing can go out on, and then tells nothing.
 func (r *Router) pin(p PinRequest) error {
 	if err := p.By.check(); err != nil {
 		return err
@@ -484,6 +485,7 @@ func (r *Router) pin(p PinRequest) error {
 		return err
 	}
 	cleared := r.sessions.setPin(status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
+	r.state.setPin(ids)
 	attrs := []any{"accounts", strings.Join(ids, ","), "move", p.Move}
 	if p.Force {
 		attrs = append(attrs, "force", true, "sessions_unpinned", cleared)
@@ -495,9 +497,11 @@ func (r *Router) pin(p PinRequest) error {
 
 // unpin clears the global pin, so every session is routed on its merits but
 // for those with pins of their own, and with force, clears theirs too,
-// telling it as Unpinned unless it cleared nothing.
+// telling it as Unpinned unless it cleared nothing, and telling the state, as
+// pin does.
 func (r *Router) unpin(force bool, by By) {
 	was, cleared := r.sessions.unpin(force)
+	r.state.setPin(nil)
 	accounts := strings.Join(was.Accounts, ",")
 	switch {
 	case force:

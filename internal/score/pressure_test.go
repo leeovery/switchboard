@@ -237,20 +237,24 @@ func TestRisen(t *testing.T) {
 	tests := []struct {
 		name       string
 		trail      []score.Reading
+		held       quota.Window
 		kept       quota.Window
 		want       float64
 		wantAfresh bool
 	}{
-		{name: "above its latest level, by how far", trail: trail, kept: at(0.37), want: 0.03},
-		{name: "back from a dip to its latest level, by none", trail: trail, kept: at(0.34)},
-		{name: "a dip, by none", trail: trail, kept: at(0.31)},
-		{name: "none before, its first level, by none", kept: at(0.37)},
-		{name: "a reset made by hand, afresh", trail: trail, kept: at(0.2), wantAfresh: true},
-		{name: "another reset, a new window, afresh", trail: trail, kept: session(0.4, time.Minute), wantAfresh: true},
+		{name: "above its latest level, by how far", trail: trail, held: held, kept: at(0.37), want: 0.03},
+		{name: "back from a dip to its latest level, by none", trail: trail, held: held, kept: at(0.34)},
+		{name: "a dip, by none", trail: trail, held: held, kept: at(0.31)},
+		{name: "no level before, above the reading it stood as, by how far", held: held, kept: at(0.37), want: 0.05},
+		{name: "no level before, below the reading it stood as, by none", held: held, kept: at(0.31)},
+		{name: "never read before, a window of its own, afresh", kept: at(0.37), wantAfresh: true},
+		{name: "never read before, its reset not known, its first level, by none", kept: quota.Window{Key: "5h", Utilization: 0.37}},
+		{name: "a reset made by hand, afresh", trail: trail, held: held, kept: at(0.2), wantAfresh: true},
+		{name: "another reset, a new window, afresh", trail: trail, held: held, kept: session(0.4, time.Minute), wantAfresh: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, afresh := score.Risen(tt.trail, held, tt.kept)
+			got, afresh := score.Risen(tt.trail, tt.held, tt.kept)
 			if math.Abs(got-tt.want) > 1e-9 || afresh != tt.wantAfresh {
 				t.Errorf("Risen() = %v, %v, want %v, %v", got, afresh, tt.want, tt.wantAfresh)
 			}

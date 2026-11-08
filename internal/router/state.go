@@ -267,6 +267,9 @@ type state struct {
 	// rose takes them in, over the time it had room, as judgeRoom judges it.
 	sizes map[string]float64
 	day   forecast.Day
+	// pin holds the ids of the accounts the global pin names, as the router
+	// last told it, as setPin has it: none while there's no pin.
+	pin []string
 }
 
 func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed, routine func()) *state {

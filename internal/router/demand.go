@@ -41,16 +41,31 @@ func (s *state) judgeRoom(week func(id string) (quota.Window, bool), at time.Tim
 	s.day = s.day.Open(s.roomy(week, at), at)
 }
 
-// roomy reports whether the pool has room for a new session at at: an account
-// with a usable token has room within its reserve in its shared week, as week
-// gives it, as score.Available judges it, and a new session's choice of
-// account would. One whose week hasn't been read has none, as that choice
-// can't score it. s.mu must be held.
+// roomy reports whether the pool has room for a new session at at: the
+// router would find an account for one, choosing as score.Policy.Choose does
+// by the accounts' shared weeks alone, week giving each, of those with a
+// usable token whose week has been read, but those it couldn't go out on,
+// their token refused or a limit holding back their week, as shut says. So
+// an account has room within its reserve, or within its limit where the
+// global pin names it, which spends the reserve. s.mu must be held.
 func (s *state) roomy(week func(id string) (quota.Window, bool), at time.Time) bool {
-	return slices.ContainsFunc(s.accounts, func(a account) bool {
-		w, ok := week(a.ID)
-		return ok && a.hasToken() && score.Available([]quota.Window{w}, a.Reserve, func(string) bool { return true }, at)
-	})
+	isWeek := func(key string) bool { return key == s.policy.Perishable }
+	var candidates []score.Candidate
+	for _, a := range s.accounts {
+		if w, ok := week(a.ID); ok && a.hasToken() && !s.usage[a.ID].shut(at, isWeek) {
+			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: []quota.Window{w}, Reserve: a.Reserve})
+		}
+	}
+	_, ok := s.policy.Choose(candidates, s.pin, isWeek, "", at)
+	return ok
+}
+
+// setPin notes that the global pin names the accounts with the ids given
+// from now on, or none, as the router judges the pool's room.
+func (s *state) setPin(ids []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pin = slices.Clone(ids)
 }
 
 // weekHeld returns the shared week of the account with the given id, the

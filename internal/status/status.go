@@ -446,17 +446,17 @@ type Rate struct {
 	// Window is the window's key, such as "7d".
 	Window string  `json:"window"`
 	Rate   float64 `json:"rate"`
-	// Since is when the rate is measured from: zero where the window has a
-	// fast rate alone, and no recent rate.
+	// Since is when the rate is measured from: zero where the entry gives the
+	// window's fast rate alone, as only a recent rate has one.
 	Since time.Time `json:"since,omitzero"`
 	// Fast is the window's fast rate, which a week's forecast goes by.
 	Fast float64 `json:"fast,omitempty"`
 }
 
-// recent reports whether r gives its window's recent rate: every rate does
-// but one there for the window's fast rate alone, which has no Since.
+// recent reports whether r gives its window's recent rate: it's measured from
+// a time.
 func (r Rate) recent() bool {
-	return r.Fast == 0 || !r.Since.IsZero()
+	return !r.Since.IsZero()
 }
 
 // RatesOf returns how fast each of an account's windows, as last read, in the

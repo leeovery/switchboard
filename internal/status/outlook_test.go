@@ -65,7 +65,7 @@ func reserving(a *status.Account) {
 func pressedAt(rate float64) func(*status.Account) {
 	return func(a *status.Account) {
 		a.Pressure = status.Pressure{Window: "5h", Rate: rate, Recent: true}
-		a.Rates = []status.Rate{{Window: "5h", Rate: rate}}
+		a.Rates = []status.Rate{{Window: "5h", Rate: rate, Since: built.Add(-30 * time.Minute)}}
 	}
 }
 

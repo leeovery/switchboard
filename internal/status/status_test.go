@@ -122,6 +122,10 @@ func TestAnAccountsWindowsProjected(t *testing.T) {
 	sinceStarted := func(atReset float64) status.Heading {
 		return status.Heading{Kind: score.OnPace, AtReset: atReset}
 	}
+	// recent is the window's recent rate, over the last half hour.
+	recent := func(key string, rate float64) status.Rate {
+		return status.Rate{Window: key, Rate: rate, Since: now.Add(-30 * time.Minute)}
+	}
 	tests := []struct {
 		name     string
 		pressure status.Pressure
@@ -132,14 +136,14 @@ func TestAnAccountsWindowsProjected(t *testing.T) {
 		{
 			name:     "the session, at its recent rate, running out",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "5h", Rate: 0.3}},
+			rates:    []status.Rate{recent("5h", 0.3)},
 			window:   session,
 			want:     status.Heading{Kind: score.RunsOut, At: now.Add(2*time.Hour + 20*time.Minute), Recent: true},
 		},
 		{
 			name:     "the session, at its recent rate, though its use since it started ends it more used",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "5h", Rate: 0.05}},
+			rates:    []status.Rate{recent("5h", 0.05)},
 			window:   session,
 			want:     status.Heading{Kind: score.OnPace, AtReset: 0.45, Recent: true},
 		},
@@ -157,28 +161,28 @@ func TestAnAccountsWindowsProjected(t *testing.T) {
 		{
 			name:     "the week, at its recent rate, which has it run out sooner",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}},
+			rates:    []status.Rate{recent("5h", 0.3), recent("7d", 0.03)},
 			window:   week,
 			want:     status.Heading{Kind: score.RunsOut, At: now.Add(16*time.Hour + 40*time.Minute), Recent: true},
 		},
 		{
 			name:     "the week, at its recent rate, which ends it more used",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "7d", Rate: 0.01}},
+			rates:    []status.Rate{recent("7d", 0.01)},
 			window:   week,
 			want:     status.Heading{Kind: score.OnPace, AtReset: 0.98, Recent: true},
 		},
 		{
 			name:     "the week, at its use since it started, its recent rate slower",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "7d", Rate: 0.001}},
+			rates:    []status.Rate{recent("7d", 0.001)},
 			window:   week,
 			want:     sinceStarted(0.7),
 		},
 		{
 			name:     "the week, without a recent rate, at its use since it started",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "5h", Rate: 0.3}},
+			rates:    []status.Rate{recent("5h", 0.3)},
 			window:   week,
 			want:     sinceStarted(0.7),
 		},

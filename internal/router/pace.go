@@ -2,6 +2,7 @@ package router
 
 import (
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/forecast"
@@ -10,6 +11,11 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
+
+// fastLeast is the least fast rate, a share of a window an hour, that counts
+// as one: one faded below it is none, so the window's entry in the rates
+// goes once its use has long stopped.
+const fastLeast = 1e-6
 
 // trails are how each of an account's windows has been read lately, as it
 // now runs, by the window's key: the levels its use was read at, each with
@@ -46,46 +52,78 @@ func (u *usage) forgetRates(key string) {
 // seed takes up, as the router starts, the readings history gives, in the
 // order they were read, into the trails and fast rates of the accounts
 // configured, and the pool's day rate, as though they'd come in as read then,
-// the pool judged for room at each, as judgeRoom says, by the weeks as the
-// history has read them by then, or, of an account it hasn't read the week
-// of yet, as the state file kept it: the readings history holds each change
-// of a window's use, so its trail, baseline included, is as it was, and its
-// rates outlast a restart. A window the account doesn't hold, as one its
-// answers no longer report, keeps no trail nor fast rate, and nor does one
-// whose reading, as the state file kept it, has another reset than its
+// the pool judged for room at each, as judgeRoom says, by each account's
+// week as seeding's weekAt has it then: the readings history holds each
+// change of a window's use, so its trail, baseline included, is as it was,
+// and its rates outlast a restart. A window the account doesn't hold, as one
+// its answers no longer report, keeps no trail nor fast rate, and nor does
+// one whose reading, as the state file kept it, has another reset than its
 // readings last read, as when it has reset since. It returns how many
 // readings the trails keep.
 func (s *state) seed(history iter.Seq[readings.Reading]) int {
+	read := slices.Collect(history)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	type trailOf struct{ account, window string }
-	last := make(map[trailOf]quota.Window)
-	replayed := func(id string) (quota.Window, bool) {
-		if w, ok := last[trailOf{id, s.policy.Perishable}]; ok {
-			return w, true
-		}
-		return s.weekHeld(id)
-	}
-	for r := range history {
+	taking := newSeeding(read, s.policy.Perishable)
+	for _, r := range read {
 		u, configured := s.usage[r.Account]
 		if !configured {
 			continue
 		}
-		of, w := trailOf{r.Account, r.Key}, r.Window()
-		rise := u.note(last[of], w, r.At)
-		last[of] = w
+		of, w := windowOf{account: r.Account, key: r.Key}, r.Window()
+		rise := u.note(taking.last[of], w, r.At)
+		taking.last[of] = w
 		s.rose(r.Account, r.Key, rise, r.At)
-		s.judgeRoom(replayed, r.At)
+		s.judgeRoom(func(id string) (quota.Window, bool) { return taking.weekAt(id, s.weekHeld, r.At) }, r.At)
 	}
 	kept := 0
-	for of, w := range last {
+	for of, w := range taking.last {
 		u := s.usage[of.account]
-		if held, ok := u.windows[of.window]; !ok || !held.ResetsAt.Equal(w.ResetsAt) {
-			u.forgetRates(of.window)
+		if held, ok := u.windows[of.key]; !ok || !held.ResetsAt.Equal(w.ResetsAt) {
+			u.forgetRates(of.key)
 		}
-		kept += len(u.trails[of.window])
+		kept += len(u.trails[of.key])
 	}
 	return kept
+}
+
+// seeding is the readings history as seed takes it up: the reading of each
+// account's window taken up last, and each account's first reading of its
+// shared week, the window named week, the history holds.
+type seeding struct {
+	week  string
+	last  map[windowOf]quota.Window
+	first map[string]quota.Window
+}
+
+// newSeeding starts the taking up of read, the readings history in the order
+// read, of the shared week, the window named week.
+func newSeeding(read []readings.Reading, week string) seeding {
+	taking := seeding{week: week, last: make(map[windowOf]quota.Window), first: make(map[string]quota.Window)}
+	for _, r := range read {
+		if _, seen := taking.first[r.Account]; !seen && r.Key == week {
+			taking.first[r.Account] = r.Window()
+		}
+	}
+	return taking
+}
+
+// weekAt returns the shared week of the account with the given id at at, as
+// the history has read it by then: as taken up last; before that, as the
+// history first reads it, or, where it holds none of it, as held gives it,
+// the state file's, from when that week began, as its Span says, on. Before
+// then, as far as is known, the account's week hadn't been read, and weekAt
+// reports false; so it does where when the week began can't be said.
+func (t seeding) weekAt(id string, held func(id string) (quota.Window, bool), at time.Time) (quota.Window, bool) {
+	if w, ok := t.last[windowOf{account: id, key: t.week}]; ok {
+		return w, true
+	}
+	w, ok := t.first[id]
+	if !ok {
+		w, ok = held(id)
+	}
+	began, _, known := w.Span()
+	return w, ok && known && !at.Before(began)
 }
 
 // pace returns how fast the account's pressure window, as policy names it, is
@@ -126,12 +164,16 @@ func (u *usage) rates(now time.Time) []status.Rate {
 
 // fastRate returns the fast rate of the account's window named key at now, a
 // share of it an hour: none where the window hasn't been read, or has reset
-// since, as its fast rate is of the window that ran before.
+// since, as its fast rate is of the window that ran before, and none where
+// it has faded below fastLeast.
 func (u *usage) fastRate(key string, now time.Time) float64 {
 	if w, ok := u.windows[key]; !ok || w.ResetBy(now) {
 		return 0
 	}
-	return u.fast[key].Rate(now)
+	if rate := u.fast[key].Rate(now); rate >= fastLeast {
+		return rate
+	}
+	return 0
 }
 
 // pressure is how the account's pressure window stands at now, as the status
