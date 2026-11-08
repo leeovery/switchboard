@@ -17,6 +17,10 @@ func LedgerLines(t testing.TB, dir string) []ledger.Line {
 	return ledgerLines(t, dir)
 }
 
+// DefaultHold is the hold curve the status document gives before a day of
+// answers, for tests that read a router's whole document.
+var DefaultHold = defaultHold
+
 // Zeros reads as endless zero bytes, for tests that send a body over the
 // cap.
 type Zeros = zeros

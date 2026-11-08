@@ -90,11 +90,23 @@ func (s *state) weekHeld(id string) (quota.Window, bool) {
 	return w, ok
 }
 
+// answered has the hold curve take in an answer of the tokens given, at at,
+// from a session on its account for onAccount, weighed as forecast.Weight
+// weighs them. The state file keeps it as a routine change, as it does the
+// reading off an answer.
+func (s *state) answered(tokens quota.Tokens, onAccount time.Duration, at time.Time) {
+	weight := forecast.Weight(int64(tokens.Input), int64(tokens.Output), int64(tokens.CacheWrite), int64(tokens.CacheRead))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hold = s.hold.Answered(weight, onAccount, at)
+	s.routine()
+}
+
 // demand is the pool's use at now, as the forecast takes it: its day rate,
 // the pool judged afresh for room at now, so a week that has reset since it
 // was read has given it room by then; or, with too few hours of room for
-// one, the pool's fast rate, as poolFast has it. It's nil where no account
-// has been read.
+// one, the pool's fast rate, as poolFast has it; and the hold curve at now.
+// It's nil where no account has been read.
 func (s *state) demand(now time.Time) *status.Demand {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -102,10 +114,20 @@ func (s *state) demand(now time.Time) *status.Demand {
 		return nil
 	}
 	s.judgeRoom(s.weekHeld, now)
+	hold := holdPoints(s.hold.Points(now))
 	if rate, over, ok := s.day.Rate(now); ok {
-		return &status.Demand{Day: rate, Hours: over.Hours()}
+		return &status.Demand{Day: rate, Hours: over.Hours(), Hold: hold}
 	}
-	return &status.Demand{Day: s.poolFast(now)}
+	return &status.Demand{Day: s.poolFast(now), Hold: hold}
+}
+
+// holdPoints are the hold curve's points as the status document gives them.
+func holdPoints(points []forecast.Point) []status.HoldPoint {
+	held := make([]status.HoldPoint, len(points))
+	for i, p := range points {
+		held[i] = status.HoldPoint{Hours: p.After.Hours(), Share: p.Share}
+	}
+	return held
 }
 
 // poolFast is the pool's fast rate at now, in Pro weeks an hour: each

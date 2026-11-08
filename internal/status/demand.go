@@ -10,8 +10,8 @@ type Demand struct {
 	// where it's the pool's fast rate.
 	Hours float64 `json:"hours"`
 	// Hold is the hold curve, the share of an account's fast rate still on
-	// it so many hours on, as forecast.Hold keeps it: nil until the router
-	// keeps one.
+	// it so many hours on, at 1, 3, 6, 12, 24 and 48 hours, as forecast.Hold
+	// keeps it.
 	Hold []HoldPoint `json:"hold,omitempty"`
 }
 

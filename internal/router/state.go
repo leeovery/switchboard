@@ -267,6 +267,10 @@ type state struct {
 	// rose takes them in, over the time it had room, as judgeRoom judges it.
 	sizes map[string]float64
 	day   forecast.Day
+	// hold is the hold curve, of the answers' tokens by how long their
+	// sessions had been on their accounts, as answered takes them in, which
+	// the state file keeps.
+	hold forecast.Hold
 	// pin holds the ids of the accounts the global pin names, as the router
 	// last told it, as repin and recallPin have it: none while there's no pin.
 	pin []string
@@ -1459,12 +1463,12 @@ func (u *usage) current(policy score.Policy, now time.Time) []quota.Window {
 }
 
 // saved is what the state file keeps of the accounts' usage: each account's,
-// as its usage's saved has it, and the model families each window has been
-// reported on.
+// as its usage's saved has it, the model families each window has been
+// reported on, and the hold curve.
 func (s *state) saved() savedUsage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	saved := savedUsage{Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string)}
+	saved := savedUsage{Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string), Hold: s.hold}
 	for id, u := range s.usage {
 		if reading, ok := u.saved(); ok {
 			saved.Readings[id] = reading
@@ -1501,14 +1505,16 @@ func (u *usage) windowsReadAt() map[string]time.Time {
 
 // recall takes in what the state file kept of the accounts' usage, as the
 // router starts, as each usage's recall has it, holding reporting whether an
-// account holds the token it held then; but for what it kept of accounts no
-// longer configured. It reports whether it left out the reading of an account
-// no longer configured, or took an account's probes otherwise than they were
-// kept, so the file is written again as it took them.
+// account holds the token it held then, and the hold curve; but for what it
+// kept of accounts no longer configured. It reports whether it left out the
+// reading of an account no longer configured, or took an account's probes
+// otherwise than they were kept, so the file is written again as it took
+// them.
 func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed bool) {
 	now := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.hold = saved.Hold
 	for id, reading := range saved.Readings {
 		u, configured := s.usage[id]
 		if !configured {

@@ -67,13 +67,14 @@ func near(a, b float64) bool {
 	return math.Abs(a-b) < 1e-9
 }
 
-// sameDemand reports whether two demands match, to within rounding: neither
-// is there, or both are, alike, without a hold curve.
+// sameDemand reports whether two demands' rates match, to within rounding:
+// neither is there, or both are, alike in their day's rate and its hours.
+// Their hold curves are for the curve's own tests.
 func sameDemand(got, want *status.Demand) bool {
 	if got == nil || want == nil {
 		return got == want
 	}
-	return near(got.Day, want.Day) && near(got.Hours, want.Hours) && got.Hold == nil && want.Hold == nil
+	return near(got.Day, want.Day) && near(got.Hours, want.Hours)
 }
 
 func TestAWeeksRiseReachesItsFastRateAndThePoolsDayRate(t *testing.T) {

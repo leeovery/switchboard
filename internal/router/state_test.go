@@ -611,8 +611,9 @@ func TestDocument(t *testing.T) {
 		GeneratedAt: clock.now,
 		Source:      "router",
 		Best:        "side",
-		// Read once each, a minute apart, the pool has no use to tell of.
-		Demand: &status.Demand{},
+		// Read once each, a minute apart, the pool has no use to tell of, and
+		// no answer has come.
+		Demand: &status.Demand{Hold: defaultHold},
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: start, Windows: []quota.Window{session, week}},
 			{ID: "personal", Label: "Personal", Error: personalMissing},

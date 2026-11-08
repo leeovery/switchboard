@@ -104,6 +104,10 @@ func (s *scheduler) Forget(req Request) (string, bool) {
 	return back.Account, ok
 }
 
+func (s *scheduler) OnAccount(req Request, account string, now time.Time) time.Duration {
+	return s.sessions.onAccount(req.key(), account, now)
+}
+
 // decide chooses on what's known now, and returns the situation the choice
 // was made in, as situation builds it.
 func (s *scheduler) decide(req Request) (decision, situation) {

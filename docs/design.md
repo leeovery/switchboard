@@ -8666,9 +8666,10 @@ hiding it behind the provider would take a wider interface than it's worth:
   window was last read, and when a window started again, as its reading's `restarted_at`, so a
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
   `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
-  and `misses` (see The router's rounds), and the hashes of every configured account's tokens, with
-  a usable token or not: see Accounts and tokens; and the token-year notifications told, an
-  account's against the token they were told for: see Notifications), `control.sock`, `tokens/`,
+  and `misses` (see The router's rounds), the hold curve, `hold` (see Forecasting run-outs), and the
+  hashes of every configured account's tokens, with a usable token or not: see Accounts and tokens;
+  and the token-year notifications told, an account's against the token they were told for: see
+  Notifications), `control.sock`, `tokens/`,
   `logs/`, `history/`, `ledger/`, `install-id`, the id an export names the Mac's folder by,
 `import/`, while an import runs, and `import.lock`, which `import` holds while it stages and waits
 (see Export and import). `state.json` is versioned, the version changing only when a
@@ -8677,12 +8678,13 @@ hiding it behind the provider would take a wider interface than it's worth:
   which a router from before, ignoring the field, takes them all for, one whose readings lack when
   each window was read as windows unread (see The router's rounds), one without the probes as
   accounts none of whose probes has ended, which a router from before them, ignoring the fields,
-  takes them all for, one without `windows_absent` as accounts that have every window they report, a
-  reading that holds nothing else as none, and a pin that names its account alone, as pins did
+  takes them all for, one without `windows_absent` as accounts that have every window they report,
+  one without `hold`, or with one of a shape it doesn't know, as a curve of no answers, a reading
+  that holds nothing else as none, and a pin that names its account alone, as pins did
   before they named several, as a pin to that one. It's rewritten whole (written beside it, synced,
   and renamed over it) a second after a change and on the way out, but once a minute at most while
-  its only changes are routine: those every request makes, its session's assignment used again and
-  the reading off its answer, and those every probe makes, how it went and a reading, extra usage
+  its only changes are routine: those every request makes, its session's assignment used again,
+  the reading off its answer and the answer in the hold curve, and those every probe makes, how it went and a reading, extra usage
   among it, as before; and drops assignments unused for 7 days, with the pins of the sessions it
   forgets, and the hashes of tokens replaced 7 days before, at start and then hourly. At start it
   also drops the assignments and the sessions' own pins of accounts no longer configured, those

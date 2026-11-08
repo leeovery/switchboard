@@ -34,6 +34,12 @@ type Chooser interface {
 	// the session is back on, "" when it has none, and reports whether it
 	// took the accounts back: not when one chosen since stands.
 	Forget(req Request) (string, bool)
+	// OnAccount returns how long, at now, req's session has been on the
+	// account with the id given, for its requests of the request's model:
+	// since it came to the account, which a choice that keeps it there
+	// doesn't start again. It's none where the session isn't remembered on
+	// the account, as a request without a session never is.
+	OnAccount(req Request, account string, now time.Time) time.Duration
 }
 
 // Request is what the router knows of a routed request when it chooses the

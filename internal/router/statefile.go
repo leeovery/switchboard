@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
+	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -43,8 +44,9 @@ const (
 // its account's after; each account's last readings, so a restart needs no
 // probe, which, being a request, could start a window, and how its probes
 // went, so a restart neither probes it sooner than they allow nor forgets why
-// it can't be read; and what's been told of each account's token's year, so a
-// restart tells nothing twice.
+// it can't be read; the hold curve, so a restart doesn't take it back to the
+// default; and what's been told of each account's token's year, so a restart
+// tells nothing twice.
 type stateFile struct {
 	// path is where the file is: "" until it's loaded, and nothing is kept.
 	path string
@@ -130,6 +132,10 @@ type savedUsage struct {
 	// been reported on, by the window's key, which says which requests it
 	// counts.
 	WindowFamilies map[string][]string `json:"window_families,omitempty"`
+	// Hold is the hold curve. A file without it, as from before it was kept,
+	// or with one of a shape it doesn't know, holds the curve of no answers,
+	// as forecast.Hold reads it.
+	Hold forecast.Hold `json:"hold,omitzero"`
 }
 
 // read counts the accounts whose usage has been read, but those whose
