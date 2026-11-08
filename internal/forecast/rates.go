@@ -31,10 +31,10 @@ type Fast struct {
 }
 
 // Rose returns f having taken in a rise of by, a share of the window, at at.
-// A rise before the last f took in counts as at the last, and one of nothing
-// or less, as no rise, leaves f as it was.
+// A rise before the last f took in counts as at the last, and one that isn't
+// one to take in, as countable says, leaves f as it was.
 func (f Fast) Rose(by float64, at time.Time) Fast {
-	if by <= 0 {
+	if !countable(by) {
 		return f
 	}
 	at = score.Later(at, f.at)
@@ -45,6 +45,12 @@ func (f Fast) Rose(by float64, at time.Time) Fast {
 // negative: as of its last rise where at comes before it.
 func (f Fast) Rate(at time.Time) float64 {
 	return f.rate * decay(at.Sub(f.at), fastTau)
+}
+
+// countable reports whether v, a rise or an answer's weight, is one to take
+// in: more than nothing, and a number short of endless.
+func countable(v float64) bool {
+	return v > 0 && !math.IsInf(v, 1)
 }
 
 // decay is how much of a value smoothed with the time constant tau is left
@@ -81,9 +87,9 @@ type rise struct {
 
 // Rose returns d having taken in a rise of the pool's use of by, in Pro weeks,
 // at at. A rise before the latest time d was given counts as at that time,
-// and one of nothing or less, as no rise, leaves d as it was.
+// and one that isn't one to take in, as countable says, leaves d as it was.
 func (d Day) Rose(by float64, at time.Time) Day {
-	if by <= 0 {
+	if !countable(by) {
 		return d
 	}
 	d.last = score.Later(at, d.last)

@@ -91,6 +91,9 @@ func TestHoldAnswered(t *testing.T) {
 		want []Point
 	}{
 		{"an answer weighing nothing leaves the curve as it was", Hold{}.Answered(0, 2*time.Hour, holdFrom), defaultPoints()},
+		{"an answer weighing less leaves the curve as it was", Hold{}.Answered(-1, 2*time.Hour, holdFrom), defaultPoints()},
+		{"an answer weighing no number leaves the curve as it was", Hold{}.Answered(math.NaN(), 2*time.Hour, holdFrom), defaultPoints()},
+		{"an answer weighing without end leaves the curve as it was", Hold{}.Answered(math.Inf(1), 2*time.Hour, holdFrom), defaultPoints()},
 		{
 			"an answer before the last counts as at the last",
 			Hold{}.Answered(1, 0, holdFrom.Add(7*24*time.Hour)).Answered(1, 48*time.Hour, holdFrom),
@@ -129,32 +132,72 @@ func TestHoldStoredForm(t *testing.T) {
 	}
 }
 
-func TestHoldStoredFormRefusesAnotherCountOfBins(t *testing.T) {
-	for _, stored := range []string{
-		`{"weights":[0,1,0,0,0,0]}`,
-		`{"weights":[0,1,0,0,0,0,0,0]}`,
-		`{}`,
-	} {
-		t.Run(stored, func(t *testing.T) {
-			var hold Hold
-			if err := json.Unmarshal([]byte(stored), &hold); err == nil {
-				t.Errorf("Unmarshal(%s) = %v, want an error", stored, hold)
+func TestHoldStoredFormOfAnotherShapeReadsAsTheDefault(t *testing.T) {
+	zero, err := json.Marshal(Hold{})
+	if err != nil {
+		t.Fatalf("Marshal(Hold{}) error = %v", err)
+	}
+	const times = `"weighed_at":"2026-11-09T09:00:00Z","first_answer":"2026-11-02T09:00:00Z"`
+	tests := []struct {
+		name   string
+		stored string
+	}{
+		{"null", `null`},
+		{"the zero Hold's", string(zero)},
+		{"6 bins", `{"weights":[0,1,0,0,0,0],` + times + `}`},
+		{"8 bins", `{"weights":[0,1,0,0,0,0,0,0],` + times + `}`},
+		{"no fields", `{}`},
+		{"no weights", `{` + times + `}`},
+		{"no time weighed at", `{"weights":[0,1,0,0,0,0,0],"first_answer":"2026-11-02T09:00:00Z"}`},
+		{"no first answer", `{"weights":[0,1,0,0,0,0,0],"weighed_at":"2026-11-09T09:00:00Z"}`},
+		{"weights of another type", `{"weights":"many",` + times + `}`},
+		{"not an object", `[1,2,3]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var read Hold
+			if err := json.Unmarshal([]byte(tt.stored), &read); err != nil {
+				t.Fatalf("Unmarshal(%s) error = %v", tt.stored, err)
+			}
+			if read != (Hold{}) {
+				t.Errorf("Unmarshal(%s) = %+v, want the zero Hold, the default curve", tt.stored, read)
 			}
 		})
 	}
 }
 
-func TestStoredZeroHoldReadsBackAsTheDefault(t *testing.T) {
-	b, err := json.Marshal(Hold{})
-	if err != nil {
-		t.Fatalf("Marshal(Hold{}) error = %v", err)
+func TestHoldStoredFormOfAnotherShapeLeavesTheRestOfItsFile(t *testing.T) {
+	type file struct {
+		Before string `json:"before"`
+		Hold   Hold   `json:"hold"`
+		After  int    `json:"after"`
 	}
+	stored := `{"before":"kept","hold":{"weights":[1,2]},"after":7}`
+
+	var read file
+	if err := json.Unmarshal([]byte(stored), &read); err != nil {
+		t.Fatalf("Unmarshal(%s) error = %v", stored, err)
+	}
+	if want := (file{Before: "kept", After: 7}); read != want {
+		t.Errorf("Unmarshal(%s) = %+v, want %+v", stored, read, want)
+	}
+}
+
+func TestHoldStoredNullLeavesTheCurveAsItWas(t *testing.T) {
+	held := Hold{}.Answered(1, 2*time.Hour, holdFrom)
+	read := held
+	if err := read.UnmarshalJSON([]byte("null")); err != nil {
+		t.Fatalf("UnmarshalJSON(null) error = %v", err)
+	}
+	if read != held {
+		t.Errorf("UnmarshalJSON(null) = %+v, want %+v", read, held)
+	}
+}
+
+func TestHoldStoredFormRefusesWhatIsntJSON(t *testing.T) {
 	var read Hold
-	if err := json.Unmarshal(b, &read); err != nil {
-		t.Fatalf("Unmarshal(%s) error = %v", b, err)
-	}
-	if read != (Hold{}) {
-		t.Errorf("Unmarshal(%s) = %v, want the zero Hold", b, read)
+	if err := read.UnmarshalJSON([]byte(`{"weights":[0,`)); err == nil {
+		t.Errorf("UnmarshalJSON(a cut-off form) = %+v, want an error", read)
 	}
 }
 
@@ -178,6 +221,9 @@ func TestCurve(t *testing.T) {
 		{"0 at twice the last point's hours", points, 96 * time.Hour, 0},
 		{"0 beyond", points, 200 * time.Hour, 0},
 		{"points in any order, in the order of their hours", reversed, 2 * time.Hour, 0.65},
+		{"a point at none or before is left out", append(holdPoints(0.8), Point{After: 0, Share: 0.3}, Point{After: -time.Hour, Share: 0.1}), 0, 1},
+		{"a point at none or before leaves the line from 1", append(holdPoints(0.8), Point{After: 0, Share: 0.3}, Point{After: -time.Hour, Share: 0.1}), 30 * time.Minute, 0.9},
+		{"only points at none or before, the default curve", []Point{{After: 0, Share: 0.3}}, 6 * time.Hour, 1 / math.E},
 		{"no points, the default curve", nil, 6 * time.Hour, 1 / math.E},
 		{"no points, the default curve's 1 at none", nil, 0, 1},
 	}

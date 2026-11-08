@@ -33,6 +33,8 @@ func TestFastRate(t *testing.T) {
 		{"a rise before the last counts as at the last", Fast{}.Rose(0.01, ratesAt(time.Hour)).Rose(0.01, ratesFrom), ratesAt(time.Hour), 0.02},
 		{"a time before the last rise reads as at it", Fast{}.Rose(0.01, ratesAt(time.Hour)), ratesFrom, 0.01},
 		{"a fall is no rise, and never reads negative", tick.Rose(-0.05, ratesFrom), ratesFrom, 0.01},
+		{"a rise of no number is no rise", tick.Rose(math.NaN(), ratesFrom), ratesFrom, 0.01},
+		{"a rise without end is no rise", tick.Rose(math.Inf(1), ratesFrom), ratesFrom, 0.01},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,6 +135,41 @@ func TestDayRate(t *testing.T) {
 			day:  opened.Rose(1, ratesAt(time.Hour)).Rose(-1, ratesAt(2*time.Hour)),
 			at:   ratesAt(2 * time.Hour),
 			want: 0.5, wantOver: 2 * time.Hour, wantOK: true,
+		},
+		{
+			name: "a rise of no number is no rise",
+			day:  opened.Rose(1, ratesAt(time.Hour)).Rose(math.NaN(), ratesAt(2*time.Hour)),
+			at:   ratesAt(2 * time.Hour),
+			want: 0.5, wantOver: 2 * time.Hour, wantOK: true,
+		},
+		{
+			name: "a rise without end is no rise",
+			day:  opened.Rose(1, ratesAt(time.Hour)).Rose(math.Inf(1), ratesAt(2*time.Hour)),
+			at:   ratesAt(2 * time.Hour),
+			want: 0.5, wantOver: 2 * time.Hour, wantOK: true,
+		},
+		{
+			name: "room opened again while open stays one stretch",
+			day:  opened.Open(true, ratesAt(time.Hour)).Rose(1, ratesAt(time.Hour)),
+			at:   ratesAt(2 * time.Hour),
+			want: 0.5, wantOver: 2 * time.Hour, wantOK: true,
+		},
+		{
+			name: "room closed while it never opened stays none",
+			day:  Day{}.Open(false, ratesAt(time.Hour)).Rose(1, ratesAt(2*time.Hour)),
+			at:   ratesAt(5 * time.Hour),
+		},
+		{
+			name: "room turned before the latest time turns at it",
+			day:  opened.Rose(1, ratesAt(4*time.Hour)).Open(false, ratesAt(time.Hour)),
+			at:   ratesAt(6 * time.Hour),
+			want: 0.25, wantOver: 4 * time.Hour, wantOK: true,
+		},
+		{
+			name: "a rate asked before the latest time is as at it",
+			day:  opened.Rose(1, ratesAt(4*time.Hour)),
+			at:   ratesAt(time.Hour),
+			want: 0.25, wantOver: 4 * time.Hour, wantOK: true,
 		},
 	}
 	for _, tt := range tests {

@@ -1,8 +1,10 @@
 package forecast
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -59,10 +61,10 @@ func Weight(input, output, cacheWrite, cacheRead int64) float64 {
 
 // Answered returns h having taken in an answer of weight, as Weight weighs
 // it, at at, from a session on its account for onAccount. An answer before
-// the last h took in counts as at the last, and one weighing nothing, or
-// less, leaves h as it was.
+// the last h took in counts as at the last, and one whose weight isn't one to
+// take in, as countable says, leaves h as it was.
 func (h Hold) Answered(weight float64, onAccount time.Duration, at time.Time) Hold {
-	if weight <= 0 {
+	if !countable(weight) {
 		return h
 	}
 	if h.first.IsZero() {
@@ -115,13 +117,14 @@ func (h Hold) Points(at time.Time) []Point {
 
 // Curve returns the hold curve points draw, in the order of their hours: 1
 // at none, straight between each point and the next, and past the last
-// falling straight to 0 at twice its hours. With no points, it's the default
-// curve, e^(−h/6h).
+// falling straight to 0 at twice its hours. A point at none or before is left
+// out, and with no points after none it's the default curve, e^(−h/6h).
 func Curve(points []Point) func(after time.Duration) float64 {
-	if len(points) == 0 {
+	knots := slices.DeleteFunc(slices.Clone(points), func(p Point) bool { return p.After <= 0 })
+	if len(knots) == 0 {
 		return defaultHold
 	}
-	knots := slices.SortedStableFunc(slices.Values(points), func(a, b Point) int { return cmp.Compare(a.After, b.After) })
+	slices.SortStableFunc(knots, func(a, b Point) int { return cmp.Compare(a.After, b.After) })
 	knots = append(knots, Point{After: 2 * knots[len(knots)-1].After})
 	return func(after time.Duration) float64 {
 		from := Point{Share: 1}
@@ -171,15 +174,24 @@ func (h Hold) MarshalJSON() ([]byte, error) {
 	return b, nil
 }
 
-// UnmarshalJSON reads h back from its stored form, as MarshalJSON wrote it,
-// refusing one with another count of bins than it keeps.
+// UnmarshalJSON reads h back from its stored form, as MarshalJSON wrote it.
+// null leaves h as it was. A form of another shape, as of another count of
+// bins, or with a field missing or of another type, reads as the zero Hold,
+// the default curve. Only bytes that aren't JSON are refused.
 func (h *Hold) UnmarshalJSON(b []byte) error {
+	if bytes.Equal(b, []byte("null")) {
+		return nil
+	}
 	var stored storedHold
-	if err := json.Unmarshal(b, &stored); err != nil {
+	err := json.Unmarshal(b, &stored)
+	if _, malformed := errors.AsType[*json.SyntaxError](err); malformed {
 		return fmt.Errorf("decode a hold curve: %w", err)
 	}
-	if len(stored.Weights) != holdBins {
-		return fmt.Errorf("decode a hold curve: %d bins, want %d", len(stored.Weights), holdBins)
+	// Refusing a curve it can't read would set aside the whole state file it's
+	// in; read as none, it's rebuilt from the answers that come next.
+	if err != nil || len(stored.Weights) != holdBins || stored.WeighedAt.IsZero() || stored.FirstAnswer.IsZero() {
+		*h = Hold{}
+		return nil
 	}
 	*h = Hold{weights: [holdBins]float64(stored.Weights), at: stored.WeighedAt, first: stored.FirstAnswer}
 	return nil
