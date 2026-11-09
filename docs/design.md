@@ -573,8 +573,8 @@ more than a day ahead, its day alone, `out ~Tue`, as a forecast days out misses 
 alone would read as today, so there it gives its date too, as a day is named, `out ~Thu 12 Nov`.
 Every word of a run-out more than a day ahead reads it so: COMING UP's times, Runway's and the
 cards' words, `usage` and `status`. The usage block's short form, which keeps a day alone, says
-the date there without the weekday, `out ~12 Nov`, inside its 14 cells (see `usage`, the
-printout). The status document gives the time whole.
+the date there without the weekday, `out ~12 Nov`, inside its 14 cells, as its `back` does; an
+allowance's reset keeps its day (see `usage`, the printout). The status document gives the time whole.
 
 **Checked on a history,** never against the real install in tests: `cmd/forecasttool`, a program of
 its own as `cmd/capturetool` is, plays a readings history and request ledger back, forecasting at
@@ -2444,7 +2444,7 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   | The account has no usable token (settled in the plan) | `no token` | `no token` | `state.destructive` |
   | Nothing has been read of the account (settled in the plan) | `not read yet` | `not read` | `text.subtle` |
   | Its token is refused, or its last read failed: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
-  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54` | `state.destructive` |
+  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54`, `back 12 Nov` a week on | `state.destructive` |
   | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `back 17:10` | `accent.attention` |
   | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Thu 12 Nov` on today's weekday, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~12 Nov` on today's weekday, `out ~Mon`, `out ~16:05` | `accent.attention` |
   | The account doesn't have the window (below) | `no 5-hour limit` | `no limit` | `text.subtle` |
@@ -2453,8 +2453,11 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   | Otherwise, the allowance | `19%/day till Sun 21:00`, `34%/h till 16:30` | `19%/day · Sun`, `34%/h · 16:30` | the rate and the time in `text.muted`; ` till ` and ` · ` in `text.subtle` |
 
   A time reads `16:30` for today and `Sun 21:00` for another day; the short form keeps a time today,
-  and only the weekday for another day. `back` is when room returns: when a limit lifts, or the
-  capped window resets. Red is for Claude's own limit; a cap is movable, so it's amber.
+  and only the weekday for another day, but a run-out's or `back`'s more than a day ahead on
+  today's weekday, which alone would read as today, gives its date instead, `out ~12 Nov`,
+  `back 12 Nov`. An allowance's reset keeps its day alone, `19%/day · Thu`: its 14 cells can't hold
+  a date beside the rate, and a rate a day can't be read as running out today. `back` is when room
+  returns: when a limit lifts, or the capped window resets. Red is for Claude's own limit; a cap is movable, so it's amber.
 - **A reading that's stale,** of an account whose token is refused or whose last read failed, shows
   as it was last read, faded: its bar, fill, track and marks keep 35% of their colour, which is 65%
   toward the canvas, nothing bold; its percentage and words in `text.subtle`.

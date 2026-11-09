@@ -239,10 +239,10 @@ func TestBriefIsATimeOfDayOnNowsDayElseItsWeekday(t *testing.T) {
 	}
 }
 
-// A run-out told briefly reads as Brief has it, but more than a day ahead on
-// now's weekday, its date alone, as RunOut dates it there; a week back on
-// now's weekday is Brief's weekday still.
-func TestARunOutToldBrieflyIsDatedAWeekOn(t *testing.T) {
+// BriefDated reads as Brief has it, but more than a day ahead on now's
+// weekday, its date alone, as RunOut dates it there; a week back on now's
+// weekday is Brief's weekday still.
+func TestBriefDatedIsBriefButAWeekOnItsDate(t *testing.T) {
 	zone := time.FixedZone("UTC+1", 60*60)
 	now := time.Date(2026, 10, 1, 14, 42, 0, 0, zone)
 	monthEnd := time.Date(2026, 10, 29, 9, 0, 0, 0, zone)
@@ -261,8 +261,8 @@ func TestARunOutToldBrieflyIsDatedAWeekOn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := prose.RunOutBrief(tt.now, tt.t); got != tt.want {
-				t.Errorf("RunOutBrief(%v, %v) = %q, want %q", tt.now, tt.t, got, tt.want)
+			if got := prose.BriefDated(tt.now, tt.t); got != tt.want {
+				t.Errorf("BriefDated(%v, %v) = %q, want %q", tt.now, tt.t, got, tt.want)
 			}
 		})
 	}

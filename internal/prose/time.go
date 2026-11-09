@@ -121,10 +121,10 @@ func Brief(now, t time.Time) string {
 	return Weekday(t.In(now.Location()).Weekday())
 }
 
-// RunOutBrief shows t, when a window is projected to run out, in now's time
-// zone as briefly as a bar line has room for, as Brief shows it, but a week
-// on, as weekOn has it, its date alone, such as "12 Nov".
-func RunOutBrief(now, t time.Time) string {
+// BriefDated shows t in now's time zone as Brief shows it, but a week on, as
+// weekOn has it, its date alone, such as "12 Nov", as a time a window runs
+// out or comes back at, said alone, would read as today.
+func BriefDated(now, t time.Time) string {
 	if weekOn(now, t) {
 		return DayMonth(t.In(now.Location()))
 	}

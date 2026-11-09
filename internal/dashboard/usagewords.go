@@ -70,8 +70,11 @@ func alike(words string, k ink) usageWords {
 // At say them: what holds it back, and until when; when it runs out; that it
 // isn't started; that its account has no such limit; or its allowance, to its
 // reset. A time reads as Dated has it in full, and short, its time today and
-// only its weekday for another day; but a reading's, as lastRead has it, and
-// a run-out's as RunOut has it in full, and RunOutBrief short.
+// only its weekday for another day; but a reading's, as lastRead has it; a
+// run-out's as RunOut has it in full; and a run-out's and a back's short as
+// BriefDated dates them a week on. An allowance's reset keeps its weekday
+// alone: its short cells can't hold a date beside the rate, and a rate isn't
+// read as an end today.
 func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	switch w.Kind {
 	case status.WindowTokenless:
@@ -88,7 +91,7 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	case status.WindowCapped:
 		return heldBack("at cap", w.At, now, warningInk)
 	case status.WindowRunsOut:
-		return usageWords{full: line{{"out ~" + prose.RunOut(now, w.At), warningInk}}, short: line{{"out ~" + prose.RunOutBrief(now, w.At), warningInk}}}
+		return usageWords{full: line{{"out ~" + prose.RunOut(now, w.At), warningInk}}, short: line{{"out ~" + prose.BriefDated(now, w.At), warningInk}}}
 	case status.WindowNotStarted:
 		return alike("not started", mutedInk)
 	default:
@@ -116,12 +119,12 @@ func lastRead(now, t time.Time) (full, short string) {
 
 // heldBack is the words of a window held back as what says, until back, zero
 // where that's unknown: as in "at cap · back 17:10", and short, "back 17:10",
-// as Brief shows the time.
+// as BriefDated shows the time.
 func heldBack(what string, back time.Time, now time.Time, k ink) usageWords {
 	if back.IsZero() {
 		return alike(what, k)
 	}
-	return usageWords{full: line{{what + " · " + status.Back(now, back), k}}, short: line{{"back " + prose.Brief(now, back), k}}}
+	return usageWords{full: line{{what + " · " + status.Back(now, back), k}}, short: line{{"back " + prose.BriefDated(now, back), k}}}
 }
 
 // allowed is the words of a window's allowance a, to its reset: as in

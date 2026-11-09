@@ -154,8 +154,9 @@ nothing.
   the cap, where a bar draws one.
 - **The words** are in full where they fit, else short, as `back 15:54`, `out ~Sat` and
   `19%/day · Sun`: short, a time on another day than today gives its day alone, a run-out's within
-  a day too, but a run-out further ahead on today's weekday gives its date, `out ~12 Nov`. As the
-  terminal narrows, the bars shorten to 12 cells first, then the words.
+  a day too, but a run-out or `back` further ahead on today's weekday gives its date,
+  `out ~12 Nov`, `back 12 Nov`. An allowance keeps its day, `19%/day · Thu`, as a date doesn't fit
+  beside the rate. As the terminal narrows, the bars shorten to 12 cells first, then the words.
 - **The name column** is as wide as the longest name, up to 24 cells of label. A label too long for
   it is cut with `…`. It never moves as `▲` moves between accounts.
 

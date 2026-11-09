@@ -30,6 +30,8 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 		{name: "at Claude's limit", state: state(status.WindowLimited, on(1, 15, 54)), full: "limit · back 15:54", short: "back 15:54", ink: errorInk},
 		{name: "at Claude's limit, back none knows when", state: state(status.WindowLimited, time.Time{}), full: "limit", short: "limit", ink: errorInk},
 		{name: "at its cap, back tomorrow", state: state(status.WindowCapped, on(2, 2, 0)), full: "at cap · back Fri 02:00", short: "back Fri", ink: warningInk},
+		{name: "at its cap, back a week on, on today's weekday, dated short", state: state(status.WindowCapped, on(8, 2, 0)), full: "at cap · back Thu 02:00", short: "back 8 Oct", ink: warningInk},
+		{name: "at Claude's limit, back a week on, on today's weekday, dated short", state: state(status.WindowLimited, on(8, 2, 0)), full: "limit · back Thu 02:00", short: "back 8 Oct", ink: errorInk},
 		{name: "running out today", state: state(status.WindowRunsOut, on(1, 16, 5)), full: "out ~16:05", short: "out ~16:05", ink: warningInk},
 		{name: "running out tomorrow, within a day", state: state(status.WindowRunsOut, on(2, 6, 0)), full: "out ~Fri 06:00", short: "out ~Fri", ink: warningInk},
 		{name: "running out more than a day ahead, its day alone", state: state(status.WindowRunsOut, on(3, 6, 0)), full: "out ~Sat", short: "out ~Sat", ink: warningInk},
@@ -44,6 +46,10 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 		{
 			name: "the allowance a day", state: state(status.WindowOpen, on(4, 21, 0)), allowance: quota.Allowance{Share: 0.187, Per: quota.PerDay},
 			full: "19%/day till Sun 21:00", short: "19%/day · Sun", ink: mutedInk,
+		},
+		{
+			name: "the allowance a day, its reset a week on, its day alone", state: state(status.WindowOpen, on(8, 2, 0)), allowance: quota.Allowance{Share: 0.187, Per: quota.PerDay},
+			full: "19%/day till Thu 02:00", short: "19%/day · Thu", ink: mutedInk,
 		},
 		{
 			name: "the room itself, its reset within the span", state: state(status.WindowOpen, on(1, 15, 30)), allowance: quota.Allowance{Share: 0.34},
