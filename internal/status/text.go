@@ -418,7 +418,7 @@ func projection(now time.Time, w WindowNow, floor float64) string {
 	case w.RunsOut:
 		return "runs out ~" + prose.RunOut(now, w.Out.At)
 	case p.Kind == score.OnPace && p.AtReset < floor-score.Tolerance:
-		return "on pace for " + prose.PercentShort(p.AtReset, floor)
+		return "on pace for " + prose.PercentShort(p.AtReset, floor, w.Used)
 	case p.Kind == score.OnPace:
 		return "on pace for " + prose.Percent(p.AtReset)
 	case p.Kind == score.Exhausted:

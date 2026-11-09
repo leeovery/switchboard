@@ -444,6 +444,37 @@ func TestTextKeepsItsWordsForAModelsOwnWindowAtItsReserve(t *testing.T) {
 	}
 }
 
+// A week heading short of where its account runs out never reads as reaching
+// it: short of its cap where its reserve holds, short of its limit without a
+// reserve or where the global pin spends it, which reads its figure as Percent
+// does where that's short of the limit.
+func TestTextWordsAWeekShortOfItsAccountsFloor(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	week := func(used float64) []quota.Window {
+		return []quota.Window{{Key: "7d", Label: "Week", Utilization: used, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC)}}
+	}
+	tests := []struct {
+		name    string
+		used    float64
+		reserve float64
+		pin     status.Pin
+		want    string
+	}{
+		{name: "short of its cap", used: 0.203, reserve: 0.05, want: "on pace for 94%"},
+		{name: "short of its limit, its cap spent by the global pin", used: 0.203, reserve: 0.05, pin: status.Pin{Accounts: []string{"work"}}, want: "on pace for 95%"},
+		{name: "short of its limit without a reserve", used: 0.2136, want: "on pace for 99%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			work := status.Account{ID: "work", Label: "Work", Reserve: tt.reserve, TokenSet: true, FetchedAt: now.UTC(), Windows: week(tt.used)}
+			doc := status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe, Pin: tt.pin, Accounts: []status.Account{work}}
+			if got := doc.At(now, policy).Text(); !strings.Contains(got, " · "+tt.want+"\n") {
+				t.Errorf("Text() =\n%s\nwant its week %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestReserved(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.85, ResetsAt: now.Add(time.Hour)}
@@ -1450,6 +1481,13 @@ func TestProjection(t *testing.T) {
 		{name: "on pace short of its limit, never as reaching it", window: onPace(0.9959), want: "on pace for 99%"},
 		{name: "on pace short of its cap, never as reaching it", window: onPace(0.977), floor: 0.98, want: "on pace for 97%"},
 		{name: "on pace for its cap, as held there", window: onPace(0.98), floor: 0.98, want: "on pace for 98%"},
+		{name: "on pace for its cap within a sliver, as held there", window: onPace(0.98 - 1e-12), floor: 0.98, want: "on pace for 98%"},
+		{
+			name:   "on pace short of a cap set to a fraction, never below the use it heads from",
+			window: status.WindowNow{Used: 0.97, Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace, AtReset: 0.972})}},
+			floor:  0.9749,
+			want:   "on pace for 97%",
+		},
 		{name: "on pace past its cap, as read past it", window: onPace(0.99), floor: 0.98, want: "on pace for 99%"},
 		{name: "on pace, having used nothing", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace})}}, want: "on pace for 0%"},
 		{name: "running out today, in now's time zone", window: status.WindowNow{RunsOut: true, Out: status.RunOut{At: today, Heading: runsOut}}, want: "runs out ~19:40"},
