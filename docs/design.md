@@ -3054,12 +3054,27 @@ below, not flex's even share:
    shows never falls: every step scrolls whole, a row at a time, so a row more shows as many
    accounts or more. The planner keeps the step it took in the layout, so USAGE is drawn in the
    form the planner chose, never one its rows alone suggest.
-5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
-   SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
-   session going on, never left blank; to USAGE's big bars, if they fit; to ROUTING's two rows of
-   trace, if they fit; then to COMING UP and LATELY, a line at a time to 12. A folded unit never
-   grows: what can't unfold leaves rows the others use. At a few heights, one row more brings the
-   big bars or ROUTING's trace in, and ROUTING, or COMING UP and LATELY, give up rows to make room.
+5. **Rows to spare go out even while a section is folded,** to the units that aren't. Each session
+   more SESSIONS shows, its row or two, USAGE's big bars and ROUTING's two rows of trace are forms,
+   with first claim in that order, each taken whole where it fits; COMING UP and LATELY take what
+   the forms leave, a line at a time to 12. A folded unit never grows: what can't unfold leaves
+   rows the others use.
+   **Each form switches once down the height:** within one arrangement, the same sections folded
+   and USAGE's blank rows between its accounts back, a form is taken at the first height where it
+   fits beside the forms already on, and every taller height keeps it: a row more never turns a
+   form off. So COMING UP and LATELY give up lines only at a height where a form comes in and takes
+   its rows, once a form; and at 160 columns, three accounts and the sections shown at first,
+   ROUTING keeps its two rows of trace from 37 rows, the big bars coming in beside them at 47.
+   Where USAGE's blank rows between its accounts are given way, and come back a few rows taller
+   before the folds change, no form is taken: the rows that bring them back would turn it off, so
+   they go to COMING UP and LATELY, else stay empty at the foot. The hold ends where the folds
+   change, in practice a section unfolding: where the blank rows stay given way until a section
+   unfolds, the forms are taken as ever. Rows stay empty too where a form already on leaves too
+   few for the next beside it and COMING UP and LATELY are full, as many as a form's whole step:
+   three accounts at 160 × 44 to 46; one account at 160 × 28, and at 160 × 34 with every section
+   shown; and ten accounts at 108 to 160 columns, the sections shown at first, from 77 rows to
+   95, where ROUTING keeps its second row and the big bars wait until 96, leaving up to 14 rows
+   empty. Across arrangements, as a section unfolds, the forms are taken afresh.
 6. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
    line on the last row.
 7. **The layout changes only on a key or a resize,** or a section's shape changing, never on its
@@ -10274,7 +10289,6 @@ was dropped binds a later choice, the design proper says so.
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Runway's holds shorter than a column, drawn or named whatever the width | open: to discuss with its owner | [runway-short-holds](../ideas/2026-10-21--runway-short-holds.md) |
-| The Overview saying less at some taller heights, as ROUTING's traces and USAGE's blank rows take rows back | open: to discuss with its owner | [overview-height-sawtooth](../ideas/2026-10-23--overview-height-sawtooth.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
 | Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from History's Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
