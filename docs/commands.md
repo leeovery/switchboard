@@ -132,6 +132,12 @@ Ultra account's carry no 5-hour window. Stacked, the window's section leaves the
 window no account has isn't shown at all. An account not read yet may have any window, so it keeps
 its rows.
 
+**A token's year nearly up:** under the key line, after a blank line, each account whose token's
+year is up within 30 days, or is up, has a line, as the Accounts tab's Detail tells it:
+`1 work  token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`,
+`· last day` on its last day, and `token expired 17 Nov 2026` once it's up. Other accounts add
+nothing.
+
 **The width** shapes the layout:
 
 - **By window:** the windows sit side by side, a column each, wherever every bar has 12 cells and

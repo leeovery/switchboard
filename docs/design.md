@@ -1427,9 +1427,9 @@ their own words.
   unverified.
 - **A token's year,** one owner: `internal/status` works out when it was taken, when it's
   up, whether it's up within a span, its days left and the share of it gone, and setup's TOKEN
-  column and notes, the Accounts tab's line and the router's notifications all read it
-  there (see Accounts and tokens for where the time is kept). The status document carries the date
-  already, as `token_good_until`; `usage` showing it is designed.
+  column and notes, the Accounts tab's line, `usage`'s lines and the router's notifications all
+  read it there (see Accounts and tokens for where the time is kept). The status document carries
+  the date, as `token_good_until`.
 
 ### The build's calls
 
@@ -2394,8 +2394,18 @@ a matrix of one.
   or two whatever a read draws, and one line at a width is one line wider. Else two lines at column
   0, the cap's part on the second. A blank line separates it from the last row.
 
-**Spacing:** `usage` prints a blank line, then the header, and ends at the key line, with no blank
-line after it, as a shell's prompt spaces itself (settled in the plan).
+**A token's year:** after the key line and a blank line, a line for each account whose token's year
+is up within 30 days, or is up, in the config's order: the account's name, as its row names it,
+its label whole; two cells on, the words Accounts' Detail says, `token expires 17 Nov 2026 · 21
+days left — switchboard setup makes a new one`, `· last day` on its last day, `token expired 17
+Nov 2026 — switchboard setup makes a new one` once it's up, in Detail's colours, from the same
+owner (see Accounts, "A token's year"). Narrower than the line, it wraps at its spaces to the edge,
+as Detail's does, each line after the first under the first's start. Nothing changes for an
+account with more than 30 days left; off a terminal, the status document carries the date.
+
+**Spacing:** `usage` prints a blank line, then the header, and ends at the key line, or at the
+last token's line where it has any, with no blank line after it, as a shell's prompt spaces itself
+(settled in the plan).
 
 **A row:**
 
@@ -3523,6 +3533,8 @@ their one owner, and `views.TokenNoteOf` the view's data; Paper follows the buil
 - **Colours:** the words `text.muted`; the days left, or `expired`, bold `accent.attention`, and bold
   `state.destructive` at 7 days or fewer, as setup's table colours them; `switchboard setup`
   `text.secondary`.
+- **`usage`** ends with Detail's line for each such account, after its name (see `usage`, the
+  printout).
 
 **`?` help** (see The page), `HELP · ACCOUNTS`, lists the page's keys first, `t`, `R`, `j`/`k` and
 the wheel among them; then it explains each part in turn: Compare's groups and how each row is

@@ -206,3 +206,87 @@ func TestAPrintoutWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
 		t.Errorf("work's row is drawn %q, want its name bold", rows[4])
 	}
 }
+
+// tokenGood has the account with the given id's token's year up at the time
+// given.
+func tokenGood(id string, until time.Time) func(*status.Document) {
+	return account(id, func(a *status.Account) { a.TokenGoodUntil = until.UTC() })
+}
+
+// nearlyUp are work's token's year up in 21 days, personal's on its last
+// day, and side's up an hour since, at printNow.
+var nearlyUp = []func(*status.Document){
+	tokenGood("work", printNow.AddDate(0, 0, 21).Add(time.Hour)),
+	tokenGood("personal", printNow.Add(time.Hour)),
+	tokenGood("side", printNow.Add(-time.Hour)),
+}
+
+// afterKeyLine are the rows of the printout after its key line.
+func afterKeyLine(t *testing.T, rows []string) []string {
+	t.Helper()
+	for i, r := range rows {
+		if strings.Contains(r, "cap: work at 95%") {
+			return rows[i+1:]
+		}
+	}
+	t.Fatalf("the printout has no key line:\n%s", strings.Join(rows, "\n"))
+	return nil
+}
+
+// The printout ends, after its key line and a blank line, with a line for
+// each account whose token's year is up within 30 days, or is up, in the
+// document's order: its name, then what Detail tells of it, in either
+// layout. An account with more than 30 days left adds nothing.
+func TestThePrintoutEndsWithTheTokensWhoseYearIsNearlyUp(t *testing.T) {
+	want := []string{
+		"",
+		"1 work  token expires 22 Oct 2026 · 21 days left — switchboard setup makes a new one",
+		"2 personal ◆  token expires 1 Oct 2026 · last day — switchboard setup makes a new one",
+		"3 side ▲  token expired 1 Oct 2026 — switchboard setup makes a new one",
+	}
+	for _, by := range []By{ByWindow, ByAccount} {
+		rows := textOf(printed(trio(nearlyUp...), 160, by))
+		if got := afterKeyLine(t, rows); strings.Join(got, "\n") != strings.Join(want, "\n") {
+			t.Errorf("by %d, after the key line the printout reads\n%s\nwant\n%s", by, strings.Join(got, "\n"), strings.Join(want, "\n"))
+		}
+		far := textOf(printed(trio(tokenGood("work", printNow.AddDate(0, 0, 31).Add(time.Hour))), 160, by))
+		if strings.Join(far, "\n") != strings.Join(textOf(printed(trio(), 160, by)), "\n") {
+			t.Errorf("by %d, a token's year 31 days off changes the printout:\n%s", by, strings.Join(far, "\n"))
+		}
+		if got := afterKeyLine(t, far); len(got) != 0 {
+			t.Errorf("by %d, with no token's year near, the printout goes on after its key line: %q", by, got)
+		}
+	}
+}
+
+// Narrower than its line, a token's line wraps at its spaces to the edge, as
+// Detail's does, each line after the first under the first's start.
+func TestThePrintoutsTokenLineWrapsAsDetailsDoes(t *testing.T) {
+	rows := textOf(printed(trio(nearlyUp[0]), 52, ByWindow))
+	want := []string{
+		"",
+		"1 work  token expires 22 Oct 2026 · 21 days left —",
+		"        switchboard setup makes a new one",
+	}
+	if got := afterKeyLine(t, rows); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("at 52 columns, after the key line the printout reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// A token's line is inked as Detail's: its words muted, what warns bold
+// accent.attention within 30 days and bold state.destructive on its last
+// day or once it's up, and switchboard setup in text.secondary.
+func TestThePrintoutsTokenLinesAreInkedAsDetailsAre(t *testing.T) {
+	c := growing(160)
+	Printout{Width: 160}.tokens(c, trio(nearlyUp...).At(printNow, printPolicy), 0)
+	for _, tt := range []struct {
+		name string
+		inks tokenInks
+	}{
+		{"1 work  ", tokenInks{words: "token expires", warns: "21 days left", command: "switchboard setup", warning: alertInk}},
+		{"2 personal ◆  ", tokenInks{words: "token expires", warns: "last day", command: "switchboard setup", warning: exhaustedInk}},
+		{"3 side ▲  ", tokenInks{words: "token ", warns: "expired", command: "switchboard setup", warning: exhaustedInk}},
+	} {
+		checkTokenInks(t, c, ansi.StringWidth(tt.name), rowWith(textOf(c.rows(Look{})), tt.name), tt.inks)
+	}
+}
