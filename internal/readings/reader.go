@@ -23,7 +23,8 @@ func NewReader(stateDir string, logger *slog.Logger) *Reader {
 }
 
 // Between returns the readings the history holds of times from from up to
-// to, one at a time, as Between gives them.
+// to, one at a time, as Between gives them, warning of the lines it couldn't
+// read to the reader's logger.
 func (r *Reader) Between(from, to time.Time) iter.Seq[Reading] {
 	return Between(r.files, from, to, nil)
 }

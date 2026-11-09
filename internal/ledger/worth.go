@@ -41,6 +41,26 @@ const (
 	cent               = Dollar / 100
 )
 
+// TooLarge is what a worth names among what it leaves unpriced where it
+// passes what Picodollars hold, some $9.2 million: it reads as unpriced,
+// never wrapped round.
+const TooLarge = "too_large"
+
+// Plus returns p and o summed, reporting false where the sum passes what
+// Picodollars hold. Every sum of worth goes through it, so one too large
+// reads as unpriced, as TooLarge names it, never wrapped round.
+func (p Picodollars) Plus(o Picodollars) (Picodollars, bool) {
+	sum := p + o
+	return sum, (sum >= p) == (o >= 0)
+}
+
+// Times returns p n times over, reporting false where that passes what
+// Picodollars hold, as Plus does of a sum.
+func (p Picodollars) Times(n int64) (Picodollars, bool) {
+	product := p * Picodollars(n)
+	return product, n == 0 || product/Picodollars(n) == p && (n != -1 || p != math.MinInt64)
+}
+
 // Cents shows the amount to the nearest cent, as "$412.53".
 func (p Picodollars) Cents() string {
 	cents := p.wholeCents()
@@ -48,17 +68,22 @@ func (p Picodollars) Cents() string {
 }
 
 // ToTheCent is the amount to the nearest cent, as Cents shows it, a half
-// cent away from none.
+// cent away from none: toward none within a cent of what Picodollars hold,
+// as the cent away from it passes it.
 func (p Picodollars) ToTheCent() Picodollars {
-	if p < 0 {
-		return -p.wholeCents() * cent
+	rounded, fits := p.wholeCents().Times(int64(cent))
+	if !fits {
+		rounded = p.abs() / cent * cent
 	}
-	return p.wholeCents() * cent
+	if p < 0 {
+		return -rounded
+	}
+	return rounded
 }
 
 // wholeCents is the amount without its sign, to the nearest cent.
 func (p Picodollars) wholeCents() Picodollars {
-	return (p.abs() + cent/2) / cent
+	return p.abs().nearest(cent)
 }
 
 // Dollars shows the amount to the nearest dollar, as "$413".
@@ -74,7 +99,17 @@ func (p Picodollars) GroupedDollars() string {
 
 // wholeDollars is the amount without its sign, to the nearest dollar.
 func (p Picodollars) wholeDollars() Picodollars {
-	return (p.abs() + Dollar/2) / Dollar
+	return p.abs().nearest(Dollar)
+}
+
+// nearest is how many of unit, an even amount, the amount is, to the
+// nearest, a half up, never passing what Picodollars hold as it rounds.
+func (p Picodollars) nearest(unit Picodollars) Picodollars {
+	whole, part := p/unit, p%unit
+	if part >= unit-part {
+		whole++
+	}
+	return whole
 }
 
 // MarshalJSON gives the amount in dollars, exactly, as 412.532118.
@@ -156,7 +191,8 @@ const noUsage = "no_usage"
 // asked for its inference to run in the geo given, "" where it asked for
 // none, would have cost through the API at the prices in effect on the local
 // day with the given date. It reports false for a model the table doesn't
-// know, or a geo it doesn't price the model in: never zero.
+// know, a geo it doesn't price the model in, or a cost past what Picodollars
+// hold: never zero.
 func (t Table) Worth(model, geo string, usage json.RawMessage, date string) (Worth, bool) {
 	return t.priced(model, geo, billOf(countsOf(usage)), false, date)
 }
@@ -184,15 +220,13 @@ func (t Table) CacheWrite(l *Line, date string) (Worth, bool) {
 // Summed returns what the line's request adds to a sum of requests' worth at
 // the prices in effect on the local day with the given date, reporting
 // whether the table priced it: its worth, as Request gives it; or, where the
-// table can't price it, as of a model it doesn't know, none, naming what it
-// leaves unpriced as a summary's model's day names it, as wholly says, so the
-// sum names what it leaves out. Only tests call it, the reference
-// SummedSpend is held to.
+// table can't price it, as of a model it doesn't know, or prices it past what
+// Picodollars hold, none, naming what it leaves unpriced as a summary's
+// model's day names it, as summable says, so the sum names what it leaves
+// out. Only tests call it, the reference SummedSpend is held to.
 func (t Table) Summed(l *Line, date string) (Worth, bool) {
-	if w, ok := t.Request(l, date); ok {
-		return w, true
-	}
-	return Worth{Unpriced: t.wholly(l.Model, l.Shape.InferenceGeo, countsOf(l.worthUsage()).costly(), l.unmetered(), date)}, false
+	held := countsOf(l.worthUsage())
+	return t.summable(l.Model, l.Shape.InferenceGeo, billOf(held), held.costly(), l.unmetered(), date)
 }
 
 // Rewrite returns what writing the line's request's whole prompt into the
@@ -201,8 +235,9 @@ func (t Table) Summed(l *Line, date string) (Worth, bool) {
 // writes to it together, each at its model's price of a write that lasts as
 // long as life says, five minutes or an hour. It's what moving its session
 // would cost, as the account it moved to holds none of its cache. It reports
-// false where the table can't price the request, and where its answer gave
-// no usage, as what it was then is unknown.
+// false where the table can't price the request, where its answer gave no
+// usage, as what it was then is unknown, and where the cost passes what
+// Picodollars hold.
 func (t Table) Rewrite(l *Line, life time.Duration, date string) (Picodollars, bool) {
 	tokens, metered := l.Tokens()
 	return t.rewrite(l.Model, l.Shape.InferenceGeo, tokens, metered, life, date)
@@ -221,7 +256,7 @@ func (t Table) rewrite(model, geo string, tokens quota.Tokens, metered bool, lif
 	if life == ShortCache {
 		price = prices.CacheWrite5m
 	}
-	return Picodollars(tokens.Input+tokens.CacheRead+tokens.CacheWrite) * price, true
+	return price.Times(int64(tokens.Input + tokens.CacheRead + tokens.CacheWrite))
 }
 
 // ShortCache and LongCache are how long the prompt cache's writes last: five
@@ -264,18 +299,46 @@ func cacheLife(written, brokenDown, short int64) (time.Duration, bool) {
 // priced returns what the bill given, of a request for the model with the
 // given id that asked for the geo given, would have cost, as Worth says,
 // naming noUsage among what it leaves unpriced where unmetered says requests
-// it's of went upstream without usage.
+// it's of went upstream without usage. It reports false where the cost
+// passes what Picodollars hold, as tooLarge has it.
 func (t Table) priced(model, geo string, billed bill, unmetered bool, date string) (Worth, bool) {
 	prices, ok := t.pricesIn(model, geo, date)
 	if !ok {
 		return Worth{}, false
 	}
-	w := prices.worth(billed)
-	if unmetered {
-		w.Unpriced = append(w.Unpriced, noUsage)
-		slices.Sort(w.Unpriced)
+	return prices.worth(billed, unmetered)
+}
+
+// summable returns what requests of the model with the given id that asked
+// for the geo given add to a sum of requests' worth, the bill given theirs,
+// costly where their usage holds a count that costs anything, unmetered
+// where some went upstream without usage, reporting whether the table priced
+// them: their worth, where it did, as priced gives it; else none, naming
+// what they leave unpriced, as wholly says, or TooLarge where it priced them
+// past what Picodollars hold.
+func (t Table) summable(model, geo string, billed bill, costly, unmetered bool, date string) (Worth, bool) {
+	prices, ok := t.pricesIn(model, geo, date)
+	if !ok {
+		return Worth{Unpriced: t.wholly(model, geo, costly, unmetered, date)}, false
 	}
-	return w, true
+	return prices.worth(billed, unmetered)
+}
+
+// and returns w and o, each what requests add to a sum of requests' worth,
+// summed, wPriced and oPriced saying whether the table priced any of each,
+// reporting whether it priced any of the sum: the cost of those priced, as
+// Plus sums it, and each name either leaves unpriced once, in order. A sum
+// past what Picodollars hold, or of a part that was, as TooLarge names it,
+// is priced none, as tooLarge has it.
+func (w Worth) and(wPriced bool, o Worth, oPriced bool) (Worth, bool) {
+	sum, fits := Worth{Cost: w.Cost, Unpriced: withPaths(w.Unpriced, o.Unpriced)}, true
+	if oPriced {
+		sum.Cost, fits = w.Cost.Plus(o.Cost)
+	}
+	if !fits || slices.Contains(sum.Unpriced, TooLarge) {
+		return sum.tooLarge(), false
+	}
+	return sum, wPriced || oPriced
 }
 
 // countsOf returns the counts usage holds, as add reads them.
@@ -465,14 +528,32 @@ func (b bill) same(o bill) bool {
 }
 
 // worth returns what the bill given costs at p: each count it charges for
-// at its price, and what it leaves unpriced.
-func (p Prices) worth(billed bill) Worth {
+// at its price, and what it leaves unpriced, noUsage among it where
+// unmetered says requests it's of went upstream without usage. It reports
+// false where the cost passes what Picodollars hold, as tooLarge has it.
+func (p Prices) worth(billed bill, unmetered bool) (Worth, bool) {
 	prices := p.byCharge()
 	w := Worth{Unpriced: slices.Clone(billed.unpriced)}
-	for c, n := range billed.charged {
-		w.Cost += Picodollars(n) * prices[c]
+	if unmetered {
+		w.Unpriced = append(w.Unpriced, noUsage)
+		slices.Sort(w.Unpriced)
 	}
-	return w
+	for c, n := range billed.charged {
+		cost, fits := prices[c].Times(n)
+		if fits {
+			w.Cost, fits = w.Cost.Plus(cost)
+		}
+		if !fits {
+			return w.tooLarge(), false
+		}
+	}
+	return w, true
+}
+
+// tooLarge is w where it passes what Picodollars hold: no cost, and TooLarge
+// among what it leaves unpriced.
+func (w Worth) tooLarge() Worth {
+	return Worth{Unpriced: withPaths(w.Unpriced, []string{TooLarge})}
 }
 
 // free reports whether the count at path costs nothing of its own, as
@@ -550,11 +631,11 @@ func (t Table) Priced(s Summary, date string) Priced {
 		for _, m := range a.Models {
 			model := PricedModel{ModelDay: m}
 			held := countsOf(m.Usage)
-			if w, ok := t.priced(m.Model, m.InferenceGeo, billOf(held), m.NoUsage > 0, date); ok {
-				model.Worth, model.Unpriced = &w.Cost, w.Unpriced
-			} else {
-				model.Unpriced = t.wholly(m.Model, m.InferenceGeo, held.costly(), m.NoUsage > 0, date)
+			w, ok := t.summable(m.Model, m.InferenceGeo, billOf(held), held.costly(), m.NoUsage > 0, date)
+			if ok {
+				model.Worth = &w.Cost
 			}
+			model.Unpriced = w.Unpriced
 			account.Models = append(account.Models, model)
 		}
 		priced.Accounts = append(priced.Accounts, account)

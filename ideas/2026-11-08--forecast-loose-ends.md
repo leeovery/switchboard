@@ -4,13 +4,6 @@ The build of the weeks' forecast (see Forecasting run-outs in the design) ran #2
 the replay tool's PR. The reviews of its slices accepted these: an improvement, or an edge past
 ordinary use that fails safe. Gathered here for after the release.
 
-## The readings history's unread lines
-
-`readings.Reader.Between` counts the lines it can't read and drops the count, so a damaged line in
-the readings history is passed over without a word, by the router's seed at startup and by
-`cmd/forecasttool` alike. The request ledger's reader says how many it couldn't read; the readings
-history's could too.
-
 ## The forecast's own edges
 
 - **Use within a step.** The play steps every 10 minutes: use that falls after a week's reset

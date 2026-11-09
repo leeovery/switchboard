@@ -101,12 +101,16 @@ func Files(dir string, logger *slog.Logger) *dayfile.Files {
 // a time, as Read gives them: those of the local days from the day before
 // from's to the day after to's, as dayfile.Dates gives them, as a change of
 // time zone can file a reading under a day beside its own. It holds the files
-// from pruning and compressing while it reads them, and notes in faults,
-// where they're given, the days whose files it couldn't read for now, as
-// dayfile.Faults says.
+// from pruning and compressing while it reads them, notes in faults, where
+// they're given, the days whose files it couldn't read for now, as
+// dayfile.Faults says, and warns once a read, through files' Logger, of how
+// many of their lines it couldn't read, where any.
 func Between(files *dayfile.Files, from, to time.Time, faults *dayfile.Faults) iter.Seq[Reading] {
 	return func(yield func(Reading) bool) {
-		Read(files, dayfile.Dates(from, to), func(r Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, yield, faults)
+		within := func(r Reading) bool { return !r.At.Before(from) && r.At.Before(to) }
+		if unread := Read(files, dayfile.Dates(from, to), within, yield, faults); unread > 0 {
+			files.Logger.Warn("readings history lines unread", "lines", unread)
+		}
 	}
 }
 

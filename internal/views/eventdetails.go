@@ -120,8 +120,10 @@ type Followed struct {
 	Till   time.Time
 	Family string
 	// InAll is what the moves cost together, as their rows say each: nil
-	// where no move's cost is known. Unpriced counts those of them that
-	// wrote their sessions' context again that the price table can't price.
+	// where no move's cost is known, or their sum passes what
+	// ledger.Picodollars hold. Unpriced counts those of them that wrote
+	// their sessions' context again that the price table can't price, and
+	// where their sum passes it, every one it priced too.
 	InAll    *ledger.Picodollars
 	Unpriced int
 	// Move is a move's own move, as its row says it: nil for any other
@@ -569,6 +571,8 @@ func (d detailing) followed() *Followed {
 		return nil
 	}
 	f := &Followed{Till: d.event.Until, Family: prose.Clean(d.event.Family)}
+	var inAll Worth
+	priced := 0
 	for _, e := range d.table.told {
 		if e.event.Kind != status.EventMoved || foldedInto(e.event) != d.event.ID || !e.row.Key.Run.Equal(d.row.Key.Run) {
 			continue
@@ -576,10 +580,15 @@ func (d detailing) followed() *Followed {
 		f.Moves = append(f.Moves, FollowedMove{Key: e.row.Key, Session: e.event.Session, To: e.event.To, Move: e.row.Move})
 		switch m := e.row.Move; {
 		case m != nil && m.Cost != nil:
-			f.InAll = summedCost(f.InAll, *m.Cost)
+			inAll.addAmount(*m.Cost)
+			priced++
 		case m != nil && m.Rewrote:
 			f.Unpriced++
 		}
+	}
+	f.InAll = inAll.Amount
+	if inAll.tooLarge() {
+		f.Unpriced += priced
 	}
 	return f
 }
@@ -598,12 +607,4 @@ func (f Followed) InAllSaid() string {
 		return Worth{Amount: f.InAll}.Cents() + PartUnpriced
 	}
 	return Worth{Amount: f.InAll}.Cents()
-}
-
-// summedCost is sum with c added: c where sum is nil.
-func summedCost(sum *ledger.Picodollars, c ledger.Picodollars) *ledger.Picodollars {
-	if sum != nil {
-		c += *sum
-	}
-	return &c
 }

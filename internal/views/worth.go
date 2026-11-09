@@ -14,7 +14,8 @@ import (
 // requests went upstream without usage, and of requests it prices none of
 // that spent anything, the id of a model it doesn't know, inference_geo and
 // the geo where it doesn't price a model in the geo they asked for, and
-// no_model where they named none.
+// no_model where they named none; and ledger.TooLarge, too_large, where the
+// worth passes what ledger.Picodollars hold, when Amount is left out.
 type Worth struct {
 	Amount   *ledger.Picodollars `json:"worth,omitempty"`
 	Unpriced []string            `json:"unpriced,omitempty"`
@@ -62,22 +63,42 @@ func (w *Worth) add(other Worth) {
 	w.unprice(other.Unpriced...)
 }
 
-// addAmount adds amount to what the priced requests cost. It sets Amount
+// addAmount adds amount to what the priced requests cost, as Plus sums it:
+// a sum past what it holds is too large, as tooLarge has it. It sets Amount
 // afresh rather than through its pointer, which a copy of w may share.
 func (w *Worth) addAmount(amount ledger.Picodollars) {
 	if w.Amount != nil {
-		amount += *w.Amount
+		sum, fits := w.Amount.Plus(amount)
+		if !fits {
+			w.unprice(ledger.TooLarge)
+			return
+		}
+		amount = sum
 	}
-	w.Amount = &amount
+	if !w.tooLarge() {
+		w.Amount = &amount
+	}
 }
 
-// unprice names what's unpriced among Unpriced, each once, in order.
+// unprice names what's unpriced among Unpriced, each once, in order: no
+// Amount once it names ledger.TooLarge, as a sum too large reads as
+// unpriced, never wrapped round.
 func (w *Worth) unprice(names ...string) {
 	for _, name := range names {
 		if i, found := slices.BinarySearch(w.Unpriced, name); !found {
 			w.Unpriced = slices.Insert(slices.Clip(w.Unpriced), i, name)
 		}
 	}
+	if w.tooLarge() {
+		w.Amount = nil
+	}
+}
+
+// tooLarge reports whether the worth passed what ledger.Picodollars hold,
+// as it names ledger.TooLarge.
+func (w Worth) tooLarge() bool {
+	_, found := slices.BinarySearch(w.Unpriced, ledger.TooLarge)
+	return found
 }
 
 // How a worth is said where it isn't all priced: PartUnpriced after the
@@ -134,11 +155,19 @@ func (w Worth) centsWithin(rounded, most ledger.Picodollars) string {
 // cents its running sum through it comes to, less those the sum before it
 // does, as a stacked bar shares its cells among its parts. A part can so
 // come a cent off what it'd be to the cent alone, never under nothing.
+// Where the whole passes what ledger.Picodollars hold, each is to the cent
+// alone.
 func toTheCent(amounts []ledger.Picodollars) []ledger.Picodollars {
 	rounded := make([]ledger.Picodollars, len(amounts))
 	var sum, before ledger.Picodollars
 	for i, a := range amounts {
-		sum += a
+		var fits bool
+		if sum, fits = sum.Plus(a); !fits {
+			for j, a := range amounts {
+				rounded[j] = a.ToTheCent()
+			}
+			return rounded
+		}
 		through := sum.ToTheCent()
 		rounded[i], before = through-before, through
 	}

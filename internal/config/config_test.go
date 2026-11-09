@@ -436,6 +436,16 @@ func TestLoadEachPlanAnAccountCanBeOn(t *testing.T) {
 	}
 }
 
+func TestLoadTakesAPriceUpToAMillionDollars(t *testing.T) {
+	cfg, err := config.Load(writeConfig(t, accountTOML("work")+"\n[prices.plans]\nultra = 1000000\n\n[prices.models.claude-opus-5-5]\ninput = 1000000\n"))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if plan, input := cfg.Prices.Plans["ultra"], cfg.Prices.Models["claude-opus-5-5"].Input; plan != 1e6 || input == nil || *input != 1e6 {
+		t.Errorf("Load() prices ultra at %v and opus's input at %v, want each at 1,000,000", plan, input)
+	}
+}
+
 func TestAModelsPricesAreCompleteWithEveryKindOfTokenGiven(t *testing.T) {
 	every := config.ModelPrices{Input: new(1.0), Output: new(2.0), CacheRead: new(0.0), CacheWrite5m: new(3.0), CacheWrite1h: new(4.0)}
 	if !every.Complete() {
@@ -889,10 +899,10 @@ func TestLoadReportsProblems(t *testing.T) {
 		return fmt.Sprintf("account %q: plan %q: must be pro, max or ultra, the plan the account's subscription is on", account, given)
 	}
 	planPrice := func(plan, given string) string {
-		return fmt.Sprintf("prices.plans.%s %q: must be a number, 0 or more: the plan's price in US dollars a month", plan, given)
+		return fmt.Sprintf("prices.plans.%s %q: must be a number from 0 to 1,000,000: the plan's price in US dollars a month", plan, given)
 	}
 	modelPrice := func(key, given string) string {
-		return fmt.Sprintf("prices.models.%s %q: must be a number, 0 or more: the price in US dollars a million tokens", key, given)
+		return fmt.Sprintf("prices.models.%s %q: must be a number from 0 to 1,000,000: the price in US dollars a million tokens", key, given)
 	}
 	const tokenEnv = `unknown key "account.token_env": tokens now live in files, at <state dir>/tokens/<id>, ` +
 		"the state dir being $XDG_STATE_HOME/switchboard, else ~/.local/state/switchboard"
@@ -1049,6 +1059,16 @@ func TestLoadReportsProblems(t *testing.T) {
 			name:   "an endless plan's price",
 			config: work + "\n[prices.plans]\nultra = inf\n",
 			want:   []string{planPrice("ultra", "+Inf")},
+		},
+		{
+			name:   "a plan's price past a million dollars a month",
+			config: work + "\n[prices.plans]\nmax = 1000000.01\n",
+			want:   []string{planPrice("max", "1.00000001e+06")},
+		},
+		{
+			name:   "a model's price past a million dollars a million tokens",
+			config: work + "\n[prices.models.claude-opus-5-5]\noutput = 1000001\n",
+			want:   []string{modelPrice("claude-opus-5-5.output", "1.000001e+06")},
 		},
 		{
 			name:   "plans priced by their old names and their new",
@@ -1365,7 +1385,7 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		`export.dir "/Users/test/[redacted]": holds something shaped like a token, which switchboard never writes: give another folder`,
 		`usage.by "[redacted]": must be window, the accounts compared a window at a time, or account, each account's windows together`,
 		`unknown key "prices.plans.[redacted]"`,
-		`prices.models.[redacted].input "-1": must be a number, 0 or more: the price in US dollars a million tokens`,
+		`prices.models.[redacted].input "-1": must be a number from 0 to 1,000,000: the price in US dollars a million tokens`,
 	}
 	if got := problems(t, path, err); !slices.Equal(got, want) {
 		t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

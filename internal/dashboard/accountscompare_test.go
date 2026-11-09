@@ -3,6 +3,7 @@ package dashboard
 import (
 	"fmt"
 	"maps"
+	"math"
 	"regexp"
 	"slices"
 	"strings"
@@ -957,6 +958,9 @@ func TestBYMODELsBarsAreEachVersionsShareOfUse(t *testing.T) {
 	}
 	if got := splitCells([]ledger.Picodollars{0, 0}, 24); !slices.Equal(got, []int{0, 0}) {
 		t.Errorf("shares worth nothing split 24 cells %v, want none", got)
+	}
+	if got := splitCells([]ledger.Picodollars{math.MaxInt64 - 1, 2}, 24); !slices.Equal(got, []int{0, 0}) {
+		t.Errorf("shares worth more together than Picodollars hold split 24 cells %v, want none, never wrapped round", got)
 	}
 }
 
