@@ -1461,7 +1461,7 @@ func TestOver(t *testing.T) {
 // where its projection has it, but never that it runs out, as of a window
 // held, stale, at its cap, not started, or whose run-out the clock has
 // reached, whatever its projection says; nor that it reaches its floor,
-// where its projection heads short of it.
+// where its projection heads short of it, unless its use beside it reads so.
 func TestProjection(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	out := time.Date(2026, 10, 2, 18, 40, 0, 0, time.UTC)
@@ -1482,6 +1482,7 @@ func TestProjection(t *testing.T) {
 		{name: "on pace short of its cap, never as reaching it", window: onPace(0.977), floor: 0.98, want: "on pace for 97%"},
 		{name: "on pace for its cap, as held there", window: onPace(0.98), floor: 0.98, want: "on pace for 98%"},
 		{name: "on pace for its cap within a sliver, as held there", window: onPace(0.98 - 1e-12), floor: 0.98, want: "on pace for 98%"},
+		{name: "on pace short of its cap past a sliver", window: onPace(0.98 - 2e-9), floor: 0.98, want: "on pace for 97%"},
 		{
 			name:   "on pace short of a cap set to a fraction, never below the use it heads from",
 			window: status.WindowNow{Used: 0.97, Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace, AtReset: 0.972})}},

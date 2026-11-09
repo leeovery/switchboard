@@ -13,10 +13,11 @@ func Percent(utilization float64) string {
 }
 
 // PercentShort shows a share heading from a use, from, short of end, as a
-// whole percentage, as Percent does, but never as much as end's, as Percent
-// shows that, so a share heading short of where a window runs out never reads
-// as reaching it, as 0.996 short of 1 reads "99%", not "100%"; nor below
-// from's, the use it's shown beside, which wins where the two meet.
+// whole percentage, as Percent does, but below end's, as Percent shows that,
+// so a share heading short of where a window runs out doesn't read as
+// reaching it, as 0.996 short of 1 reads "99%", not "100%"; and never below
+// from's, the use it's shown beside, which wins where the two meet, as a use
+// that reads as end's already does.
 func PercentShort(share, end, from float64) string {
 	return strconv.Itoa(max(min(WholePercent(share), WholePercent(end)-1), WholePercent(from))) + "%"
 }

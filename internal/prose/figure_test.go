@@ -32,7 +32,7 @@ func TestPercent(t *testing.T) {
 	}
 }
 
-func TestPercentShortNeverReachesItsEnd(t *testing.T) {
+func TestPercentShortStaysBelowItsEndAndAtItsUse(t *testing.T) {
 	tests := []struct {
 		name             string
 		share, end, from float64

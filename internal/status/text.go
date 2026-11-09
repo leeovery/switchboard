@@ -410,9 +410,10 @@ func Short(label string) string {
 // it, so where its cap starts where its reserve holds; else as its
 // projection has it, but never that it runs out, as of a window held, stale,
 // at its cap or not started, or whose run-out the clock has reached; and
-// where it heads short of floor, the share of it where it runs out, never as
-// reaching it, as prose.PercentShort has it. It's empty where that says
-// nothing.
+// where it heads short of floor, the share of it where it runs out, below
+// floor's figure but never below its use, as prose.PercentShort has it, so
+// it never reads as reaching floor unless its use beside it already does.
+// It's empty where that says nothing.
 func projection(now time.Time, w WindowNow, floor float64) string {
 	switch p := w.Out.Projection; {
 	case w.RunsOut:
