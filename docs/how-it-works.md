@@ -383,10 +383,11 @@ its log, in its events, and as `restart.held` in `switchboard status --json`. `s
 reads `restart due since Mon 14:02 (upgraded), held:` and the reason, and the dashboard's status
 line `restart held (upgraded)`. The `switchboard` you run is the new version too, so it can't read
 the config either: `switchboard status` shows the router's document all the same, then fails with
-the config's error, `usage` and a dashboard you open then fail on it, and each `claude` starts
-without switchboard until you put the config right. The router asks again once you change the
-config, or the binary changes again. A version from before this check can't answer, and the router
-restarts into it as it always has.
+the config's error, `usage` and a dashboard you open then fail on it, and each `claude` is routed
+through the running router all the same, on the accounts it names, saying it couldn't read the
+config, until you put the config right. The router asks again once you change the config, or the
+binary changes again. A version from before this check can't answer, and the router restarts into
+it as it always has.
 
 The new version judges your config for an upgrade: an edit to the config that only it takes, such
 as a key it brings, doesn't hold the upgrade off. A version too old to answer can't judge it, so

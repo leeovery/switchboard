@@ -292,10 +292,19 @@ How `claude` starts depends on the router and your environment:
   can spend the primary's reserve. `SWITCHBOARD_WHEN_ROUTER_DOWN=stop` stops one launch whatever the
   config says; any other value stops it too, saying so. A router that answers saying where it
   listens, healthy or not, routes whatever either says.
+- **Without the config.** When switchboard can't read its config, as when an upgrade's rules refuse
+  it, `claude` is routed all the same while the router answers, as Routed says, on the accounts the
+  router names: Claude Code gets the primary's token, as the router names it, or, while that isn't
+  usable, `--account`'s, else the token of the first account whose token is. A line on stderr says
+  so: `switchboard: couldn't read the config (…) — starting claude through the running router`. An
+  unhealthy router adds Routed's second line: `switchboard: the router is unhealthy (…) — starting
+  claude through it all the same`. Where the router answers but none of the accounts it names has a
+  usable token, the line says so before `— starting claude without it`, so you don't take it for
+  the router being down: `— the running router names no account with a usable token —`.
 - **Without switchboard.** When switchboard can't take part at all, such as when it can't read its
-  config or no account has a usable token, `claude` starts as if switchboard weren't there; with
-  the config read but the router's state directory not found, only where it would go direct. A line
-  on stderr says why:
+  config and the router doesn't answer, or no account has a usable token, `claude` starts as if
+  switchboard weren't there; with the config read but the router's state directory not found, only
+  where it would go direct. A line on stderr says why:
   `switchboard: couldn't read the config (…) — starting claude without it`.
 - **With an API key.** When `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set, Claude Code may
   use that key rather than an account's token, and its requests would go unrouted, billed to the
@@ -308,7 +317,7 @@ How `claude` starts depends on the router and your environment:
   keeps the session's routing, as the session's router still runs, and the line on stderr ends
   `— starting claude through this session's router`; unless the script has pointed it at a
   gateway of its own, or `claude` found the session's router down, going direct without a usable
-  token: then it leaves out what switchboard set, as with a key.
+  token or without the config: then it leaves out what switchboard set, as with a key.
 - **Local subcommands** go straight to Claude Code, untouched and without a word, whether the
   router runs or not: `setup-token`, `update`, `upgrade`, `install`, `doctor`, `mcp`, `plugin`,
   `plugins`, `auth`, `import`, `project`, `auto-mode` and `gateway`, and `--version`, `-v`,

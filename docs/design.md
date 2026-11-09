@@ -8242,9 +8242,11 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     can't read the config either: `status`, as text or JSON, shows the router's document while the
     router answers, its restart held, then fails with the config's error, which it fails with
     alone where the router doesn't answer, or with `--probe`, which needs the config; `usage` and a
-    dashboard opened then fail on the config; and each `claude` started meanwhile starts unaided,
-    as for any config it can't read, until the config is put right (routing them through the held
-    router is an idea of its own, held-router-routes-unread-config).
+    dashboard opened then fail on the config; and each `claude` started meanwhile is routed
+    through the held router all the same, on the accounts the router's document names, saying on
+    stderr that the config can't be read, as for any config it can't read while the router
+    answers, and starts unaided only where the router doesn't answer, until the config is put
+    right (see Launching's Without the config; the owner's call, 9 November 2026).
 - **In place.** The router then replaces itself. It stops taking requests, and finishes those in
   flight, as it does at a signal; then, the control API answering on, so a `claude` started
   meanwhile is routed, its requests waiting on the proxy's socket held open, it stops all it runs
@@ -9322,6 +9324,32 @@ verbs).
   environment, as from a session this one is started within, goes: what this launch pins is the only
   pin, and the directory it names the only directory. `--direct` removes the token and the base URL,
   so Claude Code uses its own login.
+- **Without the config:** where `run` can't read its config, as when an upgrade's rules refuse the
+  one the running router took, and the router holds its restart (see The router looking after
+  itself), it locates the state directory, as it can without a config, and asks the router as it
+  would with one. While the router answers saying where it listens, healthy or not, `run` routes
+  through it, as Routed says, on the accounts the router's status document names, in its order, in
+  place of the config's, asking for the document once the router has answered, as `status` asks it,
+  for 5 seconds at most. Claude Code's own token is the primary's, as the document names it, read
+  from its token file, `<state dir>/tokens/<id>`, which needs no config, or, while that isn't
+  usable, `--account`'s, else the first account's in the document with a usable token, the order
+  Routed uses; `--account` must name an account the document names, with a usable token, as it must
+  a configured one, and adds the pin header. The directory header, the hints, the mark of what `run`
+  set and the log's `starting claude` line are as Routed says, but that the line goes at warn, with
+  the config's error as `config_error`; and `run` says in a line on stderr that it can't read the
+  config, and why, and is routing through the running router: `switchboard: couldn't read the
+  config (invalid config …) — starting claude through the running router`, followed, for a router
+  that isn't healthy, by Routed's line saying so. Where the router doesn't answer saying where it
+  listens, `run` starts `claude` unaided, as Never in the way says, logging the router's state at
+  info; and so it does where the document can't be had, or names no account, or none of its
+  accounts has a usable token, each logged at warn, its line on stderr saying, between the config's
+  error and where `claude` goes, why the router that answered couldn't be routed through, so it
+  isn't read as a router down: `— the running router doesn't say which accounts it routes for —`,
+  as a router's config always has an account, or `— the running router names no account with a
+  usable token —`. What only the config says, such as `when_router_down`, can't be known, so, as
+  before, neither that setting nor `SWITCHBOARD_WHEN_ROUTER_DOWN` has a say there. So each `claude`
+  started while the config can't be read is routed and recorded while the router runs, rather than
+  unrouted, spending the primary past its reserve (the owner's call, 9 November 2026).
 - **What `run` set:** a routed session's environment carries what `run` set there to every process
   the session starts, so `run` marks it, in `SWITCHBOARD_SET`: the value it gave
   `ANTHROPIC_BASE_URL`, even where the user's was the same, and `CLAUDE_CODE_GATEWAY_HINT_HEADERS`
@@ -9338,15 +9366,16 @@ verbs).
   gets the session's environment as it is, mark and all, so the session's router, which still runs,
   routes and records it as before: only that launch couldn't take part, and its line on stderr ends
   `— starting claude through this session's router`. That holds only where the launch didn't ask the
-  router, as when it can't read its config or locate the router's state directory, or asked it and
-  found it could be routed through, healthy or not. One that found the router down, going direct, as
-  `when_router_down` or the variable says, with no account's token usable, starts from the user's
-  environment, as stepping aside does: the session's router isn't there to route it, and Claude Code
-  would be pointed at nothing (decided in the cleanliness release's review, 26 October 2026). Where
-  the base URL has changed since, it starts from the user's environment too, the changed base URL
-  staying, so nothing of switchboard's reaches another gateway. The token isn't marked: the user's
-  own, which `run` replaced, can't be written into the mark, and without the value `run` gave it, a
-  token set since couldn't be told from `run`'s. Nothing secret is written into the mark, which
+  router, as when it can't locate the router's state directory, or asked it and found it could be
+  routed through, healthy or not. One that found the router down, going direct, as
+  `when_router_down` or the variable says, with no account's token usable, or with the config unread
+  (see Without the config), starts from the user's environment, as stepping aside does: the
+  session's router isn't there to route it, and Claude Code would be pointed at nothing (decided in
+  the cleanliness release's review, 26 October 2026). Where the base URL has changed since, it
+  starts from the user's environment too, the changed base URL staying, so nothing of switchboard's
+  reaches another gateway. The token isn't marked: the user's own, which `run` replaced, can't be
+  written into the mark, and without the value `run` gave it, a token set since couldn't be told
+  from `run`'s. Nothing secret is written into the mark, which
   every process the session runs can read: a value `run` set holding anything token-shaped goes
   unmarked, and stays, and a value of the user's that `run` replaced holding a secret, anything
   token-shaped, or, as a URL, credentials in its userinfo or a query, isn't kept, so its variable is
@@ -9359,13 +9388,16 @@ verbs).
   environment goes on as it is, but for the pin and directory a routed or direct launch takes off
   (built in the cleanliness release, 26 October 2026).
 - **Never in the way:** switchboard never stands between the user and `claude` but for the router
-  being down, as Stopped says. When it can't take part at all, as when it can't read its config,
-  can't locate its state directory, or no account has a usable token, `run` starts `claude` as if
-  switchboard weren't there, but for a state directory it can't locate with the config read, which
-  is the router not found: the setting decides, as for a router not running, `couldn't find the
-  router` starting it unaided only where it goes direct, and `the router couldn't be found (…)`
-  stopping it otherwise, naming no command to see to it, as each would fail as `run` did, and
-  logging no `asked`, as nothing was asked. Unaided, `claude` starts in its environment as the user
+  being down, as Stopped says. A config it can't read doesn't keep it out while the router answers:
+  `run` routes through the running router all the same, as Without the config says (the owner's
+  call, 9 November 2026). When it can't take part at all, as when it can't read its config and
+  can't route through the running router either, can't locate its state directory, or no account
+  has a usable token, `run` starts `claude` as if switchboard weren't there, but for a state
+  directory it can't locate with the config read, which is the router not found: the setting
+  decides, as for a router not running, `couldn't find the router` starting it unaided only where it
+  goes direct, and `the router couldn't be found (…)` stopping it otherwise, naming no command to
+  see to it, as each would fail as `run` did, and logging no `asked`, as nothing was asked.
+  Unaided, `claude` starts in its environment as the user
   set it, or a session's still routed as it is (see What `run` set), and its arguments untouched,
   but for the mark every `claude` it starts carries (see Finding the real `claude`) and
   `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a pin or directory inherited from a
@@ -10198,7 +10230,6 @@ was dropped binds a later choice, the design proper says so.
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | Runway's holds shorter than a column, drawn or named whatever the width | open: to discuss with its owner | [runway-short-holds](../ideas/2026-10-21--runway-short-holds.md) |
 | The Overview saying less at some taller heights, as ROUTING's traces and USAGE's blank rows take rows back | open: to discuss with its owner | [overview-height-sawtooth](../ideas/2026-10-23--overview-height-sawtooth.md) |
-| New sessions routed through a held router while the config can't be read, as when an upgrade's rules refuse it, rather than started unaided | open: to land before any release tightens a config rule; it changes the rule that a config that can't be read starts `claude` unaided, so it's the owner's call | [held-router-routes-unread-config](../ideas/2026-10-26--held-router-routes-unread-config.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
 | Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from History's Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
