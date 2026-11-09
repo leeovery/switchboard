@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -260,13 +261,14 @@ func TestThePrintoutEndsWithTheTokensWhoseYearIsNearlyUp(t *testing.T) {
 }
 
 // Narrower than its line, a token's line wraps at its spaces to the edge, as
-// Detail's does, each line after the first under the first's start.
+// Detail's does, each line after the first under the first's start; stacked,
+// its name a cell in, as its row's is.
 func TestThePrintoutsTokenLineWrapsAsDetailsDoes(t *testing.T) {
 	rows := textOf(printed(trio(nearlyUp[0]), 52, ByWindow))
 	want := []string{
 		"",
-		"1 work  token expires 22 Oct 2026 · 21 days left —",
-		"        switchboard setup makes a new one",
+		" 1 work  token expires 22 Oct 2026 · 21 days left —",
+		"         switchboard setup makes a new one",
 	}
 	if got := afterKeyLine(t, rows); strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("at 52 columns, after the key line the printout reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -280,19 +282,20 @@ func TestThePrintoutsTokenLineNamesItsAccountAsItsRowDoes(t *testing.T) {
 	doc := trio(nearlyUp[0], account("work", func(a *status.Account) { a.Label = long }))
 	for _, by := range []By{ByWindow, ByAccount} {
 		rows := textOf(printed(doc, 52, by))
-		var named string
-		for _, r := range rows {
-			if strings.HasPrefix(r, "1 x") {
-				named = strings.Fields(r)[1]
-				break
-			}
+		after := afterKeyLine(t, rows)
+		block := rows[:len(rows)-len(after)]
+		i := slices.IndexFunc(block, func(r string) bool { return strings.HasPrefix(strings.TrimLeft(r, " "), "1 x") })
+		if i < 0 {
+			t.Fatalf("by %d at 52 columns, no row names work:\n%s", by, strings.Join(block, "\n"))
 		}
+		indent := len(block[i]) - len(strings.TrimLeft(block[i], " "))
+		named := "1 " + strings.Fields(block[i])[1]
 		if !strings.HasSuffix(named, "…") || len([]rune(named)) >= 30 {
 			t.Fatalf("by %d at 52 columns, work's row names it %q, want its label cut with …", by, named)
 		}
-		after := afterKeyLine(t, rows)
-		if len(after) < 2 || !strings.HasPrefix(after[1], "1 "+named+"  token expires") {
-			t.Errorf("by %d at 52 columns, the token line reads %q, want it to name work %q, as its row does", by, after, "1 "+named)
+		want := strings.Repeat(" ", indent) + named + "  token expires"
+		if len(after) < 2 || !strings.HasPrefix(after[1], want) {
+			t.Errorf("by %d at 52 columns, the token line reads %q, want it to start %q, naming work as its row does, at its row's column", by, after, want)
 		}
 	}
 }
