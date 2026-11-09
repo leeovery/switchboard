@@ -29,3 +29,18 @@ minutes at 52 columns and more at 73, so short holds are likelier to vanish ther
 - Both of these.
 
 Not decided; to discuss.
+
+## Tried, 9 November 2026
+
+Built and set aside. Drawing a column as the worst state in its span is simple, and showed every
+short hold. The words were the hard part. Once short holds were drawn, the words had to describe
+holds back to back and overlapping, such as a few minutes at a cap and then the limit. Two rounds of
+review each found them hiding a worse hold behind a lesser one, or putting one hold's end on another.
+Neither build was merged.
+
+If it's picked up again, start from the words:
+- Split a lane into stretches of one state that never overlap.
+- Join stretches that run back to back into one run, said once, with when room returns.
+- Let lesser holds give way before worse ones, but say the hold at now first.
+- Judge room from now.
+- Test it over generated sequences of holds rather than case by case.
