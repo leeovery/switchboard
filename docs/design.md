@@ -2262,11 +2262,12 @@ scrollback and be compared by eye with one printed an hour before. Its frames ar
 *Switchboard · usage*, on its page **FINAL · usage · signed off 4 Oct 2026 · revised 6 Oct**; its
 references are `testdata/vhs/reference/usage-160` (the matrix), `usage-120`, `usage-80` and
 `usage-52` (the windows stacked), `usage-5h-160` and `usage-5h-52` (`--5h`), `usage-by-account-160`
-and `usage-by-account-52` (`--by account`), `usage-one-account-160` (one account), and, of accounts
-without a 5-hour window (below), `usage-ultra-160`, every account on a verified Ultra plan, and
-`usage-mixed-160`, `usage-mixed-52` and `usage-mixed-by-account-160`, side alone keeping its 5-hour.
-Each reference starts at the header and ends at the key line. The Overview's USAGE draws the same
-block (see The Overview).
+and `usage-by-account-52` (`--by account`), `usage-one-account-160` (one account),
+`usage-token-160` (tokens' years nearly up, below), and, of accounts without a 5-hour window
+(below), `usage-ultra-160`, every account on a verified Ultra plan, and `usage-mixed-160`,
+`usage-mixed-52` and `usage-mixed-by-account-160`, side alone keeping its 5-hour. Each reference
+starts at the header and ends at the key line, but `usage-token-160` at its last token line. The
+Overview's USAGE draws the same block (see The Overview).
 
 - **The windows:** `--5h`, `--week`, and one flag for each model's own window switchboard knows,
   named for its model (`--fable`), each print the header, that window alone in either layout, and
@@ -2395,13 +2396,14 @@ a matrix of one.
   0, the cap's part on the second. A blank line separates it from the last row.
 
 **A token's year:** after the key line and a blank line, a line for each account whose token's year
-is up within 30 days, or is up, in the config's order: the account's name, as its row names it,
-its label whole; two cells on, the words Accounts' Detail says, `token expires 17 Nov 2026 · 21
-days left — switchboard setup makes a new one`, `· last day` on its last day, `token expired 17
-Nov 2026 — switchboard setup makes a new one` once it's up, in Detail's colours, from the same
-owner (see Accounts, "A token's year"). Narrower than the line, it wraps at its spaces to the edge,
-as Detail's does, each line after the first under the first's start. Nothing changes for an
-account with more than 30 days left; off a terminal, the status document carries the date.
+is up within 30 days, or is up, in the config's order: the account's name exactly as its row names
+it, a label too long for the name column cut with `…`; two cells on, the words Accounts' Detail
+says, `token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`, `· last day`
+on its last day, `token expired 17 Nov 2026 — switchboard setup makes a new one` once it's up, in
+Detail's colours, from the same owner (see Accounts, "A token's year"). Narrower than the line, it
+wraps at its spaces to the edge, as Detail's does, each line after the first under the first's
+start. Nothing changes for an account with more than 30 days left; off a terminal, the status
+document carries the date.
 
 **Spacing:** `usage` prints a blank line, then the header, and ends at the key line, or at the
 last token's line where it has any, with no blank line after it, as a shell's prompt spaces itself
@@ -8660,7 +8662,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/score` | Pace, projection, a window's rate of use, the allowance, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak, an account without a 5-hour window coming after those with a reset to come, and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/forecast` | The weeks' forecast (see Forecasting run-outs): the fast and day's rates and the hold curve, each kept as readings and answers arrive, and the pool's use played forward through `internal/score`'s choice of account, to where each week runs out. Pure functions and values handed the clock, as `internal/score`'s are; the router keeps the rates and the curve, `cmd/forecasttool` replays them, and `internal/status` forecasts with them |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
-| `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab and the router's notifications read |
+| `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, `usage` and the router's notifications read |
 | `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find reads of it (see The request ledger). It opens nothing itself; it reads through the readers it's given |
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |

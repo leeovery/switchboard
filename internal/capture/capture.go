@@ -218,7 +218,7 @@ type printout struct {
 // it; by account, as --by account prints it; work alone, with six sessions
 // on it, as its frame counts them; and the worlds of verified Ultra
 // accounts, all three's and the mixed one's, the mixed one's on a phone and
-// by account too.
+// by account too; and the auto world's with its tokens' years nearly up.
 var printouts = []printout{
 	{name: "usage-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.auto},
 	{name: "usage-120", size: watch.Size{Width: 120, Height: 36}, world: accountWorlds.auto},
@@ -233,6 +233,7 @@ var printouts = []printout{
 	{name: "usage-mixed-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.mixed},
 	{name: "usage-mixed-52", size: watch.Size{Width: 52, Height: 30}, world: accountWorlds.mixed},
 	{name: "usage-mixed-by-account-160", size: watch.Size{Width: 160, Height: 31}, world: accountWorlds.mixed, by: dashboard.ByAccount},
+	{name: "usage-token-160", size: watch.Size{Width: 160, Height: 17}, world: accountWorlds.tokensUp},
 }
 
 // called is the printout's name.

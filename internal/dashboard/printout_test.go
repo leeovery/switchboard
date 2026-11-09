@@ -225,7 +225,7 @@ var nearlyUp = []func(*status.Document){
 func afterKeyLine(t *testing.T, rows []string) []string {
 	t.Helper()
 	for i, r := range rows {
-		if strings.Contains(r, "cap: work at 95%") {
+		if strings.Contains(r, "cap: ") {
 			return rows[i+1:]
 		}
 	}
@@ -273,12 +273,37 @@ func TestThePrintoutsTokenLineWrapsAsDetailsDoes(t *testing.T) {
 	}
 }
 
+// A token's line names its account as its row does, a label too long for
+// the name column cut with …, by window and by account.
+func TestThePrintoutsTokenLineNamesItsAccountAsItsRowDoes(t *testing.T) {
+	long := strings.Repeat("x", 30)
+	doc := trio(nearlyUp[0], account("work", func(a *status.Account) { a.Label = long }))
+	for _, by := range []By{ByWindow, ByAccount} {
+		rows := textOf(printed(doc, 52, by))
+		var named string
+		for _, r := range rows {
+			if strings.HasPrefix(r, "1 x") {
+				named = strings.Fields(r)[1]
+				break
+			}
+		}
+		if !strings.HasSuffix(named, "…") || len([]rune(named)) >= 30 {
+			t.Fatalf("by %d at 52 columns, work's row names it %q, want its label cut with …", by, named)
+		}
+		after := afterKeyLine(t, rows)
+		if len(after) < 2 || !strings.HasPrefix(after[1], "1 "+named+"  token expires") {
+			t.Errorf("by %d at 52 columns, the token line reads %q, want it to name work %q, as its row does", by, after, "1 "+named)
+		}
+	}
+}
+
 // A token's line is inked as Detail's: its words muted, what warns bold
 // accent.attention within 30 days and bold state.destructive on its last
 // day or once it's up, and switchboard setup in text.secondary.
 func TestThePrintoutsTokenLinesAreInkedAsDetailsAre(t *testing.T) {
+	m := trio(nearlyUp...).At(printNow, printPolicy)
 	c := growing(160)
-	Printout{Width: 160}.tokens(c, trio(nearlyUp...).At(printNow, printPolicy), 0)
+	Printout{Width: 160}.tokens(c, m, newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(true), labelsOf(m))), 0)
 	for _, tt := range []struct {
 		name string
 		inks tokenInks

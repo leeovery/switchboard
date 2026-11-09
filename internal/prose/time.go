@@ -79,29 +79,23 @@ func Dated(now, t time.Time) string {
 // RunOut shows t, when a window is projected to run out, in now's time zone:
 // within a day of now, as Dated shows it, such as "16:05" or "Mon 05:22";
 // further ahead, its weekday alone, such as "Tue", as a forecast days out
-// misses by a day or more, but for now's own weekday, which would read as
-// today: that, as Day names it, such as "Thu 12 Nov".
+// misses by a day or more, but a week on, as weekOn has it, as Day names it,
+// such as "Thu 12 Nov".
 func RunOut(now, t time.Time) string {
 	if t.Sub(now) <= 24*time.Hour {
 		return Dated(now, t)
 	}
 	at := t.In(now.Location())
-	if at.Weekday() == now.Weekday() {
+	if weekOn(now, t) {
 		return Day(at)
 	}
 	return Weekday(at.Weekday())
 }
 
-// RunOutBrief shows t, when a window is projected to run out, in now's time
-// zone as briefly as a bar line has room for, as Brief shows it, but more
-// than a day ahead on now's own weekday, which would read as today: its
-// date without the weekday, such as "12 Nov", as RunOut dates it.
-func RunOutBrief(now, t time.Time) string {
-	at := t.In(now.Location())
-	if t.Sub(now) > 24*time.Hour && at.Weekday() == now.Weekday() {
-		return DayMonth(at)
-	}
-	return Brief(now, t)
+// weekOn reports whether t is more than a day after now and on now's own
+// weekday in now's time zone, where its weekday alone would read as today.
+func weekOn(now, t time.Time) bool {
+	return t.Sub(now) > 24*time.Hour && t.In(now.Location()).Weekday() == now.Weekday()
 }
 
 // RunOutWidth is how many characters the widest time RunOut shows takes: as
@@ -125,6 +119,16 @@ func Brief(now, t time.Time) string {
 		return TimeOfDay(now, t)
 	}
 	return Weekday(t.In(now.Location()).Weekday())
+}
+
+// RunOutBrief shows t, when a window is projected to run out, in now's time
+// zone as briefly as a bar line has room for, as Brief shows it, but a week
+// on, as weekOn has it, its date alone, such as "12 Nov".
+func RunOutBrief(now, t time.Time) string {
+	if weekOn(now, t) {
+		return DayMonth(t.In(now.Location()))
+	}
+	return Brief(now, t)
 }
 
 // SameDay reports whether a and b fall on one day in now's time zone.
