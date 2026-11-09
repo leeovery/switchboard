@@ -177,6 +177,8 @@ choices and its pressure go by their own rates.
   next few hours, and a quiet evening never promises a week.
 - **Where the use goes:** use already on an account stays there for a while, as its sessions do,
   but on an account whose token is refused or missing: the router sends its requests elsewhere.
+  How long it stays the router learns from its own answers. Until it has a day of them, it takes
+  the use to stay put, so a run-out leans early rather than late, and Runway says so.
   The rest goes where a new session would go at that moment, among the pin's accounts while a
   global pin holds. Accounts count by their plan's size, a Max week as five Pro weeks, but where
   any account's plan isn't known, every account counts as one.

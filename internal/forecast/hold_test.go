@@ -23,13 +23,10 @@ func holdPoints(shares ...float64) []Point {
 	return points
 }
 
-// defaultPoints are the default curve's points, e^(−h/6h).
-func defaultPoints() []Point {
-	shares := make([]float64, len(holdHours))
-	for i, after := range holdHours {
-		shares[i] = math.Exp(-after.Hours() / 6)
-	}
-	return holdPoints(shares...)
+// firstDayPoints are the default curve's points: all of an account's use
+// still on it at each.
+func firstDayPoints() []Point {
+	return holdPoints(slices.Repeat([]float64{1}, len(holdHours))...)
 }
 
 // nearPoints reports whether two curves' points lie at the same hours, with
@@ -60,8 +57,8 @@ func TestHoldPoints(t *testing.T) {
 		at   time.Time
 		want []Point
 	}{
-		{"no answers, the default curve", Hold{}, holdFrom, defaultPoints()},
-		{"under a day of answers, the default curve", binned, holdFrom.Add(24*time.Hour - time.Minute), defaultPoints()},
+		{"no answers, the default curve", Hold{}, holdFrom, firstDayPoints()},
+		{"under a day of answers, the default curve", binned, holdFrom.Add(24*time.Hour - time.Minute), firstDayPoints()},
 		{
 			"a day of answers, each point the weight that long on or longer", binned, holdFrom.Add(24 * time.Hour),
 			holdPoints(29.0/30, 24.0/30, 20.0/30, 20.0/30, 15.0/30, 9.0/30),
@@ -84,16 +81,37 @@ func TestHoldPoints(t *testing.T) {
 	}
 }
 
+func TestHoldLearning(t *testing.T) {
+	answered := Hold{}.Answered(1, time.Hour, holdFrom)
+	tests := []struct {
+		name string
+		hold Hold
+		at   time.Time
+		want bool
+	}{
+		{"no answers", Hold{}, holdFrom.Add(48 * time.Hour), true},
+		{"under a day of answers", answered, holdFrom.Add(24*time.Hour - time.Minute), true},
+		{"a day of answers", answered, holdFrom.Add(24 * time.Hour), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.hold.Learning(tt.at); got != tt.want {
+				t.Errorf("Learning(%v) = %v, want %v", tt.at.Sub(holdFrom), got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHoldAnswered(t *testing.T) {
 	tests := []struct {
 		name string
 		hold Hold
 		want []Point
 	}{
-		{"an answer weighing nothing leaves the curve as it was", Hold{}.Answered(0, 2*time.Hour, holdFrom), defaultPoints()},
-		{"an answer weighing less leaves the curve as it was", Hold{}.Answered(-1, 2*time.Hour, holdFrom), defaultPoints()},
-		{"an answer weighing no number leaves the curve as it was", Hold{}.Answered(math.NaN(), 2*time.Hour, holdFrom), defaultPoints()},
-		{"an answer weighing without end leaves the curve as it was", Hold{}.Answered(math.Inf(1), 2*time.Hour, holdFrom), defaultPoints()},
+		{"an answer weighing nothing leaves the curve as it was", Hold{}.Answered(0, 2*time.Hour, holdFrom), firstDayPoints()},
+		{"an answer weighing less leaves the curve as it was", Hold{}.Answered(-1, 2*time.Hour, holdFrom), firstDayPoints()},
+		{"an answer weighing no number leaves the curve as it was", Hold{}.Answered(math.NaN(), 2*time.Hour, holdFrom), firstDayPoints()},
+		{"an answer weighing without end leaves the curve as it was", Hold{}.Answered(math.Inf(1), 2*time.Hour, holdFrom), firstDayPoints()},
 		{
 			"an answer before the last counts as at the last",
 			Hold{}.Answered(1, 0, holdFrom.Add(7*24*time.Hour)).Answered(1, 48*time.Hour, holdFrom),
@@ -224,9 +242,11 @@ func TestCurve(t *testing.T) {
 		{"points in any order, in the order of their hours", reversed, 2 * time.Hour, 0.65},
 		{"a point at none or before is left out", append(holdPoints(0.8), Point{After: 0, Share: 0.3}, Point{After: -time.Hour, Share: 0.1}), 0, 1},
 		{"a point at none or before leaves the line from 1", append(holdPoints(0.8), Point{After: 0, Share: 0.3}, Point{After: -time.Hour, Share: 0.1}), 30 * time.Minute, 0.9},
-		{"only points at none or before, the default curve", []Point{{After: 0, Share: 0.3}}, 6 * time.Hour, 1 / math.E},
-		{"no points, the default curve", nil, 6 * time.Hour, 1 / math.E},
+		{"only points at none or before, the default curve", []Point{{After: 0, Share: 0.3}}, 6 * time.Hour, 1},
 		{"no points, the default curve's 1 at none", nil, 0, 1},
+		{"no points, the default curve's 1 at its last point", nil, 48 * time.Hour, 1},
+		{"no points, the default curve falling straight past its last point", nil, 72 * time.Hour, 0.5},
+		{"no points, the default curve's 0 at twice its last point's hours", nil, 96 * time.Hour, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

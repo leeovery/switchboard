@@ -56,6 +56,7 @@ type accountWorld struct {
 	tokenLeft  map[string]time.Duration
 	unreported unreported
 	ownEvents  bool
+	learning   bool
 	records    func() *records
 }
 
@@ -94,7 +95,8 @@ func (w accountWorld) document(now time.Time) status.Document {
 // readings history measures it: its day rate, the rises of its accounts'
 // shared weeks given, by account, in Pro weeks, as their plans size them,
 // over the last day, as every world's pool has had room for a new session
-// all day; and the hold curve its router kept, worldsHold.
+// all day; and the hold curve its router kept, worldsHold, or where the world
+// is learning, with less than a day of answers, the default, firstDayHold.
 func (w accountWorld) demand(rises map[string][]rise, at time.Time) *status.Demand {
 	plans := make([]string, len(w.accounts))
 	for i, a := range w.accounts {
@@ -115,6 +117,9 @@ func (w accountWorld) demand(rises map[string][]rise, at time.Time) *status.Dema
 		day = day.Rose(r.by, r.at)
 	}
 	rate, over, _ := day.Rate(at)
+	if w.learning {
+		return &status.Demand{Day: rate, Hours: over.Hours(), Hold: firstDayHold, Learning: true}
+	}
 	return &status.Demand{Day: rate, Hours: over.Hours(), Hold: worldsHold}
 }
 
@@ -123,6 +128,12 @@ func (w accountWorld) demand(rises map[string][]rise, at time.Time) *status.Dema
 // account two days on is still its own.
 var worldsHold = []status.HoldPoint{
 	{Hours: 1, Share: 1}, {Hours: 3, Share: .99}, {Hours: 6, Share: .97}, {Hours: 12, Share: .93}, {Hours: 24, Share: .85}, {Hours: 48, Share: .7},
+}
+
+// firstDayHold is the hold curve a router gives with less than a day of
+// answers: all of an account's use still on it.
+var firstDayHold = []status.HoldPoint{
+	{Hours: 1, Share: 1}, {Hours: 3, Share: 1}, {Hours: 6, Share: 1}, {Hours: 12, Share: 1}, {Hours: 24, Share: 1}, {Hours: 48, Share: 1},
 }
 
 // extraOff is extra usage as the provider gives it of an account that has
@@ -468,6 +479,16 @@ func (a accountWorlds) autoOf(t *todayOf) accountWorld {
 		accounts: accounts, history: t.history(accounts), sessions: autoSessions, best: framesChoice,
 		routed: routedSessions, events: autoEvents(a.now), stream: inFlight(a.now), traffic: true,
 	}
+}
+
+// learning is the auto world on its router's first day, its forecast still
+// learning how long sessions stay on their accounts.
+func (a accountWorlds) learning() accountWorld {
+	return a.kept("learning", func() accountWorld {
+		w := a.autoOf(a.today().three(true))
+		w.learning = true
+		return w
+	})
 }
 
 // fableNearing is the auto world with side's Fable week read at 88% at

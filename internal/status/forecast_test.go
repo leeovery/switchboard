@@ -63,6 +63,10 @@ func forecasting(doc status.Document, day float64, hold ...status.HoldPoint) sta
 // for its 48 hours.
 var holdingAll = []status.HoldPoint{{Hours: 1, Share: 1}, {Hours: 3, Share: 1}, {Hours: 6, Share: 1}, {Hours: 12, Share: 1}, {Hours: 24, Share: 1}, {Hours: 48, Share: 1}}
 
+// holdingNone is a hold curve that keeps none of an account's fast rate on it
+// from an hour on.
+var holdingNone = []status.HoldPoint{{Hours: 1}, {Hours: 3}, {Hours: 6}, {Hours: 12}, {Hours: 24}, {Hours: 48}}
+
 // fastAt has the router see the account's window with the given key rise at
 // the fast rate given, a share of it an hour.
 func fastAt(key string, rate float64) func(*status.Account) {
@@ -197,15 +201,15 @@ func TestTheForecastPlaysThePoolsUseAsTheDocumentHasIt(t *testing.T) {
 			want: map[string]heading{"work": onPaceFor(0.82), "side": runsOutIn(40 * time.Hour)},
 		},
 		{
-			// side takes all of the pool's use work doesn't hold, which fades
-			// from all of work's fast rate with a time constant of 6 hours:
-			// 1% an hour, less 6% all told, from its half used.
+			// side takes all of the pool's use work doesn't hold, which falls
+			// straight from all of work's fast rate to none an hour on: 1% an
+			// hour, less half a percent all told, from its half used.
 			name: "the pool's use that isn't held goes to the global pin's account",
 			doc: forecasting(pinnedTo(routerDocOf(
 				on(readAt("work", windowIn("7d", 0.5, 3*day)), fastAt("7d", 0.01)),
 				readAt("side", windowIn("7d", 0.5, 3*day)),
-			), "side"), 0.01),
-			want: map[string]heading{"side": runsOutIn(56 * time.Hour)},
+			), "side"), 0.01, holdingNone...),
+			want: map[string]heading{"side": runsOutIn(50*time.Hour + 30*time.Minute)},
 		},
 		{
 			name: "an account whose token is refused takes no new sessions",

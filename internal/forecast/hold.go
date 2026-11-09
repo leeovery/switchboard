@@ -19,8 +19,6 @@ const (
 	// holdKnown is how long after its first answer the hold curve goes by its
 	// answers: before, it's the default curve.
 	holdKnown = 24 * time.Hour
-	// holdDefaultTau is the default curve's time constant.
-	holdDefaultTau = 6 * time.Hour
 	// holdBins is how many bins of their sessions' time on their account the
 	// hold curve keeps answers' weight in.
 	holdBins = 7
@@ -91,22 +89,31 @@ func binOf(onAccount time.Duration) int {
 	return 0
 }
 
-// Points returns the hold curve at at, at 1, 3, 6, 12, 24 and 48 hours: each
-// the weight of answers from sessions on their account that long or longer,
-// over all the weight. With less than a day between its first answer and at,
-// it's the default curve, e^(−h/6h), at those hours.
-func (h Hold) Points(at time.Time) []Point {
+// Learning reports whether the hold curve at at is still the default, as
+// Points gives it: with less than a day between its first answer and at, or
+// no weight taken in.
+func (h Hold) Learning(at time.Time) bool {
+	return h.first.IsZero() || at.Sub(h.first) < holdKnown || h.total() <= 0
+}
+
+// total is the weight of every answer h has taken in.
+func (h Hold) total() float64 {
 	var total float64
 	for _, w := range h.weights {
 		total += w
 	}
-	points := make([]Point, holdBins-1)
-	if h.first.IsZero() || at.Sub(h.first) < holdKnown || total <= 0 {
-		for i, after := range holdEdges[1:] {
-			points[i] = Point{After: after, Share: defaultHold(after)}
-		}
-		return points
+	return total
+}
+
+// Points returns the hold curve at at, at 1, 3, 6, 12, 24 and 48 hours: each
+// the weight of answers from sessions on their account that long or longer,
+// over all the weight. While it's Learning, it's the default curve's points.
+func (h Hold) Points(at time.Time) []Point {
+	if h.Learning(at) {
+		return defaultPoints()
 	}
+	total := h.total()
+	points := make([]Point, holdBins-1)
 	var held float64
 	for i := holdBins - 1; i > 0; i-- {
 		held += h.weights[i]
@@ -118,11 +125,11 @@ func (h Hold) Points(at time.Time) []Point {
 // Curve returns the hold curve points draw, in the order of their hours: 1
 // at none, straight between each point and the next, and past the last
 // falling straight to 0 at twice its hours. A point at none or before is left
-// out, and with no points after none it's the default curve, e^(−h/6h).
+// out, and with no points after none it's the default curve.
 func Curve(points []Point) func(after time.Duration) float64 {
 	knots := slices.DeleteFunc(slices.Clone(points), func(p Point) bool { return p.After <= 0 })
 	if len(knots) == 0 {
-		return defaultHold
+		knots = defaultPoints()
 	}
 	slices.SortStableFunc(knots, func(a, b Point) int { return cmp.Compare(a.After, b.After) })
 	knots = append(knots, Point{After: 2 * knots[len(knots)-1].After})
@@ -151,9 +158,15 @@ func between(from, to Point, after time.Duration) float64 {
 	return from.Share + (to.Share-from.Share)*float64(after-from.After)/float64(to.After-from.After)
 }
 
-// defaultHold is the hold curve with less than a day of answers.
-func defaultHold(after time.Duration) float64 {
-	return decay(after, holdDefaultTau)
+// defaultPoints are the hold curve's points with less than a day of answers:
+// all of an account's use taken to stay on it at each, so where it leans
+// wrong, it leans to an early run-out rather than room that isn't there.
+func defaultPoints() []Point {
+	points := make([]Point, holdBins-1)
+	for i, after := range holdEdges[1:] {
+		points[i] = Point{After: after, Share: 1}
+	}
+	return points
 }
 
 // storedHold is a Hold as the router's state file stores it, as MarshalJSON

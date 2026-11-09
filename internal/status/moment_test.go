@@ -354,6 +354,26 @@ func TestADocumentWorkedOutIsAsItStoodWhenItWasBuilt(t *testing.T) {
 	}
 }
 
+func TestAMomentIsLearningWhileItsDocumentsDemandIs(t *testing.T) {
+	tests := []struct {
+		name   string
+		demand *status.Demand
+		want   bool
+	}{
+		{"no demand, as a probed document has", nil, false},
+		{"a demand learning", &status.Demand{Learning: true}, true},
+		{"a demand measured", &status.Demand{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{GeneratedAt: time.Date(2026, 11, 9, 9, 0, 0, 0, time.UTC), Demand: tt.demand}
+			if got := doc.At(doc.GeneratedAt, policy).Learning; got != tt.want {
+				t.Errorf("Learning = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAWindowIsNamedByItsHoursElseByItsLabelElseByItsKey(t *testing.T) {
 	tests := []struct {
 		name, key, label, want string

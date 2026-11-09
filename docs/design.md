@@ -547,9 +547,11 @@ built:
   model shares weigh them (input 1, output 5, cache writes 1.25, cache reads 0.1). A session's time
   on its account counts from when it came to the account, and a choice that keeps it there doesn't
   start it again. The router keeps the curve in its state file, so it outlasts a restart. With less
-  than a day of answers in it, the curve is `e^(−h / 6h)`. The status document carries it at 1, 3,
-  6, 12, 24 and 48 hours; between them it's read as straight lines, and past 48 hours it falls
-  straight to none at 96.
+  than a day of answers in it, as on a new install, the curve is the default: an account's use
+  stays on it, 1 at each of its hours, so where it leans wrong it leans to an early run-out rather
+  than room that isn't there (the owner's call, 9 November 2026). The status document carries it
+  at 1, 3, 6, 12, 24 and 48 hours, with `learning` while it's the default; between them it's read
+  as straight lines, and past 48 hours it falls straight to none at 96.
 - **An account that can't take requests,** its token refused or none usable, holds none of its
   use: the router sends its sessions' requests elsewhere, and its use goes where a new session
   would. Nor does a new session go to it. A token refused as the document is built is played as
@@ -4454,6 +4456,14 @@ period sits between its keys on Accounts and History: `<` bold `accent.key`, the
 `5-hour` or `week`, with a space either side, in `text.muted`, and `>` bold `accent.key`, ending at
 the last column. Stepped back, `RUNWAY` is followed by three spaces and the day shown, `Wed 30 Sep`,
 in `text.faint`, the rule starting a cell after it.
+
+**While the forecast is learning,** as the status document's `demand` says with `learning`, its
+hold curve still the default (see Forecasting run-outs), a view that draws what's ahead says so on
+the view's first row, from column 0, in `text.muted`: `run-outs firm up once switchboard has a day
+of your sessions`, a blank row between it and the axis, every row under it moved down two. It
+shows only where Runway's parts fit at the roomiest with it, and its words across the frame, so as
+rows run short it goes before any part compacts, and a phone never shows it (the owner's call, 9
+November 2026). Its reference is `runway-learning-160`.
 
 **The views,** named by their windows, `<` and `>` stepping between them, each account's use of the
 view's window under its name:
@@ -9112,7 +9122,7 @@ probing.
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
 | `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
-| `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on. Left out when the router has read no account |
+| `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold, learning}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on; `learning` `true` while the curve is the default, with less than a day of answers in it, and left out once it's measured. Left out when the router has read no account |
 | `accounts` | Every configured account, in the config's order, as below |
 
 Each account:

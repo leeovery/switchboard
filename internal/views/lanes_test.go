@@ -84,6 +84,36 @@ func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 	}
 }
 
+// The lanes are learning while the moment's forecast is, where they draw
+// what's ahead: not on a day gone, which has no now.
+func TestTheLanesAreLearningWhileTheForecastIsWhereTheyDrawWhatsAhead(t *testing.T) {
+	withDemand := func(rm viewstest.RunwayMoment, demand *status.Demand) viewstest.RunwayMoment {
+		rm.Doc.Demand = demand
+		return rm
+	}
+	learning, measured := &status.Demand{Learning: true}, &status.Demand{}
+	live := runwayMoment(t, "the auto world's 5-hour view")
+	gone := runwayMoment(t, "stepped back to a day older than the readings history's keep")
+	tests := []struct {
+		name string
+		rm   viewstest.RunwayMoment
+		want bool
+	}{
+		{"live, learning", withDemand(live, learning), true},
+		{"live, the week view, learning", withDemand(inWeek(live), learning), true},
+		{"live, measured", withDemand(live, measured), false},
+		{"live, no demand, as probed", withDemand(live, nil), false},
+		{"a day gone, learning", withDemand(gone, learning), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (views.Lanes{}).Look(lanesFrom(tt.rm)).Learning; got != tt.want {
+				t.Errorf("Learning = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // runwayMoment is Runway's moment with the given name.
 func runwayMoment(t *testing.T, name string) viewstest.RunwayMoment {
 	t.Helper()

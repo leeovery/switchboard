@@ -400,6 +400,10 @@ one.
 
 Each column of a lane is one cell, showing room, at its cap, or at its limit. The past is dimmed.
 
+Until the router has a day of your sessions, as on a new install, its forecast takes the use on
+each account to stay there, so a run-out may come earlier than it will. Runway says so under its
+heading, `run-outs firm up once switchboard has a day of your sessions`, where the screen has room.
+
 Words under a lane say where a stretch without room starts and when the account is back. For
 example, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`, or, more than a day
 ahead, its day alone, `runs out ~Sat at its pace`. Where one hold runs

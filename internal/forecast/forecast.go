@@ -123,7 +123,7 @@ type track struct {
 // newPlay starts the pool's use playing from its Now, its accounts its own.
 func newPlay(pool Pool) *play {
 	if pool.Held == nil {
-		pool.Held = defaultHold
+		pool.Held = Curve(nil)
 	}
 	pool.Accounts = slices.Clone(pool.Accounts)
 	week := pool.Policy.Perishable

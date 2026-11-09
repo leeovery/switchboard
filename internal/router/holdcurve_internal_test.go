@@ -18,14 +18,10 @@ import (
 )
 
 // defaultHold is the hold curve the document gives before a day of answers:
-// e^(−h/6h) at 1, 3, 6, 12, 24 and 48 hours.
+// all of an account's use still on it at 1, 3, 6, 12, 24 and 48 hours.
 var defaultHold = []status.HoldPoint{
-	{Hours: 1, Share: math.Exp(-1.0 / 6)},
-	{Hours: 3, Share: math.Exp(-3.0 / 6)},
-	{Hours: 6, Share: math.Exp(-6.0 / 6)},
-	{Hours: 12, Share: math.Exp(-12.0 / 6)},
-	{Hours: 24, Share: math.Exp(-24.0 / 6)},
-	{Hours: 48, Share: math.Exp(-48.0 / 6)},
+	{Hours: 1, Share: 1}, {Hours: 3, Share: 1}, {Hours: 6, Share: 1},
+	{Hours: 12, Share: 1}, {Hours: 24, Share: 1}, {Hours: 48, Share: 1},
 }
 
 // sameHold reports whether two hold curves match, to within rounding.
@@ -170,8 +166,8 @@ func TestTheDocumentGivesTheHoldCurve(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
 	s.record("work", []quota.Window{session, week}, s.mark())
-	if got := s.document().Demand.Hold; !reflect.DeepEqual(got, defaultHold) {
-		t.Errorf("before any answer, the hold curve is %+v, want the default, %+v", got, defaultHold)
+	if got := s.document().Demand; !reflect.DeepEqual(got.Hold, defaultHold) || !got.Learning {
+		t.Errorf("before any answer, the hold curve is %+v, learning %v, want the default, %+v, learning", got.Hold, got.Learning, defaultHold)
 	}
 
 	// An answer from a session new to its account, and 25 hours on, one
@@ -182,8 +178,8 @@ func TestTheDocumentGivesTheHoldCurve(t *testing.T) {
 	// The first counts less by 25 hours of a week's time constant.
 	held := 1000 / (1000*math.Exp(-25.0/(7*24)) + 1000)
 	want := []status.HoldPoint{{Hours: 1, Share: held}, {Hours: 3, Share: held}, {Hours: 6, Share: held}, {Hours: 12, Share: held}, {Hours: 24, Share: held}, {Hours: 48}}
-	if got := s.document().Demand.Hold; !sameHold(got, want) {
-		t.Errorf("a day of answers on, the hold curve is %+v, want %+v", got, want)
+	if got := s.document().Demand; !sameHold(got.Hold, want) || got.Learning {
+		t.Errorf("a day of answers on, the hold curve is %+v, learning %v, want %+v, not learning", got.Hold, got.Learning, want)
 	}
 }
 
