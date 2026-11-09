@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"slices"
 	"testing"
 	"time"
@@ -13,46 +14,59 @@ import (
 
 func TestScoresFromTheLaterOfTwoDaysInAndEveryAccountsWeekRead(t *testing.T) {
 	// Work's week, resetting 150 hours in, is read every hour from the first
-	// reading to the last, and forecast short at each hour; side, where it's
+	// reading to the last, and forecast short at each hour, unless work's
+	// 5-hour window is read instead, as workKey says; side, where it's
 	// configured, is read as given.
 	sideFrom := hoursIn(60).Add(20 * time.Minute)
+	sideSession := []readings.Reading{{At: sideFrom, Account: "side", Key: "5h", Utilization: 0.3, ResetsAt: hoursIn(64)}}
 	tests := []struct {
 		name        string
 		first, last time.Time
-		// side is configured where it's read, or never, as sideUnread says.
-		side       []readings.Reading
-		sideUnread bool
+		workKey     string
+		// sided is set where side is configured, and side are its readings.
+		sided bool
+		side  []readings.Reading
 		// from, scored and to are the first hour played, the first scored, none
 		// where none is, and the last played; scoredAny, whether any is
-		// scored.
+		// scored; unread, the accounts whose week the history never reads.
 		from, scored, to time.Time
 		scoredAny        bool
+		unread           []string
 	}{
 		{name: "first read on the hour", first: begins, last: hoursIn(60), from: hoursIn(1), scored: hoursIn(48), to: hoursIn(60), scoredAny: true},
 		{name: "first read past the hour", first: begins.Add(20 * time.Minute), last: hoursIn(60).Add(20 * time.Minute), from: hoursIn(1), scored: hoursIn(49), to: hoursIn(60), scoredAny: true},
 		{name: "last read two days in", first: begins, last: hoursIn(48), from: hoursIn(1), scored: hoursIn(48), to: hoursIn(48), scoredAny: true},
 		{name: "last read a minute short of two days in", first: begins, last: hoursIn(48).Add(-time.Minute), from: hoursIn(1), scored: hoursIn(48), to: hoursIn(47)},
 		{
-			name: "side's week first read past two days in", first: begins, last: hoursIn(70), side: hourly("side", sideFrom, 10, 0.3, hoursIn(160)),
+			name: "side's week first read past two days in", first: begins, last: hoursIn(70), sided: true, side: hourly("side", sideFrom, 10, 0.3, hoursIn(160)),
 			from: hoursIn(1), scored: hoursIn(61), to: hoursIn(70), scoredAny: true,
 		},
 		{
-			name: "side read only its 5-hour window", first: begins, last: hoursIn(70),
-			side: []readings.Reading{{At: sideFrom, Account: "side", Key: "5h", Utilization: 0.3, ResetsAt: hoursIn(64)}}, sideUnread: true,
-			from: hoursIn(1), to: hoursIn(70),
+			name: "side read only its 5-hour window, past two days in", first: begins, last: hoursIn(70), sided: true, side: sideSession,
+			from: hoursIn(1), scored: hoursIn(48), to: hoursIn(70), scoredAny: true, unread: []string{"side"},
 		},
-		{name: "side never read", first: begins, last: hoursIn(70), sideUnread: true, from: hoursIn(1), to: hoursIn(70)},
+		{
+			name: "side never read", first: begins, last: hoursIn(70), sided: true,
+			from: hoursIn(1), scored: hoursIn(48), to: hoursIn(70), scoredAny: true, unread: []string{"side"},
+		},
+		{
+			name: "work read only its 5-hour window, side never read", first: begins, last: hoursIn(70), workKey: "5h", sided: true,
+			from: hoursIn(1), to: hoursIn(70), unread: []string{"work", "side"},
+		},
 	}
 	policy := claude.Policy()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			configured := config.Accounts{{ID: "work"}}
-			if tt.side != nil || tt.sideUnread {
+			if tt.sided {
 				configured = append(configured, config.Account{ID: "side"})
 			}
 			read := hourly("work", tt.first, int(tt.last.Sub(tt.first)/time.Hour)+1, 0.1, hoursIn(150))
 			if last := read[len(read)-1].At; last.Before(tt.last) {
 				read = append(read, weekRead("work", tt.last, 0.2, hoursIn(150)))
+			}
+			for i := range read {
+				read[i].Key = cmp.Or(tt.workKey, read[i].Key)
 			}
 			read = slices.SortedStableFunc(slices.Values(slices.Concat(read, tt.side)), func(a, b readings.Reading) int { return a.At.Compare(b.At) })
 			pl := playBack(configured, policy, history{readings: read, lines: slices.Values([]ledger.Held(nil))})
@@ -62,7 +76,7 @@ func TestScoresFromTheLaterOfTwoDaysInAndEveryAccountsWeekRead(t *testing.T) {
 				t.Errorf("played from %v, scored from %v, to %v; want from %v, scored from %v, to %v", pl.from, scored, pl.to, tt.from, tt.scored, tt.to)
 			}
 			want := []time.Time{}
-			if !tt.sideUnread {
+			if !tt.scored.IsZero() {
 				want = hoursFrom(tt.scored, tt.to)
 			}
 			for name, forecasts := range map[string][]forecast{"the router's": pl.forecasts, "the baseline's": pl.baseline} {
@@ -71,8 +85,8 @@ func TestScoresFromTheLaterOfTwoDaysInAndEveryAccountsWeekRead(t *testing.T) {
 				}
 			}
 			r := reportOf(configured, pl, outcomesOf(configured, policy.Perishable, read))
-			if r.Scored != tt.scoredAny || tt.sideUnread != slices.Equal(r.Unread, []string{"side"}) {
-				t.Errorf("reported scored %v, side unread %v; want %v, %v", r.Scored, r.Unread, tt.scoredAny, tt.sideUnread)
+			if r.Scored != tt.scoredAny || !slices.Equal(r.Unread, tt.unread) {
+				t.Errorf("reported scored %v, unread %v; want %v, %v", r.Scored, r.Unread, tt.scoredAny, tt.unread)
 			}
 		})
 	}

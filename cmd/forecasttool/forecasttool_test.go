@@ -183,22 +183,28 @@ func TestSaysNothingCouldBeScoredOfAHistoryShorterThanTwoDays(t *testing.T) {
 	}
 }
 
-func TestSaysScoringWaitsForEveryAccountsWeekToBeRead(t *testing.T) {
+func TestSaysScoringWaitsForEveryAccountsWeekTheHistoryReads(t *testing.T) {
 	// Work's week is read every hour for 70 hours; side's first 60h20m in,
-	// and every hour after.
+	// and every hour after; personal's and other's never.
 	read := slices.Concat(hourly("work", begins, 71, 0.1, hoursIn(150)), hourly("side", hoursIn(60).Add(20*time.Minute), 10, 0.3, hoursIn(160)))
 	tests := []struct {
 		name     string
 		accounts []account
-		want     string
+		// want is what's said after the first line, up to the scores.
+		want string
 	}{
 		{
 			name: "side read past two days in", accounts: []account{{id: "work"}, {id: "side"}},
-			want: "scored from 2026-09-09 13:00 UTC, once every account's week had been read\n",
+			want: "scored from 2026-09-09 13:00 UTC, once every account's week the history reads had been read\n",
 		},
 		{
 			name: "personal never read", accounts: []account{{id: "work"}, {id: "side"}, {id: "personal"}},
-			want: "nothing could be scored: the history never reads the week of personal\n",
+			want: "scored from 2026-09-09 13:00 UTC, once every account's week the history reads had been read\n" +
+				"scored without the week of personal, which the history never reads\n",
+		},
+		{
+			name: "personal and other never read, nor anyone else configured", accounts: []account{{id: "personal"}, {id: "other"}},
+			want: "nothing could be scored: the history reads no account's week\n",
 		},
 	}
 	for _, tt := range tests {
@@ -207,11 +213,36 @@ func TestSaysScoringWaitsForEveryAccountsWeekToBeRead(t *testing.T) {
 			now := hoursIn(80)
 			stateDir := stateOf(t, now, configPath, read, nil)
 
-			got := strings.SplitAfterN(scoring(t, now, "--state", stateDir, "--config", configPath), "\n", 3)
-			if len(got) < 2 || got[1] != tt.want {
-				t.Errorf("printed\n%s\nwant its second line\n%s", strings.Join(got, ""), tt.want)
+			_, rest, _ := strings.Cut(scoring(t, now, "--state", stateDir, "--config", configPath), "\n")
+			got, _, scored := strings.Cut(rest, "\n\n")
+			if scored {
+				got += "\n"
+			}
+			if got != tt.want {
+				t.Errorf("printed after its first line\n%s\nwant\n%s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLeavesOutOfItsJSONTheHoursThereAreNoneOf(t *testing.T) {
+	// Personal's week is never read, nor anyone else's configured.
+	configPath := configOf(t, account{id: "personal"})
+	now := hoursIn(80)
+	stateDir := stateOf(t, now, configPath, hourly("work", begins, 71, 0.1, hoursIn(150)), nil)
+
+	printed := scoring(t, now, "--state", stateDir, "--config", configPath, "--json")
+	for _, field := range []string{`"scored_from"`, `"all_read"`} {
+		if strings.Contains(printed, field) {
+			t.Errorf("printed\n%s\nwant no %s: there's none", printed, field)
+		}
+	}
+	var got report
+	if err := json.Unmarshal([]byte(printed), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Scored || !slices.Equal(got.Unread, []string{"personal"}) || !got.TwoDaysIn.Equal(hoursIn(48)) {
+		t.Errorf("printed %+v, want nothing scored, personal unread, two days in still said", got)
 	}
 }
 
@@ -414,8 +445,8 @@ func TestItsHelpSaysWhatThePlaybackHasNoneOf(t *testing.T) {
 	}
 	for _, want := range []string{
 		"--state", "--config", "neither has a default", "reaches a limit", "token refused", "no global pin",
-		"router was down", "two days after the history's first", "once every account's week has been read", "nothing could be",
-		"a reset by hand starts afresh", "moved or not", "they say on stderr",
+		"router was down", "two days after the history's first", "once every account's week the history reads has been",
+		"it scores without it, and says so", "nothing could be scored", "a reset by hand starts", "moved or not", "they say on stderr",
 	} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Errorf("--help says\n%s\nwant it to say %q", stderr.String(), want)

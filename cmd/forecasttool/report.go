@@ -13,17 +13,18 @@ import (
 
 // report is what the tool tells of a history: the first and last hours it
 // forecast at; the first it scored, the later of two days in and the first
-// hour every account had had its week read by, either zero where it's none,
-// and the accounts the history never reads, which are why; whether it scored
+// hour every account whose week the history reads had had it read by, the
+// first and that hour left out where the history reads no account's week;
+// the accounts whose week it never reads, scored without; whether it scored
 // any, as it didn't where there's no first, or it's after the last; the
 // accounts configured; and how the router's forecasts scored, and the
 // baseline's beside them.
 type report struct {
 	From       time.Time `json:"from"`
 	To         time.Time `json:"to"`
-	ScoredFrom time.Time `json:"scored_from"`
+	ScoredFrom time.Time `json:"scored_from,omitzero"`
 	TwoDaysIn  time.Time `json:"two_days_in"`
-	AllRead    time.Time `json:"all_read"`
+	AllRead    time.Time `json:"all_read,omitzero"`
 	Unread     []string  `json:"unread,omitempty"`
 	Scored     bool      `json:"scored"`
 	Accounts   []string  `json:"accounts"`
@@ -127,10 +128,14 @@ func writeTable(w io.Writer, r report) error {
 		hourOf(r.From), hourOf(r.To), strings.Join(r.Accounts, ", "))
 	switch {
 	case r.Scored:
-		fmt.Fprintf(&b, "scored from %s, %s\n\n", hourOf(r.ScoredFrom), startsAt(r))
+		fmt.Fprintf(&b, "scored from %s, %s\n", hourOf(r.ScoredFrom), startsAt(r))
+		if len(r.Unread) > 0 {
+			fmt.Fprintf(&b, "scored without the week of %s, which the history never reads\n", strings.Join(r.Unread, ", "))
+		}
+		b.WriteString("\n")
 		writeSheets(&b, r)
-	case len(r.Unread) > 0:
-		fmt.Fprintf(&b, "nothing could be scored: the history never reads the week of %s\n", strings.Join(r.Unread, ", "))
+	case r.ScoredFrom.IsZero():
+		b.WriteString("nothing could be scored: the history reads no account's week\n")
 	default:
 		fmt.Fprintf(&b, "nothing could be scored: the history ends before %s, %s, where scoring starts\n", hourOf(r.ScoredFrom), startsAt(r))
 	}
@@ -141,10 +146,10 @@ func writeTable(w io.Writer, r report) error {
 }
 
 // startsAt says why r's scoring starts where it does: two days in, else once
-// every account's week had been read, where that's later.
+// every account's week the history reads had been read, where that's later.
 func startsAt(r report) string {
 	if r.AllRead.After(r.TwoDaysIn) {
-		return "once every account's week had been read"
+		return "once every account's week the history reads had been read"
 	}
 	return "two days in"
 }

@@ -55,11 +55,13 @@ const warmUp = 48 * time.Hour
 // a week goes at the pace its use since it started sets. It plays from the
 // first hour after the history's first reading to the hour of its last, and
 // scores from the later of twoDaysIn, the first hour warmUp after that
-// reading, and allRead, the first hour every account configured has had its
-// week read by, as an account idle since before the history began goes
-// unread in it till then, though the router knew it. That can be after the
-// last hour, and never where the history never reads an account, as unread
-// names them: then none is scored.
+// reading, and allRead, the first hour every account configured whose week
+// the history reads has had it read by, as an account idle since before the
+// history began goes unread in it till then, though the router knew it. An
+// account whose week the history never reads, as unread names them, the
+// router never read either, so the scores go without it. That first hour can
+// be after the last, and is none, zero, where the history reads no account's
+// week: then none is scored.
 type played struct {
 	forecasts, baseline []forecast
 	from, to            time.Time
@@ -103,9 +105,9 @@ func (pl *played) take(doc status.Document, policy score.Policy, hour time.Time)
 }
 
 // scoredFrom is the first hour pl scores, as played says, reporting false
-// where it scores none, as the history never reads an account.
+// where it scores none, as the history reads no account's week.
 func (pl played) scoredFrom() (time.Time, bool) {
-	if len(pl.unread) > 0 {
+	if pl.allRead.IsZero() {
 		return time.Time{}, false
 	}
 	if pl.allRead.After(pl.twoDaysIn) {
@@ -114,10 +116,10 @@ func (pl played) scoredFrom() (time.Time, bool) {
 	return pl.twoDaysIn, true
 }
 
-// readFrom returns the first hour every account configured has had its
-// window named key read by, as read, in the order read, reads it, and the
-// accounts it never reads, in the order configured, where there's no such
-// hour.
+// readFrom returns the first hour every account configured that read, in
+// the order read, reads the window named key of has had it read by, none
+// where read reads no account's, and the accounts it never reads it of, in
+// the order configured.
 func readFrom(configured config.Accounts, key string, read []readings.Reading) (time.Time, []string) {
 	first := make(map[string]time.Time, len(configured))
 	for _, r := range read {
@@ -136,10 +138,7 @@ func readFrom(configured config.Accounts, key string, read []readings.Reading) (
 			last = at
 		}
 	}
-	if len(unread) > 0 {
-		return time.Time{}, unread
-	}
-	return hourFrom(last), nil
+	return hourFrom(last), unread
 }
 
 // hourFrom is the first hour at t or after it.

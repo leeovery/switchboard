@@ -254,10 +254,13 @@ func TestAPlaybackRemembersASessionOnEachAccountItsRequestWentOutOnAndForgetsItA
 }
 
 func TestAPlaybackWeighsAnAnswerBeforeItForgetsItsSession(t *testing.T) {
-	// A new session's request arrives at the start on work, and is cut off
-	// two hours on, its answer under way.
+	// A new session's request arrives at the start on work, and is answered
+	// with a 500 that ends two hours on and gives usage: the proxy counts the
+	// usage any answer gives, whatever its status, and weighs it before it
+	// forgets the new session, its request failed. An upstream's error seldom
+	// gives usage, but the order is the proxy's all the same.
 	p := NewPlayback(testConfigured, testPolicy)
-	p.Line(edited(answerLine(start, "one", "work", thousandIn, int64(2*time.Hour/time.Millisecond)), func(l *ledger.Line) { l.Status, l.CutOff = 0, true }))
+	p.Line(edited(answerLine(start, "one", "work", thousandIn, int64(2*time.Hour/time.Millisecond)), func(l *ledger.Line) { l.Status = http.StatusInternalServerError }))
 	p.Document(start.Add(3 * time.Hour))
 
 	if got, want := p.state.hold, (forecast.Hold{}).Answered(1000, 2*time.Hour, start.Add(2*time.Hour)); got != want {
