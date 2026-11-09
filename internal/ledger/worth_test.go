@@ -324,6 +324,98 @@ func TestAnAmountToTheCentIsWhatCentsShows(t *testing.T) {
 	}
 }
 
+func TestASumOrAProductPastWhatPicodollarsHoldIsReportedNeverWrapped(t *testing.T) {
+	const most, least = ledger.Picodollars(math.MaxInt64), ledger.Picodollars(math.MinInt64)
+	sums := []struct {
+		a, b ledger.Picodollars
+		fits bool
+	}{
+		{a: dollars(2), b: dollars(3), fits: true},
+		{a: most - 1, b: 1, fits: true},
+		{a: most, b: 1},
+		{a: most / 2, b: most/2 + 2},
+		{a: least + 1, b: -1, fits: true},
+		{a: least, b: -1},
+		{a: most, b: least, fits: true},
+	}
+	for _, tt := range sums {
+		if got, fits := tt.a.Plus(tt.b); fits != tt.fits || fits && got != tt.a+tt.b {
+			t.Errorf("%d.Plus(%d) = %d, %t; want fits %t", tt.a, tt.b, got, fits, tt.fits)
+		}
+	}
+	products := []struct {
+		p    ledger.Picodollars
+		n    int64
+		fits bool
+	}{
+		{p: dollars(4e-6), n: 1_000_000, fits: true},
+		{p: most, n: 0, fits: true},
+		{p: 0, n: math.MaxInt64, fits: true},
+		{p: most, n: 1, fits: true},
+		{p: most/2 + 1, n: 2},
+		{p: dollars(4e-6), n: math.MaxInt64},
+		{p: least, n: -1},
+		{p: -1, n: math.MinInt64},
+		{p: least, n: 1, fits: true},
+	}
+	for _, tt := range products {
+		if got, fits := tt.p.Times(tt.n); fits != tt.fits || fits && got != tt.p*ledger.Picodollars(tt.n) {
+			t.Errorf("%d.Times(%d) = %d, %t; want fits %t", tt.p, tt.n, got, fits, tt.fits)
+		}
+	}
+}
+
+func TestTheMostPicodollarsHoldIsShownToTheCentWithoutWrappingRound(t *testing.T) {
+	const most = ledger.Picodollars(math.MaxInt64)
+	if got, want := most.ToTheCent(), most/dollars(0.01)*dollars(0.01); got != want || got.Cents() != "$9223372.03" {
+		t.Errorf("the most Picodollars hold, to the cent, is %d, shown as %s; want %d, the cent below, as $9223372.03", got, got.Cents(), want)
+	}
+	if got := most.GroupedDollars(); got != "$9,223,372" {
+		t.Errorf("the most Picodollars hold, to the dollar, is %s; want $9,223,372", got)
+	}
+}
+
+func TestAWorthPastWhatPicodollarsHoldIsUnpricedNeverWrapped(t *testing.T) {
+	// Opus 5.5's output, $20 a million tokens: 500 billion tokens of it are
+	// worth $10 million, past the some $9.2 million Picodollars hold.
+	const past = `{"input_tokens":10,"output_tokens":500000000000}`
+	line := asked("1", on(0, 9, 0))
+	line.Usage = usage(past)
+	if got, ok := ledger.Pricing.Request(&line, today); ok {
+		t.Errorf("Request() = %+v, priced; want it unpriced", got)
+	}
+	if got, ok := ledger.Pricing.Summed(&line, today); ok || got.Cost != 0 || !slices.Equal(got.Unpriced, []string{ledger.TooLarge}) {
+		t.Errorf("Summed() = %+v, %t; want no cost, unpriced as %s", got, ok, ledger.TooLarge)
+	}
+	tests := []struct {
+		name  string
+		model ledger.ModelDay
+		want  []string
+	}{
+		{name: "a model's day", model: ledger.ModelDay{Model: "claude-opus-5-5", Upstream: 1, Usage: usage(past)}, want: []string{ledger.TooLarge}},
+		{name: "and what else it leaves unpriced", model: ledger.ModelDay{Model: "claude-opus-5-5", Upstream: 2, NoUsage: 1,
+			Usage: usage(`{"output_tokens":500000000000,"server_tool_use":{"code_execution_requests":1}}`)},
+			want: []string{"no_usage", "server_tool_use.code_execution_requests", ledger.TooLarge}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			summary := ledger.Summary{Version: 2, Day: date, Accounts: []ledger.AccountDay{{Account: "work", Models: []ledger.ModelDay{tt.model}}}}
+			got := ledger.Pricing.Priced(summary, today).Accounts[0].Models[0]
+			if got.Worth != nil || !slices.Equal(got.Unpriced, tt.want) {
+				t.Errorf("the model's day is worth %v, unpriced %q; want no worth, unpriced %q", got.Worth, got.Unpriced, tt.want)
+			}
+		})
+	}
+}
+
+func TestAMoveWhoseRewritePassesWhatPicodollarsHoldIsntPriced(t *testing.T) {
+	line := asked("1", on(0, 9, 0))
+	line.Usage = usage(`{"input_tokens":2000000000000,"output_tokens":1}`)
+	if got, ok := ledger.Pricing.Rewrite(&line, ledger.LongCache, today); ok {
+		t.Errorf("Rewrite() = %v, priced; want it unpriced: 2 trillion tokens at $8 a million are worth $16 million", got)
+	}
+}
+
 func TestASummaryIsPricedModelByModel(t *testing.T) {
 	summary := ledger.Summary{Version: 1, Day: date, Lines: 9, Accounts: []ledger.AccountDay{
 		{Account: "work", Sessions: 2, Models: []ledger.ModelDay{

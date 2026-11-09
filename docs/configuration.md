@@ -228,7 +228,7 @@ Switchboard carries its own prices, read from Anthropic's pricing page. These ke
 their place, for [`history`](commands.md#history), [`sessions`](commands.md#sessions) and the
 [dashboard](dashboard.md) to price with.
 
-- Each price is a number, `0` or more.
+- Each price is a number from `0` to `1000000`.
 - Each price holds for every day alike.
 - A price you leave out keeps switchboard's.
 

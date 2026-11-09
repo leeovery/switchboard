@@ -190,12 +190,13 @@ func TestASpentReadBackFromItsStoredFormIsTheOneWritten(t *testing.T) {
 
 // storedSpentForms are a Spent's stored forms: none; a model and geo
 // holding nothing but a request; each of its keys alone, every key among
-// them; and models and geos side by side, in order.
+// them; counts carried past what an int64 holds; and models and geos side
+// by side, in order.
 var storedSpentForms = []string{
 	`[]`, `[{}]`,
 	`[{"m":"a"}]`, `[{"g":"us"}]`,
 	`[{"i":1}]`, `[{"5m":1}]`, `[{"1h":1}]`, `[{"r":1}]`, `[{"o":1}]`, `[{"s":1}]`, `[{"u":["a"]}]`,
-	`[{"c":true}]`, `[{"n":true}]`,
+	`[{"k":{"i":1}}]`, `[{"c":true}]`, `[{"n":true}]`, `[{"i":-2,"k":{"i":1,"o":-1}}]`,
 	`[{"u":["a","b"]}]`, `[{},{"g":"us"}]`, `[{"m":"a"},{"m":"b"}]`, `[{"m":"a","g":"us"},{"m":"b"}]`,
 }
 

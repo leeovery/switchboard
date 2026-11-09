@@ -31,10 +31,28 @@ func days(n int) monthPart {
 }
 
 // prorate returns the part s of monthly, a plan's monthly price, to the
-// nearest picodollar.
-func prorate(monthly ledger.Picodollars, s monthPart) ledger.Picodollars {
-	whole, part := int64(monthly)/s.den, int64(monthly)%s.den
-	return ledger.Picodollars(whole*s.num + (part*s.num+s.den/2)/s.den)
+// nearest picodollar: nil where it passes what ledger.Picodollars hold.
+func prorate(monthly ledger.Picodollars, s monthPart) *ledger.Picodollars {
+	whole, part := monthly/ledger.Picodollars(s.den), int64(monthly)%s.den
+	wholes, fits := whole.Times(s.num)
+	if !fits {
+		return nil
+	}
+	return summedPrice(&wholes, new(ledger.Picodollars((part*s.num+s.den/2)/s.den)))
+}
+
+// summedPrice is what a and b, prices, come to together: nil where either
+// isn't known, or their sum passes what ledger.Picodollars hold, as Plus
+// sums them.
+func summedPrice(a, b *ledger.Picodollars) *ledger.Picodollars {
+	if a == nil || b == nil {
+		return nil
+	}
+	sum, fits := a.Plus(*b)
+	if !fits {
+		return nil
+	}
+	return &sum
 }
 
 // askedPeriod is the period the days asked for from the day asked make,
@@ -91,7 +109,8 @@ func weekOf(day time.Time, starts time.Weekday) time.Time {
 
 // Against is what plans cost over a period, Cost, and the worth of their
 // accounts' requests against it, Ratio: each left out where no plan is
-// known, and Ratio where they cost nothing. Of several accounts' plans,
+// known, or the cost passes what ledger.Picodollars hold, and Ratio where
+// they cost nothing, or the worth passes it. Of several accounts' plans,
 // Plans counts those known, the cost and the worth being of their accounts
 // alone; of one account's own, it's none.
 type Against struct {
@@ -149,11 +168,16 @@ func (k PlansKnown) Words() status.Words {
 	return CountedWords(k.Known, "plan")
 }
 
-// against is worth against cost.
-func against(cost, worth ledger.Picodollars) Against {
-	a := Against{Cost: &cost}
-	if cost > 0 {
-		ratio := float64(worth) / float64(cost)
+// against is worth's amount against cost: nothing where cost isn't known,
+// as where it passed what ledger.Picodollars hold, and no ratio where worth
+// did.
+func against(cost *ledger.Picodollars, worth Worth) Against {
+	if cost == nil {
+		return Against{}
+	}
+	a := Against{Cost: cost}
+	if *cost > 0 && !worth.tooLarge() {
+		ratio := float64(worth.amount()) / float64(*cost)
 		a.Ratio = &ratio
 	}
 	return a
@@ -182,12 +206,13 @@ func (p plans) of(account string) (ledger.Plan, bool) {
 // alone, as worths, by account, hold it, counting those known: the count
 // alone where pr prices none of the period.
 func (p plans) against(worths map[string]Worth, pr priced) Against {
-	var cost, worth ledger.Picodollars
+	cost := new(ledger.Picodollars)
+	var worth Worth
 	prices, counted := p.monthly(pr.price)
 	for i, a := range p.accounts {
 		if monthly := prices[i]; monthly != nil {
-			cost += prorate(*monthly, pr.share)
-			worth += worths[a.ID].amount()
+			cost = summedPrice(cost, prorate(*monthly, pr.share))
+			worth.add(worths[a.ID])
 		}
 	}
 	if counted.Known == 0 || pr.none {
@@ -213,19 +238,18 @@ func (p plans) monthly(price func(ledger.Plan) ledger.Picodollars) ([]*ledger.Pi
 	return prices, known
 }
 
-// pricesSummed are the prices known of those given summed: nil where none is.
+// pricesSummed are the prices known of those given summed, as summedPrice
+// sums them: nil where none is.
 func pricesSummed(prices []*ledger.Picodollars) *ledger.Picodollars {
-	var sum ledger.Picodollars
-	known := false
-	for _, price := range prices {
-		if price != nil {
-			sum, known = sum+*price, true
-		}
-	}
-	if !known {
+	known := slices.DeleteFunc(slices.Clone(prices), func(price *ledger.Picodollars) bool { return price == nil })
+	if len(known) == 0 {
 		return nil
 	}
-	return &sum
+	sum := new(ledger.Picodollars)
+	for _, price := range known {
+		sum = summedPrice(sum, price)
+	}
+	return sum
 }
 
 // price is what the plan costs a month on the day pr prices its period at.
@@ -293,7 +317,7 @@ func plansOf(days []Day, p plans, pr priced) []PlanCost {
 		if monthly := prices[i]; monthly != nil {
 			cost.Plan, cost.Price = a.Plan, monthly
 			if !pr.none {
-				cost.Against = against(prorate(*monthly, pr.share), cost.amount())
+				cost.Against = against(prorate(*monthly, pr.share), cost.Worth)
 			}
 			all.add(cost.Worth)
 		}

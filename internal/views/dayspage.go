@@ -102,9 +102,18 @@ func daysPageOf(in HistoryInput, days []Day) DaysPage {
 // familyDays are a family's eight weeks: what its requests were worth each
 // day, and in all; and whether any went out.
 type familyDays struct {
-	worth []ledger.Picodollars
+	worth []Worth
 	sum   Worth
 	used  bool
+}
+
+// amounts are what its requests were worth each day, as amount has it.
+func (f *familyDays) amounts() []ledger.Picodollars {
+	amounts := make([]ledger.Picodollars, len(f.worth))
+	for i, w := range f.worth {
+		amounts[i] = w.amount()
+	}
+	return amounts
 }
 
 // byFamily are BY MODEL's strips: a family each that had requests in the
@@ -127,17 +136,17 @@ func (w weekDays) byFamily(v versions) []DaysStrip {
 		return cmp.Or(cmp.Compare(v.familyRank(a), v.familyRank(b)), cmp.Compare(a, b))
 	})
 	names = slices.DeleteFunc(names, func(name string) bool { return !families[name].used })
-	var total ledger.Picodollars
+	var total Worth
 	var active []ledger.Picodollars
 	for _, name := range names {
-		total += families[name].sum.amount()
-		active = appendActive(active, families[name].worth)
+		total.add(families[name].sum)
+		active = appendActive(active, families[name].amounts())
 	}
 	cuts := quarterCuts(active)
 	strips := make([]DaysStrip, len(names))
 	for i, name := range names {
 		f := families[name]
-		strips[i] = DaysStrip{Of: name, Days: levelled(f.worth, cuts), Share: shareOf(f.sum, total)}
+		strips[i] = DaysStrip{Of: name, Days: levelled(f.amounts(), cuts), Share: shareOf(f.sum, total.amount())}
 	}
 	return strips
 }
@@ -152,12 +161,10 @@ func (w weekDays) addModel(families map[string]*familyDays, v versions, i int, m
 	name := v.familyOf(m.Model)
 	f := families[name]
 	if f == nil {
-		f = &familyDays{worth: make([]ledger.Picodollars, len(w.days))}
+		f = &familyDays{worth: make([]Worth, len(w.days))}
 		families[name] = f
 	}
-	if m.Worth != nil {
-		f.worth[i] += *m.Worth
-	}
+	f.worth[i].addModel(m)
 	f.sum.addModel(m)
 	f.used = f.used || used(m.ModelDay)
 }
