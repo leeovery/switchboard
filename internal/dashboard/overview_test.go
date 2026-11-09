@@ -549,8 +549,8 @@ func TestCOMINGUPAndLATELYSitSideBySideAsTheyDidFrom100AndWhereTheirLeastsDontFi
 		shown          []Section
 		coming, lately bounds
 	}{
-		{name: "at 92 columns", width: 92, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 92}, lately: bounds{y: 6, width: 92}},
-		{name: "at 93 columns", width: 93, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 42}, lately: bounds{x: 48, width: 45}},
+		{name: "at 94 columns", width: 94, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 94}, lately: bounds{y: 6, width: 94}},
+		{name: "at 95 columns", width: 95, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 43}, lately: bounds{x: 49, width: 46}},
 		{name: "at 100 columns", width: 100, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 45}, lately: bounds{x: 52, width: 48}},
 		{name: "at 160 columns", width: 160, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 72}, lately: bounds{x: 82, width: 78}},
 		{name: "at 216 columns", width: 216, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 97}, lately: bounds{x: 110, width: 106}},

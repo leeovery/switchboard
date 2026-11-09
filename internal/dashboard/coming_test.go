@@ -381,18 +381,20 @@ func TestCOMINGUPNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 }
 
 // COMING UP's time carries its weekday on another day, even within a day;
-// a run-out's, more than a day ahead, is its weekday alone.
+// a run-out's, more than a day ahead, is its weekday alone, but on now's
+// weekday, dated.
 func TestCOMINGUPsTimeCarriesItsWeekdayOnAnotherDayEvenWithinADay(t *testing.T) {
 	tests := map[string]struct {
 		h    happening
 		want string
 	}{
-		"later today":                 {happening{at: now.Add(2 * time.Hour)}, "15:12"},
-		"tomorrow, within a day":      {happening{at: now.Add(22 * time.Hour)}, "Tue 11:12"},
-		"in a few days":               {happening{at: now.Add(5 * quota.Day)}, "Sat 13:12"},
-		"running out tomorrow":        {happening{at: now.Add(22 * time.Hour), runsOut: true}, "~Tue 11:12"},
-		"running out in a day and 2h": {happening{at: now.Add(26 * time.Hour), runsOut: true}, "~Tue"},
-		"running out in a few days":   {happening{at: now.Add(5 * quota.Day), runsOut: true}, "~Sat"},
+		"later today":                  {happening{at: now.Add(2 * time.Hour)}, "15:12"},
+		"tomorrow, within a day":       {happening{at: now.Add(22 * time.Hour)}, "Tue 11:12"},
+		"in a few days":                {happening{at: now.Add(5 * quota.Day)}, "Sat 13:12"},
+		"running out tomorrow":         {happening{at: now.Add(22 * time.Hour), runsOut: true}, "~Tue 11:12"},
+		"running out in a day and 2h":  {happening{at: now.Add(26 * time.Hour), runsOut: true}, "~Tue"},
+		"running out in a few days":    {happening{at: now.Add(5 * quota.Day), runsOut: true}, "~Sat"},
+		"running out on now's weekday": {happening{at: now.Add(6*quota.Day + 12*time.Hour), runsOut: true}, "~Mon 5 Oct"},
 	}
 	for name, tt := range tests {
 		if got := tt.h.when(now); got != tt.want {

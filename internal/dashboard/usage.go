@@ -565,6 +565,16 @@ func (b usageBlock) lay(c *canvas, y int) laid {
 	return l
 }
 
+// nameAt is the column the block's rows' names start at, as lay lays them
+// out: a cell in where its windows are stacked, under their headings; else
+// column 0.
+func (b usageBlock) nameAt() int {
+	if b.by == ByWindow && !b.matrixed() {
+		return 1
+	}
+	return 0
+}
+
 // matrixed reports whether the block draws as a matrix, its windows side by
 // side, as sideBySide has them, but for the Overview's big bars.
 func (b usageBlock) matrixed() bool {
@@ -637,7 +647,7 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
 		first := y + b.underHeading()
 		section := b.having(i).each(c, first, 2, func(r usageRow, y int) int {
-			c.line(1, y, r.name)
+			c.line(b.nameAt(), y, r.name)
 			b.gauge(c, r.gauges[i], b.names, y, bar, b.width-afterWords)
 			return y
 		})

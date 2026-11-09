@@ -521,6 +521,15 @@ func (a accountWorlds) tokensEnding() accountWorld {
 	return w
 }
 
+// tokensUp is the auto world with work's token's year up in 21 days,
+// personal's on its last day, three hours on, and side's up an hour since,
+// as usage tells of them.
+func (a accountWorlds) tokensUp() accountWorld {
+	w := a.auto()
+	w.tokenLeft = map[string]time.Duration{"work": 21 * 24 * time.Hour, "personal": 3 * time.Hour, "side": -time.Hour}
+	return w
+}
+
 // pinned is the auto world's accounts, read as it reads them, with new
 // sessions pinned to personal since 14:02, three of the sessions on it, the
 // router telling of it as happenings' pinnedToPersonal has it.

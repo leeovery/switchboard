@@ -98,7 +98,7 @@ row shows these parts:
 |---|---|
 | `limit · back 15:54` | Claude's limit holds the window. |
 | `at cap · back 17:10` | The window's use has reached the cap, and the cap holds the account back. |
-| `out ~16:05`, `out ~Sat` | The window runs out before its reset. Within a day the time shows, as `out ~16:05` or `out ~Sat 06:00`; further ahead, the day alone, as a forecast days out can miss by a day. A week goes by its forecast, the 5-hour window by its recent rate: see [Where a week runs out](how-it-works.md#where-a-week-runs-out). |
+| `out ~16:05`, `out ~Sat` | The window runs out before its reset. Within a day the time shows, as `out ~16:05` or `out ~Sat 06:00`; further ahead, the day alone, as a forecast days out can miss by a day, with its date where the day is today's weekday, as `out ~Thu 12 Nov`. A week goes by its forecast, the 5-hour window by its recent rate: see [Where a week runs out](how-it-works.md#where-a-week-runs-out). |
 | `no 5-hour limit` | The account has no 5-hour window, as a verified Ultra account hasn't. It shows in place of the bar: `no limit` where the room is short, and by account, where the window's label beside it names the window. |
 | `not started` | A 5-hour window hasn't started yet. |
 | `19%/day till Sun 21:00` | Otherwise, the window's allowance: what can be spent of it an hour or a day and still last to its reset. |
@@ -132,6 +132,12 @@ Ultra account's carry no 5-hour window. Stacked, the window's section leaves the
 window no account has isn't shown at all. An account not read yet may have any window, so it keeps
 its rows.
 
+**A token's year nearly up:** under the key line, after a blank line, each account whose token's
+year is up within 30 days, or is up, has a line, as the Accounts tab's Detail tells it:
+`1 work  token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`,
+`· last day` on its last day, and `token expired 17 Nov 2026` once it's up. Other accounts add
+nothing.
+
 **The width** shapes the layout:
 
 - **By window:** the windows sit side by side, a column each, wherever every bar has 12 cells and
@@ -148,7 +154,9 @@ its rows.
   the cap, where a bar draws one.
 - **The words** are in full where they fit, else short, as `back 15:54`, `out ~Sat` and
   `19%/day · Sun`: short, a time on another day than today gives its day alone, a run-out's within
-  a day too. As the terminal narrows, the bars shorten to 12 cells first, then the words.
+  a day too, but a run-out or `back` further ahead on today's weekday gives its date,
+  `out ~12 Nov`, `back 12 Nov`. An allowance keeps its day, `19%/day · Thu`, as a date doesn't fit
+  beside the rate. As the terminal narrows, the bars shorten to 12 cells first, then the words.
 - **The name column** is as wide as the longest name, up to 24 cells of label. A label too long for
   it is cut with `…`. It never moves as `▲` moves between accounts.
 
@@ -958,7 +966,7 @@ The text shows, in order:
   [forecast](how-it-works.md#where-a-week-runs-out) from the router, as `on pace for 92%` or
   `runs out ~Tue`; probed, or a model's own week, at its pace since it started; the 5-hour window
   by its recent rate, as `runs out ~17:25 at its rate over the last 30 min`. A run-out shows its
-  time within a day, and its day alone further ahead;
+  time within a day, and its day alone further ahead, with its date on today's weekday;
 - what holds an account back, such as a limit it reached or its reserve;
 - whether an account is under pressure, with the rate it goes by, such as
   `under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at 20:10`;

@@ -23,19 +23,19 @@ const (
 const afterTime = "  "
 
 // projected marks the time of a window running out in COMING UP, as in
-// "~Sat 06:00" or "~Sat"; and primed is what it says befalls an account
-// primed, the shortest of what it says befalls one.
+// "~Sat 06:00", "~Sat" or "~Thu 12 Nov"; and primed is what it says befalls
+// an account primed, the shortest of what it says befalls one.
 const (
 	projected = "~"
 	primed    = " is primed"
 )
 
 // comingLeast is the fewest cells COMING UP is read in, beside LATELY: a
-// line's time at its widest, projected; the blanks after it; an account's
-// name at the cells given, its least; what befalls it at its shortest,
-// primed; and its countdown, comingTail.
+// line's time at its widest, a run-out's as prose.RunOut dates it; the
+// blanks after it; an account's name at the cells given, its least; what
+// befalls it at its shortest, primed; and its countdown, comingTail.
 func comingLeast(name int) int {
-	return len(projected) + prose.DatedWidth() + len(afterTime) + name + len(primed) + comingTail
+	return len(projected) + prose.RunOutWidth() + len(afterTime) + name + len(primed) + comingTail
 }
 
 // linesRows is how many rows COMING UP or LATELY takes with lines to show:
@@ -205,7 +205,7 @@ func (h happening) said(now time.Time, column int) line {
 // when is when it comes, as its line says it, in now's time zone: as in
 // "16:30" today, or "Sun 02:00" on another day; a window running out,
 // projected, after a ~, as prose.RunOut tells it, as in "~Sat 06:00" within
-// a day, or "~Sat" further ahead.
+// a day, or "~Sat" further ahead, "~Thu 12 Nov" on now's weekday.
 func (h happening) when(now time.Time) string {
 	if h.runsOut {
 		return projected + prose.RunOut(now, h.at)

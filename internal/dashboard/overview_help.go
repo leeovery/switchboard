@@ -22,7 +22,8 @@ func overviewHelp() []helpPart {
 					"A bar fills along the theme's ramp as its window is used, and its percentage takes the ramp's second colour from 70% " +
 					"and its last from 90%."),
 				said("The words say what can be spent an hour, or a day of a week, and still last to the reset; out ~16:05 where the window " +
-					"runs out before it resets, or its day alone, out ~Tue, more than a day ahead: a week as forecast, the 5-hour at its " +
+					"runs out before it resets, or its day alone, out ~Tue, more than a day ahead, dated where that day is today's weekday, " +
+					"out ~Thu 12 Nov, short out ~12 Nov: a week as forecast, the 5-hour at its " +
 					"recent rate; at cap where its use has reached the cap; and limit while Claude's own " +
 					"limit holds it."),
 				said("Σ pool is the room new sessions can go to now, in accounts' worth: every account's on auto, the pinned accounts' alone " +
