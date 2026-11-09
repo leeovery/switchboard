@@ -14,7 +14,8 @@ import (
 // requests went upstream without usage, and of requests it prices none of
 // that spent anything, the id of a model it doesn't know, inference_geo and
 // the geo where it doesn't price a model in the geo they asked for, and
-// no_model where they named none.
+// no_model where they named none; and ledger.TooLarge, too_large, where the
+// worth passes what ledger.Picodollars hold, when Amount is left out.
 type Worth struct {
 	Amount   *ledger.Picodollars `json:"worth,omitempty"`
 	Unpriced []string            `json:"unpriced,omitempty"`

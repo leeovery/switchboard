@@ -138,15 +138,16 @@ func (w weekDays) byFamily(v versions) []DaysStrip {
 	names = slices.DeleteFunc(names, func(name string) bool { return !families[name].used })
 	var total Worth
 	var active []ledger.Picodollars
-	for _, name := range names {
+	amounts := make([][]ledger.Picodollars, len(names))
+	for i, name := range names {
 		total.add(families[name].sum)
-		active = appendActive(active, families[name].amounts())
+		amounts[i] = families[name].amounts()
+		active = appendActive(active, amounts[i])
 	}
 	cuts := quarterCuts(active)
 	strips := make([]DaysStrip, len(names))
 	for i, name := range names {
-		f := families[name]
-		strips[i] = DaysStrip{Of: name, Days: levelled(f.amounts(), cuts), Share: shareOf(f.sum, total.amount())}
+		strips[i] = DaysStrip{Of: name, Days: levelled(amounts[i], cuts), Share: shareOf(families[name].sum, total.amount())}
 	}
 	return strips
 }

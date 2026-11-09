@@ -96,8 +96,8 @@ func withPaths(paths, more []string) []string {
 // SummedSpent returns what the requests sp holds add to a sum of requests'
 // worth at the prices in effect on the local day with the given date,
 // reporting whether the table priced any of them: exactly what they add
-// each priced on its own, as SummedSpend gives it, summed as and sums
-// them. Summing a group's counts before pricing them gives the same cost as
+// each priced on its own, as SummedSpend gives it, summed as Worth's and
+// method sums two worths. Summing a group's counts before pricing them gives the same cost as
 // pricing each request's and summing those, and past what Picodollars hold,
 // the same sum too large, its counts summed as they are, as no count nears
 // what an int64 holds.
