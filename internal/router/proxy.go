@@ -526,13 +526,20 @@ func (p *proxy) done(r *http.Request, ex *exchange) {
 	p.weigh(ex)
 	f := finishing(r, took)
 	p.logRouted(ex, f)
-	if ex.newSession && !ex.succeeded() {
+	if forgottenOnceDone(ex.newSession, ex.status) {
 		p.forget(ex)
 	}
 	p.ledger.note(p.line(ex, r.Header, f))
 	if ex.status != 0 {
 		p.health.record(ex.arrived, ex.failed)
 	}
+}
+
+// forgottenOnceDone reports whether the session of a routed request, once
+// it's done, is forgotten: it was new to the request, as newSession says,
+// and the request wasn't answered with success, as status says.
+func forgottenOnceDone(newSession bool, status int) bool {
+	return newSession && !succeeded(status)
 }
 
 // weigh has the hold curve take in the answer the client of the routed

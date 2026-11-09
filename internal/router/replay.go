@@ -376,8 +376,7 @@ func (rp *replay) elsewhere(ctx context.Context, why string, answer refusedError
 // bar another request placed; and so do the session's moves, the request's
 // own among them, once another request of the session has been routed since.
 func (rp *replay) takeBack() {
-	judged := slices.DeleteFunc(slices.Clone(rp.ex.req.Tried), func(a Attempt) bool { return a.Why == whyNewToken })
-	if len(judged) == 0 || slices.ContainsFunc(judged, func(a Attempt) bool { return a.Why != whyRefused }) {
+	if !rp.ex.req.refusedEverywhere() {
 		return
 	}
 	if back := rp.p.forget(rp.ex); back != "" && back != rp.ex.account.ID {
@@ -390,6 +389,14 @@ func (rp *replay) takeBack() {
 	if len(lifted) > 0 {
 		logger.Info("refused on every account it went out on; its refusals of the request hold none back", "id", rp.ex.id, "attempts", rp.ex.attempts)
 	}
+}
+
+// refusedEverywhere reports whether every account the request went out on
+// that judged it refused it, as takeBack takes it: one did, at least, and
+// none did otherwise. An account it left for a new token judged nothing.
+func (r Request) refusedEverywhere() bool {
+	judged := slices.DeleteFunc(slices.Clone(r.Tried), func(a Attempt) bool { return a.Why == whyNewToken })
+	return len(judged) > 0 && !slices.ContainsFunc(judged, func(a Attempt) bool { return a.Why != whyRefused })
 }
 
 // logRefused logs the upstream's refusal of a request, which news tells of,
