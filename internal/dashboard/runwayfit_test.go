@@ -425,8 +425,8 @@ func learningLanes(n int, learning bool) *views.Lanes {
 // While the forecast is learning, Runway says so on the view's top row, a
 // blank row between it and the axis, where its rows fit at the roomiest with
 // it and its words across the frame: rows running short, it goes before any
-// part compacts, and a phone's narrow frame never shows it. Once the forecast
-// is measured, it's gone.
+// part compacts, and a frame narrower than its words, as 52 columns, drops
+// it, while a phone's 73 keeps it. Once the forecast is measured, it's gone.
 func TestRunwaySaysTheForecastIsLearningFirstToGoAsRowsRunShort(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -441,7 +441,8 @@ func TestRunwaySaysTheForecastIsLearningFirstToGoAsRowsRunShort(t *testing.T) {
 		{name: "learning, a row short of them", learning: true, width: 120, rows: 31, step: runwayRoomy},
 		{name: "learning, at the roomiest's least", learning: true, width: 120, rows: 30, step: runwayRoomy},
 		{name: "learning, at (a)", learning: true, width: 120, rows: 29, step: runwayTwoRows},
-		{name: "learning, on a phone's width", learning: true, width: 52, rows: 37, step: runwayRoomy},
+		{name: "learning, on a phone 73 wide", learning: true, width: 73, rows: 37, says: true, step: runwayRoomy, axisFromViewTop: 2},
+		{name: "learning, 52 wide, narrower than its words", learning: true, width: 52, rows: 37, step: runwayRoomy},
 		{name: "measured", width: 120, rows: 37, step: runwayRoomy},
 	}
 	for _, tt := range tests {

@@ -4484,10 +4484,11 @@ in `text.faint`, the rule starting a cell after it.
 **While the forecast is learning,** as the status document's `demand` says with `learning`, its
 hold curve still the default (see Forecasting run-outs), a view that draws what's ahead says so on
 the view's first row, from column 0, in `text.muted`: `run-outs firm up once switchboard has a day
-of your sessions`, a blank row between it and the axis, every row under it moved down two. It
-shows only where Runway's parts fit at the roomiest with it, and its words across the frame, so as
-rows run short it goes before any part compacts, and a phone never shows it (the owner's call, 9
-November 2026). Its reference is `runway-learning-160`.
+of your sessions` (the owner's call, 9 November 2026), a blank row between it and the axis, every
+row under it moved down two. It shows only where Runway's parts fit at the roomiest with it, and
+where its 60 cells fit across the frame, so as rows run short it goes before any part compacts,
+and a frame of 52 columns drops it while a phone's 73 keeps it. Its reference is
+`runway-learning-160`.
 
 **The views,** named by their windows, `<` and `>` stepping between them, each account's use of the
 view's window under its name:

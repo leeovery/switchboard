@@ -85,7 +85,8 @@ func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 }
 
 // The lanes are learning while the moment's forecast is, where they draw
-// what's ahead: not on a day gone, which has no now.
+// what's ahead, live or on today stepped back to: not on a day gone, which
+// has no now.
 func TestTheLanesAreLearningWhileTheForecastIsWhereTheyDrawWhatsAhead(t *testing.T) {
 	withDemand := func(rm viewstest.RunwayMoment, demand *status.Demand) viewstest.RunwayMoment {
 		rm.Doc.Demand = demand
@@ -94,6 +95,8 @@ func TestTheLanesAreLearningWhileTheForecastIsWhereTheyDrawWhatsAhead(t *testing
 	learning, measured := &status.Demand{Learning: true}, &status.Demand{}
 	live := runwayMoment(t, "the auto world's 5-hour view")
 	gone := runwayMoment(t, "stepped back to a day older than the readings history's keep")
+	today := live
+	today.Day = time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name string
 		rm   viewstest.RunwayMoment
@@ -101,6 +104,7 @@ func TestTheLanesAreLearningWhileTheForecastIsWhereTheyDrawWhatsAhead(t *testing
 	}{
 		{"live, learning", withDemand(live, learning), true},
 		{"live, the week view, learning", withDemand(inWeek(live), learning), true},
+		{"today stepped back to, its now column kept, learning", withDemand(today, learning), true},
 		{"live, measured", withDemand(live, measured), false},
 		{"live, no demand, as probed", withDemand(live, nil), false},
 		{"a day gone, learning", withDemand(gone, learning), false},

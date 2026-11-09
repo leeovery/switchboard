@@ -38,7 +38,8 @@ const (
 
 // learningGivesWay is the turn the line saying the forecast is learning gives
 // way in, with the blank row under it, the first of all: it shows at the
-// roomiest alone, before any other part compacts.
+// roomiest alone, before any other part compacts. It shares legendGivesWay's
+// turn, as no step holds both.
 const learningGivesWay = 1
 
 // The rows Runway's parts take: the axis's, now, its labels and its ticks;
