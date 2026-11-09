@@ -11,7 +11,7 @@ with nothing left for it to work out.
   start and stop; an agent following the stream can pace itself as its work changes.
 
 `usage --json`'s `pressure` and `rates` already hold most of this, but finding and reading them took
-interpretation. The watch is what `2026-09-30--mcp-server.md` names as what would earn a server its
+interpretation. The watch is what would earn an MCP server its
 place; a stream on the command line may do instead.
 
 Raised by the owner on 13 October 2026, beside `2026-10-14--advice-from-the-ledger.md`.

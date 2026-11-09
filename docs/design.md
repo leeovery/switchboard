@@ -29,9 +29,12 @@ It's built for its author's setup, and stays general only where that costs nothi
 macOS only.
 
 Scope: Claude Code, authenticated with long-lived setup tokens (`claude setup-token`). Browser
-logins aren't wanted (see Backlog: OAuth logins), and other agents are deferred. Claude-specific knowledge sits behind a provider interface,
-so another agent can be added later without reshaping the rest; the few pieces that don't are
-listed under Architecture.
+logins aren't wanted, the owner's call on 27 October 2026: a claude.ai login lapses about 30 days
+after it's signed in, however it's refreshed; each refresh refuses the refresh token before it, so
+two holders of one login lock each other out; and Claude Code's legal and compliance page bars a
+tool from storing one. Other agents are deferred. Claude-specific knowledge sits behind a provider
+interface, so another agent can be added later without reshaping the rest; the few pieces that
+don't are listed under Architecture.
 
 ## How it works
 
@@ -955,8 +958,7 @@ accounts:
 
 **The full screen: built.** `switchboard setup` walks through a first run, and is safe to run
 again: each step says what's already done, and does only what's missing. It's a full screen in the
-dashboard's chrome, a page a step, the flow its owner agreed on 27 October 2026 (see
-[auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md), "Setup's flow"). Its frames are
+dashboard's chrome, a page a step, the flow its owner agreed on 27 October 2026. Its frames are
 in the Paper file *Switchboard · Setup*, on its page **round 2 · setup in the dashboard's chrome**,
 signed off 27 Oct 2026: frames 1 to 12, the claude link's, frames 8, 11 and 12, drawn again and
 approved that evening. They're 160 columns by 37, in the `nord` theme at Tue 27 Oct 17:42, with the
@@ -4827,9 +4829,9 @@ for each row more its tabs take), in an order that never changes, a section hidd
 
 The sections are the owner's pick of round 1's charts, for now (25 October 2026); the rest, a
 burn-up, the burn rate, the week by day, sessions over the day, the model mix and worth against the
-plan, wait in the backlog (see Backlog, graphs-page). The keys were left to the design by the owner
-(25 October 2026): `w` week, `f` five, `o` pool, `g` glance, `h` hours. The windows drawn are the
-two every model shares, as on Runway: a model's own window has no card, and `w` is WEEK's here,
+plan, are drawn on round 1's page in Paper, not taken up. The keys were left to the design by the
+owner (25 October 2026): `w` week, `f` five, `o` pool, `g` glance, `h` hours. The windows drawn are
+the two every model shares, as on Runway: a model's own window has no card, and `w` is WEEK's here,
 where on the pages that list windows as they stand it shows the models' own (see Keys). A 5-hour
 window goes where no account has one, as Runway's goes (see Runway, and `usage`, the printout):
 where the held moment holds accounts and every one lacks it, as its `AnyHas` says, the rule the
@@ -8550,7 +8552,7 @@ first session after it says so.
 
 ## Uninstall
 
-**Chosen by the owner, 8 November 2026** (see [uninstall](../ideas/2026-10-27--uninstall.md)).
+**Chosen by the owner, 8 November 2026.**
 `switchboard uninstall` takes away what setup put on the Mac, so nothing switchboard leaves keeps
 working on the user's behalf. `brew uninstall` can't run it, as Homebrew has no uninstall hook, so
 the formula's caveats name it, to run first.
@@ -9755,8 +9757,7 @@ the stream's open asking for one. A whole read that can't read a file has that f
 the next read, so no line is lost; and the traces copy only the lines they keep.
 
 **The dashboard's snags — done.** The release after v0.2.3 fixes what its owner met using the
-dashboard on a phone, an iPad and the Mac, as sorted with the owner on 17 October 2026
-([dashboard-snags](../ideas/2026-10-15--dashboard-snags.md)):
+dashboard on a phone, an iPad and the Mac, as sorted with the owner on 17 October 2026:
 - **Order:** the week first wherever windows are listed (`status.CompareWindows`), with Runway
   opening on it.
 - **Model windows:** each model's own window behind `w`, hidden at first, and shown anyway near its
@@ -9900,18 +9901,18 @@ widening a filter while paused far back reads every day between again, 3.3 s and
 back, 8.4 s and 706 MB 22 days back, what the pick cost before. What phase 4 left is gathered in
 [day-digests-left](../ideas/2026-10-18--day-digests-left.md).
 
-**The Graphs tab — designed, signed off 25 October 2026.** After v0.2.7 the owner took up the graphs
-([graphs-page](../ideas/2026-10-20--graphs-page.md)): every account's burn-down at once, as v0.1's
-cards drew them, on a page of graphs whose sections its user turns on and off. Round 1, drawn in
-Paper on 24 October 2026, put the burn-downs on Runway as a second view, beside nine other charts;
-the owner turned that down, its grey blocks outside each window and its faint heading reading as
-noise, and asked for v0.1's: the room solid to now, a dotted line at the rate, the red `✕`. Round 2,
-drawn the same day and approved on 25 October 2026, made them a tab of their own, Graphs, between
-Runway and the Log, its sections WEEK and 5-HOUR shown at first, and POOL, GLANCE and WHEN YOU WORK
-of round 1's charts, for now (see Graphs). Beside the tab, it changes the title row, a seventh tab,
-taking two rows under 60 columns and three under 31, so every reference drawn narrower, a phone's at 52, moves a row
-down; adds `viz.account.1` to `viz.account.4` to the themes; and needs a day's requests by the hour,
-for WHEN YOU WORK. The owner signed it off on 25 October 2026, and the plan cut it into ten stages.
+**The Graphs tab — designed, signed off 25 October 2026.** After v0.2.7 the owner took up the
+graphs: every account's burn-down at once, as v0.1's cards drew them, on a page of graphs whose
+sections its user turns on and off. Round 1, drawn in Paper on 24 October 2026, put the burn-downs
+on Runway as a second view, beside nine other charts; the owner turned that down, its grey blocks
+outside each window and its faint heading reading as noise, and asked for v0.1's: the room solid to
+now, a dotted line at the rate, the red `✕`. Round 2, drawn the same day and approved on 25 October
+2026, made them a tab of their own, Graphs, between Runway and the Log, its sections WEEK and 5-HOUR
+shown at first, and POOL, GLANCE and WHEN YOU WORK of round 1's charts, for now (see Graphs). Beside
+the tab, it changes the title row, a seventh tab, taking two rows under 60 columns and three under
+31, so every reference drawn narrower, a phone's at 52, moves a row down; adds `viz.account.1` to
+`viz.account.4` to the themes; and needs a day's requests by the hour, for WHEN YOU WORK. The owner
+signed it off on 25 October 2026, and the plan cut it into ten stages.
 
 **The Graphs tab — built.** In ten stages, from 25 to 26 October 2026, every part laid by
 flex, with a least, a natural and a most, as the fluid pass laid the other views, and no width
@@ -10175,61 +10176,35 @@ What's built but hasn't been seen against the real thing:
 ## Backlog
 
 Ideas live one to a file in `ideas/`, named for the day each was captured
-(`2026-09-30--request-ledger.md`); this table is their index. An idea taken up leaves the table
-for its pull request and the design proper; one dropped leaves it with a line in its file saying
-why.
+(`2026-10-14--doctor.md`); this table is their index. An idea built or dropped leaves the table,
+and its file goes: what was built is in its pull request and the design proper, and where why one
+was dropped binds a later choice, the design proper says so.
 
 | Idea | Status | File |
 |---|---|---|
-| The graphs reimagined: a burn-down for every account, on a page of graphs or in GRAPHS reworked, at a scale read at a glance | built as the Graphs tab (see Graphs), signed off by its owner on 25 October 2026, merged by 26 October (#150–#168); the Overview's GRAPHS removed by its owner on 26 October 2026, for the Graphs page: "I don't like them. I don't think they're effective."; round 1's other charts still to settle | [graphs-page](../ideas/2026-10-20--graphs-page.md) |
 | The Graphs build's loose ends: one owner of an account's number, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the number's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
-| A reserve spent as a last resort, when no account has room outside one | not wanted: the owner, 24 October 2026, as a reserve is kept for the Claude apps and is honoured | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
-| Releases signed with a Developer ID, so macOS stops noticing each upgrade | built (see Signing), the owner's call on 4 November 2026, moved onto the owner's Mac, before the tag, on 5 November; the upgrades from 0.5.0 to 0.5.2 asked nothing again (see Observed) | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after OAuth and setup: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
-| Three things the router keeps that grow without bound, each only when something rare happens | in the cleanliness release, the owner's choice on 26 October 2026: launchd's log, the files set aside, the waiting moves, the compress and the control socket's gap built; the rest open | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
-| How an account's probes went, forgotten across a restart: a failed probe sent again by the startup probe, and the rounds' backoff started again | built in the cleanliness release, 26 October 2026: `state.json` keeps each account's `probed`, `probe_error` and `misses`, and a restart restores them, a stopped router's probes still counting (see The router's rounds) | [probes-across-a-restart](../ideas/2026-10-23--probes-across-a-restart.md) |
 | Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
-| Stage 3's loose ends: Weeks' headline for a set short every week, and the cleanups its reviews left | open: the cleanups any time; the headline settled by its owner on 12 October 2026; the two router tests a loaded machine failed steadied on 11 October 2026, one by a fix to the request stream's end | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
-| Milestone 7's loose ends: the edge cases and costs its reviews left | open: any time | [milestone-7-loose-ends](../ideas/2026-10-14--milestone-7-loose-ends.md) |
-| testguard failing a run when Claude Code's updater re-creates the `claude` link to the same target | built on 8 November 2026, the owner's go: a link is noted by where it leads and what's there, followed, never its own times, so one made again to the same target is no change, and one re-pointed or whose file changed still fails the run | [testguard-relinked-claude](../ideas/2026-10-14--testguard-relinked-claude.md) |
 | A pin that ends on its own, at a time or at its account's reset | open: to settle with its owner | [pin-until](../ideas/2026-10-14--pin-until.md) |
-| A scheduled review of switchboard's records, raising what it finds as an issue or a pull request | open: to discuss with its owner | [scheduled-review](../ideas/2026-10-14--scheduled-review.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
-| Signing in, one account, and a first setup: setup tokens or logins, switchboard's worth with one account, onboarding, each account's plan, and managing accounts | chosen by the owner on 27 October 2026, with setup's flow step by step: setup tokens alone, which setup makes itself by running `claude setup-token`; each account's plan, the primary's reserve, a review of each account on a run again, `accounts edit`, and a warning before a token's year is up; designed as setup's full screen, its calls approved on 28 October 2026, and built in #190–#218 (see Setup), all but `usage` showing a token's year | [auth-and-onboarding](../ideas/2026-10-14--auth-and-onboarding.md) |
 | One history across several Macs at once, each Mac's History counting the others' requests from their exported folders | later: only where two Macs run switchboard on the same accounts at once (the owner, 3 November 2026); export and import, and the export on a schedule, taken up (see Export and import) | [history-beyond-one-mac](../ideas/2026-10-27--history-beyond-one-mac.md) |
-| An uninstall: everything switchboard put on the Mac taken away, the service, the shell's startup line, the session hook, the skill and the `claude` link | asked for by the owner on 27 October 2026, as setup took on the startup line and the hook; settled by the owner on 8 November 2026: the config, tokens and history stay unless `--all`, the export's folder never touched (see Uninstall) | [uninstall](../ideas/2026-10-27--uninstall.md) |
 | Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
-| The dashboard's memory the fix after v0.2.1 left: the Log's line, a request in flight across midnight, and smaller costs | open: any time | [dashboard-memory-left](../ideas/2026-10-17--dashboard-memory-left.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
-| Watching switchboard's CPU and memory for a week after milestone 7's release, against v0.1.6's baseline | next, after milestone 7's release, the owner's choice on 14 October 2026 | [performance-watch](../ideas/2026-10-14--performance-watch.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
-| Snags the owner meets using v0.2.0's dashboard, gathered as found | done in the release after v0.2.3, 17 October 2026; the layout snags to the phone, iPad and desktop rounds | [dashboard-snags](../ideas/2026-10-15--dashboard-snags.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
-| What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | built in the cleanliness release, 26 October 2026: `run` marks what it set, and stepping aside takes it off (see Launching) | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |
-| Probing more often than every 30 minutes, every 5 say, so use from a phone and free resets are seen sooner | built in the cleanliness release, 26 October 2026: the router's rounds probe what nothing has read in 5 minutes, set by no config, the backoff still capped at the half hour, and the dashboard's interval refresh gone, `R` kept (see The router's rounds, Live updates) | [probing-more-often](../ideas/2026-10-09--probing-more-often.md) |
 | Runway's holds shorter than a column, drawn or named whatever the width | open: to discuss with its owner | [runway-short-holds](../ideas/2026-10-21--runway-short-holds.md) |
-| GRAPHS and ROUTING beside USAGE, and usage's words in full, judged by their parts rather than at 150 and 70 columns | open: to discuss with its owner; the Overview's GRAPHS was removed on 26 October 2026, so only ROUTING sits beside USAGE now | [beside-and-full-words-by-parts](../ideas/2026-10-23--beside-and-full-words-by-parts.md) |
-| A model's window nearing its limit stacking USAGE from 86 columns to 121 | open: to discuss with its owner | [model-window-stacks-usage](../ideas/2026-10-23--model-window-stacks-usage.md) |
 | The Overview saying less at some taller heights, as ROUTING's traces and USAGE's blank rows take rows back | open: to discuss with its owner | [overview-height-sawtooth](../ideas/2026-10-23--overview-height-sawtooth.md) |
-| A config checked under the new binary's rules before a handover, so a rule an upgrade tightens, as a label's 100 characters, can't leave the router stopped | built in the cleanliness release, 26 October 2026: the new binary asked with `serve --check`, the restart held only on its refusal (see The router looking after itself); a config edited after an upgrade, before the handover, judged by the new binary since, as the release review's fixes built (26 October 2026) | [config-checked-before-handover](../ideas/2026-10-23--config-checked-before-handover.md) |
 | New sessions routed through a held router while the config can't be read, as when an upgrade's rules refuse it, rather than started unaided | open: to land before any release tightens a config rule; it changes the rule that a config that can't be read starts `claude` unaided, so it's the owner's call | [held-router-routes-unread-config](../ideas/2026-10-26--held-router-routes-unread-config.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
-| OAuth logins in place of setup tokens, kept fresh | not wanted: the owner, 27 October 2026, as a login lapses about 30 days after it's signed in, however it's refreshed, and Anthropic's terms bar a tool from storing one | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
 | Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from History's Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
 | History's Days in strips per model version, beside its strips per family | later, after milestone 7 | [days-strips-per-version](../ideas/2026-10-08--days-strips-per-version.md) |
 | TOON for the data verbs' long tables, beside their JSON | later, after milestone 7 | [toon-tables](../ideas/2026-10-08--toon-tables.md) |
-| Spending extra usage: a way to say carry on, and be billed, once every account is at its limit | later | [spending-extra-usage](../ideas/2026-10-08--spending-extra-usage.md) |
 | A notice when a session moves, through a hook | deferred | [move-notice](../ideas/2026-09-30--move-notice.md) |
-| Other agents than Claude Code | deferred | [other-agents](../ideas/2026-09-30--other-agents.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
 | One owner of switchboard's file locks, the four packages that each take a `flock` their own way | open: a refactor, any time | [one-file-lock](../ideas/2026-11-04--one-file-lock.md) |
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
-| Prompt-cache keep-warm | parked | [prompt-cache-keep-warm](../ideas/2026-09-30--prompt-cache-keep-warm.md) |
-| An artifact proxy, one browser for every account's artifacts | open | [artifact-proxy](../ideas/2026-09-30--artifact-proxy.md) |
-| Intercepting traffic that ignores `ANTHROPIC_BASE_URL` | not planned | [local-ca-interception](../ideas/2026-09-30--local-ca-interception.md) |
-| An MCP server exposing switchboard to agents, such as to stream them live events | not planned | [mcp-server](../ideas/2026-09-30--mcp-server.md) |
