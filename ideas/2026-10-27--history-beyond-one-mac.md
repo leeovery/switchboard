@@ -18,8 +18,7 @@ What stays as it is:
 
 - The config file is the user's, written by hand, and theirs to keep.
 - `prefs.json` is a settings file, which a tool that restores settings can carry like any app's.
-- Tokens are never backed up: `setup` makes them on each Mac (see
-  `2026-10-14--auth-and-onboarding.md`).
+- Tokens are never backed up: `setup` makes them on each Mac (see the design's Setup).
 
 ## Left: one history across several Macs
 

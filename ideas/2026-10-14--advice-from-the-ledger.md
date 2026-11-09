@@ -9,8 +9,13 @@ Most of the data is recorded already: each line's compaction and what it compact
 cache writes and how long they last, prompt ids, and moves after idle.
 
 The same reading decides whether an optional keep-alive pays: keeping sessions' caches warm in
-working hours, never all day, as `2026-09-30--prompt-cache-keep-warm.md` describes, where the ledger
-shows whether a ping costs less than the cache writes it saves.
+working hours, never all day, where the ledger shows whether a ping costs less than the cache writes
+it saves. Before a session's hour lapses, the router would replay its last request with
+`max_tokens` of 1 on its account, renewing its cache for a fraction of a rebuild; `max_tokens`
+isn't part of what the thinking check covers, so the replay passes it. Open: how the subscription
+limits count cache reads; stopping for sessions that have closed, as `run`'s pid is Claude Code's,
+which could tag its requests; and the conflict with re-scoring an idle session, which moves it once
+its cache is cold, at no cost.
 
 Agents that budget their work against a limit would read the same data forward: see
 `2026-10-14--usage-for-agents.md`.
