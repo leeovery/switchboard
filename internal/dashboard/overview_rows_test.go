@@ -140,7 +140,7 @@ func TestNoUnitFoldsWhereItFitsAndNoRowIsLeftBlankWhereAStepFits(t *testing.T) {
 // blank rows between its accounts given way; and no row blank at the foot
 // that a unit not folded, short of its most, could take its next step in,
 // but where USAGE's blank rows between its accounts are given way and come
-// back before a section unfolds, as blankRowsWait has it, which holds them
+// back before a section unfolds, as heldAt works it out, which holds them
 // from every form.
 func allottedFully(t *testing.T, f Frame, doc status.Document) {
 	t.Helper()
@@ -159,7 +159,7 @@ func allottedFully(t *testing.T, f Frame, doc status.Document) {
 		}
 	}
 	spare := room - rowsDown(units)
-	held := blankRowsWait(f.unitsOf(f.sectionsOf(doc, now)), units, room)
+	held := heldAt(f, doc, units)
 	for _, u := range units {
 		if held && !u.sections[0].lists() && !u.ledBy(SectionUsage) {
 			continue
@@ -529,17 +529,39 @@ func TestAt15RowsUSAGEShowsItsAccounts(t *testing.T) {
 var heightWorlds = []struct {
 	name string
 	doc  status.Document
+	to   int
 }{
-	{name: "one", doc: routerDoc("work", 1, readAccount("work", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day)))},
-	{name: "three", doc: threeRouted()},
-	{name: "six", doc: manyRead(6)},
-	{name: "ten", doc: func() status.Document { ten, _ := tenAccounts(); return ten }()},
+	{name: "one", doc: routerDoc("work", 1, readAccount("work", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day))), to: 60},
+	{name: "three", doc: threeRouted(), to: 60},
+	{name: "six", doc: manyRead(6), to: 60},
+	{name: "ten", doc: func() status.Document { ten, _ := tenAccounts(); return ten }(), to: 120},
+}
+
+// heldAt reports whether the rows to spare are held from the forms in the
+// units of doc the frame allots: USAGE's blank rows between its accounts
+// given way, and a taller frame, before one whose sections fold otherwise,
+// has them back.
+func heldAt(f Frame, doc status.Document, units []unit) bool {
+	if !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && u.gaveWay() }) {
+		return false
+	}
+	for taller := f; ; {
+		taller.Height++
+		got := taller.allotted(doc, now)
+		if !oneArrangement(got, units) {
+			return false
+		}
+		if !slices.ContainsFunc(got, func(u unit) bool { return !u.fold && u.gaveWay() }) {
+			return true
+		}
+	}
 }
 
 // sweepHeights allots the Overview of each of the heightWorlds, with the
 // sections shown at first and with every one, at a phone's widths, an
-// iPad's and the desktop's, from 10 rows to 60, a row at a time, and has check hold
-// each height's units against those a row shorter, nil at the first.
+// iPad's and the desktop's, from 10 rows to the world's own most, a row at
+// a time, and has check hold each height's units against those a row
+// shorter, nil at the first.
 func sweepHeights(t *testing.T, check func(t *testing.T, height int, units, shorter []unit)) {
 	t.Helper()
 	for _, w := range heightWorlds {
@@ -548,7 +570,7 @@ func sweepHeights(t *testing.T, check func(t *testing.T, height int, units, shor
 				t.Run(fmt.Sprintf("%s, %v at %d", w.name, shown.Names(), width), func(t *testing.T) {
 					t.Parallel()
 					var shorter []unit
-					for height := 10; height <= 60; height++ {
+					for height := 10; height <= w.to; height++ {
 						f := frameOf(width, height)
 						f.Sections, f.Sessions = shown, flippingSessions()
 						units := f.allotted(w.doc, now)
@@ -594,6 +616,7 @@ func TestNoFormTurnsOffARowTallerWithinOneArrangement(t *testing.T) {
 // forms: on a phone with ten accounts and every section, ROUTING folded,
 // SESSIONS shows more sessions as the rows grow.
 func TestTheFormsTakeRowsWhereASectionUnfoldsBeforeUSAGEsBlankRowsComeBack(t *testing.T) {
+	t.Parallel()
 	ten, _ := tenAccounts()
 	f := frameOf(52, 70)
 	f.Sections, f.Sessions = every, flippingSessions()
@@ -614,6 +637,7 @@ func TestTheFormsTakeRowsWhereASectionUnfoldsBeforeUSAGEsBlankRowsComeBack(t *te
 // takes its two rows of trace from 37 rows and keeps them, and USAGE's big
 // bars come in only beside them, at 47, where they once took them away.
 func TestAt160ROUTINGsTraceKeepsItsSecondRowAsTheBigBarsComeIn(t *testing.T) {
+	t.Parallel()
 	for height := 30; height <= 60; height++ {
 		units := frameOf(160, height).allotted(threeRouted(), now)
 		usage := units[slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })]

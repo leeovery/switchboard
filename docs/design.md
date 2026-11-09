@@ -3041,12 +3041,16 @@ below, not flex's even share:
    form off. So COMING UP and LATELY give up lines only at a height where a form comes in and takes
    its rows, once a form; and at 160 columns, three accounts and the sections shown at first,
    ROUTING keeps its two rows of trace from 37 rows, the big bars coming in beside them at 47.
-   Where USAGE's blank rows between its accounts are given way, and come back before a section
-   unfolds, no form is taken: the rows that bring them back would turn it off, so they go to
-   COMING UP and LATELY, else stay empty at the foot. Rows stay empty too where a form already on
-   leaves too few for the next beside it and COMING UP and LATELY are full: three accounts at
-   160 × 44 to 46, one account at 160 × 28 and 34. Across arrangements, as a section unfolds, the
-   forms are taken afresh.
+   Where USAGE's blank rows between its accounts are given way, and come back a few rows taller
+   before the folds change, no form is taken: the rows that bring them back would turn it off, so
+   they go to COMING UP and LATELY, else stay empty at the foot. The hold ends where the folds
+   change, in practice a section unfolding: where the blank rows stay given way until a section
+   unfolds, the forms are taken as ever. Rows stay empty too where a form already on leaves too
+   few for the next beside it and COMING UP and LATELY are full, as many as a form's whole step:
+   three accounts at 160 × 44 to 46; one account at 160 × 28, and at 160 × 34 with every section
+   shown; and ten accounts at 108 to 160 columns, the sections shown at first, from 77 rows to
+   95, where ROUTING keeps its second row and the big bars wait until 96, leaving up to 14 rows
+   empty. Across arrangements, as a section unfolds, the forms are taken afresh.
 6. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
    line on the last row.
 7. **The layout changes only on a key or a resize,** or a section's shape changing, never on its
