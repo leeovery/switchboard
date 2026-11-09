@@ -479,6 +479,24 @@ func TestReadingBackSkipsALineTooLongToHoldAlone(t *testing.T) {
 	}
 }
 
+func TestReadingBackACleanHistoryWarnsOfNothing(t *testing.T) {
+	log := logstest.Capture(t)
+	dir := t.TempDir()
+	h := newHistory(config.History{}, at(start))
+	h.open(dir)
+	writeLines(t, h,
+		readings.Reading{At: start.Add(-time.Minute), Account: "work", Key: "5h", Utilization: 0.1, Source: readings.FromAnswer},
+		readings.Reading{At: start, Account: "work", Key: "5h", Utilization: 0.2, Source: readings.FromAnswer},
+	)
+
+	if got := slices.Collect(h.readBack(start)); len(got) != 2 {
+		t.Errorf("readBack() = %+v, want both readings", got)
+	}
+	if log.Has("level=WARN") {
+		t.Errorf("log reads\n%s\nwant no warning: every line read", log)
+	}
+}
+
 func TestTakingUpADaysHistoryKeepsWhatTheTrailsNeedAlone(t *testing.T) {
 	now := start.Add(24 * time.Hour)
 	dir := t.TempDir()

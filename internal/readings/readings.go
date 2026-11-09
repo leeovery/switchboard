@@ -106,8 +106,15 @@ func Files(dir string, logger *slog.Logger) *dayfile.Files {
 // dayfile.Faults says.
 func Between(files *dayfile.Files, from, to time.Time, faults *dayfile.Faults) iter.Seq[Reading] {
 	return func(yield func(Reading) bool) {
-		Read(files, dayfile.Dates(from, to), func(r Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, yield, faults)
+		readBetween(files, from, to, yield, faults)
 	}
+}
+
+// readBetween hands take the readings files hold of times from from up to
+// to, as Between gives them, and returns how many of their lines were
+// unread, as Read says.
+func readBetween(files *dayfile.Files, from, to time.Time, take func(Reading) bool, faults *dayfile.Faults) (unread int) {
+	return Read(files, dayfile.Dates(from, to), func(r Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, take, faults)
 }
 
 // Read hands take each reading the files of the local days with the given

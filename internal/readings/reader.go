@@ -13,19 +13,25 @@ import (
 // Reader reads the readings history back where it lies, in its directory of
 // the state directory, with no router.
 type Reader struct {
-	files *dayfile.Files
+	files  *dayfile.Files
+	logger *slog.Logger
 }
 
 // NewReader returns a reader of the readings history in the state directory
 // stateDir, what it can't read logged to logger.
 func NewReader(stateDir string, logger *slog.Logger) *Reader {
-	return &Reader{files: Files(Dir(stateDir), logger)}
+	return &Reader{files: Files(Dir(stateDir), logger), logger: logger}
 }
 
 // Between returns the readings the history holds of times from from up to
-// to, one at a time, as Between gives them.
+// to, one at a time, as Between gives them, and warns once a read of how many
+// of their lines couldn't be read, where any couldn't.
 func (r *Reader) Between(from, to time.Time) iter.Seq[Reading] {
-	return Between(r.files, from, to, nil)
+	return func(yield func(Reading) bool) {
+		if unread := readBetween(r.files, from, to, yield, nil); unread > 0 {
+			r.logger.Warn("readings history lines unread", "lines", unread)
+		}
+	}
 }
 
 // Tail returns a read of the readings from start up to end, each window's

@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
 )
 
@@ -26,6 +28,45 @@ func TestAReaderReadsTheHistoryInTheStateDirectory(t *testing.T) {
 	got := slices.Collect(readings.NewReader(state, logs.For("cli")).Between(from, from.AddDate(0, 0, 1)))
 	if want := []readings.Reading{first, last}; !slices.EqualFunc(got, want, sameReading) {
 		t.Errorf("Between() = %+v, want %+v: the readings of the time asked for, as Between reads them", got, want)
+	}
+}
+
+func TestAReaderWarnsOnceOfTheLinesOfTheHistoryItCouldntRead(t *testing.T) {
+	from := time.Date(2026, 9, 27, 0, 0, 0, 0, time.Local)
+	first, last := workRead(from.Add(time.Hour), 0.2), workRead(from.Add(2*time.Hour), 0.3)
+	tests := []struct {
+		name    string
+		day     string
+		wantLog []string
+	}{
+		{
+			name:    "two damaged lines among the readable",
+			day:     linesOf(t, first) + "not a reading\n" + `{"at": "2026-09-27T01:30:00Z", "account":` + "\n" + linesOf(t, last),
+			wantLog: []string{"level=WARN", `msg="readings history lines unread"`, "lines=2"},
+		},
+		{name: "a clean history", day: linesOf(t, first, last)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state := t.TempDir()
+			if err := os.Mkdir(readings.Dir(state), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			writeDay(t, readings.Dir(state), "readings-2026-09-27.jsonl", []byte(tt.day))
+
+			got := slices.Collect(readings.NewReader(state, logs.For("cli")).Between(from, from.AddDate(0, 0, 1)))
+			if want := []readings.Reading{first, last}; !slices.EqualFunc(got, want, sameReading) {
+				t.Errorf("Between() = %+v, want %+v: the readable lines, as ever", got, want)
+			}
+			warned := slices.DeleteFunc(log.Lines(), func(line string) bool { return !strings.Contains(line, "level=WARN") })
+			switch {
+			case tt.wantLog == nil && len(warned) > 0:
+				t.Errorf("log reads\n%s\nwant no warning: every line read", log)
+			case tt.wantLog != nil && (len(warned) != 1 || !log.Has(tt.wantLog...)):
+				t.Errorf("log reads\n%s\nwant one warning of the lines unread, %q", log, tt.wantLog)
+			}
+		})
 	}
 }
 
