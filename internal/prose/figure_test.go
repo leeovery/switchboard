@@ -32,6 +32,29 @@ func TestPercent(t *testing.T) {
 	}
 }
 
+func TestPercentShortNeverReachesItsEnd(t *testing.T) {
+	tests := []struct {
+		name       string
+		share, end float64
+		want       string
+	}{
+		{name: "well short of its limit, as Percent has it", share: 0.92, end: 1, want: "92%"},
+		{name: "rounding up to its limit", share: 0.996, end: 1, want: "99%"},
+		{name: "rounding to its limit's half", share: 0.995, end: 1, want: "99%"},
+		{name: "rounding down below its limit", share: 0.994, end: 1, want: "99%"},
+		{name: "rounding up to its cap", share: 0.977, end: 0.98, want: "97%"},
+		{name: "short of a cap set to a fraction, below the 97% it shows as", share: 0.972, end: 0.9749, want: "96%"},
+		{name: "nothing, short of a cap at nothing", share: 0, end: 0.004, want: "0%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.PercentShort(tt.share, tt.end); got != tt.want {
+				t.Errorf("PercentShort(%v, %v) = %q, want %q", tt.share, tt.end, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPercentSet(t *testing.T) {
 	tests := []struct {
 		share float64

@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"cmp"
 	"fmt"
 	"reflect"
 	"slices"
@@ -1428,19 +1429,28 @@ func TestOver(t *testing.T) {
 // starts where its reserve holds, its projection short of its limit; else
 // where its projection has it, but never that it runs out, as of a window
 // held, stale, at its cap, not started, or whose run-out the clock has
-// reached, whatever its projection says.
+// reached, whatever its projection says; nor that it reaches its floor,
+// where its projection heads short of it.
 func TestProjection(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	out := time.Date(2026, 10, 2, 18, 40, 0, 0, time.UTC)
 	today, tomorrow := time.Date(2026, 9, 28, 18, 40, 0, 0, time.UTC), time.Date(2026, 9, 29, 8, 0, 0, 0, time.UTC)
 	heading := func(p score.Projection) status.Heading { return status.Heading{Projection: p} }
 	runsOut := heading(score.Projection{Kind: score.RunsOut, At: out})
+	onPace := func(atReset float64) status.WindowNow {
+		return status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace, AtReset: atReset})}}
+	}
 	tests := []struct {
 		name   string
 		window status.WindowNow
+		floor  float64
 		want   string
 	}{
-		{name: "on pace", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace, AtReset: 0.92})}}, want: "on pace for 92%"},
+		{name: "on pace", window: onPace(0.92), want: "on pace for 92%"},
+		{name: "on pace short of its limit, never as reaching it", window: onPace(0.9959), want: "on pace for 99%"},
+		{name: "on pace short of its cap, never as reaching it", window: onPace(0.977), floor: 0.98, want: "on pace for 97%"},
+		{name: "on pace for its cap, as held there", window: onPace(0.98), floor: 0.98, want: "on pace for 98%"},
+		{name: "on pace past its cap, as read past it", window: onPace(0.99), floor: 0.98, want: "on pace for 99%"},
 		{name: "on pace, having used nothing", window: status.WindowNow{Out: status.RunOut{Heading: heading(score.Projection{Kind: score.OnPace})}}, want: "on pace for 0%"},
 		{name: "running out today, in now's time zone", window: status.WindowNow{RunsOut: true, Out: status.RunOut{At: today, Heading: runsOut}}, want: "runs out ~19:40"},
 		{name: "running out tomorrow, within a day", window: status.WindowNow{RunsOut: true, Out: status.RunOut{At: tomorrow, Heading: runsOut}}, want: "runs out ~Tue 09:00"},
@@ -1457,8 +1467,9 @@ func TestProjection(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := status.Projection(now, tt.window); got != tt.want {
-				t.Errorf("Projection(%+v) = %q, want %q", tt.window, got, tt.want)
+			floor := cmp.Or(tt.floor, 1)
+			if got := status.Projection(now, tt.window, floor); got != tt.want {
+				t.Errorf("Projection(%+v, floor %v) = %q, want %q", tt.window, floor, got, tt.want)
 			}
 		})
 	}
