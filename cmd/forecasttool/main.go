@@ -78,10 +78,15 @@ kept. Hours the router was down are forecast from what it read last, as it
 would have forecast them, but for a week that has reset since, which isn't.
 
 It scores only the forecasts made from two days after the history's first
-reading on, and the moves between them: two days is what a restarted router
-seeds its state from, so none is scored off a cold start. Of a history
-shorter than that, it says nothing could be scored. What the readers can't
-read of the state directory, they say on stderr.
+reading on, and from once every account's week has been read: two days is
+what a restarted router seeds its state from, so none is scored off a cold
+start, and an account idle since before the history began can go days unread
+in it, though the router knew it, out of the play till then. Of a history
+that ends first, or never reads an account's week, it says nothing could be
+scored. A forecast scores against the run of its week it was made in, which
+a reset by hand starts afresh, and only while that run is yet to end; and it
+pairs with the hour before's forecast of its run, moved or not. What the
+readers can't read of the state directory, they say on stderr.
 
 `
 

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -141,19 +142,19 @@ func TestScoresAWeekForecastShortThatRanOutAndOneThatHeadedShort(t *testing.T) {
 	// 40%. Side's is forecast short at each of its 48 scored before its
 	// reset, as it was: on time, all in 40–70%. Personal's resets after the
 	// history ends, and side's next week too, so they're never scored. Each
-	// week heads short at its pace since it started too. Neither week's move
-	// from the hour before scoring starts counts.
+	// week heads short at its pace since it started too. Neither week's
+	// first forecast scored pairs with the hour before's, unscored.
 	configPath, stateDir, now := shortHistory(t)
 
 	got := scoring(t, now, "--state", stateDir, "--config", configPath)
-	scores := `  0–40% used                60   60.0h     0%   100%    0.0h
-  40–70% used               48    0.0h     0%     0%    0.0h
-  70–100% used               0       –      –      –       –
-  all                      108   33.3h     0%    56%    0.0h
+	scores := `  0–40% used                60   60.0h     0%   100%     59    0.0h
+  40–70% used               48    0.0h     0%     0%     47    0.0h
+  70–100% used               0       –      –      –      0       –
+  all                      108   33.3h     0%    56%    106    0.0h
 `
 	want := "forecasts of each week at each hour, 2026-09-07 01:00 UTC to 2026-09-11 12:00 UTC, of work, side, personal\n" +
 		"scored from 2026-09-09 00:00 UTC, two days in\n\n" +
-		"                     forecasts     off  early   late   moved\n" +
+		"                     forecasts     off  early   late  pairs   moved\n" +
 		"the router's forecast\n" + scores + "pace since start\n" + scores + "\n" + legend
 	if got != want {
 		t.Errorf("printed\n%s\nwant\n%s", got, want)
@@ -179,6 +180,38 @@ func TestSaysNothingCouldBeScoredOfAHistoryShorterThanTwoDays(t *testing.T) {
 	}
 	if printed.Scored || !printed.ScoredFrom.Equal(hoursIn(48)) || printed.Forecast.All.Forecasts > 0 || printed.Baseline.All.Forecasts > 0 {
 		t.Errorf("printed %+v, want nothing scored, scoring from two days in", printed)
+	}
+}
+
+func TestSaysScoringWaitsForEveryAccountsWeekToBeRead(t *testing.T) {
+	// Work's week is read every hour for 70 hours; side's first 60h20m in,
+	// and every hour after.
+	read := slices.Concat(hourly("work", begins, 71, 0.1, hoursIn(150)), hourly("side", hoursIn(60).Add(20*time.Minute), 10, 0.3, hoursIn(160)))
+	tests := []struct {
+		name     string
+		accounts []account
+		want     string
+	}{
+		{
+			name: "side read past two days in", accounts: []account{{id: "work"}, {id: "side"}},
+			want: "scored from 2026-09-09 13:00 UTC, once every account's week had been read\n",
+		},
+		{
+			name: "personal never read", accounts: []account{{id: "work"}, {id: "side"}, {id: "personal"}},
+			want: "nothing could be scored: the history never reads the week of personal\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := configOf(t, tt.accounts...)
+			now := hoursIn(80)
+			stateDir := stateOf(t, now, configPath, read, nil)
+
+			got := strings.SplitAfterN(scoring(t, now, "--state", stateDir, "--config", configPath), "\n", 3)
+			if len(got) < 2 || got[1] != tt.want {
+				t.Errorf("printed\n%s\nwant its second line\n%s", strings.Join(got, ""), tt.want)
+			}
+		})
 	}
 }
 
@@ -214,26 +247,26 @@ func TestScoresAWeekThatRunsOutBesideItsPaceSinceItStarted(t *testing.T) {
 	// The router's forecasts, at each of the 67 hours scored, all work's,
 	// the day before them a point an hour, as the day's rate is: they run
 	// out within 2 minutes of 114.4 hours in, moving under 2 minutes an hour
-	// on average. The first is at 33.6% used, and its move from the hour
-	// before, unscored, isn't counted.
+	// on average. The first is at 33.6% used, and pairs with none, the hour
+	// before it unscored.
 	tests := []struct {
 		name      string
 		got       row
 		forecasts int
-		moves     int
+		pairs     int
 	}{
-		{name: "0–40%", got: got.Forecast.ByUse[0], forecasts: 7, moves: 6},
-		{name: "40–70%", got: got.Forecast.ByUse[1], forecasts: 30, moves: 30},
-		{name: "70–100%", got: got.Forecast.ByUse[2], forecasts: 30, moves: 30},
-		{name: "all", got: got.Forecast.All, forecasts: 67, moves: 66},
+		{name: "0–40%", got: got.Forecast.ByUse[0], forecasts: 7, pairs: 6},
+		{name: "40–70%", got: got.Forecast.ByUse[1], forecasts: 30, pairs: 30},
+		{name: "70–100%", got: got.Forecast.ByUse[2], forecasts: 30, pairs: 30},
+		{name: "all", got: got.Forecast.All, forecasts: 67, pairs: 66},
 	}
 	within := (2 * time.Minute).Hours()
 	for _, tt := range tests {
 		t.Run("the router's "+tt.name, func(t *testing.T) {
 			r := tt.got
-			if r.Forecasts != tt.forecasts || r.Early != 0 || r.Late != 0 || r.Moves != tt.moves || r.OffHours > within || r.MovedHours > within {
-				t.Errorf("scored %+v, want %d forecasts, none early or late, off under %v hours, %d moves of under %v hours",
-					r, tt.forecasts, within, tt.moves, within)
+			if r.Forecasts != tt.forecasts || r.Early != 0 || r.Late != 0 || r.Pairs != tt.pairs || r.OffHours > within || r.MovedHours > within {
+				t.Errorf("scored %+v, want %d forecasts, none early or late, off under %v hours, %d pairs moved under %v hours",
+					r, tt.forecasts, within, tt.pairs, within)
 			}
 		})
 	}
@@ -243,11 +276,11 @@ func TestScoresAWeekThatRunsOutBesideItsPaceSinceItStarted(t *testing.T) {
 	// first 21.
 	baseline := sheet{
 		ByUse: []row{
-			{UsedFrom: 0, UsedTo: 0.4, Forecasts: 7, OffHours: 25.062364092889396, Late: 7, Moves: 6, MovedHours: 1.0822510822510822},
-			{UsedFrom: 0.4, UsedTo: 0.7, Forecasts: 30, OffHours: 12.409393413987152, Late: 14, Moves: 30, MovedHours: 0.522466039707419},
-			{UsedFrom: 0.7, UsedTo: 1, Forecasts: 30, OffHours: 2.6996434414975607, Moves: 30, MovedHours: 0.2077274615704196},
+			{UsedFrom: 0, UsedTo: 0.4, Forecasts: 7, OffHours: 25.062364092889396, Late: 7, Pairs: 6, MovedHours: 1.0822510822510822},
+			{UsedFrom: 0.4, UsedTo: 0.7, Forecasts: 30, OffHours: 12.409393413987152, Late: 14, Pairs: 30, MovedHours: 0.522466039707419},
+			{UsedFrom: 0.7, UsedTo: 1, Forecasts: 30, OffHours: 2.6996434414975607, Pairs: 30, MovedHours: 0.2077274615704196},
 		},
-		All: row{UsedFrom: 0, UsedTo: 1, Forecasts: 67, OffHours: 9.383696333056227, Late: 21, Moves: 66, MovedHours: 0.43029259896729777},
+		All: row{UsedFrom: 0, UsedTo: 1, Forecasts: 67, OffHours: 9.383696333056227, Late: 21, Pairs: 66, MovedHours: 0.43029259896729777},
 	}
 	if !sameSheet(got.Baseline, baseline) {
 		t.Errorf("the pace since start scored\n%+v\nwant\n%+v", got.Baseline, baseline)
@@ -263,15 +296,15 @@ func TestPrintsTheScoresAsJSONWithJSON(t *testing.T) {
 	}
 	scored := sheet{
 		ByUse: []row{
-			{UsedFrom: 0, UsedTo: 0.4, Forecasts: 60, OffHours: 60, Late: 60, Moves: 59},
-			{UsedFrom: 0.4, UsedTo: 0.7, Forecasts: 48, Moves: 47},
+			{UsedFrom: 0, UsedTo: 0.4, Forecasts: 60, OffHours: 60, Late: 60, Pairs: 59},
+			{UsedFrom: 0.4, UsedTo: 0.7, Forecasts: 48, Pairs: 47},
 			{UsedFrom: 0.7, UsedTo: 1},
 		},
-		All: row{UsedFrom: 0, UsedTo: 1, Forecasts: 108, OffHours: 60 * 60.0 / 108, Late: 60, Moves: 106},
+		All: row{UsedFrom: 0, UsedTo: 1, Forecasts: 108, OffHours: 60 * 60.0 / 108, Late: 60, Pairs: 106},
 	}
 	want := report{
-		From: hoursIn(1), To: hoursIn(108), ScoredFrom: hoursIn(48), Scored: true, Accounts: []string{"work", "side", "personal"},
-		Forecast: scored, Baseline: scored,
+		From: hoursIn(1), To: hoursIn(108), ScoredFrom: hoursIn(48), TwoDaysIn: hoursIn(48), AllRead: begins, Scored: true,
+		Accounts: []string{"work", "side", "personal"}, Forecast: scored, Baseline: scored,
 	}
 	if !sameReport(got, want) {
 		t.Errorf("printed\n%+v\nwant\n%+v", got, want)
@@ -281,8 +314,9 @@ func TestPrintsTheScoresAsJSONWithJSON(t *testing.T) {
 // sameReport reports whether two reports match, their hours to within
 // rounding.
 func sameReport(a, b report) bool {
-	return a.From.Equal(b.From) && a.To.Equal(b.To) && a.ScoredFrom.Equal(b.ScoredFrom) && a.Scored == b.Scored &&
-		strings.Join(a.Accounts, ",") == strings.Join(b.Accounts, ",") && sameSheet(a.Forecast, b.Forecast) && sameSheet(a.Baseline, b.Baseline)
+	return a.From.Equal(b.From) && a.To.Equal(b.To) && a.ScoredFrom.Equal(b.ScoredFrom) && a.TwoDaysIn.Equal(b.TwoDaysIn) && a.AllRead.Equal(b.AllRead) &&
+		slices.Equal(a.Unread, b.Unread) && a.Scored == b.Scored &&
+		slices.Equal(a.Accounts, b.Accounts) && sameSheet(a.Forecast, b.Forecast) && sameSheet(a.Baseline, b.Baseline)
 }
 
 // sameSheet reports whether two sheets match, their hours to within
@@ -303,7 +337,7 @@ func sameSheet(a, b sheet) bool {
 func sameRow(a, b row) bool {
 	hoursNear := func(x, y float64) bool { return math.Abs(x-y) < 1e-9 }
 	return a.UsedFrom == b.UsedFrom && a.UsedTo == b.UsedTo && a.Forecasts == b.Forecasts && a.Early == b.Early && a.Late == b.Late &&
-		a.Moves == b.Moves && hoursNear(a.OffHours, b.OffHours) && hoursNear(a.MovedHours, b.MovedHours)
+		a.Pairs == b.Pairs && hoursNear(a.OffHours, b.OffHours) && hoursNear(a.MovedHours, b.MovedHours)
 }
 
 func TestRefusesToRunWithoutBothTheStateDirectoryAndTheConfig(t *testing.T) {
@@ -380,7 +414,8 @@ func TestItsHelpSaysWhatThePlaybackHasNoneOf(t *testing.T) {
 	}
 	for _, want := range []string{
 		"--state", "--config", "neither has a default", "reaches a limit", "token refused", "no global pin",
-		"router was down", "two days after the history's first", "nothing could be scored", "they say on stderr",
+		"router was down", "two days after the history's first", "once every account's week has been read", "nothing could be",
+		"a reset by hand starts afresh", "moved or not", "they say on stderr",
 	} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Errorf("--help says\n%s\nwant it to say %q", stderr.String(), want)

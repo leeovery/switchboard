@@ -57,13 +57,13 @@ func TestAWeekReachesItsFloorAtItsReserveElseItsLimitOrARejection(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			read := slices.Concat(tt.read, []readings.Reading{weekRead("side", hoursIn(60), 0.1, hoursIn(200))})
-			got, ok := outcomesOf(configured, "7d", read).ended(weekOf(tt.account, resets))
+			got := outcomesOf(configured, "7d", read).of(forecast{week: weekOf(tt.account, resets), at: hoursIn(0.5)})
 			want := tt.reached
 			if want.IsZero() {
 				want = resets
 			}
-			if !ok || !got.Equal(want) {
-				t.Errorf("the week ended at %v (%t), want %v", got, ok, want)
+			if !got.known || !got.ended.Equal(want) {
+				t.Errorf("the week ended at %v (%t), want %v", got.ended, got.known, want)
 			}
 		})
 	}
@@ -74,8 +74,49 @@ func TestTheHistoryDoesntSayHowAWeekEndsWhereItEndsFirst(t *testing.T) {
 	// hours in.
 	read := []readings.Reading{weekRead("work", hoursIn(1), 0.3, hoursIn(50)), weekRead("work", hoursIn(40), 0.35, hoursIn(50))}
 
-	if at, ok := outcomesOf(config.Accounts{{ID: "work"}}, "7d", read).ended(weekOf("work", hoursIn(50))); ok {
-		t.Errorf("the week ended at %v, want no end said: the history ends before it resets", at)
+	if got := outcomesOf(config.Accounts{{ID: "work"}}, "7d", read).of(forecast{week: weekOf("work", hoursIn(50)), at: hoursIn(1)}); got.known {
+		t.Errorf("the week ended at %v, want no end said: the history ends before it resets", got.ended)
+	}
+}
+
+func TestAWeekResetByHandBeginsARunOfItsOwn(t *testing.T) {
+	// Work's week, resetting 100 hours in, is half used an hour in, used up
+	// 9h12m in, reset by hand 9h30m in, and used up again 60 hours in. Side's,
+	// resetting 100 hours in too, is half used an hour in, reset by hand 5
+	// hours in, before it reached its floor, and used up 50 hours in; then it
+	// dips 2 points 51 hours in, short of a reset by hand. The history ends 70
+	// hours in.
+	read := []readings.Reading{
+		weekRead("work", hoursIn(1), 0.5, hoursIn(100)),
+		weekRead("side", hoursIn(1), 0.5, hoursIn(100)),
+		weekRead("side", hoursIn(5), 0.3, hoursIn(100)),
+		weekRead("work", hoursIn(9.2), 1, hoursIn(100)),
+		weekRead("work", hoursIn(9.5), 0.05, hoursIn(100)),
+		weekRead("side", hoursIn(50), 1, hoursIn(100)),
+		weekRead("side", hoursIn(51), 0.98, hoursIn(100)),
+		weekRead("work", hoursIn(60), 1, hoursIn(100)),
+		weekRead("personal", hoursIn(70), 0.1, hoursIn(200)),
+	}
+	o := outcomesOf(config.Accounts{{ID: "work"}, {ID: "side"}, {ID: "personal"}}, "7d", read)
+	tests := []struct {
+		name    string
+		account string
+		at      time.Time
+		want    outcome
+	}{
+		{name: "before the first run reached its floor", account: "work", at: hoursIn(9), want: outcome{ended: hoursIn(9.2), known: true}},
+		{name: "after the first run reached its floor, before its reset by hand", account: "work", at: hoursIn(9.25), want: outcome{ended: hoursIn(9.2), known: true}},
+		{name: "after the reset by hand", account: "work", at: hoursIn(10), want: outcome{began: hoursIn(9.5), ended: hoursIn(60), known: true}},
+		{name: "in a run cut short by a reset by hand", account: "side", at: hoursIn(3)},
+		{name: "after that reset by hand", account: "side", at: hoursIn(6), want: outcome{began: hoursIn(5), ended: hoursIn(50), known: true}},
+		{name: "after a dip short of a reset by hand", account: "side", at: hoursIn(52), want: outcome{began: hoursIn(5), ended: hoursIn(50), known: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := o.of(forecast{week: weekOf(tt.account, hoursIn(100)), at: tt.at}); got != tt.want {
+				t.Errorf("of() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -150,11 +191,13 @@ func TestAWeekIsForecastWhereItRunsOutElseAtItsResetWhereItHeadsShort(t *testing
 }
 
 func TestForecastsScoreAgainstWhatBecameOfTheirWeeks(t *testing.T) {
-	// Work's week, resetting 100 hours in, ran out 50 hours in; side's,
-	// resetting 60 hours in, didn't; personal's resets after the history
-	// ends, 80 hours in, short of its floor.
+	// Work's week, resetting 100 hours in, ran out 50 hours in, then dipped
+	// back below its floor an hour on, short of a reset by hand; side's,
+	// resetting 60 hours in, didn't run out; personal's resets after the
+	// history ends, 80 hours in, short of its floor.
 	read := []readings.Reading{
 		weekRead("work", hoursIn(50), 1, hoursIn(100)),
+		weekRead("work", hoursIn(51), 0.95, hoursIn(100)),
 		weekRead("side", hoursIn(1), 0.1, hoursIn(60)),
 		weekRead("personal", hoursIn(80), 0.2, hoursIn(120)),
 	}
@@ -168,6 +211,10 @@ func TestForecastsScoreAgainstWhatBecameOfTheirWeeks(t *testing.T) {
 		// hour late, having moved an hour.
 		{week: worksWeek, at: hoursIn(13), used: 0.75, ends: hoursIn(50)},
 		{week: worksWeek, at: hoursIn(14), used: 0.8, ends: hoursIn(51)},
+		// Made once it had run out, after its dip, and as it did.
+		{week: worksWeek, at: hoursIn(50), used: 1, ends: hoursIn(50)},
+		{week: worksWeek, at: hoursIn(52), used: 0.95, ends: hoursIn(60)},
+		{week: worksWeek, at: hoursIn(53), used: 0.95, ends: hoursIn(61)},
 		// Run out 20 hours before a reset it reached short.
 		{week: sidesWeek, at: hoursIn(10), used: 0.1, ends: hoursIn(40)},
 		// Of weeks the history doesn't say the end of.
@@ -179,10 +226,41 @@ func TestForecastsScoreAgainstWhatBecameOfTheirWeeks(t *testing.T) {
 	want := scores{
 		byUse: [3]tally{
 			{forecasts: 2, early: 1, late: 1, off: 33 * time.Hour},
-			{forecasts: 1, early: 1, off: 13 * time.Hour, moves: 1, moved: 26 * time.Hour},
-			{forecasts: 2, off: time.Hour, moves: 1, moved: time.Hour},
+			{forecasts: 1, early: 1, off: 13 * time.Hour, pairs: 1, moved: 26 * time.Hour},
+			{forecasts: 2, off: time.Hour, pairs: 1, moved: time.Hour},
 		},
-		all: tally{forecasts: 5, early: 2, late: 1, off: 47 * time.Hour, moves: 2, moved: 27 * time.Hour},
+		all: tally{forecasts: 5, early: 2, late: 1, off: 47 * time.Hour, pairs: 2, moved: 27 * time.Hour},
+	}
+	if got != want {
+		t.Errorf("the forecasts scored\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+func TestAForecastPairsOnlyWithTheHourBeforesOfItsRun(t *testing.T) {
+	// Work's week, resetting 100 hours in, is half used an hour in, used up
+	// 9h12m in, reset by hand 9h30m in, and used up again 60 hours in; the
+	// history ends 70 hours in. It's forecast on time 9 hours in, and on time
+	// an hour on, after the reset by hand, then two hours late an hour after
+	// that, having moved two hours.
+	read := []readings.Reading{
+		weekRead("work", hoursIn(1), 0.5, hoursIn(100)),
+		weekRead("work", hoursIn(9.2), 1, hoursIn(100)),
+		weekRead("work", hoursIn(9.5), 0.05, hoursIn(100)),
+		weekRead("work", hoursIn(60), 1, hoursIn(100)),
+		weekRead("work", hoursIn(70), 0.1, hoursIn(200)),
+	}
+	o := outcomesOf(config.Accounts{{ID: "work"}}, "7d", read)
+	worksWeek := weekOf("work", hoursIn(100))
+	forecasts := []forecast{
+		{week: worksWeek, at: hoursIn(9), used: 0.9, ends: hoursIn(9.2)},
+		{week: worksWeek, at: hoursIn(10), used: 0.1, ends: hoursIn(60)},
+		{week: worksWeek, at: hoursIn(11), used: 0.12, ends: hoursIn(62)},
+	}
+
+	got := scoresOf(forecasts, o)
+	want := scores{
+		byUse: [3]tally{{forecasts: 2, off: 2 * time.Hour, pairs: 1, moved: 2 * time.Hour}, {}, {forecasts: 1}},
+		all:   tally{forecasts: 3, off: 2 * time.Hour, pairs: 1, moved: 2 * time.Hour},
 	}
 	if got != want {
 		t.Errorf("the forecasts scored\n%+v\nwant\n%+v", got, want)

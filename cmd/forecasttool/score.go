@@ -40,34 +40,66 @@ type forecast struct {
 }
 
 // outcomes are what became of the accounts' weeks, as the readings history
-// read them: when each that reached its floor before its reset first did, and
-// when the history ends.
+// read them: each week's runs, the first from its start, and another from
+// each time it was reset by hand, in order; and when the history ends.
 type outcomes struct {
-	reached map[week]time.Time
-	end     time.Time
+	runs map[week][]weekRun
+	end  time.Time
+}
+
+// weekRun is a run of a week's use: from when it began, zero for the week's
+// start, and when it reached its floor, zero where it didn't before the next
+// run began.
+type weekRun struct {
+	from, reached time.Time
 }
 
 // outcomesOf are what became of the weeks, the windows named key, of the
 // accounts configured, as read, the readings history in the order read, never
-// empty, reads them: each reached its floor where it was first read there, as
-// reachedFloor says.
+// empty, reads them: a week begins a run afresh where a reading shows it
+// reset by hand since the one before, as score.ResetByHand says, and a run
+// reached its floor where it was first read there, as reachedFloor says.
 func outcomesOf(configured config.Accounts, key string, read []readings.Reading) outcomes {
 	reserves := make(map[string]float64, len(configured))
 	for _, a := range configured {
 		reserves[a.ID] = a.Reserve
 	}
-	o := outcomes{reached: make(map[week]time.Time), end: read[len(read)-1].At}
+	o := outcomes{runs: make(map[week][]weekRun), end: read[len(read)-1].At}
+	last := make(map[string]quota.Window, len(configured))
 	for _, r := range read {
 		reserve, configured := reserves[r.Account]
-		if !configured || r.Key != key || !reachedFloor(r.Window(), reserve, r.At) {
+		if !configured || r.Key != key {
 			continue
 		}
-		k := weekOf(r.Account, r.ResetsAt)
-		if _, seen := o.reached[k]; !seen {
-			o.reached[k] = r.At
+		w, k := r.Window(), weekOf(r.Account, r.ResetsAt)
+		if held, ok := last[r.Account]; ok && score.ResetByHand(held, w) {
+			o.runs[k] = append(o.runsOf(k), weekRun{from: r.At})
+		}
+		last[r.Account] = w
+		if reachedFloor(w, reserve, r.At) {
+			o.reach(k, r.At)
 		}
 	}
 	return o
+}
+
+// runsOf are the runs of week k, as o has them: one, from its start, where it
+// has none of its own yet.
+func (o outcomes) runsOf(k week) []weekRun {
+	if runs, ok := o.runs[k]; ok {
+		return runs
+	}
+	return []weekRun{{}}
+}
+
+// reach notes that week k was read at its floor at at: where its last run is
+// yet to reach it, that's when it did.
+func (o outcomes) reach(k week, at time.Time) {
+	runs := o.runsOf(k)
+	if last := &runs[len(runs)-1]; last.reached.IsZero() {
+		last.reached = at
+	}
+	o.runs[k] = runs
 }
 
 // reachedFloor reports whether w, read at at, had reached its floor before it
@@ -78,22 +110,41 @@ func reachedFloor(w quota.Window, reserve float64, at time.Time) bool {
 	return !w.ResetsAt.IsZero() && at.Before(w.ResetsAt) && (score.Spent(w) || score.HeldByReserve(w, reserve))
 }
 
-// ended returns when w ended: when it reached its floor, else at its reset,
-// reporting false where the history doesn't say, as it ends before w resets
-// with w's floor not reached by then.
-func (o outcomes) ended(w week) (time.Time, bool) {
-	if at, ok := o.reached[w]; ok {
-		return at, true
+// outcome is what became of the run of its week a forecast was made in: when
+// the run began, and when it ended, where known says the history tells.
+type outcome struct {
+	began, ended time.Time
+	known        bool
+}
+
+// of is what became of the run of its week f was made in, the last to begin
+// by then: it ended when it reached its floor, else at the week's reset. The
+// history doesn't tell where the week was reset by hand before the run
+// reached its floor, which cut it short, or where it ends before the week
+// resets, the run's floor not reached by then.
+func (o outcomes) of(f forecast) outcome {
+	runs := o.runsOf(f.week)
+	i := len(runs) - 1
+	for runs[i].from.After(f.at) {
+		i--
 	}
-	return w.resets, !w.resets.After(o.end)
+	r := runs[i]
+	switch {
+	case !r.reached.IsZero():
+		return outcome{began: r.from, ended: r.reached, known: true}
+	case i+1 < len(runs):
+		return outcome{began: r.from}
+	}
+	return outcome{began: r.from, ended: f.resets, known: !f.resets.After(o.end)}
 }
 
 // tally is how a set of forecasts scored: how many there were, how far off
-// they were all told, either way, how many were early and how many late by
-// more than missBy, and how many moved from the hour before's forecast of
-// their week, and how far all told.
+// they were all told, either way, and how many were early and how many late
+// by more than missBy; and how many pairs of them were compared, each of a
+// forecast and the hour before's of its week, moved or not, and how far they
+// moved all told.
 type tally struct {
-	forecasts, early, late, moves int
+	forecasts, early, late, pairs int
 	off, moved                    time.Duration
 }
 
@@ -110,9 +161,10 @@ func (t *tally) add(off time.Duration) {
 	}
 }
 
-// move takes in a forecast that moved by moved from the hour before's.
-func (t *tally) move(moved time.Duration) {
-	t.moves++
+// pair takes in a pair of forecasts compared, the later having moved by
+// moved from the earlier, none where it didn't move.
+func (t *tally) pair(moved time.Duration) {
+	t.pairs++
 	t.moved += moved.Abs()
 }
 
@@ -123,29 +175,36 @@ type scores struct {
 	all   tally
 }
 
+// scored is a forecast scored, with when the run of its week it was made in
+// began.
+type scored struct {
+	forecast
+	began time.Time
+}
+
 // scoresOf are how forecasts, made an hour apart in the order made, scored
-// against what became of their weeks, as o has it: each of a week the
-// history says the end of, off by how far its end was from that, and moved by
-// how far it was from the forecast of its week an hour before, where that's
-// among them.
+// against what became of the runs of their weeks they were made in, as o has
+// it: each made before its run's end, which the history tells, off by how far
+// its end was from that, and compared with the forecast of its run an hour
+// before, where that's among those scored, by how far it moved from it.
 func scoresOf(forecasts []forecast, o outcomes) scores {
 	var s scores
-	before := make(map[string]forecast)
+	before := make(map[string]scored)
 	for _, f := range forecasts {
-		ended, known := o.ended(f.week)
-		if !known {
+		out := o.of(f)
+		if !out.known || !f.at.Before(out.ended) {
 			continue
 		}
 		bucket := &s.byUse[bucketOf(f.used)]
-		off := f.ends.Sub(ended)
+		off := f.ends.Sub(out.ended)
 		bucket.add(off)
 		s.all.add(off)
-		if last, ok := before[f.account]; ok && last.week == f.week && last.at.Add(time.Hour).Equal(f.at) {
+		if last, ok := before[f.account]; ok && last.week == f.week && last.began.Equal(out.began) && last.at.Add(time.Hour).Equal(f.at) {
 			moved := f.ends.Sub(last.ends)
-			bucket.move(moved)
-			s.all.move(moved)
+			bucket.pair(moved)
+			s.all.pair(moved)
 		}
-		before[f.account] = f
+		before[f.account] = scored{forecast: f, began: out.began}
 	}
 	return s
 }

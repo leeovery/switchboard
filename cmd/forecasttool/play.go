@@ -54,11 +54,17 @@ const warmUp = 48 * time.Hour
 // then, and the baseline's, of that document without the router's demand, as
 // a week goes at the pace its use since it started sets. It plays from the
 // first hour after the history's first reading to the hour of its last, and
-// scores from the first hour warmUp after that reading on, which can be after
-// the last: then none is scored.
+// scores from the later of twoDaysIn, the first hour warmUp after that
+// reading, and allRead, the first hour every account configured has had its
+// week read by, as an account idle since before the history began goes
+// unread in it till then, though the router knew it. That can be after the
+// last hour, and never where the history never reads an account, as unread
+// names them: then none is scored.
 type played struct {
 	forecasts, baseline []forecast
-	from, scored, to    time.Time
+	from, to            time.Time
+	twoDaysIn, allRead  time.Time
+	unread              []string
 }
 
 // playBack plays h back through a playback of the accounts configured, as
@@ -71,7 +77,8 @@ func playBack(configured config.Accounts, policy score.Policy, h history) played
 	line, more := next()
 	read := h.readings
 	first, last := read[0].At, read[len(read)-1].At
-	pl := played{from: first.Truncate(time.Hour).Add(time.Hour), scored: hourFrom(first.Add(warmUp)), to: last.Truncate(time.Hour)}
+	pl := played{from: first.Truncate(time.Hour).Add(time.Hour), to: last.Truncate(time.Hour), twoDaysIn: hourFrom(first.Add(warmUp))}
+	pl.allRead, pl.unread = readFrom(configured, policy.Perishable, read)
 	for hour := pl.from; !hour.After(pl.to); hour = hour.Add(time.Hour) {
 		for ; len(read) > 0 && !read[0].At.After(hour); read = read[1:] {
 			p.Read(read[0])
@@ -87,12 +94,52 @@ func playBack(configured config.Accounts, policy score.Policy, h history) played
 // take takes in the forecasts doc, built at hour, as policy judges it, makes,
 // the router's and the baseline's, where hour is scored.
 func (pl *played) take(doc status.Document, policy score.Policy, hour time.Time) {
-	if hour.Before(pl.scored) {
+	if from, ok := pl.scoredFrom(); !ok || hour.Before(from) {
 		return
 	}
 	pl.forecasts = append(pl.forecasts, forecastsIn(doc, policy, hour)...)
 	doc.Demand = nil
 	pl.baseline = append(pl.baseline, forecastsIn(doc.WorkedOut(policy), policy, hour)...)
+}
+
+// scoredFrom is the first hour pl scores, as played says, reporting false
+// where it scores none, as the history never reads an account.
+func (pl played) scoredFrom() (time.Time, bool) {
+	if len(pl.unread) > 0 {
+		return time.Time{}, false
+	}
+	if pl.allRead.After(pl.twoDaysIn) {
+		return pl.allRead, true
+	}
+	return pl.twoDaysIn, true
+}
+
+// readFrom returns the first hour every account configured has had its
+// window named key read by, as read, in the order read, reads it, and the
+// accounts it never reads, in the order configured, where there's no such
+// hour.
+func readFrom(configured config.Accounts, key string, read []readings.Reading) (time.Time, []string) {
+	first := make(map[string]time.Time, len(configured))
+	for _, r := range read {
+		if _, seen := first[r.Account]; !seen && r.Key == key {
+			first[r.Account] = r.At
+		}
+	}
+	var last time.Time
+	var unread []string
+	for _, a := range configured {
+		at, ok := first[a.ID]
+		switch {
+		case !ok:
+			unread = append(unread, a.ID)
+		case at.After(last):
+			last = at
+		}
+	}
+	if len(unread) > 0 {
+		return time.Time{}, unread
+	}
+	return hourFrom(last), nil
 }
 
 // hourFrom is the first hour at t or after it.
