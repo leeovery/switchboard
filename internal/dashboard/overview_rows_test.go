@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -214,11 +215,12 @@ func TestSESSIONSFoldsOnlyWhereASessionAndHowManyMoreDontFit(t *testing.T) {
 	}
 }
 
-// The rows to spare go to SESSIONS first, a whole session at a time, two rows
-// a session here, to every one, its row saying how many more going once every
-// one shows; a row left that's less than a session goes on to COMING UP and
-// LATELY, never left blank, but where USAGE's big bars fit whole.
-func TestSESSIONSGrowsFirstAWholeSessionAtATimeWhatsLeftGoingOn(t *testing.T) {
+// The rows to spare go to COMING UP and LATELY first, to their most; then
+// to SESSIONS, a whole session at a time, two rows a session here, to every
+// one, its row saying how many more going once every one shows, a row left
+// that's less than a session going on where it fits what comes after, else
+// empty at the foot; then to USAGE's big bars, whole.
+func TestSESSIONSGrowsAWholeSessionAtATimeOnceCOMINGUPAndLATELYAreWhole(t *testing.T) {
 	sections := []section{
 		sized(SectionUsage, 13, 35), sessionsSized(6, 2),
 		sized(SectionComing, 5, 9), sized(SectionLately, 5, 14),
@@ -227,15 +229,18 @@ func TestSESSIONSGrowsFirstAWholeSessionAtATimeWhatsLeftGoingOn(t *testing.T) {
 		name                    string
 		rows                    int
 		usage, sessions, coming int
+		last                    int
 	}{
-		{name: "none to spare: a session and how many more", rows: 25, usage: 13, sessions: 5, coming: 5},
-		{name: "a row, less than a session: to COMING UP and LATELY", rows: 26, usage: 13, sessions: 5, coming: 6},
-		{name: "a session's two rows: to SESSIONS, before COMING UP and LATELY", rows: 27, usage: 13, sessions: 7, coming: 5},
-		{name: "a session's two rows and one: the one to COMING UP and LATELY", rows: 28, usage: 13, sessions: 7, coming: 6},
-		{name: "five sessions and how many more", rows: 33, usage: 13, sessions: 13, coming: 5},
-		{name: "every session, the last's second row where how many more was", rows: 34, usage: 13, sessions: 14, coming: 5},
-		{name: "every session, and a row to COMING UP and LATELY", rows: 35, usage: 13, sessions: 14, coming: 6},
-		{name: "every session, then USAGE's big bars, whole", rows: 56, usage: 35, sessions: 14, coming: 5},
+		{name: "none to spare: a session and how many more", rows: 25, usage: 13, sessions: 5, coming: 5, last: 25},
+		{name: "a row: to COMING UP and LATELY", rows: 26, usage: 13, sessions: 5, coming: 6, last: 26},
+		{name: "two rows, a session's: to COMING UP and LATELY", rows: 27, usage: 13, sessions: 5, coming: 7, last: 27},
+		{name: "COMING UP and LATELY at their most", rows: 34, usage: 13, sessions: 5, coming: 14, last: 34},
+		{name: "a row, less than a session, empty at the foot", rows: 35, usage: 13, sessions: 5, coming: 14, last: 34},
+		{name: "a session's two rows: to SESSIONS", rows: 36, usage: 13, sessions: 7, coming: 14, last: 36},
+		{name: "five sessions and how many more", rows: 42, usage: 13, sessions: 13, coming: 14, last: 42},
+		{name: "every session, the last's second row where how many more was", rows: 43, usage: 13, sessions: 14, coming: 14, last: 43},
+		{name: "every session, the big bars not fitting", rows: 64, usage: 13, sessions: 14, coming: 14, last: 43},
+		{name: "every session, then USAGE's big bars, whole", rows: 65, usage: 35, sessions: 14, coming: 14, last: 65},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -244,8 +249,8 @@ func TestSESSIONSGrowsFirstAWholeSessionAtATimeWhatsLeftGoingOn(t *testing.T) {
 			if got := rowsGiven(laid); !maps.Equal(got, want) {
 				t.Errorf("in %d rows, the sections take %v, want %v", tt.rows, got, want)
 			}
-			if got := laid[len(laid)-1].lastRow() + 1; got != tt.rows {
-				t.Errorf("in %d rows, the last section ends on row %d, want no row left blank", tt.rows, got)
+			if got := laid[len(laid)-1].lastRow() + 1; got != tt.last {
+				t.Errorf("in %d rows, the last section ends on row %d, want %d", tt.rows, got, tt.last)
 			}
 		})
 	}
@@ -265,15 +270,16 @@ func leanUsage() section {
 	return usage
 }
 
-// USAGE's blank rows between its accounts give way only where, keeping them,
-// a section open would fold, the rows they free going on to growth; where
-// every section open stays open with them, they stay. Every other section
-// folded, short of its least, USAGE takes the step that shows the most
-// accounts, its blank rows between accounts given way, then those under its
-// headings, then its key, the rows a step leaves blank at the foot, and
-// scrolls where none fits. Here ROUTING takes 6 rows to 11, and COMING UP
-// and LATELY, side by side, 5 to 14.
-func TestUSAGEsBlankRowsGiveWayOnlyWhereASectionWouldFoldOrAtTheShortestHeights(t *testing.T) {
+// USAGE's blank rows between its accounts give way wherever a section is
+// open, and come back only from the rows COMING UP and LATELY leave at their
+// most, before ROUTING's two rows of trace; where every other section folds,
+// they come back whatever the rows. Every other section folded, short of
+// its least, USAGE takes the step that shows the most accounts, its blank
+// rows between accounts given way, then those under its headings, then its
+// key, the rows a step leaves blank at the foot, and scrolls where none
+// fits. Here ROUTING takes 6 rows to 11, and COMING UP and LATELY, side by
+// side, 5 to 14.
+func TestUSAGEsBlankRowsComeBackFromWhatCOMINGUPAndLATELYLeaveOrAtTheShortestHeights(t *testing.T) {
 	sections := []section{leanUsage(), sized(SectionRouting, 6, 11), sized(SectionComing, 5, 9), sized(SectionLately, 5, 14)}
 	others := []Section{SectionRouting, SectionComing, SectionLately}
 	tests := []struct {
@@ -284,11 +290,13 @@ func TestUSAGEsBlankRowsGiveWayOnlyWhereASectionWouldFoldOrAtTheShortestHeights(
 		routing, coming int
 		folds           []Section
 	}{
-		{name: "every section fits: the blank rows stay", rows: 26, usage: 13, routing: 6, coming: 5},
-		{name: "a row short: they give way, the row they free over going on to COMING UP and LATELY", rows: 25, usage: 11, lean: givenApart, routing: 6, coming: 6},
-		{name: "two rows short: they give way, and nothing folds", rows: 24, usage: 11, lean: givenApart, routing: 6, coming: 5},
-		{name: "COMING UP and LATELY fold all the same: they stay", rows: 23, usage: 13, routing: 6, coming: 1, folds: others[1:]},
-		{name: "ROUTING folds all the same: they stay", rows: 16, usage: 13, routing: 1, coming: 1, folds: others},
+		{name: "ROUTING's two rows of trace after them", rows: 40, usage: 13, routing: 11, coming: 14},
+		{name: "COMING UP and LATELY at their most, the rows over fitting them: they come back", rows: 35, usage: 13, routing: 6, coming: 14},
+		{name: "COMING UP and LATELY at their most, a row over: they stay given way", rows: 34, usage: 11, lean: givenApart, routing: 6, coming: 14},
+		{name: "COMING UP and LATELY short of their most: they stay given way", rows: 26, usage: 11, lean: givenApart, routing: 6, coming: 7},
+		{name: "every section open at its least: given way", rows: 24, usage: 11, lean: givenApart, routing: 6, coming: 5},
+		{name: "COMING UP and LATELY folded, taking no row: they come back", rows: 23, usage: 13, routing: 6, coming: 1, folds: others[1:]},
+		{name: "every other section folded: they come back", rows: 16, usage: 13, routing: 1, coming: 1, folds: others},
 		{name: "USAGE itself a row short of its least: they give way, as that shows every account", rows: 15, usage: 11, lean: givenApart, routing: 1, coming: 1, folds: others},
 		{name: "two rows short: they give way", rows: 14, usage: 11, lean: givenApart, routing: 1, coming: 1, folds: others},
 		{name: "a row shorter: its headings' blank rows give way", rows: 13, usage: 10, lean: givenHeads, routing: 1, coming: 1, folds: others},
@@ -391,8 +399,8 @@ func TestEachStepUSAGEGivesWayTakesItsOwnPart(t *testing.T) {
 // At every height from 10 to 60, at the phone's widths, the iPad's, the
 // landscape phone's and the desktops', with the sections shown at first and
 // with every one, USAGE gives way in its steps' order: its blank rows
-// between accounts, with a section open, only where it doesn't fit with
-// them, and never further; every other section folded, at the step that
+// between accounts, with a section open, only where the rows left at the
+// foot don't fit them, and never further; every other section folded, at the step that
 // shows the most accounts in its rows, the least far of those that tie, but
 // for its key, kept only where it shows; and the accounts it shows never fall
 // as the rows grow.
@@ -419,8 +427,8 @@ func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
 					}
 					open := room - (rowsDown(back) - back[i].rows)
 					switch {
-					case !folded && usage.lean > givenNone && open >= back[i].rows:
-						t.Errorf("at %dx%d, USAGE has given way %d steps, but fits a step back", width, height, usage.lean)
+					case !folded && usage.lean > givenNone && room-rowsDown(units) >= usage.least-usage.rows:
+						t.Errorf("at %dx%d, USAGE has given way %d steps, but fits a step back in the rows left at the foot", width, height, usage.lean)
 					case !folded && usage.lean > givenApart:
 						t.Errorf("at %dx%d, USAGE has given way %d steps, its headings' blank rows among them, with a section open", width, height, usage.lean)
 					}
@@ -513,4 +521,106 @@ func TestAt15RowsUSAGEShowsItsAccounts(t *testing.T) {
 	if got, want := strings.TrimSpace(rows[at+5]), "▼ 2 more below"; got != want {
 		t.Errorf("at 138x15, the row under USAGE's accounts reads %q, want %q, the pool's rule and row alone out of view:\n%s", got, want, strings.Join(rows, "\n"))
 	}
+}
+
+// heightWorlds are the documents the Overview is swept down the height
+// with, by their names: one account, whose trace takes a row more for its
+// second; three; and six.
+var heightWorlds = []struct {
+	name string
+	doc  status.Document
+}{
+	{name: "one", doc: routerDoc("work", 1, readAccount("work", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day)))},
+	{name: "three", doc: threeRouted()},
+	{name: "six", doc: manyRead(6)},
+}
+
+// sweepHeights allots the Overview of each of the heightWorlds, with the
+// sections shown at first and with every one, at a phone's width, an iPad's
+// and the desktop's, from 10 rows to 60, a row at a time, and has check hold
+// each height's units against those a row shorter, nil at the first.
+func sweepHeights(t *testing.T, check func(t *testing.T, height int, units, shorter []unit)) {
+	t.Helper()
+	for _, w := range heightWorlds {
+		for _, shown := range []Sections{{}, every} {
+			for _, width := range []int{73, 108, 160} {
+				t.Run(fmt.Sprintf("%s, %v at %d", w.name, shown.Names(), width), func(t *testing.T) {
+					t.Parallel()
+					var shorter []unit
+					for height := 10; height <= 60; height++ {
+						f := frameOf(width, height)
+						f.Sections, f.Sessions = shown, flippingSessions()
+						units := f.allotted(w.doc, now)
+						check(t, height, units, shorter)
+						shorter = units
+					}
+				})
+			}
+		}
+	}
+}
+
+// oneArrangement reports whether two allotments of the same units are one
+// arrangement: each unit folded in both, or open in both.
+func oneArrangement(units, other []unit) bool {
+	return slices.EqualFunc(units, other, func(u, o unit) bool { return u.fold == o.fold })
+}
+
+// A row taller, within one arrangement, no section takes fewer rows: COMING
+// UP and LATELY take theirs first, a line at a time, and what grows in steps
+// takes only what they leave, so none gives back a row another took.
+func TestNoSectionTakesFewerRowsARowTallerWithinOneArrangement(t *testing.T) {
+	t.Parallel()
+	sweepHeights(t, func(t *testing.T, height int, units, shorter []unit) {
+		if shorter == nil || !oneArrangement(units, shorter) {
+			return
+		}
+		for i, u := range units {
+			if u.taken() < shorter[i].taken() {
+				t.Errorf("at %d rows, %s takes %d, fewer than the %d it took a row shorter", height, u.sections[0].heading(), u.taken(), shorter[i].taken())
+			}
+		}
+	})
+}
+
+// ROUTING's trace takes its second row at one height alone, at a width,
+// within one arrangement: a row taller, it keeps it. Where a section unfolds
+// a row taller, the rows it takes may be those the second row had, as one
+// account's single row of trace has, a section folded leaving it its rows.
+func TestROUTINGsTraceTakesItsSecondRowOnceAsTheRowsGrow(t *testing.T) {
+	t.Parallel()
+	sweepHeights(t, func(t *testing.T, height int, units, shorter []unit) {
+		i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionRouting) })
+		if i < 0 || shorter == nil || !oneArrangement(units, shorter) {
+			return
+		}
+		if twoRows(shorter[i]) && !twoRows(units[i]) {
+			t.Errorf("at %d rows, ROUTING takes %d rows, a row an account, where a row shorter it took two, %d", height, units[i].taken(), shorter[i].taken())
+		}
+	})
+}
+
+// twoRows reports whether ROUTING's unit takes two rows of trace an account:
+// open, and grown past its least.
+func twoRows(u unit) bool {
+	return !u.fold && u.rows > u.least
+}
+
+// USAGE's blank rows between its accounts come back only from the rows
+// COMING UP and LATELY leave, each open one at its most; one folded takes no
+// row, so leaves them all. Where no other section is open, they come back
+// whatever the rows.
+func TestUSAGEsBlankRowsComeBackOnlyOnceCOMINGUPAndLATELYAreWhole(t *testing.T) {
+	t.Parallel()
+	sweepHeights(t, func(t *testing.T, height int, units, _ []unit) {
+		i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })
+		if i < 0 || units[i].lean != givenNone || len(units[i].sections[0].leaner) == 0 || alone(units) {
+			return
+		}
+		for _, u := range units {
+			if u.ledBy(SectionComing, SectionLately) && !u.fold && u.rows < u.most() {
+				t.Errorf("at %d rows, USAGE keeps its blank rows between accounts, where %s takes %d of its %d", height, u.sections[0].heading(), u.rows, u.most())
+			}
+		}
+	})
 }

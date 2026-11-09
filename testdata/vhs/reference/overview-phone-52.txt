@@ -9,9 +9,7 @@ USAGE  ────────────────────────�
 WEEK
 
  1 work             ▏ ┃    ╎  34%  out ~Sat
-
  2 personal ◆          ▉┃     66%  out ~Sat
-
  3 side ▲            ┃   ▍    78%  out ~Fri
 ────────────────────────────────────────────────────
  Σ pool                ┃      59%  1.2 of 3 left
@@ -19,9 +17,7 @@ WEEK
 5-HOUR
 
  1 work               ┃    ╎  95%  back 17:10
-
  2 personal ◆       ▋   ┃     39%  34%/h till 16:30
-
  3 side ▲        ▌┃           13%  21%/h till 18:50
 ────────────────────────────────────────────────────
  Σ pool              ┃        49%  1.5 of 3 left
@@ -62,5 +58,9 @@ LATELY  ────────────────────────
 12:10  ◇ work primed: its 5-hour window started
 12:02  ▲ d28c started on work
 11:55  ▲ 9c2e started on personal
+11:30  ◇ personal primed: its 5-hour window started
+10:02  ▲ 5b19 started on personal
+09:40  ▲ 3d7a started on work
+
 
 tab views   ? keys and toggles   q quit

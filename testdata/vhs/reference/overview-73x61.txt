@@ -8,9 +8,7 @@ USAGE  ────────────────────────�
 WEEK
 
  1 work                  ▏    ┃           ╎  34%  out ~Sat
-
  2 personal ◆                    ┃           66%  out ~Sat
-
  3 side ▲                   ┃                78%  out ~Fri
 ─────────────────────────────────────────────────────────────────────────
  Σ pool                        ┃             59%  1.2 of 3 left
@@ -18,9 +16,7 @@ WEEK
 5-HOUR
 
  1 work                       ┃          ▋╎  95%  at cap · back 17:10
-
  2 personal ◆             ▌      ┃           39%  34%/h till 16:30
-
  3 side ▲          ▌ ┃                       13%  21%/h till 18:50
 ─────────────────────────────────────────────────────────────────────────
  Σ pool                     ┃▎               49%  1.5 of 3 left
@@ -48,6 +44,7 @@ COMING UP  ───────────────────────
 ~Sat       personal's week runs out at its pace                 in 1d 15h
 Sun 02:00  personal's week resets                               in 2d 11h
 Sun 21:00  work's week resets                                    in 3d 6h
+Mon 10:00  side's week resets                                   in 3d 19h
 
 LATELY  ─────────────────────────────────────────────────────────────── l
 
@@ -57,5 +54,8 @@ LATELY  ────────────────────────
 13:50  ◇ side primed: its 5-hour window started
 13:22  ▸ db8a moved personal → work: personal came under pressure
 12:47  ▲ 41e0 started on personal
+12:10  ◇ work primed: its 5-hour window started
+12:02  ▲ d28c started on work
+11:55  ▲ 9c2e started on personal
 
 tab views   ? keys and toggles   q quit

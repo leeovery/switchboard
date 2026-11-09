@@ -7,9 +7,7 @@ USAGE  ────────────────────────�
                 WEEK                                                                     5-HOUR
 
 1 work                                ┃                ╎   34%  not read since 14:20                          ┃                 ╎   95%  not read since 14:20
-
 2 personal ◆                               ┃               66%  out ~Fri                                                ┃          100%  limit · back 15:54
-
 3 side ▲                           ┃                       78%  out ~Fri 08:49                ▍ ┃                                   13%  21%/h till 18:50
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool                                 ┃     ▌             72%  0.6 of 2 left · pinned                      ┃   ▏                   56%  0.9 of 2 left
@@ -18,20 +16,22 @@ USAGE  ────────────────────────�
 
 ROUTING   pinned to personal and side since 13:40   p back to auto ─────────────────────────────────────────────────────────────────────────────────────────── r
 
-1 work          ■ refused (401) · its token needs renewing                    0 sessions
-                                                                                           ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-
-2 personal ◆    ■ limit reached · back 15:54                       ● pinned   0 sessions
-                                                                                           ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-
-3 side ▲        ● open · new sessions come here                    ● pinned   6 sessions
-                                                                                           ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+1 work          ■ refused (401) · its token needs renewing                    0 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+2 personal ◆    ■ limit reached · back 15:54                       ● pinned   0 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+3 side ▲        ● open · new sessions come here                    ● pinned   6 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
                                                                                            requests a minute, last 30 minutes
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 
-15:54  personal back from its limit                            in 1h 12m          14:41  ▲ c61b started on side, as pinned
-17:10  work back from its cap                                  in 2h 28m          14:20  ■ work refused (401): 2 sessions moved to side
-18:50  side's 5-hour resets                                    in 4h 08m          14:12  ■ personal reached its 5-hour limit: 2 sessions moved to side
+15:54       personal back from its limit                       in 1h 12m          14:41  ▲ c61b started on side, as pinned
+17:10       work back from its cap                             in 2h 28m          14:20  ■ work refused (401): 2 sessions moved to side
+18:50       side's 5-hour resets                               in 4h 08m          14:12  ■ personal reached its 5-hour limit: 2 sessions moved to side
+~Fri 08:49  side's week runs out at its pace                  in 18h 08m          13:55  ▲ 7f3a started on side, as pinned
+Sun 02:00   personal's week resets                             in 2d 11h          13:50  ◇ side primed: its 5-hour window started
+Sun 21:00   work's week resets                                  in 3d 6h          13:40  ● pin set by hand: new sessions go to personal and side
+Mon 10:00   side's week resets                                 in 3d 19h          13:22  ▸ db8a moved personal → work: personal came under pressure
+                                                                                  12:47  ▲ 41e0 started on personal
+                                                                                  12:10  ◇ work primed: its 5-hour window started
+                                                                                  12:02  ▲ d28c started on work
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit
