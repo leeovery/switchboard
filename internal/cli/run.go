@@ -42,10 +42,13 @@ token, and run says so; SWITCHBOARD_WHEN_ROUTER_DOWN, stop or direct, says
 which for the launch it's given to, as in:
 SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude
 
-When switchboard can't take part at all, as without a config it can read or
-any account's usable token, Claude Code starts as if switchboard weren't
-there, and run says why. --direct starts Claude Code on its own login, without
-the router or a token, for what needs the login.
+When run can't read its config, as when an upgrade's rules refuse it, it
+routes through the router all the same while the router answers, on the
+accounts the router names, and says so. When switchboard can't take part at
+all, as without a config it can read and a router to route through, or
+without any account's usable token, Claude Code starts as if switchboard
+weren't there, and run says why. --direct starts Claude Code on its own login,
+without the router or a token, for what needs the login.
 
 Claude Code's local subcommands, such as doctor, mcp and setup-token, and
 its --version and --help, start as if switchboard weren't there, saying
@@ -96,7 +99,8 @@ func (o *runOptions) parseArgs(cmd *cobra.Command, args []string) error {
 // run starts Claude Code with args in this process's place: through
 // switchboard, or as if switchboard weren't there, for one of Claude Code's
 // local subcommands, when its environment sets a key Claude Code may use in
-// place of an account's token, or when it can't read its config. With the
+// place of an account's token, or when it can't read its config and can't
+// route through the running router either. With the config read and the
 // router down, or the state directory its socket is in not located, it
 // starts nothing, unless told to go direct.
 func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args []string) error {
@@ -126,11 +130,24 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 	}
 	cfg, err := a.loadConfig()
 	if err != nil {
-		return l.Unaided(args, "couldn't read the config", err)
+		return a.runUnread(ctx, l, opts, args, err)
 	}
 	client, err := a.routerClient()
 	if err != nil {
 		return l.RouterUnfound(cfg.WhenRouterDown, args, err)
 	}
 	return l.Run(ctx, launch.Route{Config: cfg, Token: a.readToken, Pause: a.Pause, Router: client, Patience: a.Patience, Account: opts.account}, args)
+}
+
+// runUnread starts Claude Code with args in this process's place where the
+// config can't be read, as unread says why: through the running router, on
+// the accounts it names, where its state directory can be located, as it can
+// without a config; otherwise as if switchboard weren't there.
+func (a *app) runUnread(ctx context.Context, l launch.Launcher, opts runOptions, args []string, unread error) error {
+	client, err := a.routerClient()
+	if err != nil {
+		logger.Debug("can't find the router", "error", err)
+		return l.Unaided(args, launch.CouldntReadConfig, unread)
+	}
+	return l.RunUnread(ctx, launch.Route{Token: a.readToken, Pause: a.Pause, Router: client, Document: client.Status, Patience: a.Patience, Account: opts.account}, args, unread)
 }

@@ -92,9 +92,10 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   held with the refusal (`restart.held` with `--json`), then fails with the config's error;
   `usage` and a dashboard you open now fail on the config, while one already open shows
   `restart held (upgraded)` on its status line; and the router's log has it at warn. Until the
-  config is put right, each `claude` you start says it couldn't read the config and starts without
-  switchboard: unrouted, but within a session still routed. Put the config right as it says, and
-  the router restarts at its next quiet moment. See [Restarts](how-it-works.md#restarts).
+  config is put right, each `claude` you start says it couldn't read the config and is routed
+  through the running router all the same, on the accounts the router names; only where the router
+  doesn't answer does it start without switchboard. Put the config right as it says, and the
+  router restarts at its next quiet moment. See [Restarts](how-it-works.md#restarts).
 - **An upgrade not taken up, as the disk is full:** the router copies a new version in beside its
   own copy before it restarts into it, and where it can't, it carries on as it is, the restart
   still due (`restart due (upgraded)`), and says why once at warn in its log. It copies the

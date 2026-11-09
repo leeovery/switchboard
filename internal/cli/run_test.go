@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
@@ -344,21 +345,93 @@ func TestRunWithoutAConfigItCanRead(t *testing.T) {
 		{name: "invalid", config: invalid, wantSaid: "switchboard: couldn't read the config (invalid config " + invalid + ") — starting claude without it\n"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env := map[string]string{
-				"SWITCHBOARD_CONFIG":       tt.config,
-				"CLAUDE_CODE_OAUTH_TOKEN":  "test-token-work",
-				"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Account: side",
-			}
-			deps := testDeps(env, t.TempDir())
-			handed := recordHandOffs(t, &deps)
+		// The router isn't running, or its state directory can't be located.
+		for _, located := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s, the router's state directory located: %v", tt.name, located), func(t *testing.T) {
+				env := map[string]string{
+					"SWITCHBOARD_CONFIG":       tt.config,
+					"CLAUDE_CODE_OAUTH_TOKEN":  "test-token-work",
+					"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Account: side",
+				}
+				deps := testDeps(env, t.TempDir())
+				handed := recordHandOffs(t, &deps)
+				if !located {
+					// Without a home directory, or XDG_STATE_HOME, the state
+					// directory can't be located; claude is found on PATH.
+					deps.HomeDir = func() (string, error) { return "", errors.New("no home directory") }
+					env["PATH"] = filepath.Dir(handed.claude)
+				}
 
-			if got, want := run(t, deps, "run", "--account", "work", "--", "--resume"), (result{stderr: tt.wantSaid}); got != want {
+				if got, want := run(t, deps, "run", "--account", "work", "--", "--resume"), (result{stderr: tt.wantSaid}); got != want {
+					t.Errorf("switchboard run = %+v, want %+v", got, want)
+				}
+				got := handed.only(t)
+				if !slices.Equal(got.argv, []string{"claude", "--resume"}) || !maps.Equal(got.env, env) {
+					t.Errorf("handed over as %q with %q, want claude --resume, its environment untouched", got.argv, got.env)
+				}
+			})
+		}
+	}
+}
+
+func TestRunWithoutAConfigItCanReadRoutesThroughTheRunningRouter(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"})
+	srv.start(t)
+	// The config the router took, as a newer binary's stricter rules refuse
+	// it, or gone: the router carries on routing by the one it has.
+	missing := filepath.Join(t.TempDir(), "config.toml")
+	invalid := writeConfig(t, invalidConfig)
+	tests := []struct {
+		name        string
+		config      string
+		account     string
+		wantSaid    string
+		wantHeaders string
+	}{
+		{
+			name:        "invalid",
+			config:      invalid,
+			wantSaid:    "switchboard: couldn't read the config (invalid config " + invalid + ") — starting claude through the running router\n",
+			wantHeaders: "X-Trace: on\nX-Switchboard-Dir: ~/Code/project",
+		},
+		{
+			name:        "missing, pinned",
+			config:      missing,
+			account:     "side",
+			wantSaid:    "switchboard: couldn't read the config (no config file at " + missing + ") — starting claude through the running router\n",
+			wantHeaders: "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := srv.deps
+			handed := recordHandOffs(t, &deps)
+			args := []string{"--config", tt.config, "run"}
+			if tt.account != "" {
+				args = append(args, "--account", tt.account)
+			}
+
+			if got, want := run(t, deps, append(args, "--", "--resume")...), (result{stderr: tt.wantSaid}); got != want {
 				t.Errorf("switchboard run = %+v, want %+v", got, want)
 			}
 			got := handed.only(t)
-			if !slices.Equal(got.argv, []string{"claude", "--resume"}) || !maps.Equal(got.env, env) {
-				t.Errorf("handed over as %q with %q, want claude --resume, its environment untouched", got.argv, got.env)
+			if !slices.Equal(got.argv, []string{"claude", "--resume"}) {
+				t.Errorf("handed over as %q, want claude --resume", got.argv)
+			}
+			want := map[string]string{
+				"ANTHROPIC_BASE_URL":       "http://" + srv.listen,
+				"CLAUDE_CODE_OAUTH_TOKEN":  "test-token-work",
+				"ANTHROPIC_CUSTOM_HEADERS": tt.wantHeaders,
+			}
+			if env := got.only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_CUSTOM_HEADERS"); !maps.Equal(env, want) {
+				t.Errorf("handed over with\n%q\nwant\n%q, routed through the running router on the primary's token", env, want)
+			}
+			if _, marked := got.env[setEnv]; !marked {
+				t.Error("handed over unmarked, want what run set marked")
+			}
+			wantLog := []string{"level=WARN", `msg="starting claude" component=launch`, "mode=routed", "router=healthy", "account=work", "pin=" + cmp.Or(tt.account, `""`), "config_error="}
+			if log := srv.cliLog(t); !hasLine(log, wantLog...) {
+				t.Errorf("cli.log reads\n%s\nwant a line with %q", log, wantLog)
 			}
 		})
 	}

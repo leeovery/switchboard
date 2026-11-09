@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -62,12 +63,15 @@ type Launcher struct {
 	Exec func(path string, argv, env []string) error
 	// Stderr hears why, when Claude Code starts without the router, or
 	// without switchboard, or doesn't start, the router down, and how to go
-	// on; and when it starts through a router that isn't healthy.
+	// on; and when it starts through a router that isn't healthy, or without
+	// the config.
 	Stderr io.Writer
 }
 
 // Route is what starting Claude Code on an account's token takes.
 type Route struct {
+	// Config is the config: RunUnread, for when it can't be read, makes one of
+	// the accounts the router names in its place.
 	Config *config.Config
 	// Token reads an account's token, by the account's id, from its file.
 	Token func(id string) (tokens.Token, error)
@@ -75,6 +79,10 @@ type Route struct {
 	// file is looked at again.
 	Pause  func(time.Duration)
 	Router Router
+	// Document asks the router for its status document, as
+	// *router.Client's Status does, whose accounts RunUnread starts on in
+	// place of the config's. Run asks for none.
+	Document func(ctx context.Context) (status.Document, error)
 	// Patience is how long the router is waited for, as Patience.Ask waits.
 	Patience Patience
 	// Account is the id of the account to pin the session to, or "" to leave
@@ -119,29 +127,99 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	if err != nil {
 		return l.unaided(path, args, "no account has a usable token", err, !state.routable())
 	}
-	own := l.own()
-	env := own
 	if state.routable() {
-		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.toldDir(state)).hinting()
-		l.routedThrough(state, c, r.Account, path)
-	} else {
-		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("")
-		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "claude", path)
-		Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
+		return l.routed(path, args, state, c, r.Account, nil)
 	}
+	return l.connectDirectly(path, args, state, c)
+}
+
+// CouldntReadConfig is what a launch says switchboard couldn't do where it
+// can't read the config.
+const CouldntReadConfig = "couldn't read the config"
+
+// RunUnread starts Claude Code with args in this process's place where the
+// config can't be read, as unread says why, but the router's state directory
+// was located, as it can be without a config. While the router answers saying
+// where its proxy listens, healthy or not, it starts through it, as Run does,
+// on the accounts the router's status document names, in its order, in place
+// of the config's: Claude Code's own token is the primary's, as the document
+// names it, while that's usable, else the pinned account's, else the first's
+// with a usable token. Stderr hears that the config can't be read, and why,
+// and that claude starts through the running router. A pin that can't be
+// kept fails, as Run's does. Where the router can't be routed through, or
+// none of the accounts it names has a usable token, it starts Unaided, as
+// for a config that can't be read: what only the config says, such as
+// when_router_down, isn't known. It returns only when Claude Code didn't
+// start.
+func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread error) error {
+	path, err := l.find()
+	if err != nil {
+		return err
+	}
+	state := r.health(ctx)
+	if !state.routable() {
+		logger.Info("the router can't be routed through", "router", state.name, "reason", state.reason, "asked", state.asked)
+		return l.unaided(path, args, CouldntReadConfig, unread, true)
+	}
+	if r.Config, err = r.routersConfig(ctx); err != nil {
+		logger.Warn("can't read which accounts the router routes for", "error", err)
+		return l.unaided(path, args, CouldntReadConfig, unread, false)
+	}
+	pin, err := r.pinned()
+	if err != nil {
+		return err
+	}
+	c, err := r.choose(pin, true)
+	if err != nil {
+		logger.Warn("no account the router routes for has a usable token", "error", err)
+		return l.unaided(path, args, CouldntReadConfig, unread, false)
+	}
+	Warn(l.Stderr, CouldntReadConfig, unread, "starting claude through the running router")
+	return l.routed(path, args, state, c, r.Account, unread)
+}
+
+// routed starts Claude Code, at path, with args, through the router in state,
+// on c's token, pinned to pin unless it's "", as Run says, the config unread
+// as unread says why: nil where it was read.
+func (l Launcher) routed(path string, args []string, state routerState, c choice, pin string, unread error) error {
+	own := l.own()
+	env := own.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(pin).workingIn(l.toldDir(state)).hinting()
+	l.routedThrough(state, c, pin, path, unread)
 	return l.exec(path, args, env.markedAgainst(own))
 }
 
 // routedThrough logs Claude Code starting at path through the router in
-// state, on c's token, pinned to pin unless it's "": at warn, and Stderr
-// hearing so, where the router isn't healthy.
-func (l Launcher) routedThrough(state routerState, c choice, pin, path string) {
-	if state.healthy() {
-		logger.Info("starting claude", "mode", "routed", "router", state.name, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", pin, "claude", path)
-		return
+// state, on c's token, pinned to pin unless it's "": at info, or at warn
+// where the router isn't healthy, Stderr hearing so, or where the config
+// can't be read, as unread, nil where it was read, says why.
+func (l Launcher) routedThrough(state routerState, c choice, pin, path string, unread error) {
+	attrs := []any{"mode", "routed", "router", state.name}
+	if !state.healthy() {
+		attrs = append(attrs, "reason", state.reason)
 	}
-	logger.Warn("starting claude", "mode", "routed", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", pin, "claude", path)
-	Notice(l.Stderr, "the router "+state.String()+" — starting claude through it all the same")
+	attrs = append(attrs, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", pin)
+	if unread != nil {
+		attrs = append(attrs, "config_error", unread)
+	}
+	level := slog.LevelInfo
+	if !state.healthy() || unread != nil {
+		level = slog.LevelWarn
+	}
+	logger.Log(context.Background(), level, "starting claude", append(attrs, "claude", path)...)
+	if !state.healthy() {
+		Notice(l.Stderr, "the router "+state.String()+" — starting claude through it all the same")
+	}
+}
+
+// connectDirectly starts Claude Code, at path, with args, straight to the
+// API, the router down as state says, on c's token, as Run says: Stderr
+// hears so.
+func (l Launcher) connectDirectly(path string, args []string, state routerState, c choice) error {
+	own := l.own()
+	env := own.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("")
+	logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "claude", path)
+	Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
+	return l.exec(path, args, env.markedAgainst(own))
 }
 
 // Direct starts Claude Code with args in this process's place, on its own
@@ -439,6 +517,25 @@ func stateOf(h router.Health, err error) routerState {
 func (r Route) OwnAccount() (config.Account, bool) {
 	c, err := r.choose(choice{}, true)
 	return c.account, err == nil
+}
+
+// routersConfig is a config of the accounts the router routes for, as its
+// status document names them, in its order, its primary marked, for a launch
+// to start on in place of the config's, which can't be read. It fails where
+// the document can't be had, or names no account.
+func (r Route) routersConfig(ctx context.Context) (*config.Config, error) {
+	doc, err := r.Document(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(doc.Accounts) == 0 {
+		return nil, errors.New("the router's status document names no account")
+	}
+	accounts := make(config.Accounts, len(doc.Accounts))
+	for i, a := range doc.Accounts {
+		accounts[i] = config.Account{ID: a.ID, Label: a.Label, Primary: a.ID == doc.Primary}
+	}
+	return &config.Config{Accounts: accounts}, nil
 }
 
 // choice is the account whose token Claude Code starts on, and why it was
