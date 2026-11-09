@@ -31,19 +31,13 @@ type storedSpend struct {
 // storedBill is a bill as a file stores it: how many it counts of each
 // charge, and the paths of the counts it leaves unpriced, in order.
 type storedBill struct {
-	storedCounts
-	Unpriced []string `json:"u,omitempty"`
-}
-
-// storedCounts are a count of each charge as a file stores them, each by
-// the charge's name.
-type storedCounts struct {
-	Input     int64 `json:"i,omitzero"`
-	Write5m   int64 `json:"5m,omitzero"`
-	Write1h   int64 `json:"1h,omitzero"`
-	Read      int64 `json:"r,omitzero"`
-	Output    int64 `json:"o,omitzero"`
-	WebSearch int64 `json:"s,omitzero"`
+	Input     int64    `json:"i,omitzero"`
+	Write5m   int64    `json:"5m,omitzero"`
+	Write1h   int64    `json:"1h,omitzero"`
+	Read      int64    `json:"r,omitzero"`
+	Output    int64    `json:"o,omitzero"`
+	WebSearch int64    `json:"s,omitzero"`
+	Unpriced  []string `json:"u,omitempty"`
 }
 
 // storedOdd is an oddSpend as a file stores it: its tokens, and the bill of
@@ -135,54 +129,43 @@ func (s storedSpend) spend() Spend {
 	return spend
 }
 
-// A seventh charge fails to compile here until storedCounts names it too.
+// A seventh charge fails to compile here until storedBill names it too.
 var _ = [1]int{}[charges-6]
 
-// storedBillOf is b as a file stores it, but for what it carried, which a
-// Spent's group stores beside it.
+// storedBillOf is b as a file stores it.
 func storedBillOf(b bill) storedBill {
-	return storedBill{storedCounts: storedCountsOf(b.charged), Unpriced: b.unpriced}
-}
-
-// storedCountsOf is c as a file stores it.
-func storedCountsOf(c [charges]int64) storedCounts {
-	return storedCounts{
+	c := b.charged
+	return storedBill{
 		Input: c[chargeInput], Write5m: c[chargeWrite5m], Write1h: c[chargeWrite1h], Read: c[chargeRead], Output: c[chargeOutput], WebSearch: c[chargeWebSearch],
+		Unpriced: b.unpriced,
 	}
 }
 
 // bill is the bill s stores, leaving none unpriced where it names none, as
 // billOf does.
 func (s storedBill) bill() bill {
-	b := bill{charged: s.counts()}
+	b := bill{charged: [charges]int64{
+		chargeInput: s.Input, chargeWrite5m: s.Write5m, chargeWrite1h: s.Write1h, chargeRead: s.Read, chargeOutput: s.Output, chargeWebSearch: s.WebSearch,
+	}}
 	if len(s.Unpriced) > 0 {
 		b.unpriced = s.Unpriced
 	}
 	return b
 }
 
-// counts are the counts s stores, by charge.
-func (s storedCounts) counts() [charges]int64 {
-	return [charges]int64{
-		chargeInput: s.Input, chargeWrite5m: s.Write5m, chargeWrite1h: s.Write1h, chargeRead: s.Read, chargeOutput: s.Output, chargeWebSearch: s.WebSearch,
-	}
-}
-
 // storedSpentGroup is what a Spent holds of the requests of a model and a
 // geo as a file stores it, as Spent's MarshalJSON writes it and its
 // UnmarshalJSON reads it back: the model's id and the geo, and the bill of
-// their usage, each by a short key, the times over its counts carried past
-// what an int64 holds, as bill has them, under k; and whether any held a
-// count that costs anything, and whether any went upstream without usage, by
-// the keys a Spend's stored form gives them. It holds counts alone, never a
-// price, and leaves out every zero.
+// their usage, each by a short key; and whether any held a count that costs
+// anything, and whether any went upstream without usage, by the keys a
+// Spend's stored form gives them. It holds counts alone, never a price, and
+// leaves out every zero.
 type storedSpentGroup struct {
 	Model string `json:"m,omitzero"`
 	Geo   string `json:"g,omitzero"`
 	storedBill
-	Carried   storedCounts `json:"k,omitzero"`
-	Costly    bool         `json:"c,omitzero"`
-	Unmetered bool         `json:"n,omitzero"`
+	Costly    bool `json:"c,omitzero"`
+	Unmetered bool `json:"n,omitzero"`
 }
 
 // MarshalJSON writes sp in its stored form: what it holds of each model and
@@ -190,10 +173,7 @@ type storedSpentGroup struct {
 func (sp Spent) MarshalJSON() ([]byte, error) {
 	stored := make([]storedSpentGroup, len(sp.groups))
 	for i, g := range sp.groups {
-		stored[i] = storedSpentGroup{
-			Model: g.model, Geo: g.geo, storedBill: storedBillOf(g.billed), Carried: storedCountsOf(g.billed.carried),
-			Costly: g.costly, Unmetered: g.unmetered,
-		}
+		stored[i] = storedSpentGroup{Model: g.model, Geo: g.geo, storedBill: storedBillOf(g.billed), Costly: g.costly, Unmetered: g.unmetered}
 	}
 	b, err := json.Marshal(stored)
 	if err != nil {
@@ -213,9 +193,7 @@ func (sp *Spent) UnmarshalJSON(b []byte) error {
 	}
 	*sp = Spent{}
 	for _, g := range stored {
-		billed := g.bill()
-		billed.carried = g.Carried.counts()
-		sp.with(spentGroup{model: g.Model, geo: g.Geo, billed: billed, costly: g.Costly, unmetered: g.Unmetered})
+		sp.with(spentGroup{model: g.Model, geo: g.Geo, billed: g.bill(), costly: g.Costly, unmetered: g.Unmetered})
 	}
 	return nil
 }

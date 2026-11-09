@@ -3,7 +3,6 @@ package ledger_test
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/big"
 	"math/rand/v2"
 	"reflect"
@@ -111,8 +110,10 @@ func spentUsage(r *rand.Rand) string {
 }
 
 // spentCount is a count r draws: mostly of a size an answer gives; now and
-// then none; less than none, as a file edited by hand could hold; or so
-// near the most an int64 holds that two summed, or one priced, go past it.
+// then none; less than none, as a file edited by hand could hold; or a
+// trillion or two, so one priced, or a few summed, can pass what
+// Picodollars hold, though their counts summed never near what an int64
+// does.
 func spentCount(r *rand.Rand) int64 {
 	switch r.IntN(10) {
 	case 0:
@@ -120,7 +121,7 @@ func spentCount(r *rand.Rand) int64 {
 	case 1:
 		return -r.Int64N(1_000)
 	case 2:
-		return math.MaxInt64 - r.Int64N(1_000)
+		return 1_000_000_000_000 + r.Int64N(1_000_000_000_000)
 	}
 	return r.Int64N(200_000)
 }
@@ -289,39 +290,36 @@ func TestASpentPricesEachModelAndGeoAsItsRequestsDo(t *testing.T) {
 
 // A Spent priced past what Picodollars hold reads as unpriced, never
 // wrapped round, as its requests each priced and summed do: whether a
-// request alone is priced past it, or only their sum, and whether a group's
-// counts pass what an int64 holds as they're summed, or only as they're
-// priced.
+// request alone is priced past it, or only their sum. The config prices
+// Claude Opus 5.5's input at its most, $1,000,000 a million tokens, a
+// dollar a token, so some million tokens reach it.
 func TestASpentPricedPastWhatPicodollarsHoldReadsAsUnpriced(t *testing.T) {
-	type tokens struct{ input, output int64 }
-	opusInput, opusOutput := dollars(4e-6), dollars(20e-6)
+	table := overridden(t, ledger.Pricing, config.Prices{Models: map[string]config.ModelPrices{opus: {Input: new(1_000_000.0)}}})
 	tests := []struct {
 		name     string
-		requests []tokens
+		requests []int64
 	}{
-		{name: "two requests of the most input an int64 holds", requests: []tokens{{input: math.MaxInt64}, {input: math.MaxInt64}}},
-		{name: "counts past it as they're summed, and as they're priced", requests: []tokens{{input: math.MaxInt64, output: math.MaxInt64}, {output: 3}}},
-		{name: "two requests each priced within it, but not their sum", requests: []tokens{{input: 1_500_000_000_000}, {input: 1_500_000_000_000}}},
-		{name: "a request of output alone, priced past it", requests: []tokens{{output: 500_000_000_000}}},
+		{name: "a request priced past it alone", requests: []int64{10_000_000}},
+		{name: "two requests each priced within it, but not their sum", requests: []int64{5_000_000, 5_000_000}},
+		{name: "one past it among others within it", requests: []int64{1_000, 10_000_000, 2_000}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var lines []ledger.Line
 			cost := new(big.Int)
-			for _, r := range tt.requests {
-				lines = append(lines, spentLine(opus, "", fmt.Sprintf(`{"input_tokens":%d,"output_tokens":%d}`, r.input, r.output), answered))
-				cost.Add(cost, new(big.Int).Mul(big.NewInt(r.input), big.NewInt(int64(opusInput))))
-				cost.Add(cost, new(big.Int).Mul(big.NewInt(r.output), big.NewInt(int64(opusOutput))))
+			for _, input := range tt.requests {
+				lines = append(lines, spentLine(opus, "", fmt.Sprintf(`{"input_tokens":%d}`, input), answered))
+				cost.Add(cost, new(big.Int).Mul(big.NewInt(input), big.NewInt(int64(ledger.Dollar))))
 			}
 			if cost.IsInt64() {
-				t.Fatalf("the requests cost %s, within what an int64 holds; want a case past it", cost)
+				t.Fatalf("the requests cost %s, within what Picodollars hold; want a case past it", cost)
 			}
 			want := ledger.Worth{Unpriced: []string{ledger.TooLarge}}
 			spent := spentOfLines(lines)
-			if got, priced := ledger.Pricing.SummedSpent(spent, today); !reflect.DeepEqual(got, want) || priced {
+			if got, priced := table.SummedSpent(spent, today); !reflect.DeepEqual(got, want) || priced {
 				t.Errorf("SummedSpent(%s) = %+v, priced: %t; want %+v, unpriced", spentJSON(spent), got, priced, want)
 			}
-			if summed, priced := requestsSummed(ledger.Pricing, lines, today); !reflect.DeepEqual(summed, want) || priced {
+			if summed, priced := requestsSummed(table, lines, today); !reflect.DeepEqual(summed, want) || priced {
 				t.Errorf("each request priced and summed gives %+v, priced: %t; want %+v, unpriced, as SummedSpent gives it", summed, priced, want)
 			}
 		})

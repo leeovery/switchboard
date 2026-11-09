@@ -65,10 +65,13 @@ func (sp *Spent) with(g spentGroup) {
 }
 
 // and is what g's requests and o's spent together, of the same model and
-// geo: their bills summed, as bill's plus sums them, and each flag set where
-// either's is.
+// geo: each charge's counts summed, each path left unpriced once, in order,
+// and each flag set where either's is.
 func (g spentGroup) and(o spentGroup) spentGroup {
-	g.billed = g.billed.plus(o.billed)
+	for c, n := range o.billed.charged {
+		g.billed.charged[c] += n
+	}
+	g.billed.unpriced = withPaths(g.billed.unpriced, o.billed.unpriced)
 	g.costly, g.unmetered = g.costly || o.costly, g.unmetered || o.unmetered
 	return g
 }
@@ -96,7 +99,8 @@ func withPaths(paths, more []string) []string {
 // each priced on its own, as SummedSpend gives it, summed as and sums
 // them. Summing a group's counts before pricing them gives the same cost as
 // pricing each request's and summing those, and past what Picodollars hold,
-// the same sum too large, as a bill carries a count too large to hold.
+// the same sum too large, its counts summed as they are, as no count nears
+// what an int64 holds.
 func (t Table) SummedSpent(sp Spent, date string) (Worth, bool) {
 	var sum Worth
 	priced := false

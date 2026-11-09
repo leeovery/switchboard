@@ -7741,6 +7741,7 @@ from the first day a router that has it runs, so nothing before then is in it.
     it as unpriced worth; a sum one part of which is too large is too large, whatever else it
     holds. Plans' costs over a period that pass it are left out, as where no plan is known. Every
     sum goes through the one helper that checks it, and a guard holds that none adds otherwise.
+    Token counts are summed as they are, as no count nears what a 64-bit integer holds.
   - The table holds the models on the page, but those the API retired before 7 October 2026, the
     day the ledger began recording, as no answer of theirs is in it to price.
   - A count the usage holds that the table can't price is left out of the worth, which names it

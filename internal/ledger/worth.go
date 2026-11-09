@@ -496,31 +496,10 @@ func (p Prices) byCharge() [charges]Picodollars {
 
 // bill is a usage's counts as its prices bill them: how many it counts of
 // each charge, every path giving it summed, and the paths of those no price
-// charges for, in order, as billOf has them. Of the counts of several
-// usages summed, carried are how many times over each charge's passed what
-// an int64 holds, less those it came back past the least it holds: its count
-// is charged's, wrapped round, and carried times 2^64 more, so a sum holds
-// the same whatever order its counts come in.
+// charges for, in order, as billOf has them.
 type bill struct {
 	charged  [charges]int64
-	carried  [charges]int64
 	unpriced []string
-}
-
-// plus returns the counts of b and o summed, each charge's as carried says.
-func (b bill) plus(o bill) bill {
-	for c, n := range o.charged {
-		sum := b.charged[c] + n
-		switch {
-		case n > 0 && sum < b.charged[c]:
-			b.carried[c]++
-		case n < 0 && sum > b.charged[c]:
-			b.carried[c]--
-		}
-		b.charged[c], b.carried[c] = sum, b.carried[c]+o.carried[c]
-	}
-	b.unpriced = withPaths(b.unpriced, o.unpriced)
-	return b
 }
 
 // billOf returns the bill of usage, as counts: each count a price charges
@@ -551,8 +530,7 @@ func (b bill) same(o bill) bool {
 // worth returns what the bill given costs at p: each count it charges for
 // at its price, and what it leaves unpriced, noUsage among it where
 // unmetered says requests it's of went upstream without usage. It reports
-// false where the cost passes what Picodollars hold, as tooLarge has it, as
-// a count past what an int64 holds does at any price but none.
+// false where the cost passes what Picodollars hold, as tooLarge has it.
 func (p Prices) worth(billed bill, unmetered bool) (Worth, bool) {
 	prices := p.byCharge()
 	w := Worth{Unpriced: slices.Clone(billed.unpriced)}
@@ -565,7 +543,7 @@ func (p Prices) worth(billed bill, unmetered bool) (Worth, bool) {
 		if fits {
 			w.Cost, fits = w.Cost.Plus(cost)
 		}
-		if !fits || billed.carried[c] != 0 && prices[c] != 0 {
+		if !fits {
 			return w.tooLarge(), false
 		}
 	}

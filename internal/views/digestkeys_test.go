@@ -57,9 +57,7 @@ var rawAs = map[storedKey]string{
 // 2262, which a golden of one day's world can't reach. A golden holding one
 // is told to drop it here.
 var unwritten = map[storedKey]string{
-	{of: "ledger.storedSpend", key: "q"}: "a quota check is never counted, so the store never holds one",
-	{of: "ledger.storedSpentGroup", key: "k"}: "a page's counts carry past what an int64 holds only past some 9.2 quintillion tokens, " +
-		"which the golden's world never spends",
+	{of: "ledger.storedSpend", key: "q"}:    "a quota check is never counted, so the store never holds one",
 	{of: "views.storedPage", key: "nn"}:     unpending,
 	{of: "views.storedTurn", key: "pn"}:     unpending,
 	{of: "views.storedTurn", key: "mp"}:     unpending,
