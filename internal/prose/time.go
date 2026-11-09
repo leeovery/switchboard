@@ -79,12 +79,35 @@ func Dated(now, t time.Time) string {
 // RunOut shows t, when a window is projected to run out, in now's time zone:
 // within a day of now, as Dated shows it, such as "16:05" or "Mon 05:22";
 // further ahead, its weekday alone, such as "Tue", as a forecast days out
-// misses by a day or more.
+// misses by a day or more, but for now's own weekday, which would read as
+// today: that, as Day names it, such as "Thu 12 Nov".
 func RunOut(now, t time.Time) string {
 	if t.Sub(now) <= 24*time.Hour {
 		return Dated(now, t)
 	}
-	return Weekday(t.In(now.Location()).Weekday())
+	at := t.In(now.Location())
+	if at.Weekday() == now.Weekday() {
+		return Day(at)
+	}
+	return Weekday(at.Weekday())
+}
+
+// RunOutBrief shows t, when a window is projected to run out, in now's time
+// zone as briefly as a bar line has room for, as Brief shows it, but more
+// than a day ahead on now's own weekday, which would read as today: its
+// date without the weekday, such as "12 Nov", as RunOut dates it.
+func RunOutBrief(now, t time.Time) string {
+	at := t.In(now.Location())
+	if t.Sub(now) > 24*time.Hour && at.Weekday() == now.Weekday() {
+		return DayMonth(at)
+	}
+	return Brief(now, t)
+}
+
+// RunOutWidth is how many characters the widest time RunOut shows takes: as
+// Dated shows one, or a day as Day names it.
+func RunOutWidth() int {
+	return max(DatedWidth(), utf8.RuneCountInString(DayWidest()))
 }
 
 // DatedWidth is how many characters the widest time Dated shows takes, as a

@@ -569,7 +569,12 @@ it started sets, once 5% of it has passed, and has no projection before then.
 
 **How a run-out reads:** within a day of now, as every time reads, `out ~16:05` or `out ~Mon 05:22`;
 more than a day ahead, its day alone, `out ~Tue`, as a forecast days out misses by a day or more
-(the owner's call, 8 November 2026). The status document gives the time whole.
+(the owner's call, 8 November 2026). Six to seven days ahead it falls on today's weekday, which
+alone would read as today, so there it gives its date too, as a day is named, `out ~Thu 12 Nov`.
+Every word of a run-out more than a day ahead reads it so: COMING UP's times, Runway's and the
+cards' words, `usage` and `status`. The usage block's short form, which keeps a day alone, says
+the date there without the weekday, `out ~12 Nov`, inside its 14 cells (see `usage`, the
+printout). The status document gives the time whole.
 
 **Checked on a history,** never against the real install in tests: `cmd/forecasttool`, a program of
 its own as `cmd/capturetool` is, plays a readings history and request ledger back, forecasting at
@@ -2429,7 +2434,7 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   | Its token is refused, or its last read failed: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
   | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54` | `state.destructive` |
   | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `back 17:10` | `accent.attention` |
-  | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~Mon`, `out ~16:05` | `accent.attention` |
+  | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Thu 12 Nov` on today's weekday, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~12 Nov` on today's weekday, `out ~Mon`, `out ~16:05` | `accent.attention` |
   | The account doesn't have the window (below) | `no 5-hour limit` | `no limit` | `text.subtle` |
   | A 5-hour window not started (settled in the plan) | `not started` | `not started` | `text.muted` |
   | The reset is less than an hour away for the 5-hour window, or a day for a week (settled in the plan) | `34% till 16:30` | `34% · 16:30` | as the allowance |
@@ -2880,12 +2885,13 @@ least fits in its column beside the other (`overview.go`, `listsBeside`), never 
 down; else COMING UP comes first, then LATELY under it, each the full width. Each least is its
 line's fixed parts with an account's name at its least, as a column of names has it, 8 or the
 widest name's own where that's fewer, so names of 8 cells or more never move the switch, and only
-shorter ones bring it in, as with names of 3 cells, to 82 columns:
+shorter ones bring it in, as with names of 3 cells, to 84 columns:
 
-- **COMING UP, 42 cells** (`comingLeast`): its time at its widest, `~Sat 06:00`, 10; the two blanks
-  after it; the name, 8; what befalls it at its shortest, ` is primed`, 10; and its countdown with
-  the gap before it, 12. It fits in `round(w × 0.45)` from 93 columns, so the two sit side by side
-  from 93, and from 100 are drawn as they were before.
+- **COMING UP, 43 cells** (`comingLeast`): its time at its widest, a run-out dated on today's
+  weekday, `~Thu 12 Nov`, 11; the two blanks after it; the name, 8; what befalls it at its
+  shortest, ` is primed`, 10; and its countdown with the gap before it, 12. It fits in
+  `round(w × 0.45)` from 95 columns, so the two sit side by side from 95, and from 100 are drawn
+  as they were before.
 - **LATELY, 21 cells** (`latelyLeast`): its time at its widest, `Sun 02:00`, 9; the two blanks; its
   mark and a blank, 2; and the name, 8. It fits beside COMING UP wherever COMING UP's does.
 
@@ -3005,7 +3011,7 @@ below, not flex's even share:
    LATELY together; then ROUTING.
 3. **What gave way takes it back where it fits,** at its least: what gave way last first, and of
    those folded together, unit by unit in the page's order. So where the two don't fit side by
-   side, under 93 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone
+   side, under 95 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone
    where LATELY can't, and LATELY alone where it fits and COMING UP doesn't, as under a folded
    heading, where COMING UP's would bring a blank row back. USAGE's blank rows between its
    accounts come back last, and where no other section is open, come back whatever the rows, so

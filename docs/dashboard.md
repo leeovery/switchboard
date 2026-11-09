@@ -171,7 +171,7 @@ name, its state in at least 20 cells, its sessions and a trace of at least 24 fi
 
 ### COMING UP and LATELY
 
-COMING UP and LATELY sit side by side where both fit, from 93 columns, and LATELY goes under
+COMING UP and LATELY sit side by side where both fit, from 95 columns, and LATELY goes under
 COMING UP where they don't.
 
 - **COMING UP** is what happens next, soonest first, such as
@@ -402,7 +402,8 @@ Each column of a lane is one cell, showing room, at its cap, or at its limit. Th
 
 Words under a lane say where a stretch without room starts and when the account is back. For
 example, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`, or, more than a day
-ahead, its day alone, `runs out ~Sat at its pace`. Where one hold runs
+ahead, its day alone, `runs out ~Sat at its pace`, or dated on today's weekday,
+`runs out ~Thu 12 Nov at its pace`. Where one hold runs
 straight into another, the first says when it lifts, and only the last says when the account is
 back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
 
@@ -708,7 +709,7 @@ switches at one width: under 100 columns, it takes its phone form.
   short form, then the name column.
 - ROUTING takes two rows for each account, and SESSIONS two rows for each session, as they do
   wherever one row doesn't fit, under 83 columns with a name column of 16.
-- LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 93
+- LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 95
   columns.
 - Graphs' cards stack, one to a row, each card's words beside its label where rows run short, and
   GLANCE's windows stack where they don't fit side by side. See [Room on Graphs](#room-on-graphs).

@@ -55,14 +55,14 @@ func leastShort(u unit) int {
 }
 
 // COMING UP and LATELY sit side by side where each one's least fits beside
-// the other, COMING UP's 42 cells in round(w × 0.45) from 93 columns, a name
+// the other, COMING UP's 43 cells in round(w × 0.45) from 95 columns, a name
 // counted at its least, as a column of names has it: 8 for a name of 8
-// cells, 14 or 22 alike, so the switch falls at 93 for each; and a shorter
-// name's own cells, so for one of 3 it falls at 82. Under it, LATELY is
+// cells, 14 or 22 alike, so the switch falls at 95 for each; and a shorter
+// name's own cells, so for one of 3 it falls at 84. Under it, LATELY is
 // under COMING UP.
 func TestCOMINGUPAndLATELYSitSideBySideWhereTheirLeastsFit(t *testing.T) {
-	if got := comingLeast(8); got != 42 {
-		t.Fatalf("COMING UP's least is %d cells, want 42: ~Sat 06:00, two blanks, a name at 8, is primed and its countdown's 12", got)
+	if got := comingLeast(8); got != 43 {
+		t.Fatalf("COMING UP's least is %d cells, want 43: ~Thu 12 Nov, two blanks, a name at 8, is primed and its countdown's 12", got)
 	}
 	if got := latelyLeast(8); got != 21 {
 		t.Fatalf("LATELY's least is %d cells, want 21: Sun 02:00, two blanks, its mark and a blank, and a name at 8", got)
@@ -71,10 +71,10 @@ func TestCOMINGUPAndLATELYSitSideBySideWhereTheirLeastsFit(t *testing.T) {
 		name   string
 		beside int
 	}{
-		{name: "personal", beside: 93},
-		{name: "work-team-plan", beside: 93},
-		{name: "side-hustle-consulting", beside: 93},
-		{name: "ops", beside: 82},
+		{name: "personal", beside: 95},
+		{name: "work-team-plan", beside: 95},
+		{name: "side-hustle-consulting", beside: 95},
+		{name: "ops", beside: 84},
 	}
 	for _, tt := range tests {
 		named := readAccount("work", weekOf(0.33, 5*quota.Day))

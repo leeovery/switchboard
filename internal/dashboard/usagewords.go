@@ -69,10 +69,9 @@ func alike(words string, k ink) usageWords {
 // wordsOf are the words of the window w as it stands at now, as its Kind and
 // At say them: what holds it back, and until when; when it runs out; that it
 // isn't started; that its account has no such limit; or its allowance, to its
-// reset. A time reads as Dated has it
-// in full, and short, its time today and only its weekday for another day;
-// but a reading's, as lastRead has it, and a run-out's in full, as RunOut
-// has it.
+// reset. A time reads as Dated has it in full, and short, its time today and
+// only its weekday for another day; but a reading's, as lastRead has it, and
+// a run-out's as RunOut has it in full, and RunOutBrief short.
 func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	switch w.Kind {
 	case status.WindowTokenless:
@@ -89,7 +88,7 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	case status.WindowCapped:
 		return heldBack("at cap", w.At, now, warningInk)
 	case status.WindowRunsOut:
-		return usageWords{full: line{{"out ~" + prose.RunOut(now, w.At), warningInk}}, short: line{{"out ~" + prose.Brief(now, w.At), warningInk}}}
+		return usageWords{full: line{{"out ~" + prose.RunOut(now, w.At), warningInk}}, short: line{{"out ~" + prose.RunOutBrief(now, w.At), warningInk}}}
 	case status.WindowNotStarted:
 		return alike("not started", mutedInk)
 	default:
