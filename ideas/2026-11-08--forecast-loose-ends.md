@@ -43,9 +43,24 @@ history's could too.
 
 - **An answer ending after its session moved** counts as none of its time on the account.
 - **Weights edited by hand** in `state.json` to below zero are taken as they are.
-- **The ledger's edges for the replay:** it can't show when the router forgets a new session whose
-  request failed, or takes back the moves of a request refused on every account; the replay plays
-  them as remembered on the line's account.
+
+## The replay
+
+What `cmd/forecasttool`'s playback of a state directory can't tell from what's recorded:
+
+- **When each attempt went out.** The ledger holds the accounts a request was tried on, in order,
+  but not when, so the playback moves a session to each as its request arrived, where the router
+  moves it as each attempt goes out, seconds later, or a throttle's wait.
+- **Requests of a session that overlap.** The playback takes each line whole as its request
+  arrived, where the router can have one request of a session move it between another's attempts,
+  or find it moved meanwhile and leave the newer assignment standing.
+- **The pool's room** is judged only as a changed reading is taken in and as a document is built
+  on the hour, as the router's seed judges it only at the readings it replays, where the router
+  judges it at every reading, changed or not, and every status document it builds.
+- **When an account was last read.** The readings history keeps a reading only when it changed, so
+  an account's `FetchedAt` in the playback is its last change, not its last read.
+- **A reset the provider moves mid-week.** A week is known by its reset, so the forecasts made
+  before the move are scored under the old reset, as a week of its own.
 
 ## Smaller
 
