@@ -18,11 +18,12 @@ import (
 // stricter rules refuse the one the running router took.
 var errUnread = errors.New("invalid config /home/tester/.config/switchboard/config.toml:\naccount \"work\": its label is longer than 100 characters")
 
-// What stderr hears where the config can't be read: claude starting through
-// the running router, or without switchboard.
+// What stderr hears where the config can't be read: that, and why, and
+// claude starting through the running router, or without switchboard.
 const (
-	throughRunning = "switchboard: couldn't read the config (invalid config /home/tester/.config/switchboard/config.toml) — starting claude through the running router\n"
-	unreadUnaided  = "switchboard: couldn't read the config (invalid config /home/tester/.config/switchboard/config.toml) — starting claude without it\n"
+	unreadSaid     = "switchboard: couldn't read the config (invalid config /home/tester/.config/switchboard/config.toml) — "
+	throughRunning = unreadSaid + "starting claude through the running router\n"
+	unreadUnaided  = unreadSaid + "starting claude without it\n"
 )
 
 // naming returns r, its status document naming accounts, in their order, the
@@ -182,28 +183,47 @@ func TestRunUnreadStartsASessionAsRunDoes(t *testing.T) {
 }
 
 func TestRunUnreadStartsWithoutSwitchboardWhereNoAccountTheRouterNamesCanBeStartedOn(t *testing.T) {
+	// What stderr hears of the router that answers, so claude starting
+	// without switchboard isn't read as the router being down.
+	const (
+		unsaid    = unreadSaid + "the running router doesn't say which accounts it routes for — starting claude without it\n"
+		tokenless = unreadSaid + "the running router names no account with a usable token — starting claude without it\n"
+	)
 	tests := []struct {
 		name   string
 		router *fakeRouter
-		// tokens are the token files there are, testTokens unless given.
-		tokens  tokenstest.Files
-		wantLog []string
+		// tokens are the token files there are, testTokens unless given;
+		// undocumented takes away the way to ask for the router's document.
+		tokens       tokenstest.Files
+		undocumented bool
+		wantSaid     string
+		wantLog      []string
 	}{
 		{
-			name:    "no usable token",
-			router:  healthy().naming("side", accounts...),
-			tokens:  tokenstest.Files{"personal": " "},
-			wantLog: []string{"level=WARN", `msg="no account the router routes for has a usable token"`, `error="work: ` + tokenstest.Missing("work").Error()},
+			name:     "no usable token",
+			router:   healthy().naming("side", accounts...),
+			tokens:   tokenstest.Files{"personal": " "},
+			wantSaid: tokenless,
+			wantLog:  []string{"level=WARN", `msg="no account the router routes for has a usable token"`, `error="work: ` + tokenstest.Missing("work").Error()},
 		},
 		{
-			name:    "the router's document unread",
-			router:  &fakeRouter{health: healthy().health, docErr: errors.New("the router answered GET /status with 500 Internal Server Error")},
-			wantLog: []string{"level=WARN", `msg="can't read which accounts the router routes for"`, `error="the router answered GET /status with 500 Internal Server Error"`},
+			name:     "the router's document unread",
+			router:   &fakeRouter{health: healthy().health, docErr: errors.New("the router answered GET /status with 500 Internal Server Error")},
+			wantSaid: unsaid,
+			wantLog:  []string{"level=WARN", `msg="can't read which accounts the router routes for"`, `error="the router answered GET /status with 500 Internal Server Error"`},
 		},
 		{
-			name:    "the router's document naming no account",
-			router:  healthy().naming(""),
-			wantLog: []string{"level=WARN", `msg="can't read which accounts the router routes for"`, `error="the router's status document names no account"`},
+			name:         "no way to ask for the router's document",
+			router:       healthy().naming("side", accounts...),
+			undocumented: true,
+			wantSaid:     unsaid,
+			wantLog:      []string{"level=WARN", `msg="can't read which accounts the router routes for"`, `error="the router can't be asked for its status document"`},
+		},
+		{
+			name:     "the router's document naming no account",
+			router:   healthy().naming(""),
+			wantSaid: unsaid,
+			wantLog:  []string{"level=WARN", `msg="can't read which accounts the router routes for"`, `error="the router's status document names no account"`},
 		},
 	}
 	for _, tt := range tests {
@@ -219,6 +239,9 @@ func TestRunUnreadStartsWithoutSwitchboardWhereNoAccountTheRouterNamesCanBeStart
 			if tt.tokens != nil {
 				r.Token = tt.tokens.Read
 			}
+			if tt.undocumented {
+				r.Document = nil
+			}
 
 			if err := h.launcher.RunUnread(t.Context(), r, []string{"--resume"}, errUnread); err != nil {
 				t.Fatalf("RunUnread() error = %v", err)
@@ -228,8 +251,8 @@ func TestRunUnreadStartsWithoutSwitchboardWhereNoAccountTheRouterNamesCanBeStart
 			if want := []string{"claude", "--resume"}; !slices.Equal(got.argv, want) || !slices.Equal(got.env, inherited) {
 				t.Errorf("started claude as %q with %q, want %q with the environment untouched, %q", got.argv, got.env, want, inherited)
 			}
-			if said := h.stderr.String(); said != unreadUnaided {
-				t.Errorf("said %q on stderr, want %q", said, unreadUnaided)
+			if said := h.stderr.String(); said != tt.wantSaid {
+				t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
 			}
 			if !log.Has(tt.wantLog...) {
 				t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantLog)

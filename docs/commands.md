@@ -296,7 +296,11 @@ How `claude` starts depends on the router and your environment:
   it, `claude` is routed all the same while the router answers, as Routed says, on the accounts the
   router names: Claude Code gets the primary's token, as the router names it, or, while that isn't
   usable, `--account`'s, else the token of the first account whose token is. A line on stderr says
-  so: `switchboard: couldn't read the config (…) — starting claude through the running router`.
+  so: `switchboard: couldn't read the config (…) — starting claude through the running router`. An
+  unhealthy router adds Routed's second line: `switchboard: the router is unhealthy (…) — starting
+  claude through it all the same`. Where the router answers but none of the accounts it names has a
+  usable token, the line says so before `— starting claude without it`, so you don't take it for
+  the router being down: `— the running router names no account with a usable token —`.
 - **Without switchboard.** When switchboard can't take part at all, such as when it can't read its
   config and the router doesn't answer, or no account has a usable token, `claude` starts as if
   switchboard weren't there; with the config read but the router's state directory not found, only

@@ -81,7 +81,7 @@ type Route struct {
 	Router Router
 	// Document asks the router for its status document, as
 	// *router.Client's Status does, whose accounts RunUnread starts on in
-	// place of the config's. Run asks for none.
+	// place of the config's: nil, there's none to be had. Run asks for none.
 	Document func(ctx context.Context) (status.Document, error)
 	// Patience is how long the router is waited for, as Patience.Ask waits.
 	Patience Patience
@@ -125,7 +125,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	}
 	c, err := r.choose(pin, state.routable())
 	if err != nil {
-		return l.unaided(path, args, "no account has a usable token", err, !state.routable())
+		return l.unaided(path, args, "no account has a usable token", err, "", !state.routable())
 	}
 	if state.routable() {
 		return l.routed(path, args, state, c, r.Account, nil)
@@ -136,6 +136,15 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 // CouldntReadConfig is what a launch says switchboard couldn't do where it
 // can't read the config.
 const CouldntReadConfig = "couldn't read the config"
+
+// What keeps RunUnread from routing through a router that answers, as Stderr
+// hears it, so claude starting without switchboard isn't read as the router
+// being down. A router's config has an account, so a document naming none
+// hasn't said which.
+const (
+	routerUnsaid    = "the running router doesn't say which accounts it routes for"
+	routerTokenless = "the running router names no account with a usable token"
+)
 
 // RunUnread starts Claude Code with args in this process's place where the
 // config can't be read, as unread says why, but the router's state directory
@@ -148,7 +157,8 @@ const CouldntReadConfig = "couldn't read the config"
 // and that claude starts through the running router. A pin that can't be
 // kept fails, as Run's does. Where the router can't be routed through, or
 // none of the accounts it names has a usable token, it starts Unaided, as
-// for a config that can't be read: what only the config says, such as
+// for a config that can't be read, Stderr hearing, of a router that answers,
+// why it couldn't be routed through: what only the config says, such as
 // when_router_down, isn't known. It returns only when Claude Code didn't
 // start.
 func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread error) error {
@@ -159,11 +169,11 @@ func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread 
 	state := r.health(ctx)
 	if !state.routable() {
 		logger.Info("the router can't be routed through", "router", state.name, "reason", state.reason, "asked", state.asked)
-		return l.unaided(path, args, CouldntReadConfig, unread, true)
+		return l.unaided(path, args, CouldntReadConfig, unread, "", true)
 	}
 	if r.Config, err = r.routersConfig(ctx); err != nil {
 		logger.Warn("can't read which accounts the router routes for", "error", err)
-		return l.unaided(path, args, CouldntReadConfig, unread, false)
+		return l.unaided(path, args, CouldntReadConfig, unread, routerUnsaid, false)
 	}
 	pin, err := r.pinned()
 	if err != nil {
@@ -172,7 +182,7 @@ func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread 
 	c, err := r.choose(pin, true)
 	if err != nil {
 		logger.Warn("no account the router routes for has a usable token", "error", err)
-		return l.unaided(path, args, CouldntReadConfig, unread, false)
+		return l.unaided(path, args, CouldntReadConfig, unread, routerTokenless, false)
 	}
 	Warn(l.Stderr, CouldntReadConfig, unread, "starting claude through the running router")
 	return l.routed(path, args, state, c, r.Account, unread)
@@ -293,7 +303,7 @@ func (l Launcher) Unaided(args []string, couldnt string, err error) error {
 	if findErr != nil {
 		return findErr
 	}
-	return l.unaided(path, args, couldnt, err, false)
+	return l.unaided(path, args, couldnt, err, "", false)
 }
 
 // RouterUnfound starts Claude Code with args in this process's place as
@@ -309,15 +319,16 @@ func (l Launcher) RouterUnfound(down config.RouterDown, args []string, err error
 	if stopped := l.goDirect(down, routerState{name: notFound, reason: firstLine(err)}); stopped != nil {
 		return stopped
 	}
-	return l.unaided(path, args, "couldn't find the router", err, false)
+	return l.unaided(path, args, "couldn't find the router", err, "", false)
 }
 
 // unaided starts Claude Code, at path, with args, in the environment
-// unaidedEnv gives, saying what switchboard couldn't do, and why, and where
-// Claude Code goes instead: through the router of the session it's started
-// within, or without switchboard. foundDown says this launch found the router
-// couldn't be routed through.
-func (l Launcher) unaided(path string, args []string, couldnt string, err error, foundDown bool) error {
+// unaidedEnv gives, saying what switchboard couldn't do, and why, then what
+// else kept it out, besides, unless that's "", and where Claude Code goes
+// instead: through the router of the session it's started within, or without
+// switchboard. foundDown says this launch found the router couldn't be routed
+// through.
+func (l Launcher) unaided(path string, args []string, couldnt string, err error, besides string, foundDown bool) error {
 	env := l.unaidedEnv(foundDown)
 	routed := env.routedByRun()
 	instead := "starting claude without it"
@@ -325,6 +336,9 @@ func (l Launcher) unaided(path string, args []string, couldnt string, err error,
 		instead = "starting claude through this session's router"
 	}
 	logger.Warn("starting claude without switchboard", "reason", couldnt, "error", err, "session_router", routed, "claude", path)
+	if besides != "" {
+		instead = besides + " — " + instead
+	}
 	Warn(l.Stderr, couldnt, err, instead)
 	return l.exec(path, args, env)
 }
@@ -522,8 +536,12 @@ func (r Route) OwnAccount() (config.Account, bool) {
 // routersConfig is a config of the accounts the router routes for, as its
 // status document names them, in its order, its primary marked, for a launch
 // to start on in place of the config's, which can't be read. It fails where
-// the document can't be had, or names no account.
+// the document can't be had, as without a way to ask for it, or names no
+// account.
 func (r Route) routersConfig(ctx context.Context) (*config.Config, error) {
+	if r.Document == nil {
+		return nil, errors.New("the router can't be asked for its status document")
+	}
 	doc, err := r.Document(ctx)
 	if err != nil {
 		return nil, err

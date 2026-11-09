@@ -9341,12 +9341,15 @@ verbs).
   config (invalid config …) — starting claude through the running router`, followed, for a router
   that isn't healthy, by Routed's line saying so. Where the router doesn't answer saying where it
   listens, `run` starts `claude` unaided, as Never in the way says, logging the router's state at
-  info; and so it does where the document can't be had, or names no account, or none of its accounts
-  has a usable token, each logged at warn. What only the config says, such as `when_router_down`,
-  can't be known, so, as before, neither that setting nor `SWITCHBOARD_WHEN_ROUTER_DOWN` has a say
-  there. So each `claude` started while the config can't be read is routed and recorded while the
-  router runs, rather than unrouted, spending the primary past its reserve (the owner's call, 9
-  November 2026).
+  info; and so it does where the document can't be had, or names no account, or none of its
+  accounts has a usable token, each logged at warn, its line on stderr saying, between the config's
+  error and where `claude` goes, why the router that answered couldn't be routed through, so it
+  isn't read as a router down: `— the running router doesn't say which accounts it routes for —`,
+  as a router's config always has an account, or `— the running router names no account with a
+  usable token —`. What only the config says, such as `when_router_down`, can't be known, so, as
+  before, neither that setting nor `SWITCHBOARD_WHEN_ROUTER_DOWN` has a say there. So each `claude`
+  started while the config can't be read is routed and recorded while the router runs, rather than
+  unrouted, spending the primary past its reserve (the owner's call, 9 November 2026).
 - **What `run` set:** a routed session's environment carries what `run` set there to every process
   the session starts, so `run` marks it, in `SWITCHBOARD_SET`: the value it gave
   `ANTHROPIC_BASE_URL`, even where the user's was the same, and `CLAUDE_CODE_GATEWAY_HINT_HEADERS`
