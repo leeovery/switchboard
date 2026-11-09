@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-11-09
+
+Week run-out forecasts now come from a simulation of how the router will spread the pool's use, instead of a straight-line pace.
+
+✨ Added
+- `switchboard uninstall` — takes away what setup put on your Mac (service, shell startup line and files, Claude Code session hook, skill, claude link), keeping config, tokens and history unless you add `--all`.
+- Weekly run-out forecasts that account for how the router would spread new sessions across your accounts and how long sessions stay on their account.
+- The router remembers how long sessions stay on an account across restarts.
+
+🔧 Changed
+- A week's run-out time further than a day ahead now shows as the weekday alone, such as `out ~Tue`, instead of a clock time — the dashboard and `status` both show it this way.
+- Heading lines, keys and help in the dashboard now describe a week's heading as forecast rather than at its recent rate.
+- `service status` now says that a LaunchAgent that was loaded before the router's copy will run the copy from the next login, and that `service install` has it run now.
+- Setting or clearing the global pin now takes effect at once in the router's picture of the pool's room.
+
 ## [0.5.2] - 2026-11-06
 
 ✨ Added
