@@ -181,7 +181,8 @@ choices and its pressure go by their own rates.
   global pin holds. Accounts count by their plan's size, a Max week as five Pro weeks, but where
   any account's plan isn't known, every account counts as one.
 - **When a week runs out:** where its use reaches its reserve before it resets, or its limit
-  without one or while a global pin spends it. Otherwise its forecast use at the reset is what `on pace for 92%` says.
+  without one or while a global pin spends it. Otherwise its forecast use at the reset is what `on pace for 92%` says,
+  never rounded up to where it would run out: a week heading for 99.6% without a reserve reads 99%.
 - **Without the router's rates,** as when `status` probes the accounts itself, or from an older
   router that gives none, a week goes at the pace its use since it started sets.
 

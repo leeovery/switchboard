@@ -110,8 +110,8 @@ func (r Refusal) Holds(now time.Time) bool {
 const Near = near
 
 // Projection is projection.
-func Projection(now time.Time, w WindowNow) string {
-	return projection(now, w)
+func Projection(now time.Time, w WindowNow, floor float64) string {
+	return projection(now, w, floor)
 }
 
 // Reserved is reservedOf.

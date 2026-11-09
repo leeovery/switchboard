@@ -558,7 +558,8 @@ built:
 - **An account's room** ends where Choosing an account says: at its reserve, or at its limit where
   the global pin spends the reserve.
 - **A week runs out** where its use reaches where its room ends before it resets: `out ~…` shows
-  only then. Its use at its reset, the forecast's, is what `on pace for 92%` says.
+  only then. Its use at its reset, the forecast's, is what `on pace for 92%` says, and a use short
+  of where its room ends never reads as reaching it: 99.6% of a week without a reserve reads 99%.
 
 **Without the router's rates,** as a probed document has none, a week goes at the pace its use since
 it started sets, once 5% of it has passed, and has no projection before then.

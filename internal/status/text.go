@@ -409,12 +409,17 @@ func Short(label string) string {
 // run-out's: where it runs out, as its RunsOut and Out have
 // it, so where its cap starts where its reserve holds; else as its
 // projection has it, but never that it runs out, as of a window held, stale,
-// at its cap or not started, or whose run-out the clock has reached. It's
-// empty where that says nothing.
-func projection(now time.Time, w WindowNow) string {
+// at its cap or not started, or whose run-out the clock has reached; and
+// where it heads short of floor, the share of it where it runs out, below
+// floor's figure but never below its use, as prose.PercentShort has it, so
+// it never reads as reaching floor unless its use beside it already does.
+// It's empty where that says nothing.
+func projection(now time.Time, w WindowNow, floor float64) string {
 	switch p := w.Out.Projection; {
 	case w.RunsOut:
 		return "runs out ~" + prose.RunOut(now, w.Out.At)
+	case p.Kind == score.OnPace && p.AtReset < floor-score.Tolerance:
+		return "on pace for " + prose.PercentShort(p.AtReset, floor, w.Used)
 	case p.Kind == score.OnPace:
 		return "on pace for " + prose.Percent(p.AtReset)
 	case p.Kind == score.Exhausted:
@@ -453,7 +458,7 @@ func (m Moment) accountWindow(a AccountNow, wn WindowNow, w judged, width int) s
 	if wn.Kind == WindowNotStarted {
 		return windowLine(name, wn.Used, width, []string{notStartedNote(a.NextPrime, m.Now)})
 	}
-	return windowLine(name, wn.Used, width, windowNotes(w.stands, wn, m.Now))
+	return windowLine(name, wn.Used, width, windowNotes(w.stands, wn, a.Floor, m.Now))
 }
 
 // lackingWindow shows a window an account lacks by its name, nameWidth wide,
@@ -475,14 +480,14 @@ func windowLine(name string, used float64, nameWidth int, notes []string) string
 // windowNotes say when a window resets, standing at now as stands, as
 // WindowAt has it, so its next reset once it has reset since it was read,
 // and none where it has lapsed; and where it's heading at now, as projection
-// says of it standing as w has it, as far as those are known, and when
-// that's at its rate over the last half hour, that it is.
-func windowNotes(stands quota.Window, w WindowNow, now time.Time) []string {
+// says of it standing as w has it, short of floor, as far as those are known,
+// and when that's at its rate over the last half hour, that it is.
+func windowNotes(stands quota.Window, w WindowNow, floor float64, now time.Time) []string {
 	var notes []string
 	if reset := stands.ResetsAt; !reset.IsZero() {
 		notes = append(notes, prose.Resets(now, reset)+" · "+prose.Clock(now, reset))
 	}
-	if heads := projection(now, w); heads != "" {
+	if heads := projection(now, w, floor); heads != "" {
 		if h := w.Out.Heading; h.Recent {
 			heads += " at its rate over the " + Over(h.Since, now)
 		}
