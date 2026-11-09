@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.5] - 2026-11-09
+
+✨ Added
+
+- Runway notes when run-outs are still being learned — a line under the heading says forecasts firm up once switchboard has a day of your sessions.
+- Usage printouts list a note under each account whose token's year is nearly up or already up.
+- Run-out times a week or more ahead on the same weekday now show a date, such as "~Thu 12 Nov", instead of a bare weekday that read as today.
+
+🔧 Changed
+
+- `switchboard run` still routes through the running router when the config can't be read — it uses the accounts the router names and says so, instead of starting Claude Code without switchboard.
+- Forecasts in the first day assume sessions stay on their account, so they lean toward an early run-out rather than room that isn't there.
+- Dashboard rows to spare are shared out more steadily as the window grows, so sections no longer switch off to a shorter form when it gets taller.
+- Prices in the config must now be between 0 and 1,000,000 — larger values are rejected as wrong.
+
+🐛 Fixed
+
+- Costs and plan comparisons too large to hold no longer wrap round to wrong figures — they read as unpriced (`too_large`) instead.
+- Run-out and "back" times a week ahead no longer read as today in short usage cells.
+- Readings history now warns when it couldn't read some lines.
+
 ## [0.5.4] - 2026-11-09
 
 🐛 Fixed
