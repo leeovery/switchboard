@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-11-09
+
+🐛 Fixed
+
+- Status "on pace for" projections no longer round up to the window's limit when still short of it — a figure like 99.6% now reads "99%" instead of "100%".
+
 ## [0.5.3] - 2026-11-09
 
 Week run-out forecasts now come from a simulation of how the router will spread the pool's use, instead of a straight-line pace.
