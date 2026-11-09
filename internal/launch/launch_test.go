@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
@@ -1185,12 +1186,33 @@ var withoutSwitchboard = []struct {
 		},
 		keepsRouting: true,
 	},
+	{
+		name: "unaided, the config unread, the router found down",
+		launch: func(ctx context.Context, l launch.Launcher) error {
+			return l.RunUnread(ctx, unreadRoute(notRunning().naming("work", accounts...), ""), nil, errUnread)
+		},
+	},
+	{
+		name: "unaided, the config unread, the router answering, without a usable token",
+		launch: func(ctx context.Context, l launch.Launcher) error {
+			return l.RunUnread(ctx, unreadTokenless(), nil, errUnread)
+		},
+		keepsRouting: true,
+	},
 }
 
 // tokenless is a launch through r, going direct with the router down, where
 // no account has a usable token.
 func tokenless(r launch.Router) launch.Route {
 	route := route(r, "")
+	route.Token = tokenstest.Files{}.Read
+	return route
+}
+
+// unreadTokenless is a launch through a healthy router where the config can't
+// be read, and no account the router names has a usable token.
+func unreadTokenless() launch.Route {
+	route := unreadRoute(healthy().naming("work", accounts...), "")
 	route.Token = tokenstest.Files{}.Read
 	return route
 }
@@ -1250,6 +1272,21 @@ func TestUnaidedSaysWhereClaudeGoes(t *testing.T) {
 			name:    "no usable token, the router unusable",
 			launch:  func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(unlistening()), nil) },
 			couldnt: "no account has a usable token",
+		},
+		{
+			name: "the config unread, the router found down",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				return l.RunUnread(ctx, unreadRoute(notRunning().naming("work", accounts...), ""), nil, errUnread)
+			},
+			couldnt: "couldn't read the config",
+		},
+		{
+			name: "the config unread, no usable token, the router answering",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				return l.RunUnread(ctx, unreadTokenless(), nil, errUnread)
+			},
+			couldnt:     "couldn't read the config",
+			wantThrough: true,
 		},
 	}
 	for _, tt := range tests {
@@ -1721,6 +1758,18 @@ var everyLaunch = []struct {
 			return l.Run(ctx, r, nil)
 		},
 	},
+	{
+		name: "through the running router, the config unread",
+		launch: func(ctx context.Context, l launch.Launcher) error {
+			return l.RunUnread(ctx, unreadRoute(healthy().naming("work", accounts...), ""), nil, errUnread)
+		},
+	},
+	{
+		name: "without switchboard, the config unread, the router down",
+		launch: func(ctx context.Context, l launch.Launcher) error {
+			return l.RunUnread(ctx, unreadRoute(notRunning().naming("work", accounts...), ""), nil, errUnread)
+		},
+	},
 }
 
 func TestNoLaunchPassesOnWhatToDoWithTheRouterDown(t *testing.T) {
@@ -1988,6 +2037,36 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 			},
 		},
 		{
+			name: "through the running router, the config unread, pinned",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				return l.RunUnread(ctx, unreadRoute(healthy().naming("work", accounts...), "side"), args, errUnread)
+			},
+			want: []string{
+				"level=WARN", `msg="starting claude" component=launch`, "mode=routed", "router=healthy", "asked=",
+				"account=work", `chosen="the primary"`, "pin=side", `config_error="invalid config /home/tester/.config/switchboard/config.toml:`,
+			},
+		},
+		{
+			name: "through the running router, the config unread, unhealthy",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				return l.RunUnread(ctx, unreadRoute(unhealthyRouter().naming("work", accounts...), ""), args, errUnread)
+			},
+			want: []string{
+				"level=WARN", `msg="starting claude" component=launch`, "mode=routed", "router=unhealthy", `reason="` + unhealthy + `"`,
+				"account=work", `pin=""`, `config_error="invalid config `,
+			},
+		},
+		{
+			name: "without switchboard, the config unread, the router down",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				return l.RunUnread(ctx, unreadRoute(notRunning().naming("work", accounts...), "side"), args, errUnread)
+			},
+			want: []string{
+				"level=WARN", `msg="starting claude without switchboard" component=launch`, `reason="couldn't read the config"`,
+				`error="invalid config /home/tester/.config/switchboard/config.toml:`,
+			},
+		},
+		{
 			name: "a local subcommand",
 			launch: func(_ context.Context, l launch.Launcher) error {
 				return l.Local(append([]string{"mcp", "add"}, args...))
@@ -2020,14 +2099,21 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 	}
 }
 
-// fakeRouter answers as a router does: its health, or healthErr.
+// fakeRouter answers as a router does: its health, or healthErr; and its
+// status document, or docErr.
 type fakeRouter struct {
 	health    router.Health
 	healthErr error
+	doc       status.Document
+	docErr    error
 }
 
 func (r *fakeRouter) Health(context.Context) (router.Health, error) {
 	return r.health, r.healthErr
+}
+
+func (r *fakeRouter) Status(context.Context) (status.Document, error) {
+	return r.doc, r.docErr
 }
 
 // healthy answers as a healthy router does.
