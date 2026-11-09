@@ -377,7 +377,7 @@ func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 	}
 	burnDown := "nowhere"
 	if cd := burnCardOf(a, w.Key, Trail{}, d.now); !cd.out.IsZero() {
-		burnDown = "out ~" + prose.Dated(d.now, cd.out)
+		burnDown = "out ~" + prose.RunOut(d.now, cd.out)
 	}
 	says = append(says, viewSays{"Graphs' card", burnDown})
 	if built, _ := d.moment.At(d.moment.ReadAt).Account(a.ID); built.CanRise {
@@ -430,7 +430,7 @@ func outSaid(words string) string {
 func (d drawn) comingOut(a status.AccountNow, w status.WindowNow) string {
 	for i, u := range d.moment.ComingUp {
 		if u.Account == a.ID && u.Window == w.Key && d.coming[i].runsOut {
-			return "out ~" + prose.Dated(d.now, d.coming[i].at)
+			return "out ~" + prose.RunOut(d.now, d.coming[i].at)
 		}
 	}
 	return "nowhere"

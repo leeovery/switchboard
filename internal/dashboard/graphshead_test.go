@@ -119,12 +119,12 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 		},
 		{
 			name: "its week resetting before a stretch, in Runway's order", view: week, lane: resetFirst,
-			want: "66% left  ·  resets Sun 21:00  ·  runs out ~Mon 06:00 at its pace  ·  back Mon 12:00",
+			want: "66% left  ·  resets Sun 21:00  ·  runs out ~Mon at its pace  ·  back Mon 12:00",
 			inks: []ink{ramp1, mutedInk, mutedInk, mutedInk, mutedInk, alertInk, alertInk, mutedInk},
 		},
 		{
 			name: "its week resetting in the column a later stretch starts in", view: week, lane: sameColumn,
-			want: "66% left  ·  resets Sun 19:58  ·  runs out ~Sun 21:06 at its pace  ·  back Sun 23:06",
+			want: "66% left  ·  resets Sun 19:58  ·  runs out ~Sun at its pace  ·  back Sun 23:06",
 			inks: []ink{ramp1, mutedInk, mutedInk, mutedInk, mutedInk, alertInk, alertInk, mutedInk},
 		},
 		{name: "the week resetting", view: week, lane: resets, want: "66% left  ·  resets Sun 21:00", inks: []ink{ramp1, mutedInk, mutedInk, mutedInk}},

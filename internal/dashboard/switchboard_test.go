@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // id9C2E's neighbours on the board: the sessions the frames of ten accounts
@@ -93,16 +94,17 @@ func sceneCalls() []views.Call {
 }
 
 // readAt has the world read a minute before at, its document built then, and
-// personal's week running out ~Sat 06:00 at its recent rate, as usageWorld
-// has it at routedAt.
+// personal's week running out ~Sat 06:00 as fast as it's used lately, as
+// usageWorld has it at routedAt.
 func readAt(at time.Time) func(*status.Document) {
 	return func(d *status.Document) {
 		d.GeneratedAt = at
 		for i := range d.Accounts {
 			d.Accounts[i].FetchedAt = at.Add(-time.Minute)
 		}
-		runsOut := time.Date(2026, 10, 3, 6, 0, 30, 0, time.UTC)
-		account("personal", func(a *status.Account) { a.Rates[0].Rate = 0.34 / runsOut.Sub(at).Hours() })(d)
+		rate := 0.34 / time.Date(2026, 10, 3, 6, 0, 30, 0, time.UTC).Sub(at).Hours()
+		account("personal", func(a *status.Account) { a.Rates[0].Rate, a.Rates[0].Fast = rate, rate })(d)
+		d.Demand = viewstest.DemandOf(d.Accounts)
 	}
 }
 

@@ -141,9 +141,9 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 			"",
 			"1 work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day till Sun 21:00     ▄▄▄▄▄▁▁▁▁▁▁▁▁▁▁▁   5%  at cap · back 17:10",
 			"",
-			"2 personal ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat 12:54             ▇▇▇▇▇▆▆▆▅▄▄▄▃▃▂▂  61%  25%/h till 17:10",
+			"2 personal ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat                   ▇▇▇▇▇▆▆▆▅▄▄▄▃▃▂▂  61%  25%/h till 17:10",
 			"",
-			"3 side ▲        ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri 16:00                     ▇▇▇▇▆▆▆▆  87%  35%/h till 17:10",
+			"3 side ▲        ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri                           ▇▇▇▇▆▆▆▆  87%  35%/h till 17:10",
 			strings.Repeat("─", 113),
 			"Σ pool                  ▃▃▂▂▁▁▁▁ 1.2 of 3 left                            ▄▄▄▃▃▃▃▃ 1.5 of 3 left",
 			"",
@@ -154,9 +154,9 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 			"",
 			"1 work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day · Sun       ▄▄▄▄▄▁▁▁▁▁▁▁▁▁▁▁   5%  back 17:10",
 			"",
-			"2 personal ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat 12:54      ▇▇▇▇▇▆▆▆▅▄▄▄▃▃▂▂  61%  25%/h till 17:10",
+			"2 personal ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat            ▇▇▇▇▇▆▆▆▅▄▄▄▃▃▂▂  61%  25%/h till 17:10",
 			"",
-			"3 side ▲        ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri 16:00              ▇▇▇▇▆▆▆▆  87%  35%/h till 17:10",
+			"3 side ▲        ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri                    ▇▇▇▇▆▆▆▆  87%  35%/h till 17:10",
 			strings.Repeat("─", 100),
 			"Σ pool                  ▃▃▂▂▁▁▁▁ 1.2 of 3 left                     ▄▄▄▃▃▃▃▃ 1.5 of 3 left",
 			"",
@@ -167,9 +167,9 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 			"",
 			"1 work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day till Sun 21:00",
 			"",
-			"2 personal ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat 12:54",
+			"2 personal ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat",
 			"",
-			"3 side ▲        ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri 16:00",
+			"3 side ▲        ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri",
 			strings.Repeat("─", 63),
 			"Σ pool                  ▃▃▂▂▁▁▁▁ 1.2 of 3 left",
 			"",
@@ -248,7 +248,7 @@ func TestGlancesNamesNarrowOnceItsWordsAreShort(t *testing.T) {
 	if l.column != 22 || l.words != shortCells {
 		t.Fatalf("at 99 columns the names take %d and the words %d, want 22 and %d", l.column, l.words, shortCells)
 	}
-	want := "2 personal-rese… ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat 12:54"
+	want := "2 personal-rese… ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat"
 	if got := rowOf(c, 4); !strings.HasPrefix(got, want) {
 		t.Errorf("personal's row is %q, want it to start %q", got, want)
 	}

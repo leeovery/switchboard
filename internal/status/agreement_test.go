@@ -181,7 +181,7 @@ func TestTheTextSaysWhereAWindowRunsOutAsUSAGEDoes(t *testing.T) {
 				for _, w := range a.Windows {
 					want := "nowhere"
 					if w.RunsOut {
-						want = prose.Clock(m.Now, w.Out.At)
+						want = prose.RunOut(m.Now, w.Out.At)
 					}
 					if said := runOutSaid(text[a.ID], w.Name); said != want {
 						t.Errorf("%s's %s: status's text says it runs out %s; want %s, as USAGE says it", a.ID, w.Key, said, want)

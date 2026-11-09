@@ -5,23 +5,23 @@
 WEEK  ──────────────────────────────────────────────────────────────────────────────────────────────────── w
 
 1 work                                                  2 personal ◆
-66% left  ·  at its cap 14:31  ·  back 17:10            34% left  ·  runs out ~Sat 06:00 at its pace
+66% left  ·  at its cap 14:31  ·  back 17:10            34% left  ·  runs out ~Sat at its pace
 
     ▇▆▄▃▃▃▃▃▂▁              │                                     ▇▅▄▃▃▃▃▂                │
-                   ▇▆▅▅▅▅▅▄▃⢄⣀⣀                                           ▇▄▂▂▂▂▂         │
-                            │  ⠉⠉⠑⠒⠒⠤⠤⠤⣀⣀⡀                                       ▇▄▁      │
-                            │            ⠈⠉⠉⠒⠒⠢⠤⠤⢄⣀⣀                                    ▇▆⠒⠤⠤⣀⡀
-                            ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⢀                                       │   ⠈⠉⠑⠒⠤⠤⣀✕⣀⣀⣀⣀⣀⣀
+                   ▇▆▅▅▅▅▅▄▃⣀⡀                                            ▇▄▂▂▂▂▂         │
+                            │⠈⠑⠒⠤⢄⡀                                              ▇▄▁      │
+                            │     ⠈⠉⠒⠢⢄⣀                                                ▇▆⠒⠤⠤⣀⡀
+                            ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⠉⠑⠢⠤✕⣀⣀⣀⣀⣀⣀⣀                                      │   ⠈⠉⠑⠒⠤⠤⣀✕⣀⣀⣀⣀⣀⣀
 ╵Mon    ╵Tue   ╵Wed    ╵Thu   ╵Fri    ╵Sat   ╵Sun             ╵Mon    ╵Tue   ╵Wed    ╵Thu   ╵Fri   ╵Sat
 
 3 side ▲
-22% left  ·  runs out ~Fri 12:20 at its pace
+22% left  ·  runs out ~Fri at its pace
 
  ▆▄▃▃▃▃▂                │
         ▇▄▁▁▁▁▁         │
                ▆▂       │
                  ▆▅▅▅▅▃▁⡀
-                        ⠈⠉⠒⠢⠤⣀✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
+                        ⠈⠉⠒⠒⠤⠤⣀✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
     ╵Tue   ╵Wed    ╵Thu   ╵Fri    ╵Sat   ╵Sun   ╵Mon
 
 Σ pool   week 1.2 of 3 left   5-hour 1.5 of 3 left
@@ -30,13 +30,13 @@ GLANCE  ────────────────────────
 
                 WEEK                                           5-HOUR
 
-1 work            ▇▇▆▆▆▆▅▅▄▄▃▃▂▂  66%  19%/day · Sun            ▇▆▅▄▃▂✕▁▁▁▁▁▁▁▁   5%  at cap · back 17:10
+1 work            ▇▇▆▆▆▆▅▄▃▂▁✕▁▁  66%  out ~Sat                 ▇▆▅▄▃▂✕▁▁▁▁▁▁▁▁   5%  at cap · back 17:10
 
-2 personal ◆        ▇▇▅▅▃▃▃▂▁▁✕   34%  out ~Sat 06:00            ▇▇▇▆▆▆▆▅▅▅▄▄▄▃  61%  34%/h till 16:30
+2 personal ◆        ▇▇▅▅▃▃▃▂▁▁✕   34%  out ~Sat                  ▇▇▇▆▆▆▆▅▅▅▄▄▄▃  61%  34%/h till 16:30
 
-3 side ▲        ▇▇▆▅▅▃▃▂▁✕        22%  out ~Fri 12:20             ▇▆▆▅▅▄▄▃▃▂▂▁▁  87%  21%/h till 18:50
+3 side ▲        ▇▇▆▅▅▃▃▂▁✕        22%  out ~Fri                   ▇▆▆▅▅▄▄▃▃▂▂▁▁  87%  21%/h till 18:50
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool          ▄▄▆▇▇▅▅▄▃▂▂▁▁▃▃▅ 1.2 of 3 left                 ▆▇▆▆▅▅▄▄▃▃▃▄▆▆▆▆ 1.5 of 3 left
+Σ pool          ▄▄▆▇▇▅▅▄▃▂▁▁▁▃▃▅ 1.2 of 3 left                 ▆▇▆▆▅▅▄▄▃▃▃▄▆▆▆▆ 1.5 of 3 left
 
 ▆ room left, start to reset    ▆ heading    ✕ runs out    66% room left now
 ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve

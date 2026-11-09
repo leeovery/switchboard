@@ -208,12 +208,12 @@ func (s windowStates) cappedRouting() (Routing, bool) {
 }
 
 // pressedRouting is how an account stands under pressure at now: when its
-// pressure window runs out, as out says, as in "out ~16:05", where it does
-// before it resets.
+// pressure window runs out, as out says, as in "out ~16:05", as
+// prose.RunOut tells it, where it does before it resets.
 func pressedRouting(out RunOut, now time.Time) Routing {
 	r := Routing{Kind: RoutingPressed, Says: "under pressure", Short: []string{"under pressure"}}
 	if !out.At.IsZero() {
-		r.Clauses = []string{"out ~" + prose.Dated(now, out.At)}
+		r.Clauses = []string{"out ~" + prose.RunOut(now, out.At)}
 	}
 	return r
 }

@@ -98,7 +98,7 @@ row shows these parts:
 |---|---|
 | `limit · back 15:54` | Claude's limit holds the window. |
 | `at cap · back 17:10` | The window's use has reached the cap, and the cap holds the account back. |
-| `out ~Sat 06:00` | The window runs out before its reset, at its recent rate. |
+| `out ~16:05`, `out ~Sat` | The window runs out before its reset. Within a day the time shows, as `out ~16:05` or `out ~Sat 06:00`; further ahead, the day alone, as a forecast days out can miss by a day. A week goes by its forecast, the 5-hour window by its recent rate: see [Where a week runs out](how-it-works.md#where-a-week-runs-out). |
 | `no 5-hour limit` | The account has no 5-hour window, as a verified Ultra account hasn't. It shows in place of the bar: `no limit` where the room is short, and by account, where the window's label beside it names the window. |
 | `not started` | A 5-hour window hasn't started yet. |
 | `19%/day till Sun 21:00` | Otherwise, the window's allowance: what can be spent of it an hour or a day and still last to its reset. |
@@ -147,7 +147,8 @@ its rows.
 - **The key line** is one line wherever it fits beside the names, else two. The second line names
   the cap, where a bar draws one.
 - **The words** are in full where they fit, else short, as `back 15:54`, `out ~Sat` and
-  `19%/day · Sun`. As the terminal narrows, the bars shorten to 12 cells first, then the words.
+  `19%/day · Sun`: short, a time on another day than today gives its day alone, a run-out's within
+  a day too. As the terminal narrows, the bars shorten to 12 cells first, then the words.
 - **The name column** is as wide as the longest name, up to 24 cells of label. A label too long for
   it is cut with `…`. It never moves as `▲` moves between accounts.
 
@@ -944,7 +945,11 @@ as text or JSON, then fails with the config's error on stderr. Without the route
 The text shows, in order:
 
 - each window's utilization, when it resets and where it's heading, or `no 5-hour window` for an
-  account without one;
+  account without one. A week goes by its
+  [forecast](how-it-works.md#where-a-week-runs-out) from the router, as `on pace for 92%` or
+  `runs out ~Tue`; probed, or a model's own week, at its pace since it started; the 5-hour window
+  by its recent rate, as `runs out ~17:25 at its rate over the last 30 min`. A run-out shows its
+  time within a day, and its day alone further ahead;
 - what holds an account back, such as a limit it reached or its reserve;
 - whether an account is under pressure, with the rate it goes by, such as
   `under pressure: runs out ~18:21 at 5-hour's rate over the last 30 min, before its reset at 20:10`;
@@ -963,6 +968,8 @@ document as JSON instead. The document holds:
   its allowance, what can be spent of it an hour or a day and still last to its reset;
 - each account's extra usage, where the API reports it;
 - the pool: the room new sessions can go to, summed across its accounts, and their mean use;
+- each account's plan, as the config gives it, and, from the router, the rates each week's
+  forecast goes by: each account's windows' fast rates, and the pool's use as the forecast takes it;
 - what's coming up, soonest first: each limit or cap lifting, window running out or resetting, and
   prime; and
 - how the router's hourly export stands, where [`[export]`](configuration.md#export-keys) sets a
@@ -1526,8 +1533,8 @@ The router starts even when no account has a usable token, warning in its log th
 routed until one has. As it starts, it:
 
 - makes the `tokens`, `history` and `ledger` directories private;
-- takes up the readings its history holds, so the recent rates it judges pressure by carry on from
-  before; and
+- takes up the readings its history holds, so the recent rates it judges pressure by, and the
+  rates the weeks' forecast goes by, carry on from before; and
 - brings the skill up to date.
 
 #### Token changes

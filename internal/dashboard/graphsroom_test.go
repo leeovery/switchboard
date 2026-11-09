@@ -324,15 +324,15 @@ func changedRouted() status.Document {
 // The layout changes only on a key, a resize or the config, never as the
 // data does: a read that changes every word, and pins the pool to two of its
 // three accounts, leaves every heading, the pool's line and the legend on
-// their rows; at 75 columns too, where POOL's key of the two pinned would
+// their rows; at 68 columns too, where POOL's key of the two pinned would
 // take a row fewer than of the three configured.
 func TestGraphsLayoutHoldsStillAsTheDataChanges(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
 	marks := []string{"WEEK ", "5-HOUR ", "POOL ", "GLANCE ", "WHEN YOU WORK ", "Σ pool", "▆▆ room left"}
-	for _, width := range []int{160, 75} {
+	for _, width := range []int{160, 68} {
 		f := graphsFrame(width, 120, everyGraphsSection())
 		f.Look = look
-		if width == 75 && poolKeyed(configured("personal", "side"), look).keyRows(width) == poolKeyed(f.Graphs.Accounts, look).keyRows(width) {
+		if width == 68 && poolKeyed(configured("personal", "side"), look).keyRows(width) == poolKeyed(f.Graphs.Accounts, look).keyRows(width) {
 			t.Fatalf("at %d columns, POOL's key of two accounts takes the rows it does of three; want a width they differ at", width)
 		}
 		rowsOf := func(doc status.Document) []int {

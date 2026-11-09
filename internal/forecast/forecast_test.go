@@ -55,7 +55,8 @@ func spendable(reserve float64) func(*Account) {
 	return func(a *Account) { a.Reserve = reserve }
 }
 
-func refusingNewSessions(a *Account) { a.Takes = false }
+// refused has the account take no requests, as with its token refused.
+func refused(a *Account) { a.Takes = false }
 
 // holding returns a Held that keeps share of an account's fast rate on it,
 // however long.
@@ -168,6 +169,26 @@ func TestASteadyWeekRunsOutWhereItsRoomIsSpentAtItsRate(t *testing.T) {
 			}
 			checkRunsOut(t, "work", out, want, time.Second)
 			checkAtReset(t, "work", out, tt.wantAtReset, 1e-9)
+		})
+	}
+}
+
+func TestARunOutFallsOnItsTimeNotAHairBefore(t *testing.T) {
+	tests := []struct {
+		name string
+		in   time.Duration
+	}{
+		{name: "within a step", in: 79 * time.Minute},
+		{name: "at a step's end", in: time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rate := 0.05 / tt.in.Hours()
+			a := account("work", week(0.9, 6*quota.Day), fast(rate), reserved(0.05))
+
+			out := outOf(t, Forecast(Pool{Now: now, Policy: policy, Accounts: []Account{a}, Day: rate}), "work")
+
+			checkRunsOut(t, "work", out, now.Add(tt.in), 0)
 		})
 	}
 }
@@ -305,17 +326,18 @@ func TestAWeekThatResetsHoldsNothingMore(t *testing.T) {
 		Now:    now,
 		Policy: policy,
 		Accounts: []Account{
-			account("work", week(0.5, 2*time.Hour), fast(0.06), refusingNewSessions),
+			account("work", week(0.5, 2*time.Hour), fast(0.06)),
 			account("personal", week(0.4975, 6*quota.Day)),
 		},
-		Day:  0.06,
-		Held: holding(0.5),
+		Pinned: []string{"personal"},
+		Day:    0.06,
+		Held:   holding(0.5),
 	}
 
 	out := outOf(t, Forecast(p), "personal")
 
-	// personal takes what work doesn't hold, then, once work's week resets,
-	// all of it.
+	// personal, where the global pin sends new sessions, takes what work
+	// doesn't hold, then, once work's week resets, all of it.
 	checkRunsOut(t, "personal", out, now.Add(2*time.Hour+hours((0.5025-0.03*2)/0.06)), time.Second)
 }
 
@@ -340,21 +362,38 @@ func TestTheGlobalPinSendsNewUseToItsAccountsAloneTheirReservesSpent(t *testing.
 	checkAtReset(t, "personal", personal, 0.03*(24-4.75), 1e-9)
 }
 
-func TestAnAccountThatDoesntTakeNewSessionsKeepsItsHeldUseAlone(t *testing.T) {
-	p := Pool{
-		Now:    now,
-		Policy: policy,
-		Accounts: []Account{
-			account("work", week(0.4975, 2*quota.Day), fast(0.06), refusingNewSessions),
-			account("personal", week(0, 6*quota.Day)),
-		},
-		Day:  0.06,
-		Held: holding(0.5),
+// An account that can't take requests, as with its token refused, holds none
+// of its use: the pool's, 2% of a week an hour, work's alone, goes where a
+// new session would. Taking requests, work holds it all till its week runs
+// out 25 hours on, and side, 10% used, takes it then, running out 45 hours
+// after; refused, side takes it from now.
+func TestAnAccountThatCantTakeRequestsHoldsNoneOfItsUse(t *testing.T) {
+	tests := []struct {
+		name string
+		work []func(*Account)
+		want time.Duration
+	}{
+		{name: "work taking requests", want: 70 * time.Hour},
+		{name: "work refused", work: []func(*Account){refused}, want: 45 * time.Hour},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := Pool{
+				Now:    now,
+				Policy: policy,
+				Accounts: []Account{
+					account("work", week(0.5, 6*quota.Day), append([]func(*Account){fast(0.02)}, tt.work...)...),
+					account("side", week(0.1, 6*quota.Day)),
+				},
+				Day:  0.02,
+				Held: holding(1),
+			}
 
-	out := outOf(t, Forecast(p), "work")
+			out := outOf(t, Forecast(p), "side")
 
-	checkRunsOut(t, "work", out, now.Add(16*time.Hour+45*time.Minute), time.Second)
+			checkRunsOut(t, "side", out, now.Add(tt.want), time.Minute)
+		})
+	}
 }
 
 func TestAnAccountThatRunsOutHandsItsHeldUseOn(t *testing.T) {
@@ -498,17 +537,19 @@ func TestASizeThatIsntAPositiveNumberCountsAsOne(t *testing.T) {
 				Now:    now,
 				Policy: policy,
 				Accounts: []Account{
-					account("work", week(0.4975, 5*quota.Day), sized(size), fast(0.06), refusingNewSessions),
+					account("work", week(0.4975, 5*quota.Day), sized(size), fast(0.06)),
 					account("personal", week(0.4, 6*quota.Day)),
 				},
-				Day:  0.06,
-				Held: holding(0.5),
+				Pinned: []string{"personal"},
+				Day:    0.06,
+				Held:   holding(0.5),
 			}
 
 			outs := Forecast(p)
 
-			// work holds half its fast rate, a Pro's, and personal takes the
-			// rest, then all of it once work runs out.
+			// work holds half its fast rate, a Pro's, and personal, where the
+			// global pin sends new sessions, takes the rest, then all of it once
+			// work runs out.
 			checkRunsOut(t, "work", outOf(t, outs, "work"), now.Add(16*time.Hour+45*time.Minute), time.Second)
 			checkRunsOut(t, "personal", outOf(t, outs, "personal"), now.Add(18*time.Hour+22*time.Minute+30*time.Second), time.Second)
 		})
@@ -533,11 +574,17 @@ func TestAccountsSharingAnIDAreForecastToTheEnd(t *testing.T) {
 }
 
 func TestWithoutAHoldCurveHeldUseFadesWithATimeConstantOfSixHours(t *testing.T) {
+	// The global pin sends what work doesn't hold to personal, an Ultra week
+	// with room for all of it.
 	p := Pool{
-		Now:      now,
-		Policy:   policy,
-		Accounts: []Account{account("work", week(0.3, 2*quota.Day), fast(0.06), refusingNewSessions)},
-		Day:      0.06,
+		Now:    now,
+		Policy: policy,
+		Accounts: []Account{
+			account("work", week(0.3, 2*quota.Day), fast(0.06)),
+			account("personal", week(0, 6*quota.Day), sized(ultra)),
+		},
+		Pinned: []string{"personal"},
+		Day:    0.06,
 	}
 
 	out := outOf(t, Forecast(p), "work")

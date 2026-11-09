@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -68,9 +69,14 @@ func TestServe(t *testing.T) {
 	if doc.Demand == nil || probed.Demand != nil {
 		t.Errorf("demand: the router gives %+v, the probe %+v, want the router's alone, as only it measures the pool's use", doc.Demand, probed.Demand)
 	}
-	doc.Source, doc.Router, doc.Demand = probed.Source, probed.Router, probed.Demand
+	forecast := probed
+	forecast.Demand = doc.Demand
+	if want := forecast.WorkedOut(claude.Policy()).ComingUp; !reflect.DeepEqual(doc.ComingUp, want) {
+		t.Errorf("the router has coming up\n%+v\nwant the probe's readings', their weeks forecast by its demand %+v, as its pace since start doesn't go:\n%+v", doc.ComingUp, *doc.Demand, want)
+	}
+	doc.Source, doc.Router, doc.Demand, doc.ComingUp = probed.Source, probed.Router, probed.Demand, probed.ComingUp
 	if !reflect.DeepEqual(doc, probed) {
-		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json --probe does, but for its source, health and demand:\n%+v", doc, probed)
+		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json --probe does, but for its source, health, demand and what's coming up:\n%+v", doc, probed)
 	}
 	want := []string{
 		"test-token-side claude-fable-5", "test-token-side claude-fable-5-1", "test-token-side claude-haiku-4-5-20251001",

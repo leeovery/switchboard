@@ -545,7 +545,7 @@ func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
 		if !w.RunsOut {
 			t.Fatalf("%s: side's week doesn't run out", mo.name)
 		}
-		want := mo.says + " ~" + prose.Clock(printNow, w.Out.At)
+		want := mo.says + " ~" + prose.RunOut(printNow, w.Out.At)
 		for _, size := range sizes {
 			t.Run(fmt.Sprintf("%s at %d by %d", mo.name, size.width, size.height), func(t *testing.T) {
 				f := cardsPage(mo.doc, printNow, size.width, size.height, trioIDs...)

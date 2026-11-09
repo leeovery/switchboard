@@ -404,8 +404,9 @@ func Short(label string) string {
 }
 
 // projection says where a window standing at now as w has it is heading,
-// such as "on pace for 92%", "runs out ~Fri 19:40" or "exhausted", with
-// times in now's time zone: where it runs out, as its RunsOut and Out have
+// such as "on pace for 92%", "runs out ~19:40", "runs out ~Fri" or
+// "exhausted", with times in now's time zone, as prose.RunOut tells a
+// run-out's: where it runs out, as its RunsOut and Out have
 // it, so where its cap starts where its reserve holds; else as its
 // projection has it, but never that it runs out, as of a window held, stale,
 // at its cap or not started, or whose run-out the clock has reached. It's
@@ -413,7 +414,7 @@ func Short(label string) string {
 func projection(now time.Time, w WindowNow) string {
 	switch p := w.Out.Projection; {
 	case w.RunsOut:
-		return "runs out ~" + prose.Clock(now, w.Out.At)
+		return "runs out ~" + prose.RunOut(now, w.Out.At)
 	case p.Kind == score.OnPace:
 		return "on pace for " + prose.Percent(p.AtReset)
 	case p.Kind == score.Exhausted:

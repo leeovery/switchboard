@@ -849,6 +849,7 @@ func TestWorkingADocumentOutAgainChangesNothing(t *testing.T) {
 		doc  status.Document
 	}{
 		{name: "with something of everything worked out", doc: fullDocument()},
+		{name: "with its weeks forecast", doc: forecastFull()},
 		{name: "with nothing coming up after it was built", doc: passed},
 	}
 	for _, tt := range tests {
@@ -865,14 +866,26 @@ func TestWorkingADocumentOutAgainChangesNothing(t *testing.T) {
 			if err := json.Unmarshal(given, &read); err != nil {
 				t.Fatal(err)
 			}
-			if again := read.WorkedOut(policy); !reflect.DeepEqual(again, read) {
-				t.Errorf("read as JSON and worked out again, the document is\n%+v\nwant it as it was read\n%+v", again, read)
+			if again := read.WorkedOut(policy).AsGiven(); !reflect.DeepEqual(again, read) {
+				t.Errorf("read as JSON and worked out again, the document gives\n%+v\nwant it as it was read\n%+v", again, read)
 			}
 		})
 	}
 	if worked := fullDocument().WorkedOut(policy); worked.Pool.Windows == nil || worked.ComingUp == nil || worked.Accounts[0].Windows[0].Pace == nil {
 		t.Errorf("WorkedOut() = %+v, want something of everything worked out", worked)
 	}
+	forecast := forecastFull().WorkedOut(policy)
+	if i := slices.IndexFunc(forecast.ComingUp, func(u status.Upcoming) bool { return u.Kind == status.UpcomingRunsOut && u.Window == "7d" }); i < 0 {
+		t.Errorf("ComingUp = %+v, want a week running out as the forecast has it", forecast.ComingUp)
+	}
+}
+
+// forecastFull is fullDocument, its weeks forecast by the pool's use, 5% of a
+// Pro week an hour, side's 2% of its own an hour, held on it.
+func forecastFull() status.Document {
+	doc := fullDocument()
+	fastAt("7d", 0.02)(&doc.Accounts[2])
+	return forecasting(doc, 0.05, holdingAll...)
 }
 
 func TestAnAccountWorkedOutAloneIsAsTheDocumentWorkedOutHasIt(t *testing.T) {

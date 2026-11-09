@@ -103,13 +103,13 @@ func TestGraphsDrawsPoolInItsRowsAtThePlannersSizes(t *testing.T) {
 // blank row after it.
 func TestGraphsPoolsKeyOfAPinsAccountsStaysWithinItsRows(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
-	const width = 73
+	const width = 70
 	tests := []struct {
 		name   string
 		labels []string
 		want   []string
 	}{
-		{name: "a pin to two", labels: []string{"work", "side"}, want: []string{"█ work    █ side    █ faint: heading, at its recent rate    │ now", ""}},
+		{name: "a pin to two", labels: []string{"work", "side"}, want: []string{"█ work    █ side    █ faint: heading, as forecast    │ now", ""}},
 		{
 			name:   "labels longer than the config's",
 			labels: []string{"work-labelled-far-longer-than-the-config", "side-labelled-far-longer-than-the-config"},
@@ -176,7 +176,7 @@ func TestGraphsPoolWithNothingToStackDrawsNowTheAxisAndTheKey(t *testing.T) {
 					t.Errorf("the axis's row %d reads %q, want Runway's week's, %q", r, got, want)
 				}
 			}
-			key, want := rowOf(c, body.y+laid.chart+runwayAxisRows), "█ work    █ personal    █ side    █ faint: heading, at its recent rate    │ now"
+			key, want := rowOf(c, body.y+laid.chart+runwayAxisRows), "█ work    █ personal    █ side    █ faint: heading, as forecast    │ now"
 			if key != want || c.at(0, body.y+laid.chart+runwayAxisRows).ink != accountHue(0).ink() {
 				t.Errorf("the key reads %q in %+v, want %q, work's █ in its hue", key, c.at(0, body.y+laid.chart+runwayAxisRows).ink, want)
 			}

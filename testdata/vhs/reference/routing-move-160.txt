@@ -6,7 +6,7 @@ USAGE  ────────────────────────�
 
                 WEEK                                                                     5-HOUR
 
-1 work                                ┃                ╎   34%  19%/day till Sun 21:00                        ┃                 ╎   95%  at cap · back 17:10
+1 work                                ┃                ╎   34%  out ~Sat                                      ┃                 ╎   95%  at cap · back 17:10
                                        ╭─ ROUTING · NEW AND RUNNING SESSIONS ──────────────────────────────────────────╮
 2 personal ◆                           │                                                                               │            39%  34%/h till 16:30
                                        │  Pick the accounts new and running sessions go to.                            │

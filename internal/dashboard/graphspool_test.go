@@ -264,11 +264,11 @@ func TestPoolsKeyNamesEachAccountsHueFlowedOntoTheRowsItTakes(t *testing.T) {
 		width int
 		want  []string
 	}{
-		{width: 80, want: []string{"█ work    █ per sonal label    █ faint: heading, at its recent rate    │ now"}},
-		{width: 70, want: []string{"█ work    █ per sonal label    █ faint: heading, at its recent rate", "│ now"}},
-		{width: 50, want: []string{"█ work    █ per sonal label", "█ faint: heading, at its recent rate    │ now"}},
-		{width: 40, want: []string{"█ work    █ per sonal label", "█ faint: heading, at its recent rate", "│ now"}},
-		{width: 12, want: []string{"█ work", "█ per sonal label", "█ faint: heading, at its recent rate", "│ now"}},
+		{width: 80, want: []string{"█ work    █ per sonal label    █ faint: heading, as forecast    │ now"}},
+		{width: 68, want: []string{"█ work    █ per sonal label    █ faint: heading, as forecast", "│ now"}},
+		{width: 50, want: []string{"█ work    █ per sonal label", "█ faint: heading, as forecast    │ now"}},
+		{width: 35, want: []string{"█ work    █ per sonal label", "█ faint: heading, as forecast", "│ now"}},
+		{width: 12, want: []string{"█ work", "█ per sonal label", "█ faint: heading, as forecast", "│ now"}},
 	}
 	for _, tt := range tests {
 		p := poolStacked{stack: s, look: look}

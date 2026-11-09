@@ -12,14 +12,14 @@ c61b mobile                   ↓ answering                   ●━━━━━
 7f3a api                      idle 1m                       ●━━━━━━━━┓  ┃  ┃  ┃  ┃
 db8a infra                    idle 4m      ▸ from work      ●━━━━━┓  ┃  ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃  ┃  ┗━━◉ 2 personal ◆    ● open
-                                                                  ┃  ┃  ┃  ┃  ┗━━━━━◉  Week                            ┃            66%  out ~Sat 06:00
+                                                                  ┃  ┃  ┃  ┃  ┗━━━━━◉  Week                            ┃            66%  out ~Sat
                                                                   ┃  ┃  ┃  ┃        ○
                                                                   ┃  ┃  ┃  ┃        ○  5-hour     no limit
                                                                   ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┗━━━━━━━━◉ 3 side ▲        ● open · new sessions come here
-                                                                  ┃  ┃  ┗━━━━━━━━━━━◉  Week                      ┃                  78%  out ~Fri 12:20
+                                                                  ┃  ┃  ┗━━━━━━━━━━━◉  Week                      ┃                  78%  out ~Fri
                                                                   ┃  ┗━━━━━━━━━━━━━━◉
                                                                   ┗━━━━━━━━━━━━━━━━━◉  5-hour         ▏ ┃                           13%  21%/h till 18:50
 

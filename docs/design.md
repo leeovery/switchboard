@@ -547,6 +547,10 @@ built:
   than a day of answers in it, the curve is `e^(−h / 6h)`. The status document carries it at 1, 3,
   6, 12, 24 and 48 hours; between them it's read as straight lines, and past 48 hours it falls
   straight to none at 96.
+- **An account that can't take requests,** its token refused or none usable, holds none of its
+  use: the router sends its sessions' requests elsewhere, and its use goes where a new session
+  would. Nor does a new session go to it. A token refused as the document is built is played as
+  refused all week: the router bars it for minutes, but a token refused once is refused again.
 - **The rest goes where a new session would go** at that moment, as Choosing an account's steps 1
   and 2 choose one, among the global pin's accounts while one holds. Each account's 5-hour window is
   left out: its resets and limits come and go within a day, and nothing forecasts them.
@@ -2885,8 +2889,8 @@ shorter ones bring it in, as with names of 3 cells, to 82 columns:
 LATELY's words are as long as its room holds, as LATELY's rule below says; COMING UP's are the same
 at every width.
 
-- **COMING UP,** soonest first: the time, padded to the longest, as `16:30`, `~Sat 06:00` or
-  `Sun 02:00`, in `text.secondary`; two spaces; the account in bold `text.primary`, then what
+- **COMING UP,** soonest first: the time, padded to the longest, as `16:30`, `~Sat 06:00`, `~Sat`
+  or `Sun 02:00`, in `text.secondary`; two spaces; the account in bold `text.primary`, then what
   happens in `text.muted`; at the section's right, how long until it, `in 1h 48m`, in
   `text.subtle`. A run-out's row is all in `accent.attention`, its time and countdown too. It lists,
   as the status document gives them (see The status document):
@@ -4974,8 +4978,8 @@ them at the section's width, from a day before now, for a week:
   mixed with the canvas so 50% of it shows.
 - **Now:** `│` in `text.primary` down now's column, through every row.
 - **Under it,** Runway's axis, its three rows as Runway draws them at that width; then its key: each
-  account's `█` in its hue and its name in `text.muted`, a faint `█` and ` faint: heading, at its
-  recent rate`, and `│ now`, four spaces apart, flowed onto as many rows as its width needs.
+  account's `█` in its hue and its name in `text.muted`, a faint `█` and ` faint: heading, as
+  forecast`, and `│ now`, four spaces apart, flowed onto as many rows as its width needs.
 - **Without colour,** as `NO_COLOR` draws, the accounts can't be told apart, so POOL draws the
   pool's total alone, in `█`, and its key says `the pool's room; its accounts by colour alone`.
 
@@ -5068,7 +5072,7 @@ it's heading, a column at a time as each column's moment passes. Nothing travels
 
 **`?` help,** `HELP · GRAPHS`, lists every key first, the toggles, `j`/`k`, PgUp, PgDn, `p`, `t` and
 `R` among them, the scroll keys always, as the page can scroll at any size; then each section: a burn-down's room, where it's heading and why its line is
-straight, the recent rate held, `✕`, the reserve, the window's ink and each card's own clock; the
+straight, to where a week's forecast or the 5-hour's recent rate takes it, `✕`, the reserve, the window's ink and each card's own clock; the
 pool's line; POOL's stack and its faint heading; GLANCE's sparklines and words; and WHEN YOU WORK's
 shades, the weeks it counts and the requests it counts.
 

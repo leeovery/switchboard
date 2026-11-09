@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -64,8 +65,8 @@ type accountWorld struct {
 // how fast each has been used lately, as a router that took up the readings
 // history judges it, and the pressure that puts the account under; the
 // accounts pinned spending their reserves; and the best account to use next,
-// but where the world says where new sessions go; and the newest of its
-// events, by then.
+// but where the world says where new sessions go; the newest of its
+// events, by then; and the pool's use, as demand has it.
 func (w accountWorld) document(now time.Time) status.Document {
 	at := w.read(now)
 	doc := status.Document{
@@ -73,17 +74,55 @@ func (w accountWorld) document(now time.Time) status.Document {
 	}
 	var open []status.Account
 	held := w.history.byAccount()
+	rises := make(map[string][]rise, len(w.accounts))
 	for _, a := range w.accounts {
-		st := w.account(a, held[a.ID], at)
+		st, took := w.account(a, held[a.ID], at)
 		doc.Accounts = append(doc.Accounts, st)
 		doc.Sessions += st.Sessions
 		if !st.Shut(at, claude.Policy()) {
 			open = append(open, st)
 		}
+		rises[a.ID] = took.weekRises
 	}
 	doc.Best = cmp.Or(w.best, status.Best(claude.Policy(), open, w.pin.Accounts, at))
 	doc.Primary = status.PrimaryOf(doc.Accounts)
+	doc.Demand = w.demand(rises, at)
 	return doc.WorkedOut(claude.Policy())
+}
+
+// demand is the pool's use at at, as a router that took up the world's
+// readings history measures it: its day rate, the rises of its accounts'
+// shared weeks given, by account, in Pro weeks, as their plans size them,
+// over the last day, as every world's pool has had room for a new session
+// all day; and the hold curve its router kept, worldsHold.
+func (w accountWorld) demand(rises map[string][]rise, at time.Time) *status.Demand {
+	plans := make([]string, len(w.accounts))
+	for i, a := range w.accounts {
+		plans[i] = a.Plan
+	}
+	from := at.Add(-quota.Day)
+	var risen []rise
+	for i, size := range forecast.Sizes(plans) {
+		for _, r := range rises[w.accounts[i].ID] {
+			if r.at.After(from) {
+				risen = append(risen, rise{at: r.at, by: r.by * size})
+			}
+		}
+	}
+	slices.SortStableFunc(risen, func(a, b rise) int { return a.at.Compare(b.at) })
+	day := forecast.Day{}.Open(true, from)
+	for _, r := range risen {
+		day = day.Rose(r.by, r.at)
+	}
+	rate, over, _ := day.Rate(at)
+	return &status.Demand{Day: rate, Hours: over.Hours(), Hold: worldsHold}
+}
+
+// worldsHold is the hold curve the worlds' router has kept of its answers:
+// their sessions stay on their accounts for days, so most of the use on an
+// account two days on is still its own.
+var worldsHold = []status.HoldPoint{
+	{Hours: 1, Share: 1}, {Hours: 3, Share: .99}, {Hours: 6, Share: .97}, {Hours: 12, Share: .93}, {Hours: 24, Share: .85}, {Hours: 48, Share: .7},
 }
 
 // extraOff is extra usage as the provider gives it of an account that has
@@ -99,8 +138,8 @@ const tokenAge = 97 * 24 * time.Hour
 // unable to read it since a time, then, its rates and pressure worked out
 // from its readings to then, but a 5-hour window it no longer reports, as
 // unreported forgets it, its token taken as tokenTaken has it, and its
-// extra usage off.
-func (w accountWorld) account(a config.Account, h history, at time.Time) status.Account {
+// extra usage off; with its readings to then, as the router took them up.
+func (w accountWorld) account(a config.Account, h history, at time.Time) (status.Account, takenUp) {
 	read := w.readAt(a.ID, at)
 	st := status.Configured(a).WithTokenTaken(w.tokenTaken(a.ID, at))
 	st.TokenSet, st.FetchedAt = true, read.UTC()
@@ -109,10 +148,10 @@ func (w accountWorld) account(a config.Account, h history, at time.Time) status.
 	st.Windows, st.Extra = latest, extraOff
 	st = st.AsOf(claude.Policy(), at)
 	st.Limit, st.Refused, st.Sessions = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID]
-	trails := held.trails()
-	st.Rates = status.RatesOf(latest, trails, nil, at)
-	st.Pressure = pressureOf(st, latest, trails, w.pin.Has(a.ID), at)
-	return st
+	took := held.takenUp()
+	st.Rates = status.RatesOf(latest, took.trails, took.fastAt(at), at)
+	st.Pressure = pressureOf(st, latest, took.trails, w.pin.Has(a.ID), at)
+	return st, took
 }
 
 // tokenTaken is when the account with the given id took its token, as of at:
@@ -170,18 +209,57 @@ func (w accountWorld) trails(doc status.Document, now time.Time) []trail {
 	return trails
 }
 
-// trails are how each of the windows of the account whose readings history h
-// is has been read, by the window's key, as a router that took up that
-// history as it started holds them: each reading taken in, in turn, as
-// score.Noted takes it.
-func (h history) trails() map[string][]score.Reading {
-	trails := make(map[string][]score.Reading)
-	last := make(map[string]quota.Window)
+// takenUp is how each of the windows of an account has been read, by the
+// window's key, as a router that took up its readings history as it started
+// holds them: its trail, each reading taken in, in turn, as score.Noted takes
+// it; its fast rate, each reading's rise up the trail, as score.Risen has it,
+// taken in as forecast.Fast takes it, afresh where the window starts afresh;
+// the reading taken in last; and the rises of its shared week, as the pool's
+// day rate takes them in.
+type takenUp struct {
+	trails    map[string][]score.Reading
+	fast      map[string]forecast.Fast
+	last      map[string]quota.Window
+	weekRises []rise
+}
+
+// rise is a window's use rising by a share of it, or the pool's by Pro weeks.
+type rise struct {
+	at time.Time
+	by float64
+}
+
+// takenUp is the account whose readings history h is as a router that took
+// up that history holds it, as takenUp has it.
+func (h history) takenUp() takenUp {
+	t := takenUp{trails: make(map[string][]score.Reading), fast: make(map[string]forecast.Fast), last: make(map[string]quota.Window)}
+	week := claude.Policy().Perishable
 	for _, r := range h {
 		kept := r.Window()
-		trails[r.Key], last[r.Key] = score.Noted(trails[r.Key], last[r.Key], kept, r.At), kept
+		risen, afresh := score.Risen(t.trails[r.Key], t.last[r.Key], kept)
+		if afresh {
+			t.fast[r.Key] = forecast.Fast{}
+		}
+		t.fast[r.Key] = t.fast[r.Key].Rose(risen, r.At)
+		if r.Key == week && risen > 0 {
+			t.weekRises = append(t.weekRises, rise{at: r.At, by: risen})
+		}
+		t.trails[r.Key], t.last[r.Key] = score.Noted(t.trails[r.Key], t.last[r.Key], kept, r.At), kept
 	}
-	return trails
+	return t
+}
+
+// fastAt are the fast rates of the windows taken up at at, by key, as the
+// router gives them: none of one that has reset since it was last read, as
+// it keeps none, nor of one faded below router.FastLeast.
+func (t takenUp) fastAt(at time.Time) map[string]float64 {
+	rates := make(map[string]float64, len(t.fast))
+	for key, f := range t.fast {
+		if rate := f.Rate(at); rate >= router.FastLeast && !t.last[key].ResetBy(at) {
+			rates[key] = rate
+		}
+	}
+	return rates
 }
 
 // pressureOf is how the account st's pressure window stands at at, its windows
@@ -328,8 +406,8 @@ func (t *todayOf) work() {
 // personal takes in personal's readings today as the auto world has them:
 // steady, its 5-hour window primed at 11:30 at 39% now, rising on to the
 // levels given after; its week read at 65% at 13:32:41 and at 66% at 14:20,
-// a rate that has it run out on Saturday at 06:00, before it resets on
-// Sunday at 02:00.
+// which the forecast of the auto world's pool runs out on Saturday at 05:45,
+// before it resets on Sunday at 02:00.
 func (t *todayOf) personal(after ...level) {
 	t.session("personal", t.at(6, 30, 0), false, level{t.at(11, 10, 0), .18})
 	t.session("personal", t.at(11, 30, 0), true, slices.Concat([]level{{t.at(14, 40, 0), .39}}, after)...)
@@ -393,8 +471,8 @@ func (a accountWorlds) autoOf(t *todayOf) accountWorld {
 }
 
 // fableNearing is the auto world with side's Fable week read at 88% at
-// 14:40, running out before it resets at the rate it rose at: nearing its
-// limit, the live views list it while they hide each model's own window.
+// 14:40, running out before it resets at its pace since it started: nearing
+// its limit, the live views list it while they hide each model's own window.
 func (a accountWorlds) fableNearing() accountWorld {
 	return a.kept("fableNearing", func() accountWorld {
 		t := a.today()

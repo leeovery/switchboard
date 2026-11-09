@@ -6,11 +6,11 @@ USAGE  ────────────────────────�
 
 WEEK
 
- 1 work                              ▏           ┃                         ╎    34%  19%/day till Sun 21:00
+ 1 work                              ▏           ┃                         ╎    34%  out ~Sat
 
- 2 personal ◆                                           ┃                       66%  out ~Sat 06:00
+ 2 personal ◆                                           ┃                       66%  out ~Sat
 
- 3 side ▲                                   ┃                   ▍               78%  out ~Fri 12:20
+ 3 side ▲                                   ┃                   ▍               78%  out ~Fri
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Σ pool                                           ┃ ▊                           59%  1.2 of 3 left
 
@@ -31,12 +31,12 @@ ROUTING   auto ─────────────────────�
 
 COMING UP  ──────────────────────────────────── c       LATELY  ────────────────────────────────────────── l
 
-~Fri 12:20  side's week runs out at…   in 21h 38m       14:41  ▲ c61b started on side
-~Sat 06:00  personal's week runs out…   in 1d 15h       14:31  ■ work refused (401): 3 moved to side
-Sun 02:00   personal's week resets      in 2d 11h       14:12  ▲ 7f3a started on work
-Sun 21:00   work's week resets           in 3d 6h       13:22  ▸ db8a moved personal → work: personal came…
-Mon 10:00   side's week resets          in 3d 19h       12:47  ▲ 41e0 started on personal
-                                                        12:02  ▲ d28c started on work
+~Fri       side's week runs out at i…    in 1d 1h       14:41  ▲ c61b started on side
+~Sat       personal's week runs out…    in 1d 15h       14:31  ■ work refused (401): 3 moved to side
+~Sat       work's week reaches its c…    in 2d 4h       14:12  ▲ 7f3a started on work
+Sun 02:00  personal's week resets       in 2d 11h       13:22  ▸ db8a moved personal → work: personal came…
+Sun 21:00  work's week resets            in 3d 6h       12:47  ▲ 41e0 started on personal
+Mon 10:00  side's week resets           in 3d 19h       12:02  ▲ d28c started on work
                                                         11:55  ▲ 9c2e started on personal
                                                         10:02  ▲ 5b19 started on personal
                                                         09:40  ▲ 3d7a started on work

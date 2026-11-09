@@ -76,6 +76,17 @@ func Dated(now, t time.Time) string {
 	return Clock(now, t)
 }
 
+// RunOut shows t, when a window is projected to run out, in now's time zone:
+// within a day of now, as Dated shows it, such as "16:05" or "Mon 05:22";
+// further ahead, its weekday alone, such as "Tue", as a forecast days out
+// misses by a day or more.
+func RunOut(now, t time.Time) string {
+	if t.Sub(now) <= 24*time.Hour {
+		return Dated(now, t)
+	}
+	return Weekday(t.In(now.Location()).Weekday())
+}
+
 // DatedWidth is how many characters the widest time Dated shows takes, as a
 // column of them is as wide as: one with its weekday.
 func DatedWidth() int {

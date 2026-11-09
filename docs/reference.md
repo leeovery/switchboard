@@ -73,7 +73,7 @@ The state directory holds these files:
 
 | File | Holds |
 |---|---|
-| `state.json` | The router's state that outlasts a restart: each session's account, the pins, each account's last readings, and the SHA-256 hashes of the account's token and of the tokens it replaced. See [Tokens](configuration.md#tokens). |
+| `state.json` | The router's state that outlasts a restart: each session's account, the pins, each account's last readings, how long use stays on its account, which the weeks' forecast goes by, and the SHA-256 hashes of the account's token and of the tokens it replaced. See [Tokens](configuration.md#tokens). |
 | `control.sock` | The router's control API, which the commands and the dashboard talk to. |
 | `prefs.json` | What the dashboard remembers. See [`dashboard`](dashboard.md) and [Themes](dashboard.md#themes). |
 | `tokens/<id>` | Each account's token. See [Tokens](configuration.md#tokens). |
@@ -313,7 +313,7 @@ no window joined. A window that `joined` leaves out was held from `at`.
 
 [`status`](commands.md#status) and [`usage`](commands.md#usage) print this document as JSON:
 `{"generated_at", "source", "fallback", "best", "primary", "prime", "pin", "router", "restart",
-"export", "sessions", "events", "pool", "coming_up", "accounts"}`.
+"export", "sessions", "events", "pool", "coming_up", "demand", "accounts"}`.
 
 - Times are in UTC, except the priming schedule's times of day, which are local.
 - Utilizations are fractions, and can pass 1.
@@ -335,11 +335,13 @@ no window joined. A window that `joined` leaves out was held from `at`.
 | `events` | What's happened lately, newest first. |
 | `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each window gives `of`, how many of the pool's accounts have it, an account not read yet, or without a usable token, counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |
 | `coming_up` | Each limit, cap or refused token lifting, window running out or resetting, and prime, soonest first. |
+| `demand` | The pool's use as the weeks' forecast takes it (see [Where a week runs out](how-it-works.md#where-a-week-runs-out)), from the router only: `day`, the pool's rate over the last day, in Pro weeks an hour; `hours`, the hours with room it's measured over, 24 at most, and 0 where it's the pool's fast rate instead; and `hold`, `[{hours, share}]`, the share of an account's fast rate still on it 1, 3, 6, 12, 24 and 48 hours on. Left out when the router has read no account. |
 | `accounts` | Each account, in the config's order. See below. |
 
 Each entry in `accounts` holds these:
 
-- The account's `id` and `label`, whether it's the `primary`, and its `reserve`.
+- The account's `id` and `label`, whether it's the `primary`, its `reserve`, and its `plan` as
+  configured, `pro`, `max` or `ultra`, left out where it isn't known.
 - Whether its token is set, and when it was read.
 - `token_taken` and `token_good_until`: when switchboard took its token, and when the token's year,
   counted from then, is up, 365 days on, each left out where that isn't known.
@@ -349,7 +351,9 @@ Each entry in `accounts` holds these:
 - Its `extra_usage`.
 - What couldn't be read, and why.
 - From the router only: a `limit` or refusal that holds the account, its `pressure` and `rates`,
-  and its `sessions`.
+  and its `sessions`. Each of its `rates` gives a window's recent `rate`, which the 5-hour window's
+  run-out goes by, with `since`, when that's measured from; and its `fast` rate, which a week's
+  forecast goes by, left out at 0. An entry without `since` has a fast rate alone.
 
 ## `status --session`'s JSON
 

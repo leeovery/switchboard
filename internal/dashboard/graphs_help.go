@@ -31,7 +31,7 @@ func (f Frame) burnDownsHelp() helpPart {
 		}
 	}
 	glyphs := slices.Concat([]glyph{room}, inks, []glyph{
-		{drawn: line{headingMark}, means: "where it's heading, at its recent rate"},
+		{drawn: line{headingMark}, means: "where it's heading: a week as forecast, the 5-hour at its recent rate"},
 		{drawn: line{{outMark, outInk}}, means: "where it runs out, on the floor it meets; or where its cap or its limit took hold"},
 		{drawn: line{reserveMark}, means: "its reserve, where it holds: the room its cap leaves"},
 		{drawn: line{{nowLine, faintInk}}, means: "now"},
@@ -46,12 +46,13 @@ func (f Frame) burnDownsHelp() helpPart {
 				"yet, as one not read yet may: a verified Ultra account has none."),
 			said("Over the card, the account's number, name and marks, and its words: the room it has left, as 66% left, its " +
 				"figure coloured as switchboard usage colours a use, then what Runway says under its lane in that window's " +
-				"view, as at its cap 14:31  ·  back 17:10 or runs out ~Sat 06:00 at its pace, inked as Runway inks them, " +
+				"view, as at its cap 14:31  ·  back 17:10 or runs out ~Sat at its pace, inked as Runway inks them, " +
 				"whole parts going from the end where they don't fit. They're read from Runway's live view as Runway would " +
 				"draw it at this width, so a hold shorter than one of its columns can go unsaid; a wider terminal, or " +
 				"Runway's labels collapsed, gives finer columns, which can bring it out."),
-			said("From now, a dotted line says where it's heading: straight, as it holds the rate the window's been used at " +
-				"lately to its reset, the pace Runway's words go by. It falls from the room now to where the window runs out, " +
+			said("From now, a dotted line says where it's heading, straight to where its forecast takes it: a week as the " +
+				"router would spread the pool's use, the 5-hour holding the rate it's been used at lately; the pace Runway's " +
+				"words go by. It falls from the room now to where the window runs out, " +
 				"its ✕ there, then runs along the floor it meets, its cap or empty, to its reset; or it ends at the room the " +
 				"window leaves at its reset. Where its cap or its limit already holds it, ✕ marks the column the hold began, " +
 				"where that's told, and the line runs along that floor from now."),
@@ -85,7 +86,7 @@ func (f Frame) poolStackHelp() helpPart {
 				"room, full being every account's. The pool's first " + strconv.Itoa(accountHues) + " accounts each have a colour " +
 				"of their own; a fifth on takes the colour four before it, fainter."),
 			said("Before now, each account's room as it stood, as Runway judges it; from now, faint, " +
-				"where it's heading at its recent rate: falling to where it runs out, along its floor to its reset, then full, " +
+				"where it's heading as forecast: falling to where it runs out, along its floor to its reset, then full, " +
 				"as nothing is known of its next window. Where two accounts meet in a cell, the lower's share is drawn on the " +
 				"upper's colour, and the top cell is the colour of the account with most of it, so the top edge reads as the " +
 				"pool's total."),
@@ -104,7 +105,7 @@ func glanceHelp() helpPart {
 				"5-hour, each a burn-down a row high. A sparkline of " + strconv.Itoa(sparkCells) + " cells is the window's " +
 				"room from its start to its reset, in the window's ink as the cards have it, faint from now where it's " +
 				"heading, and ✕ where it runs out; then the room left now, as 66%; then switchboard usage's words for the " +
-				"window, as 19%/day till Sun 21:00, out ~Sat 06:00 or at cap · back 17:10. An account without a 5-hour " +
+				"window, as 19%/day till Sun 21:00, out ~Sat or at cap · back 17:10. An account without a 5-hour " +
 				"window, as a verified Ultra account, reads no 5-hour limit, its sparkline empty; where no account has one, " +
 				"the 5-HOUR column goes."),
 			said("Under the accounts, Σ pool: the pool's room over each window, as POOL counts it, from its accounts' earliest " +

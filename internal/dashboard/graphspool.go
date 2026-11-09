@@ -21,7 +21,7 @@ const poolKeyApart = 4
 // What POOL's key says of what it draws: where the stack's heading; and,
 // without colour, what its one stack is.
 const (
-	poolHeadingMeans = " faint: heading, at its recent rate"
+	poolHeadingMeans = " faint: heading, as forecast"
 	poolTotalMeans   = " the pool's room; its accounts by colour alone"
 	poolNowMeans     = " now"
 	poolMark         = "█"

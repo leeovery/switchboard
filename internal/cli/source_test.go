@@ -29,13 +29,24 @@ import (
 )
 
 // workAtStatus is work's status, as status prints it from fakeClaudeAPI's
-// probes.
-const workAtStatus = `work · Work (primary)
-  Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 14:34
+// probes, its week at its pace since it started; and workRouted, as the
+// router gives it, its week as it forecasts the pool's use, which it has
+// seen none of.
+var (
+	workAtStatus = workWhere("runs out ~14:34")
+	workRouted   = workWhere("on pace for 93%")
+)
+
+// workWhere is work's status, as status prints it from fakeClaudeAPI's
+// readings, its week heading as given.
+func workWhere(weekHeads string) string {
+	return `work · Work (primary)
+  Week        93%  resets in 4d 7h · Fri 21:00 · ` + weekHeads + `
   5-hour      23%  resets in 4h 58m · Mon 18:10
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted
   limit until Sun 01:10
 `
+}
 
 // othersAtStatus is how status prints personal and side from fakeClaudeAPI's
 // probes, commands run with deps finding personal's token file missing.
@@ -53,7 +64,7 @@ func TestStatusReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := routingSetup(t)
 
 	got := run(t, srv.deps, "status", "--pretty")
-	want := result{stdout: workAtStatus + "  1 session\n\n" + othersAtStatus(t, srv.deps) + `
+	want := result{stdout: workRouted + "  1 session\n\n" + othersAtStatus(t, srv.deps) + `
 sessions
   0b5c6f2e  haiku on work  ·  seen just now
 

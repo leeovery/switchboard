@@ -184,7 +184,7 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 		"● healthy",
 		// side's 5-hour window at its reading, its bar eased all the way
 		// there, after its week.
-		"78%  out ~Fri 12:20                ▍ ┃                                   13%  21%/h till 18:50",
+		"78%  out ~Fri                      ▍ ┃                                   13%  21%/h till 18:50",
 		// What the router tells of lately, none picked out as new, the first
 		// look having seen them all.
 		"14:41  ▲ c61b started on side",
@@ -308,21 +308,19 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{
 			name: "graphs-108x44",
 			want: []string{
-				"1 work  66% left  ·  at its cap 14:31  ·  back 17:10    2 personal ◆        34% left  ·  runs out ~Sat 06:00",
-				"3 side ▲            22% left  ·  runs out ~Fri 12:20",
+				"1 work  66% left  ·  at its cap 14:31  ·  back 17:10    2 personal ◆  34% left  ·  runs out ~Sat at its pace",
+				"3 side ▲      22% left  ·  runs out ~Fri at its pace",
 			},
-			wantNoneOf: []string{"~Sat 06:00 at its pace", "~Fri 12:20 at its pace"},
 		},
 		{
 			name: "graphs-73x61",
 			want: []string{
-				"1 work  66% left  ·  at its cap 14:31  ·  back 17:10  ·  resets Sun 21:00", "2 personal ◆                 34% left  ·  runs out ~Sat 06:00 at its pace",
+				"1 work                       66% left  ·  at its cap 14:31  ·  back 17:10", "2 personal ◆    34% left  ·  runs out ~Sat at its pace  ·  back Sun 02:00",
 				"1 work  5% left  ·  at its cap 14:31  ·  back 17:10, as its 5-hour resets",
 			},
 		},
 		{
-			name: "graphs-phone-52", want: []string{"1 work  66% left  ·  at its cap 14:31  ·  back 17:10", "2 personal ◆        34% left  ·  runs out ~Sat 06:00"},
-			wantNoneOf: []string{"~Sat 06:00 at its pace"},
+			name: "graphs-phone-52", want: []string{"1 work  66% left  ·  at its cap 14:31  ·  back 17:10", "2 personal ◆  34% left  ·  runs out ~Sat at its pace"},
 		},
 	}
 	for _, tt := range tests {

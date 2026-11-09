@@ -6,25 +6,25 @@ USAGE  ────────────────────────�
 
                  WEEK                                                                    5-HOUR
 
- 1 work                       ▋       ┃                ╎   34%  19%/day till Sun 21:00                       ┃                 ╎   95%  at cap · back 17:10
+ 1 work                       ▋       ┃                ╎   34%  out ~Sun                                     ┃                 ╎   95%  at cap · back 17:10
 
- 2 personal ◆                              ┃               66%  out ~Sat 06:00                          ▋          ┃               39%  34%/h till 16:30
+ 2 personal ◆                              ┃               66%  out ~Sat                                ▋          ┃               39%  34%/h till 16:30
 
- 3 side ▲                          ┃            ▎          78%  out ~Fri 12:20                ▎ ┃                                  13%  21%/h till 18:50
+ 3 side ▲                          ┃            ▎          78%  out ~Fri                      ▎ ┃                                  13%  21%/h till 18:50
 
- 4 client                          ▊  ┃                    47%  16%/day till Sun 23:00                   ┃   ▊                     52%  16%/h till 17:40
+ 4 client                          ▊  ┃                    47%  out ~Sun                                 ┃   ▊                     52%  16%/h till 17:40
 
- 5 spare                     ┃                              5%  19%/day till Tue 14:00    ┃                                         4%  20%/h till 19:35
+ 5 spare                     ┃                              5%  out ~Tue                  ┃                                         4%  20%/h till 19:35
 
- 6 lab                              ┃   ▎                  58%  out ~Sat 23:41                                 ┃     ▍             71%  out ~16:05
+ 6 lab                              ┃   ▎                  58%  out ~Sat                                       ┃     ▍             71%  out ~16:05
 
- 7 team                                     ┃     ▎        83%  out ~Fri 13:47                                             ┃      100%  limit · back 15:30
+ 7 team                                     ┃     ▎        83%  out ~Fri                                                   ┃      100%  limit · back 15:30
 
- 8 extra             ▊   ┃                                 12%  15%/day till Wed 07:00           ▊     ┃                           22%  24%/h till 17:55
+ 8 extra             ▊   ┃                                 12%  out ~Wed                         ▊     ┃                           22%  24%/h till 17:55
 
- 9 ops                      ▋     ┃                        29%  18%/day till Mon 14:00     ▍ ┃                                      6%  21%/h till 19:10
+ 9 ops                      ▋     ┃                        29%  out ~Mon                   ▍ ┃                                      6%  21%/h till 19:10
 
-10 studio                        ▍        ┃                41%  22%/day till Sun 06:00                ▎             ┃              33%  41%/h till 16:20
+10 studio                        ▍        ┃                41%  out ~Sun                              ▎             ┃              33%  41%/h till 16:20
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Σ pool                            ▏┃                      45%  5.4 of 10 left                            ┃                        43%  5.6 of 10 left
 

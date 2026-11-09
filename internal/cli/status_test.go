@@ -30,7 +30,7 @@ func TestStatus(t *testing.T) {
 			got := form.run(t, deps, "status")
 			want := result{
 				stdout: `work · Work (primary)
-  Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 14:34
+  Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~14:34
   5-hour      23%  resets in 4h 58m · Mon 18:10
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted
   limit until Sun 01:10
@@ -272,7 +272,7 @@ func TestStatusListsTheRoutersSessions(t *testing.T) {
 	}
 
 	got := run(t, srv.deps, "status", "--pretty")
-	want := result{stdout: workAtStatus + "  2 sessions\n\n" + othersAtStatus(t, srv.deps) + `
+	want := result{stdout: workRouted + "  2 sessions\n\n" + othersAtStatus(t, srv.deps) + `
 sessions
   0b5c6f2e  haiku on work  ·  seen just now
   18bb978f  haiku on work  ·  pinned to side  ·  seen just now

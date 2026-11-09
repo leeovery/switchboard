@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -543,11 +544,12 @@ func versionOneAmongTheDays() AccountsMoment {
 }
 
 // probing is Thursday 1 October with no router, the dashboard probing the
-// accounts itself: no sessions listed, no events told.
+// accounts itself: no sessions listed, no events told, and no demand, which
+// only the router measures.
 func probing() AccountsMoment {
 	now := At(14, 42, 7)
 	doc := readDoc(now, readAccount(work, now, window(fiveHour, 0.5, At(17, 10, 0))), readAccount(side, now, window(fiveHour, 0.13, At(18, 50, 0))))
-	doc.Source, doc.Router = status.SourceProbe, status.Health{}
+	doc.Source, doc.Router, doc.Demand = status.SourceProbe, status.Health{}, nil
 	return AccountsMoment{
 		Name: "probing, no sessions and no events", Accounts: config.Accounts{workUltra, sideUltra}, WeekStarts: time.Monday,
 		Days: filing{}.summaries(At(0, 0, 0), now), Doc: doc, Now: now,
@@ -648,7 +650,8 @@ func (f filing) summaries(first, last time.Time) []ledger.Summary {
 }
 
 // readDoc is the router's document, built at at, of the accounts given, as
-// the router judges them then, new sessions going to the first.
+// the router judges them then, new sessions going to the first, the pool's
+// use as DemandOf has it.
 func readDoc(at time.Time, accounts ...status.Account) status.Document {
 	doc := status.Document{Source: status.SourceRouter, GeneratedAt: at, Router: status.Health{Healthy: true}}
 	for _, a := range accounts {
@@ -657,8 +660,34 @@ func readDoc(at time.Time, accounts ...status.Account) status.Document {
 	if len(accounts) > 0 {
 		doc.Best = accounts[0].ID
 	}
+	doc.Demand = DemandOf(doc.Accounts)
 	return doc
 }
+
+// DemandOf is the pool's use as the router gives it, of the accounts given,
+// each used all day as fast as it is now, and its sessions staying on it: a
+// day rate of the pool's fast rate, each account's shared week's in Pro
+// weeks, as their plans size them, summed; and a hold curve holding all of
+// an account's use on it for the two days it spans.
+func DemandOf(accounts []status.Account) *status.Demand {
+	plans := make([]string, len(accounts))
+	for i, a := range accounts {
+		plans[i] = a.Plan
+	}
+	var day float64
+	for i, size := range forecast.Sizes(plans) {
+		for _, r := range accounts[i].Rates {
+			if r.Window == claude.Policy().Perishable {
+				day += r.Fast * size
+			}
+		}
+	}
+	return &status.Demand{Day: day, Hours: 24, Hold: heldOn}
+}
+
+// heldOn is a hold curve holding all of an account's use on it, at each hour
+// the router gives one of.
+var heldOn = []status.HoldPoint{{Hours: 1, Share: 1}, {Hours: 3, Share: 1}, {Hours: 6, Share: 1}, {Hours: 12, Share: 1}, {Hours: 24, Share: 1}, {Hours: 48, Share: 1}}
 
 // readAccount is the account with the given id, its token set, its windows
 // read at at as given.

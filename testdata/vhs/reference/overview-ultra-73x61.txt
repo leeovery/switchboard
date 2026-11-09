@@ -7,11 +7,11 @@ USAGE  ────────────────────────�
 
 WEEK
 
- 1 work                  ▏    ┃           ╎  34%  19%/day till Sun 21:00
+ 1 work                  ▏    ┃           ╎  34%  out ~Sat
 
- 2 personal ◆                    ┃           66%  out ~Sat 06:00
+ 2 personal ◆                    ┃           66%  out ~Sat
 
- 3 side ▲                   ┃                78%  out ~Fri 12:20
+ 3 side ▲                   ┃                78%  out ~Fri
 ─────────────────────────────────────────────────────────────────────────
  Σ pool                        ┃             59%  1.2 of 3 left
 
@@ -31,11 +31,12 @@ ROUTING   auto ─────────────────────�
 
 COMING UP  ──────────────────────────────────────────────────────────── c
 
-~Fri 12:20  side's week runs out at its pace                   in 21h 38m
-~Sat 06:00  personal's week runs out at its pace                in 1d 15h
-Sun 02:00   personal's week resets                              in 2d 11h
-Sun 21:00   work's week resets                                   in 3d 6h
-Mon 10:00   side's week resets                                  in 3d 19h
+~Fri       side's week runs out at its pace                      in 1d 1h
+~Sat       personal's week runs out at its pace                 in 1d 15h
+~Sat       work's week reaches its cap                           in 2d 4h
+Sun 02:00  personal's week resets                               in 2d 11h
+Sun 21:00  work's week resets                                    in 3d 6h
+Mon 10:00  side's week resets                                   in 3d 19h
 
 LATELY  ─────────────────────────────────────────────────────────────── l
 
@@ -51,7 +52,6 @@ LATELY  ────────────────────────
 09:12  ▲ e0c4 started on work
 08:31  ▲ a8f1 started on side
 07:58  ▲ 2b6d started on work
-
 
 
 

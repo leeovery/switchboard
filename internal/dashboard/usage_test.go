@@ -1454,6 +1454,8 @@ func timeSaid(w status.WindowNow, now time.Time) string {
 	case w.Kind == status.WindowStale:
 		full, _ := lastRead(now, w.At)
 		return full
+	case w.Kind == status.WindowRunsOut:
+		return prose.RunOut(now, w.At)
 	}
 	return prose.Dated(now, w.At)
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // start is when every test's clock starts: a Monday, 13:12 an hour east of UTC.
@@ -706,6 +707,14 @@ func document(accounts ...status.Account) status.Document {
 // routerDocument is the router's document of the accounts, healthy.
 func routerDocument(accounts ...status.Account) status.Document {
 	return status.Document{GeneratedAt: start.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: accounts}
+}
+
+// forecastDocument is routerDocument of the accounts, giving the pool's use
+// as viewstest.DemandOf has it, which their weeks are forecast by.
+func forecastDocument(accounts ...status.Account) status.Document {
+	doc := routerDocument(accounts...)
+	doc.Demand = viewstest.DemandOf(accounts)
+	return doc
 }
 
 // three are three accounts with room, whose windows reset long after the
