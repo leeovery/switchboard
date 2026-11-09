@@ -498,18 +498,53 @@ func (f Frame) listsBeside(coming, lately section) bool {
 // fold has them, and what then fits takes back what it gave, as unfold has
 // it; where they still don't, USAGE scrolls or gives way further, as
 // squeeze has it. The rows to spare go to the units not folded, as grow
-// has them, and the rest stay empty at the foot.
+// has them, held from the forms where blankRowsWait says, and the rest stay
+// empty at the foot.
 func allot(units []unit, room int) []unit {
-	for i := range units {
-		units[i].rows = units[i].least
-	}
-	unfold(units, room, fold(units, room))
+	fresh := slices.Clone(units)
+	arrange(units, room)
 	if _, taken, fits := layUnits(units, room); fits {
-		grow(units, room-taken)
+		grow(units, room-taken, blankRowsWait(fresh, units, room))
 	} else {
 		squeeze(units, taken-room)
 	}
 	return units
+}
+
+// arrange has each unit take its least, then give way and take back what
+// fits in room rows, as fold and unfold have them: the arrangement the
+// rows to spare then go out in.
+func arrange(units []unit, room int) {
+	for i := range units {
+		units[i].rows = units[i].least
+	}
+	unfold(units, room, fold(units, room))
+}
+
+// blankRowsWait reports whether USAGE's blank rows between its accounts,
+// given way in the units as arranged in room rows, come back a few rows
+// taller before a section unfolds or folds: arranged afresh of fresh, the
+// units unlaid, at each taller height in turn, until either.
+func blankRowsWait(fresh, arranged []unit, room int) bool {
+	if !blankRowsGivenWay(arranged) {
+		return false
+	}
+	for taller := room + 1; ; taller++ {
+		units := slices.Clone(fresh)
+		arrange(units, taller)
+		if !slices.EqualFunc(units, arranged, func(u, a unit) bool { return u.fold == a.fold }) {
+			return false
+		}
+		if !blankRowsGivenWay(units) {
+			return true
+		}
+	}
+}
+
+// blankRowsGivenWay reports whether USAGE's blank rows between its accounts
+// are given way among the units, USAGE open.
+func blankRowsGivenWay(units []unit) bool {
+	return slices.ContainsFunc(units, func(u unit) bool { return !u.fold && u.gaveWay() })
 }
 
 // fold has the units give way, as giveWay has them, a group of foldOrder's
@@ -583,12 +618,13 @@ func squeeze(units []unit, over int) {
 // on once down the height: the forms are switched on as the rows to spare
 // grow from none, a row at a time, each where it fits beside those already
 // on, and none switched off, so a row more keeps every form a row less had.
-// While USAGE's blank rows between its accounts are given way, no form is
-// on: the rows that bring them back, a few rows taller, would turn it off.
-// A unit folded never grows.
-func grow(units []unit, spare int) {
+// Held, as where USAGE's blank rows between its accounts are given way and
+// come back before a section unfolds, no form is on: the rows that bring
+// them back, a few rows taller, would turn it off. A unit folded never
+// grows.
+func grow(units []unit, spare int, held bool) {
 	used := 0
-	if !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && u.gaveWay() }) {
+	if !held {
 		for free := range spare + 1 {
 			for _, form := range forms {
 				for i := range units {

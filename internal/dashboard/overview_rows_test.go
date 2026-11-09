@@ -27,7 +27,7 @@ func rowsDown(units []unit) int {
 	return n
 }
 
-// nextStep is the fewest rows the unit grows by next, as growth grows it:
+// nextStep is the fewest rows the unit grows by next, as grow grows it:
 // USAGE and ROUTING to their next form whole, USAGE given way back a step
 // among them, SESSIONS a whole session, any other a row.
 func nextStep(u unit) int {
@@ -139,8 +139,9 @@ func TestNoUnitFoldsWhereItFitsAndNoRowIsLeftBlankWhereAStepFits(t *testing.T) {
 // rules: none folded that fits at its least, the others at theirs, USAGE's
 // blank rows between its accounts given way; and no row blank at the foot
 // that a unit not folded, short of its most, could take its next step in,
-// but where USAGE's blank rows are given way, which hold them from every
-// form.
+// but where USAGE's blank rows between its accounts are given way and come
+// back before a section unfolds, as blankRowsWait has it, which holds them
+// from every form.
 func allottedFully(t *testing.T, f Frame, doc status.Document) {
 	t.Helper()
 	units, room := f.allotted(doc, now), f.viewRows()
@@ -158,7 +159,7 @@ func allottedFully(t *testing.T, f Frame, doc status.Document) {
 		}
 	}
 	spare := room - rowsDown(units)
-	held := slices.ContainsFunc(units, func(u unit) bool { return !u.fold && u.gaveWay() })
+	held := blankRowsWait(f.unitsOf(f.sectionsOf(doc, now)), units, room)
 	for _, u := range units {
 		if held && !u.sections[0].lists() && !u.ledBy(SectionUsage) {
 			continue
@@ -524,7 +525,7 @@ func TestAt15RowsUSAGEShowsItsAccounts(t *testing.T) {
 
 // heightWorlds are the documents the Overview is swept down the height
 // with, by their names: one account, whose trace takes a row more for its
-// second; three; and six.
+// second; three; six; and ten.
 var heightWorlds = []struct {
 	name string
 	doc  status.Document
@@ -532,17 +533,18 @@ var heightWorlds = []struct {
 	{name: "one", doc: routerDoc("work", 1, readAccount("work", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day)))},
 	{name: "three", doc: threeRouted()},
 	{name: "six", doc: manyRead(6)},
+	{name: "ten", doc: func() status.Document { ten, _ := tenAccounts(); return ten }()},
 }
 
 // sweepHeights allots the Overview of each of the heightWorlds, with the
-// sections shown at first and with every one, at a phone's width, an iPad's
-// and the desktop's, from 10 rows to 60, a row at a time, and has check hold
+// sections shown at first and with every one, at a phone's widths, an
+// iPad's and the desktop's, from 10 rows to 60, a row at a time, and has check hold
 // each height's units against those a row shorter, nil at the first.
 func sweepHeights(t *testing.T, check func(t *testing.T, height int, units, shorter []unit)) {
 	t.Helper()
 	for _, w := range heightWorlds {
 		for _, shown := range []Sections{{}, every} {
-			for _, width := range []int{73, 108, 160} {
+			for _, width := range []int{52, 73, 108, 160} {
 				t.Run(fmt.Sprintf("%s, %v at %d", w.name, shown.Names(), width), func(t *testing.T) {
 					t.Parallel()
 					var shorter []unit
@@ -587,27 +589,25 @@ func TestNoFormTurnsOffARowTallerWithinOneArrangement(t *testing.T) {
 	})
 }
 
-// A row taller, within one arrangement, COMING UP and LATELY lose lines only
-// where a form switches on, and fewer than the rows it takes, the row gained
-// among them.
-func TestCOMINGUPAndLATELYLoseLinesOnlyWhereAFormSwitchesOn(t *testing.T) {
-	t.Parallel()
-	sweepHeights(t, func(t *testing.T, height int, units, shorter []unit) {
-		if shorter == nil || !oneArrangement(units, shorter) {
-			return
-		}
-		lost, taken := 0, 0
-		for i, u := range units {
-			if u.ledBy(SectionComing, SectionLately) {
-				lost += max(shorter[i].taken()-u.taken(), 0)
-			} else {
-				taken += max(u.taken()-shorter[i].taken(), 0)
-			}
-		}
-		if lost > 0 && lost >= taken {
-			t.Errorf("at %d rows, COMING UP and LATELY lose %d rows where the forms switched on take %d, a row gained among them", height, lost, taken)
-		}
-	})
+// Where USAGE's blank rows between its accounts give way and a section
+// unfolds before they come back, nothing holds the rows to spare from the
+// forms: on a phone with ten accounts and every section, ROUTING folded,
+// SESSIONS shows more sessions as the rows grow.
+func TestTheFormsTakeRowsWhereASectionUnfoldsBeforeUSAGEsBlankRowsComeBack(t *testing.T) {
+	ten, _ := tenAccounts()
+	f := frameOf(52, 70)
+	f.Sections, f.Sessions = every, flippingSessions()
+	units := f.allotted(ten, now)
+	at := func(s Section) unit { return units[slices.IndexFunc(units, func(u unit) bool { return u.ledBy(s) })] }
+	if !blankRowsGivenWay(units) || !at(SectionRouting).fold {
+		t.Fatalf("at 52x70, USAGE's blank rows given way %v, ROUTING folded %v; want both", blankRowsGivenWay(units), at(SectionRouting).fold)
+	}
+	if blankRowsWait(f.unitsOf(f.sectionsOf(ten, now)), units, f.viewRows()) {
+		t.Errorf("at 52x70, the rows to spare are held for USAGE's blank rows, where ROUTING unfolds before they come back")
+	}
+	if s := at(SectionSessions); s.rows <= s.least {
+		t.Errorf("at 52x70, SESSIONS takes %d rows, its least, want more sessions", s.rows)
+	}
 }
 
 // At 160 columns, three accounts and the sections shown at first, ROUTING

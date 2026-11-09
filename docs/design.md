@@ -3030,21 +3030,23 @@ below, not flex's even share:
    shows never falls: every step scrolls whole, a row at a time, so a row more shows as many
    accounts or more. The planner keeps the step it took in the layout, so USAGE is drawn in the
    form the planner chose, never one its rows alone suggest.
-5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
-   SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
-   session going on, never left blank; to USAGE's big bars, if they fit; to ROUTING's two rows of
-   trace, if they fit; then to COMING UP and LATELY, a line at a time to 12. A folded unit never
-   grows: what can't unfold leaves rows the others use.
-   **Each form switches once down the height:** each session more SESSIONS shows, the big bars
-   and ROUTING's two rows of trace are forms, in that order of claim. Within one arrangement, the
-   same sections folded and USAGE's blank rows between its accounts back, a form is taken at the
-   first height where it fits beside the forms already on, and every taller height keeps it: a row
-   more never turns a form off. So COMING UP and LATELY give up lines only at a height where a
-   form comes in and takes its rows, once a form; and at 160 columns, the three accounts' ROUTING
-   keeps its two rows of trace from 37 rows, the big bars coming in beside them at 47. While
-   USAGE's blank rows between its accounts are given way, no form is taken: the rows that bring
-   them back would turn it off, so they go to COMING UP and LATELY, else stay empty at the foot.
-   Across arrangements, as a section unfolds, the forms are taken afresh.
+5. **Rows to spare go out even while a section is folded,** to the units that aren't. Each session
+   more SESSIONS shows, its row or two, USAGE's big bars and ROUTING's two rows of trace are forms,
+   with first claim in that order, each taken whole where it fits; COMING UP and LATELY take what
+   the forms leave, a line at a time to 12. A folded unit never grows: what can't unfold leaves
+   rows the others use.
+   **Each form switches once down the height:** within one arrangement, the same sections folded
+   and USAGE's blank rows between its accounts back, a form is taken at the first height where it
+   fits beside the forms already on, and every taller height keeps it: a row more never turns a
+   form off. So COMING UP and LATELY give up lines only at a height where a form comes in and takes
+   its rows, once a form; and at 160 columns, three accounts and the sections shown at first,
+   ROUTING keeps its two rows of trace from 37 rows, the big bars coming in beside them at 47.
+   Where USAGE's blank rows between its accounts are given way, and come back before a section
+   unfolds, no form is taken: the rows that bring them back would turn it off, so they go to
+   COMING UP and LATELY, else stay empty at the foot. Rows stay empty too where a form already on
+   leaves too few for the next beside it and COMING UP and LATELY are full: three accounts at
+   160 × 44 to 46, one account at 160 × 28 and 34. Across arrangements, as a section unfolds, the
+   forms are taken afresh.
 6. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
    line on the last row.
 7. **The layout changes only on a key or a resize,** or a section's shape changing, never on its
