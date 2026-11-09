@@ -506,6 +506,8 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 - Of requests it prices none of: a model it doesn't know, by the model's id; a model it
   knows, in a geo it doesn't price that model in, as `inference_geo:eu`; and requests that named no
   model, as `no_model`.
+- `too_large`: a worth past some $9.2 million, the most it's counted to, a request's, a day's or
+  a sum of them. Nothing of it is priced, never wrapped round.
 
 `worth` is left out where nothing was priced, such as by `sessions`. Every share is exact.
 

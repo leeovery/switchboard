@@ -218,6 +218,46 @@ func TestADayOfNoRequestsIsReadWithTheAccountsItsReadingsTellOf(t *testing.T) {
 	}
 }
 
+func TestADaysSummaryWarnsOnceOfTheReadingsLinesItCouldntRead(t *testing.T) {
+	tests := []struct {
+		name    string
+		damaged bool
+	}{
+		{name: "a damaged line among the readings", damaged: true},
+		{name: "a clean history"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, history := stateDirs(t)
+			holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+			holdReadings(t, history, "2026-09-26", historyBegan)
+			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+			if tt.damaged {
+				appendTo(t, history, "readings-"+date+".jsonl", "not a reading\n")
+			}
+
+			got := summariesJSON(t, readerAt(state, on(1, 12, 0)).Days(on(-1, 0, 0)))
+			quiet := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
+			if want := `{"version":6,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`; len(got) < 2 || got[1] != want {
+				t.Errorf("Days() =\n%s\nwant the 5th as\n%s: summarised from the readings it could read", strings.Join(got, "\n"), want)
+			}
+			warned := 0
+			for _, line := range log.Lines() {
+				if strings.Contains(line, `msg="readings history lines unread"`) {
+					warned++
+				}
+			}
+			switch {
+			case tt.damaged && (warned != 1 || !log.Has("level=WARN", `msg="readings history lines unread"`, "lines=1")):
+				t.Errorf("log reads\n%s\nwant one warning of the readings line unread", log)
+			case !tt.damaged && warned > 0:
+				t.Errorf("log reads\n%s\nwant no warning: every readings line read", log)
+			}
+		})
+	}
+}
+
 func TestADayIsReadWithItsReadingsWhereTheReadingsHistoryCantBeListed(t *testing.T) {
 	for _, by := range []string{"a reader", "a follower"} {
 		t.Run("by "+by, func(t *testing.T) {

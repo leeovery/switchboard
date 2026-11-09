@@ -96,30 +96,24 @@ func withPaths(paths, more []string) []string {
 // SummedSpent returns what the requests sp holds add to a sum of requests'
 // worth at the prices in effect on the local day with the given date,
 // reporting whether the table priced any of them: exactly what they add
-// each priced on its own, as SummedSpend gives it, summed, its cost that of
-// those priced and each name they leave unpriced once, in order. Summing a
-// group's counts before pricing them gives the same cost as pricing each
-// request's and summing those, even past what int64 holds, as both wrap
-// alike.
+// each priced on its own, as SummedSpend gives it, summed as Worth's and
+// method sums two worths. Summing a group's counts before pricing them gives the same cost as
+// pricing each request's and summing those, and past what Picodollars hold,
+// the same sum too large, its counts summed as they are, as no count nears
+// what an int64 holds.
 func (t Table) SummedSpent(sp Spent, date string) (Worth, bool) {
 	var sum Worth
 	priced := false
 	for _, g := range sp.groups {
 		w, ok := t.summedOf(g, date)
-		sum.Cost += w.Cost
-		sum.Unpriced = withPaths(sum.Unpriced, w.Unpriced)
-		priced = priced || ok
+		sum, priced = sum.and(priced, w, ok)
 	}
 	return sum, priced
 }
 
 // summedOf returns what the requests g sums add to a sum of requests' worth
 // at the prices in effect on the local day with the given date, reporting
-// whether the table priced them: their worth, where it did; or none, naming
-// what they leave unpriced as wholly says, where it didn't.
+// whether the table priced them, as summable has it.
 func (t Table) summedOf(g spentGroup, date string) (Worth, bool) {
-	if w, ok := t.priced(g.model, g.geo, g.billed, g.unmetered, date); ok {
-		return w, true
-	}
-	return Worth{Unpriced: t.wholly(g.model, g.geo, g.costly, g.unmetered, date)}, false
+	return t.summable(g.model, g.geo, g.billed, g.costly, g.unmetered, date)
 }

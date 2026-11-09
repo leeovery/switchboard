@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -90,10 +89,10 @@ func (m ModelPrices) kinds() []tokenPrice {
 	}
 }
 
-// checkPrices keeps each price the config gives a number, 0 or more, and
-// each plan it prices one of Plans, priced by one name only, a plan it
-// doesn't know being an unknown key. A kind of token it doesn't know is an
-// unknown key too, which decoding leaves unused.
+// checkPrices keeps each price the config gives a number from 0 to
+// priceMost, and each plan it prices one of Plans, priced by one name only,
+// a plan it doesn't know being an unknown key. A kind of token it doesn't
+// know is an unknown key too, which decoding leaves unused.
 func checkPrices(p Prices) error {
 	var errs []error
 	for _, plan := range slices.Sorted(maps.Keys(p.Plans)) {
@@ -144,11 +143,16 @@ func (p Prices) renamed() Prices {
 	return p
 }
 
-// checkPrice keeps the price the config gives key a number, 0 or more, the
-// error saying what it's the price of as of does.
+// priceMost is the most a price the config gives can be, in US dollars, a
+// million tokens' or a plan's month: far past any real price, so each
+// converts to picodollars, as worth counts them in an int64, and fits.
+const priceMost = 1_000_000
+
+// checkPrice keeps the price the config gives key a number from 0 to
+// priceMost, the error saying what it's the price of as of does.
 func checkPrice(key string, price float64, of string) error {
-	if price >= 0 && !math.IsInf(price, 1) {
+	if price >= 0 && price <= priceMost {
 		return nil
 	}
-	return wrongValue(key, strconv.FormatFloat(price, 'g', -1, 64), "must be a number, 0 or more: "+of)
+	return wrongValue(key, strconv.FormatFloat(price, 'g', -1, 64), "must be a number from 0 to 1,000,000: "+of)
 }

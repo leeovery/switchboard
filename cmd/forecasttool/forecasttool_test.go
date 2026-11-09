@@ -433,24 +433,12 @@ func TestFailsOnAStateDirectoryWithoutAReadingsHistory(t *testing.T) {
 
 func TestSaysWhatTheReadersCantReadOnStderr(t *testing.T) {
 	configPath, stateDir, now := shortHistory(t)
-	days, err := filepath.Glob(filepath.Join(ledger.Dir(stateDir), "requests-*.jsonl"))
-	if err != nil || len(days) == 0 {
-		t.Fatalf("the ledger holds %v (%v), want its days", days, err)
-	}
-	unreadable, err := os.OpenFile(days[0], os.O_APPEND|os.O_WRONLY, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := unreadable.WriteString("not a line of the ledger\n"); err != nil {
-		t.Fatal(err)
-	}
-	if err := unreadable.Close(); err != nil {
-		t.Fatal(err)
-	}
+	damageADay(t, filepath.Join(ledger.Dir(stateDir), "requests-*.jsonl"), "not a line of the ledger\n")
+	damageADay(t, filepath.Join(readings.Dir(stateDir), "readings-*.jsonl"), "not a reading\nnor this\n")
 
 	var stdout, stderr bytes.Buffer
 	logTo(&stderr)
-	err = run([]string{"--state", stateDir, "--config", configPath}, &stdout, &stderr, func() time.Time { return now })
+	err := run([]string{"--state", stateDir, "--config", configPath}, &stdout, &stderr, func() time.Time { return now })
 	logs.Close(0)
 	if err != nil {
 		t.Fatal(err)
@@ -458,8 +446,33 @@ func TestSaysWhatTheReadersCantReadOnStderr(t *testing.T) {
 	if !strings.Contains(stderr.String(), `level=WARN msg="request ledger lines unread" component=forecasttool`) {
 		t.Errorf("stderr took\n%s\nwant the ledger's line it couldn't read", stderr.String())
 	}
+	warned := slices.DeleteFunc(strings.Split(stderr.String(), "\n"), func(line string) bool {
+		return !strings.Contains(line, `level=WARN msg="readings history lines unread" component=forecasttool`)
+	})
+	if len(warned) != 1 || !strings.HasSuffix(warned[0], " lines=2") {
+		t.Errorf("stderr took\n%s\nwant one warning of the readings history's two lines it couldn't read", stderr.String())
+	}
 	if strings.Contains(stderr.String(), "log file") {
 		t.Errorf("stderr took\n%s\nwant no word of a log file", stderr.String())
+	}
+}
+
+// damageADay appends damage to the first of the day's files pattern names.
+func damageADay(t *testing.T, pattern, damage string) {
+	t.Helper()
+	days, err := filepath.Glob(pattern)
+	if err != nil || len(days) == 0 {
+		t.Fatalf("%s names %v (%v), want a day's file", pattern, days, err)
+	}
+	f, err := os.OpenFile(days[0], os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(damage); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 

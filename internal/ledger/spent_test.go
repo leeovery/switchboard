@@ -3,7 +3,6 @@ package ledger_test
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/big"
 	"math/rand/v2"
 	"reflect"
@@ -111,8 +110,10 @@ func spentUsage(r *rand.Rand) string {
 }
 
 // spentCount is a count r draws: mostly of a size an answer gives; now and
-// then none; less than none, as a file edited by hand could hold; or so
-// near the most an int64 holds that two summed, or one priced, go past it.
+// then none; less than none, as a file edited by hand could hold; or a
+// trillion or two, so one priced, or a few summed, can pass what
+// Picodollars hold, though their counts summed never near what an int64
+// does.
 func spentCount(r *rand.Rand) int64 {
 	switch r.IntN(10) {
 	case 0:
@@ -120,7 +121,7 @@ func spentCount(r *rand.Rand) int64 {
 	case 1:
 		return -r.Int64N(1_000)
 	case 2:
-		return math.MaxInt64 - r.Int64N(1_000)
+		return 1_000_000_000_000 + r.Int64N(1_000_000_000_000)
 	}
 	return r.Int64N(200_000)
 }
@@ -154,25 +155,33 @@ func spentOfLines(lines []ledger.Line) ledger.Spent {
 // requestsSummed is what a sum of requests' worth, as the views sum it,
 // makes of the lines' requests, each priced on its own as Summed prices its
 // line, at table's prices on the day with the given date: the cost of those
-// priced, summed as an int64 sums them; whether any was; and each name any
-// leaves unpriced, once, in order.
+// priced, summed exactly; whether any was; and each name any leaves
+// unpriced, once, in order. Where any was priced past what Picodollars hold,
+// or the sum is, none is priced, and it names ledger.TooLarge.
 func requestsSummed(table ledger.Table, lines []ledger.Line, date string) (ledger.Worth, bool) {
-	var sum ledger.Worth
+	cost := new(big.Int)
 	priced := false
+	var unpriced []string
 	for i := range lines {
 		w, ok := table.Summed(&lines[i], date)
 		if ok {
-			sum.Cost += w.Cost
+			cost.Add(cost, big.NewInt(int64(w.Cost)))
 			priced = true
 		}
 		for _, name := range w.Unpriced {
-			if !slices.Contains(sum.Unpriced, name) {
-				sum.Unpriced = append(sum.Unpriced, name)
+			if !slices.Contains(unpriced, name) {
+				unpriced = append(unpriced, name)
 			}
 		}
 	}
-	slices.Sort(sum.Unpriced)
-	return sum, priced
+	if slices.Contains(unpriced, ledger.TooLarge) || !cost.IsInt64() {
+		priced, cost = false, new(big.Int)
+		if !slices.Contains(unpriced, ledger.TooLarge) {
+			unpriced = append(unpriced, ledger.TooLarge)
+		}
+	}
+	slices.Sort(unpriced)
+	return ledger.Worth{Cost: ledger.Picodollars(cost.Int64()), Unpriced: unpriced}, priced
 }
 
 // pricedOtherwise are where spent, of the lines' requests, prices otherwise
@@ -279,38 +288,39 @@ func TestASpentPricesEachModelAndGeoAsItsRequestsDo(t *testing.T) {
 	}
 }
 
-// A Spent priced past what an int64 holds costs exactly what its requests
-// each priced and summed do, as int64 arithmetic wraps alike whether a
-// group's counts are summed before they're priced or after.
-func TestASpentPricedPastWhatAnInt64HoldsIsItsRequestsSummed(t *testing.T) {
-	type tokens struct{ input, output int64 }
-	opusInput, opusOutput := dollars(4e-6), dollars(20e-6)
+// A Spent priced past what Picodollars hold reads as unpriced, never
+// wrapped round, as its requests each priced and summed do: whether a
+// request alone is priced past it, or only their sum. The config prices
+// Claude Opus 5.5's input at its most, $1,000,000 a million tokens, a
+// dollar a token, so some million tokens reach it.
+func TestASpentPricedPastWhatPicodollarsHoldReadsAsUnpriced(t *testing.T) {
+	table := overridden(t, ledger.Pricing, config.Prices{Models: map[string]config.ModelPrices{opus: {Input: new(1_000_000.0)}}})
 	tests := []struct {
 		name     string
-		requests []tokens
-		want     ledger.Picodollars
+		requests []int64
 	}{
-		{name: "two requests of the most input an int64 holds", requests: []tokens{{input: math.MaxInt64}, {input: math.MaxInt64}}, want: -8_000_000},
-		{name: "counts past it as they're summed, and as they're priced", requests: []tokens{{input: math.MaxInt64, output: math.MaxInt64}, {output: 3}}, want: 36_000_000},
+		{name: "a request priced past it alone", requests: []int64{10_000_000}},
+		{name: "two requests each priced within it, but not their sum", requests: []int64{5_000_000, 5_000_000}},
+		{name: "one past it among others within it", requests: []int64{1_000, 10_000_000, 2_000}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var lines []ledger.Line
 			cost := new(big.Int)
-			for _, r := range tt.requests {
-				lines = append(lines, spentLine(opus, "", fmt.Sprintf(`{"input_tokens":%d,"output_tokens":%d}`, r.input, r.output), answered))
-				cost.Add(cost, new(big.Int).Mul(big.NewInt(r.input), big.NewInt(int64(opusInput))))
-				cost.Add(cost, new(big.Int).Mul(big.NewInt(r.output), big.NewInt(int64(opusOutput))))
+			for _, input := range tt.requests {
+				lines = append(lines, spentLine(opus, "", fmt.Sprintf(`{"input_tokens":%d}`, input), answered))
+				cost.Add(cost, new(big.Int).Mul(big.NewInt(input), big.NewInt(int64(ledger.Dollar))))
 			}
 			if cost.IsInt64() {
-				t.Fatalf("the requests cost %s, within what an int64 holds; want a case past it", cost)
+				t.Fatalf("the requests cost %s, within what Picodollars hold; want a case past it", cost)
 			}
+			want := ledger.Worth{Unpriced: []string{ledger.TooLarge}}
 			spent := spentOfLines(lines)
-			if got, priced := ledger.Pricing.SummedSpent(spent, today); got.Cost != tt.want || !priced {
-				t.Errorf("SummedSpent(%s) = %+v, priced: %t; want a cost of %d, priced", spentJSON(spent), got, priced, tt.want)
+			if got, priced := table.SummedSpent(spent, today); !reflect.DeepEqual(got, want) || priced {
+				t.Errorf("SummedSpent(%s) = %+v, priced: %t; want %+v, unpriced", spentJSON(spent), got, priced, want)
 			}
-			if summed, _ := requestsSummed(ledger.Pricing, lines, today); summed.Cost != tt.want {
-				t.Errorf("each request priced and summed costs %d; want %d, as SummedSpent gives it", summed.Cost, tt.want)
+			if summed, priced := requestsSummed(table, lines, today); !reflect.DeepEqual(summed, want) || priced {
+				t.Errorf("each request priced and summed gives %+v, priced: %t; want %+v, unpriced, as SummedSpent gives it", summed, priced, want)
 			}
 		})
 	}

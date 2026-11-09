@@ -1020,20 +1020,25 @@ func familySplit(families []views.FamilyWorth, cells int) line {
 // their order, each part's run ending where its share, and those before it,
 // of the whole rounds to, a half to the even one, so the runs fill the cells:
 // a part worth too little for a cell has none, and none has any where the
-// whole is worth nothing.
+// whole is worth nothing, or more than ledger.Picodollars hold.
 func splitCells(amounts []ledger.Picodollars, cells int) []int {
-	var whole ledger.Picodollars
-	for _, a := range amounts {
-		whole += a
-	}
 	runs := make([]int, len(amounts))
+	var whole ledger.Picodollars
+	var fits bool
+	for _, a := range amounts {
+		if whole, fits = whole.Plus(a); !fits {
+			return runs
+		}
+	}
 	if whole <= 0 {
 		return runs
 	}
 	var sum ledger.Picodollars
 	end := 0
 	for i, a := range amounts {
-		sum += a
+		if sum, fits = sum.Plus(a); !fits {
+			return make([]int, len(amounts))
+		}
 		next := int(math.RoundToEven(float64(cells) * float64(sum) / float64(whole)))
 		runs[i], end = next-end, next
 	}
