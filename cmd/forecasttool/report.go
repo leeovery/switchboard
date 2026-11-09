@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,12 +14,12 @@ import (
 
 // report is what the tool tells of a history: the first and last hours it
 // forecast at; the first it scored, the later of two days in and the first
-// hour every account whose week the history reads had had it read by, the
-// first and that hour left out where the history reads no account's week;
-// the accounts whose week it never reads, scored without; whether it scored
-// any, as it didn't where there's no first, or it's after the last; the
-// accounts configured; and how the router's forecasts scored, and the
-// baseline's beside them.
+// hour every account had had its week read by, the first and that hour left
+// out where the history never reads some account's week; the accounts whose
+// week it never reads, which then score nothing; whether it scored any, as
+// it didn't where there's no first, or it's after the last; the accounts
+// configured; and how the router's forecasts scored, and the baseline's
+// beside them.
 type report struct {
 	From       time.Time `json:"from"`
 	To         time.Time `json:"to"`
@@ -126,18 +127,11 @@ func writeTable(w io.Writer, r report) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "forecasts of each week at each hour, %s to %s, of %s\n",
 		hourOf(r.From), hourOf(r.To), strings.Join(r.Accounts, ", "))
-	switch {
-	case r.Scored:
-		fmt.Fprintf(&b, "scored from %s, %s\n", hourOf(r.ScoredFrom), startsAt(r))
-		if len(r.Unread) > 0 {
-			fmt.Fprintf(&b, "scored without the week of %s, which the history never reads\n", strings.Join(r.Unread, ", "))
-		}
-		b.WriteString("\n")
+	if r.Scored {
+		fmt.Fprintf(&b, "scored from %s, %s\n\n", hourOf(r.ScoredFrom), startsAt(r))
 		writeSheets(&b, r)
-	case r.ScoredFrom.IsZero():
-		b.WriteString("nothing could be scored: the history reads no account's week\n")
-	default:
-		fmt.Fprintf(&b, "nothing could be scored: the history ends before %s, %s, where scoring starts\n", hourOf(r.ScoredFrom), startsAt(r))
+	} else {
+		writeUnscored(&b, r)
 	}
 	if _, err := io.WriteString(w, b.String()); err != nil {
 		return fmt.Errorf("write the scores: %w", err)
@@ -145,11 +139,38 @@ func writeTable(w io.Writer, r report) error {
 	return nil
 }
 
+// writeUnscored writes to b why nothing of r could be scored: the history
+// reads no account's week configured; or it ends before scoring could start,
+// and never reads the week of any accounts unread, where there are some; or
+// it never reads theirs.
+func writeUnscored(b *strings.Builder, r report) {
+	b.WriteString("nothing could be scored: ")
+	starts := cmp.Or(r.ScoredFrom, r.TwoDaysIn)
+	switch {
+	case len(r.Unread) == len(r.Accounts):
+		b.WriteString("the history reads no configured account's week\n")
+	case r.To.Before(starts):
+		fmt.Fprintf(b, "the history ends before %s, %s, where scoring starts\n", hourOf(starts), startsAt(r))
+		if len(r.Unread) > 0 {
+			b.WriteString("and " + unreadOf(r))
+		}
+	default:
+		b.WriteString(unreadOf(r))
+	}
+}
+
+// unreadOf says, as a line, that the history never reads the week of r's
+// accounts unread, and why that's nothing scored.
+func unreadOf(r report) string {
+	names := strings.Join(r.Unread, ", ")
+	return fmt.Sprintf("the history never reads the week of %s, which the router knew, so the playback can't stand in for it; a config without %s plays the rest\n", names, names)
+}
+
 // startsAt says why r's scoring starts where it does: two days in, else once
-// every account's week the history reads had been read, where that's later.
+// every account's week had been read, where that's later.
 func startsAt(r report) string {
 	if r.AllRead.After(r.TwoDaysIn) {
-		return "once every account's week the history reads had been read"
+		return "once every account's week had been read"
 	}
 	return "two days in"
 }

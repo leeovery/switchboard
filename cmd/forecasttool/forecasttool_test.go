@@ -183,35 +183,60 @@ func TestSaysNothingCouldBeScoredOfAHistoryShorterThanTwoDays(t *testing.T) {
 	}
 }
 
-func TestSaysScoringWaitsForEveryAccountsWeekTheHistoryReads(t *testing.T) {
-	// Work's week is read every hour for 70 hours; side's first 60h20m in,
-	// and every hour after; personal's and other's never.
-	read := slices.Concat(hourly("work", begins, 71, 0.1, hoursIn(150)), hourly("side", hoursIn(60).Add(20*time.Minute), 10, 0.3, hoursIn(160)))
+func TestSaysScoringWaitsForEveryAccountsWeekToBeRead(t *testing.T) {
+	// Work's week is read every hour for 70 hours; side's, in the history
+	// most cases play, first 60h20m in, and every hour after; personal's and
+	// other's never.
+	works := hourly("work", begins, 71, 0.1, hoursIn(150))
+	sideFrom := hoursIn(60).Add(20 * time.Minute)
+	read := slices.Concat(works, hourly("side", sideFrom, 10, 0.3, hoursIn(160)))
+	unreadPersonal := "the history never reads the week of personal, which the router knew, so the playback can't stand in for it; " +
+		"a config without personal plays the rest\n"
 	tests := []struct {
 		name     string
+		read     []readings.Reading
 		accounts []account
 		// want is what's said after the first line, up to the scores.
 		want string
 	}{
 		{
-			name: "side read past two days in", accounts: []account{{id: "work"}, {id: "side"}},
-			want: "scored from 2026-09-09 13:00 UTC, once every account's week the history reads had been read\n",
+			name: "side read past two days in", read: read, accounts: []account{{id: "work"}, {id: "side"}},
+			want: "scored from 2026-09-09 13:00 UTC, once every account's week had been read\n",
 		},
 		{
-			name: "personal never read", accounts: []account{{id: "work"}, {id: "side"}, {id: "personal"}},
-			want: "scored from 2026-09-09 13:00 UTC, once every account's week the history reads had been read\n" +
-				"scored without the week of personal, which the history never reads\n",
+			name: "side not configured, read past two days in", read: read, accounts: []account{{id: "work"}},
+			want: "scored from 2026-09-09 00:00 UTC, two days in\n",
 		},
 		{
-			name: "personal and other never read, nor anyone else configured", accounts: []account{{id: "personal"}, {id: "other"}},
-			want: "nothing could be scored: the history reads no account's week\n",
+			name: "personal never read", read: read, accounts: []account{{id: "work"}, {id: "side"}, {id: "personal"}},
+			want: "nothing could be scored: " + unreadPersonal,
+		},
+		{
+			name: "side read only its 5-hour window", accounts: []account{{id: "work"}, {id: "side"}},
+			read: slices.Concat(works, []readings.Reading{{At: sideFrom, Account: "side", Key: "5h", Utilization: 0.3, ResetsAt: hoursIn(64)}}),
+			want: "nothing could be scored: the history never reads the week of side, which the router knew, so the playback can't stand in for it; " +
+				"a config without side plays the rest\n",
+		},
+		{
+			name: "no account configured read", read: read, accounts: []account{{id: "personal"}, {id: "other"}},
+			want: "nothing could be scored: the history reads no configured account's week\n",
+		},
+		{
+			name: "side first read as the history ends", accounts: []account{{id: "work"}, {id: "side"}},
+			read: slices.Concat(works, []readings.Reading{weekRead("side", hoursIn(70).Add(20*time.Minute), 0.3, hoursIn(160))}),
+			want: "nothing could be scored: the history ends before 2026-09-09 23:00 UTC, once every account's week had been read, where scoring starts\n",
+		},
+		{
+			name: "a history short of two days in, personal never read", accounts: []account{{id: "work"}, {id: "personal"}},
+			read: works[:47],
+			want: "nothing could be scored: the history ends before 2026-09-09 00:00 UTC, two days in, where scoring starts\nand " + unreadPersonal,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			configPath := configOf(t, tt.accounts...)
 			now := hoursIn(80)
-			stateDir := stateOf(t, now, configPath, read, nil)
+			stateDir := stateOf(t, now, configPath, tt.read, nil)
 
 			_, rest, _ := strings.Cut(scoring(t, now, "--state", stateDir, "--config", configPath), "\n")
 			got, _, scored := strings.Cut(rest, "\n\n")
@@ -226,8 +251,8 @@ func TestSaysScoringWaitsForEveryAccountsWeekTheHistoryReads(t *testing.T) {
 }
 
 func TestLeavesOutOfItsJSONTheHoursThereAreNoneOf(t *testing.T) {
-	// Personal's week is never read, nor anyone else's configured.
-	configPath := configOf(t, account{id: "personal"})
+	// Work's week is read every hour for 70 hours, and personal's never.
+	configPath := configOf(t, account{id: "work"}, account{id: "personal"})
 	now := hoursIn(80)
 	stateDir := stateOf(t, now, configPath, hourly("work", begins, 71, 0.1, hoursIn(150)), nil)
 
@@ -445,8 +470,9 @@ func TestItsHelpSaysWhatThePlaybackHasNoneOf(t *testing.T) {
 	}
 	for _, want := range []string{
 		"--state", "--config", "neither has a default", "reaches a limit", "token refused", "no global pin",
-		"router was down", "two days after the history's first", "once every account's week the history reads has been",
-		"it scores without it, and says so", "nothing could be scored", "a reset by hand starts", "moved or not", "they say on stderr",
+		"router was down", "two days after the history's first", "once every account's week has been read", "keeps only readings that changed",
+		"nothing is scored", "a config without the account plays the rest", "nothing could be scored", "a reset by hand", "moved or not",
+		"they say on stderr",
 	} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Errorf("--help says\n%s\nwant it to say %q", stderr.String(), want)

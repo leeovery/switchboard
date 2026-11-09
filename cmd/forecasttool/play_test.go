@@ -16,14 +16,15 @@ func TestScoresFromTheLaterOfTwoDaysInAndEveryAccountsWeekRead(t *testing.T) {
 	// Work's week, resetting 150 hours in, is read every hour from the first
 	// reading to the last, and forecast short at each hour, unless work's
 	// 5-hour window is read instead, as workKey says; side, where it's
-	// configured, is read as given.
+	// configured, and any account not configured, are read as given.
 	sideFrom := hoursIn(60).Add(20 * time.Minute)
 	sideSession := []readings.Reading{{At: sideFrom, Account: "side", Key: "5h", Utilization: 0.3, ResetsAt: hoursIn(64)}}
 	tests := []struct {
 		name        string
 		first, last time.Time
 		workKey     string
-		// sided is set where side is configured, and side are its readings.
+		// sided is set where side is configured, and side are its readings
+		// and those of accounts not configured.
 		sided bool
 		side  []readings.Reading
 		// from, scored and to are the first hour played, the first scored, none
@@ -42,16 +43,17 @@ func TestScoresFromTheLaterOfTwoDaysInAndEveryAccountsWeekRead(t *testing.T) {
 			from: hoursIn(1), scored: hoursIn(61), to: hoursIn(70), scoredAny: true,
 		},
 		{
-			name: "side read only its 5-hour window, past two days in", first: begins, last: hoursIn(70), sided: true, side: sideSession,
-			from: hoursIn(1), scored: hoursIn(48), to: hoursIn(70), scoredAny: true, unread: []string{"side"},
+			name: "side read only its 5-hour window", first: begins, last: hoursIn(70), sided: true, side: sideSession,
+			from: hoursIn(1), to: hoursIn(70), unread: []string{"side"},
 		},
-		{
-			name: "side never read", first: begins, last: hoursIn(70), sided: true,
-			from: hoursIn(1), scored: hoursIn(48), to: hoursIn(70), scoredAny: true, unread: []string{"side"},
-		},
+		{name: "side never read", first: begins, last: hoursIn(70), sided: true, from: hoursIn(1), to: hoursIn(70), unread: []string{"side"}},
 		{
 			name: "work read only its 5-hour window, side never read", first: begins, last: hoursIn(70), workKey: "5h", sided: true,
 			from: hoursIn(1), to: hoursIn(70), unread: []string{"work", "side"},
+		},
+		{
+			name: "an account not configured first read past two days in", first: begins, last: hoursIn(70), side: hourly("other", sideFrom, 10, 0.3, hoursIn(160)),
+			from: hoursIn(1), scored: hoursIn(48), to: hoursIn(70), scoredAny: true,
 		},
 	}
 	policy := claude.Policy()
