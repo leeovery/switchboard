@@ -36,6 +36,12 @@ const (
 	axisGapGivesWay
 )
 
+// learningGivesWay is the turn the line saying the forecast is learning gives
+// way in, with the blank row under it, the first of all: it shows at the
+// roomiest alone, before any other part compacts. It shares legendGivesWay's
+// turn, as no step holds both.
+const learningGivesWay = 1
+
 // The rows Runway's parts take: the axis's, now, its labels and its ticks;
 // and the pool's lane's.
 const (
@@ -43,12 +49,13 @@ const (
 	runwayPoolRows = 2
 )
 
-// Runway's parts down a frame, in runwayShape.parts' order: the axis; the
-// blank row under it; the lanes shown; the pool's lane, the row under it its
-// room's, or what's out of view's; COMING UP; the rows spare; and the
-// legend, over the key line.
+// Runway's parts down a frame, in runwayShape.parts' order: the line saying
+// the forecast is learning; the axis; the blank row under it; the lanes
+// shown; the pool's lane, the row under it its room's, or what's out of
+// view's; COMING UP; the rows spare; and the legend, over the key line.
 const (
-	runwayAxisPart = iota
+	runwayLearningPart = iota
+	runwayAxisPart
 	runwayAxisGapPart
 	runwayLanesPart
 	runwayPoolPart
@@ -68,12 +75,13 @@ type runwayShape struct {
 
 // runwayHolds are what Runway lays out: how many lanes; whether the pool's
 // lane shows, as it doesn't with one account, and the pool's room, as it
-// doesn't on a day or a week stepped back to that has no now; and whether
-// COMING UP shows, as it does live alone, and how many lines it lists.
+// doesn't on a day or a week stepped back to that has no now; whether
+// COMING UP shows, as it does live alone, and how many lines it lists; and
+// whether the line saying the forecast is learning shows.
 type runwayHolds struct {
-	lanes              int
-	pool, room, coming bool
-	lines              int
+	lanes                        int
+	pool, room, coming, learning bool
+	lines                        int
 }
 
 // holds are what Runway shown as r lays out, as runwayHolds has them: none
@@ -85,7 +93,7 @@ func (r RunwayShown) holds() runwayHolds {
 	pool := r.Lanes.Pool.Of > 0
 	return runwayHolds{
 		lanes: len(r.Lanes.Accounts), pool: pool, room: pool && r.Timeline.NowColumn() >= 0,
-		coming: r.Back.IsZero(), lines: len(r.Coming),
+		coming: r.Back.IsZero(), lines: len(r.Coming), learning: r.Lanes.Learning,
 	}
 }
 
@@ -124,8 +132,9 @@ type runwayFit struct {
 	// out the row saying what's out of view, each the row under the lane.
 	pool, room, out int
 	// coming is COMING UP's heading's row, lines the rows of its lines under
-	// it; legend is the legend's first row.
-	coming, lines, legend int
+	// it; legend is the legend's first row; and learning the row of the line
+	// saying the forecast is learning.
+	coming, lines, legend, learning int
 }
 
 // runwayFitted is how Runway fits the rows from row top to the one over the
@@ -141,12 +150,14 @@ func (f Frame) runwayFitted(top int) runwayFit {
 // parts fit there, every lane shown; else (f), as many lanes as fit shown,
 // down to one, from the one the frame's Scroll scrolls to; else, where not
 // even one fits, as before the lanes are built, nothing. So no lane is out of
-// view while the legend or COMING UP shows.
+// view while the legend or COMING UP shows. The line saying the forecast is
+// learning shows only where its words fit across the frame.
 func (f Frame) runwayFittedAs(top int, shape runwayShape) runwayFit {
 	holds, rows := f.Runway.holds(), f.Height-underView+1-top
 	if holds.lanes == 0 {
 		return runwayFit{}
 	}
+	holds.learning = holds.learning && learningLine.width() <= f.Width
 	for step := range runwayScrolled {
 		if fit, ok := shape.laidOut(step, top, rows, holds, holds.lanes); ok {
 			return fit
@@ -175,7 +186,7 @@ func (s runwayShape) laidOut(step runwayStep, top, rows int, holds runwayHolds, 
 	if !fits {
 		return runwayFit{}, false
 	}
-	pool, coming, legend := at[runwayPoolPart], at[runwayComingPart], at[runwayLegendPart]
+	pool, coming, legend, learning := at[runwayPoolPart], at[runwayComingPart], at[runwayLegendPart], at[runwayLearningPart]
 	under := top + pool.At + pool.Size - 1
 	return runwayFit{
 		step: step, fits: true, axis: top + at[runwayAxisPart].At,
@@ -184,28 +195,36 @@ func (s runwayShape) laidOut(step runwayStep, top, rows int, holds runwayHolds, 
 		room:   rowWhere(holds.room, under),
 		out:    rowWhere(shown < holds.lanes, under),
 		coming: rowWhere(coming.Size > 0, top+coming.At), lines: max(coming.Size-1, 0),
-		legend: rowWhere(legend.Size > 0, top+legend.At),
+		legend:   rowWhere(legend.Size > 0, top+legend.At),
+		learning: rowWhere(learning.Size > 0, top+learning.At),
 	}, true
 }
 
 // parts are Runway's parts down a frame at the step given, in the shape, of
 // what holds says it holds, shown of its lanes shown, as flex lays them: the
-// axis; the blank row under it; the lanes; the pool's lane, its room and
-// what's out of view, as poolRows has them; COMING UP, as comingPart has it;
-// the rows spare, which take what's left; and the legend, over the key line,
-// a blank row before it before (b), and with no COMING UP, the blank row
-// under the pool's lane. At (c), the legend gives way, then COMING UP, then
-// the blank row under the axis; at (f), none of them is there, so no lane
-// scrolls while the legend or COMING UP shows.
+// line saying the forecast is learning, at the roomiest alone, a blank row
+// between it and the axis, the first to give way; the axis; the blank row
+// under it; the lanes; the pool's lane, its room and what's out of
+// view, as poolRows has them; COMING UP, as comingPart has it; the rows
+// spare, which take what's left; and the legend, over the key line, a blank
+// row before it before (b), and with no COMING UP, the blank row under the
+// pool's lane. At (c), the legend gives way, then COMING UP, then the blank
+// row under the axis; at (f), none of them is there, so no lane scrolls
+// while the legend or COMING UP shows.
 func (s runwayShape) parts(step runwayStep, holds runwayHolds, shown int) []flex.Part {
 	lanes, pool := shown*step.apart(), holds.poolRows(shown)
 	parts := []flex.Part{
-		runwayAxisPart:    {Least: runwayAxisRows, Natural: runwayAxisRows},
-		runwayAxisGapPart: {},
-		runwayLanesPart:   {Least: lanes, Natural: lanes},
-		runwayPoolPart:    {Least: pool, Natural: pool},
-		runwaySparePart:   {Grows: true},
-		runwayLegendPart:  {},
+		runwayLearningPart: {},
+		runwayAxisPart:     {Least: runwayAxisRows, Natural: runwayAxisRows},
+		runwayAxisGapPart:  {},
+		runwayLanesPart:    {Least: lanes, Natural: lanes},
+		runwayPoolPart:     {Least: pool, Natural: pool},
+		runwaySparePart:    {Grows: true},
+		runwayLegendPart:   {},
+	}
+	if step == runwayRoomy && holds.learning {
+		parts[runwayLearningPart] = flex.Part{Least: 1, Natural: 1, Leaves: learningGivesWay}
+		parts[runwayAxisPart].Gap = 1
 	}
 	if step == runwayScrolled {
 		return parts

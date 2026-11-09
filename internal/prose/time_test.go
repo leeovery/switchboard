@@ -239,6 +239,35 @@ func TestBriefIsATimeOfDayOnNowsDayElseItsWeekday(t *testing.T) {
 	}
 }
 
+// BriefDated reads as Brief has it, but more than a day ahead on now's
+// weekday, its date alone, as RunOut dates it there; a week back on now's
+// weekday is Brief's weekday still.
+func TestBriefDatedIsBriefButAWeekOnItsDate(t *testing.T) {
+	zone := time.FixedZone("UTC+1", 60*60)
+	now := time.Date(2026, 10, 1, 14, 42, 0, 0, zone)
+	monthEnd := time.Date(2026, 10, 29, 9, 0, 0, 0, zone)
+	tests := []struct {
+		name   string
+		now, t time.Time
+		want   string
+	}{
+		{name: "later today", now: now, t: now.Add(81 * time.Minute), want: "16:03"},
+		{name: "tomorrow, within a day", now: now, t: now.Add(20 * time.Hour), want: "Fri"},
+		{name: "five days ahead", now: now, t: now.Add(5 * 24 * time.Hour), want: "Tue"},
+		{name: "six days ahead, the day before now's weekday", now: now, t: now.Add(6 * 24 * time.Hour), want: "Wed"},
+		{name: "six and a half days ahead, on now's weekday", now: now, t: now.Add(6*24*time.Hour + 12*time.Hour), want: "8 Oct"},
+		{name: "a week back, on now's weekday", now: now, t: now.Add(-7 * 24 * time.Hour), want: "Thu"},
+		{name: "across a month's turn, on now's weekday", now: monthEnd, t: monthEnd.Add(6*24*time.Hour + 18*time.Hour), want: "5 Nov"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.BriefDated(tt.now, tt.t); got != tt.want {
+				t.Errorf("BriefDated(%v, %v) = %q, want %q", tt.now, tt.t, got, tt.want)
+			}
+		})
+	}
+}
+
 // A day is named by the date it has in its own time zone, as a date parsed
 // in UTC has it, however far west of UTC now is.
 func TestADayIsNamedByTheDateItHasInItsOwnTimeZone(t *testing.T) {
@@ -323,8 +352,9 @@ func TestPastShowsMoreOfATimeTheFurtherBackItsDayIs(t *testing.T) {
 }
 
 // A run-out within a day of now reads as Dated has it; further ahead, its
-// weekday alone, in now's time zone.
-func TestARunOutReadsAsDatedWithinADayElseItsWeekday(t *testing.T) {
+// weekday alone, in now's time zone, but on now's weekday, which would read
+// as today, its day as Day names it.
+func TestARunOutReadsAsDatedWithinADayElseItsWeekdayButAWeekOnItsDay(t *testing.T) {
 	now := time.Date(2026, 10, 1, 14, 42, 0, 0, time.FixedZone("UTC+1", 60*60))
 	tests := []struct {
 		name string
@@ -336,6 +366,11 @@ func TestARunOutReadsAsDatedWithinADayElseItsWeekday(t *testing.T) {
 		{name: "exactly a day ahead", t: now.Add(24 * time.Hour), want: "Fri 14:42"},
 		{name: "a minute over a day", t: now.Add(24*time.Hour + time.Minute), want: "Fri"},
 		{name: "days ahead", t: now.Add(4 * 24 * time.Hour), want: "Mon"},
+		{name: "five days ahead", t: now.Add(5 * 24 * time.Hour), want: "Tue"},
+		{name: "six days ahead, the day before now's weekday", t: now.Add(6 * 24 * time.Hour), want: "Wed"},
+		{name: "six and a half days ahead, on now's weekday, across the week's turn", t: now.Add(6*24*time.Hour + 12*time.Hour), want: "Thu 8 Oct"},
+		{name: "a week ahead, on now's weekday", t: now.Add(7 * 24 * time.Hour), want: "Thu 8 Oct"},
+		{name: "in UTC, on now's weekday in now's time zone alone", t: time.Date(2026, 10, 7, 23, 30, 0, 0, time.UTC), want: "Thu 8 Oct"},
 		{name: "in UTC, within a day, tomorrow in now's time zone", t: time.Date(2026, 10, 1, 23, 30, 0, 0, time.UTC), want: "Fri 00:30"},
 		{name: "in UTC, more than a day ahead, its day in now's time zone", t: time.Date(2026, 10, 2, 23, 30, 0, 0, time.UTC), want: "Sat"},
 		{name: "before now, as Dated has it", t: now.Add(-15 * time.Hour), want: "Wed 23:42"},
@@ -346,6 +381,28 @@ func TestARunOutReadsAsDatedWithinADayElseItsWeekday(t *testing.T) {
 				t.Errorf("RunOut(%v, %v) = %q, want %q", now, tt.t, got, tt.want)
 			}
 		})
+	}
+}
+
+// A run-out on now's weekday six days on, across a month's turn, is dated
+// in the month it falls in.
+func TestARunOutOnTodaysWeekdayAcrossAMonthsTurnReadsDated(t *testing.T) {
+	now := time.Date(2026, 10, 29, 9, 0, 0, 0, time.FixedZone("UTC+1", 60*60))
+	if got, want := prose.RunOut(now, now.Add(6*24*time.Hour+18*time.Hour)), "Thu 5 Nov"; got != want {
+		t.Errorf("RunOut six and three quarter days on = %q, want %q", got, want)
+	}
+}
+
+// No run-out RunOut says is wider than RunOutWidth, from a day back to a
+// week on, and a dated one of two figures fills it.
+func TestNoRunOutIsWiderThanRunOutWidthAndADatedOneFillsIt(t *testing.T) {
+	now := time.Date(2026, 10, 8, 14, 42, 0, 0, time.FixedZone("UTC+1", 60*60))
+	widest := 0
+	for ahead := -24 * time.Hour; ahead <= 7*24*time.Hour; ahead += 10 * time.Minute {
+		widest = max(widest, utf8.RuneCountInString(prose.RunOut(now, now.Add(ahead))))
+	}
+	if widest != prose.RunOutWidth() {
+		t.Errorf("the widest run-out is %d characters, want RunOutWidth's %d", widest, prose.RunOutWidth())
 	}
 }
 

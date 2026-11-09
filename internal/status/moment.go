@@ -55,6 +55,9 @@ type Moment struct {
 	// starts, the next to reset, as they stand then, and the router's next
 	// prime.
 	Coming []Coming
+	// Learning is set while the router's forecast plays the hold curve's
+	// default, as its Demand says: it has less than a day of answers.
+	Learning bool
 
 	doc    Document
 	policy score.Policy
@@ -292,7 +295,7 @@ func (d Document) At(now time.Time, policy score.Policy) Moment {
 	m := Moment{
 		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter, Probed: d.Source == SourceProbe,
 		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
-		ComingUp: comingAfter(d.ComingUp, now), Next: d.next(),
+		ComingUp: comingAfter(d.ComingUp, now), Next: d.next(), Learning: d.Demand != nil && d.Demand.Learning,
 		doc: d, policy: policy, judged: judged,
 		pool: sync.OnceValue(func() Pool { return d.pool(judged) }),
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // By is how the printout groups the windows: by window, each window's
@@ -61,15 +62,36 @@ type Printout struct {
 
 // Draw draws the printout of the moment m, a document as a policy judges it
 // at a time: a string for each of its rows, as tall as it is, from the
-// header to the key line, with no blank row before or after. Under the
+// header to its last line, with no blank row before or after. Under the
 // header, after a blank line, is the usage block, then a blank line and its
-// key line.
+// key line; then, after a blank line, the token lines, where it has any.
 func (p Printout) Draw(m status.Moment) []string {
 	c := growing(p.Width)
 	y := p.header(c, m) + 2
 	block := newUsageBlock(m, p.Width, p.Look, p.By, usageWindows(p.windows(m), p.namer(m)))
 	block.key(c, block.draw(c, y)+1)
+	p.tokens(c, m, block, c.height()+1)
 	return c.rows(p.Look)
+}
+
+// tokens draws from row y a line for each of m's accounts whose token's year
+// is up within status.TokenWarning days, or is up, in the document's order:
+// its name, as block's row names it, at its row's column, as nameAt has it,
+// then nameGap cells on, what Detail tells of its token's year, as
+// views.TokenNoteOf has it, wrapped to the edge as Detail wraps it, each
+// line after the first under the first's start.
+func (p Printout) tokens(c *canvas, m status.Moment, block usageBlock, y int) {
+	for i, a := range m.Accounts {
+		note, noted := views.TokenNoteOf(a)
+		if !noted {
+			continue
+		}
+		at := c.line(block.nameAt(), y, block.rows[i].name) + nameGap
+		for _, l := range tokenNoteLines(note, noted, p.Width-at) {
+			c.line(at, y, l)
+			y++
+		}
+	}
 }
 
 // windows are the keys of the windows the printout of m prints: its Windows,

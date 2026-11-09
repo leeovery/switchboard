@@ -310,6 +310,7 @@ func (f Frame) runwayFormed(doc status.Document, now time.Time, x int, fitted fu
 	return runwayForm{
 		draw: func(c *canvas, top int) {
 			laid := f.runwayLaidOut(f.Moment(doc, now), x, fitted(top))
+			f.runwayLearning(c, laid)
 			f.runwayAxis(c, laid)
 			f.runwayLanes(c, laid)
 			f.runwayWords(c, laid)
@@ -346,4 +347,17 @@ func (f Frame) runwayScrolls(doc status.Document, now time.Time) (x, y, width, r
 		return form.scrolls()
 	}
 	return 0, f.top(), f.Width, f.viewRows()
+}
+
+// learningLine is the line Runway shows under its heading while the
+// forecast's run-outs play the hold curve's default, as views.Lanes'
+// Learning says.
+var learningLine = line{{"run-outs firm up once switchboard has a day of your sessions", mutedInk}}
+
+// runwayLearning draws the line saying the forecast is learning, from column
+// 0, where the fit gives it a row.
+func (f Frame) runwayLearning(c *canvas, laid runwayLaid) {
+	if fit := laid.fit; fit.draws(fit.learning) {
+		c.line(0, fit.learning, learningLine)
+	}
 }

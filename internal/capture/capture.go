@@ -218,7 +218,7 @@ type printout struct {
 // it; by account, as --by account prints it; work alone, with six sessions
 // on it, as its frame counts them; and the worlds of verified Ultra
 // accounts, all three's and the mixed one's, the mixed one's on a phone and
-// by account too.
+// by account too; and the auto world's with its tokens' years nearly up.
 var printouts = []printout{
 	{name: "usage-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.auto},
 	{name: "usage-120", size: watch.Size{Width: 120, Height: 36}, world: accountWorlds.auto},
@@ -233,6 +233,7 @@ var printouts = []printout{
 	{name: "usage-mixed-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.mixed},
 	{name: "usage-mixed-52", size: watch.Size{Width: 52, Height: 30}, world: accountWorlds.mixed},
 	{name: "usage-mixed-by-account-160", size: watch.Size{Width: 160, Height: 31}, world: accountWorlds.mixed, by: dashboard.ByAccount},
+	{name: "usage-token-160", size: watch.Size{Width: 160, Height: 17}, world: accountWorlds.tokensUp},
 }
 
 // called is the printout's name.
@@ -553,6 +554,7 @@ var pages = []page{
 	{name: "runway-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toRunway()},
 	{name: "runway-mixed-5-hour-160", size: wide(37), world: accountWorlds.mixed, keys: toRunway(">")},
 	{name: "runway-ultra-160", size: wide(37), world: accountWorlds.ultra, keys: toRunway()},
+	{name: "runway-learning-160", size: wide(37), world: accountWorlds.learning, keys: toRunway()},
 	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-collapsed-160", size: wide(37), world: accountWorlds.auto, keys: toRunway("a")},
 	{name: "runway-collapsed-108x43", size: watch.Size{Width: 108, Height: 43}, world: accountWorlds.auto, keys: toRunway("a")},

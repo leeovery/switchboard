@@ -120,8 +120,8 @@ func (s *state) answered(tokens quota.Tokens, onAccount time.Duration, at time.T
 // demand is the pool's use at now, as the forecast takes it: its day rate,
 // the pool judged afresh for room at now, so a week that has reset since it
 // was read has given it room by then; or, with too few hours of room for
-// one, the pool's fast rate, as poolFast has it; and the hold curve at now.
-// It's nil where no account has been read.
+// one, the pool's fast rate, as poolFast has it; and the hold curve at now,
+// learning while it's the default. It's nil where no account has been read.
 func (s *state) demand(now time.Time) *status.Demand {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -129,11 +129,13 @@ func (s *state) demand(now time.Time) *status.Demand {
 		return nil
 	}
 	s.judgeRoom(s.weekHeld, s.pin.Accounts, now)
-	hold := holdPoints(s.hold.Points(now))
+	demand := &status.Demand{Hold: holdPoints(s.hold.Points(now)), Learning: s.hold.Learning(now)}
 	if rate, over, ok := s.day.Rate(now); ok {
-		return &status.Demand{Day: rate, Hours: over.Hours(), Hold: hold}
+		demand.Day, demand.Hours = rate, over.Hours()
+	} else {
+		demand.Day = s.poolFast(now)
 	}
-	return &status.Demand{Day: s.poolFast(now), Hold: hold}
+	return demand
 }
 
 // holdPoints are the hold curve's points as the status document gives them.

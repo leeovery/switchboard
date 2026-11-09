@@ -13,13 +13,16 @@ import (
 // Lanes are Runway's lanes at a look, facts the dashboard words and colours:
 // a lane an account, in the moment's order, but one that lacks the view's
 // window, as lacks has it, which has none; the pool's lane under them; and
-// what they draw, as the legend keys it. Each look's are built once, by
-// Look, from the last look's, which holds what it judged of the timeline's
-// past until what that's judged from changes.
+// what they draw, as the legend keys it; and Learning, set where they draw
+// what's ahead, their timeline having a now, while the forecast's run-outs
+// play the hold curve's default, as the moment's Learning says. Each look's
+// are built once, by Look, from the last look's, which holds what it judged
+// of the timeline's past until what that's judged from changes.
 type Lanes struct {
 	Accounts []Lane
 	Pool     Pool
 	Drawn    Drawn
+	Learning bool
 
 	// then judges how an account stood at a moment gone, as
 	// status.Moment.Then does where it's nil; and past is what was judged of
@@ -240,6 +243,7 @@ func (l Lanes) Look(from LanesFrom) Lanes {
 	}
 	look.Pool = from.poolOf(look.Accounts)
 	look.Drawn = drawnOf(look.Accounts)
+	look.Learning = from.Moment.Learning && from.Timeline.NowColumn() >= 0
 	return look
 }
 

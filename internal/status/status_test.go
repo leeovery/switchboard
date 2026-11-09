@@ -1801,6 +1801,28 @@ func TestTheDocumentGivesTheDemandsHoursAtNoneAndLeavesOutAHoldCurveNotKept(t *t
 	}
 }
 
+func TestTheDocumentSaysTheDemandIsLearningOnlyWhileItIs(t *testing.T) {
+	tests := []struct {
+		name     string
+		learning bool
+		want     string
+	}{
+		{"learning", true, `"demand":{"day":0.5,"hours":0,"learning":true}`},
+		{"measured", false, `"demand":{"day":0.5,"hours":0}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(status.Document{Demand: &status.Demand{Day: 0.5, Learning: tt.learning}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(data), tt.want) {
+				t.Errorf("the document reads %s, want %s", data, tt.want)
+			}
+		})
+	}
+}
+
 func TestAnAccountsPlanIsLeftOutWhereItIsntKnown(t *testing.T) {
 	data, err := json.Marshal(status.Configured(config.Account{ID: "work", Label: "Work"}))
 	if err != nil {

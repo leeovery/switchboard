@@ -273,19 +273,12 @@ type planned struct {
 // headings, SESSIONS; then COMING UP and LATELY together; then ROUTING.
 var foldOrder = [][]Section{{SectionUsage}, {SectionSessions}, {SectionComing, SectionLately}, {SectionRouting}}
 
-// growth is the order the rows to spare go in, to the units not folded, each
-// to its most: to SESSIONS, a whole session at a time; to USAGE's big bars,
-// then to ROUTING's two rows of trace, each where it fits whole; then to
-// COMING UP and LATELY, a line at a time.
-var growth = []struct {
-	sections []Section
-	grow     func(units []*unit, spare int) int
-}{
-	{[]Section{SectionSessions}, whole},
-	{[]Section{SectionUsage}, whole},
-	{[]Section{SectionRouting}, whole},
-	{[]Section{SectionComing, SectionLately}, rowByRow},
-}
+// forms are the fuller forms the rows to spare switch the units not folded
+// to, in the order of their claim on them: SESSIONS, a whole session at a
+// time; USAGE's big bars; and ROUTING's two rows of trace, each where it
+// fits whole, as wholeSteps has its rows. COMING UP and LATELY then take
+// what's left, a line at a time.
+var forms = []Section{SectionSessions, SectionUsage, SectionRouting}
 
 // unit is sections that share rows: a section alone; USAGE with a section
 // beside it; or COMING UP and LATELY side by side. It takes rows rows, its
@@ -504,19 +497,54 @@ func (f Frame) listsBeside(coming, lately section) bool {
 // between its accounts first, then sections folding to their headings, as
 // fold has them, and what then fits takes back what it gave, as unfold has
 // it; where they still don't, USAGE scrolls or gives way further, as
-// squeeze has it. The rows to spare go to the units not folded, as growth
-// has them, and the rest stay empty at the foot.
+// squeeze has it. The rows to spare go to the units not folded, as grow
+// has them, held from the forms where blankRowsWait says, and the rest stay
+// empty at the foot.
 func allot(units []unit, room int) []unit {
-	for i := range units {
-		units[i].rows = units[i].least
-	}
-	unfold(units, room, fold(units, room))
+	fresh := slices.Clone(units)
+	arrange(units, room)
 	if _, taken, fits := layUnits(units, room); fits {
-		grow(units, room-taken)
+		grow(units, room-taken, blankRowsWait(fresh, units, room))
 	} else {
 		squeeze(units, taken-room)
 	}
 	return units
+}
+
+// arrange has each unit take its least, then give way and take back what
+// fits in room rows, as fold and unfold have them: the arrangement the
+// rows to spare then go out in.
+func arrange(units []unit, room int) {
+	for i := range units {
+		units[i].rows = units[i].least
+	}
+	unfold(units, room, fold(units, room))
+}
+
+// blankRowsWait reports whether USAGE's blank rows between its accounts,
+// given way in the units as arranged in room rows, come back a few rows
+// taller before a section unfolds or folds: arranged afresh of fresh, the
+// units unlaid, at each taller height in turn, until either.
+func blankRowsWait(fresh, arranged []unit, room int) bool {
+	if !blankRowsGivenWay(arranged) {
+		return false
+	}
+	for taller := room + 1; ; taller++ {
+		units := slices.Clone(fresh)
+		arrange(units, taller)
+		if !slices.EqualFunc(units, arranged, func(u, a unit) bool { return u.fold == a.fold }) {
+			return false
+		}
+		if !blankRowsGivenWay(units) {
+			return true
+		}
+	}
+}
+
+// blankRowsGivenWay reports whether USAGE's blank rows between its accounts
+// are given way among the units, USAGE open.
+func blankRowsGivenWay(units []unit) bool {
+	return slices.ContainsFunc(units, func(u unit) bool { return !u.fold && u.gaveWay() })
 }
 
 // fold has the units give way, as giveWay has them, a group of foldOrder's
@@ -585,18 +613,59 @@ func squeeze(units []unit, over int) {
 	u.rows = min(u.rows, left)
 }
 
-// grow gives the units not folded spare rows, as growth has them: a unit
-// folded never grows.
-func grow(units []unit, spare int) {
-	for _, g := range growth {
-		var grown []*unit
-		for i := range units {
-			if !units[i].fold && units[i].ledBy(g.sections...) {
-				grown = append(grown, &units[i])
+// grow gives the units not folded spare rows: the forms, as forms has them,
+// then COMING UP and LATELY what's left, a line at a time. A form switches
+// on once down the height: the forms are switched on as the rows to spare
+// grow from none, a row at a time, each where it fits beside those already
+// on, and none switched off, so a row more keeps every form a row less had.
+// Held, as where USAGE's blank rows between its accounts are given way and
+// come back before a section unfolds, no form is on: the rows that bring
+// them back, a few rows taller, would turn it off. A unit folded never
+// grows.
+func grow(units []unit, spare int, held bool) {
+	used := 0
+	if !held {
+		for free := range spare + 1 {
+			for _, form := range forms {
+				for i := range units {
+					if !units[i].fold && units[i].ledBy(form) {
+						used += units[i].switchOn(free - used)
+					}
+				}
 			}
 		}
-		spare = g.grow(grown, spare)
 	}
+	var lists []*unit
+	for i := range units {
+		if !units[i].fold && units[i].ledBy(SectionComing, SectionLately) {
+			lists = append(lists, &units[i])
+		}
+	}
+	rowByRow(lists, spare-used)
+}
+
+// switchOn grows the unit to the fullest of its steps, as wholeSteps has
+// them, that fits in free rows more, and returns the rows it took.
+func (u *unit) switchOn(free int) int {
+	to := u.rows
+	for _, step := range wholeSteps(*u) {
+		if step > to && step-u.rows <= free {
+			to = step
+		}
+	}
+	took := to - u.rows
+	u.rows = to
+	return took
+}
+
+// wholeSteps are the rows the unit grows to whole: its sections' steps
+// between its least and its most, and its most.
+func wholeSteps(u unit) []int {
+	var steps []int
+	for _, s := range u.sections {
+		steps = append(steps, s.between...)
+	}
+	return append(steps, u.most())
 }
 
 // rowByRow grows the units a row at a time, in turn, each to its most, while
@@ -609,24 +678,6 @@ func rowByRow(units []*unit, spare int) int {
 				u.rows, spare, grew = u.rows+1, spare-1, true
 			}
 		}
-	}
-	return spare
-}
-
-// whole grows each unit to its most where that fits whole in the rows to
-// spare, else to the most of its sections' steps between that does, and
-// returns how many are left.
-func whole(units []*unit, spare int) int {
-	for _, u := range units {
-		to := u.rows
-		for _, s := range u.sections {
-			for _, step := range slices.Concat(s.between, []int{u.most()}) {
-				if step > to && step-u.rows <= spare {
-					to = step
-				}
-			}
-		}
-		u.rows, spare = to, spare-(to-u.rows)
 	}
 	return spare
 }

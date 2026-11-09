@@ -15,8 +15,6 @@ ordinary use that fails safe. Gathered here for after the release.
   only a refused or missing token keeps it out.
 - **A week reset since it was read** shows no run-out of its own until it's read again, though the
   play has one for it; its fresh room shapes the others' run-outs meanwhile.
-- **A day alone six days on.** A run-out six to seven days ahead, on today's weekday, reads as
-  today's day, `out ~Thu` on a Thursday; only COMING UP's countdown beside it settles which.
 - **Accounts sharing an id** in a hand-edited config can have use placed on the first of them.
 - **The forecast's cost.** A play allocates about 5,000 times, nearly all in `score.Policy.Choose`,
   called each 10-minute step across the week; it costs about 1.5 ms for four accounts.

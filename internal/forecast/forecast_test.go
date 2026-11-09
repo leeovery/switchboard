@@ -214,9 +214,16 @@ func TestABurstOrALullRunsOutWhereItsFadingUseReachesItsRoom(t *testing.T) {
 	}
 }
 
+// leaving is a hold curve whose sessions leave their account within hours,
+// e^(−h/6h).
+func leaving(after time.Duration) float64 {
+	return math.Exp(-after.Hours() / 6)
+}
+
 // ownersPool is four equal Ultra accounts as the owner's stood: account 2
 // carrying the pool's use at 6% of its week an hour, account 1 at its
-// reserve, and 3 and 4 at their limits, 3 resetting in 17 hours.
+// reserve, and 3 and 4 at their limits, 3 resetting in 17 hours; their
+// sessions leaving within hours, as leaving holds them.
 func ownersPool() Pool {
 	return Pool{
 		Now:    now,
@@ -227,7 +234,8 @@ func ownersPool() Pool {
 			account("3", week(1, 17*time.Hour), sized(ultra)),
 			account("4", week(1, 87*time.Hour), sized(ultra)),
 		},
-		Day: 0.013 * ultra,
+		Day:  0.013 * ultra,
+		Held: leaving,
 	}
 }
 
@@ -238,6 +246,18 @@ func TestAWeekCarryingThePoolLastsAsTheOtherWeeksComeBack(t *testing.T) {
 	// coming back, takes the new sessions while it scores higher.
 	checkRunsOut(t, "2", out, time.Time{}, 0)
 	checkAtReset(t, "2", out, 0.9908, 0.005)
+}
+
+func TestOnTheDefaultCurveAWeekCarryingLongSessionsRunsOutThoughTheOtherWeeksComeBack(t *testing.T) {
+	p := ownersPool()
+	p.Held = nil
+
+	out := outOf(t, Forecast(p), "2")
+
+	// Its sessions stay on it, holding more than the pool's use for days, so
+	// the others coming back take none of it.
+	alone := hoursUntil(func(h float64) float64 { return fading(0.06*ultra, 0.013*ultra, h) }, 0.81*ultra)
+	checkRunsOut(t, "2", out, now.Add(hours(alone)), playStep)
 }
 
 func TestAWeekCarryingThePoolRunsOutWithoutTheResetsThatSaveIt(t *testing.T) {
@@ -573,14 +593,14 @@ func TestAccountsSharingAnIDAreForecastToTheEnd(t *testing.T) {
 	}
 }
 
-func TestWithoutAHoldCurveHeldUseFadesWithATimeConstantOfSixHours(t *testing.T) {
+func TestWithoutAHoldCurveHeldUseStaysForTwoDaysThenFallsStraightToNoneAtFour(t *testing.T) {
 	// The global pin sends what work doesn't hold to personal, an Ultra week
 	// with room for all of it.
 	p := Pool{
 		Now:    now,
 		Policy: policy,
 		Accounts: []Account{
-			account("work", week(0.3, 2*quota.Day), fast(0.06)),
+			account("work", week(0.3, 5*quota.Day), fast(0.005)),
 			account("personal", week(0, 6*quota.Day), sized(ultra)),
 		},
 		Pinned: []string{"personal"},
@@ -589,7 +609,8 @@ func TestWithoutAHoldCurveHeldUseFadesWithATimeConstantOfSixHours(t *testing.T) 
 
 	out := outOf(t, Forecast(p), "work")
 
-	checkAtReset(t, "work", out, 0.3+0.06*6*(1-math.Exp(-48.0/6)), 1e-4)
+	// 48 hours of its fast rate whole, then 24 hours' worth as it falls.
+	checkAtReset(t, "work", out, 0.3+0.005*(48+24), 1e-4)
 }
 
 func TestForecastingNoAccountsGivesNone(t *testing.T) {

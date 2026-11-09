@@ -13,6 +13,9 @@ type Demand struct {
 	// it so many hours on, at 1, 3, 6, 12, 24 and 48 hours, as forecast.Hold
 	// keeps it.
 	Hold []HoldPoint `json:"hold,omitempty"`
+	// Learning is set while Hold is the default curve, as the router has less
+	// than a day of answers in it.
+	Learning bool `json:"learning,omitempty"`
 }
 
 // HoldPoint is a point of the hold curve: the share of an account's fast rate

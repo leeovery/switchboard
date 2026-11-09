@@ -509,7 +509,12 @@ func TestNoBlankRowLiesBetweenTwoFoldedHeadingsAndOneLiesBesideEachUnfolded(t *t
 	}
 }
 
-func TestRowsToSpareGoToTheBigBarsThenROUTINGWhereEachFitsThenCOMINGUPAndLATELY(t *testing.T) {
+// The rows to spare switch on USAGE's big bars and ROUTING's two rows of
+// trace, each where it fits beside what's on, the big bars first where both
+// do; once on, a form stays on as the rows grow, so the big bars come in
+// only where they fit beside ROUTING's trace. COMING UP and LATELY take
+// what's left, a line at a time, the rest empty at the foot.
+func TestRowsToSpareSwitchOnTheBigBarsAndROUTINGEachWhereItFitsBesideWhatsOn(t *testing.T) {
 	sections := []section{
 		sized(SectionUsage, 13, 35), sized(SectionRouting, 6, 11),
 		sized(SectionComing, 5, 9), sized(SectionLately, 5, 14),
@@ -518,15 +523,16 @@ func TestRowsToSpareGoToTheBigBarsThenROUTINGWhereEachFitsThenCOMINGUPAndLATELY(
 		name                   string
 		rows                   int
 		usage, routing, coming int
+		last                   int
 	}{
-		{name: "none to spare: each at its least", rows: 26, usage: 13, routing: 6, coming: 5},
-		{name: "the big bars not fitting, ROUTING's two rows of trace", rows: 31, usage: 13, routing: 11, coming: 5},
-		{name: "then COMING UP and LATELY a line at a time", rows: 36, usage: 13, routing: 11, coming: 10},
-		{name: "the big bars fitting, before ROUTING", rows: 48, usage: 35, routing: 6, coming: 5},
-		{name: "ROUTING not fitting, COMING UP and LATELY growing past it", rows: 52, usage: 35, routing: 6, coming: 9},
-		{name: "ROUTING fitting after the big bars", rows: 53, usage: 35, routing: 11, coming: 5},
-		{name: "each at its most", rows: 62, usage: 35, routing: 11, coming: 14},
-		{name: "past every most", rows: 100, usage: 35, routing: 11, coming: 14},
+		{name: "none to spare: each at its least", rows: 26, usage: 13, routing: 6, coming: 5, last: 26},
+		{name: "the big bars not fitting, ROUTING's two rows of trace", rows: 31, usage: 13, routing: 11, coming: 5, last: 31},
+		{name: "then COMING UP and LATELY a line at a time", rows: 36, usage: 13, routing: 11, coming: 10, last: 36},
+		{name: "the big bars fitting alone, ROUTING's trace kept", rows: 48, usage: 13, routing: 11, coming: 14, last: 40},
+		{name: "the big bars not yet fitting beside ROUTING's trace", rows: 52, usage: 13, routing: 11, coming: 14, last: 40},
+		{name: "the big bars fitting beside ROUTING's trace", rows: 53, usage: 35, routing: 11, coming: 5, last: 53},
+		{name: "each at its most", rows: 62, usage: 35, routing: 11, coming: 14, last: 62},
+		{name: "past every most", rows: 100, usage: 35, routing: 11, coming: 14, last: 62},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -535,8 +541,8 @@ func TestRowsToSpareGoToTheBigBarsThenROUTINGWhereEachFitsThenCOMINGUPAndLATELY(
 			if got := rowsGiven(laid); !maps.Equal(got, want) {
 				t.Errorf("in %d rows, the sections take %v, want %v", tt.rows, got, want)
 			}
-			if got, want := laid[len(laid)-1].lastRow()+1, min(tt.rows, 62); got != want {
-				t.Errorf("in %d rows, the last section ends on row %d, want %d, the rest empty at the foot", tt.rows, got, want)
+			if got := laid[len(laid)-1].lastRow() + 1; got != tt.last {
+				t.Errorf("in %d rows, the last section ends on row %d, want %d, the rest empty at the foot", tt.rows, got, tt.last)
 			}
 		})
 	}
@@ -549,8 +555,8 @@ func TestCOMINGUPAndLATELYSitSideBySideAsTheyDidFrom100AndWhereTheirLeastsDontFi
 		shown          []Section
 		coming, lately bounds
 	}{
-		{name: "at 92 columns", width: 92, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 92}, lately: bounds{y: 6, width: 92}},
-		{name: "at 93 columns", width: 93, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 42}, lately: bounds{x: 48, width: 45}},
+		{name: "at 94 columns", width: 94, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 94}, lately: bounds{y: 6, width: 94}},
+		{name: "at 95 columns", width: 95, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 43}, lately: bounds{x: 49, width: 46}},
 		{name: "at 100 columns", width: 100, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 45}, lately: bounds{x: 52, width: 48}},
 		{name: "at 160 columns", width: 160, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 72}, lately: bounds{x: 82, width: 78}},
 		{name: "at 216 columns", width: 216, shown: []Section{SectionComing, SectionLately}, coming: bounds{width: 97}, lately: bounds{x: 110, width: 106}},

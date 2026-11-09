@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -411,6 +412,60 @@ func TestRunwaySaysNothingIsOutOfViewWhereEveryLaneShows(t *testing.T) {
 		if strings.Contains(row, "more account") {
 			t.Errorf("every lane shown, row %d reads %q", y, row)
 		}
+	}
+}
+
+// learningLanes are lanesOf(n), the forecast learning, or not.
+func learningLanes(n int, learning bool) *views.Lanes {
+	lanes := lanesOf(n)
+	lanes.Learning = learning
+	return lanes
+}
+
+// While the forecast is learning, Runway says so on the view's top row, a
+// blank row between it and the axis, where its rows fit at the roomiest with
+// it and its words across the frame: rows running short, it goes before any
+// part compacts, and a frame narrower than its words, as 52 columns, drops
+// it, while a phone's 73 keeps it. Once the forecast is measured, it's gone.
+func TestRunwaySaysTheForecastIsLearningFirstToGoAsRowsRunShort(t *testing.T) {
+	tests := []struct {
+		name            string
+		learning        bool
+		width, rows     int
+		says            bool
+		step            runwayStep
+		axisFromViewTop int
+	}{
+		{name: "learning, with rows to spare", learning: true, width: 120, rows: 37, says: true, step: runwayRoomy, axisFromViewTop: 2},
+		{name: "learning, two rows past the roomiest's least", learning: true, width: 120, rows: 32, says: true, step: runwayRoomy, axisFromViewTop: 2},
+		{name: "learning, a row short of them", learning: true, width: 120, rows: 31, step: runwayRoomy},
+		{name: "learning, at the roomiest's least", learning: true, width: 120, rows: 30, step: runwayRoomy},
+		{name: "learning, at (a)", learning: true, width: 120, rows: 29, step: runwayTwoRows},
+		{name: "learning, on a phone 73 wide", learning: true, width: 73, rows: 37, says: true, step: runwayRoomy, axisFromViewTop: 2},
+		{name: "learning, 52 wide, narrower than its words", learning: true, width: 52, rows: 37, step: runwayRoomy},
+		{name: "measured", width: 120, rows: 37, step: runwayRoomy},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := runwayFrame(t, tt.rows, learningLanes(3, tt.learning), thingsComing(3))
+			f.Width = tt.width
+			fit := f.runwayFitted(f.top())
+			if fit.draws(fit.learning) != tt.says || fit.step != tt.step || fit.axis-f.top() != tt.axisFromViewTop {
+				t.Errorf("at %d by %d, Runway says it's learning %t, at step %d, its axis %d rows under the view's top; want %t, at %d, %d",
+					tt.width, tt.rows, fit.draws(fit.learning), fit.step, fit.axis-f.top(), tt.says, tt.step, tt.axisFromViewTop)
+			}
+			if tt.says && fit.learning != f.top() {
+				t.Errorf("it says it's learning on row %d, want the view's top, %d", fit.learning, f.top())
+			}
+			drawn := textOf(runwayDrawn(f, runwayDoc(3)).rows(Look{}))
+			said := slices.ContainsFunc(drawn, func(row string) bool { return strings.Contains(row, "run-outs firm up") })
+			if said != tt.says {
+				t.Errorf("drawn, it says it's learning %t, want %t", said, tt.says)
+			}
+			if tt.says && drawn[fit.learning] != "run-outs firm up once switchboard has a day of your sessions" {
+				t.Errorf("its row reads %q, want the line alone, from column 0", drawn[fit.learning])
+			}
+		})
 	}
 }
 

@@ -613,7 +613,7 @@ func TestDocument(t *testing.T) {
 		Best:        "side",
 		// Read once each, a minute apart, the pool has no use to tell of, and
 		// no answer has come.
-		Demand: &status.Demand{Hold: defaultHold},
+		Demand: &status.Demand{Hold: defaultHold, Learning: true},
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: start, Windows: []quota.Window{session, week}},
 			{ID: "personal", Label: "Personal", Error: personalMissing},

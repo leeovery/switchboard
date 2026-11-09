@@ -547,9 +547,11 @@ built:
   model shares weigh them (input 1, output 5, cache writes 1.25, cache reads 0.1). A session's time
   on its account counts from when it came to the account, and a choice that keeps it there doesn't
   start it again. The router keeps the curve in its state file, so it outlasts a restart. With less
-  than a day of answers in it, the curve is `e^(−h / 6h)`. The status document carries it at 1, 3,
-  6, 12, 24 and 48 hours; between them it's read as straight lines, and past 48 hours it falls
-  straight to none at 96.
+  than a day of answers in it, as on a new install, the curve is the default: an account's use
+  stays on it, 1 at each of its hours, so where it leans wrong it leans to an early run-out rather
+  than room that isn't there (the owner's call, 9 November 2026). The status document carries it
+  at 1, 3, 6, 12, 24 and 48 hours, with `learning` while it's the default; between them it's read
+  as straight lines, and past 48 hours it falls straight to none at 96.
 - **An account that can't take requests,** its token refused or none usable, holds none of its
   use: the router sends its sessions' requests elsewhere, and its use goes where a new session
   would. Nor does a new session go to it. A token refused as the document is built is played as
@@ -569,7 +571,12 @@ it started sets, once 5% of it has passed, and has no projection before then.
 
 **How a run-out reads:** within a day of now, as every time reads, `out ~16:05` or `out ~Mon 05:22`;
 more than a day ahead, its day alone, `out ~Tue`, as a forecast days out misses by a day or more
-(the owner's call, 8 November 2026). The status document gives the time whole.
+(the owner's call, 8 November 2026). Six to seven days ahead it falls on today's weekday, which
+alone would read as today, so there it gives its date too, as a day is named, `out ~Thu 12 Nov`.
+Every word of a run-out more than a day ahead reads it so: COMING UP's times, Runway's and the
+cards' words, `usage` and `status`. The usage block's short form, which keeps a day alone, says
+the date there without the weekday, `out ~12 Nov`, inside its 14 cells, as its `back` does; an
+allowance's reset keeps its day (see `usage`, the printout). The status document gives the time whole.
 
 **Checked on a history,** never against the real install in tests: `cmd/forecasttool`, a program of
 its own as `cmd/capturetool` is, plays a readings history and request ledger back, forecasting at
@@ -1422,9 +1429,9 @@ their own words.
   unverified.
 - **A token's year,** one owner: `internal/status` works out when it was taken, when it's
   up, whether it's up within a span, its days left and the share of it gone, and setup's TOKEN
-  column and notes, the Accounts tab's line and the router's notifications all read it
-  there (see Accounts and tokens for where the time is kept). The status document carries the date
-  already, as `token_good_until`; `usage` showing it is designed.
+  column and notes, the Accounts tab's line, `usage`'s lines and the router's notifications all
+  read it there (see Accounts and tokens for where the time is kept). The status document carries
+  the date, as `token_good_until`.
 
 ### The build's calls
 
@@ -2257,11 +2264,12 @@ scrollback and be compared by eye with one printed an hour before. Its frames ar
 *Switchboard · usage*, on its page **FINAL · usage · signed off 4 Oct 2026 · revised 6 Oct**; its
 references are `testdata/vhs/reference/usage-160` (the matrix), `usage-120`, `usage-80` and
 `usage-52` (the windows stacked), `usage-5h-160` and `usage-5h-52` (`--5h`), `usage-by-account-160`
-and `usage-by-account-52` (`--by account`), `usage-one-account-160` (one account), and, of accounts
-without a 5-hour window (below), `usage-ultra-160`, every account on a verified Ultra plan, and
-`usage-mixed-160`, `usage-mixed-52` and `usage-mixed-by-account-160`, side alone keeping its 5-hour.
-Each reference starts at the header and ends at the key line. The Overview's USAGE draws the same
-block (see The Overview).
+and `usage-by-account-52` (`--by account`), `usage-one-account-160` (one account),
+`usage-token-160` (tokens' years nearly up, below), and, of accounts without a 5-hour window
+(below), `usage-ultra-160`, every account on a verified Ultra plan, and `usage-mixed-160`,
+`usage-mixed-52` and `usage-mixed-by-account-160`, side alone keeping its 5-hour. Each reference
+starts at the header and ends at the key line, but `usage-token-160` at its last token line. The
+Overview's USAGE draws the same block (see The Overview).
 
 - **The windows:** `--5h`, `--week`, and one flag for each model's own window switchboard knows,
   named for its model (`--fable`), each print the header, that window alone in either layout, and
@@ -2389,8 +2397,19 @@ a matrix of one.
   or two whatever a read draws, and one line at a width is one line wider. Else two lines at column
   0, the cap's part on the second. A blank line separates it from the last row.
 
-**Spacing:** `usage` prints a blank line, then the header, and ends at the key line, with no blank
-line after it, as a shell's prompt spaces itself (settled in the plan).
+**A token's year:** after the key line and a blank line, a line for each account whose token's year
+is up within 30 days, or is up, in the config's order: the account's name exactly as its row names
+it, a label too long for the name column cut with `…`; two cells on, the words Accounts' Detail
+says, `token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`, `· last day`
+on its last day, `token expired 17 Nov 2026 — switchboard setup makes a new one` once it's up, in
+Detail's colours, from the same owner (see Accounts, "A token's year"). Narrower than the line, it
+wraps at its spaces to the edge, as Detail's does, each line after the first under the first's
+start. Nothing changes for an account with more than 30 days left; off a terminal, the status
+document carries the date.
+
+**Spacing:** `usage` prints a blank line, then the header, and ends at the key line, or at the
+last token's line where it has any, with no blank line after it, as a shell's prompt spaces itself
+(settled in the plan).
 
 **A row:**
 
@@ -2427,17 +2446,21 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   | The account has no usable token (settled in the plan) | `no token` | `no token` | `state.destructive` |
   | Nothing has been read of the account (settled in the plan) | `not read yet` | `not read` | `text.subtle` |
   | Its token is refused, or its last read failed: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
-  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54` | `state.destructive` |
-  | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `back 17:10` | `accent.attention` |
-  | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~Mon`, `out ~16:05` | `accent.attention` |
+  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54`, `back 12 Nov` a week on | `state.destructive` |
+  | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `back 17:10`, `back 12 Nov` a week on | `accent.attention` |
+  | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Thu 12 Nov` on today's weekday, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~12 Nov` on today's weekday, `out ~Mon`, `out ~16:05` | `accent.attention` |
   | The account doesn't have the window (below) | `no 5-hour limit` | `no limit` | `text.subtle` |
   | A 5-hour window not started (settled in the plan) | `not started` | `not started` | `text.muted` |
   | The reset is less than an hour away for the 5-hour window, or a day for a week (settled in the plan) | `34% till 16:30` | `34% · 16:30` | as the allowance |
   | Otherwise, the allowance | `19%/day till Sun 21:00`, `34%/h till 16:30` | `19%/day · Sun`, `34%/h · 16:30` | the rate and the time in `text.muted`; ` till ` and ` · ` in `text.subtle` |
 
   A time reads `16:30` for today and `Sun 21:00` for another day; the short form keeps a time today,
-  and only the weekday for another day. `back` is when room returns: when a limit lifts, or the
-  capped window resets. Red is for Claude's own limit; a cap is movable, so it's amber.
+  and only the weekday for another day, but a run-out's or `back`'s more than a day ahead on
+  today's weekday, which alone would read as today, gives its date instead, `out ~12 Nov`,
+  `back 12 Nov`. An allowance's reset keeps its day alone, `19%/day · Thu`: its 14 cells can't
+  hold a date beside the rate, and a rate a day can't be read as running out today. `back` is when
+  room returns: when a limit lifts, or the capped window resets. Red is for Claude's own limit; a
+  cap is movable, so it's amber.
 - **A reading that's stale,** of an account whose token is refused or whose last read failed, shows
   as it was last read, faded: its bar, fill, track and marks keep 35% of their colour, which is 65%
   toward the canvas, nothing bold; its percentage and words in `text.subtle`.
@@ -2880,12 +2903,13 @@ least fits in its column beside the other (`overview.go`, `listsBeside`), never 
 down; else COMING UP comes first, then LATELY under it, each the full width. Each least is its
 line's fixed parts with an account's name at its least, as a column of names has it, 8 or the
 widest name's own where that's fewer, so names of 8 cells or more never move the switch, and only
-shorter ones bring it in, as with names of 3 cells, to 82 columns:
+shorter ones bring it in, as with names of 3 cells, to 84 columns:
 
-- **COMING UP, 42 cells** (`comingLeast`): its time at its widest, `~Sat 06:00`, 10; the two blanks
-  after it; the name, 8; what befalls it at its shortest, ` is primed`, 10; and its countdown with
-  the gap before it, 12. It fits in `round(w × 0.45)` from 93 columns, so the two sit side by side
-  from 93, and from 100 are drawn as they were before.
+- **COMING UP, 43 cells** (`comingLeast`): its time at its widest, a run-out dated on today's
+  weekday, `~Thu 12 Nov`, 11; the two blanks after it; the name, 8; what befalls it at its
+  shortest, ` is primed`, 10; and its countdown with the gap before it, 12. It fits in
+  `round(w × 0.45)` from 95 columns, so the two sit side by side from 95, and from 100 are drawn
+  as they were before.
 - **LATELY, 21 cells** (`latelyLeast`): its time at its widest, `Sun 02:00`, 9; the two blanks; its
   mark and a blank, 2; and the name, 8. It fits beside COMING UP wherever COMING UP's does.
 
@@ -3005,7 +3029,7 @@ below, not flex's even share:
    LATELY together; then ROUTING.
 3. **What gave way takes it back where it fits,** at its least: what gave way last first, and of
    those folded together, unit by unit in the page's order. So where the two don't fit side by
-   side, under 93 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone
+   side, under 95 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone
    where LATELY can't, and LATELY alone where it fits and COMING UP doesn't, as under a folded
    heading, where COMING UP's would bring a blank row back. USAGE's blank rows between its
    accounts come back last, and where no other section is open, come back whatever the rows, so
@@ -3030,12 +3054,27 @@ below, not flex's even share:
    shows never falls: every step scrolls whole, a row at a time, so a row more shows as many
    accounts or more. The planner keeps the step it took in the layout, so USAGE is drawn in the
    form the planner chose, never one its rows alone suggest.
-5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
-   SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
-   session going on, never left blank; to USAGE's big bars, if they fit; to ROUTING's two rows of
-   trace, if they fit; then to COMING UP and LATELY, a line at a time to 12. A folded unit never
-   grows: what can't unfold leaves rows the others use. At a few heights, one row more brings the
-   big bars or ROUTING's trace in, and ROUTING, or COMING UP and LATELY, give up rows to make room.
+5. **Rows to spare go out even while a section is folded,** to the units that aren't. Each session
+   more SESSIONS shows, its row or two, USAGE's big bars and ROUTING's two rows of trace are forms,
+   with first claim in that order, each taken whole where it fits; COMING UP and LATELY take what
+   the forms leave, a line at a time to 12. A folded unit never grows: what can't unfold leaves
+   rows the others use.
+   **Each form switches once down the height:** within one arrangement, the same sections folded
+   and USAGE's blank rows between its accounts back, a form is taken at the first height where it
+   fits beside the forms already on, and every taller height keeps it: a row more never turns a
+   form off. So COMING UP and LATELY give up lines only at a height where a form comes in and takes
+   its rows, once a form; and at 160 columns, three accounts and the sections shown at first,
+   ROUTING keeps its two rows of trace from 37 rows, the big bars coming in beside them at 47.
+   Where USAGE's blank rows between its accounts are given way, and come back a few rows taller
+   before the folds change, no form is taken: the rows that bring them back would turn it off, so
+   they go to COMING UP and LATELY, else stay empty at the foot. The hold ends where the folds
+   change, in practice a section unfolding: where the blank rows stay given way until a section
+   unfolds, the forms are taken as ever. Rows stay empty too where a form already on leaves too
+   few for the next beside it and COMING UP and LATELY are full, as many as a form's whole step:
+   three accounts at 160 × 44 to 46; one account at 160 × 28, and at 160 × 34 with every section
+   shown; and ten accounts at 108 to 160 columns, the sections shown at first, from 77 rows to
+   95, where ROUTING keeps its second row and the big bars wait until 96, leaving up to 14 rows
+   empty. Across arrangements, as a section unfolds, the forms are taken afresh.
 6. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
    line on the last row.
 7. **The layout changes only on a key or a resize,** or a section's shape changing, never on its
@@ -3517,6 +3556,8 @@ their one owner, and `views.TokenNoteOf` the view's data; Paper follows the buil
 - **Colours:** the words `text.muted`; the days left, or `expired`, bold `accent.attention`, and bold
   `state.destructive` at 7 days or fewer, as setup's table colours them; `switchboard setup`
   `text.secondary`.
+- **`usage`** ends with Detail's line for each such account, after its name (see `usage`, the
+  printout).
 
 **`?` help** (see The page), `HELP · ACCOUNTS`, lists the page's keys first, `t`, `R`, `j`/`k` and
 the wheel among them; then it explains each part in turn: Compare's groups and how each row is
@@ -4454,6 +4495,15 @@ period sits between its keys on Accounts and History: `<` bold `accent.key`, the
 `5-hour` or `week`, with a space either side, in `text.muted`, and `>` bold `accent.key`, ending at
 the last column. Stepped back, `RUNWAY` is followed by three spaces and the day shown, `Wed 30 Sep`,
 in `text.faint`, the rule starting a cell after it.
+
+**While the forecast is learning,** as the status document's `demand` says with `learning`, its
+hold curve still the default (see Forecasting run-outs), a view that draws what's ahead says so on
+the view's first row, from column 0, in `text.muted`: `run-outs firm up once switchboard has a day
+of your sessions` (the owner's call, 9 November 2026), a blank row between it and the axis, every
+row under it moved down two. It shows only where Runway's parts fit at the roomiest with it, and
+where its 60 cells fit across the frame, so as rows run short it goes before any part compacts,
+and a frame of 52 columns drops it while a phone's 73 keeps it. Its reference is
+`runway-learning-160`.
 
 **The views,** named by their windows, `<` and `>` stepping between them, each account's use of the
 view's window under its name:
@@ -8642,7 +8692,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/score` | Pace, projection, a window's rate of use, the allowance, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak, an account without a 5-hour window coming after those with a reset to come, and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/forecast` | The weeks' forecast (see Forecasting run-outs): the fast and day's rates and the hold curve, each kept as readings and answers arrive, and the pool's use played forward through `internal/score`'s choice of account, to where each week runs out. Pure functions and values handed the clock, as `internal/score`'s are; the router keeps the rates and the curve, `cmd/forecasttool` replays them, and `internal/status` forecasts with them |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
-| `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab and the router's notifications read |
+| `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, `usage` and the router's notifications read |
 | `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find reads of it (see The request ledger). It opens nothing itself; it reads through the readers it's given |
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
@@ -9112,7 +9162,7 @@ probing.
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
 | `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
-| `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on. Left out when the router has read no account |
+| `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold, learning}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on; `learning` `true` while the curve is the default, with less than a day of answers in it, and left out once it's measured. Left out when the router has read no account |
 | `accounts` | Every configured account, in the config's order, as below |
 
 Each account:
@@ -10239,7 +10289,6 @@ was dropped binds a later choice, the design proper says so.
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Runway's holds shorter than a column, drawn or named whatever the width | open: to discuss with its owner | [runway-short-holds](../ideas/2026-10-21--runway-short-holds.md) |
-| The Overview saying less at some taller heights, as ROUTING's traces and USAGE's blank rows take rows back | open: to discuss with its owner | [overview-height-sawtooth](../ideas/2026-10-23--overview-height-sawtooth.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
 | Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from History's Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
