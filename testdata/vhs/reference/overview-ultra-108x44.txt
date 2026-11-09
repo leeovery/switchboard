@@ -19,9 +19,14 @@ WEEK
 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────── r
 
-1 work          ● open                              0 sessions   ▃▅▄▂▂▂▂▃▅▆▄▃▃▂▂▂▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-2 personal ◆    ● open                              2 sessions   ▁▂▂▂▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▃▆▄▂▁▁▁▁▁▁▁▁▂▂▂   3/min
-3 side ▲        ● open · new sessions come here     4 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▇   ▇▇▆▅▄▅▅▆  11/min
+1 work          ● open                              0 sessions    ▂      ▂▄▁
+                                                                 ▇ ▇▄▄▅▅▆   ▆▆▅▅▄▄▄▃▃▃▃▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+
+2 personal ◆    ● open                              2 sessions                        ▃▁
+                                                                 ▃▄▄▃▂▂▁▁▁▂▄▃▁▁▁▁▁▁▁▂▇  ▄▁▁▁▁▁▁▁▁▃▃▃   3/min
+
+3 side ▲        ● open · new sessions come here     4 sessions                          ▆▇  ▇▆▅▁ ▂▃▃
+                                                                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▇              11/min
                                                                  requests a minute, last 30 minutes
 
 COMING UP  ──────────────────────────────────── c       LATELY  ────────────────────────────────────────── l
@@ -35,10 +40,5 @@ Mon 10:00  side's week resets           in 3d 19h       12:02  ▲ d28c started 
                                                         11:55  ▲ 9c2e started on personal
                                                         10:02  ▲ 5b19 started on personal
                                                         09:40  ▲ 3d7a started on work
-                                                        09:12  ▲ e0c4 started on work
-                                                        08:31  ▲ a8f1 started on side
-                                                        07:58  ▲ 2b6d started on work
-
-
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

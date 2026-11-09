@@ -294,7 +294,7 @@ var (
 )
 
 func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
-	defaults := []rowsOf{{SectionUsage, 5, 15, false}, {SectionRouting, 17, 22, false}, {SectionComing, 24, 35, false}, {SectionLately, 24, 35, false}}
+	defaults := []rowsOf{{SectionUsage, 5, 17, false}, {SectionRouting, 19, 29, false}, {SectionComing, 31, 35, false}, {SectionLately, 31, 35, false}}
 	tests := []struct {
 		stem          string
 		width, height int
@@ -311,14 +311,14 @@ func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
 		{stem: "routing-move-160", width: 160, height: 37, world: autoWorld, want: defaults},
 		{stem: "routing-limit-160", width: 160, height: 37, world: autoWorld, want: defaults},
 		{stem: "overview-by-account-160", width: 160, height: 42, by: ByAccount, world: autoWorld, want: []rowsOf{
-			{SectionUsage, 5, 32, false}, {SectionRouting, 5, 32, false}, {SectionComing, 34, 40, false}, {SectionLately, 34, 40, false},
+			{SectionUsage, 5, 34, false}, {SectionRouting, 5, 34, false}, {SectionComing, 36, 40, false}, {SectionLately, 36, 40, false},
 		}},
 		{stem: "overview-usage-alone-160", width: 160, height: 37, shown: SectionsNamed([]string{"usage"}), world: autoWorld, want: []rowsOf{
 			{SectionUsage, 5, 17, false},
 		}},
 		{stem: "overview-everything-160x39", width: 160, height: 39, shown: withSessions, world: autoWorld, want: []rowsOf{
-			{SectionUsage, 5, 15, false}, {SectionRouting, 17, 22, false}, {SectionSessions, 24, 27, false},
-			{SectionComing, 29, 37, false}, {SectionLately, 29, 37, false},
+			{SectionUsage, 5, 17, false}, {SectionRouting, 19, 24, false}, {SectionSessions, 26, 31, false},
+			{SectionComing, 33, 37, false}, {SectionLately, 33, 37, false},
 		}},
 		{stem: "overview-six-accounts-160", width: 160, height: 41, world: sixWorld, want: []rowsOf{
 			{SectionUsage, 5, 23, false}, {SectionRouting, 25, 33, false}, {SectionComing, 35, 39, false}, {SectionLately, 35, 39, false},
@@ -330,15 +330,17 @@ func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
 			{SectionUsage, 5, 39, false}, {SectionRouting, 41, 51, false}, {SectionComing, 53, 66, false}, {SectionLately, 53, 66, false},
 		}},
 		{stem: "overview-sessions-216", width: 216, height: 70, shown: Sections{}.Toggled(SectionSessions), world: autoWorld, want: []rowsOf{
-			{SectionUsage, 5, 17, false}, {SectionRouting, 19, 29, false}, {SectionSessions, 31, 38, false}, {SectionComing, 40, 53, false}, {SectionLately, 40, 53, false},
+			{SectionUsage, 5, 39, false}, {SectionRouting, 41, 51, false}, {SectionSessions, 53, 60, false}, {SectionComing, 62, 68, false}, {SectionLately, 62, 68, false},
 		}},
 		{stem: "overview-everything-216x106", width: 216, height: 106, shown: withSessions, world: autoWorld, want: []rowsOf{
 			{SectionUsage, 5, 39, false}, {SectionRouting, 41, 51, false}, {SectionSessions, 53, 60, false},
 			{SectionComing, 62, 75, false}, {SectionLately, 62, 75, false},
 		}},
+		// USAGE's blank rows between its accounts give way, so SESSIONS
+		// shows a session and how many more where it would fold with them.
 		{stem: "overview-everything-173x53", width: 173, height: 53, shown: withSessions, world: sixRunning, want: []rowsOf{
-			{SectionUsage, 5, 18, false}, {SectionRouting, 20, 28, false}, {SectionSessions, 30, 42, false},
-			{SectionComing, 44, 48, false}, {SectionLately, 44, 48, false},
+			{SectionUsage, 5, 23, false}, {SectionRouting, 25, 33, false}, {SectionSessions, 35, 45, false},
+			{SectionComing, 47, 51, false}, {SectionLately, 47, 51, false},
 		}},
 		{stem: "overview-phone-52", width: 52, height: 66, world: autoWorld, want: []rowsOf{
 			{SectionUsage, 7, 36, false}, {SectionRouting, 38, 47, false}, {SectionComing, 49, 56, false}, {SectionLately, 58, 64, false},
@@ -464,9 +466,9 @@ func TestRowsToSpareGrowTheSectionsNotFoldedWhileOthersAreAndNeverOneFolded(t *t
 		last int
 	}{
 		{
-			name: "SESSIONS folded, its rows going on to COMING UP and LATELY",
+			name: "SESSIONS folded, its rows going on to ROUTING's two rows of trace, then COMING UP and LATELY",
 			rows: 34, last: 34,
-			want: map[Section]int{SectionUsage: 13, SectionRouting: 6, SectionSessions: 1, SectionComing: 11, SectionLately: 11},
+			want: map[Section]int{SectionUsage: 13, SectionRouting: 11, SectionSessions: 1, SectionComing: 6, SectionLately: 6},
 		},
 		{
 			name: "SESSIONS, COMING UP and LATELY folded, none of them growing, nor ROUTING, short of its two rows of trace",
@@ -507,10 +509,12 @@ func TestNoBlankRowLiesBetweenTwoFoldedHeadingsAndOneLiesBesideEachUnfolded(t *t
 	}
 }
 
-// The rows to spare go to COMING UP and LATELY first, a line at a time, to
-// their most; then to ROUTING's two rows of trace, and then to USAGE's big
-// bars, each where it fits whole, the rest empty at the foot.
-func TestRowsToSpareGoToCOMINGUPAndLATELYThenROUTINGThenTheBigBarsWhereEachFits(t *testing.T) {
+// The rows to spare switch on USAGE's big bars and ROUTING's two rows of
+// trace, each where it fits beside what's on, the big bars first where both
+// do; once on, a form stays on as the rows grow, so the big bars come in
+// only where they fit beside ROUTING's trace. COMING UP and LATELY take
+// what's left, a line at a time, the rest empty at the foot.
+func TestRowsToSpareSwitchOnTheBigBarsAndROUTINGEachWhereItFitsBesideWhatsOn(t *testing.T) {
 	sections := []section{
 		sized(SectionUsage, 13, 35), sized(SectionRouting, 6, 11),
 		sized(SectionComing, 5, 9), sized(SectionLately, 5, 14),
@@ -522,12 +526,12 @@ func TestRowsToSpareGoToCOMINGUPAndLATELYThenROUTINGThenTheBigBarsWhereEachFits(
 		last                   int
 	}{
 		{name: "none to spare: each at its least", rows: 26, usage: 13, routing: 6, coming: 5, last: 26},
-		{name: "COMING UP and LATELY a line at a time", rows: 31, usage: 13, routing: 6, coming: 10, last: 31},
-		{name: "COMING UP and LATELY at their most", rows: 35, usage: 13, routing: 6, coming: 14, last: 35},
-		{name: "ROUTING's two rows of trace not fitting", rows: 39, usage: 13, routing: 6, coming: 14, last: 35},
-		{name: "ROUTING's two rows of trace fitting", rows: 40, usage: 13, routing: 11, coming: 14, last: 40},
-		{name: "the big bars not fitting", rows: 61, usage: 13, routing: 11, coming: 14, last: 40},
-		{name: "the big bars fitting: each at its most", rows: 62, usage: 35, routing: 11, coming: 14, last: 62},
+		{name: "the big bars not fitting, ROUTING's two rows of trace", rows: 31, usage: 13, routing: 11, coming: 5, last: 31},
+		{name: "then COMING UP and LATELY a line at a time", rows: 36, usage: 13, routing: 11, coming: 10, last: 36},
+		{name: "the big bars fitting alone, ROUTING's trace kept", rows: 48, usage: 13, routing: 11, coming: 14, last: 40},
+		{name: "the big bars not yet fitting beside ROUTING's trace", rows: 52, usage: 13, routing: 11, coming: 14, last: 40},
+		{name: "the big bars fitting beside ROUTING's trace", rows: 53, usage: 35, routing: 11, coming: 5, last: 53},
+		{name: "each at its most", rows: 62, usage: 35, routing: 11, coming: 14, last: 62},
 		{name: "past every most", rows: 100, usage: 35, routing: 11, coming: 14, last: 62},
 	}
 	for _, tt := range tests {
@@ -684,19 +688,18 @@ func TestTheLayoutChangesOnlyOnAKeyOrAResizeNeverOnItsOwn(t *testing.T) {
 		t.Errorf("off the Overview, LayoutOf gives a layout, want none")
 	}
 
-	// At 160x45, with six running, USAGE's blank rows between accounts
-	// stay given way, as SESSIONS takes the rows COMING UP and LATELY leave
-	// short of showing every one; with none, they come back, as they do a
-	// row taller with six. The step stays as kept as the sessions stop, and
-	// a resize makes it afresh.
-	leaned := frameOf(160, 45)
+	// At 160x36, with six running, USAGE gives way its blank rows between
+	// accounts so SESSIONS keeps a session and how many more; with none,
+	// it keeps them. The step stays as kept as the sessions stop, and a
+	// resize makes it afresh.
+	leaned := frameOf(160, 36)
 	leaned.Sections, leaned.Sessions = f.Sections, flippingSessions()
 	leaned.Layout = leaned.LayoutOf(doc, now)
 	stopped := leaned
 	stopped.Sessions = nil
 	afresh, taller := stopped, leaned
 	afresh.Layout = Layout{}
-	taller.Height = 46
+	taller.Height = 37
 	for name, tt := range map[string]struct {
 		f    Frame
 		want giving

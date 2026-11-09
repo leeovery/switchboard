@@ -2999,17 +2999,21 @@ heading's alone where it folds, and the blank row before it a gap, as the rule a
 says whether they fit. The order in which units fold, unfold and grow is the Overview's own, as
 below, not flex's even share:
 
-1. Every section shown starts at its least, USAGE's accounts a row apart: its blank rows between
-   them come back only from the rows COMING UP and LATELY leave, as 5 has it.
-2. **Rows short:** sections fold, in turn, until the page fits: SESSIONS; then COMING UP and
-   LATELY together; then ROUTING. USAGE never folds.
-3. **What folded unfolds where it fits,** at its least: what folded last first, and of those
-   folded together, unit by unit in the page's order. So where the two don't fit side by side,
-   under 93 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone
+1. Every section shown starts at its least.
+2. **Rows short:** units give way, in turn, until the page fits: USAGE first, which never folds,
+   to its first step, its accounts a row apart; then sections fold: SESSIONS; then COMING UP and
+   LATELY together; then ROUTING.
+3. **What gave way takes it back where it fits,** at its least: what gave way last first, and of
+   those folded together, unit by unit in the page's order. So where the two don't fit side by
+   side, under 93 columns, and LATELY is a unit of its own under COMING UP, COMING UP unfolds alone
    where LATELY can't, and LATELY alone where it fits and COMING UP doesn't, as under a folded
-   heading, where COMING UP's would bring a blank row back. Where no other section is open,
-   USAGE's blank rows between its accounts come back whatever the rows. A section left folded
-   never fits at its least with every other at its own, USAGE's accounts a row apart.
+   heading, where COMING UP's would bring a blank row back. USAGE's blank rows between its
+   accounts come back last, and where no other section is open, come back whatever the rows, so
+   they give way only where, keeping them, a section open would fold: at 173 × 53 with every
+   section and six accounts, SESSIONS shows its busiest three and `+8 more` where it folds with
+   them; on a phone, LATELY or COMING UP opens where it stays folded with them. Where every
+   section open stays open with them, they stay. A section left folded never fits at its least
+   with every other at its own, USAGE's accounts a row apart.
 4. **Every other section folded,** where USAGE still doesn't fit, it takes, in the rows left to
    it, the step that shows the most accounts, scrolled to its top: as it is; its accounts a row
    apart; then the blank rows under its heading and its windows' headings gone too; then its key
@@ -3026,16 +3030,21 @@ below, not flex's even share:
    shows never falls: every step scrolls whole, a row at a time, so a row more shows as many
    accounts or more. The planner keeps the step it took in the layout, so USAGE is drawn in the
    form the planner chose, never one its rows alone suggest.
-5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn:
-   to COMING UP and LATELY first, a line at a time to 12; to SESSIONS, a whole session at a time,
-   its row or two, to every one; then, each where it fits whole, to USAGE's blank rows between its
-   accounts, to ROUTING's two rows of trace, and to USAGE's big bars. A folded unit never grows:
-   what can't unfold leaves rows the others use. Each takes only what those before it leave, so
-   within one arrangement, the same sections folded, a row more never takes a row from any
-   section: COMING UP and LATELY are whole before any other grows, and ROUTING's trace takes its
-   second row at one height, before the big bars, which never take it back. What SESSIONS leaves
-   that's less than a session goes on to those after it, where it fits them. Where a section
-   unfolds a row taller, it may take rows another had, as ROUTING's second row of one account.
+5. **Rows to spare go out even while a section is folded,** to the units that aren't, in turn: to
+   SESSIONS, a whole session at a time, its row or two, to every one, what's left that's less than a
+   session going on, never left blank; to USAGE's big bars, if they fit; to ROUTING's two rows of
+   trace, if they fit; then to COMING UP and LATELY, a line at a time to 12. A folded unit never
+   grows: what can't unfold leaves rows the others use.
+   **Each form switches once down the height:** each session more SESSIONS shows, the big bars
+   and ROUTING's two rows of trace are forms, in that order of claim. Within one arrangement, the
+   same sections folded and USAGE's blank rows between its accounts back, a form is taken at the
+   first height where it fits beside the forms already on, and every taller height keeps it: a row
+   more never turns a form off. So COMING UP and LATELY give up lines only at a height where a
+   form comes in and takes its rows, once a form; and at 160 columns, the three accounts' ROUTING
+   keeps its two rows of trace from 37 rows, the big bars coming in beside them at 47. While
+   USAGE's blank rows between its accounts are given way, no form is taken: the rows that bring
+   them back would turn it off, so they go to COMING UP and LATELY, else stay empty at the foot.
+   Across arrangements, as a section unfolds, the forms are taken afresh.
 6. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
    line on the last row.
 7. **The layout changes only on a key or a resize,** or a section's shape changing, never on its

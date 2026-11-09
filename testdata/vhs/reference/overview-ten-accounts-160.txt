@@ -7,14 +7,23 @@ USAGE  ────────────────────────�
                  WEEK                                                                    5-HOUR
 
  1 work                       ▋       ┃                ╎   34%  out ~Sun                                     ┃                 ╎   95%  at cap · back 17:10
+
  2 personal ◆                              ┃               66%  out ~Sat                                ▋          ┃               39%  34%/h till 16:30
+
  3 side ▲                          ┃            ▎          78%  out ~Fri                      ▎ ┃                                  13%  21%/h till 18:50
+
  4 client                          ▊  ┃                    47%  out ~Sun                                 ┃   ▊                     52%  16%/h till 17:40
+
  5 spare                     ┃                              5%  out ~Tue                  ┃                                         4%  20%/h till 19:35
+
  6 lab                              ┃   ▎                  58%  out ~Sat                                       ┃     ▍             71%  out ~16:05
+
  7 team                                     ┃     ▎        83%  out ~Fri                                                   ┃      100%  limit · back 15:30
+
  8 extra             ▊   ┃                                 12%  out ~Wed                         ▊     ┃                           22%  24%/h till 17:55
+
  9 ops                      ▋     ┃                        29%  out ~Mon                   ▍ ┃                                      6%  21%/h till 19:10
+
 10 studio                        ▍        ┃                41%  out ~Sun                              ▎             ┃              33%  41%/h till 16:20
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Σ pool                            ▏┃                      45%  5.4 of 10 left                            ┃                        43%  5.6 of 10 left
@@ -40,14 +49,5 @@ COMING UP  ───────────────────────
 15:30   team back from its limit                                  in 48m          14:41  ▲ c61b started on side
 ~16:05  lab runs out at its pace                               in 1h 24m          14:31  ╎ work reached its cap: 3 sessions moved to side
 16:20   studio's 5-hour resets                                 in 1h 38m          14:12  ▲ 7f3a started on work
-16:30   personal's 5-hour resets                               in 1h 48m          13:50  ◇ side primed: its 5-hour window started
-16:55   lab's 5-hour resets                                    in 2h 13m          13:22  ▸ db8a moved personal → work: personal came under pressure
-17:10   work back from its cap                                 in 2h 28m          12:47  ▲ 41e0 started on personal
-17:40   client's 5-hour resets                                 in 2h 58m          12:10  ◇ work primed: its 5-hour window started
-17:55   extra's 5-hour resets                                  in 3h 13m          12:02  ▲ d28c started on work
-18:50   side's 5-hour resets                                   in 4h 08m          11:55  ▲ 9c2e started on personal
-19:10   ops's 5-hour resets                                    in 4h 28m          11:30  ◇ personal primed: its 5-hour window started
-19:35   spare's 5-hour resets                                  in 4h 53m          10:02  ▲ 5b19 started on personal
-~Fri    side's week runs out at its pace                        in 1d 3h          09:40  ▲ 3d7a started on work
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

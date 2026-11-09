@@ -352,8 +352,7 @@ func TestEveryCellOfThePageBehindACardButTheClockIsFadedAndNothingInItBold(t *te
 // it, stands as it's drawn at the moment it's of, faded.
 func TestBehindACardTheClockTicksOnBrightWhileThePageStandsStill(t *testing.T) {
 	doc, later := threeRouted(), now.Add(10*time.Minute)
-	// Tall enough that COMING UP's countdowns lie under the card, not behind it.
-	f := frameOf(160, 46)
+	f := frameOf(160, 40)
 	f.Look = Screen(builtin(t, "nord"))
 	ticked := f.Draw(doc, later)
 	f.Card = RoutingCard{Rows: RoutingRows(doc.At(now, claudeLike), nil, views.Stream{})}

@@ -7,10 +7,15 @@ USAGE  ────────────────────────�
                 WEEK                                                                           5-HOUR
 
 1 work                                   ┃                   ╎   34%  out ~Sun                                         ┃                   ▋╎   95%  at cap · back 17:10
+
 2 personal ◆                                  ┃                  66%  out ~Sat                                   ▍           ┃                  39%  34%/h till 16:30
+
 3 side ▲                             ┃              ▋            78%  out ~Fri                       ▏ ┃                                        13%  21%/h till 18:50
+
 4 client                              ▏  ┃                       47%  out ~Sun                                    ┃    ▌                        52%  16%/h till 17:40
+
 5 spare           ▍           ┃                                   5%  out ~Tue                  ┃                                                4%  20%/h till 19:35
+
 6 lab                                 ┃    ▎                     58%  out ~Sat                                           ┃      ▍               71%  out ~16:05
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool                                ▌┃                         48%  3.1 of 6 left                              ┃  ▌                           46%  3.2 of 6 left
@@ -33,21 +38,16 @@ SESSIONS  ───────────────────────�
                 d28c  opus    now   ↑ ask    moved from work 14:31: work reached its cap    ▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▂▂▂▂▂▂▃▃▃▃▂▃▃▂▂▂▂▂▂▂▂▂▁▁▂▂▁▁▁▁▁▂▃▃▃▄▃▃▃▃▃▃▂▂▂▁▁▁▁▁▁▁▁▁▂▂   4/min
                 7f3a  opus    now   ↓ ~860   moved from work 14:31: work reached its cap    ▁▂▃▃▂▂▂▁▁▁▁▁▁▁▁▁▁▁▂▃▄▄▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▃▄▃▂▃▃▂▃▃▃▂▂▂▂▂▂▂▂▂▂   3/min
                 db8a  opus    now   idle     moved from work 14:31: work reached its cap    ▁▁▁▂▂▃▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▂▂▂▂▂▂▂▂▃▄▄▃▂▂▂▂▂▂▁▁   0/min
-                +7 more
+2 personal ◆    41e0  opus    now   idle     started here 12:47                             ▂▁▁▂▁▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▁▁   2/min
+                9c2e  opus     9m   idle     started here 11:55                             ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▃▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+4 client        0d4b  opus    now   idle     started here 14:41                             ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+                1f9a  opus     2m   idle     started here 14:40                             ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+                +3 more
 
 COMING UP  ───────────────────────────────────────────────────────────────── c          LATELY  ─────────────────────────────────────────────────────────────────────────── l
 
-~16:05     lab runs out at its pace                                  in 1h 24m          14:41  ▲ c61b started on side
-16:30      personal's 5-hour resets                                  in 1h 48m          14:31  ╎ work reached its cap: 3 sessions moved to side
-16:55      lab's 5-hour resets                                       in 2h 13m          14:12  ▲ 7f3a started on work
-17:10      work back from its cap                                    in 2h 28m          13:50  ◇ side primed: its 5-hour window started
-17:40      client's 5-hour resets                                    in 2h 58m          13:22  ▸ db8a moved personal → work: personal came under pressure
-18:50      side's 5-hour resets                                      in 4h 08m          12:47  ▲ 41e0 started on personal
-19:35      spare's 5-hour resets                                     in 4h 53m          12:10  ◇ work primed: its 5-hour window started
-~Fri       side's week runs out at its pace                           in 1d 3h          12:02  ▲ d28c started on work
-~Sat       personal's week runs out at its pace                      in 1d 21h          11:55  ▲ 9c2e started on personal
-~Sat       lab's week runs out at its pace                            in 2d 2h          11:30  ◇ personal primed: its 5-hour window started
-Sun 02:00  personal's week resets                                    in 2d 11h          10:02  ▲ 5b19 started on personal
-~Sun       client's week runs out at its pace                        in 2d 17h          09:40  ▲ 3d7a started on work
+~16:05  lab runs out at its pace                                     in 1h 24m          14:41  ▲ c61b started on side
+16:30   personal's 5-hour resets                                     in 1h 48m          14:31  ╎ work reached its cap: 3 sessions moved to side
+16:55   lab's 5-hour resets                                          in 2h 13m          14:12  ▲ 7f3a started on work
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

@@ -7,7 +7,9 @@ USAGE  ────────────────────────�
                 WEEK                                                                     5-HOUR
 
 1 work                                ┃                ╎   34%  out ~Sat                                      ┃                 ╎   95%  at cap · back 17:10
+
 2 personal ◆                               ┃               66%  out ~Sat                                           ┃                39%  34%/h till 16:30
+
 3 side ▲                           ┃                       78%  out ~Fri                      ▍ ┃                                   13%  21%/h till 18:50
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool                                ┃ ▍                  59%  1.2 of 3 left                              ┃ ▏                      49%  1.5 of 3 left
@@ -16,22 +18,20 @@ USAGE  ────────────────────────�
 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── r
 
-1 work          ● at its cap · back 17:10 · new sessions go elsewhere         0 sessions   ▂▂▄▅▅▄▂▂▂▂▂▃▂▂▃▄▆▆▆▄▄▃▃▃▃▂▂▂▂▂▂▂▂▁▂▂▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-2 personal ◆    ● open                                                        2 sessions   ▂▁▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▅▅▅▄▃▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▁   3/min
-3 side ▲        ● open · new sessions come here                               4 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▆       ▇▇▇▇▅▄▄▄▅▅▅▆  11/min
+1 work          ● at its cap · back 17:10 · new sessions go elsewhere         0 sessions      ▂▂          ▁▃▄▃▁
+                                                                                           ▃▄   ▇▃▄▅▄▅▆▅▅▆      ▆▆▆▅▅▅▅▄▄▄▃▃▂▄▃▂▃▄▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+
+2 personal ◆    ● open                                                        2 sessions                                        ▁▂▂▁
+                                                                                           ▃▂▃▃▃▄▄▃▂▁▂▁▁▁▁▁▁▂▃▄▄▃▂▁▁▁▁▁▁▁▁▁▁▁▁▂▅    ▆▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▃▃   3/min
+
+3 side ▲        ● open · new sessions come here                               4 sessions                                            ▄       ▆▅▇▆▃▁▁ ▁▂▃▃
+                                                                                           ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄                       11/min
                                                                                            requests a minute, last 30 minutes
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 
-16:30      personal's 5-hour resets                            in 1h 48m          14:41  ▲ c61b started on side
-17:10      work back from its cap                              in 2h 28m          14:31  ╎ work reached its cap: 3 sessions moved to side
-18:50      side's 5-hour resets                                in 4h 08m          14:12  ▲ 7f3a started on work
-~Fri       side's week runs out at its pace                     in 1d 1h          13:50  ◇ side primed: its 5-hour window started
-~Sat       personal's week runs out at its pace                in 1d 15h          13:22  ▸ db8a moved personal → work: personal came under pressure
-Sun 02:00  personal's week resets                              in 2d 11h          12:47  ▲ 41e0 started on personal
-Sun 21:00  work's week resets                                   in 3d 6h          12:10  ◇ work primed: its 5-hour window started
-Mon 10:00  side's week resets                                  in 3d 19h          12:02  ▲ d28c started on work
-                                                                                  11:55  ▲ 9c2e started on personal
-                                                                                  11:30  ◇ personal primed: its 5-hour window started
+16:30  personal's 5-hour resets                                in 1h 48m          14:41  ▲ c61b started on side
+17:10  work back from its cap                                  in 2h 28m          14:31  ╎ work reached its cap: 3 sessions moved to side
+18:50  side's 5-hour resets                                    in 4h 08m          14:12  ▲ 7f3a started on work
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit
