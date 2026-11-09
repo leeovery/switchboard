@@ -822,7 +822,7 @@ func Router(policy score.Policy, pinned []string, accounts ...Routed) status.Doc
 			a.Pressure = status.PressureFrom(policy, status.Pressing{
 				ID: a.ID, Reserve: a.Reserve, Latest: r.Windows, Trails: trails, Spent: slices.Contains(pinned, a.ID), Shut: a.Shut(gen, policy),
 			}, gen)
-			a.Rates = status.RatesOf(r.Windows, trails, gen)
+			a.Rates = status.RatesOf(r.Windows, trails, nil, gen)
 		}
 		doc.Accounts = append(doc.Accounts, a)
 	}

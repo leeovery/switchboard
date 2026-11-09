@@ -122,6 +122,10 @@ func TestAnAccountsWindowsProjected(t *testing.T) {
 	sinceStarted := func(atReset float64) status.Heading {
 		return status.Heading{Kind: score.OnPace, AtReset: atReset}
 	}
+	// recent is the window's recent rate, over the last half hour.
+	recent := func(key string, rate float64) status.Rate {
+		return status.Rate{Window: key, Rate: rate, Since: now.Add(-30 * time.Minute)}
+	}
 	tests := []struct {
 		name     string
 		pressure status.Pressure
@@ -132,14 +136,14 @@ func TestAnAccountsWindowsProjected(t *testing.T) {
 		{
 			name:     "the session, at its recent rate, running out",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "5h", Rate: 0.3}},
+			rates:    []status.Rate{recent("5h", 0.3)},
 			window:   session,
 			want:     status.Heading{Kind: score.RunsOut, At: now.Add(2*time.Hour + 20*time.Minute), Recent: true},
 		},
 		{
 			name:     "the session, at its recent rate, though its use since it started ends it more used",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "5h", Rate: 0.05}},
+			rates:    []status.Rate{recent("5h", 0.05)},
 			window:   session,
 			want:     status.Heading{Kind: score.OnPace, AtReset: 0.45, Recent: true},
 		},
@@ -157,28 +161,28 @@ func TestAnAccountsWindowsProjected(t *testing.T) {
 		{
 			name:     "the week, at its recent rate, which has it run out sooner",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}},
+			rates:    []status.Rate{recent("5h", 0.3), recent("7d", 0.03)},
 			window:   week,
 			want:     status.Heading{Kind: score.RunsOut, At: now.Add(16*time.Hour + 40*time.Minute), Recent: true},
 		},
 		{
 			name:     "the week, at its recent rate, which ends it more used",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "7d", Rate: 0.01}},
+			rates:    []status.Rate{recent("7d", 0.01)},
 			window:   week,
 			want:     status.Heading{Kind: score.OnPace, AtReset: 0.98, Recent: true},
 		},
 		{
 			name:     "the week, at its use since it started, its recent rate slower",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "7d", Rate: 0.001}},
+			rates:    []status.Rate{recent("7d", 0.001)},
 			window:   week,
 			want:     sinceStarted(0.7),
 		},
 		{
 			name:     "the week, without a recent rate, at its use since it started",
 			pressure: watched,
-			rates:    []status.Rate{{Window: "5h", Rate: 0.3}},
+			rates:    []status.Rate{recent("5h", 0.3)},
 			window:   week,
 			want:     sinceStarted(0.7),
 		},
@@ -1744,14 +1748,81 @@ func TestPressureOf(t *testing.T) {
 }
 
 func TestRatesOf(t *testing.T) {
-	windows := []quota.Window{windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day)}
-	// The session rose from 30%, read 40 minutes ago, to 40% now; the week
-	// has no trail.
+	windows := []quota.Window{windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day), windowIn("7d_oi", 0.1, 3*day)}
+	// The session rose from 30%, read 40 minutes ago, to 40% now; the weeks
+	// have no trail.
 	trails := map[string][]score.Reading{"5h": {{At: built.Add(-40 * time.Minute), Utilization: 0.3}, {At: built, Utilization: 0.4}}}
+	session := status.Rate{Window: "5h", Rate: 0.15, Since: built.Add(-40 * time.Minute)}
+	tests := []struct {
+		name string
+		fast map[string]float64
+		want []status.Rate
+	}{
+		{name: "without fast rates, the session's recent rate alone", want: []status.Rate{session}},
+		{
+			name: "with fast rates, each beside its recent rate, and the week's alone, without one",
+			fast: map[string]float64{"5h": 0.2, "7d": 0.01},
+			want: []status.Rate{{Window: "5h", Rate: 0.15, Since: session.Since, Fast: 0.2}, {Window: "7d", Fast: 0.01}},
+		},
+		{name: "a fast rate of 0, none", fast: map[string]float64{"7d": 0}, want: []status.Rate{session}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := status.RatesOf(windows, trails, tt.fast, built)
+			same := slices.EqualFunc(got, tt.want, func(a, b status.Rate) bool {
+				return a.Window == b.Window && math.Abs(a.Rate-b.Rate) < 1e-9 && a.Since.Equal(b.Since) && a.Fast == b.Fast
+			})
+			if !same {
+				t.Errorf("RatesOf() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
 
-	got := status.RatesOf(windows, trails, built)
-	if len(got) != 1 || got[0].Window != "5h" || math.Abs(got[0].Rate-0.15) > 1e-9 || !got[0].Since.Equal(built.Add(-40*time.Minute)) {
-		t.Errorf("RatesOf() = %+v, want the session's alone, 15%% an hour since 40 minutes ago", got)
+func TestAWindowWithAFastRateAloneIsProjectedAsWithoutARecentRate(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	// The session began two hours ago, 30% used: its use since it started
+	// ends it at 75%. The router has a fast rate of it, but no recent rate.
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.3, ResetsAt: now.Add(3 * time.Hour)}
+	a := status.Account{
+		ID: "work", Windows: []quota.Window{session}, Pressure: status.Pressure{Window: "5h"},
+		Rates: []status.Rate{{Window: "5h", Fast: 0.2}},
+	}
+
+	got := a.Project(session, now)
+	if got.Recent || got.Kind != score.OnPace || math.Abs(got.AtReset-0.75) > 1e-9 {
+		t.Errorf("Project() = %+v, want at its use since it started, to 75%%: a fast rate is no recent rate", got)
+	}
+}
+
+func TestConfiguredGivesTheAccountAsTheConfigDoes(t *testing.T) {
+	got := status.Configured(config.Account{ID: "work", Label: "Work", Primary: true, Reserve: 0.05, Plan: config.PlanMax})
+	want := status.Account{ID: "work", Label: "Work", Primary: true, Reserve: 0.05, Plan: config.PlanMax}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Configured() = %+v, want %+v", got, want)
+	}
+}
+
+func TestTheDocumentGivesTheDemandsHoursAtNoneAndLeavesOutAHoldCurveNotKept(t *testing.T) {
+	data, err := json.Marshal(status.Document{Demand: &status.Demand{Day: 0.5}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `"demand":{"day":0.5,"hours":0}`; !strings.Contains(string(data), want) {
+		t.Errorf("the document reads %s, want %s: the pool's fast rate measured over no hours, and no hold curve", data, want)
+	}
+	if data, _ := json.Marshal(status.Document{}); strings.Contains(string(data), `"demand"`) {
+		t.Errorf("a document without the pool's demand reads %s, want none", data)
+	}
+}
+
+func TestAnAccountsPlanIsLeftOutWhereItIsntKnown(t *testing.T) {
+	data, err := json.Marshal(status.Configured(config.Account{ID: "work", Label: "Work"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"plan"`) {
+		t.Errorf("an account without a plan reads %s, want no plan", data)
 	}
 }
 

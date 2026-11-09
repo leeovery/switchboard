@@ -37,7 +37,10 @@ type assignment struct {
 	// started in, as the request ledger gives it, or "" while none has.
 	Dir string `json:"dir,omitempty"`
 	// Reason says why the session went to its account.
-	Reason     string    `json:"reason"`
+	Reason string `json:"reason"`
+	// AssignedAt is when the session came to its account, which a choice
+	// that keeps it there leaves as it was: its time on the account, as the
+	// hold curve weighs its answers, runs from then.
 	AssignedAt time.Time `json:"assigned_at"`
 	LastSeen   time.Time `json:"last_seen"`
 	// by is the id of the request last noted on the assignment, which made
@@ -275,6 +278,19 @@ func (s *sessions) started(k key) (assignment, bool) {
 	}
 	delete(s.unstarted, k)
 	return a, true
+}
+
+// onAccount returns how long, at now, the session and model k name have been
+// on the account with the given id, as their assignment says: none where
+// they have no assignment there.
+func (s *sessions) onAccount(k key, id string, now time.Time) time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.assignments[k]
+	if !ok || a.Account != id {
+		return 0
+	}
+	return now.Sub(a.AssignedAt)
 }
 
 // globalPin returns the global pin, zero when there's none.

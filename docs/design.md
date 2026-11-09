@@ -8698,33 +8698,34 @@ hiding it behind the provider would take a wider interface than it's worth:
   window was last read, and when a window started again, as its reading's `restarted_at`, so a
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
   `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
-  and `misses` (see The router's rounds), and the hashes of every configured account's tokens, with
-  a usable token or not: see Accounts and tokens; and the token-year notifications told, an
-  account's against the token they were told for: see Notifications), `control.sock`, `tokens/`,
-  `logs/`, `history/`, `ledger/`, `install-id`, the id an export names the Mac's folder by,
-`import/`, while an import runs, and `import.lock`, which `import` holds while it stages and waits
-(see Export and import). `state.json` is versioned, the version changing only when a
-  router couldn't read what another wrote: an older file, without readings, loads as having none,
-  one whose readings lack `restarted_at` as windows that run a whole length before their resets,
-  which a router from before, ignoring the field, takes them all for, one whose readings lack when
-  each window was read as windows unread (see The router's rounds), one without the probes as
-  accounts none of whose probes has ended, which a router from before them, ignoring the fields,
-  takes them all for, one without `windows_absent` as accounts that have every window they report, a
-  reading that holds nothing else as none, and a pin that names its account alone, as pins did
-  before they named several, as a pin to that one. It's rewritten whole (written beside it, synced,
-  and renamed over it) a second after a change and on the way out, but once a minute at most while
-  its only changes are routine: those every request makes, its session's assignment used again and
-  the reading off its answer, and those every probe makes, how it went and a reading, extra usage
-  among it, as before; and drops assignments unused for 7 days, with the pins of the sessions it
-  forgets, and the hashes of tokens replaced 7 days before, at start and then hourly. At start it
-  also drops the assignments and the sessions' own pins of accounts no longer configured, those
-  accounts from the global pin, which goes with the last of them, and their readings, and keeps
-  their token hashes as the primary's former tokens, which an account configured again takes back
-  (see Accounts and tokens); those of a configured account whose token file can't be read are kept,
-  as the file may only have been caught while it's rewritten, and choices pass the account over
-  until it has a token. A corrupt one is set aside as `state.json.corrupt-<unix time>`, and the
-  router starts without it; the newest 3 set aside are kept, and older ones removed as another is
-  set aside.
+  and `misses` (see The router's rounds), the hold curve, `hold` (see Forecasting run-outs), and the
+  hashes of every configured account's tokens, with a usable token or not: see Accounts and tokens;
+  and the token-year notifications told, an account's against the token they were told for: see
+  Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`, the id an
+  export names the Mac's folder by, `import/`, while an import runs, and `import.lock`, which
+  `import` holds while it stages and waits (see Export and import). `state.json` is versioned, the
+  version changing only when a router couldn't read what another wrote: an older file, without
+  readings, loads as having none, one whose readings lack `restarted_at` as windows that run a whole
+  length before their resets, which a router from before, ignoring the field, takes them all for,
+  one whose readings lack when each window was read as windows unread (see The router's rounds), one
+  without the probes as accounts none of whose probes has ended, which a router from before them,
+  ignoring the fields, takes them all for, one without `windows_absent` as accounts that have every
+  window they report, one without `hold`, or with one of a shape it doesn't know, as a curve of no
+  answers, a reading that holds nothing else as none, and a pin that names its account alone, as
+  pins did before they named several, as a pin to that one. It's rewritten whole (written beside it,
+  synced, and renamed over it) a second after a change and on the way out, but once a minute at most
+  while its only changes are routine: those every request makes, its session's assignment used
+  again, the reading off its answer and the answer in the hold curve, and those every probe makes,
+  how it went and a reading, extra usage among it, as before; and drops assignments unused for 7
+  days, with the pins of the sessions it forgets, and the hashes of tokens replaced 7 days before,
+  at start and then hourly. At start it also drops the assignments and the sessions' own pins of
+  accounts no longer configured, those accounts from the global pin, which goes with the last of
+  them, and their readings, and keeps their token hashes as the primary's former tokens, which an
+  account configured again takes back (see Accounts and tokens); those of a configured account whose
+  token file can't be read are kept, as the file may only have been caught while it's rewritten, and
+  choices pass the account over until it has a token. A corrupt one is set aside as
+  `state.json.corrupt-<unix time>`, and the router starts without it; the newest 3 set aside are
+  kept, and older ones removed as another is set aside.
 - **Readings history:** `<state dir>/history/readings-<local date>.jsonl`, a file a day, 0600 in a
   0700 directory, for looking back at how the accounts were used. The router appends a line, as
   the file is opened to append, for each reading that changes how a window of an account reads,
@@ -9115,7 +9116,7 @@ Each account:
 | `limit` | *router* A limit it reached, while it holds: `{id, windows, until}`, `id` the limit's identity, which it keeps while it holds, reached again, as the router counts its limits from 1 as it starts, and which the limit's event gives as its `limit`; `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
 | `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, since, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, and `since` when it's measured from, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets, while the account can take a request of some model, as one refused a model or held back in a model's own week still can: the account is under pressure (see Choosing an account). Of an account that can take no request, pressure isn't what passes it over, and `under` is left out. Left out when the rate can't be said, as when the window isn't running, or the account has no 5-hour window |
-| `rates` | *router* How fast its windows have been used lately: `[{window, rate, since, fast}]`, in `windows`' order, `window` a window's key, `since` when the rate is measured from, and `rate` its rise from the level of its use read last before the last 30 minutes to its latest, as a share of it an hour: over those 30 minutes when that level was read again after they began, else over the time since it was last read, a rise across a gap in its readings spread over the gap; or, with no level that far back, from its first, over the time since, 10 minutes at least. Never negative, and 0 for a window read but unused since (see Choosing an account). The 5-hour window's projection goes by its `rate` (see `usage`, the printout). `fast` is the window's fast rate, a share of it an hour, which a week's forecast goes by (see Forecasting run-outs); left out at 0. Left out when no window has either |
+| `rates` | *router* How fast its windows have been used lately: `[{window, rate, since, fast}]`, in `windows`' order, `window` a window's key, `since` when the rate is measured from, and `rate` its rise from the level of its use read last before the last 30 minutes to its latest, as a share of it an hour: over those 30 minutes when that level was read again after they began, else over the time since it was last read, a rise across a gap in its readings spread over the gap; or, with no level that far back, from its first, over the time since, 10 minutes at least. Never negative, and 0 for a window read but unused since (see Choosing an account). The 5-hour window's projection goes by its `rate` (see `usage`, the printout). `fast` is the window's fast rate, a share of it an hour, which a week's forecast goes by (see Forecasting run-outs); left out at 0, and below a millionth of the window an hour. An entry with a fast rate alone has no `since`, and isn't a recent rate: an entry is one only where its `since` is set. Left out when no window has either |
 | `sessions` | *router* How many sessions have been routed to it in the last hour; left out at 0 |
 
 ### The router's events

@@ -92,6 +92,29 @@ func Noted(trail []Reading, held, kept quota.Window, at time.Time) []Reading {
 	return trail
 }
 
+// Risen returns how far kept, the reading a window now stands as, taken in
+// after held, the one it stood as before, takes the window's trail up, its
+// levels as Noted keeps them: by how far it reads above the trail's latest
+// level, its highest, or, where the trail has none, as after a restart, above
+// held; and by none where it reads no higher, as a dip is no level, or where
+// there's neither, held's key unset, the window not read before. It reports
+// afresh where kept starts the window afresh, as startsAfresh says: what the
+// window rose by before is of a window that's gone, and kept rises by none,
+// its use the first level of the trail.
+func Risen(trail []Reading, held, kept quota.Window) (rise float64, afresh bool) {
+	if startsAfresh(held, kept) {
+		return 0, true
+	}
+	from := held.Utilization
+	switch n := len(trail); {
+	case n > 0:
+		from = trail[n-1].Utilization
+	case held.Key == "":
+		return 0, false
+	}
+	return max(kept.Utilization-from, 0), false
+}
+
 // startsAfresh reports whether kept, the reading a window now stands as, starts
 // it afresh from held, as it stood before: kept has another reset, a new
 // window, or shows it reset by hand, as ResetByHand says.

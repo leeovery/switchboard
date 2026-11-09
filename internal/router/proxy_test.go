@@ -697,11 +697,13 @@ func (c *fixedChooser) Choose(_ context.Context, req router.Request) router.Choi
 	return router.Choice{Account: c.account, Reason: "fixed"}
 }
 
-// Answered starts nothing, and Forget forgets nothing: the chooser
-// remembers no session.
+// Answered starts nothing, Forget forgets nothing, and no session has been on
+// an account for any time: the chooser remembers no session.
 func (c *fixedChooser) Answered(router.Request, string, string) {}
 
 func (c *fixedChooser) Forget(router.Request) (string, bool) { return "", false }
+
+func (c *fixedChooser) OnAccount(router.Request, string, time.Time) time.Duration { return 0 }
 
 func (c *fixedChooser) requests() []router.Request {
 	c.mu.Lock()

@@ -481,7 +481,7 @@ func TestPressed(t *testing.T) {
 	// reserve of a tenth is reached at 15:52.
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)}
 	pressed := status.Account{
-		ID: "work", Windows: []quota.Window{session}, Rates: []status.Rate{{Window: "5h", Rate: 0.3}},
+		ID: "work", Windows: []quota.Window{session}, Rates: []status.Rate{{Window: "5h", Rate: 0.3, Since: now.Add(-30 * time.Minute)}},
 		Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 15, 12, 0, 0, time.UTC), Under: true},
 	}
 	tests := []struct {
@@ -500,9 +500,11 @@ func TestPressed(t *testing.T) {
 			want:    "under pressure: runs out ~16:12",
 		},
 		{
-			name:    "under pressure as the router says, its window not running out before it resets at the rate it goes by",
-			account: with(pressed, func(a *status.Account) { a.Rates = []status.Rate{{Window: "5h", Rate: 0.05}} }),
-			want:    "under pressure",
+			name: "under pressure as the router says, its window not running out before it resets at the rate it goes by",
+			account: with(pressed, func(a *status.Account) {
+				a.Rates = []status.Rate{{Window: "5h", Rate: 0.05, Since: now.Add(-30 * time.Minute)}}
+			}),
+			want: "under pressure",
 		},
 		{name: "running out after its reset", account: with(pressed, func(a *status.Account) { a.Pressure.Under = false })},
 		{
@@ -536,6 +538,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 	// hour runs it out at 15:32, a reserve of a tenth reached at 15:12, and
 	// its use since it started runs it out at 15:33.
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}
+	lastHalfHour := now.Add(-30 * time.Minute).UTC()
 	tests := []struct {
 		name     string
 		reserve  float64
@@ -547,7 +550,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 	}{
 		{
 			name:     "at its rate over the last half hour",
-			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, Since: lastHalfHour, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
 			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
 			notes:    "  under pressure: runs out ~15:32 at 5-hour's rate over the last 30 min, before its reset at 17:10\n",
 		},
@@ -569,19 +572,19 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 		{
 			name:     "reaching its reserve",
 			reserve:  0.1,
-			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC), Under: true},
+			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, Since: lastHalfHour, RunsOut: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC), Under: true},
 			heading:  "runs out ~Mon 15:12 at its rate over the last 30 min",
 			notes:    "  under pressure: at its reserve ~15:12 at 5-hour's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
 			name:     "under pressure as the router says, its window not running out before it resets at the rate it goes by: nothing of why",
-			pressure: status.Pressure{Window: "5h", Rate: 0.05, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+			pressure: status.Pressure{Window: "5h", Rate: 0.05, Recent: true, Since: lastHalfHour, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
 			heading:  "on pace for 75% at its rate over the last 30 min",
 			notes:    "  under pressure\n",
 		},
 		{
 			name:     "not under pressure",
-			pressure: status.Pressure{Window: "5h", Rate: 0.1, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
+			pressure: status.Pressure{Window: "5h", Rate: 0.1, Recent: true, Since: lastHalfHour, RunsOut: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
 			heading:  "on pace for 90% at its rate over the last 30 min",
 		},
 	}
@@ -783,13 +786,13 @@ func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 		// heading is where the week heads, as its line says.
 		heading string
 	}{
-		{name: "at its rate over the last half hour, sooner", rates: []status.Rate{{Window: "7d", Rate: 0.07}}, heading: "runs out ~Mon 14:20 at its rate over the last 30 min"},
+		{name: "at its rate over the last half hour, sooner", rates: []status.Rate{{Window: "7d", Rate: 0.07, Since: now.Add(-30 * time.Minute)}}, heading: "runs out ~Mon 14:20 at its rate over the last 30 min"},
 		{
 			name:    "at its rate over the 18 minutes it's measured over, sooner",
 			rates:   []status.Rate{{Window: "7d", Rate: 0.07, Since: now.Add(-18 * time.Minute)}},
 			heading: "runs out ~Mon 14:20 at its rate over the last 18 min",
 		},
-		{name: "at its use since it started, its recent rate slower", rates: []status.Rate{{Window: "7d", Rate: 0.001}}, heading: "runs out ~Mon 14:55"},
+		{name: "at its use since it started, its recent rate slower", rates: []status.Rate{{Window: "7d", Rate: 0.001, Since: now.Add(-30 * time.Minute)}}, heading: "runs out ~Mon 14:55"},
 		{name: "without a recent rate", heading: "runs out ~Mon 14:55"},
 	}
 	for _, tt := range tests {

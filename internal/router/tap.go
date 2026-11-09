@@ -46,9 +46,12 @@ type tap struct {
 	// while none has. Only the handler's goroutine, which reads the body,
 	// touches it.
 	firstAt time.Time
-	// reply is what the counting read of the answer for the request ledger.
-	// Only the counting touches it until it has told of the request's end.
-	reply ledger.Reply
+	// reply is what the counting read of the answer for the request ledger,
+	// and tokens the tokens its closing usage gave, as the stream's done
+	// tells of them: nil when none came, or the counting gave the answer up.
+	// Only the counting touches them until it has told of the request's end.
+	reply  ledger.Reply
+	tokens *quota.Tokens
 
 	mu sync.Mutex
 	// kept is what has passed since the counting last took it.
@@ -182,9 +185,10 @@ func (t *tap) end(done StreamEvent) {
 // provider counts them, the body decoded from the encoding h names. Once the
 // request has ended, it tells of its done, with the tokens the answer's
 // closing usage gives, and its characters in all, and keeps what the
-// provider read of the answer for the request ledger. Should the counting
-// have given the answer up, it read only part of the body: done tells of no
-// counts, and the ledger keeps what the provider reads of the header alone.
+// provider read of the answer for the request ledger, and its tokens for the
+// hold curve. Should the counting have given the answer up, it read only
+// part of the body: done tells of no counts, and the ledger keeps what the
+// provider reads of the header alone.
 func (t *tap) count(s *stream, provider Provider, first StreamEvent, h http.Header) {
 	defer close(t.told)
 	passed := &passed{tap: t, first: func() { s.publish(first) }}
@@ -203,7 +207,7 @@ func (t *tap) count(s *stream, provider Provider, first StreamEvent, h http.Head
 	} else {
 		done.Chars, done.Tokens = chars, tokens
 	}
-	t.reply = reply
+	t.reply, t.tokens = reply, done.Tokens
 	s.publish(done)
 }
 

@@ -514,15 +514,16 @@ func (ex *exchange) identity(r *http.Request) []any {
 }
 
 // done notes a routed request once it's done: in the request stream, once it
-// went upstream; in the log and the request ledger, once its answer is
-// counted, as the request finished by then, as the router can cut it off
-// meanwhile, stopping, though its time is taken before; and, once it was
-// answered, in the router's health. A new session whose request wasn't
+// went upstream; in the hold curve, the log and the request ledger, once its
+// answer is counted, as the request finished by then, as the router can cut
+// it off meanwhile, stopping, though its time is taken before; and, once it
+// was answered, in the router's health. A new session whose request wasn't
 // answered with success, the chooser forgets first, so the line is of what
 // stands.
 func (p *proxy) done(r *http.Request, ex *exchange) {
 	took := time.Since(ex.started)
 	p.ended(ex)
+	p.weigh(ex)
 	f := finishing(r, took)
 	p.logRouted(ex, f)
 	if ex.newSession && !ex.succeeded() {
@@ -532,6 +533,19 @@ func (p *proxy) done(r *http.Request, ex *exchange) {
 	if ex.status != 0 {
 		p.health.record(ex.arrived, ex.failed)
 	}
+}
+
+// weigh has the hold curve take in the answer the client of the routed
+// request ex has, once it's counted, by the tokens its closing usage gave,
+// from a session as long on the account that gave it as the chooser says.
+// An answer that gave none, as an error, and one to a request that spends no
+// quota, add nothing.
+func (p *proxy) weigh(ex *exchange) {
+	if !ex.spends || ex.tap == nil || ex.tap.tokens == nil {
+		return
+	}
+	now := p.now().UTC()
+	p.state.answered(*ex.tap.tokens, p.chooser.OnAccount(ex.req, ex.answering().account, now), now)
 }
 
 // forget has the chooser forget the accounts chosen for the routed request

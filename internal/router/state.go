@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/prime"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -97,6 +98,11 @@ type usage struct {
 	// trails are how its windows have been read lately, which their paces
 	// are measured over.
 	trails trails
+	// fast holds, by key, each window's fast rate, of the rises its trail
+	// takes, as note has it, which a week's forecast goes by. It's kept in
+	// memory alone, taken up from the readings history as the router starts,
+	// as the trails are.
+	fast map[string]forecast.Fast
 	// resetBy holds, by key, the moment the request was sent whose answer
 	// showed the window reset by hand: a reading of it off the answer to one
 	// sent before is from before the reset. It's kept in memory alone, as the
@@ -256,6 +262,18 @@ type state struct {
 	// limits counts the limits reached, each one's identity the count as it
 	// was reached, from 1 as the router starts.
 	limits int
+	// sizes holds each account's size, in Pro weeks, by its id, as sizes has
+	// them; and day is the pool's day rate, of its accounts' weeks' rises, as
+	// rose takes them in, over the time it had room, as judgeRoom judges it.
+	sizes map[string]float64
+	day   forecast.Day
+	// hold is the hold curve, of the answers' tokens by how long their
+	// sessions had been on their accounts, as answered takes them in, which
+	// the state file keeps.
+	hold forecast.Hold
+	// pin is the global pin, as the router last told it, as repin and
+	// recallPin have it: zero while there's none.
+	pin status.Pin
 }
 
 func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed, routine func()) *state {
@@ -269,6 +287,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 		history:  func([]readings.Reading) {},
 		usage:    make(map[string]*usage, len(accounts)),
 		seen:     make(map[string]map[string]bool),
+		sizes:    accounts.sizes(),
 	}
 	for _, a := range accounts {
 		s.usage[a.ID] = &usage{
@@ -277,6 +296,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 			readAt:    make(map[string]time.Time),
 			forbidden: make(map[string]refusals),
 			trails:    make(trails),
+			fast:      make(map[string]forecast.Fast),
 			resetBy:   make(map[string]moment),
 			absent:    make(map[string]moment),
 			tokenless: !a.hasToken(),
@@ -321,18 +341,24 @@ func (s *state) recordAnswer(id string, windows []quota.Window, sent moment, who
 // the answer to a request sent at sent, as its usage's take does, but those
 // of windows retired since, as unretire says; and, of a whole reading, as
 // whole says, retires each window every model shares it doesn't report, as
-// retire says. It notes in the log each window retired, and each back. It
-// returns what its usage's take does, and whether a window was retired or is
-// back, which is news. s.mu must be held.
+// retire says. The pool's day rate takes in the rises it reads, as rose says,
+// and the pool is judged afresh for room, as judgeRoom says. It notes in the
+// log each window retired, and each back. It returns the windows that read
+// otherwise, and whether it took any, as its usage's take does, and whether a
+// window was retired or is back, which is news. s.mu must be held.
 func (s *state) take(id string, windows []quota.Window, at time.Time, sent moment, whole bool) (changed []quota.Window, took, news bool) {
 	u := s.usage[id]
 	taken := s.mark()
 	counting, back := u.unretire(windows, sent)
-	changed, took = u.take(counting, at, sent, taken)
+	changed, risen, took := u.take(counting, at, sent, taken)
 	var retired []string
 	if whole {
 		retired = u.retire(windows, s.policy.Shared, sent, taken)
 	}
+	for key, rise := range risen {
+		s.rose(id, key, rise, at)
+	}
+	s.judgeRoom(s.weekHeld, s.pin.Accounts, at)
 	for _, key := range back {
 		logger.Info("reports the window again", "account", id, "window", key)
 	}
@@ -370,13 +396,14 @@ func (u *usage) retire(windows []quota.Window, shared []string, sent, taken mome
 }
 
 // forget forgets the window named key: its reading, when and by what it was
-// taken in, any reset by hand it was read to have had, and its trail.
+// taken in, any reset by hand it was read to have had, and its rates, as
+// forgetRates says.
 func (u *usage) forget(key string) {
 	delete(u.windows, key)
 	delete(u.taken, key)
 	delete(u.readAt, key)
 	delete(u.resetBy, key)
-	delete(u.trails, key)
+	u.forgetRates(key)
 }
 
 // unretire returns windows, read off the answer to a request sent at sent,
@@ -1146,11 +1173,12 @@ func (s *state) counting(model string) func(key string) bool {
 // take takes in windows read at a time off the answer to a request sent at
 // sent, and taken in at the moment taken, each merged with the reading of its
 // key before it, as mergeLater merges them, and lifts the account's limit
-// when the windows merged show it lifted. The trails note each reading
-// counted. It returns the windows it took that read otherwise than before, as
-// they now stand, and reports whether it took any: windows that are all stale
-// leave the account as it was.
-func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (changed []quota.Window, took bool) {
+// when the windows merged show it lifted. Each reading counted is noted in
+// its window's trail and fast rate, as note says. It returns the windows it
+// took that read otherwise than before, as they now stand, and how far each
+// window's trail rose, by its key, where it did; and reports whether it took
+// any: windows that are all stale leave the account as it was.
+func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (changed []quota.Window, risen map[string]float64, took bool) {
 	var merged []quota.Window
 	for _, w := range windows {
 		held := u.windows[w.Key]
@@ -1164,7 +1192,12 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 				u.resetBy[w.Key] = sent
 			}
 			u.windows[w.Key], u.taken[w.Key], u.readAt[w.Key] = kept, taken, at
-			u.trails.note(held, kept, at)
+			if rise := u.note(held, kept, at); rise > 0 {
+				if risen == nil {
+					risen = make(map[string]float64)
+				}
+				risen[w.Key] = rise
+			}
 		}
 		if readsOtherwise(held, kept) {
 			changed = append(changed, kept)
@@ -1174,14 +1207,14 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 		merged = append(merged, kept)
 	}
 	if len(merged) == 0 {
-		return nil, false
+		return nil, nil, false
 	}
 	u.updated, u.probeErr, u.misses = at, "", 0
 	if u.limited.liftedBy(merged, at, sent) {
 		u.lift()
 	}
 	u.liftReached(merged, at, sent)
-	return changed, true
+	return changed, risen, true
 }
 
 // liftReached lifts each limit the account reached but the one it holds, one
@@ -1291,7 +1324,8 @@ func startedAgain(held, kept quota.Window, at time.Time) quota.Window {
 // document reports every account's usage as the router knows it, in the
 // order configured, with how each stands under pressure, the accounts pinned
 // spending their reserves, the best account to use next, where a new session
-// goes, as status.Best chooses it, and the primary.
+// goes, as status.Best chooses it, the primary, and the pool's use, as demand
+// has it.
 func (s *state) document(pinned ...string) status.Document {
 	now := s.now()
 	accounts := s.statuses(now, pinned)
@@ -1300,6 +1334,7 @@ func (s *state) document(pinned ...string) status.Document {
 		Source:      status.SourceRouter,
 		Best:        status.Best(s.policy, accounts, pinned, now),
 		Primary:     status.PrimaryOf(accounts),
+		Demand:      s.demand(now),
 		Accounts:    accounts,
 	}
 }
@@ -1428,12 +1463,12 @@ func (u *usage) current(policy score.Policy, now time.Time) []quota.Window {
 }
 
 // saved is what the state file keeps of the accounts' usage: each account's,
-// as its usage's saved has it, and the model families each window has been
-// reported on.
+// as its usage's saved has it, the model families each window has been
+// reported on, and the hold curve.
 func (s *state) saved() savedUsage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	saved := savedUsage{Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string)}
+	saved := savedUsage{Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string), Hold: s.hold}
 	for id, u := range s.usage {
 		if reading, ok := u.saved(); ok {
 			saved.Readings[id] = reading
@@ -1470,14 +1505,16 @@ func (u *usage) windowsReadAt() map[string]time.Time {
 
 // recall takes in what the state file kept of the accounts' usage, as the
 // router starts, as each usage's recall has it, holding reporting whether an
-// account holds the token it held then; but for what it kept of accounts no
-// longer configured. It reports whether it left out the reading of an account
-// no longer configured, or took an account's probes otherwise than they were
-// kept, so the file is written again as it took them.
+// account holds the token it held then, and the hold curve; but for what it
+// kept of accounts no longer configured. It reports whether it left out the
+// reading of an account no longer configured, or took an account's probes
+// otherwise than they were kept, so the file is written again as it took
+// them.
 func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed bool) {
 	now := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.hold = saved.Hold
 	for id, reading := range saved.Readings {
 		u, configured := s.usage[id]
 		if !configured {

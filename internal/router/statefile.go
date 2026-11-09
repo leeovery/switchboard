@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
+	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -43,8 +44,9 @@ const (
 // its account's after; each account's last readings, so a restart needs no
 // probe, which, being a request, could start a window, and how its probes
 // went, so a restart neither probes it sooner than they allow nor forgets why
-// it can't be read; and what's been told of each account's token's year, so a
-// restart tells nothing twice.
+// it can't be read; the hold curve, so a restart doesn't take it back to the
+// default; and what's been told of each account's token's year, so a restart
+// tells nothing twice.
 type stateFile struct {
 	// path is where the file is: "" until it's loaded, and nothing is kept.
 	path string
@@ -130,6 +132,10 @@ type savedUsage struct {
 	// been reported on, by the window's key, which says which requests it
 	// counts.
 	WindowFamilies map[string][]string `json:"window_families,omitempty"`
+	// Hold is the hold curve. A file without it, as from before it was kept,
+	// or with one of a shape it doesn't know, holds the curve of no answers,
+	// as forecast.Hold reads it.
+	Hold forecast.Hold `json:"hold,omitzero"`
 }
 
 // read counts the accounts whose usage has been read, but those whose
@@ -162,15 +168,16 @@ type savedReading struct {
 }
 
 // load takes in the state file at path, as the router starts, and keeps in it
-// from then on what the router knows that should outlast it. What it held
-// that can no longer be used is left out, and the file is to be written again
-// without it.
+// from then on what the router knows that should outlast it, telling the
+// state the global pin it kept, as recallPin says. What it held that can no
+// longer be used is left out, and the file is to be written again without it.
 func (f *stateFile) load(path string) {
 	f.path = path
 	now := f.now()
 	saved := f.read(now)
 	tokens := f.accounts.recall(saved.Tokens, now)
 	sessions := f.sessions.recall(saved.savedSessions, f.accounts, now)
+	f.state.recallPin(f.sessions.globalPin())
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
 	told := f.told.recall(saved.TokenYears, f.accounts.includes)
 	if tokens || sessions || usage || told {

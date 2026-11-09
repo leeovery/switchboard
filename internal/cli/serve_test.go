@@ -65,9 +65,12 @@ func TestServe(t *testing.T) {
 	if work, _ := doc.Account("work"); !work.TokenTaken.Equal(testNow) {
 		t.Errorf("the router gives work's token as taken at %v, want %v, as its record says", work.TokenTaken, testNow)
 	}
-	doc.Source, doc.Router = probed.Source, probed.Router
+	if doc.Demand == nil || probed.Demand != nil {
+		t.Errorf("demand: the router gives %+v, the probe %+v, want the router's alone, as only it measures the pool's use", doc.Demand, probed.Demand)
+	}
+	doc.Source, doc.Router, doc.Demand = probed.Source, probed.Router, probed.Demand
 	if !reflect.DeepEqual(doc, probed) {
-		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json --probe does, but for its source and health:\n%+v", doc, probed)
+		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json --probe does, but for its source, health and demand:\n%+v", doc, probed)
 	}
 	want := []string{
 		"test-token-side claude-fable-5", "test-token-side claude-fable-5-1", "test-token-side claude-haiku-4-5-20251001",
