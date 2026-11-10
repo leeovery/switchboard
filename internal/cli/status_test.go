@@ -94,6 +94,7 @@ func statusDocument(t *testing.T, deps cli.Deps) result {
 	t.Helper()
 	return result{
 		stdout: `{
+  "schema": 1,
   "generated_at": "2026-09-28T13:12:00Z",
   "source": "probe",
   "fallback": {

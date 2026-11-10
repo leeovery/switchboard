@@ -224,7 +224,7 @@ func TestHistoryWindowsJSONGivesEachReadingAsTheReadingsHistoryHoldsIt(t *testin
 		return `{"at":"` + when.UTC().Format(time.RFC3339) + `","utilization":` + use + `,"resets_at":"` + resets.Format(time.RFC3339) +
 			`","status":"` + status + `","source":"answer"}`
 	}
-	want := `{"windows":[` +
+	want := `{"schema":1,"windows":[` +
 		`{"account":"work","window":"5h","readings":[` + reading(october(6, 21, 0, 0), "0.9", october(6, 23, 10, 0), "allowed") + `,` +
 		reading(october(6, 22, 14, 0), "1", october(6, 23, 10, 0), "rejected") + `,` + reading(october(7, 9, 0, 0), "0.3", october(7, 14, 0, 0), "allowed") + `]},` +
 		`{"account":"work","window":"7d","readings":[` + reading(october(7, 9, 0, 0), "0.41", october(12, 10, 0, 0), "allowed") + `]},` +
@@ -250,7 +250,7 @@ func TestHistoryWindowsSaysSoWhereThereAreNoReadings(t *testing.T) {
 		want string
 	}{
 		{args: []string{"history", "--windows", "--pretty"}, want: "no readings since Tue 8 Sep 2026\n"},
-		{args: []string{"history", "--windows", "--json"}, want: "{\n  \"windows\": []\n}\n"},
+		{args: []string{"history", "--windows", "--json"}, want: "{\n  \"schema\": 1,\n  \"windows\": []\n}\n"},
 	}
 	for _, tt := range tests {
 		if got := run(t, deps, tt.args...); got != (result{stdout: tt.want}) {

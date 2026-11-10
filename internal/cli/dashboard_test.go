@@ -201,8 +201,10 @@ func TestDashboardReadsWhatStatusReads(t *testing.T) {
 	if err := enc.Encode(doc); err != nil {
 		t.Fatal(err)
 	}
-	if want := run(t, deps, "status", "--json").stdout; fetched.String() != want {
-		t.Errorf("the dashboard reads\n%s\nwant what status --json reads\n%s", fetched.String(), want)
+	// status --json prints the document with its schema first.
+	printed := run(t, deps, "status", "--json").stdout
+	if want, ok := strings.CutPrefix(printed, "{\n  \"schema\": 1,\n"); !ok || fetched.String() != "{\n"+want {
+		t.Errorf("the dashboard reads\n%s\nwant what status --json reads, its schema first\n%s", fetched.String(), printed)
 	}
 	if got := cfg.Now(); !got.Equal(testNow) {
 		t.Errorf("clock reads %v, want the command's clock at %v", got, testNow)

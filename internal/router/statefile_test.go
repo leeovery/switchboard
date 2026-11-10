@@ -58,7 +58,6 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
       "work",
       "side"
     ],
-    "account": "work",
     "since": "2026-09-28T12:12:00Z",
     "move": true
   },

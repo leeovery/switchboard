@@ -45,6 +45,27 @@ If you paste a token by mistake, what you see depends on where it went:
 - Where a command goes, as `switchboard <token>`, or as `help`'s topic, as
   `switchboard help <token>`, it's repeated as given, in saying there's no such command or topic.
 
+## Exit status
+
+| Status | When |
+|---|---|
+| `0` | The command did what it was asked. |
+| `1` | It failed, for any reason, saying why on stderr. |
+| `130` | You interrupted it, as with ctrl+c, while it asked you for something, made a token, or installed the service. A command with nothing to finish ends at the interrupt itself, which a shell reports as 130 too. |
+| `78` | `serve --check`, which a router asks of the switchboard it's about to become, found that the router couldn't start. A router reads this status across versions, so it never changes. |
+
+Some commands have more to say:
+
+- `run`, and so `claude`, becomes Claude Code once it has started it, so its status is Claude
+  Code's own. It's `1` only where switchboard couldn't start Claude Code.
+- `status` exits `1` where the config can't be read, even after printing the router's document.
+- `status --session` exits `1` where the router isn't running or hasn't seen the session, so a
+  statusline can tell.
+- `service status` exits `0` whatever it finds, the router down included. It's `1` only where it
+  can't look.
+- `events -f` and `logs -f` exit `0` when interrupted.
+- `hook session-start` always exits `0`.
+
 ## Everyday
 
 ### `usage`

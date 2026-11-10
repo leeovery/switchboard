@@ -1049,7 +1049,6 @@ func TestDocumentJSON(t *testing.T) {
       "work",
       "side"
     ],
-    "account": "work",
     "since": "2026-09-28T12:12:00Z",
     "move": true
   },
@@ -1566,12 +1565,12 @@ func TestPinJSON(t *testing.T) {
 	}{
 		{
 			name: "one account",
-			json: `{"accounts":["side"],"account":"side","since":"2026-09-28T12:12:00Z","move":false}`,
+			json: `{"accounts":["side"],"since":"2026-09-28T12:12:00Z","move":false}`,
 			want: status.Pin{Accounts: []string{"side"}, Since: since},
 		},
 		{
-			name: "several, the first its account too",
-			json: `{"accounts":["work","side"],"account":"work","since":"2026-09-28T12:12:00Z","move":true}`,
+			name: "several",
+			json: `{"accounts":["work","side"],"since":"2026-09-28T12:12:00Z","move":true}`,
 			want: status.Pin{Accounts: []string{"work", "side"}, Since: since, Move: true},
 		},
 	}

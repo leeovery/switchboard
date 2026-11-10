@@ -37,7 +37,7 @@ const (
 	whyLimit     = status.WhyLimit
 	whyRefused   = status.WhyRefused
 	whyThrottled = "was throttled"
-	whyNewToken  = "has a new token"
+	whyNewToken  = status.WhyNewToken
 	whyReset     = "was reset by hand"
 )
 

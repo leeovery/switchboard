@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -59,4 +63,33 @@ func (a *app) printsJSON(f formFlags, out io.Writer) bool {
 	}
 	logger.Debug("chose the form to print", "json", asJSON, "because", why)
 	return asJSON
+}
+
+// schema is the version of the data verbs' JSON, which every object they
+// print carries first, as "schema". It goes up only where a field's meaning
+// changes or one is removed: fields are added without it.
+const schema = 1
+
+// writeJSON writes v, which JSON gives as an object, as a data verb prints
+// it: indented, "schema" first, ending with a newline.
+func writeJSON(w io.Writer, v any) error {
+	body, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("print JSON: %w", err)
+	}
+	fields, ok := bytes.CutPrefix(body, []byte("{"))
+	if !ok {
+		return fmt.Errorf("print JSON: %T isn't an object", v)
+	}
+	marked := []byte(`{"schema":` + strconv.Itoa(schema))
+	if !bytes.Equal(fields, []byte("}")) {
+		marked = append(marked, ',')
+	}
+	var out bytes.Buffer
+	if err := json.Indent(&out, append(marked, fields...), "", "  "); err != nil {
+		return fmt.Errorf("print JSON: %w", err)
+	}
+	out.WriteByte('\n')
+	_, err = out.WriteTo(w)
+	return err
 }

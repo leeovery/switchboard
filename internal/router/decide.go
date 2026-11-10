@@ -21,8 +21,8 @@ const (
 	reasonBound       = status.ReasonBound
 	reasonGlobalPin   = status.ReasonGlobalPin
 	reasonNew         = status.ReasonNew
-	reasonUnsessioned = "unsessioned"
-	reasonNoRoom      = "no account has room"
+	reasonUnsessioned = status.ReasonUnsessioned
+	reasonNoRoom      = status.ReasonNoRoom
 )
 
 // situation is what's known when a request's account is chosen.

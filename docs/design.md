@@ -335,9 +335,16 @@ The routed line in the log gives the reason for each request's account, one of:
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
 | `moved: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
+| `moved: <id> has a new token`, `pin yields: <id> has a new token` | The same, as `<id>` refused the request's token, having taken up a new one |
 | `no account has room` | None can take it (step 5): it goes where the upstream will say why, or switchboard answers 429 itself |
 | `client` | The scheduler named an account nothing can go out on, so the request kept the client's own token: a bug, which the log reports as an error |
 | `…, <id> under pressure` | Any reason of a choice made afresh, or of a move by pin, when setting the accounts under pressure aside changed it (step 3 of Choosing an account): `<id>` is the account it would have chosen, or, when that one isn't under pressure, the highest scoring of those that are, whose score kept the account chosen out of reach. The log's `passed over under pressure` line, one a choice, gives `<id>`'s rate and when it runs out at it |
+
+These words are fixed, as are the whys a ledger line's `tried` gives (`hit its limit`, `was
+refused` and `has a new token`): the ledger, the events, `state.json` and `/sessions` keep them,
+and the dashboard reads them back, so none is ever reworded, and a new one is only added. The
+reference lists them all, and a guard holds its list to the code's (the owner's call, 10 November
+2026).
 
 ## Pinning
 
@@ -1759,6 +1766,13 @@ The plain text `requests`, `history`, `sessions` and `events` print on a termina
 to be designed with their owner, as `status`'s text is (see Backlog); agents read their JSON, which
 each prints wherever its output isn't a terminal (see The data verbs).
 
+A command exits 0, or 1 for any failure; 130 where an interrupt ends it as it asks for something,
+makes a token or installs the service; and `serve --check` 78 where the router couldn't start, a
+status read across versions, so fixed. `run` becomes Claude Code, so exits with its status. The
+user's guide lists them, with the commands that say more by them, as `status --session` exiting 1
+where the router isn't running, for a statusline, and `service status` exiting 0 whatever it finds
+(the owner's call, 10 November 2026).
+
 A command that needs the router fails without it, saying `the router isn't running: start it
 with switchboard service install (or switchboard serve)`. Any notice a command gives on stderr,
 rather than failing, reads `switchboard: …`.
@@ -1819,8 +1833,12 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
   from what one prints, as the view works it out. Each reads where the dashboard reads: the router,
   or probing, for the status document, and the ledger's, the readings history's and the events'
   files where they lie, with no router (see Live updates).
-- **Their JSON.** Fields may be added to any of them, never renamed, and a reader passes over those
-  it doesn't know, as with the status document:
+- **Their JSON.** Fields may be added to any of them, never renamed, a field's meaning and units
+  never change, and a reader passes over those it doesn't know, as with the status document. Every
+  object `status`, `usage`, `history` and `sessions` print carries `"schema": 1` first, which goes
+  up only where a field's meaning changes or one is removed, never as fields are added; `requests`
+  and `events` print each line as it's stored, without one. Their text, for a person, is no
+  contract, and changes as it's redesigned (the owner's call, 10 November 2026):
   - **`status` and `usage`:** the status document (see The status document), read as their flags
     say, each window's allowance and even pace, the pool's room and COMING UP among what it holds.
     `usage`'s window flags, `--5h`, `--week` and one for each model family with a window of its own,
@@ -2533,7 +2551,8 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   the window's reset, when room returns.
 - **The pool,** wherever there's more than one account, totals the room new sessions can go to now:
   every account on auto, only those the global pin names when pinned. Each window's room is summed
-  to each account's cap, `cap − used` and never below 0, with nothing from the 5-hour window of an
+  to each account's cap, `cap − used` and never below 0, but to its limit for an account the global
+  pin names, as the pin spends its reserve, with nothing from the 5-hour window of an
   account at its limit or its cap, nor from any window of an account without a usable token, refused
   or not read. Its percentage is its accounts' mean use of the window, each as its row shows it,
   leaving out one without a usable token, not read, whose token is refused, or that hasn't reported
@@ -3156,7 +3175,8 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
 - **`all accounts`,** never a count, is every configured account, always, whatever is pinned, at its
   limit or refused. Its totals count them all; a window's use is the mean of theirs and its pace the
   mean of their paces; and its room, `1.2 of 3 left`, is the sum of what each has left of it, to its
-  limit, where the pool's is to each account's cap (see `usage`, the printout). With one account,
+  limit, where the pool's is to each account's cap, but for one the global pin names, which spends
+  its reserve (see `usage`, the printout). With one account,
   `all accounts` goes, as does anything that would only repeat that account. The pool, the accounts
   new sessions can go to now, is routing, which only the Overview shows (see The Overview): Accounts
   and History show no routing, the status line carrying it onto every page. An account's own state,
@@ -9207,13 +9227,13 @@ probing.
 | `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, passing over those under pressure while another isn't, as Choosing an account says. From the router, with a global pin, it's where a new session goes, as step 4 of the order Choosing an account gives says: the best of the accounts the pin names while one has room, their reserves spent, or the first of them with room when none can be scored; else the best of every account. Left out when none qualifies, as when none has room, or none has been read yet |
 | `primary` | The primary account's id |
 | `prime` | The priming schedule, when the config sets a day and an account has a usable token: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token its daily prime, an account without that window having none (see Priming), `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand, left out when they can't say, as for a window read without a reset, and while the account's token is refused or it can take no request (see Priming). Left out otherwise |
-| `pin` | *router* The global pin, `{accounts, account, since, move}`: `accounts` the ids of the accounts it names, in the config's order, and `account` the first of them, as a pin named its one account before pins named several; left out when there's none |
+| `pin` | *router* The global pin, `{accounts, since, move}`: `accounts` the ids of the accounts it names, in the config's order; left out when there's none. A pin that names its one account as `account`, as a switchboard from before pins named several gives it, is read as a pin to that one |
 | `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, exporting, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, `exporting` the folder of the export of the history under way then, which the restart waits for, the folder configured still or not, left out while none is (see On a schedule), and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again; and `held` why its binary refuses to start, as it said, which holds the restart until the config file or the binary changes, left out while it isn't held. Left out while none is due (see The router looking after itself) |
 | `export` | *router* How the export on a schedule stands, since the router started: `{dir, at, error, running}`, `dir` the folder `[export] dir` names, resolved, `at` when an export into it last succeeded, `error` why the last failed, in plain words, and `running` when the export under way began, as one waiting on macOS's prompt waits; `at` left out before one has succeeded, `error` once one succeeds, and `running` while none is under way. Left out where `[export] dir` isn't set (see On a schedule) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
-| `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
+| `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve, or where the global pin names it, as a pin spends the reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold, learning}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on; `learning` `true` while the curve is the default, with less than a day of answers in it, and left out once it's measured. Left out when the router has read no account |
 | `accounts` | Every configured account, in the config's order, as below |
@@ -9287,8 +9307,9 @@ verbs).
   - `room`: room again: an account that could take no request, at its limit or its cap, able to
     take one: `windows` the windows that held it back.
   - `pin`: routing set by hand. The global pin: `accounts` the accounts it names, in the config's
-    order, and `account` the first of them, as the status document's `pin` gives them; `move` set
-    where it moves the running sessions too, and `force` where it cleared every session's own pin.
+    order, and `account` the first of them, as a pin named its one account before pins named
+    several; `move` set where it moves the running sessions too, and `force` where it cleared every
+    session's own pin.
     Or a session's own pin: `session`, and `account` the account it names. `by` says who set it:
     `cli`, the `pin` command, or `dashboard`, its routing pickers (see Routing by hand); left out
     where what set it didn't say, as a switchboard from before doesn't.

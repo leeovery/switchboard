@@ -138,7 +138,7 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 	// Paging's every request read 100,000 tokens from the cache, but its
 	// subagent's, which sent 8 tokens of input: of 4 × 101,010 + 8 sent.
 	fromCache := strconv.FormatFloat(400000.0/404048, 'f', -1, 64)
-	want := `{"session":"` + paging + `","dir":"~/Code/web","account":"side","model":"claude-opus-5-5","running":true,"last_seen":` + at(october(7, 13, 10, 0)) + `,` +
+	want := `{"schema":1,"session":"` + paging + `","dir":"~/Code/web","account":"side","model":"claude-opus-5-5","running":true,"last_seen":` + at(october(7, 13, 10, 0)) + `,` +
 		`"models":[{"model":"claude-opus-5-5","account":"side","reason":"rescored after 15h 7m idle"},{"model":"claude-haiku-4-5","account":"work","reason":"sticky"}],` +
 		`"state":"answering","move_cost":0.80808,"started":` + at(october(6, 16, 40, 0)) + `,"resumed":` + at(october(7, 9, 12, 0)) + `,` +
 		`"accounts":[{"account":"work","from":` + at(october(6, 16, 40, 0)) + `,"to":` + at(october(7, 9, 13, 0)) + `,"requests":3,"worth":0.076093,"points":{"5h":4,"7d":1}},` +
@@ -154,7 +154,7 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 			got := form.run(t, deps, "sessions", "5e6f9")
 			var compact bytes.Buffer
 			if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || got.stderr != "" ||
-				!strings.HasPrefix(got.stdout, "{\n  \"session\"") {
+				!strings.HasPrefix(got.stdout, "{\n  \"schema\": 1,\n  \"session\"") {
 				t.Fatalf("switchboard sessions 5e6f9 %s = %+v (%v), want indented JSON", strings.Join(form.args, " "), got, err)
 			}
 			if compact.String() != want {

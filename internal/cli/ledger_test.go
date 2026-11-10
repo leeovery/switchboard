@@ -671,7 +671,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
-	want := `{"prices_as_of":"2026-10-11","days":[` +
+	want := `{"schema":1,"prices_as_of":"2026-10-11","days":[` +
 		`{"version":6,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(9) +
@@ -721,7 +721,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		t.Run(form.name, func(t *testing.T) {
 			got := form.run(t, deps, "history", "--since", "2026-10-04")
 			var compact bytes.Buffer
-			if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || !strings.HasPrefix(got.stdout, "{\n  \"prices_as_of\"") {
+			if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || !strings.HasPrefix(got.stdout, "{\n  \"schema\": 1,\n  \"prices_as_of\"") {
 				t.Fatalf("switchboard history %s = %+v (%v), want indented JSON", strings.Join(form.args, " "), got, err)
 			}
 			if compact.String() != want {
