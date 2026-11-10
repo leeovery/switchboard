@@ -27,8 +27,9 @@ type Writer struct {
 
 // Open returns a writer of the history's files, which keeps a day's for keep
 // once the day has ended, by now's clock, calling pruning, where it's given,
-// just before each prune of them, as dayfile.WriterOptions' Pruning says.
-func Open(files *dayfile.Files, keep time.Duration, now func() time.Time, pruning func(now time.Time)) *Writer {
+// with that keep, just before each prune of them, as dayfile.WriterOptions'
+// Pruning says.
+func Open(files *dayfile.Files, keep time.Duration, now func() time.Time, pruning func(now time.Time, keep time.Duration)) *Writer {
 	w := &Writer{files: files}
 	w.writer = dayfile.NewWriter(files, w.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "readings", Pruning: pruning})
 	return w

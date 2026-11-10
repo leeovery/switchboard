@@ -2,10 +2,15 @@ package ledger
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/logs"
 )
 
 // runDigesting runs a digesting of a ledger of no days, in the test's
@@ -51,6 +56,37 @@ func TestRunsDigestingPassesFirstAtItsFirstKick(t *testing.T) {
 			}
 		}
 	})
+}
+
+// A round kicks the digesting only once it leaves no day to summarise again
+// for a later one, so no pass finds a day whose summary is still of an older
+// version, which it can't tell the day's lines against.
+func TestARoundKicksTheDigestingOnceItLeavesNoDayForALaterOne(t *testing.T) {
+	dir := t.TempDir()
+	at := time.Date(2026, 10, 20, 10, 0, 0, 0, time.Local)
+	for back := 1; back <= summariseAtOnce+1; back++ {
+		day := at.AddDate(0, 0, -back)
+		date := dayfile.DateOf(day)
+		// A day of a request, summarised under version 5.
+		files := map[string]string{
+			filepath.Join(dir, "requests-"+date+".jsonl"): `{"at":"` + day.UTC().Format(time.RFC3339) + `","request":"1","kind":"message","status":200}`,
+			SummaryFile(dir, date):                        `{"version":5,"day":"` + date + `","lines":1}`,
+		}
+		for path, data := range files {
+			if err := os.WriteFile(path, []byte(data+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	l := Open(dir, 400*24*time.Hour, func() time.Time { return at }, &asking{}, Caps{}, logs.For("router"))
+	l.digesting = newDigesting(nil, l.days, func() time.Time { return at })
+
+	for _, more := range []bool{true, false} {
+		got := l.SummariseSome(at)
+		if kicked := len(l.digesting.kicks) == 1; got != more || kicked == more {
+			t.Errorf("SummariseSome() = %t, the digesting kicked %t; want %t, kicked %t: once no day is left for a later round", got, kicked, more, !more)
+		}
+	}
 }
 
 // Run's digesting ends as its context does, though no kick ever came, as

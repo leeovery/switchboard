@@ -773,12 +773,134 @@ func TestTheHistoryHasTheLedgerSummariseTheDaysThatEndedBeforeItPrunesTheirReadi
 	}
 }
 
+// The history has the ledger summarise again a day whose readings it's about
+// to prune before it does, by the keep it prunes by, though the ledger holds
+// more older days to summarise again than a part of them, as where it keeps
+// its lines longer than the history keeps the readings.
+func TestTheHistoryHasTheLedgerSummariseAgainTheDaysWhoseReadingsItPrunesFirst(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// The history keeps a day's readings 30 days, not as long as it does
+		// by default.
+		const keep = 30 * 24 * time.Hour
+		// day is a day of a request on work, and of the reading of work's
+		// session its answer gave, summarised under version 5; by now it has
+		// ended as long ago as the history keeps a day's readings, and more.
+		day := time.Date(2026, 9, 8, 10, 0, 0, 0, time.Local)
+		now := day.Add(keep).AddDate(0, 0, 6)
+		cfg := testConfig(at(now), &stubProber{}, testTokens.Read)
+		cfg.History = config.History{Keep: keep}
+		r := newTestRouterOf(t, cfg)
+		state := t.TempDir()
+		ledgerDir, historyDir := ledger.Dir(state), readings.Dir(state)
+		for _, dir := range []string{ledgerDir, historyDir} {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// Besides it, thirty older days of a request each, summarised under
+		// version 5 too, whose readings the history pruned long since.
+		days := []time.Time{day}
+		for back := range 30 {
+			days = append(days, day.AddDate(0, 0, -20-back))
+		}
+		for i, when := range days {
+			date := when.Format(time.DateOnly)
+			line, err := json.Marshal(ledger.Line{At: when.UTC(), Request: strconv.Itoa(i), Kind: ledger.KindMessage, Session: "one", Model: opus,
+				Account: "work", Reason: "sticky", Status: 200, Attempts: 1, Usage: json.RawMessage(`{"input_tokens":10}`)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for path, data := range map[string]string{
+				filepath.Join(ledgerDir, "requests-"+date+".jsonl"): string(line),
+				ledger.SummaryFile(ledgerDir, date):                 `{"version":5,"day":"` + date + `","lines":1}`,
+			} {
+				if err := os.WriteFile(path, []byte(data+"\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		date := day.Format(time.DateOnly)
+		read := readings.Reading{At: day.UTC(), Account: "work", Key: "5h", Utilization: 0.4, ResetsAt: day.Add(5 * time.Hour).UTC(),
+			Status: quota.StatusAllowed, Source: readings.FromAnswer}
+		writeDay(t, historyDir, plainFile(date), linesOf(t, read))
+		r.history.open(historyDir)
+		r.ledger.open(ledgerDir, ledger.HistoryIn(r.history.files))
+
+		stop := keeping(t, r.history)
+		synctest.Wait()
+		stop()
+		if holdsDay(historyDir, date) {
+			t.Fatal("the day's readings are kept, want them pruned, as the day is past keeping")
+		}
+		summary, err := os.ReadFile(ledger.SummaryFile(ledgerDir, date))
+		if err != nil || !strings.HasPrefix(string(summary), `{"version":6,`) || !strings.Contains(string(summary), `"highest":{"5h":0.4}`) {
+			t.Errorf("the day's summary is %s (%v), want it summarised again, as version 6, with its session's highest use, from the readings "+
+				"history before they were pruned", summary, err)
+		}
+	})
+}
+
+// A new version has every kept day of the ledger's summarised again. The
+// history's writer, which has the ledger summarise before it prunes, waits
+// on a part of those days alone, never on them all, which the ledger's own
+// rounds go on with.
+func TestTheHistoryWaitsOnAPartOfTheDaysToSummariseAgainBeforeItPrunesNeverOnThemAll(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Date(2026, 10, 7, 13, 0, 0, 0, time.Local)
+		r := newTestRouter(t, at(now), &stubProber{})
+		state := t.TempDir()
+		ledgerDir, historyDir := ledger.Dir(state), readings.Dir(state)
+		for _, dir := range []string{ledgerDir, historyDir} {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// Thirty days, each of a request on work, summarised under version 5.
+		const days = 30
+		var dates []string
+		for back := 1; back <= days; back++ {
+			day := now.AddDate(0, 0, -back)
+			date := day.Format(time.DateOnly)
+			line, err := json.Marshal(ledger.Line{At: day.UTC(), Request: strconv.Itoa(back), Kind: ledger.KindMessage, Session: "one", Model: opus,
+				Account: "work", Reason: "sticky", Status: 200, Attempts: 1, Usage: json.RawMessage(`{"input_tokens":10}`)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for path, data := range map[string]string{
+				filepath.Join(ledgerDir, "requests-"+date+".jsonl"): string(line),
+				ledger.SummaryFile(ledgerDir, date):                 `{"version":5,"day":"` + date + `","lines":1}`,
+			} {
+				if err := os.WriteFile(path, []byte(data+"\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			dates = append(dates, date)
+		}
+		r.history.open(historyDir)
+		r.ledger.open(ledgerDir, ledger.HistoryIn(r.history.files))
+
+		stop := keeping(t, r.history)
+		synctest.Wait()
+		stop()
+		var again int
+		for _, date := range dates {
+			if summary, err := os.ReadFile(ledger.SummaryFile(ledgerDir, date)); err == nil && strings.HasPrefix(string(summary), `{"version":6,`) {
+				again++
+			}
+		}
+		if again == 0 || again == days {
+			t.Errorf("the history's writer had %d of the %d days summarised again before it pruned; want some, but not every one: a part of them "+
+				"alone, the ledger's own rounds going on with the rest", again, days)
+		}
+	})
+}
+
 func TestTheHistoryHasTheLedgerSummariseOnlyBeforeItPrunes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		began := time.Now()
 		h := newHistory(config.History{}, func() time.Time { return start.Add(time.Since(began)) })
 		var asked []string
-		h.pruning = func(now time.Time) { asked = append(asked, now.Local().Format(time.DateOnly)) }
+		h.pruning = func(now time.Time, _ time.Duration) { asked = append(asked, now.Local().Format(time.DateOnly)) }
 		h.open(t.TempDir())
 		stop := keeping(t, h)
 		y, m, d := start.Local().Date()
