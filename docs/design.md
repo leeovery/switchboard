@@ -1434,7 +1434,11 @@ their own words.
   token's check with, its `anthropic-organization-id` header, compared with every other account's
   this run has read. Where either isn't known, as where the header is missing or the API didn't
   answer, nothing is done: the token is saved. That setup tokens' answers carry the header is
-  unverified.
+  unverified. `accounts add` and `accounts token` hold a token given, pasted or piped, to the same
+  check, with one owner of the comparison (`accounts.Organizations`): once the API names its
+  organization, the registry asks for the other accounts', checked as `accounts token` checks
+  them before a making (`setup.OtherOrganizations`), and refuses it as
+  `accounts.SameSubscriptionError`, saving nothing, `add` adding no account.
 - **A token's year,** one owner: `internal/status` works out when it was taken, when it's
   up, whether it's up within a span, its days left and the share of it gone, and setup's TOKEN
   column and notes, the Accounts tab's line, `usage`'s lines and the router's notifications all

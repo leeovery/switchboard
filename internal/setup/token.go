@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -48,9 +47,9 @@ type TokenFor struct {
 	Organizations Organizations
 }
 
-// Organizations are accounts' organizations, by account id: "" where one
-// isn't known.
-type Organizations map[string]string
+// Organizations are accounts' organizations, by account id, as accounts
+// has them.
+type Organizations = accounts.Organizations
 
 // Organizations are the organizations of the review's accounts, as the API
 // named them checking each token: those known alone, which a token made or
@@ -99,20 +98,6 @@ func (s *Setup) OtherOrganizations(ctx context.Context, id string) (Organization
 		review = review.Checked(other, rows[i], errs[i])
 	}
 	return review.Organizations(), nil
-}
-
-// holder returns the id of the account other than except whose organization
-// is organization, "" where there's none, or organization isn't known.
-func (o Organizations) holder(organization, except string) string {
-	if organization == "" {
-		return ""
-	}
-	for _, id := range slices.Sorted(maps.Keys(o)) {
-		if id != except && o[id] == organization {
-			return id
-		}
-	}
-	return ""
 }
 
 // MakingStep is a step of a token's making, as MakeToken reports it.
@@ -432,7 +417,7 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token, pasted
 		logger.Info("the API didn't answer for a token pasted, so it isn't saved", "account", id, "error", checked.Why)
 		return Tokened{Result: TokenUnanswered, Why: pastedUnanswered(checked.Why)}, nil
 	}
-	if other := f.Organizations.holder(checked.Organization, id); other != "" {
+	if other := f.Organizations.Holder(checked.Organization, id); other != "" {
 		logger.Info("a token is another account's subscription's, so it isn't saved", "account", id, "other", other)
 		return Tokened{Result: TokenSameAccount, SameAs: other}, nil
 	}

@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -59,6 +61,37 @@ func (e *RefusedError) Unwrap() error {
 	return ErrRefused
 }
 
+// SameSubscriptionError is what taking a token fails with where its
+// subscription is another account's already, as the organization the API
+// names it in says: Other names the account.
+type SameSubscriptionError struct {
+	Other string
+}
+
+// Error says which account has the token's subscription, and to make the
+// token signed in to the other.
+func (e *SameSubscriptionError) Error() string {
+	return e.Other + " has that subscription already, so nothing is saved: make another with claude setup-token, run while signed in to the other subscription"
+}
+
+// Organizations are accounts' organizations, by account id: "" where one
+// isn't known.
+type Organizations map[string]string
+
+// Holder returns the id of the account other than except whose organization
+// is organization, "" where there's none, or organization isn't known.
+func (o Organizations) Holder(organization, except string) string {
+	if organization == "" {
+		return ""
+	}
+	for _, id := range slices.Sorted(maps.Keys(o)) {
+		if id != except && o[id] == organization {
+			return id
+		}
+	}
+	return ""
+}
+
 // refusal is a probe's failure that says whether the API refused the token.
 type refusal interface {
 	error
@@ -86,6 +119,10 @@ type Registry struct {
 	// config's.
 	Prober func(upstream string) Prober
 	Input  Input
+	// Others returns the organizations of every account but the one with the
+	// given id, which the organization of a token the user gives is compared
+	// with, asked only where the API names one: nil compares it with none.
+	Others func(ctx context.Context, id string) (Organizations, error)
 	// Now reads the clock, which says when a token the user gives is taken:
 	// nil reads the system's.
 	Now func() time.Time
@@ -141,7 +178,8 @@ func (r Registry) Check(ctx context.Context, token tokens.Token) (Checked, error
 
 // Add registers an account: its [[account]] table in the config file, made
 // when there's none, and, when its token file holds no usable token, the
-// token the user gives, unless the API refuses it, when nothing is saved.
+// token the user gives, unless the API refuses it, or it's another
+// account's subscription's, when nothing is saved.
 func (r Registry) Add(ctx context.Context, account config.NewAccount) (Taken, error) {
 	var t Taken
 	err := r.add(account, func(upstream string) (err error) {
@@ -196,7 +234,8 @@ func logAdded(account config.NewAccount, kept bool) {
 }
 
 // SetToken replaces the token of the account with the given id, which cfg
-// configures, with the one the user gives, unless the API refuses it.
+// configures, with the one the user gives, unless the API refuses it, or
+// it's another account's subscription's.
 func (r Registry) SetToken(ctx context.Context, cfg *config.Config, id string) (Taken, error) {
 	if _, err := configured(cfg, id); err != nil {
 		return Taken{}, err
@@ -285,7 +324,8 @@ func (r Registry) keepOrTake(ctx context.Context, id, upstream string) (Taken, e
 }
 
 // take has the user give the account's token, and saves it to the account's
-// token file, with its record, unless the API at upstream refuses it.
+// token file, with its record, unless the API at upstream refuses it, or
+// it's another account's subscription's.
 func (r Registry) take(ctx context.Context, id, upstream string) (Taken, error) {
 	token, err := r.Input.read(id)
 	if err != nil {
@@ -295,10 +335,31 @@ func (r Registry) take(ctx context.Context, id, upstream string) (Taken, error) 
 	if err != nil {
 		return Taken{}, err
 	}
+	if err := r.unheld(ctx, id, checked.Organization); err != nil {
+		return Taken{}, err
+	}
 	if err := r.write(ctx, id, token, checked); err != nil {
 		return Taken{}, err
 	}
 	return taken(checked), nil
+}
+
+// unheld fails with a *SameSubscriptionError where an account other than the
+// one with the given id has organization, a token's, as Others says: one not
+// known has no holder.
+func (r Registry) unheld(ctx context.Context, id, organization string) error {
+	if organization == "" || r.Others == nil {
+		return nil
+	}
+	others, err := r.Others(ctx, id)
+	if err != nil {
+		return fmt.Errorf("compare the token with the other accounts': %w", err)
+	}
+	if other := others.Holder(organization, id); other != "" {
+		logger.Info("a token is another account's subscription's, so it isn't saved", "account", id, "other", other)
+		return &SameSubscriptionError{Other: other}
+	}
+	return nil
 }
 
 // write writes the token to the account's token file, with its record,

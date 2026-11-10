@@ -323,6 +323,89 @@ func TestSetTokenWhenTheAPIDoesntSayYes(t *testing.T) {
 	}
 }
 
+// sameErr is the error of a token whose subscription is work's already.
+const sameErr = "work has that subscription already, so nothing is saved: " +
+	"make another with claude setup-token, run while signed in to the other subscription"
+
+// others is a Registry's Others answering with organizations, or failing
+// with err, noting each id it's asked for.
+type others struct {
+	organizations accounts.Organizations
+	err           error
+	asked         []string
+}
+
+func (o *others) of(_ context.Context, id string) (accounts.Organizations, error) {
+	o.asked = append(o.asked, id)
+	return o.organizations, o.err
+}
+
+// Both ways a token's given, Add's and SetToken's, refuse one whose
+// organization is another account's, saving nothing, and save one of an
+// organization of its own, or where none is known.
+func TestATokenGivenIsComparedWithTheOtherAccounts(t *testing.T) {
+	unanswered := errors.New("timed out after 5s")
+	failed := errors.New("the config can't be read")
+	tests := []struct {
+		name   string
+		answer error
+		// organization is the one the API names the token in.
+		organization string
+		others       others
+		wantErr      string
+		wantAsked    bool
+	}{
+		{name: "another account's organization", organization: "org-work", others: others{organizations: accounts.Organizations{"work": "org-work", "personal": "org-personal"}}, wantErr: sameErr, wantAsked: true},
+		{name: "an organization of its own", organization: "org-side", others: others{organizations: accounts.Organizations{"work": "org-work", "personal": ""}}, wantAsked: true},
+		{name: "its own organization, the account's", organization: "org-side", others: others{organizations: accounts.Organizations{"side": "org-side"}}, wantAsked: true},
+		{name: "no organization named", others: others{organizations: accounts.Organizations{"work": ""}}},
+		{name: "the API not answering", answer: unanswered, others: others{organizations: accounts.Organizations{"work": ""}}},
+		{name: "the other accounts' not known", organization: "org-work", others: others{err: failed}, wantErr: "compare the token with the other accounts': " + failed.Error(), wantAsked: true},
+	}
+	ways := []struct {
+		name   string
+		before string
+		take   func(t *testing.T, w *world, r accounts.Registry) error
+	}{
+		{name: "added", before: twoAccounts, take: func(t *testing.T, _ *world, r accounts.Registry) error {
+			_, err := r.Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"})
+			return err
+		}},
+		{name: "replaced", before: withSide, take: func(t *testing.T, w *world, r accounts.Registry) error {
+			_, err := r.SetToken(t.Context(), w.load(t), "side")
+			return err
+		}},
+	}
+	for _, way := range ways {
+		for _, tt := range tests {
+			t.Run(way.name+", "+tt.name, func(t *testing.T) {
+				w := newWorld(t, way.before)
+				r := w.registry(&user{gives: sideToken}, &fakeAPI{err: tt.answer, organization: tt.organization})
+				r.Others = tt.others.of
+
+				err := way.take(t, w, r)
+
+				if errorText(err) != tt.wantErr {
+					t.Fatalf("taking side's token: %v, want %q", err, tt.wantErr)
+				}
+				if same, ok := errors.AsType[*accounts.SameSubscriptionError](err); ok != (tt.wantErr == sameErr) || ok && same.Other != "work" {
+					t.Errorf("taking side's token: %#v, want a *SameSubscriptionError naming work alone where it's work's", err)
+				}
+				if want := map[bool][]string{true: {"side"}}[tt.wantAsked]; !slices.Equal(tt.others.asked, want) {
+					t.Errorf("the other accounts' organizations were asked for %q, want %q", tt.others.asked, want)
+				}
+				if tt.wantErr != "" {
+					w.checkConfig(t, way.before)
+					w.checkNoToken(t, "side")
+					return
+				}
+				w.checkConfig(t, withSide)
+				w.checkToken(t, "side", sideToken)
+			})
+		}
+	}
+}
+
 func TestSetTokenRefusesAnAccountNotConfigured(t *testing.T) {
 	w := newWorld(t, twoAccounts)
 	user := &user{gives: sideToken}
