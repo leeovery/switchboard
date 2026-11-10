@@ -229,9 +229,11 @@ func refusedWith(s views.LaneStretch, a status.AccountNow, now int) string {
 
 // placeAlong places the phrases given, in order, along a row cols columns
 // wide: each from its column, or phraseGap cells after the words before, as
-// many of its parts, whole, as fit; or, where it ends at its column, there,
-// whole, where that clears the words before; and none from the first whose
-// first part doesn't fit.
+// many of its parts, whole, as fit; where its first part doesn't fit from
+// there, that part alone, shifted left to end at the row's last column, where
+// that still starts phraseGap cells after the words before; or, where it ends
+// at its column, there, whole, where that clears the words before; and none
+// from the first said from its column that can't be placed so.
 func placeAlong(cols int, phrases ...phrase) []placed {
 	var words []placed
 	next := 0
@@ -242,7 +244,10 @@ func placeAlong(cols int, phrases ...phrase) []placed {
 				continue
 			}
 		} else if said = wholeParts(p.parts, cols-start); said == nil {
-			break
+			if start = cols - p.parts[0].width(); start < next {
+				break
+			}
+			said = p.parts[0]
 		}
 		words = append(words, placed{x: start, said: said})
 		next = start + said.width() + phraseGap

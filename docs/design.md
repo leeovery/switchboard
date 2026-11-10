@@ -4637,8 +4637,11 @@ the earlier stretch says when its own hold lifts, `  ·  lifts 19:00`, and only 
 takes none. In the week view, an account whose week reaches no limit says `resets Sun 21:00` in
 `text.muted`, ending at the reset's `│`, where that clears the words before. Else a lane says `room
 all day`, or `room all week`, in `text.subtle`, from the cell after now's column. Words that don't
-fit drop whole parts from the end, `, as its 5-hour resets` first. A stretch already over, or one
-that starts past the view, isn't said.
+fit drop whole parts from the end, `, as its 5-hour resets` first. Where even a stretch's first part
+doesn't fit from its column, as a week's run-out late on a phone, that part alone shifts left until
+it ends at the row's last column, no further than two cells after the words before; where it can't,
+it and the words after it aren't said (the owner's call, 10 November 2026). A stretch already over,
+or one that starts past the view, isn't said.
 
 **The pool's lane** sits under the lanes, named and marked as an account's lane is, with no rule
 over it (the owner's call, 17 October 2026): with three rows an account, after the last account's

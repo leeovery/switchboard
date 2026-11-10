@@ -255,7 +255,7 @@ func TestAHoldOutlastedIsSaidFromItsStartAndOnlyTheLastIsBack(t *testing.T) {
 	}
 }
 
-func TestTheWordsUnderALaneArePlacedFromLeftToRightDroppingWholePartsThatDontFit(t *testing.T) {
+func TestTheWordsUnderALaneArePlacedFromLeftToRightShiftingLeftWhereTheirFirstPartDoesntFit(t *testing.T) {
 	five := runwayLive(views.RunwayFiveHour)
 	tl := five.Timeline
 	at := func(cell views.Cell, start, back time.Time, first, last int) views.LaneStretch {
@@ -303,12 +303,36 @@ func TestTheWordsUnderALaneArePlacedFromLeftToRightDroppingWholePartsThatDontFit
 			want: strings.Repeat(" ", 113) + "at its cap Fri 08:30",
 		},
 		{
-			name: "one without room for its first part, nor any after it",
+			name: "one without room for its first part from its column, shifted to end at the row's, its last parts left off",
+			stretches: []views.LaneStretch{
+				at(views.CellCapped, routedClock(2, 10, 30), routedClock(2, 11, 50), 125, 132),
+			},
+			want: strings.Repeat(" ", 116) + "at its cap Fri 10:30",
+		},
+		{
+			name: "one shifted to end at the row's, and none after it",
 			stretches: []views.LaneStretch{
 				at(views.CellCapped, routedClock(2, 11, 0), routedClock(2, 11, 50), 128, 132),
 				at(views.CellLimited, routedClock(2, 12, 0), time.Time{}, 134, 135),
 			},
-			want: "",
+			want: strings.Repeat(" ", 116) + "at its cap Fri 11:00",
+		},
+		{
+			name: "one shifted as far as two cells after the words before, and no further",
+			stretches: []views.LaneStretch{
+				at(views.CellLimited, routedClock(2, 5, 0), time.Time{}, 92, 100),
+				at(views.CellCapped, routedClock(2, 11, 0), routedClock(2, 11, 50), 128, 132),
+			},
+			want: strings.Repeat(" ", 92) + "at its limit Fri 05:00  at its cap Fri 11:00",
+		},
+		{
+			name: "one that would shift over the words before, unsaid, nor any after it",
+			stretches: []views.LaneStretch{
+				at(views.CellLimited, routedClock(2, 5, 50), time.Time{}, 97, 100),
+				at(views.CellCapped, routedClock(2, 11, 0), routedClock(2, 11, 50), 128, 132),
+				at(views.CellTokenless, time.Time{}, time.Time{}, 130, 135),
+			},
+			want: strings.Repeat(" ", 97) + "at its limit Fri 05:50",
 		},
 	}
 	for _, tt := range tests {
