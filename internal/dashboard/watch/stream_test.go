@@ -262,6 +262,32 @@ func TestAStreamThatWontOpenIsAskedForLaterEachTime(t *testing.T) {
 	}
 }
 
+// A stream the router ends soon after it opens, time after time, is asked for
+// later each time, as one that won't open is; one that stays open
+// steadyAfter starts the waits afresh.
+func TestAStreamThatKeepsEndingYoungIsAskedForLaterEachTime(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(toSessions...)
+
+	var waits []time.Duration
+	for _, lasted := range []time.Duration{0, time.Second, 5 * time.Second, 20 * time.Second, steadyAfter, 0, time.Second} {
+		h.clock.now = h.clock.now.Add(lasted)
+		h.endStream()
+		rejoin, ok := h.pendingRejoin()
+		if !ok {
+			t.Fatal("no rejoin armed")
+		}
+		waits = append(waits, rejoin.delay)
+		h.fire(rejoin)
+	}
+	if want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, time.Second, time.Second, 2 * time.Second}; !slices.Equal(waits, want) {
+		t.Errorf("the stream was asked for again after %v, want %v", waits, want)
+	}
+	if h.opened() != 8 {
+		t.Errorf("the stream was opened %d times, want 8, once and after each end", h.opened())
+	}
+}
+
 func TestARouterFromBeforeTheStreamGoesWithoutIt(t *testing.T) {
 	log := logstest.Capture(t)
 	h := streamingHarness(t)

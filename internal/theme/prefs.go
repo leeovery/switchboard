@@ -227,16 +227,21 @@ func (f PrefsFile) moveAside() (string, error) {
 // Update changes the preferences as change says, and writes them whole: read
 // afresh, so what another dashboard kept since stands, as do the keys a newer
 // build keeps that this one doesn't know, then written beside the file, and
-// renamed over it, or over where it leads, should it be a link.
+// renamed over it, or over where it leads, should it be a link. The state
+// directory is locked from the read to the rename, so no other Update, in
+// this process or another dashboard's, writes back what it read before this
+// one's change.
 func (f PrefsFile) Update(change func(*Prefs)) error {
+	dir := filepath.Dir(f.path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("keep the preferences: %w", err)
+	}
+	defer lockDir(dir)()
 	p, others := f.read()
 	change(&p)
 	data, err := encode(p, others)
 	if err != nil {
 		return fmt.Errorf("encode the preferences: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(f.path), 0o700); err != nil {
-		return fmt.Errorf("keep the preferences: %w", err)
 	}
 	target, err := atomicfile.Target(f.path)
 	if err != nil {

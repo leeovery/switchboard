@@ -139,12 +139,17 @@ An `id` must follow these rules:
 
 Switchboard can't read an account's plan from Anthropic, so `plan` is the only way it knows the
 plan. [`accounts edit <id> --plan <plan>`](commands.md#accounts) sets it. Switchboard uses the plan
-in two places:
+in three places:
 
 - It compares what the plan costs with what the account's use was worth at API prices.
+- It sizes the account in the forecast of
+  [where a week runs out](how-it-works.md#where-a-week-runs-out).
 - It sizes the account in [`history`](commands.md#history)'s replay of a week.
 
-Without a `plan`, the account's plan shows as `-`, and nothing is priced against it.
+An account's size is its plan's week, in Pro weeks: Pro 1, Max 5 and Ultra 10.
+
+Without a `plan`, the account's plan shows as `-`, and nothing is priced against it. It's sized as
+the plan most of the accounts have, and where no account has one, every account is the same size.
 
 ## `[prime]` keys
 

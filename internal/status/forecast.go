@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/forecast"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -60,12 +61,12 @@ func (d Document) weekAhead(id string, w quota.Window, policy score.Policy) (for
 // built. Each of its accounts, in their order, has its shared week as it
 // stands then, as WindowAt has it, so a week reset since it was read stands
 // empty, with its next reset; its room ending at its floor, as floor has it;
-// its size by its plan, as forecast.Sizes has every account's; the router's
-// fast rate of its week; and its taking requests, new sessions and the use it
-// holds alike, while its token is usable and not refused as the document was
-// built, held so for the whole play. The pool's use goes to the global pin's
-// accounts while one holds, at the Demand's day rate, held on each account as
-// its hold curve has it.
+// its size by its plan, as the price table's Sizes has every account's; the
+// router's fast rate of its week; and its taking requests, new sessions and
+// the use it holds alike, while its token is usable and not refused as the
+// document was built, held so for the whole play. The pool's use goes to the
+// global pin's accounts while one holds, at the Demand's day rate, held on
+// each account as its hold curve has it.
 func (d Document) forecastPool(policy score.Policy) (forecast.Pool, bool) {
 	if d.Demand == nil || d.GeneratedAt.IsZero() {
 		return forecast.Pool{}, false
@@ -75,12 +76,12 @@ func (d Document) forecastPool(policy score.Policy) (forecast.Pool, bool) {
 	for i, a := range d.Accounts {
 		plans[i] = a.Plan
 	}
-	sizes := forecast.Sizes(plans)
+	sizes, _ := ledger.Pricing.Sizes(plans)
 	accounts := make([]forecast.Account, len(d.Accounts))
 	for i, a := range d.Accounts {
 		week, _ := a.WindowAt(policy.Perishable, at, policy)
 		accounts[i] = forecast.Account{
-			ID: a.ID, Week: week, Reserve: a.Reserve, Floor: d.floor(a), Size: sizes[i],
+			ID: a.ID, Week: week, Reserve: a.Reserve, Floor: d.floor(a), Size: float64(sizes[i]),
 			Fast: a.fast(policy.Perishable), Takes: a.TokenSet && !a.tokenRefused(at),
 		}
 	}

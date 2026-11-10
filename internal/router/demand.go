@@ -5,21 +5,23 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/forecast"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// sizes returns each account's size, in Pro weeks, by its id, as
-// forecast.Sizes has them of the plans configured, in their order.
+// sizes returns each account's size, in Pro weeks, by its id, as the price
+// table's Sizes has them of the plans configured, in their order.
 func (as accounts) sizes() map[string]float64 {
 	plans := make([]string, len(as))
 	for i, a := range as {
 		plans[i] = a.Plan
 	}
+	each, _ := ledger.Pricing.Sizes(plans)
 	sizes := make(map[string]float64, len(as))
-	for i, size := range forecast.Sizes(plans) {
-		sizes[as[i].ID] = size
+	for i, size := range each {
+		sizes[as[i].ID] = float64(size)
 	}
 	return sizes
 }

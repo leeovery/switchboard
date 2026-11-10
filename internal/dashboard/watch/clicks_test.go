@@ -260,8 +260,14 @@ func TestAClickOnASectionsHeadingHidesIt(t *testing.T) {
 	h.model.cfg.Prefs = prefs
 	h.start()
 
-	h.clickOn(dashboard.Target{On: dashboard.OnSection, Section: dashboard.SectionRouting})
-	if h.model.sections.Has(dashboard.SectionRouting) || slices.Contains(prefs.kept.Sections, "routing") {
+	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool {
+		return t.On == dashboard.OnSection && t.Section == dashboard.SectionRouting
+	})
+	if i < 0 {
+		t.Fatalf("the page has no target for ROUTING's heading among %+v", h.targets())
+	}
+	h.click(h.targets()[i].X, h.targets()[i].Y)
+	if h.model.sections.Has(dashboard.SectionRouting) || prefs.kept.Sections == nil || slices.Contains(prefs.kept.Sections, "routing") {
 		t.Errorf("a click on ROUTING's heading left it shown, %q, kept %q; want it hidden, and kept so", h.model.sections.Names(), prefs.kept.Sections)
 	}
 }
@@ -369,7 +375,7 @@ func TestWhileThePickerIsOpenAClickActsAsItsKeysAlone(t *testing.T) {
 // moved down a theme, which it shows, failing the test where it doesn't open.
 func pickerOpened(t *testing.T, h *harness, keys string) *fakeThemes {
 	t.Helper()
-	themes := &fakeThemes{listing: listing(), choice: theme.One("nord")}
+	themes := &fakeThemes{listing: listing(), prefs: theme.Prefs{Choice: theme.One("nord")}}
 	h.model.cfg.Themes = themes
 	h.answer(darkBackground)
 	h.keyed(keys + " t down")

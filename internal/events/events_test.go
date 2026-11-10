@@ -338,3 +338,45 @@ func TestAWriteThatFailsIsLoggedOnce(t *testing.T) {
 		t.Errorf("log reads\n%s\nwant the failing write warned of once", log)
 	}
 }
+
+func TestAnEventThatChangedBackIsReadAsItLastStandsOnceImported(t *testing.T) {
+	at := september(10, 9, 0)
+	first, changed := limit(firstRun, 1, at, 1), limit(firstRun, 1, at, 2)
+	date := dateOf(at)
+	tests := []struct {
+		name string
+		// held are the day's files before the import, as fileDays files them.
+		held []filed
+	}{
+		{name: "a day the files don't hold"},
+		{name: "a day the files hold the event's first versions of", held: []filed{{day: 10, lines: jsonsOf(t, []events.Line{first, changed})}}},
+		{name: "a day the files hold them of, compressed", held: []filed{{day: 10, compressed: true, lines: jsonsOf(t, []events.Line{first, changed})}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			fileDays(t, state, tt.held...)
+			staged := t.TempDir()
+			writeFile(t, staged, "events-"+date+".jsonl.gz", gzipped(t, linesOf(jsonsOf(t, []events.Line{first, changed, first})...)))
+			// The day isn't done with, so a day the files don't hold has its
+			// lines appended, line by line.
+			w := events.Open(ledger.Dir(state), keep, func() time.Time { return september(10, 18, 0) }, logs.For("router"))
+			ctx, cancel := context.WithCancel(t.Context())
+			ran := make(chan struct{})
+			go func() {
+				w.Run(ctx)
+				close(ran)
+			}()
+
+			_, err := w.Import(t.Context(), date, filepath.Join(staged, "events-"+date+".jsonl.gz"))
+			cancel()
+			<-ran
+			if err != nil {
+				t.Fatalf("Import(%s) = %v", date, err)
+			}
+			if got, want := between(t, state, september(10, 0, 0), september(11, 0, 0)), jsonsOf(t, []events.Line{first}); !slices.Equal(got, want) {
+				t.Errorf("read\n%s\nwant the event as it last stood, changed back\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+			}
+		})
+	}
+}
