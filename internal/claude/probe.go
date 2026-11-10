@@ -39,13 +39,6 @@ const (
 	maxErrorMessage = 60
 )
 
-// probeClient sends probes, over http.DefaultTransport, following no
-// redirect: a client that did would carry the token along to the upstream's
-// host, or any subdomain of it, over plain http too.
-var probeClient = &http.Client{
-	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-}
-
 // Prober reads Claude accounts' usage by sending a model of each family a
 // request capped at one output token, and reading the usage headers off the
 // response. The headers report only the weekly caps that apply to the model
@@ -61,6 +54,8 @@ type Prober struct {
 	Version string
 	// Timeout bounds each request. Zero means five seconds.
 	Timeout time.Duration
+	// Transport sends the requests. Nil means http.DefaultTransport.
+	Transport http.RoundTripper
 }
 
 // reading is what probing one family found: the usage its model reported,
@@ -171,7 +166,7 @@ func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, e
 	if err != nil {
 		return answer{}, err
 	}
-	resp, err := probeClient.Do(req)
+	resp, err := p.client().Do(req)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return answer{}, fmt.Errorf("timed out after %s", timeout)
@@ -183,6 +178,16 @@ func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, e
 		return answer{usage: usage, organization: organizationOf(resp.Header), status: resp.StatusCode}, nil
 	}
 	return answer{status: resp.StatusCode}, errors.New(noUsageReason(resp, token))
+}
+
+// client sends probes over p's transport, following no redirect: a client
+// that did would carry the token along to the upstream's host, or any
+// subdomain of it, over plain http too.
+func (p *Prober) client() *http.Client {
+	return &http.Client{
+		Transport:     p.Transport,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 }
 
 // probeError is why a probe read no usage, never holding the token.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"slices"
@@ -352,8 +353,8 @@ type installedProber struct {
 	version  func() string
 }
 
-func (p installedProber) Probe(ctx context.Context, token string) (quota.Probe, error) {
-	prober := &claude.Prober{Upstream: p.upstream, Version: p.version()}
+func (p installedProber) Probe(ctx context.Context, token string, transport http.RoundTripper) (quota.Probe, error) {
+	prober := &claude.Prober{Upstream: p.upstream, Version: p.version(), Transport: transport}
 	return prober.Probe(ctx, token)
 }
 

@@ -88,9 +88,11 @@ type Provider interface {
 }
 
 // Prober reads an account's usage by spending requests on its token, and
-// says which models reported each window.
+// says which models reported each window. It sends them over transport: the
+// router's own, which its requests go upstream on, with their pings, and
+// which a wake renews for both, as a sleep can leave its connections dead.
 type Prober interface {
-	Probe(ctx context.Context, token string) (quota.Probe, error)
+	Probe(ctx context.Context, token string, transport http.RoundTripper) (quota.Probe, error)
 }
 
 // Config is what a router is built from.
@@ -321,7 +323,8 @@ func New(cfg Config) (*Router, error) {
 		listeners = append(listeners, notices.hear)
 	}
 	emit := hearing(listeners...)
-	probes := newProbes(cfg.Prober, state, cfg.Now, emit)
+	transport := newPool()
+	probes := newProbes(cfg.Prober, transport, state, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
 	recent.judge = health.look
 	scheduler := &scheduler{
@@ -334,7 +337,6 @@ func New(cfg Config) (*Router, error) {
 	stream := newStream(cfg.Now)
 	requests := newRequestLedger(cfg.Ledger, ledger.CapsOf(cfg.Accounts, cfg.Policy.Shared), cfg.Digester, cfg.Now)
 	history.pruning = requests.summariseEnded
-	transport := newPool()
 	awake := &wakes{now: clock, woke: func() {
 		transport.renew()
 		health.wake()

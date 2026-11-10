@@ -431,7 +431,7 @@ func stripOwn(h http.Header) {
 // those the router can read a copy of an answer in, to count it, in the
 // order the client gave them: gzip, deflate and identity. With none of those
 // offered, it asks for identity. A request that offers none at all is left
-// so: Go's transport then asks for gzip itself, and decodes the answer.
+// so, and goes upstream offering none, as the router's transport adds none.
 func countable(h http.Header) {
 	offered := h.Values("Accept-Encoding")
 	if len(offered) == 0 {

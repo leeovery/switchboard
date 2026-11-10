@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/http"
@@ -65,46 +66,78 @@ func TestTransportWaitsForAResponseAsLongAsItTakes(t *testing.T) {
 }
 
 func TestARenewedPoolKeepsNoConnectionFromBefore(t *testing.T) {
-	var opened atomic.Int32
-	closed := make(chan struct{}, 2)
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, "ok")
-	}))
-	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
-		switch state {
-		case http.StateNew:
-			opened.Add(1)
-		case http.StateClosed:
-			closed <- struct{}{}
-		}
-	}
-	srv.Start()
-	t.Cleanup(srv.Close)
+	srv := newCountingServer(t)
 	p := newPool()
 	t.Cleanup(func() { p.current().CloseIdleConnections() })
 	get := func() {
 		t.Helper()
-		resp, err := (&http.Client{Transport: p}).Get(srv.URL)
-		if err != nil {
+		if err := getOver(t.Context(), p, srv.URL); err != nil {
 			t.Fatal(err)
 		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
 	}
 
 	get()
 	get()
-	if n := opened.Load(); n != 1 {
+	if n := srv.opened.Load(); n != 1 {
 		t.Fatalf("two requests opened %d connections, want one, kept between them", n)
 	}
 	p.renew()
-	select {
-	case <-closed:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the connection kept from before the pool was renewed is open still, want it closed, as it was idle")
-	}
+	srv.awaitClose(t, "the connection kept from before the pool was renewed")
 	get()
-	if n := opened.Load(); n != 2 {
+	if n := srv.opened.Load(); n != 2 {
 		t.Errorf("once the pool is renewed, requests have opened %d connections, want one more", n)
 	}
+}
+
+// countingServer answers every request, counting the connections opened to
+// it, and telling of each as it closes.
+type countingServer struct {
+	*httptest.Server
+	opened atomic.Int32
+	closed chan struct{}
+}
+
+func newCountingServer(t *testing.T) *countingServer {
+	t.Helper()
+	s := &countingServer{closed: make(chan struct{}, 2)}
+	s.Server = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "ok")
+	}))
+	s.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		switch state {
+		case http.StateNew:
+			s.opened.Add(1)
+		case http.StateClosed:
+			s.closed <- struct{}{}
+		}
+	}
+	s.Start()
+	t.Cleanup(s.Close)
+	return s
+}
+
+// awaitClose fails t unless a connection to s closes within 5 seconds, which
+// names.
+func (s *countingServer) awaitClose(t *testing.T, which string) {
+	t.Helper()
+	select {
+	case <-s.closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal(which + " is open still, want it closed, as it was idle")
+	}
+}
+
+// getOver gets url over transport, reading its answer to the end, so the
+// connection it came on is kept for the next request.
+func getOver(ctx context.Context, transport http.RoundTripper, url string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := (&http.Client{Transport: transport}).Do(req)
+	if err != nil {
+		return err
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.Body.Close()
 }

@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -31,8 +32,10 @@ const (
 // has stopped. It's safe for concurrent use.
 type probes struct {
 	prober Prober
-	state  *state
-	now    func() time.Time
+	// transport is the router's, which the probes go upstream on.
+	transport http.RoundTripper
+	state     *state
+	now       func() time.Time
 	// emit hears of each prime that starts its window, and each limit a
 	// probe's reading lifts early.
 	emit func(Event)
@@ -47,9 +50,12 @@ type probes struct {
 	stopped bool
 }
 
-func newProbes(prober Prober, state *state, now func() time.Time, emit func(Event)) *probes {
+func newProbes(prober Prober, transport http.RoundTripper, state *state, now func() time.Time, emit func(Event)) *probes {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &probes{prober: prober, state: state, now: now, emit: emit, ctx: ctx, cancel: cancel, running: make(map[string]*run)}
+	return &probes{
+		prober: prober, transport: transport, state: state, now: now, emit: emit,
+		ctx: ctx, cancel: cancel, running: make(map[string]*run),
+	}
 }
 
 // run is a probe of an account under way, as probes keeps it.
@@ -236,7 +242,7 @@ func (p *probes) probe(a account, r *run) {
 	// after the read is marked after sent, and recordProbe judges this probe
 	// one on the token before.
 	started, at, sent := time.Now(), p.now(), p.state.mark()
-	probed, err := p.prober.Probe(p.ctx, a.token().Reveal())
+	probed, err := p.prober.Probe(p.ctx, a.token().Reveal(), p.transport)
 	took := time.Since(started).Round(time.Millisecond)
 	if p.ctx.Err() != nil {
 		// Stopped mid-probe: its failure says nothing of the account.

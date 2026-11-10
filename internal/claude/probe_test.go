@@ -155,9 +155,11 @@ func TestProbeModelFollowsNoRedirect(t *testing.T) {
 		// elsewhere redirects to another server, rather than to another path
 		// on the upstream.
 		elsewhere bool
+		transport http.RoundTripper
 	}{
 		{name: "302 on the upstream", status: http.StatusFound},
 		{name: "302 to another server", status: http.StatusFound, elsewhere: true},
+		{name: "302 to another server, over a transport given", status: http.StatusFound, elsewhere: true, transport: http.DefaultTransport},
 		{name: "307 on the upstream", status: http.StatusTemporaryRedirect},
 	}
 	for _, tt := range tests {
@@ -177,7 +179,7 @@ func TestProbeModelFollowsNoRedirect(t *testing.T) {
 				http.Redirect(w, r, location, tt.status)
 			}))
 			t.Cleanup(upstream.Close)
-			prober := &claude.Prober{Upstream: upstream.URL, Version: version}
+			prober := &claude.Prober{Upstream: upstream.URL, Version: version, Transport: tt.transport}
 
 			_, err := prober.ProbeModel(t.Context(), token, haiku)
 			if want := fmt.Sprintf("HTTP %d", tt.status); errorText(err) != want {
@@ -231,6 +233,38 @@ func TestProbeModelReportsTransportErrors(t *testing.T) {
 	if want := `Post "` + upstream + `/v1/messages": `; !strings.HasPrefix(errorText(err), want) {
 		t.Errorf("ProbeModel() error = %q, want the transport error, starting %q", errorText(err), want)
 	}
+}
+
+func TestProbeGoesOutOnTheTransportGiven(t *testing.T) {
+	var sent requestLog
+	transport := roundTripper(func(r *http.Request) (*http.Response, error) {
+		sent.note(nil, r)
+		answer := withUsage(http.StatusOK, session)
+		return &http.Response{StatusCode: answer.status, Header: answer.header, Body: io.NopCloser(strings.NewReader(answer.body)), Request: r}, nil
+	})
+	// Nothing listens upstream: a probe sent otherwise than on the transport
+	// given fails.
+	upstream := closedServerURL(t)
+	prober := &claude.Prober{Upstream: upstream, Version: version, Transport: transport}
+
+	got, err := prober.Probe(t.Context(), token)
+	if err != nil {
+		t.Fatalf("Probe() error = %v", err)
+	}
+	if !reflect.DeepEqual(got.Windows, []quota.Window{session}) {
+		t.Errorf("Probe() read %+v, want %+v, as the transport answered", got.Windows, []quota.Window{session})
+	}
+	host := strings.TrimPrefix(upstream, "http://")
+	if want := slices.Repeat([]string{"POST " + host + "/v1/messages, with the token"}, 2); !slices.Equal(sent.all(), want) {
+		t.Errorf("the transport was sent %q, want a request for each family", sent.all())
+	}
+}
+
+// roundTripper is a transport that answers each request as it says.
+type roundTripper func(*http.Request) (*http.Response, error)
+
+func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
 }
 
 func TestProbe(t *testing.T) {
