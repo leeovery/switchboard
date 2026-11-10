@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -289,7 +290,7 @@ func TestTheBestOfADocumentBuiltByProbingIsWhereANewSessionGoes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
 			prober := &stubProber{readings: tt.reads}
-			collector := status.Collector{Prober: prober, Policy: testPolicy, Token: threeTokens.Read, Taken: tokenstest.Taken{}.Read, Now: clock.read}
+			collector := status.Collector{Prober: probingAlone{prober}, Policy: testPolicy, Token: threeTokens.Read, Taken: tokenstest.Taken{}.Read, Now: clock.read}
 			best := collector.Collect(t.Context(), threeAccounts(nil)).Best
 
 			r := newThreeRouter(t, clock, prober, nil)
@@ -298,4 +299,14 @@ func TestTheBestOfADocumentBuiltByProbingIsWhereANewSessionGoes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// probingAlone is a prober of the router's probing for status.Collector,
+// which gives it no transport.
+type probingAlone struct {
+	prober Prober
+}
+
+func (p probingAlone) Probe(ctx context.Context, token string) (quota.Probe, error) {
+	return p.prober.Probe(ctx, token, nil)
 }

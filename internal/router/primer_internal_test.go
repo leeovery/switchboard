@@ -498,8 +498,8 @@ type lateProber struct {
 	held   chan struct{}
 }
 
-func (p *lateProber) Probe(ctx context.Context, token string) (quota.Probe, error) {
-	probed, err := p.prober.Probe(ctx, token)
+func (p *lateProber) Probe(ctx context.Context, token string, transport http.RoundTripper) (quota.Probe, error) {
+	probed, err := p.prober.Probe(ctx, token, transport)
 	if token != p.token {
 		return probed, err
 	}
@@ -897,7 +897,7 @@ func newWindowsUpstream(clock *bubbleClock) *windowsUpstream {
 	}
 }
 
-func (u *windowsUpstream) Probe(_ context.Context, token string) (quota.Probe, error) {
+func (u *windowsUpstream) Probe(_ context.Context, token string, _ http.RoundTripper) (quota.Probe, error) {
 	now := u.clock.read()
 	u.mu.Lock()
 	defer u.mu.Unlock()

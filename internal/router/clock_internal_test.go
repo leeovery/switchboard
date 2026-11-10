@@ -1,8 +1,11 @@
 package router
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -81,6 +84,74 @@ func TestTheRouterStartsItsConnectionsAfreshOnceItNoticesTheMacWake(t *testing.T
 			}
 		})
 	}
+}
+
+func TestTheRoutersProbesGoUpstreamOnTheTransportItsRequestsDo(t *testing.T) {
+	prober := &sendingProber{upstream: "http://127.0.0.1:1"}
+	r := newTestRouter(t, time.Now, prober)
+
+	probeWork(t, r)
+	got := prober.given()
+	if len(got) != 1 {
+		t.Fatalf("one probe was given %d transports, want one", len(got))
+	}
+	if got[0] != r.proxy.transport {
+		t.Errorf("the probe went upstream on a %T, want the router's own transport, which its requests go upstream on, with their pings", got[0])
+	}
+}
+
+func TestTheRoutersProbesGoUpstreamOnConnectionsStartedAfreshOnceItNoticesTheMacWake(t *testing.T) {
+	up := newCountingServer(t)
+	clock := newSleepingClock(t)
+	r := newTestRouter(t, clock.read, &sendingProber{upstream: up.URL})
+	t.Cleanup(func() { r.proxy.transport.(*pool).current().CloseIdleConnections() })
+
+	r.upkeep.wakes.look()
+	probeWork(t, r)
+	probeWork(t, r)
+	if n := up.opened.Load(); n != 1 {
+		t.Fatalf("two probes opened %d connections, want one, kept between them", n)
+	}
+	clock.sleep(time.Hour)
+	r.upkeep.wakes.look()
+	up.awaitClose(t, "the probes' connection kept from before the wake")
+	probeWork(t, r)
+	if n := up.opened.Load(); n != 2 {
+		t.Errorf("once the router noticed the wake, probes have opened %d connections, want one more, not the one from before", n)
+	}
+}
+
+// sendingProber probes by getting its upstream over the transport it's
+// given, noting each transport, and reads nothing.
+type sendingProber struct {
+	upstream string
+
+	mu         sync.Mutex
+	transports []http.RoundTripper
+}
+
+func (p *sendingProber) Probe(ctx context.Context, _ string, transport http.RoundTripper) (quota.Probe, error) {
+	p.mu.Lock()
+	p.transports = append(p.transports, transport)
+	p.mu.Unlock()
+	if err := getOver(ctx, transport, p.upstream); err != nil {
+		return quota.Probe{}, err
+	}
+	return quota.Probe{}, errors.New("read nothing")
+}
+
+// given returns the transports the prober was given, a probe at a time.
+func (p *sendingProber) given() []http.RoundTripper {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.transports)
+}
+
+// probeWork has the router probe work, and waits for the probe to end.
+func probeWork(t *testing.T, r *Router) {
+	t.Helper()
+	always := func(string, time.Time) bool { return true }
+	r.probes.await(t.Context(), r.accounts.only([]string{"work"}), always, time.Minute, "in the test")
 }
 
 func TestFailuresOfRequestsThatArrivedBeforeAWakeWasNoticedDontCount(t *testing.T) {

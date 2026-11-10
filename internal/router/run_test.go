@@ -504,7 +504,7 @@ type hangingProber struct {
 	started chan struct{}
 }
 
-func (p *hangingProber) Probe(ctx context.Context, _ string) (quota.Probe, error) {
+func (p *hangingProber) Probe(ctx context.Context, _ string, _ http.RoundTripper) (quota.Probe, error) {
 	p.started <- struct{}{}
 	<-ctx.Done()
 	return quota.Probe{}, ctx.Err()

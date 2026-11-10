@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"maps"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -184,7 +185,7 @@ type stubProber struct {
 	probes map[string]int
 }
 
-func (p *stubProber) Probe(ctx context.Context, token string) (quota.Probe, error) {
+func (p *stubProber) Probe(ctx context.Context, token string, _ http.RoundTripper) (quota.Probe, error) {
 	p.mu.Lock()
 	if p.probes == nil {
 		p.probes = make(map[string]int)

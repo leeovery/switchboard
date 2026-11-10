@@ -345,9 +345,9 @@ you.
 
 - **Tokens:** the router takes up a change to a token file as it comes. A token file caught empty
   while it's rewritten doesn't cost its account its token.
-- **Sleep:** once your Mac wakes, the router sends the requests it routes upstream on fresh
-  connections, as a sleep can leave the connections it kept dead. Probes go out on connections of
-  their own, and each is given 5 seconds.
+- **Sleep:** once your Mac wakes, the router sends the requests it routes, and its probes, upstream
+  on fresh connections, as a sleep can leave the connections it kept dead. Each probe is given 5
+  seconds.
 
 ### Restarts
 
