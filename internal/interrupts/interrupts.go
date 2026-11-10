@@ -80,9 +80,15 @@ func (h *Held) Caught() bool {
 }
 
 // Watch tells told, where it's set, of the first interrupt caught from now,
-// as it comes, till End.
+// as it comes, till End, one waiting as End comes among them.
 func (h *Held) Watch(told func()) {
 	h.watched = make(chan struct{})
+	tell := func() {
+		h.got = true
+		if told != nil {
+			told()
+		}
+	}
 	go func() {
 		defer close(h.watched)
 		for {
@@ -91,12 +97,12 @@ func (h *Held) Watch(told func()) {
 				if !interrupt(sig) {
 					continue
 				}
-				h.got = true
-				if told != nil {
-					told()
-				}
+				tell()
 				return
 			case <-h.stop:
+				if h.Caught() {
+					tell()
+				}
 				return
 			}
 		}

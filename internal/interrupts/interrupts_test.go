@@ -144,6 +144,22 @@ func TestAWatchTellsOfTheFirstInterruptAlone(t *testing.T) {
 	}
 }
 
+// An interrupt waiting as End comes is told of, though the watch may meet it
+// and End's stop at once: run many times, as which it meets first is the
+// scheduler's.
+func TestAWatchTellsOfAnInterruptWaitingAsEndComes(t *testing.T) {
+	for i := range 200 {
+		process := &fakeProcess{}
+		h := interrupts.Hold(process.hold)
+		var told int
+		h.Watch(func() { told++ })
+		process.send(os.Interrupt)
+		if !h.End() || told != 1 {
+			t.Fatalf("run %d: the watch told of %d interrupts, want the one waiting as End came", i, told)
+		}
+	}
+}
+
 // Kept holds the interrupts once however often it's kept, telling of the
 // first caught, and lets them go once however often it's let: the second Let
 // finds none held, and a Keep after it holds nothing.
