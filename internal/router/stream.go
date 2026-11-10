@@ -25,8 +25,9 @@ const (
 	// StreamProgress is how many characters of text, thinking and tools'
 	// input the answer has streamed so far.
 	StreamProgress = "progress"
-	// StreamDone is a request ending, with what the client was answered, and
-	// the tokens the answer's closing usage gives.
+	// StreamDone is a request ending, with what the client was answered, the
+	// tokens the answer's closing usage gives, and whether the upstream broke
+	// the answer off.
 	StreamDone = "done"
 	// StreamLimited is the upstream answering that the account has reached its
 	// limit: a 429, but for one to a request sent before the limit was reset
@@ -117,6 +118,9 @@ type StreamEvent struct {
 	// Tokens are the tokens the answer's closing usage gives, once the
 	// request is done: nil when none came, or they couldn't be counted.
 	Tokens *quota.Tokens `json:"tokens,omitempty"`
+	// Broken is set, once the request is done, where the upstream broke its
+	// answer off after it began, as its line in the request ledger says.
+	Broken bool `json:"broken,omitzero"`
 	// From and To are the accounts the request's session moved from and to,
 	// and Reason why, as the routed line's reason gives it.
 	From   string `json:"from,omitempty"`

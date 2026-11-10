@@ -138,6 +138,7 @@ line keeps everything about a request except its content. It never holds any of 
 | `status` | The answer's status. `0` where the request ended before an answer came. |
 | `canceled` | Set where the client went away before the end. |
 | `cut_off` | Set where the router cut the request off as it stopped. |
+| `broken` | Set where the upstream broke the answer off after it began. |
 | `attempts` | How many times the request went upstream. `0` where the router answered it itself. |
 | `first_ms` | How long after the request arrived its answer's first byte passed on to the client, in milliseconds. |
 | `total_ms` | How long after the request arrived its answer ended, in milliseconds. |
