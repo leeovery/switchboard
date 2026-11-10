@@ -194,6 +194,9 @@ func TestTheStreamTellsOfTheRequestsInFlightThenOfEachEventAsItsTimeComes(t *tes
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
+	// Read as the stream opens: its feed moves the clock on from then, as
+	// soon as it runs.
+	start, joinedAt := tl.base.start, c.read()
 	events, err := tl.Stream(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -209,7 +212,6 @@ func TestTheStreamTellsOfTheRequestsInFlightThenOfEachEventAsItsTimeComes(t *tes
 	if want := []string{"c61b", "d28c", "db8a"}; !slices.Equal(joined, want) {
 		t.Errorf("the stream opens telling of %q in flight, want %q, the first sent first", joined, want)
 	}
-	start, joinedAt := tl.base.start, c.read()
 	told := tl.base.played(nil, time.Time{}).told
 	next := told[slices.IndexFunc(told, func(e router.StreamEvent) bool { return e.At.After(joinedAt) })]
 	var after []router.StreamEvent
