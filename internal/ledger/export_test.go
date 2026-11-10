@@ -10,6 +10,9 @@ import (
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
+// SummariseAtOnce is how many days a round summarises again at most.
+const SummariseAtOnce = summariseAtOnce
+
 // SetLooked has a round call looked with the date of each day it summarises
 // once it has looked at the day's files, before it reads them, for tests of
 // what comes between the two.

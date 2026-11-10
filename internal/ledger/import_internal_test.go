@@ -313,3 +313,33 @@ func TestASummaryStagedAloneOfADayTheLedgerHoldsLinesOfIsntCopiedIn(t *testing.T
 		})
 	}
 }
+
+func TestADayACompressStoppedPartwayLeftSummarisesEachLineOnceImported(t *testing.T) {
+	logstest.Capture(t)
+	l := runningLedger(t)
+	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
+	line := func(request string) string {
+		return `{"request":"` + request + `","kind":"message","account":"work"}` + "\n"
+	}
+	dir := l.days.files.Dir
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// A compress stopped once it had written the compressed file, its last
+	// member the plain file's lines, before it removed the plain file.
+	held(t, filepath.Join(dir, "requests-"+date+".jsonl.gz"), append(gzippedText(t, line("one")), gzippedText(t, line("two"))...))
+	held(t, filepath.Join(dir, "requests-"+date+".jsonl"), []byte(line("two")))
+	staged := filepath.Join(t.TempDir(), "requests-"+date+".jsonl.gz")
+	held(t, staged, gzippedText(t, line("one")+line("two")+line("three")))
+
+	got, err := l.Import(t.Context(), StagedDay{Date: date, Lines: staged})
+	if err != nil || got != (ImportedDay{Lines: dayfile.Imported{Taken: dayfile.Merged, Lines: 1}}) {
+		t.Fatalf("Import() = %+v, %v; want the day merged, gaining the one line it didn't hold", got, err)
+	}
+	// The readings history's writer summarises before its prune, which the
+	// day's next compress comes after.
+	l.SummariseEnded(importedOn)
+	if summary, err := l.days.held(date); err != nil || summary.Lines != 3 {
+		t.Errorf("summarised before its next compress, the day's summary counts %d lines (%v), want its 3, each once", summary.Lines, err)
+	}
+}

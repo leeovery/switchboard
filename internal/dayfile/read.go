@@ -527,14 +527,17 @@ func (f *Files) openOne(file dayFile, failed []fileError) (*openFile, []fileErro
 // dayOpened returns the files of a day opened, plain and compressed, either
 // nil where it isn't there, in the order its lines came: the compressed
 // file, then the plain one, which holds those added since the day was
-// compressed, as after the clock was set back to it; but the compressed file
-// alone where it ends with the plain file's lines, as holdsAll says,
-// as when the day was compressed between the files' openings, or a writer
-// stopped once it had written the compressed file, before it removed the
-// plain one. To tell, it reads the two whole, from the files opened, so it
-// tells of the lines they give, and each gives them again as it was read,
-// ending as its read did. A plain file that reads short is read as far as it
-// goes, which tells nothing of what it holds.
+// compressed, as after the clock was set back to it; but where the
+// compressed file holds some of the plain file's lines already, as a
+// compress tells them, compressedDay.holds, as when the day was compressed
+// between the files' openings, or a writer stopped once it had written the
+// compressed file, before it removed the plain one, and lines came to the
+// plain file after, the compressed file alone, giving after its own lines
+// those of the plain file it doesn't hold, as compressing the day would add
+// them. To tell, it reads the two whole, from the files opened, so it tells
+// of the lines they give, and each gives them again as it was read, ending
+// as its read did. A file that reads short is read as far as it goes, which
+// tells nothing of what the two hold.
 func dayOpened(plain, compressed *openFile) []openFile {
 	switch {
 	case plain == nil && compressed == nil:
@@ -544,11 +547,27 @@ func dayOpened(plain, compressed *openFile) []openFile {
 	case plain == nil:
 		return []openFile{*compressed}
 	}
-	plainLines, compressedLines := readWhole(plain), readWhole(compressed)
-	if plainLines.err == nil && holdsAll(compressedLines.lines, plainLines.lines) {
-		return []openFile{compressedLines.file()}
+	plainLines := readWhole(plain)
+	compressedLines, held := readHolding(compressed, plainLines.lines)
+	if plainLines.err != nil || compressedLines.err != nil || held == 0 && len(plainLines.lines) > 0 {
+		return []openFile{compressedLines.file(), plainLines.file()}
 	}
-	return []openFile{compressedLines.file(), plainLines.file()}
+	compressedLines.lines = append(compressedLines.lines, plainLines.lines[held:]...)
+	return []openFile{compressedLines.file()}
+}
+
+// readHolding reads the compressed file opened whole, as readWhole does, and
+// closes it, returning it read with how much of plain, the plain file's
+// lines, its lines hold already, as compressedDay.holdsOf says.
+func readHolding(compressed *openFile, plain []byte) (wholeFile, int64) {
+	defer func() { _ = compressed.Close() }()
+	var lines bytes.Buffer
+	c, err := measuring(compressed.src, &lines)
+	read := wholeFile{dayFile: compressed.dayFile, lines: lines.Bytes(), err: err}
+	if err != nil {
+		return read, 0
+	}
+	return read, c.holdsOf(read.lines, plain)
 }
 
 // wholeFile is one of a day's files, read whole: the lines it gave, and why

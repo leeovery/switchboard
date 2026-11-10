@@ -171,7 +171,9 @@ func TestADayKeptForeverIsNeverPastKeeping(t *testing.T) {
 }
 
 func TestADayTheFilesDontHoldIsCopiedInOnceItsDoneWithElseAppendedToItsPlainFile(t *testing.T) {
-	lines := linesOf(`{"n":1}`, `{"n":2}`)
+	// A line comes again after another, as a version of an event that changed
+	// back to how it stood is written whole again.
+	lines := linesOf(`{"n":1}`, `{"n":2}`, `{"n":1}`)
 	for _, tt := range doneInZones {
 		t.Run(tt.name+", "+tt.zone, func(t *testing.T) {
 			loc := zone(t, tt.zone)
@@ -270,9 +272,19 @@ func TestADayTheFilesHoldGainsTheStagedLinesItDoesntHold(t *testing.T) {
 			in: compressedFile(date), want: []string{one, two}, added: 1,
 		},
 		{
-			name:  "once, of a line staged twice",
+			name:  "each time, of a line staged twice the day doesn't hold",
 			plain: linesOf(one), staged: []string{one, two, two},
-			in: plainFile(date), want: []string{one, two}, added: 1,
+			in: plainFile(date), want: []string{one, two, two}, added: 2,
+		},
+		{
+			name:  "again, of a line staged again after another, as an event changed back",
+			plain: linesOf(one, two), staged: []string{one, two, one},
+			in: plainFile(date), want: []string{one, two, one}, added: 1,
+		},
+		{
+			name:    "again, of a line staged again after another, after its compressed file's",
+			members: []string{linesOf(one), linesOf(two)}, staged: []string{one, two, one},
+			in: compressedFile(date), want: []string{one, two, one}, added: 1,
 		},
 	}
 	for _, tt := range tests {
@@ -286,7 +298,7 @@ func TestADayTheFilesHoldGainsTheStagedLinesItDoesntHold(t *testing.T) {
 				t.Errorf("take(%s) = %+v, want %+v", date, got, want)
 			}
 			if read, _, _ := wholeDay(f, date); !slices.Equal(read, tt.want) {
-				t.Errorf("the day reads %q, want %q: each line once", read, tt.want)
+				t.Errorf("the day reads %q, want %q: each line as many times as the day or the staged file holds it, whichever's more", read, tt.want)
 			}
 			after, in := filesIn(t, f), tt.in.name(f.Prefix)
 			if !slices.Equal(slices.Sorted(maps.Keys(after)), slices.Sorted(maps.Keys(before))) {
@@ -332,7 +344,7 @@ func TestTakingADayInAgainAddsNothing(t *testing.T) {
 	day, _, _ := Day(date)
 	// The day isn't done with until the start of the third day after it.
 	notDone := DayStart(day, 2)
-	staged := linesOf(`{"n":1}`, `{"n":2}`)
+	staged := linesOf(`{"n":1}`, `{"n":2}`, `{"n":1}`)
 	tests := []struct {
 		name string
 		// members and plain are the day's files' lines, as lay lays them, and
@@ -548,6 +560,12 @@ func TestADayImportedAfterACompressStoppedPartwayHoldsEachLineOnceCompressed(t *
 	got := taking(t, f, stage(t, earlierDate, gzipOf(t, linesOf(`{"n":1}`, `{"n":2}`, `{"n":3}`))), start, twoWeeks)
 	if got != (Imported{Taken: Merged, Lines: 1}) {
 		t.Errorf("take(%s) = %+v, want it merged, gaining the one line it didn't hold", earlierDate, got)
+	}
+	// The plain file, which the compressed one ended with, has the line taken
+	// in after its own: the compressed file holds some of its lines, as the
+	// next compress tells them.
+	if read, lines, _ := wholeDay(f, earlierDate); !slices.Equal(read, []string{`{"n":1}`, `{"n":2}`, `{"n":3}`}) || lines != 3 {
+		t.Errorf("before its next compress, the day reads %q, %d lines; want every line once", read, lines)
 	}
 	compressingDay(t, f)
 	if got, want := heldIn(t, f, compressedFile(earlierDate)), linesOf(`{"n":1}`, `{"n":2}`, `{"n":3}`); got != want {

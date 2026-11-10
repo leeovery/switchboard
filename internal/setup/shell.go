@@ -371,13 +371,21 @@ func (r *run) askAgain(ctx context.Context, found LinkFound) (LinkFound, error) 
 	return found, nil
 }
 
-// ask asks the user's login shell which claude it runs. An interrupt
-// meanwhile, which the shell, in a session of its own, never sees, ends the
-// asking, and setup with it.
+// ask asks the user's login shell which claude it runs, as Ask does, and
+// setup ends with the asking where it's interrupted.
 func (r *run) ask(ctx context.Context) (shell.Answer, error) {
-	asking, stop := r.interruptible(ctx)
+	return Ask(ctx, r.Login, r.claudeLink(), r.Interrupt)
+}
+
+// Ask asks login, the user's login shell, which claude it runs, link being
+// switchboard's claude link, as setup asks it. An interrupt meanwhile, taken
+// as interrupt takes it, or through os/signal where it's nil, which the
+// shell, in a session of its own, never sees, ends the asking, which fails
+// with accounts.ErrInterrupted.
+func Ask(ctx context.Context, login LoginShell, link string, interrupt func(context.Context) (context.Context, context.CancelFunc)) (shell.Answer, error) {
+	asking, stop := interruptible(ctx, interrupt)
 	defer stop()
-	answer := r.Login.Which(asking, r.claudeLink())
+	answer := login.Which(asking, link)
 	if asking.Err() != nil && ctx.Err() == nil {
 		return answer, accounts.ErrInterrupted
 	}
@@ -387,8 +395,14 @@ func (r *run) ask(ctx context.Context) (shell.Answer, error) {
 // interruptible returns a context that ends with ctx, or at an interrupt,
 // as setup's Interrupt says.
 func (s *Setup) interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
-	if s.Interrupt != nil {
-		return s.Interrupt(ctx)
+	return interruptible(ctx, s.Interrupt)
+}
+
+// interruptible returns a context that ends with ctx, or at an interrupt,
+// taken as interrupt takes it, or through os/signal where it's nil.
+func interruptible(ctx context.Context, interrupt func(context.Context) (context.Context, context.CancelFunc)) (context.Context, context.CancelFunc) {
+	if interrupt != nil {
+		return interrupt(ctx)
 	}
 	return signal.NotifyContext(ctx, os.Interrupt)
 }

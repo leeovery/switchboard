@@ -868,14 +868,20 @@ It takes away, in this order:
    router stopped once it has finished its requests in flight, the LaunchAgent, the router's copy
    of switchboard and the notifications' app.
 2. **The startup line** `setup` added, taken out of each shell's startup file it's in, found by its
-   `# switchboard` mark: `~/.zshrc`, and `.zshrc` in `$ZDOTDIR`; `~/.bash_profile`, `~/.bash_login`
-   and `~/.profile`; and fish's `config.fish`. Only the line as `setup` writes it, at the start of
-   its line, is taken out: an indented copy may be all there is of an `if` block of yours, which
-   the shell couldn't read left empty, so it's left where it is, and `uninstall` names the file for
-   you to take it out yourself; with switchboard's files gone, it does nothing. Every other line is
-   kept as it was, and the file is rewritten in place, where a link to it leads, so it stays the
-   file it was, hard links, owner and permissions with it. Then switchboard's own files for the
-   shells, which the line loads, with bash's completions.
+   `# switchboard` mark: `~/.zshrc`, and `.zshrc` where zsh says it reads it; `~/.bash_profile`,
+   `~/.bash_login` and `~/.profile`; and `~/.config/fish/config.fish`, and `config.fish` where fish
+   says it reads it. A zsh or fish login shell is asked where, as `setup` asks it: the `ZDOTDIR` of
+   the terminal you run `uninstall` in, an editor's, say, may not be a new terminal's. Where it
+   can't be asked, or `$SHELL` isn't set, `uninstall` says it couldn't look there, not that the line
+   isn't there: a line left there does nothing once switchboard's files are gone. An interrupt while
+   it asks stops `uninstall` there, with only the service gone, and says so: running it again,
+   `--all` as before, finishes it. Only the line as `setup` writes it, at the start of its line, is
+   taken out: an indented copy may be all there is of an `if` block of yours, which the shell
+   couldn't read left empty, so it's left where it is, and `uninstall` names the file for you to
+   take it out yourself; with switchboard's files gone, it does nothing. Every other line is kept as
+   it was, and the file is rewritten in place, where a link to it leads, so it stays the file it
+   was, hard links, owner and permissions with it. Then switchboard's own files for the shells,
+   which the line loads, with bash's completions.
 3. **The session hook**: switchboard's entry in Claude Code's SessionStart hooks, in
    `settings.json`, every other setting and hook left as it is. A settings file Claude Code
    couldn't read is left as it is, and `uninstall` says why.
@@ -1453,8 +1459,9 @@ switchboard exported, as this one may not read its files: upgrade switchboard to
 What it takes in:
 
 - **A day this Mac doesn't hold** is copied in.
-- **A day it holds already** gains the lines it doesn't hold. Each line is told apart from every
-  other Mac's, so an import repeated, or of a Mac's own folder, adds nothing.
+- **A day it holds already** gains the lines it doesn't hold, and a line the folder holds more
+  times than this Mac, as an event that changed back to how it stood, the times more. Each line is
+  told apart from every other Mac's, so an import repeated, or of a Mac's own folder, adds nothing.
 - **A day's summary** is copied in where this Mac holds no line of the day, and either no summary
   of it, or one that counts no line, as of a day it only probed, where the folder's counts some.
   Otherwise this Mac's stands, and the router summarises again each day that gained lines.

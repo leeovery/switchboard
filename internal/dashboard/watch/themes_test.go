@@ -492,7 +492,7 @@ func TestAPickIsSetInTheChoiceAsItStandsNow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h, themes := settledThemedHarness(t, tt.was)
-			themes.choice = tt.now
+			themes.prefs.Choice = tt.now
 			var asked bool
 			for _, key := range tt.keys {
 				h.typed(key)
@@ -505,7 +505,7 @@ func TestAPickIsSetInTheChoiceAsItStandsNow(t *testing.T) {
 			if asked != tt.asks {
 				t.Errorf("asked to clear one theme: %v, want %v, as the choice kept stands now", asked, tt.asks)
 			}
-			if got, want := h.model.choice, themes.choice; got != want {
+			if got, want := h.model.choice, themes.prefs.Choice; got != want {
 				t.Errorf("drawn by %+v, want %+v, the choice as kept", got, want)
 			}
 		})
@@ -599,11 +599,11 @@ func TestThePickerWaitsForTheTerminalsBackground(t *testing.T) {
 // lines tall, reading calm. It hasn't started.
 func themedHarness(t *testing.T, choice theme.Choice) (*harness, *fakeThemes) {
 	t.Helper()
-	themes := &fakeThemes{listing: listing(), choice: choice}
+	themes := &fakeThemes{listing: listing(), prefs: theme.Prefs{Choice: choice}}
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: calm()}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await, Interval: interval, Policy: policy,
-		Size: Size{Width: 150, Height: 50}, Choice: choice, Pair: themes.listing.Pair(choice), Themes: themes,
+		Size: Size{Width: 150, Height: 50}, Choice: choice, Pair: themes.listing.Pair(choice), Themes: themes, Prefs: themes,
 		Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
 	})
 	return h, themes
@@ -679,13 +679,14 @@ func listing() theme.Listing {
 	return l
 }
 
-// fakeThemes lists its listing, counting each time, and keeps its choice,
-// which another dashboard may change, changed as each change it's given
-// says, noting what it kept, or fails to with err.
+// fakeThemes lists its listing, counting each time, and keeps the
+// preferences, its choice among them, which another dashboard may change,
+// changed as each update it's given says, noting each choice an update
+// changed, or fails to with err.
 type fakeThemes struct {
 	listing theme.Listing
 	lists   int
-	choice  theme.Choice
+	prefs   theme.Prefs
 	kept    []theme.Choice
 	err     error
 }
@@ -696,16 +697,19 @@ func (f *fakeThemes) List() theme.Listing {
 }
 
 func (f *fakeThemes) Chosen() theme.Choice {
-	return f.choice
+	return f.prefs.Choice
 }
 
-func (f *fakeThemes) Keep(change func(theme.Choice) theme.Choice) (theme.Choice, error) {
+func (f *fakeThemes) Update(change func(*theme.Prefs)) error {
 	if f.err != nil {
-		return theme.Choice{}, f.err
+		return f.err
 	}
-	f.choice = change(f.choice)
-	f.kept = append(f.kept, f.choice)
-	return f.choice, nil
+	was := f.prefs.Choice
+	change(&f.prefs)
+	if f.prefs.Choice != was {
+		f.kept = append(f.kept, f.prefs.Choice)
+	}
+	return nil
 }
 
 // quits reports whether msgs hold Bubble Tea's quit.

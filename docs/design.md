@@ -5652,8 +5652,8 @@ one:
   `[ledger] keep` keeps them, 400 days unless it's set, and for good where it says `forever` (see
   The router's events). A move's cost, a cap's `known from` and the windows then are read off the
   ledger's lines of the moment. Days before the router filed its events show none.
-- **Live:** the Log joins the request stream while it shows, as Sessions does, joining again a
-  second after it ends (see Live updates). A reader 256 events behind is dropped by the router: the
+- **Live:** the Log joins the request stream while it shows, as Sessions does, joining again after
+  it ends as Live updates says. A reader 256 events behind is dropped by the router: the
   Log fills the gap from the ledger as it joins again. Within the motion budget (see What moves),
   following, a new line joins the foot and the table moves up a line, and a line in flight's `took`
   counts; paused, only `▼ N new` and `took` move (settled in the plan).
@@ -6561,6 +6561,11 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   page). It's written whole, as `state.json` is, in the state directory as it changes as the
   dashboard is used, never in the config directory, whose file is often a link into the user's
   dotfiles; and never the config file, which is the user's, and which the dashboard never rewrites.
+  A dashboard writes it one write at a time, never as it takes a key: what changes while a write is
+  under way goes in the next, the latest of each change standing, the theme picked among them; and
+  what's left unwritten as it stops, however it stops that it can catch, is written then. Each write
+  reads the file afresh and writes it back with the state directory locked, so dashboards in other
+  terminals never write back what they read before another's change.
   Its keys are written in sorted order, and those it doesn't know, as a newer build's, or an older
   one's that this build no longer keeps, are kept as they are; a value it doesn't know, as a page
   an older build kept, reads as the default. One that can't be read is set aside as
@@ -6645,9 +6650,12 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   moves on screen, never for what's scrolled out of view, under a card or under `?`, so nothing new
   is drawn while nothing happens; the motion's own pace is What moves'. The stream opens with the
   requests already in flight, so a page opened mid-answer shows it, `asking` or `answering`. A
-  stream that ends is joined again a second later, and one that fails to open is tried again after a
-  second, doubling to 30 seconds. A reader the router drops for falling 256 events behind joins
-  again, and what it missed is taken from the ledger's lines as it does (settled in the plan). A
+  stream that ends after staying open 30 seconds is joined again a second later; one that fails to
+  open, or ends sooner, is tried again after a second, doubling for each in a row to 30 seconds, so a
+  router that keeps dropping it is asked at most every 30 seconds. A reader the router drops for
+  falling 256 events behind joins again alike, waiting longer only where it's dropped young again
+  and again, as each join reads the ledger's tail, and what it missed is taken from the ledger's
+  lines as it does (settled in the plan). A
   router from before the stream has none, and the dashboard stops asking until another router
   answers: its pages draw the sessions as each look reads them, with nothing in flight and no
   requests travelling.
@@ -7279,12 +7287,13 @@ from the first day a router that has it runs, so nothing before then is in it.
     `minutes_at_limit`; and 1 before it. A release that summarises a day
     otherwise, or keeps more of it, writes another, so the summaries written before it can be told:
     a day whose summary is of an older version is read, and summarised again from its lines and its
-    readings while either is kept, once, on the first round under the new version, as the round's
-    stamp holds the summary's version (see below), knowing no less than it, as any summary
-    written again does, every field of it. So a day whose readings the history has pruned is
-    summarised again from its lines, and keeps what the summary before took from the readings; one
-    whose lines are pruned, from its readings, and keeps its requests as the summary before gave
-    them; and one whose lines and readings are both gone keeps the summary it has. So too the days
+    readings while either is kept, once, from the first round under the new version on, eight
+    days a round, as the round's stamp holds the summary's version (see below), knowing no less
+    than it, as any summary written again does, every field of it. So a day whose readings the
+    history has pruned is summarised again from its lines, and keeps what the summary before took
+    from the readings; one whose lines are pruned, from its readings, and keeps its requests as the
+    summary before gave them; and one whose lines and readings are both gone keeps the summary it
+    has. So too the days
     summarised under version 2, from 8 to 11 October 2026, may keep small over-counts from a
     reading read late, in their rises, resets and limits, which version 3's rule for the climb
     would count otherwise: a summary written again knows no less, as what it held can't always be
@@ -7294,14 +7303,29 @@ from the first day a router that has it runs, so nothing before then is in it.
     it's summarised again, as a summary written again knows no less, and its worth prices it: a few
     tokens a day, a fraction of a cent, where the views over its lines leave it out. And a day
     summarised before version 6 gains its models' `hours` as it's summarised again from its lines;
-    one whose lines are gone has none, never as many of none, as its readings can't give them. The
-    first round under a new version reads each kept day's lines once, some 0.37 seconds a day of
-    16,000 lines on an M1 Max, and holds up both writers, the ledger's and the readings history's:
-    whichever's round makes it, the other's waits on it to summarise. So what's noted meanwhile
-    waits in their queues, a few seconds for the weeks of lines kept, dropping none, and under three
-    minutes for a year of them, which fills the ledger's 8,192 lines only at 55 requests a second,
-    but the history's 1,024 answers' readings at 7, so a busier router drops readings. A
-    reader that meets an older version's summary, its lines kept, summarises the day from its
+    one whose lines are gone has none, never as many of none, as its readings can't give them. A
+    new version reads each kept day's lines once, some 0.37 seconds a day of 16,000 lines on an M1
+    Max, under three minutes for a year of them, so a round summarises again eight days at most, the
+    oldest first, some three seconds of the heaviest, their readings read from the week before the
+    first on, some fifteen days of them, a tenth of a second more, and holds up the writer whose
+    round it is that long at most. The ledger's makes the next round at once, writing what's noted
+    meanwhile first, so no line waits on more than a round's eight days. The readings history's,
+    which has the ledger summarise before each prune, waits on the eight a round of the ledger's may
+    be summarising, then has it summarise again first, whole, each day due whose summary reads
+    readings that prune takes, of the day itself or of its week before: a handful, the days beside
+    where the history's files begin, or a few more for each day the router was off, whatever older
+    days the ledger keeps beyond the history. Then eight more, leaving the rest to the ledger's
+    rounds. A day's first summary is never left for a later round either, so no day that can be
+    summarised as the prune comes is summarised, the first time or again, from fewer readings than
+    it would have been. One that can't, as one of its files can't be opened, or its readings can't
+    all be read for now, is warned of, and summarised later from what's left. A day that can't be
+    summarised counts for none of the eight, so days that keep failing never keep the rest from
+    their turn, and is tried, and warned of, once a pass of rounds made back to back, as it was once
+    a round before, but again before a prune that takes its readings. The digesting waits for the
+    last of them: a round kicks it only once it leaves no day for a later one. Until a day's turn
+    comes, History and `history` read it from its lines, as below, with the same figures, at the
+    cost of the read. A reader that meets
+    an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
     version, as only the router writes summaries again, a reader knowing of the rest what they
     never counted, rather than taking it for none. Versions 2, 3, 4 and 6 only add fields, and
@@ -7433,7 +7457,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   pruned, to when the day began. The stamp holds the summary's version too, a second later than
   that time for each version past the first, which a file system that keeps whole seconds keeps: a
   day whose summary is of an older version is read, and summarised again from its lines and its
-  readings while either is kept, once, on the first round under the new version. A summary of
+  readings while either is kept, once, from the first round under the new version on. A summary of
   version 2 of a day with neither file was never stamped, so the first round of version 3 reads it.
   A day with no plain file, whose compressed file still gives that time, or with neither file,
   costs a look at its files and its summary's, reading none of them: compressing a day writes its
@@ -8036,9 +8060,11 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   router compresses as it does its own.
 - **A day both hold:** the folder's lines that aren't byte for byte one the Mac holds are added,
   appended to the day's plain file where it has one, else as a gzip member of their own after its
-  compressed file's, written beside it and renamed into place. No two Macs write the same line, as
-  each holds its time and what sets it apart (see Files), so a line held already is one imported
-  before, or the Mac's own come back, and an import repeated adds nothing.
+  compressed file's, written beside it and renamed into place. A line the folder holds more times
+  than the Mac is added the times more, as an event that changed back to how it stood has that
+  version written whole again; one it holds as many times or fewer, never. No two Macs write the
+  same line, as each holds its time and what sets it apart (see Files), so a line held already is
+  one imported before, or the Mac's own come back, and an import repeated adds nothing.
 - **Summaries:** a day's summary is copied in, with its stamp, where the Mac holds no line of the
   day and no summary of it, as of a day the Mac never saw, or one past keeping whose summary is its
   only record; or where the Mac's summary counts no request, as one a round summarised from the
@@ -8667,11 +8693,15 @@ the formula's caveats name it, to run first.
 - **What goes, in this order:** the service, as `service uninstall` takes it away (the router
   stopped once its requests in flight are done, the LaunchAgent, the router's copy and the
   notifications' app), first, so no router brings the skill back up to date as it goes; the line
-  setup added to the shell's startup file, found by its mark as setup finds it, and switchboard's
-  own files for each shell that line hands off to, completion's with them; switchboard's own entry
-  in Claude Code's SessionStart hooks, every other setting and hook left as it is; the skill, in
-  Claude Code's config directory; and the `claude` link in switchboard's bin directory, the
-  directory too once empty.
+  setup added to the shell's startup file, found by its mark as setup finds it, in each file it
+  may be in, a zsh or fish login shell asked where it reads its own as setup asks it, never told
+  by uninstall's own environment, and where it can't be asked, or there's no `$SHELL`, uninstall
+  says it couldn't look there rather than that the line's not there, and an interrupt as it asks
+  stops it there, saying running it again finishes; and switchboard's own files for each shell
+  that line hands off to, completion's with them; switchboard's own entry in Claude Code's
+  SessionStart hooks, every other setting and hook left as it is; the skill, in Claude Code's
+  config directory; and the `claude` link in switchboard's bin directory, the directory too once
+  empty.
 - **What stays, unless `--all`:** the config, the accounts' token files and everything recorded in
   the state directory: the ledger, the readings, the events, the logs and the router's state. A
   reinstall then carries on where it left off, and the history, which nothing can bring back, goes
@@ -8896,13 +8926,14 @@ hiding it behind the provider would take a wider interface than it's worth:
   file is opened before its compressed file, and what the two hold is told from the files opened:
   compressing a day writes its compressed file before it removes the plain one, so a day another
   process compresses as they're opened is read whole, each line once. A day whose compressed file
-  already ends with its plain file's lines, as when the router compressed the day between the two
-  openings, or stopped between writing the one and removing the other, is read from the compressed
-  file alone. A file that can't be read is passed over, and
-  one damaged, as a compressed file cut short, read up to the damage, each warned of once, until it
-  reads to its end again (see Logging). A line cut short at a
-  file's end, as a crash or a power cut partway through a write leaves one, is ended before more
-  lines follow it, whether appended or compressed after it, so the next starts a line of its own.
+  already holds its plain file's lines, or the first of them, as a compress tells them, as when
+  the router compressed the day between the two openings, or stopped between writing the one and
+  removing the other, lines coming to the plain file after or not, is read as compressing it would
+  leave it: the compressed file, then the plain file's lines it doesn't hold. A file that can't be
+  read is passed over, and one damaged, as a compressed file cut short, read up to the damage,
+  each warned of once, until it reads to its end again (see Logging). A line cut short at a file's
+  end, as a crash or a power cut partway through a write leaves one, is ended before more lines
+  follow it, whether appended or compressed after it, so the next starts a line of its own.
 - **Request ledger:** `<state dir>/ledger/`, 0700: `requests-<local date>.jsonl`, a line a request,
   `day-<local date>.json`, a day's summary, `digest-<local date>.json.gz`, a day's digest,
   `parts-<local date>.gz`, its sessions' parts of the day, `logday-<local date>.json.gz`, a day's
