@@ -69,6 +69,33 @@ func TestWriteJSONRefusesWhatIsntAnObject(t *testing.T) {
 	}
 }
 
+func TestWriteStoredPutsTheSchemaFirstBeforeTheLinesOwnFields(t *testing.T) {
+	tests := []struct {
+		name, line, want string
+	}{
+		{name: "with fields", line: `{"at":"2026-10-07T09:00:00Z","kind":"message"}`, want: `{"schema":1,"at":"2026-10-07T09:00:00Z","kind":"message"}` + "\n"},
+		{name: "without", line: `{}`, want: `{"schema":1}` + "\n"},
+		{name: "without, spaced", line: " { } \n", want: `{"schema":1}` + "\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b strings.Builder
+			if err := writeStored(&b, []byte(tt.line)); err != nil || b.String() != tt.want {
+				t.Errorf("writeStored(%q) wrote %q, %v, want %q", tt.line, b.String(), err, tt.want)
+			}
+		})
+	}
+}
+
+func TestWriteStoredRefusesALineThatIsntAnObject(t *testing.T) {
+	for _, line := range []string{`[1]`, `"text"`, ``, `not a line`} {
+		var b strings.Builder
+		if err := writeStored(&b, []byte(line)); err == nil || b.Len() != 0 {
+			t.Errorf("writeStored(%q) wrote %q, %v, want it refused, nothing written", line, b.String(), err)
+		}
+	}
+}
+
 // errText is err's text, or "" for none.
 func errText(err error) string {
 	if err == nil {

@@ -77,19 +77,42 @@ func writeJSON(w io.Writer, v any) error {
 	if err != nil {
 		return fmt.Errorf("print JSON: %w", err)
 	}
-	fields, ok := bytes.CutPrefix(body, []byte("{"))
-	if !ok {
-		return fmt.Errorf("print JSON: %T isn't an object", v)
-	}
-	marked := []byte(`{"schema":` + strconv.Itoa(schema))
-	if !bytes.Equal(fields, []byte("}")) {
-		marked = append(marked, ',')
+	marked, err := schemaFirst(body)
+	if err != nil {
+		return fmt.Errorf("print %T: %w", v, err)
 	}
 	var out bytes.Buffer
-	if err := json.Indent(&out, append(marked, fields...), "", "  "); err != nil {
+	if err := json.Indent(&out, marked, "", "  "); err != nil {
 		return fmt.Errorf("print JSON: %w", err)
 	}
 	out.WriteByte('\n')
 	_, err = out.WriteTo(w)
 	return err
+}
+
+// writeStored writes a line as it's stored, a ledger's or the events', as a
+// data verb prints it: "schema" first, before the line's own fields, on a
+// line of its own. The line stored is left as it is.
+func writeStored(w io.Writer, line []byte) error {
+	marked, err := schemaFirst(line)
+	if err != nil {
+		return fmt.Errorf("print a stored line: %w", err)
+	}
+	_, err = w.Write(append(marked, '\n'))
+	return err
+}
+
+// schemaFirst is a copy of the JSON object given with "schema" put first,
+// before its own fields. It refuses JSON that isn't an object.
+func schemaFirst(object []byte) ([]byte, error) {
+	fields, ok := bytes.CutPrefix(bytes.TrimSpace(object), []byte("{"))
+	if !ok {
+		return nil, errors.New("it isn't a JSON object")
+	}
+	fields = bytes.TrimSpace(fields)
+	marked := []byte(`{"schema":` + strconv.Itoa(schema))
+	if !bytes.HasPrefix(fields, []byte("}")) {
+		marked = append(marked, ',')
+	}
+	return append(marked, fields...), nil
 }

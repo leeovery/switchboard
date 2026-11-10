@@ -1837,8 +1837,9 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
   never change, and a reader passes over those it doesn't know, as with the status document. Every
   object `status`, `usage`, `history` and `sessions` print carries `"schema": 1` first, which goes
   up only where a field's meaning changes or one is removed, never as fields are added; `requests`
-  and `events` print each line as it's stored, without one. Their text, for a person, is no
-  contract, and changes as it's redesigned (the owner's call, 10 November 2026):
+  and `events` print each stored line with it put first as they print it, the line's own fields
+  after it as stored, and the files holding none. Their text, for a person, is no contract, and
+  changes as it's redesigned (the owner's call, 10 November 2026):
   - **`status` and `usage`:** the status document (see The status document), read as their flags
     say, each window's allowance and even pace, the pool's room and COMING UP among what it holds.
     `usage`'s window flags, `--5h`, `--week` and one for each model family with a window of its own,

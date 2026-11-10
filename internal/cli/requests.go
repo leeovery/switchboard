@@ -139,10 +139,11 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	return writeRequests(out, views.RequestLines(lines), from, now)
 }
 
-// writeLines writes each of lines as the ledger holds it, a line each.
+// writeLines writes each of lines as the ledger holds it, its schema first, a
+// line each.
 func writeLines(out io.Writer, lines iter.Seq[ledger.Held]) error {
 	for h := range lines {
-		if _, err := fmt.Fprintf(out, "%s\n", h.JSON); err != nil {
+		if err := writeStored(out, h.JSON); err != nil {
 			return err
 		}
 	}

@@ -207,13 +207,13 @@ func appendStateFile(t *testing.T, dir, name string, data []byte) {
 }
 
 // linesOf returns the JSON of the lines of the requests with the given ids,
-// as written, a line each.
+// as requests prints them: each as written, its schema first, a line each.
 func linesOf(written map[string]string, requests ...string) string {
 	var lines strings.Builder
 	for _, request := range requests {
 		lines.WriteString(written[request] + "\n")
 	}
-	return lines.String()
+	return withSchema(lines.String())
 }
 
 // todaysRequests is what requests prints of today's lines.

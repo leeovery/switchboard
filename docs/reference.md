@@ -22,9 +22,11 @@ directly, agents included. Each format is described field by field.
 - **New fields:** Fields may be added to any format, but never renamed, and a field's meaning and
   units never change. When you read one, pass over the fields you don't know.
 - **The schema:** Every JSON object `status`, `usage`, `history` and `sessions` print carries
-  `"schema": 1` as its first field. The number goes up only where a field's meaning changes or a
-  field is removed. Fields are added without it. `requests` and `events` print each line as it's
-  stored, which carries no schema.
+  `"schema": 1` as its first field. `requests` and `events` print each stored line with
+  `"schema": 1` put first; the line's own fields follow, as stored, as
+  [the request ledger](#the-request-ledger) and [the router's events](#the-routers-events) list
+  them. The files themselves hold no schema. The number goes up only where a field's meaning
+  changes or a field is removed. Fields are added without it.
 - **Accounts:** Accounts appear by their ids, never by a token. Their labels appear only in the
   status document's `accounts`.
 - **Reasons:** The reasons a request went where it did, and the reasons an account couldn't serve
