@@ -146,8 +146,8 @@ type Config struct {
 	Choice theme.Choice
 	Pair   theme.Pair
 	// Themes are where the theme picker finds the themes to pick from, and
-	// the choice kept, which Prefs keeps its pick in: nil draws the dashboard without colour, as
-	// NO_COLOR asks, and leaves t doing nothing.
+	// the choice kept, which Prefs keeps its pick in: nil draws the dashboard
+	// without colour, as NO_COLOR asks, and leaves t doing nothing.
 	Themes Themes
 	// View is the tab the preferences kept, which the watch opens on where
 	// it's one there is; Sections the Overview's sections they keep shown;
@@ -510,10 +510,11 @@ func (m Model) Init() tea.Cmd {
 // sessionsLooked and runwayLooked have it, the ledger's tail followed
 // whatever shows, as followTail has it, and the Log's page built of what it
 // holds, and only then, price the moves the routing card would make while it
-// wants them, and keep the preferences changed, as keptPrefs has it. Then, of the page as it stands at that moment, the one frame a
-// look builds, it has the readings history's tail read for Runway and
-// Graphs, as readRunway has it, and notes the tab shown waiting on a read,
-// as waited has it, the page loading as that leaves it. Of that page, its
+// wants them, and keep the preferences changed, as keptPrefs has it. Then,
+// of the page as it stands at that moment, the one frame a look builds, it
+// has the readings history's tail read for Runway and Graphs, as readRunway
+// has it, and notes the tab shown waiting on a read, as waited has it, the
+// page loading as that leaves it. Of that page, its
 // Overview's sections built once for each to share, it keeps the Overview's
 // layout, and takes the view back to its top where what its scroll counts
 // changed, as rescrolled has it, but for a frame, which takes nothing in to
@@ -658,11 +659,11 @@ func (m Model) render() Model {
 
 // take takes in a message: a key, a paste, a click, the wheel, a resize, the
 // terminal's background, the themes listed for the picker, the choice kept
-// as it stands, or the preferences kept, a read, the router's history, the ledger's days read
-// for History, the router carrying out an order, the sessions listed to
-// price the routing card's moves, the request stream opening, telling of
-// requests or falling due to be asked for again, a tick, a frame, or a
-// session's page read.
+// as it stands, or the preferences kept, a read, the router's history, the
+// ledger's days read for History, the router carrying out an order, the
+// sessions listed to price the routing card's moves, the request stream
+// opening, telling of requests or falling due to be asked for again, a tick,
+// a frame, or a session's page read.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
