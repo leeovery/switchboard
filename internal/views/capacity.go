@@ -179,8 +179,8 @@ func (c Capacity) headline() string {
 }
 
 // replay is the weeks Weeks replays, each account's week's peak in each, in
-// the config's order, and the accounts' sizes in Pros, with that of the plan
-// most of them have, usual.
+// the config's order, and the accounts' sizes in Pro weeks, with that of the
+// plan most of them have, usual.
 type replay struct {
 	weeks [][]millionths
 	sizes []int64
@@ -220,30 +220,15 @@ func (p placedWeek) judged(accounts int, key string) ([]millionths, bool) {
 	return week, true
 }
 
-// sizesOf are the accounts' sizes in Pros, as the replay weighs them: each
-// one's plan's, else that of the plan most of them have, the larger of two
-// that tie, else, where none has one, 1; and that most usual size.
+// sizesOf are the accounts' sizes in Pro weeks, as the replay weighs them,
+// and that of the plan most of them have, as their plans' price table sizes
+// them.
 func sizesOf(accounts config.Accounts, p plans) (sizes []int64, usual int64) {
-	sizes = make([]int64, len(accounts))
-	known := make(map[int64]int)
+	ids := make([]string, len(accounts))
 	for i, a := range accounts {
-		if plan, ok := p.of(a.ID); ok {
-			sizes[i] = int64(plan.Size)
-			known[sizes[i]]++
-		}
+		ids[i] = a.Plan
 	}
-	usual = 1
-	for size, n := range known {
-		if n > known[usual] || n == known[usual] && size > usual {
-			usual = size
-		}
-	}
-	for i := range sizes {
-		if sizes[i] == 0 {
-			sizes[i] = usual
-		}
-	}
-	return sizes, usual
+	return p.table.Sizes(ids)
 }
 
 // count counts the weeks short reports short.

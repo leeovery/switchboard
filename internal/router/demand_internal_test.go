@@ -559,19 +559,35 @@ func TestTheDocumentGivesAWindowsFastRateWithoutARecentRate(t *testing.T) {
 }
 
 func TestTheDocumentsDemandIsThePoolsFastRateWithTooFewHoursOfRoom(t *testing.T) {
-	// Five minutes in, work, on Max, has read its week rise two points, and
-	// side, on Ultra, one.
-	clock := &testClock{now: start}
-	s := newStateOf(clock, planned())
-	s.record("work", []quota.Window{weekUsed(0.4)}, s.mark())
-	s.record("side", []quota.Window{weekUsed(0.1)}, s.mark())
-	clock.now = start.Add(5 * time.Minute)
-	s.record("work", []quota.Window{weekUsed(0.42)}, s.mark())
-	s.record("side", []quota.Window{weekUsed(0.11)}, s.mark())
+	// Five minutes in, work has read its week rise two points, and side, on
+	// Ultra, one.
+	planUnknown := planned()
+	planUnknown[0].Plan = ""
+	tests := []struct {
+		name       string
+		configured []config.Account
+		want       float64
+	}{
+		// Work's 2% of 5 Pro weeks an hour, and side's 1% of 10.
+		{name: "work on Max", configured: planned(), want: 0.02*5 + 0.01*10},
+		// Work's 2% of 10 Pro weeks an hour, as personal is on Pro and side
+		// on Ultra, the larger of two plans that tie; and side's 1% of 10.
+		{name: "work on a plan not known, as the plan most are on", configured: planUnknown, want: 0.02*10 + 0.01*10},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newStateOf(clock, tt.configured)
+			s.record("work", []quota.Window{weekUsed(0.4)}, s.mark())
+			s.record("side", []quota.Window{weekUsed(0.1)}, s.mark())
+			clock.now = start.Add(5 * time.Minute)
+			s.record("work", []quota.Window{weekUsed(0.42)}, s.mark())
+			s.record("side", []quota.Window{weekUsed(0.11)}, s.mark())
 
-	// Work's 2% of 5 Pro weeks an hour, and side's 1% of 20.
-	if got, want := s.document().Demand, (&status.Demand{Day: 0.02*5 + 0.01*20}); !sameDemand(got, want) {
-		t.Errorf("the pool's demand is %+v, want %+v, its fast rate, measured over no hours", got, want)
+			if got, want := s.document().Demand, (&status.Demand{Day: tt.want}); !sameDemand(got, want) {
+				t.Errorf("the pool's demand is %+v, want %+v, its fast rate, measured over no hours", got, want)
+			}
+		})
 	}
 }
 
