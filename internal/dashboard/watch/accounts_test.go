@@ -221,6 +221,7 @@ func TestAccountsSubTabAndPeriodAreKeptAsTheyChange(t *testing.T) {
 	for _, step := range steps {
 		step.change(&shown)
 		h.model = h.model.showAccounts(shown)
+		h.keepWritten()
 		if prefs.kept.Accounts != step.kept || prefs.updates != step.updates {
 			t.Fatalf("after %s changed, the preferences keep %+v, updated %d times; want %+v, %d times", step.name, prefs.kept.Accounts, prefs.updates, step.kept, step.updates)
 		}

@@ -5647,8 +5647,8 @@ one:
   `[ledger] keep` keeps them, 400 days unless it's set, and for good where it says `forever` (see
   The router's events). A move's cost, a cap's `known from` and the windows then are read off the
   ledger's lines of the moment. Days before the router filed its events show none.
-- **Live:** the Log joins the request stream while it shows, as Sessions does, joining again a
-  second after it ends (see Live updates). A reader 256 events behind is dropped by the router: the
+- **Live:** the Log joins the request stream while it shows, as Sessions does, joining again after
+  it ends as Live updates says. A reader 256 events behind is dropped by the router: the
   Log fills the gap from the ledger as it joins again. Within the motion budget (see What moves),
   following, a new line joins the foot and the table moves up a line, and a line in flight's `took`
   counts; paused, only `▼ N new` and `took` move (settled in the plan).
@@ -6556,6 +6556,11 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   page). It's written whole, as `state.json` is, in the state directory as it changes as the
   dashboard is used, never in the config directory, whose file is often a link into the user's
   dotfiles; and never the config file, which is the user's, and which the dashboard never rewrites.
+  A dashboard writes it one write at a time, never as it takes a key: what changes while a write is
+  under way goes in the next, the latest of each change standing, the theme picked among them; and
+  what's left unwritten as it stops, however it stops that it can catch, is written then. Each write
+  reads the file afresh and writes it back with the state directory locked, so dashboards in other
+  terminals never write back what they read before another's change.
   Its keys are written in sorted order, and those it doesn't know, as a newer build's, or an older
   one's that this build no longer keeps, are kept as they are; a value it doesn't know, as a page
   an older build kept, reads as the default. One that can't be read is set aside as
@@ -6640,9 +6645,12 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   moves on screen, never for what's scrolled out of view, under a card or under `?`, so nothing new
   is drawn while nothing happens; the motion's own pace is What moves'. The stream opens with the
   requests already in flight, so a page opened mid-answer shows it, `asking` or `answering`. A
-  stream that ends is joined again a second later, and one that fails to open is tried again after a
-  second, doubling to 30 seconds. A reader the router drops for falling 256 events behind joins
-  again, and what it missed is taken from the ledger's lines as it does (settled in the plan). A
+  stream that ends after staying open 30 seconds is joined again a second later; one that fails to
+  open, or ends sooner, is tried again after a second, doubling for each in a row to 30 seconds, so a
+  router that keeps dropping it is asked at most every 30 seconds. A reader the router drops for
+  falling 256 events behind joins again alike, waiting longer only where it's dropped young again
+  and again, as each join reads the ledger's tail, and what it missed is taken from the ledger's
+  lines as it does (settled in the plan). A
   router from before the stream has none, and the dashboard stops asking until another router
   answers: its pages draw the sessions as each look reads them, with nothing in flight and no
   requests travelling.

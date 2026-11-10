@@ -60,7 +60,7 @@ func TestTabShowsTheNextTabAndKeepsIt(t *testing.T) {
 		{key: "shift+tab", want: dashboard.Overview},
 		{key: "shift+tab", want: dashboard.Log},
 	} {
-		h.press(step.key)
+		h.typed(step.key)
 		if h.model.view != step.want || prefs.kept.Tab != string(step.want) {
 			t.Errorf("%s showed %q and kept %q, want %q kept", step.key, h.model.view, prefs.kept.Tab, step.want)
 		}
@@ -93,7 +93,7 @@ func TestTabTurnsRoundTheSevenTabs(t *testing.T) {
 		{key: "shift+tab", want: dashboard.Graphs},
 		{key: "shift+tab", want: dashboard.Runway, wantShows: "RUNWAY  ─"},
 	} {
-		h.press(step.key)
+		h.typed(step.key)
 		shown := h.view()
 		if h.model.view != step.want || !strings.Contains(shown, step.wantShows) || step.wantShows == "" && strings.Contains(shown, overview) {
 			t.Errorf("%s showed %q, the screen\n%s\nwant %q, showing %q", step.key, h.model.view, shown, step.want, step.wantShows)
@@ -107,7 +107,7 @@ func TestAViewTabTurnsToShowsFromItsTop(t *testing.T) {
 	h.press("j")
 	h.press("j")
 
-	h.press("tab")
+	h.typed("tab")
 	h.press("shift+tab")
 	if h.model.scroll != 0 || h.scrolled() != top {
 		t.Errorf("turned to History, scrolled %d, the screen\n%s\nwant its Year from its top", h.model.scroll, h.view())
@@ -126,7 +126,7 @@ func TestAViewThatCantBeKeptIsShownAllTheSame(t *testing.T) {
 	h.model.cfg.Prefs = &fakePrefs{err: errors.New("keep the preferences: read-only file system")}
 	h.start()
 
-	h.press("tab")
+	h.typed("tab")
 	if h.model.view != dashboard.Accounts {
 		t.Errorf("showing %q, want accounts all the same", h.model.view)
 	}

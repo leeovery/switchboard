@@ -324,7 +324,7 @@ func (m Model) showSessions(s dashboard.SessionsShown) Model {
 	m.sessionsTab.shown = s
 	m = m.revealing(m.now())
 	if kept := s.Kept(); kept != was.Kept() {
-		m.keepPrefs("what Sessions shows", func(prefs *theme.Prefs) { prefs.Sessions = kept }, "sessions", kept)
+		m = m.keepPrefs("what Sessions shows", func(prefs *theme.Prefs) { prefs.Sessions = kept }, "sessions", kept)
 	}
 	return m
 }
