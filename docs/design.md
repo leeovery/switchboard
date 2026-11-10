@@ -778,9 +778,16 @@ numbered the accounts by their place in the config, which read as their ids wher
 digits, and changed when one before them was removed. To be built before v1, whose freeze then
 holds the formats below; the screens as signed off in Paper (see The screens, below).
 
-- **The id:** made as an account is added, 8 characters, lowercase letters and digits, a letter
-  first, from `crypto/rand`, and never one the accounts record (below) holds. It never changes and
-  is never given to another account. Every record keys the account by it, as each keys an account
+- **The id:** derived from the account's organization (below) as it's added: 4 characters,
+  lowercase letters and digits, a letter first, so none reads as a number, taken from the SHA-256
+  of the organization's id; where that's an id the accounts record (below) already holds for
+  another organization, a character longer, as many times as it takes. So a subscription has the
+  same id on every Mac and after a state directory lost, and an account added again finds its
+  history by its id alone (the owner's choice, 10 November 2026: short, about a million ids, two of
+  twenty accounts alike about one time in ten thousand). Where an account's organization can't be
+  known as it's moved to ids made (below), its id is random from the same characters, as short,
+  and never one the accounts record holds. It never changes and is never given to another
+  account. Every record keys the account by it, as each keys an account
   today: the request ledger's lines, the readings history, the router's events, the days'
   summaries, `state.json`, and the token file `tokens/<id>` and its record. Every command that names
   an account takes it, `accounts edit`, `accounts token`, `accounts remove`, `pin` and `run
@@ -805,9 +812,10 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   a refusal at a limit's too: four accounts checked on 10 November 2026, each naming its own.
 - **The accounts record:** `<state dir>/accounts.json`, this Mac's record of every account it has
   had: its id, its organization where known, its label once it's removed (while it's configured,
-  the config's is the one), when it was added and when removed, and the ids it had before ids were
-  made, as `was`. Kept for good, as the days' summaries are, a few hundred bytes an account, and
-  written whole, 0600, as `state.json` is. `export` copies it and `import` reads it.
+  the config's is the one), when it was added and when removed, and the id it had before ids were
+  made, as `was`, read only to import a folder exported before the move (below). Kept for good, as
+  the days' summaries are, a few hundred bytes an account, and written whole, 0600, as `state.json`
+  is. `export` copies it and `import` reads it.
 - **Adding:** `accounts add <label>` and setup's add card take the label, the plan and the reserve,
   and no id. The token is checked first, and the organization its answer names decides the id:
   - one no account of this Mac's has had: a new id;
@@ -830,24 +838,34 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   today, and the accounts record keeps it, marked removed, with its label. History, Accounts and
   the verbs name it by that label, marked removed, as the Paper frames draw it, so it's told apart
   from a configured account given the same label since.
-- **Moving to ids made, once:** the first command or router of a build with this, under the
-  config's lock, before anything else reads an account:
-  - each configured account gets an id made, its old one kept in its config table as `was`, and a
-    label, its old id, where it had none; its token file and the token's record take the new id,
-    renamed under the tokens directory's lock, a link or a second name handled as writing a token
-    handles one;
-  - each id the records hold that the config doesn't, an account removed before, goes into the
-    accounts record as removed, its label its old id, its organization unknown, `was` its old id.
+- **Moving to ids made, once:** the history is rewritten under the new ids (the owner's choice,
+  10 November 2026: one form on disk, no reader ever knowing an id that's gone). The router does it
+  as it first starts on a build with this, under the config's lock, before anything reads an
+  account's history; it routes throughout, and the dashboard and the verbs wait on the history till
+  it's done, saying so.
+  - Each configured account gets its id, derived from the organization its token's answer names,
+    or random where none can be read; a label, its old id, where it had none; and its token file
+    and the token's record take the new id, renamed under the tokens directory's lock, a link or a
+    second name handled as writing a token handles one.
+  - Each id the history holds that the config doesn't, an account removed before, goes into the
+    accounts record as removed, with a random id, its label its old id, its organization unknown.
+  - Then every file that names an account, the request ledger's lines, the readings history, the
+    router's events, the days' summaries and `state.json`, is written anew beside the old under its
+    new ids and swapped in, a file at a time, so a stop part way loses nothing, and the move runs
+    again from where it stopped: a new id is never an old one, so a file moved reads the same moved
+    again. The files the router builds from these, the days' digests, parts, heads and rows, are
+    built again. It doesn't hold the ledger's writer while it works.
+  - It's proved before release on a copy of the owner's own history, taken with his word, never on
+    the real one: every file moved, every day's totals by account the same before and after, and
+    the dashboard and the verbs reading it whole.
 
-  Nothing recorded is rewritten: every reader of the records reads an account through the accounts
-  record, an old id as the account that had it, with one owner of that reading, guarded as
-  `status`'s and `views`' facts are. A folder exported before reads the same way on import; one
-  exported after carries its accounts record. Where several Macs share a config, as a dotfiles
-  repository keeps it, the first to upgrade writes the new ids and `was`, and each after takes its
-  own token files and records over by `was`. A Mac still on an earlier build reads ids it has no
+  A folder exported before the move still names the old ids: `import` moves its files over by the
+  accounts record's `was` as it takes them in. One exported after names the new. Where several
+  Macs share a config, as a dotfiles repository keeps it, each derives the ids from its own tokens'
+  organizations and moves its own history; a Mac still on an earlier build reads ids it has no
   token files for, so the Macs sharing a config upgrade together.
 - **What changes in the formats:** an account in every record is still a string, now the id made.
-  New: `accounts.json`, `was` in the config, the config's `id` written by switchboard, and
+  New: `accounts.json`, the config's `id` written by switchboard, and
   `accounts add` taking a label. The verbs' JSON gives the id and the label wherever it gives an
   account, as today, and no number, as it gives none today.
 - **The screens:** drawn in Paper from a spike of the build, for the owner's sign-off before the
