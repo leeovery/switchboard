@@ -7290,16 +7290,21 @@ from the first day a router that has it runs, so nothing before then is in it.
     one whose lines are gone has none, never as many of none, as its readings can't give them. A
     new version reads each kept day's lines once, some 0.37 seconds a day of 16,000 lines on an M1
     Max, under three minutes for a year of them, so a round summarises again eight days at most, the
-    oldest first, some three seconds of the heaviest, and holds up the writer whose round it is that
-    long at most. The ledger's makes the next round at once, writing what's noted meanwhile first,
-    so no line waits on more than a round's eight days; the readings history's, which has the ledger
-    summarise before each prune, waits on the eight a round of the ledger's may be summarising and
-    eight of its own, and leaves the rest to the ledger's rounds. A day that can't be summarised
-    counts for none of the eight, so days that keep failing never keep the rest from their turn. A
-    day's first summary is never left for a later round, so no reading it needs is pruned before
-    it's written; one written again knows no less whenever it comes, so a prune of the readings
-    meanwhile loses it nothing. The digesting waits for the last of them: a round kicks it only
-    once it leaves no day for a later one. Until a day's turn comes, History and `history` read it
+    oldest first, some three seconds of the heaviest, their readings read from the week before the
+    first on, some fifteen days of them, a tenth of a second more, and holds up the writer whose
+    round it is that long at most. The ledger's makes the next round at once, writing what's noted
+    meanwhile first, so no line waits on more than a round's eight days. The readings history's,
+    which has the ledger summarise before each prune, waits on the eight a round of the ledger's may
+    be summarising, then has it summarise again first, whole, each day due whose summary reads
+    readings that prune takes, of the day itself or of its week before: a handful, the days beside
+    where the history's files begin, or a few more for each day the router was off, whatever older
+    days the ledger keeps beyond the history. Then eight more, leaving the rest to the ledger's
+    rounds. A day's first summary is never left for a later round either, so no day is summarised,
+    the first time or again, from fewer readings than it would have been. A day that can't be
+    summarised counts for none of the eight, so days that keep failing never keep the rest from
+    their turn, and is tried, and warned of, once a pass of rounds made back to back, as it was once
+    a round before. The digesting waits for the last of them: a round kicks it only once it leaves
+    no day for a later one. Until a day's turn comes, History and `history` read it
     from its lines, as below, with the same figures, at the cost of the read. A reader that meets
     an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its

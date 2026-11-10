@@ -687,12 +687,13 @@ func TestRunDigestsNoDayBeforeItsFirstRoundHasSummarisedItAgain(t *testing.T) {
 	})
 }
 
-// summarisedUnderVersionFive lays out in dir the given number of days from
-// the summaries' day on, each of the request atNine gives, in its plain file,
-// and its summary as a release of version 5 wrote it, marked with the file.
-func summarisedUnderVersionFive(t *testing.T, dir string, days int) {
+// summarisedUnderVersionFive lays out in dir the days from the given number
+// of days after the summaries' day up to the other, not that one itself, each
+// of the request atNine gives, in its plain file, and its summary as a
+// release of version 5 wrote it, marked with the file.
+func summarisedUnderVersionFive(t *testing.T, dir string, from, to int) {
 	t.Helper()
-	for n := range days {
+	for n := from; n < to; n++ {
 		day := dayOf(n)
 		holdLines(t, dir, day, atNine(n))
 		held := ofVersion(summaryOf(day, 1, windowsRead{}, on(n, 9, 0)), 5)
@@ -734,7 +735,7 @@ func TestSummarisingTheKeptDaysAgainUnderANewVersionHoldsNoLineBackForThemAll(t 
 		dir := t.TempDir()
 		// Three parts' days, the last short.
 		days := 2*ledger.SummariseAtOnce + 3
-		summarisedUnderVersionFive(t, dir, days)
+		summarisedUnderVersionFive(t, dir, 0, days)
 		at := on(days+1, 10, 0)
 		l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return at }, noReadings, caps, logs.For("router"))
 		today := asked("today", at)
@@ -779,7 +780,7 @@ func TestSummarisingTheKeptDaysAgainUnderANewVersionHoldsNoLineBackForThemAll(t 
 func TestARoundSummarisesAgainAPartOfTheDaysTheOldestFirstButEveryFirstSummary(t *testing.T) {
 	dir := t.TempDir()
 	again := ledger.SummariseAtOnce + 2
-	summarisedUnderVersionFive(t, dir, again)
+	summarisedUnderVersionFive(t, dir, 0, again)
 	// The newest day, never yet summarised.
 	holdLines(t, dir, dayOf(again), atNine(again))
 	at := on(again+1, 10, 0)
@@ -808,12 +809,14 @@ func TestARoundSummarisesAgainAPartOfTheDaysTheOldestFirstButEveryFirstSummary(t
 }
 
 // A day that can't be summarised again counts for none of a round's part,
-// so days that keep failing never keep the rest from their turn.
-func TestADayThatCantBeSummarisedAgainKeepsNoneFromItsTurn(t *testing.T) {
+// so days that keep failing never keep the rest from their turn; and it's
+// tried, and warned of, once a pass of rounds made back to back, as it was
+// once a round while each summarised them all.
+func TestADayThatCantBeSummarisedAgainKeepsNoneFromItsTurnAndIsWarnedOfOnceAPass(t *testing.T) {
 	log := logstest.Capture(t)
 	dir := t.TempDir()
 	again := ledger.SummariseAtOnce + 2
-	summarisedUnderVersionFive(t, dir, again)
+	summarisedUnderVersionFive(t, dir, 0, again)
 	unopenable(t, dir, "requests-"+dayOf(0)+".jsonl")
 	at := on(again+1, 10, 0)
 	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return at }, noReadings, caps, logs.For("router"))
@@ -827,7 +830,60 @@ func TestADayThatCantBeSummarisedAgainKeepsNoneFromItsTurn(t *testing.T) {
 				ledger.SummariseAtOnce)
 		}
 	}
-	if !log.Has("level=WARN", `msg="can't summarise the request ledger"`, "day="+dayOf(0)) {
-		t.Errorf("log reads\n%s\nwant the day that can't be summarised warned of", log)
+	// warned counts the warnings of the day that can't be summarised.
+	warned := func() int {
+		return len(slices.DeleteFunc(log.Lines(), func(line string) bool {
+			return !strings.Contains(line, "level=WARN") || !strings.Contains(line, "day="+dayOf(0))
+		}))
+	}
+	if n := warned(); n != 1 {
+		t.Errorf("log reads\n%s\nwant the day that can't be summarised warned of once, not %d times", log, n)
+	}
+	if l.SummariseSome(at) {
+		t.Error("SummariseSome() again = true, want false: it left none")
+	}
+	if n := warned(); n != 1 {
+		t.Errorf("log reads\n%s\nthe day that can't be summarised was warned of %d times; want once, as the second round, of the same pass, "+
+			"passed it over", log, n)
+	}
+	if l.SummariseSome(at); warned() != 2 {
+		t.Errorf("log reads\n%s\nwant the day that can't be summarised tried, and warned of, again on the next pass", log)
+	}
+}
+
+// Before a prune of the readings history, each day due whose summary reads
+// readings the prune takes, of the day itself or of its week before, is
+// summarised again first, whole, with them, however many such days there
+// are, as when the router was off for days, and whatever older days the
+// ledger keeps beyond the history: the rest a part at a time, as ever.
+func TestTheDaysWhoseReadingsAPruneTakesAreSummarisedAgainWithThemBeforeIt(t *testing.T) {
+	_, dir, history := stateDirs(t)
+	// Ten days the ledger keeps of their lines alone, older than any reading
+	// the history holds.
+	summarisedUnderVersionFive(t, dir, 0, 10)
+	// Thirteen days beside where the history's files begin, with the 28th's:
+	// a prune on the 40th, keeping a day's readings eight days, takes those of
+	// the 28th to the 31st, as after the router was off for them.
+	summarisedUnderVersionFive(t, dir, 27, 40)
+	for n := 28; n <= 40; n++ {
+		holdReadings(t, history, dayOf(n), workRead(on(n, 9, 0), "5h", 0.4, on(n, 13, 0), quota.StatusAllowed))
+	}
+	at := on(40, 10, 0)
+	l := ledger.Open(dir, dayfile.Forever, func() time.Time { return at }, historyIn(history), caps, logs.For("router"))
+
+	if !l.SummariseBeforePrune(at, 8*24*time.Hour) {
+		t.Error("SummariseBeforePrune() = false, want true: it left days of their lines alone for a later round")
+	}
+	for n := 27; n < 40; n++ {
+		got := heldSummary(t, dir, dayOf(n))
+		if !strings.HasPrefix(got, `{"version":6,`) || n >= 28 && !strings.Contains(got, `"highest":{"5h":0.4}`) {
+			t.Errorf("before the prune, the summary of %s is\n%s\nwant it summarised again, as version 6, with its readings", dayOf(n), got)
+		}
+	}
+	for n := range 10 {
+		if got, want := summarisedAgain(t, dir, n), n < ledger.SummariseAtOnce; got != want {
+			t.Errorf("before the prune, %s is summarised again %t, want %t: the oldest %d of those whose readings it takes none of", dayOf(n), got,
+				want, ledger.SummariseAtOnce)
+		}
 	}
 }

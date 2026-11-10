@@ -375,6 +375,14 @@ func (h readingsHeld) holds(date string) bool {
 	return found
 }
 
+// readsBefore reports whether a summary of the local day with the given date
+// reads readings the history holds of a day before the one with the date
+// kept, as a prune that keeps that day's on takes them, by the dates
+// readingDates gives their files: never where kept is "".
+func (h readingsHeld) readsBefore(date, kept string) bool {
+	return slices.ContainsFunc(readingDates(date), func(d string) bool { return d < kept && h.holds(d) })
+}
+
 // reach returns how far the history holds the readings a summary of the
 // local day with the given date reads, as reach says, by the dates
 // readingDates gives their files.
