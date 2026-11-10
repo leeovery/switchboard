@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"io"
 
 	"github.com/charmbracelet/colorprofile"
@@ -11,13 +10,9 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// errNowhereToKeep is why a theme chosen can't be kept without a state
-// directory, which the preferences file is in.
-var errNowhereToKeep = errors.New("there's no state directory to keep it in")
-
 // themes are the dashboard's themes, as the theme picker takes them: the
 // built-ins and the themes directory's, and the preferences file the user's
-// choice is kept in, beside the view shown.
+// choice is kept in, beside the view shown, which the dashboard keeps it in.
 type themes struct {
 	library *theme.Library
 	// prefs is the preferences file: nil where the state directory can't be
@@ -61,20 +56,6 @@ func (t themes) List() theme.Listing {
 // Chosen is the user's choice as the preferences file keeps it now.
 func (t themes) Chosen() theme.Choice {
 	return t.kept().Choice
-}
-
-// Keep changes the user's choice in the preferences file, as it stands now,
-// as change says, and returns the choice it keeps.
-func (t themes) Keep(change func(theme.Choice) theme.Choice) (theme.Choice, error) {
-	if t.prefs == nil {
-		return theme.Choice{}, errNowhereToKeep
-	}
-	var kept theme.Choice
-	err := t.prefs.Update(func(p *theme.Prefs) {
-		p.Choice = change(p.Choice)
-		kept = p.Choice
-	})
-	return kept, err
 }
 
 // noColour reports whether NO_COLOR is set, to anything at all, as

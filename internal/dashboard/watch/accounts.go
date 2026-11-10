@@ -112,7 +112,7 @@ func (m Model) showAccounts(s dashboard.AccountsShown) Model {
 	drawn := m.frame(m.now()).Accounts
 	m.accounts.shown.First, m.accounts.shown.ListScroll = drawn.First, drawn.ListScroll
 	if kept := s.Kept(); kept != was.Kept() {
-		m.keepPrefs("what Accounts shows", func(prefs *theme.Prefs) { prefs.Accounts = kept }, "accounts", kept)
+		m = m.keepPrefs("what Accounts shows", func(prefs *theme.Prefs) { prefs.Accounts = kept }, "accounts", kept)
 	}
 	return m
 }

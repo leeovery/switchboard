@@ -190,7 +190,8 @@ func dressed(cfg *watch.Config, t theme.Theme, colourless bool) {
 		return
 	}
 	cfg.Choice, cfg.Pair = theme.One(t.Slug), theme.Pair{Light: t, Dark: t}
-	cfg.Themes = &themes{listing: listing(t), choice: cfg.Choice}
+	themes := &themes{listing: listing(t), prefs: theme.Prefs{Choice: cfg.Choice}}
+	cfg.Themes, cfg.Prefs = themes, themes
 }
 
 // terminalBackground is what the terminal a tape runs says its background
@@ -198,12 +199,12 @@ func dressed(cfg *watch.Config, t theme.Theme, colourless bool) {
 var terminalBackground = color.RGBA{R: 0x2E, G: 0x34, B: 0x40, A: 0xff}
 
 // themes are a capture's themes, as the theme picker takes them: listed,
-// never looked for in the themes directory, and a choice made among them
-// kept for the capture alone, never written.
+// never looked for in the themes directory, and the preferences, a choice
+// made among them with them, kept for the capture alone, never written.
 type themes struct {
 	listing theme.Listing
 	mu      sync.Mutex
-	choice  theme.Choice
+	prefs   theme.Prefs
 }
 
 // List lists the capture's themes.
@@ -215,15 +216,16 @@ func (t *themes) List() theme.Listing {
 func (t *themes) Chosen() theme.Choice {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.choice
+	return t.prefs.Choice
 }
 
-// Keep changes the choice kept for the capture, as a capture writes nothing.
-func (t *themes) Keep(change func(theme.Choice) theme.Choice) (theme.Choice, error) {
+// Update changes the preferences kept for the capture, as a capture writes
+// nothing.
+func (t *themes) Update(change func(*theme.Prefs)) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.choice = change(t.choice)
-	return t.choice, nil
+	change(&t.prefs)
+	return nil
 }
 
 // listing lists the built-ins, and t where it isn't one, as when the

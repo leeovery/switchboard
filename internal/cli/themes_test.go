@@ -66,8 +66,11 @@ func TestDashboardIsDrawnInTheThemesChosen(t *testing.T) {
 	if !slices.ContainsFunc(cfg.Themes.List().Entries, func(e theme.Entry) bool { return e.Slug == "lake" && e.Problem == nil }) {
 		t.Error("the picker doesn't list lake, from the themes directory")
 	}
-	if _, err := cfg.Themes.Keep(func(theme.Choice) theme.Choice { return theme.One("exchange") }); err != nil {
-		t.Fatalf("Keep() error = %v", err)
+	if cfg.Prefs == nil {
+		t.Fatal("nowhere to keep the theme picked, want the preferences file")
+	}
+	if err := cfg.Prefs.Update(func(p *theme.Prefs) { p.Choice = theme.One("exchange") }); err != nil {
+		t.Fatalf("Update() error = %v", err)
 	}
 	data, err := os.ReadFile(filepath.Join(stateDir(t, deps), "prefs.json"))
 	if err != nil || !strings.Contains(string(data), `"theme": "exchange"`) {
@@ -85,9 +88,10 @@ func TestTheDashboardsThemesKeepAChoiceAsItStandsNow(t *testing.T) {
 	if got, want := cfg.Themes.Chosen(), (theme.Choice{Light: "tokyo-night"}); got != want {
 		t.Errorf("Chosen() = %+v, want %+v, as another dashboard kept it since", got, want)
 	}
-	kept, err := cfg.Themes.Keep(func(c theme.Choice) theme.Choice { return c.WithHalf(true, "amber") })
+	var kept theme.Choice
+	err := cfg.Prefs.Update(func(p *theme.Prefs) { p.Choice = p.WithHalf(true, "amber"); kept = p.Choice })
 	if want := (theme.Choice{Light: "tokyo-night", Dark: "amber"}); err != nil || kept != want {
-		t.Errorf("Keep() = %+v, %v; want %+v, the half set beside the one kept since", kept, err, want)
+		t.Errorf("Update() kept %+v, %v; want %+v, the half set beside the one kept since", kept, err, want)
 	}
 	data, err := os.ReadFile(filepath.Join(stateDir(t, deps), "prefs.json"))
 	if err != nil || !strings.Contains(string(data), `"theme_light": "tokyo-night"`) || !strings.Contains(string(data), `"view": "accounts"`) {

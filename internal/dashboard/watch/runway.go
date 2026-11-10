@@ -490,7 +490,7 @@ func (m Model) showRunway(r dashboard.RunwayShown) Model {
 	was := m.runwayTab.shown
 	m.runwayTab.shown = r
 	if kept := r.Kept(); kept != was.Kept() {
-		m.keepPrefs("what Runway shows", func(prefs *theme.Prefs) { prefs.Runway = kept }, "window", kept.Window, "collapsed", kept.Collapsed)
+		m = m.keepPrefs("what Runway shows", func(prefs *theme.Prefs) { prefs.Runway = kept }, "window", kept.Window, "collapsed", kept.Collapsed)
 	}
 	return m
 }

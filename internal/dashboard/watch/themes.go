@@ -11,8 +11,8 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// Themes is where the theme picker finds the themes to pick from, and keeps
-// the user's pick.
+// Themes is where the theme picker finds the themes to pick from, and the
+// choice kept, which the picker keeps its pick in, in the preferences.
 type Themes interface {
 	// List lists every theme there is to pick from, the themes directory read
 	// afresh.
@@ -20,9 +20,6 @@ type Themes interface {
 	// Chosen is the choice kept, as it stands now: another dashboard's, should
 	// one have kept its own since this one read it.
 	Chosen() theme.Choice
-	// Keep changes the choice kept, as it stands now, as change says, for the
-	// dashboard to start in from now on, and returns the choice it keeps.
-	Keep(change func(theme.Choice) theme.Choice) (theme.Choice, error)
 }
 
 // tooSmall is what the key line says where the theme picker doesn't fit.
@@ -121,22 +118,15 @@ type listedMsg struct {
 	listing theme.Listing
 }
 
-// askMsg is the choice kept, as it stands, one theme, which setting a half
-// of the pair, as pick does, asks first whether to clear; pair is the
-// themes it draws in, as the picker lists them.
+// askMsg is the choice kept, as it stands, read for a pick of a half of the
+// pair: one theme, which the picker asks first whether to clear, else none,
+// and the pick is kept; listing is the themes the picker listed as it was
+// picked, and pair the themes the choice draws in, as they list them.
 type askMsg struct {
-	pick   pick
-	chosen theme.Choice
-	pair   theme.Pair
-}
-
-// keptMsg is how keeping a pick went: the choice as kept, and pair the themes
-// it draws in, as the picker lists them; or why it wasn't kept.
-type keptMsg struct {
-	pick   pick
-	choice theme.Choice
-	pair   theme.Pair
-	err    error
+	pick    pick
+	chosen  theme.Choice
+	listing theme.Listing
+	pair    theme.Pair
 }
 
 // openPicker lists the themes afresh, for the picker to open on. Under
@@ -244,14 +234,12 @@ func (m Model) choose(half string) (Model, tea.Cmd) {
 	}
 	p := pick{slug: slug, half: half}
 	if half == "" {
-		return m, m.keep(p)
+		return m.keepPick(p, m.picker.listing), nil
 	}
 	themes, listing := m.cfg.Themes, m.picker.listing
 	return m, func() tea.Msg {
-		if chosen := themes.Chosen(); chosen.IsOne() {
-			return askMsg{pick: p, chosen: chosen, pair: listing.Pair(chosen)}
-		}
-		return keepIn(themes, listing, p)
+		chosen := themes.Chosen()
+		return askMsg{pick: p, chosen: chosen, listing: listing, pair: listing.Pair(chosen)}
 	}
 }
 
@@ -262,33 +250,22 @@ func (m Model) answer(key string) (Model, tea.Cmd) {
 	switch key {
 	case "y", "Y":
 		m.picker.asking = pick{}
-		return m, m.keep(p)
+		return m.keepPick(p, m.picker.listing), nil
 	case "n", "N", "esc":
 		m.picker.asking = pick{}
 	}
 	return m, nil
 }
 
-// keep has the pick kept, set in the choice as it stands now.
-func (m Model) keep(p pick) tea.Cmd {
-	themes, listing := m.cfg.Themes, m.picker.listing
-	return func() tea.Msg {
-		return keepIn(themes, listing, p)
-	}
-}
-
-// keepIn has themes keep the pick, set in the choice as it stands now, and
-// pairs what it keeps from listing.
-func keepIn(themes Themes, listing theme.Listing, p pick) keptMsg {
-	choice, err := themes.Keep(p.of)
-	return keptMsg{pick: p, choice: choice, pair: listing.Pair(choice), err: err}
-}
-
-// asked asks, in the picker, whether to clear the one theme the choice kept
-// holds, as it stands now, to set the half of the pair asked of, the
-// dashboard drawn by it from then on.
+// asked takes in the choice kept, as it stands now, for a half of the pair
+// picked: over one theme, it asks, in the picker, whether to clear it to set
+// the half, the dashboard drawn by it from then on; over none, it keeps the
+// half.
 func (m Model) asked(msg askMsg) Model {
-	if !m.picker.open {
+	switch {
+	case !msg.chosen.IsOne():
+		return m.keepPick(msg.pick, msg.listing)
+	case !m.picker.open:
 		return m
 	}
 	m = m.chosen(msg.chosen, msg.pair)
@@ -296,19 +273,13 @@ func (m Model) asked(msg askMsg) Model {
 	return m
 }
 
-// kept takes in how keeping a pick went: the dashboard drawn by the choice
-// as kept from now on; or, should it not be kept, the choice standing as it
-// was, and the picker saying so.
-func (m Model) kept(msg keptMsg) Model {
-	if msg.err != nil {
-		logger.Warn("couldn't keep the theme chosen", "theme", msg.pick.slug, "half", msg.pick.half, "error", msg.err)
-		if m.picker.open {
-			m.picker.note = "not kept: see the log"
-		}
-		return m
+// pickNotKept takes in a pick not kept: the choice stands as it was, and the
+// picker says so.
+func (m Model) pickNotKept() Model {
+	if m.picker.open {
+		m.picker.note = "not kept: see the log"
 	}
-	logger.Info("theme chosen", "theme", msg.choice.Theme, "light", msg.choice.Light, "dark", msg.choice.Dark)
-	return m.chosen(msg.choice, msg.pair)
+	return m
 }
 
 // chosen has the dashboard drawn by choice, in pair, from now on: while the

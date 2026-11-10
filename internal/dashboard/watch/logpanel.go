@@ -67,7 +67,7 @@ func (m Model) appliedLogPanel() (Model, tea.Cmd) {
 	was := m.log.page.Columns
 	m.log.page = m.log.page.Applied(m.log.panel)
 	if kept := m.log.page.Columns; kept != was {
-		m.keepPrefs("the Log's columns", func(prefs *theme.Prefs) { prefs.Log = kept.Kept() }, "columns", kept.Count())
+		m = m.keepPrefs("the Log's columns", func(prefs *theme.Prefs) { prefs.Log = kept.Kept() }, "columns", kept.Count())
 	}
 	return m.uncover()
 }
