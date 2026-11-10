@@ -20,7 +20,8 @@ import (
 
 // uninstallWorld is a home with everything setup puts in place laid out in
 // it, as commands run with deps find it, launchd faked as never having
-// loaded the service.
+// loaded the service, and bash the login shell, which uninstall needn't ask
+// where it reads its startup file.
 type uninstallWorld struct {
 	deps cli.Deps
 	home string
@@ -42,7 +43,7 @@ const (
 func newUninstallWorld(t *testing.T) *uninstallWorld {
 	t.Helper()
 	home := t.TempDir()
-	deps := testDeps(nil, home)
+	deps := testDeps(map[string]string{"SHELL": "/bin/bash"}, home)
 	deps.Launchctl = func(context.Context, ...string) ([]byte, error) {
 		// launchctl print's exit status for a service it hasn't loaded.
 		return nil, exitStatus(113)
@@ -536,4 +537,61 @@ func TestUninstallSaysItCouldntLookWhereTheLoginShellCantBeAsked(t *testing.T) {
 	if want := uninstallRow("!", "Startup line", "couldn't look where zsh reads its startup file, as it couldn't be asked: zsh isn't there"); !strings.Contains(got.stdout, want) || strings.Contains(got.stdout, "Startup line  not there") {
 		t.Errorf("switchboard uninstall, again = %+v\nwant it to say, never that the line's not there\n%s", got, want)
 	}
+}
+
+func TestUninstallDoesntAskBash(t *testing.T) {
+	w := newUninstallWorld(t)
+	asked := 0
+	w.deps.LoginShell = func(context.Context, string, []string, []string) ([]byte, error) {
+		asked++
+		return nil, errors.New("bash is never asked")
+	}
+
+	if got, want := run(t, w.deps, "uninstall"), (result{stdout: w.removedRows() + keptRow + uninstallEnd}); got != want {
+		t.Errorf("switchboard uninstall = %+v\nwant %+v", got, want)
+	}
+	if asked != 0 {
+		t.Errorf("the login shell was asked %d times, want bash never asked: its startup files are in the home", asked)
+	}
+}
+
+func TestUninstallWithoutAShellSaysItCouldntLook(t *testing.T) {
+	w := newUninstallWorld(t)
+	w.deps.Getenv = withEnv(w.deps.Getenv, "SHELL", "")
+	couldnt := uninstallRow("!", "Startup line", "couldn't look where your login shell reads its startup file, as it couldn't be asked: $SHELL isn't set")
+
+	got := run(t, w.deps, "uninstall")
+	want := w.rowsBut(map[string]string{"Startup line": uninstallRow("✓", "Startup line", "removed from "+w.startupFiles[0]) +
+		uninstallRow("✓", "Startup line", "removed from "+w.startupFiles[1]) +
+		uninstallRow("✓", "Startup line", "removed from "+w.startupFiles[2]) + couldnt})
+	if want := (result{stdout: want + keptRow + uninstallEnd}); got != want {
+		t.Errorf("switchboard uninstall = %+v\nwant %+v", got, want)
+	}
+
+	got = run(t, w.deps, "uninstall")
+	if !strings.Contains(got.stdout, couldnt) || strings.Contains(got.stdout, "Startup line  not there") {
+		t.Errorf("switchboard uninstall, again = %+v\nwant it to say, never that the line's not there\n%s", got, couldnt)
+	}
+}
+
+func TestUninstallInterruptedAsItAsksTheLoginShellStops(t *testing.T) {
+	w := newUninstallWorld(t)
+	w.zshIsTheLoginShell(t, filepath.Join(w.home, ".config", "zsh"), func(ctx context.Context, _ string, _, _ []string) ([]byte, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	w.deps.Interrupt = func(ctx context.Context) (context.Context, context.CancelFunc) {
+		ctx, interrupt := context.WithCancel(ctx)
+		interrupt()
+		return ctx, interrupt
+	}
+	zshrc, _ := os.ReadFile(w.startupFiles[0])
+
+	got := run(t, w.deps, "uninstall")
+	want := result{stdout: uninstallRow("✓", "Service", "removed "+w.plist), stderr: "Error: interrupted\n", code: 130}
+	if got != want {
+		t.Errorf("switchboard uninstall = %+v\nwant %+v", got, want)
+	}
+	checkText(t, w.startupFiles[0], string(zshrc))
+	checkThere(t, w.shellDir, w.link, w.skill)
 }

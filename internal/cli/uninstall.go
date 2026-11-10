@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -77,7 +78,9 @@ const (
 // last, where any piece failed.
 func (a *app) uninstall(ctx context.Context, out, errOut io.Writer, all bool) error {
 	u := &uninstalling{out: out, widths: widths(nil, labelRows()...)}
-	a.uninstallPieces(ctx, u, errOut)
+	if err := a.uninstallPieces(ctx, u, errOut); err != nil {
+		return err
+	}
 	if all {
 		a.uninstallAll(u)
 	} else {
@@ -105,16 +108,20 @@ func labelRows() [][]string {
 // uninstallPieces takes away, in turn, what setup put in place: the
 // service, the startup line and the shells' files, the session hook, the
 // skill and the claude link, then switchboard's data directory, once
-// nothing's left in it.
-func (a *app) uninstallPieces(ctx context.Context, u *uninstalling, errOut io.Writer) {
+// nothing's left in it. It stops, failing with accounts.ErrInterrupted,
+// where the user interrupts it as it asks the login shell.
+func (a *app) uninstallPieces(ctx context.Context, u *uninstalling, errOut io.Writer) error {
 	a.uninstallTheService(ctx, u, errOut)
-	a.uninstallTheShell(ctx, u)
+	if err := a.uninstallTheShell(ctx, u); err != nil {
+		return err
+	}
 	path, removed, err := a.uninstallTheHook()
 	u.outcome(hookLabel, "removed from "+path, removed, err)
 	path, removed, err = a.uninstallTheSkill()
 	u.outcome(skillLabel, "removed "+path, removed, err)
 	a.uninstallTheLink(u)
 	a.uninstallTheData(u)
+	return nil
 }
 
 // uninstallTheData removes switchboard's data directory, once nothing's
@@ -166,37 +173,39 @@ func (a *app) uninstallTheService(ctx context.Context, u *uninstalling, errOut i
 }
 
 // uninstallTheShell takes switchboard's line out of every startup file it's
-// in, then removes switchboard's files for the shells.
-func (a *app) uninstallTheShell(ctx context.Context, u *uninstalling) {
+// in, then removes switchboard's files for the shells. It fails, having
+// done neither, where the user interrupts it as it asks the login shell.
+func (a *app) uninstallTheShell(ctx context.Context, u *uninstalling) error {
 	dir, err := config.ShellDir(a.Getenv, a.HomeDir)
 	if err != nil {
 		u.fail(lineLabel, err)
 		u.fail(shellLabel, err)
-		return
+		return nil
 	}
-	a.uninstallTheLine(ctx, u, dir)
+	if err := a.uninstallTheLine(ctx, u, dir); err != nil {
+		return err
+	}
 	removed, err := shell.RemoveFiles(dir)
 	u.outcome(shellLabel, "removed from "+dir, anyRemoved(removed), err)
+	return nil
 }
 
 // uninstallTheLine takes switchboard's line, sourcing a file in dir,
-// switchboard's shell directory, out of every startup file it's in. Where
-// the user's login shell reads its startup file is the shell's to say, so
-// it's asked, as setup asks it: where it can't be, uninstall says it couldn't
-// look there, never that the line's not there.
-func (a *app) uninstallTheLine(ctx context.Context, u *uninstalling, dir string) {
+// switchboard's shell directory, out of every startup file it's in, as
+// RemoveLines does, where the login shell says it reads its own: where it
+// can't say, uninstall says it couldn't look there, never that the line's
+// not there. It fails, having done nothing, where the user interrupts it as
+// it asks the login shell.
+func (a *app) uninstallTheLine(ctx context.Context, u *uninstalling, dir string) error {
 	home, err := a.HomeDir()
 	if err != nil {
 		u.fail(lineLabel, fmt.Errorf("locate the home directory: %w", err))
-		return
+		return nil
 	}
-	bin, err := config.BinDir(a.Getenv, a.HomeDir)
+	login, answer, err := a.whereTheShellReads(ctx)
 	if err != nil {
-		u.fail(lineLabel, err)
-		return
+		return err
 	}
-	login, _ := shell.Of(a.Getenv("SHELL"))
-	answer := shell.Login{Environ: a.Environ(), Run: a.LoginShell}.Which(ctx, setup.ClaudeLink(bin))
 	lines, err := shell.RemoveLines(home, dir, login, answer.ConfigDir)
 	for _, file := range lines.Removed {
 		u.done(lineLabel, "removed from "+file)
@@ -204,16 +213,40 @@ func (a *app) uninstallTheLine(ctx context.Context, u *uninstalling, dir string)
 	for _, file := range lines.Indented {
 		u.warn(lineLabel, "left alone: an indented copy in "+file+", which may be all of a block of yours, so it's yours to take out: with switchboard's files gone it does nothing")
 	}
-	unlooked := shell.SaysWhere(login) && answer.Kind == shell.Unasked
-	if unlooked {
-		u.warn(lineLabel, fmt.Sprintf("couldn't look where %s reads its startup file, as it couldn't be asked: %s", login, answer.Why))
+	if answer.Why != "" {
+		u.warn(lineLabel, fmt.Sprintf("couldn't look where %s reads its startup file, as it couldn't be asked: %s", cmp.Or(string(login), "your login shell"), answer.Why))
 	}
 	switch {
 	case err != nil:
 		u.fail(lineLabel, err)
-	case len(lines.Removed) == 0 && len(lines.Indented) == 0 && !unlooked:
+	case len(lines.Removed) == 0 && len(lines.Indented) == 0 && answer.Why == "":
 		u.done(lineLabel, notThere)
 	}
+	return nil
+}
+
+// whereTheShellReads asks the user's login shell, as $SHELL names it, where
+// it reads its startup file, as setup asks it, returning the shell and its
+// answer, whose Why says why it couldn't be asked. Only zsh and fish are
+// asked, as it's theirs to say: bash's are in the home, and a shell
+// switchboard doesn't know has no line of setup's. Where there's no $SHELL,
+// the line may be anywhere, so it says the shell couldn't be asked. It fails
+// with accounts.ErrInterrupted where the user interrupts the asking.
+func (a *app) whereTheShellReads(ctx context.Context) (shell.Shell, shell.Answer, error) {
+	path := a.Getenv("SHELL")
+	login, _ := shell.Of(path)
+	switch {
+	case path == "":
+		return login, shell.Answer{Why: "$SHELL isn't set"}, nil
+	case !shell.SaysWhere(login):
+		return login, shell.Answer{}, nil
+	}
+	bin, err := config.BinDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return login, shell.Answer{Why: oneLine(err)}, nil
+	}
+	answer, err := setup.Ask(ctx, shell.Login{Environ: a.Environ(), Run: a.LoginShell}, setup.ClaudeLink(bin), a.Interrupt)
+	return login, answer, err
 }
 
 // anyRemoved reports whether any of files was removed.

@@ -870,16 +870,17 @@ It takes away, in this order:
 2. **The startup line** `setup` added, taken out of each shell's startup file it's in, found by its
    `# switchboard` mark: `~/.zshrc`, and `.zshrc` where zsh says it reads it; `~/.bash_profile`,
    `~/.bash_login` and `~/.profile`; and `~/.config/fish/config.fish`, and `config.fish` where fish
-   says it reads it. Your login shell is asked where, as `setup` asks it, as the `ZDOTDIR` of the
-   terminal you run `uninstall` in, an editor's, say, may not be a new terminal's. Where it can't be
-   asked, `uninstall` says it couldn't look there, not that the line isn't there: a line left there
-   does nothing once switchboard's files are gone. Only the line as `setup` writes it, at the start
-   of its line, is taken out: an indented copy may be all there is of an `if` block of yours, which
-   the shell couldn't read left empty, so it's left where it is, and `uninstall` names the file for
-   you to take it out yourself; with switchboard's files gone, it does nothing. Every other line is
-   kept as it was, and the file is rewritten in place, where a link to it leads, so it stays the
-   file it was, hard links, owner and permissions with it. Then switchboard's own files for the
-   shells, which the line loads, with bash's completions.
+   says it reads it. A zsh or fish login shell is asked where, as `setup` asks it: the `ZDOTDIR` of
+   the terminal you run `uninstall` in, an editor's, say, may not be a new terminal's. Where it
+   can't be asked, or `$SHELL` isn't set, `uninstall` says it couldn't look there, not that the line
+   isn't there: a line left there does nothing once switchboard's files are gone. An interrupt while
+   it asks stops `uninstall` there. Only the line as `setup` writes it, at the start of its line, is
+   taken out: an indented copy may be all there is of an `if` block of yours, which the shell
+   couldn't read left empty, so it's left where it is, and `uninstall` names the file for you to
+   take it out yourself; with switchboard's files gone, it does nothing. Every other line is kept as
+   it was, and the file is rewritten in place, where a link to it leads, so it stays the file it
+   was, hard links, owner and permissions with it. Then switchboard's own files for the shells,
+   which the line loads, with bash's completions.
 3. **The session hook**: switchboard's entry in Claude Code's SessionStart hooks, in
    `settings.json`, every other setting and hook left as it is. A settings file Claude Code
    couldn't read is left as it is, and `uninstall` says why.
