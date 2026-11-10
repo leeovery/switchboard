@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6] - 2026-11-10
+
+🔧 Changed
+
+- Runway's wording under each lane is shorter — stretches read `capped 14:31`, `out 13:58`, `out ~16:05` or `caps ~15:45` instead of "at its cap", "runs out … at its pace" and similar.
+- Runway's lane words that don't fit where a stretch starts now shift left to fit instead of being cut, and only drop trailing parts when even that isn't enough.
+- A cap or run-out that ends as the view's window resets now says `resets 17:10` in place of `back 17:10`, rather than adding "as its 5-hour resets" after it.
+- Account cards on the graphs view carry the same shorter Runway wording, without a separate "at its pace" tail.
+
 ## [0.5.5] - 2026-11-09
 
 ✨ Added
