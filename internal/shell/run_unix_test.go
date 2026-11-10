@@ -37,8 +37,23 @@ func TestRunReturnsWhatTheProgramPrintedWhenItFails(t *testing.T) {
 
 func TestRunKillsEverythingTheProgramStartedOnceItsTimeIsUp(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "pid")
-	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
+	// The time's up once the program has started what it starts: a fixed
+	// timeout can end before a loaded Mac has run the shell that far.
+	go func() {
+		for {
+			if data, err := os.ReadFile(pidFile); err == nil && strings.HasSuffix(string(data), "\n") {
+				cancel()
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+	}()
 	started := time.Now()
 
 	_, err := shell.Run(ctx, "/bin/sh", []string{"-c", `sleep 30 & echo $! >"$PID_FILE"; sleep 30`}, []string{"PID_FILE=" + pidFile})
