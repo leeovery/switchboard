@@ -47,11 +47,12 @@ func (f Frame) lanesHelp() helpPart {
 				"and under them its use, as 66%, the window named in the heading, or — where there's no use to show. `a` again " +
 				"expands them. It's kept for next time."),
 			said("Under each lane, words say where each stretch without room starts and when room is back: at its cap, at its " +
-				"limit, its token refused, or runs out ~16:05 at its pace, ~ marking a time projected at its pace, as switchboard " +
-				"usage projects it. Where another stretch holds the account on, a stretch says lifts 19:00, when its own hold lifts, " +
-				"and only the last says back. A cap's or a run-out's time adds as its 5-hour resets, or as its week resets, where " +
-				"it's as the view's window resets. In the week view, resets Sun 21:00 where its week reaches no limit; else room " +
-				"all day, or room all week."),
+				"limit, its token refused, out ~16:05 where it runs out, or caps ~15:45 where it reaches its cap, ~ marking a " +
+				"time projected at its pace, as switchboard usage projects it. Where another stretch holds the account on, a " +
+				"stretch says lifts 19:00, when its own hold lifts, and only the last says back. A cap's or a run-out's end says " +
+				"resets 17:10 in place of back where room returns as the view's window resets. In the week view, resets Sun " +
+				"21:00 where its week reaches no limit; else room all day, or room all week. Words that don't fit from where a " +
+				"stretch starts shift left until they do."),
 			said("Now's column and those after it are read from the router at each look; those before it from the readings " +
 				"history, each by the last reading of each window by the column's middle, a window whose reset had passed by then " +
 				"counted reset. A column with no reading of its account by then is blank, as an account not read yet. A cap is " +

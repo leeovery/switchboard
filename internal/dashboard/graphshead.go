@@ -3,7 +3,6 @@ package dashboard
 import (
 	"cmp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
@@ -179,7 +178,7 @@ func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 	}
 	var phrases [][]line
 	for _, p := range said {
-		phrases = append(phrases, paceApart(p.parts))
+		phrases = append(phrases, p.parts)
 	}
 	if len(phrases) == 0 && !ln.Use.Read {
 		phrases = append(phrases, []line{ln.useWords(runwayNames[v.window], now).short})
@@ -197,22 +196,6 @@ func (v laneView) beyond(ln laidLane, now time.Time) []phrase {
 		phrases = append(phrases, v.stretchPhrase(s, ln.account, against))
 	}
 	return phrases
-}
-
-// paceApart are a phrase's parts given with the tail its head ends in where
-// it's projected at its pace, atItsPace, a part of its own after it, in its
-// ink, so a card leaves it off before what it follows, as "runs out ~Sat
-// 06:00" before " at its pace".
-func paceApart(parts []line) []line {
-	if len(parts) == 0 || len(parts[0]) != 1 {
-		return parts
-	}
-	head := parts[0][0]
-	said, paced := strings.CutSuffix(head.text, atItsPace)
-	if !paced || said == "" {
-		return parts
-	}
-	return slices.Concat([]line{{{said, head.ink}}, {{atItsPace, head.ink}}}, parts[1:])
 }
 
 // fainted are the parts given, each in text.faint, as inFaint has it.

@@ -4618,30 +4618,36 @@ and the preferences file keeps it (the owner's call, 17 October 2026).
   `16:30  personal's 5-hour resets` (the owner's call, 19 October 2026).
 
 **The words under a lane** say where each stretch without room starts, from its column, the lanes'
-first at the least, or two cells after the words before:
+first at the least, or two cells after the words before. They're terse, words a reader learns once
+from the legend and the help; COMING UP, the legend and the Overview keep their sentences (the
+owner's call, 10 November 2026):
 
-- at a cap: `at its cap 14:31` bold `accent.attention`, then `  ·  back 17:10` in `text.muted`;
-- running out ahead: `runs out ~16:05 at its pace` bold `accent.attention`, then `  ·  back 16:55`
-  in `text.muted`;
-- at a limit: `at its limit 13:58` bold `state.destructive`, then `  ·  back 15:30` in `text.muted`;
+- at a cap: `capped 14:31` bold `accent.attention`, then `  ·  back 17:10` in `text.muted`;
+- reaching its cap ahead: `caps ~Sat` bold `accent.attention`, then its end in `text.muted`;
+- running out ahead: `out ~16:05` bold `accent.attention`, then its end in `text.muted`;
+- at a limit: `out 13:58` bold `state.destructive`, then `  ·  back 15:30` in `text.muted`: the
+  `~` and the ink tell it from a run-out;
 - its token refused: `token refused (401) 14:12  ·  back 15:00` (the owner's call, 13 October
   2026).
 
 Where one hold runs straight into the next, the stretch after it beginning by the time it lifts,
 the earlier stretch says when its own hold lifts, `  ·  lifts 19:00`, and only the last says
-`back`, when room returns: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon
-21:00`, in place of `back Mon 21:00` on both (the owner's call, 15 October 2026).
+`back`, when room returns: `out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`, in place
+of `back Mon 21:00` on both (the owner's call, 15 October 2026).
 
-`, as its 5-hour resets`, or `, as its week resets`, follows a cap's or a run-out's `back …` or
-`lifts …` where that time is as the view's window resets, a reset made by hand among them; a limit's
-takes none. In the week view, an account whose week reaches no limit says `resets Sun 21:00` in
-`text.muted`, ending at the reset's `│`, where that clears the words before. Else a lane says `room
-all day`, or `room all week`, in `text.subtle`, from the cell after now's column. Words that don't
-fit drop whole parts from the end, `, as its 5-hour resets` first. Where even a stretch's first part
-doesn't fit from its column, as a week's run-out late on a phone, that part alone shifts left until
-it ends at the row's last column, no further than two cells after the words before; where it can't,
-it and the words after it aren't said (the owner's call, 10 November 2026). A stretch already over,
-or one that starts past the view, isn't said.
+A cap's or a run-out's end where room returns as the view's window resets, a reset made by hand
+among them, says so: `  ·  resets Sun 01:00`, in place of its `back …` or `lifts …`; a limit's end
+is never said as a reset (the owner's call, 10 November 2026). In the week view, an account whose
+week reaches no limit says `resets Sun 21:00` in `text.muted`, ending at the reset's `│`, where
+that clears the words before. Else a lane says `room all day`, or `room all week`, in
+`text.subtle`, from the cell after now's column.
+
+A stretch's words start at its column where they all fit from there; else they shift left as far
+as they must to fit whole, ending at the row's last column, but never sooner than two cells after
+the words before. Where even that leaves them too little room, they start there and drop whole
+parts from the end; where not even their first part fits, they and the words after them aren't
+said (the owner's call, 10 November 2026). A stretch already over, or one that starts past the
+view, isn't said.
 
 **The pool's lane** sits under the lanes, named and marked as an account's lane is, with no rule
 over it (the owner's call, 17 October 2026): with three rows an account, after the last account's
@@ -4772,7 +4778,7 @@ at every width:
 - the label column takes its widest label, `2 personal ◆` whole in 16 cells;
 - the lanes take the other columns, 36 at 52: the 5-hour view's 22 hours 40 minutes at about 38
   minutes a column, ticked every 2 hours and labelled by the rule above, `Fri` alone at 52;
-- the words are cut by the rule above, as `at its cap 14:31  ·  back 17:10`;
+- the words are placed and cut by the rule above, as `capped 14:31  ·  back 17:10`;
 - the rows, COMING UP and the legend as at every width: the legend on as many lines as it takes,
   the keyed glyphs, then `a column ≈ 38 minutes · the past dimmed`; COMING UP the frame's width
   where that's under its natural;
@@ -4932,8 +4938,8 @@ so one look compares every account (the owner's call, 24 October 2026):
   at the least, and the blank row goes.
 - **Its words:** the room left, its figure bold in its use's level's colour, as `usage` colours a
   use, `66%`, and ` left` in `text.muted`; then `  ·  ` in `text.muted`, and the words under the
-  account's lane on Runway in that window's view, inked as Runway inks them: `at its cap 14:31  ·
-  back 17:10`, `runs out ~Sat 06:00 at its pace`, `resets Sun 21:00`, `room all day`. Where the
+  account's lane on Runway in that window's view, inked as Runway inks them: `capped 14:31  ·
+  back 17:10`, `out ~Sat 06:00`, `resets Sun 21:00`, `room all day`. Where the
   window runs out or reaches its cap at its pace past the view's end, before it resets, the words
   say that too, as Runway would were its lane drawn on, after what it says, never `room all week`
   over a chart that runs out. Where they don't fit the card, whole parts go from the end, as Runway

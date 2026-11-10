@@ -153,11 +153,11 @@ func (v laneView) stretchPhrase(s views.LaneStretch, a status.AccountNow, agains
 // stretchParts are what's said of the stretch s without room of the account
 // a, times told against the time given: what holds it back, from when where
 // that's known, as headOf words it, of the timeline shown; then, muted, when
-// it ends, where that's known, as its Ends has it: as its own hold lifts, of
-// one of a run of stretches but the last, as "  ·  lifts 19:00", else as it's
-// back, as "  ·  back 17:10"; and of a stretch whose head says so, where
-// that's as the view's window resets, that it is, as ", as its 5-hour
-// resets".
+// it ends, where that's known, as its Ends has it: of a stretch whose head
+// says so, where that's as the view's window resets, as it resets, as
+// "  ·  resets Sun 01:00"; else as its own hold lifts, of one of a run of
+// stretches but the last, as "  ·  lifts 19:00", or as it's back, as
+// "  ·  back 17:10".
 func (v laneView) stretchParts(s views.LaneStretch, a status.AccountNow, against time.Time) []line {
 	head, k, resets := headOf(s, a, v.timeline, against)
 	parts := []line{{{head, k}}}
@@ -166,33 +166,28 @@ func (v laneView) stretchParts(s views.LaneStretch, a status.AccountNow, against
 		return parts
 	}
 	said := "back "
-	if lifts {
+	switch {
+	case resets && s.AsItResets:
+		said = "resets "
+	case lifts:
 		said = "lifts "
 	}
-	parts = append(parts, line{{prose.Separator + said + prose.Dated(against, ends), mutedInk}})
-	if resets && s.AsItResets {
-		parts = append(parts, line{{", as its " + runwayNames[v.window] + " resets", mutedInk}})
-	}
-	return parts
+	return append(parts, line{{prose.Separator + said + prose.Dated(against, ends), mutedInk}})
 }
-
-// atItsPace is the tail of what's said first of a stretch projected at its
-// account's pace, as in "runs out ~16:05 at its pace".
-const atItsPace = " at its pace"
 
 // headOf is what's said first of the stretch s without room of the account
 // a, on the timeline tl, times told against the time given, but a run-out's,
 // told at tl's now as prose.RunOut tells it, as only a view holding now
-// projects one, in its ink, and whether its back is said to be as the view's
-// window resets, where it is:
-// at its cap, as "at its cap 14:31", or a run-out reaching it, as "reaches
-// its cap ~15:45 at its pace"; a run-out reaching its limit, as "runs out
-// ~16:05 at its pace"; each bold in accent.attention, and each back as the
-// window resets, as each ends then. At its limit, as "at its limit 13:58";
-// its token refused, as "token refused (401) 14:12", the status the refusal
-// holding it gave, as refusedWith has it; or without a token, "no token";
-// each bold in state.destructive, and none back as the window resets, as
-// each lifts whenever it does. A start no one told leaves its time unsaid.
+// projects one, in its ink, and whether its end is said as the view's window
+// resets, where it is: at its cap, as "capped 14:31", or a run-out reaching
+// it, as "caps ~15:45"; a run-out reaching its limit, as "out ~16:05"; each
+// bold in accent.attention, and each ending as the window resets, as each
+// ends then. At its limit, as "out 13:58", the ~ and the ink telling it from
+// a run-out; its token refused, as "token refused (401) 14:12", the status
+// the refusal holding it gave, as refusedWith has it; or without a token,
+// "no token"; each bold in state.destructive, and none ending as the window
+// resets, as each lifts whenever it does. A start no one told leaves its time
+// unsaid.
 func headOf(s views.LaneStretch, a status.AccountNow, tl views.Timeline, against time.Time) (string, ink, bool) {
 	when := ""
 	if !s.Start.IsZero() {
@@ -203,13 +198,13 @@ func headOf(s views.LaneStretch, a status.AccountNow, tl views.Timeline, against
 	}
 	switch {
 	case s.Cell == views.CellCapped && s.Projected:
-		return "reaches its cap" + when + atItsPace, alertInk, true
+		return "caps" + when, alertInk, true
 	case s.Cell == views.CellCapped:
-		return status.AtCap + when, alertInk, true
+		return "capped" + when, alertInk, true
 	case s.Cell == views.CellLimited && s.Projected:
-		return "runs out" + when + atItsPace, alertInk, true
+		return "out" + when, alertInk, true
 	case s.Cell == views.CellLimited:
-		return status.AtLimit + when, exhaustedInk, false
+		return "out" + when, exhaustedInk, false
 	case s.Cell == views.CellRefused:
 		return "token refused" + refusedWith(s, a, tl.NowColumn()) + when, exhaustedInk, false
 	}
@@ -228,26 +223,24 @@ func refusedWith(s views.LaneStretch, a status.AccountNow, now int) string {
 }
 
 // placeAlong places the phrases given, in order, along a row cols columns
-// wide: each from its column, or phraseGap cells after the words before, as
-// many of its parts, whole, as fit; where its first part doesn't fit from
-// there, that part alone, shifted left to end at the row's last column, where
-// that still starts phraseGap cells after the words before; or, where it ends
-// at its column, there, whole, where that clears the words before; and none
-// from the first said from its column that can't be placed so.
+// wide: each from its column, or, where all its parts don't fit from there,
+// shifted left as far as they need, to end at the row's last column, but
+// never sooner than phraseGap cells after the words before, as many of its
+// parts, whole, as fit; or, where it ends at its column, there, whole, where
+// that clears the words before; and none from the first said from its column
+// whose first part doesn't fit.
 func placeAlong(cols int, phrases ...phrase) []placed {
 	var words []placed
 	next := 0
 	for _, p := range phrases {
-		said, start := slices.Concat(p.parts...), max(p.col, next)
+		said := slices.Concat(p.parts...)
+		start := max(next, min(p.col, cols-said.width()))
 		if p.ends {
 			if start = p.col - said.width() + 1; start < next {
 				continue
 			}
 		} else if said = wholeParts(p.parts, cols-start); said == nil {
-			if start = cols - p.parts[0].width(); start < next {
-				break
-			}
-			said = p.parts[0]
+			break
 		}
 		words = append(words, placed{x: start, said: said})
 		next = start + said.width() + phraseGap

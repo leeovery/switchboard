@@ -4,7 +4,7 @@
 
 WEEK  ──────────────────────────────────────────────────────────────────────────────────────────────────── w
 
-1 work  66% left  ·  at its cap 14:31  ·  back 17:10    2 personal ◆  34% left  ·  runs out ~Sat at its pace
+1 work      66% left  ·  capped 14:31  ·  back 17:10    2 personal ◆                   34% left  ·  out ~Sat
     ▇▆▄▃▃▃▃▃▂▁              │                                     ▇▅▄▃▃▃▃▂                │
                    ▇▆▅▅▅▅▅▄▃⣀⡀                                            ▇▄▂▂▂▂▂         │
                             │⠈⠑⠒⠤⢄⡀                                              ▇▄▁      │
@@ -12,7 +12,7 @@ WEEK  ────────────────────────�
                             ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⠉⠑⠢⠤✕⣀⣀⣀⣀⣀⣀⣀                                      │   ⠈⠉⠑⠒⠤⠤⣀✕⣀⣀⣀⣀⣀⣀
 ╵Mon    ╵Tue   ╵Wed    ╵Thu   ╵Fri    ╵Sat   ╵Sun             ╵Mon    ╵Tue   ╵Wed    ╵Thu   ╵Fri   ╵Sat
 
-3 side ▲      22% left  ·  runs out ~Fri at its pace
+3 side ▲  22% left  ·  out ~Fri  ·  resets Mon 10:00
  ▆▄▃▃▃▃▂                │
         ▇▄▁▁▁▁▁         │
                ▆▂       │
@@ -22,7 +22,7 @@ WEEK  ────────────────────────�
 
 5-HOUR  ────────────────────────────────────────────────────────────────────────────────────────────────── f
 
-1 work   5% left  ·  at its cap 14:31  ·  back 17:10    2 personal ◆               61% left  ·  room all day
+1 work     5% left  ·  capped 14:31  ·  resets 17:10    2 personal ◆               61% left  ·  room all day
  ▇▆▃▂                     │                               ▇▆▆▆▅▅▄▄▃▃▂▂▂▁                 │
       ▇▆▄▃                │                                                ▇▇▆▆▅▅▄▄▄▃▂▂▂▁⣀
            ▇▅▄▃▁          │                                                              │⠉⠉⠉⠉⠑⠒⠒⠒⠒⠤⠤⠤⠤⢄⣀⣀⣀⣀
