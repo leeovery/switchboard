@@ -32,6 +32,6 @@ studio          45%     50%     62%     48%     55%     58%     52%    41%…  p
 
 
 
-each week at its peak   ·   100% it hit its limit   ·   34%… this week, so far
+each week at its peak   ·   at its cap: limit hit   ·   34%… this week, so far
 
 tab views   [ ] view    v split: table    p pin    ? help  q quit

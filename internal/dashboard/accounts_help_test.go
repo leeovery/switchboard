@@ -156,7 +156,7 @@ func TestAccountsHelpDrawsBYDAYAndWEEKSAsDetailDoes(t *testing.T) {
 			for level := range shadeLevels {
 				want = append(want, tc.day(level))
 			}
-			want = append(want, tc.limited, line{{"··", ink{token: theme.TextFaint}}}, line{{"100", ink{token: theme.StateDestructive, bold: true}}})
+			want = append(want, tc.limited, line{{"··", ink{token: theme.TextFaint}}}, line{{atItsCap, ink{token: theme.StateDestructive, bold: true}}})
 			if got := accountsHelpGlyphs(tc.look, "DETAIL"); !slices.EqualFunc(got, want, func(a, b line) bool { return slices.Equal(a, b) }) {
 				t.Errorf("Detail's help explains\n%v\nwant\n%v", got, want)
 			}

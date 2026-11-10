@@ -76,11 +76,14 @@ type WeeksRow struct {
 }
 
 // WeekPeak is how full an account's week got: Share, its peak, from 0 to 1,
-// nil where it isn't known; and Open, set for this week's, its highest so
-// far.
+// nil where it isn't known; Open, set for this week's, its highest so far;
+// and AtCap, set where it hit its limit, as Weeks counts one: its peak at its
+// cap, as capOf has it, or of every account's, each one's whose peak is
+// known.
 type WeekPeak struct {
 	Share *float64
 	Open  bool
+	AtCap bool
 }
 
 // peakSoFar marks a peak so far, of a week still running, after it.
@@ -144,11 +147,31 @@ func (page WeeksPage) peaksOf(byWeek map[string]Week, x int) []WeekPeak {
 		}
 		a := w.Accounts[x]
 		if share, known := a.Peaks[page.Window]; known {
-			peaks[i].Share = &share
+			peaks[i].Share, peaks[i].AtCap = &share, page.atCap(w, x)
 		}
 		peaks[i].Open = slices.Contains(a.Open, page.Window)
 	}
 	return peaks
+}
+
+// atCap reports whether the account with index x hit its limit in the week,
+// its peak at its cap, or where x is past theirs, whether every account
+// whose peak is known in it did.
+func (page WeeksPage) atCap(w Week, x int) bool {
+	accounts := page.past.in.Accounts
+	reached := func(j int) bool {
+		share, known := w.Accounts[j].Peaks[page.Window]
+		return !known || millionthsOf(share) >= capOf(accounts[j])
+	}
+	if x < len(accounts) {
+		return reached(x)
+	}
+	for j := range accounts {
+		if !reached(j) {
+			return false
+		}
+	}
+	return true
 }
 
 // judge gives what the verdict says beside its counts, of the replay r of

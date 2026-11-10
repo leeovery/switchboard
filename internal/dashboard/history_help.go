@@ -50,7 +50,7 @@ func (f Frame) historyHelp() []helpPart {
 				said("A week is an account's own, from one reset of its week window to the next, under the calendar week it " +
 					"began nearest. Its peak is the use read just before the reset that ended it, and this week's its highest " +
 					"so far. A week is short where some account hit its limit, its peak at its cap: 100% less its reserve, " +
-					"as the config has it now, or 100% without one."),
+					"as the config has it now, or 100% without one. What a week had left at its reset is left of its limit."),
 				said("The replay takes each of the last 7 whole weeks alone. Without an account, its peak, times its plan's " +
 					"size, is shared among the rest by their sizes; with one more, of the plan most of the accounts have, every " +
 					"peak falls in proportion, the same use over more room. A replayed week is short where any account would " +
@@ -64,7 +64,7 @@ func (f Frame) historyHelp() []helpPart {
 				said(historyScrollsSaid("More accounts than fit scroll an account at a time")),
 			},
 			glyphs: []glyph{
-				{drawn: line{{"100%", exhaustedInk}}, means: "it hit its limit"},
+				{drawn: line{{atItsCap, exhaustedInk}}, means: "it hit its limit"},
 				{drawn: line{{"34%…", strongInk}}, means: "this week, so far"},
 				{drawn: line{{"▁▁▁▁▁", faintInk}}, means: "a week with no use"},
 				{drawn: line{noFigure}, means: "a week whose peak isn't known"},

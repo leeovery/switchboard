@@ -240,7 +240,8 @@ func sizesOf(accounts config.Accounts, table ledger.Table) (sizes []int64, usual
 
 // capOf is the share of its week where the account stops taking new sessions,
 // as the router holds it: its cap, where its reserve starts, else its limit.
-// It's the reserve the config has now, as no week records its own.
+// It's the reserve the config has now, as a week's own isn't recorded beyond
+// the moments an account was held at its cap.
 func capOf(a config.Account) millionths {
 	return millionthsOf(score.ReserveFrom(a.Reserve))
 }
@@ -391,8 +392,8 @@ func (r replay) used(x int) millionths {
 func (r replay) together() AccountVerdict {
 	var rec record
 	for _, week := range r.weeks {
-		for x, use := range week {
-			rec.add(use, r.caps[x])
+		for _, use := range week {
+			rec.add(use)
 		}
 	}
 	v := AccountVerdict{All: true}
@@ -422,19 +423,19 @@ func recordOf(placed []placedWeek, isWhole func(week string) bool, x int, capAt 
 	var rec record
 	for _, w := range placed {
 		if peak, ok := w.peaks[x][key]; ok && peak.known && !peak.open && isWhole(w.week) {
-			rec.add(peak.use, capAt)
+			rec.add(peak.use)
+			if peak.use >= capAt {
+				rec.limits++
+			}
 		}
 	}
 	return rec
 }
 
-// add adds a week whose peak was use to the record of an account whose cap
-// is capAt.
-func (rec *record) add(use, capAt millionths) {
+// add adds a week whose peak was use to what the record's weeks used and
+// had left, and how many there are.
+func (rec *record) add(use millionths) {
 	rec.used, rec.left, rec.weeks = rec.used+use, rec.left+use.left(), rec.weeks+1
-	if use >= capAt {
-		rec.limits++
-	}
 }
 
 // leftAtLeast reports whether the record's weeks had percent or more left
