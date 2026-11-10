@@ -397,6 +397,14 @@ own choices, and a pin is the user's. So when an account is at its reserve and e
 `pin <id> --move` carries the running sessions on there, in place, and `pin auto` hands them back
 to the router, reserve and all.
 
+A pin stays until it's changed: none ends on its own, at a time, a reset or a level, and there's no
+move of a session that leaves it unpinned (the owner's call, 10 November 2026). Both were for room
+that would expire unused, which the router spends by itself: a new session goes to the account
+whose week resets first, and a busy one moves there at its compaction where that account's room
+would otherwise be lost (see Choosing an account). From 11 October to 9 November every account used
+its whole week, every week, so there was no room for a pin to save, and moving sessions by hand
+only rebuilds their caches.
+
 Switchboard defines no per-account launchers: the user's own aliases for
 `switchboard run --account <id> --` serve.
 
@@ -10292,7 +10300,6 @@ was dropped binds a later choice, the design proper says so.
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after OAuth and setup: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
 | Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
-| A pin that ends on its own, at a time or at its account's reset | open: to settle with its owner | [pin-until](../ideas/2026-10-14--pin-until.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | One history across several Macs at once, each Mac's History counting the others' requests from their exported folders | later: only where two Macs run switchboard on the same accounts at once (the owner, 3 November 2026); export and import, and the export on a schedule, taken up (see Export and import) | [history-beyond-one-mac](../ideas/2026-10-27--history-beyond-one-mac.md) |
