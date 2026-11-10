@@ -7340,13 +7340,13 @@ from the first day a router that has it runs, so nothing before then is in it.
     a limit reached by use outside the router keeps its minutes. Its `models` are its requests by
     the model each asked for, one without a `model` holding those whose bodies couldn't be read, in
     the order of their names: `upstream` counts those that spend quota that went upstream, and
-    `no_usage` those of them whose answers gave no usage, as one canceled, cut off or an error
-    gives none, so what they spent is unknown, and their worth unpriced, never taken for none (see
-    Worth); since version 6, `hours` counts those `upstream` counts by the local hour each arrived
-    in, as its `at` gives it, 24 counts from midnight's on, which sum to it, for WHEN YOU WORK (see
-    Graphs): an hour the clocks skip has none, and one they repeat counts both; they're left out
-    where they were never counted, as in a summary of an older version, never given as none;
-    `unsent` counts those the router answered itself, never sending them; `checks` counts
+    `no_usage` those of them whose answers gave no usage, as one canceled, cut off, broken off or
+    an error gives none, so what they spent is unknown, and their worth unpriced, never taken for
+    none (see Worth); since version 6, `hours` counts those `upstream` counts by the local hour each
+    arrived in, as its `at` gives it, 24 counts from midnight's on, which sum to it, for WHEN YOU
+    WORK (see Graphs): an hour the clocks skip has none, and one they repeat counts both; they're
+    left out where they were never counted, as in a summary of an older version, never given as
+    none; `unsent` counts those the router answered itself, never sending them; `checks` counts
     Claude Code's quota checks, and `counts` the counts of tokens, however each went; `sessions`
     counts the sessions they were of, but for the checks', as Claude Code sends one as it resumes a
     session under an id it never uses again, and since version 4 `session_ids` names them, in
@@ -7842,8 +7842,8 @@ from the first day a router that has it runs, so nothing before then is in it.
     tokens, the thinking within the output, and the turns of the model asked for, which the usage's
     own counts sum, cost nothing more.
   - A request that went upstream and spends quota, but whose answer gave no usage, as one
-    canceled, cut off or an error gives none, spent what can't be known: the worth names it
-    unpriced, as `no_usage`, a request's own or a summary's model's day's, never priced as free.
+    canceled, cut off, broken off or an error gives none, spent what can't be known: the worth names
+    it unpriced, as `no_usage`, a request's own or a summary's model's day's, never priced as free.
   - Claude Code's quota check is worth nothing, whatever it spent, in every view and every
     summary, as it isn't work done for the session, as the Log's hiding it says: its usage is
     priced by none, and a summary leaves it out (see `version`; the owner's call, 15 October
