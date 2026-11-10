@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
@@ -192,7 +193,7 @@ type replay struct {
 // key, of the accounts given, sized by their plans p.
 func replayOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) replay {
 	r := replay{}
-	r.sizes, r.usual = sizesOf(accounts, p)
+	r.sizes, r.usual = sizesOf(accounts, p.table)
 	for _, w := range placed {
 		if week, ok := w.judged(len(accounts), key); ok && isWhole(w.week) {
 			r.weeks = append(r.weeks, week)
@@ -221,14 +222,13 @@ func (p placedWeek) judged(accounts int, key string) ([]millionths, bool) {
 }
 
 // sizesOf are the accounts' sizes in Pro weeks, as the replay weighs them,
-// and that of the plan most of them have, as their plans' price table sizes
-// them.
-func sizesOf(accounts config.Accounts, p plans) (sizes []int64, usual int64) {
+// and that of the plan most of them have, as the price table sizes them.
+func sizesOf(accounts config.Accounts, table ledger.Table) (sizes []int64, usual int64) {
 	ids := make([]string, len(accounts))
 	for i, a := range accounts {
 		ids[i] = a.Plan
 	}
-	return p.table.Sizes(ids)
+	return table.Sizes(ids)
 }
 
 // count counts the weeks short reports short.

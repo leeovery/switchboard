@@ -541,8 +541,8 @@ from its readings, the readings history's two newest days taken up as it starts:
   mean reversion, as an Ornstein–Uhlenbeck process forecasts: no shape of the day or the week is
   learned, and each install's rates are its own.
 
-**Accounts' sizes.** Use moves between accounts in Pro weeks, each account's week as big as the price
-table makes its plan's: a Pro week is 1, a Max week 5 and an Ultra week 10 (see The request
+**Accounts' sizes.** Use moves between accounts in Pro weeks, each account's week as big as the
+price table makes its plan's: a Pro week is 1, a Max week 5 and an Ultra week 10 (see The request
 ledger). An account whose plan isn't known counts as the plan most of the accounts have, the larger
 of two that tie, and where none has one, every account counts as one: History's replay sizes them
 alike. Where every account is on one plan, its size makes no difference to where the weeks run out.
@@ -9089,9 +9089,10 @@ fails as it is; one that parses has every problem reported at once:
   switchboard can't read from Anthropic. It prices the account against its worth, and sizes it for
   the forecast of where its week runs out and History's replay of a week (see The request ledger).
   Without it, the account's plan is unknown: Accounts and History show `—` for it, price nothing
-  against it, and size it as the plan most of the accounts have (see Forecasting run-outs). The plans' old names,
-  `max5x` for `max` and `max20x` for `ultra`, still load as the new, so nothing past loading sees
-  them; the file keeps the old name till an edit sets that account's plan, which writes the new.
+  against it, and size it as the plan most of the accounts have (see Forecasting run-outs). The
+  plans' old names, `max5x` for `max` and `max20x` for `ultra`, still load as the new, so nothing
+  past loading sees them; the file keeps the old name till an edit sets that account's plan, which
+  writes the new.
 - **`[usage]`**: `by` is `window`, the accounts compared a window at a time, or `account`, each
   account's windows together; `window` unless given. It's the layout `usage` prints and the
   dashboard's Overview opens with: `usage --by` overrides it for one printout, and the Overview's

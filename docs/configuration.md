@@ -142,7 +142,8 @@ plan. [`accounts edit <id> --plan <plan>`](commands.md#accounts) sets it. Switch
 in three places:
 
 - It compares what the plan costs with what the account's use was worth at API prices.
-- It sizes the account in the forecast of [where a week runs out](how-it-works.md#where-a-week-runs-out).
+- It sizes the account in the forecast of
+  [where a week runs out](how-it-works.md#where-a-week-runs-out).
 - It sizes the account in [`history`](commands.md#history)'s replay of a week.
 
 An account's size is its plan's week, in Pro weeks: Pro 1, Max 5 and Ultra 10.
