@@ -208,9 +208,11 @@ func (d drawn) back(a status.AccountNow) []viewSays {
 
 // runBack is when the first run of stretches the phrases given say is back,
 // as backSaid has it of the first phrase that says so: "no back" where none
-// does.
+// does. A lane says "resets 17:10" only where room returns as the window
+// resets, so that's read as back then.
 func runBack(phrases []string) string {
 	for _, p := range phrases {
+		p = strings.Replace(p, prose.Separator+"resets ", prose.Separator+"back ", 1)
 		if said := backSaid(p); said != "no back" {
 			return said
 		}
@@ -396,9 +398,9 @@ func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 // runwayOut is where Runway's lane of account a says its window w runs out,
 // as "out ~16:05", or "nowhere", in the live view of w's own window, the
 // 5-hour's of a window of a day or less, else the week's: the words of the
-// run-out back as w next resets, as its run-out ends. It reports false where
-// the lane draws that run-out too near the view's end for its words to fit,
-// as they're left off.
+// run-out said to end as w next resets, as its run-out ends. It reports false
+// where the lane draws that run-out too near the view's end for its words to
+// fit, as they're left off.
 func (d drawn) runwayOut(a status.AccountNow, w status.WindowNow) (string, bool) {
 	view := views.RunwayFiveHour
 	if quota.MultiDay(w.Key) {
@@ -407,7 +409,7 @@ func (d drawn) runwayOut(a status.AccountNow, w status.WindowNow) (string, bool)
 	for _, phrase := range d.runwaySays(a, view) {
 		head, back, _ := strings.Cut(phrase, prose.Separator)
 		_, out, runsOut := strings.Cut(head, " ~")
-		if out, ok := strings.CutSuffix(out, " at its pace"); runsOut && ok && backSaid(back) == "back "+prose.Dated(d.now, w.Next) {
+		if runsOut && back == "resets "+prose.Dated(d.now, w.Next) {
 			return "out ~" + out, true
 		}
 	}

@@ -5,7 +5,7 @@
 WEEK  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── w
 
 1 work                                                2 personal ◆                                          3 side ▲
-66% left  ·  reaches its cap ~Sat at its pace         34% left  ·  runs out ~Sat at its pace                22% left  ·  runs out ~Fri at its pace
+66% left  ·  caps ~Sat  ·  resets Sun 21:00           34% left  ·  out ~Sat  ·  resets Sun 02:00            22% left  ·  out ~Fri  ·  resets Mon 10:00
 
     ▃                      │                                    ▂                     │                     ▆                      │
      ▅                     │                                     ▂                    │                      ▅                     │

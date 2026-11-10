@@ -405,11 +405,16 @@ each account to stay there, so a run-out may come earlier than it will. Runway s
 heading, `run-outs firm up once switchboard has a day of your sessions`, where the screen has room.
 
 Words under a lane say where a stretch without room starts and when the account is back. For
-example, `at its cap 14:31  ·  back 17:10`, or `runs out ~16:05 at its pace`, or, more than a day
-ahead, its day alone, `runs out ~Sat at its pace`, or dated on today's weekday,
-`runs out ~Thu 12 Nov at its pace`. Where one hold runs
-straight into another, the first says when it lifts, and only the last says when the account is
-back: `at its limit 14:00  ·  lifts 19:00  at its cap 14:00  ·  back Mon 21:00`.
+example, `capped 14:31  ·  back 17:10` at its cap, `out 13:58  ·  back 15:30` at its limit, or,
+ahead, `out ~16:05` where it runs out and `caps ~15:45` where it reaches its cap, `~` marking a
+time projected at its pace: more than a day ahead, its day alone, `out ~Sat`, or dated on today's
+weekday, `out ~Thu 12 Nov`. Where a cap or a run-out ends as the window resets, room returning
+then, the words say `resets Sun 01:00` in place of `back`; a limit always says `back`, as it lifts
+whenever it does. Where one hold runs straight into another, the first says
+when it lifts, and only the last says when the account is back:
+`out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`. Words that don't fit from where a
+stretch starts shift left until they do, never over the words before, and drop parts from the end
+where even that can't fit them.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
 room, a column at a time, and draws a low red bar along its foot where none has. `Σ pool` names it,
@@ -476,7 +481,7 @@ many side by side as fit at 35 cells or more each, the rest on the rows under.
 
 Over the chart, a card has the account's number, name and marks, and its words: the room left,
 such as `66% left`, then what Runway says under the account's lane in that window, such as
-`at its cap 14:31  ·  back 17:10` or `runs out ~Sat at its pace`. The words come from
+`capped 14:31  ·  back 17:10` or `out ~Sat`. The words come from
 Runway's live view as Runway would draw it at the same width. So a hold shorter than one of
 Runway's columns can go unsaid on a card, as on Runway, and a wider terminal, or Runway's labels
 collapsed with `a`, can bring it out.

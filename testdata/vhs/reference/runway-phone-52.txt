@@ -11,11 +11,11 @@ RUNWAY  ────────────────────────
                 ──┬────┬────┬────┬────┬────┬────┬───
 
 1 work          ─████─██████████─────│██████████████
-  week 34%           at its cap 14:31  ·  back 17:10
+  week 34%           capped 14:31  ·  back 17:10
 2 personal ◆    █─████████████───│██████████████████
-  week 66%
+  week 66%             out ~Sat  ·  resets Sun 02:00
 3 side ▲        ███████████─────────────│███████████
-  week 78%                runs out ~Fri at its pace
+  week 78%             out ~Fri  ·  resets Mon 10:00
 Σ pool          ▃▃   ▃     ▃▃▃        ▃▃▃
                               ▅▅▂▂▅▅▅▅
   week 1.2 of 3 left

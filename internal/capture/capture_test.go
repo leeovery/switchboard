@@ -308,19 +308,19 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{
 			name: "graphs-108x44",
 			want: []string{
-				"1 work  66% left  ·  at its cap 14:31  ·  back 17:10    2 personal ◆  34% left  ·  runs out ~Sat at its pace",
-				"3 side ▲      22% left  ·  runs out ~Fri at its pace",
+				"1 work      66% left  ·  capped 14:31  ·  back 17:10    2 personal ◆                   34% left  ·  out ~Sat",
+				"3 side ▲  22% left  ·  out ~Fri  ·  resets Mon 10:00",
 			},
 		},
 		{
 			name: "graphs-73x61",
 			want: []string{
-				"1 work                       66% left  ·  at its cap 14:31  ·  back 17:10", "2 personal ◆    34% left  ·  runs out ~Sat at its pace  ·  back Sun 02:00",
-				"1 work  5% left  ·  at its cap 14:31  ·  back 17:10, as its 5-hour resets",
+				"1 work             66% left  ·  capped 14:31  ·  back 17:10  ·  caps ~Sat", "2 personal ◆                   34% left  ·  out ~Sat  ·  resets Sun 02:00",
+				"1 work                          5% left  ·  capped 14:31  ·  resets 17:10",
 			},
 		},
 		{
-			name: "graphs-phone-52", want: []string{"1 work  66% left  ·  at its cap 14:31  ·  back 17:10", "2 personal ◆  34% left  ·  runs out ~Sat at its pace"},
+			name: "graphs-phone-52", want: []string{"1 work      66% left  ·  capped 14:31  ·  back 17:10", "2 personal ◆                   34% left  ·  out ~Sat"},
 		},
 	}
 	for _, tt := range tests {

@@ -533,9 +533,9 @@ func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
 		says   string
 		runway string
 	}{
-		{name: "running out past the view's end", doc: sideWeek(0.12, 0), says: "runs out", runway: "room all week"},
-		{name: "reaching its cap past the view's end", doc: sideWeek(0.12, 0.01), says: "reaches its cap", runway: "room all week"},
-		{name: "running out inside the view", doc: sideWeek(0.3, 0), says: "runs out", runway: "runs out"},
+		{name: "running out past the view's end", doc: sideWeek(0.12, 0), says: "out", runway: "room all week"},
+		{name: "reaching its cap past the view's end", doc: sideWeek(0.12, 0.01), says: "caps", runway: "room all week"},
+		{name: "running out inside the view", doc: sideWeek(0.3, 0), says: "out", runway: "out"},
 	}
 	sizes := []struct{ width, height int }{{160, 37}, {108, 44}, {73, 61}, {52, 63}}
 	for _, mo := range moments {
