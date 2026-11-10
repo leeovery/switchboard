@@ -7917,13 +7917,22 @@ more: what keeps the folder safe, or carries it to another Mac, is the folder's 
 Switchboard never talks to a cloud. Export and import are built, and the export on a schedule
 (see On a schedule).
 
+Each Mac's history is its own: no history is read across several Macs at once (the owner's call,
+10 November 2026). A Mac records the requests it routes; usage and limits are Anthropic's, read off
+every answer and probe, so another Mac's use on the same accounts shows in the bars and routing
+sees it, as it sees the Claude apps', while History's tokens, worth and sessions count only this
+Mac's. Reading each other's exports would mend that only while two Macs run at once, at the cost of
+sync lag, duplicates and sessions claimed twice.
+
 - **What goes:** what can't be built again, the request ledger's lines, the days' summaries, the
   readings history and the router's events. Not the files the router builds from them, the days'
   digests, parts, heads and rows, which a round builds again (see The request ledger); nor
   `state.json`, of this Mac's sessions and of readings a new Mac's first probes take afresh; nor
-  `prefs.json`, the config, the tokens or the logs, which stay as they are (see
-  `ideas/2026-10-27--history-beyond-one-mac.md`). A day comes to about 2.5–3 MB compressed, about
-  1 GB a year (measured on 3 November 2026).
+  `prefs.json`, the config, the tokens or the logs, which stay as they are: the config is the
+  user's, written by hand and theirs to keep; `prefs.json` is a settings file, which a tool that
+  restores settings carries like any app's; and tokens are never backed up, as `setup` makes them on
+  each Mac (see Setup). A day comes to about 2.5–3 MB compressed, about 1 GB a year (measured on
+  3 November 2026).
 - **A folder a Mac:** `export <dir>` writes into a folder of the Mac's own in `<dir>`,
   `mac-<install id>`, so Macs whose config is one file, as a dotfiles repository keeps it, and so
   names one `<dir>`, never write each other's files. The install's id is `<state dir>/install-id`,
@@ -10302,7 +10311,6 @@ was dropped binds a later choice, the design proper says so.
 | Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
-| One history across several Macs at once, each Mac's History counting the others' requests from their exported folders | later: only where two Macs run switchboard on the same accounts at once (the owner, 3 November 2026); export and import, and the export on a schedule, taken up (see Export and import) | [history-beyond-one-mac](../ideas/2026-10-27--history-beyond-one-mac.md) |
 | Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
