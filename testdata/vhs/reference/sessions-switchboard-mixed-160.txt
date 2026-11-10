@@ -5,7 +5,7 @@
 SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 41e0 docs                     ↓ answering                   ●━━━━━━━━━━━━━━━━━━━━┓  ○ 1 work          ● open
-9c2e website                  idle 9m                       ●━━━━━━━━━━━━━━━━━┓  ┃  ○  Week                 ▉      ┃                34%  19%/day till Sun 21:00
+9c2e website                  idle 9m                       ●━━━━━━━━━━━━━━━━━┓  ┃  ○  Week                 ▉      ┃                34%  out ~Sun
                                                                               ┃  ┃  ○
 d28c switchboard              ↑ asking     ▸ from work      ●━━━━━━━━━━━━━━┓  ┃  ┃  ○  5-hour     no limit
 c61b mobile                   ↓ answering                   ●━━━━━━━━━━━┓  ┃  ┃  ┃

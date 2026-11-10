@@ -4,7 +4,7 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────── u   ROUTING   auto ──────────────────────────────────── r
 
-1 work          Week                      ▍         ┃                   ╎   34%  19%/day till Sun 21:00    ● open
+1 work          Week                      ▍         ┃                   ╎   34%  out ~Sun                  ● open
                                                                                                            0 sessions
                 5-hour    no limit                                                                         ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
@@ -25,12 +25,12 @@ USAGE  ────────────────────────�
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 
 18:50      side's 5-hour resets                                in 4h 08m          14:41  ▲ c61b started on side
-~Fri       side's week runs out at its pace                     in 1d 4h          14:31  ■ work refused (401): 3 sessions moved to side
-~Sat       personal's week runs out at its pace                in 1d 23h          14:12  ▲ 7f3a started on work
+~Fri       side's week runs out at its pace                     in 1d 2h          14:31  ■ work refused (401): 3 sessions moved to side
+~Sat       personal's week runs out at its pace                in 1d 19h          14:12  ▲ 7f3a started on work
 Sun 02:00  personal's week resets                              in 2d 11h          13:50  ◇ side primed: its 5-hour window started
-Sun 21:00  work's week resets                                   in 3d 6h          13:22  ▸ db8a moved personal → work: personal came under pressure
-Mon 10:00  side's week resets                                  in 3d 19h          12:47  ▲ 41e0 started on personal
-                                                                                  12:02  ▲ d28c started on work
+~Sun       work's week reaches its cap                         in 2d 21h          13:22  ▸ db8a moved personal → work: personal came under pressure
+Sun 21:00  work's week resets                                   in 3d 6h          12:47  ▲ 41e0 started on personal
+Mon 10:00  side's week resets                                  in 3d 19h          12:02  ▲ d28c started on work
                                                                                   11:55  ▲ 9c2e started on personal
                                                                                   10:02  ▲ 5b19 started on personal
                                                                                   09:40  ▲ 3d7a started on work
