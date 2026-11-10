@@ -108,7 +108,7 @@ func labelRows() [][]string {
 // nothing's left in it.
 func (a *app) uninstallPieces(ctx context.Context, u *uninstalling, errOut io.Writer) {
 	a.uninstallTheService(ctx, u, errOut)
-	a.uninstallTheShell(u)
+	a.uninstallTheShell(ctx, u)
 	path, removed, err := a.uninstallTheHook()
 	u.outcome(hookLabel, "removed from "+path, removed, err)
 	path, removed, err = a.uninstallTheSkill()
@@ -167,34 +167,53 @@ func (a *app) uninstallTheService(ctx context.Context, u *uninstalling, errOut i
 
 // uninstallTheShell takes switchboard's line out of every startup file it's
 // in, then removes switchboard's files for the shells.
-func (a *app) uninstallTheShell(u *uninstalling) {
-	home, err := a.HomeDir()
-	if err != nil {
-		u.fail(lineLabel, fmt.Errorf("locate the home directory: %w", err))
-		u.fail(shellLabel, fmt.Errorf("locate the home directory: %w", err))
-		return
-	}
+func (a *app) uninstallTheShell(ctx context.Context, u *uninstalling) {
 	dir, err := config.ShellDir(a.Getenv, a.HomeDir)
 	if err != nil {
 		u.fail(lineLabel, err)
 		u.fail(shellLabel, err)
 		return
 	}
-	lines, err := shell.RemoveLines(home, dir, a.Getenv)
+	a.uninstallTheLine(ctx, u, dir)
+	removed, err := shell.RemoveFiles(dir)
+	u.outcome(shellLabel, "removed from "+dir, anyRemoved(removed), err)
+}
+
+// uninstallTheLine takes switchboard's line, sourcing a file in dir,
+// switchboard's shell directory, out of every startup file it's in. Where
+// the user's login shell reads its startup file is the shell's to say, so
+// it's asked, as setup asks it: where it can't be, uninstall says it couldn't
+// look there, never that the line's not there.
+func (a *app) uninstallTheLine(ctx context.Context, u *uninstalling, dir string) {
+	home, err := a.HomeDir()
+	if err != nil {
+		u.fail(lineLabel, fmt.Errorf("locate the home directory: %w", err))
+		return
+	}
+	bin, err := config.BinDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		u.fail(lineLabel, err)
+		return
+	}
+	login, _ := shell.Of(a.Getenv("SHELL"))
+	answer := shell.Login{Environ: a.Environ(), Run: a.LoginShell}.Which(ctx, setup.ClaudeLink(bin))
+	lines, err := shell.RemoveLines(home, dir, login, answer.ConfigDir)
 	for _, file := range lines.Removed {
 		u.done(lineLabel, "removed from "+file)
 	}
 	for _, file := range lines.Indented {
 		u.warn(lineLabel, "left alone: an indented copy in "+file+", which may be all of a block of yours, so it's yours to take out: with switchboard's files gone it does nothing")
 	}
+	unlooked := shell.SaysWhere(login) && answer.Kind == shell.Unasked
+	if unlooked {
+		u.warn(lineLabel, fmt.Sprintf("couldn't look where %s reads its startup file, as it couldn't be asked: %s", login, answer.Why))
+	}
 	switch {
 	case err != nil:
 		u.fail(lineLabel, err)
-	case len(lines.Removed) == 0 && len(lines.Indented) == 0:
+	case len(lines.Removed) == 0 && len(lines.Indented) == 0 && !unlooked:
 		u.done(lineLabel, notThere)
 	}
-	removed, err := shell.RemoveFiles(dir)
-	u.outcome(shellLabel, "removed from "+dir, anyRemoved(removed), err)
 }
 
 // anyRemoved reports whether any of files was removed.

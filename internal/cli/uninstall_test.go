@@ -478,3 +478,62 @@ func entries(t *testing.T, dir string) []string {
 	}
 	return names
 }
+
+// zshIsTheLoginShell has uninstall's environment name zsh as the user's
+// login shell, which run runs, and moves zsh's startup file, switchboard's
+// line in it, into zdotdir, where only the login shell, not uninstall's
+// environment, says zsh reads it.
+func (w *uninstallWorld) zshIsTheLoginShell(t *testing.T, zdotdir string, run shell.Runner) {
+	t.Helper()
+	moved := filepath.Join(zdotdir, ".zshrc")
+	if err := os.MkdirAll(zdotdir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(w.startupFiles[0], moved); err != nil {
+		t.Fatal(err)
+	}
+	w.startupFiles[0] = moved
+	w.deps.Getenv = withEnv(w.deps.Getenv, "SHELL", "/bin/zsh")
+	w.deps.Environ = func() []string { return []string{"HOME=" + w.home, "SHELL=/bin/zsh"} }
+	w.deps.LoginShell = run
+}
+
+func TestUninstallTakesTheLineOutWhereTheLoginShellSaysItReadsIt(t *testing.T) {
+	w := newUninstallWorld(t)
+	zdotdir := filepath.Join(w.home, ".config", "zsh")
+	var asked []string
+	w.zshIsTheLoginShell(t, zdotdir, func(_ context.Context, path string, _, _ []string) ([]byte, error) {
+		asked = append(asked, path)
+		return []byte("switchboard-asks-which-claude\nis:\npath:\nconfig:" + zdotdir + "\nswitchboard-asked-which-claude\n"), nil
+	})
+
+	if got, want := run(t, w.deps, "uninstall"), (result{stdout: w.removedRows() + keptRow + uninstallEnd}); got != want {
+		t.Errorf("switchboard uninstall = %+v\nwant %+v", got, want)
+	}
+	if want := []string{"/bin/zsh"}; !slices.Equal(asked, want) {
+		t.Errorf("the login shells asked = %q, want %q", asked, want)
+	}
+	w.checkPiecesGone(t, 1)
+}
+
+func TestUninstallSaysItCouldntLookWhereTheLoginShellCantBeAsked(t *testing.T) {
+	w := newUninstallWorld(t)
+	w.zshIsTheLoginShell(t, filepath.Join(w.home, ".config", "zsh"), func(context.Context, string, []string, []string) ([]byte, error) {
+		return nil, errors.New("zsh isn't there")
+	})
+	zshrc, _ := os.ReadFile(w.startupFiles[0])
+
+	got := run(t, w.deps, "uninstall")
+	want := w.rowsBut(map[string]string{"Startup line": uninstallRow("✓", "Startup line", "removed from "+w.startupFiles[1]) +
+		uninstallRow("✓", "Startup line", "removed from "+w.startupFiles[2]) +
+		uninstallRow("!", "Startup line", "couldn't look where zsh reads its startup file, as it couldn't be asked: zsh isn't there")})
+	if want := (result{stdout: want + keptRow + uninstallEnd}); got != want {
+		t.Errorf("switchboard uninstall = %+v\nwant %+v", got, want)
+	}
+	checkText(t, w.startupFiles[0], string(zshrc))
+
+	got = run(t, w.deps, "uninstall")
+	if want := uninstallRow("!", "Startup line", "couldn't look where zsh reads its startup file, as it couldn't be asked: zsh isn't there"); !strings.Contains(got.stdout, want) || strings.Contains(got.stdout, "Startup line  not there") {
+		t.Errorf("switchboard uninstall, again = %+v\nwant it to say, never that the line's not there\n%s", got, want)
+	}
+}

@@ -8657,8 +8657,11 @@ the formula's caveats name it, to run first.
 - **What goes, in this order:** the service, as `service uninstall` takes it away (the router
   stopped once its requests in flight are done, the LaunchAgent, the router's copy and the
   notifications' app), first, so no router brings the skill back up to date as it goes; the line
-  setup added to the shell's startup file, found by its mark as setup finds it, and switchboard's
-  own files for each shell that line hands off to, completion's with them; switchboard's own entry
+  setup added to the shell's startup file, found by its mark as setup finds it, in each file it
+  may be in, the login shell asked where it reads its own as setup asks it, never told by
+  uninstall's own environment, and where it can't be asked, uninstall says it couldn't look there
+  rather than that the line's not there; and switchboard's own files for each shell that line
+  hands off to, completion's with them; switchboard's own entry
   in Claude Code's SessionStart hooks, every other setting and hook left as it is; the skill, in
   Claude Code's config directory; and the `claude` link in switchboard's bin directory, the
   directory too once empty.

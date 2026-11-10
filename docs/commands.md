@@ -868,9 +868,13 @@ It takes away, in this order:
    router stopped once it has finished its requests in flight, the LaunchAgent, the router's copy
    of switchboard and the notifications' app.
 2. **The startup line** `setup` added, taken out of each shell's startup file it's in, found by its
-   `# switchboard` mark: `~/.zshrc`, and `.zshrc` in `$ZDOTDIR`; `~/.bash_profile`, `~/.bash_login`
-   and `~/.profile`; and fish's `config.fish`. Only the line as `setup` writes it, at the start of
-   its line, is taken out: an indented copy may be all there is of an `if` block of yours, which
+   `# switchboard` mark: `~/.zshrc`, and `.zshrc` where zsh says it reads it; `~/.bash_profile`,
+   `~/.bash_login` and `~/.profile`; and `~/.config/fish/config.fish`, and `config.fish` where fish
+   says it reads it. Your login shell is asked where, as `setup` asks it, as the `ZDOTDIR` of the
+   terminal you run `uninstall` in, an editor's, say, may not be a new terminal's. Where it can't be
+   asked, `uninstall` says it couldn't look there, not that the line isn't there: a line left there
+   does nothing once switchboard's files are gone. Only the line as `setup` writes it, at the start
+   of its line, is taken out: an indented copy may be all there is of an `if` block of yours, which
    the shell couldn't read left empty, so it's left where it is, and `uninstall` names the file for
    you to take it out yourself; with switchboard's files gone, it does nothing. Every other line is
    kept as it was, and the file is rewritten in place, where a link to it leads, so it stays the
