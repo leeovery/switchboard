@@ -3742,7 +3742,9 @@ alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21
   32, the families' dots, flowed as wide.
 
 **Weeks** is how full each account's week got, and whether there are as many accounts as the use
-needs. **Short** is a week in which some account hit its week's limit, its peak at 100%. Weeks takes
+needs. **Short** is a week in which some account hit its week's limit, its peak at its cap, where the
+router stops sending it new sessions: 100% less its reserve, the reserve the config has now, as no
+week records its own, and 100% without one. Weeks takes
 its form for many accounts, as `history-weeks-ten-160` draws it, where the verdict can name one to
 drop, one fewer being short on no more weeks than now; otherwise its form for few.
 
@@ -3771,7 +3773,7 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **The replay** treats each of the last 7 whole weeks alone. Without an account, its peak, times
   its plan's size, is shared among the rest by their sizes, each one's peak rising by its share;
   with one more, of the plan most of the accounts have, every peak falls in proportion, the same use
-  over more room. A replayed week is short where any account would reach 100%. `with one fewer`
+  over more room. A replayed week is short where any account would reach its cap. `with one fewer`
   drops the account whose loss makes the fewest weeks short, and of those that tie, the one used
   least over the weeks shown. Plans' sizes are in Pro weeks, `pro` 1, `max` 5 and `ultra` 10 (see
   The request ledger); an account without a `plan` counts as the plan most of the accounts have,

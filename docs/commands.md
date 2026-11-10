@@ -1171,7 +1171,10 @@ To judge whether there are enough accounts, `history` works with weeks as follow
   calendar week.
 - **The week still running** is always this week's, and its peak is its highest so far. Where the
   reset that began it came before the days asked for, it's read from the week before them.
-- **A short week** is one in which some account hit its week's limit.
+- **A short week** is one in which some account hit its week's limit: its peak reached its cap,
+  100% less its [`reserve`](configuration.md#account-keys), where it has one. It's the reserve the
+  config has now, since no week records its own. A replayed week is short where any account would
+  reach its cap.
 - **The replay:** each whole week, in which every account's week is known and ended, is replayed
   twice:
   - With an account fewer. The dropped account's peak, times its plan's size, is shared among the

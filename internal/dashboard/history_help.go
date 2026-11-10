@@ -49,11 +49,12 @@ func (f Frame) historyHelp() []helpPart {
 			says: []line{
 				said("A week is an account's own, from one reset of its week window to the next, under the calendar week it " +
 					"began nearest. Its peak is the use read just before the reset that ended it, and this week's its highest " +
-					"so far. A week is short where some account hit its limit, its peak at 100%."),
+					"so far. A week is short where some account hit its limit, its peak at its cap: 100% less its reserve, " +
+					"as the config has it now, or 100% without one."),
 				said("The replay takes each of the last 7 whole weeks alone. Without an account, its peak, times its plan's " +
 					"size, is shared among the rest by their sizes; with one more, of the plan most of the accounts have, every " +
 					"peak falls in proportion, the same use over more room. A replayed week is short where any account would " +
-					"reach 100%."),
+					"reach its cap."),
 				said("The verdict: " + views.OneMoreThanYouNeed + ", where one fewer would be short on no more weeks than now, " +
 					"naming the account to drop; " + views.OneTooFew + ", where now is short on 4 or more of the 7 and one more " +
 					"would halve that; " + views.TooFew + ", where one more wouldn't, the row under it saying how short one more " +

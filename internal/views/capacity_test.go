@@ -195,6 +195,56 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 	}
 }
 
+// Weeks judges an account short at its cap, where the router stops sending
+// it new sessions: 100% less its reserve, as the config has it, else 100%.
+func TestCapacityJudgesEachAccountAtItsCap(t *testing.T) {
+	reserved := func(id string) config.Account { return config.Account{ID: id, Reserve: 0.05} }
+	tests := []struct {
+		name     string
+		accounts config.Accounts
+		peaks    map[string][]float64
+		want     string
+	}{
+		{
+			// Work's cap is 95%: at 96% it hit it, at 94% it didn't.
+			name: "a reserved account peaking past its cap is short, and short of it isn't", accounts: config.Accounts{reserved("work")},
+			peaks: map[string][]float64{"work": {0.96, 0.94, 0.5}},
+			want: `{"weeks":3,"short":1,"with_one_more":0,"verdict":"about right","accounts":[` +
+				`{"account":"work","verdict":"ends most weeks with room","weeks":3,"limits":1,"left_at_reset":0.2},` +
+				`{"all":true,"verdict":"little to spare together","weeks":3,"limits":1,"left_at_reset":0.2}]}`,
+		},
+		{
+			// Without work, side's 50% rises by work's 46%, to 96%: past
+			// side's cap, though short of its limit. Without side, work,
+			// without a reserve, rises to 96%, short of its limit.
+			name: "a replay without an account hands a reserved one no load past its cap", accounts: config.Accounts{{ID: "work"}, reserved("side")},
+			peaks: map[string][]float64{"work": slices.Repeat([]float64{0.46}, 7), "side": slices.Repeat([]float64{0.5}, 7)},
+			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
+				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.54,"without_it":7},` +
+				`{"account":"side","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":0},` +
+				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":0,"left_at_reset":0.52}]}`,
+		},
+		{
+			// With one more, work's 190% falls to 95%: its cap, though short
+			// of its limit.
+			name: "a replay with one more judges a reserved account at its cap", accounts: config.Accounts{reserved("work")},
+			peaks: map[string][]float64{"work": {1.9, 0.5}},
+			want: `{"weeks":2,"short":1,"with_one_more":1,"verdict":"about right","accounts":[` +
+				`{"account":"work","verdict":"hits its limit most weeks","weeks":2,"limits":1,"left_at_reset":0.25},` +
+				`{"all":true,"verdict":"room to spare together","weeks":2,"limits":1,"left_at_reset":0.25}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := input(peaking(tt.peaks))
+			in.Accounts = tt.accounts
+			if got := jsonOf(t, views.NewHistory(in).Capacity); got != tt.want {
+				t.Errorf("the capacity is\n%s\nwant\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
 // Each verdict is judged on what its account's weeks left at a reset, on
 // average, as the figure beside it says it, a whole percentage, so a figure
 // at a cut never sits beside the verdict for under it.
