@@ -17,11 +17,18 @@ import (
 
 // rejoinAfter is how long after the request stream ends, or fails to open,
 // the watch asks for it again, doubled for each time in a row it has failed
-// to open, up to rejoinMost.
+// to open, or ended short of steadyAfter, up to rejoinMost.
 const (
 	rejoinAfter = time.Second
 	rejoinMost  = 30 * time.Second
 )
+
+// steadyAfter is how long the request stream must stay open for its end to
+// start the waits afresh: one that ends sooner counts as a failure to open
+// does. It's rejoinMost, so a router that keeps ending the stream is asked
+// for it no more often than once every rejoinMost, whether it ends it sooner,
+// the waits growing to rejoinMost, or later, starting them afresh.
+const steadyAfter = rejoinMost
 
 // joinFor is how long the watch waits, once the request stream has opened
 // again, for its first look to tell of the requests in flight as it joined:
@@ -32,14 +39,15 @@ const joinFor = time.Second
 // streaming is the watch's hold on the router's request stream: gen counts
 // the times it has opened it, or closed it, so what an earlier time sends is
 // dropped; cancel ends the one open or opening; events are what the one open
-// tells; whether one is open, or opening, or due to be asked for again; how
-// many times in a row it has failed to open; and whether the router, the
-// one whose health check said absentOf, is from before the stream, so has
-// none.
+// tells, and when it opened; whether one is open, or opening, or due to be
+// asked for again; how many times in a row it has failed to open, or ended
+// short of steadyAfter; and whether the router, the one whose health check
+// said absentOf, is from before the stream, so has none.
 type streaming struct {
 	gen                      int
 	cancel                   context.CancelFunc
 	events                   <-chan router.StreamEvent
+	openedAt                 time.Time
 	open, opening, rejoining bool
 	fails                    int
 	absent                   bool
@@ -159,7 +167,7 @@ func (m Model) opened(msg streamOpenedMsg) (Model, tea.Cmd) {
 	m.stream.opening = false
 	switch {
 	case msg.err == nil:
-		m.stream.open, m.stream.events, m.stream.fails = true, msg.events, 0
+		m.stream.open, m.stream.events, m.stream.openedAt = true, msg.events, m.now()
 		m.traffic, m.tail = m.traffic.reopened(), m.tail.streamOpened()
 		logger.Debug("reading the router's request stream")
 		return m, tea.Batch(m.listen(), m.awaitJoin())
@@ -235,21 +243,30 @@ func hear(gen int, events <-chan router.StreamEvent) streamHeardMsg {
 // heard takes in what the request stream told, the requests it told of going
 // upstream counted for the traces, each number on the page it changed
 // brightening, and listens on; or, where it ended, as a router ends it as it
-// restarts, asks for it again after rejoinAfter, its traffic no longer live
-// meanwhile, keeping what it told until it opens again, as unheard has it.
+// restarts, asks for it again, its traffic no longer live meanwhile, keeping
+// what it told until it opens again, as unheard has it: after rejoinAfter
+// where it stayed open steadyAfter, else later each time in a row it ended
+// sooner, as a failure to open is.
 func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen || !m.stream.open {
 		return m, nil
 	}
-	m = m.told(msg.events, m.now())
+	now := m.now()
+	m = m.told(msg.events, now)
 	if !msg.ended {
 		return m, m.listen()
 	}
-	logger.Debug("the router's request stream ended: asking for it again")
+	lasted := now.Sub(m.stream.openedAt)
+	if lasted < steadyAfter {
+		m.stream.fails++
+	} else {
+		m.stream.fails = 0
+	}
+	logger.Debug("the router's request stream ended: asking for it again", "lasted", lasted, "fails", m.stream.fails)
 	m.stream.end()
 	m.stream.open, m.stream.events = false, nil
 	m.traffic = m.traffic.unheard()
-	return m.rejoinIn(rejoinAfter)
+	return m.rejoinIn(rejoinWait(m.stream.fails))
 }
 
 // told takes in the events the stream told, at now, as took does: those of
@@ -322,8 +339,8 @@ func (m Model) rejoined(msg rejoinMsg) Model {
 }
 
 // rejoinWait is how long to wait to ask for the request stream again once
-// it has failed to open fails times in a row: rejoinAfter, doubled for each
-// failure before, up to rejoinMost.
+// it has failed to open, or ended short of steadyAfter, fails times in a row:
+// rejoinAfter, doubled for each failure before, up to rejoinMost.
 func rejoinWait(fails int) time.Duration {
 	wait := rejoinAfter
 	for i := 1; i < fails && wait < rejoinMost; i++ {

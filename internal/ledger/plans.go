@@ -11,9 +11,10 @@ type Plan struct {
 	ID string
 	// Name names it as the views show it, as Ultra.
 	Name string
-	// Size is its size in Pros, which History's replay of a week weighs an
-	// account on it by.
-	Size int
+	// Size is how big its week is, in Pro weeks, as Anthropic publishes each
+	// plan's weekly usage against Pro's: what the forecast and History's
+	// replay of a week weigh an account on it by, as Sizes has them.
+	Size int64
 	// Prices are what it costs a month, each from the day it took effect,
 	// oldest first.
 	Prices []PlanPrice
@@ -36,6 +37,34 @@ func (t Table) Plan(id string) (Plan, bool) {
 		return Plan{}, false
 	}
 	return t.Plans[i], true
+}
+
+// Sizes are the sizes, in Pro weeks, of accounts on the plans with the ids
+// given, in their order, as the config names each: each one's plan's size,
+// else, where the table doesn't know its plan, as where it isn't known, that
+// of the plan most of them are on, the larger of two that tie, else, where
+// none is known, 1; and that most usual size.
+func (t Table) Sizes(plans []string) (sizes []int64, usual int64) {
+	sizes = make([]int64, len(plans))
+	known := make(map[int64]int)
+	for i, id := range plans {
+		if plan, ok := t.Plan(id); ok {
+			sizes[i] = plan.Size
+			known[plan.Size]++
+		}
+	}
+	usual = 1
+	for size, n := range known {
+		if n > known[usual] || n == known[usual] && size > usual {
+			usual = size
+		}
+	}
+	for i := range sizes {
+		if sizes[i] == 0 {
+			sizes[i] = usual
+		}
+	}
+	return sizes, usual
 }
 
 // Price returns what the plan costs a month on the local day with the given

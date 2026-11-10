@@ -291,7 +291,9 @@ func TestMakeKeepsAnUnreadableTokenOnTheScreenAndOutOfTheError(t *testing.T) {
 
 func TestMakeFailsWhereSetupTokenDoesntHandItsAddressOver(t *testing.T) {
 	f := newFake(t, "no-browser")
-	maker := setuptoken.Waiting(f.maker, time.Minute, 2*time.Second)
+	// The wait starts as the fake does: a loaded Mac can take seconds to
+	// have it draw its first line, the screen the error should hold.
+	maker := setuptoken.Waiting(f.maker, time.Minute, 10*time.Second)
 	leaks := watchLeaks(t)
 	open := &opener{}
 

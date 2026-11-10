@@ -462,7 +462,7 @@ func (m Model) showHistory(p dashboard.HistoryPage) Model {
 	m.past.page, m.scroll = p, 0
 	m.past = m.past.built()
 	if kept := p.Kept(); kept != was {
-		m.keepPrefs("what History's views show", func(prefs *theme.Prefs) { prefs.History = kept }, "history", kept)
+		m = m.keepPrefs("what History's views show", func(prefs *theme.Prefs) { prefs.History = kept }, "history", kept)
 	}
 	return m
 }
