@@ -95,27 +95,26 @@ func StartupFile(sh Shell, home, configDir string) string {
 }
 
 // StartupFiles returns every startup file of sh's that switchboard's line
-// may have gone at the end of, the user's home being home, as setup can't
-// say which it chose without asking the shell: for zsh, .zshrc in $ZDOTDIR,
-// where getenv gives one, and in the home; for bash, each of ~/.bash_profile,
+// may have gone at the end of, the user's home being home, and configDir
+// where the login shell, asked as setup asks it, says sh reads its startup
+// file from, "" where it isn't sh or didn't say: for zsh, .zshrc in
+// configDir and in the home; for bash, each of ~/.bash_profile,
 // ~/.bash_login and ~/.profile, as the first there when setup ran may not be
-// now; and for fish, config.fish in $XDG_CONFIG_HOME/fish, where getenv
-// gives one, and in ~/.config/fish. Each is named once.
-func StartupFiles(sh Shell, home string, getenv func(string) string) []string {
-	var files []string
-	switch sh {
-	case Zsh:
-		files = []string{StartupFile(Zsh, home, getenv("ZDOTDIR")), StartupFile(Zsh, home, "")}
-	case Bash:
-		files = []string{filepath.Join(home, ".bash_profile"), filepath.Join(home, ".bash_login"), filepath.Join(home, ".profile")}
-	case Fish:
-		var xdg string
-		if dir := getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
-			xdg = filepath.Join(dir, "fish")
-		}
-		files = []string{StartupFile(Fish, home, xdg), StartupFile(Fish, home, "")}
+// now; and for fish, config.fish in configDir and in ~/.config/fish. Each is
+// named once. The environment it's run in never says where, as StartupFile
+// says.
+func StartupFiles(sh Shell, home, configDir string) []string {
+	if sh == Bash {
+		return []string{filepath.Join(home, ".bash_profile"), filepath.Join(home, ".bash_login"), filepath.Join(home, ".profile")}
 	}
-	return slices.Compact(files)
+	return slices.Compact([]string{StartupFile(sh, home, configDir), StartupFile(sh, home, "")})
+}
+
+// SaysWhere reports whether where sh reads its startup file is the shell's
+// to say, so its line can't be looked for everywhere it may be without
+// asking it: zsh's and fish's. bash's are in the home.
+func SaysWhere(sh Shell) bool {
+	return sh == Zsh || sh == Fish
 }
 
 // RivalStartupFile returns the startup file a new terminal may read in place
@@ -287,14 +286,19 @@ type Lines struct {
 
 // RemoveLines takes switchboard's line for each shell, sourcing that shell's
 // file in dir, switchboard's shell directory, out of each startup file it
-// may be in, as StartupFiles names them, the user's home being home, as
-// RemoveLine takes it out, and says what it did. It goes on past a file it
-// can't take it out of, and fails, saying why.
-func RemoveLines(home, dir string, getenv func(string) string) (Lines, error) {
+// may be in, as StartupFiles names them, the user's home being home, and
+// configDir where login, the user's login shell, says it reads its startup
+// file from, as RemoveLine takes it out, and says what it did. It goes on
+// past a file it can't take it out of, and fails, saying why.
+func RemoveLines(home, dir string, login Shell, configDir string) (Lines, error) {
 	var lines Lines
 	var errs []error
 	for _, sh := range Shells {
-		for _, file := range StartupFiles(sh, home, getenv) {
+		said := ""
+		if sh == login {
+			said = configDir
+		}
+		for _, file := range StartupFiles(sh, home, said) {
 			found, err := RemoveLine(sh, file, home, InitFile(dir, sh))
 			if err != nil {
 				errs = append(errs, err)
