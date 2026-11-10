@@ -7299,13 +7299,16 @@ from the first day a router that has it runs, so nothing before then is in it.
     readings that prune takes, of the day itself or of its week before: a handful, the days beside
     where the history's files begin, or a few more for each day the router was off, whatever older
     days the ledger keeps beyond the history. Then eight more, leaving the rest to the ledger's
-    rounds. A day's first summary is never left for a later round either, so no day is summarised,
-    the first time or again, from fewer readings than it would have been. A day that can't be
+    rounds. A day's first summary is never left for a later round either, so no day that can be
+    summarised as the prune comes is summarised, the first time or again, from fewer readings than
+    it would have been. One that can't, as one of its files can't be opened, or its readings can't
+    all be read for now, is warned of, and summarised later from what's left. A day that can't be
     summarised counts for none of the eight, so days that keep failing never keep the rest from
     their turn, and is tried, and warned of, once a pass of rounds made back to back, as it was once
-    a round before. The digesting waits for the last of them: a round kicks it only once it leaves
-    no day for a later one. Until a day's turn comes, History and `history` read it
-    from its lines, as below, with the same figures, at the cost of the read. A reader that meets
+    a round before, but again before a prune that takes its readings. The digesting waits for the
+    last of them: a round kicks it only once it leaves no day for a later one. Until a day's turn
+    comes, History and `history` read it from its lines, as below, with the same figures, at the
+    cost of the read. A reader that meets
     an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
     version, as only the router writes summaries again, a reader knowing of the rest what they

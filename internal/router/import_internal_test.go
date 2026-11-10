@@ -102,7 +102,7 @@ func newHeldImporting(t *testing.T) *heldImporting {
 	h.release = sync.OnceFunc(func() { close(released) })
 	// The writer goes free as the test ends, before its router is stopped,
 	// which waits on it.
-	h.r.history.pruning = func(time.Time) {
+	h.r.history.pruning = func(time.Time, time.Duration) {
 		close(busy)
 		select {
 		case <-released:
@@ -285,7 +285,7 @@ func TestASummaryARoundWritesOfADayAsItsFolderComesInGivesWayToTheOneStaged(t *t
 	r := newTestRouterOf(t, cfg)
 	var wrote bool
 	r.imports.between = func() {
-		r.history.pruning(r.cfg.Now())
+		r.history.pruning(r.cfg.Now(), r.history.keep)
 		_, err := os.Stat(summary)
 		wrote = err == nil
 	}

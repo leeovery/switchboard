@@ -253,9 +253,10 @@ counted more of its requests upstream, so they still add up to `upstream`.
 
 A release that summarises days in a different way summarises every kept day again, once, eight
 days at a time, the oldest first, so no request's line or reading waits on them all. A day whose
-readings the history is about to let go goes first, so it's still summarised with them. Until a
-day's turn comes, `history` and the dashboard work it out from its lines as they read it, as they
-do today's, with the same figures.
+readings the history is about to let go goes first, so it's still summarised with them, unless it
+can't be summarised then, as when one of its files can't be opened. Until a day's turn comes,
+`history` and the dashboard work it out from its lines as they read it, as they do today's, with
+the same figures.
 
 ### Kept for good
 

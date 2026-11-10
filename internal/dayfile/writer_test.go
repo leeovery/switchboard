@@ -247,11 +247,13 @@ func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
 		rounds := 0
 		var prunings []string
 		var held []bool
+		var keeps []time.Duration
 		w := NewWriter(f, linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: func() time.Time { return start.Add(time.Since(began)) }, Items: "readings",
 			Round: func(time.Time) { rounds++ },
-			Pruning: func(now time.Time) {
+			Pruning: func(now time.Time, keep time.Duration) {
 				prunings = append(prunings, DateOf(now))
 				held = append(held, holdsDay(f, old))
+				keeps = append(keeps, keep)
 			}})
 		stop := running(t, w)
 		tomorrow := DayStart(start.Local(), 1)
@@ -264,6 +266,9 @@ func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
 		if want := []string{DateOf(start), DateOf(tomorrow)}; !slices.Equal(prunings, want) || !slices.Equal(held, []bool{true, false}) {
 			t.Errorf("the writer's Pruning came on %q, the day past keeping there for each = %v; want on %q alone, the first before the prune it went at",
 				prunings, held, want)
+		}
+		if want := []time.Duration{twoWeeks, twoWeeks}; !slices.Equal(keeps, want) {
+			t.Errorf("the writer's Pruning was handed the keeps %v, want %v: the one its prune goes by", keeps, want)
 		}
 		if rounds <= len(prunings) {
 			t.Errorf("the writer made %d rounds, want one every %v, more than its prunes", rounds, pruneLook)

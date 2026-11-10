@@ -31,12 +31,13 @@ type WriterOptions struct {
 	// still there. Where it leaves some of that for the next round, it has
 	// the Writer make one at once, as RoundAgain says.
 	Round func(now time.Time)
-	// Pruning, where it's given, is called with the clock's now just before
-	// each prune of the files, once a day, on Run's goroutine: what's kept of
-	// other days that needs the files' lines, as the request ledger's
-	// summaries need the readings history's, is kept on it, while they're
-	// still there, and needn't be on every round.
-	Pruning func(now time.Time)
+	// Pruning, where it's given, is called with the clock's now, and the keep
+	// the prune goes by, just before each prune of the files, once a day, on
+	// Run's goroutine: what's kept of other days that needs the files' lines,
+	// as the request ledger's summaries need the readings history's, is kept
+	// on it, while they're still there, and needn't be on every round, by the
+	// keep that tells which go.
+	Pruning func(now time.Time, keep time.Duration)
 	// Spare, where it's given, reports whether the files of the local day
 	// with the given date, past keeping, are kept all the same, until a later
 	// prune: what's kept of the day needs its lines still, as a request
@@ -61,7 +62,7 @@ type Writer[T any] struct {
 	now       func() time.Time
 	items     string
 	onRound   func(now time.Time)
-	onPruning func(now time.Time)
+	onPruning func(now time.Time, keep time.Duration)
 	spare     func(date string) bool
 	queue     chan T
 	// work takes what Do hands Run's goroutine to do, as Run takes it up.
@@ -240,7 +241,7 @@ func (w *Writer[T]) round() {
 		return
 	}
 	if w.onPruning != nil {
-		w.onPruning(now)
+		w.onPruning(now, w.keep)
 	}
 	w.pruned = DateOf(now)
 	w.files.prune(now, w.keep, w.spared(now))

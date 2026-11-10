@@ -774,17 +774,22 @@ func TestTheHistoryHasTheLedgerSummariseTheDaysThatEndedBeforeItPrunesTheirReadi
 }
 
 // The history has the ledger summarise again a day whose readings it's about
-// to prune before it does, though the ledger holds more older days to
-// summarise again than a part of them, as where it keeps its lines longer
-// than the history keeps the readings.
+// to prune before it does, by the keep it prunes by, though the ledger holds
+// more older days to summarise again than a part of them, as where it keeps
+// its lines longer than the history keeps the readings.
 func TestTheHistoryHasTheLedgerSummariseAgainTheDaysWhoseReadingsItPrunesFirst(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+		// The history keeps a day's readings 30 days, not as long as it does
+		// by default.
+		const keep = 30 * 24 * time.Hour
 		// day is a day of a request on work, and of the reading of work's
 		// session its answer gave, summarised under version 5; by now it has
 		// ended as long ago as the history keeps a day's readings, and more.
 		day := time.Date(2026, 9, 8, 10, 0, 0, 0, time.Local)
-		now := day.Add(config.DefaultHistoryKeep).AddDate(0, 0, 6)
-		r := newTestRouter(t, at(now), &stubProber{})
+		now := day.Add(keep).AddDate(0, 0, 6)
+		cfg := testConfig(at(now), &stubProber{}, testTokens.Read)
+		cfg.History = config.History{Keep: keep}
+		r := newTestRouterOf(t, cfg)
 		state := t.TempDir()
 		ledgerDir, historyDir := ledger.Dir(state), readings.Dir(state)
 		for _, dir := range []string{ledgerDir, historyDir} {
@@ -895,7 +900,7 @@ func TestTheHistoryHasTheLedgerSummariseOnlyBeforeItPrunes(t *testing.T) {
 		began := time.Now()
 		h := newHistory(config.History{}, func() time.Time { return start.Add(time.Since(began)) })
 		var asked []string
-		h.pruning = func(now time.Time) { asked = append(asked, now.Local().Format(time.DateOnly)) }
+		h.pruning = func(now time.Time, _ time.Duration) { asked = append(asked, now.Local().Format(time.DateOnly)) }
 		h.open(t.TempDir())
 		stop := keeping(t, h)
 		y, m, d := start.Local().Date()

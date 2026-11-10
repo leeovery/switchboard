@@ -151,8 +151,10 @@ type Ledger struct {
 	// failed are the days a round couldn't summarise since one last left none
 	// for a later round, by date: each is passed over by the rounds after it
 	// until then, so it's tried, and warned of, once a pass of rounds made
-	// back to back, as it was once a round while each summarised them all.
-	// Only a round, holding summarising, touches it.
+	// back to back, as it was once a round while each summarised them all;
+	// but by none before a prune of the readings history that takes its
+	// readings, which tries it again. Only a round, holding summarising,
+	// touches it.
 	failed map[string]bool
 	// unlisted is how the rounds' listings of the readings history went, and
 	// unlistedDir how those of the ledger's own directory did.
@@ -287,11 +289,15 @@ func (l *Ledger) SummariseSome(now time.Time) (more bool) {
 // just before a prune of the readings history at now that keeps a day's
 // readings keep, as the history's writer has it, but first, whole, as a day's
 // first summary, each day whose summary reads readings the prune takes, of
-// the day itself or of its week before, as readsBefore says: so no day is
-// summarised, the first time or again, from fewer readings than it would have
-// been, whatever the ledger keeps and however long the router was off. Those
-// are a handful, the days beside where the history's files begin, or a few
-// more for each day the router was off.
+// the day itself or of its week before, as readsBefore says, one that failed
+// earlier in the pass among them, tried again, as its readings are about to
+// go: so no day that can be summarised as the prune comes is summarised, the
+// first time or again, from fewer readings than it would have been, whatever
+// the ledger keeps and however long the router was off. One that can't, as
+// one of its files can't be opened, or its readings can't all be read for
+// now, is warned of, and summarised later from what's left. Those are a
+// handful, the days beside where the history's files begin, or a few more for
+// each day the router was off.
 func (l *Ledger) SummariseBeforePrune(now time.Time, keep time.Duration) (more bool) {
 	oldest, prunes := dayfile.OldestKept(now, keep)
 	if !prunes {
@@ -303,7 +309,8 @@ func (l *Ledger) SummariseBeforePrune(now time.Time, keep time.Duration) (more b
 // summariseSome summarises the days due at now as SummariseSome says, but
 // first, whole, each day whose summary reads readings the history holds of a
 // day before the one with the date kept, which a prune about to come takes,
-// as readsBefore says: none where kept is "".
+// as readsBefore says, though it failed earlier in the pass: none where kept
+// is "".
 func (l *Ledger) summariseSome(now time.Time, kept string) (more bool) {
 	defer func() {
 		if !more {
@@ -324,7 +331,8 @@ func (l *Ledger) summariseSome(now time.Time, kept string) (more bool) {
 	left := make(map[string]fs.FileInfo)
 	var whole, again []dueDay
 	for _, date := range l.ended(now, held) {
-		if l.failed[date] {
+		pruned := held.readsBefore(date, kept)
+		if l.failed[date] && !pruned {
 			continue
 		}
 		stands, summary, err := l.days.standing(date, held.reach)
@@ -334,7 +342,7 @@ func (l *Ledger) summariseSome(now time.Time, kept string) (more bool) {
 			left[date] = l.warnLeft(date, err)
 		case err != nil:
 			l.fail(date, err)
-		case !stands && (summary == nil || held.readsBefore(date, kept)):
+		case !stands && (summary == nil || pruned):
 			whole = append(whole, day)
 		case !stands:
 			again = append(again, day)
