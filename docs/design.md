@@ -8660,11 +8660,12 @@ the formula's caveats name it, to run first.
   setup added to the shell's startup file, found by its mark as setup finds it, in each file it
   may be in, a zsh or fish login shell asked where it reads its own as setup asks it, never told
   by uninstall's own environment, and where it can't be asked, or there's no `$SHELL`, uninstall
-  says it couldn't look there rather than that the line's not there; and switchboard's own files for each shell that line
-  hands off to, completion's with them; switchboard's own entry
-  in Claude Code's SessionStart hooks, every other setting and hook left as it is; the skill, in
-  Claude Code's config directory; and the `claude` link in switchboard's bin directory, the
-  directory too once empty.
+  says it couldn't look there rather than that the line's not there, and an interrupt as it asks
+  stops it there, saying running it again finishes; and switchboard's own files for each shell
+  that line hands off to, completion's with them; switchboard's own entry in Claude Code's
+  SessionStart hooks, every other setting and hook left as it is; the skill, in Claude Code's
+  config directory; and the `claude` link in switchboard's bin directory, the directory too once
+  empty.
 - **What stays, unless `--all`:** the config, the accounts' token files and everything recorded in
   the state directory: the ledger, the readings, the events, the logs and the router's state. A
   reinstall then carries on where it left off, and the history, which nothing can bring back, goes

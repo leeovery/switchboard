@@ -874,7 +874,8 @@ It takes away, in this order:
    the terminal you run `uninstall` in, an editor's, say, may not be a new terminal's. Where it
    can't be asked, or `$SHELL` isn't set, `uninstall` says it couldn't look there, not that the line
    isn't there: a line left there does nothing once switchboard's files are gone. An interrupt while
-   it asks stops `uninstall` there. Only the line as `setup` writes it, at the start of its line, is
+   it asks stops `uninstall` there, with only the service gone, and says so: running it again,
+   `--all` as before, finishes it. Only the line as `setup` writes it, at the start of its line, is
    taken out: an indented copy may be all there is of an `if` block of yours, which the shell
    couldn't read left empty, so it's left where it is, and `uninstall` names the file for you to
    take it out yourself; with switchboard's files gone, it does nothing. Every other line is kept as

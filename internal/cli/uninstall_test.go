@@ -575,23 +575,34 @@ func TestUninstallWithoutAShellSaysItCouldntLook(t *testing.T) {
 }
 
 func TestUninstallInterruptedAsItAsksTheLoginShellStops(t *testing.T) {
-	w := newUninstallWorld(t)
-	w.zshIsTheLoginShell(t, filepath.Join(w.home, ".config", "zsh"), func(ctx context.Context, _ string, _, _ []string) ([]byte, error) {
-		<-ctx.Done()
-		return nil, ctx.Err()
-	})
-	w.deps.Interrupt = func(ctx context.Context) (context.Context, context.CancelFunc) {
-		ctx, interrupt := context.WithCancel(ctx)
-		interrupt()
-		return ctx, interrupt
-	}
-	zshrc, _ := os.ReadFile(w.startupFiles[0])
+	for _, args := range [][]string{{"uninstall"}, {"uninstall", "--all"}} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			w := newUninstallWorld(t)
+			w.zshIsTheLoginShell(t, filepath.Join(w.home, ".config", "zsh"), func(ctx context.Context, _ string, _, _ []string) ([]byte, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			})
+			w.deps.Interrupt = func(ctx context.Context) (context.Context, context.CancelFunc) {
+				ctx, interrupt := context.WithCancel(ctx)
+				interrupt()
+				return ctx, interrupt
+			}
+			zshrc, _ := os.ReadFile(w.startupFiles[0])
+			settings, _ := os.ReadFile(w.settings)
 
-	got := run(t, w.deps, "uninstall")
-	want := result{stdout: uninstallRow("✓", "Service", "removed "+w.plist), stderr: "Error: interrupted\n", code: 130}
-	if got != want {
-		t.Errorf("switchboard uninstall = %+v\nwant %+v", got, want)
+			got := run(t, w.deps, args...)
+			want := result{
+				stdout: uninstallRow("✓", "Service", "removed "+w.plist) +
+					"\nStopped here, the rest left in place: run switchboard " + strings.Join(args, " ") + " again to finish.\n",
+				stderr: "Error: interrupted\n",
+				code:   130,
+			}
+			if got != want {
+				t.Errorf("switchboard %s = %+v\nwant %+v", strings.Join(args, " "), got, want)
+			}
+			checkText(t, w.startupFiles[0], string(zshrc))
+			checkText(t, w.settings, string(settings))
+			checkThere(t, w.shellDir, w.link, w.skill, w.dataDir, w.configDir, w.stateDir)
+		})
 	}
-	checkText(t, w.startupFiles[0], string(zshrc))
-	checkThere(t, w.shellDir, w.link, w.skill)
 }

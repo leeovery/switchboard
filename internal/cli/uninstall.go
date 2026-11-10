@@ -72,6 +72,16 @@ const (
 	brewLastLine = "Last, brew uninstall switchboard removes switchboard itself."
 )
 
+// stoppedHere is what uninstall says where it's interrupted part-way, all
+// being whether it was to take the config and the state too.
+func stoppedHere(all bool) string {
+	again := "switchboard uninstall"
+	if all {
+		again += " --all"
+	}
+	return "Stopped here, the rest left in place: run " + again + " again to finish."
+}
+
 // uninstall takes away what setup put in place, in turn, saying on out what
 // became of each piece, then, with all, the config and the state directory,
 // keeping the export's folder wherever it is; and fails, once it's said the
@@ -79,6 +89,8 @@ const (
 func (a *app) uninstall(ctx context.Context, out, errOut io.Writer, all bool) error {
 	u := &uninstalling{out: out, widths: widths(nil, labelRows()...)}
 	if err := a.uninstallPieces(ctx, u, errOut); err != nil {
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, stoppedHere(all))
 		return err
 	}
 	if all {
