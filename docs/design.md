@@ -541,9 +541,11 @@ from its readings, the readings history's two newest days taken up as it starts:
   mean reversion, as an Ornstein–Uhlenbeck process forecasts: no shape of the day or the week is
   learned, and each install's rates are its own.
 
-**Accounts' sizes.** Use moves between accounts in Pro weeks: a Pro week is 1, a Max week 5 and an
-Ultra week 20, the plans' published multiples. Where any account's plan isn't known, every account
-counts as the same size, as the pool's room counts them.
+**Accounts' sizes.** Use moves between accounts in Pro weeks, each account's week as big as the
+price table makes its plan's: a Pro week is 1, a Max week 5 and an Ultra week 10 (see The request
+ledger). An account whose plan isn't known counts as the plan most of the accounts have, the larger
+of two that tie, and where none has one, every account counts as one: History's replay sizes them
+alike. Where every account is on one plan, its size makes no difference to where the weeks run out.
 
 **Where the use goes,** stepped every 10 minutes for a week from when the status document was
 built:
@@ -3771,9 +3773,10 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   with one more, of the plan most of the accounts have, every peak falls in proportion, the same use
   over more room. A replayed week is short where any account would reach 100%. `with one fewer`
   drops the account whose loss makes the fewest weeks short, and of those that tie, the one used
-  least over the weeks shown. Plans' sizes are in Pros, `pro` 1, `max` 5 and `ultra` 10 (see The
-  request ledger); an account without a `plan` counts as the plan most of the accounts have, and
-  where none has one, every account counts as one (settled in the plan).
+  least over the weeks shown. Plans' sizes are in Pro weeks, `pro` 1, `max` 5 and `ultra` 10 (see
+  The request ledger); an account without a `plan` counts as the plan most of the accounts have,
+  the larger of two that tie, and where none has one, every account counts as one (settled in the
+  plan), as the forecast sizes them too (see Forecasting run-outs).
 - **Its form.** Weeks is drawn wide, in the shape `v` gives it, where that shape's parts fit at
   their leasts short of the frame's margin and its legend reads whole on one row; else in the other
   shape, where that fits, as `v` then has no shape to change to; else in its narrow form (below).
@@ -7855,13 +7858,15 @@ from the first day a router that has it runs, so nothing before then is in it.
     prompts up to 100,000, the owner's call (11 October 2026), until how the table is kept is
     settled (see Backlog: keeping the price table current).
   - **Plans:** beside the models, the table prices the plans a subscription is on, each a month, in
-    US dollars, with its size in Pros, which History's replay of a week weighs an account by (see
-    History): `pro`, Pro, $20 and 1; `max`, Max, $100 and 5; and `ultra`, Ultra, $200 and 10, its
-    weekly limits ten times Pro's. Max and Ultra were Max 5x and Max 20x till Anthropic renamed
-    them (see Observed); the config still loads their old names. An account's plan is the
-    config's `plan`, as switchboard can't read it: a setup token can't read the profile endpoint
-    that knows it (see Requests that need special handling). An account without one has no price,
-    and nothing is priced against it.
+    US dollars, with its size in Pro weeks, which the forecast and History's replay of a week weigh
+    an account by (see Forecasting run-outs and History): `pro`, Pro, $20 and 1; `max`, Max, $100
+    and 5; and `ultra`, Ultra, $200 and 10. The sizes are the weekly usage Anthropic publishes for
+    each plan against Pro's, Max five times it and Ultra ten (the owner's call, 10 November 2026);
+    Max 20x's 20 named its 5-hour allowance, not its week's. Max and Ultra were Max 5x and Max 20x
+    till Anthropic renamed them (see Observed); the config still loads their old names. An
+    account's plan is the config's `plan`, as switchboard can't read it: a setup token can't read
+    the profile endpoint that knows it (see Requests that need special handling). An account
+    without one has no price, and nothing is priced against it.
   - **Overrides:** the config can price any model, or any plan, otherwise, at up to $1,000,000 a
     million tokens or a month (see Config). An override prices every day alike, rather than from a
     day of its own, and where any holds, the date shown beside worth says so: `at its prices as of
@@ -9090,10 +9095,12 @@ fails as it is; one that parses has every problem reported at once:
   all the same; `SWITCHBOARD_WHEN_ROUTER_DOWN` overrides it for one launch (see Launching).
 - **`plan`,** on an account, is `pro`, `max` or `ultra`: the subscription it's on, which
   switchboard can't read from Anthropic. It prices the account against its worth, and sizes it for
-  History's replay of a week (see The request ledger). Without it, the account's plan is unknown:
-  Accounts and History show `—` for it, and price nothing against it. The plans' old names,
-  `max5x` for `max` and `max20x` for `ultra`, still load as the new, so nothing past loading sees
-  them; the file keeps the old name till an edit sets that account's plan, which writes the new.
+  the forecast of where its week runs out and History's replay of a week (see The request ledger).
+  Without it, the account's plan is unknown: Accounts and History show `—` for it, price nothing
+  against it, and size it as the plan most of the accounts have (see Forecasting run-outs). The
+  plans' old names, `max5x` for `max` and `max20x` for `ultra`, still load as the new, so nothing
+  past loading sees them; the file keeps the old name till an edit sets that account's plan, which
+  writes the new.
 - **`[usage]`**: `by` is `window`, the accounts compared a window at a time, or `account`, each
   account's windows together; `window` unless given. It's the layout `usage` prints and the
   dashboard's Overview opens with: `usage --by` overrides it for one printout, and the Overview's
