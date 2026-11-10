@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setuptoken"
 )
@@ -206,7 +207,7 @@ func (t Tokened) unsaved(then thens) Unsaved {
 // sameSubscription says the account named has the token's subscription
 // already, so it isn't saved.
 func sameSubscription(id string) string {
-	return id + " has that subscription already, so the token isn't saved"
+	return accounts.HasThatSubscription(id) + ", so the token isn't saved"
 }
 
 // Refusal is why the paste card refuses the token pasted, said under its

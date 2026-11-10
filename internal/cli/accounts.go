@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
+	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -24,8 +25,10 @@ import (
 const takingAToken = `At a terminal, it asks for the token, which doesn't show as it's pasted: make
 one with claude setup-token, run while signed in to that subscription.
 Otherwise it reads the token from stdin. The token is checked with the API
-before it's saved: one the API refuses isn't, and one the API doesn't answer
-for is, with a warning.`
+before it's saved: one the API refuses isn't, nor one whose subscription is
+another account's already, as the organization the API names it in says,
+the other accounts' tokens checked then to know theirs; and one the API
+doesn't answer for is, with a warning.`
 
 // editingTheConfig says, in the help of the commands that edit the config,
 // how they edit it.
@@ -183,8 +186,9 @@ API doesn't answer, or shown to copy and paste where it can't be.
 --paste asks for the token instead, which doesn't show as it's pasted: make
 one with claude setup-token, run while signed in to that subscription. Away
 from a terminal, it reads the token from stdin. A token given is checked
-with the API before it's saved: one the API refuses isn't, and one the API
-doesn't answer for is, with a warning.`,
+with the API before it's saved: one the API refuses isn't, nor one whose
+subscription is another account's already, the other accounts' tokens checked
+then to know theirs; and one the API doesn't answer for is, with a warning.`,
 		Args: oneAccount,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if paste || !a.TerminalInput(cmd.InOrStdin()) || !a.Terminal(cmd.OutOrStdout()) {
@@ -505,7 +509,8 @@ func primaryNow(primary, removed string, readToken func(id string) (tokens.Token
 
 // registry returns the accounts as the config file and the token files hold
 // them, taking a token the user gives at cmd's stdin and checking it with the
-// API as a probe does.
+// API as a probe does, then comparing its organization with the other
+// accounts', as setup's OtherOrganizations finds them.
 func (a *app) registry(cmd *cobra.Command) (accounts.Registry, error) {
 	path, err := a.configFile()
 	if err != nil {
@@ -515,13 +520,15 @@ func (a *app) registry(cmd *cobra.Command) (accounts.Registry, error) {
 	if err != nil {
 		return accounts.Registry{}, err
 	}
-	return accounts.Registry{
+	registry := accounts.Registry{
 		ConfigPath: path,
 		Tokens:     files,
 		Prober:     a.prober,
 		Input:      a.tokenInput(cmd.InOrStdin(), cmd.ErrOrStderr()),
 		Now:        a.Now,
-	}, nil
+	}
+	registry.Others = (&setup.Setup{Accounts: registry}).OtherOrganizations
+	return registry, nil
 }
 
 // prober checks a token with the API at upstream, as a probe does.

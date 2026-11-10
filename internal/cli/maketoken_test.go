@@ -710,6 +710,105 @@ func TestAccountsTokenTakesATokenGiven(t *testing.T) {
 	}
 }
 
+// sameAsPersonal is what accounts add and token fail with, given a token of
+// personal's subscription.
+const sameAsPersonal = "Error: personal has that subscription already, so nothing is saved: " +
+	"make another with claude setup-token, run while signed in to the other subscription\n"
+
+// A token given, however it's given, is compared with the other accounts',
+// as a token made is: one of another account's subscription is refused,
+// saving nothing.
+func TestAccountsTokenRefusesAGivenTokenOfAnotherAccountsSubscription(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		in     bool
+		input  string
+		hidden string
+	}{
+		{name: "--paste at a terminal: typed unseen", args: []string{"--paste"}, in: true, hidden: madeTwice},
+		{name: "--paste, stdin piped", args: []string{"--paste"}, input: madeTwice + "\n"},
+		{name: "stdin piped", input: madeTwice + "\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := newOrganizationsAPI(t)
+			maker := &fakeTokenMaker{token: madeSide}
+			deps := makingDeps(t, api, maker, &opener{}, &opener{})
+			deps.TerminalInput = func(io.Reader) bool { return tt.in }
+			deps.Hidden = func(io.Reader) (func() ([]byte, error), bool) {
+				return func() ([]byte, error) { return []byte(tt.hidden), nil }, tt.in
+			}
+
+			got := runWithInput(t, deps, tt.input, append([]string{"accounts", "token", "side"}, tt.args...)...)
+
+			want := result{stderr: sameAsPersonal, code: 1}
+			if tt.in {
+				want.stderr = "Paste side's token, from claude setup-token run while signed in to that subscription (it won't show): \n" + want.stderr
+			}
+			if got != want {
+				t.Errorf("switchboard accounts token side = %+v, want %+v", got, want)
+			}
+			checkTokenFile(t, deps, "side", staleSide+"\n")
+			if !api.askedAbout(personalsToken) || api.askedAbout(staleSide) || maker.asked != 0 {
+				t.Error("personal's token wasn't checked, side's own was, or a token was made; want personal's checked, to know its organization, and the token given taken")
+			}
+		})
+	}
+}
+
+// accounts add compares the token given with the other accounts', adding
+// nothing where its subscription is another's, and the account where it's
+// its own.
+func TestAccountsAddComparesTheTokenGivenWithTheOtherAccounts(t *testing.T) {
+	tests := []struct {
+		name   string
+		in     bool
+		token  string
+		want   result
+		wantIn bool
+	}{
+		{name: "piped, another account's subscription", token: madeTwice, want: result{stderr: sameAsPersonal, code: 1}},
+		{name: "typed unseen, another account's subscription", in: true, token: madeTwice, want: result{stderr: sameAsPersonal, code: 1}},
+		{name: "piped, a subscription of its own", token: madeSide, want: result{stdout: "added work\n"}, wantIn: true},
+		{name: "typed unseen, a subscription of its own", in: true, token: madeSide, want: result{stdout: "added work\n"}, wantIn: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := newOrganizationsAPI(t)
+			deps, path := accountsDeps(t, api.URL, personalAndSide)
+			writeToken(t, deps, "personal", personalsToken)
+			before := readFile(t, path)
+			deps.Hidden = func(io.Reader) (func() ([]byte, error), bool) {
+				return func() ([]byte, error) { return []byte(tt.token), nil }, tt.in
+			}
+			if tt.in {
+				tt.want.stderr = "Paste work's token, from claude setup-token run while signed in to that subscription (it won't show): \n" + tt.want.stderr
+			}
+
+			got := runWithInput(t, deps, tt.token+"\n", "accounts", "add", "work")
+
+			if got != tt.want {
+				t.Errorf("switchboard accounts add work = %+v, want %+v", got, tt.want)
+			}
+			if !api.askedAbout(personalsToken) {
+				t.Error("personal's token wasn't checked, want it checked, to know its organization")
+			}
+			if !tt.wantIn {
+				if readFile(t, path) != before {
+					t.Errorf("the config reads\n%s\nwant it as it was\n%s", readFile(t, path), before)
+				}
+				checkNoTokenFile(t, deps, "work")
+				return
+			}
+			if want := before + "\n[[account]]\nid = \"work\"\n"; readFile(t, path) != want {
+				t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
+			}
+			checkTokenFile(t, deps, "work", tt.token+"\n")
+		})
+	}
+}
+
 func TestAccountsTokensHelpDescribesMakingPastingAndStdin(t *testing.T) {
 	if got := run(t, testDeps(nil, t.TempDir()), "accounts", "--help"); !strings.Contains(strings.Join(strings.Fields(got.stdout), " "), "token Replace an account's token, making it with claude setup-token") {
 		t.Errorf("switchboard accounts --help reads\n%s\nwant token's making said", got.stdout)

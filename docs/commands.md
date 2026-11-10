@@ -697,6 +697,10 @@ as it's pasted. Otherwise, they read it from stdin, as `token` does too. To make
 `add` and `token` check a token given with the API before they save it:
 
 - A token the API refuses isn't saved.
+- A token whose subscription is another account's already, as the organization the API names it
+  in says, isn't saved, and `add` adds nothing. Once the API has named it, they check the other
+  accounts' tokens, all at once, to know theirs. Where an organization isn't known, the token is
+  saved.
 - A token the API doesn't answer for is saved, with a warning.
 - An interrupt while they wait for the token saves nothing.
 
