@@ -8268,9 +8268,9 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   once idle for the idle timeout, 90 seconds, or sooner when a ping fails. HTTP/2 carries every
   request on one connection, so closing the idle alone wouldn't do: one carrying a stream through
   the sleep would take the next request too. The router's probes and primes go upstream on the
-  connections its requests do, so they're started afresh alike, and a probe at the wake doesn't
-  hang to its 5 seconds on a dead one. A request that arrived before the wake was noticed, and
-  fails, doesn't count against the router's health (see Health).
+  connections its requests do, so they're started afresh alike, and a probe sent once the wake is
+  noticed doesn't hang to its 5 seconds on a dead one. A request that arrived before the wake was
+  noticed, and fails, doesn't count against the router's health (see Health).
 - `serve` notes how the config file, the binary and `/etc/localtime` stand before it reads the
   config, and the router compares them with that, so a change or an upgrade made while the router
   starts calls for a restart too.
