@@ -4639,10 +4639,11 @@ Where room returns as the view's window resets, a reset made by hand among them,
 run-out's stretch, the last of its run, says so: `  ·  resets Sun 01:00`, in place of its
 `back …`. A hold that lifts into another keeps `lifts …`, even as the window resets, as a lift
 isn't room returning; a limit's end is never said as a reset (the owner's call, 10 November
-2026). In the week view, an account whose
-week reaches no limit says `resets Sun 21:00` in `text.muted`, ending at the reset's `│`, where
-that clears the words before. Else a lane says `room all day`, or `room all week`, in
-`text.subtle`, from the cell after now's column.
+2026).
+
+In the week view, an account whose week reaches no limit says `resets Sun 21:00` in `text.muted`,
+ending at the reset's `│`, where that clears the words before. Else a lane says `room all day`, or
+`room all week`, in `text.subtle`, from the cell after now's column.
 
 A stretch's words start at its column where they all fit from there; else they shift left as far
 as they must to fit whole, ending at the row's last column, but never sooner than two cells after

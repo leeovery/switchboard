@@ -408,8 +408,9 @@ Words under a lane say where a stretch without room starts and when the account 
 example, `capped 14:31  ·  back 17:10` at its cap, `out 13:58  ·  back 15:30` at its limit, or,
 ahead, `out ~16:05` where it runs out and `caps ~15:45` where it reaches its cap, `~` marking a
 time projected at its pace: more than a day ahead, its day alone, `out ~Sat`, or dated on today's
-weekday, `out ~Thu 12 Nov`. Where room returns as the window resets, the words say
-`resets Sun 01:00` in place of `back`. Where one hold runs straight into another, the first says
+weekday, `out ~Thu 12 Nov`. Where a cap or a run-out ends as the window resets, room returning
+then, the words say `resets Sun 01:00` in place of `back`; a limit always says `back`, as it lifts
+whenever it does. Where one hold runs straight into another, the first says
 when it lifts, and only the last says when the account is back:
 `out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`. Words that don't fit from where a
 stretch starts shift left until they do, never over the words before, and drop parts from the end
