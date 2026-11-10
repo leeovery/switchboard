@@ -77,9 +77,10 @@ type WeeksRow struct {
 
 // WeekPeak is how full an account's week got: Share, its peak, from 0 to 1,
 // nil where it isn't known; Open, set for this week's, its highest so far;
-// and AtCap, set where it hit its limit, as Weeks counts one: its peak at its
-// cap, as capOf has it, or of every account's, each one's whose peak is
-// known.
+// and AtCap, set where its peak reached its cap, as capOf has it, or of every
+// account's, where each one's whose peak is known did. This week's so far
+// and weeks not whole are marked too, though Weeks counts a limit in whole
+// weeks that have ended alone.
 type WeekPeak struct {
 	Share *float64
 	Open  bool
