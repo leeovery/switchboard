@@ -207,8 +207,9 @@ func (d drawn) back(a status.AccountNow) []viewSays {
 }
 
 // runBack is when the first run of stretches the phrases given say is back,
-// as backSaid has it of the first phrase that says so, a run back as the
-// window resets, as "resets 17:10", back then: "no back" where none does.
+// as backSaid has it of the first phrase that says so: "no back" where none
+// does. A lane says "resets 17:10" only where room returns as the window
+// resets, so that's read as back then.
 func runBack(phrases []string) string {
 	for _, p := range phrases {
 		p = strings.Replace(p, prose.Separator+"resets ", prose.Separator+"back ", 1)

@@ -119,8 +119,8 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 			want: "out 13:58  ·  lifts 15:30", inks: []ink{exhaustedInk, mutedInk},
 		},
 		{
-			name: "at its cap, held on by the stretch after it, lifting as its 5-hour resets, said as it resets", shown: five, stretch: heldOn(capped, routedClock(4, 21, 0)),
-			want: "capped 14:31  ·  resets 17:10", inks: []ink{alertInk, mutedInk},
+			name: "at its cap, held on by the stretch after it, lifting as its 5-hour resets, said as it lifts", shown: five, stretch: heldOn(capped, routedClock(4, 21, 0)),
+			want: "capped 14:31  ·  lifts 17:10", inks: []ink{alertInk, mutedInk},
 		},
 		{
 			name: "at its limit from before the timeline", shown: five, stretch: stretchOf(tl, views.CellLimited, time.Time{}, routedClock(1, 15, 30), 0, 10),
@@ -242,6 +242,10 @@ func TestAHoldOutlastedIsSaidFromItsStartAndOnlyTheLastIsBack(t *testing.T) {
 	}{
 		{moment: "a cap outlasting a limit", want: "  out 14:00  ·  lifts 15:30  capped 14:00  ·  back Mon 21:00"},
 		{moment: "a cap outlasting a refusal", want: "token refused (401)  ·  lifts 14:52  capped 14:00  ·  back Mon 21:00"},
+		{
+			moment: "stepped back to a cap lifting as its week resets, a limit holding it on",
+			want:   strings.Repeat(" ", 93) + "capped Fri 12:00  ·  lifts Sat 21:00  out Sat 20:00",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.moment, func(t *testing.T) {

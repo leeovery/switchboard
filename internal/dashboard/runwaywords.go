@@ -153,11 +153,12 @@ func (v laneView) stretchPhrase(s views.LaneStretch, a status.AccountNow, agains
 // stretchParts are what's said of the stretch s without room of the account
 // a, times told against the time given: what holds it back, from when where
 // that's known, as headOf words it, of the timeline shown; then, muted, when
-// it ends, where that's known, as its Ends has it: of a stretch whose head
-// says so, where that's as the view's window resets, as it resets, as
-// "  ·  resets Sun 01:00"; else as its own hold lifts, of one of a run of
-// stretches but the last, as "  ·  lifts 19:00", or as it's back, as
-// "  ·  back 17:10".
+// it ends, where that's known, as its Ends has it: as its own hold lifts, of
+// one of a run of stretches but the last, as "  ·  lifts 19:00", even as the
+// view's window resets, as a lift isn't room returning; else, of a stretch
+// whose head says so, where room returns as the view's window resets, as it
+// resets, as "  ·  resets Sun 01:00"; else as it's back, as "  ·  back
+// 17:10".
 func (v laneView) stretchParts(s views.LaneStretch, a status.AccountNow, against time.Time) []line {
 	head, k, resets := headOf(s, a, v.timeline, against)
 	parts := []line{{{head, k}}}
@@ -167,10 +168,10 @@ func (v laneView) stretchParts(s views.LaneStretch, a status.AccountNow, against
 	}
 	said := "back "
 	switch {
-	case resets && s.AsItResets:
-		said = "resets "
 	case lifts:
 		said = "lifts "
+	case resets && s.AsItResets:
+		said = "resets "
 	}
 	return append(parts, line{{prose.Separator + said + prose.Dated(against, ends), mutedInk}})
 }
@@ -227,8 +228,8 @@ func refusedWith(s views.LaneStretch, a status.AccountNow, now int) string {
 // shifted left as far as they need, to end at the row's last column, but
 // never sooner than phraseGap cells after the words before, as many of its
 // parts, whole, as fit; or, where it ends at its column, there, whole, where
-// that clears the words before; and none from the first said from its column
-// whose first part doesn't fit.
+// that clears the words before; and none from the first not ending at its
+// column whose first part doesn't fit, wherever it would start.
 func placeAlong(cols int, phrases ...phrase) []placed {
 	var words []placed
 	next := 0

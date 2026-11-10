@@ -412,7 +412,8 @@ weekday, `out ~Thu 12 Nov`. Where room returns as the window resets, the words s
 `resets Sun 01:00` in place of `back`. Where one hold runs straight into another, the first says
 when it lifts, and only the last says when the account is back:
 `out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`. Words that don't fit from where a
-stretch starts shift left until they do.
+stretch starts shift left until they do, never over the words before, and drop parts from the end
+where even that can't fit them.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
 room, a column at a time, and draws a low red bar along its foot where none has. `Σ pool` names it,
