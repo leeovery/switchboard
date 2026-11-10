@@ -1449,8 +1449,9 @@ switchboard exported, as this one may not read its files: upgrade switchboard to
 What it takes in:
 
 - **A day this Mac doesn't hold** is copied in.
-- **A day it holds already** gains the lines it doesn't hold. Each line is told apart from every
-  other Mac's, so an import repeated, or of a Mac's own folder, adds nothing.
+- **A day it holds already** gains the lines it doesn't hold, and a line the folder holds more
+  times than this Mac, as an event that changed back to how it stood, the times more. Each line is
+  told apart from every other Mac's, so an import repeated, or of a Mac's own folder, adds nothing.
 - **A day's summary** is copied in where this Mac holds no line of the day, and either no summary
   of it, or one that counts no line, as of a day it only probed, where the folder's counts some.
   Otherwise this Mac's stands, and the router summarises again each day that gained lines.

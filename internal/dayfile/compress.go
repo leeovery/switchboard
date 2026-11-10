@@ -103,12 +103,7 @@ func openCompressed(path string) (compressedDay, error) {
 	if err != nil {
 		return compressedDay{}, err
 	}
-	c := compressedDay{file: file}
-	info, err := file.Stat()
-	if err == nil {
-		c.size = info.Size()
-		err = c.measure()
-	}
+	c, err := measuring(file, io.Discard)
 	if err != nil {
 		c.close()
 		return compressedDay{}, err
@@ -116,9 +111,21 @@ func openCompressed(path string) (compressedDay, error) {
 	return c, nil
 }
 
+// measuring is the compressed file, open to read, as measure measures it,
+// writing its lines to lines as it does.
+func measuring(file *os.File, lines io.Writer) (compressedDay, error) {
+	c := compressedDay{file: file}
+	info, err := file.Stat()
+	if err != nil {
+		return c, err
+	}
+	c.size = info.Size()
+	return c, c.measure(lines)
+}
+
 // measure reads the file's members through, one at a time, as the lines they
-// give are counted.
-func (c *compressedDay) measure() error {
+// give are counted, writing them to to.
+func (c *compressedDay) measure(to io.Writer) error {
 	src := bufio.NewReader(c.written())
 	members, err := gzip.NewReader(src)
 	if err != nil {
@@ -129,7 +136,7 @@ func (c *compressedDay) measure() error {
 		// Reset turns reading the members as one stream back on.
 		members.Multistream(false)
 		var member span
-		if _, err := io.Copy(&member, members); err != nil {
+		if _, err := io.Copy(io.MultiWriter(&member, to), members); err != nil {
 			return err
 		}
 		start := lines.n
@@ -149,18 +156,37 @@ func (c *compressedDay) measure() error {
 }
 
 // holds returns how much of the plain file's lines, in bytes from its start,
-// the compressed file's lines hold already, from the first of the places
-// heldFrom gives where its lines run on to their end as the plain file's
-// start: all of them, or those of its last members; and none where it finds
-// no such place.
+// the compressed file's lines hold already, as held says, streaming the two
+// as it compares them.
 func (c compressedDay) holds(plain *io.SectionReader) (int64, error) {
-	for _, from := range c.heldFrom(plain.Size()) {
+	return c.held(plain.Size(), func(from, n int64) (bool, error) {
+		return c.endsWith(from, io.NewSectionReader(plain, 0, n))
+	})
+}
+
+// holdsOf returns how much of plain, the plain file's lines, the compressed
+// file's lines, lines, hold already, as held says, comparing the two as
+// they're held.
+func (c compressedDay) holdsOf(lines, plain []byte) int64 {
+	held, _ := c.held(int64(len(plain)), func(from, _ int64) (bool, error) {
+		return bytes.HasPrefix(plain, lines[from:]), nil
+	})
+	return held
+}
+
+// held returns how much of the plain file's lines, size long, in bytes from
+// its start, the compressed file's lines hold already, from the first of the
+// places heldFrom gives where its lines run on to their end as the plain
+// file's start, as same reports of their n bytes from from on: all of them,
+// or those of its last members; and none where it finds no such place.
+func (c compressedDay) held(size int64, same func(from, n int64) (bool, error)) (int64, error) {
+	for _, from := range c.heldFrom(size) {
 		n := c.length - from
-		same, err := c.endsWith(from, io.NewSectionReader(plain, 0, n))
+		ok, err := same(from, n)
 		if err != nil {
 			return 0, err
 		}
-		if same {
+		if ok {
 			return n, nil
 		}
 	}
@@ -192,13 +218,6 @@ func (c compressedDay) heldFrom(size int64) []int64 {
 		}
 	}
 	return from
-}
-
-// holdsAll reports whether a day's compressed file's lines, compressed, hold
-// every one of its plain file's, plain: they end with them, the first place
-// holds looks.
-func holdsAll(compressed, plain []byte) bool {
-	return bytes.HasSuffix(compressed, plain)
 }
 
 // endsWith reports whether the file's lines from from on are those want

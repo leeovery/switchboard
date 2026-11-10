@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"time"
 
@@ -98,9 +99,9 @@ type stagedDay struct {
 // where it's done with, as a compress tells one, and the file reads to its
 // end; else its lines appended to its plain file, as addLines adds them,
 // which a prune compresses as it does any. A day the files hold has the
-// staged lines it doesn't hold, as ReadDay reads them, added: appended to
-// its plain file where it has one, else as a gzip member of their own after
-// its compressed file's.
+// staged lines it doesn't hold, as ReadDay reads them, added, as addLines
+// adds them: appended to its plain file where it has one, else as a gzip
+// member of their own after its compressed file's.
 func (f *Files) take(s stagedDay, now time.Time, keep time.Duration) (Imported, error) {
 	if pastKeepingAt(s.day, now, keep) {
 		return Imported{Taken: PastKeep}, nil
@@ -120,7 +121,7 @@ func (f *Files) take(s stagedDay, now time.Time, keep time.Duration) (Imported, 
 // cut short, so no member can be added after it, the day is passed over,
 // taking nothing in, and warned of, as a compress passes it over, so the
 // rest of an import goes on.
-func (f *Files) merge(s stagedDay, held lineSet) (Imported, error) {
+func (f *Files) merge(s stagedDay, held lineCounts) (Imported, error) {
 	stat, err := f.Stat(s.date)
 	if err != nil {
 		return Imported{}, err
@@ -156,7 +157,7 @@ func (f *Files) add(s stagedDay, now time.Time) (Imported, error) {
 			return Imported{Taken: Added}, nil
 		}
 	}
-	added, err := f.addLines(s.path, make(lineSet), f.appending(s.date))
+	added, err := f.addLines(s.path, make(lineCounts), f.appending(s.date))
 	if err != nil || added == 0 {
 		return Imported{}, err
 	}
@@ -196,31 +197,30 @@ func (f *Files) copyIn(s stagedDay) (bool, error) {
 	return err == nil, err
 }
 
-// lineSet is a set of lines, held by their hashes: none of the lines
+// lineCounts counts lines, held by their hashes: none of the lines
 // themselves, as a day's can run to tens of megabytes.
-type lineSet map[[sha256.Size]byte]struct{}
+type lineCounts map[[sha256.Size]byte]int
 
-// has reports whether the set holds line.
-func (s lineSet) has(line []byte) bool {
-	_, ok := s[sha256.Sum256(line)]
-	return ok
+// add counts line once more.
+func (c lineCounts) add(line []byte) {
+	c[sha256.Sum256(line)]++
 }
 
-// add adds line to the set, reporting whether it wasn't there already.
-func (s lineSet) add(line []byte) bool {
+// take counts line once less, reporting whether it was counted at all.
+func (c lineCounts) take(line []byte) bool {
 	sum := sha256.Sum256(line)
-	if _, ok := s[sum]; ok {
+	if c[sum] == 0 {
 		return false
 	}
-	s[sum] = struct{}{}
+	c[sum]--
 	return true
 }
 
 // heldLines returns the lines the files of the local day with the given date
-// hold, as ReadDay reads them, failing as it does: with fs.ErrNotExist where
-// the day has none.
-func (f *Files) heldLines(date string) (lineSet, error) {
-	held := make(lineSet)
+// hold, each as many times as they hold it, as ReadDay reads them, failing as
+// it does: with fs.ErrNotExist where the day has none.
+func (f *Files) heldLines(date string) (lineCounts, error) {
+	held := make(lineCounts)
 	_, _, err := ReadDay(f, date, func(line []byte) (struct{}, bool) {
 		held.add(line)
 		return struct{}{}, true
@@ -276,18 +276,20 @@ func (f *Files) addingMember(date string) sink {
 }
 
 // addLines adds, through to, each line of the staged file at path, as
-// readStaged hands them, that held doesn't hold, each once, holding it as it
-// adds it, and returns how many it added. Where there's none to add, it
-// leaves the files as they are.
-func (f *Files) addLines(path string, held lineSet, to sink) (int, error) {
-	if more, err := f.anyNew(path, held); err != nil || !more {
+// readStaged hands them, but as many of each as held counts, which it takes
+// from held, and returns how many it added: a line staged more times than the
+// day held it is added the times more, as an event that changed back to how
+// it stood has that version written whole again. Where there's none to add,
+// it leaves the files as they are.
+func (f *Files) addLines(path string, held lineCounts, to sink) (int, error) {
+	if more, err := f.anyNew(path, maps.Clone(held)); err != nil || !more {
 		return 0, err
 	}
 	added := 0
 	err := to(func(w io.Writer) error {
 		var written error
 		read := f.readStaged(path, func(line []byte) bool {
-			if !held.add(line) {
+			if held.take(line) {
 				return true
 			}
 			if _, written = w.Write(line); written == nil {
@@ -304,11 +306,11 @@ func (f *Files) addLines(path string, held lineSet, to sink) (int, error) {
 }
 
 // anyNew reports whether the staged file at path has a line to add, as
-// readStaged hands them, that held doesn't hold.
-func (f *Files) anyNew(path string, held lineSet) (bool, error) {
+// addLines adds them, taking those it passes over from held.
+func (f *Files) anyNew(path string, held lineCounts) (bool, error) {
 	found := false
 	err := f.readStaged(path, func(line []byte) bool {
-		found = !held.has(line)
+		found = !held.take(line)
 		return !found
 	})
 	return found, err

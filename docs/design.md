@@ -8039,9 +8039,11 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   router compresses as it does its own.
 - **A day both hold:** the folder's lines that aren't byte for byte one the Mac holds are added,
   appended to the day's plain file where it has one, else as a gzip member of their own after its
-  compressed file's, written beside it and renamed into place. No two Macs write the same line, as
-  each holds its time and what sets it apart (see Files), so a line held already is one imported
-  before, or the Mac's own come back, and an import repeated adds nothing.
+  compressed file's, written beside it and renamed into place. A line the folder holds more times
+  than the Mac is added the times more, as an event that changed back to how it stood has that
+  version written whole again; one it holds as many times or fewer, never. No two Macs write the
+  same line, as each holds its time and what sets it apart (see Files), so a line held already is
+  one imported before, or the Mac's own come back, and an import repeated adds nothing.
 - **Summaries:** a day's summary is copied in, with its stamp, where the Mac holds no line of the
   day and no summary of it, as of a day the Mac never saw, or one past keeping whose summary is its
   only record; or where the Mac's summary counts no request, as one a round summarised from the
@@ -8899,13 +8901,14 @@ hiding it behind the provider would take a wider interface than it's worth:
   file is opened before its compressed file, and what the two hold is told from the files opened:
   compressing a day writes its compressed file before it removes the plain one, so a day another
   process compresses as they're opened is read whole, each line once. A day whose compressed file
-  already ends with its plain file's lines, as when the router compressed the day between the two
-  openings, or stopped between writing the one and removing the other, is read from the compressed
-  file alone. A file that can't be read is passed over, and
-  one damaged, as a compressed file cut short, read up to the damage, each warned of once, until it
-  reads to its end again (see Logging). A line cut short at a
-  file's end, as a crash or a power cut partway through a write leaves one, is ended before more
-  lines follow it, whether appended or compressed after it, so the next starts a line of its own.
+  already holds its plain file's lines, or the first of them, as a compress tells them, as when
+  the router compressed the day between the two openings, or stopped between writing the one and
+  removing the other, lines coming to the plain file after or not, is read as compressing it would
+  leave it: the compressed file, then the plain file's lines it doesn't hold. A file that can't be
+  read is passed over, and one damaged, as a compressed file cut short, read up to the damage,
+  each warned of once, until it reads to its end again (see Logging). A line cut short at a file's
+  end, as a crash or a power cut partway through a write leaves one, is ended before more lines
+  follow it, whether appended or compressed after it, so the next starts a line of its own.
 - **Request ledger:** `<state dir>/ledger/`, 0700: `requests-<local date>.jsonl`, a line a request,
   `day-<local date>.json`, a day's summary, `digest-<local date>.json.gz`, a day's digest,
   `parts-<local date>.gz`, its sessions' parts of the day, `logday-<local date>.json.gz`, a day's
