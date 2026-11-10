@@ -71,16 +71,34 @@ type SameSubscriptionError struct {
 // Error says which account has the token's subscription, and to make the
 // token signed in to the other.
 func (e *SameSubscriptionError) Error() string {
-	return e.Other + " has that subscription already, so nothing is saved: make another with claude setup-token, run while signed in to the other subscription"
+	return HasThatSubscription(e.Other) + ", so nothing is saved: make another with claude setup-token, run while signed in to the other subscription"
+}
+
+// HasThatSubscription says the account with the given id has a token's
+// subscription already, as each refusal of the token begins.
+func HasThatSubscription(id string) string {
+	return id + " has that subscription already"
 }
 
 // Organizations are accounts' organizations, by account id: "" where one
 // isn't known.
 type Organizations map[string]string
 
-// Holder returns the id of the account other than except whose organization
+// SameSubscription refuses a token given the account with the given id,
+// whose organization is organization, where another account has it,
+// logging the refusal: nil where none has, or organization isn't known.
+func (o Organizations) SameSubscription(organization, id string) *SameSubscriptionError {
+	other := o.holder(organization, id)
+	if other == "" {
+		return nil
+	}
+	logger.Info("a token is another account's subscription's, so it isn't saved", "account", id, "other", other)
+	return &SameSubscriptionError{Other: other}
+}
+
+// holder returns the id of the account other than except whose organization
 // is organization, "" where there's none, or organization isn't known.
-func (o Organizations) Holder(organization, except string) string {
+func (o Organizations) holder(organization, except string) string {
 	if organization == "" {
 		return ""
 	}
@@ -355,9 +373,8 @@ func (r Registry) unheld(ctx context.Context, id, organization string) error {
 	if err != nil {
 		return fmt.Errorf("compare the token with the other accounts': %w", err)
 	}
-	if other := others.Holder(organization, id); other != "" {
-		logger.Info("a token is another account's subscription's, so it isn't saved", "account", id, "other", other)
-		return &SameSubscriptionError{Other: other}
+	if same := others.SameSubscription(organization, id); same != nil {
+		return same
 	}
 	return nil
 }

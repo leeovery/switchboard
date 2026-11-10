@@ -417,9 +417,8 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token, pasted
 		logger.Info("the API didn't answer for a token pasted, so it isn't saved", "account", id, "error", checked.Why)
 		return Tokened{Result: TokenUnanswered, Why: pastedUnanswered(checked.Why)}, nil
 	}
-	if other := f.Organizations.Holder(checked.Organization, id); other != "" {
-		logger.Info("a token is another account's subscription's, so it isn't saved", "account", id, "other", other)
-		return Tokened{Result: TokenSameAccount, SameAs: other}, nil
+	if same := f.Organizations.SameSubscription(checked.Organization, id); same != nil {
+		return Tokened{Result: TokenSameAccount, SameAs: same.Other}, nil
 	}
 	if f.Add {
 		err = s.Accounts.AddChecked(ctx, f.Account, token, checked)

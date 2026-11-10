@@ -520,9 +520,14 @@ func (a *app) registry(cmd *cobra.Command) (accounts.Registry, error) {
 	if err != nil {
 		return accounts.Registry{}, err
 	}
-	registry := accounts.Registry{ConfigPath: path, Tokens: files, Prober: a.prober, Now: a.Now}
+	registry := accounts.Registry{
+		ConfigPath: path,
+		Tokens:     files,
+		Prober:     a.prober,
+		Input:      a.tokenInput(cmd.InOrStdin(), cmd.ErrOrStderr()),
+		Now:        a.Now,
+	}
 	registry.Others = (&setup.Setup{Accounts: registry}).OtherOrganizations
-	registry.Input = a.tokenInput(cmd.InOrStdin(), cmd.ErrOrStderr())
 	return registry, nil
 }
 
