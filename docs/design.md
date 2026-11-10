@@ -768,6 +768,93 @@ accounts:
   week's reset that has passed meanwhile is lost with it, and the rounds' next probe reads the
   account where its window allows.
 
+## Account identity
+
+An account is known by an id switchboard makes when it's added, never by anything the user types,
+nor by its place in the config (the owner's design, 10 November 2026). Until now the user chose
+each account's id, which named it for good, and nothing stopped one being given again: an id given
+to another subscription joined that subscription's history to the one before it. And every tab
+numbered the accounts by their place in the config, which read as their ids where the ids were
+digits, and changed when one before them was removed. To be built before v1, whose freeze then
+holds the formats below; the screens as signed off in Paper (see The screens, below).
+
+- **The id:** made as an account is added, 8 characters, lowercase letters and digits, a letter
+  first, from `crypto/rand`, and never one the accounts record (below) holds. It never changes and
+  is never given to another account. Every record keys the account by it, as each keys an account
+  today: the request ledger's lines, the readings history, the router's events, the days'
+  summaries, `state.json`, and the token file `tokens/<id>` and its record. Every command that names
+  an account takes it, `accounts edit`, `accounts token`, `accounts remove`, `pin` and `run
+  --account`, and `accounts` prints it beside each label, so it's found there, or by asking Claude.
+  The config holds it as `id`, written by switchboard, not the user.
+- **The label:** what every screen shows, free text as today, given as the account is added and
+  changed whenever with `accounts edit --label` or setup's edit card, changing nothing but what
+  shows. A label never names an account to a command or in a record. Every account has one, and
+  no two configured accounts have the same, compared as shown, ignoring case; a label no
+  configured account has can be given, whoever had it before.
+- **No numbers:** the accounts keep the config's order, but nothing numbers them. The number before
+  each account's name goes from every tab, `usage`'s printout and setup's table, its cells given to
+  the rows; the routing card's `0 auto` is `auto`, and it picks with `↑`, `↓` and `space` alone,
+  its keys `0` to `9` gone. `status.Numbering` stays the one owner of the order, numbering nothing.
+- **The organization:** an account is tied to its subscription by its organization, the id every
+  answer from Anthropic's API names in its `anthropic-organization-id` header. A setup token can
+  only send model requests: it can't read the account's profile, so neither its email, which can
+  change, nor its login's own id is there to go by (researched 10 November 2026). The organization
+  is the right thing besides: a subscription's limits are counted against its organization, a
+  personal account is an organization of its own, and one login with a personal and a Team plan has
+  an organization for each, a token being for one of them. Setup tokens' answers carry the header,
+  a refusal at a limit's too: four accounts checked on 10 November 2026, each naming its own.
+- **The accounts record:** `<state dir>/accounts.json`, this Mac's record of every account it has
+  had: its id, its organization where known, its label once it's removed (while it's configured,
+  the config's is the one), when it was added and when removed, and the ids it had before ids were
+  made, as `was`. Kept for good, as the days' summaries are, a few hundred bytes an account, and
+  written whole, 0600, as `state.json` is. `export` copies it and `import` reads it.
+- **Adding:** `accounts add <label>` and setup's add card take the label, the plan and the reserve,
+  and no id. The token is checked first, and the organization its answer names decides the id:
+  - one no account of this Mac's has had: a new id;
+  - a removed account's: that account's id, so it comes back, its history carrying on after the
+    gap, with the label given now;
+  - a configured account's: refused, as the duplicate check refuses it today.
+
+  An account isn't added until its organization is known: where the API doesn't answer, nothing is
+  written, and `accounts add` and setup say so, to try again. Where an answer names none, as none
+  has been seen to, setup and `accounts add` ask whether it's a new account or one of the removed
+  ones, each by its label and when it was last seen.
+- **A token replaced,** with `accounts token` or setup's `t`, must be for the account's
+  organization: another's is refused, saying it's another subscription's and to add it as an
+  account of its own. Where the account's organization isn't known yet, the token's is taken.
+- **The router:** each probe's organization is held to the account's. Where they differ, as where a
+  token file is replaced by hand, the account takes no requests, its rows and `status` saying its
+  token is another subscription's, and an event is filed, till it has a token of its own. Where the
+  account's isn't known yet, the probe's is recorded.
+- **Removing:** `accounts remove <id>` takes the account out of the config and deletes its token, as
+  today, and the accounts record keeps it, marked removed, with its label. History, Accounts and
+  the verbs name it by that label, marked removed, as the Paper frames draw it, so it's told apart
+  from a configured account given the same label since.
+- **Moving to ids made, once:** the first command or router of a build with this, under the
+  config's lock, before anything else reads an account:
+  - each configured account gets an id made, its old one kept in its config table as `was`, and a
+    label, its old id, where it had none; its token file and the token's record take the new id,
+    renamed under the tokens directory's lock, a link or a second name handled as writing a token
+    handles one;
+  - each id the records hold that the config doesn't, an account removed before, goes into the
+    accounts record as removed, its label its old id, its organization unknown, `was` its old id.
+
+  Nothing recorded is rewritten: every reader of the records reads an account through the accounts
+  record, an old id as the account that had it, with one owner of that reading, guarded as
+  `status`'s and `views`' facts are. A folder exported before reads the same way on import; one
+  exported after carries its accounts record. Where several Macs share a config, as a dotfiles
+  repository keeps it, the first to upgrade writes the new ids and `was`, and each after takes its
+  own token files and records over by `was`. A Mac still on an earlier build reads ids it has no
+  token files for, so the Macs sharing a config upgrade together.
+- **What changes in the formats:** an account in every record is still a string, now the id made.
+  New: `accounts.json`, `was` in the config, the config's `id` written by switchboard, and
+  `accounts add` taking a label. The verbs' JSON gives the id and the label wherever it gives an
+  account, as today, and no number, as it gives none today.
+- **The screens:** drawn in Paper from a spike of the build, for the owner's sign-off before the
+  build (Switchboard · Identity, round 1): Runway, the Overview on the phone and wide, the routing
+  card, Accounts' Detail, History's Days with a removed account, and setup's table and add card,
+  each without a number or an id.
+
 ## Accounts and tokens
 
 - Accounts are declared in the config file: an id, a label, which is the primary, and each one's
@@ -1444,11 +1531,11 @@ their own words.
 - **The duplicate check:** an account added twice is caught by the organization id the API answers a
   token's check with, its `anthropic-organization-id` header, compared with every other account's
   this run has read. Where either isn't known, as where the header is missing or the API didn't
-  answer, nothing is done: the token is saved. That setup tokens' answers carry the header is
-  unverified. `accounts add` and `accounts token` hold a token given, pasted or piped, to the same
-  check, with one owner of the comparison (`accounts.Organizations`): once the API names its
-  organization, the registry asks for the other accounts', checked as `accounts token` checks
-  them before a making (`setup.OtherOrganizations`), and refuses it as
+  answer, nothing is done: the token is saved. Setup tokens' answers carry the header, checked on
+  10 November 2026 (see Account identity). `accounts add` and `accounts token` hold a token given,
+  pasted or piped, to the same check, with one owner of the comparison (`accounts.Organizations`):
+  once the API names its organization, the registry asks for the other accounts', checked as
+  `accounts token` checks them before a making (`setup.OtherOrganizations`), and refuses it as
   `accounts.SameSubscriptionError`, saving nothing, `add` adding no account.
 - **A token's year,** one owner: `internal/status` works out when it was taken, when it's
   up, whether it's up within a span, its days left and the share of it gone, and setup's TOKEN
