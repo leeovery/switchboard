@@ -180,8 +180,9 @@ choices and its pressure go by their own rates.
   How long it stays the router learns from its own answers. Until it has a day of them, it takes
   the use to stay put, so a run-out leans early rather than late, and Runway says so.
   The rest goes where a new session would go at that moment, among the pin's accounts while a
-  global pin holds. Accounts count by their plan's size, a Max week as five Pro weeks, but where
-  any account's plan isn't known, every account counts as one.
+  global pin holds. Accounts count by their plan's size, a Max week as five Pro weeks and an Ultra
+  week as ten. An account without a `plan` counts as the plan most of the accounts have, and where
+  none has one, every account counts as one.
 - **When a week runs out:** where its use reaches its reserve before it resets, or its limit
   without one or while a global pin spends it. Otherwise its forecast use at the reset is what `on pace for 92%` says,
   never rounded up to where it would run out: a week heading for 99.6% without a reserve reads 99%.

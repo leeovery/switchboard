@@ -11,13 +11,6 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// Prefs is where the dashboard keeps its preferences as the user changes
-// them, for the next watch to start with.
-type Prefs interface {
-	// Update changes the preferences as change says, and keeps them.
-	Update(change func(*theme.Prefs)) error
-}
-
 // opening is the tab a watch opens on: the one kept, where it's one there
 // is, as one an older or a later switchboard kept may not be, else the
 // Overview.
@@ -56,20 +49,7 @@ func (m Model) showTab(tab dashboard.View) Model {
 		return m
 	}
 	m.view, m.scroll = tab, 0
-	m.keepPrefs("the view shown", func(p *theme.Prefs) { p.Tab = string(m.view) }, "view", m.view)
-	return m
-}
-
-// keepPrefs keeps what change changes in the preferences, where there are
-// preferences to keep it in, noting what it is, and attrs saying how it
-// stands, where it can't be kept. What can't be kept is shown all the same.
-func (m Model) keepPrefs(what string, change func(*theme.Prefs), attrs ...any) {
-	if m.cfg.Prefs == nil {
-		return
-	}
-	if err := m.cfg.Prefs.Update(change); err != nil {
-		logger.Warn("couldn't keep "+what, append(attrs, "error", err)...)
-	}
+	return m.keepPrefs("the view shown", func(p *theme.Prefs) { p.Tab = string(tab) }, "view", tab)
 }
 
 // toggle shows the Overview's section given where it's hidden, and hides it
@@ -78,8 +58,7 @@ func (m Model) keepPrefs(what string, change func(*theme.Prefs), attrs ...any) {
 func (m Model) toggle(section dashboard.Section) Model {
 	m.sections = m.sections.Toggled(section)
 	names := m.sections.Names()
-	m.keepPrefs("the sections shown", func(p *theme.Prefs) { p.Sections = names }, "sections", strings.Join(names, ","))
-	return m
+	return m.keepPrefs("the sections shown", func(p *theme.Prefs) { p.Sections = names }, "sections", strings.Join(names, ","))
 }
 
 // toggleGraphs shows Graphs' section given where it's hidden, and hides it
@@ -88,8 +67,7 @@ func (m Model) toggle(section dashboard.Section) Model {
 func (m Model) toggleGraphs(section dashboard.GraphsSection) Model {
 	m.graphs = m.graphs.Toggled(section)
 	names := m.graphs.Names()
-	m.keepPrefs("Graphs' sections shown", func(p *theme.Prefs) { p.GraphsTab.Sections = names }, "sections", strings.Join(names, ","))
-	return m
+	return m.keepPrefs("Graphs' sections shown", func(p *theme.Prefs) { p.GraphsTab.Sections = names }, "sections", strings.Join(names, ","))
 }
 
 // regroup switches how the Overview's windows are grouped, as b does, from by
@@ -102,8 +80,7 @@ func (m Model) regroup() Model {
 		m.by = dashboard.ByAccount
 	}
 	layout := string(layoutOf(m.by))
-	m.keepPrefs("how the windows are grouped", func(p *theme.Prefs) { p.By = layout }, "by", layout)
-	return m
+	return m.keepPrefs("how the windows are grouped", func(p *theme.Prefs) { p.By = layout }, "by", layout)
 }
 
 // toggleModels shows each model's own window, as Fable's week, where the
@@ -112,8 +89,7 @@ func (m Model) regroup() Model {
 func (m Model) toggleModels() Model {
 	m.models = !m.models
 	shown := m.models
-	m.keepPrefs("whether models' windows show", func(p *theme.Prefs) { p.Models = shown }, "models", shown)
-	return m
+	return m.keepPrefs("whether models' windows show", func(p *theme.Prefs) { p.Models = shown }, "models", shown)
 }
 
 // listsModels reports whether the page shown lists windows as they stand

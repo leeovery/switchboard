@@ -541,9 +541,11 @@ from its readings, the readings history's two newest days taken up as it starts:
   mean reversion, as an Ornstein–Uhlenbeck process forecasts: no shape of the day or the week is
   learned, and each install's rates are its own.
 
-**Accounts' sizes.** Use moves between accounts in Pro weeks: a Pro week is 1, a Max week 5 and an
-Ultra week 20, the plans' published multiples. Where any account's plan isn't known, every account
-counts as the same size, as the pool's room counts them.
+**Accounts' sizes.** Use moves between accounts in Pro weeks, each account's week as big as the
+price table makes its plan's: a Pro week is 1, a Max week 5 and an Ultra week 10 (see The request
+ledger). An account whose plan isn't known counts as the plan most of the accounts have, the larger
+of two that tie, and where none has one, every account counts as one: History's replay sizes them
+alike. Where every account is on one plan, its size makes no difference to where the weeks run out.
 
 **Where the use goes,** stepped every 10 minutes for a week from when the status document was
 built:
@@ -3771,9 +3773,10 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   with one more, of the plan most of the accounts have, every peak falls in proportion, the same use
   over more room. A replayed week is short where any account would reach 100%. `with one fewer`
   drops the account whose loss makes the fewest weeks short, and of those that tie, the one used
-  least over the weeks shown. Plans' sizes are in Pros, `pro` 1, `max` 5 and `ultra` 10 (see The
-  request ledger); an account without a `plan` counts as the plan most of the accounts have, and
-  where none has one, every account counts as one (settled in the plan).
+  least over the weeks shown. Plans' sizes are in Pro weeks, `pro` 1, `max` 5 and `ultra` 10 (see
+  The request ledger); an account without a `plan` counts as the plan most of the accounts have,
+  the larger of two that tie, and where none has one, every account counts as one (settled in the
+  plan), as the forecast sizes them too (see Forecasting run-outs).
 - **Its form.** Weeks is drawn wide, in the shape `v` gives it, where that shape's parts fit at
   their leasts short of the frame's margin and its legend reads whole on one row; else in the other
   shape, where that fits, as `v` then has no shape to change to; else in its narrow form (below).
@@ -5644,8 +5647,8 @@ one:
   `[ledger] keep` keeps them, 400 days unless it's set, and for good where it says `forever` (see
   The router's events). A move's cost, a cap's `known from` and the windows then are read off the
   ledger's lines of the moment. Days before the router filed its events show none.
-- **Live:** the Log joins the request stream while it shows, as Sessions does, joining again a
-  second after it ends (see Live updates). A reader 256 events behind is dropped by the router: the
+- **Live:** the Log joins the request stream while it shows, as Sessions does, joining again after
+  it ends as Live updates says. A reader 256 events behind is dropped by the router: the
   Log fills the gap from the ledger as it joins again. Within the motion budget (see What moves),
   following, a new line joins the foot and the table moves up a line, and a line in flight's `took`
   counts; paused, only `▼ N new` and `took` move (settled in the plan).
@@ -6553,6 +6556,11 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   page). It's written whole, as `state.json` is, in the state directory as it changes as the
   dashboard is used, never in the config directory, whose file is often a link into the user's
   dotfiles; and never the config file, which is the user's, and which the dashboard never rewrites.
+  A dashboard writes it one write at a time, never as it takes a key: what changes while a write is
+  under way goes in the next, the latest of each change standing, the theme picked among them; and
+  what's left unwritten as it stops, however it stops that it can catch, is written then. Each write
+  reads the file afresh and writes it back with the state directory locked, so dashboards in other
+  terminals never write back what they read before another's change.
   Its keys are written in sorted order, and those it doesn't know, as a newer build's, or an older
   one's that this build no longer keeps, are kept as they are; a value it doesn't know, as a page
   an older build kept, reads as the default. One that can't be read is set aside as
@@ -6637,9 +6645,12 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   moves on screen, never for what's scrolled out of view, under a card or under `?`, so nothing new
   is drawn while nothing happens; the motion's own pace is What moves'. The stream opens with the
   requests already in flight, so a page opened mid-answer shows it, `asking` or `answering`. A
-  stream that ends is joined again a second later, and one that fails to open is tried again after a
-  second, doubling to 30 seconds. A reader the router drops for falling 256 events behind joins
-  again, and what it missed is taken from the ledger's lines as it does (settled in the plan). A
+  stream that ends after staying open 30 seconds is joined again a second later; one that fails to
+  open, or ends sooner, is tried again after a second, doubling for each in a row to 30 seconds, so a
+  router that keeps dropping it is asked at most every 30 seconds. A reader the router drops for
+  falling 256 events behind joins again alike, waiting longer only where it's dropped young again
+  and again, as each join reads the ledger's tail, and what it missed is taken from the ledger's
+  lines as it does (settled in the plan). A
   router from before the stream has none, and the dashboard stops asking until another router
   answers: its pages draw the sessions as each look reads them, with nothing in flight and no
   requests travelling.
@@ -7863,13 +7874,15 @@ from the first day a router that has it runs, so nothing before then is in it.
     prompts up to 100,000, the owner's call (11 October 2026), until how the table is kept is
     settled (see Backlog: keeping the price table current).
   - **Plans:** beside the models, the table prices the plans a subscription is on, each a month, in
-    US dollars, with its size in Pros, which History's replay of a week weighs an account by (see
-    History): `pro`, Pro, $20 and 1; `max`, Max, $100 and 5; and `ultra`, Ultra, $200 and 10, its
-    weekly limits ten times Pro's. Max and Ultra were Max 5x and Max 20x till Anthropic renamed
-    them (see Observed); the config still loads their old names. An account's plan is the
-    config's `plan`, as switchboard can't read it: a setup token can't read the profile endpoint
-    that knows it (see Requests that need special handling). An account without one has no price,
-    and nothing is priced against it.
+    US dollars, with its size in Pro weeks, which the forecast and History's replay of a week weigh
+    an account by (see Forecasting run-outs and History): `pro`, Pro, $20 and 1; `max`, Max, $100
+    and 5; and `ultra`, Ultra, $200 and 10. The sizes are the weekly usage Anthropic publishes for
+    each plan against Pro's, Max five times it and Ultra ten (the owner's call, 10 November 2026);
+    Max 20x's 20 named its 5-hour allowance, not its week's. Max and Ultra were Max 5x and Max 20x
+    till Anthropic renamed them (see Observed); the config still loads their old names. An
+    account's plan is the config's `plan`, as switchboard can't read it: a setup token can't read
+    the profile endpoint that knows it (see Requests that need special handling). An account
+    without one has no price, and nothing is priced against it.
   - **Overrides:** the config can price any model, or any plan, otherwise, at up to $1,000,000 a
     million tokens or a month (see Config). An override prices every day alike, rather than from a
     day of its own, and where any holds, the date shown beside worth says so: `at its prices as of
@@ -8042,9 +8055,11 @@ made it. A `<dir>` holding no Mac's folder fails, saying so.
   router compresses as it does its own.
 - **A day both hold:** the folder's lines that aren't byte for byte one the Mac holds are added,
   appended to the day's plain file where it has one, else as a gzip member of their own after its
-  compressed file's, written beside it and renamed into place. No two Macs write the same line, as
-  each holds its time and what sets it apart (see Files), so a line held already is one imported
-  before, or the Mac's own come back, and an import repeated adds nothing.
+  compressed file's, written beside it and renamed into place. A line the folder holds more times
+  than the Mac is added the times more, as an event that changed back to how it stood has that
+  version written whole again; one it holds as many times or fewer, never. No two Macs write the
+  same line, as each holds its time and what sets it apart (see Files), so a line held already is
+  one imported before, or the Mac's own come back, and an import repeated adds nothing.
 - **Summaries:** a day's summary is copied in, with its stamp, where the Mac holds no line of the
   day and no summary of it, as of a day the Mac never saw, or one past keeping whose summary is its
   only record; or where the Mac's summary counts no request, as one a round summarised from the
@@ -8673,11 +8688,15 @@ the formula's caveats name it, to run first.
 - **What goes, in this order:** the service, as `service uninstall` takes it away (the router
   stopped once its requests in flight are done, the LaunchAgent, the router's copy and the
   notifications' app), first, so no router brings the skill back up to date as it goes; the line
-  setup added to the shell's startup file, found by its mark as setup finds it, and switchboard's
-  own files for each shell that line hands off to, completion's with them; switchboard's own entry
-  in Claude Code's SessionStart hooks, every other setting and hook left as it is; the skill, in
-  Claude Code's config directory; and the `claude` link in switchboard's bin directory, the
-  directory too once empty.
+  setup added to the shell's startup file, found by its mark as setup finds it, in each file it
+  may be in, a zsh or fish login shell asked where it reads its own as setup asks it, never told
+  by uninstall's own environment, and where it can't be asked, or there's no `$SHELL`, uninstall
+  says it couldn't look there rather than that the line's not there, and an interrupt as it asks
+  stops it there, saying running it again finishes; and switchboard's own files for each shell
+  that line hands off to, completion's with them; switchboard's own entry in Claude Code's
+  SessionStart hooks, every other setting and hook left as it is; the skill, in Claude Code's
+  config directory; and the `claude` link in switchboard's bin directory, the directory too once
+  empty.
 - **What stays, unless `--all`:** the config, the accounts' token files and everything recorded in
   the state directory: the ledger, the readings, the events, the logs and the router's state. A
   reinstall then carries on where it left off, and the history, which nothing can bring back, goes
@@ -8902,13 +8921,14 @@ hiding it behind the provider would take a wider interface than it's worth:
   file is opened before its compressed file, and what the two hold is told from the files opened:
   compressing a day writes its compressed file before it removes the plain one, so a day another
   process compresses as they're opened is read whole, each line once. A day whose compressed file
-  already ends with its plain file's lines, as when the router compressed the day between the two
-  openings, or stopped between writing the one and removing the other, is read from the compressed
-  file alone. A file that can't be read is passed over, and
-  one damaged, as a compressed file cut short, read up to the damage, each warned of once, until it
-  reads to its end again (see Logging). A line cut short at a
-  file's end, as a crash or a power cut partway through a write leaves one, is ended before more
-  lines follow it, whether appended or compressed after it, so the next starts a line of its own.
+  already holds its plain file's lines, or the first of them, as a compress tells them, as when
+  the router compressed the day between the two openings, or stopped between writing the one and
+  removing the other, lines coming to the plain file after or not, is read as compressing it would
+  leave it: the compressed file, then the plain file's lines it doesn't hold. A file that can't be
+  read is passed over, and one damaged, as a compressed file cut short, read up to the damage,
+  each warned of once, until it reads to its end again (see Logging). A line cut short at a file's
+  end, as a crash or a power cut partway through a write leaves one, is ended before more lines
+  follow it, whether appended or compressed after it, so the next starts a line of its own.
 - **Request ledger:** `<state dir>/ledger/`, 0700: `requests-<local date>.jsonl`, a line a request,
   `day-<local date>.json`, a day's summary, `digest-<local date>.json.gz`, a day's digest,
   `parts-<local date>.gz`, its sessions' parts of the day, `logday-<local date>.json.gz`, a day's
@@ -9098,10 +9118,12 @@ fails as it is; one that parses has every problem reported at once:
   all the same; `SWITCHBOARD_WHEN_ROUTER_DOWN` overrides it for one launch (see Launching).
 - **`plan`,** on an account, is `pro`, `max` or `ultra`: the subscription it's on, which
   switchboard can't read from Anthropic. It prices the account against its worth, and sizes it for
-  History's replay of a week (see The request ledger). Without it, the account's plan is unknown:
-  Accounts and History show `—` for it, and price nothing against it. The plans' old names,
-  `max5x` for `max` and `max20x` for `ultra`, still load as the new, so nothing past loading sees
-  them; the file keeps the old name till an edit sets that account's plan, which writes the new.
+  the forecast of where its week runs out and History's replay of a week (see The request ledger).
+  Without it, the account's plan is unknown: Accounts and History show `—` for it, price nothing
+  against it, and size it as the plan most of the accounts have (see Forecasting run-outs). The
+  plans' old names, `max5x` for `max` and `max20x` for `ultra`, still load as the new, so nothing
+  past loading sees them; the file keeps the old name till an edit sets that account's plan, which
+  writes the new.
 - **`[usage]`**: `by` is `window`, the accounts compared a window at a time, or `account`, each
   account's windows together; `window` unless given. It's the layout `usage` prints and the
   dashboard's Overview opens with: `usage --by` overrides it for one printout, and the Overview's

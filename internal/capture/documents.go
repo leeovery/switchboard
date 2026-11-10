@@ -104,10 +104,11 @@ func (w accountWorld) demand(rises map[string][]rise, at time.Time) *status.Dema
 	}
 	from := at.Add(-quota.Day)
 	var risen []rise
-	for i, size := range forecast.Sizes(plans) {
+	sizes, _ := ledger.Pricing.Sizes(plans)
+	for i, size := range sizes {
 		for _, r := range rises[w.accounts[i].ID] {
 			if r.at.After(from) {
-				risen = append(risen, rise{at: r.at, by: r.by * size})
+				risen = append(risen, rise{at: r.at, by: r.by * float64(size)})
 			}
 		}
 	}

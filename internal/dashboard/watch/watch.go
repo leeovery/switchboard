@@ -146,8 +146,8 @@ type Config struct {
 	Choice theme.Choice
 	Pair   theme.Pair
 	// Themes are where the theme picker finds the themes to pick from, and
-	// keeps the user's pick: nil draws the dashboard without colour, as
-	// NO_COLOR asks, and leaves t doing nothing.
+	// the choice kept, which Prefs keeps its pick in: nil draws the dashboard
+	// without colour, as NO_COLOR asks, and leaves t doing nothing.
 	Themes Themes
 	// View is the tab the preferences kept, which the watch opens on where
 	// it's one there is; Sections the Overview's sections they keep shown;
@@ -156,8 +156,8 @@ type Config struct {
 	// own window; History what they keep History's views
 	// showing, as dashboard.HistoryKept reads it; Graphs Graphs' sections
 	// they keep shown; and Log the Log's columns they keep shown, as
-	// dashboard.LogKept reads them. Prefs keeps each as it changes: nil keeps
-	// nothing.
+	// dashboard.LogKept reads them. Prefs keeps each as it changes, and the
+	// theme picked, one write at a time, never in Update: nil keeps nothing.
 	View     dashboard.View
 	Sections dashboard.Sections
 	By       dashboard.By
@@ -386,6 +386,9 @@ type Model struct {
 	help    helping
 	page    frozen
 
+	// keeping is the preferences changed, as they're kept.
+	keeping keeping
+
 	// shown is what render made of the screen once the last message was
 	// taken in.
 	shown shown
@@ -469,6 +472,7 @@ func New(ctx context.Context, cfg Config) Model {
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
 		plansAtMost: views.PlansAtMost(cfg.Accounts, cfg.Prices),
+		keeping:     keeping{gate: new(prefsGate)},
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
 	if m.after == nil {
@@ -506,10 +510,11 @@ func (m Model) Init() tea.Cmd {
 // sessionsLooked and runwayLooked have it, the ledger's tail followed
 // whatever shows, as followTail has it, and the Log's page built of what it
 // holds, and only then, price the moves the routing card would make while it
-// wants them. Then, of the page as it stands at that moment, the one frame a
-// look builds, it has the readings history's tail read for Runway and
-// Graphs, as readRunway has it, and notes the tab shown waiting on a read,
-// as waited has it, the page loading as that leaves it. Of that page, its
+// wants them, and keep the preferences changed, as keptPrefs has it. Then,
+// of the page as it stands at that moment, the one frame a look builds, it
+// has the readings history's tail read for Runway and Graphs, as readRunway
+// has it, and notes the tab shown waiting on a read, as waited has it, the
+// page loading as that leaves it. Of that page, its
 // Overview's sections built once for each to share, it keeps the Overview's
 // layout, and takes the view back to its top where what its scroll counts
 // changed, as rescrolled has it, but for a frame, which takes nothing in to
@@ -532,6 +537,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, listed := tuned.readSessions()
 	tuned, tailing := tuned.followTail()
 	tuned, costs := tuned.costing()
+	tuned, keeps := tuned.keptPrefs()
 	f := tuned.frame(now)
 	tuned, ran := tuned.readRunway()
 	tuned, waits := tuned.waited(now)
@@ -544,7 +550,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, tailing, costs, waits, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, tailing, costs, keeps, waits, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -652,12 +658,12 @@ func (m Model) render() Model {
 }
 
 // take takes in a message: a key, a paste, a click, the wheel, a resize, the
-// terminal's background, the themes listed for the picker, or the choice
-// kept as it stands, a read, the router's history, the ledger's days read
-// for History, the router carrying out an order, the sessions listed to
-// price the routing card's moves, the request stream opening, telling of
-// requests or falling due to be asked for again, a tick, a frame, or a
-// session's page read.
+// terminal's background, the themes listed for the picker, the choice kept
+// as it stands, or the preferences kept, a read, the router's history, the
+// ledger's days read for History, the router carrying out an order, the
+// sessions listed to price the routing card's moves, the request stream
+// opening, telling of requests or falling due to be asked for again, a tick,
+// a frame, or a session's page read.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -678,8 +684,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.listed(msg)
 	case askMsg:
 		return m.asked(msg), nil
-	case keptMsg:
-		return m.kept(msg), nil
+	case prefsKeptMsg:
+		return m.prefsWritten(msg), nil
 	case fetchedMsg:
 		return m.fetched(msg)
 	case historyMsg:

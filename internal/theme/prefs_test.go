@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -69,6 +70,28 @@ func TestUpdateKeepsWhatAnotherDashboardWroteSince(t *testing.T) {
 	}
 	if got, want := mine.Read().Choice, (theme.Choice{Dark: "nord"}); got != want {
 		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+}
+
+// Dashboards each keeping a change at once, as their files each read it,
+// lose none of them: no Update writes back what it read before another's
+// change.
+func TestUpdatesAtOnceEachKeepTheirChange(t *testing.T) {
+	state := t.TempDir()
+	const dashboards = 16
+	var wg sync.WaitGroup
+	for i := range dashboards {
+		wg.Go(func() {
+			name := fmt.Sprintf("section-%d", i)
+			if err := theme.NewPrefsFile(state, clock).Update(func(p *theme.Prefs) { p.Sections = append(p.Sections, name) }); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+
+	if got := theme.NewPrefsFile(state, clock).Read().Sections; len(got) != dashboards {
+		t.Errorf("after %d updates at once, the sections kept are %q, want every one's", dashboards, got)
 	}
 }
 

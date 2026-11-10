@@ -29,11 +29,13 @@ func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) error
 
 // run shows the dashboard on out until the user quits, noting in the log when
 // it starts and stops, and puts back the terminal's background as it stops,
-// however it stops, as backdrop.Run has it.
+// however it stops, as backdrop.Run has it, then keeps the preferences
+// changed that it hadn't yet, as keepLeft has it.
 func run(ctx context.Context, cfg Config, out io.Writer, opts ...tea.ProgramOption) error {
 	logger.Info("watch started", "interval", cfg.Interval)
 	started := time.Now()
-	_, err := backdrop.Run(New(ctx, cfg), out, append(opts, tea.WithContext(ctx))...)
+	last, err := backdrop.Run(New(ctx, cfg), out, append(opts, tea.WithContext(ctx))...)
+	last.keepLeft()
 	logger.Info("watch stopped", "ran", time.Since(started).Round(time.Second))
 	// In raw mode ctrl+c arrives as a key, so an interrupt comes from outside
 	// the terminal, and ends a watch as q does.
