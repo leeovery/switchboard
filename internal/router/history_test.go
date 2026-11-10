@@ -773,6 +773,61 @@ func TestTheHistoryHasTheLedgerSummariseTheDaysThatEndedBeforeItPrunesTheirReadi
 	}
 }
 
+// A new version has every kept day of the ledger's summarised again. The
+// history's writer, which has the ledger summarise before it prunes, waits
+// on a part of those days alone, never on them all, which the ledger's own
+// rounds go on with.
+func TestTheHistoryWaitsOnAPartOfTheDaysToSummariseAgainBeforeItPrunesNeverOnThemAll(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Date(2026, 10, 7, 13, 0, 0, 0, time.Local)
+		r := newTestRouter(t, at(now), &stubProber{})
+		state := t.TempDir()
+		ledgerDir, historyDir := ledger.Dir(state), readings.Dir(state)
+		for _, dir := range []string{ledgerDir, historyDir} {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// Thirty days, each of a request on work, summarised under version 5.
+		const days = 30
+		var dates []string
+		for back := 1; back <= days; back++ {
+			day := now.AddDate(0, 0, -back)
+			date := day.Format(time.DateOnly)
+			line, err := json.Marshal(ledger.Line{At: day.UTC(), Request: strconv.Itoa(back), Kind: ledger.KindMessage, Session: "one", Model: opus,
+				Account: "work", Reason: "sticky", Status: 200, Attempts: 1, Usage: json.RawMessage(`{"input_tokens":10}`)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for path, data := range map[string]string{
+				filepath.Join(ledgerDir, "requests-"+date+".jsonl"): string(line),
+				ledger.SummaryFile(ledgerDir, date):                 `{"version":5,"day":"` + date + `","lines":1}`,
+			} {
+				if err := os.WriteFile(path, []byte(data+"\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			dates = append(dates, date)
+		}
+		r.history.open(historyDir)
+		r.ledger.open(ledgerDir, ledger.HistoryIn(r.history.files))
+
+		stop := keeping(t, r.history)
+		synctest.Wait()
+		stop()
+		var again int
+		for _, date := range dates {
+			if summary, err := os.ReadFile(ledger.SummaryFile(ledgerDir, date)); err == nil && strings.HasPrefix(string(summary), `{"version":6,`) {
+				again++
+			}
+		}
+		if again == 0 || again == days {
+			t.Errorf("the history's writer had %d of the %d days summarised again before it pruned; want some, but not every one: a part of them "+
+				"alone, the ledger's own rounds going on with the rest", again, days)
+		}
+	})
+}
+
 func TestTheHistoryHasTheLedgerSummariseOnlyBeforeItPrunes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		began := time.Now()

@@ -35,7 +35,7 @@ type ImportedDay struct {
 // whatever it ran before, a round, a stop or an import cut short, the
 // summary is decided on the day's lines as the take left them. The readings
 // history's writer isn't held off: its summarising before it prunes, as
-// SummariseEnded's, may summarise the day from the lines just taken in
+// SummariseSome's, may summarise the day from the lines just taken in
 // before the summary is decided, and the one staged then gives way to it,
 // as to any summary that counts a line. Work taken up runs to its end,
 // which leaves the day with both or neither, though a caller whose context
@@ -64,9 +64,10 @@ func (l *Ledger) Import(ctx context.Context, day StagedDay) (ImportedDay, error)
 }
 
 // RoundNow makes the ledger's round at once, on Run's goroutine, as it makes
-// one every hour, summarising the days that have ended and kicking its
-// digesting, as SummariseEnded does, and returns as dayfile.Writer's RoundNow
-// does.
+// one every hour, summarising the days that have ended, as round does, the
+// rest of those to summarise again in the rounds it makes at once after, and
+// kicking its digesting once none is left, and returns as dayfile.Writer's
+// RoundNow does.
 func (l *Ledger) RoundNow(ctx context.Context) error {
 	return l.writer.RoundNow(ctx)
 }

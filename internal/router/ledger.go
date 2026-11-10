@@ -72,13 +72,15 @@ func (l *requestLedger) tendNow(ctx context.Context) error {
 	return l.opened.Load().TendNow(ctx)
 }
 
-// summariseEnded has the ledger, once it's opened, summarise the days that
-// have ended at now, as ledger.Ledger.SummariseEnded says: the readings
+// summariseSome has the ledger, once it's opened, summarise the days that
+// have ended at now, as ledger.Ledger.SummariseSome says: the readings
 // history's writer has it do so just before each prune of its files, so no
-// reading a summary needs goes before its day is summarised.
-func (l *requestLedger) summariseEnded(now time.Time) {
+// reading a day's first summary needs goes before it's written, and waits on
+// a part of the days to summarise again alone, never on every kept day, as
+// under a new version, which the ledger's own rounds go on with.
+func (l *requestLedger) summariseSome(now time.Time) {
 	if opened := l.opened.Load(); opened != nil {
-		opened.SummariseEnded(now)
+		opened.SummariseSome(now)
 	}
 }
 

@@ -272,7 +272,7 @@ type History interface {
 // each takes no lock of the history's files, as a listing of them does: a
 // prune waiting on the read would hold the listing back, and the listing the
 // read. The router's readings history prunes only once it has had the ledger
-// summarise, which waits for any summarising under way, as SummariseEnded's
+// summarise, which waits for any summarising under way, as SummariseSome's
 // lock has it. listed reports whether a listing of the history before the
 // read gave a day's date, as one listing, shared by every run, gives them,
 // so each run's faults note those whose files have gone since, as

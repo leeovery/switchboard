@@ -686,3 +686,148 @@ func TestRunDigestsNoDayBeforeItsFirstRoundHasSummarisedItAgain(t *testing.T) {
 		}
 	})
 }
+
+// summarisedUnderVersionFive lays out in dir the given number of days from
+// the summaries' day on, each of the request atNine gives, in its plain file,
+// and its summary as a release of version 5 wrote it, marked with the file.
+func summarisedUnderVersionFive(t *testing.T, dir string, days int) {
+	t.Helper()
+	for n := range days {
+		day := dayOf(n)
+		holdLines(t, dir, day, atNine(n))
+		held := ofVersion(summaryOf(day, 1, windowsRead{}, on(n, 9, 0)), 5)
+		marked := strings.Replace(held, `"lines":1,`, fmt.Sprintf(`"lines":1,"bytes":{"plain":%d,"compressed":0},`, dayBytes(t, dir, day).Plain), 1)
+		writeFile(t, dir, "day-"+day+".json", []byte(marked+"\n"))
+	}
+}
+
+// atNine is the request asked at 9:00 of the day the given number of days
+// after the summaries' day.
+func atNine(days int) ledger.Line {
+	return asked(fmt.Sprint(days), on(days, 9, 0))
+}
+
+// summarisedAgain reports whether the ledger in dir holds the summary of
+// version 6 of the day the given number of days after the summaries' day, of
+// the request atNine gives.
+func summarisedAgain(t *testing.T, dir string, days int) bool {
+	t.Helper()
+	return heldSummary(t, dir, dayOf(days)) == summaryOf(dayOf(days), 1, windowsRead{}, on(days, 9, 0))+"\n"
+}
+
+// datesUpTo are the dates of the given number of days from the summaries'
+// day on.
+func datesUpTo(days int) []string {
+	dates := make([]string, days)
+	for n := range dates {
+		dates[n] = dayOf(n)
+	}
+	return dates
+}
+
+// A new version summarises every kept day again, a part of them at a time,
+// the oldest first, each part a round of its own, the ledger's writer making
+// the next at once: a line noted as the first part is summarised is written
+// before the next part begins, never held back for them all.
+func TestSummarisingTheKeptDaysAgainUnderANewVersionHoldsNoLineBackForThemAll(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		dir := t.TempDir()
+		// Three parts' days, the last short.
+		days := 2*ledger.SummariseAtOnce + 3
+		summarisedUnderVersionFive(t, dir, days)
+		at := on(days+1, 10, 0)
+		l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return at }, noReadings, caps, logs.For("router"))
+		today := asked("today", at)
+		// looked are the dates of the days the rounds looked at, in turn, and
+		// seen how many of them came before the first that found today's line
+		// written, -1 for none.
+		var looked []string
+		seen := -1
+		l.SetLooked(func(date string) {
+			if len(looked) == 0 {
+				// A request ends as the first day is summarised again.
+				l.Note(&today)
+			}
+			if data, _ := os.ReadFile(dayFile(dir, at)); seen < 0 && strings.Contains(string(data), `"request":"today"`) {
+				seen = len(looked)
+			}
+			looked = append(looked, date)
+		})
+
+		stop := running(t, l)
+		synctest.Wait()
+		stop()
+		if seen < 0 || seen > ledger.SummariseAtOnce {
+			t.Errorf("today's line was first found written once %d of the %d days had been summarised again, -1 for never as they were; want once "+
+				"the first %d had, as the next round began", seen, days, ledger.SummariseAtOnce)
+		}
+		if want := datesUpTo(days); !slices.Equal(looked, want) {
+			t.Errorf("the rounds summarised again %q, want %q: each kept day once, the oldest first", looked, want)
+		}
+		for n := range days {
+			if !summarisedAgain(t, dir, n) {
+				t.Errorf("the summary of %s is\n%s\nwant it summarised again, as version 6", dayOf(n), heldSummary(t, dir, dayOf(n)))
+			}
+		}
+	})
+}
+
+// A round summarises again SummariseAtOnce days at most, the oldest first,
+// and reports that it left the rest for a later one; but writes each day's
+// first summary, never leaving one, so no reading it needs is pruned before
+// it's written.
+func TestARoundSummarisesAgainAPartOfTheDaysTheOldestFirstButEveryFirstSummary(t *testing.T) {
+	dir := t.TempDir()
+	again := ledger.SummariseAtOnce + 2
+	summarisedUnderVersionFive(t, dir, again)
+	// The newest day, never yet summarised.
+	holdLines(t, dir, dayOf(again), atNine(again))
+	at := on(again+1, 10, 0)
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return at }, noReadings, caps, logs.For("router"))
+
+	if !l.SummariseSome(at) {
+		t.Error("SummariseSome() = false, want true: it left days to summarise again for a later round")
+	}
+	for n := range again {
+		if got, want := summarisedAgain(t, dir, n), n < ledger.SummariseAtOnce; got != want {
+			t.Errorf("after the first round, %s is summarised again %t, want %t: the oldest %d alone", dayOf(n), got, want, ledger.SummariseAtOnce)
+		}
+	}
+	if !summarisedAgain(t, dir, again) {
+		t.Errorf("after the first round, the summary of %s is\n%s\nwant its first, of its request, never left for a later round", dayOf(again),
+			heldSummary(t, dir, dayOf(again)))
+	}
+	if l.SummariseSome(at) {
+		t.Error("SummariseSome() again = true, want false: it left none")
+	}
+	for n := range again {
+		if !summarisedAgain(t, dir, n) {
+			t.Errorf("after the second round, the summary of %s is\n%s\nwant it summarised again, as version 6", dayOf(n), heldSummary(t, dir, dayOf(n)))
+		}
+	}
+}
+
+// A day that can't be summarised again counts for none of a round's part,
+// so days that keep failing never keep the rest from their turn.
+func TestADayThatCantBeSummarisedAgainKeepsNoneFromItsTurn(t *testing.T) {
+	log := logstest.Capture(t)
+	dir := t.TempDir()
+	again := ledger.SummariseAtOnce + 2
+	summarisedUnderVersionFive(t, dir, again)
+	unopenable(t, dir, "requests-"+dayOf(0)+".jsonl")
+	at := on(again+1, 10, 0)
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return at }, noReadings, caps, logs.For("router"))
+
+	if !l.SummariseSome(at) {
+		t.Error("SummariseSome() = false, want true: it left a day to summarise again for a later round")
+	}
+	for n := range again {
+		if got, want := summarisedAgain(t, dir, n), n > 0 && n <= ledger.SummariseAtOnce; got != want {
+			t.Errorf("after the first round, %s is summarised again %t, want %t: the oldest %d of those that can be", dayOf(n), got, want,
+				ledger.SummariseAtOnce)
+		}
+	}
+	if !log.Has("level=WARN", `msg="can't summarise the request ledger"`, "day="+dayOf(0)) {
+		t.Errorf("log reads\n%s\nwant the day that can't be summarised warned of", log)
+	}
+}

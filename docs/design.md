@@ -7271,12 +7271,13 @@ from the first day a router that has it runs, so nothing before then is in it.
     `minutes_at_limit`; and 1 before it. A release that summarises a day
     otherwise, or keeps more of it, writes another, so the summaries written before it can be told:
     a day whose summary is of an older version is read, and summarised again from its lines and its
-    readings while either is kept, once, on the first round under the new version, as the round's
-    stamp holds the summary's version (see below), knowing no less than it, as any summary
-    written again does, every field of it. So a day whose readings the history has pruned is
-    summarised again from its lines, and keeps what the summary before took from the readings; one
-    whose lines are pruned, from its readings, and keeps its requests as the summary before gave
-    them; and one whose lines and readings are both gone keeps the summary it has. So too the days
+    readings while either is kept, once, from the first round under the new version on, eight
+    days a round, as the round's stamp holds the summary's version (see below), knowing no less
+    than it, as any summary written again does, every field of it. So a day whose readings the
+    history has pruned is summarised again from its lines, and keeps what the summary before took
+    from the readings; one whose lines are pruned, from its readings, and keeps its requests as the
+    summary before gave them; and one whose lines and readings are both gone keeps the summary it
+    has. So too the days
     summarised under version 2, from 8 to 11 October 2026, may keep small over-counts from a
     reading read late, in their rises, resets and limits, which version 3's rule for the climb
     would count otherwise: a summary written again knows no less, as what it held can't always be
@@ -7286,14 +7287,21 @@ from the first day a router that has it runs, so nothing before then is in it.
     it's summarised again, as a summary written again knows no less, and its worth prices it: a few
     tokens a day, a fraction of a cent, where the views over its lines leave it out. And a day
     summarised before version 6 gains its models' `hours` as it's summarised again from its lines;
-    one whose lines are gone has none, never as many of none, as its readings can't give them. The
-    first round under a new version reads each kept day's lines once, some 0.37 seconds a day of
-    16,000 lines on an M1 Max, and holds up both writers, the ledger's and the readings history's:
-    whichever's round makes it, the other's waits on it to summarise. So what's noted meanwhile
-    waits in their queues, a few seconds for the weeks of lines kept, dropping none, and under three
-    minutes for a year of them, which fills the ledger's 8,192 lines only at 55 requests a second,
-    but the history's 1,024 answers' readings at 7, so a busier router drops readings. A
-    reader that meets an older version's summary, its lines kept, summarises the day from its
+    one whose lines are gone has none, never as many of none, as its readings can't give them. A
+    new version reads each kept day's lines once, some 0.37 seconds a day of 16,000 lines on an M1
+    Max, under three minutes for a year of them, so a round summarises again eight days at most, the
+    oldest first, some three seconds of the heaviest, and holds up the writer whose round it is that
+    long at most. The ledger's makes the next round at once, writing what's noted meanwhile first,
+    so no line waits on more than a round's eight days; the readings history's, which has the ledger
+    summarise before each prune, waits on the eight a round of the ledger's may be summarising and
+    eight of its own, and leaves the rest to the ledger's rounds. A day that can't be summarised
+    counts for none of the eight, so days that keep failing never keep the rest from their turn. A
+    day's first summary is never left for a later round, so no reading it needs is pruned before
+    it's written; one written again knows no less whenever it comes, so a prune of the readings
+    meanwhile loses it nothing. The digesting waits for the last of them: a round kicks it only
+    once it leaves no day for a later one. Until a day's turn comes, History and `history` read it
+    from its lines, as below, with the same figures, at the cost of the read. A reader that meets
+    an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
     version, as only the router writes summaries again, a reader knowing of the rest what they
     never counted, rather than taking it for none. Versions 2, 3, 4 and 6 only add fields, and
@@ -7425,7 +7433,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   pruned, to when the day began. The stamp holds the summary's version too, a second later than
   that time for each version past the first, which a file system that keeps whole seconds keeps: a
   day whose summary is of an older version is read, and summarised again from its lines and its
-  readings while either is kept, once, on the first round under the new version. A summary of
+  readings while either is kept, once, from the first round under the new version on. A summary of
   version 2 of a day with neither file was never stamped, so the first round of version 3 reads it.
   A day with no plain file, whose compressed file still gives that time, or with neither file,
   costs a look at its files and its summary's, reading none of them: compressing a day writes its

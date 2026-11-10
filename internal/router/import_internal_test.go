@@ -285,7 +285,7 @@ func TestASummaryARoundWritesOfADayAsItsFolderComesInGivesWayToTheOneStaged(t *t
 	r := newTestRouterOf(t, cfg)
 	var wrote bool
 	r.imports.between = func() {
-		r.ledger.summariseEnded(r.cfg.Now())
+		r.ledger.summariseSome(r.cfg.Now())
 		_, err := os.Stat(summary)
 		wrote = err == nil
 	}

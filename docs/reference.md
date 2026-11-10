@@ -251,6 +251,11 @@ file has lost some of its lines, which can't be told apart from the lines filed 
 summary's counts are then the least there were. A model's `hours` come whole from whichever summary
 counted more of its requests upstream, so they still add up to `upstream`.
 
+A release that summarises days in a different way summarises every kept day again, once, eight
+days at a time, the oldest first, so no request's line or reading waits on them all. Until a day's
+turn comes, `history` and the dashboard work it out from its lines as they read it, as they do
+today's, with the same figures.
+
 ### Kept for good
 
 Once a day's lines go, its summary is kept for good. It's summarised again only by a release that

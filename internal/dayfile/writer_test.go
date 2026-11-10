@@ -271,6 +271,42 @@ func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
 	})
 }
 
+func TestARoundAskedForAgainComesAtOnceOnceWhatsQueuedIsWritten(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := readingsHistory(t.TempDir())
+		began := time.Now()
+		var w *Writer[noted]
+		var rounds []time.Time
+		// held is what start's plain file held as each round began.
+		var held []string
+		w = NewWriter(f, linesNoted, WriterOptions{Queue: 4, Keep: twoWeeks, Now: func() time.Time { return start.Add(time.Since(began)) }, Items: "readings",
+			Round: func(now time.Time) {
+				rounds = append(rounds, now)
+				data, _ := os.ReadFile(f.path(plainFile(DateOf(start))))
+				held = append(held, string(data))
+				switch len(rounds) {
+				case 1:
+					w.Note(noted{at: start, text: "one"})
+					w.RoundAgain()
+				case 2:
+					// Asked for twice before it's made, it's made once.
+					w.RoundAgain()
+					w.RoundAgain()
+				}
+			}})
+		stop := running(t, w)
+
+		synctest.Wait()
+		stop()
+		if want := []time.Time{start, start, start}; !slices.EqualFunc(rounds, want, time.Time.Equal) {
+			t.Errorf("rounds were made at %v, want %v: as the writer started, then each asked for again at once, never waiting %v", rounds, want, pruneLook)
+		}
+		if want := []string{"", linesOf("one"), linesOf("one")}; !slices.Equal(held, want) {
+			t.Errorf("start's plain file held %q as each round began, want %q: what was noted during a round written before the next", held, want)
+		}
+	})
+}
+
 func TestAWritersPruneSparesTheDaysItsSpareKeeps(t *testing.T) {
 	f := readingsHistory(t.TempDir())
 	// Two days long past keeping, the first spared; and one still kept.
