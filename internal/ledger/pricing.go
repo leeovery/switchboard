@@ -103,8 +103,9 @@ func prices(from string, input, write5m, write1h, read, output float64, usOnlyPe
 }
 
 // plan is the plan the config names id, shown as name, of the size given in
-// Pros, priced from the day with the date from on at monthly dollars a month.
-func plan(id, name string, size int, from string, monthly float64) Plan {
+// Pro weeks, priced from the day with the date from on at monthly dollars a
+// month.
+func plan(id, name string, size int64, from string, monthly float64) Plan {
 	return Plan{ID: id, Name: name, Size: size, Prices: []PlanPrice{{From: from, Monthly: inDollars(monthly)}}}
 }
 

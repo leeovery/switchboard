@@ -18,7 +18,7 @@ var now = time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC)
 var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h", Pressure: "5h"}
 
 // ultra is an Ultra week's size, in Pro weeks.
-const ultra = 20
+const ultra = 10
 
 // week is a shared week used so far, resetting so long after now.
 func week(used float64, resetsIn time.Duration) quota.Window {

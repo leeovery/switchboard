@@ -1,12 +1,14 @@
 package status_test
 
 import (
+	"cmp"
 	"math"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -243,16 +245,16 @@ func TestTheForecastPlaysThePoolsUseAsTheDocumentHasIt(t *testing.T) {
 			want: map[string]heading{"work": runsOutIn(50 * time.Hour)},
 		},
 		{
-			// work, an Ultra week, 20 Pro weeks, holds the pool's use, a fifth
+			// work, an Ultra week, 10 Pro weeks, holds the pool's use, a tenth
 			// of a Pro week an hour, at 1% of its own week an hour till it
-			// runs out in 40 hours; side, a Pro week, takes it then, at 20% of
-			// its own an hour, and runs out in two and a half.
+			// runs out in 40 hours; side, a Pro week, takes it then, at 10% of
+			// its own an hour, and runs out in five.
 			name: "the pool's use moves between accounts by their plans' sizes",
 			doc: forecasting(routerDocOf(
 				on(readAt("work", windowIn("7d", 0.6, 3*day)), fastAt("7d", 0.01), planned(config.PlanUltra)),
 				on(readAt("side", windowIn("7d", 0.5, 3*day)), planned(config.PlanPro)),
-			), 0.2, holdingAll...),
-			want: map[string]heading{"work": runsOutIn(40 * time.Hour), "side": runsOutIn(42*time.Hour + 30*time.Minute)},
+			), 0.1, holdingAll...),
+			want: map[string]heading{"work": runsOutIn(40 * time.Hour), "side": runsOutIn(45 * time.Hour)},
 		},
 	}
 	for _, tt := range tests {
@@ -353,6 +355,68 @@ func TestAWeekNeverReadTakesNewSessionsOnlyWhereThePinNamesIt(t *testing.T) {
 // planned has the account on the plan given.
 func planned(plan string) func(*status.Account) {
 	return func(a *status.Account) { a.Plan = plan }
+}
+
+// An account's week is as big as its plan's, in Pro weeks, as the price table
+// sizes it, and one whose plan isn't known is as big as the plan most of the
+// accounts are on, as History's replay sizes them. Work holds all of its own
+// use, half a percent of its week an hour, all of the pool's, which the router
+// measures in Pro weeks by the plan's size: its week, half used, heads for
+// 74% at its reset two days on, and side, on Ultra, takes nothing. Sized
+// otherwise, work would hold more of its week than that, or the pool's use
+// would spill onto side.
+func TestTheForecastSizesAnAccountByItsPlan(t *testing.T) {
+	tests := []struct {
+		name, plan string
+		size       float64
+	}{
+		{name: "pro", plan: config.PlanPro, size: 1},
+		{name: "max", plan: config.PlanMax, size: 5},
+		{name: "ultra", plan: config.PlanUltra, size: 10},
+		{name: "not known, as the plan most are on", size: 10},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := forecasting(routerDocOf(
+				on(readAt("work", windowIn("7d", 0.5, 2*day)), fastAt("7d", 0.005), planned(tt.plan)),
+				on(readAt("side", windowIn("7d", 0.2, 2*day)), planned(config.PlanUltra)),
+			), tt.size*0.005, holdingAll...)
+			m := doc.WorkedOut(policy).At(built, policy)
+			for id, want := range map[string]heading{"work": onPaceFor(0.74), "side": onPaceFor(0.2)} {
+				a, _ := m.Account(id)
+				w, _ := a.Window("7d")
+				if got := headingOf(w); !got.near(want, time.Minute, 1e-6) {
+					t.Errorf("%s's week heads %+v, want %+v", id, got, want)
+				}
+			}
+		})
+	}
+}
+
+// A pool whose accounts are all on one plan heads the same way whatever the
+// plan's size, as the router measures the pool's use in Pro weeks by that
+// size too. Side, 60% used, holds its own use, 1% of its week an hour, till it
+// runs out in 40 hours; work, half used, holds its own, half a percent, and
+// takes side's then, running out 20 hours later, before its reset in three
+// days.
+func TestAOnePlanPoolsForecastIsTheSameWhateverThePlansSize(t *testing.T) {
+	for _, plan := range append([]string{""}, config.Plans...) {
+		t.Run(cmp.Or(plan, "no plan"), func(t *testing.T) {
+			sizes, _ := ledger.Pricing.Sizes([]string{plan, plan})
+			doc := forecasting(routerDocOf(
+				on(readAt("work", windowIn("7d", 0.5, 3*day)), fastAt("7d", 0.005), planned(plan)),
+				on(readAt("side", windowIn("7d", 0.6, 3*day)), fastAt("7d", 0.01), planned(plan)),
+			), float64(sizes[0])*0.015, holdingAll...)
+			m := doc.WorkedOut(policy).At(built, policy)
+			for id, want := range map[string]heading{"work": runsOutIn(60 * time.Hour), "side": runsOutIn(40 * time.Hour)} {
+				a, _ := m.Account(id)
+				w, _ := a.Window("7d")
+				if got := headingOf(w); !got.near(want, time.Minute, 1e-6) {
+					t.Errorf("%s's week heads %+v, want %+v", id, got, want)
+				}
+			}
+		})
+	}
 }
 
 func TestWhatsComingUpHasAWeekRunningOutAsTheForecastHasIt(t *testing.T) {

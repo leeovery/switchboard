@@ -9,7 +9,6 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
-	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -675,10 +674,11 @@ func DemandOf(accounts []status.Account) *status.Demand {
 		plans[i] = a.Plan
 	}
 	var day float64
-	for i, size := range forecast.Sizes(plans) {
+	sizes, _ := ledger.Pricing.Sizes(plans)
+	for i, size := range sizes {
 		for _, r := range accounts[i].Rates {
 			if r.Window == claude.Policy().Perishable {
-				day += r.Fast * size
+				day += r.Fast * float64(size)
 			}
 		}
 	}

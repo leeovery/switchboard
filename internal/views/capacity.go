@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
@@ -179,8 +180,8 @@ func (c Capacity) headline() string {
 }
 
 // replay is the weeks Weeks replays, each account's week's peak in each, in
-// the config's order, and the accounts' sizes in Pros, with that of the plan
-// most of them have, usual.
+// the config's order, and the accounts' sizes in Pro weeks, with that of the
+// plan most of them have, usual.
 type replay struct {
 	weeks [][]millionths
 	sizes []int64
@@ -192,7 +193,7 @@ type replay struct {
 // key, of the accounts given, sized by their plans p.
 func replayOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) replay {
 	r := replay{}
-	r.sizes, r.usual = sizesOf(accounts, p)
+	r.sizes, r.usual = sizesOf(accounts, p.table)
 	for _, w := range placed {
 		if week, ok := w.judged(len(accounts), key); ok && isWhole(w.week) {
 			r.weeks = append(r.weeks, week)
@@ -220,30 +221,14 @@ func (p placedWeek) judged(accounts int, key string) ([]millionths, bool) {
 	return week, true
 }
 
-// sizesOf are the accounts' sizes in Pros, as the replay weighs them: each
-// one's plan's, else that of the plan most of them have, the larger of two
-// that tie, else, where none has one, 1; and that most usual size.
-func sizesOf(accounts config.Accounts, p plans) (sizes []int64, usual int64) {
-	sizes = make([]int64, len(accounts))
-	known := make(map[int64]int)
+// sizesOf are the accounts' sizes in Pro weeks, as the replay weighs them,
+// and that of the plan most of them have, as the price table sizes them.
+func sizesOf(accounts config.Accounts, table ledger.Table) (sizes []int64, usual int64) {
+	ids := make([]string, len(accounts))
 	for i, a := range accounts {
-		if plan, ok := p.of(a.ID); ok {
-			sizes[i] = int64(plan.Size)
-			known[sizes[i]]++
-		}
+		ids[i] = a.Plan
 	}
-	usual = 1
-	for size, n := range known {
-		if n > known[usual] || n == known[usual] && size > usual {
-			usual = size
-		}
-	}
-	for i := range sizes {
-		if sizes[i] == 0 {
-			sizes[i] = usual
-		}
-	}
-	return sizes, usual
+	return table.Sizes(ids)
 }
 
 // count counts the weeks short reports short.
