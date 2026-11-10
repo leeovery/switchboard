@@ -244,6 +244,10 @@ Switchboard keeps a record of everything the router reads and does, in the state
 dashboard and the commands read it back to look at the past, with or without the router. The file
 formats are in the [Reference](reference.md).
 
+It records the requests of the Mac it runs on. Usage and limits come from Anthropic, so use from
+anywhere else, another Mac or the Claude apps, shows in the bars and the limits, but not in History's
+tokens, worth or sessions. Moving to a new Mac, `export` and `import` carry the history over.
+
 ### State that outlasts restarts
 
 The router keeps these in `state.json`, so a restart doesn't scatter sessions or need a probe:
