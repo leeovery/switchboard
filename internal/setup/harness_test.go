@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
@@ -229,7 +231,10 @@ func (w *world) setup(t *testing.T) *setup.Setup {
 		t.Fatal(err)
 	}
 	return &setup.Setup{
-		Accounts:     accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: w.api.proberAt, Now: func() time.Time { return tokenTaken }},
+		Accounts: accounts.Registry{
+			ConfigPath: w.config, Tokens: w.tokens(), Record: w.record(),
+			Prober: w.api.proberAt, Now: func() time.Time { return tokenTaken }, Random: drawn(),
+		},
 		LaunchAgent:  svc,
 		Install:      service.InstallOptions{Executable: w.switchboard, Config: w.configFlag},
 		Startable:    w.startable,
@@ -421,6 +426,32 @@ func (w *world) plist() string {
 
 func (w *world) tokens() tokens.Store {
 	return tokens.NewStore(w.state, os.Getuid())
+}
+
+// drawn is what the world's setup draws random ids from: the same each time.
+func drawn() io.Reader {
+	return strings.NewReader(strings.Repeat("setup", 100))
+}
+
+// randomID is the id the world's setup draws first.
+func randomID(t *testing.T) string {
+	t.Helper()
+	id, err := identity.Record{}.Random(drawn(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// derivedID is the id the organization given derives, for an account the
+// record hasn't had.
+func derivedID(organization string) string {
+	return identity.Record{}.Derive(organization, nil)
+}
+
+// record is the accounts record, in the state directory.
+func (w *world) record() identity.File {
+	return identity.NewFile(w.state)
 }
 
 func (w *world) writeConfig(t *testing.T, content string) {

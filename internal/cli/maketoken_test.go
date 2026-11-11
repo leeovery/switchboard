@@ -22,13 +22,17 @@ import (
 
 // The tokens the organizations API answers for, each in its organization:
 // personal's own; side's new one, its own subscription's; another of
-// personal's subscription; and one it doesn't answer for.
+// personal's subscription; one it doesn't answer for; a stale one of side's,
+// which it refuses; work's, of a subscription of its own; and one it answers
+// for naming no organization.
 const (
 	personalsToken = "test-token-personal"
 	madeSide       = "test-token-side"
 	madeTwice      = "test-token-personal-again"
 	madeUnanswered = "test-token-down"
 	staleSide      = "test-token-stale"
+	madeWork       = "test-token-work"
+	madeUnnamed    = "test-token-unnamed"
 )
 
 // signIn is the sign-in address the fake setup-token hands over.
@@ -57,7 +61,7 @@ type organizationsAPI struct {
 
 func newOrganizationsAPI(t *testing.T) *organizationsAPI {
 	t.Helper()
-	organizations := map[string]string{personalsToken: "org-personal", madeSide: "org-side", madeTwice: "org-personal"}
+	organizations := map[string]string{personalsToken: "org-personal", madeSide: "org-side", madeTwice: "org-personal", madeWork: "org-work", madeUnnamed: ""}
 	api := &organizationsAPI{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
@@ -654,7 +658,7 @@ func TestAccountsTokenMakesNoTokenForAnAccountNotConfigured(t *testing.T) {
 
 	got := run(t, deps, "accounts", "token", "work")
 
-	if want := (result{stderr: "Error: account \"work\" is not configured: add it with switchboard accounts add work\n", code: 1}); got != want {
+	if want := (result{stderr: "Error: account \"work\" is not configured: switchboard accounts lists each account's id\n", code: 1}); got != want {
 		t.Errorf("switchboard accounts token work = %+v, want %+v", got, want)
 	}
 	if maker.asked != 0 {
@@ -757,6 +761,11 @@ func TestAccountsTokenRefusesAGivenTokenOfAnotherAccountsSubscription(t *testing
 	}
 }
 
+// configuredAsPersonal is what accounts add fails with, given a token of
+// personal's subscription.
+const configuredAsPersonal = `Error: the token is for "Personal" (personal), configured already, so nothing is saved: ` +
+	"give it a new token with switchboard accounts token personal\n"
+
 // accounts add compares the token given with the other accounts', adding
 // nothing where its subscription is another's, and the account where it's
 // its own.
@@ -768,10 +777,10 @@ func TestAccountsAddComparesTheTokenGivenWithTheOtherAccounts(t *testing.T) {
 		want   result
 		wantIn bool
 	}{
-		{name: "piped, another account's subscription", token: madeTwice, want: result{stderr: sameAsPersonal, code: 1}},
-		{name: "typed unseen, another account's subscription", in: true, token: madeTwice, want: result{stderr: sameAsPersonal, code: 1}},
-		{name: "piped, a subscription of its own", token: madeSide, want: result{stdout: "added work\n"}, wantIn: true},
-		{name: "typed unseen, a subscription of its own", in: true, token: madeSide, want: result{stdout: "added work\n"}, wantIn: true},
+		{name: "piped, another account's subscription", token: madeTwice, want: result{stderr: configuredAsPersonal, code: 1}},
+		{name: "typed unseen, another account's subscription", in: true, token: madeTwice, want: result{stderr: configuredAsPersonal, code: 1}},
+		{name: "piped, a subscription of its own", token: madeWork, want: result{stdout: `added "work" as ` + workID + "\n"}, wantIn: true},
+		{name: "typed unseen, a subscription of its own", in: true, token: madeWork, want: result{stdout: `added "work" as ` + workID + "\n"}, wantIn: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -798,13 +807,13 @@ func TestAccountsAddComparesTheTokenGivenWithTheOtherAccounts(t *testing.T) {
 				if readFile(t, path) != before {
 					t.Errorf("the config reads\n%s\nwant it as it was\n%s", readFile(t, path), before)
 				}
-				checkNoTokenFile(t, deps, "work")
+				checkNoTokenFile(t, deps, workID)
 				return
 			}
-			if want := before + "\n[[account]]\nid = \"work\"\n"; readFile(t, path) != want {
+			if want := before + "\n[[account]]\nid    = \"" + workID + "\"\nlabel = \"work\"\n"; readFile(t, path) != want {
 				t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
 			}
-			checkTokenFile(t, deps, "work", tt.token+"\n")
+			checkTokenFile(t, deps, workID, tt.token+"\n")
 		})
 	}
 }

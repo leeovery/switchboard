@@ -8,12 +8,12 @@ import (
 )
 
 // SetupPasteCard is the card pasting an account's token, open over the
-// Accounts page in the token card's place, as it stands: the account's id;
+// Accounts page in the token card's place, as it stands: the account's name;
 // the token as it's pasted, which the card draws hidden, whatever it's
 // given; whether it's being checked and saved, when it takes no key; and
 // why setup refused it, where it did.
 type SetupPasteCard struct {
-	ID       string
+	Name     string
 	Token    Field
 	Checking bool
 	Why      string
@@ -34,7 +34,7 @@ const (
 var pasteKeys = []Key{{Key: "enter", Does: "save"}, cancelKey}
 
 // card is the paste card at now, width cells wide, laid out as the token
-// card's frame 2: PASTE A TOKEN and the account's id in its top edge; what
+// card's frame 2: PASTE A TOKEN and the account's name in its top edge; what
 // it asks for, bold text.primary, from tokenSaysAt, or while it's checked,
 // the spinner before it and that it's checked; what setup does with it, in
 // text.secondary; a row on, its field, from tokenSaysAt, typed in till it's
@@ -50,7 +50,7 @@ func (p SetupPasteCard) card(width int, now time.Time) *setupCard {
 		b.says(line{{pasteAsks, titleInk}})
 	}
 	b.says(line{{pasteSays, secondaryInk}}).gap()
-	k := &setupCard{card: Card{title: "PASTE A TOKEN · " + strings.ToUpper(p.ID), width: width, body: b.lines}}
+	k := &setupCard{card: Card{title: "PASTE A TOKEN · " + strings.ToUpper(p.Name), width: width, body: b.lines}}
 	token := p.Token
 	token.Typing, token.Hidden = !p.Checking, true
 	k.text(textField{name: pasteName, hint: pasteHint, wrong: p.Why, field: token}, tokenSaysAt, content)

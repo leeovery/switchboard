@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
@@ -23,6 +24,29 @@ import (
 func how(left Left) Left {
 	left.Summary = setup.Summary{}
 	return left
+}
+
+// givenBack is what setup left gives back of a making that ended as unsaved
+// says: none where it's nil.
+func givenBack(unsaved *setup.Tokened) []setup.Tokened {
+	if unsaved == nil {
+		return nil
+	}
+	return []setup.Tokened{*unsaved}
+}
+
+// tokeneds is how each of the makings left ended, without whose they are.
+func tokeneds(left []TokenLeft) []setup.Tokened {
+	var ended []setup.Tokened
+	for _, l := range left {
+		ended = append(ended, l.Tokened)
+	}
+	return ended
+}
+
+// sameLeft reports whether a and b say setup was left the same way.
+func sameLeft(a, b Left) bool {
+	return reflect.DeepEqual(a, b)
 }
 
 // read are lines as a test reads them, a line each: its mark, its label and
@@ -109,7 +133,7 @@ func TestRunGivesTheSummaryAsSetupIsLeft(t *testing.T) {
 				return ok && r.ask == asks
 			})
 			left, _, err := runUntil(t, Config{Steps: steps, Step: tt.at}, terminal{keys: tt.keys, ready: ready, saw: saw})
-			if err != nil || how(left) != tt.want {
+			if err != nil || !sameLeft(how(left), tt.want) {
 				t.Errorf("run() = %+v, %v; want %+v, no error", how(left), err, tt.want)
 			}
 			if got := read(left.Summary.Lines()); !slices.Equal(got, tt.lines) {
@@ -250,7 +274,7 @@ func TestQWhileTheServiceStepRunsSaysWhatItsSwapDid(t *testing.T) {
 				close(ready)
 			}()
 			left, _, err := runUntil(t, Config{Steps: steps, Step: dashboard.SetupService}, terminal{keys: "q", ready: ready, saw: saw})
-			if err != nil || how(left) != tt.want {
+			if err != nil || !sameLeft(how(left), tt.want) {
 				t.Errorf("run() = %+v, %v; want %+v, no error", how(left), err, tt.want)
 			}
 			if got := read(left.Summary.Lines()); !slices.Equal(got, tt.lines) {
@@ -291,7 +315,7 @@ func TestQWhileTheDayIsSetSaysTheDaySet(t *testing.T) {
 	}
 	term := terminal{keys: "09:00-18:00\r", ready: primed, then: "q", thenReady: steps.started, saw: saw, moment: gone}
 	left, _, err := runUntil(t, Config{Steps: steps, Step: dashboard.SetupPriming}, term)
-	if err != nil || how(left) != (Left{Ending: Paused}) {
+	if err != nil || !sameLeft(how(left), Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", how(left), err)
 	}
 	if got, want := read(left.Summary.Lines()), []string{accountsLine, "✓ Priming on, 09:00–18:00"}; !slices.Equal(got, want) {
@@ -324,7 +348,7 @@ func TestQAsTheShellIsAskedSaysNothingOfWhatTheAskingStoppedFound(t *testing.T) 
 		close(ready)
 	}()
 	left, _, err := runUntil(t, Config{Steps: steps, Step: dashboard.SetupLink}, terminal{keys: "q", ready: ready, saw: saw})
-	if err != nil || how(left) != (Left{Ending: Paused}) {
+	if err != nil || !sameLeft(how(left), Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", how(left), err)
 	}
 	if got, want := read(left.Summary.Lines()), []string{accountsLine, primingPast, "✓ Service "}; !slices.Equal(got, want) {
@@ -342,7 +366,7 @@ func TestQAsTheLineIsAddedSaysItsAdded(t *testing.T) {
 	}
 	term := terminal{keys: "\r", ready: linked, then: "q", thenReady: steps.started, saw: saw, moment: gone}
 	left, _, err := runUntil(t, Config{Steps: steps, Step: dashboard.SetupLink}, term)
-	if err != nil || how(left) != (Left{Ending: Paused}) {
+	if err != nil || !sameLeft(how(left), Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", how(left), err)
 	}
 	want := "! claude link created, and switchboard's line is added to ~/.zshrc, but setup hasn't asked your shell again whether a new terminal's claude goes through it"
@@ -361,7 +385,7 @@ func TestQWhileTokensAreCheckedSaysThemUnchecked(t *testing.T) {
 		close(all)
 	}()
 	left, _, err := runUntil(t, Config{Steps: steps}, terminal{keys: "q", ready: all})
-	if err != nil || how(left) != (Left{Ending: Paused}) {
+	if err != nil || !sameLeft(how(left), Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", how(left), err)
 	}
 	if got, want := read(left.Summary.Lines()), []string{"✓ Accounts 3, all unchecked · primary: work, with 5% reserved for the Claude apps"}; !slices.Equal(got, want) {

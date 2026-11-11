@@ -278,10 +278,23 @@ func TestSetupPrintsEachStepsLineAsItLeaves(t *testing.T) {
 			wantCode: 130,
 		},
 		{
-			name: "a token the screen gave back: the summary, then the token",
-			left: screen.Left{Ending: screen.Paused, Unsaved: &setup.Tokened{Result: setup.TokenRefused}, Summary: setup.Summary{At: setup.StepAccounts, Review: review}},
+			name: "a token the screen gave back: the summary, then the token, led by its account",
+			left: screen.Left{Ending: screen.Paused, Unsaved: []screen.TokenLeft{{For: "Personal", Tokened: setup.Tokened{Result: setup.TokenRefused}}}, Summary: setup.Summary{At: setup.StepAccounts, Review: review}},
 			rows: []string{accountsRow},
-			leaving: "The token was refused\nThe API refused the token, so it isn't saved.\n" +
+			leaving: "For Personal:\nThe token was refused\nThe API refused the token, so it isn't saved.\n" +
+				"Run switchboard setup again to try again, or to paste a token you made with claude setup-token.\n" +
+				"run setup again to carry on\n",
+		},
+		{
+			name: "tokens the screen gave back: the summary, then each, in order, led by its account",
+			left: screen.Left{Ending: screen.Paused, Unsaved: []screen.TokenLeft{
+				{For: "Personal", Tokened: setup.Tokened{Result: setup.TokenNotSaved, Why: "the config changed", Shown: []string{"test-token-personal"}}},
+				{For: "team", Tokened: setup.Tokened{Result: setup.TokenRefused}},
+			}, Summary: setup.Summary{At: setup.StepAccounts, Review: review}},
+			rows: []string{accountsRow},
+			leaving: "For Personal:\nThe token was created, but setup couldn't save it\nthe config changed\n  test-token-personal\n" +
+				"It lasts a year on the account, so copy it, then once that's put right, run switchboard setup again, and press p on its token card to paste it.\n" +
+				"\nFor team:\nThe token was refused\nThe API refused the token, so it isn't saved.\n" +
 				"Run switchboard setup again to try again, or to paste a token you made with claude setup-token.\n" +
 				"run setup again to carry on\n",
 		},
@@ -396,11 +409,11 @@ func TestSetupShowsATokenItCouldntSaveOnceTheScreenHasGone(t *testing.T) {
 			deps.SetupScreen = func(_ context.Context, _ screen.Config, out io.Writer, _ []string) (screen.Left, error) {
 				_, _ = io.WriteString(out, "the screen\n")
 				unsaved := tt.unsaved
-				return screen.Left{Ending: screen.Paused, Unsaved: &unsaved, Interrupted: tt.interrupted}, tt.screenErr
+				return screen.Left{Ending: screen.Paused, Unsaved: []screen.TokenLeft{{For: "Personal", Tokened: unsaved}}, Interrupted: tt.interrupted}, tt.screenErr
 			}
 
 			printed, code := runSeen(t, deps, "setup")
-			want := "the screen\n" + strings.Join(tt.want, "\n") + "\n" + tt.leaving
+			want := "the screen\nFor Personal:\n" + strings.Join(tt.want, "\n") + "\n" + tt.leaving
 			if printed != want || code != tt.wantCode {
 				t.Errorf("switchboard setup printed\n%s\nexit status %d; want\n%s\nexit status %d", printed, code, want, tt.wantCode)
 			}
@@ -418,6 +431,7 @@ func TestSetupHoldsTheInterruptsTillATokenGivenBackIsShown(t *testing.T) {
 	unread := &setup.Tokened{Result: setup.TokenUnread, Shown: []string{" Your token:", " test-token-personal"}}
 	accountsRow := stepRow("✓", "Accounts", "2, all working · primary: work")
 	shown := []string{
+		"For Personal:",
 		"The token was created, but setup couldn't read it",
 		"It lasts a year on the account, so copy it from what claude setup-token showed:",
 		"  Your token:",
@@ -431,7 +445,7 @@ func TestSetupHoldsTheInterruptsTillATokenGivenBackIsShown(t *testing.T) {
 		// as one comes while its jobs are waited for; unsaved is the making
 		// it gives back.
 		holding, goneInterrupt bool
-		unsaved                *setup.Tokened
+		unsaved                []screen.TokenLeft
 		// interruptAt is the line printed as an interrupt is sent.
 		interruptAt string
 		want        result
@@ -442,7 +456,7 @@ func TestSetupHoldsTheInterruptsTillATokenGivenBackIsShown(t *testing.T) {
 		{
 			name:        "a token given back, an interrupt as its last line prints",
 			holding:     true,
-			unsaved:     unread,
+			unsaved:     []screen.TokenLeft{{For: "Personal", Tokened: *unread}},
 			interruptAt: shown[len(shown)-1],
 			want:        result{stdout: lines(slices.Concat([]string{"the screen", accountsRow}, shown)...), stderr: "Error: interrupted\n", code: 130},
 			heldAt:      1,
@@ -451,7 +465,7 @@ func TestSetupHoldsTheInterruptsTillATokenGivenBackIsShown(t *testing.T) {
 		{
 			name:        "a token given back, an interrupt as the summary prints",
 			holding:     true,
-			unsaved:     unread,
+			unsaved:     []screen.TokenLeft{{For: "Personal", Tokened: *unread}},
 			interruptAt: accountsRow,
 			want:        result{stdout: lines(slices.Concat([]string{"the screen", accountsRow}, shown)...), stderr: "Error: interrupted\n", code: 130},
 			heldAt:      1,
@@ -460,7 +474,7 @@ func TestSetupHoldsTheInterruptsTillATokenGivenBackIsShown(t *testing.T) {
 		{
 			name:    "a token given back, no interrupt",
 			holding: true,
-			unsaved: unread,
+			unsaved: []screen.TokenLeft{{For: "Personal", Tokened: *unread}},
 			want:    result{stdout: lines(slices.Concat([]string{"the screen", accountsRow}, shown, []string{carryOn})...)},
 			holds:   1,
 		},

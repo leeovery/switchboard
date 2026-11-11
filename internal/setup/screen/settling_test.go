@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -40,6 +41,7 @@ func newRegistered(t *testing.T, config string) *registered {
 	registry := accounts.Registry{
 		ConfigPath: path,
 		Tokens:     tokens.NewStore(filepath.Join(dir, "state"), os.Getuid()),
+		Record:     identity.NewFile(filepath.Join(dir, "state")),
 		Now:        func() time.Time { return start },
 	}
 	// The process's own interrupts are left alone: no test sends one.

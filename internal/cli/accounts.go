@@ -1,34 +1,28 @@
 package cli
 
 import (
+	"bufio"
 	"cmp"
 	"errors"
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
-
-// takingAToken says, in the help of the commands that take a token, how they
-// take it.
-const takingAToken = `At a terminal, it asks for the token, which doesn't show as it's pasted: make
-one with claude setup-token, run while signed in to that subscription.
-Otherwise it reads the token from stdin. The token is checked with the API
-before it's saved: one the API refuses isn't, nor one whose subscription is
-another account's already, as the organization the API names it in says,
-the other accounts' tokens checked then to know theirs; and one the API
-doesn't answer for is, with a warning.`
 
 // editingTheConfig says, in the help of the commands that edit the config,
 // how they edit it.
@@ -64,25 +58,49 @@ plan, primary or reserve, replace its token, and remove it.`,
 
 func newAccountsAddCommand(a *app) *cobra.Command {
 	var account config.NewAccount
+	var answer accounts.Answer
 	cmd := &cobra.Command{
-		Use:   "add <id>",
+		Use:   "add <label>",
 		Short: "Register an account, taking its token",
-		Long: `Register an account: add an [[account]] table for it to the config, making the
-config if there's none, and when its token file, <state dir>/tokens/<id>,
-holds no usable token, take one. The id names the account for good, and its
-token file: letters, digits, '-' and '_'.
+		Long: `Register an account, shown as the label given, taking its token: add an
+[[account]] table for it to the config, making the config if there's none,
+and its token file, <state dir>/tokens/<id>. Every account has a label, and
+no two configured accounts the same, ignoring case.
 
-` + takingAToken + `
+At a terminal, it asks for the token, which doesn't show as it's pasted: make
+one with claude setup-token, run while signed in to that subscription.
+Otherwise it reads the token from stdin. The token is checked with the API
+before anything's saved, and nothing is where the API refuses it, or doesn't
+answer for it, so its subscription isn't known: try again then.
+
+The organization the API names the token in decides the account's id, which
+switchboard makes: a subscription this Mac has never had gets a new id; one
+it had, removed since, comes back under its id, so its history carries on;
+and one configured already is refused, the other accounts' tokens checked
+then to know theirs: give it a new token with accounts token. Where the
+organization doesn't settle it, as where the API names none, or the token may
+be an account removed before switchboard made ids, it asks whether it's a new
+account or one of those, at a terminal; otherwise it says the choices, and
+--new or --returning answers.
 
 ` + editingTheConfig,
-		Args: oneAccount,
+		Args: func(cmd *cobra.Command, args []string) error {
+			switch returning := cmd.Flags().Changed("returning"); {
+			case answer.New && returning:
+				return errors.New("--new answers that it's a new account, so it takes no --returning")
+			case returning && answer.ID == "":
+				return errors.New("--returning takes the id of the account this Mac had")
+			}
+			return oneLabel(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			account.ID = args[0]
-			return a.addAccount(cmd, account)
+			account.Label = args[0]
+			return a.addAccount(cmd, account, answer)
 		},
 	}
-	cmd.Flags().StringVar(&account.Label, "label", "", "show the account as `LABEL` (default the id)")
 	cmd.Flags().BoolVar(&account.Primary, "primary", false, "make it the primary, the account the browser and the Claude apps use")
+	cmd.Flags().BoolVar(&answer.New, "new", false, "where it asks, answer that it's a new account")
+	cmd.Flags().StringVar(&answer.ID, "returning", "", "where it asks, answer that it's the account `ID` this Mac had")
 	return cmd
 }
 
@@ -117,7 +135,8 @@ as nothing, but where one makes an emoji or a flag, or shapes a joining
 script, and a variation selector after a symbol, non-ASCII punctuation, a
 letter outside Latin, Greek and Cyrillic, or in a keycap; each run of
 whitespace within it one space; and the whitespace and direction marks at its
-edges trimmed. The id, or "", shows the account by its id.
+edges trimmed. Every account has a label, and no two configured accounts the
+same, ignoring case.
 
 ` + editingTheConfig,
 		Args: oneAccount,
@@ -126,7 +145,7 @@ edges trimmed. The id, or "", shows the account by its id.
 		},
 	}
 	plans := prose.ListOr(config.PlanChoices())
-	cmd.Flags().StringVar(&flags.label, "label", "", "show the account as `LABEL`: \"\" shows it by its id")
+	cmd.Flags().StringVar(&flags.label, "label", "", "show the account as `LABEL`")
 	cmd.Flags().StringVar(&flags.plan, "plan", "", "the `PLAN` its subscription is on: "+plans)
 	cmd.Flags().BoolVar(&flags.primary, "primary", false, "make it the primary, the account the browser and the Claude apps use")
 	cmd.Flags().StringVar(&flags.reserve, "reserve", "", "leave `PERCENT` of every window unused, such as 5%, or 0 for none")
@@ -232,30 +251,157 @@ func oneAccount(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-// addAccount registers the account, taking its token when it has no usable
-// one, and says what it did.
-func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount) error {
+// oneLabel accepts one account's label alone.
+func oneLabel(_ *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return errors.New("give the account's label alone")
+	}
+	return nil
+}
+
+// addAccount registers the account, taking its token, answering, where the
+// token's organization doesn't settle which account it is, as given says,
+// else as the user does, asked, as asking has it; and says what it did, and,
+// where given says otherwise than the organization settled it, that the
+// answer went unused.
+func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given accounts.Answer) error {
 	registry, err := a.registry(cmd)
 	if err != nil {
 		return err
 	}
-	taken, err := registry.Add(cmd.Context(), account)
-	if errors.Is(err, config.ErrConfigured) {
-		return fmt.Errorf("%w: replace its token with switchboard accounts token %s", err, account.ID)
-	}
+	asked := false
+	ask := a.asking(cmd, given)
+	added, err := registry.Add(cmd.Context(), account, func(q accounts.Question) (accounts.Answer, error) {
+		asked = true
+		return ask(q)
+	})
 	if err != nil {
-		return labelRemedy(err, "leave --label out")
+		return addRefused(err, a.Now())
 	}
-	warnUnchecked(cmd.ErrOrStderr(), taken.Unchecked)
-	said := "added " + account.ID
+	if !asked && contrary(given, added) {
+		launch.Notice(cmd.ErrOrStderr(), unusedAnswer(given, added))
+	}
+	said := "added " + prose.Quoted(account.Label) + " as " + added.ID
+	if added.Returning {
+		said += ", an account this Mac had, so its history carries on"
+	}
 	if account.Primary {
 		said += ", the primary"
 	}
-	if taken.Kept {
-		said += ", keeping the token in " + registry.Tokens.Path(account.ID)
-	}
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
+}
+
+// contrary reports whether given answers otherwise than the account was
+// added, as added says: --new for one this Mac had, or --returning for a new
+// account or another this Mac had. None given answers nothing.
+func contrary(given accounts.Answer, added accounts.Added) bool {
+	switch {
+	case given.New:
+		return added.Returning
+	case given.ID != "":
+		return !added.Returning || !strings.EqualFold(given.ID, added.ID)
+	}
+	return false
+}
+
+// unusedAnswer says the answer given went unused, as the token's
+// organization settled which account it is, as added: a new account, or one
+// this Mac had.
+func unusedAnswer(given accounts.Answer, added accounts.Added) string {
+	flag := "--new"
+	if !given.New {
+		flag = "--returning " + given.ID
+	}
+	settled := "a new account"
+	if added.Returning {
+		settled = added.ID + ", an account this Mac had"
+	}
+	return redact.Text(flag) + " went unused: the token's organization says it's " + settled
+}
+
+// addRefused is err, adding an account, with what to do about it: give a
+// configured account a new token; give a label that shows; or answer with
+// one of the accounts the token may be, as choicesSaid says them at now.
+func addRefused(err error, now time.Time) error {
+	if configured, ok := errors.AsType[*accounts.ConfiguredError](err); ok {
+		return fmt.Errorf("%w: give it a new token with switchboard accounts token %s", err, configured.ID)
+	}
+	if notAChoice, ok := errors.AsType[*accounts.NotAChoiceError](err); ok {
+		return fmt.Errorf("%w: answer with one of\n%s", err, choicesSaid(notAChoice.Question, now))
+	}
+	return labelRemedy(err)
+}
+
+// asking answers the question of which account a token is, where its
+// organization doesn't settle it: as given says, where it says; at a
+// terminal, as the user answers, asked there, as askWhich has it; else not,
+// saying the choices and the flags that answer.
+func (a *app) asking(cmd *cobra.Command, given accounts.Answer) accounts.Ask {
+	return func(q accounts.Question) (accounts.Answer, error) {
+		switch {
+		case given != (accounts.Answer{}):
+			return given, nil
+		case a.TerminalInput(cmd.InOrStdin()):
+			return askWhich(cmd.InOrStdin(), cmd.ErrOrStderr(), q, a.Now())
+		}
+		return accounts.Answer{}, fmt.Errorf("%w: answer with one of\n%s", &accounts.QuestionError{Question: q}, choicesSaid(q, a.Now()))
+	}
+}
+
+// choicesSaid says the answers to q, a line each, set in, as the flags that
+// give them: --new, then --returning and each account's id, as choiceSaid
+// says it at now.
+func choicesSaid(q accounts.Question, now time.Time) string {
+	rows := [][]string{{"--new", "a new account"}}
+	for _, c := range q.Choices {
+		rows = append(rows, []string{"--returning " + c.ID, choiceSaid(c, now)})
+	}
+	var table strings.Builder
+	_ = writeTable(&table, rows)
+	var lines []string
+	for line := range strings.Lines(table.String()) {
+		lines = append(lines, "  "+strings.TrimSuffix(line, "\n"))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// choiceSaid says an account a token may be, at now: its label, quoted,
+// else its id, and the day it was last seen, in now's time zone, where it was
+// removed.
+func choiceSaid(c identity.Entry, now time.Time) string {
+	said := prose.Quoted(cmp.Or(c.Label, c.ID))
+	if !c.Removed.IsZero() {
+		said += ", last seen " + prose.DayMonthYear(c.Removed.In(now.Location()))
+	}
+	return said
+}
+
+// askWhich asks the user at the terminal, on prompt, which account the token
+// is, as q offers, numbering its answers, each as choiceSaid says it at now,
+// and reads their answer from in, a line, asking again till it's one of the
+// numbers. It fails where in ends first.
+func askWhich(in io.Reader, prompt io.Writer, q accounts.Question, now time.Time) (accounts.Answer, error) {
+	launch.Notice(prompt, (&accounts.QuestionError{Question: q}).Error())
+	_, _ = fmt.Fprintln(prompt, "  1. a new account")
+	for i, c := range q.Choices {
+		_, _ = fmt.Fprintf(prompt, "  %d. %s\n", i+2, choiceSaid(c, now))
+	}
+	lines := bufio.NewScanner(in)
+	for {
+		_, _ = fmt.Fprintf(prompt, "Which is it (1-%d)? ", len(q.Choices)+1)
+		if !lines.Scan() {
+			return accounts.Answer{}, fmt.Errorf("read the answer: %w", cmp.Or(lines.Err(), io.ErrUnexpectedEOF))
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(lines.Text()))
+		switch {
+		case err != nil || n < 1 || n > len(q.Choices)+1:
+			continue
+		case n == 1:
+			return accounts.Answer{New: true}, nil
+		}
+		return accounts.Answer{ID: q.Choices[n-2].ID}, nil
+	}
 }
 
 // replaceToken replaces the account's token with the one the user gives, and
@@ -270,8 +416,11 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 		return err
 	}
 	taken, err := registry.SetToken(cmd.Context(), cfg, id)
+	if _, other := errors.AsType[*accounts.OtherSubscriptionError](err); other {
+		return fmt.Errorf("%w, with switchboard accounts add <label>", err)
+	}
 	if err != nil {
-		return a.notConfigured(err, id, addIt(id))
+		return a.notConfigured(err, id, findTheID)
 	}
 	warnUnchecked(cmd.ErrOrStderr(), taken.Unchecked)
 	_, err = io.WriteString(cmd.OutOrStdout(), "saved "+id+"'s token\n")
@@ -296,17 +445,15 @@ func (a *app) notConfigured(err error, id, otherwise string) error {
 	return fmt.Errorf("%w: %s", err, otherwise)
 }
 
-// addIt says how to add the account with the given id.
-func addIt(id string) string {
-	return "add it with switchboard accounts add " + redact.Text(id)
-}
+// findTheID says where an account's id is found, for one acted on by an id
+// no account has.
+const findTheID = "switchboard accounts lists each account's id"
 
 // labelRemedy points an error of a label that would show as nothing to
-// giving one, or to none, which none says how to give, to show the account
-// by its id.
-func labelRemedy(err error, none string) error {
+// giving one that shows.
+func labelRemedy(err error) error {
 	if errors.Is(err, config.ErrBlankLabel) {
-		return fmt.Errorf("%w: give one that shows, or %s to show the account by its id", err, none)
+		return fmt.Errorf("%w: give one that shows", err)
 	}
 	return err
 }
@@ -320,13 +467,13 @@ func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error 
 	change, err := flags.change(cmd.Flags().Changed)
 	if err != nil {
 		if unknown := registry.Configured(id); unknown != nil {
-			return a.notConfigured(unknown, id, addIt(id))
+			return a.notConfigured(unknown, id, findTheID)
 		}
 		return err
 	}
 	edited, err := registry.Edit(id, change)
 	if err != nil {
-		return a.notConfigured(labelRemedy(err, `--label ""`), id, addIt(id))
+		return a.notConfigured(labelRemedy(err), id, findTheID)
 	}
 	said := editedSays(edited)
 	if edited.FormerPrimary != "" {
@@ -507,11 +654,23 @@ func primaryNow(primary, removed string, readToken func(id string) (tokens.Token
 		primary + "'s, for a week from when the router takes this up"
 }
 
-// registry returns the accounts as the config file and the token files hold
-// them, taking a token the user gives at cmd's stdin and checking it with the
-// API as a probe does, then comparing its organization with the other
+// registry returns the accounts as accountFiles has them, taking a token the
+// user gives at cmd's stdin, then comparing its organization with the other
 // accounts', as setup's OtherOrganizations finds them.
 func (a *app) registry(cmd *cobra.Command) (accounts.Registry, error) {
+	registry, err := a.accountFiles()
+	if err != nil {
+		return accounts.Registry{}, err
+	}
+	registry.Input = a.tokenInput(cmd.InOrStdin(), cmd.ErrOrStderr())
+	registry.Others = (&setup.Setup{Accounts: registry}).OtherOrganizations
+	return registry, nil
+}
+
+// accountFiles returns the accounts as the config file, the token files and
+// the accounts record hold them, checking a token with the API as a probe
+// does.
+func (a *app) accountFiles() (accounts.Registry, error) {
 	path, err := a.configFile()
 	if err != nil {
 		return accounts.Registry{}, err
@@ -520,15 +679,11 @@ func (a *app) registry(cmd *cobra.Command) (accounts.Registry, error) {
 	if err != nil {
 		return accounts.Registry{}, err
 	}
-	registry := accounts.Registry{
-		ConfigPath: path,
-		Tokens:     files,
-		Prober:     a.prober,
-		Input:      a.tokenInput(cmd.InOrStdin(), cmd.ErrOrStderr()),
-		Now:        a.Now,
+	dir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return accounts.Registry{}, err
 	}
-	registry.Others = (&setup.Setup{Accounts: registry}).OtherOrganizations
-	return registry, nil
+	return accounts.Registry{ConfigPath: path, Tokens: files, Record: identity.NewFile(dir), Prober: a.prober, Now: a.Now}, nil
 }
 
 // prober checks a token with the API at upstream, as a probe does.

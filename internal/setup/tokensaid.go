@@ -108,8 +108,10 @@ var (
 // token in it, to copy and paste, as it lasts a year on the account, so
 // enter makes no other; and the token made, but not saved, why, and the
 // token, to copy and paste, so enter makes no other, or, where setup never
-// read it, nothing to copy, enter trying again. Any other end is the zero
-// Unsaved.
+// read it, nothing to copy, enter trying again; the token for another
+// subscription than the account's; and the token made to add an account,
+// unsaved as setup was never told which account it is, to copy and paste.
+// Any other end is the zero Unsaved.
 func (t Tokened) Unsaved() Unsaved {
 	return t.unsaved(onTheCard)
 }
@@ -184,6 +186,10 @@ func (t Tokened) unsaved(then thens) Unsaved {
 		failed.Headline = "The token is for " + t.SameAs + "'s subscription"
 		failed.Says = sameSubscription(t.SameAs) + "."
 		failed.Then = then.signedIn
+	case TokenOtherSubscription:
+		failed.Headline, failed.Says, failed.Then = "The token is for another subscription", otherSubscription(t.SameAs)+".", then.signedIn
+	case TokenAsked:
+		return askedUnsaved(t, then)
 	case NoClaudeCode:
 		failed.Headline, failed.Says, failed.Then = "There's no Claude Code to create the token with", t.Why, then.installed
 	case TokenUnread:
@@ -204,6 +210,29 @@ func (t Tokened) unsaved(then thens) Unsaved {
 	return failed
 }
 
+// askedUnsaved is how a token made to add an account, whose organization
+// didn't settle which account it is, ends unsaved, the user never having
+// said: the token, to copy and paste, as it lasts a year on the account.
+func askedUnsaved(t Tokened, then thens) Unsaved {
+	u := Unsaved{Mark: Warning, Headline: "The token was created, but setup wasn't told which account it's for", Shown: t.Shown, Then: then.paste}
+	u.Says = "It lasts a year on the account, so copy it:"
+	if len(t.Shown) == 0 {
+		u.Says, u.Then, u.Again = "It isn't saved.", then.tryAgain, true
+	}
+	return u
+}
+
+// otherSubscription says the token is for another subscription than the
+// account's, the one the account named has, where one's named, so it isn't
+// saved, and to add it as an account of its own.
+func otherSubscription(name string) string {
+	of := "It isn't this account's subscription"
+	if name != "" {
+		of = "It's " + name + "'s subscription, not this account's"
+	}
+	return of + ", so the token isn't saved: add it as an account of its own"
+}
+
 // sameSubscription says the account named has the token's subscription
 // already, so it isn't saved.
 func sameSubscription(id string) string {
@@ -213,14 +242,16 @@ func sameSubscription(id string) string {
 // Refusal is why the paste card refuses the token pasted, said under its
 // field, where its paste saved nothing, as Result says: what's pasted no
 // token, the API refusing it, or not answering for it, as PasteToken words
-// each; and another account's subscription, which it names. Any other end is
-// no refusal: "".
+// each; another account's subscription, which it names; and another
+// subscription than the account's. Any other end is no refusal: "".
 func (t Tokened) Refusal() string {
 	switch t.Result {
 	case TokenNotGiven, TokenRefused, TokenUnanswered:
 		return t.Why
 	case TokenSameAccount:
 		return sameSubscription(t.SameAs)
+	case TokenOtherSubscription:
+		return otherSubscription(t.SameAs)
 	}
 	return ""
 }

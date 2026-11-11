@@ -7,7 +7,7 @@ import (
 // Change is what editing an account changes of it: each field left nil, or
 // Primary false, leaves what it sets as it is.
 type Change struct {
-	// Label is the name it's shown by: "" shows it by its id.
+	// Label is the name it's shown by, which every account has, its own.
 	Label *string
 	// Plan is the plan its subscription is on, one of config.Plans: ""
 	// leaves it unknown.
@@ -67,7 +67,9 @@ func (r Registry) Configured(id string) error {
 // Edit changes the account with the given id as change says, in its
 // [[account]] table in the config file. A change that leaves the account as
 // it was, as the config reads it and marks it, writes nothing. It fails,
-// matching config.ErrNotConfigured, when no account has the id.
+// matching config.ErrNotConfigured, when no account has the id; and with
+// ErrNoLabel or ErrLabelTaken for a label that's none, or another configured
+// account's, as CheckNew has them.
 func (r Registry) Edit(id string, change Change) (Edited, error) {
 	draft, err := config.Edit(r.ConfigPath)
 	if err != nil {
@@ -78,6 +80,9 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	if err != nil {
 		return Edited{}, err
 	}
+	if change.Label != nil && *change.Label == "" {
+		return Edited{}, ErrNoLabel
+	}
 	wasLabelled, wasMarked, wasAlias := draft.Labelled(id), draft.MarksPrimaryOf(id), draft.PlanAlias(id)
 	if err := change.apply(draft, was); err != nil {
 		return Edited{}, err
@@ -85,6 +90,9 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	now, err := configured(draft.Config(), id)
 	if err != nil {
 		return Edited{}, err
+	}
+	if change.Label != nil && labelTaken(draft.Config(), id, now.Label) {
+		return Edited{}, ErrLabelTaken
 	}
 	edited := Edited{
 		Was: was, Now: now,

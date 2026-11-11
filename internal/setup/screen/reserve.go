@@ -24,7 +24,7 @@ type reserveCard struct {
 
 // drawn is the card as dashboard.Setup draws it.
 func (c reserveCard) drawn() *dashboard.SetupReserveCard {
-	return &dashboard.SetupReserveCard{ID: c.opened.ID, Reserve: c.reserve.field(true), Why: c.why}
+	return &dashboard.SetupReserveCard{Name: c.opened.Name(), Reserve: c.reserve.field(true), Why: c.why}
 }
 
 // pressed is the card once key is typed in its field, as entry has it,

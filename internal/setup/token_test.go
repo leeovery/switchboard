@@ -165,9 +165,10 @@ func (h *heard) address(t *testing.T) setup.Making {
 	return h.steps[i]
 }
 
-// adding is personal, added with its token, and replacing the account with
-// the given id, configured, its token replaced.
-var adding = setup.TokenFor{Account: config.NewAccount{ID: "personal", Label: "Personal", Plan: "max"}, Add: true}
+// adding is Personal, added with its token, under the id its organization
+// decides, and replacing the account with the given id, configured, its
+// token replaced.
+var adding = setup.TokenFor{Account: config.NewAccount{Label: "Personal", Plan: "max"}, Add: true}
 
 func replacing(id string) setup.TokenFor {
 	return setup.TokenFor{Account: config.NewAccount{ID: id}}
@@ -208,7 +209,7 @@ func TestMakeTokenOpensTheSignInAddressByTheOpenerRule(t *testing.T) {
 	}{
 		{
 			name:   "the first account, on a first run: in the browser as it is",
-			f:      setup.TokenFor{Account: config.NewAccount{ID: "work", Label: "Work"}, Add: true},
+			f:      setup.TokenFor{Account: config.NewAccount{Label: "Work"}, Add: true},
 			asItIs: true,
 			want:   setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: "Work"},
 		},
@@ -230,12 +231,6 @@ func TestMakeTokenOpensTheSignInAddressByTheOpenerRule(t *testing.T) {
 			runAgain: true,
 			f:        adding,
 			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work"},
-		},
-		{
-			name:     "an account added with no label: named by its id",
-			runAgain: true,
-			f:        setup.TokenFor{Account: config.NewAccount{ID: "team"}, Add: true},
-			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "team", SignedIn: "Work"},
 		},
 		{
 			name:     "another account, the browser opening no private window: the address to show, saying why",
@@ -290,7 +285,7 @@ func TestMakeTokenReportsEachStepInTurn(t *testing.T) {
 
 	got, err := r.s.MakeToken(t.Context(), replacing("side"), h.report)
 
-	checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved})
+	checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, ID: "side"})
 	var steps []setup.MakingStep
 	for _, m := range h.steps {
 		steps = append(steps, m.Step)
@@ -307,29 +302,28 @@ func TestMakeTokenSavesTheTokenWithItsYear(t *testing.T) {
 		f    setup.TokenFor
 		api  fakeAPI
 		want accounts.Checked
+		// wantID is the id the token's saved for.
+		wantID string
 	}{
 		{
-			name: "an account added, the token checked, its organization named",
-			f:    adding,
-			api:  fakeAPI{organizations: map[string]string{madeToken: "org-personal"}},
-			want: accounts.Checked{Organization: "org-personal"},
+			name:   "an account added, the token checked, its organization naming its id",
+			f:      adding,
+			api:    fakeAPI{organizations: map[string]string{madeToken: "org-personal"}},
+			want:   accounts.Checked{Organization: "org-personal"},
+			wantID: derivedID("org-personal"),
 		},
 		{
-			name: "an account added, the API not answering: unchecked, why said without the token",
-			f:    adding,
-			api:  fakeAPI{down: down},
-			want: accounts.Checked{Unchecked: true, Why: "dial tcp: no route to the API for " + redact.Placeholder},
+			name:   "a token replaced, checked",
+			f:      replacing("side"),
+			want:   accounts.Checked{},
+			wantID: "side",
 		},
 		{
-			name: "a token replaced, checked",
-			f:    replacing("side"),
-			want: accounts.Checked{},
-		},
-		{
-			name: "a token replaced, the API not answering: unchecked",
-			f:    replacing("side"),
-			api:  fakeAPI{down: down},
-			want: accounts.Checked{Unchecked: true, Why: "dial tcp: no route to the API for " + redact.Placeholder},
+			name:   "a token replaced, the API not answering: unchecked",
+			f:      replacing("side"),
+			api:    fakeAPI{down: down},
+			want:   accounts.Checked{Unchecked: true, Why: "dial tcp: no route to the API for " + redact.Placeholder},
+			wantID: "side",
 		},
 	}
 	for _, tt := range tests {
@@ -341,13 +335,35 @@ func TestMakeTokenSavesTheTokenWithItsYear(t *testing.T) {
 
 			got, err := r.s.MakeToken(t.Context(), tt.f, nil)
 
-			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, Checked: tt.want})
-			w.checkTakenToday(t, tt.f.Account.ID, madeToken)
-			if tt.f.Add && !strings.Contains(w.readConfig(t), `id    = "personal"`) {
-				t.Errorf("the config reads\n%s\nwant personal added", w.readConfig(t))
+			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, Checked: tt.want, ID: tt.wantID})
+			w.checkTakenToday(t, tt.wantID, madeToken)
+			if tt.f.Add && !strings.Contains(w.readConfig(t), `id    = "`+tt.wantID+`"`) {
+				t.Errorf("the config reads\n%s\nwant Personal added as %s", w.readConfig(t), tt.wantID)
 			}
 		})
 	}
+}
+
+// An account isn't added until its organization is known: where the API
+// doesn't answer for a token made to add one, nothing is saved, and the
+// token, which lasts a year on the account, is given back to copy, why with
+// it, without the token.
+func TestMakeTokenToAddAnAccountSavesNothingTheAPIDidntAnswerFor(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	w.api.down = errors.New("dial tcp: no route to the API for " + madeToken)
+	r := w.tokenRig(t, &fakeMaker{})
+	before := w.snapshot(t)
+
+	got, err := r.s.MakeToken(t.Context(), adding, nil)
+
+	want := setup.Tokened{
+		Result: setup.TokenNotSaved,
+		Why:    "the API didn't answer for the token (dial tcp: no route to the API for " + redact.Placeholder + "), so nothing is saved: an account is added only once it has, to know its subscription, so try again",
+		Shown:  []string{madeToken},
+	}
+	checkTokened(t, got, err, want)
+	w.checkUnchanged(t, before)
 }
 
 func TestMakeTokenSavesNothingWhereItFails(t *testing.T) {
@@ -379,10 +395,10 @@ func TestMakeTokenSavesNothingWhereItFails(t *testing.T) {
 			organizations: setup.Organizations{"work": "org-work", "side": "org-side"},
 			api:           map[string]string{madeToken: "org-side"},
 			asked:         true,
-			want:          setup.Tokened{Result: setup.TokenSameAccount, SameAs: "side"},
+			want:          setup.Tokened{Result: setup.TokenSameAccount, SameAs: "Side"},
 		},
 		{
-			name:  "the same subscription as several other accounts: the first by id",
+			name:  "the same subscription as several other accounts: the first configured, by id, by its label",
 			maker: &fakeMaker{},
 			organizations: setup.Organizations{
 				"work": "org-work", "side": "org-work", "team-1": "org-work", "team-2": "org-work",
@@ -390,7 +406,7 @@ func TestMakeTokenSavesNothingWhereItFails(t *testing.T) {
 			},
 			api:   map[string]string{madeToken: "org-work"},
 			asked: true,
-			want:  setup.Tokened{Result: setup.TokenSameAccount, SameAs: "side"},
+			want:  setup.Tokened{Result: setup.TokenSameAccount, SameAs: "Side"},
 		},
 		{
 			name:  "setup-token failing, with what it showed but its blank lines",
@@ -434,11 +450,14 @@ func TestMakeTokenComparesOnlyOrganizationsKnown(t *testing.T) {
 		f             setup.TokenFor
 		organizations setup.Organizations
 		api           map[string]string
+		// wantID is the id the token's saved for: "random" for the one the
+		// world's setup draws first.
+		wantID string
 	}{
-		{name: "the token's organization unknown", f: adding, organizations: setup.Organizations{"work": "org-work", "side": "org-side"}},
-		{name: "the other accounts' unknown", f: adding, organizations: setup.Organizations{"work": "", "side": ""}, api: map[string]string{madeToken: "org-work"}},
-		{name: "no other account read", f: adding, api: map[string]string{madeToken: "org-work"}},
-		{name: "the account's own, its token replaced", f: replacing("work"), organizations: setup.Organizations{"work": "org-work", "side": "org-side"}, api: map[string]string{madeToken: "org-work"}},
+		{name: "the token's organization unknown", f: adding, organizations: setup.Organizations{"work": "org-work", "side": "org-side"}, wantID: "random"},
+		{name: "the other accounts' unknown", f: adding, organizations: setup.Organizations{"work": "", "side": ""}, api: map[string]string{madeToken: "org-work"}, wantID: derivedID("org-work")},
+		{name: "no other account read", f: adding, api: map[string]string{madeToken: "org-work"}, wantID: derivedID("org-work")},
+		{name: "the account's own, its token replaced", f: replacing("work"), organizations: setup.Organizations{"work": "org-work", "side": "org-side"}, api: map[string]string{madeToken: "org-work"}, wantID: "work"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -448,11 +467,15 @@ func TestMakeTokenComparesOnlyOrganizationsKnown(t *testing.T) {
 			r := w.tokenRig(t, &fakeMaker{})
 			f := tt.f
 			f.Organizations = tt.organizations
+			id := tt.wantID
+			if id == "random" {
+				id = randomID(t)
+			}
 
 			got, err := r.s.MakeToken(t.Context(), f, nil)
 
-			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, Checked: accounts.Checked{Organization: tt.api[madeToken]}})
-			w.checkToken(t, f.Account.ID, madeToken)
+			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, Checked: accounts.Checked{Organization: tt.api[madeToken]}, ID: id})
+			w.checkToken(t, id, madeToken)
 		})
 	}
 }
@@ -531,12 +554,16 @@ func TestMakeTokenKeepsATokenMadeThroughAStop(t *testing.T) {
 
 				got, err := r.s.MakeToken(ctx, adding, report)
 
-				checkTokened(t, got, err, tt.want)
+				want := tt.want
+				if want.Result == setup.TokenSaved {
+					want.ID = randomID(t)
+				}
+				checkTokened(t, got, err, want)
 				if tt.maker.ended {
 					t.Error("the stop ended what setup-token was read under, want it read on within its own time limits")
 				}
 				if tt.want.Result == setup.TokenSaved {
-					w.checkTakenToday(t, "personal", madeToken)
+					w.checkTakenToday(t, want.ID, madeToken)
 					return
 				}
 				w.checkUnchanged(t, before)
@@ -562,8 +589,8 @@ func TestMakeTokenKeepsATokenMadeThroughAStop(t *testing.T) {
 
 		got, err := r.s.MakeToken(ctx, adding, nil)
 
-		checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved})
-		w.checkTakenToday(t, "personal", madeToken)
+		checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, ID: randomID(t)})
+		w.checkTakenToday(t, randomID(t), madeToken)
 	})
 }
 
@@ -662,8 +689,8 @@ func TestAnInterruptAsATokenMadeIsSavedWaitsForTheSave(t *testing.T) {
 
 			got, err := r.s.MakeToken(t.Context(), adding, nil)
 
-			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, InterruptHeld: tt.held})
-			w.checkTakenToday(t, "personal", madeToken)
+			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, InterruptHeld: tt.held, ID: randomID(t)})
+			w.checkTakenToday(t, randomID(t), madeToken)
 			if told += len(saving); told != tt.told {
 				t.Errorf("Saving was told %d times, want %d", told, tt.told)
 			}
@@ -698,7 +725,7 @@ func TestMakeTokenNeverWaitsOnSaving(t *testing.T) {
 	}()
 	select {
 	case got := <-returned:
-		checkTokened(t, got.tokened, got.err, setup.Tokened{Result: setup.TokenSaved, InterruptHeld: true})
+		checkTokened(t, got.tokened, got.err, setup.Tokened{Result: setup.TokenSaved, InterruptHeld: true, ID: randomID(t)})
 	case <-time.After(time.Minute):
 		t.Fatal("a minute on, MakeToken waited on Saving still, want it returned")
 	}
@@ -706,7 +733,7 @@ func TestMakeTokenNeverWaitsOnSaving(t *testing.T) {
 
 // A token made that setup can't save, which lasts a year on the account, is
 // given back to copy, why with it, never logged: where the config can't be
-// read to check it, where the account it's added for was added meanwhile, or
+// read to check it, where its label is given another account meanwhile, or
 // where its token file can't be written; and where setup-token fails
 // otherwise once it's made, why alone, as setup never read the token.
 func TestMakeTokenGivesBackATokenMadeItCantSave(t *testing.T) {
@@ -726,11 +753,11 @@ func TestMakeTokenGivesBackATokenMadeItCantSave(t *testing.T) {
 			why:    "config", shown: []string{madeToken},
 		},
 		{
-			name: "the account added meanwhile", f: adding, maker: &fakeMaker{},
+			name: "its label given another account meanwhile", f: adding, maker: &fakeMaker{},
 			atMade: func(t *testing.T, w *world) {
 				w.writeConfig(t, doneConfig+"\n[[account]]\nid = \"personal\"\n")
 			},
-			why: "personal", shown: []string{madeToken},
+			why: "that label", shown: []string{madeToken},
 		},
 		{
 			name: "its token file unwritable", f: replacing("side"), maker: &fakeMaker{},
@@ -778,8 +805,8 @@ func TestMakeTokenGivesBackATokenMadeItCantSave(t *testing.T) {
 // saves all the same, so the outcome says it's saved.
 func TestPasteTokenCancelledAsItSavesIsSaved(t *testing.T) {
 	const pasted = "test-token-pasted"
-	for _, f := range []setup.TokenFor{adding, replacing("side")} {
-		t.Run(f.Account.ID, func(t *testing.T) {
+	for name, f := range map[string]setup.TokenFor{"added": adding, "replaced": replacing("side")} {
+		t.Run(name, func(t *testing.T) {
 			w := newWorld(t)
 			w.done(t)
 			ctx, cancel := context.WithCancel(t.Context())
@@ -792,11 +819,12 @@ func TestPasteTokenCancelledAsItSavesIsSaved(t *testing.T) {
 
 			got, err := r.s.PasteToken(ctx, f, pasted)
 
-			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved})
+			id := cmp.Or(f.Account.ID, randomID(t))
+			checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, ID: id})
 			if ctx.Err() == nil {
 				t.Fatal("the save took no cancel, want one as it saves")
 			}
-			w.checkTakenToday(t, f.Account.ID, pasted)
+			w.checkTakenToday(t, id, pasted)
 		})
 	}
 }
@@ -806,7 +834,7 @@ func TestPasteTokenCancelledAsItSavesIsSaved(t *testing.T) {
 func TestPasteTokenFailingToSaveAsItsCancelledFails(t *testing.T) {
 	w := newWorld(t)
 	w.done(t)
-	writeFile(t, filepath.Join(w.tokens().Path("personal"), "in-the-way"), "", 0o600)
+	writeFile(t, filepath.Join(w.tokens().Path(randomID(t)), "in-the-way"), "", 0o600)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	r := w.tokenRig(t, &fakeMaker{})
@@ -883,7 +911,7 @@ func TestMakeTokenMakesNothingForAnAccountThatCantTakeIt(t *testing.T) {
 		want error
 	}{
 		{name: "one not configured", f: replacing("personal"), want: config.ErrNotConfigured},
-		{name: "one to add that's configured", f: setup.TokenFor{Account: config.NewAccount{ID: "side"}, Add: true}, want: config.ErrConfigured},
+		{name: "one to add with another account's label", f: setup.TokenFor{Account: config.NewAccount{Label: "side"}, Add: true}, want: accounts.ErrLabelTaken},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -941,7 +969,7 @@ func TestPasteTokenSavesItAsAMadeOne(t *testing.T) {
 		cancelled bool
 		want      setup.Tokened
 	}{
-		{name: "saved, with its year from today", paste: "  " + pasted + "\n", want: setup.Tokened{Result: setup.TokenSaved}},
+		{name: "saved, with its year from today", paste: "  " + pasted + "\n", want: setup.Tokened{Result: setup.TokenSaved, ID: "side"}},
 		{name: "cancelled during the check", paste: pasted, cancelled: true, want: setup.Tokened{Result: setup.TokenCancelled}},
 		{name: "nothing pasted", paste: " \n", want: setup.Tokened{Result: setup.TokenNotGiven, Why: nothingPasted}},
 		{name: "more than a token pasted", paste: pasted + " " + pasted, want: setup.Tokened{Result: setup.TokenNotGiven, Why: moreThanToken}},
@@ -1071,7 +1099,7 @@ func TestAPastedTokenIsTakenOnlyWhereItsUnambiguous(t *testing.T) {
 				got, err := r.s.PasteToken(t.Context(), replacing("side"), through.paste)
 
 				if tt.want != "" {
-					checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved})
+					checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, ID: "side"})
 					w.checkTakenToday(t, "side", tt.want)
 					return
 				}
@@ -1126,7 +1154,7 @@ func TestPasteTokenTakesNothingForAnAccountThatCantTakeIt(t *testing.T) {
 		want error
 	}{
 		{name: "one not configured", f: replacing("personal"), want: config.ErrNotConfigured},
-		{name: "one to add that's configured", f: setup.TokenFor{Account: config.NewAccount{ID: "side"}, Add: true}, want: config.ErrConfigured},
+		{name: "one to add with another account's label", f: setup.TokenFor{Account: config.NewAccount{Label: "side"}, Add: true}, want: accounts.ErrLabelTaken},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1212,6 +1240,7 @@ func TestMakingATokenNeverTellsTheTokenOrTheAddress(t *testing.T) {
 	w.api.down = down
 	r := w.tokenRig(t, &fakeMaker{})
 	outcome(r.s.MakeToken(t.Context(), adding, report))
+	outcome(r.s.MakeToken(t.Context(), replacing("side"), report))
 	w.api.down = nil
 	r.private.err = &setuptoken.NoPrivateWindowError{Browser: "Safari"}
 	r.private.opening = setuptoken.Opening{}

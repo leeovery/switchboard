@@ -252,7 +252,7 @@ func TestAFailureSavingTheEditCardFailsTheStep(t *testing.T) {
 	if got, want := h.rows()[firstUnderHeading], factRowOf("✗", setup.Said{Label: "Not saved", Detail: errNoConfig.Error()}); got != want {
 		t.Errorf("the page's row reads\n%q\nwant\n%q", got, want)
 	}
-	if got := h.model.walk.left(); got != (Left{Ending: Failed, Err: errNoConfig}) {
+	if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Failed, Err: errNoConfig}) {
 		t.Errorf("setup leaves %+v, want it failed as saving did", got)
 	}
 }
@@ -423,7 +423,7 @@ func TestRAsksBeforeRemovingTheAccount(t *testing.T) {
 	title, rows := h.card()
 	want := []string{
 		"",
-		"  side is taken out of the config, and its token file deleted, so no",
+		"  Side is taken out of the config, and its token file deleted, so no",
 		"  requests are routed to it.",
 		"  Its Claude subscription is left as it is.",
 		"",
@@ -509,7 +509,7 @@ func TestTheChosenRowFollowsItsAccount(t *testing.T) {
 		h.start()
 		h.pressAndDeliver("down")
 		h.pressAndDeliver("down")
-		h.model.remove = &removeCard{id: "work"}
+		h.model.remove = &removeCard{id: "work", name: "Work"}
 		h.pressAndDeliver("enter")
 		if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌   Side") {
 			t.Errorf("the second row reads %q, want side, still chosen", got)
@@ -548,7 +548,7 @@ func TestTheChosenRowFollowsItsAccount(t *testing.T) {
 		h.pressAndDeliver("down")
 		h.pressAndDeliver("pgdown")
 		h.pressAndDeliver("pgdown")
-		h.model.remove = &removeCard{id: "work"}
+		h.model.remove = &removeCard{id: "work", name: "Work"}
 		h.pressAndDeliver("enter")
 		if got := h.model.chosen; got != 1 {
 			t.Fatalf("row %d is chosen, want side's, 1", got)

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,6 +28,10 @@ const (
 // with, wrapped.
 var ErrDamaged = errors.New("the accounts record is damaged")
 
+// errNoDirectory is what a File of no state directory fails with, so it never
+// reads or writes a record of the working directory's.
+var errNoDirectory = errors.New("the accounts record has no state directory")
+
 // File is the accounts record's file in a state directory.
 type File struct {
 	dir string
@@ -46,6 +51,9 @@ func (f File) Path() string {
 // where the file can't be read, and, with an error matching ErrDamaged, where
 // it's no accounts record this build can read: either is left as it is.
 func (f File) Read() (Record, error) {
+	if f.dir == "" {
+		return Record{}, fmt.Errorf("read the accounts record: %w", errNoDirectory)
+	}
 	data, err := os.ReadFile(f.Path())
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -85,6 +93,71 @@ func (f File) Update(change func(*Record) error) error {
 	if err := change(&r); err != nil {
 		return err
 	}
+	return f.write(r)
+}
+
+// Change changes the accounts record as Update does, for a change of other
+// files that has to go with the record's, as the config's does. change makes
+// its change to the record it's given, then calls commit, at the point its
+// own steps say, to write it, where it changed; commit is called for it
+// where change returns without, and once it's written, changes made after
+// aren't. The lock's held throughout. Where change fails once commit has
+// written the record, the record is put back as it was, under the same
+// lock, its file taken away where there was none, any error of that joined
+// to change's: should that fail too, the record is left ahead, which
+// whatever changes it next puts right. Nothing's written where change fails
+// before commit, nor where the record's unchanged.
+func (f File) Change(change func(r *Record, commit func() error) error) error {
+	unlock, err := f.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	_, statErr := os.Lstat(f.Path())
+	r, err := f.Read()
+	if err != nil {
+		return err
+	}
+	was, existed := slices.Clone(r.Accounts), !errors.Is(statErr, fs.ErrNotExist)
+	written := false
+	commit := func() error {
+		if written || slices.Equal(was, r.Accounts) {
+			return nil
+		}
+		if err := f.write(r); err != nil {
+			return err
+		}
+		written = true
+		return nil
+	}
+	if err := change(&r, commit); err != nil {
+		if written {
+			err = errors.Join(err, f.restore(was, existed))
+		}
+		return err
+	}
+	return commit()
+}
+
+// restore puts the record back as it was, holding accounts, where its file
+// existed, else takes away the file written in its place.
+func (f File) restore(accounts []Entry, existed bool) error {
+	var err error
+	if existed {
+		err = f.write(Record{Accounts: accounts})
+	} else {
+		err = os.Remove(f.Path())
+	}
+	if err != nil {
+		return fmt.Errorf("put the accounts record back: %w", err)
+	}
+	return nil
+}
+
+// write writes the record whole, in place of the file, that only its owner
+// can read or write, failing where it would leave a record Read would find
+// damaged.
+func (f File) write(r Record) error {
 	data, err := encode(r)
 	if err != nil {
 		return fmt.Errorf("write the accounts record: %w", err)
@@ -100,6 +173,9 @@ func (f File) Update(change func(*Record) error) error {
 // another holds it, and returns what releases it. The file is never removed:
 // the lock goes with the process that held it, however that ends.
 func (f File) lock() (unlock func(), err error) {
+	if f.dir == "" {
+		return nil, fmt.Errorf("take the accounts record's lock: %w", errNoDirectory)
+	}
 	if err := os.MkdirAll(f.dir, 0o700); err != nil {
 		return nil, fmt.Errorf("take the accounts record's lock: %w", err)
 	}

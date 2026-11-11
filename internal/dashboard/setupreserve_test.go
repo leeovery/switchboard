@@ -29,7 +29,7 @@ func reservingScreen(card SetupReserveCard) Setup {
 
 // frame13Card is work's reserve card as frame 13 has it: 5% typed in.
 func frame13Card() SetupReserveCard {
-	return SetupReserveCard{ID: "work", Reserve: Field{Value: "5%", Cursor: 2, Typing: true}}
+	return SetupReserveCard{Name: "work", Reserve: Field{Value: "5%", Cursor: 2, Typing: true}}
 }
 
 func TestTheReserveCardIsFrame13s(t *testing.T) {
@@ -87,7 +87,7 @@ func TestTheReserveCardsInks(t *testing.T) {
 // its first cell; not typed in, none.
 func TestTheReserveCardOpensEmptyTypedIn(t *testing.T) {
 	for _, typing := range []bool{true, false} {
-		c := setupDrawn(reservingScreen(SetupReserveCard{ID: "work", Reserve: Field{Typing: typing}}), 160, 37)
+		c := setupDrawn(reservingScreen(SetupReserveCard{Name: "work", Reserve: Field{Typing: typing}}), 160, 37)
 		if got := inkAt(c, editCardContent+10, reserveFieldRow) == caretInk; got != typing {
 			t.Errorf("given typed in: %t, its field's first cell is the cursor: %t", typing, got)
 		}
@@ -146,7 +146,7 @@ func TestTheReserveCardAtEachWidth(t *testing.T) {
 // The card's words are setup's, its lines each wrapped at the card's width.
 func TestTheReserveCardSaysSetupsWords(t *testing.T) {
 	asked := setup.AskingReserve("personal")
-	c := setupDrawn(reservingScreen(SetupReserveCard{ID: "personal"}), 160, 37)
+	c := setupDrawn(reservingScreen(SetupReserveCard{Name: "personal"}), 160, 37)
 	if got := setupCardRow(c, reserveCardTop+2); !strings.HasPrefix(got, "│  "+asked.Says[0]) {
 		t.Errorf("the card's first line reads %q, want %q", got, asked.Says[0])
 	}

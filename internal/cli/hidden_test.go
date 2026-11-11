@@ -72,15 +72,15 @@ func TestAHiddenReadTheUserInterruptsPutsTheTerminalBack(t *testing.T) {
 
 func TestAnInterruptAtAHiddenPromptEndsTheCommand130(t *testing.T) {
 	const interrupted = "Error: read the token: interrupted\n"
-	paste := func(id string) string {
-		return "Paste " + id + "'s token, from claude setup-token run while signed in to that subscription (it won't show): \n"
+	paste := func(name string) string {
+		return "Paste " + name + "'s token, from claude setup-token run while signed in to that subscription (it won't show): \n"
 	}
 	tests := []struct {
 		name       string
 		args       []string
 		wantStderr string
 	}{
-		{name: "accounts add", args: []string{"accounts", "add", "work"}, wantStderr: paste("work") + interrupted},
+		{name: "accounts add", args: []string{"accounts", "add", "Work"}, wantStderr: paste("Work") + interrupted},
 		{name: "accounts token", args: []string{"accounts", "token", "side"}, wantStderr: paste("side") + interrupted},
 	}
 	for _, tt := range tests {

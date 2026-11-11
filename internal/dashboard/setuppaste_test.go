@@ -21,7 +21,7 @@ func pasteScreen(card SetupPasteCard) Setup {
 // pastingCard is personal's paste card, pastedSecret typed in, its cursor
 // after it.
 func pastingCard() SetupPasteCard {
-	return SetupPasteCard{ID: "personal", Token: Field{Value: pastedSecret, Cursor: 43}}
+	return SetupPasteCard{Name: "personal", Token: Field{Value: pastedSecret, Cursor: 43}}
 }
 
 // The paste card, which no frame draws, is laid as frame 2's, in words of
@@ -75,10 +75,10 @@ func TestThePasteCardIsLaidAsFrame2s(t *testing.T) {
 func TestThePasteCardNeverDrawsWhatsPasted(t *testing.T) {
 	cards := map[string]SetupPasteCard{
 		"typed in":  pastingCard(),
-		"checking":  {ID: "personal", Token: Field{Value: pastedSecret}, Checking: true},
-		"refused":   {ID: "personal", Token: Field{Value: pastedSecret, Cursor: 43}, Why: "the API refused the token (HTTP 401), so nothing is saved"},
-		"wide":      {ID: "personal", Token: Field{Value: "漢字😀", Cursor: 3}},
-		"its start": {ID: "personal", Token: Field{Value: pastedSecret, Cursor: 0}},
+		"checking":  {Name: "personal", Token: Field{Value: pastedSecret}, Checking: true},
+		"refused":   {Name: "personal", Token: Field{Value: pastedSecret, Cursor: 43}, Why: "the API refused the token (HTTP 401), so nothing is saved"},
+		"wide":      {Name: "personal", Token: Field{Value: "漢字😀", Cursor: 3}},
+		"its start": {Name: "personal", Token: Field{Value: pastedSecret, Cursor: 0}},
 	}
 	for name, card := range cards {
 		t.Run(name, func(t *testing.T) {
@@ -103,7 +103,7 @@ func TestThePasteCardNeverDrawsWhatsPasted(t *testing.T) {
 // dots, and has no keys, as nothing waits on one; where setup refused the
 // token, why is said under its field, in state.destructive.
 func TestThePasteCardChecksAndSaysWhyItsRefused(t *testing.T) {
-	checking := SetupPasteCard{ID: "personal", Token: Field{Value: pastedSecret}, Checking: true}
+	checking := SetupPasteCard{Name: "personal", Token: Field{Value: pastedSecret}, Checking: true}
 	c := setupDrawn(pasteScreen(checking), 160, 37)
 	want := []string{
 		"╭─ PASTE A TOKEN · PERSONAL " + strings.Repeat("─", 51) + "╮",

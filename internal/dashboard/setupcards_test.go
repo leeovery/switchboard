@@ -3,6 +3,7 @@ package dashboard
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -34,7 +35,7 @@ func editingScreen(card SetupEditCard) Setup {
 // frame6Card is personal's edit card as frame 6 has it: Plan chosen, and
 // moved to Max.
 func frame6Card() SetupEditCard {
-	return SetupEditCard{ID: "personal", Label: Field{Value: "Personal", Cursor: 8}, Reserve: Field{Value: "none", Cursor: 4}, Plan: "max", Chosen: setup.PlanField}
+	return SetupEditCard{Name: "personal", Label: Field{Value: "Personal", Cursor: 8}, Reserve: Field{Value: "none", Cursor: 4}, Plan: "max", Chosen: setup.PlanField}
 }
 
 // setupCardRow is the card's row y, from its line to its line, as text.
@@ -140,7 +141,7 @@ func TestACardOpenLeavesThePageUnfadedAndTheKeyLineEmpty(t *testing.T) {
 
 func TestTheRemoveCardNamesTheAccount(t *testing.T) {
 	s := accountsScreen(frame3Review(), 2)
-	s.Accounts.Remove = &SetupRemoveCard{ID: "side"}
+	s.Accounts.Remove = &SetupRemoveCard{Name: "side"}
 	c := setupDrawn(s, 160, 37)
 	top := (37 - 8) / 2
 	want := map[int]string{
@@ -164,7 +165,7 @@ func TestTheRemoveCardNamesTheAccount(t *testing.T) {
 func TestTheRemoveCardSaysWhySetupRefused(t *testing.T) {
 	const why = `account "work" is the only one, and a config needs one at least`
 	s := accountsScreen(frame3Review(), 0)
-	s.Accounts.Remove = &SetupRemoveCard{ID: "work", Refused: why}
+	s.Accounts.Remove = &SetupRemoveCard{Name: "work", Refused: why}
 	c := setupDrawn(s, 160, 37)
 	top := (37 - 10) / 2
 	if got := setupCardRow(c, top+6); got != "│  "+why+blanks(76-len(why))+"│" {
@@ -221,32 +222,35 @@ func firstRunScreen(card SetupAddCard) Setup {
 	return s
 }
 
-// frame1Card is the add card as frame 1 has it: work's ID and Label typed,
-// Ultra chosen, Label typed in.
+// frame1Card is the add card as frame 1 has it: work's Label typed, Ultra
+// chosen, Label typed in.
 func frame1Card() SetupAddCard {
-	return SetupAddCard{ID: Field{Value: "work", Cursor: 4}, Label: Field{Value: "Work", Cursor: 4}, Plan: "ultra", Chosen: setup.LabelField}
+	return SetupAddCard{Label: Field{Value: "Work", Cursor: 4}, Plan: "ultra", Chosen: setup.LabelField}
 }
 
-// addCardTop is the add card's top row at 160×37, the card 16 rows tall,
+// addCardTop is the add card's top row at 160×37, the card 13 rows tall,
 // centred down the screen by the dashboard Card's one rule.
-const addCardTop = (37 - 16) / 2
+const addCardTop = (37 - 13) / 2
 
+// The add card has no ID, as the token's organization decides the id: its
+// fields are Label, hinted as what every screen calls the account, and Plan.
 func TestTheAddCardIsFrame1s(t *testing.T) {
 	c := setupDrawn(firstRunScreen(frame1Card()), 160, 37)
+	label := "│  Label     Work                      what every screen calls it"
 	want := map[int]string{
 		addCardTop:      "╭─ ADD AN ACCOUNT " + strings.Repeat("─", 61) + "╮",
 		addCardTop + 1:  "│" + blanks(78) + "│",
 		addCardTop + 2:  "│  Each account is one Claude subscription: a Pro, Max or Ultra plan." + blanks(10) + "│",
 		addCardTop + 3:  "│" + blanks(78) + "│",
-		addCardTop + 4:  "│  ID        work" + blanks(62) + "│",
-		addCardTop + 5:  "│            letters, numbers, - and _ · can't be changed later" + blanks(16) + "│",
-		addCardTop + 7:  "│  Label     Work                      shown in the dashboard" + blanks(18) + "│",
-		addCardTop + 9:  "│  Plan      □ Pro    □ Max    ■ Ultra    □ not set" + blanks(28) + "│",
-		addCardTop + 11: "│  Setup then creates a token with claude setup-token. You approve it in" + blanks(7) + "│",
-		addCardTop + 12: "│  the browser while signed in to this subscription. Tokens last a year." + blanks(7) + "│",
-		addCardTop + 13: "│" + blanks(78) + "│",
-		addCardTop + 14: "│" + blanks(34) + "tab next   enter create token   esc cancel  │",
-		addCardTop + 15: "╰" + strings.Repeat("─", 78) + "╯",
+		addCardTop + 4:  label + blanks(79-utf8.RuneCountInString(label)) + "│",
+		addCardTop + 5:  "│" + blanks(78) + "│",
+		addCardTop + 6:  "│  Plan      □ Pro    □ Max    ■ Ultra    □ not set" + blanks(28) + "│",
+		addCardTop + 7:  "│" + blanks(78) + "│",
+		addCardTop + 8:  "│  Setup then creates a token with claude setup-token. You approve it in" + blanks(7) + "│",
+		addCardTop + 9:  "│  the browser while signed in to this subscription. Tokens last a year." + blanks(7) + "│",
+		addCardTop + 10: "│" + blanks(78) + "│",
+		addCardTop + 11: "│" + blanks(34) + "tab next   enter create token   esc cancel  │",
+		addCardTop + 12: "╰" + strings.Repeat("─", 78) + "╯",
 	}
 	for y, w := range want {
 		if got := setupCardRow(c, y); got != w {
@@ -265,13 +269,11 @@ func TestTheAddCardsInks(t *testing.T) {
 	}{
 		{name: "its title, as every card's", x: editCardX + 3, y: addCardTop, want: dimInk},
 		{name: "what an account is", x: editCardContent, y: addCardTop + 2, want: mutedInk},
-		{name: "the id not typed in", x: value, y: addCardTop + 4, want: secondaryInk},
-		{name: "the id's hint, under it", x: value, y: addCardTop + 5, want: faintInk},
-		{name: "the label typed in", x: value, y: addCardTop + 7, want: typingInk},
-		{name: "the cursor after it", x: value + 4, y: addCardTop + 7, want: caretInk},
-		{name: "the label's hint, after it", x: editCardContent + 36, y: addCardTop + 7, want: faintInk},
-		{name: "the plan chosen, not bold, its field not chosen", x: value + 23, y: addCardTop + 9, want: ink{token: theme.TextPrimary}},
-		{name: "what setup does next", x: editCardContent, y: addCardTop + 11, want: secondaryInk},
+		{name: "the label typed in", x: value, y: addCardTop + 4, want: typingInk},
+		{name: "the cursor after it", x: value + 4, y: addCardTop + 4, want: caretInk},
+		{name: "the label's hint, after it", x: editCardContent + 36, y: addCardTop + 4, want: faintInk},
+		{name: "the plan chosen, not bold, its field not chosen", x: value + 23, y: addCardTop + 6, want: ink{token: theme.TextPrimary}},
+		{name: "what setup does next", x: editCardContent, y: addCardTop + 8, want: secondaryInk},
 	}
 	for _, tt := range tests {
 		if got := inkAt(c, tt.x, tt.y); got != tt.want {
@@ -280,22 +282,18 @@ func TestTheAddCardsInks(t *testing.T) {
 	}
 }
 
-// An id refused is said under ID, why alone, before its hint, the card grown
-// by the row.
-func TestAnIDsRefusalIsSaidUnderIt(t *testing.T) {
-	const why = "is already configured"
+// A label refused is said under Label, why alone, the card grown by the row.
+func TestALabelsRefusalIsSaidUnderIt(t *testing.T) {
+	const why = "another account has that label already, ignoring case: give each its own"
 	card := frame1Card()
-	card.Chosen, card.Refused, card.Why = setup.IDField, setup.IDField, why
+	card.Refused, card.Why = setup.LabelField, why
 	c := setupDrawn(firstRunScreen(card), 160, 37)
-	top := (37 - 17) / 2
-	if got, want := setupCardRow(c, top+5), "│            "+why+blanks(78-12-len(why))+"│"; got != want {
-		t.Errorf("the row under ID reads\n%q\nwant\n%q", got, want)
+	top := (37 - 14) / 2
+	if got, want := setupCardRow(c, top+5), "│            "+why[:64]; !strings.HasPrefix(got, want) {
+		t.Errorf("the row under Label reads\n%q\nwant it to start\n%q", got, want)
 	}
 	if got := inkAt(c, editCardContent+10, top+5); got != errorInk {
 		t.Errorf("why is in %+v, want state.destructive", got)
-	}
-	if got := setupCardRow(c, top+6); !strings.HasPrefix(got, "│            letters, numbers") {
-		t.Errorf("the row under why reads %q, want ID's hint", got)
 	}
 }
 

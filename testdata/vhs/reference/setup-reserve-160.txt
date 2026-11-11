@@ -12,7 +12,7 @@ ACCOUNTS  ───────────────────────�
 
     Personal        Max        none     ╭─ RESERVE · WORK ─────────────────────────────────────────────────────────────╮
                                         │                                                                              │
-    Side            Pro        none     │  work is the primary, the account the Claude apps are signed in to.          │
+    Side            Pro        none     │  Work is the primary, the account the Claude apps are signed in to.          │
                                         │  Its reserve is the share of each of its windows kept back for them.         │
   + add an account                      │                                                                              │
                                         │  Reserve   5%                        usage kept back for the Claude apps     │

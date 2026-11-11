@@ -104,6 +104,19 @@ func TestALabelsRefusalsSayWhyAlone(t *testing.T) {
 	}
 }
 
+// A label given an account not yet added is taken as SetLabel takes one, and
+// refused naming no account, as it has no id yet.
+func TestTakeLabelTakesALabelForAnAccountNotYetAdded(t *testing.T) {
+	label, err := config.TakeLabel("  Side\u200b  project ")
+	if err != nil || label != "Side project" {
+		t.Errorf("TakeLabel = %q, %v, want %q", label, err, "Side project")
+	}
+	_, err = config.TakeLabel(" \u200b ")
+	if want := "label is blank, showing nothing"; err == nil || err.Error() != want || !errors.Is(err, config.ErrBlankLabel) {
+		t.Errorf("TakeLabel of a blank label error = %v, want %q, matching ErrBlankLabel", err, want)
+	}
+}
+
 // Removing the only account is refused, matching ErrOnlyAccount.
 func TestRemovingTheOnlyAccountMatchesErrOnlyAccount(t *testing.T) {
 	err := edit(t, writeConfig(t, "[[account]]\nid = \"work\"\n")).RemoveAccount("work")

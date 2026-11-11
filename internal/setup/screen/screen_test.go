@@ -148,7 +148,7 @@ func TestLeaving(t *testing.T) {
 			if !quits(h.press(tt.keys[last])) {
 				t.Fatalf("%s didn't quit", tt.keys[last])
 			}
-			if got := h.model.walk.left(); got != tt.want {
+			if got := h.model.walk.left(); !sameLeft(got, tt.want) {
 				t.Errorf("setup was left %+v, want %+v", got, tt.want)
 			}
 		})

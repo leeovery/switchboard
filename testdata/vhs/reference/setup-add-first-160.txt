@@ -8,14 +8,13 @@ ACCOUNTS  ───────────────────────�
 
     ACCOUNT         PLAN       RESERVE    TOKEN
 
-▌ + add an account                      ╭─ ADD AN ACCOUNT ─────────────────────────────────────────────────────────────╮
+▌ + add an account
+
+                                        ╭─ ADD AN ACCOUNT ─────────────────────────────────────────────────────────────╮
                                         │                                                                              │
                                         │  Each account is one Claude subscription: a Pro, Max or Ultra plan.          │
                                         │                                                                              │
-                                        │  ID        work                                                              │
-                                        │            letters, numbers, - and _ · can't be changed later                │
-                                        │                                                                              │
-                                        │  Label     Work                      shown in the dashboard                  │
+                                        │  Label     Work                      what every screen calls it              │
                                         │                                                                              │
                                         │  Plan      □ Pro    □ Max    ■ Ultra    □ not set                            │
                                         │                                                                              │
@@ -24,6 +23,7 @@ ACCOUNTS  ───────────────────────�
                                         │                                                                              │
                                         │                                  tab next   enter create token   esc cancel  │
                                         ╰──────────────────────────────────────────────────────────────────────────────╯
+
 
 
 
