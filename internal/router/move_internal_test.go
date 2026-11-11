@@ -14,10 +14,14 @@ import (
 )
 
 // answeringMover is a move onto the accounts' ids that answers each run with
-// the next of its answers, nil once they've run out, counting its runs.
+// the next of its answers, nil once they've run out, counting its runs; and
+// has the API asked again after wait more than the wait before, noting each
+// wait before it's handed.
 type answeringMover struct {
 	answers []error
 	runs    int
+	wait    time.Duration
+	waited  []time.Duration
 }
 
 func (m *answeringMover) Settle() error {
@@ -30,6 +34,11 @@ func (m *answeringMover) RunBeside(context.Context, idmove.History) error {
 		return nil
 	}
 	return m.answers[m.runs-1]
+}
+
+func (m *answeringMover) AskAgain(wait time.Duration) time.Duration {
+	m.waited = append(m.waited, wait)
+	return wait + m.wait
 }
 
 func TestTheMoveRunsAgainWhereItFailsTillItsDone(t *testing.T) {
@@ -48,9 +57,9 @@ func TestTheMoveRunsAgainWhereItFailsTillItsDone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mover := &answeringMover{answers: tt.answers}
+			mover := &answeringMover{answers: tt.answers, wait: time.Millisecond}
 			m := newMoving(mover)
-			m.retry, m.ask = time.Millisecond, time.Millisecond
+			m.retry = time.Millisecond
 			m.run(t.Context(), func() idmove.History { return idmove.History{} })
 			if mover.runs != tt.runs || m.report() != tt.stands || m.owed() != (tt.stands != status.Moving{}) {
 				t.Errorf("the move ran %d times, standing %+v, owed %t, want %d, %+v", mover.runs, m.report(), m.owed(), tt.runs, tt.stands)
@@ -72,8 +81,8 @@ func TestTheMoveSaysWhatHoldsItUpWhileItWaitsToRunAgain(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := newMoving(&answeringMover{answers: []error{tt.err}})
-			m.retry, m.ask = time.Hour, time.Hour
+			m := newMoving(&answeringMover{answers: []error{tt.err}, wait: time.Hour})
+			m.retry = time.Hour
 			if got := m.report(); got != (status.Moving{Stage: status.MoveRunning}) {
 				t.Errorf("before the move first ran, it stands %+v, want it running", got)
 			}
@@ -97,19 +106,13 @@ func TestTheMoveSaysWhatHoldsItUpWhileItWaitsToRunAgain(t *testing.T) {
 	}
 }
 
-func TestTheMoveAsksTheAPIAgainAfterWaitsThatDouble(t *testing.T) {
-	m := newMoving(&answeringMover{})
-	m.ask = time.Second
-	var waits []time.Duration
-	for last := time.Duration(0); len(waits) < 3; {
-		last = m.askAgain(last)
-		waits = append(waits, last)
-	}
-	if want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}; !slices.Equal(waits, want) {
-		t.Errorf("the move waits %v to ask the API again, want %v", waits, want)
-	}
-	if newMoving(&answeringMover{}).ask != idmove.AskAgain(0) {
-		t.Error("a router's move first waits other than as idmove's AskAgain has it")
+func TestTheMoveAsksTheAPIAgainAfterTheWaitsItsMoverGives(t *testing.T) {
+	mover := &answeringMover{answers: []error{idmove.ErrUnanswered, errors.New("the disk is full"), idmove.ErrUnanswered, idmove.ErrUnanswered}, wait: time.Millisecond}
+	m := newMoving(mover)
+	m.retry = time.Millisecond
+	m.run(t.Context(), func() idmove.History { return idmove.History{} })
+	if want := []time.Duration{0, time.Millisecond, 2 * time.Millisecond}; !slices.Equal(mover.waited, want) {
+		t.Errorf("the move asked its mover how long to wait having waited %v, want %v: none first, then each wait it gave", mover.waited, want)
 	}
 }
 

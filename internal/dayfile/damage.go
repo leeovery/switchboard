@@ -89,7 +89,7 @@ func (f *Files) repairHeld(date string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	path := f.path(compressedFile(date))
-	tmp, err := atomicfile.Stage(path, 0o600, func(w io.Writer) error { return wholeLinesOf(path, w) })
+	tmp, err := atomicfile.Stage(path, 0o600, func(w io.Writer) error { return f.wholeLinesOf(path, w) })
 	if err != nil {
 		return fmt.Errorf("repair %s: %w", compressedFile(date).name(f.Prefix), err)
 	}
@@ -111,13 +111,17 @@ func (f *Files) repairHeld(date string) error {
 // and none after it, as there's no telling where the next starts. One that
 // isn't gzip at all gives a member of none. It fails where the file can't be
 // read for another reason than its damage, as corrupt tells.
-func wholeLinesOf(path string, w io.Writer) error {
+func (f *Files) wholeLinesOf(path string, w io.Writer) error {
 	src, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = src.Close() }()
-	in := bufio.NewReader(src)
+	var r io.Reader = src
+	if f.repairing != nil {
+		r = f.repairing(src)
+	}
+	in := bufio.NewReader(r)
 	members, err := gzip.NewReader(in)
 	if err != nil {
 		if !corrupt(err) {

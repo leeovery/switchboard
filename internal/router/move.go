@@ -24,20 +24,21 @@ var errHistoryMoving = errors.New(prose.HistoryMoving + ": import once it's done
 // once, as idmove.Mover does: Settle moves the files the router takes up as
 // it starts, before it does, and RunBeside the rest, beside the router, given
 // the history's files as it keeps them, failing with idmove.ErrUnanswered,
-// having changed nothing, where the API doesn't answer.
+// having changed nothing, where the API doesn't answer, to run again once
+// AskAgain's wait is up, given the wait before, zero the first time.
 type Mover interface {
 	Settle() error
 	RunBeside(ctx context.Context, history idmove.History) error
+	AskAgain(wait time.Duration) time.Duration
 }
 
 // moving runs the move onto the accounts' ids beside the router, where it has
 // one, and says how it stands.
 type moving struct {
 	mover Mover
-	// retry is how long the move waits to run again once it fails, and ask
-	// how long it first waits to ask the API again where it didn't answer,
-	// as idmove's AskAgain has the waits after.
-	retry, ask time.Duration
+	// retry is how long the move waits to run again once it fails otherwise
+	// than for the API not answering.
+	retry time.Duration
 	// stands is how the move stands while it's owed or running, as the
 	// status says it: from the router's start, where it has a mover, until
 	// the move is done. Nil where none is owed.
@@ -46,7 +47,7 @@ type moving struct {
 
 // newMoving returns the moving of mover's move, none where it's nil.
 func newMoving(mover Mover) *moving {
-	m := &moving{mover: mover, retry: moveRetry, ask: idmove.AskAgain(0)}
+	m := &moving{mover: mover, retry: moveRetry}
 	if mover != nil {
 		m.standing(status.Moving{Stage: status.MoveRunning})
 	}
@@ -87,9 +88,9 @@ func (m *moving) settle() {
 // run runs the move, given the history's files as history gives them, until
 // it's done, ctx ends, or it waits for the router to restart onto the
 // accounts' new ids, which its config holds by then: where the API doesn't
-// answer, it runs again after a wait that doubles each time, as idmove's
-// AskAgain has it; where it fails otherwise, after the retry's wait. It notes
-// how the move stands throughout, as the status says it.
+// answer, it runs again after the wait the mover's AskAgain gives; where it
+// fails otherwise, after the retry's wait. It notes how the move stands
+// throughout, as the status says it.
 func (m *moving) run(ctx context.Context, history func() idmove.History) {
 	if !m.owed() {
 		return
@@ -110,7 +111,7 @@ func (m *moving) run(ctx context.Context, history func() idmove.History) {
 			logger.Info("the move onto the accounts' ids waits for the router to restart onto them")
 			return
 		case errors.Is(err, idmove.ErrUnanswered):
-			asked = m.askAgain(asked)
+			asked = m.mover.AskAgain(asked)
 			wait = asked
 			m.standing(awaitingAPI(err))
 			logger.Info("the move onto the accounts' ids waits to ask the API again for the organizations of their tokens", "in", wait, "why", err)
@@ -137,15 +138,6 @@ func awaitingAPI(err error) status.Moving {
 		waiting.Account, waiting.Why = u.Account, redact.Text(u.Why)
 	}
 	return waiting
-}
-
-// askAgain is how long to wait to ask the API again having waited last: the
-// first wait, for zero, then as idmove's AskAgain has it.
-func (m *moving) askAgain(last time.Duration) time.Duration {
-	if last == 0 {
-		return m.ask
-	}
-	return idmove.AskAgain(last)
 }
 
 // historyFiles are the history's files as the router keeps them, as the move

@@ -531,6 +531,8 @@ func (d *deciding) decide() error {
 			tokenless = append(tokenless, id)
 		}
 	}
+	// An account's token may have taken one since, as idOf has it.
+	tokenless = slices.DeleteFunc(tokenless, d.known)
 	joined := d.join(tokenless)
 	for _, id := range tokenless {
 		if !joined[id] {
@@ -572,10 +574,11 @@ func (d *deciding) byToken(was string) error {
 // idOf decides the id of the account with the given old id, was, whose
 // token's organization is organization, "" for none: the record's account
 // of it, which comes back, where it has one that's neither configured nor
-// decided, nor had another id before; else, where neither has it, the id it
-// derives. Where the answer named none, or another account configured or
-// decided has it, as two accounts of one subscription have, it's a random
-// id, its organization unknown.
+// decided, nor had another id before; else, where neither has it, the id
+// another Mac moved it onto, as spelledBy finds it, else the id it derives.
+// Where the answer named none, or another account configured or decided has
+// it, as two accounts of one subscription have, it's a random id, its
+// organization unknown.
 func (d *deciding) idOf(organization, was string) (id, known string, returning bool, err error) {
 	if organization == "" {
 		id, err := d.randomID()
@@ -584,6 +587,9 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 	e, ok := d.record.ByOrganization(organization)
 	switch {
 	case !ok:
+		if id, spelled := d.spelledBy(organization); spelled {
+			return id, organization, false, nil
+		}
 		return d.record.Derive(organization, d.held()), organization, false, nil
 	case !d.isConfigured(e.ID) && !d.decided[strings.ToLower(e.ID)] && (e.Was == "" || strings.EqualFold(e.Was, was)):
 		return e.ID, organization, true, nil
@@ -591,6 +597,22 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 	logger.Warn("an account's token is of another account's subscription, so it moves onto a random id", "was", was, "other", e.ID)
 	id, err = d.randomID()
 	return id, "", false, err
+}
+
+// spelledBy returns the configured account to decide, without a token it can
+// use, that may be one another Mac moved, as madeElsewhere says, whose id the
+// given organization spells, as Spells has it: the account of the
+// organization here, which a config merged with the other Mac's names by
+// both its ids, so it takes the other Mac's, and the two Macs agree.
+func (d *deciding) spelledBy(organization string) (string, bool) {
+	tokenless := d.tokenless()
+	i := slices.IndexFunc(tokenless, func(id string) bool {
+		return d.madeElsewhere(id) && identity.Spells(organization, id)
+	})
+	if i < 0 {
+		return "", false
+	}
+	return tokenless[i], true
 }
 
 // join decides the ids of those of the configured accounts given, which have

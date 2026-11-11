@@ -85,6 +85,9 @@ type Files struct {
 	// link, where it's set, links a file under a second name in place of
 	// os.Link: tests have it fail as a file system without links has it.
 	link func(oldname, newname string) error
+	// repairing, where it's set, is what a repair reads a damaged file
+	// through: tests have it fail part way, as a disk's fault has it.
+	repairing func(io.Reader) io.Reader
 }
 
 // Lines are lines to append to the files, by the date of the local day each

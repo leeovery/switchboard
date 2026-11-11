@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/router"
@@ -15,7 +16,7 @@ import (
 // fakeMover is a move onto the accounts' ids as the router runs it: Settle
 // writes the state file it's given, where it's given one, and each run hands
 // the history's files it's given to history, then answers as the test sends
-// on runs.
+// on runs; the API is asked again only after the test's end.
 type fakeMover struct {
 	statePath, settled string
 	history            chan idmove.History
@@ -41,6 +42,10 @@ func (m *fakeMover) RunBeside(ctx context.Context, history idmove.History) error
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (m *fakeMover) AskAgain(time.Duration) time.Duration {
+	return time.Hour
 }
 
 // moving reports whether the router's status says the move stands as want

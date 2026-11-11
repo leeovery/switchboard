@@ -46,12 +46,9 @@ const (
 	markName = "accounts.moved"
 	// stateName is the router's state file's name in the state directory.
 	stateName = "state.json"
-	// firstRetry is how long the move waits to ask the API again where it
-	// didn't answer for a token, the wait doubling each time to mostRetry:
-	// well under lastsFor, so a refusal that lasts is heard again before
-	// Mover.lasting takes the time between for a gap it may have stopped in.
+	// firstRetry is how long the move first waits to ask the API again
+	// where it didn't answer for a token, as Mover.AskAgain has it.
 	firstRetry = 30 * time.Second
-	mostRetry  = lastsFor / 2
 	// lookAgain is how long the move waits to look again at a token file it
 	// can't read, as a writer that empties a file before it writes the token
 	// leaves it for a moment, and to ask again for a token whose answer named
@@ -77,18 +74,8 @@ var ErrAwaitingRestart = errors.New("the config holds the accounts' new ids, so 
 // ErrUnanswered is what a run of the move beside a router fails with, having
 // changed nothing, where the API didn't answer for a token whose
 // organization decides an id: it's to be run again a while later, as
-// AskAgain says, so no passing outage gives an account a random id.
+// Mover.AskAgain says, so no passing outage gives an account a random id.
 var ErrUnanswered = errors.New("the API didn't answer for every token whose organization decides an id")
-
-// AskAgain is how long to wait to run the move again where the API didn't
-// answer, having waited wait the time before: firstRetry the first time, for
-// zero, then twice as long each time, mostRetry at the most.
-func AskAgain(wait time.Duration) time.Duration {
-	if wait <= 0 {
-		return firstRetry
-	}
-	return min(wait*2, max(mostRetry, wait))
-}
 
 // Organizations tells which organization a token is of, as the API's answer
 // to a request made with it names it: "" where it names none. A failure
@@ -131,13 +118,13 @@ type Mover struct {
 	// nil reads the system's, and draws from crypto/rand.
 	Now    func() time.Time
 	Random io.Reader
-	// Retry is how long Run first waits to ask the API again where it didn't
-	// answer: zero is AskAgain's first wait. Again is how long the move waits
-	// to look again at a token file it can't read, or to ask again for a
-	// token whose answer named no organization: zero is 3 seconds. Lasts is
-	// how long the API's answers for a token have to name no organization,
-	// as a refusal names none, each heard within Lasts of the one before,
-	// before that counts: zero is 10 minutes.
+	// Retry is how long the move first waits to ask the API again where it
+	// didn't answer, as AskAgain has it: zero is 30 seconds. Again is how
+	// long the move waits to look again at a token file it can't read, or to
+	// ask again for a token whose answer named no organization: zero is 3
+	// seconds. Lasts is how long the API's answers for a token have to name
+	// no organization, as a refusal names none, each heard within Lasts of
+	// the one before, before that counts: zero is 10 minutes.
 	Retry, Again, Lasts time.Duration
 
 	// stop, where it's set, is called with each step's name once it's done:
@@ -192,18 +179,30 @@ func Pending(stateDir string) bool {
 // gives an account a random id. It fails, changing no more, where a step
 // does, which a Run after carries on from.
 func (m *Mover) Run(ctx context.Context) error {
-	wait := cmp.Or(m.Retry, AskAgain(0))
+	var wait time.Duration
 	for {
 		err := m.attempt(ctx)
 		if !errors.Is(err, ErrUnanswered) {
 			return err
 		}
+		wait = m.AskAgain(wait)
 		logger.Info("the move onto the accounts' ids waits to ask the API again for the organizations of their tokens", "in", wait)
 		if err := pause(ctx, wait); err != nil {
 			return err
 		}
-		wait = AskAgain(wait)
 	}
+}
+
+// AskAgain is how long to wait to run the move again where the API didn't
+// answer, having waited wait the time before: Retry the first time, for
+// zero, then twice as long each time, half Lasts at the most, so a refusal
+// that lasts is heard again before lasting takes the time between for a gap
+// it may have stopped in.
+func (m *Mover) AskAgain(wait time.Duration) time.Duration {
+	if wait <= 0 {
+		return cmp.Or(m.Retry, firstRetry)
+	}
+	return min(wait*2, max(m.lasts()/2, wait))
 }
 
 // RunBeside runs the move once, as Run does, beside a router that keeps the

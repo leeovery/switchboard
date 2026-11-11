@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"testing/iotest"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
@@ -225,37 +226,57 @@ func TestADamagedFileIsSetAsideAsACopyOnAFileSystemWithoutLinks(t *testing.T) {
 	}
 }
 
+// failingAfter has a repair read n bytes of what it reads, then fail, as a
+// disk's fault has it.
+func failingAfter(n int) func(io.Reader) io.Reader {
+	return func(r io.Reader) io.Reader {
+		return io.MultiReader(io.LimitReader(r, int64(n)), iotest.ErrReader(syscall.EIO))
+	}
+}
+
 // An I/O error repairing a damaged file fails the rewrite, leaving the file as
 // it was and nothing beside it, so the rewrite run again repairs it.
 func TestAnIOErrorRepairingADamagedFileFailsTheRewriteForItToBeRunAgain(t *testing.T) {
-	f := requestLedger(t.TempDir())
-	f.link = linkFailing(syscall.EIO)
-	path := f.path(compressedFile(rewriteDate))
-	damaged := gzipCutShort(t, linesOf(`{"a":"old"}`))
-	put(t, path, damaged)
+	first := gzipOf(t, linesOf(`{"a":"old"}`))
+	damaged := slices.Concat(first, gzipCutShort(t, linesOf(`{"a":"old","b":1}`)))
+	for _, tc := range []struct {
+		name string
+		fail func(f *Files)
+	}{
+		{"reading it, inside a member", func(f *Files) { f.repairing = failingAfter(len(first) / 2) }},
+		{"reading it, where its next member starts", func(f *Files) { f.repairing = failingAfter(len(first)) }},
+		{"linking it aside", func(f *Files) { f.link = linkFailing(syscall.EIO) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := requestLedger(t.TempDir())
+			path := f.path(compressedFile(rewriteDate))
+			put(t, path, damaged)
+			tc.fail(f)
 
-	if _, err := f.Rewrite(rewriteDate, toNew); !errors.Is(err, syscall.EIO) {
-		t.Fatalf("Rewrite() = %v, want it failing as the disk did", err)
-	}
-	if got, err := os.ReadFile(path); err != nil || !bytes.Equal(got, damaged) {
-		t.Errorf("the damaged file holds %q, %v, want it left as it was", got, err)
-	}
-	if _, err := os.Lstat(path + ".damaged"); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("the damaged file set aside: %v, want none", err)
-	}
-	if left := staged(t, path); len(left) > 0 {
-		t.Errorf("files staged beside it were left behind: %q", left)
-	}
+			if _, err := f.Rewrite(rewriteDate, toNew); !errors.Is(err, syscall.EIO) {
+				t.Fatalf("Rewrite() = %v, want it failing as the disk did", err)
+			}
+			if got, err := os.ReadFile(path); err != nil || !bytes.Equal(got, damaged) {
+				t.Errorf("the damaged file holds %q, %v, want it left as it was", got, err)
+			}
+			if _, err := os.Lstat(path + ".damaged"); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("the damaged file set aside: %v, want none", err)
+			}
+			if left := staged(t, path); len(left) > 0 {
+				t.Errorf("files staged beside it were left behind: %q", left)
+			}
 
-	f.link = nil
-	if _, err := f.Rewrite(rewriteDate, toNew); err != nil {
-		t.Fatalf("Rewrite() again = %v", err)
-	}
-	if got, want := heldIn(t, f, compressedFile(rewriteDate)), linesOf(`{"a":"new"}`); got != want {
-		t.Errorf("run again, the compressed file gives %q, want %q", got, want)
-	}
-	if aside, err := os.ReadFile(path + ".damaged"); err != nil || !bytes.Equal(aside, damaged) {
-		t.Errorf("run again, the damaged file set aside holds %q, %v, want it as it was", aside, err)
+			f.link, f.repairing = nil, nil
+			if _, err := f.Rewrite(rewriteDate, toNew); err != nil {
+				t.Fatalf("Rewrite() again = %v", err)
+			}
+			if got, want := heldIn(t, f, compressedFile(rewriteDate)), linesOf(`{"a":"new"}`, `{"a":"new","b":1}`); got != want {
+				t.Errorf("run again, the compressed file gives %q, want %q", got, want)
+			}
+			if aside, err := os.ReadFile(path + ".damaged"); err != nil || !bytes.Equal(aside, damaged) {
+				t.Errorf("run again, the damaged file set aside holds %q, %v, want it as it was", aside, err)
+			}
+		})
 	}
 }
 

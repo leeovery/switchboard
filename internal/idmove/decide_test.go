@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -215,6 +217,76 @@ func TestASecondMacStartingBeforeItsNetworkWaitsToJoinTheAccountsAnotherMoved(t 
 		if e, ok := f.record(t).ByWas(was); !ok || e.ID != id || !e.Removed.IsZero() {
 			t.Errorf("once the API answered, %s moved onto %+v, want %s, joined", was, e, id)
 		}
+	}
+}
+
+// A config merged with another Mac's that moved first, before this one moves,
+// names an account by its old id and the new one the other Mac moved it onto:
+// the account's token here takes the other Mac's id, which its organization
+// spells, so the two Macs agree on it, and the config keeps it alone.
+func TestAConfigMergedBeforeTheMoveToNameAnAccountByBothItsIDsHasItTakeTheOtherMacs(t *testing.T) {
+	const (
+		old   = "[[account]]\nid = \"work\"\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n"
+		other = "[[account]]\nid = \"personal\"\n\n"
+		moved = "[[account]]\nid = \"" + workID + "\"\n\n"
+	)
+	wantWork := config.Account{ID: workID, Label: "Work", Primary: true, Plan: "max", Reserve: 0.1}
+	wantPersonal := config.Account{ID: personalID, Label: personal}
+	for _, tc := range []struct {
+		name, configure string
+		want            config.Accounts
+	}{
+		{name: "the new id after the old", configure: old + other + moved, want: config.Accounts{wantPersonal, wantWork}},
+		{name: "the new id before the old", configure: moved + old + other, want: config.Accounts{wantWork, wantPersonal}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			writeFile(t, f.config, tc.configure)
+			f.runBounded(t, answering())
+
+			if got := f.configured(t); !slices.Equal(got, tc.want) {
+				t.Errorf("moved, the config configures %+v, want %+v", got, tc.want)
+			}
+			record := f.record(t)
+			if e, ok := record.ByID(workID); !ok || e.Organization != workOrganization || e.Was != work {
+				t.Errorf("the record holds %s as %+v, want work's, its organization known", workID, e)
+			}
+			var live []string
+			for _, e := range record.Accounts {
+				if e.Removed.IsZero() {
+					live = append(live, e.ID)
+				}
+			}
+			if want := []string{workID, personalID}; !slices.Equal(slices.Sorted(slices.Values(live)), slices.Sorted(slices.Values(want))) {
+				t.Errorf("the record holds the accounts %q, want %q, each on its organization's id, once", live, want)
+			}
+			if _, err := f.tokens.Read(workID); err != nil {
+				t.Errorf("moved, %s's token = %v, want it read", workID, err)
+			}
+		})
+	}
+}
+
+func TestTheMoveAsksTheAPIAgainAfterWaitsThatDoubleToHalfItsLasts(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		mover idmove.Mover
+		want  []time.Duration
+	}{
+		{name: "as it comes", want: []time.Duration{30 * time.Second, time.Minute, 2 * time.Minute, 4 * time.Minute, 5 * time.Minute, 5 * time.Minute}},
+		{name: "a shorter Lasts", mover: idmove.Mover{Retry: time.Second, Lasts: 10 * time.Second}, want: []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 5 * time.Second, 5 * time.Second}},
+		{name: "a first wait past half Lasts", mover: idmove.Mover{Retry: time.Minute, Lasts: time.Minute}, want: []time.Duration{time.Minute, time.Minute}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var waits []time.Duration
+			for wait := time.Duration(0); len(waits) < len(tc.want); {
+				wait = tc.mover.AskAgain(wait)
+				waits = append(waits, wait)
+			}
+			if !slices.Equal(waits, tc.want) {
+				t.Errorf("the move waits %v to ask the API again, want %v", waits, tc.want)
+			}
+		})
 	}
 }
 
