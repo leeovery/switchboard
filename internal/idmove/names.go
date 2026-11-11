@@ -38,6 +38,9 @@ var (
 	readingNames = names{values: patterns("/account")}
 	// lineNames are a line of the request ledger's.
 	lineNames = names{values: patterns("/account", "/from", "/tried/*/account"), texts: patterns("/reason")}
+	// lineUses are the accounts a line of the request ledger's went out on,
+	// as it names them: its others it moved from, or passed over.
+	lineUses = names{values: patterns("/account", "/tried/*/account")}
 	// eventNames are a line of the router's events'.
 	eventNames = names{values: patterns("/account", "/accounts/*", "/from", "/to"), texts: patterns("/reason")}
 	// summaryNames are a summary of a day of the request ledger's.

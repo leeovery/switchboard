@@ -42,7 +42,7 @@ func (m *Mover) decide(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	seen, err := m.historyAccounts()
+	told, err := m.historyAccounts()
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func (m *Mover) decide(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	d := deciding{configured: configuredIn(draft), seen: seen, tokened: held, now: m.now(), random: m.random()}
+	d := deciding{configured: configuredIn(draft), seen: told.seen, used: told.used, tokened: held, now: m.now(), random: m.random()}
 	d.record = &record
 	if !d.undecided() {
 		return nil
@@ -350,25 +350,47 @@ func (s seenDays) on(date string) seenDays {
 	return s
 }
 
-// historyAccounts are the accounts the history names, by their ids, and the
-// days it tells of each on: the readings history's lines, the router's
-// events', the request ledger's and its summaries, and the router's state
-// file. They're read once, the first time the mover asks, and kept for the
-// attempts after it.
-func (m *Mover) historyAccounts() (map[string]seenDays, error) {
-	if m.seen != nil {
-		return m.seen, nil
+// accountsTold is what the history tells of the accounts: seen, each it
+// names, by id, and the days it tells of each on; and used, each this Mac
+// used, as the request ledger's lines name the accounts its requests went out
+// on, and the readings history's those it read the windows of. What only
+// follows the config, as the router's state file and events, which name the
+// accounts it holds, whether they've a token file here or not, is no use of
+// an account.
+type accountsTold struct {
+	seen map[string]seenDays
+	used map[string]bool
+}
+
+// historyAccounts is what the history tells of the accounts, as accountsTold
+// says: the readings history's lines, the router's events', the request
+// ledger's and its summaries, and the router's state file. It's read once,
+// the first time the mover asks, and kept for the attempts after it.
+func (m *Mover) historyAccounts() (*accountsTold, error) {
+	if m.told != nil {
+		return m.told, nil
 	}
 	h := m.history()
-	seen := make(map[string]seenDays)
+	t := &accountsTold{seen: make(map[string]seenDays), used: make(map[string]bool)}
 	note := func(date string) func(string) {
-		return func(id string) { seen[id] = seen[id].on(date) }
+		return func(id string) { t.seen[id] = t.seen[id].on(date) }
 	}
+	use := func(id string) { t.used[id] = true }
 	for _, kind := range []struct {
 		files *dayfile.Files
-		names names
-	}{{h.Readings, readingNames}, {h.Events, eventNames}, {h.Ledger.Files(), lineNames}} {
-		if err := visitAll(kind.files, kind.names, note); err != nil {
+		visit func(date string, line []byte)
+	}{
+		{h.Readings, func(date string, line []byte) {
+			readingNames.visit(line, note(date))
+			readingNames.visit(line, use)
+		}},
+		{h.Events, func(date string, line []byte) { eventNames.visit(line, note(date)) }},
+		{h.Ledger.Files(), func(date string, line []byte) {
+			lineNames.visit(line, note(date))
+			lineUses.visit(line, use)
+		}},
+	} {
+		if err := visitAll(kind.files, kind.visit); err != nil {
 			return nil, err
 		}
 	}
@@ -380,23 +402,22 @@ func (m *Mover) historyAccounts() (map[string]seenDays, error) {
 		return nil, err
 	}
 	stateNames.visit(state, note(""))
-	m.seen = seen
-	return seen, nil
+	m.told = t
+	return t, nil
 }
 
-// visitAll hands note, by each day's date, each account each day's files
-// name, as n says where. A day's compressed file that's damaged is read up to
-// its damage: the rewrite repairs it, keeping the lines before, which are all
-// it names, as dayfile's Rewrite does, warning of it then.
-func visitAll(files *dayfile.Files, n names, note func(date string) func(string)) error {
+// visitAll hands visit each line of each day's files, with the day's date. A
+// day's compressed file that's damaged is read up to its damage: the rewrite
+// repairs it, keeping the lines before, which are all it names, as dayfile's
+// Rewrite does, warning of it then.
+func visitAll(files *dayfile.Files, visit func(date string, line []byte)) error {
 	dates, err := files.All()
 	if err != nil {
 		return err
 	}
 	for _, date := range dates {
-		seen := note(date)
 		_, _, err := dayfile.ReadDay(files, date, func(line []byte) (struct{}, bool) {
-			n.visit(line, seen)
+			visit(date, line)
 			return struct{}{}, true
 		}, func(struct{}) bool { return true })
 		switch {
@@ -445,8 +466,10 @@ type deciding struct {
 	configured []string
 	// answers are the organizations of the tokens asked, by account id.
 	answers map[string]answer
-	// seen are the accounts the history names, by id.
+	// seen are the accounts the history names, by id, and used those this
+	// Mac used, as accountsTold has them.
 	seen map[string]seenDays
+	used map[string]bool
 	// tokened are the ids the token files are named by, in lower case.
 	tokened map[string]string
 	now     time.Time
@@ -528,11 +551,11 @@ func (d *deciding) claims(claimants, tokenless []string, held map[string]bool) (
 }
 
 // madeElsewhere reports whether the configured account with the given id may
-// be one another Mac moved: its id is one switchboard makes, and the history
-// here names none of it, as it names every account it had before the move.
+// be one another Mac moved: its id is one switchboard makes, and this Mac
+// never used it, as accountsTold has its use, as it used every account it had
+// before the move, or couldn't have routed by it.
 func (d *deciding) madeElsewhere(id string) bool {
-	_, named := d.seen[id]
-	return identity.WellFormed(id) && !named
+	return identity.WellFormed(id) && !d.used[id]
 }
 
 // strays are the names of the token files of accounts that are neither
@@ -641,7 +664,10 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 // here of the organization takes, a configured account's or a token file's
 // by an old id, so the two Macs agree. The longest, as the ids an
 // organization spells nest, each the start of a longer, and Derive spells a
-// longer only where the shorter is held, as by another organization's.
+// longer only where the shorter is held, as by another organization's. Two
+// organizations whose hashes spell alike past the shorter's length too, about
+// one pair in 44 million, can't be told apart so: the config's order settles
+// them.
 func (d *deciding) spelledBy(organization string, tokenless []string) (string, bool) {
 	var spelled string
 	for _, id := range tokenless {

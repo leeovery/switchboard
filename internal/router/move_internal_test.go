@@ -131,8 +131,12 @@ func TestTheMoveWaitsAsItsMoverSaysOnlyWhereTheAPIDidntAnswer(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			m.run(ctx, func() idmove.History { return idmove.History{} })
+			want := tc.retry
+			if errors.Is(tc.err, idmove.ErrUnanswered) {
+				want = tc.wait
+			}
 			if mover.runs != 2 || m.owed() {
-				t.Fatalf("the move ran %d times, still owed %t, want it run again after the %v wait, and done", mover.runs, m.owed(), min(tc.retry, tc.wait))
+				t.Fatalf("the move ran %d times, still owed %t, want it run again after the %v wait, and done", mover.runs, m.owed(), want)
 			}
 			if waited := mover.ranAt[1].Sub(mover.ranAt[0]); waited < tc.waits {
 				t.Errorf("the move ran again %v after it ran, want %v at the least, its mover's wait", waited, tc.waits)

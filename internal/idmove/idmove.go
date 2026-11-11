@@ -137,11 +137,11 @@ type Mover struct {
 	stop         func(step string) error
 	lookingAgain func(id string)
 	clock        func() time.Time
-	// seen is the accounts the history holds, as the first attempt of the
-	// mover found them, kept for those after it; and nameless the streak of
-	// the API's answers for each account's token naming no organization, by
-	// the account's id, as lasting reads it, kept alike.
-	seen     map[string]seenDays
+	// told is what the history tells of the accounts, as the first attempt
+	// of the mover found it, kept for those after it; and nameless the streak
+	// of the API's answers for each account's token naming no organization,
+	// by the account's id, as lasting reads it, kept alike.
+	told     *accountsTold
 	nameless map[string]streak
 }
 
