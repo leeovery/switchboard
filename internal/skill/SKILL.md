@@ -4,17 +4,25 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 13 -->
+<!-- switchboard skill version: 14 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
+
+Each account has a label, such as `Work`, which is what the user calls it, and an id switchboard
+made from its subscription, such as `b6s7`. Name accounts to the user by their labels. Commands
+take the id: `pin`, `--account` and `accounts edit`, `token` and `remove`. `switchboard status`
+gives each account's `id` and `label`, and `sessions` and `history` a `label` beside each account's
+id; `requests` and `events` give ids alone, as the files keep them. The accounts aren't numbered.
 
 - To find the account a session is on, run `switchboard status --session <id>`. Your own session's
   id is in `$CLAUDE_CODE_SESSION_ID`, and Claude Code's `/status` shows a session's id.
 
 `status`, `usage`, `sessions`, `requests`, `history` and `events` print JSON in your Bash tool, as
 anywhere their output isn't a terminal, with no flag. `status --session <id>` alone doesn't: it
-prints the bare account id there too, for a statusline, and JSON only with `--json`.
+prints the bare account id there too, for a statusline, and JSON only with `--json`. Just after
+an upgrade that made the account ids, the commands that read the history may say it waits on its
+move onto them: `switchboard status` says what holds the move up, and they work once it's done.
 
 - To see every account's usage, run `switchboard status`. It prints the status document: each
   account's windows, with how much of each is used, as a fraction, and when it resets; each window's
@@ -50,8 +58,8 @@ prints the bare account id there too, for a statusline, and JSON only with `--js
 - `switchboard usage` is the user's printout of every account's windows, and `switchboard dashboard`
   their live dashboard. Point the user to them when they want to look, rather than running them;
   read `status` yourself, as it gives what they show.
-- To steer sessions, run `switchboard pin <account>`, which sends new sessions to that account, or
-  `switchboard pin <account> <account>...`, which sends them to the best of those accounts until
+- To steer sessions, run `switchboard pin <id>`, which sends new sessions to that account, or
+  `switchboard pin <id> <id>...`, which sends them to the best of those accounts until
   every one of them is out, and only then to the others. Add `--move` to move running sessions
   there too, or `--session <id>` to pin that one session alone to one account. Add `--force` to
   clear every session's own pin as well, so `--move --force` puts every session on those accounts.

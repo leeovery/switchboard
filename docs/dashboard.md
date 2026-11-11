@@ -27,6 +27,9 @@ session, and shows the router's sessions and its record of every request. To ope
 
 This page uses these terms throughout:
 
+- **Label:** what every page calls an account, such as `work`. The accounts aren't numbered: they
+  keep the config's order. Commands name an account by its id instead. See
+  [Accounts and their ids](how-it-works.md#accounts-and-their-ids).
 - **Window:** a span Claude counts an account's usage over. Each account has a week that every model
   shares, a 5-hour window, and a model's own week where the model has one. A verified Ultra account
   has no 5-hour window: switchboard learns that from its answers, never from its plan. An account
@@ -318,6 +321,10 @@ Days shows the eight weeks a day at a time:
 - each model family's worth, a day at a time
 - how much of its week each account used each day, with the days it hit a 5-hour limit marked.
 
+An account you've removed keeps its row while the eight weeks hold its days, by the label it had,
+with `removed 4 Sep` where its days end, so it's told apart from an account you've given the same
+label since. The Log, a session's page and the verbs name it by that label too.
+
 ### Tokens
 
 Tokens is ccusage's report inside switchboard. It shows each period's tokens by kind, and its worth
@@ -431,7 +438,7 @@ the pool's lane at the shortest.
 
 The labels beside the lanes take as many columns as the widest needs, up to 24 cells of label,
 and the lanes take the rest. `a` collapses the labels, to give the lanes more room: each lane
-keeps its account's number and its marks, such as `2 ◆`, with its use under them, such as `66%`,
+keeps its account's marks, such as `◆`, with its use under them, such as `66%`,
 and the pool's lane `Σ`, with its room short under it, such as `1.2/3`. COMING UP stays as it is,
 each line naming its account. `a` again expands them. Runway remembers which you left it on.
 
@@ -479,7 +486,7 @@ column a cell. Each card keeps its own clock: a card's days or hours, and its no
 own window puts them, not where the card beside it does. The cards follow the config's order, as
 many side by side as fit at 35 cells or more each, the rest on the rows under.
 
-Over the chart, a card has the account's number, name and marks, and its words: the room left,
+Over the chart, a card has the account's name and marks, and its words: the room left,
 such as `66% left`, then what Runway says under the account's lane in that window, such as
 `capped 14:31  ·  back 17:10` or `out ~Sat`. The words come from
 Runway's live view as Runway would draw it at the same width. So a hold shorter than one of
@@ -787,7 +794,9 @@ The card sits over the page. `j` and `k` scroll it a row, and `PgDn` and `PgUp` 
 
 `switchboard dashboard` shows every account's usage, full screen, until you press `q`. It needs a
 terminal, and refuses to run without one. It reads the router while the router answers, and
-otherwise probes each account.
+otherwise probes each account. Just after the upgrade that made account ids, while the router
+moves the history onto them, it says what the move waits on, a line each time that changes, and
+opens once it's done (see [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)).
 
 ```bash
 switchboard dashboard [interval] [--no-notify] [--probe]
@@ -924,13 +933,13 @@ press `enter`.
 `p` opens the card over the page. It sets where new sessions go. Nothing is picked but what's set
 now. The card has these rows:
 
-- `0 auto`
-- a row for each account, numbered as every tab numbers it.
+- `auto`
+- a row for each account, by its label, in the config's order.
 
-An account's number is its place in the config, as the router has taken it up. After you add or
-remove an account, the router keeps its old list until it restarts, and every tab keeps its numbers
-till then: an account you've removed keeps its number while the router still holds it, and one
-you've added is numbered after the router's last.
+The accounts aren't numbered, here or on any tab: each shows by its label. After you add or remove
+an account, the router keeps its old list until it restarts, and every tab keeps its order till
+then: an account you've removed stays while the router still holds it, and one you've added comes
+after the router's last.
 
 Each account's row shows:
 
@@ -941,8 +950,6 @@ Each account's row shows:
 ### Picking
 
 - `↑` and `↓` move between the rows, and `space` picks the row the cursor is on.
-- A number picks its row directly: `0` picks auto, and `1` to `9` pick the accounts with those
-  numbers. An account numbered past 9 has no key.
 - Picking auto clears the accounts, and picking an account clears auto.
 - `m` ticks moving the sessions running elsewhere to the picks too. The card then says how many
   sessions would move, and roughly what rebuilding their caches costs, such as `≈ $6.20`.
@@ -959,7 +966,7 @@ token is refused, or one with no token.
 
 ### When `p` does nothing
 
-- Outside the card, the number keys and `m` do nothing, so a stray key moves no session.
+- Outside the card, `m` does nothing, so a stray key moves no session.
 - While the router doesn't answer, `p pin` is drawn faint, and `p` says why instead of opening the
   card.
 - With `--probe`, `p pin` isn't listed, and `p` opens nothing, even while the router answers.

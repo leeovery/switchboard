@@ -110,7 +110,6 @@ row shows these parts:
 
 | Part | What it shows |
 |---|---|
-| Number | The account's number, as the dashboard numbers it: its place in the router's order, the config's once the router has taken it up. |
 | Label | The account's label, with `◆` on the primary and `▲` on the account new sessions go to. |
 | Bar | The window's use, filled along the theme's ramp. `┃` marks where even use would have put it by now. `╎` marks where the account's cap starts: 1 less its `reserve`. |
 | Percentage | How much of the window is used. |
@@ -144,7 +143,7 @@ pool wherever there's more than one account:
   out of the accounts that have the window. When pinned, they add ` · pinned`.
 - A window that fewer than two of the pool's accounts have, and not all of them, has no pool figure:
   side by side its part of the pool's row is blank, and stacked its section has no pool.
-- An account outside the pool has its number drawn faintly.
+- An account outside the pool has its label and `◆` drawn faintly.
 
 **Every window shows,** used or not. A model's own window, such as Fable's week, shows on every
 account, at 0% as at 40%.
@@ -156,7 +155,7 @@ its rows.
 
 **A token's year nearly up:** under the key line, after a blank line, each account whose token's
 year is up within 30 days, or is up, has a line, as the Accounts tab's Detail tells it:
-`1 work  token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`,
+`work  token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`,
 `· last day` on its last day, and `token expired 17 Nov 2026` once it's up. Other accounts add
 nothing.
 
@@ -218,9 +217,11 @@ switchboard pin <account>|auto --session <id>
 | `--force` | Clear every session's own pin too, including the one `run --account` gave it. |
 | `--session <id>` | Pin one running session alone to one account, from its next request, in place of any pin it had. Takes neither `--move` nor `--force`. |
 
-`pin <account>...` sends every new session, and any other session whose account is chosen afresh,
-to the accounts given while one of them has room. With one account, sessions go to it. With
-several, they go to the best of them, as the router would choose were they the only accounts.
+Name each account by its id, as `switchboard accounts` lists it; below, `b6s7` is work's and
+`q4tx` side's. `pin <account>...` sends every new session, and any other session whose account is
+chosen afresh, to the accounts given while one of them has room. With one account, sessions go to
+it. With several, they go to the best of them, as the router would choose were they the only
+accounts.
 
 - A pin replaces any pin before it.
 - When none of the accounts pinned has room, the router chooses among every account as though
@@ -229,14 +230,14 @@ several, they go to the best of them, as the router would choose were they the o
 
 | Command | New sessions | Running sessions |
 |---|---|---|
-| `pin work` | go to `work` | stay where they are while their caches are warm and their accounts have room |
-| `pin work --move` | go to `work` | move to `work` on their next request, except those with a pin of their own |
-| `pin work --move --force` | go to `work` | all move to `work`, their own pins cleared |
-| `pin work side` | go to the best of `work` and `side` | stay where they are while their caches are warm and their accounts have room |
-| `pin work side --move` | go to the best of `work` and `side` | those on neither move to the best of them on their next request, except those with a pin of their own |
+| `pin b6s7` | go to work | stay where they are while their caches are warm and their accounts have room |
+| `pin b6s7 --move` | go to work | move to work on their next request, except those with a pin of their own |
+| `pin b6s7 --move --force` | go to work | all move to work, their own pins cleared |
+| `pin b6s7 q4tx` | go to the best of work and side | stay where they are while their caches are warm and their accounts have room |
+| `pin b6s7 q4tx --move` | go to the best of work and side | those on neither move to the best of them on their next request, except those with a pin of their own |
 | `pin auto` | routed | stay where they are while their caches are warm and their accounts have room |
 | `pin auto --force` | routed | as `pin auto`, their own pins cleared |
-| `pin work --session 18bb978f` | unaffected | that session moves to `work` on its next request, and stays pinned there |
+| `pin b6s7 --session 18bb978f` | unaffected | that session moves to work on its next request, and stays pinned there |
 | `pin auto --session 18bb978f` | unaffected | that session's own pin is cleared, and it's routed like any other |
 
 Pins follow these rules:
@@ -249,8 +250,8 @@ Pins follow these rules:
 - A router that closes as it's asked, as one stopping does, may have made the pin first, so `pin`
   says just that rather than that it isn't running. `switchboard status` shows which.
 
-**Pinning several accounts** sets an order to use them up in. With `pin work side`, `work` and
-`side` take the new sessions, the better of the two first, until both are out. Only then does
+**Pinning several accounts** sets an order to use them up in. With `pin b6s7 q4tx`, work and side
+take the new sessions, the better of the two first, until both are out. Only then does
 anything go to the rest.
 
 For example, say two accounts have a weekly reset banked on claude.ai and a third hasn't. Pin the
@@ -273,11 +274,11 @@ last hour. To find a session's id:
 Examples:
 
 ```bash
-switchboard pin side                  # new sessions go to side
-switchboard pin side --move           # and running ones move there too
-switchboard pin work side             # new sessions go to the better of work and side
+switchboard pin q4tx                  # new sessions go to side
+switchboard pin q4tx --move           # and running ones move there too
+switchboard pin b6s7 q4tx             # new sessions go to the better of work and side
 switchboard pin auto --force          # back to routing, every session's own pin cleared
-switchboard pin work --session 18bb   # one session, by the start of its id
+switchboard pin b6s7 --session 18bb   # one session, by the start of its id
 ```
 
 ### `claude`
@@ -318,7 +319,7 @@ How `claude` starts depends on the router and your environment:
   `SWITCHBOARD_WHEN_ROUTER_DOWN=direct` for one launch, Claude Code connects straight to the API
   instead. It uses `--account`'s token, else the primary's, or, while that isn't usable, the token
   of the first account whose token is. A line on stderr says so: `switchboard: the router isn't
-  running — connecting directly on work · Work`. A direct session isn't routed or recorded, and it
+  running — connecting directly on b6s7 · Work`. A direct session isn't routed or recorded, and it
   can spend the primary's reserve. `SWITCHBOARD_WHEN_ROUTER_DOWN=stop` stops one launch whatever the
   config says; any other value stops it too, saying so. A router that answers saying where it
   listens, healthy or not, routes whatever either says.
@@ -370,7 +371,7 @@ Examples:
 claude                                             # routed
 claude --resume                                    # the session finds its account again
 claude doctor                                      # a local subcommand: straight to Claude Code
-alias cxside='switchboard run --account side --'   # a launcher pinned to side
+alias cxside='switchboard run --account q4tx --'   # a launcher pinned to side
 ```
 
 ## Setting up
@@ -419,13 +420,16 @@ prints the step's error and ends with a status of 1.
 
 The steps are:
 
-1. **Accounts.** Shows every account as a table: its id, label, plan, reserve and token. Each
+1. **Accounts.** Shows every account as a table: its label, plan, reserve and token. Each
    token is checked with the API as `setup` opens, and shows the date its year is up, with the
    days left. A note under the table says what an account is missing, and the key that sees to
    it. `↑` and `↓` choose an account; `t` makes it a new token, `e` edits its label, plan, reserve
    and whether it's the primary, `r` removes it, asking first, and `p` makes it the primary: the
-   account your browser and the Claude apps are signed in to. `+ add an account` adds one: its id,
-   label and plan, then its token. With no account, the card adding one opens at once. With two
+   account your browser and the Claude apps are signed in to. `+ add an account` adds one: its
+   label and plan, then its token, whose subscription decides its id, as
+   [`accounts add`](#accounts) does: a subscription this Mac had comes back under its old id, and
+   where that can't be told, a card asks whether it's a new account or one of those this Mac had.
+   With no account, the card adding one opens at once. With two
    or more and none the primary, `enter` waits for one. On a first run, where the primary has
    no reserve, `enter` asks for one first, once: the share of its windows kept back for the
    Claude apps, as a percentage, or `none`; `esc` leaves it with none, writing nothing.
@@ -436,8 +440,9 @@ The steps are:
    one from the command line, as the Chrome family and Firefox can, so you sign in there to that
    account's subscription; otherwise, as for Safari, `setup` shows the address to open in one. The
    token's checked with the API, then saved, good for a year. A token for a subscription another
-   account has already isn't saved. `p` on the token card pastes a token you made with `claude
-   setup-token` instead; a pasted token shows as dots, never the token.
+   account has already isn't saved, and `t` takes only a token of the account's own subscription.
+   `p` on the token card pastes a token you made with `claude setup-token` instead; a pasted token
+   shows as dots, never the token.
 2. **Priming.** Asks for your day, as `HH:MM-HH:MM`, holding the day set, if any, and writes it to
    `[prime]` where it changed. Left empty, priming stays off; cleared, it's turned off. Where every
    account is on Ultra, setup skips this step and says so: a verified Ultra account has no 5-hour
@@ -588,7 +593,7 @@ an account's token, and remove an account.
 
 ```bash
 switchboard accounts
-switchboard accounts add <id> [--label <label>] [--primary]
+switchboard accounts add <label> [--primary] [--new | --returning <id>]
 switchboard accounts edit <id> [--label <label>] [--plan <plan>] [--primary] [--reserve <percent>]
 switchboard accounts token <id> [--paste]
 switchboard accounts remove <id>
@@ -596,9 +601,11 @@ switchboard accounts remove <id>
 
 | Flag | What it does |
 |---|---|
-| `--label <label>` | `add` and `edit`: show the account as `<label>`. Default: the id, which `--label ""` goes back to. |
+| `--label <label>` | `edit`: show the account as `<label>`. |
 | `--plan <plan>` | `edit`: the plan the account's subscription is on: `pro`, `max` or `ultra`, or `none` to leave it unknown. A plan's old name, `max5x` or `max20x`, works too, and the config is written with its new. |
 | `--primary` | `add` and `edit`: make the account the primary, the account the browser and the Claude apps use, in place of the one that was. |
+| `--new` | `add`: where it asks which account the token is, answer that it's a new account. |
+| `--returning <id>` | `add`: where it asks which account the token is, answer that it's the account this Mac had with that id. |
 | `--reserve <percent>` | `edit`: the share of every window the router leaves unused on the account, as a percentage to two decimal places at most, such as `5%` or `2.5%`, from `0%` up to but not including `100%`. `0` or `0%` takes the reserve away. |
 | `--paste` | `token`: take a token made with `claude setup-token`, pasted, in place of making one. |
 
@@ -609,36 +616,55 @@ For each account, `switchboard accounts` shows:
 - whether its token file holds a token switchboard can use, or, if not, why not and what would put
   it right.
 
+**Ids and labels.** Every account has an id switchboard makes, such as `b6s7`, and a label you
+give it, such as `Work`. The label is what every screen shows; change it whenever you like. The
+id is what commands take, `accounts edit`, `accounts token`, `accounts remove`, `pin`,
+`run --account` and `requests --account`, and what every record keys the account by. It never
+changes. `switchboard accounts` lists each account's id beside its label, and Claude finds it in
+`switchboard status`. See [Accounts and their ids](how-it-works.md#accounts-and-their-ids).
+
 The subcommands do the following:
 
 - **`add`** registers an account, as an `[[account]]` table in the config, making the config if
-  there's none.
-  - The id names the account for good, and names its token file. It takes letters, digits, `-` and
-    `_`.
-  - When the account's token file holds no usable token, `add` takes one, and writes it over
-    whatever the file held.
-  - A `--label` is taken as it shows: without the characters Unicode draws as nothing (its
-    default ignorables, such as zero-width spaces and joiners, variation selectors and tags),
-    each run of whitespace within it one space, and the whitespace and direction marks at its
-    edges trimmed. Such a character is kept only where it makes an emoji or a flag, England's,
-    Scotland's or Wales's among them, or shapes a joining script, such as Persian or Devanagari,
-    and a variation selector only after a symbol, as in ❤️, non-ASCII punctuation, or a letter
-    outside Latin, Greek and Cyrillic, or in a keycap, as in 1️⃣; it's dropped everywhere else,
-    the tags after a black flag that name no other flag with them. Direction marks within it are
-    kept, and so is every other character. One that's the id is no label, as it shows the same.
-  - An id or a `--label` that holds anything shaped like a token is refused, before `add` asks for
-    the token, and so is a `--label` over 100 characters as it shows, one that holds a control
-    character, such as a newline or a tab, or a bidirectional embedding, override or isolate,
-    which could reorder the row it's shown in, one that holds a sign that joins the character
-    after it, such as an Arabic number sign, which can hide that character, one that would show
-    as nothing, such as spaces or zero-width characters alone, and one that isn't UTF-8 text.
-    Private-use glyphs, such as Nerd Font icons, show.
+  there's none, and its token file.
+  - It always takes a token, and checks it with the API before it saves anything. The
+    organization the API names it in, its subscription, decides the account's id:
+    - a subscription this Mac has never had gets a new id;
+    - one this Mac had, and removed since, comes back under its old id, with the label given now,
+      so its history carries on: `added "Work" as b6s7, an account this Mac had, so its history
+      carries on`;
+    - one an account has already is refused, naming it: give that account a new token with
+      `accounts token`, if that's what you meant.
+  - Nothing is saved where the API refuses the token, or doesn't answer for it, as the id can't be
+    known: try again then.
+  - Where the organization doesn't settle it, `add` asks whether it's a new account or one this
+    Mac had, naming each by its label and when it was last seen: where the API names no
+    organization, any account this Mac had and doesn't configure; and where the token may be an
+    account removed before switchboard made ids, whose subscription isn't known, those. At a
+    terminal it asks you to pick one; otherwise it lists the choices and fails, and `--new` or
+    `--returning <id>` answers. An answer given where the organization settled it goes unused,
+    and `add` says so.
+  - The label is required, and no two accounts may show the same, ignoring case. It's taken as it
+    shows: without the characters Unicode draws as nothing (its default ignorables, such as
+    zero-width spaces and joiners, variation selectors and tags), each run of whitespace within it
+    one space, and the whitespace and direction marks at its edges trimmed. Such a character is
+    kept only where it makes an emoji or a flag, England's, Scotland's or Wales's among them, or
+    shapes a joining script, such as Persian or Devanagari, and a variation selector only after a
+    symbol, as in ❤️, non-ASCII punctuation, or a letter outside Latin, Greek and Cyrillic, or in a
+    keycap, as in 1️⃣; it's dropped everywhere else, the tags after a black flag that name no other
+    flag with them. Direction marks within it are kept, and so is every other character.
+  - A label that holds anything shaped like a token is refused, before `add` asks for the token,
+    and so is one over 100 characters as it shows, one that holds a control character, such as a
+    newline or a tab, or a bidirectional embedding, override or isolate, which could reorder the
+    row it's shown in, one that holds a sign that joins the character after it, such as an Arabic
+    number sign, which can hide that character, one that would show as nothing, such as spaces or
+    zero-width characters alone, and one that isn't UTF-8 text. Private-use glyphs, such as Nerd
+    Font icons, show.
 - **`edit`** changes an account's label, plan, primary or reserve, in its table in the config.
   - It takes one or more of `--label`, `--plan`, `--primary` and `--reserve`, and leaves what it
     isn't given as it is.
-  - It says what it changed, each value as it is now and as it was, labels in quotes, and a label
-    of none as none, the account shown by its id. When every value given is what the account has
-    already, it says so, and writes nothing.
+  - It says what it changed, each value as it is now and as it was, labels in quotes. When every
+    value given is what the account has already, it says so, and writes nothing.
   - Made the primary, an account takes it from the one that had it. The sessions running through
     the router keep the token they started on as Claude Code's own until they restart: the former
     primary's, pinned or not, or, where it has no usable token, the first account's with one, or a
@@ -654,13 +680,13 @@ The subcommands do the following:
     `--primary` on it marks it so, and `edit` says it did.
   - A reserve written as a number alone, such as `5` or `0.05`, is refused, as either could mean
     the other: write it as a percentage. So is one past two decimal places.
-  - A `--label` is taken and refused as `add` takes and refuses one; `--label ""`, or the id,
-    shows the account by its id, and takes the label out. A label written untidily in the config
-    and given tidily is saved tidily, and `edit` says it was written untidily. A label written by
-    hand is said as it holds: a character drawn as nothing that `add` would drop, a
-    bidirectional control, or a direction mark, which `add` keeps, shows as its escape, such as
-    `\u200B`. What `add` keeps in an emoji, a keycap, a variant, a flag or a joining script shows
-    as it is, unless an escape stands before it.
+  - A `--label` is taken and refused as `add` takes and refuses one, and `--label ""` is refused,
+    as every account has a label. A label written untidily in the config and given tidily is
+    saved tidily, and `edit` says it was written untidily. A label written by hand is said as it
+    holds: a character drawn as nothing that `add` would drop, a bidirectional control, or a
+    direction mark, which `add` keeps, shows as its escape, such as `​`. What `add` keeps in
+    an emoji, a keycap, a variant, a flag or a joining script shows as it is, unless an escape
+    stands before it.
   - `--primary=false` is refused: to move the primary, give `--primary` to another account.
   - An id no account has is said before anything wrong with a flag's value. Errors in the flags
     themselves, such as a flag without its value or an unknown flag, come first.
@@ -680,16 +706,18 @@ The subcommands do the following:
     for Safari, it shows the address to open by hand.
   - Once you approve it, `claude setup-token` creates the token, and `token` checks it with the
     API and saves it, a year from today.
-  - The token isn't saved where the API refuses it, or where its subscription is another
-    account's already, as the organization the API names it in says. So `token` checks the other
-    accounts' tokens first, all at once, to know theirs, saying so: a moment, as long as the API
-    takes to answer, up to about 10 seconds where it doesn't. Where an organization isn't known,
-    the token is saved.
+  - The token must be for the account's own subscription, as the organization the API names it in
+    says. A token for another subscription is refused, saving nothing: `the token is for another
+    subscription, so nothing is saved: add it as an account of its own`, naming the account that
+    has it where this Mac has one. So `token` checks the other accounts' tokens first, all at once,
+    to know theirs, saying so: a moment, as long as the API takes to answer, up to about 10 seconds
+    where it doesn't. Where the account's subscription isn't known yet, the token's is taken as
+    its own; where the API names none, the token is saved.
   - Ctrl-C before the token's created stops `claude setup-token` and saves nothing. Once it's
     created, as it lasts a year on the account, Ctrl-C waits: `token` says it saves the token
     first, checks it, and says what came of it, then exits as interrupted. The token is saved;
     shown to copy, where it was made but couldn't be read or saved; or not saved, where the API
-    refuses it or it's another account's. It's saved unchecked, with a warning, where the API
+    refuses it or it's another subscription's. It's saved unchecked, with a warning, where the API
     doesn't answer.
   - Where the token was created but couldn't be read off `claude setup-token`'s screen, `token`
     shows what that screen showed, the token in it, to copy. Where it was read but couldn't be
@@ -699,6 +727,10 @@ The subcommands do the following:
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file, then the record of when its token was taken (see
   [When each token was taken](configuration.md#when-each-token-was-taken)).
+  - Its history stays. The accounts record keeps the account, marked removed, with the label it
+    had, so History, Accounts and the verbs name it by that label and the day it was removed, as
+    `Team (removed 4 Sep)`, told apart from an account given the same label since. Add its
+    subscription again and it comes back under its old id, its history carrying on.
   - Of a token file or a record that's a link, it deletes the link alone, and leaves the file it
     leads to, even where that's at the record's own path. Where the token file led to the
     record's own path, and the file there has another name too, the record's path goes with the
@@ -719,11 +751,10 @@ as it's pasted. Otherwise, they read it from stdin, as `token` does too. To make
 `add` and `token` check a token given with the API before they save it:
 
 - A token the API refuses isn't saved.
-- A token whose subscription is another account's already, as the organization the API names it
-  in says, isn't saved, and `add` adds nothing. Once the API has named it, they check the other
-  accounts' tokens, all at once, to know theirs. Where an organization isn't known, the token is
-  saved.
-- A token the API doesn't answer for is saved, with a warning.
+- A token whose subscription is another account's isn't saved, and `add` adds nothing. Once the
+  API has named it, they check the other accounts' tokens, all at once, to know theirs.
+- A token the API doesn't answer for isn't saved by `add`, which can't know the account's id
+  without it; `token` saves it, with a warning.
 - An interrupt while they wait for the token saves nothing.
 
 A saved token's year counts from when it's saved, as nothing says when a pasted token was made.
@@ -736,15 +767,16 @@ written through, to where it leads. The router takes the change up itself: the s
 restarts to read it, and one started by hand with `serve` logs that a restart is due. See
 [`serve`](#serve).
 
-Examples:
+Examples, where work's id is `b6s7` and side's `q4tx`:
 
 ```bash
-switchboard accounts add work --label Work --primary
-switchboard accounts add side --label Side
-switchboard accounts edit side --plan max --reserve 5%
-switchboard accounts token side
-pbpaste | switchboard accounts token side
-switchboard accounts remove side
+switchboard accounts add Work --primary
+switchboard accounts add Side
+pbpaste | switchboard accounts add Team --returning k2m9   # it's k2m9, an account this Mac had
+switchboard accounts edit q4tx --plan max --reserve 5%
+switchboard accounts token q4tx
+pbpaste | switchboard accounts token q4tx
+switchboard accounts remove q4tx
 ```
 
 ### `service`
@@ -1008,7 +1040,9 @@ The text shows, in order:
 - the best account to use next; and
 - last, where the usage came from, with the router's health. Under it comes a restart the router
   has due, if any, with how to have it now, or, while an export is under way, the export it waits
-  for, as `service restart` refuses until that ends.
+  for, as `service restart` refuses until that ends; and, while the router owes the move of the
+  history onto the accounts' ids, what holds it up (see
+  [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)).
 
 When its output isn't a terminal, such as in a pipe or an agent's shell, `status` prints the status
 document as JSON instead. The document holds:
@@ -1032,7 +1066,7 @@ Examples:
 switchboard status
 switchboard status --json | jq '.accounts[] | {id, windows}'
 switchboard status --json -r   # have the router read every account it may first, as after a reset made by hand
-switchboard status --session "$CLAUDE_CODE_SESSION_ID"   # inside a session: the account it's on, such as work
+switchboard status --session "$CLAUDE_CODE_SESSION_ID"   # inside a session: the id of the account it's on, such as b6s7
 ```
 
 ### `logs`
@@ -1068,6 +1102,14 @@ These commands read what switchboard has recorded:
 
 So none of them needs the router, though `sessions` asks the router which sessions are running,
 where it answers.
+
+Their text names each account by its label, and an account removed by the label it had and the
+day it was removed, as `Team (removed 4 Sep)`. Their JSON gives each account's id, as the files
+keep it, and, but in the lines `requests` and `events` print as stored, its label beside it (see
+[Rules for every format](reference.md#rules-for-every-format)). While the router owes the move of
+the history onto the accounts' ids, as after the upgrade that made them, they refuse, saying what
+holds the move up: try again once it's done (see
+[Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)).
 
 Their plain text is a first cut. Agents read their JSON, which each command prints wherever its
 output isn't a terminal.
@@ -1399,7 +1441,8 @@ The Mac's folder holds what switchboard can't build again, in the state director
 
 | File | Holds |
 |---|---|
-| `export.json` | `{"version": 2, "install": "<id>", "exported_at": "<time, UTC>"}`: whose folder it is, and when it was last exported to. |
+| `export.json` | `{"version": 2, "install": "<id>", "exported_at": "<time, UTC>", "ids": true, "accounts": true}`: whose folder it is, when it was last exported to, and that it names accounts by the ids switchboard makes and holds the accounts record. See [`export.json`](reference.md#exportjson). |
+| `accounts.json` | The [accounts record](reference.md#the-accounts-record), which names the accounts the days name by id, each account this Mac configures marked so, with its label. |
 | `ledger/requests-<date>.jsonl.gz` | The [request ledger](reference.md#the-request-ledger)'s lines, one file for each day. |
 | `ledger/events-<date>.jsonl.gz` | The [router's events](reference.md#the-routers-events), one file for each day. |
 | `ledger/day-<date>.json` | Each [day's summary](reference.md#the-days-summary). |
@@ -1468,16 +1511,35 @@ switchboard import <dir>
 
 A relative `<dir>` is taken from the working directory. A Mac's folder is one holding an
 `export.json` that reads. This Mac's own is taken in like any other, and a folder without one is
-passed over. A folder whose `export.json` doesn't read, as one damaged, is passed over too, and so
-is one holding an export without its `export.json`, as an export cut short or a sync not done
-leaves one; for each, `import` says so, and carries on with the rest:
+passed over. These are passed over too, and for each, `import` says so, and why, and carries on
+with the rest:
+
+- a folder whose `export.json` doesn't read, as one damaged;
+- one holding an export without its `export.json`, as an export cut short or a sync not done
+  leaves one: import it again once it's exported whole;
+- one whose `export.json` says it holds the accounts record, which isn't there yet, as a sync
+  hasn't carried it: import it again once it has;
+- one whose accounts record doesn't read;
+- another Mac's folder exported before switchboard made account ids, as its accounts can't be
+  told: export it again from that Mac once it runs this version, then import it. This Mac's own
+  folder from before then is taken in, its accounts by the ids they had.
 
 ```
 switchboard: passed over /Users/you/Dropbox/switchboard/mac-0123456789abcdef: its export.json doesn't read
+switchboard: passed over /Users/you/Dropbox/switchboard/mac-fedcba9876543210: another Mac exported it before switchboard made account ids, so its accounts can't be told: export it again from that Mac once it runs this version of switchboard, or leave it out
 ```
 
-A `<dir>` that holds no Mac's folder fails, saying so, and so does one holding a folder a newer
-switchboard exported, as this one may not read its files: upgrade switchboard to import it.
+A `<dir>` that holds no Mac's folder fails, saying so, and so does one whose every folder was
+passed over, and one holding a folder a newer switchboard exported, as this one may not read its
+files: upgrade switchboard to import it.
+
+**Accounts across Macs.** Each folder's accounts record joins this Mac's, so its days land on the
+right accounts. An account is matched by its subscription, and failing that by its id, an
+identical id being the same account unless both subscriptions are known and differ. Matched, its
+days go to this Mac's account, under this Mac's id. An account this Mac has never had is added to
+its record, named by the label the other Mac gives it, so History and the verbs name its days,
+marked removed where it was removed there. A label changed on the other Mac for an account this
+Mac neither configures nor removed arrives with it.
 
 What it takes in:
 
@@ -1515,7 +1577,10 @@ left out`.
 
 Against a router from before `import`, as one whose restart into an upgrade is still due, `import`
 fails, saying to restart it with `switchboard service restart`, or, run by hand, to stop it and
-run `switchboard serve` again, then import again.
+run `switchboard serve` again, then import again. While the router owes the move of the history
+onto the accounts' ids, as just after the upgrade that made them, `import` and `export` refuse,
+saying what holds the move up: import once it's done (see
+[Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)).
 
 One import runs at a time. An `import` run while another is running, as after you interrupt one
 and the router carries on with it, is refused, and leaves the running one as it is:
@@ -1557,7 +1622,7 @@ Examples:
 
 ```bash
 switchboard run -- --resume
-switchboard run --account side -- -p "tidy the changelog"
+switchboard run --account q4tx -- -p "tidy the changelog"
 switchboard run --direct
 ```
 

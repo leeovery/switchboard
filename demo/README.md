@@ -75,7 +75,7 @@ account, as a reading of each of its windows; and tells its request stream of it
 `first`, `progress`, `done`, `limited`, `moved`, as the router's `GET /stream` does, a reader
 joining told first of the requests in flight. Its status document, its sessions and its readings
 stand at every read as the cues have played up to then, the events joining LATELY as they come.
-Pins the keys give it, a digit and `m` on the routing card, say, play in from when they're given,
+Pins the keys give it, `space` and `m` on the routing card, say, play in from when they're given,
 and tell the router's `pin` and `auto` events, as the router does for a pin set from the dashboard.
 
 A scenario's own requests write no ledger line and no line of the events file: they reach the

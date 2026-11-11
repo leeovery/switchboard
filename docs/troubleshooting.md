@@ -4,9 +4,10 @@ This page shows where to look when switchboard doesn't do what you expect, and h
 
 ## Where to start
 
-- **Where things stand:** to see how each account stands and why, the router's health, and any
-  restart the router has due, run [`switchboard status`](commands.md#status). To see whether the
-  LaunchAgent is installed and loaded, run [`switchboard service status`](commands.md#service).
+- **Where things stand:** to see how each account stands and why, the router's health, any
+  restart the router has due, and a move onto the accounts' ids it owes, run
+  [`switchboard status`](commands.md#status). To see whether the LaunchAgent is installed and
+  loaded, run [`switchboard service status`](commands.md#service).
 - **Why a request went where it did:** to follow the router's log, run `switchboard logs -f`. The log
   has a line for each request, with its account and why it went there. To look back over the days,
   use [`requests`](commands.md#requests) and [`events`](commands.md#events).
@@ -130,6 +131,74 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`: remove
   the line marked `# switchboard` from your shell's startup file, and open a new terminal.
 
+## The upgrade to account ids
+
+The first time the router starts on a version that makes account ids, it moves your accounts and
+their history onto them (see [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)).
+
+### A move onto the ids that waits
+
+While the move is owed, the dashboard says what it waits on and opens once it's done, and
+`requests`, `history`, `sessions`, `events`, `export` and `import` refuse, saying the same.
+`switchboard status` says it on its last line, and `switchboard status --json | jq .moving` gives
+its `stage`, and, where it waits on the API, the `account`, by the id it had, and `why`.
+
+- **`the API hasn't named the organization of <account>'s token`:** the API didn't answer for
+  that account's token, or answered in a way that says to ask again, as 429 or a 5xx does, or a
+  proxy between answered in its place, without Anthropic's request id. The router asks again, 30
+  seconds after the first time, then twice as long each time, 5 minutes apart at the most, and
+  routes meanwhile. Check the network, and any proxy or VPN between you and `api.anthropic.com`;
+  `switchboard logs -f` shows each ask. Where the API answers but names no organization, as when it
+  refuses the token, the router asks for 10 minutes before it takes that as the answer, and gives
+  the account a random id.
+- **`the router makes the rest once it restarts onto the new ids its config holds`:** the config
+  holds the new ids, and the router is still routing under the old. The service's router restarts
+  once no request is in flight; run `switchboard service restart` to have it now. A router you
+  started by hand with `serve`: stop it and start it again.
+- **`no router answers to make it`:** the move is the router's to make. Start it with
+  `switchboard service install`, or `switchboard serve`.
+- **`the router running is of a version from before the ids`:** the router hasn't restarted into
+  the upgrade yet, as when a restart is held or waits on a request in flight. It makes the move
+  once it does: see [Restarts](how-it-works.md#restarts).
+- **`the router couldn't make it, and tries again in a minute`:** a step failed, as a file it
+  couldn't write, or an accounts record that doesn't read. The reason follows, and the router's
+  log has it at warn. Put that right and it carries on, as nothing is lost part way.
+- **Two Macs sharing a config:** a Mac still on an earlier version finds the config naming ids it
+  has no token files for. Upgrade every Mac that shares the config. A Mac that upgrades while
+  its network is down waits to join its accounts to the ids the first Mac made: it carries on
+  once the API answers.
+
+A day's compressed file the move finds damaged is repaired as it's rewritten, its lines before the
+damage kept, and the file set aside beside it as `<name>.damaged`, warned of in the router's log
+(see [Where things live](reference.md#where-things-live)).
+
+### An import refused across the upgrade
+
+`import` names each Mac's folder it passes over, and why, and takes in the rest:
+
+- **`another Mac exported it before switchboard made account ids`:** that folder's days name the
+  other Mac's old ids, which this Mac can't tell. On that Mac, upgrade switchboard, let its move
+  finish, then export again, and import here once the folder has synced. This Mac's own folder
+  from before the upgrade is taken in as it is.
+- **`its accounts record hasn't synced yet`:** the folder's `export.json` says it holds the
+  accounts record, which isn't there yet. Import again once the sync is done.
+- **`it holds an export without its export.json`:** an export cut short, or a sync not done, left
+  the days without the file that says whose they are. Export again on that Mac, or wait for the
+  sync, then import again.
+- **`its accounts record doesn't read`:** the folder's `accounts.json` is damaged. Export again on
+  that Mac.
+- **`there's nothing to import in <dir>: each Mac's folder in it was passed over`:** every folder
+  was passed over, each for the reason named above it.
+- **`the history waits on its move onto the accounts' new ids`:** this Mac's own move isn't done
+  yet: see above, and import once it is.
+
+### A damaged accounts record
+
+`accounts.json` that doesn't read, as one edited wrongly by hand, is left as it is: adding or
+removing an account fails, naming it, and History and the verbs name each removed account by its
+id meanwhile. Put it right, or move it aside: see
+[The accounts record](reference.md#the-accounts-record).
+
 ## An export that fails
 
 With [`[export]`](configuration.md#export-keys)'s `dir` set, the router exports every hour. To see
@@ -204,7 +273,7 @@ Each record is a line of logfmt. The router notes every request it routes, with 
 it went there:
 
 ```
-time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=4242 id=5f3a9c2e session=18bb978f model=claude-opus-5-5 account=side reason="moved: work hit its limit" status=200 attempts=2 duration=9.412s
+time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=4242 id=5f3a9c2e session=18bb978f model=claude-opus-5-5 account=q4tx reason="moved: b6s7 hit its limit" status=200 attempts=2 duration=9.412s
 ```
 
 - **Level:** `SWITCHBOARD_LOG_LEVEL` is `debug`, `info`, `warn` or `error`, and is `info` unless

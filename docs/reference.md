@@ -7,6 +7,8 @@ directly, agents included. Each format is described field by field.
 
 - [Rules for every format](#rules-for-every-format)
 - [Where things live](#where-things-live)
+- [The accounts record](#the-accounts-record)
+- [`export.json`](#exportjson)
 - [The readings history](#the-readings-history)
 - [The request ledger](#the-request-ledger)
 - [The day's summary](#the-days-summary)
@@ -96,6 +98,9 @@ The state directory holds these files:
 | `prefs.json` | What the dashboard remembers. It's the dashboard's own file, and its form can change with any release. See [`dashboard`](dashboard.md) and [Themes](dashboard.md#themes). |
 | `tokens/<id>` | Each account's token. See [Tokens](configuration.md#tokens). |
 | `tokens/<id>.taken` | When switchboard took each of the account's latest tokens, with each token's SHA-256 hash. See [When each token was taken](configuration.md#when-each-token-was-taken). |
+| `accounts.json` | The [accounts record](#the-accounts-record): every account this Mac has had, removed ones among them, kept for good. |
+| `accounts.lock` | The file a change to the accounts record holds a lock on. It's left there, as the lock goes with the process that held it. |
+| `accounts.moved` | Marks the move of the history onto the accounts' ids done, holding when it was. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting.md#the-logs). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |
@@ -110,12 +115,75 @@ The state directory holds these files:
 | `import.lock` | The file an import holds a lock on while it runs, so a second is refused. It's left there, as the lock goes with the import that held it. |
 
 Once a day ended two days ago, its files of lines are compressed to `<name>.jsonl.gz`. To read a
-compressed file, use `gzip -dc`.
+compressed file, use `gzip -dc`. A compressed file found damaged as it's rewritten, as by the
+move onto the accounts' ids, keeps its whole lines before the damage in its place, and the damaged
+file itself is set aside beside it as `<name>.jsonl.gz.damaged`, then `.damaged-2` and on, for
+whoever would recover more of it. It's removed with its day, once the day's past keeping.
 
 Each file of lines is kept as long as its `keep` setting says. See
 [`[history]` keys](configuration.md#history-keys) and [`[ledger]` keys](configuration.md#ledger-keys).
 The events are kept as long as `[ledger] keep` says too. A day's ledger lines past it are kept
 until the day's summary stands, but its events aren't, so they can go first.
+
+## The accounts record
+
+`accounts.json` in the state directory is this Mac's record of every account it has had, whether
+it's configured now or was removed. It's written whole, readable by its owner alone, and kept for
+good, a few hundred bytes an account:
+
+```json
+{
+  "version": 1,
+  "accounts": [
+    {"id": "b6s7", "organization": "<organization id>", "added": "2026-11-12T09:30:00Z", "was": "work"},
+    {"id": "t3pz", "label": "team", "added": "2026-08-01T00:00:00Z", "removed": "2026-09-04T23:59:59Z", "was": "team"}
+  ]
+}
+```
+
+- `id`: the id switchboard made for the account: 4 lowercase letters and digits, a letter first,
+  or a character longer where 4 clashed. Every record keys the account by it.
+- `organization`: the id of the account's subscription, as Anthropic's API names it in its answers.
+  Left out where it isn't known, as for an account removed before switchboard made ids.
+- `label`: the label it showed, kept once it's removed. Left out while it's configured, as the
+  config's label is the one then.
+- `added` and `removed`: when, in UTC, to the second. `removed` is left out while it's configured.
+- `was`: the id it had before switchboard made ids, where it had one, read to import a folder
+  exported before then, and to put back an old id a config or a pin still names.
+- `configured`: in the copy an export writes alone, set on each account the exporting Mac
+  configures, whose `label` is then its config's, so a Mac that imports it names it all the same.
+
+Each `id`, `organization` and `was` is held by one account at most, ids compared ignoring case. A
+record that doesn't read, as one damaged or edited wrongly by hand, is left as it is and never
+written over: what would change it, as adding or removing an account, fails, naming it, and the
+history's readers name each removed account by its id meanwhile. Put it right, or move it aside to
+start a new one, whose accounts removed are named by their ids.
+
+## `export.json`
+
+Each Mac's folder an [export](commands.md#export) writes holds `export.json`, written last, once
+every other file has been:
+
+```json
+{"version": 2, "install": "0123456789abcdef", "exported_at": "2026-11-12T09:00:00Z", "ids": true, "accounts": true}
+```
+
+- `version`: `2` since switchboard made account ids. A switchboard from before them reads version
+  1 alone, so it refuses a folder this one exports, whose days name accounts by ids it has no token
+  files for. One newer than this switchboard's is refused, saying to upgrade.
+- `install`: the id of the install whose folder it is, as `install-id` holds it.
+- `exported_at`: when it was last exported to, in UTC, to the second.
+- `ids`: `true` where a switchboard that makes account ids exported it, so its days name accounts
+  by those ids. Left out of a folder exported before.
+- `accounts`: `true` where that export wrote the accounts record, `accounts.json`, beside it, as
+  it does wherever the Mac has one. A folder that says so but holds none hasn't synced whole, and
+  `import` passes it over until it has.
+
+The folder's `accounts.json` is a copy of the [accounts record](#the-accounts-record), written
+first, so the days a sync carries are never ahead of the record that names their accounts. An
+export into a folder an older switchboard exported first removes its `export.json`, so a sync
+cut short never leaves the new days beside one an older switchboard would import. See
+[`import`](commands.md#import) for how a folder from before the ids is taken in.
 
 ## The readings history
 
@@ -380,7 +448,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 
 [`status`](commands.md#status) and [`usage`](commands.md#usage) print this document as JSON:
 `{"schema", "generated_at", "source", "fallback", "best", "primary", "prime", "pin", "router",
-"restart", "export", "sessions", "events", "pool", "coming_up", "demand", "accounts"}`.
+"restart", "moving", "export", "sessions", "events", "pool", "coming_up", "demand", "accounts"}`.
 
 - Times are in UTC, except the priming schedule's times of day, which are local.
 - Utilizations are fractions, and can pass 1.
@@ -397,6 +465,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 | `pin` | The global pin: the accounts it names, since when, and whether it moved the running sessions. |
 | `router` | The router's health over the last 5 minutes. |
 | `restart` | A restart the router has due, and, as `held`, why the binary it would become refuses to start, where that holds it; as `exporting`, the folder of the export under way that the restart waits for, left out while none does. |
+| `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them: `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
 | `export` | How the router's hourly export into [`[export]`](configuration.md#export-keys)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |

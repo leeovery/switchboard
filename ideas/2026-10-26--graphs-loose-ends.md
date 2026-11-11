@@ -5,21 +5,19 @@ stage's two reviews, and the release review of the whole since v0.2.7, left thes
 an edge past ordinary use, or a cost, each judged for after the release. Gathered here, the first
 to take up first.
 
-## One owner of an account's number
+## One owner of the accounts' order
 
-The Accounts tab, Compare and Detail, numbers each account by its place in the dashboard's config;
-Runway, the Overview and Graphs by its place in the router's document (`numberedAsRunway`). The two
-agree but where the config and the router disagree, as after `switchboard accounts remove` while
-the router waits to restart, which can be hours. One owner of the number, read by every view, ends
-it. Graphs follows Runway, as the design says a card's label is Runway's.
+The Accounts tab, Compare and Detail, ordered the accounts by the dashboard's config; Runway, the
+Overview and Graphs by the router's document. The two agree but where the config and the router
+disagree, as after `switchboard accounts remove` while the router waits to restart, which can be
+hours. One owner of the order, read by every view, ends it. Graphs follows Runway, as the design
+says a card's label is Runway's.
 
-**Built** in the cleanliness release: `status.Numbering` owns the number, Runway's rule, the
-router's place, else after its last in the config's order among those it lacks. A moment's
-accounts carry it as their `Place`, and `Moment.Configured` gives the configured accounts numbered
-by it. Every tab, the routing card's keys and the `usage` printout read it, and the layouts that
-fit names to a column, GLANCE's, Detail's list and Compare's least, number them by the moment the
-frame holds. A test holds every tab and the card's keys to the one number with the config and the
-router apart.
+**Built** in the cleanliness release: `status.Numbering` owns the order, Runway's rule, the
+router's place, else after its last in the config's order among those it lacks, and
+`Moment.Configured` gives the configured accounts in it. Every tab, the routing card and the
+`usage` printout read it. Since account identity, nothing numbers the accounts: the order is all
+it owns.
 
 ## Runway's week past its view
 
@@ -31,9 +29,8 @@ phrase past its view's end, or the design could say why it doesn't.
 
 ## Edges
 
-- **GLANCE's name column** is laid from the config alone, so it's a cell short where a number
-  reaches 10 while the config has nine or fewer (ten accounts or more, with the config and the
-  router apart). **Built** with the number's owner: it's laid from the numbers it draws.
+- **GLANCE's name column** was laid from the config alone. **Built** with the order's owner: it's
+  laid from the names it draws.
 - **A hold then a run-out past the view:** a cap or limit held at now, lifting past Runway's view,
   with a run-out under it after that, would have a card say `back …` where Runway drawn on would say
   `lifts …`, as the stretches inside the view and past it are given their back apart. It needs a
