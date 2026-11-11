@@ -106,6 +106,7 @@ func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 		Status:   ex.status,
 		Canceled: f.canceled,
 		CutOff:   f.cutOff,
+		Broken:   f.broken,
 		Attempts: ex.attempts,
 		TotalMS:  f.took.Milliseconds(),
 		Agent:    h.Get("User-Agent"),

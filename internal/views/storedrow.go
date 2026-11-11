@@ -31,6 +31,7 @@ type storedRow struct {
 	Status         int                 `json:"sc,omitzero"`
 	Canceled       bool                `json:"cn,omitzero"`
 	CutOff         bool                `json:"co,omitzero"`
+	Broken         bool                `json:"bo,omitzero"`
 	Attempts       int                 `json:"at,omitzero"`
 	FirstMS        *int64              `json:"fm,omitempty"`
 	TotalMS        int64               `json:"tm,omitzero"`
@@ -71,10 +72,10 @@ type storedBlock struct {
 func (r *lineRecord) stored() storedRow {
 	return storedRow{
 		storedRequest: r.decodedRequest.stored(), Kind: storedKinds[r.kind], Session: r.session, CountedSession: r.countedSession, Status: r.status,
-		Canceled: r.canceled, CutOff: r.cutOff, Attempts: r.attempts, FirstMS: r.firstMS, TotalMS: r.totalMS, Size: r.size, Messages: r.messages,
-		System: r.system, ToolDefs: r.toolDefs, MaxTokens: r.maxTokens, Thinking: r.thinking, Effort: r.effort, Stream: r.stream, Agent: r.agent,
-		Betas: r.betas, Answer: r.answer, Served: r.served, Blocks: eachAs(r.blocks, func(b DetailBlock) storedBlock { return storedBlock(b) }),
-		Windows: r.windows, Limit: r.limit,
+		Canceled: r.canceled, CutOff: r.cutOff, Broken: r.broken, Attempts: r.attempts, FirstMS: r.firstMS, TotalMS: r.totalMS, Size: r.size,
+		Messages: r.messages, System: r.system, ToolDefs: r.toolDefs, MaxTokens: r.maxTokens, Thinking: r.thinking, Effort: r.effort, Stream: r.stream,
+		Agent: r.agent, Betas: r.betas, Answer: r.answer, Served: r.served,
+		Blocks: eachAs(r.blocks, func(b DetailBlock) storedBlock { return storedBlock(b) }), Windows: r.windows, Limit: r.limit,
 	}
 }
 
@@ -87,10 +88,10 @@ func (s *storedRow) restored() (lineRecord, error) {
 	}
 	return lineRecord{
 		decodedRequest: s.decoded(), kind: RowKind(kind), session: s.Session, countedSession: s.CountedSession, status: s.Status,
-		canceled: s.Canceled, cutOff: s.CutOff, attempts: s.Attempts, firstMS: s.FirstMS, totalMS: s.TotalMS, size: s.Size, messages: s.Messages,
-		system: s.System, toolDefs: s.ToolDefs, maxTokens: s.MaxTokens, thinking: s.Thinking, effort: s.Effort, stream: s.Stream, agent: s.Agent,
-		betas: s.Betas, answer: s.Answer, served: s.Served, blocks: eachAs(s.Blocks, func(b storedBlock) DetailBlock { return DetailBlock(b) }),
-		windows: s.Windows, limit: s.Limit,
+		canceled: s.Canceled, cutOff: s.CutOff, broken: s.Broken, attempts: s.Attempts, firstMS: s.FirstMS, totalMS: s.TotalMS, size: s.Size,
+		messages: s.Messages, system: s.System, toolDefs: s.ToolDefs, maxTokens: s.MaxTokens, thinking: s.Thinking, effort: s.Effort, stream: s.Stream,
+		agent: s.Agent, betas: s.Betas, answer: s.Answer, served: s.Served,
+		blocks: eachAs(s.Blocks, func(b storedBlock) DetailBlock { return DetailBlock(b) }), windows: s.Windows, limit: s.Limit,
 	}, nil
 }
 

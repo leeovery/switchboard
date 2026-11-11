@@ -33,23 +33,23 @@ type lineRecord struct {
 // decodes of it, as decodedRequest has it; and the row's facts beyond: what
 // it asked; the session it's of, and the one it counts toward, as
 // ledger.Line.CountedSession has it; what it was answered, and whether its
-// client went away or the router cut it off; how many times it went
-// upstream; how long after it arrived its answer's first byte came, nil
-// where none did, and its end; its shape's size, messages, definitions of
-// tools and thinking budget; and the client that sent it, cut to its name
-// and version.
+// client went away, the router cut it off or the upstream broke its answer
+// off; how many times it went upstream; how long after it arrived its
+// answer's first byte came, nil where none did, and its end; its shape's
+// size, messages, definitions of tools and thinking budget; and the client
+// that sent it, cut to its name and version.
 type rowRecord struct {
 	decodedRequest
-	kind                    RowKind
-	session, countedSession string
-	status                  int
-	canceled, cutOff        bool
-	attempts                int
-	firstMS                 *int64
-	totalMS                 int64
-	size, messages          int
-	toolDefs, thinking      int
-	agent                   string
+	kind                     RowKind
+	session, countedSession  string
+	status                   int
+	canceled, cutOff, broken bool
+	attempts                 int
+	firstMS                  *int64
+	totalMS                  int64
+	size, messages           int
+	toolDefs, thinking       int
+	agent                    string
 }
 
 // lineRecordOf returns the record of the line l, decoded once.
@@ -72,8 +72,8 @@ func lineRecordOf(l *ledger.Line) lineRecord {
 func rowRecordOf(l *ledger.Line) rowRecord {
 	r := rowRecord{
 		decodedRequest: decodedOf(l), kind: kindOf(l), session: l.Session, countedSession: l.CountedSession(), status: l.Status,
-		canceled: l.Canceled, cutOff: l.CutOff, attempts: l.Attempts, firstMS: l.FirstMS, totalMS: l.TotalMS, size: l.Shape.Bytes,
-		messages: l.Shape.Messages, toolDefs: l.Shape.Tools, agent: agentOf(l.Agent),
+		canceled: l.Canceled, cutOff: l.CutOff, broken: l.Broken, attempts: l.Attempts, firstMS: l.FirstMS, totalMS: l.TotalMS,
+		size: l.Shape.Bytes, messages: l.Shape.Messages, toolDefs: l.Shape.Tools, agent: agentOf(l.Agent),
 	}
 	if budget := l.Shape.Thinking.BudgetTokens; budget != nil {
 		r.thinking = int(*budget)
@@ -162,13 +162,13 @@ func (r *lineRecord) summed() uint64 {
 		status, attempts, size, messages, system, toolDefs                   int
 		maxTokens, thinking                                                  int
 		firstMS, totalMS                                                     int64
-		upstream, canceled, cutOff, answered, stream, streamed               bool
+		upstream, canceled, cutOff, broken, answered, stream, streamed       bool
 		tools, tried, betas, blocks, windows                                 int
 		spend                                                                uint64
 	}{
 		r.flight, r.dir, r.model, r.account, r.reason, r.from, r.class, r.agentID, r.geo, r.prompt, r.stop,
 		r.session, r.countedSession, r.effort, r.agent, r.answer, r.served, r.kind, r.limit, r.status, r.attempts, r.size, r.messages, r.system, r.toolDefs,
-		r.maxTokens, r.thinking, firstMS, r.totalMS, r.upstream, r.canceled, r.cutOff, answered, stream, streamed,
+		r.maxTokens, r.thinking, firstMS, r.totalMS, r.upstream, r.canceled, r.cutOff, r.broken, answered, stream, streamed,
 		len(r.tools), len(r.tried), len(r.betas), len(r.blocks), len(r.windows), r.spend.Sum(sumsSeed),
 	})
 	writeEach(&h, r.tools)

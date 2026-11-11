@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
@@ -646,17 +648,7 @@ func TestRequestsTheClientAbandonsAreLoggedAsCanceled(t *testing.T) {
 
 func TestAnUpstreamFailingMidStreamIsLogged(t *testing.T) {
 	log := logstest.Capture(t)
-	up := newUpstream(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = io.WriteString(w, "event: message_start\ndata: {}\n\n")
-		_ = http.NewResponseController(w).Flush()
-		conn, _, err := http.NewResponseController(w).Hijack()
-		if err != nil {
-			t.Errorf("upstream: hijack: %v", err)
-			return
-		}
-		_ = conn.Close()
-	})
+	up := newUpstream(t, answerBrokenOff(t, atOnce(), (*net.TCPConn).Close))
 	proxy := serveProxy(t, newRouter(t, up.URL))
 
 	resp := send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
@@ -664,10 +656,46 @@ func TestAnUpstreamFailingMidStreamIsLogged(t *testing.T) {
 		t.Error("the stream read to its end, want it cut short")
 	}
 	waitForLine(t, log, "level=WARN", "ReverseProxy read error during body copy", "component=router")
-	waitForLine(t, log, "level=INFO", "msg=routed", "account=work", "status=200")
+	waitForLine(t, log, "level=INFO", "msg=routed", "account=work", "status=200", "broken=true")
 	if log.Has("canceled=true") {
 		t.Errorf("log reads\n%s\nwant no word of the client going away: the upstream did", log)
 	}
+}
+
+// answerBrokenOff begins a streamed answer, then, once goOn closes, breaks it
+// off, ending its connection as end does. A reset throws away what's yet to
+// be sent, so goOn closing once the client has the answer's first event has
+// that through first.
+func answerBrokenOff(t *testing.T, goOn <-chan struct{}, end func(*net.TCPConn) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, claudetest.MessageStart)
+		_ = http.NewResponseController(w).Flush()
+		<-goOn
+		conn, _, err := http.NewResponseController(w).Hijack()
+		if err != nil {
+			t.Errorf("upstream: hijack: %v", err)
+			return
+		}
+		if err := end(conn.(*net.TCPConn)); err != nil {
+			t.Errorf("upstream: break the answer off: %v", err)
+		}
+	}
+}
+
+// atOnce is closed, for an answer told to go on at once.
+func atOnce() <-chan struct{} {
+	goOn := make(chan struct{})
+	close(goOn)
+	return goOn
+}
+
+// resetConn ends conn with a reset, as a connection lost mid-answer can end.
+func resetConn(conn *net.TCPConn) error {
+	if err := conn.SetLinger(0); err != nil {
+		return err
+	}
+	return conn.Close()
 }
 
 func TestAChoiceTheRouterCantSendOnKeepsToTheClientsAccount(t *testing.T) {

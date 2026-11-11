@@ -516,23 +516,32 @@ func (ex *exchange) identity(r *http.Request) []any {
 // done notes a routed request once it's done: in the request stream, once it
 // went upstream; in the hold curve, the log and the request ledger, once its
 // answer is counted, as the request finished by then, as the router can cut
-// it off meanwhile, stopping, though its time is taken before; and, once it
-// was answered, in the router's health. A new session whose request wasn't
-// answered with success, the chooser forgets first, so the line is of what
-// stands.
+// it off meanwhile, stopping, though its time is taken before, as is whether
+// the upstream broke its answer off; and, once it was answered, in the
+// router's health, a failure where the router failed it itself or the
+// upstream broke its answer off. A new session whose request wasn't answered
+// with success, the chooser forgets first, so the line is of what stands.
 func (p *proxy) done(r *http.Request, ex *exchange) {
-	took := time.Since(ex.started)
-	p.ended(ex)
+	took, broken := time.Since(ex.started), ex.brokenOff(r.Context())
+	p.ended(ex, broken)
 	p.weigh(ex)
-	f := finishing(r, took)
+	f := finishing(r, took, broken)
 	p.logRouted(ex, f)
 	if forgottenOnceDone(ex.newSession, ex.status) {
 		p.forget(ex)
 	}
 	p.ledger.note(p.line(ex, r.Header, f))
 	if ex.status != 0 {
-		p.health.record(ex.arrived, ex.failed)
+		p.health.record(ex.arrived, ex.failed || f.broken)
 	}
+}
+
+// brokenOff reports whether the upstream broke off the answer the client of
+// the routed request ex has, after it began: reading it failed short of its
+// end while the request, whose context is ctx, still stood, as its client
+// going or the router cutting it off fails the read too.
+func (ex *exchange) brokenOff(ctx context.Context) bool {
+	return ex.tap != nil && ex.tap.broke && ctx.Err() == nil
 }
 
 // forgottenOnceDone reports whether the session of a routed request, once
@@ -569,19 +578,21 @@ func (p *proxy) forget(ex *exchange) string {
 }
 
 // finish is how a routed request finished: as long after it arrived as took,
-// and, where it ended early, cut off by the router as it stopped, or
-// canceled, its client gone.
+// and, where it ended early, whichever came first of being cut off by the
+// router as it stopped, canceled, its client gone, or broken, its answer
+// broken off by the upstream after it began.
 type finish struct {
-	took             time.Duration
-	cutOff, canceled bool
+	took                     time.Duration
+	cutOff, canceled, broken bool
 }
 
 // finishing returns how the routed request r finished, as long after it
-// arrived as took: where its context has ended, what ended it first, as its
-// cause says.
-func finishing(r *http.Request, took time.Duration) finish {
-	f := finish{took: took}
-	if r.Context().Err() != nil {
+// arrived as took: broken, where the upstream broke its answer off, as broken
+// says; else, where its context has ended, what ended it first, as its cause
+// says.
+func finishing(r *http.Request, took time.Duration, broken bool) finish {
+	f := finish{took: took, broken: broken}
+	if !broken && r.Context().Err() != nil {
 		f.cutOff = errors.Is(context.Cause(r.Context()), errCutOff)
 		f.canceled = !f.cutOff
 	}
@@ -595,19 +606,22 @@ func (f finish) attrs() []any {
 		return []any{"cut_off", true}
 	case f.canceled:
 		return []any{"canceled", true}
+	case f.broken:
+		return []any{"broken", true}
 	}
 	return nil
 }
 
 // ended tells the request stream of a routed request that went upstream
-// being done, with what its client was answered: once its answer is counted,
-// when it has one.
-func (p *proxy) ended(ex *exchange) {
+// being done, with what its client was answered, and whether the upstream
+// broke that off, as broken says: once its answer is counted, when it has
+// one.
+func (p *proxy) ended(ex *exchange, broken bool) {
 	if ex.attempts == 0 {
 		return
 	}
 	done := ex.event(StreamDone)
-	done.Status = ex.status
+	done.Status, done.Broken = ex.status, broken
 	if ex.tap != nil {
 		ex.tap.end(done)
 		return
@@ -650,7 +664,8 @@ func bounded(s string) string {
 
 // logRouted notes a routed request once it's done, as f finished it: how long
 // after it arrived, how many times it went upstream when that was more than
-// once, and whether it was cut off, or its client went away, before its end.
+// once, and whether it was cut off, its client went away, or the upstream
+// broke its answer off, before its end.
 func (p *proxy) logRouted(ex *exchange, f finish) {
 	attrs := []any{
 		"id", ex.id,
@@ -674,7 +689,7 @@ func (p *proxy) logRouted(ex *exchange, f finish) {
 // notes the request's line in the request ledger, of what's known of it
 // without the body: of no account, as the router answered it, and no shape.
 func (p *proxy) unread(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
-	f := finishing(r, time.Since(ex.started))
+	f := finishing(r, time.Since(ex.started), false)
 	logger.Warn("request refused: body unread", append([]any{"id", ex.id, "method", r.Method, "path", r.URL.Path, "error", err}, f.attrs()...)...)
 	ex.req.Session, ex.req.Dir = p.provider.Session(r.Header), dirOf(r.Header)
 	ex.status = http.StatusBadRequest

@@ -27,8 +27,9 @@ func recordsOfLines(lines []ledger.Line) []lineRecord {
 
 // dressed has l say what a router's line says beyond what the generated
 // runs give, each now and then, as the seed's r draws it: the client that
-// sent it, its betas, its shape, its answer's id, model and blocks, and its
-// client going away.
+// sent it, its betas, its shape, its answer's id, model and blocks, its
+// client going away, and, where neither its client went nor its router cut
+// it off, its upstream breaking its answer off.
 func dressed(r *rand.Rand, l *ledger.Line) {
 	l.Agent = []string{"", "claude-cli/2.1.300 (external, cli)", "claude-cli/2.2.0"}[r.IntN(3)]
 	for _, beta := range []string{"claude-code-20250219", "context-1m-2025-08-07", "interleaved-thinking-2025-05-14"} {
@@ -50,6 +51,8 @@ func dressed(r *rand.Rand, l *ledger.Line) {
 		l.Answer.Blocks = map[string]int{"thinking": 1, "text": 1, "tool_use": len(l.Answer.Tools), "mcp_tool_use": r.IntN(2)}
 	}
 	l.Canceled = l.Canceled || r.IntN(20) == 0
+	broken := r.IntN(20) == 0
+	l.Broken = l.Broken || broken && !l.Canceled && !l.CutOff
 }
 
 // twinOf is l but for what no record of it holds, as the seed's r draws it:
@@ -277,6 +280,7 @@ var recordEdits = map[string]func(r *lineRecord){
 	"status":         func(r *lineRecord) { r.status = 529 },
 	"canceled":       func(r *lineRecord) { r.canceled = !r.canceled },
 	"cutOff":         func(r *lineRecord) { r.cutOff = !r.cutOff },
+	"broken":         func(r *lineRecord) { r.broken = !r.broken },
 	"attempts":       func(r *lineRecord) { r.attempts++ },
 	"firstMS":        func(r *lineRecord) { r.firstMS = nil },
 	"totalMS":        func(r *lineRecord) { r.totalMS++ },
