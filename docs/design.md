@@ -448,7 +448,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   characters, with anything shaped like a token hidden.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
-  token they no longer held, the refusals of the request itself it met, the 403s, are taken back, as a refusal every
+  token they no longer held, nor those it left as they could no longer be sent on, the refusals of
+  the request itself it met, the 403s, are taken back, as a refusal every
   account that judged the request gives says more of the request, such as a beta it carries, than
   of the accounts. Otherwise one such request would hold its model's family back on every account
   for 10 minutes, and every session of the family would fall back to the client's account, the
@@ -458,12 +459,18 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   request, as the moves its replays made came to nothing, unless another request of the session
   has been routed since, whose account stands; the moves stand told, in the log and any
   notification of them. The client still gets the 502.
-- **A token another subscription's is never sent on:** a request carrying the token of an account
-  the router found holding another subscription's, or one it had before, is routed as that
-  account's, never passed through on it, and goes out on another account. Where none can take it,
-  as every other is without a token or refused it lately, switchboard answers 503, shaped as the
-  API shapes its errors and marked `X-Should-Retry: false`, saying the account's token is another
-  subscription's and what puts it right, and nothing goes out (see Account identity).
+- **A token another subscription's is never sent on:** a routed request, to `/v1/messages` or its
+  `count_tokens`, carrying the token of an account the router found holding another
+  subscription's, or one it had before, is routed as that account's, never passed through on it,
+  and goes out on another account. So is one carrying the token found so after the account's file
+  has lost it, while the finding stands. Where none can take it, as every other is without a token
+  or refused it lately, switchboard answers 503, shaped as the API shapes its errors and marked
+  `X-Should-Retry: false`, saying why the account can't take it and what puts it right; nothing
+  goes out, and the request's session stays where it was, moved nowhere (see Account identity). A
+  request that was to go out again on its account, after a throttle, for a new token or after a
+  reset by hand, goes elsewhere instead once that account can no longer be sent on, and where none
+  takes it, it's answered the same. Requests to any other path pass through on the client's token
+  as before, as the rule above says: they carry no usage.
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
   be read 400, whoever is left to read it, as a client that closed its side of the connection
@@ -1003,8 +1010,9 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   different one counts as replaced. Where a probe found the token an account holds another
   subscription's, `state.json` keeps that token's hash too, so the account takes none of the
   requests after a restart while it holds it, without a probe; nor is that token probed again.
-  The account takes requests again as it takes up another, which its rounds probe (see Account
-  identity).
+  The account takes requests again as it takes up another, which its rounds probe, and the finding
+  goes: a token taken up is the account's own till a probe finds otherwise, the one found so
+  among them, should it be put back by hand (see Account identity).
 - An account removed from the config leaves its tokens, the one the router held last and those it
   had before, to the primary, as former tokens of the primary's: a session started with one, as
   every session holds the primary's, carries on sending it, and stays routed, its client account

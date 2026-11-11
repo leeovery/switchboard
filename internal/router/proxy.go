@@ -194,8 +194,9 @@ func (p *proxy) routable(r *http.Request) (account, bool) {
 // route sends a request on the account the chooser picks for it, and on
 // others while that one can't serve it. When the chooser picks none, as only
 // accounts held back by their reserves are left, the router answers as the
-// upstream would at a limit. The request counts as routing until its line is
-// noted, but for one that upgrades its connection.
+// upstream would at a limit, and as unsendable says where no account it can
+// send on will take the request. The request counts as routing until its line
+// is noted, but for one that upgrades its connection.
 func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	if !upgrades(r) {
 		p.routing.begin()
@@ -208,7 +209,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		return
 	}
 	ex.req, ex.shape = p.request(r, body, ex, client)
-	choice := p.chooser.Choose(r.Context(), ex.req)
+	choice := p.rechosen(r.Context(), ex.req, p.chooser.Choose(r.Context(), ex.req))
 	ex.newSession = choice.New
 	defer p.done(r, ex)
 	if choice.Reserved {
@@ -217,7 +218,8 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	}
 	a, reason, ok := p.chosen(ex, choice, client)
 	if !ok {
-		p.unsendable(w, ex, choice, client)
+		ex.reason = choice.Reason
+		p.unsendable(w, ex, client)
 		return
 	}
 	ex.account, ex.reason = a, reason
@@ -338,11 +340,27 @@ func (p *ignoredPins) honoured(account string) {
 	delete(p.told, account)
 }
 
+// rechosen is choice, the chooser's for req, unless it names an account that
+// can no longer be sent on, as a probe found its token another
+// subscription's, or its file gone, since the chooser chose it: then the
+// chooser takes back what it chose, which came to nothing, and is asked
+// again, as next asks it, once an account at most.
+func (p *proxy) rechosen(ctx context.Context, req Request, choice Choice) Choice {
+	for range len(p.accounts) {
+		if a, ok := p.accounts.byID(choice.Account); !ok || a.hasToken() {
+			return choice
+		}
+		p.chooser.Forget(req)
+		choice = p.chooser.Choose(ctx, req)
+	}
+	return choice
+}
+
 // chosen returns the account a request goes out on first, as the chooser
 // chose it, and why. Should it name one the router can't send on, the request
 // keeps to its client's, where the router can send on that. It reports false
-// where it can't either, as where the chooser, finding no other, fell back on
-// a client whose token is another subscription's.
+// where it can't either, as where the choice names none, no account the
+// router can send on taking the request.
 func (p *proxy) chosen(ex *exchange, choice Choice, client account) (account, string, bool) {
 	if a, ok := p.accounts.byID(choice.Account); ok && a.hasToken() {
 		return a, choice.Reason, true
@@ -354,18 +372,18 @@ func (p *proxy) chosen(ex *exchange, choice Choice, client account) (account, st
 	return client, status.ReasonClient, true
 }
 
-// unsendable answers a request that can go out on no account, not even its
-// client's, as the chooser chose for it: a 503, shaped as the API shapes its
-// errors, saying why the client's account can't take it, and telling the
-// client not to retry, as nothing changes till the account has a token of its
-// own. Nothing goes out, so nothing goes out on a token another
-// subscription's.
-func (p *proxy) unsendable(w http.ResponseWriter, ex *exchange, choice Choice, client account) {
-	ex.reason, ex.status = choice.Reason, http.StatusServiceUnavailable
-	logger.Warn("no account can take the request, not even the client's; answering 503", "id", ex.id, "account", client.ID)
+// unsendable answers a request that can go out on no account the router can
+// send on, not on a, its client's or the one it was to go out on again: a
+// 503, shaped as the API shapes its errors, saying why a can't take it, and
+// telling the client not to retry, as nothing changes till the account has a
+// token of its own. Nothing more goes out, so nothing goes out on a token
+// another subscription's.
+func (p *proxy) unsendable(w http.ResponseWriter, ex *exchange, a account) {
+	ex.status = http.StatusServiceUnavailable
+	logger.Warn("no account can take the request; answering 503", "id", ex.id, "account", a.ID)
 	message := "switchboard: no account can take the request"
-	if problem := client.problem(); problem != "" {
-		message += "; account " + client.ID + ": " + problem
+	if problem := a.problem(); problem != "" {
+		message += "; account " + a.ID + ": " + problem
 	}
 	w.Header().Set("X-Should-Retry", "false")
 	writeError(w, ex.status, "api_error", message)
@@ -530,11 +548,21 @@ func (e refusedError) message(account string) string {
 	return message
 }
 
+// errUnsendable is a routed request left with no account to go out on, as
+// the one it was to go out on again can no longer be sent on, and no other
+// takes it.
+var errUnsendable = errors.New("no account can take the request")
+
 // fail answers a request the upstream didn't answer, or answered with a
 // refusal the client mustn't see: a 502, shaped as the API shapes its errors.
+// One left with no account to go out on is answered as unsendable says.
 func (p *proxy) fail(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
 	if r.Context().Err() != nil {
 		// The client has gone, so there's no one to answer.
+		return
+	}
+	if errors.Is(err, errUnsendable) {
+		p.unsendable(w, ex, ex.account)
 		return
 	}
 	ex.status, ex.failed = http.StatusBadGateway, true

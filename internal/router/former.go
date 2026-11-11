@@ -83,13 +83,18 @@ func (s *secret) replace(token tokens.Token, taken takenNote, now time.Time) (re
 }
 
 // swap has the account hold token from now on, keeping the one it held
-// before, if it held another, among its former tokens, replaced at now. It
-// reports whether it replaced one. s.mu must be held.
+// before, if it held another, among its former tokens, replaced at now, and
+// forgetting any finding of that one as another subscription's. It reports
+// whether it replaced one. s.mu must be held.
 func (s *secret) swap(token tokens.Token, now time.Time) bool {
 	s.token = token
 	was := s.held
 	s.held = hash(token.Reveal())
-	if was == "" || was == s.held {
+	if was == s.held {
+		return false
+	}
+	s.foreign = ""
+	if was == "" {
 		return false
 	}
 	s.former = append(s.former, formerToken{SHA256: was, ReplacedAt: now.UTC()})
@@ -200,7 +205,7 @@ func (s *secret) kept() savedTokens {
 	if s.retired {
 		return savedTokens{}
 	}
-	return savedTokens{SHA256: s.held, Foreign: s.foreignHeld(), Former: slices.Clone(s.former)}
+	return savedTokens{SHA256: s.held, Foreign: s.foreign, Former: slices.Clone(s.former)}
 }
 
 // recall takes in what the state file kept of the account's tokens, as the

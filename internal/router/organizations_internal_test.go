@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -239,7 +240,7 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 
 	// Its own token given, as accounts token gives it, it takes requests at
 	// once, as the token found another's is no longer the one it holds, and
-	// the next round's probe on that token finds it its own.
+	// the next round's probe on that token finds it its own, which is no news.
 	files.set(tokenstest.Files{"work": workToken, "side": sideOwnToken})
 	r.upkeep.tokens.look()
 	wantSideTakes(t, r)
@@ -252,16 +253,47 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 		t.Errorf("side's own token probed %d times on the next round, want once", n)
 	}
 	wantSideTakes(t, r)
-	if !log.Has("level=INFO", `msg="token is the account's own again"`, "account=side") {
-		t.Errorf("log reads\n%s\nwant side's token told its own again", log)
+	if log.Has(`msg="token is the account's own again"`) {
+		t.Errorf("log reads\n%s\nwant no token told its own again: none taken up since was found another's", log)
 	}
-	if kept != 2 {
-		t.Errorf("the state file heard of %d changes to side's tokens, want two: the finding, and the token found its own", kept)
+	if kept != 1 {
+		t.Errorf("the state file heard of %d changes to side's tokens from probes, want one: the finding", kept)
 	}
 	if events := foreignEvents(r); len(events) != 1 {
 		t.Errorf("the router keeps %+v of tokens found another subscription's, want the one", events)
 	}
 	checkNoToken(t, log)
+}
+
+func TestAFindingOfAnothersTokenIsForgottenOnceTheAccountTakesUpAnother(t *testing.T) {
+	log := logstest.Capture(t)
+	clock := &testClock{now: start}
+	files := &changingFiles{files: testTokens}
+	prober := &stubProber{readings: map[string]quota.Probe{sideToken: orgProbed("test-org-other")}}
+	r := newHeldRouter(t, clock, prober, files.read, heldWork, heldSide)
+	defer r.probes.stop()
+	var kept changeCount
+	r.probes.kept = kept.hear
+	probeNow(r, "side")
+	wantForeign(t, r, true)
+
+	// Another taken up, then the one found another's put back by hand: each
+	// takes requests at once, as any token taken up does, till a probe finds
+	// otherwise.
+	for _, token := range []string{sideOwnToken, sideToken} {
+		files.set(tokenstest.Files{"work": workToken, "side": token})
+		r.upkeep.tokens.look()
+		wantSideTakes(t, r)
+	}
+	prober.readings[sideToken] = orgProbed("test-org-side")
+	probeNow(r, "side")
+	wantSideTakes(t, r)
+	if kept != 1 {
+		t.Errorf("the state file heard of %d changes to side's tokens, want one, the finding: a probe that finds a token its own clears no finding where none stands", kept)
+	}
+	if log.Has(`msg="token is the account's own again"`) {
+		t.Errorf("log reads\n%s\nwant no token told its own again: none was found another's since it was taken up", log)
+	}
 }
 
 // wantSideTakes fails the test unless side takes requests, its token its own
@@ -410,23 +442,35 @@ func TestATokenTakenUpInPlaceOfOneFoundAnothersIsProbedOnItsRoundsAsAnyIs(t *tes
 	}
 }
 
-func TestAProbeFindsNothingOfATokenTheAccountNoLongerHolds(t *testing.T) {
+func TestAProbeNotesWhatItFindsOfTheTokenTheAccountHoldsAloneAndOnlyAsItChanges(t *testing.T) {
 	tests := []struct {
 		name string
-		// probed is the token the probe went out on.
+		// foundBefore has side's token found another subscription's before
+		// the probe.
+		foundBefore bool
+		// probed is the token the probe went out on, and found whether it
+		// found it another subscription's.
 		probed string
+		found  bool
 		// changed is whether what's noted changes, and foreign whether side
 		// holds another subscription's token after.
 		changed, foreign bool
 	}{
-		{name: "the token it holds", probed: sideToken, changed: true, foreign: true},
-		{name: "the token before", probed: sideOwnToken},
+		{name: "another's, of the token it holds", probed: sideToken, found: true, changed: true, foreign: true},
+		{name: "another's, of the token before", probed: sideOwnToken, found: true},
+		{name: "another's again", foundBefore: true, probed: sideToken, found: true, foreign: true},
+		{name: "its own, of the token found another's", foundBefore: true, probed: sideToken, changed: true},
+		{name: "its own, of a token none found another's", probed: sideToken},
+		{name: "its own, of the token before, the one held found another's", foundBefore: true, probed: sideOwnToken, foreign: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			side, _ := testAccounts().byID("side")
-			if changed := side.secret.disown(hash(tt.probed), true); changed != tt.changed {
-				t.Errorf("a probe on %s found another subscription's: changed = %v, want %v", tt.name, changed, tt.changed)
+			if tt.foundBefore {
+				side.secret.disown(hash(sideToken), true)
+			}
+			if changed := side.secret.disown(hash(tt.probed), tt.found); changed != tt.changed {
+				t.Errorf("changed = %v, want %v", changed, tt.changed)
 			}
 			if _, foreign := side.lacks(); foreign != tt.foreign || side.hasToken() == tt.foreign {
 				t.Errorf("side's token another subscription's: %v, has a token of its own: %v; want %v, %v", foreign, side.hasToken(), tt.foreign, !tt.foreign)
@@ -462,9 +506,13 @@ func TestAClientOfAnAccountWhoseTokenIsAnothersIsRoutedNeverSentOnThatToken(t *t
 	tests := []struct {
 		name  string
 		token string
+		// gone has side's token file hold none after the finding, for two
+		// looks, so side has no usable token at all.
+		gone bool
 	}{
 		{name: "the token it holds", token: sideToken},
 		{name: "the token it had before", token: sideBeforeToken},
+		{name: "the token it held, its file gone since", token: sideToken, gone: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -478,6 +526,14 @@ func TestAClientOfAnAccountWhoseTokenIsAnothersIsRoutedNeverSentOnThatToken(t *t
 			r.upkeep.tokens.look()
 			probeNow(r, "side")
 			wantForeign(t, r, true)
+			if tt.gone {
+				files.set(tokenstest.Files{"work": workToken})
+				r.upkeep.tokens.look()
+				r.upkeep.tokens.look()
+				if side, _ := r.accounts.byID("side"); side.holdsToken() {
+					t.Fatal("side holds a usable token, want none: its file is gone")
+				}
+			}
 			upstream := everyToken()
 			r.proxy.transport = upstream
 
@@ -513,10 +569,115 @@ func TestARequestNoAccountCanTakeButOneWhoseTokenIsAnothersIsAnsweredUnsent(t *t
 	if sent := upstream.sentWith(); len(sent) > 0 {
 		t.Errorf("the request went out on %q, want nothing sent", sent)
 	}
-	if !log.Has("level=WARN", `msg="no account can take the request, not even the client's; answering 503"`, "account=side") {
+	if !log.Has("level=WARN", `msg="no account can take the request; answering 503"`, "account=side") {
 		t.Errorf("log reads\n%s\nwant the request refused, of side's client", log)
 	}
 	checkNoToken(t, log)
+}
+
+func TestARequestNoAccountItCanGoOutOnTakesLeavesItsSessionWhereItWas(t *testing.T) {
+	log := logstest.Capture(t)
+	clock := &testClock{now: start}
+	prober := &stubProber{readings: map[string]quota.Probe{workToken: orgProbed("test-org-work"), sideToken: orgProbed("test-org-other")}}
+	r := newHeldRouter(t, clock, prober, testTokens.Read, heldWork, heldSide)
+	defer r.probes.stop()
+	r.state.record("work", []quota.Window{session, week}, r.state.mark())
+	probeNow(r, "side")
+	wantForeign(t, r, true)
+	one := key{session: "one", model: opus}
+	assign(r.sessions, one, "", decision{account: "work", reason: reasonNew}, start)
+	r.state.forbid("work", r.state.family(opus), http.StatusForbidden, someRequest)
+	upstream := everyToken()
+	r.proxy.transport = upstream
+
+	// The session's next request carries side's token: work, its account,
+	// refused the model lately, and side can't be sent on.
+	rec := routeOn(t, r, "one", sideToken)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("answered %d, want 503", rec.Code)
+	}
+	if sent := upstream.sentWith(); len(sent) > 0 {
+		t.Errorf("the request went out on %q, want nothing sent", sent)
+	}
+	if got := r.sessions.lookup(one).current; got.Account != "work" {
+		t.Errorf("the session is on %q, want work, where it was: the request went out on no account", got.Account)
+	}
+	for _, e := range r.recent.events() {
+		if e.Kind == status.EventMoved {
+			t.Errorf("the router keeps %+v, want no move", e)
+		}
+	}
+	if log.Has("msg=moved") {
+		t.Errorf("log reads\n%s\nwant no move", log)
+	}
+	checkNoToken(t, log)
+}
+
+// losingChooser is the router's chooser, but that the first time it chooses
+// the account lost, the account loses its token as soon as it's chosen, as
+// when a probe finds the token another subscription's just then.
+type losingChooser struct {
+	Chooser
+	lost account
+	once sync.Once
+}
+
+func (c *losingChooser) Choose(ctx context.Context, req Request) Choice {
+	choice := c.Chooser.Choose(ctx, req)
+	if choice.Account == c.lost.ID {
+		c.once.Do(func() { c.lost.secret.disown(hash(c.lost.token().Reveal()), true) })
+	}
+	return choice
+}
+
+func TestAChoiceOfAnAccountThatLosesItsTokenBeforeTheRequestGoesOutIsMadeAgain(t *testing.T) {
+	tests := []struct {
+		name string
+		// onSide has the session on side before its request; else it's new.
+		onSide bool
+		// wantMoved are the moves the router keeps of the session.
+		wantMoved []string
+	}{
+		{name: "a session on it", onSide: true, wantMoved: []string{"side to work"}},
+		{name: "a new session"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			r := newHeldRouter(t, clock, &stubProber{}, testTokens.Read, heldWork, heldSide)
+			defer r.probes.stop()
+			// Both have room, side's quota needing using sooner.
+			r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+			r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+			one := key{session: "one", model: opus}
+			if tt.onSide {
+				assign(r.sessions, one, "", decision{account: "side", reason: reasonNew}, start)
+			}
+			side, _ := r.accounts.byID("side")
+			r.proxy.chooser = &losingChooser{Chooser: r.proxy.chooser, lost: side}
+			upstream := everyToken()
+			r.proxy.transport = upstream
+
+			if rec := routeOn(t, r, "one", sideToken); rec.Code != http.StatusOK {
+				t.Errorf("answered %d, want 200: work has room", rec.Code)
+			}
+			if sent := upstream.sentWith(); !slices.Equal(sent, []string{workToken}) {
+				t.Errorf("the request went out on %q, want work's token alone", sent)
+			}
+			if got := r.sessions.lookup(one).current; got.Account != "work" {
+				t.Errorf("the session is on %q, want work", got.Account)
+			}
+			var moved []string
+			for _, e := range r.recent.events() {
+				if e.Kind == status.EventMoved {
+					moved = append(moved, e.From+" to "+e.To)
+				}
+			}
+			if !slices.Equal(moved, tt.wantMoved) {
+				t.Errorf("the router keeps the session's moves %q, want %q", moved, tt.wantMoved)
+			}
+		})
+	}
 }
 
 func TestARestartKeepsAnAccountWhoseTokenIsAnothersHeldOutTillItTakesUpAnother(t *testing.T) {
@@ -527,11 +688,15 @@ func TestARestartKeepsAnAccountWhoseTokenIsAnothersHeldOutTillItTakesUpAnother(t
 		// fromBefore has the state file as a router from before kept it,
 		// which kept none found another subscription's.
 		fromBefore bool
-		foreign    bool
+		// foreign is whether side holds a token found another subscription's,
+		// and heldOut whether nothing goes out on the token found so, its
+		// file holding it or not, a client sending it routed elsewhere.
+		foreign, heldOut bool
 	}{
-		{name: "holding the token found another's", files: testTokens, foreign: true},
+		{name: "holding the token found another's", files: testTokens, foreign: true, heldOut: true},
 		{name: "holding another, taken up while the router was away", files: tokenstest.Files{"work": workToken, "side": sideOwnToken}},
 		{name: "kept by a router from before", files: testTokens, fromBefore: true},
+		{name: "holding none, its file gone while the router was away", files: tokenstest.Files{"work": workToken}, heldOut: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -571,14 +736,18 @@ func TestARestartKeepsAnAccountWhoseTokenIsAnothersHeldOutTillItTakesUpAnother(t
 			after := newTestRouterOf(t, cfg)
 			defer after.probes.stop()
 			after.file.load(path)
+			for _, u := range after.probes.start(after.accounts.sendable(), after.state.startDue) {
+				<-u.done
+			}
+			after.rounds.look(t.Context())
 			upstream := everyToken()
 			after.proxy.transport = upstream
 
 			side, _ := after.accounts.byID("side")
-			if _, foreign := side.lacks(); foreign != tt.foreign || side.hasToken() == tt.foreign {
-				t.Errorf("side's token another subscription's: %v, has a token of its own: %v; want %v, %v", foreign, side.hasToken(), tt.foreign, !tt.foreign)
+			if _, foreign := side.lacks(); foreign != tt.foreign || side.hasToken() == tt.heldOut {
+				t.Errorf("side's token another subscription's: %v, has a token of its own: %v; want %v, %v", foreign, side.hasToken(), tt.foreign, !tt.heldOut)
 			}
-			if !tt.foreign {
+			if !tt.heldOut {
 				return
 			}
 			if rec := routeOn(t, after, "one", sideToken); rec.Code != http.StatusOK {

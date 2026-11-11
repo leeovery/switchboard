@@ -59,8 +59,9 @@ type decision struct {
 	passedOver string
 	pressure   score.Pressure
 	// noRoom is set when no account has room for the request, so account is
-	// only where it falls back to, or none: when reserved is set, or the
-	// request has been tried already.
+	// only where it falls back to, or none: when reserved is set, the request
+	// has been tried already, or no account the request can go out on will
+	// take it.
 	noRoom bool
 	// reserved is set when the request goes out on no account, as every one
 	// it could fall back to is held back by its reserve alone, which the
@@ -304,12 +305,12 @@ func (s situation) unable(id string) string {
 // noRoom is where a request goes when no account has room for it, for the
 // upstream to refuse it there, saying why: the session's account, else the
 // client's, else any other the view falls back to. With every one refused,
-// or none the request can go out on, it's the client's, even one whose token
-// is another subscription's, which the proxy answers for, sending nothing.
-// With none left but those held back by their reserve alone, it's none, and
-// switchboard answers for the upstream: the router never spends a reserve. A
-// request tried already goes nowhere else: the upstream has said why on the
-// accounts it was tried on.
+// it's the client's, where the request can go out on that; with none it can,
+// it's none, and the proxy answers for it, sending nothing, the session left
+// where it was. With none left but those held back by their reserve alone,
+// it's none, and switchboard answers for the upstream: the router never
+// spends a reserve. A request tried already goes nowhere else: the upstream
+// has said why on the accounts it was tried on.
 func (s situation) noRoom() decision {
 	d := decision{reason: reasonNoRoom, afresh: true, noRoom: true}
 	if len(s.req.Tried) > 0 {
@@ -327,6 +328,8 @@ func (s situation) noRoom() decision {
 		d.reserved, d.back = true, back
 		return d
 	}
-	d.account = s.req.Client
+	if s.accounts.has(s.req.Client) {
+		d.account = s.req.Client
+	}
 	return d
 }
