@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
 // rewriteDate is the day the rewrite tests' files are of.
@@ -82,6 +84,68 @@ func gzipCutShort(t *testing.T, lines string) []byte {
 	return whole[:len(whole)-6]
 }
 
+// gzipFlushed is a gzip member of kept, then lost, flushed between, so kept
+// inflates whatever comes after it; and where lost's compressed data lies in
+// it, from from to to.
+func gzipFlushed(t *testing.T, kept, lost string) (member []byte, from, to int) {
+	t.Helper()
+	var data bytes.Buffer
+	w := gzip.NewWriter(&data)
+	if _, err := io.WriteString(w, kept); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	from = data.Len()
+	if _, err := io.WriteString(w, lost); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return data.Bytes(), from, data.Len() - 8
+}
+
+// gzipCutInside is a compressed file of kept, then lost, cut short inside
+// lost's compressed data, as a write cut short there leaves it: kept reads
+// whole, then it fails.
+func gzipCutInside(t *testing.T, kept, lost string) []byte {
+	member, from, to := gzipFlushed(t, kept, lost)
+	return member[:(from+to)/2]
+}
+
+// gzipBrokenAt is a gzip member of kept, then lost, whose compressed data is
+// broken where lost's starts, as a disk's fault breaks it: kept reads whole,
+// then it fails, lost and anything after it lost.
+func gzipBrokenAt(t *testing.T, kept, lost string) []byte {
+	member, from, _ := gzipFlushed(t, kept, lost)
+	// A block of the type no block has.
+	member[from] = 0xff
+	return member
+}
+
+// lostLine is a long line, which damage inside its compressed data loses all
+// but a start of, no whole JSON.
+var lostLine = linesOf(`{"a":"old","lost":"` + strings.Repeat("0123456789abcdef", 64) + `"}`)
+
+// staged returns the files staged beside the file at path and left there.
+func staged(t *testing.T, path string) []string {
+	t.Helper()
+	found, err := atomicfile.Leftovers(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
+}
+
+// linkFailing links no file, failing as linking does, as why says.
+func linkFailing(why syscall.Errno) func(oldname, newname string) error {
+	return func(oldname, newname string) error {
+		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: why}
+	}
+}
+
 func TestADamagedCompressedFileIsRewrittenUpToItsDamageAndSetAside(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -89,27 +153,109 @@ func TestADamagedCompressedFileIsRewrittenUpToItsDamageAndSetAside(t *testing.T)
 		want string
 	}{
 		{"cut short", gzipCutShort(t, linesOf(`{"a":"old"}`, `{"a":"old","b":"old"}`)+`{"a":"old","cut`), linesOf(`{"a":"new"}`, `{"a":"new","b":"new"}`)},
+		{"cut short after a last line without its ending, whole JSON", gzipCutShort(t, linesOf(`{"a":"old"}`)+`{"a":"old","b":1}`), linesOf(`{"a":"new"}`, `{"a":"new","b":1}`)},
+		{"cut short inside its compressed data", gzipCutInside(t, linesOf(`{"a":"old"}`, `{"a":"old","b":1}`), lostLine+linesOf(`{"a":"old","c":1}`)), linesOf(`{"a":"new"}`, `{"a":"new","b":1}`)},
+		{"broken in a member before its last", slices.Concat(gzipOf(t, linesOf(`{"a":"old"}`)), gzipBrokenAt(t, linesOf(`{"a":"old","b":1}`), lostLine), gzipOf(t, linesOf(`{"a":"old","c":1}`))), linesOf(`{"a":"new"}`, `{"a":"new","b":1}`)},
 		{"not gzip at all", []byte("not gzip, nor ever was\n"), ""},
 		{"empty", nil, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := requestLedger(t.TempDir())
-			put(t, f.path(compressedFile(rewriteDate)), tc.data)
+			path := f.path(compressedFile(rewriteDate))
+			put(t, path, tc.data)
 
 			if _, err := f.Rewrite(rewriteDate, toNew); err != nil {
 				t.Fatalf("Rewrite() = %v", err)
 			}
 			if got := heldIn(t, f, compressedFile(rewriteDate)); got != tc.want {
-				t.Errorf("the compressed file gives %q, want the whole lines before the damage, rewritten, %q", got, tc.want)
+				t.Errorf("the compressed file gives %q, want the lines before the damage, rewritten, %q", got, tc.want)
 			}
-			aside, err := os.ReadFile(f.path(compressedFile(rewriteDate)) + ".damaged")
+			aside, err := os.ReadFile(path + ".damaged")
 			if err != nil || !bytes.Equal(aside, tc.data) {
 				t.Errorf("the damaged file set aside holds %q, %v, want it as it was, %q", aside, err, tc.data)
 			}
 			if dates, err := f.All(); err != nil || !slices.Equal(dates, []string{rewriteDate}) {
 				t.Errorf("the files list the days %q, %v, want the one day, the damaged file set aside unlisted", dates, err)
 			}
+			if left := staged(t, path); len(left) > 0 {
+				t.Errorf("files staged beside it were left behind: %q", left)
+			}
 		})
+	}
+}
+
+// A compress stopped once it had written the compressed file, before it
+// removed the plain one, then damage that lost the end of the lines it added:
+// the repair keeps each member's lines a member of their own, so the
+// compress after finds the lines of the plain file it holds, and holds each
+// line once.
+func TestADamagedFileACompressStoppedPartWayLeftHoldsEachLineOnce(t *testing.T) {
+	f := requestLedger(t.TempDir())
+	added := linesOf(`{"a":"old","n":1}`)
+	put(t, f.path(compressedFile(rewriteDate)), slices.Concat(gzipOf(t, linesOf(`{"a":"old","n":0}`)), gzipCutInside(t, added, lostLine)))
+	put(t, f.path(plainFile(rewriteDate)), []byte(added+lostLine))
+
+	if _, err := f.Rewrite(rewriteDate, toNew); err != nil {
+		t.Fatalf("Rewrite() = %v", err)
+	}
+	if got, want := heldIn(t, f, compressedFile(rewriteDate)), string(toNew([]byte(linesOf(`{"a":"old","n":0}`)+added+lostLine))); got != want {
+		t.Errorf("the compressed file gives\n%s\nwant each line once\n%s", got, want)
+	}
+}
+
+func TestADamagedFileIsSetAsideAsACopyOnAFileSystemWithoutLinks(t *testing.T) {
+	for _, why := range []syscall.Errno{syscall.ENOTSUP, syscall.EPERM} {
+		t.Run(why.Error(), func(t *testing.T) {
+			f := requestLedger(t.TempDir())
+			f.link = linkFailing(why)
+			path := f.path(compressedFile(rewriteDate))
+			damaged := gzipCutShort(t, linesOf(`{"a":"old"}`))
+			put(t, path, damaged)
+
+			if _, err := f.Rewrite(rewriteDate, toNew); err != nil {
+				t.Fatalf("Rewrite() = %v", err)
+			}
+			if got, want := heldIn(t, f, compressedFile(rewriteDate)), linesOf(`{"a":"new"}`); got != want {
+				t.Errorf("the compressed file gives %q, want %q", got, want)
+			}
+			if aside, err := os.ReadFile(path + ".damaged"); err != nil || !bytes.Equal(aside, damaged) {
+				t.Errorf("the damaged file set aside holds %q, %v, want it as it was", aside, err)
+			}
+		})
+	}
+}
+
+// An I/O error repairing a damaged file fails the rewrite, leaving the file as
+// it was and nothing beside it, so the rewrite run again repairs it.
+func TestAnIOErrorRepairingADamagedFileFailsTheRewriteForItToBeRunAgain(t *testing.T) {
+	f := requestLedger(t.TempDir())
+	f.link = linkFailing(syscall.EIO)
+	path := f.path(compressedFile(rewriteDate))
+	damaged := gzipCutShort(t, linesOf(`{"a":"old"}`))
+	put(t, path, damaged)
+
+	if _, err := f.Rewrite(rewriteDate, toNew); !errors.Is(err, syscall.EIO) {
+		t.Fatalf("Rewrite() = %v, want it failing as the disk did", err)
+	}
+	if got, err := os.ReadFile(path); err != nil || !bytes.Equal(got, damaged) {
+		t.Errorf("the damaged file holds %q, %v, want it left as it was", got, err)
+	}
+	if _, err := os.Lstat(path + ".damaged"); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the damaged file set aside: %v, want none", err)
+	}
+	if left := staged(t, path); len(left) > 0 {
+		t.Errorf("files staged beside it were left behind: %q", left)
+	}
+
+	f.link = nil
+	if _, err := f.Rewrite(rewriteDate, toNew); err != nil {
+		t.Fatalf("Rewrite() again = %v", err)
+	}
+	if got, want := heldIn(t, f, compressedFile(rewriteDate)), linesOf(`{"a":"new"}`); got != want {
+		t.Errorf("run again, the compressed file gives %q, want %q", got, want)
+	}
+	if aside, err := os.ReadFile(path + ".damaged"); err != nil || !bytes.Equal(aside, damaged) {
+		t.Errorf("run again, the damaged file set aside holds %q, %v, want it as it was", aside, err)
 	}
 }
 

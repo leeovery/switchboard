@@ -82,6 +82,9 @@ type Files struct {
 	// rewrites is written beside, before it's held to be checked and renamed:
 	// lines may be appended to it between the two, as tests do there.
 	rewriting func(dayFile)
+	// link, where it's set, links a file under a second name in place of
+	// os.Link: tests have it fail as a file system without links has it.
+	link func(oldname, newname string) error
 }
 
 // Lines are lines to append to the files, by the date of the local day each
@@ -383,9 +386,10 @@ func (f *Files) named(name string) (dayFile, time.Time, bool) {
 
 // prune removes the files past keeping at now, as pastKeeping says, none
 // when keep is Forever, but those of the days spared reports true of, where
-// it's given, and compresses those of the days done with, as tend says,
-// leaving anything else in the directory alone. spared is asked holding the
-// files, so it takes nothing of them.
+// it's given, and compresses those of the days done with, as tend says; and
+// removes the damaged files set aside past keeping alike, as asideOf names
+// them, leaving anything else in the directory alone. spared is asked
+// holding the files, so it takes nothing of them.
 func (f *Files) prune(now time.Time, keep time.Duration, spared func(date string) bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -396,9 +400,12 @@ func (f *Files) prune(now time.Time, keep time.Duration, spared func(date string
 		}
 		return
 	}
+	isSpared := func(date string) bool { return spared != nil && spared(date) }
 	for _, e := range entries {
 		if file, day, ok := f.named(e.Name()); ok {
-			f.tend(file, day, now, keep, spared != nil && spared(file.date))
+			f.tend(file, day, now, keep, isSpared(file.date))
+		} else if date, day, ok := f.asideOf(e.Name()); ok && !isSpared(date) && pastKeepingAt(day, now, keep) {
+			f.remove(e.Name())
 		}
 	}
 }
@@ -413,13 +420,19 @@ func (f *Files) prune(now time.Time, keep time.Duration, spared func(date string
 func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration, spared bool) {
 	switch {
 	case !spared && pastKeepingAt(day, now, keep):
-		if err := os.Remove(f.path(file)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			f.Logger.Warn("can't prune the "+f.Name, "file", file.name(f.Prefix), "error", err)
-		}
+		f.remove(file.name(f.Prefix))
 	case doneWithAt(day, now) && !file.compressed:
 		if err := f.compress(file.date); err != nil {
 			f.Logger.Warn("can't compress the "+f.Name, "file", file.name(f.Prefix), "error", err)
 		}
+	}
+}
+
+// remove removes the file of the directory with the given name, as a prune
+// does, warning where it can't.
+func (f *Files) remove(name string) {
+	if err := os.Remove(filepath.Join(f.Dir, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		f.Logger.Warn("can't prune the "+f.Name, "file", name, "error", err)
 	}
 }
 

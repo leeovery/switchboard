@@ -71,7 +71,7 @@ func (m *Mover) decide(ctx context.Context) error {
 			return err
 		}
 		maps.Copy(answers, asked)
-		if u := unansweredOf(strays, asked); u != nil && d.anySpellable() {
+		if u := unansweredOf(strays, asked); u != nil && d.mayJoinAStray() {
 			return u
 		}
 	}
@@ -122,17 +122,11 @@ func (a answer) doubtful() bool {
 	return a.kind == unusable || a.kind == nameless
 }
 
-// refusal is a failure that says whether the API refused a token.
-type refusal interface {
-	error
-	Refused() bool
-}
-
-// answered is a failure that says what status the API answered with: 0
-// where it didn't answer.
+// answered is a failure that says what status the API itself answered with:
+// 0 where it didn't answer, as where something between answered in its place.
 type answered interface {
 	error
-	Status() int
+	APIStatus() int
 }
 
 // Unanswered is what an attempt at the move fails with, matching
@@ -216,11 +210,13 @@ func (m *Mover) answerFor(ctx context.Context, id string) (answer, error) {
 }
 
 // look reads the token of the account with the given id and asks the API its
-// organization, once, failing once ctx has ended. An answer naming none
-// starts the clock lasting reads, where it hasn't started.
+// organization, once, failing once ctx has ended. An answer naming none goes
+// on the account's streak, as heardNameless puts it there; one naming the
+// organization, or a token file that can't be read, ends the streak.
 func (m *Mover) look(ctx context.Context, id string) (answer, error) {
 	token, err := m.Tokens.Read(id)
 	if err != nil {
+		delete(m.nameless, id)
 		logger.Info("can't read an account's token file to move the account onto its id", "account", id, "error", err)
 		return answer{kind: unusable, why: err.Error()}, nil
 	}
@@ -229,6 +225,7 @@ func (m *Mover) look(ctx context.Context, id string) (answer, error) {
 		return answer{}, ctxErr
 	}
 	if organization != "" {
+		delete(m.nameless, id)
 		return answer{kind: naming, organization: organization}, nil
 	}
 	why := "the API's answer named no organization"
@@ -239,53 +236,72 @@ func (m *Mover) look(ctx context.Context, id string) (answer, error) {
 		logger.Info("the API didn't answer for an account's token, which the id it moves onto waits on", "account", id, "error", why)
 		return answer{kind: unanswered, why: why}, nil
 	}
-	if _, started := m.nameless[id]; !started {
-		if m.nameless == nil {
-			m.nameless = make(map[string]time.Time)
-		}
-		m.nameless[id] = time.Now()
-	}
+	m.heardNameless(id)
 	return answer{kind: nameless, why: why}, nil
+}
+
+// streak is when the API's answers for an account's token, in a run with no
+// answer naming the organization nor a look at a token file that can't be
+// read between, and none more than Lasts after the one before, named none:
+// the first of them and the last.
+type streak struct {
+	first, last time.Time
+}
+
+// heardNameless puts an answer for the token of the account with the given
+// id naming no organization on the account's streak: a streak of its own
+// where it has none, or where the last was heard more than Lasts before, as
+// the API may have answered otherwise meanwhile, unasked, as where it didn't
+// answer at all.
+func (m *Mover) heardNameless(id string) {
+	now := m.tick()
+	s, ok := m.nameless[id]
+	if !ok || now.Sub(s.last) > m.lasts() {
+		s.first = now
+	}
+	s.last = now
+	if m.nameless == nil {
+		m.nameless = make(map[string]streak)
+	}
+	m.nameless[id] = s
 }
 
 // namesNone reports whether err, the failure, if any, of a request for a
 // token's organization that named none, is the API answering so: nil, an
-// answer of success naming none; a refusal, as Refused reports one; or an
-// answer of any other status, as Status reports it, but 429 or a 5xx, which
-// say to ask again. A request the API didn't answer, as one timed out, has
-// no status.
+// answer of success naming none; or an answer of the API's own, as APIStatus
+// reports it, refusing the token or of any other status, but one that says to
+// ask again, as asksAgain has it. A request the API didn't answer, as one
+// timed out, or one a proxy between answered in its place, has no status of
+// the API's.
 func namesNone(err error) bool {
 	if err == nil {
 		return true
 	}
-	if r, ok := errors.AsType[refusal](err); ok && r.Refused() {
+	a, ok := errors.AsType[answered](err)
+	return ok && !asksAgain(a.APIStatus())
+}
+
+// asksAgain reports whether status, which the API answered a request with,
+// says to ask again: 408, 425, 429 or a 5xx; or 0, no answer at all.
+func asksAgain(status int) bool {
+	switch status {
+	case 0, http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests:
 		return true
 	}
-	a, ok := errors.AsType[answered](err)
-	if !ok {
-		return false
-	}
-	status := a.Status()
-	return status != 0 && status != http.StatusTooManyRequests && status < http.StatusInternalServerError
+	return status >= http.StatusInternalServerError
 }
 
 // lasting is a, the answer for the token of the account with the given id,
-// but one naming no organization counted only once the API has answered so
-// for Lasts, since look first heard it, as the mover's attempts go, and
-// unanswered till then: so a refusal or an answer naming none for a passing
-// reason, as an incident at the API or a captive portal gives, never decides
-// an account's id for good, nor two Macs sharing a config different ones.
-// An answer naming the organization, or a token file that can't be read,
-// lets go of the clock.
+// but one naming no organization counted only once the account's streak has
+// lasted Lasts, as the mover's attempts go, and unanswered till then: so a
+// refusal or an answer naming none for a passing reason, as an incident at
+// the API or a captive portal gives, never decides an account's id for good,
+// nor two Macs sharing a config different ones.
 func (m *Mover) lasting(id string, a answer) answer {
-	switch a.kind {
-	case naming, unusable:
-		delete(m.nameless, id)
-		return a
-	case unanswered:
+	if a.kind != nameless {
 		return a
 	}
-	if time.Since(m.nameless[id]) < m.lasts() {
+	if m.tick().Sub(m.nameless[id].first) < m.lasts() {
 		return answer{kind: unanswered, why: a.why}
 	}
 	logger.Warn("the API's answers for an account's token have named no organization for a while, so it moves as one without", "account", id, "why", a.why)
@@ -369,8 +385,9 @@ func (m *Mover) historyAccounts() (map[string]seenDays, error) {
 }
 
 // visitAll hands note, by each day's date, each account each day's files
-// name, as n says where. A day's compressed file that's damaged, read as far
-// as it can be, is warned of: the rewrite leaves it as it is.
+// name, as n says where. A day's compressed file that's damaged is read up to
+// its damage: the rewrite repairs it, keeping the lines before, which are all
+// it names, as dayfile's Rewrite does, warning of it then.
 func visitAll(files *dayfile.Files, n names, note func(date string) func(string)) error {
 	dates, err := files.All()
 	if err != nil {
@@ -384,7 +401,7 @@ func visitAll(files *dayfile.Files, n names, note func(date string) func(string)
 		}, func(struct{}) bool { return true })
 		switch {
 		case errors.Is(err, dayfile.ErrDamaged):
-			logger.Warn("a day's file is damaged, so the move leaves it as it is", "day", date, "error", err)
+			logger.Info("a day's compressed file is damaged, so it's read up to its damage, which the move's rewrite repairs", "day", date, "error", err)
 		case err != nil && !errors.Is(err, os.ErrNotExist):
 			return err
 		}
@@ -462,11 +479,25 @@ func (d *deciding) anyTokenless() bool {
 	return len(d.tokenless()) > 0
 }
 
-// anySpellable reports whether a configured account to decide that has no
-// token it can use has an id switchboard makes, which an organization could
-// spell, as one another Mac moved has.
-func (d *deciding) anySpellable() bool {
-	return slices.ContainsFunc(d.tokenless(), identity.WellFormed)
+// mayJoinAStray reports whether a configured account to decide that has no
+// token it can use may be one another Mac moved, as madeElsewhere says, that
+// no token file the API named the organization of joins, as joins has it: so
+// a token file the API didn't answer for may.
+func (d *deciding) mayJoinAStray() bool {
+	tokenless := d.tokenless()
+	joins := d.joins(tokenless)
+	return slices.ContainsFunc(tokenless, func(id string) bool {
+		_, joined := joins[id]
+		return d.madeElsewhere(id) && !joined
+	})
+}
+
+// madeElsewhere reports whether the configured account with the given id may
+// be one another Mac moved: its id is one switchboard makes, and the history
+// here names none of it, as it names every account it had before the move.
+func (d *deciding) madeElsewhere(id string) bool {
+	_, named := d.seen[id]
+	return identity.WellFormed(id) && !named
 }
 
 // strays are the names of the token files of accounts that are neither
@@ -564,38 +595,55 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 
 // join decides the ids of those of the configured accounts given, which have
 // no token they can use, that a token file of an account neither configured
-// nor known is of: one whose organization spells the configured account's
-// id, as Derive spells one, and that the record has no account of. The token
-// file's account moves onto the configured account's id. A token file the
-// API named no organization for, didn't answer for, or that can't be read,
-// is passed over. It reports which it joined, by id.
+// nor known is of, as joins has it: the token file's account moves onto the
+// configured account's id. It reports which it joined, by id.
 func (d *deciding) join(tokenless []string) map[string]bool {
-	joined := make(map[string]bool)
-	if len(tokenless) == 0 {
-		return joined
-	}
-	for _, stray := range d.strays() {
-		a := d.answers[stray]
-		if _, held := d.record.ByOrganization(a.organization); a.organization == "" || held {
+	joins := d.joins(tokenless)
+	joined := make(map[string]bool, len(joins))
+	for _, id := range tokenless {
+		stray, ok := joins[id]
+		if !ok {
 			continue
 		}
-		i := slices.IndexFunc(tokenless, func(id string) bool { return !joined[id] && identity.Spells(a.organization, id) })
-		if i < 0 {
-			continue
-		}
-		d.record.Move(tokenless[i], a.organization, stray, d.now)
-		d.decide1(tokenless[i])
-		joined[tokenless[i]] = true
-		logger.Info("an account another Mac moved takes its token file here", "was", stray, "id", tokenless[i])
+		d.record.Move(id, d.answers[stray].organization, stray, d.now)
+		d.decide1(id)
+		joined[id] = true
+		logger.Info("an account another Mac moved takes its token file here", "was", stray, "id", id)
 	}
 	return joined
 }
 
+// joins are the token files of accounts neither configured nor known, by the
+// ids of those of the configured accounts given, which have no token they can
+// use, they're of: each one whose organization spells the configured
+// account's id, as Derive spells one, and that the record has no account of,
+// nor another token file joined. A token file the API named no organization
+// for, didn't answer for, or that can't be read, is passed over.
+func (d *deciding) joins(tokenless []string) map[string]string {
+	joins := make(map[string]string)
+	organizations := make(map[string]bool)
+	for _, stray := range d.strays() {
+		organization := d.answers[stray].organization
+		if _, held := d.record.ByOrganization(organization); organization == "" || held || organizations[organization] {
+			continue
+		}
+		i := slices.IndexFunc(tokenless, func(id string) bool {
+			_, joined := joins[id]
+			return !joined && identity.Spells(organization, id)
+		})
+		if i >= 0 {
+			joins[tokenless[i]] = stray
+			organizations[organization] = true
+		}
+	}
+	return joins
+}
+
 // withoutToken decides the id of the configured account with the given id,
-// which has no token it can use: its own, where switchboard makes one like it and
-// the history names none of it, else a random one.
+// which has no token it can use: its own, where it may be one another Mac
+// moved, as madeElsewhere says, else a random one.
 func (d *deciding) withoutToken(was string) error {
-	if _, named := d.seen[was]; identity.WellFormed(was) && !named {
+	if d.madeElsewhere(was) {
 		d.record.Add(was, "", d.now)
 		d.decide1(was)
 		return nil

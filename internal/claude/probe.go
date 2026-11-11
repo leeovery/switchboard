@@ -137,7 +137,8 @@ func hasWindow(windows []quota.Window, key string) bool {
 // usage windows off the response. Any response that carries them counts: the
 // API sends them on a 429 as well as a 200. Its errors never contain the
 // token, and have a Refused method, which reports whether the API refused the
-// probe: its token, answering 401, or the request, answering 403.
+// probe: its token, answering 401, or the request, answering 403; and an
+// APIStatus method, the status the API itself answered with, if it did.
 func (p *Prober) ProbeModel(ctx context.Context, token, model string) ([]quota.Window, error) {
 	r := p.read(ctx, token, model)
 	return r.usage.Windows, r.err
@@ -150,17 +151,20 @@ func (p *Prober) read(ctx context.Context, token, model string) reading {
 	if err != nil {
 		// Not wrapped: the cause's own text can carry the token, as a transport
 		// error quotes the URL.
-		return reading{model: model, organization: got.organization, err: &probeError{text: redact.Text(err.Error(), token), status: got.status}}
+		return reading{model: model, organization: got.organization, err: &probeError{text: redact.Text(err.Error(), token), status: got.status, own: got.own}}
 	}
 	return reading{model: model, usage: got.usage, admitted: got.status >= 200 && got.status < 300, organization: got.organization}
 }
 
 // answer is what the response to a probe gave: the usage it reports, the
-// organization it names, and its status, which is 0 when there's no response.
+// organization it names, its status, which is 0 when there's no response, and
+// whether it's the API's own, carrying Anthropic's id for it, rather than one
+// given in the API's place, as by a proxy between.
 type answer struct {
 	usage        quota.Usage
 	organization string
 	status       int
+	own          bool
 }
 
 // probeModel returns what the response to the probe gave, or, failing, the
@@ -181,10 +185,11 @@ func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, e
 		return answer{}, err
 	}
 	defer drainAndClose(resp.Body)
-	if usage := ParseUsage(resp.Header); len(usage.Windows) > 0 {
-		return answer{usage: usage, organization: organizationOf(resp.Header), status: resp.StatusCode}, nil
+	got := answer{organization: organizationOf(resp.Header), status: resp.StatusCode, own: resp.Header.Get(requestIDHeader) != ""}
+	if got.usage = ParseUsage(resp.Header); len(got.usage.Windows) > 0 {
+		return got, nil
 	}
-	return answer{organization: organizationOf(resp.Header), status: resp.StatusCode}, errors.New(noUsageReason(resp, token))
+	return got, errors.New(noUsageReason(resp, token))
 }
 
 // client sends probes over p's transport, following no redirect: a client
@@ -200,8 +205,10 @@ func (p *Prober) client() *http.Client {
 // probeError is why a probe read no usage, never holding the token.
 type probeError struct {
 	text string
-	// status is the status the API answered with, or 0 when it didn't answer.
+	// status is the status the probe was answered with, or 0 when it wasn't,
+	// and own whether the answer was the API's own, as answer has it.
 	status int
+	own    bool
 }
 
 func (e *probeError) Error() string {
@@ -214,9 +221,14 @@ func (e *probeError) Refused() bool {
 	return e.status == http.StatusUnauthorized || e.status == http.StatusForbidden
 }
 
-// Status is the status the API answered the probe with: 0 where it didn't
-// answer, as where the request timed out.
-func (e *probeError) Status() int {
+// APIStatus is the status the API answered the probe with: 0 where it didn't
+// answer, as where the request timed out, or where its answer wasn't the
+// API's own, carrying no id of Anthropic's for it, as a proxy between that
+// refuses the request gives.
+func (e *probeError) APIStatus() int {
+	if !e.own {
+		return 0
+	}
 	return e.status
 }
 

@@ -683,9 +683,10 @@ func (r reply) withOrganization(id string) reply {
 }
 
 // apiError returns a reply without usage headers, whose body is the API's
-// error carrying message.
+// error carrying message, with Anthropic's id for it, as the API's own
+// answers carry.
 func apiError(status int, message string) reply {
-	return reply{status: status, body: fmt.Sprintf(`{"type":"error","error":{"type":"api_error","message":%q}}`, message)}
+	return reply{status: status, header: http.Header{"Request-Id": {"req_test"}}, body: fmt.Sprintf(`{"type":"error","error":{"type":"api_error","message":%q}}`, message)}
 }
 
 // fakeAPI is a messages API that answers each model with its reply.
@@ -786,6 +787,7 @@ func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 		{name: "400", reply: apiError(http.StatusBadRequest, "Invalid request"), wantStatus: http.StatusBadRequest},
 		{name: "429 without usage", reply: apiError(http.StatusTooManyRequests, "Rate limited"), wantStatus: http.StatusTooManyRequests},
 		{name: "529", reply: apiError(529, "Overloaded"), wantStatus: 529},
+		{name: "403 from a proxy between, without Anthropic's id for it", reply: reply{status: http.StatusForbidden, body: "Blocked by policy"}, wantRefused: true},
 		{name: "no answer in time", reply: reply{hang: true}},
 	}
 	for _, tt := range tests {
@@ -821,12 +823,12 @@ func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 func statusOf(err error) int {
 	s, ok := errors.AsType[interface {
 		error
-		Status() int
+		APIStatus() int
 	}](err)
 	if !ok {
 		return 0
 	}
-	return s.Status()
+	return s.APIStatus()
 }
 
 // refused reports whether a probe's error says the API refused the probe.

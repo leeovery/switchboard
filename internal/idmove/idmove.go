@@ -23,6 +23,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -46,9 +47,11 @@ const (
 	// stateName is the router's state file's name in the state directory.
 	stateName = "state.json"
 	// firstRetry is how long the move waits to ask the API again where it
-	// didn't answer for a token, the wait doubling each time to mostRetry.
+	// didn't answer for a token, the wait doubling each time to mostRetry:
+	// well under lastsFor, so a refusal that lasts is heard again before
+	// Mover.lasting takes the time between for a gap it may have stopped in.
 	firstRetry = 30 * time.Second
-	mostRetry  = 10 * time.Minute
+	mostRetry  = lastsFor / 2
 	// lookAgain is how long the move waits to look again at a token file it
 	// can't read, as a writer that empties a file before it writes the token
 	// leaves it for a moment, and to ask again for a token whose answer named
@@ -89,9 +92,10 @@ func AskAgain(wait time.Duration) time.Duration {
 
 // Organizations tells which organization a token is of, as the API's answer
 // to a request made with it names it: "" where it names none. A failure
-// whose Refused method reports true is the API refusing the token, and one
-// whose Status method reports a status but 429 or a 5xx another answer, each
-// naming none; any other is the API not answering, which is asked again.
+// whose APIStatus method reports a status the API itself answered with, as a
+// refusal, is the API answering naming none, unless the status says to ask
+// again, as 408, 425, 429 and a 5xx do; any other is the API not answering,
+// which is asked again.
 type Organizations interface {
 	Organization(ctx context.Context, token tokens.Token) (string, error)
 }
@@ -132,21 +136,24 @@ type Mover struct {
 	// to look again at a token file it can't read, or to ask again for a
 	// token whose answer named no organization: zero is 3 seconds. Lasts is
 	// how long the API's answers for a token have to name no organization,
-	// as a refusal names none, before that counts: zero is 10 minutes.
+	// as a refusal names none, each heard within Lasts of the one before,
+	// before that counts: zero is 10 minutes.
 	Retry, Again, Lasts time.Duration
 
 	// stop, where it's set, is called with each step's name once it's done:
 	// a failure stops the move there, as a test of one stopped there has it.
 	// lookingAgain, where it's set, is called with an account's id as the
-	// move's about to look again at its token.
+	// move's about to look again at its token. clock, where it's set, times
+	// the answers naming no organization in place of time.Now.
 	stop         func(step string) error
 	lookingAgain func(id string)
+	clock        func() time.Time
 	// seen is the accounts the history holds, as the first attempt of the
-	// mover found them, kept for those after it; and nameless when the API's
-	// answers for each account's token, by the account's id, began to name
-	// no organization, as lasting reads it, kept alike.
+	// mover found them, kept for those after it; and nameless the streak of
+	// the API's answers for each account's token naming no organization, by
+	// the account's id, as lasting reads it, kept alike.
 	seen     map[string]seenDays
-	nameless map[string]time.Time
+	nameless map[string]streak
 }
 
 // Moved reports whether the move is done in the state directory given, as
@@ -230,6 +237,14 @@ func (m *Mover) again() time.Duration {
 // organization before that counts, as Lasts says.
 func (m *Mover) lasts() time.Duration {
 	return cmp.Or(m.Lasts, lastsFor)
+}
+
+// tick reads the clock answers naming no organization are timed by.
+func (m *Mover) tick() time.Time {
+	if m.clock == nil {
+		return time.Now()
+	}
+	return m.clock()
 }
 
 // step is a step of the move, by its name.
@@ -401,10 +416,7 @@ func (m *Mover) configure() (bool, error) {
 }
 
 // renameConfig gives each account draft configures that the record has moved
-// its new id, and, where draft writes it no label, its old id as its label,
-// as labelFor makes it one of its own, reporting whether it gave any. One
-// whose new id the config names already, as a merge of two of its versions
-// leaves it, is left as it is, which is warned of.
+// its new id, as moveAccount does, reporting whether it gave any.
 func renameConfig(draft *config.Draft, record identity.Record) (bool, error) {
 	if draft.Config() == nil {
 		return false, nil
@@ -415,32 +427,80 @@ func renameConfig(draft *config.Draft, record identity.Record) (bool, error) {
 		if !ok || !e.Removed.IsZero() {
 			continue
 		}
-		if configures(draft, e.ID) {
-			logger.Warn("the config names an account by the id it had before and by its new id too, so the one by its old id is left as it is", "was", a.ID, "id", e.ID)
-			continue
-		}
-		labelled := draft.Labelled(a.ID)
-		if err := draft.SetID(a.ID, e.ID); err != nil {
+		if err := moveAccount(draft, a, e.ID); err != nil {
 			return false, err
-		}
-		if !labelled {
-			if err := draft.SetLabel(e.ID, labelFor(draft.Config().Accounts, e.ID, a.ID)); err != nil {
-				return false, err
-			}
 		}
 		changed = true
 	}
 	return changed, nil
 }
 
-// labelFor is the label the account with the given id is given, of the old
-// id it had: that, else, where another of accounts shows it already, as
-// labels are compared, it and the first number from 2 that makes one none
-// shows, as "work 2".
-func labelFor(accounts config.Accounts, id, was string) string {
-	label := was
+// moveAccount gives the account a, configured by the id it had before, its
+// new id, id, and, where draft writes it no label, its old id as its label,
+// as labelFor makes it one of its own. Where draft configures id already, as
+// a merge of two of the config's versions can leave it, it drops a instead,
+// as dropAccount does, so no router routes the account by its old id.
+func moveAccount(draft *config.Draft, a config.Account, id string) error {
+	if configured, ok := findFold(draft.Config().Accounts.IDs(), id); ok {
+		return dropAccount(draft, a, configured)
+	}
+	labelled := draft.Labelled(a.ID)
+	if err := draft.SetID(a.ID, id); err != nil {
+		return err
+	}
+	if labelled {
+		return nil
+	}
+	return draft.SetLabel(id, labelFor(draft.Config().Accounts, id, a.ID))
+}
+
+// dropAccount takes the account a, configured by the id it had before, out of
+// draft, which configures it by its new id, id, too, giving the one by id the
+// label a shows, as labelFor makes it one of its own, where it has none of its
+// own, and what else a sets, as carry gives it.
+func dropAccount(draft *config.Draft, a config.Account, id string) error {
+	accounts := draft.Config().Accounts
+	kept := accounts[slices.IndexFunc(accounts, func(c config.Account) bool { return c.ID == id })]
+	labelled := draft.Labelled(id)
+	if err := draft.RemoveAccount(a.ID); err != nil {
+		return err
+	}
+	logger.Info("the config named an account by the id it had before and by its new id too, so the one by its old id is dropped", "was", a.ID, "id", id)
+	if !labelled {
+		if err := draft.SetLabel(id, labelFor(draft.Config().Accounts, id, a.Label)); err != nil {
+			return err
+		}
+	}
+	return carry(draft, a, kept)
+}
+
+// carry gives the configured account kept the primary, plan and reserve of
+// the account a, dropped for it, each where it has none of its own.
+func carry(draft *config.Draft, a, kept config.Account) error {
+	if a.Primary && draft.Config().Accounts.Primary().ID != kept.ID {
+		if err := draft.SetPrimary(kept.ID); err != nil {
+			return err
+		}
+	}
+	if kept.Plan == "" && a.Plan != "" {
+		if err := draft.SetPlan(kept.ID, a.Plan); err != nil {
+			return err
+		}
+	}
+	if kept.Reserve == 0 && a.Reserve != 0 {
+		return draft.SetReserve(kept.ID, a.Reserve)
+	}
+	return nil
+}
+
+// labelFor is the label the account with the given id is given of the label
+// it showed before, shown: that, else, where another of accounts shows it
+// already, as labels are compared, it and the first number from 2 that makes
+// one none shows, as "work 2".
+func labelFor(accounts config.Accounts, id, shown string) string {
+	label := shown
 	for n := 2; accounts.LabelTaken(id, label); n++ {
-		label = fmt.Sprintf("%s %d", was, n)
+		label = fmt.Sprintf("%s %d", shown, n)
 	}
 	return label
 }

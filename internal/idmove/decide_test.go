@@ -32,26 +32,33 @@ func (f fixture) runBounded(t *testing.T, o idmove.Organizations) {
 }
 
 func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
+	silentForTheStray := func() *organizations {
+		o := answering()
+		o.silent = map[string]bool{spareToken: true}
+		return o
+	}
 	for _, tc := range []struct {
 		name      string
 		configure string
 		orgs      func() *organizations
+		// spoil, where it's set, is the token file spoilt, emptied.
+		spoil     string
 		wantAsked int
 	}{
-		{"every configured account with its token, the stray never asked about", fixtureConfig, answering, 0},
-		{"a configured account without one, the API silent for the stray", fixtureConfig + "\n[[account]]\nid = \"side-1\"\n", func() *organizations {
-			o := answering()
-			o.silent = map[string]bool{spareToken: true}
-			return o
-		}, 1},
-		{"a configured account without one, the stray's file unreadable", fixtureConfig + "\n[[account]]\nid = \"side-1\"\n", answering, 0},
+		{name: "every configured account with its token, the stray never asked about", configure: fixtureConfig, orgs: answering},
+		{name: "a configured account without one, the API silent for the stray", configure: fixtureConfig + "\n[[account]]\nid = \"side-1\"\n", orgs: silentForTheStray, wantAsked: 1},
+		{name: "a configured account without one, the stray's file unreadable", configure: fixtureConfig + "\n[[account]]\nid = \"side-1\"\n", orgs: answering, spoil: "spare"},
+		// Work's id is one switchboard could make, but the history here names
+		// it, so it's no account another Mac moved.
+		{name: "a configured account without one, by an id the history names, the API silent for the stray", configure: fixtureConfig, orgs: silentForTheStray, spoil: work, wantAsked: 1},
+		{name: "the accounts another Mac moved, each joined by a token file the API answered for, the API silent for the stray", configure: movedConfig, orgs: silentForTheStray, wantAsked: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
 			writeFile(t, f.config, tc.configure)
 			f.token(t, "spare", spareToken)
-			if strings.Contains(tc.name, "unreadable") {
-				writeFile(t, f.tokens.Path("spare"), "")
+			if tc.spoil != "" {
+				writeFile(t, f.tokens.Path(tc.spoil), "")
 			}
 			o := tc.orgs()
 			f.runBounded(t, o)
@@ -216,6 +223,7 @@ func TestARefusalCountsOnlyOnceItHasLasted(t *testing.T) {
 	o := answering()
 	o.refused = map[string]int{personalToken: always}
 	m := f.mover(o)
+	m.ClockedBy(time.Now)
 	m.Lasts = 300 * time.Millisecond
 	began := time.Now()
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
@@ -226,11 +234,79 @@ func TestARefusalCountsOnlyOnceItHasLasted(t *testing.T) {
 	if _, ok := f.record(t).ByWas(personal); ok {
 		t.Fatal("personal moved on a refusal that hadn't lasted")
 	}
-	if err := m.Run(t.Context()); err != nil {
-		t.Fatalf("Run() = %v", err)
+	lasted, cancel := context.WithTimeout(t.Context(), 4*m.Lasts)
+	defer cancel()
+	if err := m.Run(lasted); err != nil {
+		t.Fatalf("Run() = %v, want the move done once the refusal had lasted", err)
 	}
 	if e, ok := f.record(t).ByWas(personal); !ok || e.Organization != "" || e.ID == personalID || time.Since(began) < m.Lasts {
 		t.Errorf("personal moved onto %+v after %v, want a random id once the refusal had lasted %v", e, time.Since(began), m.Lasts)
+	}
+}
+
+// A refusal has lasted only where it's heard throughout: each refusal heard
+// within Lasts of the one before, and no answer naming the organization nor a
+// token file that can't be read between, though the API not answering may be.
+func TestARefusalHasLastedOnlyWhereHeardThroughout(t *testing.T) {
+	const (
+		refuses  = "refuses"
+		names    = "names"
+		silent   = "silent"
+		unusable = "refuses, then can't be read, then refuses"
+	)
+	type attempt struct {
+		at     time.Duration
+		token  string
+		counts bool
+	}
+	for _, tc := range []struct {
+		name     string
+		attempts []attempt
+	}{
+		{name: "heard throughout", attempts: []attempt{{0, refuses, false}, {5 * time.Minute, refuses, false}, {10 * time.Minute, refuses, true}}},
+		{name: "heard again only past Lasts", attempts: []attempt{{0, refuses, false}, {11 * time.Minute, refuses, false}, {21 * time.Minute, refuses, true}}},
+		{name: "the API not answering between", attempts: []attempt{{0, refuses, false}, {5 * time.Minute, silent, false}, {9 * time.Minute, refuses, false}, {10 * time.Minute, refuses, true}}},
+		{name: "an answer naming the organization between", attempts: []attempt{{0, refuses, false}, {5 * time.Minute, names, false}, {9 * time.Minute, refuses, false}, {18 * time.Minute, refuses, false}, {19 * time.Minute, refuses, true}}},
+		{name: "a token file that can't be read between looks", attempts: []attempt{{0, refuses, false}, {5 * time.Minute, unusable, false}, {14 * time.Minute, refuses, false}, {15 * time.Minute, refuses, true}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			o := answering()
+			var at time.Time
+			m := f.mover(o)
+			m.Lasts = 10 * time.Minute
+			m.ClockedBy(func() time.Time { return at })
+			var between []string
+			m.OnLookingAgain(func(id string) {
+				if id == personal && len(between) > 0 {
+					writeFile(t, f.tokens.Path(personal), between[0])
+					between = between[1:]
+				}
+			})
+
+			for _, a := range tc.attempts {
+				at = now.Add(a.at)
+				// Work's token goes unanswered while personal's names its
+				// organization, so the move waits on it, rather than end there.
+				o.silent = map[string]bool{personalToken: a.token == silent, workToken: a.token == names}
+				o.refused = map[string]int{personalToken: always}
+				if a.token == names {
+					o.refused = nil
+				}
+				if a.token == unusable {
+					between = []string{"", personalToken + "\n"}
+				}
+
+				err := m.RunBeside(t.Context(), f.historyOf())
+				e, moved := f.record(t).ByWas(personal)
+				switch {
+				case a.counts && (err != nil || !moved || e.Organization != "" || e.ID == personalID):
+					t.Fatalf("at %v, %s: RunBeside() = %v, personal moved onto %+v, want a random id, the refusal having lasted", a.at, a.token, err, e)
+				case !a.counts && (!errors.Is(err, idmove.ErrUnanswered) || moved):
+					t.Fatalf("at %v, %s: RunBeside() = %v, personal moved onto %+v, want the move waiting, the refusal not having lasted", a.at, a.token, err, e)
+				}
+			}
+		})
 	}
 }
 
@@ -290,11 +366,15 @@ func TestAnAnswerNamingNoOrganizationCountsAsARefusalDoesButAnAskToAskAgainNever
 		counts bool
 	}{
 		{status: 400, counts: true},
+		{status: 403, counts: true},
 		{status: 404, counts: true},
 		{status: 200, counts: true},
+		{status: 408},
+		{status: 425},
 		{status: 429},
 		{status: 500},
 		{status: 529},
+		// No answer of the API's own, as where a proxy between answered.
 		{status: 0},
 	} {
 		t.Run(fmt.Sprint(tc.status), func(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"math/rand/v2"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -290,26 +291,37 @@ func (o *organizations) Organization(ctx context.Context, token tokens.Token) (s
 // refusedError is the API refusing a token, as a probe's failure says.
 type refusedError struct{}
 
-func (refusedError) Error() string { return "401: invalid token" }
-func (refusedError) Refused() bool { return true }
+func (refusedError) Error() string  { return "401: invalid token" }
+func (refusedError) APIStatus() int { return http.StatusUnauthorized }
 
 // answeredError is the API answering a token with a status, naming no
-// organization, as a probe's failure says: 0 for no answer.
+// organization, as a probe's failure says: 0 for no answer of the API's own.
 type answeredError struct {
 	status int
 }
 
-func (e answeredError) Error() string { return fmt.Sprintf("HTTP %d: no window read", e.status) }
-func (e answeredError) Status() int   { return e.status }
+func (e answeredError) Error() string  { return fmt.Sprintf("HTTP %d: no window read", e.status) }
+func (e answeredError) APIStatus() int { return e.status }
 
 // mover is the move of the fixture's install, asking o for its tokens'
 // organizations, by the fixture's clock, drawing random ids from a source
 // that draws the same each time, and asking again, and looking again at a
 // token, at once; an answer naming no organization counting once two looks
-// agree.
+// agree, timed by a clock that ticks, so it has lasted by then.
 func (f fixture) mover(o idmove.Organizations) *idmove.Mover {
-	return &idmove.Mover{ConfigPath: f.config, StateDir: f.state, Tokens: f.tokens, Organizations: o,
+	m := &idmove.Mover{ConfigPath: f.config, StateDir: f.state, Tokens: f.tokens, Organizations: o,
 		Now: clock, Random: rand.NewChaCha8([32]byte{7}), Retry: time.Millisecond, Again: time.Millisecond, Lasts: time.Nanosecond}
+	m.ClockedBy(ticking())
+	return m
+}
+
+// ticking is a clock that reads a second later each time it's read, from now.
+func ticking() func() time.Time {
+	at := now
+	return func() time.Time {
+		at = at.Add(time.Second)
+		return at
+	}
 }
 
 // moved runs the move of the fixture's install to its end, failing the test

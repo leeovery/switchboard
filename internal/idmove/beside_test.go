@@ -39,11 +39,17 @@ func (f fixture) historyOf() idmove.History {
 // as a router starting on it routes under.
 func (f fixture) configuredIDs(t *testing.T) []string {
 	t.Helper()
+	return f.configured(t).IDs()
+}
+
+// configured are the accounts the fixture's config configures.
+func (f fixture) configured(t *testing.T) config.Accounts {
+	t.Helper()
 	draft, err := config.Edit(f.config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return draft.Config().Accounts.IDs()
+	return draft.Config().Accounts
 }
 
 // lives runs the move of the fixture's install as routers run it, one after
@@ -239,21 +245,58 @@ func TestHealingWritesTheNewIDsBackInAConfigPutBackToTheOld(t *testing.T) {
 	}
 }
 
+// A config merged mid-move, as one kept in a repository of the user's files,
+// that names an account by its old id and its new: the move drops the one by
+// its old id, giving what it sets to the one by its new id where that sets
+// none, so routers restarted on it route by the new ids alone, and the move
+// ends.
+func TestAConfigMergedMidMoveToNameAnAccountByBothItsIDsKeepsTheOneByItsNew(t *testing.T) {
+	f := newFixture(t)
+	merged := "[[account]]\nid = \"work\"\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n" +
+		"[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"" + workID + "\"\n"
+	f.lives(t, func(step string) error {
+		if step == "give" {
+			writeFile(t, f.config, merged)
+		}
+		return nil
+	})
+
+	want := config.Accounts{
+		{ID: personalID, Label: personal},
+		{ID: workID, Label: "Work", Primary: true, Plan: "max", Reserve: 0.1},
+	}
+	if got := f.configured(t); !slices.Equal(got, want) {
+		t.Errorf("moved, the config configures %+v, want %+v", got, want)
+	}
+	if _, err := f.tokens.Read(workID); err != nil {
+		t.Errorf("moved, %s's token = %v, want it read", workID, err)
+	}
+}
+
 // A config that names an account by its old id and its new, as a merge of
-// two of its versions leaves it, heals the rest.
-func TestHealingPassesOverAnAccountWhoseNewIDIsConfiguredToo(t *testing.T) {
+// two of its versions leaves it once the move's done, is healed as the move
+// heals one mid-move: the one by its old id dropped, the one by its new id
+// keeping what it sets itself.
+func TestHealingDropsAnAccountByItsOldIDWhereItsNewIsConfiguredToo(t *testing.T) {
 	f := newFixture(t)
 	f.moved(t, answering())
-	clashing := fixtureConfig + "\n[[account]]\nid = \"" + workID + "\"\nlabel = \"Work again\"\n"
-	writeFile(t, f.config, clashing)
+	merged := "[[account]]\nid = \"work\"\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n" +
+		"[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"" + workID + "\"\nlabel = \"Work again\"\nplan = \"pro\"\n"
+	writeFile(t, f.config, merged)
 
 	healed, err := idmove.Heal(f.config, f.state)
 	if err != nil || !healed {
-		t.Fatalf("Heal() = %t, %v, want the rest healed", healed, err)
+		t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
 	}
-	got := readFile(t, f.config)
-	if !strings.Contains(got, `id      = "work"`) || !strings.Contains(got, `id = "`+personalID+`"`) || strings.Contains(got, `id = "personal"`) {
-		t.Errorf("healed, the config reads\n%s\nwant work by its old id left beside its new, and personal healed", got)
+	want := config.Accounts{
+		{ID: personalID, Label: personal},
+		{ID: workID, Label: "Work again", Primary: true, Plan: "pro", Reserve: 0.1},
+	}
+	if got := f.configured(t); !slices.Equal(got, want) {
+		t.Errorf("healed, the config configures %+v, want %+v", got, want)
+	}
+	if healed, err := idmove.Heal(f.config, f.state); err != nil || healed {
+		t.Errorf("Heal() again = %t, %v, want nothing left to heal", healed, err)
 	}
 }
 
