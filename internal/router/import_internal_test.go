@@ -11,14 +11,17 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/readings"
 )
 
@@ -187,6 +190,28 @@ func TestAnImportAskedForWhileOneRunsIsRefusedChangingNothing(t *testing.T) {
 	}
 	if _, err := os.Stat(ImportDir(h.dir)); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("once the import running was done, what was staged: %v, want it removed", err)
+	}
+}
+
+func TestAnImportAskedForWhileTheHistoryWaitsOnItsMoveIsRefusedTakingNothingIn(t *testing.T) {
+	logstest.Capture(t)
+	cfg := importingConfig(t)
+	cfg.Move = &answeringMover{answers: []error{idmove.ErrAwaitingRestart}}
+	r := newTestRouterOf(t, cfg)
+	day := start.AddDate(0, 0, -10)
+	staged := readings.Files(readings.Dir(filepath.Join(ImportDir(cfg.StateDir), "1")), logger)
+	stageFile(t, staged.CompressedPath(dayfile.DateOf(day)), gzipOf(t, readingOn(day)))
+	client, _ := runImporting(t, r)
+
+	_, err := client.Import(t.Context())
+	if d, ok := errors.AsType[declined](err); !ok || d.status != http.StatusServiceUnavailable || !strings.Contains(d.reason, prose.HistoryMoving) {
+		t.Errorf("Import() while the history waits on its move: %v, want a 503 saying so", err)
+	}
+	if _, err := os.Stat(readings.Files(readings.Dir(cfg.StateDir), logger).CompressedPath(dayfile.DateOf(day))); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the day staged, refused: %v, want it not taken in", err)
+	}
+	if _, err := os.Stat(ImportDir(cfg.StateDir)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("once the import was refused, what was staged: %v, want it removed", err)
 	}
 }
 

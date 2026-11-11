@@ -43,10 +43,14 @@ func (m *fakeMover) RunBeside(ctx context.Context, history idmove.History) error
 	}
 }
 
-// moving reports whether the router's status says it's moving the history.
-func moving(want bool) func(status.Document) bool {
+// moving reports whether the router's status says the move stands as want
+// does: zero for none owed.
+func moving(want status.Moving) func(status.Document) bool {
 	return func(doc status.Document) bool { return doc.Moving == want }
 }
+
+// running is the move as the router's status says it stands as it runs.
+var running = status.Moving{Stage: status.MoveRunning}
 
 func TestTheRouterSettlesTheMoveBeforeItTakesUpItsState(t *testing.T) {
 	cfg := runConfig(t, "http://127.0.0.1:1")
@@ -62,7 +66,7 @@ func TestTheRouterSettlesTheMoveBeforeItTakesUpItsState(t *testing.T) {
 	cfg.Move = mover
 	runRouter(t, cfg)
 
-	doc := waitForStatus(t, router.SocketPath(cfg.StateDir), moving(true))
+	doc := waitForStatus(t, router.SocketPath(cfg.StateDir), moving(running))
 	if !slices.Equal(doc.Pin.Accounts, []string{"side"}) {
 		t.Errorf("the router took up the pin %v, want [side], as the move settled the state file before it took it up", doc.Pin.Accounts)
 	}
@@ -79,15 +83,39 @@ func TestTheRouterSaysItsMovingTheHistoryTillTheMoveIsDone(t *testing.T) {
 	if h.Ledger == nil || h.Readings == nil || h.Events == nil {
 		t.Fatalf("the move was given the history %+v, want the router's ledger, readings and events", h)
 	}
-	waitForStatus(t, path, moving(true))
+	waitForStatus(t, path, moving(running))
 	mover.runs <- nil
-	waitForStatus(t, path, moving(false))
+	waitForStatus(t, path, moving(status.Moving{}))
+}
+
+func TestTheRoutersStatusSaysWhatHoldsTheMoveUp(t *testing.T) {
+	cfg := runConfig(t, "http://127.0.0.1:1")
+	mover := newFakeMover()
+	cfg.Move = mover
+	runRouter(t, cfg)
+	path := router.SocketPath(cfg.StateDir)
+
+	<-mover.history
+	mover.runs <- idmove.ErrUnanswered
+	waitForStatus(t, path, moving(status.Moving{Stage: status.MoveAwaitingAPI}))
+}
+
+func TestTheRoutersStatusSaysTheMoveWaitsForItToRestart(t *testing.T) {
+	cfg := runConfig(t, "http://127.0.0.1:1")
+	mover := newFakeMover()
+	cfg.Move = mover
+	runRouter(t, cfg)
+	path := router.SocketPath(cfg.StateDir)
+
+	<-mover.history
+	mover.runs <- idmove.ErrAwaitingRestart
+	waitForStatus(t, path, moving(status.Moving{Stage: status.MoveAwaitingRestart}))
 }
 
 func TestARouterWithNoMoveOwedSaysNothingOfOne(t *testing.T) {
 	cfg := runConfig(t, "http://127.0.0.1:1")
 	runRouter(t, cfg)
-	if doc := waitForStatus(t, router.SocketPath(cfg.StateDir), func(status.Document) bool { return true }); doc.Moving {
-		t.Error("a router with no move owed says it's moving the history")
+	if doc := waitForStatus(t, router.SocketPath(cfg.StateDir), func(status.Document) bool { return true }); doc.Moving != (status.Moving{}) {
+		t.Errorf("a router with no move owed says the move stands %+v", doc.Moving)
 	}
 }

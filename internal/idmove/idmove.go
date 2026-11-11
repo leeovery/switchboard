@@ -49,6 +49,10 @@ const (
 	// didn't answer for a token, the wait doubling each time to mostRetry.
 	firstRetry = 30 * time.Second
 	mostRetry  = 10 * time.Minute
+	// lookAgain is how long the move waits to look again at a token file it
+	// can't read, as a writer that empties a file before it writes the token
+	// leaves it for a moment, and to ask again for a token the API refused.
+	lookAgain = 3 * time.Second
 	// configTries is how many times the move edits the config afresh where
 	// it changed as it was edited.
 	configTries = 5
@@ -61,9 +65,21 @@ const (
 // changes.
 var ErrAwaitingRestart = errors.New("the config holds the accounts' new ids, so the rest of the move waits for the router to restart onto them")
 
-// errUnanswered is what an attempt at the move fails with where the API
-// didn't answer for a token whose organization decides an id.
-var errUnanswered = errors.New("the API didn't answer for every token whose organization decides an id")
+// ErrUnanswered is what a run of the move beside a router fails with, having
+// changed nothing, where the API didn't answer for a token whose
+// organization decides an id: it's to be run again a while later, as
+// AskAgain says, so no passing outage gives an account a random id.
+var ErrUnanswered = errors.New("the API didn't answer for every token whose organization decides an id")
+
+// AskAgain is how long to wait to run the move again where the API didn't
+// answer, having waited wait the time before: firstRetry the first time, for
+// zero, then twice as long each time, mostRetry at the most.
+func AskAgain(wait time.Duration) time.Duration {
+	if wait <= 0 {
+		return firstRetry
+	}
+	return min(wait*2, max(mostRetry, wait))
+}
 
 // Organizations tells which organization a token is of, as the API's answer
 // to a request made with it names it: "" where it names none. A failure
@@ -104,13 +120,18 @@ type Mover struct {
 	// nil reads the system's, and draws from crypto/rand.
 	Now    func() time.Time
 	Random io.Reader
-	// Retry is how long the move first waits to ask the API again where it
-	// didn't answer: zero is firstRetry.
-	Retry time.Duration
+	// Retry is how long Run first waits to ask the API again where it didn't
+	// answer: zero is AskAgain's first wait. Again is how long the move waits
+	// to look again at a token file it can't read, or to ask again for a
+	// token the API refused: zero is 3 seconds.
+	Retry, Again time.Duration
 
 	// stop, where it's set, is called with each step's name once it's done:
 	// a failure stops the move there, as a test of one stopped there has it.
-	stop func(step string) error
+	// lookingAgain, where it's set, is called with an account's id as the
+	// move's about to look again at its token.
+	stop         func(step string) error
+	lookingAgain func(id string)
 	// seen is the accounts the history holds, as the first attempt of the
 	// mover found them, kept for those after it.
 	seen map[string]seenDays
@@ -152,29 +173,45 @@ func Pending(stateDir string) bool {
 // gives an account a random id. It fails, changing no more, where a step
 // does, which a Run after carries on from.
 func (m *Mover) Run(ctx context.Context) error {
-	wait := cmp.Or(m.Retry, firstRetry)
+	wait := cmp.Or(m.Retry, AskAgain(0))
 	for {
 		err := m.attempt(ctx)
-		if !errors.Is(err, errUnanswered) {
+		if !errors.Is(err, ErrUnanswered) {
 			return err
 		}
 		logger.Info("the move onto the accounts' ids waits to ask the API again for the organizations of their tokens", "in", wait)
-		timer := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
+		if err := pause(ctx, wait); err != nil {
+			return err
 		}
-		wait = min(wait*2, max(mostRetry, wait))
+		wait = AskAgain(wait)
 	}
 }
 
-// RunBeside runs the move as Run does, beside a router that keeps the
-// history's files as history has them.
+// RunBeside runs the move once, as Run does, beside a router that keeps the
+// history's files as history has them, but where the API doesn't answer,
+// fails with ErrUnanswered, for the router to run it again a while later,
+// telling meanwhile what holds it up.
 func (m *Mover) RunBeside(ctx context.Context, history History) error {
 	m.History = &history
-	return m.Run(ctx)
+	return m.attempt(ctx)
+}
+
+// pause waits for wait to pass, failing once ctx ends first.
+func pause(ctx context.Context, wait time.Duration) error {
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+// again is how long the mover waits to look again at a token file, or ask
+// again for a token, as Again says.
+func (m *Mover) again() time.Duration {
+	return cmp.Or(m.Again, lookAgain)
 }
 
 // step is a step of the move, by its name.
@@ -191,7 +228,7 @@ func (m *Mover) attempt(ctx context.Context) error {
 	steps := []step{
 		{"decide", func() error { return m.decide(ctx) }},
 		{"give", m.give},
-		{"config", m.configure},
+		{"config", func() error { _, err := m.configure(); return err }},
 		{"restart", m.awaitRestart},
 		{"state", m.moveState},
 		{"drop", m.drop},
@@ -318,32 +355,36 @@ func (m *Mover) drop() error {
 }
 
 // configure writes each moved account's new id in the config, and its old id
-// as its label, where it has none, as one edit, made afresh where the config
-// changed as it was made, configTries times at most.
-func (m *Mover) configure() error {
+// as its label, where it has none, as renameConfig does, as one edit, under
+// the accounts record's lock, as adding and removing an account edit it:
+// made afresh where the config changed as it was made, configTries times at
+// most. It reports whether it changed the config.
+func (m *Mover) configure() (bool, error) {
 	for range configTries {
-		draft, record, err := m.standing()
-		if err != nil {
-			return err
-		}
-		changed, err := renameConfig(draft, record)
-		if err != nil || !changed {
-			return err
-		}
-		err = draft.Save()
-		if err == nil {
+		changed := false
+		err := m.record().Change(func(record *identity.Record, _ func() error) error {
+			draft, err := config.Edit(m.ConfigPath)
+			if err != nil {
+				return err
+			}
+			if changed, err = renameConfig(draft, *record); err != nil || !changed {
+				return err
+			}
+			return draft.Save()
+		})
+		if err == nil && changed {
 			logger.Info("wrote the accounts' new ids in the config", "path", m.ConfigPath)
 		}
 		if !errors.Is(err, config.ErrChanged) {
-			return err
+			return changed, err
 		}
 	}
-	return fmt.Errorf("write the accounts' new ids in the config: %w", config.ErrChanged)
+	return false, fmt.Errorf("write the accounts' new ids in the config: %w", config.ErrChanged)
 }
 
 // renameConfig gives each account draft configures that the record has moved
-// its new id, and its old id as its label where draft writes none, reporting
-// whether it gave any.
+// its new id, and, where draft writes it no label, its old id as its label,
+// as labelFor makes it one of its own, reporting whether it gave any.
 func renameConfig(draft *config.Draft, record identity.Record) (bool, error) {
 	if draft.Config() == nil {
 		return false, nil
@@ -359,13 +400,40 @@ func renameConfig(draft *config.Draft, record identity.Record) (bool, error) {
 			return false, err
 		}
 		if !labelled {
-			if err := draft.SetLabel(e.ID, a.ID); err != nil {
+			if err := draft.SetLabel(e.ID, labelFor(draft.Config().Accounts, e.ID, a.ID)); err != nil {
 				return false, err
 			}
 		}
 		changed = true
 	}
 	return changed, nil
+}
+
+// labelFor is the label the account with the given id is given, of the old
+// id it had: that, else, where another of accounts shows it already, as
+// labels are compared, it and the first number from 2 that makes one none
+// shows, as "work 2".
+func labelFor(accounts config.Accounts, id, was string) string {
+	label := was
+	for n := 2; accounts.LabelTaken(id, label); n++ {
+		label = fmt.Sprintf("%s %d", was, n)
+	}
+	return label
+}
+
+// Heal writes the accounts' new ids in the config file at configPath, and
+// labels as the move does, where the move is done in the state directory
+// stateDir and the config names any account by the id it had before, as
+// where a change to the config made by hand, or a repository it's kept in,
+// put its old ids back, which name no token file once the move's done. A
+// router heals its config before it reads it, so it starts on the new ids.
+// It reports whether it changed the config.
+func Heal(configPath, stateDir string) (bool, error) {
+	if !Moved(stateDir) {
+		return false, nil
+	}
+	m := &Mover{ConfigPath: configPath, StateDir: stateDir}
+	return m.configure()
 }
 
 // awaitRestart fails with ErrAwaitingRestart where the router running beside

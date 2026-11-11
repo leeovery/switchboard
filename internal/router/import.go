@@ -142,14 +142,15 @@ func (r *Router) serveImportRunning(w http.ResponseWriter, _ *http.Request) {
 
 // importStatus is the status POST /import answers err with: 409 while another
 // import runs, 400 with nothing staged, 503 while the router can't import,
-// as it stops, and 500 where a day couldn't be taken in.
+// as it stops or while the history waits on its move onto the accounts' ids,
+// and 500 where a day couldn't be taken in.
 func importStatus(err error) int {
 	switch {
 	case errors.Is(err, export.ErrImportRunning):
 		return http.StatusConflict
 	case errors.Is(err, errNothingStaged):
 		return http.StatusBadRequest
-	case errors.Is(err, errImportStopped), errors.Is(err, errHistoryUnkept):
+	case errors.Is(err, errImportStopped), errors.Is(err, errHistoryUnkept), errors.Is(err, errHistoryMoving):
 		return http.StatusServiceUnavailable
 	}
 	return http.StatusInternalServerError
@@ -160,14 +161,19 @@ func importStatus(err error) int {
 // directory, done with or failed, unless the router stopped: every piece of
 // work it handed a writer has then returned, so none still reads it, and a
 // failed import's copy, as big as the export, never stays to fill the disk.
-// It fails as takeStaged does, keeping what it took in before.
+// It fails as takeStaged does, keeping what it took in before; and, taking
+// in none, with errHistoryMoving while the history waits on its move onto
+// the accounts' ids, which would leave what it took in under the old ids.
 func (r *Router) importStaged(ctx context.Context) (Imported, error) {
 	// The ledger's events are opened last of the history's files.
 	if r.eventFiles == nil {
 		return Imported{}, errHistoryUnkept
 	}
 	dir := ImportDir(r.cfg.StateDir)
-	imported, err := r.takeStaged(ctx, dir)
+	imported, err := Imported{}, errHistoryMoving
+	if !r.moving.owed() {
+		imported, err = r.takeStaged(ctx, dir)
+	}
 	if err == nil || !r.imports.stopped(err) {
 		if err := os.RemoveAll(dir); err != nil {
 			logger.Warn("can't remove what was staged to import; the next import removes it", "dir", dir, "error", err)

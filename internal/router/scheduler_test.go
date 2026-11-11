@@ -155,6 +155,27 @@ func TestTheSessionPinHeader(t *testing.T) {
 	}
 }
 
+// A session started before switchboard made ids pins its account by the id
+// it had then, for as long as it runs.
+func TestASessionPinHeaderOfAnIDAnAccountHadBeforeIsHonoured(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newRouted(t, func(cfg *router.Config) {
+		cfg.Formerly = func(id string) (string, bool) {
+			return map[string]string{"spare": "side", "side": "work"}[id], id == "spare" || id == "side"
+		}
+	})
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+
+	if got := r.ask(t, "one", opus, "spare"); got != "side" {
+		t.Errorf("the session pinned by side's former id went to %s, want side", got)
+	}
+	waitForLine(t, log, "msg=routed", "session=one", "account=side", "reason=pinned")
+	if got := r.ask(t, "two", opus, "side"); got != "side" {
+		t.Errorf("the session pinned by side's id, another account's former one, went to %s, want side, by its own id", got)
+	}
+}
+
 func TestTheGlobalPin(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newRouted(t)

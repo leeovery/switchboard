@@ -116,6 +116,16 @@ func (as Accounts) InAnotherCase(id string) (Account, bool) {
 	return as[i], true
 }
 
+// LabelTaken reports whether an account, but the one with the given id,
+// shows label, as each shows, ignoring case: an account the config writes no
+// label for has its id as its label, as it's loaded. Every account has a
+// label of its own, compared so; a config that doesn't, edited by hand,
+// still loads, but nothing that writes it gives one so.
+func (as Accounts) LabelTaken(id, label string) bool {
+	shown := prose.Clean(label)
+	return slices.ContainsFunc(as, func(a Account) bool { return a.ID != id && strings.EqualFold(prose.Clean(a.Label), shown) })
+}
+
 // Primary returns the primary account: the one marked primary, else the
 // first. There must be an account.
 func (as Accounts) Primary() Account {

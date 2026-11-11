@@ -87,10 +87,6 @@ func removeBuilt(dir string) error {
 	return nil
 }
 
-// errTwice is the error of a summary whose accounts, renamed, name one
-// account twice.
-var errTwice = errors.New("its accounts, renamed, name one account twice")
-
 // renameSummary renames the accounts of the summary of the local day with
 // the given date, where there's one, each account's id as id gives it, its
 // accounts' days kept in the order of their ids, every other field as it's
@@ -99,10 +95,11 @@ var errTwice = errors.New("its accounts, renamed, name one account twice")
 // its lines aren't counted again to tell it stands. It's written only where
 // that changed it, stamped as mark stamps one where it's marked with its
 // day's files as they now stand. One that doesn't read as a summary is left
-// as it is, which is logged. One that, renamed, names an account twice, as a
-// round made it from the day's lines under the old ids and its readings
-// under the new, or the other way about, while they were renamed, is
-// removed, which is logged, for a round to summarise its day afresh.
+// as it is, which is logged. Where two of its accounts' days, renamed, are
+// of one account, as of two ids an account had in two cases, or of a round
+// that made it from the day's lines under the old ids and its readings under
+// the new while they were renamed, they're merged into one, as mergedDays
+// merges them, so its totals stand whether or not its lines are still there.
 func (d days) renameSummary(date string, id func(string) string, rewritten dayfile.Rewritten) error {
 	path := SummaryFile(d.files.Dir, date)
 	data, err := os.ReadFile(path)
@@ -113,10 +110,6 @@ func (d days) renameSummary(date string, id func(string) string, rewritten dayfi
 		return fmt.Errorf("rename the accounts of the request ledger's summary of %s: %w", date, err)
 	}
 	renamed, changed, err := renamedSummary(data, id, rewritten)
-	if errors.Is(err, errTwice) {
-		d.logger.Warn("the request ledger's summary of a day, renamed, names an account twice; it's removed for a round to summarise the day afresh", "day", date)
-		return removed(path)
-	}
 	if err != nil {
 		d.logger.Warn("can't rename the accounts of the request ledger's summary of a day; it's left for a round to summarise again", "day", date, "error", err)
 		return nil
@@ -133,7 +126,9 @@ func (d days) renameSummary(date string, id func(string) string, rewritten dayfi
 
 // stampMarked stamps the summary of the local day with the given date, as
 // written, as mark stamps one, where it's marked with its day's files as
-// they now stand, none of them there among it.
+// they now stand, none of them there among it: as of its own version, so a
+// look still tells one of an older version than the ledger writes, which is
+// summarised again from its lines while they're kept.
 func (d days) stampMarked(date string, written []byte) {
 	var summary Summary
 	if json.Unmarshal(written, &summary) != nil {
@@ -144,7 +139,7 @@ func (d days) stampMarked(date string, written []byte) {
 		return
 	}
 	if marked(summary, stat) {
-		d.stamp(date, stat)
+		d.stamp(date, stat, summary.Version)
 	}
 }
 
@@ -185,9 +180,9 @@ type accountDay struct {
 
 // renamedAccounts returns accounts, a summary's accounts' days as they're
 // written, with each one's account renamed as id gives it, every other field
-// as it's written, in the order of their ids, as a summary keeps them; and
-// reports whether that changed them. It fails with errTwice where two of
-// them, renamed, are of one account.
+// as it's written, in the order of their ids, as a summary keeps them, two
+// of one account merged into one, as mergedDays merges them; and reports
+// whether that changed them.
 func renamedAccounts(accounts json.RawMessage, id func(string) string) (json.RawMessage, bool, error) {
 	var written []json.RawMessage
 	if err := json.Unmarshal(accounts, &written); err != nil {
@@ -206,14 +201,21 @@ func renamedAccounts(accounts json.RawMessage, id func(string) string) (json.Raw
 		return accounts, false, nil
 	}
 	slices.SortStableFunc(days, func(a, b accountDay) int { return cmp.Compare(a.account, b.account) })
+	var renamed []json.RawMessage
 	for i, day := range days {
-		if i > 0 && days[i-1].account == day.account {
-			return nil, false, errTwice
+		if i == 0 || days[i-1].account != day.account {
+			renamed = append(renamed, day.written)
+			continue
 		}
-		written[i] = day.written
+		last := len(renamed) - 1
+		merged, err := mergedWritten(renamed[last], day.written)
+		if err != nil {
+			return nil, false, err
+		}
+		renamed[last] = merged
 	}
-	renamed, err := json.Marshal(written)
-	return renamed, true, err
+	out, err := json.Marshal(renamed)
+	return out, true, err
 }
 
 // renamedAccount returns an account's day as a summary writes it, its

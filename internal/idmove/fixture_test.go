@@ -234,17 +234,23 @@ func writeFile(t *testing.T, path, content string) {
 }
 
 // organizations answers each token's organization, as the API does, unless
-// told otherwise: a token it's to leave unanswered, it fails as though the
-// API didn't answer, as many times as it's told; one it's to refuse, it
-// fails as the API refusing it does; and one it has no organization of, it
-// answers naming none.
+// told otherwise: it fails as though the API didn't answer as many times as
+// unanswered says, whatever the token, and always for a token silent holds;
+// for one it's to refuse, it fails as the API refusing it does, as many
+// times as refused says; and one it has no organization of, it answers
+// naming none. It counts the times it's asked, by token too.
 type organizations struct {
 	mu         sync.Mutex
 	of         map[string]string
 	unanswered int
-	refused    map[string]bool
+	silent     map[string]bool
+	refused    map[string]int
 	asked      int
+	askedFor   map[string]int
 }
+
+// always is as many times as a test could ask.
+const always = 1 << 30
 
 // answering are the organizations of the fixture's tokens, answered.
 func answering() *organizations {
@@ -255,11 +261,18 @@ func (o *organizations) Organization(ctx context.Context, token tokens.Token) (s
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.asked++
+	if o.askedFor == nil {
+		o.askedFor = make(map[string]int)
+	}
+	o.askedFor[token.Reveal()]++
 	switch {
 	case o.unanswered > 0:
 		o.unanswered--
 		return "", errors.New("timed out after 5s")
-	case o.refused[token.Reveal()]:
+	case o.silent[token.Reveal()]:
+		return "", errors.New("timed out after 5s")
+	case o.refused[token.Reveal()] > 0:
+		o.refused[token.Reveal()]--
 		return "", refusedError{}
 	}
 	return o.of[token.Reveal()], nil
@@ -273,10 +286,11 @@ func (refusedError) Refused() bool { return true }
 
 // mover is the move of the fixture's install, asking o for its tokens'
 // organizations, by the fixture's clock, drawing random ids from a source
-// that draws the same each time, and asking again at once.
+// that draws the same each time, and asking again, and looking again at a
+// token, at once.
 func (f fixture) mover(o idmove.Organizations) *idmove.Mover {
 	return &idmove.Mover{ConfigPath: f.config, StateDir: f.state, Tokens: f.tokens, Organizations: o,
-		Now: clock, Random: rand.NewChaCha8([32]byte{7}), Retry: time.Millisecond}
+		Now: clock, Random: rand.NewChaCha8([32]byte{7}), Retry: time.Millisecond, Again: time.Millisecond}
 }
 
 // moved runs the move of the fixture's install to its end, failing the test

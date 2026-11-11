@@ -466,19 +466,31 @@ func TestProbe(t *testing.T) {
 			wantAsked: []string{haiku, fable},
 		},
 		{
-			name: "no organization from an answer that read no window",
+			name: "the organization from an answer that read no window, the family's model tried after it naming none",
 			replies: map[string]reply{
 				haiku:      withUsage(http.StatusOK, session, week),
 				fable:      apiError(http.StatusNotFound, "model: claude-fable-5-1").withOrganization(organization),
 				fableOlder: apiError(http.StatusNotFound, "model: claude-fable-5"),
 			},
-			want: probed(
+			want: probedIn(
+				organization,
 				quota.Usage{
 					Windows:  []quota.Window{session, week},
 					Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 404 · model: claude-fable-5"}},
 				},
 				map[string][]string{"5h": {haiku}, "7d": {haiku}},
 			),
+			wantAsked: []string{haiku, fable, fableOlder},
+		},
+		{
+			name: "every family reading no window, an answer of success naming the organization",
+			replies: map[string]reply{
+				haiku:      withUsage(http.StatusOK).withOrganization(organization),
+				fable:      withUsage(http.StatusOK).withOrganization(organization),
+				fableOlder: withUsage(http.StatusOK).withOrganization(organization),
+			},
+			want:      quota.Probe{Organization: organization},
+			wantErr:   "HTTP 200",
 			wantAsked: []string{haiku, fable, fableOlder},
 		},
 		{

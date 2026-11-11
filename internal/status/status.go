@@ -39,6 +39,52 @@ const (
 	RouterUnhealthy = "unhealthy"
 )
 
+// What the move of the accounts and their history onto the ids switchboard
+// makes does, or waits on, as a Moving's Stage says.
+const (
+	// MoveRunning is the router making the move.
+	MoveRunning = "running"
+	// MoveAwaitingAPI is the move waiting for the API to answer for the
+	// accounts' tokens, whose organizations make their ids.
+	MoveAwaitingAPI = "awaiting api"
+	// MoveAwaitingRestart is the rest of the move waiting for the router to
+	// restart onto the accounts' new ids, which its config holds.
+	MoveAwaitingRestart = "awaiting restart"
+	// MoveFailed is the move failing, the router to make it again.
+	MoveFailed = "failed"
+	// MoveNoRouter is no router answering to make the move, as a command
+	// that finds the history waiting on it tells it.
+	MoveNoRouter = "no router"
+	// MoveOlderRouter is the router running owing no move, as one of a
+	// version from before ids were made, as a command that finds the history
+	// waiting on it tells it.
+	MoveOlderRouter = "older router"
+)
+
+// Moving is how the move of the accounts and their history onto the ids
+// switchboard makes stands: zero where none is owed.
+type Moving struct {
+	// Stage says what the move does or waits on, such as MoveRunning.
+	Stage string `json:"stage"`
+	// Why says why the move failed, where Stage is MoveFailed.
+	Why string `json:"why,omitempty"`
+}
+
+// MovingAsked is how the move stands, as a command that finds the history
+// waiting on it tells it, having asked the router how it stands, which told
+// moving, or failed with err: no router to make it, where none answered; one
+// of a version from before ids were made, where the one that answered owes
+// none; else as the router tells it.
+func MovingAsked(moving Moving, err error) Moving {
+	switch {
+	case err != nil:
+		return Moving{Stage: MoveNoRouter}
+	case moving == Moving{}:
+		return Moving{Stage: MoveOlderRouter}
+	}
+	return moving
+}
+
 // Document is the status of every configured account, as `status --json`
 // prints it. Fields may be added to it, never renamed.
 type Document struct {
@@ -68,11 +114,12 @@ type Document struct {
 	// Restart is the restart the router has due: zero when none is, and in a
 	// document that isn't the router's.
 	Restart Restart `json:"restart,omitzero"`
-	// Moving is set while the router moves the accounts and their history
-	// onto the ids switchboard makes, as it does once, as it first starts on
-	// a version that makes them: the history waits on it meanwhile. False in
-	// a document that isn't the router's.
-	Moving bool `json:"moving,omitzero"`
+	// Moving is how the router's move of the accounts and their history onto
+	// the ids switchboard makes stands, which it makes once, as it first
+	// starts on a version that makes them: the history waits on it
+	// meanwhile. Zero where none is owed, and in a document that isn't the
+	// router's.
+	Moving Moving `json:"moving,omitzero"`
 	// Export is how the router's export of the history on a schedule stands:
 	// zero where the config names no folder, and in a document that isn't
 	// the router's.

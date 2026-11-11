@@ -64,6 +64,9 @@ type proxy struct {
 	readToken func(id string) (tokens.Token, error)
 	// tokenTaken reads when a token read again was taken.
 	tokenTaken TakenFunc
+	// formerly gives the id of the account that had the id given before
+	// switchboard made ids, as Config's Formerly does.
+	formerly func(id string) (string, bool)
 	// tokensReplaced hears that an account's token has been replaced, which
 	// the state file is to keep.
 	tokensReplaced func()
@@ -251,10 +254,12 @@ func (p *proxy) passThrough(w http.ResponseWriter, r *http.Request) {
 }
 
 // pin returns the account the pin header of a request of session names, when
-// it names one the router can send on. It warns of a pin it ignores, once for
-// each session and account, as ignoredPins says, and notes it at debug after.
+// it names one the router can send on: by its id, or, from a session started
+// before switchboard made ids, the id it had before, as pinned explains. It
+// warns of a pin it ignores, once for each session and account, as
+// ignoredPins says, and notes it at debug after.
 func (p *proxy) pin(r *http.Request, ex *exchange, session string) string {
-	id := r.Header.Get(PinHeader)
+	id := p.pinned(r.Header.Get(PinHeader))
 	if id == "" {
 		return ""
 	}
@@ -275,6 +280,19 @@ func (p *proxy) pin(r *http.Request, ex *exchange, session string) string {
 	}
 	logger.Log(context.Background(), level, why, "id", ex.id, "pin", id, "session", status.ShortID(session))
 	return ""
+}
+
+// pinned is the id of the account a pin header's id names: the id given,
+// where the router has an account of it, else the id of the one that had it
+// before switchboard made ids, as formerly gives it, where one did.
+func (p *proxy) pinned(id string) string {
+	if _, ok := p.accounts.byID(id); ok || id == "" || p.formerly == nil {
+		return id
+	}
+	if now, ok := p.formerly(id); ok {
+		return now
+	}
+	return id
 }
 
 // ignoredPins holds, by account, the sessions whose pins to it the log has

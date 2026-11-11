@@ -1,10 +1,12 @@
 package status_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -657,6 +659,47 @@ func TestRenamedReasonRenamesEachAccountAReasonNames(t *testing.T) {
 		if got := status.RenamedReason(tt.reason, rename); got != tt.want {
 			t.Errorf("RenamedReason(%q) = %q, want %q", tt.reason, got, tt.want)
 		}
+	}
+}
+
+func TestMovingSaysWhatHoldsTheMoveUp(t *testing.T) {
+	tests := []struct {
+		moving status.Moving
+		want   string
+	}{
+		{status.Moving{Stage: status.MoveRunning}, prose.HistoryMoving + ": the router is making it"},
+		{status.Moving{Stage: status.MoveAwaitingAPI}, prose.HistoryMoving + ": " + prose.MoveWaitsAPI},
+		{status.Moving{Stage: status.MoveAwaitingRestart}, prose.HistoryMoving + ": " + prose.MoveWaitsRestart},
+		{status.Moving{Stage: status.MoveNoRouter}, prose.HistoryMoving + ": " + prose.MoveWaitsRouter},
+		{status.Moving{Stage: status.MoveOlderRouter}, prose.HistoryMoving + ": " + prose.MoveWaitsUpgrade},
+		{status.Moving{Stage: status.MoveFailed, Why: "rename the\nconfig: denied"}, prose.HistoryMoving + ": the router couldn't make it, and tries again in a minute: rename the config: denied"},
+		{status.Moving{Stage: "a stage of a later version"}, prose.HistoryMoving},
+	}
+	for _, tt := range tests {
+		if got := tt.moving.Said(); got != tt.want {
+			t.Errorf("%+v.Said() = %q, want %q", tt.moving, got, tt.want)
+		}
+	}
+}
+
+func TestMovingAskedTellsWhyNoRouterMakesTheMove(t *testing.T) {
+	running := status.Moving{Stage: status.MoveAwaitingAPI}
+	tests := []struct {
+		name   string
+		moving status.Moving
+		err    error
+		want   status.Moving
+	}{
+		{"no router answering", status.Moving{}, errors.New("dial unix: connection refused"), status.Moving{Stage: status.MoveNoRouter}},
+		{"a router owing no move", status.Moving{}, nil, status.Moving{Stage: status.MoveOlderRouter}},
+		{"a router making it", running, nil, running},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.MovingAsked(tt.moving, tt.err); got != tt.want {
+				t.Errorf("MovingAsked() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 

@@ -45,6 +45,9 @@ func markMoved(t *testing.T, dir string) {
 	}
 }
 
+// noRouter is what a command says holds the move up where no router answers.
+var noRouter = status.Moving{Stage: status.MoveNoRouter}.Said()
+
 func TestTheVerbsThatReadTheHistoryWaitOnItsMove(t *testing.T) {
 	folder := t.TempDir()
 	for _, args := range [][]string{
@@ -60,7 +63,7 @@ func TestTheVerbsThatReadTheHistoryWaitOnItsMove(t *testing.T) {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			deps, _ := movingDeps(t)
 			got := run(t, deps, args...)
-			if want := "Error: " + prose.HistoryMoving + ": try again once it's done\n"; got.code != 1 || got.stderr != want || got.stdout != "" {
+			if want := "Error: " + noRouter + "; try again once it's done\n"; got.code != 1 || got.stderr != want || got.stdout != "" {
 				t.Errorf("switchboard %s, the history waiting on its move, = %+v, want it refused: %q", strings.Join(args, " "), got, want)
 			}
 		})
@@ -92,7 +95,7 @@ func TestTheDashboardOpensOnceTheHistoryIsMoved(t *testing.T) {
 	go func() { code <- cli.Execute(root) }()
 
 	waitUntil(t, "the dashboard says it waits on the move", func() bool {
-		return stdout.String() == prose.HistoryMoving+": the dashboard opens once it's done\n"
+		return stdout.String() == noRouter+"; the dashboard opens once it's done\n"
 	})
 	select {
 	case <-opened:
@@ -125,22 +128,19 @@ func TestServeMovesTheAccountsAndTheirHistoryOntoTheirIDsAcrossTheRestartItCalls
 		data, err := os.ReadFile(srv.config)
 		return err == nil && !strings.Contains(string(data), `"work"`)
 	})
-	doc := srv.waitForStatus(t, func(status.Document) bool { return true })
-	if !doc.Moving {
-		t.Error("the router doesn't say it's moving the history, want it to till it's restarted onto the new ids")
-	}
+	doc := srv.waitForStatus(t, func(doc status.Document) bool { return doc.Moving.Stage == status.MoveAwaitingRestart })
 	if _, ok := doc.Account("work"); !ok {
 		t.Errorf("the router routes under %v, want the old ids till it's restarted", doc.Accounts)
 	}
-	if got := run(t, srv.deps, "requests"); got.code != 1 || !strings.Contains(got.stderr, prose.HistoryMoving) {
-		t.Errorf("switchboard requests mid-move = %+v, want it refused, waiting on the move", got)
+	if got := run(t, srv.deps, "requests"); got.code != 1 || !strings.Contains(got.stderr, prose.HistoryMoving+": "+prose.MoveWaitsRestart) {
+		t.Errorf("switchboard requests mid-move = %+v, want it refused, waiting on the router's restart", got)
 	}
 	if got := stop(); got.code != 0 {
 		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
 	}
 
-	srv.start(t)
-	doc = srv.waitForStatus(t, func(doc status.Document) bool { return !doc.Moving })
+	stop = srv.start(t)
+	doc = srv.waitForStatus(t, func(doc status.Document) bool { return doc.Moving == status.Moving{} })
 	record, err := identity.NewFile(srv.state).Read()
 	if err != nil {
 		t.Fatal(err)
@@ -169,5 +169,20 @@ func TestServeMovesTheAccountsAndTheirHistoryOntoTheirIDsAcrossTheRestartItCalls
 		if _, err := os.Lstat(filepath.Join(srv.state, "tokens", id)); err == nil {
 			t.Errorf("the token file of the former id %s is still there", id)
 		}
+	}
+
+	// The config put back as it was, as from a repository it's kept in, a
+	// router starting heals it.
+	if got := stop(); got.code != 0 {
+		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
+	}
+	srv.writeConfig(t)
+	srv.start(t)
+	doc = srv.waitForStatus(t, func(status.Document) bool { return true })
+	if _, ok := doc.Account(work.ID); !ok {
+		t.Errorf("started on a config put back to the old ids, the router routes under %v, want work's new id, %s", doc.Accounts, work.ID)
+	}
+	if data, err := os.ReadFile(srv.config); err != nil || strings.Contains(string(data), `"work"`) || !strings.Contains(string(data), `"`+work.ID+`"`) {
+		t.Errorf("the config put back reads %s (%v), want it healed onto the new ids", data, err)
 	}
 }

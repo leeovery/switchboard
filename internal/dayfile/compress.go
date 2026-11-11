@@ -106,7 +106,7 @@ func openCompressed(path string) (compressedDay, error) {
 	c, err := measuring(file, io.Discard)
 	if err != nil {
 		c.close()
-		return compressedDay{}, err
+		return compressedDay{}, damage{err}
 	}
 	return c, nil
 }

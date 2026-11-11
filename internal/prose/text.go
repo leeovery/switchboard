@@ -15,9 +15,29 @@ const Separator = "  ·  "
 
 // HistoryMoving says the history waits on its move onto the accounts' ids,
 // which the router makes once, as it first starts on a version that makes
-// them: as the status says it, and, each with what it does meanwhile, the
-// dashboard and the verbs that read the history.
-const HistoryMoving = "the history waits on its move onto the accounts' new ids, which the router makes as it first starts on this version"
+// them: as the status, the dashboard and the verbs that read the history say
+// it, each followed by what holds it up, as the Move constants and
+// MoveFailed say it.
+const HistoryMoving = "the history waits on its move onto the accounts' new ids"
+
+// What holds the move onto the accounts' ids up, said after HistoryMoving:
+// the router making it; the API not answering for the accounts' tokens,
+// whose organizations make their ids; the router to restart onto the new
+// ids its config holds; no router answering; and the router running being of
+// a version from before ids were made.
+const (
+	MoveRunning      = "the router is making it"
+	MoveWaitsAPI     = "the API isn't answering for the accounts' tokens, whose organizations make their ids, so the router asks again a while later"
+	MoveWaitsRestart = "the router makes the rest once it restarts onto the new ids its config holds"
+	MoveWaitsRouter  = "no router answers to make it: start it with switchboard service install (or switchboard serve)"
+	MoveWaitsUpgrade = "the router running is of a version from before the ids, and makes it once it restarts on this one"
+)
+
+// MoveFailed says the move onto the accounts' ids failed, why says why, and
+// the router tries it again.
+func MoveFailed(why string) string {
+	return "the router couldn't make it, and tries again in a minute: " + Clean(why)
+}
 
 // Version words a release's version as it's shown, such as v0.2.10: a
 // version that isn't a release's number, such as a build's "dev", as it is.

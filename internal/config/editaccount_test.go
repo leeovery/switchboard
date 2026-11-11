@@ -781,6 +781,25 @@ func TestInAnotherCase(t *testing.T) {
 	}
 }
 
+func TestLabelTakenComparesLabelsAsShownIgnoringCase(t *testing.T) {
+	accounts := config.Accounts{{ID: "b6s7", Label: "Work"}, {ID: "qgr2", Label: "qgr2"}}
+	tests := []struct {
+		id, label string
+		want      bool
+	}{
+		{id: "", label: "work", want: true},
+		{id: "", label: "  WORK\t", want: true},
+		{id: "", label: "QGR2", want: true},
+		{id: "b6s7", label: "work"},
+		{id: "", label: "personal"},
+	}
+	for _, tt := range tests {
+		if got := accounts.LabelTaken(tt.id, tt.label); got != tt.want {
+			t.Errorf("LabelTaken(%q, %q) = %t, want %t", tt.id, tt.label, got, tt.want)
+		}
+	}
+}
+
 func TestAddAccountTrimsTheLabelsSurroundingWhitespace(t *testing.T) {
 	const work = "[[account]]\nid = \"work\"\n"
 	path := writeConfig(t, work)

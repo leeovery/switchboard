@@ -326,7 +326,7 @@ restart due since Mon 13:12 (upgraded), held: invalid config
 				Source:      status.SourceRouter,
 				Router:      status.Health{Healthy: true},
 				Restart:     status.Restart{Reason: "config changed", Since: now.Add(-time.Hour), ByHand: true},
-				Moving:      true,
+				Moving:      status.Moving{Stage: status.MoveAwaitingRestart},
 				Accounts:    []status.Account{personal},
 			},
 			want: `personal · Personal
@@ -335,7 +335,7 @@ restart due since Mon 13:12 (upgraded), held: invalid config
 best next: personal · Personal
 from the router: healthy  ·  no sessions  ·  routing automatically
 restart due since Mon 13:12 (config changed): run switchboard serve again to take it up
-the history waits on its move onto the accounts' new ids, which the router makes as it first starts on this version
+the history waits on its move onto the accounts' new ids: the router makes the rest once it restarts onto the new ids its config holds
 `,
 		},
 		{

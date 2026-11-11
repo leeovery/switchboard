@@ -28,13 +28,13 @@ type Moment struct {
 	Routed, Probed bool
 	// Fallback, Health, Restart, Moving, Pin, Events and Sessions are the
 	// document's records, as read: why it was probed rather than the
-	// router's, the router's health, a restart it has due, whether it's
-	// moving the history onto the accounts' ids, its global pin, what has
+	// router's, the router's health, a restart it has due, how its move of
+	// the history onto the accounts' ids stands, its global pin, what has
 	// happened lately, and how many sessions it routed in the last hour.
 	Fallback Fallback
 	Health   Health
 	Restart  Restart
-	Moving   bool
+	Moving   Moving
 	Pin      Pin
 	Events   []Event
 	Sessions int

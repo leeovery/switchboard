@@ -7,43 +7,76 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/idmove"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // moveRetry is how long the router waits to run the move onto the accounts'
 // ids again where it failed.
 const moveRetry = time.Minute
 
+// errHistoryMoving is what an import fails with while the history waits on
+// its move onto the accounts' ids.
+var errHistoryMoving = errors.New(prose.HistoryMoving + ": import once it's done")
+
 // Mover moves the accounts and their history onto the ids switchboard makes,
 // once, as idmove.Mover does: Settle moves the files the router takes up as
 // it starts, before it does, and RunBeside the rest, beside the router, given
-// the history's files as it keeps them.
+// the history's files as it keeps them, failing with idmove.ErrUnanswered,
+// having changed nothing, where the API doesn't answer.
 type Mover interface {
 	Settle() error
 	RunBeside(ctx context.Context, history idmove.History) error
 }
 
 // moving runs the move onto the accounts' ids beside the router, where it has
-// one, and says whether it's owed.
+// one, and says how it stands.
 type moving struct {
 	mover Mover
-	retry time.Duration
-	// owed is set while the move is owed or running: from the router's start,
-	// where it has a mover, until the move is done.
-	owed atomic.Bool
+	// retry is how long the move waits to run again once it fails, and ask
+	// how long it first waits to ask the API again where it didn't answer,
+	// as idmove's AskAgain has the waits after.
+	retry, ask time.Duration
+	// stands is how the move stands while it's owed or running, as the
+	// status says it: from the router's start, where it has a mover, until
+	// the move is done. Nil where none is owed.
+	stands atomic.Pointer[status.Moving]
 }
 
 // newMoving returns the moving of mover's move, none where it's nil.
 func newMoving(mover Mover) *moving {
-	m := &moving{mover: mover, retry: moveRetry}
-	m.owed.Store(mover != nil)
+	m := &moving{mover: mover, retry: moveRetry, ask: idmove.AskAgain(0)}
+	if mover != nil {
+		m.standing(status.Moving{Stage: status.MoveRunning})
+	}
 	return m
+}
+
+// owed reports whether the move is owed: not done yet.
+func (m *moving) owed() bool {
+	return m.stands.Load() != nil
+}
+
+// report is how the move stands, for the status document: zero where none is
+// owed.
+func (m *moving) report() status.Moving {
+	if s := m.stands.Load(); s != nil {
+		return *s
+	}
+	return status.Moving{}
+}
+
+// standing notes how the move stands.
+func (m *moving) standing(s status.Moving) {
+	m.stands.Store(&s)
 }
 
 // settle has the mover move the files the router takes up as it starts,
 // where a move's owed. Where it can't, the router starts all the same, the
 // state those files kept of the accounts moved let go of.
 func (m *moving) settle() {
-	if !m.owed.Load() {
+	if !m.owed() {
 		return
 	}
 	if err := m.mover.Settle(); err != nil {
@@ -53,26 +86,39 @@ func (m *moving) settle() {
 
 // run runs the move, given the history's files as history gives them, until
 // it's done, ctx ends, or it waits for the router to restart onto the
-// accounts' new ids, which its config holds by then: where it fails
-// otherwise, it runs again after the retry's wait.
+// accounts' new ids, which its config holds by then: where the API doesn't
+// answer, it runs again after a wait that doubles each time, as idmove's
+// AskAgain has it; where it fails otherwise, after the retry's wait. It notes
+// how the move stands throughout, as the status says it.
 func (m *moving) run(ctx context.Context, history func() idmove.History) {
-	if !m.owed.Load() {
+	if !m.owed() {
 		return
 	}
+	var asked time.Duration
 	for {
+		m.standing(status.Moving{Stage: status.MoveRunning})
 		err := m.mover.RunBeside(ctx, history())
+		wait := m.retry
 		switch {
 		case err == nil:
-			m.owed.Store(false)
-			return
-		case errors.Is(err, idmove.ErrAwaitingRestart):
-			logger.Info("the move onto the accounts' ids waits for the router to restart onto them")
+			m.stands.Store(nil)
 			return
 		case ctx.Err() != nil:
 			return
+		case errors.Is(err, idmove.ErrAwaitingRestart):
+			m.standing(status.Moving{Stage: status.MoveAwaitingRestart})
+			logger.Info("the move onto the accounts' ids waits for the router to restart onto them")
+			return
+		case errors.Is(err, idmove.ErrUnanswered):
+			asked = m.askAgain(asked)
+			wait = asked
+			m.standing(status.Moving{Stage: status.MoveAwaitingAPI})
+			logger.Info("the move onto the accounts' ids waits to ask the API again for the organizations of their tokens", "in", wait)
+		default:
+			m.standing(status.Moving{Stage: status.MoveFailed, Why: redact.Text(err.Error())})
+			logger.Warn("couldn't move the accounts and their history onto their ids, so it's run again", "error", err, "in", wait)
 		}
-		logger.Warn("couldn't move the accounts and their history onto their ids, so it's run again", "error", err, "in", m.retry)
-		timer := time.NewTimer(m.retry)
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -80,6 +126,15 @@ func (m *moving) run(ctx context.Context, history func() idmove.History) {
 		case <-timer.C:
 		}
 	}
+}
+
+// askAgain is how long to wait to ask the API again having waited last: the
+// first wait, for zero, then as idmove's AskAgain has it.
+func (m *moving) askAgain(last time.Duration) time.Duration {
+	if last == 0 {
+		return m.ask
+	}
+	return idmove.AskAgain(last)
 }
 
 // historyFiles are the history's files as the router keeps them, as the move

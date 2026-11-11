@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -198,9 +199,9 @@ func TestAnAnswerNamingNoOrganizationMovesAnAccountOntoARandomID(t *testing.T) {
 			delete(o.of, personalToken)
 			return o
 		}},
-		{"refusing the token", func() *organizations {
+		{"refusing the token, asked again", func() *organizations {
 			o := answering()
-			o.refused = map[string]bool{personalToken: true}
+			o.refused = map[string]int{personalToken: always}
 			return o
 		}},
 	} {
@@ -485,19 +486,21 @@ func differences(want, got map[string]string) string {
 
 // tallies counts what the fixture's history holds, by kind, day and account,
 // as "kind|date|account": each day's lines of the readings history, the
-// request ledger and the router's events, by account; and each day's
-// requests upstream, by account, as its summary has them.
+// request ledger and the router's events, by each field that names an
+// account, as "requests.from" and "events.accounts[]"; the readings' use, in
+// thousandths, by account; and each day's requests upstream, by account, as
+// its summary has them.
 func (f fixture) tallies(t *testing.T) map[string]int {
 	t.Helper()
 	counts := make(map[string]int)
 	kinds := []struct {
-		name    string
-		files   *dayfile.Files
-		account func([]byte) string
+		name   string
+		files  *dayfile.Files
+		fields []string
 	}{
-		{"readings", readingsFiles(f.state), func(l []byte) string { r, _ := readings.In(l); return r.Account }},
-		{"requests", ledger.Files(ledger.Dir(f.state), logs.For("test")), func(l []byte) string { return fieldOf(t, l, "account") }},
-		{"events", events.Files(ledger.Dir(f.state), logs.For("test")), func(l []byte) string { return fieldOf(t, l, "account") }},
+		{"readings", readingsFiles(f.state), []string{"account"}},
+		{"requests", ledger.Files(ledger.Dir(f.state), logs.For("test")), []string{"account", "from", "tried[].account"}},
+		{"events", events.Files(ledger.Dir(f.state), logs.For("test")), []string{"account", "from", "to", "accounts[]"}},
 	}
 	for _, kind := range kinds {
 		dates, err := kind.files.All()
@@ -505,8 +508,15 @@ func (f fixture) tallies(t *testing.T) map[string]int {
 			t.Fatal(err)
 		}
 		for _, date := range dates {
-			if _, _, err := dayfile.ReadDay(kind.files, date, func(l []byte) (string, bool) { return kind.account(l), true }, func(account string) bool {
-				counts[kind.name+"|"+date+"|"+account]++
+			if _, _, err := dayfile.ReadDay(kind.files, date, func(l []byte) ([]byte, bool) { return l, true }, func(l []byte) bool {
+				for field, accounts := range namedIn(t, l, kind.fields...) {
+					for _, account := range accounts {
+						counts[kind.name+"."+field+"|"+date+"|"+account]++
+					}
+				}
+				if r, ok := readings.In(l); ok && kind.name == "readings" {
+					counts["readings.use|"+date+"|"+r.Account] += int(math.Round(r.Utilization * 1000))
+				}
 				return true
 			}); err != nil {
 				t.Fatal(err)
@@ -532,27 +542,49 @@ func (f fixture) tallies(t *testing.T) map[string]int {
 	return counts
 }
 
-// lineCount counts the lines of the readings history and the request ledger.
+// lineCount counts the lines of the readings history and the request ledger,
+// as each names an account, or none.
 func (f fixture) lineCount(t *testing.T) int {
 	t.Helper()
 	n := 0
 	for key, count := range f.tallies(t) {
-		if kind, _, _ := splitKey(key); kind == "readings" || kind == "requests" {
+		if kind, _, _ := splitKey(key); kind == "readings.account" || kind == "requests.account" {
 			n += count
 		}
 	}
 	return n
 }
 
-// fieldOf is the string field with the given name of a line of JSON.
-func fieldOf(t *testing.T, line []byte, name string) string {
+// namedIn are the accounts a line of JSON names in each of the fields given,
+// by field: a field by its name, which names one, "" for none; "name[]" for
+// each string of the array it holds; and "name[].key" for each string the
+// objects of the array it holds hold by key.
+func namedIn(t *testing.T, line []byte, fields ...string) map[string][]string {
 	t.Helper()
-	var fields map[string]any
-	if err := json.Unmarshal(line, &fields); err != nil {
+	var values map[string]any
+	if err := json.Unmarshal(line, &values); err != nil {
 		t.Fatalf("%s: %v", line, err)
 	}
-	s, _ := fields[name].(string)
-	return s
+	named := make(map[string][]string, len(fields))
+	for _, field := range fields {
+		name, each, many := strings.Cut(field, "[]")
+		if !many {
+			s, _ := values[name].(string)
+			named[field] = []string{s}
+			continue
+		}
+		items, _ := values[name].([]any)
+		for _, item := range items {
+			if key, ok := strings.CutPrefix(each, "."); ok {
+				object, _ := item.(map[string]any)
+				item = object[key]
+			}
+			if s, ok := item.(string); ok {
+				named[field] = append(named[field], s)
+			}
+		}
+	}
+	return named
 }
 
 // splitKey splits a tally's key into its kind, date and account.

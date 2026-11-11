@@ -109,6 +109,11 @@ type Config struct {
 	// known, with tokens.ErrUnrecorded where there's no record: whenever the
 	// router reads a token, it reads its record too. Nil knows of none.
 	Taken TakenFunc
+	// Formerly gives the id of the account that had the id given before
+	// switchboard made ids, reporting false where none did: a session started
+	// before then pins its account by that id for as long as it runs, which
+	// the router takes for the account's id now. Nil knows of none.
+	Formerly func(id string) (string, bool)
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string
 	Provider Provider
@@ -373,6 +378,7 @@ func New(cfg Config) (*Router, error) {
 			accounts:       accounts,
 			readToken:      cfg.Token,
 			tokenTaken:     cfg.Taken,
+			formerly:       cfg.Formerly,
 			tokensReplaced: changes.note,
 			state:          state,
 			provider:       cfg.Provider,
@@ -391,7 +397,7 @@ func New(cfg Config) (*Router, error) {
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}
-	r.exports = newExports(cfg, r.tendHistory, r.restartComing)
+	r.exports = newExports(cfg, r.tendHistory, r.restartComing, r.moving.owed)
 	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, emit)
 	return r, nil
 }
@@ -460,7 +466,7 @@ func (r *Router) assembled() status.Document {
 	doc.Pin = pin
 	doc.Router = r.health.report()
 	doc.Restart = r.upkeep.restartDue()
-	doc.Moving = r.moving.owed.Load()
+	doc.Moving = r.moving.report()
 	doc.Export = r.exports.report()
 	doc.Events = r.recent.events()
 	if r.primer != nil {

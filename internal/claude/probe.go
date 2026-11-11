@@ -74,7 +74,9 @@ type reading struct {
 // whether any of its requests was answered with success. A family that owns a
 // window and reads nothing is reported as a failure, unless another family
 // read that window anyway. Probe fails only when no family reads anything,
-// with the base family's error, as ProbeModel gives it.
+// with the base family's error, as ProbeModel gives it, the probe it gives
+// then naming the organization alone. Its organization is the one the first
+// answer to name one names, whether that answer read a window or not.
 func (p *Prober) Probe(ctx context.Context, token string) (quota.Probe, error) {
 	readings := make([]reading, len(families))
 	var wg sync.WaitGroup
@@ -85,14 +87,19 @@ func (p *Prober) Probe(ctx context.Context, token string) (quota.Probe, error) {
 	return combine(readings)
 }
 
-// probeFamily tries the family's models in order until one reports usage.
+// probeFamily tries the family's models in order until one reports usage,
+// keeping the organization the first answer to name one names.
 func (p *Prober) probeFamily(ctx context.Context, token string, f family) reading {
 	var r reading
+	organization := ""
 	for _, model := range f.models {
-		if r = p.read(ctx, token, model); r.err == nil {
+		r = p.read(ctx, token, model)
+		organization = cmp.Or(organization, r.organization)
+		if r.err == nil {
 			break
 		}
 	}
+	r.organization = organization
 	return r
 }
 
@@ -112,7 +119,7 @@ func combine(readings []reading) (quota.Probe, error) {
 		}
 	}
 	if len(probe.Windows) == 0 {
-		return quota.Probe{}, readings[0].err
+		return quota.Probe{Organization: probe.Organization}, readings[0].err
 	}
 	for i, f := range families {
 		if r := readings[i]; r.err != nil && f.window != "" && !hasWindow(probe.Windows, f.window) {
@@ -143,7 +150,7 @@ func (p *Prober) read(ctx context.Context, token, model string) reading {
 	if err != nil {
 		// Not wrapped: the cause's own text can carry the token, as a transport
 		// error quotes the URL.
-		return reading{model: model, err: &probeError{text: redact.Text(err.Error(), token), status: got.status}}
+		return reading{model: model, organization: got.organization, err: &probeError{text: redact.Text(err.Error(), token), status: got.status}}
 	}
 	return reading{model: model, usage: got.usage, admitted: got.status >= 200 && got.status < 300, organization: got.organization}
 }
@@ -157,7 +164,7 @@ type answer struct {
 }
 
 // probeModel returns what the response to the probe gave, or, failing, the
-// status of a response that reports no window.
+// status of a response that reports no window, and the organization it names.
 func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, error) {
 	timeout := cmp.Or(p.Timeout, defaultTimeout)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -177,7 +184,7 @@ func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, e
 	if usage := ParseUsage(resp.Header); len(usage.Windows) > 0 {
 		return answer{usage: usage, organization: organizationOf(resp.Header), status: resp.StatusCode}, nil
 	}
-	return answer{status: resp.StatusCode}, errors.New(noUsageReason(resp, token))
+	return answer{organization: organizationOf(resp.Header), status: resp.StatusCode}, errors.New(noUsageReason(resp, token))
 }
 
 // client sends probes over p's transport, following no redirect: a client

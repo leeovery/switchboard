@@ -86,18 +86,20 @@ It logs to the router's log, and to the terminal when it runs in one.
 // router compares them with while it runs, so a change made as it starts
 // calls for a restart too. Run by launchd without --from, once the config is
 // read, it moves over to the router's own copy, as moveOver does. Where the
-// move onto the accounts' ids is owed, the router makes it, as mover says.
+// move onto the accounts' ids is owed, the router makes it, as mover says;
+// where it's done, the config is healed first, as heal says.
 func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 	path, err := a.configFile()
 	if err != nil {
 		return err
 	}
-	exe := a.binary()
-	configFile, binary, from, zone := router.Watch(path), router.Watch(exe), router.WatchFrom(a.from, exe), router.Watch(a.ZoneFile)
 	stateDir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
 		return err
 	}
+	heal(path, stateDir)
+	exe := a.binary()
+	configFile, binary, from, zone := router.Watch(path), router.Watch(exe), router.WatchFrom(a.from, exe), router.Watch(a.ZoneFile)
 	cfg, files, err := a.startingFrom(stateDir, path)
 	if err != nil {
 		return err
@@ -279,6 +281,7 @@ func (a *app) startingFrom(stateDir, path string) (router.Config, tokens.Store, 
 		Environ:       a.Environ(),
 		Handed:        a.Getenv(handover.Variable),
 		WatchEvery:    a.WatchEvery,
+		Formerly:      formerly(stateDir),
 	}, files, nil
 }
 

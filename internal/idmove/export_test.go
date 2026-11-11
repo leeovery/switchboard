@@ -6,3 +6,9 @@ package idmove
 func (m *Mover) StopAfter(stop func(step string) error) {
 	m.stop = stop
 }
+
+// OnLookingAgain has the move call looking with an account's id as it's
+// about to look again at the account's token, as one being written now.
+func (m *Mover) OnLookingAgain(looking func(id string)) {
+	m.lookingAgain = looking
+}

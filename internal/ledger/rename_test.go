@@ -142,24 +142,81 @@ func TestRenamingADayOfASummaryAloneRenamesItsSummary(t *testing.T) {
 	}
 }
 
-func TestASummaryThatRenamedNamesAnAccountTwiceIsLeftForARoundToMakeAfresh(t *testing.T) {
-	dir := t.TempDir()
-	writeAt(t, dir, on(0, 12, 0), noReadings,
-		&ledger.Line{At: on(0, 10, 0), Request: "r1", Kind: ledger.KindMessage, Account: "work", Reason: "new", Status: 200, Attempts: 1},
-		&ledger.Line{At: on(0, 11, 0), Request: "r2", Kind: ledger.KindMessage, Account: "wk7q", Reason: "new", Status: 200, Attempts: 1},
-	)
-	summariseAt(dir, t.TempDir(), on(3, 10, 0))
+func TestASummaryThatRenamedNamesAnAccountTwiceMergesItsDaysTheirLinesPrunedOrNot(t *testing.T) {
+	inEitherCase := func(id string) string {
+		if strings.EqualFold(id, "work") {
+			return "wk7q"
+		}
+		return id
+	}
+	for _, pruned := range []bool{false, true} {
+		t.Run(map[bool]string{false: "lines kept", true: "lines pruned"}[pruned], func(t *testing.T) {
+			dir := t.TempDir()
+			writeAt(t, dir, on(0, 12, 0), noReadings,
+				&ledger.Line{At: on(0, 10, 0), Request: "r1", Kind: ledger.KindMessage, Session: "s1", Model: "claude-opus-5-5", Account: "Work", Reason: "new", Status: 200, Attempts: 1},
+				&ledger.Line{At: on(0, 11, 0), Request: "r2", Kind: ledger.KindMessage, Session: "s2", Model: "claude-opus-5-5", Account: "work", Reason: "new", Status: 200, Attempts: 1},
+				&ledger.Line{At: on(0, 11, 30), Request: "r3", Kind: ledger.KindMessage, Session: "s1", Model: "claude-haiku-4-5", Account: "work", Reason: "new", Status: 529},
+			)
+			summariseAt(dir, t.TempDir(), on(3, 10, 0))
+			if pruned {
+				if err := os.Remove(dayFile(dir, on(0, 10, 0))); err != nil {
+					t.Fatal(err)
+				}
+			}
 
-	if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, renamedLine, renamedID); err != nil {
-		t.Fatalf("RenameDay() = %v", err)
+			if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, func(line []byte) []byte { return line }, inEitherCase); err != nil {
+				t.Fatalf("RenameDay() = %v", err)
+			}
+			summariseAt(dir, t.TempDir(), on(3, 11, 0))
+			var summary ledger.Summary
+			if err := json.Unmarshal(summaryIn(t, dir), &summary); err != nil {
+				t.Fatal(err)
+			}
+			if len(summary.Accounts) != 1 || summary.Accounts[0].Account != "wk7q" {
+				t.Fatalf("the day's summary is %+v, want one account, wk7q", summary.Accounts)
+			}
+			day := summary.Accounts[0]
+			var requests []int
+			for _, m := range day.Models {
+				requests = append(requests, m.Requests())
+			}
+			if day.Sessions != 2 || !slices.Equal(day.SessionIDs, []string{"s1", "s2"}) || !slices.Equal(requests, []int{1, 2}) {
+				t.Errorf("wk7q's day is %+v, want both ids' requests, by model, haiku's then opus's, and each session once", day)
+			}
+		})
 	}
-	summariseAt(dir, t.TempDir(), on(3, 11, 0))
-	var summary ledger.Summary
-	if err := json.Unmarshal(summaryIn(t, dir), &summary); err != nil {
-		t.Fatal(err)
-	}
-	if len(summary.Accounts) != 1 || summary.Accounts[0].Account != "wk7q" || summary.Accounts[0].Models[0].Upstream != 2 {
-		t.Errorf("the day's summary, made afresh, is %+v, want one account, wk7q, of both requests", summary.Accounts)
+}
+
+func TestASummaryOfAnOlderVersionRenamedIsSummarisedAgainFromItsLines(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		lay  func(t *testing.T, dir string)
+	}{
+		{name: "its lines plain", lay: plainLines},
+		{name: "its lines compressed, on a file system that keeps whole seconds", lay: compressedLines},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tt.lay(t, dir)
+			markOfVersion(t, dir, ofVersion(summaryOf(date, 2, windowsRead{highest: `{"5h":0.9}`}, theTwo...), 5), 5)
+			l := openedIn(dir, on(3, 10, 0))
+			if err := l.RenameDay(date, renamedLine, renamedID); err != nil {
+				t.Fatalf("RenameDay() = %v", err)
+			}
+			var renamed ledger.Summary
+			if err := json.Unmarshal(summaryIn(t, dir), &renamed); err != nil || renamed.Version != 5 {
+				t.Fatalf("renamed, the summary is of version %d, %v, want its own, 5", renamed.Version, err)
+			}
+
+			l.SummariseEnded(on(3, 10, 0))
+			var summary ledger.Summary
+			if err := json.Unmarshal(summaryIn(t, dir), &summary); err != nil {
+				t.Fatal(err)
+			}
+			if summary.Version != 6 || len(summary.Accounts) != 1 || summary.Accounts[0].Account != "wk7q" || summary.Accounts[0].Models[0].Hours == nil {
+				t.Errorf("a round after the rename left the summary %s, want it summarised again from its lines renamed, as version 6, its hours counted", summaryIn(t, dir))
+			}
+		})
 	}
 }
 

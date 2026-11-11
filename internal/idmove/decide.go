@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -24,8 +25,11 @@ const takenSuffix = ".taken"
 // decide decides the id of each account the record doesn't know yet, as
 // deciding does, and writes it to the record: each configured account's, its
 // token's organization asked first, and each the history holds that the
-// config doesn't. Where the API doesn't answer for a token asked, it fails
-// with errUnanswered, writing nothing. With nothing to decide, it writes
+// config doesn't. Where the API doesn't answer for a configured account's
+// token, it fails with ErrUnanswered, writing nothing. Only where a
+// configured account has no token it can use are the token files of
+// accounts neither configured nor known asked about, as join says, those the
+// API doesn't answer for passed over. With nothing to decide, it writes
 // nothing.
 func (m *Mover) decide(ctx context.Context) error {
 	draft, record, err := m.standing()
@@ -45,9 +49,22 @@ func (m *Mover) decide(ctx context.Context) error {
 	if !d.undecided() {
 		return nil
 	}
-	answers, err := m.ask(ctx, d.asks())
+	answers, err := m.ask(ctx, d.withTokens())
 	if err != nil {
 		return err
+	}
+	for _, a := range answers {
+		if a.unanswered {
+			return ErrUnanswered
+		}
+	}
+	d.answers = answers
+	if d.anyTokenless() {
+		strays, err := m.ask(ctx, d.strays())
+		if err != nil {
+			return err
+		}
+		maps.Copy(answers, strays)
 	}
 	return m.record().Update(func(r *identity.Record) error {
 		d.record, d.answers = r, answers
@@ -64,10 +81,20 @@ func configuredIn(draft *config.Draft) []string {
 }
 
 // answer is what the API answered for a token: the organization it named, ""
-// for none; or that it didn't answer.
+// for none, as where it refused the token; or that it didn't answer, or the
+// token's file couldn't be read.
 type answer struct {
 	organization string
 	unanswered   bool
+	unusable     bool
+	refused      bool
+}
+
+// doubtful reports whether the answer is one to look at again before it
+// counts: a token file that can't be read, as one being written is for a
+// moment, or a token the API refused, as it may for a moment.
+func (a answer) doubtful() bool {
+	return a.unusable || a.refused
 }
 
 // refusal is a failure that says whether the API refused a token.
@@ -77,45 +104,68 @@ type refusal interface {
 }
 
 // ask asks the organization of the token of each account with the given ids,
-// by its id. It fails with errUnanswered where the API didn't answer for any
-// of them, or a token file can't be read for now, and with ctx's error once
-// ctx has ended.
+// as answerFor does, by its id, failing with ctx's error once ctx has ended.
 func (m *Mover) ask(ctx context.Context, ids []string) (map[string]answer, error) {
 	answers := make(map[string]answer, len(ids))
-	unanswered := false
 	for _, id := range ids {
 		a, err := m.answerFor(ctx, id)
 		if err != nil {
 			return nil, err
 		}
 		answers[id] = a
-		unanswered = unanswered || a.unanswered
-	}
-	if unanswered {
-		return nil, errUnanswered
 	}
 	return answers, nil
 }
 
 // answerFor asks the organization of the token of the account with the given
-// id, failing once ctx has ended. A token file that can't be read, as one
-// others can read, is as the API not answering: it's put right, and asked
-// again then.
+// id, failing once ctx has ended. A token file that can't be read, or a
+// token the API refuses, is looked at again a while later, as Again says, as
+// the router looks again at a token file: and only where it's still so does
+// it count, the file unusable, as no token at all, or the token refused, an
+// answer naming no organization.
 func (m *Mover) answerFor(ctx context.Context, id string) (answer, error) {
+	a, err := m.look(ctx, id)
+	if err != nil || !a.doubtful() {
+		return a, err
+	}
+	if err := pause(ctx, m.again()); err != nil {
+		return answer{}, err
+	}
+	if m.lookingAgain != nil {
+		m.lookingAgain(id)
+	}
+	if a, err = m.look(ctx, id); err != nil {
+		return answer{}, err
+	}
+	switch {
+	case a.unusable:
+		logger.Warn("can't read an account's token file, looked at twice, so the move takes it as no token", "account", id)
+	case a.refused:
+		logger.Warn("the API refused an account's token, asked twice, so it names no organization to move the account by", "account", id)
+	}
+	return a, nil
+}
+
+// look reads the token of the account with the given id and asks the API its
+// organization, once, failing once ctx has ended.
+func (m *Mover) look(ctx context.Context, id string) (answer, error) {
 	token, err := m.Tokens.Read(id)
 	if err != nil {
-		logger.Warn("can't read an account's token to move it onto its id; the move waits for it to be put right", "account", id, "error", err)
-		return answer{unanswered: true}, nil
+		logger.Info("can't read an account's token file to move the account onto its id", "account", id, "error", err)
+		return answer{unusable: true}, nil
 	}
 	organization, err := m.Organizations.Organization(ctx, token)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return answer{}, ctxErr
 	}
-	if refused, ok := errors.AsType[refusal](err); err != nil && (!ok || !refused.Refused()) {
-		logger.Info("the API didn't answer for an account's token, which the id it moves onto waits on", "account", id, "error", redact.Text(err.Error(), token.Reveal()))
-		return answer{unanswered: true}, nil
+	if err == nil {
+		return answer{organization: organization}, nil
 	}
-	return answer{organization: organization}, nil
+	if refused, ok := errors.AsType[refusal](err); ok && refused.Refused() {
+		return answer{refused: true}, nil
+	}
+	logger.Info("the API didn't answer for an account's token, which the id it moves onto waits on", "account", id, "error", redact.Text(err.Error(), token.Reveal()))
+	return answer{unanswered: true}, nil
 }
 
 // tokenFiles are the ids, in lower case, named by the token files in the
@@ -195,7 +245,8 @@ func (m *Mover) historyAccounts() (map[string]seenDays, error) {
 }
 
 // visitAll hands note, by each day's date, each account each day's files
-// name, as n says where.
+// name, as n says where. A day's compressed file that's damaged, read as far
+// as it can be, is warned of: the rewrite leaves it as it is.
 func visitAll(files *dayfile.Files, n names, note func(date string) func(string)) error {
 	dates, err := files.All()
 	if err != nil {
@@ -207,7 +258,10 @@ func visitAll(files *dayfile.Files, n names, note func(date string) func(string)
 			n.visit(line, seen)
 			return struct{}{}, true
 		}, func(struct{}) bool { return true })
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+		switch {
+		case errors.Is(err, dayfile.ErrDamaged):
+			logger.Warn("a day's file is damaged, so the move leaves it as it is", "day", date, "error", err)
+		case err != nil && !errors.Is(err, os.ErrNotExist):
 			return err
 		}
 	}
@@ -265,26 +319,17 @@ func (d *deciding) undecided() bool {
 	return slices.ContainsFunc(d.configured, func(id string) bool { return !d.known(id) }) || len(d.removedBefore()) > 0
 }
 
-// asks are the ids of the accounts whose tokens' organizations decide them:
-// each configured account to decide with a token file; and, where a
-// configured account to decide has none, each token file of an account
-// that's neither configured nor known, which may be it, as join says.
-func (d *deciding) asks() []string {
-	var asks []string
-	tokenless := false
-	for _, id := range d.configured {
-		switch {
-		case d.known(id):
-		case d.hasToken(id):
-			asks = append(asks, id)
-		default:
-			tokenless = true
-		}
-	}
-	if tokenless {
-		asks = append(asks, d.strays()...)
-	}
-	return asks
+// withTokens are the ids of the configured accounts to decide that have
+// token files, whose tokens' organizations decide them.
+func (d *deciding) withTokens() []string {
+	return slices.DeleteFunc(slices.Clone(d.configured), func(id string) bool { return d.known(id) || !d.hasToken(id) })
+}
+
+// anyTokenless reports whether a configured account to decide has no token
+// it can use, as usable says, which a token file of an account neither
+// configured nor known may be, as join says.
+func (d *deciding) anyTokenless() bool {
+	return slices.ContainsFunc(d.configured, func(id string) bool { return !d.known(id) && !d.usable(id) })
 }
 
 // strays are the names of the token files of accounts that are neither
@@ -302,7 +347,7 @@ func (d *deciding) strays() []string {
 
 // decide decides each account the record doesn't know, as deciding says, in
 // the record: configured ones in the config's order, then those the history
-// names alone, in the order of their ids. It fails with errUnanswered where
+// names alone, in the order of their ids. It fails with ErrUnanswered where
 // an answer it needs is missing.
 func (d *deciding) decide() error {
 	d.decided = make(map[string]bool)
@@ -310,7 +355,7 @@ func (d *deciding) decide() error {
 	for _, id := range d.configured {
 		switch {
 		case d.known(id):
-		case d.hasToken(id):
+		case d.usable(id):
 			if err := d.byToken(id); err != nil {
 				return err
 			}
@@ -318,10 +363,7 @@ func (d *deciding) decide() error {
 			tokenless = append(tokenless, id)
 		}
 	}
-	joined, err := d.join(tokenless)
-	if err != nil {
-		return err
-	}
+	joined := d.join(tokenless)
 	for _, id := range tokenless {
 		if !joined[id] {
 			if err := d.withoutToken(id); err != nil {
@@ -342,7 +384,7 @@ func (d *deciding) decide() error {
 func (d *deciding) byToken(was string) error {
 	a, ok := d.answers[was]
 	if !ok {
-		return errUnanswered
+		return ErrUnanswered
 	}
 	id, organization, returning, err := d.idOf(a.organization, was)
 	if err != nil {
@@ -384,19 +426,19 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 }
 
 // join decides the ids of those of the configured accounts given, which have
-// no token file, that a token file of an account neither configured nor
-// known is of: one whose organization spells the configured account's id,
-// as Derive spells one, and that the record has no account of. The token
-// file's account moves onto the configured account's id. It reports which it
-// joined, by id, and fails with errUnanswered where an answer it needs is
-// missing.
-func (d *deciding) join(tokenless []string) (map[string]bool, error) {
+// no token they can use, that a token file of an account neither configured
+// nor known is of: one whose organization spells the configured account's
+// id, as Derive spells one, and that the record has no account of. The token
+// file's account moves onto the configured account's id. A token file the
+// API named no organization for, didn't answer for, or that can't be read,
+// is passed over. It reports which it joined, by id.
+func (d *deciding) join(tokenless []string) map[string]bool {
 	joined := make(map[string]bool)
+	if len(tokenless) == 0 {
+		return joined
+	}
 	for _, stray := range d.strays() {
-		a, ok := d.answers[stray]
-		if !ok {
-			return nil, errUnanswered
-		}
+		a := d.answers[stray]
 		if _, held := d.record.ByOrganization(a.organization); a.organization == "" || held {
 			continue
 		}
@@ -409,11 +451,11 @@ func (d *deciding) join(tokenless []string) (map[string]bool, error) {
 		joined[tokenless[i]] = true
 		logger.Info("an account another Mac moved takes its token file here", "was", stray, "id", tokenless[i])
 	}
-	return joined, nil
+	return joined
 }
 
 // withoutToken decides the id of the configured account with the given id,
-// which has no token file: its own, where switchboard makes one like it and
+// which has no token it can use: its own, where switchboard makes one like it and
 // the history names none of it, else a random one.
 func (d *deciding) withoutToken(was string) error {
 	if _, named := d.seen[was]; identity.WellFormed(was) && !named {
@@ -514,6 +556,13 @@ func (d *deciding) isConfigured(id string) bool {
 func (d *deciding) hasToken(id string) bool {
 	_, ok := d.tokened[strings.ToLower(id)]
 	return ok
+}
+
+// usable reports whether the account with the given id has a token file
+// that could be read, as far as the answers tell: before any's asked, every
+// token file is.
+func (d *deciding) usable(id string) bool {
+	return d.hasToken(id) && !d.answers[id].unusable
 }
 
 // findFold returns the one of ids that's id, in any case, reporting false

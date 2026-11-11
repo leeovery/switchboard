@@ -18,12 +18,33 @@ import (
 // compress or a prune changes them, before it gives up.
 const rewriteTries = 5
 
+// ErrDamaged is what reading a compressed day's file fails with, wrapped,
+// where it's damaged: not gzip at all, as one empty, or, rewriting it, cut
+// short.
+var ErrDamaged = errors.New("the file is damaged")
+
+// damage is a failure to read a compressed day's file that's damaged, as
+// ErrDamaged says, said as it failed.
+type damage struct {
+	error
+}
+
+func (d damage) Unwrap() error {
+	return d.error
+}
+
+func (damage) Is(target error) bool {
+	return target == ErrDamaged
+}
+
 // Rewritten is what rewriting a day's files did: whether any of their lines
 // changed, and a look at them just before they were renamed into place and
 // just after, as Stat gives one: both zero where the day has neither file,
-// and alike where nothing changed.
+// or its compressed file was damaged, as Damaged says, and alike where
+// nothing changed.
 type Rewritten struct {
 	Changed       bool
+	Damaged       bool
 	Before, After DayStat
 }
 
@@ -45,10 +66,17 @@ type Rewritten struct {
 // the hold, as a prune would compress it, so a stop between the two files'
 // renames can never leave one rewritten beside the other unrewritten, which
 // the next compress would take for lines it doesn't hold. A day with neither
-// file is left alone.
+// file is left alone. A compressed file that's damaged, as one cut short, is
+// left as it is, which is warned of: readers read it up to the damage, and a
+// rewrite of it would lose the rest. It never compresses, so its plain file,
+// where it has one, is rewritten alone.
 func (f *Files) Rewrite(date string, rewrite func(line []byte) []byte) (Rewritten, error) {
 	for range rewriteTries {
 		r, settled, err := f.rewriteOnce(date, rewrite)
+		if errors.Is(err, ErrDamaged) {
+			f.Logger.Warn("left a damaged file as it was, rather than rewrite it", "file", compressedFile(date).name(f.Prefix), "error", err)
+			return Rewritten{Damaged: true}, nil
+		}
 		if err != nil {
 			return Rewritten{}, fmt.Errorf("rewrite the %s of %s: %w", f.Name, date, err)
 		}
@@ -70,7 +98,11 @@ func (f *Files) rewriteOnce(date string, rewrite func([]byte) []byte) (Rewritten
 	case err != nil:
 		return Rewritten{}, false, err
 	case !look.PlainModified.IsZero() && !look.CompressedModified.IsZero():
-		return Rewritten{}, false, f.compressHeld(date)
+		err := f.compressHeld(date)
+		if !errors.Is(err, ErrDamaged) {
+			return Rewritten{}, false, err
+		}
+		f.Logger.Warn("left a damaged file as it was, rather than rewrite it", "file", compressedFile(date).name(f.Prefix), "error", err)
 	}
 	file := plainFile(date)
 	if look.PlainModified.IsZero() {
@@ -84,6 +116,7 @@ func (f *Files) rewriteOnce(date string, rewrite func([]byte) []byte) (Rewritten
 		return Rewritten{}, false, err
 	}
 	defer staged.discard()
+	staged.beside = DayStat{CompressedSize: look.CompressedSize, CompressedModified: look.CompressedModified}
 	if f.rewriting != nil {
 		f.rewriting(file)
 	}
@@ -104,13 +137,15 @@ func (f *Files) compressHeld(date string) error {
 // stageRewrite stages it: the file, still open, and how it looked as it was
 // opened; where it was read to, the end of its last line read whole, of a
 // plain file, or its size; the file written beside it; and whether any line
-// changed.
+// changed. Beside is how a plain file's compressed file looked as it was
+// staged, a damaged one left as it is: zero where it had none.
 type stagedRewrite struct {
 	src     *os.File
 	info    fs.FileInfo
 	end     int64
 	tmp     string
 	changed bool
+	beside  DayStat
 }
 
 // stageRewrite reads file and writes it anew beside, as Rewrite says, holding
@@ -146,13 +181,27 @@ func (s *stagedRewrite) write(file dayFile, w io.Writer, rewrite func([]byte) []
 	s.end = s.info.Size()
 	members, err := gzip.NewReader(bufio.NewReader(s.src))
 	if err != nil {
-		return err
+		return damage{err}
 	}
 	return gzipTo(w, func(member io.Writer) error {
 		var err error
-		_, s.changed, err = rewriteLines(members, member, rewrite, true)
+		_, s.changed, err = rewriteLines(damageTold{members}, member, rewrite, true)
 		return err
 	})
+}
+
+// damageTold reads a compressed file's lines through gzip, what it fails with
+// before their end told as damage.
+type damageTold struct {
+	r io.Reader
+}
+
+func (d damageTold) Read(p []byte) (int, error) {
+	n, err := d.r.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		err = damage{err}
+	}
+	return n, err
 }
 
 // finishRewrite checks, holding the day's files, that the file staged is the
@@ -191,7 +240,8 @@ func (f *Files) finishRewrite(date string, file dayFile, s *stagedRewrite, rewri
 }
 
 // current reports whether the day, as look looks at it, still has the file
-// staged alone, as it was opened, but for a plain file grown since.
+// staged, as it was opened, but for a plain file grown since: alone, or, a
+// plain file, beside the damaged compressed file it had, as it was.
 func (s *stagedRewrite) current(file dayFile, look DayStat) bool {
 	now, err := os.Stat(s.src.Name())
 	if err != nil || !os.SameFile(s.info, now) {
@@ -200,7 +250,7 @@ func (s *stagedRewrite) current(file dayFile, look DayStat) bool {
 	if file.compressed {
 		return look.PlainModified.IsZero() && now.Size() == s.info.Size() && now.ModTime().Equal(s.info.ModTime())
 	}
-	return look.CompressedModified.IsZero() && now.Size() >= s.end
+	return look.CompressedSize == s.beside.CompressedSize && look.CompressedModified.Equal(s.beside.CompressedModified) && now.Size() >= s.end
 }
 
 // catchUp rewrites what the plain file gained since it was read to, up to
