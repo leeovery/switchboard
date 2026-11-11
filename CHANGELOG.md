@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-11-11
+
+💥 Breaking
+- The pin in status JSON no longer carries the single `account` field — read `accounts` instead.
+
+✨ Added
+- Every JSON object printed by the data commands, including `events` and `requests`, now carries `"schema": 1` as its first field.
+- Requests whose answer the upstream cut off part-way are marked "broken off" in `requests`, the request stream and the ledger.
+- Adding or replacing an account's token is refused when its subscription already belongs to another account — it names that account and nothing is saved.
+
+🔧 Changed
+- History's weeks and verdicts treat an account as at its limit when its peak reaches its cap (100% less its reserve), and show "at its cap" in the legend.
+- Answers the upstream breaks off part-way now count as failures in the router's health.
+- Plan sizes for the forecast and History's replay use one shared table, and an account with an unknown plan takes the most common size among the accounts instead of every account counting as 1.
+- Summarising the request ledger under a new version now happens in small parts between writes, so the router no longer stalls on it.
+- Token probes go upstream over the router's own connections, which are renewed after the Mac wakes.
+
+🐛 Fixed
+- Dashboard preferences changed in quick succession or from several dashboards no longer overwrite one another, and changes made just before quitting are kept.
+- The dashboard no longer re-asks for the request stream every second when the router keeps ending it, backing off instead.
+- `uninstall` now finds switchboard's startup line where your login shell says it reads its startup file, and says so when it couldn't ask.
+- Interrupting `uninstall` while it asks the login shell now stops it with a note on how to finish.
+- Importing history no longer drops an event line that changed back to an earlier state.
+- A day's readings compressed while new lines were still arriving no longer lose the later lines.
+
 ## [0.5.6] - 2026-11-10
 
 🔧 Changed
