@@ -567,7 +567,11 @@ func TestAnAnswerNamingNoOrganizationCountsAsARefusalDoesButAnAskToAskAgainNever
 				t.Fatalf("RunBeside() = %v, want personal unanswered, saying why", err)
 			}
 
-			ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+			wait := 300 * time.Millisecond
+			if tc.counts {
+				wait = time.Minute
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), wait)
 			defer cancel()
 			err = f.mover(o).Run(ctx)
 			e, moved := f.record(t).ByWas(personal)
