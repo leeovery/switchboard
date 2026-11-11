@@ -60,6 +60,16 @@ func (a *Asked) Answered(choice int) accounts.Answer {
 	return accounts.Answer{ID: a.Question.Choices[choice-1].ID}
 }
 
+// Logged is how logs name the account f is for, then args: by its label,
+// where it's to be added, as it has no id yet; else by its id.
+func (f TokenFor) Logged(args ...any) []any {
+	named := []any{"account", f.Account.ID}
+	if f.Add {
+		named = []any{"label", f.Account.Label}
+	}
+	return append(named, args...)
+}
+
 // Name is how the token's cards name the account f is for: by its label,
 // where it's to be added, as it has no id yet; else by its id.
 func (f TokenFor) Name() string {

@@ -13,24 +13,46 @@ import (
 
 // whichCard is the card asking which account a token made, or pasted, to
 // add an account is for, as the screen holds it, where its organization
-// doesn't settle it: whose token it is; the token held, and the question
-// asked; the token card of the making that asked, whose making Run may give
-// back once the screen has gone, nil for a paste of none; the choice chosen,
-// by its place among the question's answers, a new account first; and
-// whether the answer's being saved, when it takes no key.
+// doesn't settle it: whose token it is; how its save ended, asking, the
+// token held and the question asked; the token card of the making that
+// asked, whose making Run may give back once the screen has gone, nil for a
+// paste of none; the choice chosen, by its place among the question's
+// answers, a new account first; and whether the answer's being saved, when
+// it takes no key, and how that ends, kept for Run, as the screen can go
+// before it hears.
 type whichCard struct {
 	f      setup.TokenFor
+	ended  setup.Tokened
 	asked  *setup.Asked
 	from   *tokenCard
 	chosen int
 	saving bool
+	kept   chan answeredMsg
 }
 
-// whichAsked is the card asking which account the token asked, f's, is
-// for, a new account chosen, its making's token card from, where there's
-// one.
-func whichAsked(f setup.TokenFor, asked *setup.Asked, from *tokenCard) *whichCard {
-	return &whichCard{f: f, asked: asked, from: from}
+// whichAsked is the card asking which account the token f's save held, as
+// ended says, is for, a new account chosen, its making's token card from,
+// where there's one.
+func whichAsked(f setup.TokenFor, ended setup.Tokened, from *tokenCard) *whichCard {
+	return &whichCard{f: f, ended: ended, asked: ended.Asked, from: from}
+}
+
+// savedOnceGone reports whether the answer being saved as the screen went
+// saved the token, as it ended once it had gone: a failure is logged, as
+// nothing else can show it.
+func (c whichCard) savedOnceGone() bool {
+	if !c.saving {
+		return false
+	}
+	select {
+	case ended := <-c.kept:
+		if ended.err != nil {
+			logger.Error("saving a token as the user answered failed once setup's screen had gone", c.f.Logged("error", ended.err)...)
+		}
+		return ended.err == nil && ended.tokened.Result == setup.TokenSaved
+	default:
+		return false
+	}
 }
 
 // drawn is the card as dashboard.Setup draws it at now, what setup says made
@@ -50,17 +72,23 @@ func (c whichCard) drawn(now time.Time) *dashboard.SetupWhichCard {
 // for: ↑ and k choose the answer above, ↓ and j the one below, no further
 // than the first or the last; enter saves the token as the answer chosen
 // says, as a writing action, the card taking no key till it's answered; and
-// esc closes it, adding nothing.
+// esc closes it, adding nothing: a token made, which lasts a year on the
+// account, is shown in its making's token card, to copy, as one that isn't
+// saved is; one pasted, still the user's, goes back to the card the paste
+// card opened from, where it goes back, as the paste card's esc does.
 func (m Model) whichPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	card := *m.which
 	switch key.String() {
 	case "esc":
-		m.which = nil
+		m.which, m.token = nil, card.from
+		if card.from != nil && len(card.ended.Shown) > 0 {
+			m.token = card.from.showing(card.ended)
+		}
 		return m, nil
 	case "enter":
-		card.saving = true
+		card.saving, card.kept = true, make(chan answeredMsg, 1)
 		m.which = &card
-		return m, m.jobs.write(answer(m.steps, card.asked, card.chosen))
+		return m, m.jobs.write(answer(m.steps, card.asked, card.chosen, card.kept))
 	case "up", "k":
 		card.chosen = max(card.chosen-1, 0)
 	case "down", "j":
@@ -77,11 +105,14 @@ type answeredMsg struct {
 }
 
 // answer is the job that adds the account the asked token is for, as the
-// choice at the place given says, with Answer.
-func answer(steps Steps, asked *setup.Asked, choice int) job {
+// choice at the place given says, with Answer, how it ended its outcome, and
+// kept on kept, which holds it.
+func answer(steps Steps, asked *setup.Asked, choice int, kept chan<- answeredMsg) job {
 	return func(ctx context.Context) tea.Msg {
 		tokened, err := steps.Answer(ctx, asked, asked.Answered(choice))
-		return answeredMsg{tokened: tokened, err: err}
+		ended := answeredMsg{tokened: tokened, err: err}
+		kept <- ended
+		return ended
 	}
 }
 
@@ -101,7 +132,7 @@ func (m Model) answered(msg answeredMsg) (Model, tea.Cmd) {
 	case msg.err != nil || r == setup.TokenSaved:
 		return m.tokenSaved(msg.tokened.ID, msg.err)
 	case r == setup.TokenAsked:
-		m.which = whichAsked(card.f, msg.tokened.Asked, card.from)
+		m.which = whichAsked(card.f, msg.tokened, card.from)
 	case r != setup.TokenCancelled:
 		unsaved := msg.tokened.Unsaved().Clean()
 		m.token = &tokenCard{f: card.f, unsaved: &unsaved}

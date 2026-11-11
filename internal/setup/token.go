@@ -297,7 +297,7 @@ func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) 
 // saved, as err says, given back to copy.
 func notSaved(f TokenFor, err error, token tokens.Token) Tokened {
 	why := redact.Text(err.Error(), token.Reveal())
-	logger.Warn("claude setup-token made a token switchboard couldn't save", "account", f.Account.ID, "error", why)
+	logger.Warn("claude setup-token made a token switchboard couldn't save", f.Logged("error", why)...)
 	return Tokened{Result: TokenNotSaved, Why: why, Shown: []string{token.Reveal()}}
 }
 
@@ -376,17 +376,17 @@ func notMade(ctx context.Context, f TokenFor, a attempt) (Tokened, error) {
 	_, noClaude := errors.AsType[*claude.NotFoundError](a.err)
 	switch {
 	case isScreen && a.made:
-		logger.Warn("claude setup-token made a token switchboard couldn't read", "account", f.Account.ID, "error", a.err)
+		logger.Warn("claude setup-token made a token switchboard couldn't read", f.Logged("error", a.err)...)
 		return Tokened{Result: TokenUnread, Why: a.err.Error(), Shown: shownLines(screen.Screen())}, nil
 	case a.made:
-		logger.Warn("claude setup-token made a token switchboard couldn't read", "account", f.Account.ID, "error", a.err)
+		logger.Warn("claude setup-token made a token switchboard couldn't read", f.Logged("error", a.err)...)
 		return Tokened{Result: TokenNotSaved, Why: redact.Text(a.err.Error())}, nil
 	case ctx.Err() != nil:
 		return Tokened{Result: TokenCancelled}, nil
 	case a.interrupted:
 		return Tokened{Result: TokenInterrupted}, nil
 	case isScreen:
-		logger.Warn("claude setup-token made no token", "account", f.Account.ID, "error", a.err)
+		logger.Warn("claude setup-token made no token", f.Logged("error", a.err)...)
 		return Tokened{Result: TokenNotMade, Why: a.err.Error(), Shown: shownLines(screen.Screen())}, nil
 	case noClaude:
 		return Tokened{Result: NoClaudeCode, Why: a.err.Error()}, nil
@@ -437,7 +437,7 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token, pasted
 	}
 	id := f.Account.ID
 	if pasted && checked.Unchecked {
-		logger.Info("the API didn't answer for a token pasted, so it isn't saved", "account", id, "error", checked.Why)
+		logger.Info("the API didn't answer for a token pasted, so it isn't saved", f.Logged("error", checked.Why)...)
 		return Tokened{Result: TokenUnanswered, Why: pastedUnanswered(checked.Why)}, nil
 	}
 	if f.Add {
@@ -466,9 +466,15 @@ type Asked struct {
 
 // Answer adds the account the asked token is for, as answer says which it
 // is, saving it as add does: so asked again, where what the accounts record
-// holds has changed since it was asked.
+// holds has changed since it was asked. A save begun is a save, however ctx
+// ends, as a made token's is. A token made, which lasts a year on the
+// account, that can't be saved is given back to copy, as notSaved has it.
 func (s *Setup) Answer(ctx context.Context, asked *Asked, answer accounts.Answer) (Tokened, error) {
-	return s.add(ctx, asked, answer)
+	tokened, err := s.add(context.WithoutCancel(ctx), asked, answer)
+	if err != nil && !asked.pasted {
+		return notSaved(asked.f, err, asked.token), nil
+	}
+	return tokened, err
 }
 
 // add adds the account with the token a holds, which the API answered for as
@@ -477,24 +483,35 @@ func (s *Setup) Answer(ctx context.Context, asked *Asked, answer accounts.Answer
 // organization decides, or answer, where that doesn't settle it, saying
 // which account it is: TokenSameAccount where it's a configured account's,
 // named by its label; TokenAsked where it's the user's to say which it is,
-// holding the token; and failing, saving nothing, where the API didn't
-// answer for the token, as an account isn't added until its organization is
-// known.
+// holding the token, or where answer says an account it can't be, as one
+// configured since it was asked, asked afresh; and failing, saving nothing,
+// where the API didn't answer for the token, as an account isn't added until
+// its organization is known.
 func (s *Setup) add(ctx context.Context, a *Asked, answer accounts.Answer) (Tokened, error) {
 	added, err := s.Accounts.AddChecked(ctx, a.f.Account, a.token, a.checked, a.f.Organizations, answer)
 	if question, ok := errors.AsType[*accounts.QuestionError](err); ok {
-		asked := *a
-		asked.Question = question.Question
-		t := Tokened{Result: TokenAsked, Asked: &asked}
-		if !a.pasted {
-			t.Shown = []string{a.token.Reveal()}
-		}
-		return t, nil
+		return a.asking(question.Question), nil
+	}
+	if notAChoice, ok := errors.AsType[*accounts.NotAChoiceError](err); ok {
+		return a.asking(notAChoice.Question), nil
 	}
 	if configured, ok := errors.AsType[*accounts.ConfiguredError](err); ok {
 		return Tokened{Result: TokenSameAccount, SameAs: configured.Label}, nil
 	}
 	return s.saved(ctx, err, Tokened{Result: TokenSaved, Checked: a.checked, ID: added.ID})
+}
+
+// asking is the token a holds, asked which account it's for, as question
+// asks: shown, where it was made, not pasted, as it lasts a year on the
+// account.
+func (a *Asked) asking(question accounts.Question) Tokened {
+	asked := *a
+	asked.Question = question
+	t := Tokened{Result: TokenAsked, Asked: &asked}
+	if !a.pasted {
+		t.Shown = []string{a.token.Reveal()}
+	}
+	return t
 }
 
 // saved is how a token's save ended, as err says: as saved has it, where it

@@ -101,6 +101,13 @@ func TestAddCheckedDecidesTheIDByTheOrganization(t *testing.T) {
 			wantErr:      &accounts.NotAChoiceError{ID: "m2x7", Question: accounts.Question{Named: true, Choices: []identity.Entry{spare}}},
 		},
 		{
+			name:         "an organization the record hasn't, where it has no accounts of none known, answered an account, as one asked of before",
+			record:       []identity.Entry{side},
+			organization: organization,
+			answer:       accounts.Answer{ID: "h7c2"},
+			wantErr:      &accounts.NotAChoiceError{ID: "h7c2", Question: accounts.Question{Named: true}},
+		},
+		{
 			name:       "none named, with no account the record has, a new account under a random id",
 			want:       accounts.Added{ID: "random"},
 			wantRecord: []identity.Entry{{ID: "random", Added: now}},

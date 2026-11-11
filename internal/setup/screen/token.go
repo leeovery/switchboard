@@ -69,6 +69,14 @@ func (c tokenCard) notSaved(why string) *tokenCard {
 	return &c
 }
 
+// showing is the card showing how its making ended, as tokened says, a token
+// made but unsaved, there to copy, as ended shows one.
+func (c tokenCard) showing(tokened setup.Tokened) *tokenCard {
+	unsaved := tokened.Unsaved().Clean()
+	c.unsaved, c.madeUnsaved = &unsaved, true
+	return &c
+}
+
 // backTo is the card the paste card opened from it goes back to, on esc,
 // and leaves setup as, so a token made but unsaved is there to copy again:
 // none where the making ended otherwise.
@@ -194,10 +202,12 @@ func makeToken(js *jobs, steps Steps, ctx context.Context, stop context.CancelFu
 // screen would have closed the card at, came once it had gone, so it's
 // logged, as nothing else can show it. Where the paste card is open, the
 // card is the one it was opened from, as the paste card goes back to it,
-// none where the paste it was checking as the screen went saved its token.
+// none where the paste it was checking as the screen went saved its token;
+// and so where the card asking which account it's for is open, none where
+// the answer it was saving as the screen went saved it.
 func (m Model) tokenLeft() (unsaved *setup.Tokened, interrupted bool) {
 	card := m.makingCard()
-	if m.paste != nil && m.paste.savedOnceGone() {
+	if m.paste != nil && m.paste.savedOnceGone() || m.which != nil && m.which.savedOnceGone() {
 		card = nil
 	}
 	if card == nil {
@@ -211,7 +221,7 @@ func (m Model) tokenLeft() (unsaved *setup.Tokened, interrupted bool) {
 	}
 	interrupted = m.interrupted || ended.tokened.InterruptHeld
 	if ended.err != nil {
-		logger.Error("making a token failed once setup's screen had gone", "account", card.f.Account.ID, "error", ended.err)
+		logger.Error("making a token failed once setup's screen had gone", card.f.Logged("error", ended.err)...)
 		return nil, interrupted
 	}
 	switch ended.tokened.Result {
@@ -295,7 +305,7 @@ func (m Model) ended(card tokenCard, msg tokenedMsg) (Model, tea.Cmd) {
 		return m.tokenSaved(msg.tokened.ID, msg.err)
 	case r == setup.TokenAsked:
 		m.token = nil
-		m.which = whichAsked(card.f, msg.tokened.Asked, &card)
+		m.which = whichAsked(card.f, msg.tokened, &card)
 		return m, nil
 	case r == setup.TokenCancelled && card.pasting:
 		return m.pasting(card.f, nil), nil

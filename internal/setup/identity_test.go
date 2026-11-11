@@ -1,6 +1,7 @@
 package setup_test
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/setup"
 )
 
@@ -153,15 +155,19 @@ func TestPasteTokenToAddAsksAsAMadeOneDoes(t *testing.T) {
 
 // Answer adds the account the asked token is for as the user says: a new
 // account under the id its organization derives; one of the choices under
-// its id, its organization recorded; and refuses one that isn't a choice,
-// saving nothing.
+// its id, its organization recorded; and, where the answer's one the token
+// can't be, as one configured since it was asked, asks afresh, of the
+// accounts it may be now, saving nothing.
 func TestAnswerAddsTheAccountAsTheUserSays(t *testing.T) {
 	personalID := derivedID("org-personal")
+	spareConfigured := "\n[[account]]\nid    = \"h7c2\"\nlabel = \"Spare\"\n"
 	tests := []struct {
-		name       string
-		answer     accounts.Answer
+		name   string
+		answer accounts.Answer
+		// meanwhile is what's added to the config once the token's asked.
+		meanwhile  string
 		wantID     string
-		wantErr    bool
+		wantAsked  *accounts.Question
 		wantRecord []identity.Entry
 	}{
 		{
@@ -176,7 +182,17 @@ func TestAnswerAddsTheAccountAsTheUserSays(t *testing.T) {
 			wantID:     "h7c2",
 			wantRecord: []identity.Entry{{ID: "h7c2", Organization: "org-personal", Added: recordedBefore, Was: "spare"}},
 		},
-		{name: "one it can't be", answer: accounts.Answer{ID: "zzzz"}, wantErr: true},
+		{
+			name:      "one it can't be",
+			answer:    accounts.Answer{ID: "zzzz"},
+			wantAsked: &accounts.Question{Named: true, Choices: []identity.Entry{spareRemoved}},
+		},
+		{
+			name:      "one configured since it was asked",
+			answer:    accounts.Answer{ID: "h7c2"},
+			meanwhile: spareConfigured,
+			wantAsked: &accounts.Question{Named: true},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -189,13 +205,15 @@ func TestAnswerAddsTheAccountAsTheUserSays(t *testing.T) {
 			if err != nil || asked.Asked == nil {
 				t.Fatalf("MakeToken() = %+v, %v; want it asked", asked, err)
 			}
+			w.writeConfig(t, w.readConfig(t)+tt.meanwhile)
 			before := w.snapshot(t)
 
 			got, err := r.s.Answer(t.Context(), asked.Asked, tt.answer)
 
-			if tt.wantErr {
-				if _, ok := errors.AsType[*accounts.NotAChoiceError](err); !ok {
-					t.Errorf("Answer() = %+v, %v; want a NotAChoiceError", got, err)
+			if tt.wantAsked != nil {
+				if err != nil || got.Result != setup.TokenAsked || got.Asked == nil || !sameQuestion(got.Asked.Question, *tt.wantAsked) ||
+					!slices.Equal(got.Shown, []string{madeToken}) {
+					t.Errorf("Answer() = %+v, %v; want it asked afresh, %+v, the token given back", got, err, *tt.wantAsked)
 				}
 				w.checkUnchanged(t, before)
 				return
@@ -211,6 +229,85 @@ func TestAnswerAddsTheAccountAsTheUserSays(t *testing.T) {
 			}
 		})
 	}
+}
+
+// An answer that can't be saved gives a token made back to copy, as it
+// lasts a year on the account, as MakeToken does one it can't save, logged
+// by the label of the account it was to add, as it has no id; a token
+// pasted, still the user's, fails as it is. A save begun is a save, however
+// the caller's context ends.
+func TestAnAnswerThatCantBeSaved(t *testing.T) {
+	takenMeanwhile := "\n[[account]]\nid    = \"k3f9\"\nlabel = \"PERSONAL\"\n"
+	ask := func(t *testing.T, w *world, r tokenRig, pasted bool) *setup.Asked {
+		t.Helper()
+		var asked setup.Tokened
+		var err error
+		if pasted {
+			asked, err = r.s.PasteToken(t.Context(), adding, madeToken)
+		} else {
+			asked, err = r.s.MakeToken(t.Context(), adding, nil)
+		}
+		if err != nil || asked.Asked == nil {
+			t.Fatalf("the token's save = %+v, %v; want it asked", asked, err)
+		}
+		w.writeConfig(t, w.readConfig(t)+takenMeanwhile)
+		return asked.Asked
+	}
+	t.Run("made", func(t *testing.T) {
+		w := newWorld(t)
+		w.done(t)
+		w.writeRecord(t, spareRemoved)
+		w.api.organizations = map[string]string{madeToken: "org-personal"}
+		r := w.tokenRig(t, &fakeMaker{})
+		asked := ask(t, w, r, false)
+		before := w.snapshot(t)
+		log := logstest.Capture(t)
+
+		got, err := r.s.Answer(t.Context(), asked, accounts.Answer{New: true})
+
+		if err != nil || got.Result != setup.TokenNotSaved || !slices.Equal(got.Shown, []string{madeToken}) || !strings.Contains(got.Why, accounts.ErrLabelTaken.Error()) {
+			t.Errorf("Answer() = %+v, %v; want the token given back, not saved, saying why", got, err)
+		}
+		if !log.Has("level=WARN", `msg="claude setup-token made a token switchboard couldn't save"`, "label=Personal") || strings.Contains(log.String(), "account=") {
+			t.Errorf("the log reads\n%s\nwant the token not saved, logged by the label of the account it was to add", log)
+		}
+		w.checkUnchanged(t, before)
+	})
+	t.Run("pasted", func(t *testing.T) {
+		w := newWorld(t)
+		w.done(t)
+		w.writeRecord(t, spareRemoved)
+		w.api.organizations = map[string]string{madeToken: "org-personal"}
+		r := w.tokenRig(t, &fakeMaker{})
+		asked := ask(t, w, r, true)
+		before := w.snapshot(t)
+
+		got, err := r.s.Answer(t.Context(), asked, accounts.Answer{New: true})
+
+		if !errors.Is(err, accounts.ErrLabelTaken) {
+			t.Errorf("Answer() = %+v, %v; want it failing as the label's taken", got, err)
+		}
+		w.checkUnchanged(t, before)
+	})
+	t.Run("the caller gone", func(t *testing.T) {
+		w := newWorld(t)
+		w.done(t)
+		w.writeRecord(t, spareRemoved)
+		w.api.organizations = map[string]string{madeToken: "org-personal"}
+		r := w.tokenRig(t, &fakeMaker{})
+		asked, err := r.s.MakeToken(t.Context(), adding, nil)
+		if err != nil || asked.Asked == nil {
+			t.Fatalf("MakeToken() = %+v, %v; want it asked", asked, err)
+		}
+		gone, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		got, err := r.s.Answer(gone, asked.Asked, accounts.Answer{New: true})
+
+		if err != nil || got.Result != setup.TokenSaved {
+			t.Errorf("Answer() = %+v, %v; want the token saved", got, err)
+		}
+	})
 }
 
 // A token replacing an account's must be for the account's organization, as

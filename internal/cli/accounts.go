@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -84,8 +85,11 @@ account or one of those, at a terminal; otherwise it says the choices, and
 
 ` + editingTheConfig,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if answer.New && cmd.Flags().Changed("returning") {
+			switch returning := cmd.Flags().Changed("returning"); {
+			case answer.New && returning:
 				return errors.New("--new answers that it's a new account, so it takes no --returning")
+			case returning && answer.ID == "":
+				return errors.New("--returning takes the id of the account this Mac had")
 			}
 			return oneLabel(cmd, args)
 		},
@@ -257,15 +261,25 @@ func oneLabel(_ *cobra.Command, args []string) error {
 
 // addAccount registers the account, taking its token, answering, where the
 // token's organization doesn't settle which account it is, as given says,
-// else as the user does, asked, as asking has it; and says what it did.
+// else as the user does, asked, as asking has it; and says what it did, and,
+// where given says and the organization settled it, that the answer went
+// unused.
 func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given accounts.Answer) error {
 	registry, err := a.registry(cmd)
 	if err != nil {
 		return err
 	}
-	added, err := registry.Add(cmd.Context(), account, a.asking(cmd, given))
+	asked := false
+	ask := a.asking(cmd, given)
+	added, err := registry.Add(cmd.Context(), account, func(q accounts.Question) (accounts.Answer, error) {
+		asked = true
+		return ask(q)
+	})
 	if err != nil {
 		return addRefused(err, a.Now())
+	}
+	if given != (accounts.Answer{}) && !asked {
+		launch.Notice(cmd.ErrOrStderr(), unusedAnswer(given, added))
 	}
 	said := "added " + prose.Quoted(account.Label) + " as " + added.ID
 	if added.Returning {
@@ -276,6 +290,21 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	}
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
+}
+
+// unusedAnswer says the answer given went unused, as the token's
+// organization settled which account it is, as added: a new account, or one
+// this Mac had.
+func unusedAnswer(given accounts.Answer, added accounts.Added) string {
+	flag := "--new"
+	if !given.New {
+		flag = "--returning " + given.ID
+	}
+	settled := "a new account"
+	if added.Returning {
+		settled = added.ID + ", an account this Mac had"
+	}
+	return redact.Text(flag) + " went unused: the token's organization says it's " + settled
 }
 
 // addRefused is err, adding an account, with what to do about it: give a

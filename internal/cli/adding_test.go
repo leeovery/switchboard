@@ -40,7 +40,8 @@ func adding(t *testing.T, entries ...identity.Entry) (cli.Deps, string, *organiz
 // The token's organization decides the account's id: one this Mac has never
 // had is added under the id it gives, the record holding it, added now; one
 // it had, removed since, comes back under its id, the label it kept cleared,
-// as the config's is the one.
+// as the config's is the one. An answer given where the organization settles
+// it goes unused, which is said.
 func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 	returned := identity.Entry{ID: "k3f9", Organization: "org-work", Label: "Old work", Added: testNow.AddDate(-1, 0, 0), Removed: testNow.AddDate(0, -1, 0)}
 	tests := []struct {
@@ -48,8 +49,10 @@ func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 		args    []string
 		record  []identity.Entry
 		wantOut string
-		table   string
-		entry   identity.Entry
+		// wantSaid is what it says on stderr.
+		wantSaid string
+		table    string
+		entry    identity.Entry
 	}{
 		{
 			name:    "a new account",
@@ -74,12 +77,21 @@ func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 			entry:   identity.Entry{ID: "k3f9", Organization: "org-work", Added: returned.Added},
 		},
 		{
-			name:    "an answer given where the organization settles it",
-			args:    []string{"accounts", "add", "Work", "--new"},
-			record:  []identity.Entry{returned},
-			wantOut: `added "Work" as k3f9, an account this Mac had, so its history carries on` + "\n",
-			table:   "[[account]]\nid    = \"k3f9\"\nlabel = \"Work\"\n",
-			entry:   identity.Entry{ID: "k3f9", Organization: "org-work", Added: returned.Added},
+			name:     "a new account answered where the organization says it's one this Mac had",
+			args:     []string{"accounts", "add", "Work", "--new"},
+			record:   []identity.Entry{returned},
+			wantOut:  `added "Work" as k3f9, an account this Mac had, so its history carries on` + "\n",
+			wantSaid: "switchboard: --new went unused: the token's organization says it's k3f9, an account this Mac had\n",
+			table:    "[[account]]\nid    = \"k3f9\"\nlabel = \"Work\"\n",
+			entry:    identity.Entry{ID: "k3f9", Organization: "org-work", Added: returned.Added},
+		},
+		{
+			name:     "an account this Mac had answered where the organization says it's new",
+			args:     []string{"accounts", "add", "Work", "--returning", "k3f9"},
+			wantOut:  `added "Work" as ` + workID + "\n",
+			wantSaid: "switchboard: --returning k3f9 went unused: the token's organization says it's a new account\n",
+			table:    "[[account]]\nid    = \"" + workID + "\"\nlabel = \"Work\"\n",
+			entry:    identity.Entry{ID: workID, Organization: "org-work", Added: testNow},
 		},
 	}
 	for _, tt := range tests {
@@ -89,7 +101,7 @@ func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 
 			got := runWithInput(t, deps, madeWork+"\n", tt.args...)
 
-			if want := (result{stdout: tt.wantOut}); got != want {
+			if want := (result{stdout: tt.wantOut, stderr: tt.wantSaid}); got != want {
 				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, want)
 			}
 			if want := before + "\n" + tt.table; readFile(t, path) != want {

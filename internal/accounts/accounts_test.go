@@ -303,6 +303,7 @@ func TestCheckNew(t *testing.T) {
 		{name: "a blank label", config: twoAccounts, label: "\u200b", wantErr: config.ErrBlankLabel},
 		{name: "another's label", config: twoAccounts, label: "work", wantErr: accounts.ErrLabelTaken},
 		{name: "another's label, as it shows once tidied", config: twoAccounts, label: "\u200bWork\u200b", wantErr: accounts.ErrLabelTaken},
+		{name: "the id another without a label shows as, in another case", config: twoAccounts, label: "Personal", wantErr: accounts.ErrLabelTaken},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1213,6 +1214,7 @@ func registryProbingWithin(w *world, limit time.Duration) accounts.Registry {
 	return accounts.Registry{
 		ConfigPath: w.config,
 		Tokens:     w.tokens(),
+		Record:     identity.NewFile(w.state),
 		Prober: func(upstream string) accounts.Prober {
 			return &claude.Prober{Upstream: upstream, Timeout: limit}
 		},

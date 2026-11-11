@@ -22,12 +22,15 @@ func teamAsked() *setup.Asked {
 	}}}
 }
 
+// madeTeam is the token made to add team, a placeholder.
+const madeTeam = "test-token-team"
+
 // askingTeam is a harness of frame 3's accounts, team being added from + add an
 // account, its token made and asked about as asked has it.
 func askingTeam(t *testing.T, asked *setup.Asked) *harness {
 	t.Helper()
 	h := accountsHarness(t, frame3Steps())
-	h.steps.making = fakeMaking{steps: []setup.Making{privately, approving, madeIt, checkIt}, ends: &setup.Tokened{Result: setup.TokenAsked, Asked: asked}}
+	h.steps.making = fakeMaking{steps: []setup.Making{privately, approving, madeIt, checkIt}, ends: &setup.Tokened{Result: setup.TokenAsked, Asked: asked, Shown: []string{madeTeam}}}
 	h.steps.answerFor = setup.TokenFor{Account: config.NewAccount{Label: "team"}, Add: true}
 	h.start()
 	for range 3 {
@@ -173,24 +176,85 @@ func TestAnAnswerThatSavesNothing(t *testing.T) {
 	}
 }
 
-// esc closes the card, nothing answered or added.
+// esc closes the card, nothing answered or added: a token made, which lasts
+// a year on the account, is shown in its making's token card in its place,
+// to copy, and given back should setup go; a token pasted, still the user's,
+// closes with it.
 func TestEscClosesTheCardAskingWhich(t *testing.T) {
-	h := askingTeam(t, teamAsked())
-	h.pressAndDeliver("esc")
-	if title, _ := h.card(); title != "" {
-		t.Errorf("esc left the card %q open", title)
-	}
+	t.Run("made", func(t *testing.T) {
+		h := askingTeam(t, teamAsked())
+		h.pressAndDeliver("esc")
+		title, rows := h.card()
+		if title != "NEW TOKEN · TEAM" || !slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, madeTeam) }) {
+			t.Errorf("esc left the card %q reading\n%s\nwant team's token card, showing the token", title, strings.Join(rows, "\n"))
+		}
+		if unsaved, _ := h.model.tokenLeft(); unsaved == nil || !slices.Equal(unsaved.Shown, []string{madeTeam}) {
+			t.Errorf("tokenLeft() = %+v, want the token given back", unsaved)
+		}
+		checkNothingAnswered(t, h)
+	})
+	t.Run("pasted", func(t *testing.T) {
+		h := pastingTeamAsked(t)
+		h.pressAndDeliver("esc")
+		if title, _ := h.card(); title != "" {
+			t.Errorf("esc left the card %q open", title)
+		}
+		checkNothingAnswered(t, h)
+	})
+}
+
+// checkNothingAnswered checks Answer was given nothing, and nothing was
+// added.
+func checkNothingAnswered(t *testing.T, h *harness) {
+	t.Helper()
 	if len(h.steps.answers) != 0 {
 		t.Errorf("Answer was given %+v, want nothing answered", h.steps.answers)
 	}
 	if review := h.model.status.review; review == nil || len(review.Accounts) != 3 {
-		t.Errorf("esc, and the review is %+v, want nothing added", review)
+		t.Errorf("the review is %+v, want nothing added", review)
+	}
+}
+
+// What a made token's answer saved once the screen had gone is how setup's
+// left: nothing to give back where it saved the token; the token, where it
+// couldn't.
+func TestAnAnswerSavedOnceTheScreenWentIsHowSetupsLeft(t *testing.T) {
+	tests := []struct {
+		name string
+		ends setup.Tokened
+		want []string
+	}{
+		{name: "saved", ends: saved},
+		{name: "not saved", ends: setup.Tokened{Result: setup.TokenNotSaved, Why: "the config changed while it was being edited", Shown: []string{madeTeam}}, want: []string{madeTeam}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := askingTeam(t, teamAsked())
+			h.steps.answerEnds = &tt.ends
+			h.press("enter")
+			unsaved, _ := h.model.tokenLeft()
+			if tt.want == nil && unsaved != nil || tt.want != nil && (unsaved == nil || !slices.Equal(unsaved.Shown, tt.want)) {
+				t.Errorf("tokenLeft() = %+v, want the token given back: %v", unsaved, tt.want != nil)
+			}
+		})
 	}
 }
 
 // A token pasted to add an account is asked about as a made one is: the
 // paste card closes, the card asking which open in its place.
 func TestAPastedTokenAskedAboutOpensTheCardAskingWhich(t *testing.T) {
+	h := pastingTeamAsked(t)
+	if h.model.paste != nil {
+		t.Errorf("asked about, the paste card is %+v, want it given way to the card asking which", h.model.paste)
+	}
+	checkCard(t, h, "WHICH ACCOUNT · TEAM", whichCardOpened)
+}
+
+// pastingTeamAsked is a harness of frame 3's accounts, team being added
+// from + add an account, its token's making failing, then a token pasted in
+// its place, asked about as teamAsked has it.
+func pastingTeamAsked(t *testing.T) *harness {
+	t.Helper()
 	h := accountsHarness(t, frame3Steps())
 	h.steps.making = fakeMaking{steps: []setup.Making{privately, approving}, ends: &notMade}
 	h.steps.pasteEnds = &setup.Tokened{Result: setup.TokenAsked, Asked: teamAsked()}
@@ -203,10 +267,7 @@ func TestAPastedTokenAskedAboutOpensTheCardAskingWhich(t *testing.T) {
 	h.pressAndDeliver("enter")
 	h.hearAll(3)
 	h.pressAndDeliver("p")
-	h.typeIn("test-token-team")
+	h.typeIn(madeTeam)
 	h.pressAndDeliver("enter")
-	if h.model.paste != nil {
-		t.Errorf("asked about, the paste card is %+v, want it given way to the card asking which", h.model.paste)
-	}
-	checkCard(t, h, "WHICH ACCOUNT · TEAM", whichCardOpened)
+	return h
 }

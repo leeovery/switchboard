@@ -168,9 +168,14 @@ func (r Registry) known(ctx context.Context, checked Checked) (Organizations, er
 // says one it can't be; as CheckNew does for the account; and once ctx is
 // done. It doesn't ask the API. checked must be what Check gave for this
 // token: nothing ties the two.
+//
+// The token is written first, then the record, then the config, all under
+// the record's lock, so a failure part way leaves the record ahead of the
+// config, which a later add or remove puts right: an account the record has
+// and the config hasn't comes back when it's added again. A token written
+// for an account the config didn't take is removed.
 func (r Registry) AddChecked(ctx context.Context, account config.NewAccount, token tokens.Token, checked Checked, known Organizations, answer Answer) (Added, error) {
 	if checked.Unchecked {
-		logger.Info("the API didn't answer for a token, so no account is added", "error", checked.Why)
 		return Added{}, &UnansweredError{Why: checked.Why}
 	}
 	record, err := r.Record.Read()
@@ -183,39 +188,50 @@ func (r Registry) AddChecked(ctx context.Context, account config.NewAccount, tok
 		return Added{}, err
 	}
 	var added Added
-	err = r.Record.Update(func(record *identity.Record) error {
+	wrote := false
+	err = r.Record.UpdateThen(func(record *identity.Record) (func() error, error) {
 		draft, d, err := r.decided(*record, account, known, checked.Organization, answer)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if d.random {
 			if d.ID, err = record.Random(r.random(), configuredIn(draft.Config()).IDs()); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		account.ID = d.ID
 		if err := draft.AddAccount(account); err != nil {
-			return err
+			return nil, err
 		}
 		if err := r.write(ctx, account.ID, token, checked); err != nil {
-			return err
+			return nil, err
 		}
-		if err := draft.Save(); err != nil {
-			return err
-		}
+		wrote = true
 		if d.Returning {
 			record.Return(account.ID, checked.Organization)
 		} else {
 			record.Add(account.ID, checked.Organization, r.now())
 		}
 		added = d.Added
-		return nil
+		return draft.Save, nil
 	})
+	if err != nil && wrote {
+		err = errors.Join(err, r.unwrite(account.ID))
+	}
 	if err != nil {
 		return Added{}, err
 	}
 	logger.Info("added an account", "account", account.ID, "primary", account.Primary, "returning", added.Returning)
 	return added, nil
+}
+
+// unwrite removes the token file written for the account with the given id,
+// which the config didn't take.
+func (r Registry) unwrite(id string) error {
+	if _, err := r.Tokens.Remove(id); err != nil {
+		return fmt.Errorf("remove the token written for %s: %w", id, err)
+	}
+	return nil
 }
 
 // decision is the account a token is added as, as decide has it: random
@@ -259,7 +275,7 @@ func decide(record identity.Record, configured config.Accounts, known Organizati
 	}
 	question := Question{Named: organization != "", Choices: adding.Candidates}
 	switch {
-	case len(question.Choices) == 0 || answer.New:
+	case answer.New || answer.ID == "" && len(question.Choices) == 0:
 		return decision{ID: adding.ID, random: adding.Outcome == identity.OrganizationUnknown}, nil
 	case answer.ID == "":
 		return decision{}, &QuestionError{Question: question}

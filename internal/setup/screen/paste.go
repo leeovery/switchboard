@@ -43,7 +43,7 @@ func (c pasteCard) savedOnceGone() bool {
 	select {
 	case ended := <-c.kept:
 		if ended.err != nil {
-			logger.Error("pasting a token failed once setup's screen had gone", "account", c.f.Account.ID, "error", ended.err)
+			logger.Error("pasting a token failed once setup's screen had gone", c.f.Logged("error", ended.err)...)
 		}
 		return ended.err == nil && ended.tokened.Result == setup.TokenSaved
 	default:
@@ -135,7 +135,7 @@ func (m Model) pasteSaved(msg pastedMsg) (Model, tea.Cmd) {
 	switch r := msg.tokened.Result; {
 	case msg.err != nil && card.from != nil:
 		why := redact.Text(msg.err.Error(), card.token.value())
-		logger.Warn("a token pasted couldn't be saved", "account", card.f.Account.ID, "error", why)
+		logger.Warn("a token pasted couldn't be saved", card.f.Logged("error", why)...)
 		m.token, m.paste = card.from.notSaved(why), nil
 		return m.askAgain()
 	case msg.err != nil:
@@ -149,7 +149,7 @@ func (m Model) pasteSaved(msg pastedMsg) (Model, tea.Cmd) {
 		return m, nil
 	case r == setup.TokenAsked:
 		m.paste = nil
-		m.which = whichAsked(card.f, msg.tokened.Asked, card.from)
+		m.which = whichAsked(card.f, msg.tokened, card.from)
 		return m, nil
 	}
 	card.checking, card.token = false, entry{hidden: true}

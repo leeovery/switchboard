@@ -76,6 +76,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "two accounts to add", args: []string{"accounts", "add", "Work", "Side"}, wantUsage: true},
 		{name: "an account to add, both new and returning", args: []string{"accounts", "add", "Work", "--new", "--returning", "old"}, wantUsage: true},
 		{name: "an account to add, returning without an id", args: []string{"accounts", "add", "Work", "--returning"}, wantUsage: true},
+		{name: "an account to add, returning as no id", args: []string{"accounts", "add", "Work", "--returning", ""}, wantUsage: true},
 		{name: "an account to add to an invalid config", args: []string{"accounts", "add", "work", "--config", invalid}, wantUsage: false},
 		{name: "a token without its account", args: []string{"accounts", "token"}, wantUsage: true},
 		{name: "a token for an invalid config", args: []string{"accounts", "token", "work", "--config", invalid}, wantUsage: false},

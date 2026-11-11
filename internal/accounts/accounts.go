@@ -138,7 +138,9 @@ type Input struct {
 type Registry struct {
 	ConfigPath string
 	Tokens     tokens.Store
-	Record     identity.File
+	// Record is the accounts record, which adding an account, replacing its
+	// token and removing it read and write: the zero File fails each.
+	Record identity.File
 	// Prober returns what checks a token with the API at upstream, the
 	// config's.
 	Prober func(upstream string) Prober
@@ -251,47 +253,37 @@ func (e *OtherSubscriptionError) Error() string {
 // OtherSubscriptionError where it's another's, or where the record doesn't
 // know the account's, and has another of the token's. Where the API named
 // none, or the record hasn't the account, as one from before switchboard
-// made ids, there's nothing to hold it to, and nothing is recorded. The
-// record is written, under its lock, only where there's something to
-// record, so a refusal, or a token of the account's own, leaves it as it is.
+// made ids, there's nothing to hold it to, and nothing is recorded. It's
+// checked, and the token written, under the record's lock, so what the
+// record has can't change in between; the record is written only where
+// there's something to record, so a refusal, or a token of the account's
+// own, leaves it as it is.
 func (r Registry) replace(ctx context.Context, id string, token tokens.Token, checked Checked) error {
-	record, err := r.Record.Read()
-	if err != nil {
-		return err
-	}
-	recording, err := r.owned(&record, id, checked.Organization)
-	switch {
-	case err != nil:
-		return err
-	case !recording:
-		return r.write(ctx, id, token, checked)
-	}
-	return r.Record.Update(func(record *identity.Record) error {
-		if _, err := r.owned(record, id, checked.Organization); err != nil {
-			return err
+	return r.Record.UpdateThen(func(record *identity.Record) (func() error, error) {
+		if err := r.owned(record, id, checked.Organization); err != nil {
+			return nil, err
 		}
-		return r.write(ctx, id, token, checked)
+		return nil, r.write(ctx, id, token, checked)
 	})
 }
 
 // owned fails, as replace says, where organization, a token's, is another
 // subscription's than the account's with the given id, as record has it,
 // recording it in record as the account's where it doesn't know the
-// account's, and reporting whether it did.
-func (r Registry) owned(record *identity.Record, id, organization string) (recorded bool, err error) {
+// account's.
+func (r Registry) owned(record *identity.Record, id, organization string) error {
 	e, ok := record.ByID(id)
 	switch {
 	case organization == "" || !ok || e.Organization == organization:
-		return false, nil
+		return nil
 	case e.Organization != "":
-		logger.Info("a token is another subscription's, so it isn't saved", "account", id)
-		return false, &OtherSubscriptionError{}
+		return &OtherSubscriptionError{}
 	}
 	if other, held := record.ByOrganization(organization); held {
-		logger.Info("a token is another subscription's, so it isn't saved", "account", id, "other", other.ID)
-		return false, &OtherSubscriptionError{OtherID: other.ID, OtherLabel: r.labelOf(other)}
+		return &OtherSubscriptionError{OtherID: other.ID, OtherLabel: r.labelOf(other)}
 	}
-	return record.Organize(id, organization), nil
+	record.Organize(id, organization)
+	return nil
 }
 
 // labelOf is the label of the account the record has, e: the one it kept,
@@ -340,41 +332,31 @@ func (e *TokenFileLeft) Unwrap() error {
 	return e.err
 }
 
-// Remove removes the account with the given id: its [[account]] table from
-// the config file, marking it removed in the accounts record, with the label
-// it showed, where the record has it, then its token file, saying what it
-// removed of that, and which account is the primary now, when it removed the
-// primary. It fails with a TokenFileLeft where it removed the table but not
-// the token file. The record is written, under its lock, only where it has
-// the account.
+// Remove removes the account with the given id: marking it removed in the
+// accounts record, with the label it showed, where the record has it, then
+// its [[account]] table from the config file, both under the record's lock,
+// then its token file, saying what it removed of that, and which account is
+// the primary now, when it removed the primary. It fails with a
+// TokenFileLeft where it removed the table but not the token file. The
+// record is written only where it has the account, and ahead of the config,
+// so a failure between them leaves the account marked removed but still
+// configured, which removing it again puts right.
 func (r Registry) Remove(id string) (Removed, error) {
-	record, err := r.Record.Read()
-	if err != nil {
-		return Removed{}, err
-	}
 	var before, after *config.Config
-	takeOut := func(record *identity.Record) error {
+	err := r.Record.UpdateThen(func(record *identity.Record) (func() error, error) {
 		draft, err := config.Edit(r.ConfigPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		before = draft.Config()
 		if err := draft.RemoveAccount(id); err != nil {
-			return err
-		}
-		if err := draft.Save(); err != nil {
-			return err
+			return nil, err
 		}
 		was, _ := configured(before, id)
 		record.Remove(id, was.Label, r.now())
 		after = draft.Config()
-		return nil
-	}
-	if _, held := record.ByID(id); held {
-		err = r.Record.Update(takeOut)
-	} else {
-		err = takeOut(&record)
-	}
+		return draft.Save, nil
+	})
 	if err != nil {
 		return Removed{}, err
 	}

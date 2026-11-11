@@ -47,7 +47,8 @@ func checkNew(cfg *config.Config, account config.NewAccount) (string, error) {
 }
 
 // labelTaken reports whether an account cfg configures, but the one with the
-// given id, shows label, as each shows, ignoring case.
+// given id, shows label, as each shows, ignoring case: an account the config
+// writes no label for has its id as its label, as config loads it.
 func labelTaken(cfg *config.Config, id, label string) bool {
 	if cfg == nil {
 		return false
