@@ -54,7 +54,7 @@ prints the bare account id there too, for a statusline, and JSON only with `--js
   `switchboard pin <account> <account>...`, which sends them to the best of those accounts until
   every one of them is out, and only then to the others. Add `--move` to move running sessions
   there too, or `--session <id>` to pin that one session alone to one account. Add `--force` to
-  clear every session's own pin as well, so `--move --force` moves every session.
+  clear every session's own pin as well, so `--move --force` puts every session on those accounts.
   `switchboard pin auto` goes back to routing, and `pin auto --force` clears every session's own
   pin too.
 - To read the router's log, which says why each request went to its account, run

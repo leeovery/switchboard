@@ -88,7 +88,7 @@ func onWorkLines(now time.Time) []ledger.Line {
 	for i := range lines {
 		l := &lines[i]
 		l.Account, l.From, l.Tried, l.Attempts = "work", "", nil, 1
-		if l.Reason != status.ReasonNew && l.Reason != reasonUnsessioned {
+		if l.Reason != status.ReasonNew && l.Reason != status.ReasonUnsessioned {
 			l.Reason = status.ReasonSticky
 		}
 	}

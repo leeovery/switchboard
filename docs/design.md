@@ -333,7 +333,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `rescored after <idle> idle` | A session idle past its cache's hour, chosen afresh, its model's thinking not bound to its account |
 | `compacted: <id> would reset with <n>% of its week left` | A busy session's first request after its compaction, moved to `<id>`, the account chosen afresh, as `<id>`'s week resets before its own account's and would otherwise reset with `<n>`% of it unused above its reserve (step 5) |
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
-| `moved: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
+| `moved: <id> is at its reserve`, `pin yields: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
 | `moved: <id> has a new token`, `pin yields: <id> has a new token` | The same, as `<id>` refused the request's token, having taken up a new one |
 | `no account has room` | None can take it (step 5): it goes where the upstream will say why, or switchboard answers 429 itself |
@@ -342,9 +342,10 @@ The routed line in the log gives the reason for each request's account, one of:
 
 These words are fixed, as are the whys a ledger line's `tried` gives (`hit its limit`, `was
 refused` and `has a new token`): the ledger, the events, `state.json` and `/sessions` keep them,
-and the dashboard reads them back, so none is ever reworded, and a new one is only added. The
-reference lists them all, and a guard holds its list to the code's (the owner's call, 10 November
-2026).
+and the dashboard reads them back, so none is ever reworded, and a new one is only added. So is
+`back where it was before its request`, which the request stream gives a session's move back
+where every account refused its request (see Control API). The reference lists them all, and a
+guard holds its list to the code's (the owner's call, 10 November 2026).
 
 ## Pinning
 
@@ -1834,9 +1835,10 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
   or probing, for the status document, and the ledger's, the readings history's and the events'
   files where they lie, with no router (see Live updates).
 - **Their JSON.** Fields may be added to any of them, never renamed, a field's meaning and units
-  never change, and a reader passes over those it doesn't know, as with the status document. Every
-  object `status`, `usage`, `history` and `sessions` print carries `"schema": 1` first, which goes
-  up only where a field's meaning changes or one is removed, never as fields are added; `requests`
+  never change while one schema stands, and a reader passes over those it doesn't know, as with the
+  status document. The object `status`, `usage`, `history` and `sessions` each print carries
+  `"schema": 1` first at its top level, which goes up only where a field's meaning or units change
+  or one is removed, never as fields are added; `requests`
   and `events` print each stored line with it put first as they print it, the line's own fields
   after it as stored, and the files holding none. Their text, for a person, is no contract, and
   changes as it's redesigned (the owner's call, 10 November 2026):
@@ -8754,7 +8756,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/dayfile` | Files a day of JSON lines, as the readings history, the request ledger and the router's events keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included, or a day's file on from where a read of it last ended, as a tail reads it; the days themselves, each from its first instant, and the times of a day, each as the clocks first read it, where they go forward over it, or back over it, too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too, at every round or just before each prune |
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; the days' digests, built on a goroutine of their own through the `Digester` seam it declares, each day's builder handed every line its read reads, and their parts files, a gzip member a session pointed at by offset, length and CRC; each day's head, built after the digests, newest first, of exactly the lines `Day` gives the day by the one read both share, its side the views'; when a digest or a head stands, and a session as of a day, on the newest state a digest holds that stands for it, or, for a page, the newest whose chain of parts reads, and the raw lines after, one lookup the writer and the readers share; a line's usage decoded once into what its request spent, which the price table prices as it prices the line, and what a page's requests spent, summed by model and where they were served, priced alike once as the page is built; a window's climb, and its stored form; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
 | `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read, a read warning once of how many of their lines it couldn't read |
-| `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept as long, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
+| `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept for its `keep`, though, unlike its lines, without waiting for their day's summary, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
 | `internal/export` | The history exported into a folder and brought back: the install's id, a Mac's folder and its `export.json`, a day's files copied or compressed into it, and a folder's files staged for import; the import itself, a day's lines added to its files, `internal/dayfile`'s, run by the router between its rounds (see Export and import) |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place, unless a check its caller gives, just before the rename, says otherwise; and where writing through a link leads, so a file that's a link is written where it leads, never replaced; and setting a corrupt file aside, keeping the newest 3 of its name |
 | `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's, the readings history's and the router's events' files are read back and an answer's stream of events is counted |
@@ -8949,7 +8951,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   deleted, as the router writes them again (see The request ledger). The router leaves anything else
   in the directory alone.
 - **Events:** `<state dir>/ledger/events-<local date>.jsonl`, the router's events, kept across
-  restarts, a file a day beside the request ledger's, and kept as long: see The router's events.
+  restarts, a file a day beside the request ledger's, kept for its `keep`, though, unlike its
+  lines, without waiting for their day's summary: see The router's events.
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, and what its
   keys choose that it keeps (see The page), written whole by the dashboard alone, never by hand
   (see Themes).
@@ -9104,7 +9107,8 @@ fails as it is; one that parses has every problem reported at once:
   it would wrap round, to a keep that can remove every day at once.
 - **`[ledger]`**: `keep` is as `[history]`'s is: `8d` or more, or `forever`. It keeps the router's
   events too, a file a day beside the ledger's lines, `events-<local date>.jsonl`, for as long as it
-  keeps the lines (see The router's events).
+  says; a day's lines past it wait for the day's summary to stand, but its events don't (see The
+  router's events).
 - **`[export]`**: `dir` is an absolute path, or one starting `~/`, the home directory's; off unless
   it's set, an empty `dir` as unset (see Export and import).
 - **`week_starts`** is a day of the week, by its name in English, in any case, as `monday` or
@@ -9197,7 +9201,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | Endpoint | Job |
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all |
-| `GET /status` | The status document, as `status --json` prints it: see below |
+| `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below |
 | `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `0 auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
@@ -9215,9 +9219,9 @@ standard library's plain 404 or 405. Times are given in UTC.
 ### The status document
 
 What `status --json` prints and `GET /status` answers, whether the router built it or probing
-did. Times are RFC 3339, in UTC, but the priming schedule's times of day, which are local;
-utilizations are fractions (`0.23` is 23%), and can pass 1. Fields may be added to it, never
-renamed. A field marked *router* is the router's alone, and left out of a document built by
+did; the verbs put `"schema": 1` first (see The data verbs), and `GET /status` doesn't. Times
+are RFC 3339, in UTC, but the priming schedule's times of day, which are local; utilizations are
+fractions (`0.23` is 23%), and can pass 1. Fields may be added to it, never renamed. A field marked *router* is the router's alone, and left out of a document built by
 probing.
 
 | Field | Is |

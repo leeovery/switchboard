@@ -19,21 +19,24 @@ directly, agents included. Each format is described field by field.
 
 ## Rules for every format
 
-- **New fields:** Fields may be added to any format, but never renamed, and a field's meaning and
-  units never change. When you read one, pass over the fields you don't know.
-- **The schema:** Every JSON object `status`, `usage`, `history` and `sessions` print carries
-  `"schema": 1` as its first field. `requests` and `events` print each stored line with
-  `"schema": 1` put first; the line's own fields follow, as stored, as
+- **New fields:** Fields may be added to any format, but never renamed, and while the schema below
+  stands, a field's meaning and units never change. When you read one, pass over the fields you
+  don't know.
+- **The schema:** The object `status`, `usage`, `history` and `sessions` each print carries
+  `"schema": 1` as the first field at its top level. `requests` and `events` print each stored
+  line with `"schema": 1` put first; the line's own fields follow, as stored, as
   [the request ledger](#the-request-ledger) and [the router's events](#the-routers-events) list
-  them. The files themselves hold no schema. The number goes up only where a field's meaning
-  changes or a field is removed. Fields are added without it.
+  them. The files themselves hold no schema. The number goes up only where a field's meaning or
+  units change, or a field is removed. Fields are added without it.
 - **Accounts:** Accounts appear by their ids, never by a token. Their labels appear only in the
   status document's `accounts`.
 - **Reasons:** The reasons a request went where it did, and the reasons an account couldn't serve
   it, are fixed words. See [Why a request went where it did](#why-a-request-went-where-it-did).
 - **Not a contract:** The text the commands print for a person, on a terminal or with `--pretty`,
-  and that of a command without `--json`, can change in any release: read `--json` instead. So can
-  `prefs.json`, the dashboard's own file, and the files the table below says are switchboard's own.
+  and that of a command without `--json`, can change in any release: read `--json` instead. The
+  exception is `status --session`, which prints the bare id of the session's account on a line of
+  its own, for a statusline to read, and always will. `prefs.json`, the dashboard's own file, can
+  change too, as can the files the table below says are switchboard's own.
 
 ## Where things live
 

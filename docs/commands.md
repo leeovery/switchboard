@@ -63,7 +63,8 @@ Some commands have more to say:
   statusline can tell.
 - `service status` exits `0` whatever it finds, the router down included. It's `1` only where it
   can't look.
-- `events -f` and `logs -f` exit `0` when interrupted.
+- `events -f`, `logs -f` and `dashboard` exit `0` when interrupted, and so does `serve`, once
+  it has stopped, when interrupted or terminated.
 - `hook session-start` always exits `0`.
 
 ## Everyday

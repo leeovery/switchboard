@@ -22,7 +22,7 @@ import (
 // is bumped, and both are recorded here afresh.
 const (
 	recordedVersion = 13
-	recordedDigest  = "becd3cc1f02f352c37bf2392dd3d5a2cfee2fe508abc64e78be8fd5121f77c70"
+	recordedDigest  = "c8a2e5ee824ebd0975c8f3bbf0cdba069a876239374d5fb401014f46da7303e3"
 )
 
 func TestTheVersionIsBumpedWhenTheTextChanges(t *testing.T) {

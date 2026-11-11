@@ -1,9 +1,16 @@
 package status
 
 import (
+	"fmt"
+	"go/ast"
+	"go/constant"
+	"go/token"
+	"go/types"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -68,6 +75,98 @@ func TestTheIdleSpansTheReferenceGivesAreTheOnesIdledFiles(t *testing.T) {
 		if !strings.Contains(rowOf(reference, rescored), "`"+span+"`") {
 			t.Errorf("docs/reference.md's row of %q doesn't give %q as an <idle>", rescored, span)
 		}
+	}
+}
+
+// Every reason and why status declares, read from its source, is one the
+// reference fixes, so one added without the reference listing it fails here:
+// a whole reason, or the start of one with a tail, as "moved: " starts
+// "moved: <id> <why>"; and a why, whole.
+func TestEveryReasonAndWhyStatusDeclaresIsOneTheReferenceFixes(t *testing.T) {
+	reference := readReference(t)
+	reasons, whysListed := firstCells(t, reference, "### The reasons"), firstCells(t, reference, "### The whys")
+	l, _ := reasonsLoader(t)
+	for name, value := range declaredFrozen(t, l) {
+		switch {
+		case strings.HasPrefix(name, whyPrefix) && !slices.Contains(whysListed, value):
+			t.Errorf("status declares %s, %q, which docs/reference.md's whys don't list", name, value)
+		case strings.HasPrefix(name, reasonPrefix) && !slices.ContainsFunc(reasons, startedBy(value)):
+			t.Errorf("status declares %s, %q, which docs/reference.md's reasons don't list", name, value)
+		}
+	}
+}
+
+// The router gives a reason or a why through status's constants, never in
+// words of its own, which would escape the reference and its guard.
+func TestTheRouterGivesNoReasonNorWhyButStatussOwn(t *testing.T) {
+	l, module := reasonsLoader(t)
+	frozen := slices.Collect(maps.Values(declaredFrozen(t, l)))
+	rule := sourcecheck.Rule{Names: sourcecheck.NamesIn(module), Node: func(n ast.Node, _ *types.Info) string {
+		lit, ok := n.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return ""
+		}
+		text, err := strconv.Unquote(lit.Value)
+		if err != nil || !slices.ContainsFunc(frozen, opens(text)) {
+			return ""
+		}
+		return fmt.Sprintf("%q is a reason or a why of status's own: give it through its constant", text)
+	}}
+	sourcecheck.ReportEach(t, l.Check(rule, []string{routerDir}, sourcecheck.Allowance{
+		Entries: routerPhrasesAllowed, List: "routerPhrasesAllowed",
+		Fix: "remove it from the list, as the router's words no longer say any reason or why",
+	}))
+}
+
+// routerPhrasesAllowed are the router's functions whose words are a reason's
+// without being one: the log's "pinned".
+var routerPhrasesAllowed = []string{"internal/router/control.go:Router.pin"}
+
+const (
+	statusDir    = "internal/status"
+	routerDir    = "internal/router"
+	reasonPrefix = "Reason"
+	whyPrefix    = "Why"
+)
+
+// reasonsLoader loads status and the router from their source, the module
+// with the path given.
+func reasonsLoader(t *testing.T) (l *sourcecheck.Loader, module string) {
+	t.Helper()
+	root := sourcecheck.ModuleRoot(t)
+	module = sourcecheck.ModulePath(t, root)
+	return sourcecheck.NewLoader(t, root, module, []string{statusDir, routerDir}), module
+}
+
+// declaredFrozen are the string constants status declares whose names start
+// Reason or Why, by name, as l reads them from its source.
+func declaredFrozen(t *testing.T, l *sourcecheck.Loader) map[string]string {
+	t.Helper()
+	scope := l.Load(statusDir)[0].Pkg.Scope()
+	frozen := make(map[string]string)
+	for _, name := range scope.Names() {
+		c, ok := scope.Lookup(name).(*types.Const)
+		if ok && (strings.HasPrefix(name, reasonPrefix) || strings.HasPrefix(name, whyPrefix)) && c.Val().Kind() == constant.String {
+			frozen[name] = constant.StringVal(c.Val())
+		}
+	}
+	return frozen
+}
+
+// startedBy reports of a reason's form whether it's the reason given, or,
+// where that opens a reason with a tail, ending ": " or " ", starts with it.
+func startedBy(reason string) func(form string) bool {
+	opener := strings.HasSuffix(reason, " ")
+	return func(form string) bool {
+		return form == reason || opener && strings.HasPrefix(form, reason)
+	}
+}
+
+// opens reports of a reason or a why whether text says it: is it, or, of one
+// that opens a reason with a tail, starts with it.
+func opens(text string) func(frozen string) bool {
+	return func(frozen string) bool {
+		return text == frozen || strings.HasSuffix(frozen, " ") && strings.HasPrefix(text, frozen)
 	}
 }
 
