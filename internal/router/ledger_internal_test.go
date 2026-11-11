@@ -197,6 +197,29 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 			}),
 		},
 		{
+			name:     "a streamed answer cut off mid-answer as the router stopped, not broken off, though its reading failed",
+			session:  "one",
+			work:     []answer{streamed(time.Second, claudetest.AnswerPieces("Hello")...)},
+			cutAfter: 1500 * time.Millisecond,
+			want: edited(asked, func(l *ledger.Line) {
+				l.CutOff, l.FirstMS, l.TotalMS, l.Answer = true, ms(1000), 1500, ledger.Answer{Model: opus}
+			}),
+		},
+		{
+			name:    "a streamed answer the upstream broke off after it began",
+			session: "one",
+			work:    []answer{brokenOff(claudetest.MessageStart, claudetest.TextDelta("Hello, "))},
+			want:    edited(asked, func(l *ledger.Line) { l.Broken, l.FirstMS, l.Answer = true, ms(0), ledger.Answer{Model: opus} }),
+		},
+		{
+			name:     "a streamed answer the upstream broke off, then cut off as the router stopped while its counting finished, broken first",
+			session:  "one",
+			work:     []answer{brokenOff(claudetest.MessageStart, claudetest.TextDelta("Hello, "))},
+			late:     time.Second,
+			cutAfter: 500 * time.Millisecond,
+			want:     edited(asked, func(l *ledger.Line) { l.Broken, l.FirstMS, l.Answer = true, ms(0), ledger.Answer{Model: opus} }),
+		},
+		{
 			name:      "a client gone before an answer came",
 			session:   "one",
 			work:      []answer{throttled("5"), served},

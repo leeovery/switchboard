@@ -168,8 +168,8 @@ func requestRow(r views.RequestLine, now time.Time) []string {
 }
 
 // answered says how a request was answered: its status, and whether its
-// client went away before its end, or the router cut it off, as "200
-// canceled".
+// client went away before its end, the router cut it off, or the upstream
+// broke its answer off, as "200 canceled".
 func answered(r views.RequestRow) string {
 	answer := strconv.Itoa(r.Status)
 	switch {
@@ -177,6 +177,8 @@ func answered(r views.RequestRow) string {
 		answer += " canceled"
 	case r.CutOff:
 		answer += " cut off"
+	case r.Broken:
+		answer += " broken off"
 	}
 	return answer
 }

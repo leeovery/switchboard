@@ -20,7 +20,9 @@ import (
 // an id, cut off as it went upstream, so it gave no usage; and its next, of
 // a model no price knows, its client gone and its answer an overload, its
 // usage counting its input under a name in capitals, a server tool no price
-// knows, and writes to the cache named beside those it breaks down.
+// knows, and writes to the cache named beside those it breaks down; and its
+// last, its answer broken off by its upstream after it began, so it gave no
+// usage.
 func goldenRows() []ledger.Line {
 	at := func(hour, minute int) time.Time {
 		return time.Date(2026, 10, 8, hour, minute, 0, 0, time.UTC)
@@ -58,7 +60,9 @@ func goldenRows() []ledger.Line {
 			`"cache_creation.ephemeral_5m_input_tokens":40,"cache_creation":{"ephemeral_1h_input_tokens":60},"cache_creation.unknown":3,` +
 			`"server_tool_use":{"code_execution_requests":1}}`),
 	}
-	return []ledger.Line{subagent, check, count, cut, overloaded}
+	broken := ledger.Line{At: at(11, 10), Request: "o3", Kind: ledger.KindMessage, Session: "o", Model: foldSonnet, Account: "work", Reason: "sticky",
+		Status: 200, Broken: true, Attempts: 1, FirstMS: new(int64(600)), TotalMS: 5000, Class: ledger.ClassMain}
+	return []ledger.Line{subagent, check, count, cut, overloaded, broken}
 }
 
 // chunkGolden is the golden of a chunk of a day's rows: each of its rows,

@@ -1,6 +1,8 @@
 package router_test
 
 import (
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -13,7 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-func TestTheRoutersHealthCountsTheFailuresItMakes(t *testing.T) {
+func TestTheRoutersHealthCountsTheFailuresItMakesAndTheAnswersBrokenOff(t *testing.T) {
 	gone := httptest.NewServer(http.NotFoundHandler())
 	gone.Close()
 	tests := []struct {
@@ -30,6 +32,7 @@ func TestTheRoutersHealthCountsTheFailuresItMakes(t *testing.T) {
 		{name: "a 429 passed on", answer: limitReached("You've hit your limit", sessionSpent), wantStatus: http.StatusTooManyRequests},
 		{name: "a refusal with no account to fail over to", answer: refuseWith(http.StatusForbidden, "no"), wantStatus: http.StatusBadGateway, wantFailed: true},
 		{name: "an upstream that can't be reached", upstream: gone.URL, wantStatus: http.StatusBadGateway, wantFailed: true},
+		{name: "an answer the upstream broke off after it began", answer: answerBrokenOff(t, atOnce(), (*net.TCPConn).Close), wantStatus: http.StatusOK, wantFailed: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -40,7 +43,8 @@ func TestTheRoutersHealthCountsTheFailuresItMakes(t *testing.T) {
 			rt := newRouter(t, url)
 
 			resp := send(t, http.MethodPost, serveProxy(t, rt)+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
-			if readAll(t, resp); resp.StatusCode != tt.wantStatus {
+			// An answer broken off reads short.
+			if _, _ = io.ReadAll(resp.Body); resp.StatusCode != tt.wantStatus {
 				t.Errorf("answered %d, want %d", resp.StatusCode, tt.wantStatus)
 			}
 			waitUntil(t, "the request is done", func() bool { return rt.Status().Router.Requests == 1 })

@@ -18,16 +18,17 @@ const (
 	minFailures = 5
 )
 
-// result is how a routed request answered ended: when, and whether the router
-// failed it itself.
+// result is how a routed request answered ended: when, and whether it failed,
+// as health counts a failure.
 type result struct {
 	at     time.Time
 	failed bool
 }
 
 // health is how the router fares with the requests it routes, judged over the
-// last healthWindow: only the failures it makes itself count against it, not
-// the upstream's answers it passes on. It's safe for concurrent use.
+// last healthWindow: only the failures it makes itself, and the answers the
+// upstream breaks off after they began, count against it, not the upstream's
+// answers it passes on whole. It's safe for concurrent use.
 type health struct {
 	now func() time.Time
 	// emit hears each change, as it's logged.
@@ -47,10 +48,10 @@ func newHealth(now func() time.Time, emit func(Event)) *health {
 }
 
 // record notes a routed request that arrived at arrived, answered now, and
-// whether the router failed it itself. A failure of one that arrived before
-// the router last noticed the Mac wake isn't counted: it may have gone out on
-// a connection the sleep left dead, which is the sleep's doing, not the
-// router's.
+// whether it failed: the router failing it itself, or the upstream breaking
+// its answer off. A failure of one that arrived before the router last
+// noticed the Mac wake isn't counted: it may have gone out on a connection the
+// sleep left dead, which is the sleep's doing, not the router's.
 func (h *health) record(arrived time.Time, failed bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

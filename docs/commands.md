@@ -1075,7 +1075,7 @@ with these fields:
 | Session | The session's id, cut short. |
 | Model | The model. |
 | Account | The account. |
-| Status | The status. |
+| Status | The status, then `canceled` where the client went away before the end, `cut off` where the router cut the request off as it stopped, or `broken off` where the upstream broke the answer off after it began. |
 | Tokens | The tokens in and out. |
 | Duration | How long the request took. |
 

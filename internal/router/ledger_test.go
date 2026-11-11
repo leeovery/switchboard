@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"bufio"
 	"io"
 	"io/fs"
 	"net"
@@ -183,11 +184,56 @@ func TestTheLedgerHoldsTheLineOfARequestTheRouterCutsOffAsItStops(t *testing.T) 
 		t.Fatalf("Run() = %v", err)
 	}
 	lines := router.LedgerLines(t, filepath.Join(cfg.StateDir, "ledger"))
-	if len(lines) != 1 || lines[0].Status != http.StatusOK || !lines[0].CutOff || lines[0].Canceled {
-		t.Errorf("once the router stopped, the ledger holds %+v, want the line of the request it cut off, not canceled: its client stayed", lines)
+	if len(lines) != 1 || lines[0].Status != http.StatusOK || !lines[0].CutOff || lines[0].Canceled || lines[0].Broken {
+		t.Errorf("once the router stopped, the ledger holds %+v, want the line of the request it cut off, not canceled, its client stayed, nor broken, the router broke it off", lines)
 	}
 	if !log.Has("level=INFO", "msg=routed", "status=200", "cut_off=true") || log.Has("canceled=true") {
 		t.Errorf("log reads\n%s\nwant the request routed, and cut off, not canceled", log)
+	}
+}
+
+func TestTheLedgerSaysWhetherTheUpstreamBrokeAnAnswerOff(t *testing.T) {
+	tests := []struct {
+		name string
+		// end ends the upstream's connection once the client has the answer's
+		// first event, breaking the answer off, where it's given: else the
+		// answer goes on to its end.
+		end        func(*net.TCPConn) error
+		wantBroken bool
+	}{
+		{name: "an answer to its end"},
+		{name: "an answer broken off, its connection closed", end: (*net.TCPConn).Close, wantBroken: true},
+		{name: "an answer broken off, its connection reset", end: resetConn, wantBroken: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			goOn := make(chan struct{})
+			answer := answerStreamed(claudetest.MessageStart, claudetest.MessageEnd)
+			if tt.end != nil {
+				answer = answerBrokenOff(t, goOn, tt.end)
+			}
+			cfg := runConfig(t, newUpstream(t, answer).URL)
+			stop := runRouter(t, cfg)
+
+			resp := send(t, http.MethodPost, "http://"+cfg.Listen+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
+			body := bufio.NewReader(resp.Body)
+			readEvent(t, body)
+			close(goOn)
+			if _, err := io.ReadAll(body); (err != nil) != tt.wantBroken {
+				t.Errorf("reading the rest of the answer failed with %v, want it broken off: %v", err, tt.wantBroken)
+			}
+			if err := stop(); err != nil {
+				t.Fatalf("Run() = %v", err)
+			}
+			lines := router.LedgerLines(t, filepath.Join(cfg.StateDir, "ledger"))
+			if len(lines) != 1 || lines[0].Status != http.StatusOK || lines[0].Broken != tt.wantBroken || lines[0].Canceled || lines[0].CutOff {
+				t.Errorf("the ledger holds %+v, want the request's line, its status 200, broken %v, neither canceled nor cut off", lines, tt.wantBroken)
+			}
+			if log.Has("level=INFO", "msg=routed", "status=200", "broken=true") != tt.wantBroken {
+				t.Errorf("log reads\n%s\nwant the request routed, broken: %v", log, tt.wantBroken)
+			}
+		})
 	}
 }
 

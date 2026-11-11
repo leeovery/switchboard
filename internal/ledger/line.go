@@ -70,11 +70,13 @@ type Line struct {
 	// Status is what the request was answered, 0 where it ended before an
 	// answer came: the router answers a body it can't read whoever is left to
 	// read it, but nothing else once the request has ended. Canceled is set
-	// where its client went away before its end, and CutOff where the router
-	// cut it off as it stopped, never both.
+	// where its client went away before its end, CutOff where the router cut
+	// it off as it stopped, and Broken where the upstream broke its answer off
+	// after it began: one at most, whichever came first.
 	Status   int  `json:"status"`
 	Canceled bool `json:"canceled,omitzero"`
 	CutOff   bool `json:"cut_off,omitzero"`
+	Broken   bool `json:"broken,omitzero"`
 	// Attempts is how many times the request went upstream, 0 where the
 	// router answered it itself.
 	Attempts int `json:"attempts"`

@@ -204,6 +204,30 @@
       "cn": true,
       "at": 3,
       "tm": 9000
+    },
+    {
+      "r": "o3",
+      "a": {
+        "s": 1791457800
+      },
+      "e": {
+        "s": 1791457805
+      },
+      "m": "claude-sonnet-5-5",
+      "ac": "work",
+      "rs": "sticky",
+      "c": "main",
+      "u": true,
+      "sp": {
+        "n": true
+      },
+      "s": "o",
+      "cs": "o",
+      "sc": 200,
+      "bo": true,
+      "at": 1,
+      "fm": 600,
+      "tm": 5000
     }
   ],
   "meta": {
@@ -212,24 +236,24 @@
       "n": 123456789
     },
     "l": {
-      "s": 1791457500
+      "s": 1791457800
     },
-    "rq": 3,
+    "rq": 4,
     "ck": 1,
     "cn": 1,
     "x": 2,
     "m": {
       "claude-haiku-4-5": 1,
       "claude-opus-5-5": 2,
-      "claude-sonnet-5-5": 1,
+      "claude-sonnet-5-5": 2,
       "claude-unknown-1": 1
     },
     "a": {
       "side": 3,
-      "work": 2
+      "work": 3
     },
     "s": {
-      "o": 2,
+      "o": 3,
       "s": 2
     }
   }

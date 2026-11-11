@@ -48,10 +48,11 @@ type RequestRow struct {
 	Stage RowStage
 	// Status is what it was answered, as its line gives it, 0 where it ended
 	// before an answer came; or, ended before its line came, as the stream
-	// told. Canceled is set where its client went away before its end, and
-	// CutOff where the router cut it off as it stopped, as its line says.
-	Status           int
-	Canceled, CutOff bool
+	// told. Canceled is set where its client went away before its end,
+	// CutOff where the router cut it off as it stopped, and Broken where the
+	// upstream broke its answer off after it began, as its line says.
+	Status                   int
+	Canceled, CutOff, Broken bool
 	// Failed is set where it failed: as ledger.Line.Failed says, or, ended
 	// before its line came, as ledger.Failing says of the status told; and
 	// where it was lost.
@@ -349,9 +350,9 @@ func lineFacts(r *rowRecord, n interning) RequestRow {
 	c := r.choice()
 	row := RequestRow{
 		Request: r.request, At: r.arrived(), Kind: r.kind, Session: n.of(r.session), Dir: n.of(r.dir), CountedSession: n.of(c.session),
-		Model: n.of(c.model), Account: n.of(c.account), Status: r.status, Canceled: r.canceled, CutOff: r.cutOff, Failed: c.failed,
-		Took: millis(r.totalMS), Stop: n.of(r.stop), Attempts: r.attempts, Size: r.size, Messages: r.messages, Tools: r.toolDefs,
-		Thinking: r.thinking, Agent: n.of(r.agent),
+		Model: n.of(c.model), Account: n.of(c.account), Status: r.status, Canceled: r.canceled, CutOff: r.cutOff, Broken: r.broken,
+		Failed: c.failed, Took: millis(r.totalMS), Stop: n.of(r.stop), Attempts: r.attempts, Size: r.size, Messages: r.messages,
+		Tools: r.toolDefs, Thinking: r.thinking, Agent: n.of(r.agent),
 	}
 	if r.firstMS != nil {
 		row.First = millis(*r.firstMS)
