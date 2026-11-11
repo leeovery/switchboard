@@ -911,8 +911,7 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   as it is, and what it leads to, with a warning, the date unknown and the token working as before:
   a link leading nowhere, or to another account's token file, a file that isn't a record, one
   another user's or others can write, or what isn't a file. A token switchboard keeps rather than
-  takes, as `accounts add` keeps a usable one, keeps whatever record it has, as one restored with
-  it. Writing a token, and reading and rewriting its record, and removing an account's, hold a lock
+  takes, as one restored with it, keeps whatever record it has. Writing a token, and reading and rewriting its record, and removing an account's, hold a lock
   on the tokens directory, so two writes at once both keep their dates, and a write beside a removal
   can't leave a removed account's record; a write changes nothing of a record where nothing would
   change. At its own path, not a link, a record that's missing, or was read and can't be gone by, is
