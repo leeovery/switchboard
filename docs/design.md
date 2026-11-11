@@ -569,9 +569,9 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~
   Commands name a pool by its id, as they name an account by its, and `default` names the default
   pool wherever a pool is named. The accounts record keeps every pool this Mac has had, with its
   label once it's removed, as it keeps every account, so History names a removed pool. An account
-  naming a pool that isn't configured is an invalid config, saying which. A pool known as an account
-  is, rather than by a name the user types, follows account identity, proposed on 11 November 2026
-  for the owner to confirm.
+  naming a pool that isn't configured is an invalid config, saying which. A pool is known as an
+  account is, rather than by a name the user types, so a pool can be relabelled and its history
+  holds (the owner's call, 11 November 2026).
 
 ### The primary, a pool each
 
@@ -704,8 +704,12 @@ pool's demand with it, and the day rate learns its new pool's within a day.
   recorded at the time of the request, because an account's pool can change and the config keeps no
   history of it.
 - **Day summaries** split each account's day by pool as well as by model, as an account can move
-  partway through a day. That's a new summary version, so the days whose lines are still kept are
-  summarised again, once.
+  partway through a day. That's a new summary version, and every summary on disk moves to it once,
+  so the history holds one form, as Account identity's move holds it (the owner's choice, 10
+  November 2026): a day whose lines are still kept is summarised again from them, and an older one
+  is rewritten as it stands, every account's day in it the default pool's, as every day before
+  pools was. A request line needs no move: one in the default pool carries no `pool`, so every line
+  from before pools already reads as it would be written now.
 - **Readings** stay per account: an account's windows are its own, whatever pool it's in.
 - **Events:** pin events name their pool.
 - **Export and import** copy the files as they are, so they need nothing new.
