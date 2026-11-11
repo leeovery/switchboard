@@ -46,6 +46,9 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 		// spoil, where it's set, is the token file spoilt, emptied.
 		spoil     string
 		wantAsked int
+		// wantTaken are the ids the tokens of accounts take, by the
+		// accounts' old ids, as their organizations spell them.
+		wantTaken map[string]string
 	}{
 		{name: "every configured account with its token, the stray never asked about", configure: fixtureConfig, orgs: answering},
 		{name: "a configured account without one, the API silent for the stray", configure: fixtureConfig + "\n[[account]]\nid = \"side-1\"\n", orgs: silentForTheStray, wantAsked: 1},
@@ -56,7 +59,8 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 		{name: "the accounts another Mac moved, each joined by a token file the API answered for, the API silent for the stray", configure: movedConfig, orgs: silentForTheStray, wantAsked: 1},
 		// Work's token takes the id the config names it by too, as its
 		// organization spells it.
-		{name: "an account configured by the id another Mac moved it onto too, its token here answered for, the API silent for the stray", configure: fixtureConfig + "\n[[account]]\nid = \"" + workID + "\"\n", orgs: silentForTheStray, wantAsked: 1},
+		{name: "an account configured by the id another Mac moved it onto too, its token here answered for, the API silent for the stray", configure: fixtureConfig + "\n[[account]]\nid = \"" + workID + "\"\n", orgs: silentForTheStray, wantAsked: 1,
+			wantTaken: map[string]string{work: workID}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
@@ -79,6 +83,11 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 			}
 			if e, ok := f.record(t).ByWas(personal); !ok || e.ID != personalID {
 				t.Errorf("personal moved onto %+v, want %s", e, personalID)
+			}
+			for was, id := range tc.wantTaken {
+				if e, ok := f.record(t).ByWas(was); !ok || e.ID != id || e.Organization == "" {
+					t.Errorf("%s moved onto %+v, want %s, which its token's organization spells", was, e, id)
+				}
 			}
 		})
 	}
@@ -324,6 +333,33 @@ func TestAnAccountTakesTheLongestIDItsOrganizationSpellsOfThoseAnotherMacMoved(t
 	}
 }
 
+// A second Mac upgrading with the config another Mac moved, which names two
+// accounts whose organizations' ids clash, its token files still by their
+// old ids: each token file joins the longest id its organization spells, so
+// neither joins the other's, though the later's file is the first asked.
+func TestATokenFileJoinsTheLongestIDItsOrganizationSpellsOfThoseAnotherMacMoved(t *testing.T) {
+	const tokenA, tokenB = "test-token-alpha", "test-token-beta"
+	f := newFixture(t)
+	writeFile(t, f.config, movedConfig+"\n[[account]]\nid = \""+clashingID+"\"\n\n[[account]]\nid = \""+clashingLaterID+"\"\n")
+	f.token(t, "alpha", tokenA)
+	f.token(t, "beta", tokenB)
+	o := answering()
+	o.of[tokenA], o.of[tokenB] = clashingLater, clashing
+	f.runBounded(t, o)
+
+	record := f.record(t)
+	for was, want := range map[string]identity.Entry{
+		"alpha":  {ID: clashingLaterID, Organization: clashingLater},
+		"beta":   {ID: clashingID, Organization: clashing},
+		work:     {ID: workID, Organization: workOrganization},
+		personal: {ID: personalID, Organization: personalOrganization},
+	} {
+		if e, ok := record.ByWas(was); !ok || e.ID != want.ID || e.Organization != want.Organization {
+			t.Errorf("%s's token file joined %+v, want %s, its organization's, as the other Mac moved it", was, e, want.ID)
+		}
+	}
+}
+
 func TestTheMoveAsksTheAPIAgainAfterWaitsThatDoubleToHalfItsLasts(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -333,6 +369,8 @@ func TestTheMoveAsksTheAPIAgainAfterWaitsThatDoubleToHalfItsLasts(t *testing.T) 
 		{name: "as it comes", want: []time.Duration{30 * time.Second, time.Minute, 2 * time.Minute, 4 * time.Minute, 5 * time.Minute, 5 * time.Minute}},
 		{name: "a shorter Lasts", mover: idmove.Mover{Retry: time.Second, Lasts: 10 * time.Second}, want: []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 5 * time.Second, 5 * time.Second}},
 		{name: "a first wait past half Lasts", mover: idmove.Mover{Retry: time.Minute, Lasts: time.Minute}, want: []time.Duration{30 * time.Second, 30 * time.Second}},
+		{name: "a Lasts too short to halve", mover: idmove.Mover{Lasts: time.Nanosecond}, want: []time.Duration{time.Millisecond, time.Millisecond}},
+		{name: "a Retry below none", mover: idmove.Mover{Retry: -time.Second}, want: []time.Duration{time.Millisecond, 2 * time.Millisecond}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var waits []time.Duration
