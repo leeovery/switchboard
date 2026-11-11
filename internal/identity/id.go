@@ -35,9 +35,16 @@ func (r Record) Derive(organization string, configured []string) string {
 	if e, ok := r.ByOrganization(organization); ok {
 		return e.ID
 	}
+	return spellUntil(organization, func(id string) bool { return !r.clashes(id, configured) })
+}
+
+// spellUntil returns the first of the ids spelled from the organization's
+// SHA-256, from idLength characters long, each a character longer than the
+// one before, that stop reports true of.
+func spellUntil(organization string, stop func(id string) bool) string {
 	sum := sha256.Sum256([]byte(organization))
 	for length := idLength; ; length++ {
-		if id := spell(sum[:], length); !r.clashes(id, configured) {
+		if id := spell(sum[:], length); stop(id) {
 			return id
 		}
 	}

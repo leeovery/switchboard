@@ -1,7 +1,6 @@
 package identity_test
 
 import (
-	"maps"
 	"slices"
 	"testing"
 
@@ -13,9 +12,7 @@ import (
 // organization isn't known that it may be; a removed account coming back,
 // under its id; one configured already, refused, named; or, where none was
 // named, the user's to say. The config says which accounts are configured,
-// whatever the record has removed, and what the record lacks of them; where
-// it can't be told whether a configured account is the token's, it's taken
-// to be.
+// whatever the record has removed.
 func TestAddingDecidesByTheOrganization(t *testing.T) {
 	record := identity.Record{Accounts: []identity.Entry{
 		{ID: "k3f9", Organization: "test-org-configured", Added: added},
@@ -35,117 +32,164 @@ func TestAddingDecidesByTheOrganization(t *testing.T) {
 		name         string
 		configured   map[string]string
 		organization string
-		want         identity.Outcome
-		wantID       string
-		// wantEntry is the id of the record's account given: "" for none.
-		wantEntry      string
-		wantCandidates []string
+		want         want
 	}{
-		{name: "no organization named", configured: configured, want: identity.OrganizationUnknown},
+		{name: "no organization named", configured: configured, want: want{outcome: identity.OrganizationUnknown}},
 		{
-			name:           "one the record hasn't",
-			configured:     configured,
-			organization:   "test-org-work",
-			want:           identity.NewAccount,
-			wantID:         "b6s7",
-			wantCandidates: unknown,
-		},
-		{
-			name:           "one the record hasn't, deriving an id another account has",
-			configured:     configured,
-			organization:   "00000000-0000-4000-8000-000000000001",
-			want:           identity.NewAccount,
-			wantID:         "pd2uh",
-			wantCandidates: unknown,
-		},
-		{
-			name:           "one the record hasn't, deriving an id a configured account of another organization has",
-			configured:     with(configured, "b6s7", "test-org-other"),
-			organization:   "test-org-work",
-			want:           identity.NewAccount,
-			wantID:         "b6s7e",
-			wantCandidates: unknown,
-		},
-		{
-			name:         "one the record hasn't, deriving the id of a configured account whose organization isn't known",
-			configured:   with(configured, "b6s7", ""),
+			name:         "one the record hasn't",
+			configured:   configured,
 			organization: "test-org-work",
-			want:         identity.Configured,
-			wantID:       "b6s7",
+			want:         want{outcome: identity.NewAccount, id: "b6s7", candidates: unknown},
 		},
 		{
-			name:         "the record empty, deriving the id of a configured account whose organization isn't known",
-			configured:   map[string]string{"b6s7": ""},
-			organization: "test-org-work",
-			want:         identity.Configured,
-			wantID:       "b6s7",
+			name:         "one the record hasn't, deriving an id another account has",
+			configured:   configured,
+			organization: "00000000-0000-4000-8000-000000000001",
+			want:         want{outcome: identity.NewAccount, id: "pd2uh", candidates: unknown},
 		},
 		{
 			name:         "a configured account's, as the config knows, the record not having it",
-			configured:   with(configured, "z1y2", "test-org-work"),
+			configured:   map[string]string{"k3f9": "", "z1y2": "test-org-work"},
 			organization: "test-org-work",
-			want:         identity.Configured,
-			wantID:       "z1y2",
+			want:         want{outcome: identity.Configured, id: "z1y2"},
 		},
 		{
 			name:         "a configured account's, as the config knows, the record having it under the account's id",
 			configured:   configured,
 			organization: "test-org-team",
-			want:         identity.Configured,
-			wantID:       "pd2u",
-			wantEntry:    "pd2u",
-		},
-		{name: "a removed account's", configured: configured, organization: "test-org-removed", want: identity.Returning, wantID: "m2x7", wantEntry: "m2x7"},
-		{
-			name:         "one the config no longer has, the record not having it removed",
-			configured:   configured,
-			organization: "test-org-unconfigured",
-			want:         identity.Returning,
-			wantID:       "r4n8",
-			wantEntry:    "r4n8",
+			want:         want{outcome: identity.Configured, id: "pd2u", entry: "pd2u"},
 		},
 		{
 			name:         "a configured account's, as the record knows",
 			configured:   configured,
 			organization: "test-org-configured",
-			want:         identity.Configured,
-			wantID:       "k3f9",
-			wantEntry:    "k3f9",
+			want:         want{outcome: identity.Configured, id: "k3f9", entry: "k3f9"},
+		},
+		{
+			name:         "a configured account's, as the record knows, the config saying another's",
+			configured:   map[string]string{"k3f9": "test-org-other"},
+			organization: "test-org-configured",
+			want:         want{outcome: identity.Configured, id: "k3f9", entry: "k3f9"},
 		},
 		{
 			name:         "a configured account's, as the record knows, configured in another case",
 			configured:   map[string]string{"K3F9": ""},
 			organization: "test-org-configured",
-			want:         identity.Configured,
-			wantID:       "k3f9",
-			wantEntry:    "k3f9",
+			want:         want{outcome: identity.Configured, id: "K3F9", entry: "k3f9"},
 		},
 		{
 			name:         "one the config has again, the record having it removed",
 			configured:   configured,
 			organization: "test-org-readded",
-			want:         identity.Configured,
-			wantID:       "w5t1",
-			wantEntry:    "w5t1",
+			want:         want{outcome: identity.Configured, id: "w5t1", entry: "w5t1"},
+		},
+		{
+			name:         "a removed account's",
+			configured:   configured,
+			organization: "test-org-removed",
+			want:         want{outcome: identity.Returning, id: "m2x7", entry: "m2x7"},
+		},
+		{
+			name:         "one the config no longer has, the record not having it removed",
+			configured:   configured,
+			organization: "test-org-unconfigured",
+			want:         want{outcome: identity.Returning, id: "r4n8", entry: "r4n8"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := record.Adding(tt.configured, tt.organization)
-			if got.Outcome != tt.want || got.ID != tt.wantID || got.Entry.ID != tt.wantEntry {
-				t.Errorf("Adding(%q) = outcome %d, id %q, account %q; want outcome %d, id %q, account %q",
-					tt.organization, got.Outcome, got.ID, got.Entry.ID, tt.want, tt.wantID, tt.wantEntry)
-			}
-			if candidates := ids(got.Candidates); !slices.Equal(candidates, tt.wantCandidates) {
-				t.Errorf("Adding(%q) gives the candidates %q, want %q", tt.organization, candidates, tt.wantCandidates)
-			}
+			tt.want.check(t, record.Adding(tt.configured, tt.organization))
 		})
 	}
 }
 
-// with is configured with the account of the given id, of organization.
-func with(configured map[string]string, id, organization string) map[string]string {
-	more := maps.Clone(configured)
-	more[id] = organization
-	return more
+// A configured account whose organization neither the config nor the record
+// knows, that has the id the token's organization would derive were it not
+// there, may well be the token's, as ids are derived: it's taken to be,
+// refused, named, failing safe; an account at that id whose organization is
+// known to be another's isn't, and the id derived is lengthened past it. One
+// known to be the token's is named before it.
+func TestAddingTakesAConfiguredAccountThatMayBeTheTokensToBe(t *testing.T) {
+	tests := []struct {
+		name       string
+		record     []identity.Entry
+		configured map[string]string
+		want       want
+	}{
+		{
+			name:       "the record empty",
+			configured: map[string]string{"b6s7": ""},
+			want:       want{outcome: identity.Configured, id: "b6s7"},
+		},
+		{
+			name:       "the record having it, its organization not known",
+			record:     []identity.Entry{{ID: "b6s7", Added: added}},
+			configured: map[string]string{"b6s7": ""},
+			want:       want{outcome: identity.Configured, id: "b6s7", entry: "b6s7"},
+		},
+		{
+			name:       "at the id lengthened past another organization's, the record having both",
+			record:     []identity.Entry{{ID: "b6s7", Organization: "test-org-other", Added: added}, {ID: "b6s7e", Added: added}},
+			configured: map[string]string{"b6s7": "test-org-other", "b6s7e": ""},
+			want:       want{outcome: identity.Configured, id: "b6s7e", entry: "b6s7e"},
+		},
+		{
+			name:       "at the id lengthened past another organization's, as the config knows it",
+			configured: map[string]string{"b6s7": "test-org-other", "b6s7e": ""},
+			want:       want{outcome: identity.Configured, id: "b6s7e"},
+		},
+		{
+			name:       "one known to be the token's beside it, named first",
+			configured: map[string]string{"b6s7": "", "z1y2": "test-org-work"},
+			want:       want{outcome: identity.Configured, id: "z1y2"},
+		},
+		{
+			name:       "at the id, of another organization, as the config knows",
+			configured: map[string]string{"b6s7": "test-org-other"},
+			want:       want{outcome: identity.NewAccount, id: "b6s7e"},
+		},
+		{
+			name:       "at the id, of another organization, as the record knows",
+			record:     []identity.Entry{{ID: "b6s7", Organization: "test-org-other", Added: added}},
+			configured: map[string]string{"b6s7": ""},
+			want:       want{outcome: identity.NewAccount, id: "b6s7e"},
+		},
+		{
+			name:       "none at the id, one whose organization isn't known elsewhere",
+			record:     []identity.Entry{{ID: "k3f9", Added: added}},
+			configured: map[string]string{"k3f9": ""},
+			want:       want{outcome: identity.NewAccount, id: "b6s7"},
+		},
+		{
+			name:       "a removed account at the id, its organization not known, offered",
+			record:     []identity.Entry{{ID: "b6s7", Label: "side", Added: added, Removed: removed}},
+			configured: map[string]string{},
+			want:       want{outcome: identity.NewAccount, id: "b6s7e", candidates: []string{"b6s7"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.want.check(t, identity.Record{Accounts: tt.record}.Adding(tt.configured, "test-org-work"))
+		})
+	}
+}
+
+// want is what adding an account is to come to: its outcome, its id, the id
+// of the record's account given, "" for none, and the ids of the candidates.
+type want struct {
+	outcome    identity.Outcome
+	id, entry  string
+	candidates []string
+}
+
+// check fails the test unless got is what's wanted.
+func (w want) check(t *testing.T, got identity.Adding) {
+	t.Helper()
+	if got.Outcome != w.outcome || got.ID != w.id || got.Entry.ID != w.entry {
+		t.Errorf("Adding() = outcome %d, id %q, account %q; want outcome %d, id %q, account %q",
+			got.Outcome, got.ID, got.Entry.ID, w.outcome, w.id, w.entry)
+	}
+	if candidates := ids(got.Candidates); !slices.Equal(candidates, w.candidates) {
+		t.Errorf("Adding() gives the candidates %q, want %q", candidates, w.candidates)
+	}
 }

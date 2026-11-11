@@ -180,18 +180,16 @@ func (r Record) check() error {
 }
 
 // check fails, saying why, where the account is none switchboard keeps:
-// without an id switchboard makes, or a time it was added; or removed before
-// it was added, or without a label.
+// without an id switchboard makes, or a time it was added, or removed without
+// a label. One removed before it was added is kept, as by a clock set ahead
+// as it was added and put right before it was removed.
 func (e Entry) check() error {
-	removed := !e.Removed.IsZero()
 	switch {
 	case !wellFormed(e.ID):
 		return errors.New("has no id switchboard makes")
 	case e.Added.IsZero():
 		return errors.New("has no time it was added")
-	case removed && e.Removed.Before(e.Added):
-		return errors.New("was removed before it was added")
-	case removed && e.Label == "":
+	case !e.Removed.IsZero() && e.Label == "":
 		return errors.New("was removed without a label")
 	}
 	return nil

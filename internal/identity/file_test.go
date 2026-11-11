@@ -106,6 +106,21 @@ func TestAnEmptyRecordIsWrittenHoldingNone(t *testing.T) {
 	}
 }
 
+// An account removed before it was added, by the times kept, as by a clock
+// set ahead as it was added and put right before it was removed, is written
+// and read back as any other.
+func TestAnAccountRemovedBeforeItWasAddedIsKept(t *testing.T) {
+	f := identity.NewFile(t.TempDir())
+	account := identity.Entry{ID: "m2x7", Label: "side", Added: removed, Removed: added}
+	if err := f.Update(func(r *identity.Record) error { r.Accounts = []identity.Entry{account}; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.Read()
+	if err != nil || !slices.EqualFunc(got.Accounts, []identity.Entry{account}, same) {
+		t.Errorf("Read() = %+v, %v; want %+v", got.Accounts, err, account)
+	}
+}
+
 // Without its file, the record is empty, and reading it makes none.
 func TestARecordWithoutItsFileIsEmpty(t *testing.T) {
 	f := identity.NewFile(t.TempDir())
@@ -166,10 +181,6 @@ func TestADamagedRecordIsAnErrorAndLeftAsItWas(t *testing.T) {
 			name: "an account's id another had before, in another case",
 			data: `{"version": 1, "accounts": [{"id": "qgr2", "was": "WORK", "added": "2026-09-01T12:00:00Z"},
 				{"id": "work", "added": "2026-09-01T12:00:00Z"}]}`,
-		},
-		{
-			name: "an account removed before it was added",
-			data: `{"version": 1, "accounts": [{"id": "m2x7", "label": "side", "added": "2026-10-20T07:45:00Z", "removed": "2026-09-01T12:00:00Z"}]}`,
 		},
 		{
 			name: "an account removed without a label",
