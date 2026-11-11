@@ -43,19 +43,23 @@ func (f formerToken) equal(g formerToken) bool {
 // savedTokens is what the state file keeps of an account's tokens, never a
 // token itself: the SHA-256 hash of the one the router held last, which tells
 // the router as it next starts whether the token was replaced while it was
-// away, and the account's former tokens.
+// away; the hash of that one again, as Foreign, where a probe found it
+// another subscription's, so nothing goes out on it as the router next
+// starts, before any probe, as a file from before kept none; and the
+// account's former tokens.
 type savedTokens struct {
-	SHA256 string        `json:"sha256,omitempty"`
-	Former []formerToken `json:"former,omitempty"`
+	SHA256  string        `json:"sha256,omitempty"`
+	Foreign string        `json:"foreign,omitempty"`
+	Former  []formerToken `json:"former,omitempty"`
 }
 
 func (s savedTokens) equal(t savedTokens) bool {
-	return s.SHA256 == t.SHA256 && slices.EqualFunc(s.Former, t.Former, formerToken.equal)
+	return s.SHA256 == t.SHA256 && s.Foreign == t.Foreign && slices.EqualFunc(s.Former, t.Former, formerToken.equal)
 }
 
 // empty reports whether there's nothing to keep.
 func (s savedTokens) empty() bool {
-	return s.SHA256 == "" && len(s.Former) == 0
+	return s.SHA256 == "" && s.Foreign == "" && len(s.Former) == 0
 }
 
 // hash returns the SHA-256 hash of token, in hex: all the router keeps of a
@@ -196,26 +200,29 @@ func (s *secret) kept() savedTokens {
 	if s.retired {
 		return savedTokens{}
 	}
-	return savedTokens{SHA256: s.held, Former: slices.Clone(s.former)}
+	return savedTokens{SHA256: s.held, Foreign: s.foreignHeld(), Former: slices.Clone(s.former)}
 }
 
 // recall takes in what the state file kept of the account's tokens, as the
-// router starts at now: its former tokens that still count, and the token the
+// router starts at now: its former tokens that still count; the token the
 // router held last, as replaced now, when the account's file has held another
-// since. It reports whether that happened. Of an account without a usable
-// token now, it can't tell: the token the account comes to have is compared
-// with that one instead, as it's taken up.
+// since; and the token a probe found another subscription's, where the
+// account holds it still. It reports whether the token was replaced. Of an
+// account without a usable token now, it can't tell: the token the account
+// comes to have is compared with that one instead, as it's taken up.
 func (s *secret) recall(saved savedTokens, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.former = slices.DeleteFunc(slices.Clone(saved.Former), func(f formerToken) bool { return !f.counts(now) })
-	if s.held == "" {
+	replaced := s.held != "" && saved.SHA256 != "" && saved.SHA256 != s.held
+	switch {
+	case s.held == "":
 		s.held = saved.SHA256
-		return false
-	}
-	replaced := saved.SHA256 != "" && saved.SHA256 != s.held
-	if replaced {
+	case replaced:
 		s.former = append(s.former, formerToken{SHA256: saved.SHA256, ReplacedAt: now.UTC()})
+	}
+	if saved.Foreign == s.held {
+		s.foreign = saved.Foreign
 	}
 	return replaced
 }

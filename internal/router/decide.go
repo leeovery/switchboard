@@ -304,10 +304,12 @@ func (s situation) unable(id string) string {
 // noRoom is where a request goes when no account has room for it, for the
 // upstream to refuse it there, saying why: the session's account, else the
 // client's, else any other the view falls back to. With every one refused,
-// it's the client's. With none left but those held back by their reserve
-// alone, it's none, and switchboard answers for the upstream: the router never
-// spends a reserve. A request tried already goes nowhere else: the upstream
-// has said why on the accounts it was tried on.
+// or none the request can go out on, it's the client's, even one whose token
+// is another subscription's, which the proxy answers for, sending nothing.
+// With none left but those held back by their reserve alone, it's none, and
+// switchboard answers for the upstream: the router never spends a reserve. A
+// request tried already goes nowhere else: the upstream has said why on the
+// accounts it was tried on.
 func (s situation) noRoom() decision {
 	d := decision{reason: reasonNoRoom, afresh: true, noRoom: true}
 	if len(s.req.Tried) > 0 {

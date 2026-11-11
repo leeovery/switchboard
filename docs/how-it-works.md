@@ -256,6 +256,7 @@ The router keeps these in `state.json`, so a restart doesn't scatter sessions or
 - Each session's account.
 - The pins.
 - Each account's last readings.
+- Each token found to be another subscription's, so its account still takes no requests on it.
 - How long use stays on its account, which the [weeks' forecast](#where-a-week-runs-out) goes by.
 
 ### A readings history

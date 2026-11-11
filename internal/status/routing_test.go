@@ -49,7 +49,7 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 			}),
 			want: status.Routing{
 				Kind: status.RoutingTokenless, Says: "its token is another subscription's",
-				Clauses: []string{"switchboard accounts token work", "or add that subscription as an account of its own"}, Short: []string{"not its token"},
+				Clauses: []string{"switchboard accounts token work", "or add that subscription as an account of its own"}, Short: []string{"wrong token"},
 			},
 		},
 		{

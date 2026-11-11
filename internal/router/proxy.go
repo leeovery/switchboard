@@ -215,7 +215,12 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		p.reserved(w, ex, choice)
 		return
 	}
-	ex.account, ex.reason = p.chosen(ex, choice, client)
+	a, reason, ok := p.chosen(ex, choice, client)
+	if !ok {
+		p.unsendable(w, ex, choice, client)
+		return
+	}
+	ex.account, ex.reason = a, reason
 	p.moved(ex, choice.From)
 	p.forward(w, withBody(r, body), ex)
 }
@@ -335,13 +340,35 @@ func (p *ignoredPins) honoured(account string) {
 
 // chosen returns the account a request goes out on first, as the chooser
 // chose it, and why. Should it name one the router can't send on, the request
-// keeps to its client's.
-func (p *proxy) chosen(ex *exchange, choice Choice, client account) (account, string) {
+// keeps to its client's, where the router can send on that. It reports false
+// where it can't either, as where the chooser, finding no other, fell back on
+// a client whose token is another subscription's.
+func (p *proxy) chosen(ex *exchange, choice Choice, client account) (account, string, bool) {
 	if a, ok := p.accounts.byID(choice.Account); ok && a.hasToken() {
-		return a, choice.Reason
+		return a, choice.Reason, true
+	}
+	if !client.hasToken() {
+		return account{}, "", false
 	}
 	logger.Error("chooser picked an account it can't send on; keeping the client's", "id", ex.id, "picked", choice.Account)
-	return client, status.ReasonClient
+	return client, status.ReasonClient, true
+}
+
+// unsendable answers a request that can go out on no account, not even its
+// client's, as the chooser chose for it: a 503, shaped as the API shapes its
+// errors, saying why the client's account can't take it, and telling the
+// client not to retry, as nothing changes till the account has a token of its
+// own. Nothing goes out, so nothing goes out on a token another
+// subscription's.
+func (p *proxy) unsendable(w http.ResponseWriter, ex *exchange, choice Choice, client account) {
+	ex.reason, ex.status = choice.Reason, http.StatusServiceUnavailable
+	logger.Warn("no account can take the request, not even the client's; answering 503", "id", ex.id, "account", client.ID)
+	message := "switchboard: no account can take the request"
+	if problem := client.problem(); problem != "" {
+		message += "; account " + client.ID + ": " + problem
+	}
+	w.Header().Set("X-Should-Retry", "false")
+	writeError(w, ex.status, "api_error", message)
 }
 
 // reserved answers a request that no account can take without spending its

@@ -232,12 +232,12 @@ func (latelyTeller) held(e status.Event, f eventFact) (Said, Said) {
 	return heldBack(account(e.Account), e, f, " "+full, false), heldBack(account(e.Account), e, f, " "+short, true)
 }
 
-// disowned tells of an account's token found to be another subscription's:
-// "work's token is another subscription's", or short, "work's token isn't its
-// own".
+// disowned tells of an account's token found to be another subscription's, as
+// prose says it: "work's token is another subscription's", or short, "work:
+// wrong token".
 func (latelyTeller) disowned(e status.Event, _ eventFact) (Said, Said) {
 	who := account(e.Account)
-	return Said{Subject: who, Words: clause("'s token is another subscription's")}, Said{Subject: who, Words: clause("'s token isn't its own")}
+	return Said{Subject: who, Words: clause(prose.ForeignTokenAfterName)}, Said{Subject: who, Words: clause(": " + prose.ForeignTokenShort)}
 }
 
 // befallen tells of a prime or room again befalling an account, its name
@@ -253,12 +253,10 @@ func (latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
 // one, in full and short: "reached its cap" and "at its cap"; "reached its
 // 5-hour limit", in the windows it began with, and "at its limit"; the
 // upstream's answer, as status.RefusalAnswer says it, "refused (401)", or of
-// a model family's alone, "refused (403, opus)"; "its token is another
-// subscription's", as prose.ForeignToken says it, and "not its token";
-// "primed: its 5-hour window started", the windows the prime started, and
-// "primed"; and "open again: its 5-hour window reset", where it names the
-// windows that held it back, and "open again". It's nothing of any other
-// kind.
+// a model family's alone, "refused (403, opus)"; "primed: its 5-hour window
+// started", the windows the prime started, and "primed"; and "open again:
+// its 5-hour window reset", where it names the windows that held it back,
+// and "open again". It's nothing of any other kind.
 func befell(e status.Event, f eventFact) (full, short string) {
 	switch e.Kind {
 	case status.EventCap:
@@ -268,8 +266,6 @@ func befell(e status.Event, f eventFact) (full, short string) {
 	case status.EventRefused:
 		answer := status.RefusalAnswer(e.Status, e.Family)
 		return answer, answer
-	case status.EventForeign:
-		return prose.ForeignToken, "not its token"
 	case status.EventPrimed:
 		return "primed: " + its(f.windows, "its window") + " started", "primed"
 	case status.EventRoom:

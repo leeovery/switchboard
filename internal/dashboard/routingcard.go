@@ -324,15 +324,15 @@ func pickable(a status.AccountNow) bool {
 
 // closedBy says why the account takes no new session as it stands, its times
 // in now's time zone, and whether its own cap closed it rather than
-// Anthropic: no usable token, as its routing says it short, "no token", or
-// "not its token" where it holds another subscription's; a limit holding
+// Anthropic: no usable token, as prose.Tokenless says it, "no token", or
+// "wrong token" where it holds another subscription's; a limit holding
 // back its every request; its token refused; or its cap holding it back from
 // the router's own choices. Of a limit or its cap, it says till it's back, as
 // its Back has it. It's "" where the account is open.
 func closedBy(a status.AccountNow, now time.Time) (reason string, capped bool) {
 	switch {
 	case !a.TokenSet:
-		return a.Routing.Short[0], false
+		return prose.Tokenless(a.TokenForeign), false
 	case limited(a):
 		return till(status.AtLimit, a.Back, now), false
 	case a.TokenRefused:

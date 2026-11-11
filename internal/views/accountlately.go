@@ -109,6 +109,8 @@ func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, 
 		return e.Kind, heldBack(nil, e, f, full, false)
 	case status.EventPin:
 		return e.Kind, s.pinnedHere(e)
+	case status.EventForeign:
+		return e.Kind, Said{Words: clause(prose.ForeignToken)}
 	}
 	full, _ := befell(e, f)
 	return e.Kind, Said{Words: clause(full)}

@@ -71,10 +71,10 @@ type usage struct {
 	tokenless bool
 	// unchecked is set from as the account goes out on another token, or
 	// gains one, or the router starts on another than the state file kept it
-	// holding, until a probe on it ends: its rounds probe it, as onRounds
-	// says, so a token replaced by hand with another subscription's is found
-	// so within a round, however lately the account was read. It's kept in
-	// memory alone.
+	// holding, until a probe on it ends: its rounds probe it however lately
+	// the account was read, as onRounds says, so a token replaced by hand
+	// with another subscription's is found so on its next round where a
+	// probe is harmless. It's kept in memory alone.
 	unchecked bool
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
@@ -913,14 +913,11 @@ func (s *state) rounding(clears func(id string, now time.Time) bool) func(id str
 }
 
 // onRounds reports whether the router's rounds probe the account with the
-// given id at now, as usage's onRounds says, foreign where the token it holds
-// is another subscription's.
+// given id at now, as usage's onRounds says.
 func (s *state) onRounds(id string, now time.Time) (due, ifClear bool) {
-	a, _ := s.accounts.byID(id)
-	_, foreign := a.secret.lacks()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.usage[id].onRounds(s.policy, foreign, now)
+	return s.usage[id].onRounds(s.policy, now)
 }
 
 // onRounds reports, as policy judges the account's windows at now, whether
@@ -931,11 +928,8 @@ func (s *state) onRounds(id string, now time.Time) (due, ifClear bool) {
 // to reset unread, as weekEnding says, is due whatever its other windows
 // read; else the account must have gone unread for unreadFor, or hold a token
 // unchecked, and is due where a probe of it is harmless, as harmless says,
-// and due if clear where it isn't. One whose token is another subscription's,
-// as foreign says, is due whatever its windows read: it takes no request till
-// a probe finds it a token of its own, and a probe on the token it was found
-// on starts none of its windows.
-func (u *usage) onRounds(policy score.Policy, foreign bool, now time.Time) (due, ifClear bool) {
+// and due if clear where it isn't.
+func (u *usage) onRounds(policy score.Policy, now time.Time) (due, ifClear bool) {
 	switch {
 	case u.refused.inForce(now) || now.Sub(u.probed) < retryAfter(u.misses):
 		return false, false
@@ -944,7 +938,7 @@ func (u *usage) onRounds(policy score.Policy, foreign bool, now time.Time) (due,
 	case now.Sub(u.updated) < unreadFor && !u.unchecked:
 		return false, false
 	}
-	harmless := foreign || u.harmless(policy, now)
+	harmless := u.harmless(policy, now)
 	return harmless, !harmless
 }
 

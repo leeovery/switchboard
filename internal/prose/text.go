@@ -50,10 +50,32 @@ func MoveFailed(why string) string {
 	return "the router couldn't make it, and tries again in a minute: " + Clean(why)
 }
 
-// ForeignToken says an account's token is another subscription's, as the
-// router finds it probing the account, which takes no requests till it has
-// one of its own.
-const ForeignToken = "its token is another subscription's"
+// An account's token said to be another subscription's, as the router finds
+// it probing the account, which takes no requests while it holds that token:
+// ForeignToken in full, "its token is another subscription's";
+// ForeignTokenAfterName after the account's name, as in "work's token is
+// another subscription's"; and ForeignTokenShort where a few cells hold it,
+// "wrong token", no wider than the 11 cells Runway's label column keeps for
+// a short word at its narrowest, which never widens for one.
+const (
+	ForeignToken          = "its " + foreignToken
+	ForeignTokenAfterName = "'s " + foreignToken
+	ForeignTokenShort     = "wrong token"
+)
+
+// foreignToken is what ForeignToken and ForeignTokenAfterName say after whose
+// token it is.
+const foreignToken = "token is another subscription's"
+
+// Tokenless says, short, why an account takes no requests for want of a token
+// of its own: "no token", or, where the token it holds is another
+// subscription's, as foreign says, ForeignTokenShort's "wrong token".
+func Tokenless(foreign bool) string {
+	if foreign {
+		return ForeignTokenShort
+	}
+	return "no token"
+}
 
 // AddAsOwn is the other way to put right an account whose token is another
 // subscription's, said after giving it its own: that subscription added as

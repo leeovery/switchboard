@@ -458,6 +458,12 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   request, as the moves its replays made came to nothing, unless another request of the session
   has been routed since, whose account stands; the moves stand told, in the log and any
   notification of them. The client still gets the 502.
+- **A token another subscription's is never sent on:** a request carrying the token of an account
+  the router found holding another subscription's, or one it had before, is routed as that
+  account's, never passed through on it, and goes out on another account. Where none can take it,
+  as every other is without a token or refused it lately, switchboard answers 503, shaped as the
+  API shapes its errors and marked `X-Should-Retry: false`, saying the account's token is another
+  subscription's and what puts it right, and nothing goes out (see Account identity).
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
   be read 400, whoever is left to read it, as a client that closed its side of the connection
@@ -984,7 +990,11 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   the router held last, which it compares with the file's as it starts. It keeps the hashes of every
   configured account, with a usable token or not: of an account without one as the router starts,
   the hash of the token held last is compared with the token the account later gains, and a
-  different one counts as replaced.
+  different one counts as replaced. Where a probe found the token an account holds another
+  subscription's, `state.json` keeps that token's hash too, so the account takes none of the
+  requests after a restart while it holds it, without a probe; nor is that token probed again.
+  The account takes requests again as it takes up another, which its rounds probe (see Account
+  identity).
 - An account removed from the config leaves its tokens, the one the router held last and those it
   had before, to the primary, as former tokens of the primary's: a session started with one, as
   every session holds the primary's, carries on sending it, and stays routed, its client account
@@ -2587,6 +2597,7 @@ last token's line where it has any, with no blank line after it, as a shell's pr
 
   | When | Full | Short | Colour |
   |---|---|---|---|
+  | The token the account holds is another subscription's (see Account identity) | `wrong token` | `wrong token` | `state.destructive` |
   | The account has no usable token (settled in the plan) | `no token` | `no token` | `state.destructive` |
   | Nothing has been read of the account (settled in the plan) | `not read yet` | `not read` | `text.subtle` |
   | Its token is refused, or its last read failed: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
@@ -2953,7 +2964,7 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
   | State | Words | Colour | Short |
   |---|---|---|---|
   | No usable token (settled in the plan) | `✕ no token · switchboard accounts token work` | `state.destructive` | `no token` |
-  | Its token another subscription's (see Account identity) | `✕ its token is another subscription's · switchboard accounts token work · or add that subscription as an account of its own` | `state.destructive` | `not its token` |
+  | Its token another subscription's (see Account identity) | `✕ its token is another subscription's · switchboard accounts token work · or add that subscription as an account of its own` | `state.destructive` | `wrong token` |
   | A limit holds it back from every request | `■ limit reached · back 15:54` | `state.destructive` | `limit reached · 15:54` |
   | A limit holds back some models alone (settled in the plan) | `■ Fable wk limit · back Mon 21:00 · other models still come here` | `accent.attention` | `Fable wk limit` |
   | Its token refused | `■ refused (401) · its token needs renewing` | `state.destructive` | `refused (401)` |
@@ -3094,7 +3105,7 @@ at every width.
   | `╎` in `accent.attention` | `cap` | `work reached its cap: 3 sessions moved to side` |
   | `■` in `state.destructive` | `limit` | `personal reached its 5-hour limit: 2 sessions moved to side` |
   | `■` in `state.destructive` | `refused` | `work refused (401): 2 sessions moved to side` |
-  | `■` in `state.destructive` | `foreign` | `work's token is another subscription's`; short, `work's token isn't its own` |
+  | `■` in `state.destructive` | `foreign` | `work's token is another subscription's`; short, `work: wrong token` |
   | `◇` in `text.subtle` | `primed` | `side primed: its 5-hour window started` |
   | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset` |
   | `●` in `accent.key` | `pin` | `pin set by hand: new sessions go to personal` |
@@ -4706,7 +4717,7 @@ kept for good (settled in the plan; see The request ledger).
   `95%`, bold in its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else
   green. Where there's no use, the words are always `usage`'s short forms, as the column is never
   widened for the full: `read 14:20` where its last read failed, `not read` before its first, and
-  `no token`.
+  `no token`, or `wrong token` where the token it holds is another subscription's.
 - **The axis:** on row 6, `now`, bold `text.primary`, starting a cell left of now's column; on row
   7, the labels; on row 8, the ticks, on a rule of `─` in `border`.
   - **5-hour:** hours ticked `┬` in `border`, on the first of 1, 2, 3, 6, 12 and 24 hours that puts
@@ -6448,7 +6459,7 @@ past the accounts there are does nothing. Past nine accounts, an account is pick
   (see Pinning), so an account at its cap can be picked, and takes new sessions up to its limit.
 - **Red where Anthropic closed it:** a limit holding back its every request, `at its limit till
   15:54`; or its token refused, `token refused (401)`; and red too an account with no usable token,
-  `no token`, which the router refuses a pin to (settled in the plan), or `not its token` where its
+  `no token`, which the router refuses a pin to (settled in the plan), or `wrong token` where its
   token is another subscription's (see Account identity).
 - **An account that can't take a session can't be picked,** in either card: its row stays, with its
   reason and when it's back, in red, but no box or button, and its number does nothing. A session

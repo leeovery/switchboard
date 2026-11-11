@@ -135,7 +135,7 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 		{name: "held at its limit, its cap holding it longer: till it's back", account: limitedCapped, want: RoutingRow{Reason: "at its limit till 15:12"}},
 		{name: "its token refused", account: refused, want: RoutingRow{Reason: "token refused (401)"}},
 		{name: "without a token", account: tokenless, want: RoutingRow{Reason: "no token"}},
-		{name: "its token another subscription's", account: foreign, want: RoutingRow{Reason: "not its token"}},
+		{name: "its token another subscription's", account: foreign, want: RoutingRow{Reason: "wrong token"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

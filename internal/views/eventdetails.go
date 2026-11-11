@@ -210,7 +210,7 @@ func (d detailing) headline() status.Words {
 		}
 		return slices.Concat(who, clause("'s token refused"))
 	case status.EventForeign:
-		return slices.Concat(who, clause("'s token is another subscription's"))
+		return slices.Concat(who, clause(prose.ForeignTokenAfterName))
 	case status.EventPrimed:
 		return slices.Concat(who, clause(" primed"))
 	case status.EventRoom:

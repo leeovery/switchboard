@@ -151,13 +151,13 @@ func (s windowStates) routing(pressure RunOut) Routing {
 // token · switchboard accounts token work"; or, where the token it holds is
 // another subscription's, as its TokenForeign says, "its token is another
 // subscription's · switchboard accounts token work · or add that subscription
-// as an account of its own", "not its token" short.
+// as an account of its own"; short, as prose.Tokenless says it.
 func tokenlessRouting(a Account) Routing {
-	give := prose.AccountsToken(a.ID)
+	give, short := prose.AccountsToken(a.ID), []string{prose.Tokenless(a.TokenForeign)}
 	if a.TokenForeign {
-		return Routing{Kind: RoutingTokenless, Says: prose.ForeignToken, Clauses: []string{give, prose.AddAsOwn}, Short: []string{"not its token"}}
+		return Routing{Kind: RoutingTokenless, Says: prose.ForeignToken, Clauses: []string{give, prose.AddAsOwn}, Short: short}
 	}
-	return Routing{Kind: RoutingTokenless, Says: "no token", Clauses: []string{give}, Short: []string{"no token"}}
+	return Routing{Kind: RoutingTokenless, Says: prose.Tokenless(false), Clauses: []string{give}, Short: short}
 }
 
 // heldRouting is how the account stands, held back at now by a limit or the

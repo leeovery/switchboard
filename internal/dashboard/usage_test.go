@@ -570,6 +570,7 @@ func TestAnAccountWithNothingReadOfAWindowHasItsBarEmptyAndNoMarks(t *testing.T)
 		words  string
 	}{
 		{name: "no usable token", change: func(a *status.Account) { a.TokenSet = false }, group: 0, words: "no token"},
+		{name: "its token another subscription's", change: func(a *status.Account) { a.TokenSet, a.TokenForeign = false, true }, group: 0, words: "wrong token"},
 		{name: "nothing read yet", change: func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }, group: 0, words: "not read yet"},
 		{name: "a window it hasn't reported", change: func(a *status.Account) { a.Windows = a.Windows[:2] }, group: 2, words: "not read yet"},
 	}

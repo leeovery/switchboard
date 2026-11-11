@@ -38,8 +38,11 @@ type probes struct {
 	transport http.RoundTripper
 	state     *state
 	// organizations hold the organization each probe's answer names to its
-	// account's.
+	// account's, and kept hears that what the state file keeps of the
+	// accounts' tokens has changed, as where a probe finds one another
+	// subscription's.
 	organizations organizations
+	kept          func()
 	now           func() time.Time
 	// emit hears of each prime that starts its window, each limit a probe's
 	// reading lifts early, and each account's token a probe finds another
@@ -56,10 +59,10 @@ type probes struct {
 	stopped bool
 }
 
-func newProbes(prober Prober, transport http.RoundTripper, state *state, organizations organizations, now func() time.Time, emit func(Event)) *probes {
+func newProbes(prober Prober, transport http.RoundTripper, state *state, organizations organizations, kept func(), now func() time.Time, emit func(Event)) *probes {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &probes{
-		prober: prober, transport: transport, state: state, organizations: organizations, now: now, emit: emit,
+		prober: prober, transport: transport, state: state, organizations: organizations, kept: kept, now: now, emit: emit,
 		ctx: ctx, cancel: cancel, running: make(map[string]*run),
 	}
 }
@@ -251,7 +254,8 @@ func (p *probes) probe(a account, r *run) {
 	// after the read is marked after sent, and recordProbe judges this probe
 	// one on the token before.
 	started, at, sent := time.Now(), p.now(), p.state.mark()
-	probed, err := p.prober.Probe(p.ctx, a.token().Reveal(), p.transport)
+	token := a.token()
+	probed, err := p.prober.Probe(p.ctx, token.Reveal(), p.transport)
 	took := time.Since(started).Round(time.Millisecond)
 	if p.ctx.Err() != nil {
 		// Stopped mid-probe: its failure says nothing of the account.
@@ -267,31 +271,35 @@ func (p *probes) probe(a account, r *run) {
 		p.emit(lifted)
 	}
 	if !taken.tokenGone {
-		p.owning(a, held, organization)
+		p.owning(a, hash(token.Reveal()), held, organization)
 	}
 	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenGone: taken.tokenGone, warn: taken.warn})
 }
 
-// owning notes whether the token the account holds is its own, as a probe on
-// it found, the organization its answer named held as organizations held it,
-// recording one held new as the account's: another subscription's has the
-// account take no requests, and tells of it, till a probe on a token it holds
-// finds its own. One held to nothing changes nothing.
-func (p *probes) owning(a account, held ownership, organization string) {
+// owning notes whether the token whose hash is sum, which a probe of the
+// account went out on, is its own, the organization the probe's answer named
+// held as organizations held it, recording one held new as the account's,
+// where the account holds that token still, as disown says: another
+// subscription's has the account take no requests while it holds that
+// token, and tells of it, once a finding. One held to nothing changes
+// nothing.
+func (p *probes) owning(a account, sum string, held ownership, organization string) {
 	if held == heldNew {
 		held = p.organizations.take(a.ID, organization)
 	}
-	switch held {
-	case heldForeign:
-		if a.secret.disown(true) {
-			logger.Warn("token is another subscription's; nothing will go out on the account till it has its own", "account", a.ID)
-			p.emit(ForeignToken{Account: a.ID})
-		}
-	case heldOwn, heldNew:
-		if a.secret.disown(false) {
-			logger.Info("token is the account's own again; requests can go out on it", "account", a.ID)
-		}
+	if held == unheld {
+		return
 	}
+	if !a.secret.disown(sum, held == heldForeign) {
+		return
+	}
+	p.kept()
+	if held == heldForeign {
+		logger.Warn("token is another subscription's; nothing will go out on the account till it has its own", "account", a.ID)
+		p.emit(ForeignToken{Account: a.ID})
+		return
+	}
+	logger.Info("token is the account's own again", "account", a.ID)
 }
 
 // logProbe logs how a probe of an account went: one that failed on a token

@@ -217,11 +217,13 @@ type Use struct {
 	Used          float64
 	Read, Highest bool
 	// Tokenless and Unread say why a live one isn't read: no usable token,
-	// or nothing read of it yet. Stale is set where its token is refused or
-	// its last read failed, as the moment has its window stale, ReadAt when
-	// it was last read.
-	Tokenless, Unread, Stale bool
-	ReadAt                   time.Time
+	// or nothing read of it yet. TokenForeign is set where it's tokenless as
+	// the token its account holds is another subscription's, as the moment
+	// has its window. Stale is set where its token is refused or its last
+	// read failed, as the moment has its window stale, ReadAt when it was
+	// last read.
+	Tokenless, TokenForeign, Unread, Stale bool
+	ReadAt                                 time.Time
 }
 
 // Look is Runway's lanes at a look, built from what's given: each column

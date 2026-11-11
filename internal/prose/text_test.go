@@ -32,6 +32,17 @@ func TestAForeignTokenIsSaidWithWhatPutsItRight(t *testing.T) {
 	}
 }
 
+func TestAnAccountWithoutATokenOfItsOwnIsSaidShortByWhy(t *testing.T) {
+	for foreign, want := range map[bool]string{false: "no token", true: "wrong token"} {
+		if got := prose.Tokenless(foreign); got != want {
+			t.Errorf("Tokenless(%v) = %q, want %q", foreign, got, want)
+		}
+	}
+	if got, want := "work"+prose.ForeignTokenAfterName, "work's token is another subscription's"; got != want {
+		t.Errorf("a foreign token said after its account's name reads %q, want %q", got, want)
+	}
+}
+
 func TestList(t *testing.T) {
 	tests := []struct {
 		items []string

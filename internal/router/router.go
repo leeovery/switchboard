@@ -343,7 +343,7 @@ func New(cfg Config) (*Router, error) {
 	transport := newPool()
 	moving := newMoving(cfg.Move)
 	organizations := organizations{record: identity.NewFile(cfg.StateDir), owed: moving.owed}
-	probes := newProbes(cfg.Prober, transport, state, organizations, cfg.Now, emit)
+	probes := newProbes(cfg.Prober, transport, state, organizations, changes.note, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
 	recent.judge = health.look
 	scheduler := &scheduler{
