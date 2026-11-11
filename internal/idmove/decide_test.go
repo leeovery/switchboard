@@ -60,7 +60,6 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 		// Work's id is one switchboard could make, but the history here names
 		// it, so it's no account another Mac moved.
 		{name: "a configured account without one, by an id the history names, the API silent for the stray", configure: fixtureConfig, orgs: silentForTheStray, spoil: work, wantAsked: 1},
-		{name: "the accounts another Mac moved, each joined by a token file the API answered for, the API silent for the stray", configure: movedConfig, orgs: silentForTheStray, wantAsked: 1},
 		// Work's token takes the id the config names it by too, as its
 		// organization spells it.
 		{name: "an account configured by the id another Mac moved it onto too, its token here answered for, the API silent for the stray", configure: fixtureConfig + "\n[[account]]\nid = \"" + workID + "\"\n", orgs: silentForTheStray, wantAsked: 1,

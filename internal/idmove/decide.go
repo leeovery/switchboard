@@ -565,57 +565,34 @@ func (d *deciding) anyTokenless() bool {
 	return len(d.tokenless()) > 0
 }
 
-// mayJoinAStray reports whether a configured account to decide that has no
-// token it can use may be one another Mac moved, as madeElsewhere says, that
-// neither a configured account's token takes nor a token file the API named
-// the organization of joins, as decide has them, the one before the other,
-// as claims has each: so a token file the API didn't answer for may.
-func (d *deciding) mayJoinAStray() bool {
-	free, held := d.unclaimed()
-	joins, _ := d.claims(d.preferred(d.strays(), d.spelling(free)), free, held)
-	return slices.ContainsFunc(free, func(id string) bool {
-		_, joined := joins[id]
-		return d.madeElsewhere(id) && !joined
-	})
-}
-
-// unclaimed are the configured accounts to decide that have no token they
-// can use that no configured account's token takes, as claims has the
-// tokens take them, and the organizations those tokens hold.
-func (d *deciding) unclaimed() ([]string, map[string]bool) {
-	tokenless := d.tokenless()
-	taken, held := d.claims(d.withTokens(), tokenless, nil)
-	return slices.DeleteFunc(tokenless, func(id string) bool {
-		_, ok := taken[id]
-		return ok
-	}), held
-}
-
 // holding is the failure of the first of the strays asked whose answer, as
 // asked has it, is unanswered and may change what's decided, so the move
-// waits on it: nil where none's may. One the history names may become an
-// account's former id, where one may take it, as takes says, or join an
-// account another Mac moved that no configured account's token takes,
-// outranking a token file the API answered for that joins it, as preferred
-// ranks them; any may join one no token file the API answered for joins, as
-// mayJoinAStray says.
+// waits on it: nil where none's may. Where a token file may join an account,
+// as mayJoin says, any may, as which of them outranks which, as preferred
+// ranks them, can't be told without their answers; otherwise, where an
+// account may take one as its former id, as takes says, one the history
+// names may, as only those may be one.
 func (d *deciding) holding(strays []string, asked map[string]answer, takes bool) *Unanswered {
-	if u := unansweredOf(d.inHistory(strays), asked); u != nil && (takes || d.mayOutrank()) {
-		return u
-	}
-	if u := unansweredOf(strays, asked); u != nil && d.mayJoinAStray() {
-		return u
+	switch {
+	case d.mayJoin():
+		return unansweredOf(strays, asked)
+	case takes:
+		return unansweredOf(d.inHistory(strays), asked)
 	}
 	return nil
 }
 
-// mayOutrank reports whether a configured account to decide that has no
-// token it can use, and that no configured account's token takes, may be
-// one another Mac moved, as madeElsewhere says: one a token file may join,
-// whichever token file the API answered for joins it.
-func (d *deciding) mayOutrank() bool {
-	free, _ := d.unclaimed()
-	return slices.ContainsFunc(free, d.madeElsewhere)
+// mayJoin reports whether a token file may join a configured account to
+// decide: one that has no token it can use, that no configured account's
+// token takes, as claims has the tokens take them, and that may be one
+// another Mac moved, as madeElsewhere says.
+func (d *deciding) mayJoin() bool {
+	tokenless := d.tokenless()
+	taken, _ := d.claims(d.withTokens(), tokenless, nil)
+	return slices.ContainsFunc(tokenless, func(id string) bool {
+		_, ok := taken[id]
+		return !ok && d.madeElsewhere(id)
+	})
 }
 
 // inHistory are those of strays, token files of accounts neither configured

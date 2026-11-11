@@ -106,15 +106,19 @@ func TestWhatOnlyFollowsTheConfigIsNoUseOfAnIDAnotherMacMoved(t *testing.T) {
 }
 
 // Where a token file the API didn't answer for may join an account another
-// Mac moved, the move waits for it, whatever only follows the config names.
+// Mac moved, the move waits for it, whatever only follows the config names,
+// and whichever token files the API answered for join them: which outranks
+// which can't be told without its answer.
 func TestTheMoveWaitsForATokenFileThatMayJoinAnAccountAnotherMacMoved(t *testing.T) {
-	const copied = "test-token-copy"
+	const copied, job = "test-token-copy", "test-token-job"
 	for _, tc := range []struct {
 		name      string
 		configure string
 		state     string
 		tokens    map[string]string
-		orgs      func() *organizations
+		// put writes more of the history, where it's set.
+		put  func(t *testing.T, f fixture)
+		orgs func() *organizations
 	}{
 		{name: "the config another Mac moved, the state file naming the primary's new id", configure: movedConfig, state: adopted,
 			orgs: func() *organizations {
@@ -135,6 +139,27 @@ func TestTheMoveWaitsForATokenFileThatMayJoinAnAccountAnotherMacMoved(t *testing
 				o := answering()
 				o.of["test-token-given"] = workOrganization
 				o.silent = map[string]bool{workToken: true}
+				return o
+			}},
+		// Spare, named by nothing, would rank below work, which its label
+		// names, as it would below personal.
+		{name: "the accounts another Mac moved, each joined by a token file the API answered for, the API silent for one nothing names", configure: movedConfig,
+			tokens: map[string]string{"spare": spareToken},
+			orgs: func() *organizations {
+				o := answering()
+				o.silent = map[string]bool{spareToken: true}
+				return o
+			}},
+		// Job, told of before work, would rank below it, as b6s7's label
+		// names work.
+		{name: "the accounts another Mac moved, each joined by a token file the API answered for, the API silent for one the history names", configure: movedConfig,
+			tokens: map[string]string{"job": job},
+			put: func(t *testing.T, f fixture) {
+				appendDay(t, f.requestLines(), yesterday, line(yesterday, "r9", "job", status.ReasonSticky, "", nil))
+			},
+			orgs: func() *organizations {
+				o := answering()
+				o.silent = map[string]bool{job: true}
 				return o
 			}},
 		// Later's token takes the longer id; a copy of it by another name
@@ -158,6 +183,9 @@ func TestTheMoveWaitsForATokenFileThatMayJoinAnAccountAnotherMacMoved(t *testing
 			}
 			for id, token := range tc.tokens {
 				f.token(t, id, token)
+			}
+			if tc.put != nil {
+				tc.put(t, f)
 			}
 			before := f.snapshot(t)
 			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
@@ -260,37 +288,66 @@ func TestATokenFileJoinsNoAccountThisMacUsed(t *testing.T) {
 // primaryAlone is the config another Mac moved, of its primary alone.
 const primaryAlone = "[[account]]\nid = \"" + workID + "\"\nlabel = \"Work\"\nprimary = true\n"
 
-// Where a token file the history names may join an account another Mac
-// moved, the move waits on the API for it, though a copy of it the history
-// names none of answered: the copy would join in its place, and its history
-// go under an account removed. Once it answers, it joins.
-func TestTheMoveWaitsForTheTokenFileTheHistoryNamesThoughACopyAnswered(t *testing.T) {
-	const backup = "test-token-backup"
-	f := newFixture(t)
-	writeFile(t, f.config, movedConfig)
-	f.token(t, "backup", backup)
-	before := f.snapshot(t)
-	o := answering()
-	o.of[backup] = workOrganization
-	o.silent = map[string]bool{workToken: true}
-	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
-	defer cancel()
-	if err := f.mover(o).Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Run() = %v, want it waiting for the API till its context ended", err)
-	}
-	if got := f.snapshot(t); !maps.Equal(got, before) {
-		t.Errorf("waiting on the API, the install changed:\n%s", differences(before, got))
-	}
+// Where a token file the API didn't answer for may join an account another
+// Mac moved in place of one it answered for, as it may outrank it, the move
+// waits on it; once it answers, the one that outranks the other joins: by
+// the history, where the account's label names neither, and by the label,
+// where it names the one the history names none of.
+func TestTheMoveWaitsForASilentTokenFileThatMayOutrankOneThatAnswered(t *testing.T) {
+	for _, tc := range []struct {
+		name, configure string
+		// silent is the token file the API doesn't answer for at first, and
+		// answered the other, each of work's organization, by name, work's
+		// own token file one of them.
+		silent, answered string
+		// wantJoins is the one that joins b6s7, wantRemoved, where it's set,
+		// the other, removed as the history names it, and wantPassed, where
+		// it's set, the other, passed over as nothing names it.
+		wantJoins, wantRemoved, wantPassed string
+	}{
+		{name: "the history naming the silent one, the label naming neither", configure: strings.Replace(movedConfig, `"Work"`, `"Main"`, 1),
+			silent: work, answered: "backup", wantJoins: work, wantPassed: "backup"},
+		{name: "the label naming the silent one, the history the other", configure: strings.Replace(movedConfig, `"Work"`, `"Job"`, 1),
+			silent: "job", answered: work, wantJoins: "job", wantRemoved: work},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			writeFile(t, f.config, tc.configure)
+			tokenOf := func(name string) string {
+				if name == work {
+					return workToken
+				}
+				return "test-token-" + name
+			}
+			for _, name := range []string{tc.silent, tc.answered} {
+				f.token(t, name, tokenOf(name))
+			}
+			before := f.snapshot(t)
+			o := answering()
+			o.of[tokenOf(tc.silent)], o.of[tokenOf(tc.answered)] = workOrganization, workOrganization
+			o.silent = map[string]bool{tokenOf(tc.silent): true}
+			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+			defer cancel()
+			if err := f.mover(o).Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("Run() = %v, want it waiting for the API till its context ended", err)
+			}
+			if got := f.snapshot(t); !maps.Equal(got, before) {
+				t.Errorf("waiting on the API, the install changed:\n%s", differences(before, got))
+			}
 
-	o = answering()
-	o.of[backup] = workOrganization
-	f.runBounded(t, o)
-	record := f.record(t)
-	if e, ok := record.ByWas(work); !ok || e.ID != workID {
-		t.Errorf("work's token file went into the record as %+v, want it joining %s", e, workID)
-	}
-	if e, ok := record.ByWas("backup"); ok {
-		t.Errorf("the copy went into the record as %+v, want it passed over", e)
+			o.silent = nil
+			f.runBounded(t, o)
+			record := f.record(t)
+			if e, ok := record.ByWas(tc.wantJoins); !ok || e.ID != workID {
+				t.Errorf("%s went into the record as %+v, want it joining %s", tc.wantJoins, e, workID)
+			}
+			if e, ok := record.ByWas(tc.wantRemoved); tc.wantRemoved != "" && (!ok || e.ID == workID || e.Removed.IsZero()) {
+				t.Errorf("%s went into the record as %+v, want it removed", tc.wantRemoved, e)
+			}
+			if e, ok := record.ByWas(tc.wantPassed); tc.wantPassed != "" && ok {
+				t.Errorf("%s went into the record as %+v, want it passed over", tc.wantPassed, e)
+			}
+		})
 	}
 }
 
