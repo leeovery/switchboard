@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -105,9 +106,10 @@ func removedNamed(removed status.RemovedAccounts, days []Day) status.RemovedAcco
 	return named
 }
 
-// names reports whether the day names the account with the given id.
+// names reports whether the day names the account with the given id, ids
+// compared ignoring case.
 func (d Day) names(id string) bool {
-	return slices.ContainsFunc(d.Accounts, func(a ledger.PricedAccount) bool { return a.Account == id })
+	return slices.ContainsFunc(d.Accounts, func(a ledger.PricedAccount) bool { return strings.EqualFold(a.Account, id) })
 }
 
 // countedFrom is the date of the first day counted of the days asked for

@@ -2,7 +2,6 @@ package router
 
 import (
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -118,8 +117,8 @@ func (a *accountsRecord) followed() config.Accounts {
 // that left the config while no router ran.
 func (a *accountsRecord) labelOf(id string) string {
 	for _, as := range []config.Accounts{a.kept, a.started} {
-		if i := slices.IndexFunc(as, func(c config.Account) bool { return strings.EqualFold(c.ID, id) }); i >= 0 {
-			return as[i].Label
+		if c, ok := as.ByID(id); ok {
+			return c.Label
 		}
 	}
 	return ""

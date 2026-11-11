@@ -58,7 +58,7 @@ func (m Moment) Text(sessions ...Session) string {
 	if len(sessions) > 0 {
 		b.WriteString("sessions\n")
 		for _, s := range sessions {
-			fmt.Fprintf(&b, "  %s\n", s.Line(now))
+			fmt.Fprintf(&b, "  %s\n", s.Line(now, m))
 		}
 		b.WriteString("\n")
 	}
@@ -77,7 +77,8 @@ func (m Moment) Text(sessions ...Session) string {
 }
 
 // writePriming writes the priming schedule, when priming is on, such as
-// "priming 08:00-23:00: work at 04:10 and side at 06:40", and under it what
+// "priming 08:00-23:00: work at 04:10 and side at 06:40", each account named
+// as the moment names it, and under it what
 // comes next of it at the moment, as its Coming has it.
 func (m Moment) writePriming(b *strings.Builder) {
 	prime := m.doc.Prime
@@ -86,7 +87,7 @@ func (m Moment) writePriming(b *strings.Builder) {
 	}
 	slots := make([]string, len(prime.Slots))
 	for i, s := range prime.Slots {
-		slots[i] = prose.Clean(s.Account) + " at " + prose.Clean(s.At)
+		slots[i] = m.Named(s.Account).Said() + " at " + prose.Clean(s.At)
 	}
 	fmt.Fprintf(b, "priming %s: %s\n", prose.Clean(prime.Day), prose.List(slots))
 	if len(m.Coming) > 0 {

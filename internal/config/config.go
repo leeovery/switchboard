@@ -106,6 +106,22 @@ func (as Accounts) IDs() []string {
 	return ids
 }
 
+// Index is the place of the account with the given id, ids compared ignoring
+// case, as macOS ignores it in the token files' names: -1 where none has it.
+func (as Accounts) Index(id string) int {
+	return slices.IndexFunc(as, func(a Account) bool { return strings.EqualFold(a.ID, id) })
+}
+
+// ByID returns the account with the given id, ids compared ignoring case,
+// reporting false where none has it.
+func (as Accounts) ByID(id string) (Account, bool) {
+	i := as.Index(id)
+	if i < 0 {
+		return Account{}, false
+	}
+	return as[i], true
+}
+
 // InAnotherCase returns the account whose id is the one given but for its
 // case, which macOS takes for the same token file, when there's one.
 func (as Accounts) InAnotherCase(id string) (Account, bool) {

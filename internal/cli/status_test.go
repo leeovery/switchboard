@@ -275,8 +275,8 @@ func TestStatusListsTheRoutersSessions(t *testing.T) {
 	got := run(t, srv.deps, "status", "--pretty")
 	want := result{stdout: workRouted + "  2 sessions\n\n" + othersAtStatus(t, srv.deps) + `
 sessions
-  0b5c6f2e  haiku on work  ·  seen just now
-  18bb978f  haiku on work  ·  pinned to side  ·  seen just now
+  0b5c6f2e  haiku on Work  ·  seen just now
+  18bb978f  haiku on Work  ·  pinned to Side  ·  seen just now
 
 best next: work · Work
 from the router: healthy  ·  2 sessions  ·  routing automatically

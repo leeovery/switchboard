@@ -19,7 +19,6 @@ import (
 	"log/slog"
 	"os"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -261,13 +260,13 @@ func (x *exporting) record(state, folder string, configured config.Accounts) (bo
 func labelled(record identity.Record, configured config.Accounts) identity.Record {
 	out := identity.Record{Accounts: slices.Clone(record.Accounts)}
 	for i, e := range out.Accounts {
-		at := slices.IndexFunc(configured, func(a config.Account) bool { return strings.EqualFold(a.ID, e.ID) })
-		if at < 0 {
+		a, ok := configured.ByID(e.ID)
+		if !ok {
 			continue
 		}
 		out.Accounts[i].Configured = true
-		if configured[at].Label != "" {
-			out.Accounts[i].Label = configured[at].Label
+		if a.Label != "" {
+			out.Accounts[i].Label = a.Label
 		}
 	}
 	return out

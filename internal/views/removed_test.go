@@ -66,4 +66,8 @@ func TestHistorysJSONGivesTheAccountsRemovedItsDaysName(t *testing.T) {
 	if none := jsonOf(t, views.NewHistory(withRemoved(daysFrom("2026-10-05"), removedTeam))); !strings.HasSuffix(none, `"removed":[]}`) {
 		t.Errorf("history's JSON of days naming no account removed ends %s, want an empty removed list", none[max(0, len(none)-200):])
 	}
+	upper := daysFrom("2026-10-05", day("2026-10-05", account("H7C2", sent("claude-opus-5-5", 1, inputUsage))))
+	if got := views.NewHistory(withRemoved(upper, removedTeam)).Removed; len(got) != 1 || got[0].ID != "h7c2" {
+		t.Errorf("history of days naming H7C2 gives the accounts removed %+v, want h7c2, its ids compared ignoring case", got)
+	}
 }

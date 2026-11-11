@@ -39,7 +39,7 @@ type RemovedAccounts []RemovedAccount
 func RemovedOf(record identity.Record, configured config.Accounts) RemovedAccounts {
 	var removed RemovedAccounts
 	for _, e := range record.Accounts {
-		if !slices.ContainsFunc(configured, func(a config.Account) bool { return strings.EqualFold(a.ID, e.ID) }) {
+		if configured.Index(e.ID) < 0 {
 			removed = append(removed, RemovedAccount{ID: e.ID, Label: e.Label, Removed: e.Removed})
 		}
 	}
@@ -120,7 +120,7 @@ func (n Names) Named(id string) AccountName {
 // config configures, or one the accounts record keeps.
 func (n Names) Knows(id string) bool {
 	_, removed := n.removed.Of(id)
-	return removed || slices.ContainsFunc(n.configured, func(a config.Account) bool { return strings.EqualFold(a.ID, id) })
+	return removed || n.configured.Index(id) >= 0
 }
 
 // Labelled are the ids of the accounts labelled as given, ignoring case: those
@@ -144,8 +144,8 @@ func (n Names) Labelled(label string) []string {
 // Named names the account with the given id, configured as configured says,
 // ids compared ignoring case, as AccountName has it.
 func (r RemovedAccounts) Named(configured config.Accounts, id string) AccountName {
-	if i := slices.IndexFunc(configured, func(a config.Account) bool { return strings.EqualFold(a.ID, id) }); i >= 0 {
-		return namedAs(configured[i].Label, id)
+	if a, ok := configured.ByID(id); ok {
+		return namedAs(a.Label, id)
 	}
 	return r.named(id)
 }

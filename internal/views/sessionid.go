@@ -33,11 +33,11 @@ func NamedAmong(given string, ids []string) SessionNamed {
 
 // NamedRouted is the session given names among the sessions the router
 // lists, each named, where it starts several, by its line, as status's text
-// lists it at now.
-func NamedRouted(given string, sessions []status.Session, now time.Time) SessionNamed {
+// lists it at now, its accounts named as n names them.
+func NamedRouted(given string, sessions []status.Session, now time.Time, n status.Namer) SessionNamed {
 	return namedAmong(given, sessions,
 		func(s status.Session) string { return s.ID },
-		func(s status.Session) string { return s.Line(now) })
+		func(s status.Session) string { return s.Line(now, n) })
 }
 
 // Routed is the session with the given id among those the router lists:

@@ -141,6 +141,9 @@ same, ignoring case.
 ` + editingTheConfig,
 		Args: oneAccount,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.idGiven(args[0]); err != nil {
+				return err
+			}
 			return a.editAccount(cmd, args[0], flags)
 		},
 	}
@@ -210,6 +213,9 @@ subscription is another account's already, the other accounts' tokens checked
 then to know theirs; and one the API doesn't answer for is, with a warning.`,
 		Args: oneAccount,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.idGiven(args[0]); err != nil {
+				return err
+			}
 			if paste || !a.TerminalInput(cmd.InOrStdin()) || !a.Terminal(cmd.OutOrStdout()) {
 				return a.replaceToken(cmd, args[0])
 			}
@@ -238,6 +244,9 @@ the new primary has a usable token.
 ` + editingTheConfig,
 		Args: oneAccount,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.idGiven(args[0]); err != nil {
+				return err
+			}
 			return a.removeAccount(cmd, args[0])
 		},
 	}

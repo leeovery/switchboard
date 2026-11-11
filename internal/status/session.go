@@ -243,12 +243,13 @@ func DirPath(dir, home string, cells int) string {
 // Line says where the session's requests go, as status lists the router's
 // sessions: its id cut short, the account each of its models goes to, its own
 // pin, if it has one, and when it was last seen, before now, such as
-// "0b5c6f2e  opus and haiku on work  ·  pinned to work  ·  seen 2m ago". What
-// came from elsewhere shows cleaned.
-func (s Session) Line(now time.Time) string {
-	parts := []string{ShortID(prose.Clean(s.ID)) + "  " + s.where()}
+// "0b5c6f2e  opus and haiku on work  ·  pinned to work  ·  seen 2m ago", each
+// account named as n names it, as AccountName's Said says it. What came from
+// elsewhere shows cleaned.
+func (s Session) Line(now time.Time, n Namer) string {
+	parts := []string{ShortID(prose.Clean(s.ID)) + "  " + s.where(n)}
 	if s.Pin != "" {
-		parts = append(parts, "pinned to "+prose.Clean(s.Pin))
+		parts = append(parts, "pinned to "+n.Named(s.Pin).Said())
 	}
 	if len(s.Assignments) > 0 {
 		parts = append(parts, "seen "+ago(now, s.Assignments[0].LastSeen))
@@ -258,12 +259,12 @@ func (s Session) Line(now time.Time) string {
 
 // where says which account each of the session's models goes to, those on
 // one account together, the account used last first: "opus and haiku on
-// work, sonnet on side".
-func (s Session) where() string {
+// work, sonnet on side", each account named as n names it.
+func (s Session) where(n Namer) string {
 	byAccount := s.ByAccount()
 	on := make([]string, len(byAccount))
 	for i, models := range byAccount {
-		on[i] = prose.List(models.Names) + " on " + prose.Clean(models.Account)
+		on[i] = prose.List(models.Names) + " on " + n.Named(models.Account).Said()
 	}
 	return strings.Join(on, ", ")
 }

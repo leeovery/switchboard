@@ -87,7 +87,7 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), dayfile.DateOf(now), a.Now)
 		today = follower.listing()
 	}
-	printer := a.eventsPrinter(out, opts.form, dir)
+	printer := a.eventsPrinter(out, opts.form)
 	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
 	if err := printer.list(held, from, now); err != nil || follower == nil {
 		return err
@@ -107,26 +107,12 @@ type eventsPrinter interface {
 }
 
 // eventsPrinter returns the printer of the form f chooses, printing to out,
-// its text naming accounts as the config and the accounts record in the
-// state directory dir name them.
-func (a *app) eventsPrinter(out io.Writer, f formFlags, dir string) eventsPrinter {
+// its text naming accounts as accountNames names them.
+func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey), names: a.eventNames(dir)}
-}
-
-// eventNames are the names of the accounts the config configures and of
-// those removed that the accounts record in the state directory dir keeps:
-// each account named by its id, warning, where the config can't be loaded,
-// so the events print all the same.
-func (a *app) eventNames(dir string) status.Names {
-	cfg, err := a.loadConfig()
-	if err != nil {
-		logger.Warn("can't load the config, so the events name each account by its id", "error", err)
-		return status.Names{}
-	}
-	return namesIn(dir, cfg)
+	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey), names: a.accountNames()}
 }
 
 // eventsJSON prints each event as the router files it, its schema first, a

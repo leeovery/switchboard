@@ -149,22 +149,6 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	return writeRequests(out, views.RequestLines(lines, names()), from, now)
 }
 
-// notALabel fails where the account given, as --account gives one, is no
-// account's id but some account's label, ignoring case, as names know them,
-// naming the id of each account labelled so, as a label removed may have
-// been given again. Any other is taken as an id, as one names can't know,
-// where the accounts record can't be read.
-func notALabel(names status.Names, given string) error {
-	ids := names.Labelled(given)
-	if len(ids) == 0 || names.Knows(given) {
-		return nil
-	}
-	for i, id := range ids {
-		ids[i] = prose.Clean(id)
-	}
-	return fmt.Errorf("%s is a label: give its id, %s", prose.Clean(redact.Text(given)), prose.ListOr(ids))
-}
-
 // writeLines writes each of lines as the ledger holds it, its schema first, a
 // line each.
 func writeLines(out io.Writer, lines iter.Seq[ledger.Held]) error {

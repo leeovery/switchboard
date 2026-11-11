@@ -17,6 +17,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
@@ -596,7 +598,7 @@ func (r *Router) pinnable(id string) error {
 	case id == "":
 		return errors.New(`give the account to pin, such as {"account": "work"}`)
 	case !ok:
-		return UnknownAccount(id, r.accounts.sendable().configured().IDs())
+		return UnknownAccount(id, r.accounts.sendable().configured())
 	case !a.hasToken():
 		return fmt.Errorf("account %s has no usable token, so nothing can go out on it: %s", id, a.problem())
 	}
@@ -605,14 +607,22 @@ func (r *Router) pinnable(id string) error {
 
 // UnknownAccount says there's no account with the given id to pin, naming
 // the accounts that can be pinned instead, pinnable, those with a usable
-// token, or saying there are none: pin and run --account say it alike. It
-// hides anything in the id that looks like a token, as a token pasted where
-// an id goes would be.
-func UnknownAccount(id string, pinnable []string) error {
+// token, each by its id and its label, as "pin b6s7 (Work) or q4tx (Side)",
+// one labelled by its id named once, or saying there are none: pin and run --account say it alike. It hides
+// anything in the id that looks like a token, as a token pasted where an id
+// goes would be.
+func UnknownAccount(id string, pinnable config.Accounts) error {
 	if len(pinnable) == 0 {
 		return fmt.Errorf("there's no account %q, and no account has a usable token to pin", redact.Text(id))
 	}
-	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), strings.Join(pinnable, " or "))
+	named := make([]string, len(pinnable))
+	for i, a := range pinnable {
+		named[i] = prose.Clean(a.ID)
+		if label := status.ConfiguredName(a).Said(); !strings.EqualFold(label, named[i]) {
+			named[i] += " (" + label + ")"
+		}
+	}
+	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), prose.ListOr(named))
 }
 
 // writeJSON answers with v as JSON, or, where v can't be given as JSON,

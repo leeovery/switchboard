@@ -1,13 +1,17 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -82,4 +86,59 @@ func (a *app) readers(wc *watch.Config, cfg *config.Config) {
 // gives them.
 func namesIn(dir string, cfg *config.Config) status.Names {
 	return status.NamesOf(cfg.Accounts, removedIn(dir, cfg))
+}
+
+// accountNames are the names of the accounts the config configures and of
+// those removed that the accounts record keeps, for a command that names
+// accounts without reading the history: each named by its id, warning, where
+// the config can't be loaded, so what names them prints all the same.
+func (a *app) accountNames() status.Names {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		logger.Warn("can't load the config, so each account is named by its id", "error", err)
+		return status.Names{}
+	}
+	return a.namesOf(cfg)
+}
+
+// namesOf are the names of the accounts cfg configures and of those removed
+// that the accounts record keeps, as removedHere gives them.
+func (a *app) namesOf(cfg *config.Config) status.Names {
+	return status.NamesOf(cfg.Accounts, a.removedHere(cfg))
+}
+
+// idGiven fails where the account given to a command that takes an id is
+// some account's label, as notALabel says, the accounts named as
+// accountNames names them.
+func (a *app) idGiven(given string) error {
+	return notALabel(a.accountNames(), given)
+}
+
+// notALabel fails where the account given, as a command takes one by its id,
+// is no account's id but some account's label, ignoring case, as names know
+// them, naming the id of each account labelled so, as a label removed may
+// have been given again: "work is a label: give its id, b6s7". Any other is
+// taken as an id, as one names can't know, where the accounts record can't
+// be read.
+func notALabel(names status.Names, given string) error {
+	ids := names.Labelled(given)
+	if len(ids) == 0 || names.Knows(given) {
+		return nil
+	}
+	for i, id := range ids {
+		ids[i] = prose.Clean(id)
+	}
+	return fmt.Errorf("%s is a label: give its id, %s", prose.Clean(redact.Text(given)), prose.ListOr(ids))
+}
+
+// removedHere are the accounts removed that the accounts record in the state
+// directory keeps, as removedIn gives them of the accounts cfg configures:
+// none where there's no state directory to find.
+func (a *app) removedHere(cfg *config.Config) status.RemovedAccounts {
+	dir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		logger.Debug("can't find the state directory, so the accounts removed are named by their ids", "error", err)
+		return nil
+	}
+	return removedIn(dir, cfg)
 }

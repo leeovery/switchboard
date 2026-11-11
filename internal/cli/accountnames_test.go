@@ -212,7 +212,34 @@ func TestEventsNameAccountsByTheirIDsWhereTheConfigCantBeLoaded(t *testing.T) {
 	if got.code != 0 || !strings.Contains(got.stdout, " "+labelledID+" ") || !strings.Contains(got.stdout, removedLabelledID) {
 		t.Errorf("switchboard events = %+v, want each account named by its id", got)
 	}
-	if log := readLog(t, deps, "cli.log"); !hasLine(log, "level=WARN", `msg="can't load the config, so the events name each account by its id"`) {
+	if log := readLog(t, deps, "cli.log"); !hasLine(log, "level=WARN", `msg="can't load the config, so each account is named by its id"`) {
 		t.Errorf("cli.log reads\n%s\nwant the config that couldn't be loaded noted", log)
+	}
+}
+
+// Every command that takes an account by its id refuses a label, in any
+// case, configured or kept in the accounts record, naming the id of each
+// account it labels, as requests --account does.
+func TestEveryCommandTakingAnAccountsIDRefusesALabel(t *testing.T) {
+	work, team := "work is a label: give its id, "+labelledID, "TEAM is a label: give its id, "+removedLabelledID
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "pin", args: []string{"pin", "work"}, want: work},
+		{name: "pin, among others", args: []string{"pin", labelledID, "TEAM"}, want: team},
+		{name: "pin --session", args: []string{"pin", "work", "--session", "18bb"}, want: work},
+		{name: "run --account", args: []string{"run", "--account", "work"}, want: work},
+		{name: "accounts edit", args: []string{"accounts", "edit", "work", "--label", "home"}, want: work},
+		{name: "accounts token", args: []string{"accounts", "token", "--paste", "TEAM"}, want: team},
+		{name: "accounts remove", args: []string{"accounts", "remove", "work"}, want: work},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := run(t, namedDeps(t), tt.args...); got.code == 0 || !strings.Contains(got.stderr, tt.want) {
+				t.Errorf("switchboard %s = %+v, want it refused: %q", strings.Join(tt.args, " "), got, tt.want)
+			}
+		})
 	}
 }
