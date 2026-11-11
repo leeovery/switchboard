@@ -273,7 +273,7 @@ days at a time, the oldest first, so no request's line or reading waits on them 
 readings the history is about to let go goes first, so it's still summarised with them, unless it
 can't be summarised then, as when one of its files can't be opened. Until a day's turn comes,
 `history` and the dashboard work it out from its lines as they read it, as they do today's, with
-the same figures.
+the same figures; a day whose lines are no longer kept shows the summary it had until then.
 
 ### Kept for good
 
