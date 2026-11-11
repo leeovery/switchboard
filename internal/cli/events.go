@@ -45,9 +45,10 @@ ago, as 3h or 2d. -f, --follow then prints a line each time the router files
 one, a changed event again, whole, until interrupted.
 
 On a terminal, events prints its lines as text. Anywhere else, as in a pipe or
-an agent's shell, it prints each event as the router files it, a JSON object a
-line, with its run and id, so a reader of a changed one takes the last. --json
-prints the JSON, and --pretty the text, wherever stdout is.`,
+an agent's shell, it prints each event as the router files it, with "schema": 1
+put first, a JSON object a line, with its run and id, so a reader of a changed
+one takes the last. --json prints the JSON, and --pretty the text, wherever
+stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()

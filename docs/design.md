@@ -1845,8 +1845,8 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `usage`'s window flags, `--5h`, `--week` and one for each model family with a window of its own,
     as the provider lists them (`internal/claude`), so they're known as the command line is parsed,
     and `--by` shape its printout alone (settled in the plan).
-  - **`requests`:** a JSON object a line, each request's line as the ledger holds it, fields a later
-    release added included.
+  - **`requests`:** a JSON object a line, each request's line as the ledger holds it with
+    `"schema": 1` put first, fields a later release added included.
   - **`history`:** one object, as Commands gives it, holding every block History's view and
     Accounts' build, over the days asked for, so an agent asks for a period by its first day
     (settled in the plan), as each view builds it: `prices_as_of`, and `days`, each day's summary as
@@ -1924,7 +1924,7 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     - `totals` are `{turns, requests, from_cache, worth, unpriced}`, `from_cache` the share of its
       input read from the cache.
   - **`events`:** a JSON object a line, oldest first, each event once, as it last stood, as the
-    router files it (see The router's events); with `--follow`, `-f` for short, as `logs`' is, it
+    router files it with `"schema": 1` put first (see The router's events); with `--follow`, `-f` for short, as `logs`' is, it
     follows the events' files, as `logs --follow` follows a log, so needs no router
     (settled in the plan), a line more each time one is filed, a changed event again, with its `run`
     and `id`, so a reader takes the last.

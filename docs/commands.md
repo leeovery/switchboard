@@ -1078,7 +1078,7 @@ switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json 
 | `--session <id>` | Keep that session's requests. Name the session by its id, or as much of it as is unique among the sessions read. |
 | `--account <id>` | Keep that account's requests. |
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
-| `--json` | Print each line as the ledger holds it, a JSON object a line, even on a terminal. It does so off a terminal anyway. See [The request ledger](reference.md#the-request-ledger). |
+| `--json` | Print each line as the ledger holds it, with `"schema": 1` put first, a JSON object a line, even on a terminal. It does so off a terminal anyway. See [The request ledger](reference.md#the-request-ledger). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
 The requests are listed oldest first, under the day each arrived on. Each request gets a line,
@@ -1337,7 +1337,7 @@ switchboard events [--since <when>] [-f] [--json | --pretty]
 |---|---|
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
 | `-f`, `--follow` | Then go on printing a line each time the router files one, until interrupted. A changed event is printed again, whole. |
-| `--json` | Print each event as the router files it, a JSON object a line, with its `run` and `id`, even on a terminal. It does so off a terminal anyway. Of an event printed again, the last line is how it stands. See [The router's events](reference.md#the-routers-events). |
+| `--json` | Print each event as the router files it, with `"schema": 1` put first, a JSON object a line, with its `run` and `id`, even on a terminal. It does so off a terminal anyway. Of an event printed again, the last line is how it stands. See [The router's events](reference.md#the-routers-events). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
 The events cover:
