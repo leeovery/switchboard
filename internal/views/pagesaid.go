@@ -100,6 +100,15 @@ type WhereSaid struct {
 	Short status.Words
 }
 
+// named are the words with each account named as n names it, as
+// status.Words' Named has it: as they are where n is nil.
+func (w WhereSaid) named(n status.Namer) WhereSaid {
+	if n == nil {
+		return w
+	}
+	return WhereSaid{OnSince: w.OnSince.Named(n), Why: w.Why.Named(n), Short: w.Short.Named(n)}
+}
+
 // Words runs its parts together, as row 6 and sessions <id>'s text say
 // them.
 func (w WhereSaid) Words() status.Words {
@@ -115,9 +124,10 @@ func (w WhereSaid) Words() status.Words {
 // for none, "on work since it started"; else for any other, as a move to it
 // when the router put it there, "on side since 14:39, pinned here", or where
 // that isn't known, "on side: pinned here". Once it's over, where it ran, as
-// RanOn has it, as ranOn says it. None where it's named on no account.
+// RanOn has it, as ranOn says it. None where it's named on no account. Of a
+// page named, as Named names it, each account it names is named so.
 func (p SessionPage) Where(now time.Time) WhereSaid {
-	return p.where(now, datesSaid)
+	return p.where(now, datesSaid).named(p.names)
 }
 
 // WhereSaidWidest says where the session runs and why, at now, as Where does,

@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -79,7 +80,7 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			accounts: config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "side", Plan: "max"}, {ID: "spare", Plan: "pro"}},
 			peaks: map[string][]float64{"work": {0.5, 0.6, 0.4, 0.5, 0.6, 0.5, 0.4}, "side": {0.2, 0.2, 0.3, 0.2, 0.2, 0.3, 0.2},
 				"spare": {0.05, 0.1, 0, 0.05, 0.1, 0.05, 0}},
-			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_two_fewer":0,"with_one_more":0,"drop":"spare","verdict":"one more than you need","accounts":[` +
+			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_two_fewer":0,"with_one_more":0,"drop":"spare","drop_label":"spare","verdict":"one more than you need","accounts":[` +
 				`{"account":"work","label":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":5},` +
 				`{"account":"side","label":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.7714285714285715,"without_it":0},` +
 				`{"account":"spare","label":"spare","verdict":"could go","weeks":7,"limits":0,"left_at_reset":0.95,"without_it":0},` +
@@ -91,7 +92,7 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			// none, so it isn't given.
 			name: "a tie in the replay: the account used less is dropped", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 0.6, 1, 0.5, 1, 0.7, 0.4}, "side": {0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.2}},
-			want: `{"weeks":7,"short":3,"with_one_fewer":3,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
+			want: `{"weeks":7,"short":3,"with_one_fewer":3,"with_one_more":0,"drop":"side","drop_label":"side","verdict":"one more than you need","accounts":[` +
 				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":3,"left_at_reset":0.2571428571428571,"without_it":3},` +
 				`{"account":"side","label":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.8,"without_it":3},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":3,"left_at_reset":0.5285714285714286}]}`,
@@ -155,7 +156,7 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			// the 4 before, which work's own verdict counts.
 			name: "weeks some account's peak isn't known in", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 1, 1, 1, 0.5, 0.4, 0.3}, "side": {0.2, 0.3, 0.1}},
-			want: `{"weeks":3,"short":0,"with_one_fewer":0,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
+			want: `{"weeks":3,"short":0,"with_one_fewer":0,"with_one_more":0,"drop":"side","drop_label":"side","verdict":"one more than you need","accounts":[` +
 				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.2571428571428571,"without_it":0},` +
 				`{"account":"side","label":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":0},` +
 				`{"all":true,"verdict":"room to spare together","weeks":3,"limits":0,"left_at_reset":0.7}]}`,
@@ -219,7 +220,7 @@ func TestCapacityJudgesEachAccountAtItsCap(t *testing.T) {
 			// without a reserve, rises to 96%, short of its limit.
 			name: "a replay without an account hands a reserved one no load past its cap", accounts: config.Accounts{{ID: "work"}, reserved("side")},
 			peaks: map[string][]float64{"work": slices.Repeat([]float64{0.46}, 7), "side": slices.Repeat([]float64{0.5}, 7)},
-			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
+			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_one_more":0,"drop":"side","drop_label":"side","verdict":"one more than you need","accounts":[` +
 				`{"account":"work","label":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.54,"without_it":7},` +
 				`{"account":"side","label":"side","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":0},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":0,"left_at_reset":0.52}]}`,
@@ -242,6 +243,22 @@ func TestCapacityJudgesEachAccountAtItsCap(t *testing.T) {
 				t.Errorf("the capacity is\n%s\nwant\n%s", got, tt.want)
 			}
 		})
+	}
+}
+
+// The account to drop, and each account's verdict, are labelled as the config
+// labels them, apart from their ids.
+func TestCapacityLabelsTheAccountToDropAndEachVerdict(t *testing.T) {
+	in := input(peaking(map[string][]float64{"b6s7": {1, 0.6, 1, 0.5, 1, 0.7, 0.4}, "m2x7": {0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.2}}))
+	in.Accounts = config.Accounts{{ID: "b6s7", Label: "work"}, {ID: "m2x7", Label: "side"}}
+	c := views.NewHistory(in).Capacity
+	if c.Drop != "m2x7" || c.DropLabel != "side" || c.DropName != (status.AccountName{Label: "side"}) {
+		t.Errorf("the capacity drops %s, labelled %q, named %+v; want m2x7, labelled side", c.Drop, c.DropLabel, c.DropName)
+	}
+	for i, want := range []string{"work", "side"} {
+		if got := c.Accounts[i].Label; got != want {
+			t.Errorf("verdict %d is labelled %q, want %s", i, got, want)
+		}
 	}
 }
 

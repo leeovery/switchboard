@@ -126,7 +126,8 @@ var fixtureReadings = []readings.Reading{
 }
 
 // ledgerDeps are deps whose state directory holds the ledger's tests' lines,
-// summary and readings, by a clock stopped at ledgerNow, configured as
+// summary and readings, and an accounts record keeping k3f9, removed long
+// before any of them, by a clock stopped at ledgerNow, configured as
 // ledgerConfig says, and the JSON of each line written, by its request's id.
 func ledgerDeps(t *testing.T) (cli.Deps, map[string]string) {
 	t.Helper()
@@ -154,6 +155,7 @@ func ledgerDeps(t *testing.T) (cli.Deps, map[string]string) {
 		writeStateFile(t, dir, name, data)
 	}
 	writeStateFile(t, dir, "day-2026-10-04.json", []byte(heldSummary+"\n"))
+	writeStateFile(t, state, "accounts.json", []byte(`{"version":1,"accounts":[{"id":"k3f9","label":"spare","added":"2026-08-01T09:00:00Z","removed":"2026-08-02T16:00:00Z"}]}`+"\n"))
 	writeReadings(t, history, fixtureReadings...)
 	return deps, written
 }
@@ -278,7 +280,7 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
   09:00:00  18bb2c41  claude-haiku-4-5  work  200  8 in, 1 out     0.6s
   11:00:00  18bb2c41  claude-opus-9     work  200  100 in, 10 out  1.0s
 `},
-		{name: "none", args: []string{"--account", "nobody"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
+		{name: "none", args: []string{"--account", "k3f9"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
 		{name: "a session no line is of", args: []string{"--session", "77aa"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
 	}
 	for _, tt := range tests {
@@ -326,7 +328,7 @@ func TestRequestsHeadsEachRequestByTheDayItFallsOnInNowsZone(t *testing.T) {
 	}{
 		{name: "the morning's, on the evening before", args: []string{"--account", "side"}, want: "Tue 6 Oct 2026\n  22:00:00  5b0e9d33"},
 		{name: "noon's, on now's day", args: []string{"--session", sessionA}, want: "\nWed 7 Oct 2026, so far\n  00:00:00  5b0e7c1a"},
-		{name: "none, since the local day's start", args: []string{"--account", "nobody"}, want: "no requests since Tue 6 Oct 2026 12:00\n"},
+		{name: "none, since the local day's start", args: []string{"--account", "k3f9"}, want: "no requests since Tue 6 Oct 2026 12:00\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -367,7 +369,7 @@ func TestRequestsJSONPrintsEachLineAsTheLedgerHoldsIt(t *testing.T) {
 		{name: "from a day", args: []string{"--since", "2026-10-04"}, want: linesOf(written, "a1", "b2", "c3", "c4", "c5", "c6", "c7", "c8")},
 		{name: "a session's", args: []string{"--session", "5b0e9"}, want: linesOf(written, "c5", "c6")},
 		{name: "an account's", args: []string{"--account", "work", "--since", "11:00"}, want: linesOf(written, "c7", "c8")},
-		{name: "none", args: []string{"--account", "nobody"}},
+		{name: "none", args: []string{"--account", "k3f9"}},
 	}
 	for _, tt := range tests {
 		for _, form := range jsonForms() {
@@ -662,7 +664,7 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	`"tokens":[{"week":"2026-09-28","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,"plans":{"known":0,"of":2},` +
 	`"by_account":[{"account":"work","label":"work","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,` +
 	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]}],` +
-	`"by_model":[{"model":"claude-opus-5-5","on":["work"],"input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]},` +
+	`"by_model":[{"model":"claude-opus-5-5","on":["work"],"on_labels":["work"],"input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]},` +
 	`{"week":"2026-10-05","input":117,"output":905,"cache_write":3120,"cache_read":202340,"total":206482,"worth":0.093396,"unpriced":["claude-opus-9","no_usage"],"plans":{"known":0,"of":2},` +
 	`"by_account":[{"account":"work","label":"work","input":112,"output":855,"cache_write":3120,"cache_read":182340,"total":186427,"worth":0.078376,"unpriced":["claude-opus-9"],` +
 	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376},` +
@@ -671,9 +673,9 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	`"by_model":[{"model":"claude-opus-5-5","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"]}]},` +
 	`{"input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0,` +
 	`"by_model":[{"model":"claude-opus-5-5","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0}]}],` +
-	`"by_model":[{"model":"claude-opus-5-5","on":["work","side"],"input":17,"output":895,"cache_write":3120,"cache_read":202340,"total":206372,` +
+	`"by_model":[{"model":"claude-opus-5-5","on":["work","side"],"on_labels":["work","side"],"input":17,"output":895,"cache_write":3120,"cache_read":202340,"total":206372,` +
 	`"worth":0.093396,"unpriced":["no_usage"]},` +
-	`{"model":"claude-opus-9","on":["work"],"input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
+	`{"model":"claude-opus-9","on":["work"],"on_labels":["work"],"input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
 	// Every account's counts the requests no account answered, and session B
 	// once, though it ran on side and on none. Work's 5-hour window ran out on
 	// the 6th, in the run its last reset ended.
@@ -957,9 +959,10 @@ func TestHistoryReportsASummaryOfADayThatIsntOne(t *testing.T) {
 
 func TestTheLedgersCommandsNeverEchoAToken(t *testing.T) {
 	deps, _ := ledgerDeps(t)
-	// Of a token given as an id, the text says there are no requests, and the
-	// JSON is none.
-	for _, flag := range []string{"--session", "--account"} {
+	// Of a token given as a session's id, the text says there are no
+	// requests, and the JSON is none; given as an account's, it's refused.
+	{
+		flag := "--session"
 		for _, tt := range []struct {
 			forms []printForm
 			want  result
@@ -984,6 +987,13 @@ func TestTheLedgersCommandsNeverEchoAToken(t *testing.T) {
 		}{
 			{name: "--since <a token>", args: []string{"--since", tokenShaped}, want: `Error: --since "[redacted]" isn't a day`},
 			{name: "<a token>", args: []string{tokenShaped}, want: `Error: unknown command "[redacted]" for "switchboard ` + command + `"`},
+		}
+		if command == "requests" {
+			refusals = append(refusals, struct {
+				name string
+				args []string
+				want string
+			}{name: "--account <a token>", args: []string{"--account", tokenShaped}, want: "Error: no account [redacted]: give its id"})
 		}
 		for _, tt := range refusals {
 			got := run(t, deps, append([]string{command}, tt.args...)...)

@@ -291,7 +291,7 @@ func resetWindows(days []ledger.AccountDay) []string {
 // byModel is each model version's worth, and its share of the account's,
 // none where none of its use is priced.
 func (t *totalling) byModel() []ModelShare {
-	listed := t.models.list()
+	listed := t.models.list(status.Names{})
 	shares := make([]ModelShare, len(listed))
 	worth := t.amount()
 	for i, m := range listed {

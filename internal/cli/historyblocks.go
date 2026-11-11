@@ -336,7 +336,7 @@ func writeCapacity(out io.Writer, c views.Capacity) error {
 		lines = append(lines, "  "+verdictText(v))
 	}
 	if c.Drop != "" {
-		lines = append(lines, "  "+views.ToDrop(prose.Clean(c.Drop)))
+		lines = append(lines, "  "+views.ToDrop(c.DropName.Said()))
 	}
 	lines = append(lines, "  "+views.EstimateOfOneFewerOrMore)
 	_, err := fmt.Fprintln(out, strings.Join(lines, "\n"))

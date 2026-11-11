@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // The accounts the naming tests' history is of: work, configured under an id
@@ -116,7 +117,7 @@ func TestTheVerbsJSONGivesEachAccountsLabelBesideItsID(t *testing.T) {
 		args []string
 		want []string
 	}{
-		{name: "history", args: []string{"history", "--json", "--since", "2026-10-07"}, want: []string{work}},
+		{name: "history", args: []string{"history", "--json", "--since", "2026-10-07"}, want: []string{work, team}},
 		{name: "history --windows", args: []string{"history", "--windows", "--json", "--since", "2026-10-07"}, want: []string{work, team}},
 		{name: "sessions", args: []string{"sessions", "--json"}, want: []string{team, `"from":"` + labelledID + `","from_label":"work"`}},
 		{name: "the session's page", args: []string{"sessions", "--json", sessionA}, want: []string{work, team,
@@ -135,5 +136,55 @@ func TestTheVerbsJSONGivesEachAccountsLabelBesideItsID(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Weeks' account to drop is named by its label in history's text.
+func TestHistoryNamesTheAccountToDropByItsLabel(t *testing.T) {
+	history := views.History{Days: aDayOfARequest, Capacity: views.Capacity{
+		Weeks: 7, Verdict: views.OneMoreThanYouNeed, Drop: "m2x7", DropLabel: "side", DropName: status.AccountName{Label: "side"},
+		Accounts: []views.AccountVerdict{{Account: "b6s7", Label: "work", Weeks: 7}, {Account: "m2x7", Label: "side", Weeks: 7}, {All: true, Weeks: 7}},
+	}}
+	var out bytes.Buffer
+	if err := cli.WriteHistory(&out, history, status.Names{}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
+		t.Fatal(err)
+	}
+	if text := out.String(); !strings.Contains(text, views.ToDrop("side")) || strings.Contains(text, "m2x7") {
+		t.Errorf("history printed\n%s\nwant %q, and no id", text, views.ToDrop("side"))
+	}
+}
+
+// requests --account takes an account's id, in any case, of one configured
+// or one the accounts record keeps; it refuses anything else, a label among
+// them, saying what it takes, rather than printing no requests.
+func TestRequestsTakesAnAccountByItsIDAlone(t *testing.T) {
+	for _, given := range []string{labelledID, strings.ToUpper(removedLabelledID)} {
+		if got := run(t, namedDeps(t), "requests", "--pretty", "--account", given); got.code != 0 || strings.Count(got.stdout, " 200 ") != 1 {
+			t.Errorf("switchboard requests --account %s = %+v, want its one request", given, got)
+		}
+	}
+	for _, given := range []string{"work", "team", "zzzz"} {
+		got := run(t, namedDeps(t), "requests", "--account", given)
+		if want := "no account " + given + ": give its id, as switchboard accounts lists it"; got.code == 0 || !strings.Contains(got.stderr, want) {
+			t.Errorf("switchboard requests --account %s = %+v, want it refused: %q", given, got, want)
+		}
+	}
+}
+
+// events whose config can't be loaded names each account by its id, warning
+// why, and prints all the same.
+func TestEventsNameAccountsByTheirIDsWhereTheConfigCantBeLoaded(t *testing.T) {
+	deps := namedDeps(t)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte("[[account]\n"))
+	got := run(t, deps, "events", "--pretty")
+	if got.code != 0 || !strings.Contains(got.stdout, " "+labelledID+" ") || !strings.Contains(got.stdout, removedLabelledID) {
+		t.Errorf("switchboard events = %+v, want each account named by its id", got)
+	}
+	if log := readLog(t, deps, "cli.log"); !hasLine(log, "level=WARN", `msg="can't load the config, so the events name each account by its id"`) {
+		t.Errorf("cli.log reads\n%s\nwant the config that couldn't be loaded noted", log)
 	}
 }

@@ -68,6 +68,8 @@ type AccountTokens struct {
 type ModelTokens struct {
 	Model string   `json:"model"`
 	On    []string `json:"on,omitempty"`
+	// OnLabels are On's labels, in their order.
+	OnLabels []string `json:"on_labels,omitempty"`
 	Tokens
 	Worth
 }
@@ -127,7 +129,8 @@ func tokenPeriodOf(s span, p plans, removed status.RemovedAccounts, v versions) 
 			}
 		}
 	}
-	period.ByAccount, period.ByModel = accounts.list(p.accounts, removed), models.list()
+	names := status.NamesOf(p.accounts, removed)
+	period.ByAccount, period.ByModel = accounts.list(p.accounts, names), models.list(names)
 	period.Versions = len(period.ByModel)
 	return period
 }
@@ -153,14 +156,13 @@ func (t accountTally) of(id string) *talliedAccount {
 }
 
 // list lists the accounts in the config's order, those it doesn't configure
-// after, by id, each named as removed's Named names it, and with its model
-// versions.
-func (t accountTally) list(configured config.Accounts, removed status.RemovedAccounts) []AccountTokens {
-	listed, names := make([]AccountTokens, 0, len(t)), status.NamesOf(configured, removed)
+// after, by id, each named as names name it, and with its model versions.
+func (t accountTally) list(configured config.Accounts, names status.Namer) []AccountTokens {
+	listed := make([]AccountTokens, 0, len(t))
 	for _, id := range slices.SortedFunc(maps.Keys(t), byConfig(configured)) {
 		account := t[id].AccountTokens
 		account.AccountName = namedOf(names, id)
-		account.ByModel = t[id].models.list()
+		account.ByModel = t[id].models.list(names)
 		listed = append(listed, account)
 	}
 	return listed
@@ -221,8 +223,8 @@ func (t modelTally) add(v versions, m ledger.PricedModel, tokens quota.Tokens, a
 
 // list lists the versions in the version table's order, those it doesn't
 // name after, by id, each with the accounts it ran on, as onByWorth orders
-// them.
-func (t modelTally) list() []ModelTokens {
+// them, labelled as n names them.
+func (t modelTally) list(n status.Namer) []ModelTokens {
 	ranked := slices.SortedFunc(maps.Values(t), func(a, b *rankedModel) int {
 		return cmp.Or(cmp.Compare(a.rank, b.rank), cmp.Compare(a.Model, b.Model))
 	})
@@ -230,6 +232,9 @@ func (t modelTally) list() []ModelTokens {
 	for i, model := range ranked {
 		listed[i] = model.ModelTokens
 		listed[i].On = model.onByWorth()
+		for _, id := range listed[i].On {
+			listed[i].OnLabels = append(listed[i].OnLabels, namedOf(n, id).Label)
+		}
 	}
 	return listed
 }

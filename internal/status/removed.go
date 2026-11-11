@@ -116,6 +116,17 @@ func (n Names) Named(id string) AccountName {
 	return n.removed.Named(n.configured, id)
 }
 
+// ID is the id of the account given by its id, ignoring case, as the config
+// configures it or the accounts record keeps it, reporting false where
+// neither has it.
+func (n Names) ID(given string) (string, bool) {
+	if i := slices.IndexFunc(n.configured, func(a config.Account) bool { return strings.EqualFold(a.ID, given) }); i >= 0 {
+		return n.configured[i].ID, true
+	}
+	a, ok := n.removed.Of(given)
+	return a.ID, ok
+}
+
 // Named names the account with the given id, configured as configured says,
 // ids compared ignoring case, as AccountName has it.
 func (r RemovedAccounts) Named(configured config.Accounts, id string) AccountName {
@@ -137,10 +148,11 @@ func (r RemovedAccounts) named(id string) AccountName {
 
 // Named names the account of the moment with the given id, as AccountName
 // has it: configured where its document holds it, else as the accounts
-// removed its document was given, as Document's WithRemoved gives them.
+// removed its document was given, as Document's WithRemoved gives them,
+// ids compared ignoring case.
 func (m Moment) Named(id string) AccountName {
-	if a, ok := m.Account(id); ok {
-		return namedAs(a.Label, id)
+	if i := slices.IndexFunc(m.Accounts, func(a AccountNow) bool { return strings.EqualFold(a.ID, id) }); i >= 0 {
+		return namedAs(m.Accounts[i].Label, id)
 	}
 	return m.doc.removed.named(id)
 }

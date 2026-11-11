@@ -156,7 +156,7 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 			`{"week":"2026-09-21","accounts":[{"account":"work","label":"work","peaks":{"7d":0.6}},{"account":"side","label":"side","peaks":{"7d":0.3}},{"all":true,"peaks":{"7d":0.45}}]},` +
 			`{"week":"2026-09-28","accounts":[{"account":"work","label":"work","peaks":{"7d":0.5}},{"account":"side","label":"side","peaks":{"7d":0.1}},{"all":true,"peaks":{"7d":0.3}}]},` +
 			`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.41},"open":["7d"],"limits":{"5h":1}},{"account":"side","label":"side","open":["7d"]},{"all":true,"peaks":{"7d":0.41},"open":["7d"]}]}]`)},
-		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_one_more":0,"drop":"work",` +
+		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_one_more":0,"drop":"work","drop_label":"work",` +
 			`"verdict":"one more than you need","accounts":[` +
 			`{"account":"work","label":"work","verdict":"ends most weeks with room","weeks":3,"limits":1,"left_at_reset":0.3,"without_it":1},` +
 			`{"account":"side","label":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":2},` +

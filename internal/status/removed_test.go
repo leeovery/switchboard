@@ -120,6 +120,26 @@ func TestAnAccountIsNamedWhateverTheCaseOfItsID(t *testing.T) {
 	if got := removed.Named(nil, "H7C2"); got != (status.AccountName{Label: "team", Other: true}) {
 		t.Errorf("Named(H7C2) = %+v, want the account kept as h7c2, labelled team", got)
 	}
+	m := routerDocOf(status.Account{ID: "B6S7", Label: "Work", TokenSet: true, FetchedAt: built}).WithRemoved(removed).At(built, policy)
+	if got := m.Named("b6s7"); got != (status.AccountName{Label: "Work"}) {
+		t.Errorf("the moment's Named(b6s7) of B6S7 = %+v, want it configured, labelled Work", got)
+	}
+}
+
+// Names find an account given by its id, ignoring case, as the config or the
+// accounts record spells it, and nothing else, a label among them.
+func TestNamesFindAnAccountByItsIDWhateverItsCase(t *testing.T) {
+	names := status.NamesOf(config.Accounts{{ID: "B6S7", Label: "work"}}, status.RemovedAccounts{{ID: "h7c2", Label: "team"}})
+	for given, want := range map[string]string{"b6s7": "B6S7", "B6S7": "B6S7", "H7C2": "h7c2"} {
+		if got, ok := names.ID(given); !ok || got != want {
+			t.Errorf("ID(%s) = %q, %t; want %s", given, got, ok, want)
+		}
+	}
+	for _, given := range []string{"work", "team", "zzzz"} {
+		if got, ok := names.ID(given); ok {
+			t.Errorf("ID(%s) = %q, want none", given, got)
+		}
+	}
 }
 
 // The verbs' text names an account by its label, cleaned, and one removed

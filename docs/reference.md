@@ -28,8 +28,11 @@ directly, agents included. Each format is described field by field.
   [the request ledger](#the-request-ledger) and [the router's events](#the-routers-events) list
   them. The files themselves hold no schema. The number goes up only where a field's meaning or
   units change, or a field is removed. Fields are added without it.
-- **Accounts:** Accounts appear by their ids, never by a token. Their labels appear only in the
-  status document's `accounts`.
+- **Accounts:** Accounts appear by their ids, never by a token. The verbs' JSON gives each
+  account's `label` beside its id, as below: `label` beside an `account`, `from_label` beside a
+  `from`, `to_label` beside a `to`, and a list of labels beside a list of ids. An account removed is
+  labelled by the label it showed last. The files, and the lines `requests` and `events` print as
+  stored, give ids alone, as does the status document but for its `accounts`.
 - **Reasons:** The reasons a request went where it did, and the reasons an account couldn't serve
   it, are fixed words. See [Why a request went where it did](#why-a-request-went-where-it-did).
 - **Not a contract:** The text the commands print for a person, on a terminal or with `--pretty`,
@@ -487,7 +490,7 @@ Each month's:
 ### `weeks`
 
 Each week, starting on the day the config's `week_starts` names (Monday unless it says otherwise).
-For each account, the week has these:
+For each account, the week has its `account` and `label`, and these:
 
 - `peaks`: by window, the highest use of the account's week, and of each model's own week, such as
   Fable's.
@@ -504,14 +507,14 @@ Each week's tokens:
 - By kind: `input`, `output`, `cache_write`, `cache_read` and `total`.
 - The week's `worth`, its plans' `cost`, `against`, and how many `plans` are known, as in `plans`
   below.
-- `by_account`, in the config's order.
+- `by_account`, in the config's order, each by its `account` and `label`.
 - `by_model`, each model version by its id, with the accounts it ran `on`, the account it was worth
-  most on first. A model of quota checks or counts of tokens alone, which wasn't used, is in neither,
+  most on first, and their labels, `on_labels`, in the same order. A model of quota checks or counts of tokens alone, which wasn't used, is in neither,
   nor is an account that sent them alone.
 
 ### `totals`
 
-Each account's totals, then `all`, for every account together:
+Each account's totals, by its `account` and `label`, then `all`, for every account together:
 
 - `requests`.
 - `sessions`, each counted once however many days and accounts it ran on.
@@ -530,7 +533,7 @@ Each account's totals, then `all`, for every account together:
 
 ### `plans`
 
-Each account's:
+Each account's, by its `account` and `label`:
 
 - `plan`, and its `price` a month.
 - What the plan cost over those days, `cost`, and the account's worth `against` it. Where the
@@ -550,11 +553,12 @@ against it, are those of the accounts whose plans are known alone.
 - `with_one_fewer` and `with_one_more`: how many would have been short with one account fewer, and
   with one more.
 - `verdict`: `one too few`, `too few`, `one more than you need` or `about right`.
-- `drop`: where the verdict is one more than you need, the account to drop.
+- `drop`: where the verdict is one more than you need, the account to drop, and `drop_label`,
+  its label.
 - `with_two_fewer`: with three accounts or more, where the verdict is one more than you need, how
   many weeks are short without `drop` and without the account whose loss then makes the fewest
   weeks short.
-- Each account's `verdict`, over the account's own whole `weeks`, with:
+- Each account's `verdict`, by its `account` and `label`, over the account's own whole `weeks`, with:
   - `limits`: the weeks the account hit its limit in, its peak at its cap.
   - `left_at_reset`: what it had left at a reset, on average: left of its limit, not of its cap.
   - `without_it`: how many weeks the rest would have been short in without it.
@@ -577,7 +581,7 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 
 ### With `--windows`
 
-`history --windows` prints `{"schema": 1, "windows": [{"account", "window", "readings"}]}`. Each reading is
+`history --windows` prints `{"schema": 1, "windows": [{"account", "label", "window", "readings"}]}`. Each reading is
 `{at, utilization, resets_at, status, source}`.
 
 ## `sessions`' JSON
@@ -586,14 +590,15 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 
 `sessions` lists each session, with these:
 
-- Its whole id, its directory, account and model.
+- Its whole id, its directory, `account` and its `label`, and model.
 - Whether it's `running`.
-- For a running session: when it was last seen, each of its models' account and why, what it's
+- For a running session: when it was last seen, each of its models' `account`, its `label`, and why, what it's
   doing, and its `move_cost`, what moving it now would cost.
 - For an ended session: when it `ended`.
 - When it `started`.
 - Its `requests` today, their `worth` in US dollars, and what the worth leaves `unpriced`.
-- `moved`: the move that brought it to its account.
+- `moved`: the move that brought it to its account, with the account it left, `from`, and its
+  `from_label`.
 
 `today` sums the sessions.
 
@@ -601,16 +606,17 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 
 Given a session, `sessions` prints that session's page:
 
-- **`session`, `dir`, `account`, `model`, `running`, `last_seen`, `models`, `state`, `move_cost`
-  and `ended`:** As the list has them.
-- **`pin`:** The session's own pin.
+- **`session`, `dir`, `account`, `label`, `model`, `running`, `last_seen`, `models`, `state`,
+  `move_cost` and `ended`:** As the list has them.
+- **`pin`:** The session's own pin, and `pin_label`, its account's label.
 - **`started` and `resumed`.**
 - **`kept_until`:** For an ended session, the last day the ledger keeps the lines of the session's
   first day.
-- **`accounts`:** Each `{account, from, to, requests, worth, points}`, with `points` by window.
-- **`moves`:** Each `{at, model, from, to, reason, written, cost}`.
+- **`accounts`:** Each `{account, label, from, to, requests, worth, points}`, with `points` by
+  window.
+- **`moves`:** Each `{at, model, from, to, from_label, to_label, reason, written, cost}`.
 - **`turns`:** Newest first, each `{turn, started, ended, requests, tools, read, written, out,
-  worth, accounts}`. `ended` is left out of a turn still going.
+  worth, accounts, labels}`, `labels` the labels of `accounts`, in the same order. `ended` is left out of a turn still going.
 - **`totals`:** `{turns, requests, from_cache, worth, unpriced}`.
 
 Every `worth` is exact, and left out where nothing was priced. `unpriced` names what the worth

@@ -66,6 +66,9 @@ type SessionPage struct {
 	// its own pin cleared, as autoOf has it: "" where the router can't say,
 	// as while it doesn't answer. It's the views' alone.
 	Auto string `json:"-"`
+	// names name its accounts, as Named was given them: nil before it's
+	// named.
+	names status.Namer
 }
 
 // SessionAccount is an account a session ran on: its first and last request
@@ -132,6 +135,9 @@ type Turn struct {
 	// Labels are Accounts' labels, in their order, as the page's Named
 	// names them.
 	Labels []string `json:"labels"`
+	// Names name Accounts, in their order, as the page's Named names them.
+	// They're the views' alone.
+	Names []status.AccountName `json:"-"`
 }
 
 // ToolCalls are a tool's calls, by its name, and how many times it was
@@ -361,8 +367,10 @@ func movesOf(s *story) []SessionMove {
 	return moves
 }
 
-// Named is the page with every account it gives named as n names it.
+// Named is the page with every account it gives named as n names it, those
+// its Where says among them.
 func (p SessionPage) Named(n status.Namer) SessionPage {
+	p.names = n
 	p.AccountName = namedOf(n, p.Account)
 	p.PinLabel = namedOf(n, p.Pin).Label
 	p.Models, p.Goes = modelAccountsNamed(p.Models, n), modelAccountsNamed(p.Goes, n)
@@ -376,9 +384,10 @@ func (p SessionPage) Named(n status.Namer) SessionPage {
 	}
 	p.Turns = slices.Clone(p.Turns)
 	for i, t := range p.Turns {
-		p.Turns[i].Labels = make([]string, len(t.Accounts))
+		p.Turns[i].Labels, p.Turns[i].Names = make([]string, len(t.Accounts)), make([]status.AccountName, len(t.Accounts))
 		for j, id := range t.Accounts {
-			p.Turns[i].Labels[j] = namedOf(n, id).Label
+			p.Turns[i].Names[j] = namedOf(n, id)
+			p.Turns[i].Labels[j] = p.Turns[i].Names[j].Label
 		}
 	}
 	return p

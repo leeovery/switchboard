@@ -127,6 +127,11 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	if err != nil {
 		return err
 	}
+	names := namesIn(dir, cfg)
+	account, err := accountAsked(names, opts.account)
+	if err != nil {
+		return err
+	}
 	lines := reader.Lines(from)
 	if opts.session != "" {
 		named, held := views.NamedLines(lines, opts.session)
@@ -135,11 +140,25 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 		}
 		lines = slices.Values(held)
 	}
-	lines = views.OnAccount(lines, opts.account)
+	lines = views.OnAccount(lines, account)
 	if a.printsJSON(opts.form, out) {
 		return writeLines(out, lines)
 	}
-	return writeRequests(out, views.RequestLines(lines, namesIn(dir, cfg)), from, now)
+	return writeRequests(out, views.RequestLines(lines, names), from, now)
+}
+
+// accountAsked is the id of the account --account gives, by its id, ignoring
+// case, as names know it: "" where it gives none. It fails for one that
+// neither the config configures nor the accounts record keeps, as a label.
+func accountAsked(names status.Names, given string) (string, error) {
+	if given == "" {
+		return "", nil
+	}
+	id, ok := names.ID(given)
+	if !ok {
+		return "", fmt.Errorf("no account %s: give its id, as switchboard accounts lists it", prose.Clean(redact.Text(given)))
+	}
+	return id, nil
 }
 
 // writeLines writes each of lines as the ledger holds it, its schema first, a
