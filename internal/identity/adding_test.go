@@ -183,7 +183,7 @@ func TestAddingTakesAConfiguredAccountThatMayBeTheTokensToBe(t *testing.T) {
 			want:       want{outcome: identity.NewAccount, id: "b6s7"},
 		},
 		{
-			name:       "one whose id starts as the spelling does, but isn't it at its length, b6s7eho",
+			name:       "one whose id differs from the spelling at its length, b6s7eho, in its last character",
 			configured: map[string]string{"b6s7eh0": ""},
 			want:       want{outcome: identity.NewAccount, id: "b6s7"},
 		},
