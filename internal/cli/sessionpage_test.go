@@ -138,16 +138,16 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 	// Paging's every request read 100,000 tokens from the cache, but its
 	// subagent's, which sent 8 tokens of input: of 4 × 101,010 + 8 sent.
 	fromCache := strconv.FormatFloat(400000.0/404048, 'f', -1, 64)
-	want := `{"schema":1,"session":"` + paging + `","dir":"~/Code/web","account":"side","model":"claude-opus-5-5","running":true,"last_seen":` + at(october(7, 13, 10, 0)) + `,` +
-		`"models":[{"model":"claude-opus-5-5","account":"side","reason":"rescored after 15h 7m idle"},{"model":"claude-haiku-4-5","account":"work","reason":"sticky"}],` +
+	want := `{"schema":1,"session":"` + paging + `","dir":"~/Code/web","account":"side","label":"side","model":"claude-opus-5-5","running":true,"last_seen":` + at(october(7, 13, 10, 0)) + `,` +
+		`"models":[{"model":"claude-opus-5-5","account":"side","label":"side","reason":"rescored after 15h 7m idle"},{"model":"claude-haiku-4-5","account":"work","label":"work","reason":"sticky"}],` +
 		`"state":"answering","move_cost":0.80808,"started":` + at(october(6, 16, 40, 0)) + `,"resumed":` + at(october(7, 9, 12, 0)) + `,` +
-		`"accounts":[{"account":"work","from":` + at(october(6, 16, 40, 0)) + `,"to":` + at(october(7, 9, 13, 0)) + `,"requests":3,"worth":0.076093,"points":{"5h":4,"7d":1}},` +
-		`{"account":"side","from":` + at(october(7, 9, 12, 0)) + `,"to":` + at(october(7, 9, 20, 0)) + `,"requests":2,"worth":0.07608,"points":{"5h":2,"7d":0}}],` +
-		`"moves":[{"at":` + at(october(7, 9, 12, 0)) + `,"model":"claude-opus-5-5","from":"work","to":"side","reason":"rescored after 15h 7m idle","written":1000}],` +
+		`"accounts":[{"account":"work","label":"work","from":` + at(october(6, 16, 40, 0)) + `,"to":` + at(october(7, 9, 13, 0)) + `,"requests":3,"worth":0.076093,"points":{"5h":4,"7d":1}},` +
+		`{"account":"side","label":"side","from":` + at(october(7, 9, 12, 0)) + `,"to":` + at(october(7, 9, 20, 0)) + `,"requests":2,"worth":0.07608,"points":{"5h":2,"7d":0}}],` +
+		`"moves":[{"at":` + at(october(7, 9, 12, 0)) + `,"model":"claude-opus-5-5","from":"work","to":"side","from_label":"work","to_label":"side","reason":"rescored after 15h 7m idle","written":1000}],` +
 		`"turns":[{"turn":2,"started":` + at(october(7, 9, 12, 0)) + `,"requests":3,` +
-		`"tools":[{"tool":"Read","times":3},{"tool":"Edit","times":1},{"tool":"Grep","times":1}],"read":200000,"written":2000,"out":1001,"worth":0.076093,"accounts":["side"]},` +
+		`"tools":[{"tool":"Read","times":3},{"tool":"Edit","times":1},{"tool":"Grep","times":1}],"read":200000,"written":2000,"out":1001,"worth":0.076093,"accounts":["side"],"labels":["side"]},` +
 		`{"turn":1,"started":` + at(october(6, 16, 40, 0)) + `,"ended":` + at(october(6, 18, 6, 0)) + `,"requests":2,"tools":[{"tool":"Bash","times":2}],` +
-		`"read":200000,"written":2000,"out":1000,"worth":0.07608,"accounts":["work"]}],` +
+		`"read":200000,"written":2000,"out":1000,"worth":0.07608,"accounts":["work"],"labels":["work"]}],` +
 		`"totals":{"turns":2,"requests":5,"from_cache":` + fromCache + `,"worth":0.152173}}`
 	for _, form := range jsonForms() {
 		t.Run(form.name, func(t *testing.T) {

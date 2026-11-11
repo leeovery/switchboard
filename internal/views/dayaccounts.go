@@ -29,6 +29,9 @@ type DayAccounts struct {
 type DayAccount struct {
 	// Account is its id: "" for the requests no account answered.
 	Account string
+	// AccountName names it, as the Namer DayAccountsOf is given names it:
+	// nothing for the requests no account answered.
+	status.AccountName
 	// Models are its models with requests, in the order the summary has
 	// them: a model's quota checks and counts of tokens alone, which aren't
 	// requests, make none.
@@ -78,14 +81,15 @@ func (a DayAccount) Noted() bool {
 }
 
 // DayAccountsOf are the accounts of each of days, priced, as history's day
-// table shows them, oldest first: a day with nothing to show, neither a row
-// of a model nor an account's note, left out.
-func DayAccountsOf(days []Day) []DayAccounts {
+// table shows them, oldest first, each account named as n names it: a day
+// with nothing to show, neither a row of a model nor an account's note, left
+// out.
+func DayAccountsOf(days []Day, n status.Namer) []DayAccounts {
 	var shown []DayAccounts
 	for _, d := range days {
 		day := DayAccounts{Date: d.Day}
 		for _, a := range d.Accounts {
-			if account := dayAccountOf(a); len(account.Models) > 0 || eventful(account) {
+			if account := dayAccountOf(a, n); len(account.Models) > 0 || eventful(account) {
 				day.Accounts = append(day.Accounts, account)
 			}
 		}
@@ -96,9 +100,10 @@ func DayAccountsOf(days []Day) []DayAccounts {
 	return shown
 }
 
-// dayAccountOf is the account's day a, priced, as the day table shows it.
-func dayAccountOf(a ledger.PricedAccount) DayAccount {
-	account := DayAccount{Account: a.Account, Sessions: a.Sessions, MovedOn: a.MovedOn, MovedOff: a.MovedOff}
+// dayAccountOf is the account's day a, priced, as the day table shows it,
+// named as n names it.
+func dayAccountOf(a ledger.PricedAccount, n status.Namer) DayAccount {
+	account := DayAccount{Account: a.Account, AccountName: namedOf(n, a.Account), Sessions: a.Sessions, MovedOn: a.MovedOn, MovedOff: a.MovedOff}
 	for _, m := range a.Models {
 		if !used(m.ModelDay) {
 			continue

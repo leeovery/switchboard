@@ -47,6 +47,7 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given stri
 	if !ok {
 		return fmt.Errorf("no session %s in the ledger, or among the router's sessions", prose.Clean(redact.Text(given)))
 	}
+	page = page.Named(status.NamesOf(cfg.Accounts, readers.removed))
 	if asJSON {
 		return writeJSON(out, page)
 	}
@@ -57,7 +58,7 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given stri
 // short and its directory; what it's doing, where it runs and why, and when
 // it started; its models, while it runs, else how long its lines are kept;
 // the accounts it ran on, a row each; and its totals, then its turns, a row
-// each, newest first.
+// each, newest first; each account named as the page names it.
 func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 	heading := "session " + status.ShortID(prose.Clean(p.Session))
 	if p.Dir != "" {
@@ -107,7 +108,7 @@ func goesOrKept(p views.SessionPage, now time.Time) string {
 	}
 	goes := make([]string, len(p.Goes))
 	for i, g := range p.Goes {
-		goes[i] = ledger.ShortModelID(g.Model) + " → " + prose.Clean(g.Account)
+		goes[i] = ledger.ShortModelID(g.Model) + " → " + g.Said()
 	}
 	return strings.Join(goes, "   ")
 }
@@ -118,7 +119,7 @@ func goesOrKept(p views.SessionPage, now time.Time) string {
 func ranOnRows(p views.SessionPage, now time.Time) [][]string {
 	var rows [][]string
 	for _, s := range p.Stays(now) {
-		rows = append(rows, []string{prose.Clean(s.Account), s.Said, prose.Counted(s.Requests, "request"), s.PointsSaid(), s.Cents()})
+		rows = append(rows, []string{s.AccountName.Said(), s.Said, prose.Counted(s.Requests, "request"), s.PointsSaid(), s.Cents()})
 	}
 	return rows
 }
@@ -132,7 +133,7 @@ func turnRows(p views.SessionPage, now time.Time) [][]string {
 	rows := [][]string{turnHeads}
 	for _, t := range p.Turns {
 		rows = append(rows, []string{strconv.Itoa(t.Turn), prose.Past(now, t.Started), turnTook(t, now), prose.Grouped(t.Requests), t.ToolsSaid(),
-			prose.Tokens(t.Read), prose.Tokens(t.Written), prose.Tokens(t.Out), t.Cents(), accountsSaid(t.Accounts)})
+			prose.Tokens(t.Read), prose.Tokens(t.Written), prose.Tokens(t.Out), t.Cents(), accountsSaid(t.Names)})
 	}
 	return rows
 }
@@ -148,11 +149,11 @@ func turnTook(t views.Turn, now time.Time) string {
 }
 
 // accountsSaid says the accounts a turn went to, in the order it did, as the
-// page draws a turn that moved: "work → side".
-func accountsSaid(accounts []string) string {
-	said := make([]string, len(accounts))
-	for i, a := range accounts {
-		said[i] = prose.Clean(a)
+// page draws a turn that moved, each as its Said names it: "work → side".
+func accountsSaid(names []status.AccountName) string {
+	said := make([]string, len(names))
+	for i, n := range names {
+		said[i] = n.Said()
 	}
 	return strings.Join(said, " → ")
 }

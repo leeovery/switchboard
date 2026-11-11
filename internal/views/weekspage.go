@@ -64,12 +64,11 @@ func (page WeeksPage) Until(m status.Moment) time.Time {
 
 // WeeksRow is an account's row of Weeks, or every account's: its verdict, as
 // Capacity gives it, and its peak in each of the eight weeks, as Weeks lists
-// them. Of an account, Label is its label, as the config gives it, and
-// Primary marks the primary; and Used is what it used of its weeks its
+// them. Of an account, its verdict's AccountName names it, and Primary
+// marks the primary; and Used is what it used of its weeks its
 // verdict is over, their peaks' mean: nil where none is known.
 type WeeksRow struct {
 	AccountVerdict
-	Label   string
 	Primary bool
 	Used    *float64
 	Peaks   []WeekPeak
@@ -124,7 +123,7 @@ func (p Past) weeksPage() WeeksPage {
 		byWeek[w.Week] = w
 	}
 	for x, a := range in.Accounts {
-		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Label: a.Label, Primary: a.Primary, Peaks: page.peaksOf(byWeek, x)}
+		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Primary: a.Primary, Peaks: page.peaksOf(byWeek, x)}
 		if rec := j.records[x]; rec.weeks > 0 {
 			used := meanOf(rec.used, rec.weeks)
 			row.Used = &used

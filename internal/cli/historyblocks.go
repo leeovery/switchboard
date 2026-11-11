@@ -59,7 +59,7 @@ func writeTotals(out io.Writer, totals views.Totals, plans []views.PlanCost, pri
 	}
 	head := []string{"Over these days"}
 	for _, t := range totals.Accounts {
-		head = append(head, entryName(t.Account, t.All))
+		head = append(head, entryName(t.AccountName, t.All))
 	}
 	rows := [][]string{head}
 	for _, f := range figures {
@@ -76,12 +76,13 @@ func writeTotals(out io.Writer, totals views.Totals, plans []views.PlanCost, pri
 	return writeTable(out, rows)
 }
 
-// entryName names an account's column or row, cleaned, or every account's.
-func entryName(account string, all bool) string {
+// entryName names an account's column or row, as its Said says it, or
+// every account's.
+func entryName(name status.AccountName, all bool) string {
 	if all {
 		return "all accounts"
 	}
-	return prose.Clean(account)
+	return name.Said()
 }
 
 // planOf is the plan among plans of the account with the given id, or of
@@ -254,7 +255,7 @@ func writeWeeks(out io.Writer, weeks []views.Week) error {
 	rows := [][]string{head}
 	for _, entry := range weeks[0].Accounts {
 		for _, key := range peakKeys(weeks, entry) {
-			label := "  " + entryName(entry.Account, entry.All)
+			label := "  " + entryName(entry.AccountName, entry.All)
 			if key != claude.WeekWindow {
 				label = "    " + status.NameOfKey(key)
 			}
@@ -334,8 +335,8 @@ func writeCapacity(out io.Writer, c views.Capacity) error {
 	for _, v := range c.Accounts {
 		lines = append(lines, "  "+verdictText(v))
 	}
-	if c.Drop != "" {
-		lines = append(lines, "  "+views.ToDrop(prose.Clean(c.Drop)))
+	if c.DropName.Label != "" {
+		lines = append(lines, "  "+views.ToDrop(c.DropName.Said()))
 	}
 	lines = append(lines, "  "+views.EstimateOfOneFewerOrMore)
 	_, err := fmt.Fprintln(out, strings.Join(lines, "\n"))
@@ -365,7 +366,7 @@ func replayText(c views.Capacity) string {
 // ·  without it, the rest: short on 6", each phrase as views says it, or
 // Accounts' on every account.
 func verdictText(v views.AccountVerdict) string {
-	name := entryName(v.Account, v.All) + ": "
+	name := entryName(v.AccountName, v.All) + ": "
 	if v.Verdict == "" || v.LeftAtReset == nil {
 		return name + "no week known"
 	}

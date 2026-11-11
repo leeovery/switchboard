@@ -25,7 +25,8 @@ type Windows struct {
 // WindowReadings are an account's window's readings, in the order they were
 // read: one each time the window's use, its reset or its status changed.
 type WindowReadings struct {
-	Account  string          `json:"account"`
+	Account string `json:"account"`
+	status.AccountName
 	Window   string          `json:"window"`
 	Readings []WindowReading `json:"readings"`
 }
@@ -61,6 +62,15 @@ func NewWindows(history Readings, accounts config.Accounts, from, now time.Time)
 		windows.Windows[i] = WindowReadings{Account: w.account, Window: w.key, Readings: held[w]}
 	}
 	return windows
+}
+
+// Named are the windows' readings, each account named as n names it.
+func (w Windows) Named(n status.Namer) Windows {
+	named := Windows{Windows: slices.Clone(w.Windows)}
+	for i, r := range named.Windows {
+		named.Windows[i].AccountName = n.Named(r.Account)
+	}
+	return named
 }
 
 // Listed are the windows' readings as the verbs' text lists them: each

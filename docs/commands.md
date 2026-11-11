@@ -1083,7 +1083,7 @@ switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json 
 | Flag | What it does |
 |---|---|
 | `--session <id>` | Keep that session's requests. Name the session by its id, or as much of it as is unique among the sessions read. |
-| `--account <id>` | Keep that account's requests. |
+| `--account <id>` | Keep that account's requests, by its id, in any case. A label is refused, naming the id of each account it labels. |
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
 | `--json` | Print each line as the ledger holds it, with `"schema": 1` put first, a JSON object a line, even on a terminal. It does so off a terminal anyway. See [The request ledger](reference.md#the-request-ledger). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |

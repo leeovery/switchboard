@@ -31,9 +31,10 @@ type LogPanel struct {
 	// count today's events, Shown those Shows shows.
 	Lines  views.LogCount
 	Events views.EventCount
-	// Accounts are every account, in the config's order, as ONLY ticks
-	// them.
-	Accounts []status.AccountNow
+	// Moment is the moment it was built at: its Accounts are every account,
+	// in the config's order, as ONLY ticks them, and it names the account
+	// each of today's sessions is on.
+	Moment status.Moment
 	// Sessions are today's sessions as views.LogSessions lists them: of
 	// Requests' panel, those with lines today; of Events', those with events
 	// today; and on either, those TickedSessions has that have none.
@@ -257,16 +258,16 @@ func (p LogPanel) choiceRows() []choiceRow {
 // accountTicks are every account's tick, in the config's order, ticked where
 // the table's filter keeps its lines, or its events.
 func (p LogPanel) accountTicks() []tick {
-	every := make([]string, len(p.Accounts))
-	for i, a := range p.Accounts {
+	every := make([]string, len(p.Moment.Accounts))
+	for i, a := range p.Moment.Accounts {
 		every[i] = a.ID
 	}
 	chosen := p.Filter.Accounts
 	if p.Of == LogEvents {
 		chosen = p.Shows.Accounts
 	}
-	ticks := make([]tick, len(p.Accounts))
-	for i, a := range p.Accounts {
+	ticks := make([]tick, len(p.Moment.Accounts))
+	for i, a := range p.Moment.Accounts {
 		ticks[i] = tick{
 			on: tickOn{accountTick, a.ID}, name: name(a), ticked: views.Ticks(chosen, a.ID),
 			toggle: func(p LogPanel) LogPanel {
@@ -397,7 +398,7 @@ func sessionDoingMost() int {
 // on, at its widest; and what it counts and what it's doing, at its widest.
 func (p LogPanel) sessionParts() []flex.Part {
 	count, tail := sessionCountCells(), sessionDoingApart+sessionDoingMost()
-	account := labelColumn(recordedNatural(widestNamed(accountNames(p.Accounts))))
+	account := labelColumn(recordedNatural(widestNamed(accountNames(p.Moment.Accounts))))
 	account.Narrows = 2
 	return []flex.Part{
 		{Natural: todayAt[p.Of], Narrows: 1},
@@ -437,7 +438,7 @@ func (p LogPanel) sessionWords(s views.LogSession, account int) line {
 	countEnd := sessionAccountAt + account + sessionCountGap + sessionCountCells()
 	words := line{{status.ShownID(s.ID), secondaryInk}}
 	words = padTo(words, sessionDirAt-tickBox, line{{views.SessionDirName(s.Dir), mutedInk}})
-	words = padTo(words, sessionAccountAt-tickBox, line{{labelledIn(p.named(s.Account), account), accountInk}})
+	words = padTo(words, sessionAccountAt-tickBox, line{{labelledIn(named(p.Moment, s.Account), account), accountInk}})
 	words = padTo(words, max(countEnd-tickBox-count[:1].width(), words.width()+sessionCountGap), count)
 	if doing := sessionDoing(s, p.Now); doing.text != "" {
 		words = padTo(words, max(countEnd+sessionDoingApart-tickBox, words.width()+p.doingGap()), line{doing})
@@ -460,15 +461,6 @@ func (p LogPanel) sessionCount(n int) line {
 // its figure's end.
 func (p LogPanel) doingGap() int {
 	return sessionDoingApart - p.sessionCount(sessionCountMost)[1:].width()
-}
-
-// named is what the panel calls the account with the given id: its name, of
-// those it ticks, else its id, cleaned; "" for none.
-func (p LogPanel) named(id string) string {
-	if i := slices.IndexFunc(p.Accounts, func(a status.AccountNow) bool { return a.ID == id }); i >= 0 {
-		return name(p.Accounts[i])
-	}
-	return prose.Clean(id)
 }
 
 // sessionDoing is what a session's row says it's doing at now, as its Doing

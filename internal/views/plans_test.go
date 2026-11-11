@@ -39,8 +39,8 @@ func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 			// account's sums work's and side's: (4 + 2) / 220.
 			name: "over the last 30 days, a month",
 			days: sinceJuly,
-			want: `[{"account":"work","plan":"ultra","price":200,"cost":200,"against":0.02,"worth":4,"unpriced":["claude-opus-9"]},` +
-				`{"account":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","worth":1},` +
+			want: `[{"account":"work","label":"work","plan":"ultra","price":200,"cost":200,"against":0.02,"worth":4,"unpriced":["claude-opus-9"]},` +
+				`{"account":"side","label":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","label":"spare","worth":1},` +
 				`{"all":true,"price":220,"cost":220,"against":0.02727272727272727,"plans":{"known":2,"of":3},"worth":6,"unpriced":["claude-opus-9"]}]`,
 		},
 		{
@@ -48,23 +48,23 @@ func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 			// worth.
 			name: "the empty ledger",
 			days: []ledger.Summary{day("2026-10-07")},
-			want: `[{"account":"work","plan":"ultra","price":200,"cost":6.575342465753,"against":0},` +
-				`{"account":"side","plan":"pro","price":20,"cost":0.657534246575,"against":0},` +
-				`{"account":"spare"},{"all":true,"price":220,"cost":7.232876712328,"against":0,"plans":{"known":2,"of":3}}]`,
+			want: `[{"account":"work","label":"work","plan":"ultra","price":200,"cost":6.575342465753,"against":0},` +
+				`{"account":"side","label":"side","plan":"pro","price":20,"cost":0.657534246575,"against":0},` +
+				`{"account":"spare","label":"spare"},{"all":true,"price":220,"cost":7.232876712328,"against":0,"plans":{"known":2,"of":3}}]`,
 		},
 		{
 			name:   "at the config's price of a plan",
 			days:   sinceJuly,
 			prices: config.Prices{Plans: map[string]float64{"ultra": 160}},
-			want: `[{"account":"work","plan":"ultra","price":160,"cost":160,"against":0.025,"worth":4,"unpriced":["claude-opus-9"]},` +
-				`{"account":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","worth":1},` +
+			want: `[{"account":"work","label":"work","plan":"ultra","price":160,"cost":160,"against":0.025,"worth":4,"unpriced":["claude-opus-9"]},` +
+				`{"account":"side","label":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","label":"spare","worth":1},` +
 				`{"all":true,"price":180,"cost":180,"against":0.03333333333333333,"plans":{"known":2,"of":3},"worth":6,"unpriced":["claude-opus-9"]}]`,
 		},
 		{
 			name:     "with no account on a plan known",
 			days:     sinceJuly,
 			accounts: config.Accounts{{ID: "work"}, {ID: "side"}},
-			want:     `[{"account":"work","worth":4,"unpriced":["claude-opus-9"]},{"account":"side","worth":2},{"all":true,"plans":{"known":0,"of":2}}]`,
+			want:     `[{"account":"work","label":"work","worth":4,"unpriced":["claude-opus-9"]},{"account":"side","label":"side","worth":2},{"all":true,"plans":{"known":0,"of":2}}]`,
 		},
 	}
 	for _, tt := range tests {

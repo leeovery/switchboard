@@ -76,3 +76,10 @@ func (a *app) readers(wc *watch.Config, cfg *config.Config) {
 	}
 	wc.Ledger, wc.Readings, wc.Events, wc.Removed = r.ledger, r.readings, r.events, r.removed
 }
+
+// namesIn are the names of the accounts cfg configures and of those removed
+// that the accounts record in the state directory dir keeps, as removedIn
+// gives them.
+func namesIn(dir string, cfg *config.Config) status.Names {
+	return status.NamesOf(cfg.Accounts, removedIn(dir, cfg))
+}
