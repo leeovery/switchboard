@@ -38,8 +38,9 @@ const notStarted = "not started"
 // then the sessions given, as the router lists those it has routed in the
 // last hour, a line each; then the priming schedule, and what comes next of
 // it; then the account new sessions go to, as Next has it, which the
-// dashboard marks ▲; then where the usage came from, and last a restart the
-// router has due. Each is said as the moment has it, worked out once.
+// dashboard marks ▲; then where the usage came from, a restart the router
+// has due, and last that the history waits on its move onto the accounts'
+// ids, while the router's moving it. Each is said as the moment has it, worked out once.
 // Countdowns run from Now, and times show in Now's time zone. Every text it
 // shows that came from elsewhere, such as the config's labels or the
 // upstream's errors, it shows cleaned.
@@ -67,6 +68,9 @@ func (m Moment) Text(sessions ...Session) string {
 	fmt.Fprintf(&b, "%s\n", d.origin())
 	if d.Restart.Due() {
 		fmt.Fprintf(&b, "%s\n", d.Restart.Text(now))
+	}
+	if m.Moving {
+		fmt.Fprintf(&b, "%s\n", prose.HistoryMoving)
 	}
 	return b.String()
 }

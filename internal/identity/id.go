@@ -61,6 +61,19 @@ func (r Record) Random(rand io.Reader, configured []string) (string, error) {
 	return "", fmt.Errorf("draw a random id: each of %d drawn is held already", mostDraws)
 }
 
+// Spells reports whether id is the one the given organization spells at its
+// length, in any case, as Derive spells one from its SHA-256: an id derived
+// from it, the record holding those shorter, as far as can be told.
+func Spells(organization, id string) bool {
+	sum := sha256.Sum256([]byte(organization))
+	return len(id) >= idLength && strings.EqualFold(id, spell(sum[:], len(id)))
+}
+
+// WellFormed reports whether id is one switchboard makes, as wellFormed says.
+func WellFormed(id string) bool {
+	return wellFormed(id)
+}
+
 // clashes reports whether id can't be given to an account: the record holds
 // it, as an account's id or one an account had before switchboard made ids,
 // or it's one of the configured accounts' ids, or it's no id switchboard

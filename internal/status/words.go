@@ -300,6 +300,34 @@ func PassedOver(reason string) string {
 	return account
 }
 
+// reasonsNaming are the starts of the reasons an account's id follows, then a
+// space and why.
+var reasonsNaming = []string{ReasonMovedOff, ReasonPinYields, ReasonCompacted}
+
+// RenamedReason is reason with each account it names renamed as rename gives
+// the account's id: the one after its start, as in "moved: work hit its
+// limit", "pin yields: side has no room" and "compacted: side would reset
+// with 35% of its week left", and the one before its end, as in "new,
+// personal under pressure". Every other word is as it was, and a reason that
+// names none is returned as it is.
+func RenamedReason(reason string, rename func(id string) string) string {
+	base, passed, pressed := passedOver(reason)
+	if !pressed {
+		base = reason
+	}
+	for _, start := range reasonsNaming {
+		rest, started := strings.CutPrefix(base, start)
+		if id, why, cut := strings.Cut(rest, " "); started && cut {
+			base = start + rename(id) + " " + why
+			break
+		}
+	}
+	if pressed {
+		return PassingOver(base, rename(passed))
+	}
+	return base
+}
+
 // passedOver cuts the ending ", personal under pressure" from a reason,
 // giving why the choice was made and the account it passed over, and reports
 // false for a reason without it.

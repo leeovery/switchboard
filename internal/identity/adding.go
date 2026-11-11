@@ -1,10 +1,8 @@
 package identity
 
 import (
-	"crypto/sha256"
 	"maps"
 	"slices"
-	"strings"
 )
 
 // Outcome is what adding an account with a token comes to.
@@ -94,11 +92,9 @@ func (r Record) knownAs(configured map[string]string, ids []string, organization
 // spells one: which it may well be, as ids are derived, so it's taken to be,
 // failing safe. It reports false where none has.
 func (r Record) mayBe(configured map[string]string, ids []string, organization string) (string, bool) {
-	sum := sha256.Sum256([]byte(organization))
 	for _, id := range ids {
 		e, _ := r.ByID(id)
-		unknown := configured[id] == "" && e.Organization == ""
-		if unknown && len(id) >= idLength && strings.EqualFold(id, spell(sum[:], len(id))) {
+		if configured[id] == "" && e.Organization == "" && Spells(organization, id) {
 			return id, true
 		}
 	}

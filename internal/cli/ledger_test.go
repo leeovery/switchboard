@@ -100,7 +100,8 @@ var heldSummary = `{"version":6,"day":"2026-10-04","lines":1,"accounts":[{"accou
 const ledgerConfig = "[[account]]\nid = \"work\"\nreserve = 0.1\n\n[[account]]\nid = \"side\"\n"
 
 // configure writes ledgerConfig where commands run with deps find their
-// config.
+// config, its accounts' ids those the move onto them gave them, as it has
+// marked in the state directory.
 func configure(t *testing.T, deps cli.Deps) {
 	t.Helper()
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
@@ -108,6 +109,7 @@ func configure(t *testing.T, deps cli.Deps) {
 		t.Fatal(err)
 	}
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(ledgerConfig))
+	markMoved(t, stateDir(t, deps))
 }
 
 // fixtureReadings are the readings history's readings in the ledger's tests:

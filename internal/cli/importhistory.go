@@ -67,6 +67,9 @@ func (a *app) importHistory(ctx context.Context, out, errOut io.Writer, dir stri
 	if err != nil {
 		return err
 	}
+	if err := historyMoved(state); err != nil {
+		return err
+	}
 	unlock, err := export.LockImport(state)
 	if err != nil {
 		return err

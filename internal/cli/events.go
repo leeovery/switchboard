@@ -73,6 +73,9 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 	if err != nil {
 		return err
 	}
+	if err := historyMoved(dir); err != nil {
+		return err
+	}
 	now := a.Now()
 	from, err := sinceOr(opts.since, now, startOfDay(now, 0))
 	if err != nil {

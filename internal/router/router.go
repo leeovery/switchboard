@@ -229,6 +229,12 @@ type Config struct {
 	// posting, the moves still queued and the limits still gathering get to
 	// post, before what's still going is ended. Zero means 3 seconds.
 	NotifyFor time.Duration
+	// Move moves the accounts and their history onto the ids switchboard
+	// makes, where that's owed: as Run starts, it settles the files it takes
+	// up before it takes them up, and once it has its history open, runs the
+	// rest beside it, again a minute after it fails, until it's done, and its
+	// status says it's moving the history meanwhile. Nil moves nothing.
+	Move Mover
 }
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
@@ -282,6 +288,9 @@ type Router struct {
 	imports *imports
 	// exports export the history into the folder the config names.
 	exports *exports
+	// moving moves the accounts and their history onto the ids switchboard
+	// makes, where that's owed.
+	moving *moving
 	// notifications is nil when the router posts none.
 	notifications *notifications
 	started       time.Time
@@ -355,6 +364,7 @@ func New(cfg Config) (*Router, error) {
 		history:   history,
 		ledger:    requests,
 		imports:   newImports(),
+		moving:    newMoving(cfg.Move),
 		probes:    probes,
 		health:    health,
 		proxy: &proxy{
@@ -450,6 +460,7 @@ func (r *Router) assembled() status.Document {
 	doc.Pin = pin
 	doc.Router = r.health.report()
 	doc.Restart = r.upkeep.restartDue()
+	doc.Moving = r.moving.owed.Load()
 	doc.Export = r.exports.report()
 	doc.Events = r.recent.events()
 	if r.primer != nil {

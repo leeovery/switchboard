@@ -77,6 +77,9 @@ func (a *app) export(out, errOut io.Writer, dir string) error {
 	if err != nil {
 		return err
 	}
+	if err := historyMoved(state); err != nil {
+		return err
+	}
 	r, err := export.Exporter{StateDir: state, Now: a.Now, Logger: logger}.Export(dir)
 	if err != nil {
 		return err

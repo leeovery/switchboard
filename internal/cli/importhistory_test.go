@@ -27,6 +27,7 @@ const importRefused = "Error: an import is running already\n"
 func importDeps(t *testing.T) (cli.Deps, string) {
 	t.Helper()
 	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	markMoved(t, stateDir(t, deps))
 	return deps, stateDir(t, deps)
 }
 

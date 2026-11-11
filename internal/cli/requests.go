@@ -79,8 +79,8 @@ func (a *app) ledgerArgs(cmd *cobra.Command, args []string) error {
 
 // ledgerState returns the config and the state directory, which the request
 // ledger and the readings history are in. It fails without a config, as
-// every command that reads one does, or where the state directory can't be
-// found.
+// every command that reads one does, where the state directory can't be
+// found, or while the history waits on its move onto the accounts' ids.
 func (a *app) ledgerState() (*config.Config, string, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
@@ -88,6 +88,9 @@ func (a *app) ledgerState() (*config.Config, string, error) {
 	}
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
+		return nil, "", err
+	}
+	if err := historyMoved(dir); err != nil {
 		return nil, "", err
 	}
 	return cfg, dir, nil

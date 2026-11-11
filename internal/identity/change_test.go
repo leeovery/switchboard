@@ -89,6 +89,42 @@ func TestTheRecordsChanges(t *testing.T) {
 			change: func(r *identity.Record) bool { return r.Remove("work", "Work", later) },
 			want:   record().Accounts,
 		},
+		{
+			name:   "an account moved onto its id",
+			change: func(r *identity.Record) bool { r.Move("b6s7", "test-org-work", "work", later); return true },
+			want: slices.Concat(record().Accounts, []identity.Entry{
+				{ID: "b6s7", Organization: "test-org-work", Added: later, Was: "work"},
+			}),
+			ok: true,
+		},
+		{
+			name:   "an account removed before ids were made",
+			change: func(r *identity.Record) bool { r.RemovedBefore("q8n4", "old", added, later); return true },
+			want: slices.Concat(record().Accounts, []identity.Entry{
+				{ID: "q8n4", Label: "old", Added: added, Removed: later, Was: "old"},
+			}),
+			ok: true,
+		},
+		{
+			name:   "the id an account had before, recorded",
+			change: func(r *identity.Record) bool { return r.Former("M2X7", "side") },
+			want: []identity.Entry{
+				{ID: "m2x7", Organization: "test-org-side", Label: "side", Added: added, Removed: removed, Was: "side"},
+				record().Accounts[1], record().Accounts[2],
+			},
+			ok: true,
+		},
+		{
+			name:   "the id an account had before, where it has another",
+			change: func(r *identity.Record) bool { return r.Former("h7c2", "other") },
+			want:   record().Accounts,
+		},
+		{
+			name:   "the id an account had before, where it has that one",
+			change: func(r *identity.Record) bool { return r.Former("h7c2", "SPARE") },
+			want:   record().Accounts,
+			ok:     true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

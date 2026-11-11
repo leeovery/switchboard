@@ -282,25 +282,7 @@ type DayStat struct {
 func (f *Files) Stat(date string) (DayStat, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	plain, err := f.stat(plainFile(date))
-	if err != nil {
-		return DayStat{}, err
-	}
-	compressed, err := f.stat(compressedFile(date))
-	switch {
-	case err != nil:
-		return DayStat{}, err
-	case plain == nil && compressed == nil:
-		return DayStat{}, f.noLines(date)
-	}
-	var s DayStat
-	if plain != nil {
-		s.PlainSize, s.PlainModified = plain.Size(), plain.ModTime()
-	}
-	if compressed != nil {
-		s.CompressedSize, s.CompressedModified = compressed.Size(), compressed.ModTime()
-	}
-	return s, nil
+	return f.statHeld(date)
 }
 
 // stat returns a look at file: nil where it isn't there.

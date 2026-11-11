@@ -29,10 +29,14 @@ type stateReaders struct {
 // and the router's events in the state directory, by the commands' clock, the
 // ledger's days summarised with the caps of the accounts cfg configures, and
 // its sessions resting on the states its digests hold, of the version the
-// views build them in. It fails where there's no state directory to find.
+// views build them in. It fails where there's no state directory to find, and
+// while the history waits on its move onto the accounts' ids.
 func (a *app) newStateReaders(cfg *config.Config) (stateReaders, error) {
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
+		return stateReaders{}, err
+	}
+	if err := historyMoved(dir); err != nil {
 		return stateReaders{}, err
 	}
 	return stateReaders{

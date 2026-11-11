@@ -41,6 +41,26 @@ func TestDeriveIsTheSameEverywhere(t *testing.T) {
 	}
 }
 
+// An organization spells the id it derives, at its shortest and lengthened,
+// in any case, and none other.
+func TestAnOrganizationSpellsTheIDsItDerives(t *testing.T) {
+	lengthened := identity.Record{}.Derive("test-org-work", []string{"b6s7"})
+	for _, tt := range []struct {
+		id   string
+		want bool
+	}{
+		{"b6s7", true},
+		{"B6S7", true},
+		{lengthened, true},
+		{"qgr2", false},
+		{"b6s", false},
+	} {
+		if got := identity.Spells("test-org-work", tt.id); got != tt.want {
+			t.Errorf("Spells(%q) = %v, want %v", tt.id, got, tt.want)
+		}
+	}
+}
+
 // Every id derived is four characters, lowercase letters and digits, a
 // letter first, any letter, and any of the 36 after it; and the same derived
 // again.

@@ -1097,6 +1097,9 @@ func newServeSetup(t *testing.T, upstream string, env map[string]string) *serveS
 	s.deps = testDeps(vars, t.TempDir())
 	writeToken(t, s.deps, "work", "test-token-work")
 	writeToken(t, s.deps, "side", "test-token-side")
+	// The move onto the accounts' ids is done, as on an install that has
+	// moved, so a test of anything else serve does isn't one of the move.
+	markMoved(t, s.state)
 	return s
 }
 

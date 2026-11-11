@@ -320,6 +320,25 @@ restart due since Mon 13:12 (upgraded), held: invalid config
 `,
 		},
 		{
+			name: "the router's, moving the history onto the accounts' ids, with a restart due",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Restart:     status.Restart{Reason: "config changed", Since: now.Add(-time.Hour), ByHand: true},
+				Moving:      true,
+				Accounts:    []status.Account{personal},
+			},
+			want: `personal · Personal
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
+
+best next: personal · Personal
+from the router: healthy  ·  no sessions  ·  routing automatically
+restart due since Mon 13:12 (config changed): run switchboard serve again to take it up
+the history waits on its move onto the accounts' new ids, which the router makes as it first starts on this version
+`,
+		},
+		{
 			name: "probed, as the router isn't running",
 			doc: status.Document{
 				GeneratedAt: now.UTC(),

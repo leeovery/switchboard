@@ -78,6 +78,10 @@ type Files struct {
 	// to be read, before the next is: another process may compress the day
 	// between the two, as tests do there.
 	opened func(dayFile)
+	// rewriting, where it's set, is called as each of a day's files Rewrite
+	// rewrites is written beside, before it's held to be checked and renamed:
+	// lines may be appended to it between the two, as tests do there.
+	rewriting func(dayFile)
 }
 
 // Lines are lines to append to the files, by the date of the local day each

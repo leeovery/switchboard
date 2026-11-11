@@ -97,6 +97,7 @@ func (r *Router) run(ctx context.Context) error {
 	r.proxyAddr = ls.proxy.Addr().String()
 	// Only now is the state directory this router's, and its copy with it:
 	// another starting alongside would have failed by here.
+	r.moving.settle()
 	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
 	r.upkeep.tidy()
 	r.openHistory()
@@ -203,7 +204,8 @@ func listen(addr string) (net.Listener, error) {
 // rounds the accounts nothing has read lately, looking after itself, keeping
 // the state file, the readings history, the request ledger and what has
 // happened lately, filing its events, exporting the history into the folder
-// the config names, and readying what it posts notifications through and
+// the config names, moving the accounts and their history onto their ids
+// where that's owed, and readying what it posts notifications through and
 // posting them, its stop ending the readying, then cuts short any import
 // under way, leaves any export under way unwaited, shuts both down, writes
 // what's left to write, and restarting, replaces itself, handing their
@@ -227,6 +229,7 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	}
 	looked.Go(func() { r.rounds.run(looking) })
 	looked.Go(func() { r.exports.run(looking, r.upkeep.firstLook()) })
+	looked.Go(func() { r.moving.run(looking, r.historyFiles) })
 	// The requests still in flight as the router stops change what's to be
 	// saved, and what's to be told of, and each has its line in the ledger,
 	// so writing and notifying outlast ctx, as keeping and filing do.

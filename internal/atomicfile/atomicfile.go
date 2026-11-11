@@ -156,6 +156,13 @@ func StageModified(path string, perm fs.FileMode, modified time.Time, write func
 	return stage(path, perm, write, func(tmp string) error { return os.Chtimes(tmp, time.Time{}, modified) })
 }
 
+// Stage writes what write writes to a hidden file beside path, as WriteFrom
+// would, synced and closed, and returns where, for the caller to rename into
+// place or remove: nothing is left beside path where it fails.
+func Stage(path string, perm fs.FileMode, write func(w io.Writer) error) (string, error) {
+	return stage(path, perm, write, func(string) error { return nil })
+}
+
 // Leftovers are the files beside path that writes to it left there, cut
 // short, or staged and neither renamed into place nor removed: those named
 // as a file written beside it is.

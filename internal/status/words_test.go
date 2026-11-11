@@ -633,6 +633,33 @@ func TestPassedOverIsTheAccountUnderPressureAChoicePassedOver(t *testing.T) {
 	}
 }
 
+func TestRenamedReasonRenamesEachAccountAReasonNames(t *testing.T) {
+	renamed := map[string]string{"work": "wk7q", "personal": "ab3k", "side": "sd9x"}
+	rename := func(id string) string {
+		if to, ok := renamed[id]; ok {
+			return to
+		}
+		return id
+	}
+	tests := []struct{ reason, want string }{
+		{reason: status.ReasonMovedOff + "work " + status.WhyLimit, want: "moved: wk7q hit its limit"},
+		{reason: status.ReasonPinYields + "side " + status.WhyReserve, want: "pin yields: sd9x is at its reserve"},
+		{reason: status.Compacted("side", 0.354), want: "compacted: sd9x would reset with 35% of its week left"},
+		{reason: status.PassingOver(status.ReasonNew, "personal"), want: "new, ab3k under pressure"},
+		{reason: status.PassingOver(status.ReasonMovedOff+"work "+status.WhyLimit, "personal"), want: "moved: wk7q hit its limit, ab3k under pressure"},
+		{reason: status.PassingOver(status.Rescored(15*time.Hour), "work"), want: "rescored after 15h idle, wk7q under pressure"},
+		{reason: status.ReasonMovedOff + "gone " + status.WhyLimit, want: "moved: gone hit its limit"},
+		{reason: status.ReasonSticky, want: "sticky"},
+		{reason: status.ReasonNoRoom, want: "no account has room"},
+		{reason: "moved: work", want: "moved: work"},
+	}
+	for _, tt := range tests {
+		if got := status.RenamedReason(tt.reason, rename); got != tt.want {
+			t.Errorf("RenamedReason(%q) = %q, want %q", tt.reason, got, tt.want)
+		}
+	}
+}
+
 func TestRunningWordsSayWhyASessionIsOnItsAccountAndSinceWhen(t *testing.T) {
 	now := time.Date(2026, 10, 1, 14, 42, 7, 0, time.FixedZone("UTC+1", 60*60))
 	at := time.Date(2026, 10, 1, 13, 31, 13, 0, time.UTC)

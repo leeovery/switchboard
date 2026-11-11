@@ -26,13 +26,15 @@ type Moment struct {
 	// Routed is set on the router's document, as read, and Probed on one
 	// built by probing: neither before any document is.
 	Routed, Probed bool
-	// Fallback, Health, Restart, Pin, Events and Sessions are the document's
-	// records, as read: why it was probed rather than the router's, the
-	// router's health, a restart it has due, its global pin, what has
+	// Fallback, Health, Restart, Moving, Pin, Events and Sessions are the
+	// document's records, as read: why it was probed rather than the
+	// router's, the router's health, a restart it has due, whether it's
+	// moving the history onto the accounts' ids, its global pin, what has
 	// happened lately, and how many sessions it routed in the last hour.
 	Fallback Fallback
 	Health   Health
 	Restart  Restart
+	Moving   bool
 	Pin      Pin
 	Events   []Event
 	Sessions int
@@ -293,7 +295,7 @@ func (d Document) At(now time.Time, policy score.Policy) Moment {
 	judged := d.judgeAll(now, policy)
 	m := Moment{
 		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter, Probed: d.Source == SourceProbe,
-		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
+		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Moving: d.Moving, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
 		ComingUp: comingAfter(d.ComingUp, now), Next: d.next(), Learning: d.Demand != nil && d.Demand.Learning,
 		doc: d, policy: policy, judged: judged,
 		pool: sync.OnceValue(func() Pool { return d.pool(judged) }),

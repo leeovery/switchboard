@@ -19,6 +19,7 @@ func exportDeps(t *testing.T) cli.Deps {
 	t.Helper()
 	deps := testDeps(nil, t.TempDir())
 	state := stateDir(t, deps)
+	markMoved(t, state)
 	writeStateFile(t, ledger.Dir(state), "requests-2026-10-02.jsonl", []byte(`{"n":1}`+"\n"))
 	writeStateFile(t, ledger.Dir(state), "day-2026-10-02.json", []byte("{}\n"))
 	writeStateFile(t, readings.Dir(state), "readings-2026-10-08.jsonl", []byte(`{"n":2}`+"\n"))
@@ -54,6 +55,7 @@ func TestExportSaysHowManyDaysItWroteAndLeftAsTheyWere(t *testing.T) {
 
 func TestExportCountsADayAsOne(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
+	markMoved(t, stateDir(t, deps))
 	writeStateFile(t, ledger.Dir(stateDir(t, deps)), "day-2026-10-02.json", []byte("{}\n"))
 	dir := t.TempDir()
 
@@ -110,6 +112,7 @@ func TestExportIntoAFileFails(t *testing.T) {
 
 func TestExportLogsAFileAWriteCutShortLeftThatItCouldntRemove(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
+	markMoved(t, stateDir(t, deps))
 	writeStateFile(t, ledger.Dir(stateDir(t, deps)), "day-2026-10-02.json", []byte("{}\n"))
 	dir := t.TempDir()
 	history := readings.Dir(macsFolder(t, deps, dir))

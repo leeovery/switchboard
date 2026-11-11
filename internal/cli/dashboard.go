@@ -135,8 +135,14 @@ func parseInterval(s string) (time.Duration, error) {
 }
 
 // dashboard keeps the dashboard on screen, reading usage as each read falls
-// due, until the user quits.
+// due, until the user quits: once the history's moved onto the accounts'
+// ids, where it waits on that, as awaitMove does.
 func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOptions) error {
+	if dir, err := config.StateDir(a.Getenv, a.HomeDir); err == nil {
+		if err := a.awaitMove(ctx, out, dir); err != nil {
+			return err
+		}
+	}
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return err

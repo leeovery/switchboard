@@ -13,6 +13,12 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
+// HistoryMoving says the history waits on its move onto the accounts' ids,
+// which the router makes once, as it first starts on a version that makes
+// them: as the status says it, and, each with what it does meanwhile, the
+// dashboard and the verbs that read the history.
+const HistoryMoving = "the history waits on its move onto the accounts' new ids, which the router makes as it first starts on this version"
+
 // Version words a release's version as it's shown, such as v0.2.10: a
 // version that isn't a release's number, such as a build's "dev", as it is.
 func Version(version string) string {
