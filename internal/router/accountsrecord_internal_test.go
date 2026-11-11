@@ -4,11 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -230,5 +232,75 @@ func TestTheRecordIsKeptInStepWithTheConfigAsItStandsUnderTheRecordsLock(t *test
 		if e := entryOf(t, r, want.ID); e != want {
 			t.Errorf("the record holds %+v, want %+v, as the config under the lock has it", e, want)
 		}
+	}
+}
+
+func TestAConfigPutBackOnTheIDsBeforeTheMoveChangesNothingTillItsHealed(t *testing.T) {
+	log := logstest.Capture(t)
+	clock := &testClock{now: start}
+	made := config.Accounts{{ID: "b6s7", Label: "Work"}, {ID: "qgr2", Label: "Personal"}}
+	cfg := testConfig(clock.read, &stubProber{}, tokenstest.Files{"b6s7": workToken, "qgr2": sideToken}.Read)
+	cfg.Accounts, cfg.StateDir = made, t.TempDir()
+	writeFile(t, filepath.Join(cfg.StateDir, "accounts.moved"), "")
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "[[account]]\nid = \"b6s7\"\nlabel = \"Work\"\n\n[[account]]\nid = \"qgr2\"\nlabel = \"Personal\"\n")
+	cfg.ConfigFile = Watch(path)
+	moved := []identity.Entry{
+		{ID: "b6s7", Organization: "test-org-work", Added: start, Was: "work"},
+		{ID: "qgr2", Organization: "test-org-personal", Added: start, Was: "personal"},
+	}
+	if err := identity.NewFile(cfg.StateDir).Update(func(r *identity.Record) error {
+		r.Accounts = moved
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r := newTestRouterOf(t, cfg)
+	r.upkeep.keepRecord()
+	asMoved := func(when string) {
+		t.Helper()
+		record, err := identity.NewFile(cfg.StateDir).Read()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(record.Accounts, moved) {
+			t.Errorf("%s, the record holds\n%+v\nwant it as it was, each account live with its organization\n%+v", when, record.Accounts, moved)
+		}
+	}
+
+	// A config from before the move, as another Mac sharing it might put
+	// back, while the router runs, looked at twice.
+	clock.now = start.Add(time.Minute)
+	writeFile(t, path, "[[account]]\nid = \"work\"\nlabel = \"Work\"\n\n[[account]]\nid = \"personal\"\nlabel = \"Personal\"\n")
+	before := config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal", Label: "Personal"}}
+	configure(r, before)
+	configure(r, slices.Clone(before))
+	asMoved("with the config on the ids before")
+	told := 0
+	for _, line := range log.Lines() {
+		if strings.Contains(line, "level=WARN") && strings.Contains(line, "by the ids they had before") && strings.Contains(line, "accounts=work,personal") {
+			told++
+		}
+	}
+	if told != 1 {
+		t.Errorf("log reads\n%s\nwant the heal owed told once, not %d times", log, told)
+	}
+
+	// The router restarting heals the config, and the look after changes
+	// nothing.
+	if healed, err := idmove.Heal(path, cfg.StateDir); err != nil || !healed {
+		t.Fatalf("Heal() = %v, %v; want the config healed", healed, err)
+	}
+	healed, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := healed.Accounts.IDs(), made.IDs(); !slices.Equal(got, want) {
+		t.Fatalf("healed, the config makes %v, want %v", got, want)
+	}
+	configure(r, healed.Accounts)
+	asMoved("healed")
+	if log.Has("accounts record", "account=") {
+		t.Errorf("log reads\n%s\nwant no account added to the record, or removed from it", log)
 	}
 }

@@ -83,9 +83,11 @@ func (r *Record) Remove(id, label string, at time.Time) bool {
 
 // Kept is what KeepUp changed of the record, by the accounts' ids: those
 // added, marked removed and configured again, and those configured it left
-// out, as their ids clash.
+// out, as their ids clash; or, where it changed nothing as a heal is owed,
+// the ids configured that accounts had before switchboard made ids.
 type Kept struct {
 	Added, Removed, Returned, Clashed []string
+	Unhealed                          []string
 }
 
 // KeepUp keeps the record in step with the accounts configured, as the config
@@ -101,10 +103,19 @@ type Kept struct {
 //     is marked removed, at the time given, as Remove has it, labelled as
 //     labelOf gives the label it last had in the config, else by its id.
 //
-// It returns what it changed.
+// It changes nothing while any account configured is named by the id an
+// account had before switchboard made ids, as MovedFrom finds it, as where a
+// config put back from before the move names them so: the move's Heal gives
+// them their new ids as the router restarts, and the record is kept in step
+// once it has. Until then they'd only clash, and the accounts by their new
+// ids be marked removed. It returns what it changed, or the ids that stopped
+// it.
 func (r *Record) KeepUp(configured config.Accounts, labelOf func(id string) string, at time.Time) Kept {
-	var kept Kept
 	ids := configured.IDs()
+	if unhealed := r.unhealed(ids); len(unhealed) > 0 {
+		return Kept{Unhealed: unhealed}
+	}
+	var kept Kept
 	for _, id := range ids {
 		switch e := r.entry(id); {
 		case e == nil && r.clashes(id, nil):
@@ -124,6 +135,18 @@ func (r *Record) KeepUp(configured config.Accounts, labelOf func(id string) stri
 		}
 	}
 	return kept
+}
+
+// unhealed are those of ids that are accounts' ids before switchboard made
+// ids, as MovedFrom finds them, which the move's Heal gives the new.
+func (r Record) unhealed(ids []string) []string {
+	var unhealed []string
+	for _, id := range ids {
+		if _, moved := r.MovedFrom(id); moved {
+			unhealed = append(unhealed, id)
+		}
+	}
+	return unhealed
 }
 
 // entry is the record's account with the given id, in any case, to change:

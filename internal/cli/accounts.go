@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +22,7 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/setup"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -35,7 +37,8 @@ func newAccountsCommand(a *app) *cobra.Command {
 		Short: "List the accounts, which is the primary, and whether each has a usable token",
 		Long: `List the accounts, in the config's order: each one's id and label, whether it's
 the primary, and whether its token file, <state dir>/tokens/<id>, holds a
-token switchboard can use, or why not, and what would put it right.
+token switchboard can use, or why not, and what would put it right. Where the
+router runs, a token it found is another subscription's shows as wrong token.
 
 accounts add, edit, token and remove register an account, change its label,
 plan, primary or reserve, replace its token, and remove it.`,
@@ -49,7 +52,7 @@ plan, primary or reserve, replace its token, and remove it.`,
 			if err != nil {
 				return err
 			}
-			return writeTable(cmd.OutOrStdout(), accountRows(cfg.Accounts, files.Read))
+			return writeTable(cmd.OutOrStdout(), accountRows(cfg.Accounts, files.Read, a.foreignTokens(cmd.Context())))
 		},
 	}
 	cmd.AddCommand(newAccountsAddCommand(a), newAccountsEditCommand(a), newAccountsTokenCommand(a), newAccountsRemoveCommand(a))
@@ -708,10 +711,29 @@ func warnUnchecked(w io.Writer, unchecked error) {
 	}
 }
 
-func accountRows(configured config.Accounts, readToken func(id string) (tokens.Token, error)) [][]string {
+// foreignTokens reports, of an account by its id, whether the router found
+// its token another subscription's, as its status document's moment judges
+// it, asked once, as statusDocument asks it: of none where the router doesn't
+// give it, so the token files alone tell then.
+func (a *app) foreignTokens(ctx context.Context) func(id string) bool {
+	source := a.routerSource()
+	source.patience = launch.Patience{Answer: cmp.Or(a.Patience.Answer, launch.AskTimeout)}
+	doc, _, err := source.Read(ctx, status.Read{})
+	if err != nil {
+		logger.Debug("can't read the router's document; telling each token by its file alone", "error", err)
+		return func(string) bool { return false }
+	}
+	m := doc.At(a.Now(), claude.Policy())
+	return func(id string) bool {
+		acct, ok := m.Account(id)
+		return ok && acct.TokenForeign
+	}
+}
+
+func accountRows(configured config.Accounts, readToken func(id string) (tokens.Token, error), foreign func(id string) bool) [][]string {
 	rows := [][]string{{"ID", "LABEL", "PRIMARY", "TOKEN"}}
 	for _, acct := range configured {
-		rows = append(rows, []string{acct.ID, prose.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken)})
+		rows = append(rows, []string{acct.ID, prose.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken, foreign)})
 	}
 	return rows
 }
@@ -724,8 +746,12 @@ func primary(acct config.Account) string {
 	return ""
 }
 
-// tokenState says the account's token is usable, or why it isn't.
-func tokenState(id string, readToken func(id string) (tokens.Token, error)) string {
+// tokenState says the account's token is usable, or why it isn't: another
+// subscription's, as foreign says, else as its file says.
+func tokenState(id string, readToken func(id string) (tokens.Token, error), foreign func(id string) bool) string {
+	if foreign(id) {
+		return prose.ForeignTokenShort
+	}
 	if _, err := readToken(id); err != nil {
 		return err.Error()
 	}

@@ -156,6 +156,7 @@ var tokenKinds = []struct {
 	{TokenWorking, "working"},
 	{TokenUnchecked, "unchecked"},
 	{TokenNotTaken, "refused"},
+	{TokenForeign, "with the " + prose.ForeignTokenShort},
 	{TokenUnreadable, "unreadable"},
 	{NoToken, "without a token"},
 }

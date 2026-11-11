@@ -875,7 +875,10 @@ formats below; the screens as signed off in Paper (see The screens, below).
   add` and `remove` save the config with the record under it, so it never acts on the config as it
   stood a moment before either; an import judges which accounts are configured here by the same
   config. An account marked removed under its id alone, as one that left the config while no router
-  ran, takes its label from the next import whose record names it otherwise.
+  ran, takes its label from the next import whose record names it otherwise. While the config
+  names a live account by the id it had before ids were made, as one put back from before the move
+  does, the record is left as it is, logged once: the router, restarting onto that config, writes
+  the new ids back in it first (`Heal`), and keeps the record in step from then.
 - **Removing:** `accounts remove <id>` takes the account out of the config and deletes its token, as
   today, and the accounts record keeps it, marked removed, with its label. History, Accounts and
   the verbs name it by that label, marked removed, as the Paper frames draw it, so it's told apart

@@ -462,10 +462,11 @@ The router holds each account's token to its subscription too. Every probe's ans
 organization the token is for; where that's another subscription than the account's, as where a
 token file was replaced by hand with another account's token, the account shows `wrong token`:
 
-- It takes no requests: none is ever sent on that token. A request Claude Code makes on it, to the
-  Messages API, goes out on another account instead, and where none can take it, switchboard
-  answers 503, saying why and what puts it right, sending nothing. What Claude Code sends to any
-  other path, as an upload, passes through on its own token as before.
+- It takes no requests: it's found at a probe, and from then none is sent on that token. A request
+  Claude Code makes on it, to the Messages API, goes out on another account instead, and where
+  none can take it, switchboard answers 503, saying why and what puts it right, sending nothing.
+  What Claude Code sends to any other path, as an upload, passes through on its own token as
+  before.
 - USAGE, Runway and the routing card say `wrong token`, ROUTING and `status` say
   `its token is another subscription's` and how to put it right, LATELY and the Log tell of it as
   it's found, a `foreign` event, and the status document marks the account `token_foreign`.

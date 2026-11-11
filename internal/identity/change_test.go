@@ -151,7 +151,7 @@ func TestTheRecordKeepsUpWithTheAccountsConfigured(t *testing.T) {
 	later := removed.Add(24 * time.Hour)
 	record := func() identity.Record {
 		return identity.Record{Accounts: []identity.Entry{
-			{ID: "b6s7", Organization: "test-org-work", Added: added},
+			{ID: "b6s7", Organization: "test-org-work", Added: added, Was: "work"},
 			{ID: "qgr2", Organization: "test-org-personal", Label: "personal", Added: added, Removed: removed},
 			{ID: "m2x7", Label: "side", Added: added},
 			{ID: "k3f9", Added: added},
@@ -212,6 +212,10 @@ func TestTheRecordKeepsUpWithTheAccountsConfigured(t *testing.T) {
 		{
 			name: "one whose id isn't one switchboard makes", configured: configured("b6s7", "k3f9", "9abc"),
 			want: record().Accounts, kept: identity.Kept{Clashed: []string{"9abc"}},
+		},
+		{
+			name: "one by the id it had before, as a config from before the move names it, which changes nothing till it's healed", configured: configured("WORK", "k3f9", "n4p8"),
+			want: record().Accounts, kept: identity.Kept{Unhealed: []string{"WORK"}},
 		},
 	}
 	for _, tt := range tests {

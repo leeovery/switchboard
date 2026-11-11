@@ -276,21 +276,17 @@ func (r Registry) replace(ctx context.Context, id string, token tokens.Token, ch
 }
 
 // owned fails, as replace says, where organization, a token's, is another
-// subscription's than the account's with the given id, as record has it,
-// recording it in record as the account's where it doesn't know the
-// account's.
+// subscription's than the account's with the given id, as record holds it,
+// as its Hold does, recording it in record as the account's where it's new.
 func (r Registry) owned(record *identity.Record, id, organization string) error {
-	e, ok := record.ByID(id)
-	switch {
-	case organization == "" || !ok || e.Organization == organization:
-		return nil
-	case e.Organization != "":
-		return &OtherSubscriptionError{}
-	}
-	if other, held := record.ByOrganization(organization); held {
+	switch held, other := record.Hold(id, organization); {
+	case held == identity.HeldForeign && other.ID != "":
 		return &OtherSubscriptionError{OtherID: other.ID, OtherLabel: r.labelOf(other)}
+	case held == identity.HeldForeign:
+		return &OtherSubscriptionError{}
+	case held == identity.HeldNew:
+		record.Organize(id, organization)
 	}
-	record.Organize(id, organization)
 	return nil
 }
 

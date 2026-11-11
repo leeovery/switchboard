@@ -57,6 +57,52 @@ func (r Record) ByWas(was string) (Entry, bool) {
 	return r.find(func(e Entry) bool { return was != "" && strings.EqualFold(e.Was, was) })
 }
 
+// MovedFrom returns the account, not removed, that had the given id, in any
+// case, before switchboard made ids: the one a config naming that id names,
+// once the move onto the ids is done, which the move's Heal gives the new.
+// It reports false where the record has none, as for "".
+func (r Record) MovedFrom(was string) (Entry, bool) {
+	return r.find(func(e Entry) bool { return was != "" && strings.EqualFold(e.Was, was) && e.Removed.IsZero() })
+}
+
+// Holding is what the organization Anthropic's API names a token's account
+// in says of the token, held to its account's, as the record has it.
+type Holding int
+
+const (
+	// Unheld is an organization held to nothing: none named, or the record
+	// without the account.
+	Unheld Holding = iota
+	// HeldOwn is the account's own organization.
+	HeldOwn
+	// HeldNew is an organization the record doesn't know the account's, nor
+	// has for another account: the account's, once it's recorded.
+	HeldNew
+	// HeldForeign is another subscription's: other than the account's, or,
+	// where the account's isn't known, another account's.
+	HeldForeign
+)
+
+// Hold holds organization, as the API named it of a token of the account
+// with the given id, to the account's, as the record has it, and returns the
+// other account it's the organization of, where that's what makes it
+// another subscription's.
+func (r Record) Hold(id, organization string) (Holding, Entry) {
+	own, ok := r.ByID(id)
+	switch {
+	case organization == "" || !ok:
+		return Unheld, Entry{}
+	case own.Organization == organization:
+		return HeldOwn, Entry{}
+	case own.Organization != "":
+		return HeldForeign, Entry{}
+	}
+	if other, held := r.ByOrganization(organization); held {
+		return HeldForeign, other
+	}
+	return HeldNew, Entry{}
+}
+
 // Removed returns the accounts that have been removed, in the record's
 // order.
 func (r Record) Removed() []Entry {

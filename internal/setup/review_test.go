@@ -270,6 +270,7 @@ func TestReviewsNotes(t *testing.T) {
 	}{
 		{"no token", setup.TokenStanding{}, []setup.Note{{Need: setup.NeedToken, Account: "work", Label: "Work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
 		{"refused", setup.TokenStanding{State: setup.TokenNotTaken, Year: gone}, []setup.Note{{Need: setup.NeedToken, Account: "work", Label: "Work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
+		{"another subscription's", setup.TokenStanding{State: setup.TokenForeign, Year: ample}, []setup.Note{{Need: setup.NeedToken, Account: "work", Label: "Work", Says: "has another subscription's token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
 		{"unreadable", setup.TokenStanding{State: setup.TokenUnreadable, Why: "the token file <path> isn't a file: replace it with one holding the token"}, []setup.Note{{Need: setup.NeedToken, Account: "work", Label: "Work", Says: "has a token setup can't read: the token file <path> isn't a file: replace it with one holding the token", Press: "Put that right, or press t to create a new one, approving it in the browser signed in to Work.", Key: "t"}}},
 		{"unchecked, kept", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529"}, nil},
 		{"unchecked, in its last 30 days", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529", Year: lastDay}, []setup.Note{{Need: setup.NeedNewToken, Account: "work", Label: "Work", Says: "has a token that expires 27 Oct 2026: last day.", Press: newToken, Key: "t"}}},
@@ -552,6 +553,7 @@ func TestAccountsPart(t *testing.T) {
 		{"one refused", with(setup.TokenWorking, setup.TokenWorking, setup.TokenNotTaken), "3 accounts, 2 working"},
 		{"one still checking", with(setup.TokenWorking, setup.TokenRead, setup.TokenNotTaken), "3 accounts, checking…"},
 		{"none working", with(setup.NoToken, setup.TokenNotTaken, setup.TokenUnreadable), "3 accounts, none working"},
+		{"one another subscription's", with(setup.TokenWorking, setup.TokenForeign), "2 accounts, 1 working"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

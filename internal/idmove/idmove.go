@@ -427,8 +427,8 @@ func renameConfig(draft *config.Draft, record identity.Record) (bool, error) {
 	}
 	changed := false
 	for _, a := range draft.Config().Accounts {
-		e, ok := record.ByWas(a.ID)
-		if !ok || !e.Removed.IsZero() {
+		e, ok := record.MovedFrom(a.ID)
+		if !ok {
 			continue
 		}
 		if err := moveAccount(draft, a, e.ID); err != nil {
@@ -535,7 +535,7 @@ func (m *Mover) awaitRestart() error {
 		return err
 	}
 	for _, id := range m.Routing {
-		if e, ok := record.ByWas(id); ok && e.Removed.IsZero() {
+		if _, ok := record.MovedFrom(id); ok {
 			return ErrAwaitingRestart
 		}
 	}
