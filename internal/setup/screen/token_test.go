@@ -574,8 +574,6 @@ func TestAMakingThatSavedNothingSaysWhy(t *testing.T) {
 func TestATokenMadeAddsTheAccount(t *testing.T) {
 	h := firstRun(t)
 	h.steps.making = fakeMaking{steps: []setup.Making{{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: "Work"}, approving, madeIt, checkIt}, ends: &saved}
-	h.typeIn("work")
-	h.pressAndDeliver("tab")
 	h.typeIn("Work")
 	h.pressAndDeliver("enter")
 	h.hearAll(5)
