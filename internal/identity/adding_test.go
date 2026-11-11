@@ -104,11 +104,12 @@ func TestAddingDecidesByTheOrganization(t *testing.T) {
 }
 
 // A configured account whose organization neither the config nor the record
-// knows, that has the id the token's organization would derive were it not
-// there, may well be the token's, as ids are derived: it's taken to be,
+// knows, whose id, in any case, the token's organization spells at its
+// length, may well be the token's, as ids are derived: it's taken to be,
 // refused, named, failing safe; an account at that id whose organization is
 // known to be another's isn't, and the id derived is lengthened past it. One
-// known to be the token's is named before it.
+// known to be the token's is named before it, and a removed account of the
+// token's organization comes back before it.
 func TestAddingTakesAConfiguredAccountThatMayBeTheTokensToBe(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -120,6 +121,22 @@ func TestAddingTakesAConfiguredAccountThatMayBeTheTokensToBe(t *testing.T) {
 			name:       "the record empty",
 			configured: map[string]string{"b6s7": ""},
 			want:       want{outcome: identity.Configured, id: "b6s7"},
+		},
+		{
+			name:       "configured in another case",
+			configured: map[string]string{"B6S7": ""},
+			want:       want{outcome: identity.Configured, id: "B6S7"},
+		},
+		{
+			name:       "at the id lengthened, the record empty, as after a state directory lost",
+			configured: map[string]string{"b6s7e": ""},
+			want:       want{outcome: identity.Configured, id: "b6s7e"},
+		},
+		{
+			name:       "a removed account of the token's organization in the record, coming back first",
+			record:     []identity.Entry{{ID: "m2x7", Organization: "test-org-work", Label: "side", Added: added, Removed: removed}},
+			configured: map[string]string{"b6s7": ""},
+			want:       want{outcome: identity.Returning, id: "m2x7", entry: "m2x7"},
 		},
 		{
 			name:       "the record having it, its organization not known",
@@ -158,6 +175,16 @@ func TestAddingTakesAConfiguredAccountThatMayBeTheTokensToBe(t *testing.T) {
 			name:       "none at the id, one whose organization isn't known elsewhere",
 			record:     []identity.Entry{{ID: "k3f9", Added: added}},
 			configured: map[string]string{"k3f9": ""},
+			want:       want{outcome: identity.NewAccount, id: "b6s7"},
+		},
+		{
+			name:       "none at the id, one whose organization isn't known elsewhere, the record empty",
+			configured: map[string]string{"k3f9": ""},
+			want:       want{outcome: identity.NewAccount, id: "b6s7"},
+		},
+		{
+			name:       "one whose id starts as the spelling does, but isn't it at its length, b6s7eho",
+			configured: map[string]string{"b6s7eh0": ""},
 			want:       want{outcome: identity.NewAccount, id: "b6s7"},
 		},
 		{

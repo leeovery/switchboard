@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"crypto/sha256"
 	"maps"
 	"slices"
 	"strings"
@@ -86,29 +87,21 @@ func (r Record) knownAs(configured map[string]string, ids []string, organization
 	return "", false
 }
 
-// mayBe returns the id of the configured account, of those whose ids are ids,
-// whose organization neither the config nor the record knows, that has the id
-// the given organization would derive were none of those there: which it may
-// well be, as ids are derived, so it's taken to be, failing safe. It reports
-// false where none has.
+// mayBe returns the id of the first configured account, of those whose ids
+// are ids, in order, whose organization neither the config nor the record
+// knows, and whose id the given organization spells at its length, as Derive
+// spells one: which it may well be, as ids are derived, so it's taken to be,
+// failing safe. It reports false where none has.
 func (r Record) mayBe(configured map[string]string, ids []string, organization string) (string, bool) {
-	var unknown, known []string
+	sum := sha256.Sum256([]byte(organization))
 	for _, id := range ids {
-		if e, _ := r.ByID(id); configured[id] == "" && e.Organization == "" {
-			unknown = append(unknown, id)
-		} else {
-			known = append(known, id)
+		e, _ := r.ByID(id)
+		unknown := configured[id] == "" && e.Organization == ""
+		if unknown && len(id) >= idLength && strings.EqualFold(id, spell(sum[:], len(id))) {
+			return id, true
 		}
 	}
-	others := Record{Accounts: slices.DeleteFunc(slices.Clone(r.Accounts), func(e Entry) bool { return containsFold(unknown, e.ID) })}
-	derived := spellUntil(organization, func(id string) bool {
-		return containsFold(unknown, id) || !others.clashes(id, known)
-	})
-	i := slices.IndexFunc(unknown, func(id string) bool { return strings.EqualFold(id, derived) })
-	if i < 0 {
-		return "", false
-	}
-	return unknown[i], true
+	return "", false
 }
 
 // unknown returns the accounts the record has whose organization isn't known
