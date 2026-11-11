@@ -266,10 +266,10 @@ func (m Model) ended(card tokenCard, msg tokenedMsg) (Model, tea.Cmd) {
 	switch r := msg.tokened.Result; {
 	case msg.err != nil:
 		m.token, m.held = nil, m.held.without(card.told.making)
-		return m.tokenSaved(card.f, "", msg.err)
+		return m.tokenSaved(card.f, card.told.making, "", msg.err)
 	case r == setup.TokenSaved:
 		m.token = nil
-		return m.tokenSaved(card.f, msg.tokened.ID, nil)
+		return m.tokenSaved(card.f, card.told.making, msg.tokened.ID, nil)
 	case r == setup.TokenAsked:
 		m.token = nil
 		m.which = whichAsked(card.f, msg.tokened, &card)

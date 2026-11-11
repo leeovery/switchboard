@@ -3,6 +3,7 @@ package screen
 import (
 	"slices"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/setup"
 )
@@ -30,10 +31,25 @@ func (h heldTokens) with(t heldToken) heldTokens {
 	return append(slices.Clone(h), t)
 }
 
-// savedFor is the makings held but those whose token is f's account's, as a
-// save for it is known done.
-func (h heldTokens) savedFor(f setup.TokenFor) heldTokens {
-	return slices.DeleteFunc(slices.Clone(h), func(t heldToken) bool { return sameAccount(t.f, f) })
+// savedFor is the makings held but those whose token a save for f's account,
+// known done, saved: for an account to add, the one numbered making alone,
+// as two to add can share a label and be different subscriptions; for one
+// configured, every one for it, by its id.
+func (h heldTokens) savedFor(f setup.TokenFor, making int) heldTokens {
+	return slices.DeleteFunc(slices.Clone(h), func(t heldToken) bool {
+		if f.Add {
+			return t.making == making
+		}
+		return !t.f.Add && t.f.Account.ID == f.Account.ID
+	})
+}
+
+// makingOf is the number of from's making, none where there's no card.
+func makingOf(from *tokenCard) int {
+	if from == nil {
+		return 0
+	}
+	return from.told.making
 }
 
 // without is the makings held but the one numbered making.
@@ -53,26 +69,20 @@ func (h heldTokens) unsavedAs(making int, later setup.Tokened) heldTokens {
 	return h
 }
 
-// sameAccount reports whether a and b are tokens for the same account: one
-// configured, by its id, or one to add, by its label.
-func sameAccount(a, b setup.TokenFor) bool {
-	return a.Add == b.Add && a.Account.ID == b.Account.ID && a.Account.Label == b.Account.Label
-}
-
 // tokenLeft is how the makings held left setup, once each has ended: each
 // unsaved, in the order they began, that saved nothing, nor was stopped,
-// with its latest word: how a later save of its token ended, where one
-// didn't save it, else how it ended, as its card showed it, or as it ended
-// once the screen had gone, to copy. A token made, unread, not saved, or
-// asked which account it's for, is given back however the cards have come
-// and gone since; any other ending only where its card, or one opened from
-// it, is open. A paste or an answer the screen was saving as it went is
-// taken as it ended, as gone has it. And interrupted, whether an interrupt
-// was held as a token made was saved, as the screen heard it, or as one
-// ended once the screen had gone. A failure, which the screen would have
-// closed the card at, came once it had gone, so it's logged, as nothing else
-// can show it.
-func (m Model) tokenLeft() (unsaved []setup.Tokened, interrupted bool) {
+// with the name of the account it's for, and its latest word: how a later
+// save of its token ended, where one didn't save it, else how it ended, as
+// its card showed it, or as it ended once the screen had gone, to copy. An
+// ending that shows a token is given back however the cards have come and
+// gone since; any other only where its card, or one opened from it, is
+// open, so a making retried isn't given back once for each try. A paste or
+// an answer the screen was saving as it went is taken as it ended, as
+// goneHeld has it. And interrupted, whether an interrupt was held as a token
+// made was saved, as the screen heard it, or as one ended once the screen
+// had gone. A failure, which the screen would have closed the card at, came
+// once it had gone, so it's logged, as nothing else can show it.
+func (m Model) tokenLeft() (unsaved []TokenLeft, interrupted bool) {
 	interrupted = m.interrupted
 	open := m.makingCard()
 	for _, held := range m.goneHeld() {
@@ -87,44 +97,49 @@ func (m Model) tokenLeft() (unsaved []setup.Tokened, interrupted bool) {
 			logger.Error("making a token failed once setup's screen had gone", held.f.Logged("error", ended.err)...)
 			continue
 		}
+		left := TokenLeft{For: prose.Clean(held.f.Name()), Tokened: ended.tokened}
 		switch r := ended.tokened.Result; {
 		case r == setup.TokenSaved || r == setup.TokenCancelled || r == setup.TokenInterrupted:
 		case held.later != nil:
-			unsaved = append(unsaved, *held.later)
-		case madeToken(r) || open != nil && open.told.making == held.making:
-			unsaved = append(unsaved, ended.tokened)
+			left.Tokened = *held.later
+			unsaved = append(unsaved, left)
+		case showsToken(ended.tokened) || open != nil && open.told.making == held.making:
+			unsaved = append(unsaved, left)
 		}
 	}
 	return unsaved, interrupted
 }
 
+// showsToken reports whether a making that ended as t made a token it didn't
+// save, unread, not saved, or held while setup asks which account it's for,
+// and shows it, to copy: setup-token's error, shown too, is no token.
+func showsToken(t setup.Tokened) bool {
+	r := t.Result
+	return (r == setup.TokenUnread || r == setup.TokenNotSaved || r == setup.TokenAsked) && len(t.Shown) > 0
+}
+
 // goneHeld is the makings held, as the paste or the answer the screen was
-// saving as it went ended once it had gone: a save of the account's token
-// done, the account's dropped; an answer not saved, its making's later word.
+// saving as it went ended once it had gone: a save done, the makings it
+// saved dropped, as savedFor has it; an answer not saved, its making's later
+// word.
 func (m Model) goneHeld() heldTokens {
 	held := m.held
 	if m.paste != nil {
 		if ended, ok := m.paste.endedOnceGone(); ok && ended.saved() {
-			held = held.savedFor(m.paste.f)
+			held = held.savedFor(m.paste.f, makingOf(m.paste.from))
 		}
 	}
 	if m.which != nil {
 		if ended, ok := m.which.endedOnceGone(); ok {
 			switch {
 			case ended.saved():
-				held = held.savedFor(m.which.f)
+				held = held.savedFor(m.which.f, makingOf(m.which.from))
 			case m.which.made() && len(ended.tokened.Shown) > 0:
 				held = held.unsavedAs(m.which.from.told.making, ended.tokened)
 			}
 		}
 	}
 	return held
-}
-
-// madeToken reports whether a making that ended as r made a token it didn't
-// save: unread, not saved, or held while setup asks which account it's for.
-func madeToken(r setup.TokenResult) bool {
-	return r == setup.TokenUnread || r == setup.TokenNotSaved || r == setup.TokenAsked
 }
 
 // endedOnceGone is how the paste being checked as the screen went ended once

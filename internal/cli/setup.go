@@ -85,9 +85,7 @@ func (a *app) setup(cmd *cobra.Command) error {
 	printLines(out, dashboard.SetupPrinted(left.Summary, a.terminalWidth(out)))
 	switch {
 	case len(left.Unsaved) > 0:
-		for _, unsaved := range left.Unsaved {
-			printLines(out, unsaved.Printed())
-		}
+		printLines(out, left.UnsavedPrinted())
 		caught = kept.Let()
 	case left.Interrupted:
 		launch.Notice(cmd.ErrOrStderr(), savedFirst)

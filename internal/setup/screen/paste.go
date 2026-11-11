@@ -122,10 +122,10 @@ func (m Model) pasteSaved(msg pastedMsg) (Model, tea.Cmd) {
 		return m.askAgain()
 	case msg.err != nil:
 		m.paste = nil
-		return m.tokenSaved(card.f, "", msg.err)
+		return m.tokenSaved(card.f, makingOf(card.from), "", msg.err)
 	case r == setup.TokenSaved:
 		m.paste = nil
-		return m.tokenSaved(card.f, msg.tokened.ID, nil)
+		return m.tokenSaved(card.f, makingOf(card.from), msg.tokened.ID, nil)
 	case r == setup.TokenCancelled:
 		m.paste = nil
 		return m, nil
@@ -140,13 +140,14 @@ func (m Model) pasteSaved(msg pastedMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// tokenSaved is m once a token for f's account, id once saved, is saved, as
-// err says: the makings of tokens for it held no longer, the accounts read
-// again, the row chosen moving to the account once they're read; or
-// failing, the step failed, not saved, as changed has it.
-func (m Model) tokenSaved(f setup.TokenFor, id string, err error) (Model, tea.Cmd) {
+// tokenSaved is m once a token for f's account, id once saved, the making
+// numbered making's where it's one made, is saved, as err says: the makings
+// it saved held no longer, as savedFor has it, the accounts read again, the
+// row chosen moving to the account once they're read; or failing, the step
+// failed, not saved, as changed has it.
+func (m Model) tokenSaved(f setup.TokenFor, making int, id string, err error) (Model, tea.Cmd) {
 	if err == nil {
-		m.madeFor, m.held = id, m.held.savedFor(f)
+		m.madeFor, m.held = id, m.held.savedFor(f, making)
 	}
 	return m.changed(err)
 }

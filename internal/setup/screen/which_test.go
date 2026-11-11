@@ -31,16 +31,9 @@ const madeTeam = "test-token-team"
 func askingTeam(t *testing.T, asked *setup.Asked) *harness {
 	t.Helper()
 	h := accountsHarness(t, frame3Steps())
-	h.steps.making = fakeMaking{steps: []setup.Making{privately, approving, madeIt, checkIt}, ends: &setup.Tokened{Result: setup.TokenAsked, Asked: asked, Shown: []string{madeTeam}}}
 	h.steps.answerFor = setup.TokenFor{Account: config.NewAccount{Label: "team"}, Add: true}
 	h.start()
-	for range 3 {
-		h.pressAndDeliver("down")
-	}
-	h.pressAndDeliver("enter")
-	h.typeIn("team")
-	h.pressAndDeliver("enter")
-	h.hearAll(5)
+	addTeam(h, 3, setup.Tokened{Result: setup.TokenAsked, Asked: asked, Shown: []string{madeTeam}})
 	return h
 }
 
@@ -189,7 +182,7 @@ func TestEscClosesTheCardAskingWhich(t *testing.T) {
 		if title != "NEW TOKEN · TEAM" || !slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, madeTeam) }) {
 			t.Errorf("esc left the card %q reading\n%s\nwant team's token card, showing the token", title, strings.Join(rows, "\n"))
 		}
-		if unsaved, _ := h.model.tokenLeft(); len(unsaved) != 1 || !slices.Equal(unsaved[0].Shown, []string{madeTeam}) {
+		if unsaved, _ := h.model.tokenLeft(); len(unsaved) != 1 || !slices.Equal(unsaved[0].Tokened.Shown, []string{madeTeam}) {
 			t.Errorf("tokenLeft() = %+v, want the token given back", unsaved)
 		}
 		checkNothingAnswered(t, h)
@@ -234,7 +227,7 @@ func TestAnAnswerSavedOnceTheScreenWentIsHowSetupsLeft(t *testing.T) {
 			h := askingTeam(t, teamAsked())
 			h.steps.answerEnds = &tt.ends
 			h.press("enter")
-			if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(unsaved, tt.want) {
+			if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(tokeneds(unsaved), tt.want) {
 				t.Errorf("tokenLeft() = %+v, want %+v", unsaved, tt.want)
 			}
 		})
@@ -299,7 +292,7 @@ func TestAMadeTokenAnAnswerDidntSaveIsGivenBack(t *testing.T) {
 				if title, _ := h.card(); title != "NEW TOKEN · TEAM" {
 					t.Errorf("the card open is %q, want team's token card", title)
 				}
-				if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(unsaved, []setup.Tokened{tt.ends}) {
+				if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(tokeneds(unsaved), []setup.Tokened{tt.ends}) {
 					t.Errorf("tokenLeft() = %+v, want %+v, the token given back", unsaved, tt.ends)
 				}
 			})

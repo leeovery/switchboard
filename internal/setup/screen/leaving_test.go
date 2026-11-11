@@ -35,6 +35,15 @@ func givenBack(unsaved *setup.Tokened) []setup.Tokened {
 	return []setup.Tokened{*unsaved}
 }
 
+// tokeneds is how each of the makings left ended, without whose they are.
+func tokeneds(left []TokenLeft) []setup.Tokened {
+	var ended []setup.Tokened
+	for _, l := range left {
+		ended = append(ended, l.Tokened)
+	}
+	return ended
+}
+
 // sameLeft reports whether a and b say setup was left the same way.
 func sameLeft(a, b Left) bool {
 	return reflect.DeepEqual(a, b)

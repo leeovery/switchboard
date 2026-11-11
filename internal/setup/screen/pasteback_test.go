@@ -193,7 +193,7 @@ func TestRunGivesATokenMadeBackThroughThePasteCard(t *testing.T) {
 			if got.err != nil || got.left.Ending != Paused {
 				t.Errorf("run() = %+v, %v; want setup paused by ctrl+c", got.left.Ending, got.err)
 			}
-			if !reflect.DeepEqual(got.left.Unsaved, givenBack(tt.unsaved)) {
+			if !reflect.DeepEqual(tokeneds(got.left.Unsaved), givenBack(tt.unsaved)) {
 				t.Errorf("run() gives back %+v, want %+v", got.left.Unsaved, tt.unsaved)
 			}
 			if got := steps.replacedOf("work"); got != tt.replaced {
@@ -294,7 +294,7 @@ func TestRunGivesBackTheMakingsOwnOutcomeAfterAFailedPaste(t *testing.T) {
 			if got.err != nil || got.left.Ending != Paused {
 				t.Errorf("run() = %v, %v; want setup paused by ctrl+c", got.left.Ending, got.err)
 			}
-			if !reflect.DeepEqual(got.left.Unsaved, []setup.Tokened{ends}) {
+			if !reflect.DeepEqual(tokeneds(got.left.Unsaved), []setup.Tokened{ends}) {
 				t.Errorf("run() gives back %+v, want the making's own outcome %+v", got.left.Unsaved, ends)
 			}
 		})

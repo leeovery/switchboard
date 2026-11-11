@@ -118,7 +118,7 @@ func (f File) Change(change func(r *Record, commit func() error) error) error {
 	if err != nil {
 		return err
 	}
-	was, existed := slices.Clone(r.Accounts), statErr == nil
+	was, existed := slices.Clone(r.Accounts), !errors.Is(statErr, fs.ErrNotExist)
 	written := false
 	commit := func() error {
 		if written || slices.Equal(was, r.Accounts) {

@@ -114,7 +114,7 @@ func (m Model) answered(msg answeredMsg) (Model, tea.Cmd) {
 	m.which = nil
 	switch r := msg.tokened.Result; {
 	case msg.err != nil || r == setup.TokenSaved:
-		return m.tokenSaved(card.f, msg.tokened.ID, msg.err)
+		return m.tokenSaved(card.f, makingOf(card.from), msg.tokened.ID, msg.err)
 	case r == setup.TokenAsked:
 		m.which = whichAsked(card.f, msg.tokened, card.from)
 	case r == setup.TokenCancelled:

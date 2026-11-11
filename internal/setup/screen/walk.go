@@ -35,14 +35,40 @@ const (
 // screen has gone. Unsaved is how each of the tokens' makings that saved
 // nothing, nor was stopped, left setup, as Model.tokenLeft has it: above all
 // every token made that isn't known saved, which lasts a year on the
-// account, for the caller to show, as the screen can't. Interrupted says an interrupt was held as a token made was
-// saved, for the caller to end as an interrupt has it.
+// account, for the caller to show, as the screen can't, as UnsavedPrinted
+// has it. Interrupted says an interrupt was held as a token made was saved,
+// for the caller to end as an interrupt has it.
 type Left struct {
 	Ending      Ending
 	Err         error
 	Summary     setup.Summary
-	Unsaved     []setup.Tokened
+	Unsaved     []TokenLeft
 	Interrupted bool
+}
+
+// TokenLeft is how a token's making that saved nothing left setup: the name
+// of the account it's for, made safe to show, and how it ended.
+type TokenLeft struct {
+	For     string
+	Tokened setup.Tokened
+}
+
+// UnsavedPrinted is how each of the tokens' makings that saved nothing left
+// setup, a line each, as Tokened.Printed has it: one alone as it is; several
+// each led by the account it's for, a blank line between them, so each
+// token's account is plain.
+func (l Left) UnsavedPrinted() []string {
+	if len(l.Unsaved) == 1 {
+		return l.Unsaved[0].Tokened.Printed()
+	}
+	var lines []string
+	for i, u := range l.Unsaved {
+		if i > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(append(lines, "For "+u.For+":"), u.Tokened.Printed()...)
+	}
+	return lines
 }
 
 // walk is where setup stands in its steps: the step showing, the steps
