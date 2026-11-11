@@ -926,7 +926,8 @@ func (d *deciding) removedBefore() []string {
 // removed adds the account removed before ids were made that had the id
 // was to the record, under a random id, as removed when the history last
 // tells of it, added when it first does: at the start of its first day, and
-// the end of its last, or now where no day tells of it, never after now.
+// the last second of its last, so it's said removed on that day, or now
+// where no day tells of it, never after now.
 func (d *deciding) removed(was string) error {
 	id, err := d.randomID()
 	if err != nil {
@@ -937,13 +938,21 @@ func (d *deciding) removed(was string) error {
 	if start, _, ok := dayfile.Day(seen.first); ok {
 		added = start
 	}
-	if _, end, ok := dayfile.Day(seen.last); ok && end.Before(d.now) {
-		removed = end
+	if last, ok := lastSecondOf(seen.last); ok && last.Before(d.now) {
+		removed = last
 	}
 	d.record.RemovedBefore(id, was, added, removed)
 	d.decide1(id)
 	logger.Info("an account removed before ids were made goes into the accounts record", "was", was, "id", id)
 	return nil
+}
+
+// lastSecondOf is the last second of the local day with the given date, as
+// the accounts record keeps its times to the second, reporting false for ""
+// and anything else that's no day's date.
+func lastSecondOf(date string) (time.Time, bool) {
+	_, end, ok := dayfile.Day(date)
+	return end.Add(-time.Second), ok
 }
 
 // randomID draws a random id held by none, as held says.

@@ -930,7 +930,8 @@ formats below; the screens as signed off in Paper (see The screens, below).
   - **The history's own:** each id the history names that's neither configured nor known, an
     account removed before ids were made, goes into the record as removed, under a random id, its
     label its old id, its organization unknown, added at the start of the first day the history
-    tells of it and removed at the end of its last.
+    tells of it and removed at the last second of its last, so it's said removed on that day, never
+    after the move.
   - **The token files:** each moved account's token file is given its new id's name beside its
     old, as a link, so a router on either id finds its token; once the config configures the new
     id, it and its record move onto the new names, under the tokens directory's lock, a link or a

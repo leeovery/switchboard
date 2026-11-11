@@ -622,3 +622,34 @@ func TestTheTokenFileAnAccountTakesIsTheOneItsLabelOrHistoryNames(t *testing.T) 
 		})
 	}
 }
+
+// An account removed before ids were made is removed on the day the history
+// last names it, as it's said: at its last second, never after now, so one
+// it names today is removed now.
+func TestAnAccountRemovedBeforeIDsIsRemovedOnTheDayTheHistoryLastNamesIt(t *testing.T) {
+	const past, lastDay = "past", "2026-11-04"
+	_, end, _ := dayfile.Day(lastDay)
+	for _, tc := range []struct {
+		name     string
+		days     []string
+		want     time.Time
+		wantSaid string
+	}{
+		{name: "named last on a day long done", days: []string{longAgo, lastDay}, want: end.Add(-time.Second), wantSaid: "removed 4 Nov"},
+		{name: "named last today", days: []string{lastDay, today}, want: now, wantSaid: "removed 8 Nov"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			for _, date := range tc.days {
+				appendDay(t, f.requestLines(), date, line(date, "r9", past, status.ReasonSticky, "", nil))
+			}
+			f.runBounded(t, answering())
+
+			e, ok := f.record(t).ByWas(past)
+			said := status.RemovedAccount{ID: e.ID, Label: e.Label, Removed: e.Removed}.Said()
+			if !ok || !e.Removed.Equal(tc.want) || said != tc.wantSaid {
+				t.Errorf("the account removed before is %+v, said %q, want removed at %s, said %q", e, said, tc.want, tc.wantSaid)
+			}
+		})
+	}
+}
