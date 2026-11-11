@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -518,6 +519,57 @@ func TestExportJSONSaysWhoseFolderItIsAndWhenItWasExported(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(r.Folder, "export.json"))
 	if want := `{"version":2,"install":"` + id + `","exported_at":"2026-10-09T14:42:07Z","ids":true}` + "\n"; err != nil || string(data) != want {
 		t.Errorf("export.json holds %q (%v), want %q", data, err, want)
+	}
+}
+
+// An export into a Mac's folder an earlier switchboard exported removes its
+// export.json, of an older version, before it writes a day, so an export
+// cut short leaves no day naming the ids made beside one that version
+// imports; one of this version stays as it was.
+func TestAnExportCutShortLeavesNoExportJSONOfAnOlderVersionBesideItsDays(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		version int
+		wantOld bool
+	}{
+		{name: "an older version's, removed", version: export.Version - 1},
+		{name: "this version's, left", version: export.Version, wantOld: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state, dir := t.TempDir(), t.TempDir()
+			writeFile(t, requests.compressed(state, day1), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+			writeFile(t, requests.compressed(state, day2), gzipOf(t, linesOf(`{"n":2}`)), compressedAt)
+			id, err := export.InstallID(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			folder := folderOf(t, state, dir)
+			old := `{"version":` + strconv.Itoa(tc.version) + `,"install":"` + id + `","exported_at":"2026-10-01T09:00:00Z","ids":true}` + "\n"
+			writeFile(t, filepath.Join(folder, "export.json"), []byte(old), compressedAt)
+			ledgerDir := filepath.Join(folder, "ledger")
+			t.Cleanup(func() { _ = os.Chmod(ledgerDir, 0o700) })
+			looked := 0
+			// The export is cut short at the second day, its folder no
+			// longer written to.
+			x := export.WithLooked(exporter(state), func(string) {
+				if looked++; looked == 2 {
+					if err := os.Chmod(ledgerDir, 0o500); err != nil {
+						t.Error(err)
+					}
+				}
+			})
+
+			if _, err := x.Export(dir); err == nil {
+				t.Fatal("Export() = nil, want it cut short at the second day")
+			}
+			if _, err := os.Stat(requests.compressed(folder, day1)); err != nil {
+				t.Errorf("the first day: %v, want it exported", err)
+			}
+			data, err := os.ReadFile(filepath.Join(folder, "export.json"))
+			if got := err == nil && string(data) == old; got != tc.wantOld || err != nil && !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("cut short, the folder's export.json holds %q (%v), want the one there before %v", data, err, tc.wantOld)
+			}
+		})
 	}
 }
 

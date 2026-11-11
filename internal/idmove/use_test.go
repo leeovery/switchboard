@@ -211,15 +211,21 @@ func TestATokenFileJoinsNoAccountThisMacUsed(t *testing.T) {
 		{name: "a day's summary alone, its lines gone", use: func(t *testing.T, f fixture) {
 			const pruned = "2026-11-01"
 			appendDay(t, f.requestLines(), pruned, line(pruned, "r8", workID, status.ReasonSticky, "", nil))
-			ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test")).SummariseEnded(now)
+			summariseNaming(t, f, pruned, workID)
 			for _, path := range []string{filepath.Join(f.requestLines().Dir, "requests-"+pruned+".jsonl"), f.requestLines().CompressedPath(pruned)} {
 				if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 					t.Fatal(err)
 				}
 			}
-			if summary := readFile(t, ledger.SummaryFile(ledger.Dir(f.state), pruned)); !strings.Contains(summary, `"`+workID+`"`) {
-				t.Fatalf("the day's summary reads %s, want it naming %s", summary, workID)
-			}
+		}},
+		// A line's move from it is no use, as the move from a new id in
+		// TestWhatOnlyFollowsTheConfigIsNoUseOfAnIDAnotherMacMoved has it,
+		// but its day's summary, naming the account a session moved from, is:
+		// the session was on it before, so it was used.
+		{name: "a request moved from it, its day summarised", use: func(t *testing.T, f fixture) {
+			const ended = "2026-11-01"
+			appendDay(t, f.requestLines(), ended, line(ended, "r8", "", status.ReasonNoRoom, workID, nil))
+			summariseNaming(t, f, ended, workID)
 		}},
 		{name: "a request going out on it, in another case", use: func(t *testing.T, f fixture) {
 			appendDay(t, f.requestLines(), today, line(today, "r8", strings.ToUpper(workID), status.ReasonSticky, "", nil))
@@ -244,6 +250,16 @@ func TestATokenFileJoinsNoAccountThisMacUsed(t *testing.T) {
 
 // primaryAlone is the config another Mac moved, of its primary alone.
 const primaryAlone = "[[account]]\nid = \"" + workID + "\"\nlabel = \"Work\"\nprimary = true\n"
+
+// summariseNaming summarises the fixture's ended days, failing t where the
+// summary of the day with the given date doesn't name the account given.
+func summariseNaming(t *testing.T, f fixture, date, account string) {
+	t.Helper()
+	ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test")).SummariseEnded(now)
+	if summary := readFile(t, ledger.SummaryFile(ledger.Dir(f.state), date)); !strings.Contains(summary, `"`+account+`"`) {
+		t.Fatalf("the day's summary reads %s, want it naming %s", summary, account)
+	}
+}
 
 // A second Mac whose user gave an account another Mac moved a token before
 // this one moved, as the shared config shows it with none, keeps its id, as
@@ -349,15 +365,18 @@ func TestAnAccountTheHistorySpellsInTwoCasesIsRemovedOnce(t *testing.T) {
 	}
 }
 
-// A Mac's own move, of its configured accounts' tokens alone, asks of each of
-// them once, and of nothing else.
+// A Mac's own move asks of each of its configured accounts' tokens once, and
+// of nothing else: not of a token file of no configured account, which no
+// account takes, so the move never waits on the API for it.
 func TestAMoveOfAMacsOwnAccountsAsksOfTheirTokensAlone(t *testing.T) {
 	f := newFixture(t)
+	f.token(t, "spare", spareToken)
 	o := answering()
+	o.silent = map[string]bool{spareToken: true}
 	f.runBounded(t, o)
 
-	if o.asked != 2 || o.askedFor[workToken] != 1 || o.askedFor[personalToken] != 1 {
-		t.Errorf("the API was asked %d times, %v, want once for each configured account's token", o.asked, o.askedFor)
+	if o.asked != 2 || o.askedFor[workToken] != 1 || o.askedFor[personalToken] != 1 || o.askedFor[spareToken] != 0 {
+		t.Errorf("the API was asked %d times, %v, want once for each configured account's token and never for the stray", o.asked, o.askedFor)
 	}
 }
 
@@ -382,5 +401,99 @@ func TestATokenFileOfARemovedAccountsOrganizationIsNoFormerID(t *testing.T) {
 	}
 	if e, ok := record.ByWas(side); !ok || e.ID == removedID || e.Organization != "" || e.Removed.IsZero() {
 		t.Errorf("side's token file went into the record as %+v, want side removed, under a random id, apart", e)
+	}
+}
+
+// labelledAs is the config another Mac moved, of its primary alone, labelled
+// as given.
+func labelledAs(label string) string {
+	return "[[account]]\nid = \"" + workID + "\"\nlabel = \"" + label + "\"\nprimary = true\n"
+}
+
+// Of the token files of an account's organization, the account takes the one
+// named as it's labelled, in any case, as the Mac that moved it labels it by
+// the id it had; else the one the history tells of latest; else the first by
+// name: as its former id, where it keeps its own, its token given here, and
+// as the token file that joins it, where it has none. A former id the
+// history names none of has nothing to move, so it's taken as none; one that
+// joins an account gives it its token, so it joins all the same.
+func TestTheTokenFileAnAccountTakesIsTheOneItsLabelOrHistoryNames(t *testing.T) {
+	const given, backup, job = "test-token-given", "backup", "job"
+	namedOn := func(date, stray string) func(t *testing.T, f fixture) {
+		return func(t *testing.T, f fixture) {
+			appendDay(t, f.requestLines(), date, line(date, "r9", stray, status.ReasonSticky, "", nil))
+		}
+	}
+	for _, tc := range []struct {
+		name      string
+		configure string
+		// given is set where the account's token is given here, so it keeps
+		// its id.
+		given bool
+		// copies are the token files of copies of work's token, by name, and
+		// workGone is set where work's token file isn't there.
+		copies   []string
+		workGone bool
+		history  func(t *testing.T, f fixture)
+		// wantFormer is the token file the account takes, "" for none;
+		// wantRemoved those that are accounts removed before ids were made,
+		// and wantPassed those that go into the record as none.
+		wantFormer  string
+		wantRemoved []string
+		wantPassed  []string
+	}{
+		{name: "kept, a copy the history names none of sorting first", configure: primaryAlone, given: true, copies: []string{backup},
+			wantFormer: work, wantPassed: []string{backup}},
+		{name: "kept, a copy the history names none of alone", configure: primaryAlone, given: true, copies: []string{backup}, workGone: true,
+			wantRemoved: []string{work}, wantPassed: []string{backup}},
+		{name: "kept, job and work told of on one day, the label naming work", configure: primaryAlone, given: true, copies: []string{job},
+			history: namedOn(today, job), wantFormer: work, wantRemoved: []string{job}},
+		{name: "kept, job told of before work, the label naming job", configure: labelledAs("Job"), given: true, copies: []string{job},
+			history: namedOn(yesterday, job), wantFormer: job, wantRemoved: []string{work}},
+		{name: "kept, job told of before work, the label naming neither", configure: labelledAs("Main"), given: true, copies: []string{job},
+			history: namedOn(yesterday, job), wantFormer: work, wantRemoved: []string{job}},
+		{name: "joined, a copy the history names none of sorting first", configure: movedConfig, copies: []string{backup},
+			wantFormer: work, wantPassed: []string{backup}},
+		{name: "joined, a copy the history names none of alone", configure: movedConfig, copies: []string{backup}, workGone: true,
+			wantFormer: backup, wantRemoved: []string{work}},
+		{name: "joined, job told of before work, the label naming job", configure: strings.Replace(movedConfig, `"Work"`, `"Job"`, 1), copies: []string{job},
+			history: namedOn(yesterday, job), wantFormer: job, wantRemoved: []string{work}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			writeFile(t, f.config, tc.configure)
+			o := answering()
+			if tc.given {
+				f.token(t, workID, given)
+				o.of[given] = workOrganization
+			}
+			for _, name := range tc.copies {
+				f.token(t, name, workToken)
+			}
+			if tc.workGone {
+				if err := os.Remove(f.tokens.Path(work)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.history != nil {
+				tc.history(t, f)
+			}
+			f.runBounded(t, o)
+
+			record := f.record(t)
+			if e, ok := record.ByID(workID); !ok || e.Organization != workOrganization || !strings.EqualFold(e.Was, tc.wantFormer) {
+				t.Errorf("%s is %+v in the record, want it of its organization, its former id %q", workID, e, tc.wantFormer)
+			}
+			for _, name := range tc.wantRemoved {
+				if e, ok := record.ByWas(name); !ok || e.ID == workID || e.Removed.IsZero() {
+					t.Errorf("%s went into the record as %+v, want it removed, under an id of its own", name, e)
+				}
+			}
+			for _, name := range tc.wantPassed {
+				if e, ok := record.ByWas(name); ok {
+					t.Errorf("%s went into the record as %+v, want it passed over", name, e)
+				}
+			}
+		})
 	}
 }

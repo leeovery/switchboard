@@ -48,7 +48,10 @@ var (
 	// events follow the config.
 	eventNames = names{values: patterns("/account", "/accounts/*", "/from", "/to"), texts: patterns("/reason")}
 	// summaryNames are a summary of a day of the request ledger's, each a
-	// use, as a summary's accounts are its day's lines' and readings'.
+	// use, as a summary's accounts are its day's lines' and readings': those
+	// its requests went out on, those its readings read the windows of, and
+	// those its sessions moved from, which they were on before, and so used,
+	// as a session is only ever routed to an account it can use.
 	summaryNames = names{values: patterns("/accounts/*/account"), uses: patterns("/accounts/*/account")}
 	// stateNames are the router's state file's: its global pin, as each
 	// form of it gives its accounts, its sessions' assignments and their own
