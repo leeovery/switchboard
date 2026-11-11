@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -263,7 +264,7 @@ func (p *probes) probe(a account, r *run) {
 	}
 	organization := probed.Organization
 	held := p.organizations.hold(a.ID, organization)
-	if held == heldForeign {
+	if held == identity.HeldForeign {
 		probed, err = quota.Probe{}, errors.New(prose.ForeignTokenFix(a.ID))
 	}
 	taken := p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
@@ -283,18 +284,18 @@ func (p *probes) probe(a account, r *run) {
 // subscription's has the account take no requests while it holds that
 // token, and tells of it, once a finding. One held to nothing changes
 // nothing.
-func (p *probes) owning(a account, sum string, held ownership, organization string) {
-	if held == heldNew {
+func (p *probes) owning(a account, sum string, held identity.Holding, organization string) {
+	if held == identity.HeldNew {
 		held = p.organizations.take(a.ID, organization)
 	}
-	if held == unheld {
+	if held == identity.Unheld {
 		return
 	}
-	if !a.secret.disown(sum, held == heldForeign) {
+	if !a.secret.disown(sum, held == identity.HeldForeign) {
 		return
 	}
 	p.kept()
-	if held == heldForeign {
+	if held == identity.HeldForeign {
 		logger.Warn("token is another subscription's; nothing will go out on the account till it has its own", "account", a.ID)
 		p.emit(ForeignToken{Account: a.ID})
 		return

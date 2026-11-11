@@ -229,7 +229,7 @@ func (r *Router) Control() http.Handler {
 	mux.HandleFunc("POST /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin sessionPinRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, maxControlBody)).Decode(&pin); err != nil {
-			writeProblem(w, http.StatusBadRequest, `give the account to pin the session to as JSON, such as {"account": "work"}`)
+			writeProblem(w, http.StatusBadRequest, `give the account to pin the session to as JSON, such as {"account": "b6s7"}`)
 			return
 		}
 		id := req.PathValue("id")
@@ -596,7 +596,7 @@ func (r *Router) pinnable(id string) error {
 	a, ok := r.accounts.byID(id)
 	switch {
 	case id == "":
-		return errors.New(`give the account to pin, such as {"account": "work"}`)
+		return errors.New(`give the account to pin, such as {"account": "b6s7"}`)
 	case !ok:
 		return UnknownAccount(id, r.accounts.sendable().configured())
 	case !a.hasToken():

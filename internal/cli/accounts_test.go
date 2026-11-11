@@ -1,17 +1,22 @@
 package cli_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestAccounts(t *testing.T) {
@@ -55,6 +60,27 @@ label = "Spare"
 		if strings.Contains(got.stdout+got.stderr, token) {
 			t.Errorf("switchboard accounts printed a token:\n%s", got.stdout)
 		}
+	}
+}
+
+func TestAccountsSaysATokenTheRouterFoundAnothersIsTheWrongToken(t *testing.T) {
+	path := writeConfig(t, "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n")
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	writeToken(t, deps, "work", "test-token-work")
+	writeToken(t, deps, "side", "test-token-side")
+	doc := status.Document{Accounts: []status.Account{{ID: "work", TokenSet: true}, {ID: "side", TokenForeign: true}}}
+	serveRouter(t, router.SocketPath(stateDir(t, deps)), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /status": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(doc) },
+	})
+
+	got := run(t, deps, "accounts")
+	want := result{
+		stdout: "ID    LABEL  PRIMARY  TOKEN\n" +
+			"work  work   yes      usable\n" +
+			"side  side            wrong token\n",
+	}
+	if got != want {
+		t.Errorf("switchboard accounts =\n%+v\nwant\n%+v", got, want)
 	}
 }
 

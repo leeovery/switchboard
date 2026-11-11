@@ -77,7 +77,7 @@ var momentsMade = []string{
 	"dashboard/watch.Model.Update", "dashboard/watch.Model.fetched", "dashboard/watch.fetchFrom",
 	"dashboard/watch.Model.moment", "dashboard/watch.takenTo",
 	// The commands', each of the one document it reads.
-	"cli.app.pinning", "cli.app.printUsage", "cli.newStatusCommand",
+	"cli.app.foreignTokens", "cli.app.pinning", "cli.app.printUsage", "cli.newStatusCommand",
 }
 
 // worksOut are what work out a document's moment.

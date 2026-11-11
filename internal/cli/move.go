@@ -128,7 +128,7 @@ func formerly(stateDir string) func(id string) (string, bool) {
 		logger.Warn("can't read the accounts record, so a session pinned to an account by the id it had before ids were made isn't", "error", err)
 	}
 	return func(id string) (string, bool) {
-		e, ok := record.ByWas(id)
-		return e.ID, ok && e.Removed.IsZero()
+		e, ok := record.MovedFrom(id)
+		return e.ID, ok
 	}
 }

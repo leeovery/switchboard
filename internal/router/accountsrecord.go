@@ -55,8 +55,9 @@ func newAccountsRecord(cfg Config, started accounts, owed func() bool) *accounts
 // found the config file making, those the router started with where it's
 // none, have changed since it last looked, as accountsRecord says, judging
 // again what the record holds then, and logs what that changed. Where it
-// can't, as where the record is damaged, it warns, and tries again once the
-// accounts upkeep finds configured change, or the router restarts.
+// can't, as where the record is damaged, or a heal is owed, as KeepUp says,
+// it says so, once, and tries again once the accounts upkeep finds
+// configured change, or the router restarts, healing the config first.
 func (a *accountsRecord) look(seen config.Accounts) {
 	if a == nil || a.owed() || !a.saw(seen) {
 		return
@@ -70,6 +71,10 @@ func (a *accountsRecord) look(seen config.Accounts) {
 	})
 	if err != nil {
 		logger.Warn("can't keep the accounts record in step with the config", "error", err)
+		return
+	}
+	if len(kept.Unhealed) > 0 {
+		logger.Warn("the config names accounts by the ids they had before switchboard made ids; the accounts record is kept in step once the router restarts, giving them their new ids", "accounts", strings.Join(kept.Unhealed, ","))
 		return
 	}
 	a.kept = configured

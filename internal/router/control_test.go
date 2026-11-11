@@ -302,7 +302,7 @@ func TestPinningTakesWhatItAsksFor(t *testing.T) {
 			method:  http.MethodPost,
 			path:    "/sessions/" + sessionID + "/pin",
 			body:    "side",
-			wantErr: `give the account to pin the session to as JSON, such as {"account": "work"}`,
+			wantErr: `give the account to pin the session to as JSON, such as {"account": "b6s7"}`,
 		},
 		{
 			method:  http.MethodDelete,
@@ -593,7 +593,7 @@ func TestClientPinSessionRefuses(t *testing.T) {
 				_, err := c.PinSession(ctx, sessionID, "", "")
 				return err
 			},
-			wantErr: `give the account to pin, such as {"account": "work"}`,
+			wantErr: `give the account to pin, such as {"account": "b6s7"}`,
 		},
 	}
 	for _, tt := range tests {
