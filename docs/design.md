@@ -816,8 +816,9 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   made, as `was`, read only to import a folder exported before the move (below). Kept for good, as
   the days' summaries are, a few hundred bytes an account, and written whole, 0600, as `state.json`
   is. `export` copies it and `import` reads it.
-- **Adding:** `accounts add <label>` and setup's add card take the label, the plan and the reserve,
-  and no id. The token is checked first, and the organization its answer names decides the id:
+- **Adding:** `accounts add <label>` takes the label, and setup's add card the label and the plan,
+  as before; neither takes an id. The token is checked first, and the organization its answer
+  names decides the id:
   - one no account of this Mac's has had: a new id;
   - a removed account's: that account's id, so it comes back, its history carrying on after the
     gap, with the label given now;
