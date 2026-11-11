@@ -35,7 +35,7 @@ func editingScreen(card SetupEditCard) Setup {
 // frame6Card is personal's edit card as frame 6 has it: Plan chosen, and
 // moved to Max.
 func frame6Card() SetupEditCard {
-	return SetupEditCard{ID: "personal", Label: Field{Value: "Personal", Cursor: 8}, Reserve: Field{Value: "none", Cursor: 4}, Plan: "max", Chosen: setup.PlanField}
+	return SetupEditCard{Name: "personal", Label: Field{Value: "Personal", Cursor: 8}, Reserve: Field{Value: "none", Cursor: 4}, Plan: "max", Chosen: setup.PlanField}
 }
 
 // setupCardRow is the card's row y, from its line to its line, as text.
@@ -141,7 +141,7 @@ func TestACardOpenLeavesThePageUnfadedAndTheKeyLineEmpty(t *testing.T) {
 
 func TestTheRemoveCardNamesTheAccount(t *testing.T) {
 	s := accountsScreen(frame3Review(), 2)
-	s.Accounts.Remove = &SetupRemoveCard{ID: "side"}
+	s.Accounts.Remove = &SetupRemoveCard{Name: "side"}
 	c := setupDrawn(s, 160, 37)
 	top := (37 - 8) / 2
 	want := map[int]string{
@@ -165,7 +165,7 @@ func TestTheRemoveCardNamesTheAccount(t *testing.T) {
 func TestTheRemoveCardSaysWhySetupRefused(t *testing.T) {
 	const why = `account "work" is the only one, and a config needs one at least`
 	s := accountsScreen(frame3Review(), 0)
-	s.Accounts.Remove = &SetupRemoveCard{ID: "work", Refused: why}
+	s.Accounts.Remove = &SetupRemoveCard{Name: "work", Refused: why}
 	c := setupDrawn(s, 160, 37)
 	top := (37 - 10) / 2
 	if got := setupCardRow(c, top+6); got != "│  "+why+blanks(76-len(why))+"│" {

@@ -110,7 +110,7 @@ func editing(a setup.Reviewed) *editCard {
 // drawn is the card as dashboard.Setup draws it.
 func (c editCard) drawn() *dashboard.SetupEditCard {
 	return &dashboard.SetupEditCard{
-		ID: c.opened.ID, Label: c.label.field(c.chosen == setup.LabelField), Reserve: c.reserve.field(c.chosen == setup.ReserveField),
+		Name: c.opened.Name(), Label: c.label.field(c.chosen == setup.LabelField), Reserve: c.reserve.field(c.chosen == setup.ReserveField),
 		Plan: config.PlanChoices()[c.plan], Primary: c.primary, Chosen: c.chosen, Refused: c.refused, Why: c.why,
 	}
 }
@@ -172,16 +172,17 @@ func (c *editCard) typedIn() *entry {
 }
 
 // removeCard is the card asking before an account is removed, as the screen
-// holds it: the account's id; why setup refused to remove it, where it did;
-// and whether it's being removed, when it takes no key.
+// holds it: the account's id, and its name, as setup.Reviewed has it; why
+// setup refused to remove it, where it did; and whether it's being removed,
+// when it takes no key.
 type removeCard struct {
-	id, refused string
-	removing    bool
+	id, name, refused string
+	removing          bool
 }
 
 // drawn is the card as dashboard.Setup draws it.
 func (c removeCard) drawn() *dashboard.SetupRemoveCard {
-	return &dashboard.SetupRemoveCard{ID: c.id, Refused: c.refused}
+	return &dashboard.SetupRemoveCard{Name: c.name, Refused: c.refused}
 }
 
 // carded reports whether a card is open over the page, taking every key.

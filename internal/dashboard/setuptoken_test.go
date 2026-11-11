@@ -23,7 +23,7 @@ func tokenScreen(card SetupTokenCard) Setup {
 // window.
 func frame2Card() SetupTokenCard {
 	return SetupTokenCard{
-		ID: "personal", Stage: TokenWaiting, Waited: 21 * time.Second, Private: true,
+		Name: "personal", Stage: TokenWaiting, Waited: 21 * time.Second, Private: true,
 		Opening: "Your browser is signed in to Work, so setup opened a private Firefox window. Sign in to Personal there, then approve.",
 	}
 }
@@ -31,7 +31,7 @@ func frame2Card() SetupTokenCard {
 // frame10Card is personal's token card as frame 10 has it: setup-token
 // stopped with an error, what it showed last after it.
 func frame10Card() SetupTokenCard {
-	return SetupTokenCard{ID: "personal", Stage: TokenUnsaved, Unsaved: setup.Tokened{
+	return SetupTokenCard{Name: "personal", Stage: TokenUnsaved, Unsaved: setup.Tokened{
 		Result: setup.TokenNotMade,
 		Shown:  []string{" OAuth error: Request failed with status code 400", " Press Enter to retry."},
 	}.Unsaved()}
@@ -161,7 +161,7 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 		for _, change := range changes {
 			change(&tokened)
 		}
-		return SetupTokenCard{ID: "personal", Stage: TokenUnsaved, Unsaved: tokened.Unsaved()}
+		return SetupTokenCard{Name: "personal", Stage: TokenUnsaved, Unsaved: tokened.Unsaved()}
 	}
 	const address = "https://claude.example/oauth/authorize?code=true&client_id=testclient&state=teststatepersonal0123456789"
 	tests := []struct {
@@ -171,7 +171,7 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 	}{
 		{
 			name: "starting",
-			card: SetupTokenCard{ID: "personal", Stage: TokenStarting},
+			card: SetupTokenCard{Name: "personal", Stage: TokenStarting},
 			want: []string{
 				"  ●∙∙  Starting claude setup-token",
 				"",
@@ -182,7 +182,7 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 		},
 		{
 			name: "waiting, opened as it is: nothing more said",
-			card: SetupTokenCard{ID: "work", Stage: TokenWaiting, Waited: 75 * time.Second},
+			card: SetupTokenCard{Name: "work", Stage: TokenWaiting, Waited: 75 * time.Second},
 			want: []string{
 				"  ●∙∙  Waiting for you to approve it in the browser                     1:15",
 				"",
@@ -194,7 +194,7 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 		{
 			name: "waiting, not opened: the address to paste, broken, never cut, and c to copy it",
 			card: SetupTokenCard{
-				ID: "personal", Stage: TokenWaiting, Unopened: true, Address: address,
+				Name: "personal", Stage: TokenWaiting, Unopened: true, Address: address,
 				Opening: "Your browser is signed in to Work, and setup couldn't open a private Safari window. Open this address in one, sign in to Personal there, then approve:",
 			},
 			want: []string{
@@ -214,7 +214,7 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 		},
 		{
 			name: "stopping: no key",
-			card: SetupTokenCard{ID: "personal", Stage: TokenStopping},
+			card: SetupTokenCard{Name: "personal", Stage: TokenStopping},
 			want: []string{
 				"  ●∙∙  Stopping claude setup-token",
 				"",
@@ -223,7 +223,7 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 		},
 		{
 			name: "checking: no key, as it's saved however setup's left",
-			card: SetupTokenCard{ID: "personal", Stage: TokenChecking},
+			card: SetupTokenCard{Name: "personal", Stage: TokenChecking},
 			want: []string{
 				"  ●∙∙  Checking the token and saving it",
 				"",
@@ -292,7 +292,7 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 		},
 		{
 			name: "waiting, the screen saying the address didn't open: it shows, made safe to show",
-			card: SetupTokenCard{ID: "personal", Stage: TokenWaiting, Unopened: true, Address: "https://claude.example/sign-in\x1b[31m"},
+			card: SetupTokenCard{Name: "personal", Stage: TokenWaiting, Unopened: true, Address: "https://claude.example/sign-in\x1b[31m"},
 			want: []string{
 				"  ●∙∙  Waiting for you to approve it in the browser                     0:00",
 				"",
@@ -305,7 +305,7 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 		},
 		{
 			name: "waiting, the screen saying it opened: no address shown, whatever's given",
-			card: SetupTokenCard{ID: "personal", Stage: TokenWaiting, Address: "https://claude.example/sign-in"},
+			card: SetupTokenCard{Name: "personal", Stage: TokenWaiting, Address: "https://claude.example/sign-in"},
 			want: []string{
 				"  ●∙∙  Waiting for you to approve it in the browser                     0:00",
 				"",
@@ -323,7 +323,7 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 			}
 			rows := len(inner) + 2
 			got := tokenCardRows(setupDrawn(tokenScreen(tt.card), 160, 37), rows)
-			title := "╭─ NEW TOKEN · " + strings.ToUpper(tt.card.ID) + " ─"
+			title := "╭─ NEW TOKEN · " + strings.ToUpper(tt.card.Name) + " ─"
 			if !strings.HasPrefix(got[0], title) || got[rows-1] != "╰"+strings.Repeat("─", 78)+"╯" {
 				t.Fatalf("the card's edges read\n%q\n%q\nwant it titled %q, %d rows tall", got[0], got[rows-1], title, rows)
 			}
@@ -339,13 +339,13 @@ func TestTheTokenCardsOtherStages(t *testing.T) {
 }
 
 func TestTheTokenCardsAddressAndItsMarks(t *testing.T) {
-	card := SetupTokenCard{ID: "personal", Stage: TokenWaiting, Unopened: true, Address: "https://claude.example/sign-in", Opening: "Open this address in one:"}
+	card := SetupTokenCard{Name: "personal", Stage: TokenWaiting, Unopened: true, Address: "https://claude.example/sign-in", Opening: "Open this address in one:"}
 	c := setupDrawn(tokenScreen(card), 160, 37)
 	top := cardTop(12)
 	if got := inkAt(c, editCardContent+tokenSaysAt, top+6); got != accentInk {
 		t.Errorf("the address is in %+v, want accent.mode", got)
 	}
-	unread := SetupTokenCard{ID: "personal", Stage: TokenUnsaved, Unsaved: setup.Tokened{Result: setup.TokenUnread, Shown: []string{"test-token-personal"}}.Unsaved()}
+	unread := SetupTokenCard{Name: "personal", Stage: TokenUnsaved, Unsaved: setup.Tokened{Result: setup.TokenUnread, Shown: []string{"test-token-personal"}}.Unsaved()}
 	c = setupDrawn(tokenScreen(unread), 160, 37)
 	if got := inkAt(c, editCardContent, cardTop(12)+2); got != alertInk {
 		t.Errorf("the unread token's mark is in %+v, want bold accent.attention", got)
@@ -361,7 +361,7 @@ func TestTheTokenCardSpinsWhileItsMakingsUnderWay(t *testing.T) {
 	}{
 		{TokenStarting, true}, {TokenWaiting, true}, {TokenStopping, true}, {TokenChecking, true}, {TokenUnsaved, false},
 	} {
-		if _, got := tokenScreen(SetupTokenCard{ID: "personal", Stage: tt.stage}).SpinDelay(); got != tt.spins {
+		if _, got := tokenScreen(SetupTokenCard{Name: "personal", Stage: tt.stage}).SpinDelay(); got != tt.spins {
 			t.Errorf("at stage %d, the spinner moves: %t, want %t", tt.stage, got, tt.spins)
 		}
 	}

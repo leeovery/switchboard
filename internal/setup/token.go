@@ -37,9 +37,10 @@ var (
 // TokenFor is whose token MakeToken or PasteToken saves, and the accounts
 // it's compared with.
 type TokenFor struct {
-	// Account is the account: its ID alone where it's configured, and the
-	// token replaces its own; all of it but its ID where Add is set, and it's
-	// added with the token, under the id the token's organization decides.
+	// Account is the account: its ID, and its Label to name it by, where
+	// it's configured, and the token replaces its own; all of it but its ID
+	// where Add is set, and it's added with the token, under the id the
+	// token's organization decides.
 	Account config.NewAccount
 	Add     bool
 	// Organizations are the organizations of the accounts this run of setup

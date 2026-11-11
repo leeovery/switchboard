@@ -54,13 +54,10 @@ type TokenLeft struct {
 }
 
 // UnsavedPrinted is how each of the tokens' makings that saved nothing left
-// setup, a line each, as Tokened.Printed has it: one alone as it is; several
-// each led by the account it's for, a blank line between them, so each
-// token's account is plain.
+// setup, a line each, as Tokened.Printed has it, each led by the account
+// it's for, a blank line between them: once the screen's gone, nothing else
+// says whose card to paste it on.
 func (l Left) UnsavedPrinted() []string {
-	if len(l.Unsaved) == 1 {
-		return l.Unsaved[0].Tokened.Printed()
-	}
 	var lines []string
 	for i, u := range l.Unsaved {
 		if i > 0 {

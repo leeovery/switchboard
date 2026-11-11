@@ -35,7 +35,7 @@ func (m Model) pasting(f setup.TokenFor, from *tokenCard) Model {
 
 // drawn is the card as dashboard.Setup draws it.
 func (c pasteCard) drawn() *dashboard.SetupPasteCard {
-	return &dashboard.SetupPasteCard{ID: c.f.Name(), Token: c.token.field(!c.checking), Checking: c.checking, Why: c.why}
+	return &dashboard.SetupPasteCard{Name: c.f.Name(), Token: c.token.field(!c.checking), Checking: c.checking, Why: c.why}
 }
 
 // pasted is the card with text pasted into its field, as entry has it.

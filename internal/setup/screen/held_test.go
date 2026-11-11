@@ -40,7 +40,7 @@ func remake(t *testing.T, h *harness, downs int, id string, ends setup.Tokened) 
 }
 
 // personalLeft is personal's token made but unsaved, as setup gives it back.
-var personalLeft = TokenLeft{For: "personal", Tokened: madeNotSaved}
+var personalLeft = TokenLeft{For: "Personal", Tokened: madeNotSaved}
 
 // Every token the screen makes is held till a save of it is known done,
 // whatever's made after: a second making, side's, that's cancelled or saved,
@@ -63,7 +63,7 @@ func TestEveryTokenMadeIsHeldTillItsSaved(t *testing.T) {
 
 			want := []TokenLeft{personalLeft}
 			if tt.ends.Result == setup.TokenUnread {
-				want = append(want, TokenLeft{For: "side", Tokened: tt.ends})
+				want = append(want, TokenLeft{For: "Side", Tokened: tt.ends})
 			}
 			if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(unsaved, want) {
 				t.Errorf("tokenLeft() = %+v, want %+v", unsaved, want)
@@ -112,6 +112,93 @@ func TestATokenSavedToAddAnAccountIsItsMakingsAlone(t *testing.T) {
 	want := []TokenLeft{{For: "team", Tokened: first}}
 	if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(unsaved, want) {
 		t.Errorf("tokenLeft() = %+v, want team's first token given back", unsaved)
+	}
+}
+
+// teamNotSaved is team's token made but not saved, shown to copy.
+var teamNotSaved = setup.Tokened{Result: setup.TokenNotSaved, Why: "write the token file: permission denied", Shown: []string{madeTeam}}
+
+// A paste saving an added account's token made but unsaved settles its
+// making, whether the screen hears it or has gone by then; and settles that
+// making's alone, team's first token, made before, still given back.
+func TestAPasteToAddAnAccountSavesItsMaking(t *testing.T) {
+	tests := []struct {
+		name string
+		// first has team added once before, its token made, unsaved.
+		first bool
+		// gone saves the paste once the screen has gone.
+		gone bool
+		want []TokenLeft
+	}{
+		{name: "the screen hearing"},
+		{name: "the screen gone", gone: true},
+		{name: "the screen gone, a first token made before", first: true, gone: true, want: []TokenLeft{{For: "team", Tokened: teamNotSaved}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := accountsHarness(t, frame3Steps())
+			h.start()
+			downs := 3
+			if tt.first {
+				addTeam(h, downs, teamNotSaved)
+				h.pressAndDeliver("esc")
+				downs = 0
+			}
+			addTeam(h, downs, teamNotSaved)
+			h.pressAndDeliver("p")
+			if title, _ := h.card(); title != "PASTE A TOKEN · TEAM" {
+				t.Fatalf("p opened the card %q, want PASTE A TOKEN · TEAM", title)
+			}
+			h.typeIn("test-token-typed")
+			if tt.gone {
+				h.press("enter")
+			} else {
+				h.pressAndDeliver("enter")
+			}
+			if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(unsaved, tt.want) {
+				t.Errorf("tokenLeft() = %+v, want %+v", unsaved, tt.want)
+			}
+		})
+	}
+}
+
+// A configured account is named by its label, as the user knows it, not by
+// its id, which switchboard generates: personal's id k3m9, its cards are
+// titled Personal, and its token given back is Personal's, while its token
+// is still made for k3m9.
+func TestAConfiguredAccountIsNamedByItsLabel(t *testing.T) {
+	steps := frame3Steps()
+	steps.review.Accounts[1].ID = "k3m9"
+	steps.checked["k3m9"] = steps.checked["personal"]
+	delete(steps.checked, "personal")
+	h := accountsHarness(t, steps)
+	h.start()
+	h.pressAndDeliver("down")
+	for _, key := range []string{"e", "r"} {
+		h.pressAndDeliver(key)
+		want := map[string]string{"e": "EDIT PERSONAL", "r": "REMOVE PERSONAL"}[key]
+		if title, _ := h.card(); title != want {
+			t.Errorf("%s opened the card %q, want %s", key, title, want)
+		}
+		h.pressAndDeliver("esc")
+	}
+
+	h.steps.making = fakeMaking{steps: []setup.Making{privately, approving}, ends: &madeNotSaved}
+	h.pressAndDeliver("t")
+	if got := h.steps.nextMake(t); got.Account.ID != "k3m9" {
+		t.Fatalf("MakeToken was asked %+v, want k3m9's token", got)
+	}
+	if title, _ := h.card(); title != "NEW TOKEN · PERSONAL" {
+		t.Errorf("t opened the card %q, want NEW TOKEN · PERSONAL", title)
+	}
+	h.hearAll(3)
+	want := []TokenLeft{{For: "Personal", Tokened: madeNotSaved}}
+	if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(unsaved, want) {
+		t.Errorf("tokenLeft() = %+v, want %+v", unsaved, want)
+	}
+	h.pressAndDeliver("p")
+	if title, _ := h.card(); title != "PASTE A TOKEN · PERSONAL" {
+		t.Errorf("p opened the card %q, want PASTE A TOKEN · PERSONAL", title)
 	}
 }
 
@@ -179,7 +266,7 @@ func TestAMakingRetriedIsGivenBackOnce(t *testing.T) {
 		keys []string
 		want []TokenLeft
 	}{
-		{name: "the last card open", want: []TokenLeft{{For: "personal", Tokened: unread}}},
+		{name: "the last card open", want: []TokenLeft{{For: "Personal", Tokened: unread}}},
 		{name: "the last card closed", keys: []string{"esc"}},
 	}
 	for _, tt := range tests {

@@ -218,11 +218,11 @@ func (m Model) accountKey(key string, a setup.Reviewed) (tea.Model, tea.Cmd) {
 	case "e":
 		m.edit = editing(a)
 	case "r":
-		m.remove = &removeCard{id: a.ID}
+		m.remove = &removeCard{id: a.ID, name: a.Name()}
 	case "p":
 		return m.madePrimary(a)
 	case "t":
-		return m.madeOnceChecked(setup.TokenFor{Account: config.NewAccount{ID: a.ID}})
+		return m.madeOnceChecked(setup.TokenFor{Account: config.NewAccount{ID: a.ID, Label: a.Label}})
 	}
 	return m, nil
 }

@@ -71,10 +71,7 @@ func (f TokenFor) Logged(args ...any) []any {
 }
 
 // Name is how the token's cards name the account f is for: by its label,
-// where it's to be added, as it has no id yet; else by its id.
+// as the user knows it, else by its id.
 func (f TokenFor) Name() string {
-	if f.Add {
-		return f.Account.Label
-	}
-	return f.Account.ID
+	return cmp.Or(f.Account.Label, f.Account.ID)
 }

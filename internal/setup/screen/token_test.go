@@ -69,7 +69,7 @@ func TestTMakesTheChosenAccountsTokenInTheTokenCard(t *testing.T) {
 	h.pressAndDeliver("down")
 	h.pressAndDeliver("t")
 
-	want := setup.TokenFor{Account: config.NewAccount{ID: "personal"}, Organizations: setup.Organizations{"work": "org-work", "personal": "org-personal"}}
+	want := setup.TokenFor{Account: config.NewAccount{ID: "personal", Label: "Personal"}, Organizations: setup.Organizations{"work": "org-work", "personal": "org-personal"}}
 	if got := h.steps.nextMake(t); !reflect.DeepEqual(got, want) {
 		t.Errorf("MakeToken was asked %+v, want %+v", got, want)
 	}
@@ -285,7 +285,7 @@ func TestATokensMakingWaitsForTheAccountsChecks(t *testing.T) {
 		press func(h *harness)
 		want  setup.TokenFor
 	}{
-		{name: "t", press: func(h *harness) { h.pressAndDeliver("t") }, want: setup.TokenFor{Account: config.NewAccount{ID: "work"}}},
+		{name: "t", press: func(h *harness) { h.pressAndDeliver("t") }, want: setup.TokenFor{Account: config.NewAccount{ID: "work", Label: "Work"}}},
 		{
 			name: "the add card's enter",
 			press: func(h *harness) {
@@ -376,7 +376,7 @@ func TestTryingAgainWaitsForTheAccountsChecks(t *testing.T) {
 	}
 	h.deliver(checks...)
 	h.pressAndDeliver("enter")
-	want := setup.TokenFor{Account: config.NewAccount{ID: "personal"}, Organizations: setup.Organizations{"work": "org-work", "personal": "org-personal", "side": "org-side"}}
+	want := setup.TokenFor{Account: config.NewAccount{ID: "personal", Label: "Personal"}, Organizations: setup.Organizations{"work": "org-work", "personal": "org-personal", "side": "org-side"}}
 	if got := h.steps.nextMake(t); !reflect.DeepEqual(got, want) {
 		t.Errorf("trying again asked MakeToken %+v, want %+v", got, want)
 	}

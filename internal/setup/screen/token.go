@@ -97,7 +97,7 @@ func (c tokenCard) unopened() bool {
 // it's waited, how the address opened, as setup words it, made safe to show,
 // and, where it didn't open, the address, to paste; ended, how it ended.
 func (c tokenCard) drawn(now time.Time) *dashboard.SetupTokenCard {
-	d := &dashboard.SetupTokenCard{ID: c.f.Name(), Stage: c.stage()}
+	d := &dashboard.SetupTokenCard{Name: c.f.Name(), Stage: c.stage()}
 	switch d.Stage {
 	case dashboard.TokenWaiting:
 		d.Waited, d.Opening, d.Private = now.Sub(c.since), prose.Clean(c.address.Opening()), c.address.Opened == setuptoken.OpenedPrivately

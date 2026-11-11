@@ -58,14 +58,17 @@ func TestAnsweredIsTheAnswerOfTheChoiceAtItsPlace(t *testing.T) {
 	}
 }
 
-// The token's cards name an account to add by its label, as it has no id
-// yet, and any other by its id.
+// The token's cards name an account by its label, as the user knows it,
+// where it has one, else by its id.
 func TestTheTokensCardsNameTheAccount(t *testing.T) {
 	account := config.NewAccount{ID: "work", Label: "Work"}
 	if got := (TokenFor{Account: account, Add: true}).Name(); got != "Work" {
 		t.Errorf("an add is named %q, want its label", got)
 	}
-	if got := (TokenFor{Account: account}).Name(); got != "work" {
-		t.Errorf("a replace is named %q, want its id", got)
+	if got := (TokenFor{Account: account}).Name(); got != "Work" {
+		t.Errorf("a replace is named %q, want its label", got)
+	}
+	if got := (TokenFor{Account: config.NewAccount{ID: "work"}}).Name(); got != "work" {
+		t.Errorf("a replace without a label is named %q, want its id", got)
 	}
 }

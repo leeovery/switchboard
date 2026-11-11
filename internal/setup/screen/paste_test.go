@@ -74,7 +74,7 @@ func TestPOpensThePasteCardFromEachEndThatOffersIt(t *testing.T) {
 			if h.model.token != nil || h.model.paste == nil {
 				t.Fatalf("p left the token card open: %t, the paste card %s; want the paste card in its place", h.model.token != nil, pasteSaid(h.model.paste))
 			}
-			if got := h.model.paste.f; got.Account != (config.NewAccount{ID: "personal"}) || got.Add {
+			if got := h.model.paste.f; got.Account != (config.NewAccount{ID: "personal", Label: "Personal"}) || got.Add {
 				t.Errorf("the paste card saves the token for %s, adding it: %t; want personal's, in its place, as the token card did", got.Account.ID, got.Add)
 			}
 			checkCard(t, h, "PASTE A TOKEN · PERSONAL", pasteCardOpened)
@@ -190,7 +190,7 @@ func TestEnterSavesTheTokenPasted(t *testing.T) {
 		}
 		h.deliver(answered...)
 
-		want := fakePaste{f: setup.TokenFor{Account: config.NewAccount{ID: "personal"}, Organizations: setup.Organizations{"work": "org-work"}}, pasted: "test-token-pasted"}
+		want := fakePaste{f: setup.TokenFor{Account: config.NewAccount{ID: "personal", Label: "Personal"}, Organizations: setup.Organizations{"work": "org-work"}}, pasted: "test-token-pasted"}
 		if got := h.steps.pastes[0]; !reflect.DeepEqual(got, want) {
 			t.Errorf("PasteToken was asked %s, want %s", pastesSaid([]fakePaste{got}), pastesSaid([]fakePaste{want}))
 		}

@@ -82,7 +82,7 @@ func TestOnAFirstRunEnterOpensThePrimarysReserveCard(t *testing.T) {
 	_, rows := h.card()
 	want := []string{
 		"",
-		"  work is the primary, the account the Claude apps are signed in to.",
+		"  Work is the primary, the account the Claude apps are signed in to.",
 		"  Its reserve is the share of each of its windows kept back for them.",
 		"",
 		"  Reserve                             usage kept back for the Claude apps",
@@ -381,8 +381,8 @@ func TestAFirstRunsAccountsWaitForPThroughSetup(t *testing.T) {
 	h.pressAndDeliver("up")
 	h.pressAndDeliver("p")
 	h.pressAndDeliver("enter")
-	work := strings.ToUpper(identity.Record{}.Derive("org-work", nil))
-	if title, _ := h.card(); title != "RESERVE · "+work {
-		t.Errorf("p and enter on work opened the card %q, want RESERVE · %s, its id the one its organization gives", title, work)
+	work := identity.Record{}.Derive("org-work", nil)
+	if title, _ := h.card(); title != "RESERVE · WORK" || h.model.reserve == nil || h.model.reserve.opened.ID != work {
+		t.Errorf("p and enter on work opened the card %q, for the account %+v; want RESERVE · WORK, for %s, the id its organization gives", title, h.model.reserve, work)
 	}
 }
