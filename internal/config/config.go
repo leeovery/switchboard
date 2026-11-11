@@ -34,18 +34,18 @@ const (
 )
 
 // Example is a small valid config, for showing someone who doesn't have one yet.
-const Example = `# One [[account]] per Claude subscription. Each account's token, made with
-# claude setup-token, goes in a file of its own: <state dir>/tokens/<id>, as in
-# ~/.local/state/switchboard/tokens/work.
+const Example = `# One [[account]] per Claude subscription, each added by switchboard setup or
+# switchboard accounts add <label>, which make its token and write it here.
+# Its token is in a file of its own: <state dir>/tokens/<id>.
 
 [[account]]
-id      = "work"  # for good: letters, digits, '-' and '_'; its token is tokens/work
-label   = "Work"  # optional; defaults to the id
+id      = "b6s7"  # switchboard's, made from the subscription: commands take it
+label   = "Work"  # what it's called on screen: required, and unique
 primary = true    # optional: the account the browser and the Claude apps use; else the first
 # reserve = 0.1   # optional, on any account: the share of every window the router leaves; else 0
 
 [[account]]
-id    = "personal"
+id    = "k2m9"
 label = "Personal"
 
 # Optional: start the 5-hour windows on a staggered schedule over the day, in
