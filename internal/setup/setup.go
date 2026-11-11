@@ -28,7 +28,7 @@ var logger = logs.For("setup")
 // ErrNoTerminal is what setup fails with away from a terminal, as it asks as
 // it goes: it says what each step does, and the command that does it alone.
 var ErrNoTerminal = errors.New(`setup asks as it goes, so it needs a terminal: run it at one, or take each step with the command that does it alone:
-  1. Accounts: switchboard accounts add <id> --label <label>, with --primary for the one the browser and the Claude apps are signed into, and switchboard accounts token <id> for one without a usable token
+  1. Accounts: switchboard accounts add <label>, with --primary for the one the browser and the Claude apps are signed into, and switchboard accounts token <id> for one without a usable token
   2. Priming, optionally: day = "HH:MM-HH:MM" in the config's [prime] table
   3. The service: switchboard service install, or switchboard service restart once it's installed
   4. The claude link: a link named claude to "$(command -v switchboard)" in switchboard's bin directory, ~/.local/share/switchboard/bin, or $XDG_DATA_HOME/switchboard/bin, and that directory first on PATH; setup alone writes switchboard's file for the shell, with its completions, and the line in the shell's startup file that reads it. The session hook: setup alone writes it
@@ -36,7 +36,7 @@ var ErrNoTerminal = errors.New(`setup asks as it goes, so it needs a terminal: r
 
 // errNoAccount is what a step that needs an account fails with where none is
 // configured: there's nothing to set up without one.
-var errNoAccount = errors.New("no account is configured, so setup stops here: run it again to add one, or switchboard accounts add <id>")
+var errNoAccount = errors.New("no account is configured, so setup stops here: run it again to add one, or switchboard accounts add <label>")
 
 // Setup is what setting switchboard up takes.
 type Setup struct {

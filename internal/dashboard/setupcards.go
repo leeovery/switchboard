@@ -34,15 +34,26 @@ type SetupReserveCard struct {
 }
 
 // SetupAddCard is the card adding an account, open over the Accounts page,
-// as it stands: its fields, ID and Label as typed, and Plan the plan chosen,
-// one of config.PlanChoices; the field chosen; and where setup refused a
-// value, why, as Why says, under the field Refused names.
+// as it stands: its fields, Label as typed, and Plan the plan chosen, one of
+// config.PlanChoices; the field chosen; and where setup refused a value,
+// why, as Why says, under the field Refused names.
 type SetupAddCard struct {
-	ID, Label Field
-	Plan      string
-	Chosen    setup.Field
-	Refused   setup.Field
-	Why       string
+	Label   Field
+	Plan    string
+	Chosen  setup.Field
+	Refused setup.Field
+	Why     string
+}
+
+// SetupWhichCard is the card asking which account a token made, or pasted,
+// to add an account is for, open over the Accounts page, where its
+// organization doesn't settle it, as it stands: the label the account's
+// added with; what setup asks, as it words it; and the choice chosen, by
+// its place among Ask's choices.
+type SetupWhichCard struct {
+	Label  string
+	Ask    setup.WhichAsk
+	Chosen int
 }
 
 // SetupRemoveCard is the card asking before an account is removed, open over
@@ -59,10 +70,8 @@ const setupCardWidth = 80
 // What the edit card and the add card say: their fields' names and their
 // hints.
 const (
-	idName      = "ID"
-	idHint      = "letters, numbers, - and _ · can't be changed later"
 	labelName   = "Label"
-	labelHint   = "shown in the dashboard"
+	labelHint   = "what every screen calls it"
 	planName    = "Plan"
 	planHint    = "used by History to value usage"
 	primaryName = "Primary"
@@ -87,6 +96,7 @@ var (
 	primaryChoices = []string{"no", "yes"}
 	editKeys       = []Key{{Key: "tab", Does: "next"}, {Key: "←→", Does: "select"}, {Key: "enter", Does: "save"}, {Key: "esc", Does: "cancel"}}
 	addKeys        = []Key{{Key: "tab", Does: "next"}, {Key: "enter", Does: "create token"}, {Key: "esc", Does: "cancel"}}
+	whichKeys      = []Key{{Key: "↑↓", Does: "select"}, {Key: "enter", Does: "save"}, {Key: "esc", Does: "cancel"}}
 	removeKeys     = []Key{{Key: "enter", Does: "remove"}, {Key: "esc", Does: "keep it"}}
 	reserveKeys    = []Key{{Key: "enter", Does: "save"}, {Key: "esc", Does: "no reserve"}}
 )
@@ -126,8 +136,9 @@ func (s Setup) card(width int) *setupCard {
 }
 
 // accountsCard is the card open over the Accounts page: its add card, its
-// edit card, its remove card, its token card, its paste card, or the
-// primary's reserve card, at the screen's time; nil where none is.
+// edit card, its remove card, its token card, its paste card, the card
+// asking which account a token is for, or the primary's reserve card, at the
+// screen's time; nil where none is.
 func (s Setup) accountsCard(width int) *setupCard {
 	if s.Accounts == nil {
 		return nil
@@ -144,6 +155,8 @@ func (s Setup) accountsCard(width int) *setupCard {
 		return a.Token.card(cardWidth, s.Now)
 	case a.Paste != nil:
 		return a.Paste.card(cardWidth, s.Now)
+	case a.Which != nil:
+		return a.Which.card(cardWidth)
 	case a.Reserve != nil:
 		return a.Reserve.card(cardWidth)
 	}
@@ -239,23 +252,64 @@ func (r SetupReserveCard) card(width int) *setupCard {
 }
 
 // card is the add card, width cells wide: ADD AN ACCOUNT in its top edge;
-// what an account is, muted; then a blank row apart, its fields, ID and its
-// hint under it, Label, its hint after it, and Plan, each refusal under the
-// field it's of; what setup does next, making the account's token; and its
-// keys.
+// what an account is, muted; then a blank row apart, its fields, Label, its
+// hint after it, and Plan, each refusal under the field it's of; what setup
+// does next, making the account's token; and its keys.
 func (a SetupAddCard) card(width int) *setupCard {
 	content := width - 2*cardInset
 	focus := cardFocus{chosen: a.Chosen, refused: a.Refused, why: a.Why}
 	k := &setupCard{card: Card{title: "ADD AN ACCOUNT", width: width, keys: addKeys}}
 	k.card.body = append(line{{addCardIntro, mutedInk}}.wrap(content), nil)
-	k.text(focus.textField(setup.IDField, idName, "", a.ID), 0, content)
-	k.card.body = append(k.card.body, hintUnder(content, idHint), nil)
 	k.text(focus.textField(setup.LabelField, labelName, labelHint, a.Label), 0, content)
 	k.card.body = append(k.card.body, nil, focus.planRow(content, a.Plan), nil)
 	for _, l := range addTokenSays {
 		k.card.body = append(k.card.body, l.wrap(content)...)
 	}
 	return k
+}
+
+// card is the card asking which account a token is for, width cells wide,
+// its words setup's: WHICH ACCOUNT and the label the account's added with in
+// its top edge; why it asks, in text.secondary; then a blank row apart, its
+// choices, a row each, laid out as choiceRows has them; and its keys.
+func (w SetupWhichCard) card(width int) *setupCard {
+	content := width - 2*cardInset
+	k := &setupCard{card: Card{title: "WHICH ACCOUNT · " + strings.ToUpper(w.Label), width: width, keys: whichKeys}}
+	for _, says := range w.Ask.Says {
+		k.card.body = append(k.card.body, line{{says, secondaryInk}}.wrap(content)...)
+	}
+	k.card.body = append(append(k.card.body, nil), choiceRows(content, w.Ask.Choices, w.Chosen)...)
+	return k
+}
+
+// choiceRows are a list of choices, width cells wide, a row each: ■ before
+// the one chosen, its label in text.primary, bold, and □ before the rest,
+// their labels muted, each mark in accent.key, as optionsRow marks a
+// choice's options; and when each was last seen, where it says, faint, in a
+// column choicesApart cells past the widest label, a label cut short to
+// leave it room.
+func choiceRows(width int, choices []setup.WhichChoice, chosen int) []line {
+	const markWidth = 2
+	labels, seen := 0, 0
+	for _, c := range choices {
+		labels = max(labels, line{{c.Label, mutedInk}}.width())
+		seen = max(seen, line{{c.Seen, faintInk}}.width())
+	}
+	labels = min(labels, width-markWidth-choicesApart-seen)
+	rows := make([]line, len(choices))
+	for i, c := range choices {
+		mark, k := "□ ", mutedInk
+		if i == chosen {
+			mark, k = "■ ", ink{token: theme.TextPrimary, bold: true}
+		}
+		label := line{{c.Label, k}}.fit(labels)
+		row := append(line{{mark, choiceMarkInk}}, label...)
+		if c.Seen != "" {
+			row = append(row, spaces(labels-label.width()+choicesApart), span{c.Seen, faintInk})
+		}
+		rows[i] = row
+	}
+	return rows
 }
 
 // cardFocus is where a card of setup's stands among its fields: the field

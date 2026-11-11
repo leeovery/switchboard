@@ -36,10 +36,11 @@ type Adding struct {
 	// Entry is the record's account, for one Returning, and for one
 	// Configured where the record has it.
 	Entry Entry
-	// Candidates are, for a NewAccount, the accounts the record has whose
-	// organization isn't known and that aren't configured, as those removed
-	// before switchboard made ids: the token may be any of them, which is the
-	// user's to say.
+	// Candidates are the accounts the token may be, which is the user's to
+	// say: for a NewAccount, the accounts the record has whose organization
+	// isn't known and that aren't configured, as those removed before
+	// switchboard made ids; where it's OrganizationUnknown, every account the
+	// record has that isn't configured.
 	Candidates []Entry
 }
 
@@ -52,10 +53,10 @@ type Adding struct {
 // edited by hand; else Configured where a configured account may be of it, as
 // mayBe finds one; else a NewAccount.
 func (r Record) Adding(configured map[string]string, organization string) Adding {
-	if organization == "" {
-		return Adding{Outcome: OrganizationUnknown}
-	}
 	ids := slices.Sorted(maps.Keys(configured))
+	if organization == "" {
+		return Adding{Outcome: OrganizationUnknown, Candidates: r.unconfigured(ids, func(Entry) bool { return true })}
+	}
 	if id, ok := r.knownAs(configured, ids, organization); ok {
 		return r.configured(id)
 	}
@@ -107,9 +108,15 @@ func (r Record) mayBe(configured map[string]string, ids []string, organization s
 // unknown returns the accounts the record has whose organization isn't known
 // and whose ids aren't among configured, in the record's order.
 func (r Record) unknown(configured []string) []Entry {
+	return r.unconfigured(configured, func(e Entry) bool { return e.Organization == "" })
+}
+
+// unconfigured returns the accounts the record has that match, whose ids
+// aren't among configured, in the record's order.
+func (r Record) unconfigured(configured []string, match func(Entry) bool) []Entry {
 	var found []Entry
 	for _, e := range r.Accounts {
-		if e.Organization == "" && !containsFold(configured, e.ID) {
+		if match(e) && !containsFold(configured, e.ID) {
 			found = append(found, e)
 		}
 	}

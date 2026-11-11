@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -380,7 +381,8 @@ func TestAFirstRunsAccountsWaitForPThroughSetup(t *testing.T) {
 	h.pressAndDeliver("up")
 	h.pressAndDeliver("p")
 	h.pressAndDeliver("enter")
-	if title, _ := h.card(); title != "RESERVE · WORK" {
-		t.Errorf("p and enter on work opened the card %q, want RESERVE · WORK", title)
+	work := strings.ToUpper(identity.Record{}.Derive("org-work", nil))
+	if title, _ := h.card(); title != "RESERVE · "+work {
+		t.Errorf("p and enter on work opened the card %q, want RESERVE · %s, its id the one its organization gives", title, work)
 	}
 }

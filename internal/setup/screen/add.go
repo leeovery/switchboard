@@ -13,7 +13,7 @@ import (
 )
 
 // addFields are the add card's fields, in the order tab goes through them.
-var addFields = []setup.Field{setup.IDField, setup.LabelField, setup.PlanField}
+var addFields = []setup.Field{setup.LabelField, setup.PlanField}
 
 // addCard is the card adding an account, as the screen holds it: its
 // fields, the plan chosen by its place among config.PlanChoices; where it
@@ -21,28 +21,28 @@ var addFields = []setup.Field{setup.IDField, setup.LabelField, setup.PlanField}
 // when it takes no key.
 type addCard struct {
 	form
-	id, label entry
-	plan      int
-	checking  bool
+	label    entry
+	plan     int
+	checking bool
 }
 
 // addOpened is the add card as it opens: its fields empty, its plan not set,
-// ID chosen.
+// Label chosen.
 func addOpened() *addCard {
-	return &addCard{chosen: setup.IDField, plan: slices.Index(config.PlanChoices(), config.PlanNone)}
+	return &addCard{chosen: setup.LabelField, plan: slices.Index(config.PlanChoices(), config.PlanNone)}
 }
 
 // drawn is the card as dashboard.Setup draws it.
 func (c addCard) drawn() *dashboard.SetupAddCard {
 	return &dashboard.SetupAddCard{
-		ID: c.id.field(c.chosen == setup.IDField), Label: c.label.field(c.chosen == setup.LabelField),
-		Plan: config.PlanChoices()[c.plan], Chosen: c.chosen, Refused: c.refused, Why: c.why,
+		Label: c.label.field(c.chosen == setup.LabelField),
+		Plan:  config.PlanChoices()[c.plan], Chosen: c.chosen, Refused: c.refused, Why: c.why,
 	}
 }
 
 // account is the account the card gives, as it's typed and chosen.
 func (c addCard) account() setup.Adding {
-	return setup.Adding{ID: c.id.value(), Label: c.label.value(), Plan: config.PlanChoices()[c.plan]}
+	return setup.Adding{Label: c.label.value(), Plan: config.PlanChoices()[c.plan]}
 }
 
 // pressed is the card once key is pressed in its field chosen, reporting
@@ -69,12 +69,9 @@ func (c addCard) pasted(text string) addCard {
 	return c
 }
 
-// typedIn is the text field chosen, ID or Label: nil where Plan is.
+// typedIn is the text field chosen, Label: nil where Plan is.
 func (c *addCard) typedIn() *entry {
-	switch c.chosen {
-	case setup.IDField:
-		return &c.id
-	case setup.LabelField:
+	if c.chosen == setup.LabelField {
 		return &c.label
 	}
 	return nil

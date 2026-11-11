@@ -18,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -29,8 +30,10 @@ const (
 	// upstream is where the config has requests go.
 	upstream = "http://127.0.0.1:4700"
 	// sidePrompt is how the user at a terminal is asked for side's token,
-	// with the newline that ends it, which doesn't show as it's typed.
-	sidePrompt = "Paste side's token, from claude setup-token run while signed in to that subscription (it won't show): \n"
+	// with the newline that ends it, which doesn't show as it's typed; and
+	// sideLabelPrompt for the token of an account labelled Side, to add.
+	sidePrompt      = "Paste side's token, from claude setup-token run while signed in to that subscription (it won't show): \n"
+	sideLabelPrompt = "Paste Side's token, from claude setup-token run while signed in to that subscription (it won't show): \n"
 	// refusedErr is the error of a token the API refuses.
 	refusedErr = "the API refused the token (HTTP 401 · Invalid bearer token), so nothing is saved: " +
 		"make another with claude setup-token, run while signed in to that subscription"
@@ -42,8 +45,16 @@ var now = time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
 // twoAccounts is a config of two accounts, work and personal.
 var twoAccounts = fmt.Sprintf("upstream = %q\n\n[[account]]\nid    = \"work\"\nlabel = \"Work\"\n\n[[account]]\nid = \"personal\"\n", upstream)
 
-// withSide is twoAccounts once side, labelled Side, is added to it.
+// withSide is twoAccounts with side, labelled Side, configured before
+// switchboard made ids.
 var withSide = twoAccounts + "\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"
+
+// sideID is the id the organization side's tokens are in derives, and
+// sideAdded twoAccounts once side, labelled Side, is added under it.
+var (
+	sideID    = identity.Record{}.Derive(organization, nil)
+	sideAdded = twoAccounts + "\n[[account]]\nid    = \"" + sideID + "\"\nlabel = \"Side\"\n"
+)
 
 // users are the ways a user gives a token: typed at a terminal, or piped in.
 var users = []struct {
@@ -59,19 +70,20 @@ func TestAddTakesTheTokenTheUserGives(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t, twoAccounts)
 			user := &user{atTerminal: tt.atTerminal, gives: sideToken + "\n"}
-			api := &fakeAPI{}
+			api := &fakeAPI{organization: organization}
 
-			taken, err := w.registry(user, api).Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"})
-			if err != nil || taken != (accounts.Taken{}) {
-				t.Fatalf("Add() = %+v, %v, want the token taken and checked", taken, err)
+			added, err := w.registry(user, api).Add(t.Context(), config.NewAccount{Label: "Side"}, nil)
+			if want := (accounts.Added{ID: sideID}); err != nil || added != want {
+				t.Fatalf("Add() = %+v, %v, want %+v", added, err, want)
 			}
-			w.checkConfig(t, withSide)
-			w.checkToken(t, "side", sideToken)
-			w.checkTaken(t, "side", sideToken, now)
+			w.checkConfig(t, sideAdded)
+			w.checkToken(t, sideID, sideToken)
+			w.checkTaken(t, sideID, sideToken, now)
+			w.checkRecord(t, identity.Entry{ID: sideID, Organization: organization, Added: now})
 			if want := []string{upstream + " " + sideToken}; !slices.Equal(api.asked, want) {
 				t.Errorf("the API was asked about %q, want %q", api.asked, want)
 			}
-			if want := map[bool]string{true: sidePrompt}[tt.atTerminal]; user.shown.String() != want {
+			if want := map[bool]string{true: sideLabelPrompt}[tt.atTerminal]; user.shown.String() != want {
 				t.Errorf("the user was shown %q, want %q", user.shown.String(), want)
 			}
 		})
@@ -80,14 +92,14 @@ func TestAddTakesTheTokenTheUserGives(t *testing.T) {
 
 func TestARegistryWithoutAClockTakesTheTokenAtTheSystemsTime(t *testing.T) {
 	w := newWorld(t, twoAccounts)
-	registry := w.registry(&user{gives: sideToken}, &fakeAPI{})
+	registry := w.registry(&user{gives: sideToken}, &fakeAPI{organization: organization})
 	registry.Now = nil
 	before := time.Now().Truncate(time.Second)
 
-	if _, err := registry.Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"}); err != nil {
+	if _, err := registry.Add(t.Context(), config.NewAccount{Label: "Side"}, nil); err != nil {
 		t.Fatalf("Add() error = %v", err)
 	}
-	at, err := w.tokens().Taken("side", tokenOf(t, sideToken))
+	at, err := w.tokens().Taken(sideID, tokenOf(t, sideToken))
 	if err != nil || at.Before(before) || at.After(time.Now()) {
 		t.Errorf("side's token was taken at %v (%v), want the system's time, from %v", at, err, before)
 	}
@@ -96,63 +108,46 @@ func TestARegistryWithoutAClockTakesTheTokenAtTheSystemsTime(t *testing.T) {
 func TestAddMakesTheFirstConfig(t *testing.T) {
 	w := newWorld(t, "")
 	w.config = filepath.Join(filepath.Dir(w.config), "config", "switchboard", "config.toml")
-	api := &fakeAPI{}
+	api := &fakeAPI{organization: organization}
 
-	_, err := w.registry(&user{gives: workToken}, api).Add(t.Context(), config.NewAccount{ID: "work", Label: "Work", Primary: true})
+	_, err := w.registry(&user{gives: workToken}, api).Add(t.Context(), config.NewAccount{Label: "Work", Primary: true}, nil)
 	if err != nil {
 		t.Fatalf("Add() error = %v", err)
 	}
-	w.checkConfig(t, "[[account]]\nid      = \"work\"\nlabel   = \"Work\"\nprimary = true\n")
-	w.checkToken(t, "work", workToken)
+	w.checkConfig(t, "[[account]]\nid      = \""+sideID+"\"\nlabel   = \"Work\"\nprimary = true\n")
+	w.checkToken(t, sideID, workToken)
 	if want := []string{"https://api.anthropic.com " + workToken}; !slices.Equal(api.asked, want) {
 		t.Errorf("the API was asked about %q, want %q: the config's default upstream", api.asked, want)
 	}
 }
 
-func TestAddKeepsAUsableToken(t *testing.T) {
+func TestAddReplacesATokenFileItsIDHas(t *testing.T) {
 	w := newWorld(t, twoAccounts)
-	w.writeToken(t, "side", sideToken, 0o600)
-	user := &user{atTerminal: true}
-	api := &fakeAPI{}
+	w.writeToken(t, sideID, "test-token-stale", 0o644)
 
-	taken, err := w.registry(user, api).Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"})
-	if err != nil || taken != (accounts.Taken{Kept: true}) {
-		t.Fatalf("Add() = %+v, %v, want the token kept", taken, err)
-	}
-	w.checkConfig(t, withSide)
-	w.checkToken(t, "side", sideToken)
-	w.checkTaken(t, "side", sideToken, time.Time{})
-	if user.asked || len(api.asked) > 0 {
-		t.Errorf("the user was asked: %v; the API about %q; want neither", user.asked, api.asked)
-	}
-}
-
-func TestAddReplacesATokenFileItCantUse(t *testing.T) {
-	w := newWorld(t, twoAccounts)
-	w.writeToken(t, "side", "test-token-stale", 0o644)
-
-	_, err := w.registry(&user{gives: sideToken}, &fakeAPI{}).Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"})
+	_, err := w.registry(&user{gives: sideToken}, &fakeAPI{organization: organization}).Add(t.Context(), config.NewAccount{Label: "Side"}, nil)
 	if err != nil {
 		t.Fatalf("Add() error = %v", err)
 	}
-	w.checkConfig(t, withSide)
-	w.checkToken(t, "side", sideToken)
+	w.checkConfig(t, sideAdded)
+	w.checkToken(t, sideID, sideToken)
 }
 
-func TestAddSavesATokenTheAPIDidntAnswerFor(t *testing.T) {
+// An account isn't added until its organization is known: where the API
+// doesn't answer for its token, nothing is saved, and Add says so, to try
+// again.
+func TestAddSavesNothingTheAPIDidntAnswerFor(t *testing.T) {
 	w := newWorld(t, twoAccounts)
-	unanswered := errors.New("timed out after 5s")
 	log := logstest.Capture(t)
 
-	taken, err := w.registry(&user{gives: sideToken}, &fakeAPI{err: unanswered}).Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"})
-	if err != nil || taken.Kept || errorText(taken.Unchecked) != unanswered.Error() {
-		t.Fatalf("Add() = %+v, %v, want the token taken, unchecked", taken, err)
+	_, err := w.registry(&user{gives: sideToken}, &fakeAPI{err: errors.New("timed out after 5s")}).Add(t.Context(), config.NewAccount{Label: "Side"}, nil)
+	want := "the API didn't answer for the token (timed out after 5s), so nothing is saved: an account is added only once it has, to know its subscription, so try again"
+	if _, ok := errors.AsType[*accounts.UnansweredError](err); !ok || err.Error() != want {
+		t.Fatalf("Add() error = %v, want an UnansweredError saying %q", err, want)
 	}
-	w.checkConfig(t, withSide)
-	w.checkToken(t, "side", sideToken)
-	if !log.Has("level=WARN", `msg="couldn't check a token with the API"`, "account=side", `error="timed out after 5s"`) {
-		t.Errorf("the log reads\n%s\nwant a warning that the token went unchecked", log)
-	}
+	w.checkConfig(t, twoAccounts)
+	w.checkNoToken(t, sideID)
+	w.checkNoRecord(t)
 	if strings.Contains(log.String(), sideToken) {
 		t.Errorf("the log shows the token:\n%s", log)
 	}
@@ -161,16 +156,18 @@ func TestAddSavesATokenTheAPIDidntAnswerFor(t *testing.T) {
 func TestAddSavesNothingTheAPIRefuses(t *testing.T) {
 	w := newWorld(t, twoAccounts)
 
-	_, err := w.registry(&user{gives: sideToken}, &fakeAPI{err: refusal{}}).Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"})
+	_, err := w.registry(&user{gives: sideToken}, &fakeAPI{err: refusal{}}).Add(t.Context(), config.NewAccount{Label: "Side"}, nil)
 	if err == nil || err.Error() != refusedErr || !errors.Is(err, accounts.ErrRefused) {
 		t.Errorf("Add() error = %v, want %q", err, refusedErr)
 	}
 	w.checkConfig(t, twoAccounts)
-	w.checkNoToken(t, "side")
+	w.checkNoToken(t, sideID)
+	w.checkNoRecord(t)
 }
 
 func TestAddRefuses(t *testing.T) {
 	failed := errors.New("input/output error")
+	side := config.NewAccount{Label: "Side"}
 	tests := []struct {
 		name    string
 		account config.NewAccount
@@ -181,49 +178,69 @@ func TestAddRefuses(t *testing.T) {
 		wantAsked bool
 	}{
 		{
-			name:    "an id an account has already",
-			account: config.NewAccount{ID: "personal"},
+			name:    "no label",
 			user:    &user{gives: sideToken},
-			wantErr: `account "personal" is already configured`,
-			wantIs:  config.ErrConfigured,
+			wantErr: "a label is required: every account has one",
+			wantIs:  accounts.ErrNoLabel,
 		},
 		{
-			name:    "an id that isn't a plain file name",
-			account: config.NewAccount{ID: "../side"},
+			name:    "a label that shows nothing",
+			account: config.NewAccount{Label: " \u200b "},
 			user:    &user{gives: sideToken},
-			wantErr: `account "../side": id must start with a letter or digit and contain only letters, digits, '-' and '_'`,
+			wantErr: "label is blank, showing nothing",
+			wantIs:  config.ErrBlankLabel,
+		},
+		{
+			name:    "a label shaped like a token",
+			account: config.NewAccount{Label: "sk-ant-oat01-fake_token-shaped"},
+			user:    &user{gives: sideToken},
+			wantErr: "label looks like a token, which a label mustn't, as it shows wherever the account does",
+		},
+		{
+			name:    "another account's label, in another case",
+			account: config.NewAccount{Label: "WORK"},
+			user:    &user{gives: sideToken},
+			wantErr: "another account has that label already, ignoring case: give each its own",
+			wantIs:  accounts.ErrLabelTaken,
+		},
+		{
+			name:    "the label an account shows by its id, as it shows",
+			account: config.NewAccount{Label: "  Personal "},
+			user:    &user{gives: sideToken},
+			wantErr: "another account has that label already, ignoring case: give each its own",
+			wantIs:  accounts.ErrLabelTaken,
 		},
 		{
 			name:      "nothing piped in",
-			account:   config.NewAccount{ID: "side"},
+			account:   side,
 			user:      &user{gives: " \n"},
 			wantErr:   "no token given",
 			wantAsked: true,
 		},
 		{
 			name:      "nothing typed",
-			account:   config.NewAccount{ID: "side"},
+			account:   side,
 			user:      &user{atTerminal: true},
 			wantErr:   "no token given",
 			wantAsked: true,
 		},
 		{
 			name:      "the terminal closed before anything was typed",
-			account:   config.NewAccount{ID: "side"},
+			account:   side,
 			user:      &user{atTerminal: true, fails: io.EOF},
 			wantErr:   "no token given",
 			wantAsked: true,
 		},
 		{
 			name:      "more than a token",
-			account:   config.NewAccount{ID: "side"},
+			account:   side,
 			user:      &user{gives: "export CLAUDE_CODE_OAUTH_TOKEN=" + sideToken},
 			wantErr:   "what was given is more than a token: give the token alone",
 			wantAsked: true,
 		},
 		{
 			name:      "a terminal that can't be read",
-			account:   config.NewAccount{ID: "side"},
+			account:   side,
 			user:      &user{atTerminal: true, gives: sideToken, fails: failed},
 			wantErr:   "read the token: input/output error",
 			wantIs:    failed,
@@ -231,7 +248,7 @@ func TestAddRefuses(t *testing.T) {
 		},
 		{
 			name:      "the user interrupting the token's typing",
-			account:   config.NewAccount{ID: "side"},
+			account:   side,
 			user:      &user{atTerminal: true, gives: sideToken, fails: accounts.ErrInterrupted},
 			wantErr:   "read the token: interrupted",
 			wantIs:    accounts.ErrInterrupted,
@@ -239,7 +256,7 @@ func TestAddRefuses(t *testing.T) {
 		},
 		{
 			name:      "a pipe that can't be read",
-			account:   config.NewAccount{ID: "side"},
+			account:   side,
 			user:      &user{gives: sideToken, fails: failed},
 			wantErr:   "read the token: input/output error",
 			wantIs:    failed,
@@ -249,9 +266,9 @@ func TestAddRefuses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t, twoAccounts)
-			api := &fakeAPI{}
+			api := &fakeAPI{organization: organization}
 
-			_, err := w.registry(tt.user, api).Add(t.Context(), tt.account)
+			_, err := w.registry(tt.user, api).Add(t.Context(), tt.account, nil)
 			if err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Add() error = %v, want %q", err, tt.wantErr)
 			}
@@ -262,9 +279,57 @@ func TestAddRefuses(t *testing.T) {
 				t.Errorf("the user was asked: %v, want %v; the API about %q, want nothing", tt.user.asked, tt.wantAsked, api.asked)
 			}
 			w.checkConfig(t, twoAccounts)
-			w.checkNoToken(t, tt.account.ID)
+			w.checkNoToken(t, sideID)
+			w.checkNoRecord(t)
 		})
 	}
+}
+
+// CheckNew checks an account to add as Add does before it takes the token,
+// writing nothing: a label is required, taken as config takes one, and no
+// other configured account's, as each shows, ignoring case; a label no
+// configured account has can be given, whoever had it before.
+func TestCheckNew(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  string
+		label   string
+		wantErr error
+	}{
+		{name: "a label of its own", config: twoAccounts, label: "Side"},
+		{name: "a label with no config", label: "Side"},
+		{name: "a label no configured account has", config: twoAccounts, label: "side"},
+		{name: "no label", config: twoAccounts, wantErr: accounts.ErrNoLabel},
+		{name: "a blank label", config: twoAccounts, label: "\u200b", wantErr: config.ErrBlankLabel},
+		{name: "another's label", config: twoAccounts, label: "work", wantErr: accounts.ErrLabelTaken},
+		{name: "another's label, as it shows once tidied", config: twoAccounts, label: "\u200bWork\u200b", wantErr: accounts.ErrLabelTaken},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, tt.config)
+
+			err := w.registry(&user{}, &fakeAPI{}).CheckNew(config.NewAccount{Label: tt.label})
+			if !errors.Is(err, tt.wantErr) || (err == nil) != (tt.wantErr == nil) {
+				t.Errorf("CheckNew() error = %v, want %v", err, tt.wantErr)
+			}
+			if tt.config != "" {
+				w.checkConfig(t, tt.config)
+			}
+			w.checkNoRecord(t)
+		})
+	}
+}
+
+// A config that already has two accounts showing one label, edited by hand,
+// still loads, and takes an edit that gives neither a label.
+func TestAConfigOfOneLabelTwiceTakesEditsOfAnythingButALabel(t *testing.T) {
+	twice := twoAccounts + "\n[[account]]\nid    = \"side\"\nlabel = \"WORK\"\n"
+	w := newWorld(t, twice)
+
+	if _, err := w.registry(&user{}, &fakeAPI{}).Edit("side", accounts.Change{Plan: new("max")}); err != nil {
+		t.Fatalf("Edit() error = %v, want the plan set", err)
+	}
+	w.checkConfig(t, twice+"plan = \"max\"\n")
 }
 
 func TestSetToken(t *testing.T) {
@@ -314,7 +379,7 @@ func TestSetTokenWhenTheAPIDoesntSayYes(t *testing.T) {
 			w.writeToken(t, "side", "test-token-stale", 0o600)
 
 			taken, err := w.registry(&user{gives: sideToken}, &fakeAPI{err: tt.answer}).SetToken(t.Context(), w.load(t), "side")
-			if taken.Kept || errorText(taken.Unchecked) != tt.wantUnchecked || errorText(err) != tt.wantErr {
+			if errorText(taken.Unchecked) != tt.wantUnchecked || errorText(err) != tt.wantErr {
 				t.Errorf("SetToken() = %+v, %v, want unchecked %q, %q", taken, err, tt.wantUnchecked, tt.wantErr)
 			}
 			w.checkToken(t, "side", tt.wantToken)
@@ -340,9 +405,9 @@ func (o *others) of(_ context.Context, id string) (accounts.Organizations, error
 	return o.organizations, o.err
 }
 
-// Both ways a token's given, Add's and SetToken's, refuse one whose
-// organization is another account's, saving nothing, and save one of an
-// organization of its own, or where none is known.
+// A token given to replace an account's is refused where its organization
+// is another account's, saving nothing, and saved where it's of an
+// organization of its own, or none is known.
 func TestATokenGivenIsComparedWithTheOtherAccounts(t *testing.T) {
 	unanswered := errors.New("timed out after 5s")
 	failed := errors.New("the config can't be read")
@@ -362,45 +427,127 @@ func TestATokenGivenIsComparedWithTheOtherAccounts(t *testing.T) {
 		{name: "the API not answering", answer: unanswered, others: others{organizations: accounts.Organizations{"work": ""}}},
 		{name: "the other accounts' not known", organization: "org-work", others: others{err: failed}, wantErr: "compare the token with the other accounts': " + failed.Error(), wantAsked: true},
 	}
-	ways := []struct {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, withSide)
+			r := w.registry(&user{gives: sideToken}, &fakeAPI{err: tt.answer, organization: tt.organization})
+			r.Others = tt.others.of
+
+			_, err := r.SetToken(t.Context(), w.load(t), "side")
+
+			if errorText(err) != tt.wantErr {
+				t.Fatalf("taking side's token: %v, want %q", err, tt.wantErr)
+			}
+			if same, ok := errors.AsType[*accounts.SameSubscriptionError](err); ok != (tt.wantErr == sameErr) || ok && same.Other != "work" {
+				t.Errorf("taking side's token: %#v, want a *SameSubscriptionError naming work alone where it's work's", err)
+			}
+			if want := map[bool][]string{true: {"side"}}[tt.wantAsked]; !slices.Equal(tt.others.asked, want) {
+				t.Errorf("the other accounts' organizations were asked for %q, want %q", tt.others.asked, want)
+			}
+			w.checkConfig(t, withSide)
+			if tt.wantErr != "" {
+				w.checkNoToken(t, "side")
+				return
+			}
+			w.checkToken(t, "side", sideToken)
+		})
+	}
+}
+
+// A token replacing an account's must be for the account's organization, as
+// the accounts record has it: another's is refused, saving nothing, as
+// another subscription's; and where the record doesn't know the account's
+// yet, the token's is recorded as its own, unless the record has another
+// account of it, named in the refusal. Where the API names none, or the
+// record hasn't the account, as one from before ids were made, the token's
+// saved, and nothing recorded.
+func TestAReplacedTokenMustBeForTheAccountsOrganization(t *testing.T) {
+	sideAt := twoAccounts + "\n[[account]]\nid    = \"k3f9\"\nlabel = \"Side\"\n"
+	spare := identity.Entry{ID: "h7c2", Organization: organization, Label: "Spare", Added: now, Removed: now}
+	tests := []struct {
 		name   string
-		before string
-		take   func(t *testing.T, w *world, r accounts.Registry) error
+		config string
+		// id is the account given the token, whose organization the API
+		// names as organization.
+		id, organization string
+		record           []identity.Entry
+		wantErr          string
+		wantRecord       []identity.Entry
 	}{
-		{name: "added", before: twoAccounts, take: func(t *testing.T, _ *world, r accounts.Registry) error {
-			_, err := r.Add(t.Context(), config.NewAccount{ID: "side", Label: "Side"})
+		{
+			name: "the account's own", config: sideAt, id: "k3f9", organization: organization,
+			record:     []identity.Entry{{ID: "k3f9", Organization: organization, Added: now}},
+			wantRecord: []identity.Entry{{ID: "k3f9", Organization: organization, Added: now}},
+		},
+		{
+			name: "another subscription's", config: sideAt, id: "k3f9", organization: "test-org-other",
+			record:     []identity.Entry{{ID: "k3f9", Organization: organization, Added: now}},
+			wantErr:    "the token is for another subscription, so nothing is saved: add it as an account of its own",
+			wantRecord: []identity.Entry{{ID: "k3f9", Organization: organization, Added: now}},
+		},
+		{
+			name: "one whose account's the record doesn't know, recorded", config: sideAt, id: "k3f9", organization: organization,
+			record:     []identity.Entry{{ID: "k3f9", Added: now}},
+			wantRecord: []identity.Entry{{ID: "k3f9", Organization: organization, Added: now}},
+		},
+		{
+			name: "one whose account's the record doesn't know, another account's", config: sideAt, id: "k3f9", organization: organization,
+			record:     []identity.Entry{{ID: "k3f9", Added: now}, spare},
+			wantErr:    `the token is for another subscription, that of "Spare" (h7c2), so nothing is saved: add it as an account of its own`,
+			wantRecord: []identity.Entry{{ID: "k3f9", Added: now}, spare},
+		},
+		{
+			name: "one whose account's the record doesn't know, a configured account's, named by the config's label", config: sideAt + "\n[[account]]\nid    = \"m2x7\"\nlabel = \"Team\"\n",
+			id: "k3f9", organization: organization,
+			record:     []identity.Entry{{ID: "k3f9", Added: now}, {ID: "m2x7", Organization: organization, Added: now}},
+			wantErr:    `the token is for another subscription, that of "Team" (m2x7), so nothing is saved: add it as an account of its own`,
+			wantRecord: []identity.Entry{{ID: "k3f9", Added: now}, {ID: "m2x7", Organization: organization, Added: now}},
+		},
+		{
+			name: "none named", config: sideAt, id: "k3f9",
+			record:     []identity.Entry{{ID: "k3f9", Organization: organization, Added: now}},
+			wantRecord: []identity.Entry{{ID: "k3f9", Organization: organization, Added: now}},
+		},
+		{
+			name: "one the record hasn't the account of, from before ids were made", config: withSide, id: "side", organization: organization,
+			record:     []identity.Entry{spare},
+			wantRecord: []identity.Entry{spare},
+		},
+	}
+	ways := []struct {
+		name    string
+		replace func(t *testing.T, w *world, r accounts.Registry, id, organization string) error
+	}{
+		{name: "given", replace: func(t *testing.T, w *world, r accounts.Registry, id, _ string) error {
+			_, err := r.SetToken(t.Context(), w.load(t), id)
 			return err
 		}},
-		{name: "replaced", before: withSide, take: func(t *testing.T, w *world, r accounts.Registry) error {
-			_, err := r.SetToken(t.Context(), w.load(t), "side")
-			return err
+		{name: "checked", replace: func(t *testing.T, _ *world, r accounts.Registry, id, organization string) error {
+			return r.SetTokenChecked(t.Context(), id, tokenOf(t, sideToken), accounts.Checked{Organization: organization})
 		}},
 	}
 	for _, way := range ways {
 		for _, tt := range tests {
 			t.Run(way.name+", "+tt.name, func(t *testing.T) {
-				w := newWorld(t, way.before)
-				r := w.registry(&user{gives: sideToken}, &fakeAPI{err: tt.answer, organization: tt.organization})
-				r.Others = tt.others.of
+				w := newWorld(t, tt.config)
+				w.writeRecord(t, tt.record...)
+				w.writeToken(t, tt.id, "test-token-stale", 0o600)
+				r := w.registry(&user{gives: sideToken}, &fakeAPI{organization: tt.organization})
 
-				err := way.take(t, w, r)
-
+				err := way.replace(t, w, r, tt.id, tt.organization)
 				if errorText(err) != tt.wantErr {
-					t.Fatalf("taking side's token: %v, want %q", err, tt.wantErr)
+					t.Fatalf("replacing %s's token: %v, want %q", tt.id, err, tt.wantErr)
 				}
-				if same, ok := errors.AsType[*accounts.SameSubscriptionError](err); ok != (tt.wantErr == sameErr) || ok && same.Other != "work" {
-					t.Errorf("taking side's token: %#v, want a *SameSubscriptionError naming work alone where it's work's", err)
+				if _, ok := errors.AsType[*accounts.OtherSubscriptionError](err); ok != (tt.wantErr != "") {
+					t.Errorf("replacing %s's token: %#v, want an *OtherSubscriptionError where it's refused", tt.id, err)
 				}
-				if want := map[bool][]string{true: {"side"}}[tt.wantAsked]; !slices.Equal(tt.others.asked, want) {
-					t.Errorf("the other accounts' organizations were asked for %q, want %q", tt.others.asked, want)
-				}
+				want := sideToken
 				if tt.wantErr != "" {
-					w.checkConfig(t, way.before)
-					w.checkNoToken(t, "side")
-					return
+					want = "test-token-stale"
 				}
-				w.checkConfig(t, withSide)
-				w.checkToken(t, "side", sideToken)
+				w.checkToken(t, tt.id, want)
+				w.checkConfig(t, tt.config)
+				w.checkRecord(t, tt.wantRecord...)
 			})
 		}
 	}
@@ -448,6 +595,71 @@ func TestRemove(t *testing.T) {
 			w.checkToken(t, "work", workToken)
 		})
 	}
+}
+
+// The accounts record keeps an account removed, marked removed when it was,
+// with the label it showed, configured or not, as by its id; an account it
+// hasn't, as one from before ids were made, it records nothing of.
+func TestRemoveMarksTheAccountRemovedInTheRecord(t *testing.T) {
+	removing := now.Add(time.Hour)
+	spare := identity.Entry{ID: "h7c2", Label: "Spare", Added: now, Removed: now}
+	tests := []struct {
+		name, config, id string
+		record, want     []identity.Entry
+	}{
+		{
+			name:   "an account the record has, labelled",
+			config: sideAdded, id: sideID,
+			record: []identity.Entry{{ID: sideID, Organization: organization, Added: now}, spare},
+			want:   []identity.Entry{{ID: sideID, Organization: organization, Label: "Side", Added: now, Removed: removing}, spare},
+		},
+		{
+			name:   "an account the record has, shown by its id",
+			config: twoAccounts + "\n[[account]]\nid = \"" + sideID + "\"\n", id: sideID,
+			record: []identity.Entry{{ID: sideID, Organization: organization, Added: now}},
+			want:   []identity.Entry{{ID: sideID, Organization: organization, Label: sideID, Added: now, Removed: removing}},
+		},
+		{
+			name:   "an account the record hasn't, from before ids were made",
+			config: withSide, id: "side",
+			record: []identity.Entry{spare},
+			want:   []identity.Entry{spare},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, tt.config)
+			w.writeRecord(t, tt.record...)
+			r := w.registry(&user{}, &fakeAPI{})
+			r.Now = func() time.Time { return removing }
+
+			if _, err := r.Remove(tt.id); err != nil {
+				t.Fatalf("Remove() error = %v", err)
+			}
+			w.checkConfig(t, twoAccounts)
+			w.checkRecord(t, tt.want...)
+		})
+	}
+}
+
+// Nothing is removed where the accounts record can't be read, as where it's
+// damaged: the account stays, as does its token.
+func TestRemoveRemovesNothingWhereTheRecordIsDamaged(t *testing.T) {
+	w := newWorld(t, withSide)
+	w.writeToken(t, "side", sideToken, 0o600)
+	if err := os.MkdirAll(w.state, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(identity.NewFile(w.state).Path(), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := w.registry(&user{}, &fakeAPI{}).Remove("side")
+	if !errors.Is(err, identity.ErrDamaged) {
+		t.Errorf("Remove() error = %v, want one matching %v", err, identity.ErrDamaged)
+	}
+	w.checkConfig(t, withSide)
+	w.checkToken(t, "side", sideToken)
 }
 
 func TestRemoveSaysWhichAccountIsThePrimaryOnceTheOneThatWasGoes(t *testing.T) {
@@ -566,18 +778,18 @@ func TestRemoveThatCantDeleteTheTokenFileSaysTheAccountIsTakenOut(t *testing.T) 
 func TestChangesAreLoggedWithoutTheToken(t *testing.T) {
 	w := newWorld(t, twoAccounts)
 	log := logstest.Capture(t)
-	registry := w.registry(&user{gives: sideToken}, &fakeAPI{})
+	registry := w.registry(&user{gives: sideToken}, &fakeAPI{organization: organization})
 
-	if _, err := registry.Add(t.Context(), config.NewAccount{ID: "side", Label: "Side", Primary: true}); err != nil {
+	if _, err := registry.Add(t.Context(), config.NewAccount{Label: "Side", Primary: true}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registry.Remove("side"); err != nil {
+	if _, err := registry.Remove(sideID); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range [][]string{
-		{"level=INFO", `msg="saved a token"`, "account=side", "checked=true"},
-		{"level=INFO", `msg="added an account"`, "account=side", "primary=true", "token_kept=false"},
-		{"level=INFO", `msg="removed an account"`, "account=side", "token_file=true"},
+		{"level=INFO", `msg="saved a token"`, "account=" + sideID, "checked=true"},
+		{"level=INFO", `msg="added an account"`, "account=" + sideID, "primary=true", "returning=false"},
+		{"level=INFO", `msg="removed an account"`, "account=" + sideID, "token_file=true"},
 	} {
 		if !log.Has(want...) {
 			t.Errorf("the log reads\n%s\nwant a line with %q", log, want)
@@ -701,23 +913,27 @@ func TestCheckRefusesAnUpstreamAConfigCantHave(t *testing.T) {
 }
 
 // checkedWrites are the ways to save a token Check has checked: with the
-// account it's added for, or as an account's token in place of the one it
-// had.
+// account it's added for, under the id its organization derives, or as an
+// account's token in place of the one it had. Each writes to id's token
+// file, and leaves the config reading want. savesUnchecked is set where it
+// saves a token the API didn't answer for.
 var checkedWrites = []struct {
-	name   string
-	config string
-	write  func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error
+	name, config, id, want string
+	savesUnchecked         bool
+	write                  func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error
 }{
 	{
 		name:   "AddChecked",
-		config: twoAccounts,
+		config: twoAccounts, id: sideID, want: sideAdded,
 		write: func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error {
-			return r.AddChecked(ctx, config.NewAccount{ID: "side", Label: "Side"}, token, checked)
+			_, err := r.AddChecked(ctx, config.NewAccount{Label: "Side"}, token, checked, nil, accounts.Answer{})
+			return err
 		},
 	},
 	{
 		name:   "SetTokenChecked",
-		config: withSide,
+		config: withSide, id: "side", want: withSide,
+		savesUnchecked: true,
 		write: func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error {
 			return r.SetTokenChecked(ctx, "side", token, checked)
 		},
@@ -736,23 +952,26 @@ func TestTheCheckedWritesSaveWithoutAskingTheAPI(t *testing.T) {
 	}
 	for _, write := range checkedWrites {
 		for _, c := range checks {
+			if c.checked.Unchecked && !write.savesUnchecked {
+				continue
+			}
 			t.Run(write.name+", "+c.name, func(t *testing.T) {
 				w := newWorld(t, write.config)
-				w.writeToken(t, "side", "test-token-stale", 0o600)
+				w.writeToken(t, write.id, "test-token-stale", 0o600)
 				log := logstest.Capture(t)
 				user := &user{atTerminal: true}
 
 				if err := write.write(t.Context(), w.unasked(t, user), tokenOf(t, sideToken), c.checked); err != nil {
 					t.Fatalf("%s() error = %v", write.name, err)
 				}
-				w.checkConfig(t, withSide)
-				w.checkToken(t, "side", sideToken)
-				w.checkTaken(t, "side", sideToken, now)
-				warned := log.Has("level=WARN", `msg="couldn't check a token with the API"`, "account=side", `error="timed out after 5s"`)
+				w.checkConfig(t, write.want)
+				w.checkToken(t, write.id, sideToken)
+				w.checkTaken(t, write.id, sideToken, now)
+				warned := log.Has("level=WARN", `msg="couldn't check a token with the API"`, "account="+write.id, `error="timed out after 5s"`)
 				if warned != c.wantWarned {
 					t.Errorf("the log reads\n%s\nwant the unchecked warning: %v", log, c.wantWarned)
 				}
-				if want := fmt.Sprintf("checked=%t", !c.checked.Unchecked); !log.Has("level=INFO", `msg="saved a token"`, "account=side", want) {
+				if want := fmt.Sprintf("checked=%t", !c.checked.Unchecked); !log.Has("level=INFO", `msg="saved a token"`, "account="+write.id, want) {
 					t.Errorf("the log reads\n%s\nwant the token saved, %s", log, want)
 				}
 				if user.asked {
@@ -763,26 +982,32 @@ func TestTheCheckedWritesSaveWithoutAskingTheAPI(t *testing.T) {
 	}
 }
 
-func TestAddCheckedRefusesAnAccountAConfigCantAdd(t *testing.T) {
+// AddChecked saves nothing where the API didn't answer for the token, as an
+// account isn't added until its organization is known; nor where the account
+// isn't one CheckNew takes.
+func TestAddCheckedRefuses(t *testing.T) {
 	tests := []struct {
-		name   string
-		id     string
-		wantIs error
+		name    string
+		label   string
+		checked accounts.Checked
+		wantIs  error
 	}{
-		{name: "an id an account has already", id: "personal", wantIs: config.ErrConfigured},
-		{name: "an id that isn't a plain file name", id: "../side"},
+		{name: "a token the API didn't answer for", label: "Side", checked: accounts.Checked{Unchecked: true, Why: "timed out after 5s"}},
+		{name: "no label", checked: accounts.Checked{Organization: organization}, wantIs: accounts.ErrNoLabel},
+		{name: "another account's label", label: "Work", checked: accounts.Checked{Organization: organization}, wantIs: accounts.ErrLabelTaken},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t, twoAccounts)
 
-			err := w.unasked(t, &user{}).AddChecked(t.Context(), config.NewAccount{ID: tt.id}, tokenOf(t, sideToken), accounts.Checked{})
-			if err == nil || (tt.wantIs != nil && !errors.Is(err, tt.wantIs)) {
-				t.Errorf("AddChecked() error = %v, want one matching %v", err, tt.wantIs)
+			_, err := w.unasked(t, &user{}).AddChecked(t.Context(), config.NewAccount{Label: tt.label}, tokenOf(t, sideToken), tt.checked, nil, accounts.Answer{})
+			_, unanswered := errors.AsType[*accounts.UnansweredError](err)
+			if err == nil || unanswered != tt.checked.Unchecked || (tt.wantIs != nil && !errors.Is(err, tt.wantIs)) {
+				t.Errorf("AddChecked() error = %v, want one matching %v, an UnansweredError where the API didn't answer", err, tt.wantIs)
 			}
 			w.checkConfig(t, twoAccounts)
-			w.checkNoToken(t, "personal")
-			w.checkNoToken(t, "side")
+			w.checkNoToken(t, sideID)
+			w.checkNoRecord(t)
 		})
 	}
 }
@@ -848,16 +1073,17 @@ func TestTheCheckedWritesWriteNothingOnceTheContextIsDone(t *testing.T) {
 	for _, write := range checkedWrites {
 		t.Run(write.name, func(t *testing.T) {
 			w := newWorld(t, write.config)
-			w.writeToken(t, "side", "test-token-stale", 0o600)
+			w.writeToken(t, write.id, "test-token-stale", 0o600)
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 
-			err := write.write(ctx, w.unasked(t, &user{}), tokenOf(t, sideToken), accounts.Checked{})
+			err := write.write(ctx, w.unasked(t, &user{}), tokenOf(t, sideToken), accounts.Checked{Organization: organization})
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("%s() error = %v, want one matching %v", write.name, err, context.Canceled)
 			}
 			w.checkConfig(t, write.config)
-			w.checkToken(t, "side", "test-token-stale")
+			w.checkToken(t, write.id, "test-token-stale")
+			w.checkNoRecord(t)
 		})
 	}
 }
@@ -874,7 +1100,7 @@ func (w *world) unasked(t *testing.T, user *user) accounts.Registry {
 }
 
 func TestTheTokenGivenNeverShows(t *testing.T) {
-	w := newWorld(t, twoAccounts)
+	w := newWorld(t, withSide)
 	log := logstest.Capture(t)
 	quoting := errors.New("HTTP 500 · bad bearer token " + sideToken)
 	registry := w.registry(&user{}, &fakeAPI{err: quoting})
@@ -884,8 +1110,9 @@ func TestTheTokenGivenNeverShows(t *testing.T) {
 	if checkErr != nil {
 		t.Fatal(checkErr)
 	}
-	if err := registry.AddChecked(t.Context(), config.NewAccount{ID: "side"}, token, checked); err != nil {
-		t.Fatal(err)
+	_, unanswered := registry.AddChecked(t.Context(), config.NewAccount{Label: "Team"}, token, checked, nil, accounts.Answer{})
+	if _, ok := errors.AsType[*accounts.UnansweredError](unanswered); !ok {
+		t.Fatalf("AddChecked() error = %v, want the API's not answering said", unanswered)
 	}
 	typed := w.registry(&user{gives: sideToken}, &fakeAPI{err: quoting})
 	retaken, retakeErr := typed.SetToken(t.Context(), w.load(t), "side")
@@ -901,7 +1128,7 @@ func TestTheTokenGivenNeverShows(t *testing.T) {
 			t.Errorf("why the token went unchecked = %q, want the API's failure", why)
 		}
 	}
-	checkNoneOfTheToken(t, sideToken, checked.Why, errorText(retaken.Unchecked), errorText(refuseErr), log.String())
+	checkNoneOfTheToken(t, sideToken, checked.Why, errorText(unanswered), errorText(retaken.Unchecked), errorText(refuseErr), log.String())
 }
 
 // checkNoneOfTheToken checks that none of what's shown holds the token, or
@@ -1017,7 +1244,62 @@ func newWorld(t *testing.T, config string) *world {
 // registry returns the world's registry, which takes tokens from user and
 // checks them with api.
 func (w *world) registry(user *user, api *fakeAPI) accounts.Registry {
-	return accounts.Registry{ConfigPath: w.config, Tokens: w.tokens(), Prober: api.proberAt, Input: user.input(), Now: func() time.Time { return now }}
+	return accounts.Registry{
+		ConfigPath: w.config, Tokens: w.tokens(), Record: identity.NewFile(w.state),
+		Prober: api.proberAt, Input: user.input(), Now: func() time.Time { return now }, Random: drawn(),
+	}
+}
+
+// drawn is what the world's random ids are drawn from: the same each time.
+func drawn() io.Reader {
+	return strings.NewReader(strings.Repeat("switchboard", 100))
+}
+
+// randomID is the id the world's registry draws first.
+func randomID(t *testing.T) string {
+	t.Helper()
+	id, err := identity.Record{}.Random(drawn(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// writeRecord writes the accounts record, holding the accounts given.
+func (w *world) writeRecord(t *testing.T, entries ...identity.Entry) {
+	t.Helper()
+	err := identity.NewFile(w.state).Update(func(r *identity.Record) error {
+		r.Accounts = entries
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// checkRecord checks the accounts record holds the accounts wanted, in
+// order.
+func (w *world) checkRecord(t *testing.T, want ...identity.Entry) {
+	t.Helper()
+	r, err := identity.NewFile(w.state).Read()
+	if err != nil || !slices.EqualFunc(r.Accounts, want, sameEntry) {
+		t.Errorf("the accounts record holds %+v (%v), want %+v", r.Accounts, err, want)
+	}
+}
+
+// sameEntry reports whether a and b are the same account, as the record keeps
+// it.
+func sameEntry(a, b identity.Entry) bool {
+	return a.ID == b.ID && a.Organization == b.Organization && a.Label == b.Label && a.Was == b.Was &&
+		a.Added.Equal(b.Added) && a.Removed.Equal(b.Removed)
+}
+
+// checkNoRecord checks nothing wrote the accounts record.
+func (w *world) checkNoRecord(t *testing.T) {
+	t.Helper()
+	if _, err := os.Stat(identity.NewFile(w.state).Path()); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the accounts record: %v, want none written", err)
+	}
 }
 
 func (w *world) tokens() tokens.Store {

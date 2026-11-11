@@ -64,6 +64,9 @@ type Steps interface {
 	// RemoveAccount removes the account id, failing with a setup.Refused
 	// where it's the only one.
 	RemoveAccount(id string) (accounts.Removed, error)
+	// Answer adds the account the asked token is for, as answer says which it
+	// is, as MakeToken saves a token made.
+	Answer(ctx context.Context, asked *setup.Asked, answer accounts.Answer) (setup.Tokened, error)
 	// MakeToken makes the token f says with claude setup-token, and saves it,
 	// telling report each step as it comes, so report must never wait on it.
 	// The end of ctx stops it, saving nothing, until setup-token says it has
@@ -165,17 +168,18 @@ type Model struct {
 	// chosen is the Accounts page's row chosen: an account's, by its place
 	// in the review, or past the last, + add an account.
 	chosen int
-	// add, edit, remove, token, paste and reserve are the cards open over
-	// the Accounts page, the card adding an account, the chosen account's
-	// edit card, the card asking before it's removed, the token card, the
-	// card pasting a token, or the primary's reserve card: nil where none
-	// is. reserveAsked is set once the reserve card has opened, as it opens
-	// once only.
+	// add, edit, remove, token, paste, which and reserve are the cards open
+	// over the Accounts page, the card adding an account, the chosen
+	// account's edit card, the card asking before it's removed, the token
+	// card, the card pasting a token, the card asking which account a token
+	// is for, or the primary's reserve card: nil where none is. reserveAsked
+	// is set once the reserve card has opened, as it opens once only.
 	add          *addCard
 	edit         *editCard
 	remove       *removeCard
 	token        *tokenCard
 	paste        *pasteCard
+	which        *whichCard
 	reserve      *reserveCard
 	reserveAsked bool
 	// makings numbers the tokens' makings begun, each the token card's; and
@@ -327,6 +331,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.reopened(msg), nil
 	case pastedMsg:
 		return m.pasteSaved(msg)
+	case answeredMsg:
+		return m.answered(msg)
 	}
 	return m, nil
 }

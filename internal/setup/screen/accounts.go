@@ -185,6 +185,9 @@ func (m Model) accountsPage() *dashboard.SetupAccountsPage {
 	if m.paste != nil {
 		p.Paste = m.paste.drawn()
 	}
+	if m.which != nil {
+		p.Which = m.which.drawn(m.now())
+	}
 	if m.reserve != nil {
 		p.Reserve = m.reserve.drawn()
 	}

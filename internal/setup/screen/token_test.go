@@ -298,7 +298,7 @@ func TestATokensMakingWaitsForTheAccountsChecks(t *testing.T) {
 				}
 				h.pressAndDeliver("enter")
 			},
-			want: setup.TokenFor{Account: config.NewAccount{ID: "team"}, Add: true},
+			want: setup.TokenFor{Account: config.NewAccount{Label: "team"}, Add: true},
 		},
 	}
 	for _, tt := range tests {
@@ -606,7 +606,7 @@ func TestTheRowChosenMovesToTheAccountAdded(t *testing.T) {
 	h.pressAndDeliver("enter")
 	h.typeIn("team")
 	h.pressAndDeliver("enter")
-	if got := h.steps.nextMake(t); got.Account.ID != "team" || !got.Add {
+	if got := h.steps.nextMake(t); got.Account.Label != "team" || !got.Add {
 		t.Fatalf("MakeToken was asked %+v, want team's token, to add it", got)
 	}
 	h.hearAll(5)

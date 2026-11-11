@@ -94,6 +94,24 @@ func TestTheTokenCardSaysHowAMakingSavedNothing(t *testing.T) {
 			},
 		},
 		{
+			name:    "another subscription than the account's",
+			tokened: setup.Tokened{Result: setup.TokenOtherSubscription},
+			want: setup.Unsaved{
+				Mark: setup.Failed, Headline: "The token is for another subscription",
+				Says: "It isn't this account's subscription, so the token isn't saved: add it as an account of its own.",
+				Then: "Try again, signed in to the other subscription, or paste a token you made with claude setup-token.", Again: true,
+			},
+		},
+		{
+			name:    "another subscription than the account's, another account's the record has",
+			tokened: setup.Tokened{Result: setup.TokenOtherSubscription, SameAs: "Spare"},
+			want: setup.Unsaved{
+				Mark: setup.Failed, Headline: "The token is for another subscription",
+				Says: "It's Spare's subscription, not this account's, so the token isn't saved: add it as an account of its own.",
+				Then: "Try again, signed in to the other subscription, or paste a token you made with claude setup-token.", Again: true,
+			},
+		},
+		{
 			name:    "no Claude Code: why",
 			tokened: setup.Tokened{Result: setup.NoClaudeCode, Why: "can't find claude: it isn't on PATH"},
 			want: setup.Unsaved{
@@ -159,6 +177,16 @@ func TestAMakingThatSavedNothingIsPrintedOnceTheScreenHasGone(t *testing.T) {
 				"The token was created, but setup couldn't read it",
 				"It lasts a year on the account, so copy it from what claude setup-token showed:",
 				"  Your OAuth token (valid for 1 year):",
+				"  test-token-personal",
+				"Then run switchboard setup again, and press p on its token card to paste it.",
+			},
+		},
+		{
+			name:    "the token made to add an account, setup gone before it was told which: the token, to paste",
+			tokened: setup.Tokened{Result: setup.TokenAsked, Shown: []string{"test-token-personal"}},
+			want: []string{
+				"The token was created, but setup wasn't told which account it's for",
+				"It lasts a year on the account, so copy it:",
 				"  test-token-personal",
 				"Then run switchboard setup again, and press p on its token card to paste it.",
 			},
@@ -256,6 +284,8 @@ func TestThePasteCardSaysWhyItRefusesAPaste(t *testing.T) {
 		{name: "refused", tokened: setup.Tokened{Result: setup.TokenRefused, Why: "the API refused the token (HTTP 401)"}, want: "the API refused the token (HTTP 401)"},
 		{name: "unanswered", tokened: setup.Tokened{Result: setup.TokenUnanswered, Why: "the API didn't answer (HTTP 529)"}, want: "the API didn't answer (HTTP 529)"},
 		{name: "another account's", tokened: setup.Tokened{Result: setup.TokenSameAccount, SameAs: "work"}, want: "work has that subscription already, so the token isn't saved"},
+		{name: "another subscription than the account's", tokened: setup.Tokened{Result: setup.TokenOtherSubscription}, want: "It isn't this account's subscription, so the token isn't saved: add it as an account of its own"},
+		{name: "asked which account it's for", tokened: setup.Tokened{Result: setup.TokenAsked}},
 		{name: "saved", tokened: setup.Tokened{Result: setup.TokenSaved}},
 		{name: "cancelled", tokened: setup.Tokened{Result: setup.TokenCancelled}},
 	}

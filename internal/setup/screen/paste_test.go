@@ -217,7 +217,7 @@ func TestEnterSavesTheTokenPasted(t *testing.T) {
 		h.typeIn("test-token-team")
 		h.pressAndDeliver("enter")
 
-		if got := h.steps.pastes; len(got) != 1 || got[0].f.Account.ID != "team" || !got[0].f.Add {
+		if got := h.steps.pastes; len(got) != 1 || got[0].f.Account.Label != "team" || !got[0].f.Add {
 			t.Fatalf("PasteToken was asked %s, want team's token, to add it", pastesSaid(got))
 		}
 		if review := h.model.status.review; review == nil || len(review.Accounts) != 4 || h.model.chosen != 3 {

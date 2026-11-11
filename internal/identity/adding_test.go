@@ -11,7 +11,8 @@ import (
 // says: a new account, with the id it derives and the accounts whose
 // organization isn't known that it may be; a removed account coming back,
 // under its id; one configured already, refused, named; or, where none was
-// named, the user's to say. The config says which accounts are configured,
+// named, the user's to say, among every account the record has that isn't
+// configured. The config says which accounts are configured,
 // whatever the record has removed.
 func TestAddingDecidesByTheOrganization(t *testing.T) {
 	record := identity.Record{Accounts: []identity.Entry{
@@ -34,7 +35,13 @@ func TestAddingDecidesByTheOrganization(t *testing.T) {
 		organization string
 		want         want
 	}{
-		{name: "no organization named", configured: configured, want: want{outcome: identity.OrganizationUnknown}},
+		{
+			name:       "no organization named",
+			configured: configured,
+			// The token may be any account the record has that isn't
+			// configured, whatever's known of its organization.
+			want: want{outcome: identity.OrganizationUnknown, candidates: []string{"m2x7", "r4n8", "h7c2", "j9q4"}},
+		},
 		{
 			name:         "one the record hasn't",
 			configured:   configured,

@@ -17,10 +17,10 @@ import (
 // .zshrc, the session hook, and the skill.
 func firstRun(t *testing.T, s *setup.Setup) {
 	t.Helper()
-	for _, a := range []config.NewAccount{{ID: "work", Label: "Work"}, {ID: "side", Label: "Side"}} {
-		got, err := s.PasteToken(t.Context(), setup.TokenFor{Account: a, Add: true}, "test-token-"+a.ID)
+	for _, a := range []config.NewAccount{{Label: "Work"}, {Label: "Side"}} {
+		got, err := s.PasteToken(t.Context(), setup.TokenFor{Account: a, Add: true}, "test-token-"+strings.ToLower(a.Label))
 		if err != nil || got.Result != setup.TokenSaved {
-			t.Fatalf("PasteToken(%s) = %+v, %v; want it saved", a.ID, got, err)
+			t.Fatalf("PasteToken(%s) = %+v, %v; want it saved", a.Label, got, err)
 		}
 	}
 	if _, err := s.SetDay("08:00-23:00"); err != nil {
@@ -44,13 +44,14 @@ func firstRun(t *testing.T, s *setup.Setup) {
 
 func TestTheStepsLogWhatTheyChangeButNoToken(t *testing.T) {
 	w := newWorld(t)
+	w.api.organizations = map[string]string{"test-token-work": "org-work", "test-token-side": "org-side"}
 	log := logstest.Capture(t)
 
 	firstRun(t, w.setup(t))
 
 	for _, want := range [][]string{
-		{"level=INFO", `msg="added an account"`, "account=work"},
-		{"level=INFO", `msg="added an account"`, "account=side"},
+		{"level=INFO", `msg="added an account"`, "account=" + derivedID("org-work")},
+		{"level=INFO", `msg="added an account"`, "account=" + derivedID("org-side")},
 		{"level=INFO", `msg="set the priming day"`, "component=setup", "day=08:00-23:00"},
 		{"level=INFO", `msg="installed the service"`},
 		{"level=INFO", `msg="linked claude to switchboard"`, "component=setup", "link=" + filepath.Join(w.bin, "claude"), "switchboard=" + w.switchboard},

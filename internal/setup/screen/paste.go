@@ -53,7 +53,7 @@ func (c pasteCard) savedOnceGone() bool {
 
 // drawn is the card as dashboard.Setup draws it.
 func (c pasteCard) drawn() *dashboard.SetupPasteCard {
-	return &dashboard.SetupPasteCard{ID: c.f.Account.ID, Token: c.token.field(!c.checking), Checking: c.checking, Why: c.why}
+	return &dashboard.SetupPasteCard{ID: c.f.Name(), Token: c.token.field(!c.checking), Checking: c.checking, Why: c.why}
 }
 
 // pasted is the card with text pasted into its field, as entry has it.
@@ -123,9 +123,10 @@ func pasteToken(steps Steps, f setup.TokenFor, pasted string, kept chan<- pasted
 // accounts read again, as the save may have changed them, the step going
 // on, as a made token's that isn't saved does; failing otherwise, the step
 // failed, as tokenSaved has it, the card closed, the token still on the
-// clipboard; cancelled, the card closed; else, saving nothing, why, as
-// setup words it, said under the field, which is emptied, as nothing in it
-// shows to put right, the card open to paste again.
+// clipboard; cancelled, the card closed; asked which account it's for, the
+// card asking which in its place; else, saving nothing, why, as setup words
+// it, said under the field, which is emptied, as nothing in it shows to put
+// right, the card open to paste again.
 func (m Model) pasteSaved(msg pastedMsg) (Model, tea.Cmd) {
 	if m.paste == nil {
 		return m, nil
@@ -139,12 +140,16 @@ func (m Model) pasteSaved(msg pastedMsg) (Model, tea.Cmd) {
 		return m.askAgain()
 	case msg.err != nil:
 		m.paste = nil
-		return m.tokenSaved(card.f.Account.ID, msg.err)
+		return m.tokenSaved("", msg.err)
 	case r == setup.TokenSaved:
 		m.paste = nil
-		return m.tokenSaved(card.f.Account.ID, nil)
+		return m.tokenSaved(msg.tokened.ID, nil)
 	case r == setup.TokenCancelled:
 		m.paste = nil
+		return m, nil
+	case r == setup.TokenAsked:
+		m.paste = nil
+		m.which = whichAsked(card.f, msg.tokened.Asked, card.from)
 		return m, nil
 	}
 	card.checking, card.token = false, entry{hidden: true}

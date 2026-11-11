@@ -70,7 +70,7 @@ type setupScreen struct {
 // on work's row, as a user must, and enter, the primary's reserve card open,
 // 5% typed, as frame 13 has it.
 var setupScreens = []setupScreen{
-	{name: "setup-add-first-160", size: wide(37), step: dashboard.SetupAccounts, steps: firstRun, keys: slices.Concat(typingWork(), []tea.KeyPressMsg{tabKey, tabKey}), card: "ADD AN ACCOUNT", cardKeys: "tab next   enter create token   esc cancel"},
+	{name: "setup-add-first-160", size: wide(37), step: dashboard.SetupAccounts, steps: firstRun, keys: slices.Concat(typingWork(), []tea.KeyPressMsg{tabKey}), card: "ADD AN ACCOUNT", cardKeys: "tab next   enter create token   esc cancel"},
 	{name: "setup-token-waiting-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(nil), keys: addingPersonal(), waited: 21 * time.Second, card: "NEW TOKEN · PERSONAL", cardKeys: "o reopen window   p paste a token   esc cancel"},
 	{name: "setup-token-failed-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: addingPersonal(), card: "NEW TOKEN · PERSONAL", cardKeys: "enter try again   p paste a token   esc cancel"},
 	{name: "setup-token-paste-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: slices.Concat(addingPersonal(), keysOf("p"), keysOf(strings.Split("test-token-personal", "")...)), card: "PASTE A TOKEN · PERSONAL", cardKeys: "enter save   esc cancel"},
@@ -99,19 +99,19 @@ type setupShown struct {
 }
 
 // typingWork are the keys that type work into the add card, as frame 1 has
-// it: its ID, then its Label, then Ultra chosen.
+// it: its Label, then Ultra chosen.
 func typingWork() []tea.KeyPressMsg {
-	return slices.Concat(keysOf("w", "o", "r", "k"), []tea.KeyPressMsg{tabKey}, keysOf("W", "o", "r", "k"), []tea.KeyPressMsg{tabKey, leftKey})
+	return slices.Concat(keysOf("W", "o", "r", "k"), []tea.KeyPressMsg{tabKey, leftKey})
 }
 
 // addingPersonal are the keys that add work on a first run, as typingWork
-// types it, its token made, then add personal, its ID and Label typed, from
-// + add an account, to have its token made.
+// types it, its token made, then add personal, its Label typed, from + add
+// an account, to have its token made.
 func addingPersonal() []tea.KeyPressMsg {
 	return slices.Concat(
 		typingWork(), []tea.KeyPressMsg{enterKey},
 		[]tea.KeyPressMsg{downKey, enterKey},
-		keysOf(strings.Split("personal", "")...), []tea.KeyPressMsg{tabKey}, keysOf(strings.Split("Personal", "")...), []tea.KeyPressMsg{enterKey},
+		keysOf(strings.Split("Personal", "")...), []tea.KeyPressMsg{enterKey},
 	)
 }
 
@@ -119,14 +119,14 @@ func addingPersonal() []tea.KeyPressMsg {
 // it, then personal on Max and side on Pro, from + add an account, each
 // token made, leaving side's row chosen.
 func addedThree() []tea.KeyPressMsg {
-	adding := func(id, label string, lefts int) []tea.KeyPressMsg {
+	adding := func(label string, lefts int) []tea.KeyPressMsg {
 		return slices.Concat(
 			[]tea.KeyPressMsg{downKey, enterKey},
-			keysOf(strings.Split(id, "")...), []tea.KeyPressMsg{tabKey}, keysOf(strings.Split(label, "")...),
+			keysOf(strings.Split(label, "")...),
 			[]tea.KeyPressMsg{tabKey}, repeated(leftKey, lefts), []tea.KeyPressMsg{enterKey},
 		)
 	}
-	return slices.Concat(typingWork(), []tea.KeyPressMsg{enterKey}, adding("personal", "Personal", 2), adding("side", "Side", 3))
+	return slices.Concat(typingWork(), []tea.KeyPressMsg{enterKey}, adding("Personal", 2), adding("Side", 3))
 }
 
 // called is the fixture's name.
@@ -195,9 +195,10 @@ func (f Fixture) settleSetup(size watch.Size) screen.Model {
 // as given: they read, run and write nothing. Review reads each account, as
 // the config marks it, and each token, and ReviewOf checks it as checked
 // has it, each account saved among them.
-// makings are how each account's token is made, by its id. link is what the
-// claude link step finds, asked first or again, and hook what the session
-// hook's install says.
+// makings are how each account's token is made, by the name the token's
+// cards give it: its label, where it's added. link is what the claude link
+// step finds, asked first or again, and hook what the session hook's
+// install says.
 type setupSteps struct {
 	standing setup.RouterStanding
 	review   setup.Review
@@ -245,15 +246,16 @@ type setupSaved struct {
 	primary  string
 }
 
-// add adds the account f adds, its token saved at the time given, marked the
-// primary only where f asks it to be, as config adds it.
-func (s *setupSaved) add(f setup.TokenFor, at time.Time) {
+// add adds the account f adds, under the id given, its token saved at the
+// time given, marked the primary only where f asks it to be, as config adds
+// it.
+func (s *setupSaved) add(f setup.TokenFor, id string, at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a := f.Account
-	s.accounts = append(s.accounts, setup.Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Token: read(status.TokenYearFrom(at))})
+	s.accounts = append(s.accounts, setup.Reviewed{ID: id, Label: a.Label, Plan: a.Plan, Token: read(status.TokenYearFrom(at))})
 	if a.Primary {
-		s.primary = a.ID
+		s.primary = id
 	}
 }
 
@@ -293,14 +295,14 @@ func makingPersonal(ends *setup.Tokened) func(time.Time) setupSteps {
 	return func(now time.Time) setupSteps {
 		steps := firstRun(now)
 		steps.makings = map[string]setupMaking{
-			"work": {
+			"Work": {
 				steps: []setup.Making{
 					{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: "Work"},
 					{Step: setup.AwaitingApproval}, {Step: setup.TokenMade}, {Step: setup.CheckingToken},
 				},
 				ends: &setup.Tokened{Result: setup.TokenSaved},
 			},
-			"personal": {
+			"Personal": {
 				steps: []setup.Making{
 					{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work"},
 					{Step: setup.AwaitingApproval},
@@ -318,8 +320,8 @@ func makingPersonal(ends *setup.Tokened) func(time.Time) setupSteps {
 func addingThree(now time.Time) setupSteps {
 	steps := firstRun(now)
 	steps.makings = map[string]setupMaking{}
-	for id, label := range map[string]string{"work": "Work", "personal": "Personal", "side": "Side"} {
-		steps.makings[id] = setupMaking{
+	for _, label := range []string{"Work", "Personal", "Side"} {
+		steps.makings[label] = setupMaking{
 			steps: []setup.Making{
 				{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: label},
 				{Step: setup.AwaitingApproval}, {Step: setup.TokenMade}, {Step: setup.CheckingToken},
@@ -579,26 +581,35 @@ func (s setupSteps) SessionHook() setup.Said {
 // config.ParsePlan reads it, refusing nothing.
 func (s setupSteps) CheckAdding(adding setup.Adding) (config.NewAccount, error) {
 	plan, err := config.ParsePlan(adding.Plan)
-	return config.NewAccount{ID: adding.ID, Label: adding.Label, Plan: plan}, err
+	return config.NewAccount{Label: adding.Label, Plan: plan}, err
 }
 
 // MakeToken makes the account's token as makings has it: it reports each
 // step in turn, then ends as given, an account added once its token's
-// saved. One with no end holds there, as setup-token waits on the approval:
-// settleSetup's listening is held from then, so it ends at once, cancelled,
-// never heard, leaving nothing running.
+// saved, its id its label in lower case, as the fixtures' ids are. One with
+// no end holds there, as setup-token waits on the approval: settleSetup's
+// listening is held from then, so it ends at once, cancelled, never heard,
+// leaving nothing running.
 func (s setupSteps) MakeToken(_ context.Context, f setup.TokenFor, report func(setup.Making)) (setup.Tokened, error) {
-	making := s.makings[f.Account.ID]
+	making := s.makings[f.Name()]
 	for _, at := range making.steps {
 		report(at)
 	}
 	if making.ends == nil {
 		return setup.Tokened{Result: setup.TokenCancelled}, nil
 	}
-	if making.ends.Result == setup.TokenSaved && f.Add {
-		s.saved.add(f, s.review.At)
+	ended := *making.ends
+	if ended.Result == setup.TokenSaved && f.Add {
+		ended.ID = strings.ToLower(f.Account.Label)
+		s.saved.add(f, ended.ID, s.review.At)
 	}
-	return *making.ends, nil
+	return ended, nil
+}
+
+// Answer saves nothing, as no fixture asks which account a token is for: it
+// answers as a save does whose context ends first.
+func (s setupSteps) Answer(context.Context, *setup.Asked, accounts.Answer) (setup.Tokened, error) {
+	return setup.Tokened{Result: setup.TokenCancelled}, nil
 }
 
 // PasteToken saves nothing, as no fixture saves a pasted token: it answers

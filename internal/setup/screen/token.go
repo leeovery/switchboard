@@ -89,7 +89,7 @@ func (c tokenCard) unopened() bool {
 // it's waited, how the address opened, as setup words it, made safe to show,
 // and, where it didn't open, the address, to paste; ended, how it ended.
 func (c tokenCard) drawn(now time.Time) *dashboard.SetupTokenCard {
-	d := &dashboard.SetupTokenCard{ID: c.f.Account.ID, Stage: c.stage()}
+	d := &dashboard.SetupTokenCard{ID: c.f.Name(), Stage: c.stage()}
 	switch d.Stage {
 	case dashboard.TokenWaiting:
 		d.Waited, d.Opening, d.Private = now.Sub(c.since), prose.Clean(c.address.Opening()), c.address.Opened == setuptoken.OpenedPrivately
@@ -222,11 +222,14 @@ func (m Model) tokenLeft() (unsaved *setup.Tokened, interrupted bool) {
 }
 
 // makingCard is the token card whose making the screen has in hand: the
-// card open, or the one the paste card open was opened from; nil with
-// neither.
+// card open, or the one the paste card or the card asking which account a
+// token is for was opened from; nil with none.
 func (m Model) makingCard() *tokenCard {
-	if m.paste != nil {
+	switch {
+	case m.paste != nil:
 		return m.paste.from
+	case m.which != nil:
+		return m.which.from
 	}
 	return m.token
 }
@@ -280,15 +283,20 @@ func (m Model) tokened(msg tokenedMsg) (Model, tea.Cmd) {
 
 // ended takes in how card's making ended: saved, or failing, as tokenSaved
 // has it, the card closed; stopped, the card closed, nothing saved, the
-// paste card opening in its place where p stopped it; else, saving nothing,
-// the card says why, as setup words it, made safe to show, the accounts
-// read again where the token made wasn't saved, as its save may have
-// changed them.
+// paste card opening in its place where p stopped it; asked which account
+// it's for, the card asking which in its place; else, saving nothing, the
+// card says why, as setup words it, made safe to show, the accounts read
+// again where the token made wasn't saved, as its save may have changed
+// them.
 func (m Model) ended(card tokenCard, msg tokenedMsg) (Model, tea.Cmd) {
 	switch r := msg.tokened.Result; {
 	case msg.err != nil || r == setup.TokenSaved:
 		m.token = nil
-		return m.tokenSaved(card.f.Account.ID, msg.err)
+		return m.tokenSaved(msg.tokened.ID, msg.err)
+	case r == setup.TokenAsked:
+		m.token = nil
+		m.which = whichAsked(card.f, msg.tokened.Asked, &card)
+		return m, nil
 	case r == setup.TokenCancelled && card.pasting:
 		return m.pasting(card.f, nil), nil
 	case r == setup.TokenCancelled || r == setup.TokenInterrupted:
