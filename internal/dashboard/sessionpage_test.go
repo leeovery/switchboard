@@ -754,16 +754,37 @@ func TestASessionsPageNamesItsAccountsByTheirLabels(t *testing.T) {
 }
 
 // A session's page names an account the pool leaves out faint on its row,
-// as the Overview does, and one in the pool in its own inks.
+// as the Overview does, and one in the pool in its own inks; and its heading
+// names the account it runs on so, its label faint where the pool leaves it
+// out.
 func TestASessionsPageNamesAnAccountOutOfThePoolFaint(t *testing.T) {
-	doc := pageDocChanged(func(d *status.Document) {
-		d.Pin = status.Pin{Accounts: []string{"side"}, Since: sessionNow.Add(-time.Hour).UTC()}
-	})
+	pinnedTo := func(id string) status.Document {
+		return pageDocChanged(func(d *status.Document) {
+			d.Pin = status.Pin{Accounts: []string{id}, Since: sessionNow.Add(-time.Hour).UTC()}
+		})
+	}
 	shown := moved()
+	for _, tt := range []struct {
+		pinned string
+		faint  bool
+	}{{pinned: "side"}, {pinned: "work", faint: true}} {
+		doc := pinnedTo(tt.pinned)
+		c := pageFrame(t, shown, 160, 37).At(doc, sessionNow).page(doc, sessionNow)
+		label := namedOn(c, "on side")
+		if label == nil {
+			t.Fatalf("pinned to %s, the heading doesn't say on side", tt.pinned)
+		}
+		for i, here := range label[len("on "):] {
+			if got := here.ink.token == theme.TextFaint; got != tt.faint {
+				t.Errorf("pinned to %s, cell %d of side's label in the heading is in %s, want text.faint: %t", tt.pinned, i, here.ink.token, tt.faint)
+			}
+		}
+	}
+	doc := pinnedTo("side")
 	at := pageFrame(t, shown, 160, 37).At(doc, sessionNow)
 	c, d := at.page(doc, sessionNow), at.sessionDrawn(doc, sessionNow)
 	for i, s := range shown.Page.Stays(sessionNow) {
-		for x := range len(s.Account) {
+		for x := range ansi.StringWidth(d.nameOf(s.Account).label) {
 			if got := c.at(x, d.l.accountsAt+i).ink.token; (got == theme.TextFaint) != (s.Account != "side") {
 				t.Errorf("%s's row has cell %d of its label in %s, want text.faint: %t, as the pool leaves it out", s.Account, x, got, s.Account != "side")
 			}

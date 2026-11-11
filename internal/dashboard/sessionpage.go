@@ -406,7 +406,7 @@ func (d sessionDrawn) onSinceParts(w status.Words, named func(string) string) []
 		said := line{{p.Text, mutedInk}}
 		if p.Kind == status.PartAccount {
 			n := d.nameOf(p.Text)
-			said = append(line{{named(n.label), titleInk}}, n.marks()...)
+			said = append(line{{named(n.label), n.inked(titleInk)}}, n.marks()...)
 		}
 		parts[i] = wordPart(p.Kind, said)
 	}

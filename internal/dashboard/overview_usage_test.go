@@ -891,6 +891,22 @@ func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAndInThePrintout(t *testi
 	}
 }
 
+// Where the router sends new sessions outside a pin, as when none of its
+// accounts has room, the account they go to is out of the pool: its label
+// faint, but its ▲ in accent.mode still, saying where they go, on the
+// Overview and in the printout alike.
+func TestTheAccountNewSessionsGoToKeepsItsMarkOutOfThePool(t *testing.T) {
+	doc := trio(pinnedTo("personal"))
+	faintLabel := ink{token: theme.TextFaint, bold: true}
+	for name, block := range map[string]usageBlock{"on the Overview": frameOf(160, 60).overviewBlock(doc, printNow), "in the printout": printBlock(doc, 160, Look{})} {
+		t.Run(name, func(t *testing.T) {
+			if got := block.rows[2].name; len(got) != 2 || got[0].ink != faintLabel || got[1] != (span{" ▲", accentInk}) {
+				t.Errorf("side, out of the pool, new sessions going to it, is named %+v, want its label in %+v and ▲ in %+v", got, faintLabel, accentInk)
+			}
+		})
+	}
+}
+
 func TestTheOverviewFadesAnAccountOutOfThePoolWhereThePrintoutDoesnt(t *testing.T) {
 	doc := trio(pinnedTo("side"))
 	tests := []struct {

@@ -255,7 +255,7 @@ func (b usageBlock) capsOf(drawn func(usageRow) bool) line {
 
 // accountName is an account's name as a row of the block heads it: its
 // label, and its marks, ◆ on the primary and ▲ on the account new sessions go
-// to. Out marks it out of the pool, its label and marks faint wherever it's
+// to. Out marks it out of the pool, its label and ◆ faint wherever it's
 // named. An unrouted one is named where nothing is routed, as on Accounts,
 // so it never carries ▲.
 type accountName struct {
@@ -345,12 +345,14 @@ func (n accountName) labelled(text string) line {
 }
 
 // marks are the marks after the name's label, each after a space: ◆ on the
-// primary, in text.tertiary, and ▲ on the account new sessions go to, in
-// accent.mode; each in text.faint where the name is out of the pool.
+// primary, in text.tertiary, text.faint where the name is out of the pool;
+// and ▲ on the account new sessions go to, in accent.mode whatever the pool,
+// as the router sends new sessions outside a pin none of whose accounts has
+// room.
 func (n accountName) marks() line {
 	primary, best := primaryInk, accentInk
 	if n.out {
-		primary, best = faintInk, faintInk
+		primary = faintInk
 	}
 	var l line
 	if n.primary {

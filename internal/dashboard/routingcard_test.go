@@ -555,8 +555,9 @@ func TestARowsMarkSaysWhetherItsPicked(t *testing.T) {
 }
 
 // The keys row picks with ↑↓ and space alone, however many accounts there
-// are: no key numbers one. Where it's short, m goes first, then ↑↓ and space
-// together; enter and esc are kept however short the row.
+// are: no key numbers one. Where it's short, m goes first, then ↑↓, then
+// space, so ↑↓ never shows without space, nor m without ↑↓; enter and esc
+// are kept however short the row.
 func TestTheKeysRowPicksWithSpaceAndKeepsEnterAndEscWhereItsShort(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -570,7 +571,10 @@ func TestTheKeysRowPicksWithSpaceAndKeepsEnterAndEscWhereItsShort(t *testing.T) 
 		{name: "a phone with room for every key", accounts: 3, width: 72, want: "↑↓ move   space tick   m move running   enter apply   esc cancel"},
 		{name: "a phone a cell short, m first to go, its row naming it", accounts: 3, width: 71, want: "↑↓ move   space tick   enter apply   esc cancel"},
 		{name: "a phone with room for ↑↓ and space", accounts: 3, width: 55, want: "↑↓ move   space tick   enter apply   esc cancel"},
-		{name: "a phone a cell short, ↑↓ and space going together", accounts: 3, width: 54, want: "enter apply   esc cancel"},
+		{name: "a phone a cell short, ↑↓ next", accounts: 3, width: 54, want: "space tick   enter apply   esc cancel"},
+		{name: "a phone of 52 columns", accounts: 3, width: 52, want: "space tick   enter apply   esc cancel"},
+		{name: "a phone with room for space", accounts: 3, width: 45, want: "space tick   enter apply   esc cancel"},
+		{name: "a phone a cell short, space last to go", accounts: 3, width: 44, want: "enter apply   esc cancel"},
 		{name: "a narrow phone, enter and esc kept", accounts: 3, width: 30, want: "enter apply   esc cancel"},
 	}
 	for _, tt := range tests {
