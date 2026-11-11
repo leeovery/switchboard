@@ -128,8 +128,10 @@ until the day's summary stands, but its events aren't, so they can go first.
 ## The accounts record
 
 `accounts.json` in the state directory is this Mac's record of every account it has had, whether
-it's configured now or was removed. It's written whole, readable by its owner alone, and kept for
-good, a few hundred bytes an account:
+it's configured now or was removed. Once the move onto the ids is done, the router keeps it in step
+with the config, so an account added or removed on another Mac sharing the config is added, or
+marked removed, here too (see [Several Macs](how-it-works.md#several-macs)). It's written whole,
+readable by its owner alone, and kept for good, a few hundred bytes an account:
 
 ```json
 {

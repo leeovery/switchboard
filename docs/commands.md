@@ -128,6 +128,9 @@ row shows these parts:
 Some accounts can't show a reading:
 
 - An account with no usable token reads `no token`, and its bars are empty.
+- An account whose token the router found to be another subscription's reads `wrong token`, and
+  its bars are empty: see
+  [A token that's another subscription's](how-it-works.md#a-token-thats-another-subscriptions).
 - An account nothing has been read of reads `not read yet`, and its bars are empty.
 - An account whose token is refused, or whose last read failed, shows its last reading faded, as
   `not read since 14:20`.
@@ -1666,6 +1669,8 @@ Every 3 seconds, the router reads the token files again, and takes up what's cha
 - An account without a usable token gains the one its file comes to hold.
 - An account whose file holds no token it can use, at two looks in a row, has nothing to send on
   until a token is back.
+- An account found holding another subscription's token, `wrong token`, takes requests again once
+  its file holds another token, and the finding goes.
 
 A single look finding no token, as when a file is caught while it's rewritten, keeps the account's
 token.

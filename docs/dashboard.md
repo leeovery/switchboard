@@ -130,6 +130,9 @@ ROUTING says, in words, how each account stands with the router. For example:
 - `● under pressure · out ~16:05`
 - `■ limit reached · back 15:54`
 - `○ idle · window starts at its prime, 16:20`
+- `✕ its token is another subscription's · switchboard accounts token b6s7`, where the account's
+  token file holds another subscription's token, which USAGE and Runway call `wrong token` (see
+  [A token that's another subscription's](how-it-works.md#a-token-thats-another-subscriptions))
 - `● pinned`, on each account the pin names, where it has room beside the account's state, and,
   where the state says when it's back or when its pressure runs out, only where that time fits
   beside the mark too. A prime's time gives way to the mark. Where the mark doesn't fit, a
@@ -182,7 +185,9 @@ COMING UP where they don't.
 - **LATELY** is what the router has done, newest first. Each event is marked, such as
   `14:31  ╎ work reached its cap: 3 sessions moved to side`. When a limit, a cap or a refusal moves
   sessions, those sessions are folded into that event's line. Where a line doesn't fit whole, it
-  takes a shorter form, `work at its cap: 3 moved to side`.
+  takes a shorter form, `work at its cap: 3 moved to side`. An account found holding another
+  subscription's token is told as `work's token is another subscription's`, or `work: wrong
+  token` where that doesn't fit.
 
 ### By account
 
@@ -956,7 +961,8 @@ Each account's row shows:
 - Below, a sentence says what the picks do.
 
 An account that can't take a session can't be picked. That's an account at a limit, one whose
-token is refused, or one with no token.
+token is refused, one with no token, or one whose token is another subscription's, which reads
+`wrong token`.
 
 ### Applying
 

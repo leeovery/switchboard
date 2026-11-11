@@ -199,6 +199,26 @@ removing an account fails, naming it, and History and the verbs name each remove
 id meanwhile. Put it right, or move it aside: see
 [The accounts record](reference.md#the-accounts-record).
 
+## A `wrong token` account
+
+An account that reads `wrong token`, or `its token is another subscription's`, holds in its token
+file a token the API says is for another subscription than the account's, as where the file was
+replaced by hand with another account's token, or a token was made while the browser was signed in
+to the wrong account. The router sends nothing on it: the account takes no requests, its sessions
+go to the others, and what Claude Code sends to other paths passes through as before. Where no
+other account can take a request, Claude Code gets a 503 saying the same.
+
+- **The token was meant for this account:** make it a token of its own with
+  `switchboard accounts token <id>`, approving it in the browser signed in to that subscription, or
+  with setup's `t`. `accounts token` refuses a token of another subscription, so the right one is
+  all it saves.
+- **The token was meant to be used:** add its subscription as an account of its own, with
+  `switchboard accounts add <label>`, then give this account its own token.
+- **It stays after a restart:** the finding is kept in `state.json` until the account takes up
+  another token, which the router reads within 3 seconds of the file changing.
+- **`switchboard status --json`** marks the account `token_foreign`, and `switchboard events`
+  holds a `foreign` event of when it was found.
+
 ## An export that fails
 
 With [`[export]`](configuration.md#export-keys)'s `dir` set, the router exports every hour. To see

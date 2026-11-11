@@ -456,6 +456,28 @@ takes a character more. So:
 The accounts record is `accounts.json` in the state directory: see
 [The accounts record](reference.md#the-accounts-record).
 
+### A token that's another subscription's
+
+The router holds each account's token to its subscription too. Every probe's answer names the
+organization the token is for; where that's another subscription than the account's, as where a
+token file was replaced by hand with another account's token, the account shows `wrong token`:
+
+- It takes no requests: none is ever sent on that token. A request Claude Code makes on it, to the
+  Messages API, goes out on another account instead, and where none can take it, switchboard
+  answers 503, saying why and what puts it right, sending nothing. What Claude Code sends to any
+  other path, as an upload, passes through on its own token as before.
+- USAGE, Runway and the routing card say `wrong token`, ROUTING and `status` say
+  `its token is another subscription's` and how to put it right, LATELY and the Log tell of it as
+  it's found, a `foreign` event, and the status document marks the account `token_foreign`.
+- **To put it right,** give the account its own token, with `switchboard accounts token <id>` or
+  setup's `t`; or, where the token is the one you meant to use, add that subscription as an
+  account of its own, with `switchboard accounts add <label>`.
+
+The finding outlasts a restart, kept in `state.json`, and goes as soon as the account takes up
+another token. Where the account's subscription isn't known yet, as for one added on another Mac,
+the first probe's organization is recorded as its own, unless another account has it. See
+[A `wrong token` account](troubleshooting.md#a-wrong-token-account).
+
 ### Upgrading to account ids
 
 Before switchboard made ids, you chose each account's id yourself, and every tab numbered the
@@ -509,6 +531,14 @@ It asks the API which subscription each token file is for, and joins each to the
 subscription, so its history lands on the same id the first Mac made. Where the API doesn't
 answer for one that may be joined, as before the network's up, its move waits, so it never gives
 an account another id than the first Mac did.
+
+**Each Mac's record follows the shared config.** Once its move is done, the router keeps its
+accounts record in step with the config as it starts and whenever the config changes: an account
+added on the other Mac joins this Mac's record, its subscription taken from its first probe here,
+so its token is held to it as any account's is; one removed there is marked removed here, with
+the label it had, so its days are named by it; and one added back is live again. An account that
+left the config while no router ran is marked removed under its id alone, and the next import
+whose record names it gives it its label.
 
 **Importing across the upgrade.** A Mac's export folder from after the upgrade carries its accounts
 record, so `import` joins its accounts to this Mac's by subscription, and its days land on this
