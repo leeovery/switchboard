@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/export"
@@ -263,10 +264,11 @@ func TestALabelIsTakenFromAnotherMacsFolderAlone(t *testing.T) {
 }
 
 // In this Mac's own folder, carrying its record, an account of an id this
-// Mac holds is that account, though only this Mac knows its organization,
-// as one a token told it since it exported: none of its lines is renamed.
+// Mac configures is that account, though the folder gives it another
+// organization: none of its lines is renamed, and the record is as it was.
 // In another Mac's, it's another, taken in under another id.
 func TestThisMacsOwnFolderIsJoinedByItsIDs(t *testing.T) {
+	configured := idmove.Here{Install: here.Install, Accounts: config.Accounts{{ID: "k3f9"}}}
 	for _, tt := range []struct {
 		name    string
 		install string
@@ -277,17 +279,37 @@ func TestThisMacsOwnFolderIsJoinedByItsIDs(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFolder(t, export.Manifest{Install: tt.install, IDs: true, Accounts: true})
-			putRecord(t, f.state, []identity.Entry{{ID: "k3f9", Added: now}})
-			spare := identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: now}
-			record := identity.Record{Accounts: append(thisMac().Accounts, spare)}
-			rename, err := idmove.JoinFolder(f.state, &record, here)
+			putRecord(t, f.state, []identity.Entry{{ID: "k3f9", Organization: "test-org-other", Added: now}})
+			want := append(thisMac().Accounts, identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: now})
+			record := identity.Record{Accounts: slices.Clone(want)}
+			rename, err := idmove.JoinFolder(f.state, &record, configured)
 			if err != nil {
 				t.Fatalf("JoinFolder: %v", err)
 			}
-			if got := rename.Of("k3f9") == "k3f9" && len(record.Accounts) == len(thisMac().Accounts)+1; got != tt.same {
-				t.Errorf("joined, k3f9 is renamed %s, the record %+v; want it the account here: %t", rename.Of("k3f9"), record.Accounts, tt.same)
+			if got := rename.Of("k3f9") == "k3f9" && slices.Equal(record.Accounts, want); got != tt.same {
+				t.Errorf("joined, k3f9 is renamed %s, the record %+v; want it the account here, the record as it was: %t", rename.Of("k3f9"), record.Accounts, tt.same)
 			}
 		})
+	}
+}
+
+// A folder whose export.json says it holds its accounts record, its record a
+// link to nothing, as a sync that hasn't carried the file yet leaves it, is
+// refused as one whose record hasn't synced.
+func TestAFolderWhoseRecordLinksToNothingIsUnsynced(t *testing.T) {
+	f := newFolder(t, otherWithID)
+	if err := os.Symlink(filepath.Join(t.TempDir(), "gone.json"), identity.NewFile(f.state).Path()); err != nil {
+		t.Fatal(err)
+	}
+	if err := idmove.Refusal(f.state, here); !errors.Is(err, idmove.ErrUnsynced) {
+		t.Errorf("Refusal = %v, want ErrUnsynced", err)
+	}
+	record := thisMac()
+	if _, err := idmove.JoinFolder(f.state, &record, here); !errors.Is(err, idmove.ErrUnsynced) {
+		t.Errorf("JoinFolder = %v, want ErrUnsynced", err)
+	}
+	if !slices.Equal(record.Accounts, thisMac().Accounts) {
+		t.Errorf("refused, the record is %+v, want it as it was", record.Accounts)
 	}
 }
 

@@ -213,6 +213,17 @@ func decode(data []byte) (Record, error) {
 	return r, nil
 }
 
+// Decode returns the accounts record data holds, as a copy of the file holds
+// it, as an exported folder's does, failing, with an error matching
+// ErrDamaged, where it's none this build can read.
+func Decode(data []byte) (Record, error) {
+	r, err := decode(data)
+	if err != nil {
+		return Record{}, fmt.Errorf("%w: %w", ErrDamaged, err)
+	}
+	return r, nil
+}
+
 // Encode returns the accounts record as its file holds it, as encode does,
 // for a copy of it written elsewhere, as export writes one.
 func (r Record) Encode() ([]byte, error) {

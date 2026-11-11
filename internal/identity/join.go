@@ -39,16 +39,15 @@ type JoinAs struct {
 //     configured; and its label where the other Mac configures it, as
 //     Configured says, and this one neither configures it nor removed it,
 //     labels taken, as as says, so a label changed there arrives;
-//   - matching none, of an id configured here that r doesn't hold, its
-//     organization unknown or spelling that id, as Derive spells one, it's
-//     that account, added to r with its organization and time added alone,
-//     as an account added on another Mac sharing this one's config;
+//   - matching none, of an id configured here that r doesn't hold, it's that
+//     account, added to r with its organization and time added alone, as an
+//     account added on another Mac sharing this one's config;
 //   - matching none otherwise, it's added as it is, its label and removal
 //     kept, as an account only the other Mac configures or removed there;
-//     where its id is held here already, as one of another account's, or
-//     one an account had before, under one spelled from the other Mac's
-//     install and its id, as Derive spells one, so it's the same however
-//     often it's joined.
+//     where its id is held here already, as one of an account of another
+//     organization, or one an account had before, under one spelled from
+//     the other Mac's install and its id, as Derive spells one, so it's the
+//     same however often it's joined.
 //
 // It fails, changing nothing, with ErrConflict wrapped where r, joined,
 // breaks the record's rules, as check says.
@@ -95,7 +94,7 @@ func (j *joining) join(e Entry) string {
 	matched := -1
 	id := spelledFrom(j.as.From+"/"+strings.ToLower(e.ID), func(id string) bool {
 		if i := slices.IndexFunc(j.record.Accounts, func(own Entry) bool { return strings.EqualFold(own.ID, id) }); i >= 0 {
-			if j.same(j.record.Accounts[i], e) {
+			if sameByID(j.record.Accounts[i], e) {
 				matched = i
 				return true
 			}
@@ -114,7 +113,7 @@ func (j *joining) join(e Entry) string {
 // configuredUnheld reports whether e is the account configured here under
 // its id that the record doesn't hold, as Join says.
 func (j *joining) configuredUnheld(e Entry) bool {
-	return containsFold(j.configured, e.ID) && !j.record.clashes(e.ID, nil) && (e.Organization == "" || Spells(e.Organization, e.ID))
+	return containsFold(j.configured, e.ID) && !j.record.clashes(e.ID, nil)
 }
 
 // take has the record's account at place i take what it doesn't know of e,
@@ -135,14 +134,21 @@ func (j *joining) take(i int, e Entry, labelled bool) string {
 }
 
 // matching is the place of the account e is, by its organization, else by
-// its id where same says it's the same: -1 where it's none.
+// its id where same says it's the same, the id first in this Mac's own
+// record, as its ids are this Mac's: -1 where it's none.
 func (j *joining) matching(e Entry) int {
+	byID := func(own Entry) bool { return strings.EqualFold(own.ID, e.ID) && j.same(own, e) }
+	if j.as.Own {
+		if i := slices.IndexFunc(j.record.Accounts, byID); i >= 0 {
+			return i
+		}
+	}
 	if e.Organization != "" {
 		if i := slices.IndexFunc(j.record.Accounts, func(own Entry) bool { return own.Organization == e.Organization }); i >= 0 {
 			return i
 		}
 	}
-	return slices.IndexFunc(j.record.Accounts, func(own Entry) bool { return strings.EqualFold(own.ID, e.ID) && j.same(own, e) })
+	return slices.IndexFunc(j.record.Accounts, byID)
 }
 
 // same reports whether e, of own's id, is own: always, in this Mac's own
@@ -152,22 +158,13 @@ func (j *joining) same(own, e Entry) bool {
 	return j.as.Own || sameByID(own, e)
 }
 
-// sameByID reports whether e, of own's id, is own: their organizations the
-// same where both are known, or where neither is; and where one is known
-// alone, where the other's account is removed, or the one known spells the
-// id, as Derive spells one, so it may well be, as Adding takes it to be.
-// Two subscriptions given one id at random, as where an organization
-// couldn't be known, are so never taken for one while both are used.
+// sameByID reports whether e, of own's id, is own: always, but where both
+// organizations are known and differ. Ids are made, never typed, so two
+// subscriptions share one only by chance, about one in a million a pair, as
+// the design allows ids; and where one's organization isn't known, such two
+// are taken for one.
 func sameByID(own, e Entry) bool {
-	switch {
-	case own.Organization != "" && e.Organization != "":
-		return own.Organization == e.Organization
-	case own.Organization == "" && e.Organization == "":
-		return true
-	case own.Organization == "":
-		return !own.Removed.IsZero() || Spells(e.Organization, own.ID)
-	}
-	return !e.Removed.IsZero() || Spells(own.Organization, e.ID)
+	return own.Organization == "" || e.Organization == "" || own.Organization == e.Organization
 }
 
 // ids are the record's accounts' ids.
