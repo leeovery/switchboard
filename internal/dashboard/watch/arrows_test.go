@@ -79,7 +79,7 @@ func TestALookThatCantListTheSessionsKeepsThoseListedLast(t *testing.T) {
 	if h.source.listed != asked+1 || !reflect.DeepEqual(h.model.sessions, listed) {
 		t.Errorf("listing failed on a look, the watch asked %d times, holding %+v; want it asked once more, holding those listed last %+v", h.source.listed-asked, h.model.sessions, listed)
 	}
-	if row := rowWith(h.view(), "1 Work        ● open"); !strings.Contains(row, "2 sessions") {
+	if row := rowWith(h.view(), "Work        ● open"); !strings.Contains(row, "2 sessions") {
 		t.Errorf("ROUTING's work reads %q, want its 2 sessions still listed", ansi.Strip(row))
 	}
 

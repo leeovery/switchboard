@@ -161,7 +161,7 @@ func checkAccountRows(t *testing.T, c *canvas, d sessionDrawn, p views.SessionPa
 	t.Helper()
 	for i, s := range p.Stays(now) {
 		row := []rune(rowOf(c, d.l.accountsAt+i) + strings.Repeat(" ", c.width))
-		if !strings.Contains(stayText(row, d, stayName), " "+s.Account) || stayText(row, d, stayTime) != s.Said ||
+		if !strings.HasPrefix(stayText(row, d, stayName), s.Account) || stayText(row, d, stayTime) != s.Said ||
 			stayText(row, d, stayRequests) != prose.Counted(s.Requests, "request") {
 			t.Errorf("%s's row of %s reads\n%q\nwant its time there, %q, and its %d requests", status.ShownID(p.Session), s.Account, strings.TrimRight(string(row), " "), s.Said, s.Requests)
 		}

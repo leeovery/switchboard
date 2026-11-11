@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/handover"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -109,6 +110,11 @@ type Config struct {
 	// known, with tokens.ErrUnrecorded where there's no record: whenever the
 	// router reads a token, it reads its record too. Nil knows of none.
 	Taken TakenFunc
+	// Formerly gives the id of the account that had the id given before
+	// switchboard made ids, reporting false where none did: a session started
+	// before then pins its account by that id for as long as it runs, which
+	// the router takes for the account's id now. Nil knows of none.
+	Formerly func(id string) (string, bool)
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string
 	Provider Provider
@@ -156,7 +162,9 @@ type Config struct {
 	// in, as ~/. Nil knows of none.
 	HomeDir func() (string, error)
 	// Listen is the proxy's address, and StateDir the directory its control
-	// socket and state file go in: only Run uses them.
+	// socket and state file go in, which only Run uses, and its accounts
+	// record, which each probe's organization is held to, and recorded in
+	// where the account's isn't known.
 	Listen   string
 	StateDir string
 	// ConfigFile is the config file the router was started from, as Watch
@@ -229,6 +237,12 @@ type Config struct {
 	// posting, the moves still queued and the limits still gathering get to
 	// post, before what's still going is ended. Zero means 3 seconds.
 	NotifyFor time.Duration
+	// Move moves the accounts and their history onto the ids switchboard
+	// makes, where that's owed: as Run starts, it settles the files it takes
+	// up before it takes them up, and once it has its history open, runs the
+	// rest beside it, again a minute after it fails, until it's done, and its
+	// status says it's moving the history meanwhile. Nil moves nothing.
+	Move Mover
 }
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
@@ -282,6 +296,9 @@ type Router struct {
 	imports *imports
 	// exports export the history into the folder the config names.
 	exports *exports
+	// moving moves the accounts and their history onto the ids switchboard
+	// makes, where that's owed.
+	moving *moving
 	// notifications is nil when the router posts none.
 	notifications *notifications
 	started       time.Time
@@ -324,7 +341,9 @@ func New(cfg Config) (*Router, error) {
 	}
 	emit := hearing(listeners...)
 	transport := newPool()
-	probes := newProbes(cfg.Prober, transport, state, cfg.Now, emit)
+	moving := newMoving(cfg.Move)
+	organizations := organizations{record: identity.NewFile(cfg.StateDir), owed: moving.owed}
+	probes := newProbes(cfg.Prober, transport, state, organizations, changes.note, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
 	recent.judge = health.look
 	scheduler := &scheduler{
@@ -355,6 +374,7 @@ func New(cfg Config) (*Router, error) {
 		history:   history,
 		ledger:    requests,
 		imports:   newImports(),
+		moving:    moving,
 		probes:    probes,
 		health:    health,
 		proxy: &proxy{
@@ -363,6 +383,7 @@ func New(cfg Config) (*Router, error) {
 			accounts:       accounts,
 			readToken:      cfg.Token,
 			tokenTaken:     cfg.Taken,
+			formerly:       cfg.Formerly,
 			tokensReplaced: changes.note,
 			state:          state,
 			provider:       cfg.Provider,
@@ -381,8 +402,8 @@ func New(cfg Config) (*Router, error) {
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}
-	r.exports = newExports(cfg, r.tendHistory, r.restartComing)
-	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, emit)
+	r.exports = newExports(cfg, r.tendHistory, r.restartComing, r.moving.owed)
+	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, newAccountsRecord(cfg, accounts, moving.owed), emit)
 	return r, nil
 }
 
@@ -450,6 +471,7 @@ func (r *Router) assembled() status.Document {
 	doc.Pin = pin
 	doc.Router = r.health.report()
 	doc.Restart = r.upkeep.restartDue()
+	doc.Moving = r.moving.report()
 	doc.Export = r.exports.report()
 	doc.Events = r.recent.events()
 	if r.primer != nil {

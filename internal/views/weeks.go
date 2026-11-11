@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Week is a calendar week of Weeks, by its first day, from the day weeks
@@ -28,11 +29,12 @@ type Week struct {
 // have one, Open the windows any account's is still running in, and there
 // are no Limits.
 type AccountWeek struct {
-	Account string             `json:"account,omitempty"`
-	All     bool               `json:"all,omitempty"`
-	Peaks   map[string]float64 `json:"peaks,omitempty"`
-	Open    []string           `json:"open,omitempty"`
-	Limits  map[string]int     `json:"limits,omitempty"`
+	Account string `json:"account,omitempty"`
+	status.AccountName
+	All    bool               `json:"all,omitempty"`
+	Peaks  map[string]float64 `json:"peaks,omitempty"`
+	Open   []string           `json:"open,omitempty"`
+	Limits map[string]int     `json:"limits,omitempty"`
 }
 
 // weeksShown are the weeks Weeks and Days show: this one, so far, and the
@@ -377,7 +379,7 @@ func (p placedWeek) of(accounts config.Accounts) Week {
 	week := Week{Week: p.week, Accounts: make([]AccountWeek, 0, len(accounts)+1)}
 	sums, counts, open := make(map[string]millionths), make(map[string]int), make(map[string]peak)
 	for i, a := range accounts {
-		week.Accounts = append(week.Accounts, AccountWeek{Account: a.ID, Peaks: shares(p.peaks[i]), Open: openOf(p.peaks[i]), Limits: p.limits[i]})
+		week.Accounts = append(week.Accounts, AccountWeek{Account: a.ID, AccountName: status.ConfiguredName(a), Peaks: shares(p.peaks[i]), Open: openOf(p.peaks[i]), Limits: p.limits[i]})
 		for key, peak := range p.peaks[i] {
 			if peak.known {
 				sums[key] += peak.use

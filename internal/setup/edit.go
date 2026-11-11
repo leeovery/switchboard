@@ -17,7 +17,6 @@ type Field int
 const (
 	// NoField is a refusal of no value alone, as of an account's removal.
 	NoField Field = iota
-	IDField
 	LabelField
 	PlanField
 	PrimaryField
@@ -97,8 +96,8 @@ func (r *Refused) Unwrap() error {
 // accounts.Registry.Edit, as accounts edit does, and says what it changed:
 // its plan read as config.ParsePlan reads it, and its reserve as
 // config.ParseReserve does, none, or left empty, being none. It fails with a
-// Refused where config refuses the label, the plan or the reserve, and as
-// Registry.Edit does otherwise.
+// Refused where the label, the plan or the reserve is refused, as
+// refusedLabel has a label's, and as Registry.Edit does otherwise.
 func (s *Setup) EditAccount(id string, edit Edit) (accounts.Edited, error) {
 	change := accounts.Change{Label: edit.Label, Primary: edit.Primary}
 	if edit.Plan != nil {
@@ -120,15 +119,6 @@ func (s *Setup) EditAccount(id string, edit Edit) (accounts.Edited, error) {
 		return accounts.Edited{}, refusedLabel(err)
 	}
 	return edited, nil
-}
-
-// refusedLabel is err, as config refused an account's label: a Refused of
-// Label, why as config words it alone; else err as it is.
-func refusedLabel(err error) error {
-	if wrong, ok := errors.AsType[*config.WrongLabel](err); ok {
-		return &Refused{Field: LabelField, Why: wrong.Why, err: err}
-	}
-	return err
 }
 
 // refusedValue is the Refused of the value of field that config refused with

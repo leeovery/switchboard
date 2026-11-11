@@ -36,17 +36,12 @@ const (
 var errTokenNotSaved = errors.New("the token isn't saved")
 
 // tokenSetup is setup as far as making and saving an account's token takes
-// it: the accounts, as the config file and the token files hold them, each
-// token checked with the API as a probe does; tokens made with claude
+// it: the accounts, as accountFiles has them; tokens made with claude
 // setup-token, looking where Claude Code installs, or with the TokenMaker
 // given, their sign-ins opened by the CLI's openers; and the process's
 // interrupts taken as Interrupt and Hold take them.
 func (a *app) tokenSetup() (*setup.Setup, error) {
-	path, err := a.configFile()
-	if err != nil {
-		return nil, err
-	}
-	files, err := a.tokens()
+	registry, err := a.accountFiles()
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +53,7 @@ func (a *app) tokenSetup() (*setup.Setup, error) {
 		maker = setuptoken.Maker{Environ: a.Environ(), InstallPaths: installPaths, Executable: a.Executable}
 	}
 	return &setup.Setup{
-		Accounts:      accounts.Registry{ConfigPath: path, Tokens: files, Prober: a.prober, Now: a.Now},
+		Accounts:      registry,
 		InstallPaths:  installPaths,
 		Home:          home,
 		TokenMaker:    maker,
@@ -85,7 +80,7 @@ func (a *app) makeToken(cmd *cobra.Command, id string) error {
 		return err
 	}
 	if err := s.Accounts.Configured(id); err != nil {
-		return a.notConfigured(err, id, addIt(id))
+		return a.notConfigured(err, id, findTheID)
 	}
 	said := &makingSaid{out: cmd.OutOrStdout(), errOut: cmd.ErrOrStderr(), Holder: a.Hold}
 	if len(cfg.Accounts) > 1 {
@@ -101,7 +96,7 @@ func (a *app) makeToken(cmd *cobra.Command, id string) error {
 	tokened, err := s.MakeToken(ctx, setup.TokenFor{Account: config.NewAccount{ID: id}, Organizations: organizations}, said.step)
 	if err != nil {
 		said.Let()
-		return a.notConfigured(err, id, addIt(id))
+		return a.notConfigured(err, id, findTheID)
 	}
 	if tokened.InterruptHeld {
 		said.interrupted()

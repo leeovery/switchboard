@@ -28,7 +28,7 @@ func (a *app) findSession(ctx context.Context, client *router.Client, given stri
 	if err != nil {
 		return "", err
 	}
-	named := views.NamedRouted(given, sessions, a.Now())
+	named := views.NamedRouted(given, sessions, a.Now(), a.accountNames())
 	if named.Several != nil {
 		return "", several(given, named.Several)
 	}

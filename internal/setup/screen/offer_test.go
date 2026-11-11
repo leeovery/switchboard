@@ -162,7 +162,7 @@ func TestAddLineFailingFailsTheStepWordingNothingItReturned(t *testing.T) {
 	if h.model.link.Shell.Situation != setup.OfferLine {
 		t.Errorf("the screen keeps %v as what the step found, want what Link found, not what AddLine returned with its error", h.model.link.Shell.Situation)
 	}
-	if got := h.model.walk.left(); got != (Left{Ending: Failed, Err: errNoLink}) {
+	if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Failed, Err: errNoLink}) {
 		t.Errorf("setup is left %+v, want failing at the claude link", got)
 	}
 	h.pressAndDeliver("enter")
@@ -296,7 +296,7 @@ func TestLeavingAsTheLineIsAddedWaitsForTheWrite(t *testing.T) {
 			default:
 				t.Error("run() returned before AddLine ended")
 			}
-			if how(left) != (Left{Ending: Paused}) {
+			if !sameLeft(how(left), Left{Ending: Paused}) {
 				t.Errorf("run() left setup %+v, want it paused", left)
 			}
 			if steps.hooks != 0 || len(steps.askedOf) != 0 {

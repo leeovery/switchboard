@@ -54,8 +54,10 @@ type exports struct {
 	// that's due, returning once they have, or failing once ctx has ended or
 	// a writer has stopped.
 	tend func(ctx context.Context) error
-	// restarting reports whether the router is to restart itself.
-	restarting func() bool
+	// restarting reports whether the router is to restart itself, and moving
+	// whether the history waits on its move onto the accounts' ids, which
+	// an export would copy as it stands meanwhile.
+	restarting, moving func() bool
 	// supervised is set where the router is started again whenever it exits,
 	// as the service's is, rather than run by hand from a terminal, which
 	// macOS counts the router as part of.
@@ -89,15 +91,17 @@ type exports struct {
 // newExports returns the exports of a router built from cfg, into the folder
 // its Export names, from its state directory, by its clock, each once tend
 // has had the history's writers compress what's due, and none while
-// restarting reports the router is to restart.
-func newExports(cfg Config, tend func(ctx context.Context) error, restarting func() bool) *exports {
+// restarting reports the router is to restart, or moving that the history
+// waits on its move onto the accounts' ids.
+func newExports(cfg Config, tend func(ctx context.Context) error, restarting, moving func() bool) *exports {
 	x := &exports{
 		every:      exportEvery,
 		now:        cfg.Now,
 		homeDir:    cfg.HomeDir,
-		exportInto: export.Exporter{StateDir: cfg.StateDir, Now: cfg.Now, Logger: logger, NoParents: true}.Export,
+		exportInto: export.Exporter{StateDir: cfg.StateDir, Now: cfg.Now, Logger: logger, Accounts: cfg.Accounts, NoParents: true}.Export,
 		tend:       tend,
 		restarting: restarting,
+		moving:     moving,
 		supervised: cfg.Supervised,
 		running:    make(map[string]time.Time),
 		underWay:   newInFlight(),
@@ -175,8 +179,8 @@ type exportTarget struct {
 
 // begin notes an export into the folder configured beginning, and returns
 // the folder, reporting false, beginning none, where none is configured, one
-// into it runs still, or a restart is coming, or asked for, as holdOff
-// says. One into another folder, as the one configured before, held as a
+// into it runs still, a restart is coming, or asked for, as holdOff says,
+// or the history waits on its move onto the accounts' ids. One into another folder, as the one configured before, held as a
 // write macOS guards is, holds none up.
 func (x *exports) begin() (exportTarget, bool) {
 	x.mu.Lock()
@@ -190,6 +194,9 @@ func (x *exports) begin() (exportTarget, bool) {
 		return target, false
 	case x.heldOff > 0 || x.restarting():
 		logger.Debug("a restart is coming; this round exports nothing", "dir", x.folder)
+		return target, false
+	case x.moving():
+		logger.Debug("the history waits on its move onto the accounts' ids; this round exports nothing", "dir", x.folder)
 		return target, false
 	}
 	x.running[x.folder] = x.now().UTC()

@@ -73,10 +73,12 @@ type Fixture struct {
 	// saying it's loading, as underWay has them.
 	loading bool
 	// records are what its world's readers serve the watch, and accounts
-	// its world's, as configured, whose plans History prices against: a
-	// printout has neither, and a watch drawn of it reads none.
+	// its world's, as configured, whose plans History prices against, and
+	// removed those its accounts record keeps removed: a printout has none,
+	// and a watch drawn of it reads none.
 	records  *records
 	accounts config.Accounts
+	removed  status.RemovedAccounts
 	// setup is set for a fixture of setup's screen, drawn by its own model
 	// rather than the watch.
 	setup *setupShown
@@ -318,7 +320,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts, view: p.view, log: p.log, scale: p.scale, loading: p.loading,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
 	}
 }
 
@@ -337,8 +339,9 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // and personal have no 5-hour limit. History's frames, each reached from
 // the Overview with tab twice, then the keys to its view: the Year, and
 // filtered to Opus 5.5; Weeks, its table and its columns, and of ten
-// accounts; Days, and of ten; Tokens by account, and by model; and the Year
-// on a phone; and where no frame draws it, to judge by eye, the Year at
+// accounts; Days, of ten, and with an account removed; Tokens by account,
+// and by model; and the Year on a phone; and where no frame draws it, to
+// judge by eye, the Year at
 // 160×24, scrolled down three rows with j. Then the page as stage 6 builds
 // it, over the auto world, where no frame draws it, to judge by eye: the
 // routing card over the Overview, two accounts picked and m ticked, at
@@ -426,9 +429,9 @@ var pages = []page{
 	{name: "overview-mixed-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.mixed, keys: keysOf("s")},
 	{name: "overview-mixed-by-account-160", size: wide(42), world: accountWorlds.mixed, keys: keysOf("b")},
 	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
-	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "3")},
-	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
-	{name: "routing-limit-160", size: wide(37), world: accountWorlds.limit, keys: keysOf("p", "3")},
+	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: slices.Concat(keysOf("p"), tickBelow(2), tickBelow(1))},
+	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: slices.Concat(keysOf("p"), tickBelow(2), keysOf("m"))},
+	{name: "routing-limit-160", size: wide(37), world: accountWorlds.limit, keys: slices.Concat(keysOf("p"), tickBelow(3))},
 	{name: "routing-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: keysOf("p")},
 	{name: "history-year-160", size: wide(37), world: accountWorlds.auto, keys: toHistory()},
 	{name: "history-year-opus-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("v")},
@@ -438,6 +441,7 @@ var pages = []page{
 	{name: "history-weeks-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]")},
 	{name: "history-days-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]")},
 	{name: "history-days-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]", "]")},
+	{name: "history-days-removed-160", size: wide(37), world: accountWorlds.removedTeam, keys: toHistory("]", "]")},
 	{name: "history-tokens-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]")},
 	{name: "history-tokens-models-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]", "v")},
 	{name: "history-tokens-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toHistory("]", "]", "]")},
@@ -445,8 +449,8 @@ var pages = []page{
 	{name: "history-year-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toHistory()},
 	{name: "history-days-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toHistory("]", "]")},
 	{name: "page-year-160x24", size: wide(24), world: accountWorlds.auto, keys: toHistory("j", "j", "j")},
-	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: keysOf("p", "2", "3", "m")},
-	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: keysOf("p", "2", "m")},
+	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: slices.Concat(keysOf("p"), tickBelow(2), tickBelow(1), keysOf("m"))},
+	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: slices.Concat(keysOf("p"), tickBelow(2), keysOf("m"))},
 	{name: "page-routing-160x16", size: wide(16), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "page-not-answering", size: wide(37), world: accountWorlds.auto, keys: keysOf("R"), gone: true},
 	{name: "page-help-scrolled", size: wide(16), world: accountWorlds.auto, keys: keysOf("?", "j", "j", "j")},
@@ -480,7 +484,7 @@ var pages = []page{
 	{name: "session-phone-52", size: watch.Size{Width: 52, Height: 32}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "session-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "session-138x15", size: watch.Size{Width: 138, Height: 15}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
-	{name: "routing-session-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e", keysOf("p", "3")...), scale: storyScale},
+	{name: "routing-session-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e", slices.Concat(keysOf("p"), tickBelow(3))...), scale: storyScale},
 	{name: "session-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toSession("d28c"), scale: storyScale},
 	{name: "session-mixed-ultra-160", size: wide(37), world: accountWorlds.mixed, keys: toSession("9c2e"), scale: storyScale},
 	{name: "page-session-loading", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale, loading: true},
@@ -649,7 +653,7 @@ func toSession(id string, then ...tea.KeyPressMsg) []tea.KeyPressMsg {
 	return slices.Concat(keys, []tea.KeyPressMsg{enterKey, upKey}, keysOf("s"), then)
 }
 
-// The keys tab, ↑, ↓, ←, → and enter, as pressed.
+// The keys tab, ↑, ↓, ←, →, enter and space, as pressed.
 var (
 	tabKey   = tea.KeyPressMsg{Code: tea.KeyTab}
 	upKey    = tea.KeyPressMsg{Code: tea.KeyUp}
@@ -657,7 +661,14 @@ var (
 	leftKey  = tea.KeyPressMsg{Code: tea.KeyLeft}
 	rightKey = tea.KeyPressMsg{Code: tea.KeyRight}
 	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
+	spaceKey = tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
 )
+
+// tickBelow is ↓ pressed n times, then space: on the routing card, the row
+// n under the cursor ticked, or on a session's card, picked.
+func tickBelow(n int) []tea.KeyPressMsg {
+	return append(repeated(downKey, n), spaceKey)
+}
 
 // repeated is the key given pressed n times.
 func repeated(key tea.KeyPressMsg, n int) []tea.KeyPressMsg {

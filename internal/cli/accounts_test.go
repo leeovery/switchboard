@@ -1,19 +1,22 @@
 package cli_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestAccounts(t *testing.T) {
@@ -57,6 +60,27 @@ label = "Spare"
 		if strings.Contains(got.stdout+got.stderr, token) {
 			t.Errorf("switchboard accounts printed a token:\n%s", got.stdout)
 		}
+	}
+}
+
+func TestAccountsSaysATokenTheRouterFoundAnothersIsTheWrongToken(t *testing.T) {
+	path := writeConfig(t, "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n")
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	writeToken(t, deps, "work", "test-token-work")
+	writeToken(t, deps, "side", "test-token-side")
+	doc := status.Document{Accounts: []status.Account{{ID: "work", TokenSet: true}, {ID: "side", TokenForeign: true}}}
+	serveRouter(t, router.SocketPath(stateDir(t, deps)), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /status": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(doc) },
+	})
+
+	got := run(t, deps, "accounts")
+	want := result{
+		stdout: "ID    LABEL  PRIMARY  TOKEN\n" +
+			"work  work   yes      usable\n" +
+			"side  side            wrong token\n",
+	}
+	if got != want {
+		t.Errorf("switchboard accounts =\n%+v\nwant\n%+v", got, want)
 	}
 }
 
@@ -140,202 +164,6 @@ const tokenShaped = "sk-ant-oat01-fake_token-shaped"
 // probedWork is what the Claude API is asked, probing the token it takes.
 var probedWork = []string{"test-token-work claude-fable-5-1", "test-token-work claude-haiku-4-5-20251001"}
 
-func TestAccountsAdd(t *testing.T) {
-	tests := []struct {
-		name      string
-		args      []string
-		wantOut   string
-		wantTable string
-	}{
-		{
-			name:      "with a label",
-			args:      []string{"accounts", "add", "work", "--label", "Work"},
-			wantOut:   "added work\n",
-			wantTable: "[[account]]\nid    = \"work\"\nlabel = \"Work\"\n",
-		},
-		{
-			name:      "as the primary",
-			args:      []string{"accounts", "add", "work", "--primary"},
-			wantOut:   "added work, the primary\n",
-			wantTable: "[[account]]\nid      = \"work\"\nprimary = true\n",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			api := newClaudeAPI(t)
-			deps, path := accountsDeps(t, api.URL, personalAndSide)
-			before := readFile(t, path)
-
-			got := runWithInput(t, deps, "test-token-work\n", tt.args...)
-			if want := (result{stdout: tt.wantOut}); got != want {
-				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, want)
-			}
-			if want := before + "\n" + tt.wantTable; readFile(t, path) != want {
-				t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
-			}
-			checkTokenFile(t, deps, "work", "test-token-work\n")
-			if !slices.Equal(api.questions(), probedWork) {
-				t.Errorf("the API was asked %q, want %q", api.questions(), probedWork)
-			}
-		})
-	}
-}
-
-func TestAccountsAddWhenTheAPIRefusesTheToken(t *testing.T) {
-	deps, path := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
-	before := readFile(t, path)
-
-	got := runWithInput(t, deps, "test-token-side\n", "accounts", "add", "work")
-	want := result{
-		stderr: "Error: the API refused the token (HTTP 401 · Invalid bearer token), so nothing is saved: " +
-			"make another with claude setup-token, run while signed in to that subscription\n",
-		code: 1,
-	}
-	if got != want {
-		t.Errorf("switchboard accounts add = %+v, want %+v", got, want)
-	}
-	if readFile(t, path) != before {
-		t.Errorf("the config reads\n%s\nwant it as it was\n%s", readFile(t, path), before)
-	}
-	checkNoTokenFile(t, deps, "work")
-}
-
-func TestAccountsAddWhenTheAPIDoesntAnswer(t *testing.T) {
-	upstream := closedServerURL(t)
-	deps, path := accountsDeps(t, upstream, personalAndSide)
-	before := readFile(t, path)
-
-	got := runWithInput(t, deps, "test-token-work\n", "accounts", "add", "work")
-	warning := "switchboard: couldn't check the token with the API (Post \"" + upstream + "/v1/messages\": "
-	if got.code != 0 || got.stdout != "added work\n" || !strings.HasPrefix(got.stderr, warning) ||
-		!strings.HasSuffix(got.stderr, ") — saved it all the same\n") || strings.Count(got.stderr, "\n") != 1 {
-		t.Errorf("switchboard accounts add = %+v, want work added, and a warning starting %q", got, warning)
-	}
-	if want := before + "\n[[account]]\nid = \"work\"\n"; readFile(t, path) != want {
-		t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
-	}
-	checkTokenFile(t, deps, "work", "test-token-work\n")
-	checkNoToken(t, got, "test-token-work")
-}
-
-func TestAccountsAddRefusesATokenAsTheIDOrTheLabel(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    []string
-		wantErr string
-	}{
-		{
-			name:    "as the id",
-			args:    []string{"accounts", "add", tokenShaped},
-			wantErr: `account "[redacted]": id looks like a token, which an id mustn't, as it shows wherever the account does`,
-		},
-		{
-			name:    "as the label",
-			args:    []string{"accounts", "add", "work", "--label", tokenShaped},
-			wantErr: `account "work": label looks like a token, which a label mustn't, as it shows wherever the account does`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			api := newClaudeAPI(t)
-			deps, path := accountsDeps(t, api.URL, personalAndSide)
-			before := readFile(t, path)
-
-			got := runWithInput(t, deps, "test-token-work\n", tt.args...)
-			if want := (result{stderr: "Error: " + tt.wantErr + "\n", code: 1}); got != want {
-				t.Errorf("switchboard accounts add = %+v, want %+v", got, want)
-			}
-			if readFile(t, path) != before || len(api.questions()) > 0 {
-				t.Errorf("the config reads\n%s\nand the API was asked %d questions, want the config as it was, and the API asked nothing", readFile(t, path), len(api.questions()))
-			}
-			checkNoTokenFile(t, deps, "work")
-			checkNoTokenFile(t, deps, tokenShaped)
-		})
-	}
-}
-
-func TestAccountsAddRefusesABlankLabel(t *testing.T) {
-	const blank = `account "work": label is blank, showing nothing: give one that shows, or leave --label out to show the account by its id`
-	tests := []struct {
-		name    string
-		label   string
-		wantErr string
-	}{
-		{name: "spaces alone", label: "   ", wantErr: blank},
-		{name: "a zero-width joiner alone", label: "\u2060", wantErr: blank},
-		{name: "text that isn't UTF-8", label: "a\xffb", wantErr: `account "work": label isn't UTF-8 text, as a config's text must be`},
-		{name: "a sign that hides the character after it", label: "Work\u06dd1", wantErr: `account "work": label holds a sign that joins the character after it, such as an Arabic number sign, which can hide that character`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			api := newClaudeAPI(t)
-			deps, path := accountsDeps(t, api.URL, personalAndSide)
-			before := readFile(t, path)
-
-			got := runWithInput(t, deps, "test-token-work\n", "accounts", "add", "work", "--label", tt.label)
-			if want := (result{stderr: "Error: " + tt.wantErr + "\n", code: 1}); got != want {
-				t.Errorf("switchboard accounts add = %+v, want %+v", got, want)
-			}
-			if readFile(t, path) != before || len(api.questions()) > 0 {
-				t.Errorf("the config reads\n%s\nand the API was asked %q, want the config as it was, and the API asked nothing", readFile(t, path), api.questions())
-			}
-			checkNoTokenFile(t, deps, "work")
-		})
-	}
-}
-
-func TestAccountsAddAnAccountConfiguredAlready(t *testing.T) {
-	api := newClaudeAPI(t)
-	deps, path := accountsDeps(t, api.URL, personalAndSide)
-	before := readFile(t, path)
-
-	got := runWithInput(t, deps, "test-token-work\n", "accounts", "add", "side")
-	want := result{stderr: "Error: account \"side\" is already configured: replace its token with switchboard accounts token side\n", code: 1}
-	if got != want {
-		t.Errorf("switchboard accounts add = %+v, want %+v", got, want)
-	}
-	if readFile(t, path) != before || len(api.questions()) > 0 {
-		t.Errorf("the config reads\n%s\nand the API was asked %q, want the config as it was, and the API asked nothing", readFile(t, path), api.questions())
-	}
-	checkNoTokenFile(t, deps, "side")
-}
-
-func TestAccountsAddAnAccountConfiguredAlreadyInAnotherCase(t *testing.T) {
-	api := newClaudeAPI(t)
-	deps, path := accountsDeps(t, api.URL, "\n[[account]]\nid = \"work\"\n"+personalAndSide)
-	// Work's token file holds no token, so a token given Work, whose file
-	// is work's where case is ignored, would be written in its place.
-	writeToken(t, deps, "work", "")
-	before, token := readFile(t, path), readFile(t, tokenPath(t, deps, "work"))
-
-	got := runWithInput(t, deps, "test-token-work\n", "accounts", "add", "Work")
-	want := result{stderr: "Error: account ids \"work\" and \"Work\" differ only in case, so they'd share a token file, as macOS ignores case in file names\n", code: 1}
-	if got != want {
-		t.Errorf("switchboard accounts add Work = %+v, want %+v", got, want)
-	}
-	if readFile(t, path) != before || len(api.questions()) > 0 {
-		t.Errorf("the config reads\n%s\nand the API was asked %q, want the config as it was, and the API asked nothing", readFile(t, path), api.questions())
-	}
-	checkTokenFile(t, deps, "work", token)
-}
-
-func TestAccountsAddMakesTheFirstConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "switchboard", "config.toml")
-	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
-	writeToken(t, deps, "work", "test-token-work")
-
-	got := run(t, deps, "accounts", "add", "work")
-	if want := (result{stdout: "added work, keeping the token in " + tokenPath(t, deps, "work") + "\n"}); got != want {
-		t.Errorf("switchboard accounts add = %+v, want %+v", got, want)
-	}
-	if want := "[[account]]\nid = \"work\"\n"; readFile(t, path) != want {
-		t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
-	}
-	if got := run(t, deps, "accounts"); !strings.Contains(got.stdout, "work  work   yes      usable") {
-		t.Errorf("switchboard accounts = %+v, want work, the primary, with a usable token", got)
-	}
-}
-
 func TestAccountsToken(t *testing.T) {
 	api := newClaudeAPI(t)
 	deps, path := accountsDeps(t, api.URL, personalAndSide+"\n[[account]]\nid = \"work\"\n")
@@ -374,7 +202,7 @@ func TestAccountsTokenRefuses(t *testing.T) {
 			name:    "an account not configured",
 			config:  "\n[[account]]\nid = \"personal\"\n",
 			input:   "test-token-work\n",
-			wantErr: `account "side" is not configured: add it with switchboard accounts add side`,
+			wantErr: `account "side" is not configured: switchboard accounts lists each account's id`,
 		},
 	}
 	for _, tt := range tests {
@@ -757,12 +585,12 @@ func TestAccountsEdit(t *testing.T) {
 			wantOut: "side has every value given already, so nothing changed\n",
 		},
 		{
-			name:    "no label, showing the account by its id",
+			name:    "its own label, in another case",
 			config:  personalAndSide,
-			args:    []string{"--label", ""},
-			wantOut: "edited side: label none, shown by its id (was \"Side\")\n",
+			args:    []string{"--label", "SIDE"},
+			wantOut: "edited side: label \"SIDE\" (was \"Side\")\n",
 			old:     "label = \"Side\"\n",
-			new:     "",
+			new:     "label = \"SIDE\"\n",
 		},
 		{
 			name:    "a plan",
@@ -1026,17 +854,17 @@ func TestAccountsEditRefuses(t *testing.T) {
 		{
 			name:    "a reserve for an account not configured, which is what's said",
 			args:    []string{"nosuch", "--reserve", "5"},
-			wantErr: `account "nosuch" is not configured: add it with switchboard accounts add nosuch`,
+			wantErr: `account "nosuch" is not configured: switchboard accounts lists each account's id`,
 		},
 		{
 			name:    "a plan for an account not configured, which is what's said",
 			args:    []string{"nosuch", "--plan", "free"},
-			wantErr: `account "nosuch" is not configured: add it with switchboard accounts add nosuch`,
+			wantErr: `account "nosuch" is not configured: switchboard accounts lists each account's id`,
 		},
 		{
 			name:    "no flags for an account not configured, which is what's said",
 			args:    []string{"nosuch"},
-			wantErr: `account "nosuch" is not configured: add it with switchboard accounts add nosuch`,
+			wantErr: `account "nosuch" is not configured: switchboard accounts lists each account's id`,
 		},
 		{
 			name:    "a reserve with a sign",
@@ -1046,12 +874,12 @@ func TestAccountsEditRefuses(t *testing.T) {
 		{
 			name:    "an account not configured",
 			args:    []string{"work", "--plan", "pro"},
-			wantErr: `account "work" is not configured: add it with switchboard accounts add work`,
+			wantErr: `account "work" is not configured: switchboard accounts lists each account's id`,
 		},
 		{
 			name:    "a token given as the id, never shown",
 			args:    []string{tokenShaped, "--plan", "pro"},
-			wantErr: `account "[redacted]" is not configured: add it with switchboard accounts add [redacted]`,
+			wantErr: `account "[redacted]" is not configured: switchboard accounts lists each account's id`,
 		},
 		{
 			name:    "a plan that isn't one",
@@ -1081,7 +909,7 @@ func TestAccountsEditRefuses(t *testing.T) {
 		{
 			name:    "a blank label",
 			args:    []string{"side", "--label", "  ", "--plan", "pro"},
-			wantErr: `account "side": label is blank, showing nothing: give one that shows, or --label "" to show the account by its id`,
+			wantErr: `account "side": label is blank, showing nothing: give one that shows`,
 		},
 		{
 			name:    "a label holding a newline, a control character",
@@ -1091,17 +919,27 @@ func TestAccountsEditRefuses(t *testing.T) {
 		{
 			name:    "a blank label for an account not configured, which is what's said",
 			args:    []string{"nosuch", "--label", "  "},
-			wantErr: `account "nosuch" is not configured: add it with switchboard accounts add nosuch`,
+			wantErr: `account "nosuch" is not configured: switchboard accounts lists each account's id`,
 		},
 		{
 			name:    "a label of a zero-width space alone",
 			args:    []string{"side", "--label", "\u200b"},
-			wantErr: `account "side": label is blank, showing nothing: give one that shows, or --label "" to show the account by its id`,
+			wantErr: `account "side": label is blank, showing nothing: give one that shows`,
 		},
 		{
 			name:    "an id configured in another case",
 			args:    []string{"Side", "--plan", "pro"},
 			wantErr: `account "Side" is not configured: side is; give an id in its own case`,
+		},
+		{
+			name:    "no label",
+			args:    []string{"side", "--label", ""},
+			wantErr: "a label is required: every account has one",
+		},
+		{
+			name:    "another account's label, as it shows, ignoring case",
+			args:    []string{"side", "--label", "personal\u200b"},
+			wantErr: "another account has that label already, ignoring case: give each its own",
 		},
 		{
 			name:    "a label shaped like a token, never shown",
@@ -1139,15 +977,6 @@ func accountsDeps(t *testing.T, upstream, accounts string) (cli.Deps, string) {
 	t.Helper()
 	path := writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+accounts)
 	return testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir()), path
-}
-
-// closedServerURL returns the URL of a server that has shut down, so
-// connecting to it fails.
-func closedServerURL(t *testing.T) string {
-	t.Helper()
-	srv := httptest.NewServer(http.NotFoundHandler())
-	srv.Close()
-	return srv.URL
 }
 
 func readFile(t *testing.T, path string) string {

@@ -290,8 +290,12 @@ type WrongLabel struct {
 	is error
 }
 
-// Error is the account named, then the label, and why it's wrong.
+// Error is the account named, where one is, then the label, and why it's
+// wrong.
 func (e *WrongLabel) Error() string {
+	if e.account == "" {
+		return "label " + e.Why
+	}
 	return e.account + ": label " + e.Why
 }
 
@@ -341,6 +345,13 @@ func takeLabel(account, given string) (string, error) {
 		return "", err
 	}
 	return label, nil
+}
+
+// TakeLabel returns a label given an account not yet added, as takeLabel
+// takes it: "" for "". As the account has no id yet, a WrongLabel it fails
+// with names none.
+func TakeLabel(given string) (string, error) {
+	return takeLabel("", given)
 }
 
 // keptIfAMark is what prose.MapUnseen makes of an unseen character of a label

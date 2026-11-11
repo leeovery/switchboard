@@ -14,9 +14,9 @@ import (
 
 // A column of names takes the widest name as its natural, each counted at
 // 24 cells at the most; 8 at the least, or its natural where that's fewer;
-// 24 at the most. A name's number and marks, and the gap after the column,
-// are counted beside its label, never among it: with them, a name of 2 cells
-// gives the column its own 2 and the marks' and gap's 8 at every bound.
+// 24 at the most. A name's marks, and the gap after the column, are counted
+// beside its label, never among it: with them, a name of 2 cells gives the
+// column its own 2 and the marks' and gap's 6 at every bound.
 func TestAColumnOfNamesTakesItsBoundsFromItsNames(t *testing.T) {
 	tests := []struct {
 		label                 int
@@ -24,11 +24,11 @@ func TestAColumnOfNamesTakesItsBoundsFromItsNames(t *testing.T) {
 		marked, markedNatural int
 		markedMost            int
 	}{
-		{label: 2, least: 2, natural: 2, most: 24, marked: 10, markedNatural: 10, markedMost: 32},
-		{label: 8, least: 8, natural: 8, most: 24, marked: 16, markedNatural: 16, markedMost: 32},
-		{label: 11, least: 8, natural: 11, most: 24, marked: 16, markedNatural: 19, markedMost: 32},
-		{label: 24, least: 8, natural: 24, most: 24, marked: 16, markedNatural: 32, markedMost: 32},
-		{label: 30, least: 8, natural: 24, most: 24, marked: 16, markedNatural: 32, markedMost: 32},
+		{label: 2, least: 2, natural: 2, most: 24, marked: 8, markedNatural: 8, markedMost: 30},
+		{label: 8, least: 8, natural: 8, most: 24, marked: 14, markedNatural: 14, markedMost: 30},
+		{label: 11, least: 8, natural: 11, most: 24, marked: 14, markedNatural: 17, markedMost: 30},
+		{label: 24, least: 8, natural: 24, most: 24, marked: 14, markedNatural: 30, markedMost: 30},
+		{label: 30, least: 8, natural: 24, most: 24, marked: 14, markedNatural: 30, markedMost: 30},
 	}
 	for _, tt := range tests {
 		label := strings.Repeat("x", tt.label)
@@ -42,11 +42,11 @@ func TestAColumnOfNamesTakesItsBoundsFromItsNames(t *testing.T) {
 		if got := labelsLeast(labelColumnCells(label)); got != tt.least {
 			t.Errorf("labelsLeast of a name of %d cells is %d, want %d", tt.label, got, tt.least)
 		}
-		// 1 ▲ ◆ and a space, 6 cells, then the gap's 2.
-		marked := []accountName{{number: "1", label: label, primary: true}}
+		// ▲ ◆, 4 cells, then the gap's 2.
+		marked := []accountName{{label: label, primary: true}}
 		want := flex.Part{Least: tt.marked, Natural: tt.markedNatural, Most: tt.markedMost}
 		if got := accountsColumn(nameGap, marked); got != want {
-			t.Errorf("a name of %d cells, numbered and marked, takes %+v, want %+v", tt.label, got, want)
+			t.Errorf("a name of %d cells, marked, takes %+v, want %+v", tt.label, got, want)
 		}
 	}
 }
@@ -55,9 +55,9 @@ func TestAColumnOfNamesTakesItsBoundsFromItsNames(t *testing.T) {
 // name cut to its least with its marks beside it, so a short primary's ◆
 // counts beside its own cells, never beside a label's least.
 func TestEachNameKeepsItsOwnMarksBesideIt(t *testing.T) {
-	names := []accountName{{number: "1", label: "ab", primary: true}, {number: "2", label: "personal"}}
-	// "1 ab ▲ ◆" is 8 cells, "2 personal ▲" 12; ab's marks at a long name's 24, 30.
-	want := flex.Part{Least: 12, Natural: 12, Most: 30}
+	names := []accountName{{label: "ab", primary: true}, {label: "personal"}}
+	// "ab ▲ ◆" is 6 cells, "personal ▲" 10; ab's marks at a long name's 24, 28.
+	want := flex.Part{Least: 10, Natural: 10, Most: 28}
 	if got := accountsColumn(0, names); got != want {
 		t.Errorf("the column of ab ◆ and personal takes %+v, want %+v", got, want)
 	}
@@ -118,9 +118,9 @@ func TestASentencesNamesAreCutToTheMostThatFits(t *testing.T) {
 
 // A session's page names an account no longer configured, as a recorded
 // session ran on, by its id: with every configured name of 2 or 3 cells,
-// its stay row names old-account whole, as the stays keep a label's 8 cells
-// beside the configured names' marks, and old-accounts whole at exactly the
-// column's 12, as an id has no number or marks to keep room for; and so does
+// its stay row names old-side whole, as the stays keep a label's 8 cells
+// beside the configured names' marks, and old-side-1 whole at exactly the
+// column's 10, as an id has no marks to keep room for; and so does
 // a turn's row, its on 8
 // cells and the move's arrow and second name's 6 after them, where a column
 // of the configured names' 3 would cut it.
@@ -129,7 +129,7 @@ func TestASessionsPageNamesAnAccountNoLongerConfigured(t *testing.T) {
 		GeneratedAt: sessionNow.UTC(), Source: status.SourceRouter, Best: "ops", Router: status.Health{Healthy: true}, Sessions: 6,
 		Accounts: []status.Account{pageAccount("ab", 0.95, 0.34, 0.12), pageAccount("ops", 0.13, 0.78, 0.04)},
 	}.WorkedOut(claudeLike)
-	for _, gone := range []string{"old-account", "old-accounts"} {
+	for _, gone := range []string{"old-side", "old-side-1"} {
 		t.Run(gone, func(t *testing.T) {
 			shown := moved()
 			shown.Page.Accounts[0].Account = gone
@@ -147,20 +147,19 @@ func TestASessionsPageNamesAnAccountNoLongerConfigured(t *testing.T) {
 	}
 }
 
-// The stays' name column keeps each name's number and marks beside its
-// label: at the least, a label's 8 cells, as a stay may name an account no
-// longer configured; at the natural, the widest label, 8 at the least and
-// 24 at the most.
+// The stays' name column keeps each name's marks beside its label: at the
+// least, a label's 8 cells, as a stay may name an account no longer configured;
+// at the natural, the widest label, 8 at the least and 24 at the most.
 func TestTheStaysNameColumnKeepsALabelsLeast(t *testing.T) {
 	tests := []struct {
 		name  string
 		names []accountName
 		want  partCells
 	}{
-		{name: "short names", names: []accountName{{number: "1", label: "ab"}, {number: "2", label: "ops"}}, want: partCells{least: 12, natural: 12}},
-		{name: "the primary's ◆", names: []accountName{{number: "1", label: "ab", primary: true}}, want: partCells{least: 14, natural: 14}},
-		{name: "a label of 22", names: []accountName{{number: "1", label: "side-hustle-consulting"}}, want: partCells{least: 12, natural: 26}},
-		{name: "a label past 24", names: []accountName{{number: "1", label: strings.Repeat("x", 30)}}, want: partCells{least: 12, natural: 28}},
+		{name: "short names", names: []accountName{{label: "ab"}, {label: "ops"}}, want: partCells{least: 10, natural: 10}},
+		{name: "the primary's ◆", names: []accountName{{label: "ab", primary: true}}, want: partCells{least: 12, natural: 12}},
+		{name: "a label of 22", names: []accountName{{label: "side-hustle-consulting"}}, want: partCells{least: 10, natural: 24}},
+		{name: "a label past 24", names: []accountName{{label: strings.Repeat("x", 30)}}, want: partCells{least: 10, natural: 26}},
 	}
 	for _, tt := range tests {
 		if got := stayNameCells(tt.names); got != tt.want {
@@ -189,10 +188,27 @@ func TestEventsCutALoneNameAtALabelsMost(t *testing.T) {
 // ellipsis.
 func TestTheLogPanelsSessionsNameAnAccountNoLongerConfigured(t *testing.T) {
 	p := framesPanel(LogRequests, 0)
-	p.Accounts = []status.AccountNow{{ID: "ab"}, {ID: "ops"}}
+	p.Moment.Accounts = []status.AccountNow{{ID: "ab"}, {ID: "ops"}}
 	p.Sessions[5].Account = "old-account"
 	at := p.sessionColumns(78)
 	if got, want := p.sessionWords(p.Sessions[5], at.account).plain(), "old-acc… "; !strings.Contains(got, " "+want) {
 		t.Errorf("the row reads %q, want it naming %q", got, want)
+	}
+}
+
+// The Log panel names the account each session is on as its moment names it:
+// one configured by its label, and one removed by the label the accounts
+// record kept, never by an id.
+func TestTheLogPanelsSessionsNameTheirAccountsAsTheMomentDoes(t *testing.T) {
+	removed := status.RemovedAccounts{{ID: "h7c2", Label: "team", Removed: panelNow.AddDate(0, 0, -3)}}
+	p := framesPanel(LogRequests, 0)
+	p.Moment = status.Document{GeneratedAt: panelNow, Accounts: []status.Account{{ID: "c4rf", Label: "work"}}}.WithRemoved(removed).At(panelNow, claudeLike)
+	for id, want := range map[string]string{"c4rf": "work", "h7c2": "team"} {
+		s := p.Sessions[5]
+		s.Account = id
+		got := p.sessionWords(s, p.sessionColumns(120).account).plain()
+		if !strings.Contains(got, " "+want+" ") || strings.Contains(got, id) {
+			t.Errorf("the row of a session on %s reads %q, want it naming %s", id, got, want)
+		}
 	}
 }

@@ -1247,7 +1247,7 @@ func TestSaveRefusesAConfigChangedMeanwhile(t *testing.T) {
 			}
 
 			err := draft.Save()
-			if want := path + " changed while it was being edited, so it's left as it is: try again"; err == nil || err.Error() != want {
+			if want := path + " changed while it was being edited, so it's left as it is: try again"; err == nil || err.Error() != want || !errors.Is(err, config.ErrChanged) {
 				t.Errorf("Save() error = %v, want %q", err, want)
 			}
 			got, err := os.ReadFile(path)

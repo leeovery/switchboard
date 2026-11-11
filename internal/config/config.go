@@ -34,18 +34,18 @@ const (
 )
 
 // Example is a small valid config, for showing someone who doesn't have one yet.
-const Example = `# One [[account]] per Claude subscription. Each account's token, made with
-# claude setup-token, goes in a file of its own: <state dir>/tokens/<id>, as in
-# ~/.local/state/switchboard/tokens/work.
+const Example = `# One [[account]] per Claude subscription, each added by switchboard setup or
+# switchboard accounts add <label>, which make its token and write it here.
+# Its token is in a file of its own: <state dir>/tokens/<id>.
 
 [[account]]
-id      = "work"  # for good: letters, digits, '-' and '_'; its token is tokens/work
-label   = "Work"  # optional; defaults to the id
+id      = "b6s7"  # switchboard's, made from the subscription: commands take it
+label   = "Work"  # what it's called on screen: required, and unique
 primary = true    # optional: the account the browser and the Claude apps use; else the first
 # reserve = 0.1   # optional, on any account: the share of every window the router leaves; else 0
 
 [[account]]
-id    = "personal"
+id    = "k2m9"
 label = "Personal"
 
 # Optional: start the 5-hour windows on a staggered schedule over the day, in
@@ -106,6 +106,22 @@ func (as Accounts) IDs() []string {
 	return ids
 }
 
+// Index is the place of the account with the given id, ids compared ignoring
+// case, as macOS ignores it in the token files' names: -1 where none has it.
+func (as Accounts) Index(id string) int {
+	return slices.IndexFunc(as, func(a Account) bool { return strings.EqualFold(a.ID, id) })
+}
+
+// ByID returns the account with the given id, ids compared ignoring case,
+// reporting false where none has it.
+func (as Accounts) ByID(id string) (Account, bool) {
+	i := as.Index(id)
+	if i < 0 {
+		return Account{}, false
+	}
+	return as[i], true
+}
+
 // InAnotherCase returns the account whose id is the one given but for its
 // case, which macOS takes for the same token file, when there's one.
 func (as Accounts) InAnotherCase(id string) (Account, bool) {
@@ -114,6 +130,16 @@ func (as Accounts) InAnotherCase(id string) (Account, bool) {
 		return Account{}, false
 	}
 	return as[i], true
+}
+
+// LabelTaken reports whether an account, but the one with the given id,
+// shows label, as each shows, ignoring case: an account the config writes no
+// label for has its id as its label, as it's loaded. Every account has a
+// label of its own, compared so; a config that doesn't, edited by hand,
+// still loads, but nothing that writes it gives one so.
+func (as Accounts) LabelTaken(id, label string) bool {
+	shown := prose.Clean(label)
+	return slices.ContainsFunc(as, func(a Account) bool { return a.ID != id && strings.EqualFold(prose.Clean(a.Label), shown) })
 }
 
 // Primary returns the primary account: the one marked primary, else the

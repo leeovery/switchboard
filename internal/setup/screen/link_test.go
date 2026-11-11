@@ -465,7 +465,7 @@ func TestLinkFailingFailsTheStepWordingNothingOfWhatItFound(t *testing.T) {
 			if h.model.link != nil {
 				t.Errorf("the screen keeps %+v as what the step found, want nothing", h.model.link)
 			}
-			if got := h.model.walk.left(); got != (Left{Ending: Failed, Err: errNoLink}) {
+			if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Failed, Err: errNoLink}) {
 				t.Errorf("setup is left %+v, want failing at the claude link", got)
 			}
 			got := h.model.summary().Lines()[dashboard.SetupLink]
@@ -520,7 +520,7 @@ func TestAnInterruptAsTheShellIsAskedLeavesSetupAsQDoes(t *testing.T) {
 			if !quit {
 				t.Fatal("the interrupt didn't have setup leave")
 			}
-			if got := h.model.walk.left(); got != (Left{Ending: Paused}) {
+			if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Paused}) {
 				t.Errorf("setup is left %+v, want paused, as q leaves it", got)
 			}
 		})
@@ -616,7 +616,7 @@ func TestLeavingAsTheSessionHookInstallsWaitsForIt(t *testing.T) {
 			default:
 				t.Error("run() returned before the session hook was installed")
 			}
-			if how(left) != (Left{Ending: Paused}) {
+			if !sameLeft(how(left), Left{Ending: Paused}) {
 				t.Errorf("run() left setup %+v, want it paused", left)
 			}
 			if steps.skills != 0 {
@@ -654,7 +654,7 @@ func TestLeavingAsTheShellIsAskedCancelsTheAskingAndWaitsForIt(t *testing.T) {
 			default:
 				t.Error("run() returned before Link ended")
 			}
-			if how(left) != (Left{Ending: Paused}) {
+			if !sameLeft(how(left), Left{Ending: Paused}) {
 				t.Errorf("run() left setup %+v, want it paused", left)
 			}
 		})
@@ -678,7 +678,7 @@ func TestAnInterruptFromOutsideAsTheShellIsAskedLeavesSetupPaused(t *testing.T) 
 	close(steps.interrupt)
 	select {
 	case left := <-returned:
-		if how(left) != (Left{Ending: Paused}) {
+		if !sameLeft(how(left), Left{Ending: Paused}) {
 			t.Errorf("run() left setup %+v, want it paused, as q leaves it", left)
 		}
 		if got, want := read(left.Summary.Lines()), []string{primingPast, "✓ Service "}; len(got) != 3 || !slices.Equal(got[1:], want) {

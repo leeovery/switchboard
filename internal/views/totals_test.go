@@ -115,9 +115,9 @@ func TestTotalsCountEachAccountsDaysAndEveryAccounts(t *testing.T) {
 		{
 			name: "the empty ledger",
 			days: daysFrom("2026-10-07"),
-			want: `[{"account":"work","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
-				`{"account":"side","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
-				`{"account":"spare","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
+			want: `[{"account":"work","label":"work","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
+				`{"account":"side","label":"side","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
+				`{"account":"spare","label":"spare","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
 				`{"all":true,"requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0}]`,
 		},
 		{
@@ -130,12 +130,12 @@ func TestTotalsCountEachAccountsDaysAndEveryAccounts(t *testing.T) {
 			// a share left at a reset.
 			name: "over days and accounts",
 			days: overFiveDays,
-			want: `[{"account":"work","requests":7,"sessions":3,"moved_on":1,"moved_off":2,"limits":{"5h":1},"minutes_at_cap":15,"minutes_at_limit":35,` +
+			want: `[{"account":"work","label":"work","requests":7,"sessions":3,"moved_on":1,"moved_off":2,"limits":{"5h":1},"minutes_at_cap":15,"minutes_at_limit":35,` +
 				`"left_at_reset":{"5h":0.6},"worth":13,"by_model":[{"model":"claude-opus-5-5","share":0.9230769230769231,"worth":12},` +
 				`{"model":"claude-haiku-4-5","share":0.07692307692307693,"worth":1}],"busiest_day":"2026-10-05","longest_run":3},` +
-				`{"account":"side","requests":2,"sessions":2,"moved_on":0,"moved_off":1,"minutes_at_cap":30,"minutes_at_limit":0,` +
+				`{"account":"side","label":"side","requests":2,"sessions":2,"moved_on":0,"moved_off":1,"minutes_at_cap":30,"minutes_at_limit":0,` +
 				`"left_at_reset":{"7d":0.45},"worth":4,"by_model":[{"model":"claude-sonnet-5-5","share":1,"worth":4}],"busiest_day":"2026-10-03","longest_run":1},` +
-				`{"account":"spare","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
+				`{"account":"spare","label":"spare","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
 				`{"all":true,"requests":10,"sessions":5,"moved_on":1,"moved_off":3,"limits":{"5h":1},"minutes_at_cap":45,"minutes_at_limit":35,` +
 				`"worth":17,"by_model":[{"model":"claude-opus-5-5","share":0.7058823529411765,"worth":12},` +
 				`{"model":"claude-sonnet-5-5","share":0.23529411764705882,"worth":4},{"model":"claude-haiku-4-5","share":0.058823529411764705,"worth":1}],` +
@@ -147,12 +147,12 @@ func TestTotalsCountEachAccountsDaysAndEveryAccounts(t *testing.T) {
 			// on any day, not known.
 			name: "a day of a summary of version 1",
 			days: beforeAndSince,
-			want: `[{"account":"work","requests":3,"sessions":3,"moved_on":0,"moved_off":0,"minutes_at_cap":10,"minutes_at_limit":5,` +
+			want: `[{"account":"work","label":"work","requests":3,"sessions":3,"moved_on":0,"moved_off":0,"minutes_at_cap":10,"minutes_at_limit":5,` +
 				`"worth":8,"by_model":[{"model":"claude-opus-5-5","share":1,"worth":8}],"busiest_day":"2026-10-06","longest_run":2,` +
 				`"partial":["minutes_at_cap","minutes_at_limit"]},` +
-				`{"account":"side","requests":2,"sessions":2,"moved_on":0,"moved_off":0,"worth":4,` +
+				`{"account":"side","label":"side","requests":2,"sessions":2,"moved_on":0,"moved_off":0,"worth":4,` +
 				`"by_model":[{"model":"claude-sonnet-5-5","share":1,"worth":4}],"busiest_day":"2026-10-06","longest_run":2},` +
-				`{"account":"spare","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
+				`{"account":"spare","label":"spare","requests":0,"sessions":0,"moved_on":0,"moved_off":0,"longest_run":0},` +
 				`{"all":true,"requests":5,"sessions":5,"moved_on":0,"moved_off":0,"minutes_at_cap":10,"minutes_at_limit":5,"worth":12,` +
 				`"by_model":[{"model":"claude-opus-5-5","share":0.6666666666666666,"worth":8},{"model":"claude-sonnet-5-5","share":0.3333333333333333,"worth":4}],` +
 				`"busiest_day":"2026-10-06","longest_run":2,"partial":["minutes_at_cap","minutes_at_limit"]}]`,

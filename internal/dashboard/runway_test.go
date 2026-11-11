@@ -290,26 +290,24 @@ func TestRunwaysHeadingNamesItsWindowAndTheDaysSteppedBackTo(t *testing.T) {
 }
 
 // framesLanesFrom is the column the tests draw Runway's lanes from, as the
-// screen lays it for the frames' accounts: after "2 personal ◆", ▲'s cells
+// screen lays it for the frames' accounts: after "personal ◆", ▲'s cells
 // kept, and nameGap.
-const framesLanesFrom = 16
+const framesLanesFrom = 14
 
 // Runway's label column takes the widest of its labels whole, and its gap,
 // at every width, and the lanes take the rest to the edge. Expanded, the
 // widest of the names, ▲'s cells kept on every account, then nameGap, or of
 // the uses under them, as wide as "5-hour 100%" in either window, each label
-// whole up to 24 cells, a label past that cut, its number, marks and gap
-// beside it; narrower only where the frame is, to a label's 8; collapsed,
-// the widest number and marks, ▲'s cells kept, or a use of 100%, then a
-// cell, whatever the width.
+// whole up to 24 cells, a label past that cut, its marks and gap beside it;
+// narrower only where the frame is, to a label's 8; collapsed, the widest
+// marks, ▲'s cells kept, or a use of 100%, then a cell, whatever the width.
 func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
-	work := accountName{number: "1", label: "work"}
-	personal := accountName{number: "2", label: "personal", primary: true}
-	side := accountName{number: "3", label: "side", best: true}
+	work := accountName{label: "work"}
+	personal := accountName{label: "personal", primary: true}
+	side := accountName{label: "side", best: true}
 	frames := []accountName{work, personal, side}
-	long := []accountName{{number: "1", label: "work-team-plan"}, {number: "2", label: "personal-research", primary: true}}
-	both := []accountName{work, {number: "2", label: "personal", primary: true, best: true}, {number: "3", label: "side"}}
-	ten := []accountName{{number: " 1", label: "work"}, {number: "10", label: "spare", primary: true, best: true}}
+	long := []accountName{{label: "work-team-plan"}, {label: "personal-research", primary: true}}
+	both := []accountName{work, {label: "personal", primary: true, best: true}, {label: "side"}}
 	tests := []struct {
 		name      string
 		names     []accountName
@@ -324,18 +322,17 @@ func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
 		{name: "the 5-hour's, alike", names: frames, window: views.RunwayFiveHour, width: 108, from: framesLanesFrom},
 		{name: "a short name, the widest use", names: []accountName{work}, width: 108, from: 14},
 		{name: "a short name in the 5-hour, alike", names: []accountName{work}, window: views.RunwayFiveHour, width: 108, from: 14},
-		{name: "long names, whole", names: long, width: 108, from: 25},
-		{name: "a long name, whole with ▲'s cells", names: long[:1], width: 108, from: 20},
-		{name: "a name of 22, whole", names: append(long, accountName{number: "3", label: "side-hustle-consulting", best: true}), width: 108, from: 28},
-		{name: "a name past the most, its label at 24", names: append(long, accountName{number: "3", label: "side-hustle-consulting-group", best: true}), width: 108, from: 30},
+		{name: "long names, whole", names: long, width: 108, from: 23},
+		{name: "a long name, whole with ▲'s cells", names: long[:1], width: 108, from: 18},
+		{name: "a name of 22, whole", names: append(long, accountName{label: "side-hustle-consulting", best: true}), width: 108, from: 26},
+		{name: "a name past the most, its label at 24", names: append(long, accountName{label: "side-hustle-consulting-group", best: true}), width: 108, from: 28},
 		{name: "none labelled yet, the widest use", width: 108, from: 14},
 		{name: "narrower than its labels, the column first", names: long, width: 20, from: 20},
-		{name: "narrower than the least, a label's 8 beside its number and marks", names: long, width: 10, from: 16},
-		{name: "collapsed, the frames' on an iPad", names: frames, collapsed: true, width: 108, from: 6},
-		{name: "collapsed, on a phone, alike", names: frames, collapsed: true, width: 52, from: 6},
-		{name: "collapsed, both marks on one, alike", names: both, collapsed: true, width: 108, from: 6},
+		{name: "narrower than the least, a label's 8 beside its marks", names: long, width: 10, from: 14},
+		{name: "collapsed, the frames' on an iPad, a use of 100% the widest", names: frames, collapsed: true, width: 108, from: 5},
+		{name: "collapsed, on a phone, alike", names: frames, collapsed: true, width: 52, from: 5},
+		{name: "collapsed, both marks on one, alike", names: both, collapsed: true, width: 108, from: 5},
 		{name: "collapsed, no primary, the widest use", names: []accountName{work, side}, collapsed: true, width: 108, from: 5},
-		{name: "collapsed, numbered from ten", names: ten, collapsed: true, width: 108, from: 7},
 		{name: "collapsed, none labelled yet, a use of 100%", collapsed: true, width: 108, from: 5},
 	}
 	for _, tt := range tests {
@@ -356,7 +353,7 @@ func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
 // column keeps ▲'s cells on every account.
 func TestRunwaysLanesHoldStillAsTheMarkOfNewSessionsMoves(t *testing.T) {
 	named := func(best int) []accountName {
-		names := []accountName{{number: "1", label: "work"}, {number: "2", label: "personal", primary: true}, {number: "3", label: "side"}}
+		names := []accountName{{label: "work"}, {label: "personal", primary: true}, {label: "side"}}
 		if best >= 0 {
 			names[best].best = true
 		}

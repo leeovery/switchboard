@@ -77,12 +77,12 @@ func TestEnterSendsTheSessionsPick(t *testing.T) {
 		// nothing is sent.
 		want []string
 	}{
-		{name: "an account", keys: "3 enter", want: []string{pin}},
-		{name: "one account alone, the last picked", keys: "2 3 enter", want: []string{pin}},
+		{name: "an account", keys: "@3 enter", want: []string{pin}},
+		{name: "one account alone, the last picked", keys: "@2 @3 enter", want: []string{pin}},
 		{name: "by the cursor and space", keys: "down down down space enter", want: []string{pin}},
-		{name: "m doing nothing", keys: "m 3 enter", want: []string{pin}},
-		{name: "auto, clearing its own pin", pin: "side", keys: "0 enter", want: []string{unpin}},
-		{name: "its own pin picked again, which keeps it", pin: "side", keys: "3 enter"},
+		{name: "m doing nothing", keys: "m @3 enter", want: []string{pin}},
+		{name: "auto, clearing its own pin", pin: "side", keys: "@0 enter", want: []string{unpin}},
+		{name: "its own pin picked again, which keeps it", pin: "side", keys: "@3 enter"},
 		{name: "nothing changed", keys: "enter"},
 		{name: "its own pin as it stands", pin: "side", keys: "enter"},
 	}
@@ -113,7 +113,7 @@ func TestARefusedSessionOrderKeepsItsCardOpenSayingWhy(t *testing.T) {
 	refusal := errors.New(`account "side" has no usable token, so nothing can go out on it`)
 	h := sessionPaged(t, "")
 	h.source.refuse = refusal
-	h.keyed("p 3 enter")
+	h.keyed("p @3 enter")
 	if h.model.open != routingOpen || h.card().Refused != refusal.Error() {
 		t.Errorf("refused, the card is open %v, saying %q; want it open, saying %q", h.model.open == routingOpen, h.card().Refused, refusal)
 	}
@@ -124,7 +124,7 @@ func TestARefusedSessionOrderKeepsItsCardOpenSayingWhy(t *testing.T) {
 // built afresh of it, sending nothing.
 func TestASessionsCardClosesOnceItsSessionEnds(t *testing.T) {
 	h := sessionPaged(t, "side")
-	h.keyed("p 0")
+	h.keyed("p @0")
 	h.fire(h.lastTick())
 	if h.model.open != routingOpen {
 		t.Fatal("while the session runs, a tick closed its card, want it open")

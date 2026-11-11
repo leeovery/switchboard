@@ -208,7 +208,7 @@ func TestAServiceStepThatFailedStopsSetupThere(t *testing.T) {
 	if !quits(h.press("q")) {
 		t.Fatal("q didn't quit")
 	}
-	if got, want := h.model.walk.left(), (Left{Ending: Failed, Err: errNoService}); got != want {
+	if got, want := h.model.walk.left(), (Left{Ending: Failed, Err: errNoService}); !sameLeft(got, want) {
 		t.Errorf("setup was left %+v, want %+v", got, want)
 	}
 }
@@ -309,7 +309,7 @@ func TestQWhileTheServiceStepRunsLeavesOnceItHasStopped(t *testing.T) {
 	t.Run("ending before the moment to say so: nothing said", func(t *testing.T) {
 		steps := &serviceTillCancelled{fakeSteps: newFakeSteps(), started: make(chan struct{}), ended: make(chan struct{})}
 		left, out, err := runUntil(t, Config{Steps: steps, Step: dashboard.SetupService}, terminal{keys: "q", ready: steps.started, moment: waitedFor})
-		if err != nil || how(left) != (Left{Ending: Paused}) {
+		if err != nil || !sameLeft(how(left), Left{Ending: Paused}) {
 			t.Errorf("run() = %+v, %v; want setup paused, no error", left, err)
 		}
 		select {
@@ -330,7 +330,7 @@ func TestQWhileTheServiceStepRunsLeavesOnceItHasStopped(t *testing.T) {
 			}
 		}
 		left, out, err := runUntil(t, Config{Steps: steps, Step: dashboard.SetupService}, terminal{keys: "q", ready: steps.started, moment: fired, wrote: said})
-		if err != nil || how(left) != (Left{Ending: Paused}) {
+		if err != nil || !sameLeft(how(left), Left{Ending: Paused}) {
 			t.Errorf("run() = %+v, %v; want setup paused, no error", left, err)
 		}
 		select {

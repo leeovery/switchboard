@@ -200,11 +200,10 @@ type GraphsShown struct {
 
 // graphsNamed are the configured accounts given, in the config's order,
 // each as the moment's Configured has it, and named as Graphs names them,
-// numbered as every view numbers them, as Runway's lanes do, and aligned as
-// namesAt aligns those of the moment's count.
+// as Runway's lanes are.
 func graphsNamed(m status.Moment, configured config.Accounts) ([]status.AccountNow, []accountName) {
 	accounts := m.Configured(configured)
-	return accounts, namesAt(accounts, len(m.Accounts))
+	return accounts, namesAt(accounts)
 }
 
 // pooled reports whether the configured accounts given make a pool: two or

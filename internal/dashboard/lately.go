@@ -24,8 +24,9 @@ type eventKind struct {
 }
 
 // eventKinds are the kinds of the router's events in the design's order, as
-// help and the Log's panel list them: a mark a kind, but for ■, which a limit
-// and a refusal share, their words telling them apart.
+// help and the Log's panel list them: a mark a kind, but for ■, which a
+// limit, a refusal and a token another subscription's share, as each closes
+// its account, their words telling them apart.
 var eventKinds = []eventKind{
 	{kind: status.EventStarted, mark: span{"▲", accentInk}, means: "a session first seen"},
 	{kind: status.EventMoved, mark: span{"▸", keyMarkInk}, means: "a session moved to another account"},
@@ -33,6 +34,7 @@ var eventKinds = []eventKind{
 	{kind: status.EventCap, mark: span{"╎", warningInk}, means: "an account at its cap"},
 	{kind: status.EventLimit, mark: span{"■", errorInk}, means: "an account at its limit"},
 	{kind: status.EventRefused, mark: span{"■", errorInk}, means: "an account's token refused"},
+	{kind: status.EventForeign, mark: span{"■", errorInk}, means: "an account's token not its own"},
 	{kind: status.EventPrimed, mark: span{"◇", dimInk}, means: "a window started early"},
 	{kind: status.EventRoom, mark: span{"✓", positiveInk}, means: "an account with room again"},
 	{kind: status.EventPin, mark: span{"●", keyMarkInk}, means: "routing set by hand"},
@@ -174,7 +176,7 @@ func (f Frame) freshen(c *canvas, id, x, y, end int) {
 // are never cut while its short form fits. Detail's tells them in full, as
 // accountLatelyLines has them.
 func latelyTold(m status.Moment, sentences []views.Sentence, cells int) []line {
-	names := overviewNames(m)
+	names := namesOf(m)
 	lines := latelyLeads(m, sentences)
 	for i, s := range sentences {
 		if i == 0 {
@@ -222,7 +224,7 @@ func latelyLeads(m status.Moment, sentences []views.Sentence) []line {
 
 // saidLine is a sentence's words as LATELY draws them: its subject in bold
 // text.primary, its object in bold text.secondary, and its other words in
-// text.muted, each account it names named as names, overviewNames' of m, have
+// text.muted, each account it names named as names, namesOf's of m, have
 // it.
 func saidLine(m status.Moment, names []accountName, s views.Said) line {
 	var l line

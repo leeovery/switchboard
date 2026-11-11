@@ -37,9 +37,10 @@ var (
 // TokenFor is whose token MakeToken or PasteToken saves, and the accounts
 // it's compared with.
 type TokenFor struct {
-	// Account is the account: its ID alone where it's configured, and the
-	// token replaces its own; all of it where Add is set, and it's added with
-	// the token.
+	// Account is the account: its ID, and its Label to name it by, where
+	// it's configured, and the token replaces its own; all of it but its ID
+	// where Add is set, and it's added with the token, under the id the
+	// token's organization decides.
 	Account config.NewAccount
 	Add     bool
 	// Organizations are the organizations of the accounts this run of setup
@@ -174,6 +175,15 @@ const (
 	// as the organization the API names it in says: Tokened's SameAs names
 	// the account.
 	TokenSameAccount
+	// TokenOtherSubscription is the token, replacing an account's, being for
+	// another subscription than the account's, as the accounts record has
+	// it: Tokened's SameAs names, by its label, the account the record has
+	// of the token's, where there's one to name.
+	TokenOtherSubscription
+	// TokenAsked is the token, to add an account with, whose organization
+	// doesn't settle which account it is: Tokened's Asked holds it, for
+	// Answer to add the account as the user says.
+	TokenAsked
 	// TokenNotMade is setup-token giving no token: Tokened's Shown is what it
 	// showed.
 	TokenNotMade
@@ -206,14 +216,24 @@ type Tokened struct {
 	// Why is why it isn't saved, with nothing of the token or its sign-in
 	// address in it: "" where it is, or was cancelled or interrupted.
 	Why string
-	// SameAs is the id of the account the token's subscription is already,
-	// at TokenSameAccount.
+	// SameAs names the account the token's subscription is already, at
+	// TokenSameAccount: by its id, where the token's to replace an account's,
+	// and by its label where it's to add one, as no id was given. At
+	// TokenOtherSubscription, it's the label of the account the record has
+	// of the token's organization, "" for none.
 	SameAs string
+	// ID is the id of the account the token was saved for, at TokenSaved:
+	// for one added, the id the token's organization decided.
+	ID string
+	// Asked is the token held, at TokenAsked, and the question of which
+	// account it's for.
+	Asked *Asked
 	// Shown is what setup-token showed, at TokenNotMade and TokenUnread, a
-	// line each, the blank lines left out; and at TokenNotSaved, the token,
-	// or, where a paste of a token made but unread couldn't be saved, what
-	// setup-token showed, the token in it: for the person alone, never a
-	// log, as it can hold the token.
+	// line each, the blank lines left out; at TokenNotSaved, the token, or,
+	// where a paste of a token made but unread couldn't be saved, what
+	// setup-token showed, the token in it; and at TokenAsked, the token, where
+	// it was made, not pasted: for the person alone, never a log, as it can
+	// hold the token.
 	Shown []string
 	// InterruptHeld says an interrupt came while the token made was held
 	// through its save, as Setup.Hold has it, for the caller to end once it
@@ -278,7 +298,7 @@ func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) 
 // saved, as err says, given back to copy.
 func notSaved(f TokenFor, err error, token tokens.Token) Tokened {
 	why := redact.Text(err.Error(), token.Reveal())
-	logger.Warn("claude setup-token made a token switchboard couldn't save", "account", f.Account.ID, "error", why)
+	logger.Warn("claude setup-token made a token switchboard couldn't save", f.Logged("error", why)...)
 	return Tokened{Result: TokenNotSaved, Why: why, Shown: []string{token.Reveal()}}
 }
 
@@ -357,17 +377,17 @@ func notMade(ctx context.Context, f TokenFor, a attempt) (Tokened, error) {
 	_, noClaude := errors.AsType[*claude.NotFoundError](a.err)
 	switch {
 	case isScreen && a.made:
-		logger.Warn("claude setup-token made a token switchboard couldn't read", "account", f.Account.ID, "error", a.err)
+		logger.Warn("claude setup-token made a token switchboard couldn't read", f.Logged("error", a.err)...)
 		return Tokened{Result: TokenUnread, Why: a.err.Error(), Shown: shownLines(screen.Screen())}, nil
 	case a.made:
-		logger.Warn("claude setup-token made a token switchboard couldn't read", "account", f.Account.ID, "error", a.err)
+		logger.Warn("claude setup-token made a token switchboard couldn't read", f.Logged("error", a.err)...)
 		return Tokened{Result: TokenNotSaved, Why: redact.Text(a.err.Error())}, nil
 	case ctx.Err() != nil:
 		return Tokened{Result: TokenCancelled}, nil
 	case a.interrupted:
 		return Tokened{Result: TokenInterrupted}, nil
 	case isScreen:
-		logger.Warn("claude setup-token made no token", "account", f.Account.ID, "error", a.err)
+		logger.Warn("claude setup-token made no token", f.Logged("error", a.err)...)
 		return Tokened{Result: TokenNotMade, Why: a.err.Error(), Shown: shownLines(screen.Screen())}, nil
 	case noClaude:
 		return Tokened{Result: NoClaudeCode, Why: a.err.Error()}, nil
@@ -380,8 +400,11 @@ func notMade(ctx context.Context, f TokenFor, a attempt) (Tokened, error) {
 // and saves it, with its year from today, as nothing says when it was made:
 // in the account's place, or with the account, added. It saves nothing where
 // what's pasted is no token, the API refuses it, or doesn't answer for it,
-// as a token's saved only once it's checked, it's another account's, or ctx
-// ends before it's saved, saying why in words of the paste's own. It fails, asking the API nothing, where the
+// as a token's saved only once it's checked, it's another account's, or for
+// another subscription than the account's, or ctx ends before it's saved,
+// saying why in words of the paste's own; and, to add an account its
+// organization doesn't settle, holds it for the user to say which it is,
+// as add has it. It fails, asking the API nothing, where the
 // token couldn't be saved for the account, not configured, or one the config
 // can't add; and with what's no outcome of the check, as where the config
 // can't be read or the token written.
@@ -399,7 +422,8 @@ func (s *Setup) PasteToken(ctx context.Context, f TokenFor, pasted string) (Toke
 // save checks token with the API, runs the duplicate check, and saves it for
 // f's account, as PasteToken says, where pasted, else as MakeToken does, a
 // token made saved unchecked where the API doesn't answer, as setup-token
-// made it. A save done as ctx ends is a save.
+// made it, but where it's to add an account, as add has it. A save done as
+// ctx ends is a save.
 func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token, pasted bool) (Tokened, error) {
 	checked, err := s.Accounts.Check(ctx, token)
 	switch {
@@ -414,17 +438,99 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token, pasted
 	}
 	id := f.Account.ID
 	if pasted && checked.Unchecked {
-		logger.Info("the API didn't answer for a token pasted, so it isn't saved", "account", id, "error", checked.Why)
+		logger.Info("the API didn't answer for a token pasted, so it isn't saved", f.Logged("error", checked.Why)...)
 		return Tokened{Result: TokenUnanswered, Why: pastedUnanswered(checked.Why)}, nil
+	}
+	if f.Add {
+		return s.add(ctx, &Asked{f: f, token: token, checked: checked, pasted: pasted}, accounts.Answer{})
 	}
 	if same := f.Organizations.SameSubscription(checked.Organization, id); same != nil {
 		return Tokened{Result: TokenSameAccount, SameAs: same.Other}, nil
 	}
-	if f.Add {
-		err = s.Accounts.AddChecked(ctx, f.Account, token, checked)
-	} else {
-		err = s.Accounts.SetTokenChecked(ctx, id, token, checked)
+	err = s.Accounts.SetTokenChecked(ctx, id, token, checked)
+	if other, ok := errors.AsType[*accounts.OtherSubscriptionError](err); ok {
+		return Tokened{Result: TokenOtherSubscription, SameAs: other.OtherLabel}, nil
 	}
+	return s.saved(ctx, err, Tokened{Result: TokenSaved, Checked: checked, ID: id})
+}
+
+// Asked is a token checked, to add an account with, held while the user
+// says which account it's for, as Question asks: Answer adds the account
+// with it.
+type Asked struct {
+	Question accounts.Question
+	f        TokenFor
+	token    tokens.Token
+	checked  accounts.Checked
+	pasted   bool
+}
+
+// Answer adds the account the asked token is for, as answer says which it
+// is, saving it as add does: so asked again, where what the accounts record
+// holds has changed since it was asked. A save begun is a save, however ctx
+// ends, as a made token's is. A token made, which lasts a year on the
+// account, that isn't saved, as where it's a configured account's, or can't
+// be saved, is given back to copy, as notSaved has it.
+func (s *Setup) Answer(ctx context.Context, asked *Asked, answer accounts.Answer) (Tokened, error) {
+	ctx = context.WithoutCancel(ctx)
+	if asked.pasted {
+		return s.add(ctx, asked, answer)
+	}
+	tokened, err := s.adding(ctx, asked, answer)
+	if err != nil {
+		return notSaved(asked.f, err, asked.token), nil
+	}
+	return tokened, nil
+}
+
+// add adds the account with the token a holds, which the API answered for as
+// a's checked says, compared with the organizations of the accounts f has
+// read, as accounts.Registry.AddChecked adds it, under the id the token's
+// organization decides, or answer, where that doesn't settle it, saying
+// which account it is: TokenSameAccount where it's a configured account's,
+// named by its label; TokenAsked where it's the user's to say which it is,
+// holding the token, or where answer says an account it can't be, as one
+// configured since it was asked, asked afresh; and failing, saving nothing,
+// where the API didn't answer for the token, as an account isn't added until
+// its organization is known.
+func (s *Setup) add(ctx context.Context, a *Asked, answer accounts.Answer) (Tokened, error) {
+	tokened, err := s.adding(ctx, a, answer)
+	if configured, ok := errors.AsType[*accounts.ConfiguredError](err); ok {
+		return Tokened{Result: TokenSameAccount, SameAs: configured.Label}, nil
+	}
+	return tokened, err
+}
+
+// adding is add, but failing with a ConfiguredError where the token's a
+// configured account's.
+func (s *Setup) adding(ctx context.Context, a *Asked, answer accounts.Answer) (Tokened, error) {
+	added, err := s.Accounts.AddChecked(ctx, a.f.Account, a.token, a.checked, a.f.Organizations, answer)
+	if question, ok := errors.AsType[*accounts.QuestionError](err); ok {
+		return a.asking(question.Question), nil
+	}
+	if notAChoice, ok := errors.AsType[*accounts.NotAChoiceError](err); ok {
+		return a.asking(notAChoice.Question), nil
+	}
+	return s.saved(ctx, err, Tokened{Result: TokenSaved, Checked: a.checked, ID: added.ID})
+}
+
+// asking is the token a holds, asked which account it's for, as question
+// asks: shown, where it was made, not pasted, as it lasts a year on the
+// account.
+func (a *Asked) asking(question accounts.Question) Tokened {
+	asked := *a
+	asked.Question = question
+	t := Tokened{Result: TokenAsked, Asked: &asked}
+	if !a.pasted {
+		t.Shown = []string{a.token.Reveal()}
+	}
+	return t
+}
+
+// saved is how a token's save ended, as err says: as saved has it, where it
+// saved, which a router that answers takes up; cancelled, where err is ctx's
+// ending; else failing with err.
+func (s *Setup) saved(ctx context.Context, err error, saved Tokened) (Tokened, error) {
 	switch {
 	case cancelledBy(ctx, err):
 		return Tokened{Result: TokenCancelled}, nil
@@ -432,7 +538,7 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token, pasted
 		return Tokened{}, err
 	}
 	s.wrote()
-	return Tokened{Result: TokenSaved, Checked: checked}, nil
+	return saved, nil
 }
 
 // cancelledBy reports whether err is ctx's ending.
@@ -442,7 +548,7 @@ func cancelledBy(ctx context.Context, err error) bool {
 
 // takes returns the config, nil where it has no account, failing where a
 // token couldn't be saved for f's account: one not configured, or, to add,
-// one the config can't add.
+// one the config can't add, as accounts.Registry.CheckNew has it.
 func (s *Setup) takes(f TokenFor) (*config.Config, error) {
 	draft, err := config.Edit(s.Accounts.ConfigPath)
 	if err != nil {
@@ -451,7 +557,7 @@ func (s *Setup) takes(f TokenFor) (*config.Config, error) {
 	cfg, id := draft.Config(), f.Account.ID
 	switch {
 	case f.Add:
-		return cfg, draft.AddAccount(f.Account)
+		return cfg, s.Accounts.CheckNew(f.Account)
 	case cfg == nil || !slices.Contains(cfg.Accounts.IDs(), id):
 		return nil, config.NotConfigured(id)
 	}

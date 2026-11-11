@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -301,7 +302,7 @@ func TestPinningTakesWhatItAsksFor(t *testing.T) {
 			method:  http.MethodPost,
 			path:    "/sessions/" + sessionID + "/pin",
 			body:    "side",
-			wantErr: `give the account to pin the session to as JSON, such as {"account": "work"}`,
+			wantErr: `give the account to pin the session to as JSON, such as {"account": "b6s7"}`,
 		},
 		{
 			method:  http.MethodDelete,
@@ -592,7 +593,7 @@ func TestClientPinSessionRefuses(t *testing.T) {
 				_, err := c.PinSession(ctx, sessionID, "", "")
 				return err
 			},
-			wantErr: `give the account to pin, such as {"account": "work"}`,
+			wantErr: `give the account to pin, such as {"account": "b6s7"}`,
 		},
 	}
 	for _, tt := range tests {
@@ -1003,4 +1004,24 @@ func serveOn(t *testing.T, path string, h http.Handler) {
 	srv := &http.Server{Handler: h}
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Close() })
+}
+
+// There's no account to pin with an id that's none, the accounts that can be
+// pinned named instead each by its id and its label, one labelled by its id
+// named once.
+func TestAnUnknownAccountNamesThoseToPinByTheirIDsAndLabels(t *testing.T) {
+	pinnable := config.Accounts{{ID: "b6s7", Label: "Work"}, {ID: "side", Label: "side"}, {ID: "q4tx", Label: "Spare"}}
+	tests := []struct {
+		id       string
+		pinnable config.Accounts
+		want     string
+	}{
+		{id: "work", pinnable: pinnable, want: `there's no account "work": pin b6s7 (Work), side or q4tx (Spare)`},
+		{id: "work", want: `there's no account "work", and no account has a usable token to pin`},
+	}
+	for _, tt := range tests {
+		if got := router.UnknownAccount(tt.id, tt.pinnable).Error(); got != tt.want {
+			t.Errorf("UnknownAccount(%s, %d pinnable) = %q, want %q", tt.id, len(tt.pinnable), got, tt.want)
+		}
+	}
 }

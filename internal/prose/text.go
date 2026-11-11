@@ -13,6 +13,89 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
+// HistoryMoving says the history waits on its move onto the accounts' ids,
+// which the router makes once, as it first starts on a version that makes
+// them: as the status, the dashboard and the verbs that read the history say
+// it, each followed by what holds it up, as the Move constants and
+// MoveFailed say it.
+const HistoryMoving = "the history waits on its move onto the accounts' new ids"
+
+// What holds the move onto the accounts' ids up, said after HistoryMoving,
+// but for the API, as MoveWaitsAPI says, and a failure, as MoveFailed says:
+// the router making it; the router to restart onto the new ids its config
+// holds; no router answering; the router not saying how it stands; and the
+// router running being of a version from before ids were made.
+const (
+	MoveRunning      = "the router is making it"
+	MoveWaitsRestart = "the router makes the rest once it restarts onto the new ids its config holds"
+	MoveWaitsRouter  = "no router answers to make it: start it with switchboard service install (or switchboard serve)"
+	MoveWaitsUntold  = "the router didn't say how it stands in time, as when it's busy or restarting"
+	MoveWaitsUpgrade = "the router running is of a version from before the ids, and makes it once it restarts on this one"
+)
+
+// MoveWaitsAPI says the move onto the accounts' ids waits for the API to name
+// the organization of the token of the account given, by the id it had,
+// which makes its id, why saying why it hasn't: of the accounts' tokens
+// alike, where none's given.
+func MoveWaitsAPI(account, why string) string {
+	if account == "" {
+		return "the API hasn't named the organizations of the accounts' tokens, which make their ids, so the router asks again a while later"
+	}
+	return "the API hasn't named the organization of " + Clean(account) + "'s token, which makes its id, so the router asks again a while later: " + Clean(why)
+}
+
+// MoveFailed says the move onto the accounts' ids failed, why says why, and
+// the router tries it again.
+func MoveFailed(why string) string {
+	return "the router couldn't make it, and tries again in a minute: " + Clean(why)
+}
+
+// An account's token said to be another subscription's, as the router finds
+// it probing the account, which takes no requests while it holds that token:
+// ForeignToken in full, "its token is another subscription's";
+// ForeignTokenAfterName after the account's name, as in "work's token is
+// another subscription's"; and ForeignTokenShort where a few cells hold it,
+// "wrong token", no wider than the 11 cells Runway's label column keeps for
+// a short word at its narrowest, which never widens for one.
+const (
+	ForeignToken          = "its " + foreignToken
+	ForeignTokenAfterName = "'s " + foreignToken
+	ForeignTokenShort     = "wrong token"
+)
+
+// foreignToken is what ForeignToken and ForeignTokenAfterName say after whose
+// token it is.
+const foreignToken = "token is another subscription's"
+
+// Tokenless says, short, why an account takes no requests for want of a token
+// of its own: "no token", or, where the token it holds is another
+// subscription's, as foreign says, ForeignTokenShort's "wrong token".
+func Tokenless(foreign bool) string {
+	if foreign {
+		return ForeignTokenShort
+	}
+	return "no token"
+}
+
+// AddAsOwn is the other way to put right an account whose token is another
+// subscription's, said after giving it its own: that subscription added as
+// an account of its own.
+const AddAsOwn = "or add that subscription as an account of its own"
+
+// AccountsToken is the command that gives the account with the given id its
+// token, as in "switchboard accounts token work".
+func AccountsToken(id string) string {
+	return "switchboard accounts token " + Clean(id)
+}
+
+// ForeignTokenFix says the token of the account with the given id is another
+// subscription's, as ForeignToken says, and what puts it right: "its token is
+// another subscription's: give it its own with switchboard accounts token
+// work, or add that subscription as an account of its own".
+func ForeignTokenFix(id string) string {
+	return ForeignToken + ": give it its own with " + AccountsToken(id) + ", " + AddAsOwn
+}
+
 // Version words a release's version as it's shown, such as v0.2.10: a
 // version that isn't a release's number, such as a build's "dev", as it is.
 func Version(version string) string {

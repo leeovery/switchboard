@@ -72,7 +72,8 @@ type Deps struct {
 	// Notifier posts desktop notifications, as notify.Desktop does.
 	Notifier Notifier
 	// FollowEvery is how often logs --follow and events --follow look for
-	// new lines. Zero means every half second.
+	// new lines, and the dashboard, waiting to open, for the history's move
+	// onto the accounts' ids to end. Zero means every half second.
 	FollowEvery time.Duration
 	// WatchEvery is how often the router serve runs reads the token files
 	// again, and looks at its config file and its binary. Zero means every 3

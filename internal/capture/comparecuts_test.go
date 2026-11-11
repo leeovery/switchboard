@@ -28,7 +28,7 @@ func TestCompareDrawnWideCutsNoFigure(t *testing.T) {
 				m := compareOver(t, name, period)
 				for width := 40; width <= 220; width++ {
 					rows := plainRows(m, width, tallest)
-					if !slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, "0 all accounts") }) {
+					if !slices.ContainsFunc(rows, headsAllAccounts) {
 						continue
 					}
 					groups := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "ACTIVITY") })
@@ -96,7 +96,7 @@ func TestCompareTurnedCutsNoFigure(t *testing.T) {
 				width := 40
 				for ; ; width++ {
 					rows := plainRows(m, width, turnedTall)
-					if slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, "0 all accounts") }) {
+					if slices.ContainsFunc(rows, headsAllAccounts) {
 						break
 					}
 					for _, cut := range turnedCuts(t, rows) {
@@ -136,4 +136,10 @@ func turnedCuts(t *testing.T, rows []string) []string {
 		}
 	}
 	return cut
+}
+
+// headsAllAccounts reports whether the row is wide Compare's heads, its last
+// all accounts'.
+func headsAllAccounts(row string) bool {
+	return strings.HasSuffix(strings.TrimRight(row, " "), "all accounts")
 }

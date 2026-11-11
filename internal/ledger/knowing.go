@@ -47,12 +47,7 @@ func (a AccountDay) knowing(held AccountDay) AccountDay {
 	a.Sessions = max(a.Sessions, held.Sessions, len(a.SessionIDs))
 	a.MovedOn, a.MovedOff = max(a.MovedOn, held.MovedOn), max(a.MovedOff, held.MovedOff)
 	a.Highest, a.Rise = higher(a.Highest, held.Highest), higher(a.Rise, held.Rise)
-	for _, l := range held.Limits {
-		if !slices.ContainsFunc(a.Limits, l.same) {
-			a.Limits = append(a.Limits, l)
-		}
-	}
-	slices.SortStableFunc(a.Limits, func(x, y Limit) int { return x.At.Compare(y.At) })
+	a.Limits = limitsKnowing(a.Limits, held.Limits)
 	a.Resets = resetsKnowing(a.Resets, held.Resets)
 	a.MinutesAtCap, a.MinutesAtLimit = more(a.MinutesAtCap, held.MinutesAtCap), more(a.MinutesAtLimit, held.MinutesAtLimit)
 	a.ReadBefore = together(a.ReadBefore, held.ReadBefore)
@@ -100,6 +95,19 @@ func higher(uses, held map[string]float64) map[string]float64 {
 		}
 	}
 	return all
+}
+
+// limitsKnowing returns limits, summarised afresh, with held's, those
+// summarised before, among them, each once, as same tells, in the order they
+// were reached.
+func limitsKnowing(limits, held []Limit) []Limit {
+	for _, l := range held {
+		if !slices.ContainsFunc(limits, l.same) {
+			limits = append(limits, l)
+		}
+	}
+	slices.SortStableFunc(limits, func(x, y Limit) int { return x.At.Compare(y.At) })
+	return limits
 }
 
 // resetsKnowing returns resets, summarised afresh, with held's, those

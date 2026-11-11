@@ -14,17 +14,17 @@ import (
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
-// cardLane is work's lane, numbered 1, its use of the window keyed "5h" read
+// cardLane is work's lane, its use of the window keyed "5h" read
 // at used, with room through every column from now's where no stretch is
 // given, else held back but for the stretches given.
 func cardLane(used float64, stretches ...views.LaneStretch) laidLane {
 	ln := laneWith(stretches...)
 	ln.Use, ln.Room = views.Use{Key: "5h", Used: used, Read: true}, len(stretches) == 0
-	ln.name = accountName{number: "1", label: "work"}
+	ln.name = accountName{label: "work"}
 	return ln
 }
 
-// unusedLane is work's lane, numbered 1, its use not read as given, held
+// unusedLane is work's lane, its use not read as given, held
 // back but for the stretches given.
 func unusedLane(use views.Use, stretches ...views.LaneStretch) laidLane {
 	ln := cardLane(0, stretches...)
@@ -219,14 +219,14 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 	capped.AsItResets = true
 	work := cardLane(0.95, capped)
 	research := work
-	research.name = accountName{number: "2", label: "client-research", primary: true}
+	research.name = accountName{label: "client-research", primary: true}
 	marked := work
-	marked.name = accountName{number: "3", label: "someone", primary: true, best: true}
+	marked.name = accountName{label: "someone", primary: true, best: true}
 	out := stretchOf(five.Timeline, views.CellLimited, routedClock(1, 16, 5), routedClock(1, 16, 55), 14, 18)
 	out.Projected, out.AsItResets = true, true
 	running := cardLane(0.66, out)
 	unreadable := unusedLane(views.Use{Key: "5h", Unread: true})
-	unreadable.name = accountName{number: "3", label: "someone@example.com"}
+	unreadable.name = accountName{label: "someone@example.com"}
 	unreadable.account.Routing = status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
 	tests := []struct {
 		name   string
@@ -236,33 +236,33 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 		label  string
 		words  string
 	}{
-		{name: "under, every part", lane: work, width: 41, label: "1 work", words: "5% left  ·  capped 14:31  ·  resets 17:10"},
-		{name: "under, the last part left off", lane: work, width: 40, label: "1 work", words: "5% left  ·  capped 14:31"},
-		{name: "under, a run-out whole", lane: running, width: 40, label: "1 work", words: "34% left  ·  out ~16:05  ·  resets 16:55"},
-		{name: "under, a run-out's reset left off", lane: running, width: 39, label: "1 work", words: "34% left  ·  out ~16:05"},
-		{name: "under, the run-out left off", lane: running, width: 22, label: "1 work", words: "34% left"},
-		{name: "beside, a run-out's reset left off", lane: running, width: 47, beside: true, label: "1 work", words: "34% left  ·  out ~16:05"},
-		{name: "under, the room alone", lane: work, width: 23, label: "1 work", words: "5% left"},
-		{name: "under, the label whole in its own row", lane: work, width: 9, label: "1 work", words: "5% left"},
-		{name: "under, the label cut", lane: work, width: 5, label: "1 wo…", words: "5% l…"},
-		{name: "under, the room cut", lane: work, width: 6, label: "1 work", words: "5% le…"},
-		{name: "under, a marked label cut", lane: research, width: 12, label: "2 client-… ◆", words: "5% left"},
-		{name: "under, a label with both marks cut", lane: marked, width: 10, label: "3 som… ◆ ▲", words: "5% left"},
-		{name: "beside, every part", lane: work, width: 49, beside: true, label: "1 work", words: "5% left  ·  capped 14:31  ·  resets 17:10"},
-		{name: "beside, the last part left off", lane: work, width: 48, beside: true, label: "1 work", words: "5% left  ·  capped 14:31"},
-		{name: "beside, the room alone", lane: work, width: 31, beside: true, label: "1 work", words: "5% left"},
-		{name: "beside, the room alone at its least", lane: work, width: 17, beside: true, label: "1 work", words: "5% left"},
-		{name: "beside, a label with ▲, every part", lane: marked, width: 56, beside: true, label: "3 someone ◆ ▲", words: "5% left  ·  capped 14:31  ·  resets 17:10"},
-		{name: "beside, a label with ▲, the last part left off", lane: marked, width: 55, beside: true, label: "3 someone ◆ ▲", words: "5% left  ·  capped 14:31"},
-		{name: "beside, a long label whole", lane: research, width: 28, beside: true, label: "2 client-research ◆", words: "5% left"},
-		{name: "beside, a long label cut", lane: research, width: 26, beside: true, label: "2 client-resea… ◆", words: "5% left"},
-		{name: "beside, a long label at its least", lane: research, width: 21, beside: true, label: "2 client-… ◆", words: "5% left"},
-		{name: "beside, the words gone, the label whole on its row", lane: research, width: 20, beside: true, label: "2 client-research ◆"},
-		{name: "beside, the words gone, the label whole again", lane: unreadable, width: 37, beside: true, label: "3 someone@example.com"},
-		{name: "beside, the words gone, the label cut on its row", lane: research, width: 12, beside: true, label: "2 client-… ◆"},
-		{name: "beside, the words gone, the label just whole on its row", lane: research, width: 19, beside: true, label: "2 client-research ◆"},
-		{name: "beside, a long label cut beside long words", lane: unreadable, width: 58, beside: true, label: "3 someone@example.c…", words: "can't read it: HTTP 529 · Overloaded"},
-		{name: "beside, a long label beside long words", lane: unreadable, width: 59, beside: true, label: "3 someone@example.com", words: "can't read it: HTTP 529 · Overloaded"},
+		{name: "under, every part", lane: work, width: 41, label: "work", words: "5% left  ·  capped 14:31  ·  resets 17:10"},
+		{name: "under, the last part left off", lane: work, width: 40, label: "work", words: "5% left  ·  capped 14:31"},
+		{name: "under, a run-out whole", lane: running, width: 40, label: "work", words: "34% left  ·  out ~16:05  ·  resets 16:55"},
+		{name: "under, a run-out's reset left off", lane: running, width: 39, label: "work", words: "34% left  ·  out ~16:05"},
+		{name: "under, the run-out left off", lane: running, width: 22, label: "work", words: "34% left"},
+		{name: "beside, a run-out's reset left off", lane: running, width: 45, beside: true, label: "work", words: "34% left  ·  out ~16:05"},
+		{name: "under, the room alone", lane: work, width: 23, label: "work", words: "5% left"},
+		{name: "under, the label whole in its own row", lane: work, width: 9, label: "work", words: "5% left"},
+		{name: "under, the label cut", lane: work, width: 3, label: "wo…", words: "5%…"},
+		{name: "under, the room cut", lane: work, width: 6, label: "work", words: "5% le…"},
+		{name: "under, a marked label cut", lane: research, width: 10, label: "client-… ◆", words: "5% left"},
+		{name: "under, a label with both marks cut", lane: marked, width: 8, label: "som… ◆ ▲", words: "5% left"},
+		{name: "beside, every part", lane: work, width: 47, beside: true, label: "work", words: "5% left  ·  capped 14:31  ·  resets 17:10"},
+		{name: "beside, the last part left off", lane: work, width: 46, beside: true, label: "work", words: "5% left  ·  capped 14:31"},
+		{name: "beside, the room alone", lane: work, width: 29, beside: true, label: "work", words: "5% left"},
+		{name: "beside, the room alone at its least", lane: work, width: 15, beside: true, label: "work", words: "5% left"},
+		{name: "beside, a label with ▲, every part", lane: marked, width: 54, beside: true, label: "someone ◆ ▲", words: "5% left  ·  capped 14:31  ·  resets 17:10"},
+		{name: "beside, a label with ▲, the last part left off", lane: marked, width: 53, beside: true, label: "someone ◆ ▲", words: "5% left  ·  capped 14:31"},
+		{name: "beside, a long label whole", lane: research, width: 26, beside: true, label: "client-research ◆", words: "5% left"},
+		{name: "beside, a long label cut", lane: research, width: 24, beside: true, label: "client-resea… ◆", words: "5% left"},
+		{name: "beside, a long label at its least", lane: research, width: 19, beside: true, label: "client-… ◆", words: "5% left"},
+		{name: "beside, the words gone, the label whole on its row", lane: research, width: 18, beside: true, label: "client-research ◆"},
+		{name: "beside, the words gone, the label whole again", lane: unreadable, width: 35, beside: true, label: "someone@example.com"},
+		{name: "beside, the words gone, the label cut on its row", lane: research, width: 10, beside: true, label: "client-… ◆"},
+		{name: "beside, the words gone, the label just whole on its row", lane: research, width: 17, beside: true, label: "client-research ◆"},
+		{name: "beside, a long label cut beside long words", lane: unreadable, width: 56, beside: true, label: "someone@example.c…", words: "can't read it: HTTP 529 · Overloaded"},
+		{name: "beside, a long label beside long words", lane: unreadable, width: 57, beside: true, label: "someone@example.com", words: "can't read it: HTTP 529 · Overloaded"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -311,12 +311,12 @@ func TestACardsHeadIsDrawnItsWordsCuedAsRunwayCuesThem(t *testing.T) {
 			c := newCanvas(54, 3)
 			h.draw(c, Look{coloured: true}, 2, 1)
 			label, words := rowOf(c, 1), rowOf(c, 1+h.row)
-			if label[:8] != "  1 work" {
+			if !strings.HasPrefix(label, "  work") {
 				t.Errorf("the label's row reads %q, want the label from column 2", label)
 			}
 			wantWords := "  5% left  ·  capped 14:31  ·  back 17:10"
 			if tt.beside {
-				wantWords = "  1 work     5% left  ·  capped 14:31  ·  back 17:10"
+				wantWords = "  work       5% left  ·  capped 14:31  ·  back 17:10"
 			}
 			if words != wantWords {
 				t.Errorf("the words' row reads %q, want %q", words, wantWords)

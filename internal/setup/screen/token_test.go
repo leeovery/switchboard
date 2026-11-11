@@ -69,7 +69,7 @@ func TestTMakesTheChosenAccountsTokenInTheTokenCard(t *testing.T) {
 	h.pressAndDeliver("down")
 	h.pressAndDeliver("t")
 
-	want := setup.TokenFor{Account: config.NewAccount{ID: "personal"}, Organizations: setup.Organizations{"work": "org-work", "personal": "org-personal"}}
+	want := setup.TokenFor{Account: config.NewAccount{ID: "personal", Label: "Personal"}, Organizations: setup.Organizations{"work": "org-work", "personal": "org-personal"}}
 	if got := h.steps.nextMake(t); !reflect.DeepEqual(got, want) {
 		t.Errorf("MakeToken was asked %+v, want %+v", got, want)
 	}
@@ -235,7 +235,7 @@ func TestATokenMadeIsKeptThroughEsc(t *testing.T) {
 	if got := h.steps.replacedOf("personal"); got != 1 {
 		t.Errorf("personal's token was replaced %d times, want once, esc or not", got)
 	}
-	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌ 2  personal") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
+	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌   Personal") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
 		t.Errorf("personal's row reads %q, want it chosen, its token a year from today", got)
 	}
 }
@@ -285,7 +285,7 @@ func TestATokensMakingWaitsForTheAccountsChecks(t *testing.T) {
 		press func(h *harness)
 		want  setup.TokenFor
 	}{
-		{name: "t", press: func(h *harness) { h.pressAndDeliver("t") }, want: setup.TokenFor{Account: config.NewAccount{ID: "work"}}},
+		{name: "t", press: func(h *harness) { h.pressAndDeliver("t") }, want: setup.TokenFor{Account: config.NewAccount{ID: "work", Label: "Work"}}},
 		{
 			name: "the add card's enter",
 			press: func(h *harness) {
@@ -298,7 +298,7 @@ func TestATokensMakingWaitsForTheAccountsChecks(t *testing.T) {
 				}
 				h.pressAndDeliver("enter")
 			},
-			want: setup.TokenFor{Account: config.NewAccount{ID: "team"}, Add: true},
+			want: setup.TokenFor{Account: config.NewAccount{Label: "team"}, Add: true},
 		},
 	}
 	for _, tt := range tests {
@@ -376,7 +376,7 @@ func TestTryingAgainWaitsForTheAccountsChecks(t *testing.T) {
 	}
 	h.deliver(checks...)
 	h.pressAndDeliver("enter")
-	want := setup.TokenFor{Account: config.NewAccount{ID: "personal"}, Organizations: setup.Organizations{"work": "org-work", "personal": "org-personal", "side": "org-side"}}
+	want := setup.TokenFor{Account: config.NewAccount{ID: "personal", Label: "Personal"}, Organizations: setup.Organizations{"work": "org-work", "personal": "org-personal", "side": "org-side"}}
 	if got := h.steps.nextMake(t); !reflect.DeepEqual(got, want) {
 		t.Errorf("trying again asked MakeToken %+v, want %+v", got, want)
 	}
@@ -574,8 +574,6 @@ func TestAMakingThatSavedNothingSaysWhy(t *testing.T) {
 func TestATokenMadeAddsTheAccount(t *testing.T) {
 	h := firstRun(t)
 	h.steps.making = fakeMaking{steps: []setup.Making{{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: "Work"}, approving, madeIt, checkIt}, ends: &saved}
-	h.typeIn("work")
-	h.pressAndDeliver("tab")
 	h.typeIn("Work")
 	h.pressAndDeliver("enter")
 	h.hearAll(5)
@@ -586,7 +584,7 @@ func TestATokenMadeAddsTheAccount(t *testing.T) {
 	if want := "  Add each Claude subscription you want switchboard to route across."; rows[firstUnderHeading] != want {
 		t.Errorf("the page's line reads %q, want %q", rows[firstUnderHeading], want)
 	}
-	if got := rows[firstRow]; !strings.HasPrefix(got, "▌ 1  work ◆") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
+	if got := rows[firstRow]; !strings.HasPrefix(got, "▌   Work ◆") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
 		t.Errorf("the first row reads %q, want work, chosen, its token a year from today", got)
 	}
 	if got := rows[keyRow]; !strings.Contains(got, "enter next: Priming") {
@@ -606,14 +604,14 @@ func TestTheRowChosenMovesToTheAccountAdded(t *testing.T) {
 	h.pressAndDeliver("enter")
 	h.typeIn("team")
 	h.pressAndDeliver("enter")
-	if got := h.steps.nextMake(t); got.Account.ID != "team" || !got.Add {
+	if got := h.steps.nextMake(t); got.Account.Label != "team" || !got.Add {
 		t.Fatalf("MakeToken was asked %+v, want team's token, to add it", got)
 	}
 	h.hearAll(5)
 	if review := h.model.status.review; review == nil || len(review.Accounts) != 4 || h.model.chosen != 3 {
 		t.Fatalf("saved, the review is %+v, row %d chosen; want team added, its row chosen", review, h.model.chosen)
 	}
-	if got := h.rows()[firstRow+6]; !strings.HasPrefix(got, "▌ 4  team") {
+	if got := h.rows()[firstRow+6]; !strings.HasPrefix(got, "▌   team") {
 		t.Errorf("team's row reads %q, want it chosen", got)
 	}
 }
@@ -627,7 +625,7 @@ func TestAMakingThatFailsFailsTheStep(t *testing.T) {
 	if h.model.token != nil {
 		t.Errorf("failed, the token card is %+v, want it closed", h.model.token)
 	}
-	if got := h.model.walk.left(); got != (Left{Ending: Failed, Err: errNotSaved}) {
+	if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Failed, Err: errNotSaved}) {
 		t.Errorf("setup would be left %+v, want failing at Accounts", got)
 	}
 	if got, want := h.rows()[firstUnderHeading], factRowOf("✗", setup.Said{Label: "Not saved", Detail: errNotSaved.Error()}); got != want {
@@ -753,7 +751,7 @@ func TestRunReturnsOnceATokensMakingHasEndedItsTokenKept(t *testing.T) {
 			if got.left.Ending != Paused || got.left.Err != nil || (tt.ctrlC && got.err != nil) || (!tt.ctrlC && !errors.Is(got.err, context.Canceled)) {
 				t.Errorf("run() = %+v, %v; want setup paused, by ctrl+c or the context's ending", got.left, got.err)
 			}
-			if !reflect.DeepEqual(got.left.Unsaved, tt.unsaved) || got.left.Interrupted != tt.interrupted {
+			if !reflect.DeepEqual(tokeneds(got.left.Unsaved), givenBack(tt.unsaved)) || got.left.Interrupted != tt.interrupted {
 				t.Errorf("run() gives back the making as %+v, interrupted: %t; want %+v, interrupted: %t", got.left.Unsaved, got.left.Interrupted, tt.unsaved, tt.interrupted)
 			}
 			if got := steps.replacedOf("work"); got != tt.saved {
@@ -792,7 +790,7 @@ func TestTheScreenLeavesOnceATokenHeldThroughAnInterruptIsSaved(t *testing.T) {
 	case <-time.After(time.Minute):
 		t.Fatal("a minute on, the screen was up still, want it left once the token held through an interrupt was saved")
 	}
-	if got.err != nil || how(got.left) != (Left{Ending: Paused, Interrupted: true}) {
+	if got.err != nil || !sameLeft(how(got.left), Left{Ending: Paused, Interrupted: true}) {
 		t.Errorf("run() = %+v, %v; want setup paused, an interrupt held", got.left, got.err)
 	}
 	if got := steps.replacedOf("work"); got != 1 {
@@ -833,7 +831,7 @@ func TestKeysAfterAnInterruptHeldLeaveTheCardToGiveBack(t *testing.T) {
 
 			h.pressAndDeliver(tt.key)
 			unsaved, interrupted := h.model.tokenLeft()
-			if !interrupted || !reflect.DeepEqual(unsaved, &tt.ends) {
+			if !interrupted || !reflect.DeepEqual(tokeneds(unsaved), []setup.Tokened{tt.ends}) {
 				t.Errorf("tokenLeft() = %+v, %t; want %+v, an interrupt held", unsaved, interrupted, tt.ends)
 			}
 			if h.model.makings != making || h.model.paste != nil {
@@ -968,7 +966,7 @@ func TestCtrlCOnceATokensMadeLeavesItReadOn(t *testing.T) {
 			case <-time.After(time.Minute):
 				t.Fatal("a minute on, run() hadn't returned")
 			}
-			if got.err != nil || got.left.Ending != Paused || !reflect.DeepEqual(got.left.Unsaved, tt.unsaved) {
+			if got.err != nil || got.left.Ending != Paused || !reflect.DeepEqual(tokeneds(got.left.Unsaved), givenBack(tt.unsaved)) {
 				t.Errorf("run() = %+v, %v; want setup paused, the making given back as %+v", got.left, got.err, tt.unsaved)
 			}
 			token, err := s.Accounts.Tokens.Read("work")
@@ -1077,7 +1075,7 @@ func TestATokenMadeThroughSetupIsSavedOnlyOnceItsChecked(t *testing.T) {
 				t.Errorf("side's token was taken %v (%v), want today, %v, so it lasts a year from today", taken, err, start)
 			}
 			rows := h.rows()
-			if i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "▌ 3  side") }); i < 0 || !strings.HasSuffix(rows[i], "expires 27 Oct 2027  ·  365 days left") {
+			if i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "▌   side") }); i < 0 || !strings.HasSuffix(rows[i], "expires 27 Oct 2027  ·  365 days left") {
 				t.Errorf("the page reads\n%s\nwant side's row chosen, its token a year from today", strings.Join(rows, "\n"))
 			}
 		})

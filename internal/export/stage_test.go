@@ -41,8 +41,58 @@ func stage(t *testing.T, importDir string, folders ...string) {
 // foldersIn returns the Macs' folders Folders finds in dir, and the folders
 // it passed over as their export.json doesn't read.
 func foldersIn(dir string) (folders, unread []string, err error) {
-	folders, err = export.Folders(dir, func(folder string) { unread = append(unread, folder) })
+	folders, err = export.Folders(dir, func(folder string, why error) {
+		if errors.Is(why, export.ErrUnread) {
+			unread = append(unread, folder)
+		}
+	})
 	return folders, unread, err
+}
+
+// A folder holding what an export writes without its export.json, as an
+// export cut short leaves one, or a sync not done, is passed over, said so,
+// so another Mac's history never drops out of an import unsaid; one holding
+// nothing an export writes is passed over unsaid.
+func TestFoldersPassesOverAFolderOfAnExportWithoutItsExportJSONSayingSo(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// put writes the folder's files, besides export.json, where it's set.
+		put  func(t *testing.T, folder string)
+		want bool
+	}{
+		{name: "its accounts record", put: func(t *testing.T, folder string) {
+			writeFile(t, filepath.Join(folder, "accounts.json"), []byte(`{"accounts":[]}`+"\n"), exportNow)
+		}, want: true},
+		{name: "a day's lines", put: func(t *testing.T, folder string) {
+			writeFile(t, requests.compressed(folder, day1), gzipOf(t, linesOf(`{"n":1}`)), exportNow)
+		}, want: true},
+		{name: "a day's summary", put: func(t *testing.T, folder string) {
+			writeFile(t, summary(folder, day1), []byte(`{"version":6}`+"\n"), exportNow)
+		}, want: true},
+		{name: "nothing an export writes", put: func(t *testing.T, folder string) {
+			writeFile(t, filepath.Join(folder, "notes.txt"), []byte("no export here\n"), exportNow)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			macsFolder(t, filepath.Join(dir, "mac-"+installOne), installOne, export.Version)
+			cut := filepath.Join(dir, "mac-"+installTwo)
+			tc.put(t, cut)
+			var passed []string
+			got, err := export.Folders(dir, func(folder string, why error) {
+				if errors.Is(why, export.ErrNoManifest) {
+					passed = append(passed, folder)
+				}
+			})
+
+			if want := []string{filepath.Join(dir, "mac-"+installOne)}; err != nil || !slices.Equal(got, want) {
+				t.Errorf("Folders() = %q, %v; want %q", got, err, want)
+			}
+			if said := slices.Equal(passed, []string{cut}); said != tc.want {
+				t.Errorf("Folders() said it passed over %q as an export without its export.json, want it said %v", passed, tc.want)
+			}
+		})
+	}
 }
 
 // filesUnder returns the paths of the files under root, from root, oldest
@@ -84,6 +134,29 @@ func TestFoldersTakesEachMacsFolderInDirByNamePassingOverTheRest(t *testing.T) {
 
 	if got, unread, err := foldersIn(dir); err != nil || !slices.Equal(got, []string{one, two, older}) || unread != nil {
 		t.Errorf("Folders() = %q, %v, passing over %q unread; want %q", got, err, unread, []string{one, two, older})
+	}
+}
+
+// A folder of version 1, as a switchboard from before account ids exported
+// one, or one after them before export.json went to version 2, is taken as a
+// folder of this version is.
+func TestFoldersTakesAFolderOfEitherVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name, manifest string
+	}{
+		{name: "version 1, from before ids", manifest: `{"version":1,"install":"` + installOne + `","exported_at":"2026-10-09T14:42:07Z"}`},
+		{name: "version 1, with ids", manifest: `{"version":1,"install":"` + installOne + `","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`},
+		{name: "version 2", manifest: `{"version":2,"install":"` + installOne + `","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			folder := filepath.Join(dir, "mac-"+installOne)
+			writeFile(t, filepath.Join(folder, "export.json"), []byte(tc.manifest+"\n"), exportNow)
+
+			if got, unread, err := foldersIn(dir); err != nil || !slices.Equal(got, []string{folder}) || unread != nil {
+				t.Errorf("Folders() = %q, %v, passing over %q unread; want %q", got, err, unread, folder)
+			}
+		})
 	}
 }
 
@@ -187,6 +260,7 @@ func TestStageLaysOutEachFolderNumberedInOrderAsTheRouterReadsIt(t *testing.T) {
 		kinds[2].compressed(one, day2): {gzipOf(t, linesOf(`{"n":3}`)), compressedAt},
 		requests.compressed(two, day2): {gzipOf(t, linesOf(`{"n":4}`)), appendedAt},
 		summary(two, "2025-10-02"):     {[]byte("{\"version\":5}\n"), summarisedAt},
+		accountsRecord(one):            {[]byte("{\"version\":1,\"accounts\":[]}\n"), summarisedAt},
 	}
 	for path, f := range files {
 		writeFile(t, path, f.data, f.modified)
@@ -209,6 +283,7 @@ func TestStageLaysOutEachFolderNumberedInOrderAsTheRouterReadsIt(t *testing.T) {
 		want = append(want, filepath.Join(filepath.Base(staged[folder]), rel))
 		wantCopy(t, filepath.Join(staged[folder], rel), f.data, f.modified)
 	}
+	want = append(want, filepath.Join("1", "export.json"), filepath.Join("2", "export.json"))
 	slices.Sort(want)
 	if got := filesUnder(t, importDir); !slices.Equal(got, want) {
 		t.Errorf("%s holds %q, want %q", importDir, got, want)
@@ -220,7 +295,7 @@ func TestStageLaysOutEachFolderNumberedInOrderAsTheRouterReadsIt(t *testing.T) {
 	}
 }
 
-func TestStageStagesAFolderOfNothingButItsExportJSONAsAFolderOfNothing(t *testing.T) {
+func TestStageStagesAFolderOfNothingButItsExportJSONAsAFolderOfThatAlone(t *testing.T) {
 	one := macsFolder(t, t.TempDir(), installOne, export.Version)
 	importDir := filepath.Join(t.TempDir(), "import")
 
@@ -229,8 +304,8 @@ func TestStageStagesAFolderOfNothingButItsExportJSONAsAFolderOfNothing(t *testin
 	if info := look(t, filepath.Join(importDir, "1")); !info.IsDir() {
 		t.Errorf("%s/1 is %v, want a folder", importDir, info.Mode())
 	}
-	if got := filesUnder(t, importDir); len(got) != 0 {
-		t.Errorf("%s holds %q, want nothing", importDir, got)
+	if got := filesUnder(t, importDir); !slices.Equal(got, []string{filepath.Join("1", "export.json")}) {
+		t.Errorf("%s holds %q, want the folder's export.json alone", importDir, got)
 	}
 }
 
@@ -256,7 +331,7 @@ func TestStagePassesOverWhatTheStateDirectoryDoesntName(t *testing.T) {
 
 	stage(t, importDir, one)
 
-	if got, want := filesUnder(t, importDir), []string{filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}; !slices.Equal(got, want) {
+	if got, want := filesUnder(t, importDir), []string{filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}; !slices.Equal(got, want) {
 		t.Errorf("%s holds %q, want %q alone", importDir, got, want)
 	}
 }
@@ -277,7 +352,7 @@ func TestStagePassesOverALinkOrAFolderByADaysFilesName(t *testing.T) {
 
 	stage(t, importDir, one)
 
-	want := []string{filepath.Join("1", "ledger", "day-"+day1+".json"), filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}
+	want := []string{filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "day-"+day1+".json"), filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}
 	if got := filesUnder(t, importDir); !slices.Equal(got, want) {
 		t.Errorf("%s holds %q, want %q alone: no link followed out of the folder, nor a folder by a summary's name taken", importDir, got, want)
 	}
@@ -297,7 +372,7 @@ func TestStageRemovesWhatAnImportCutShortLeftFirst(t *testing.T) {
 
 	stage(t, importDir, one)
 
-	if got, want := filesUnder(t, importDir), []string{filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}; !slices.Equal(got, want) {
+	if got, want := filesUnder(t, importDir), []string{filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}; !slices.Equal(got, want) {
 		t.Errorf("%s holds %q, want %q alone", importDir, got, want)
 	}
 }
@@ -336,9 +411,9 @@ func TestAnExportStagedIsByteAndTimeTheExportsOwn(t *testing.T) {
 	stage(t, importDir, folders...)
 
 	folder := folderOf(t, state, dir)
-	exported := slices.DeleteFunc(filesUnder(t, folder), func(path string) bool { return path == "export.json" })
-	if got := filesUnder(t, filepath.Join(importDir, "1")); len(exported) != 7 || !slices.Equal(got, exported) {
-		t.Fatalf("staged %q, want the export's %q, seven files", got, exported)
+	exported := filesUnder(t, folder)
+	if got := filesUnder(t, filepath.Join(importDir, "1")); len(exported) != 8 || !slices.Equal(got, exported) {
+		t.Fatalf("staged %q, want the export's %q, eight files, export.json among them", got, exported)
 	}
 	for _, rel := range exported {
 		src, dst := filepath.Join(folder, rel), filepath.Join(importDir, "1", rel)

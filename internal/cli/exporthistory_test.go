@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/export"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 )
@@ -19,6 +21,7 @@ func exportDeps(t *testing.T) cli.Deps {
 	t.Helper()
 	deps := testDeps(nil, t.TempDir())
 	state := stateDir(t, deps)
+	markMoved(t, state)
 	writeStateFile(t, ledger.Dir(state), "requests-2026-10-02.jsonl", []byte(`{"n":1}`+"\n"))
 	writeStateFile(t, ledger.Dir(state), "day-2026-10-02.json", []byte("{}\n"))
 	writeStateFile(t, readings.Dir(state), "readings-2026-10-08.jsonl", []byte(`{"n":2}`+"\n"))
@@ -52,8 +55,30 @@ func TestExportSaysHowManyDaysItWroteAndLeftAsTheyWere(t *testing.T) {
 	}
 }
 
+// The accounts record is exported with each account the config configures
+// labelled as it's configured, so a Mac that doesn't configure it names it.
+func TestExportLabelsTheAccountsConfigured(t *testing.T) {
+	deps := exportDeps(t)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte("[[account]]\nid = \"b6s7\"\nlabel = \"Work\"\n"))
+	writeStateFile(t, stateDir(t, deps), "accounts.json", []byte(`{"version":1,"accounts":[{"id":"b6s7","organization":"test-org-work","added":"2026-08-01T09:00:00Z"}]}`+"\n"))
+	dir := t.TempDir()
+
+	if got := run(t, deps, "export", dir); got.code != 0 {
+		t.Fatalf("switchboard export = %+v, want it done", got)
+	}
+	record, err := identity.NewFile(macsFolder(t, deps, dir)).Read()
+	if err != nil || len(record.Accounts) != 1 || record.Accounts[0].Label != "Work" {
+		t.Errorf("the folder's accounts record is %+v (%v), want b6s7 labelled Work, as configured", record, err)
+	}
+}
+
 func TestExportCountsADayAsOne(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
+	markMoved(t, stateDir(t, deps))
 	writeStateFile(t, ledger.Dir(stateDir(t, deps)), "day-2026-10-02.json", []byte("{}\n"))
 	dir := t.TempDir()
 
@@ -110,6 +135,7 @@ func TestExportIntoAFileFails(t *testing.T) {
 
 func TestExportLogsAFileAWriteCutShortLeftThatItCouldntRemove(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
+	markMoved(t, stateDir(t, deps))
 	writeStateFile(t, ledger.Dir(stateDir(t, deps)), "day-2026-10-02.json", []byte("{}\n"))
 	dir := t.TempDir()
 	history := readings.Dir(macsFolder(t, deps, dir))

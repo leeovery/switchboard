@@ -96,16 +96,29 @@ func (f Frame) daysStrips(c *canvas, l daysLayout) {
 	for i, s := range p.ByModel {
 		hue := familyHue(s.Of)
 		named := familyDot(s.Of, secondaryInk)
-		f.daysStrip(c, l, l.familyRow(i), func(room int) line { return named.fit(room) }, shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days)
+		f.daysStrip(c, l, l.familyRow(i), func(room int) line { return named.fit(room) }, shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days, len(s.Days))
 	}
 	c.line(0, l.byAccount, groupHead("BY ACCOUNT", byAccountSays, l.narrow).fit(f.edge()))
 	from, to := l.shown()
 	for i, s := range p.ByAccount[from:to] {
-		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
+		f.daysAccount(c, l, l.accountRow(i), s)
 	}
 	if above, below := from, len(p.ByAccount)-to; above+below > 0 {
 		c.line(0, l.scrollRow, outOfView(above, below, f.edge(), historyAccountsOut...))
 	}
+}
+
+// daysAccount draws BY ACCOUNT's strip of an account named on row y: by its
+// label, the primary marked; or of one not configured, in text.faint, its
+// days to the one it was removed on, then, where it was, when, as removed
+// says it.
+func (f Frame) daysAccount(c *canvas, l daysLayout, y int, s views.DaysStrip) {
+	if !s.Other {
+		f.daysStrip(c, l, y, func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days, len(s.Days))
+		return
+	}
+	f.daysStrip(c, l, y, func(room int) line { return line{{labelledIn(labelled(s.Label, s.Of), room), faintInk}} }, f.limitsHit(s), dayInk, s.Days, s.Gone)
+	l.removed(c, y, s)
 }
 
 // daysLayout is Days' page laid out in a frame: in its narrow form, where
@@ -455,19 +468,16 @@ func initials(c *canvas, from time.Time, x, y int) {
 
 // daysStrip draws a strip along row y, or in the narrow form, its name and count on
 // row y and the strip under it: its name at column 0, as name gives it in
-// the cells the row lays it out in; each of its days shown, in the ink
-// shade gives at the day's level, those to come ··; and its count, its
-// number a figure, cut short of the edge.
-func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) line, count []part, shade func(level int) ink, days []views.StripDay) {
-	strip := y
-	if l.narrow {
-		strip++
-	}
+// the cells the row lays it out in; each of its days shown before the one
+// with index until, in the ink shade gives at the day's level, those to come
+// ··; and its count, its number a figure, cut short of the edge.
+func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) line, count []part, shade func(level int) ink, days []views.StripDay, until int) {
+	strip := l.stripRow(y)
 	c.line(0, y, name(l.row.name.Size))
 	at := l.row.count.At + daysCountCells - partsWidth(count[:1])
 	c.line(at, y, fitParts(f.edge()-at, count...))
 	coming := len(days) - l.page.ToCome
-	for i := l.first; i < min(len(days), l.first+7*len(l.row.weeks)); i++ {
+	for i := l.first; i < min(until, l.first+7*len(l.row.weeks)); i++ {
 		x := l.dayAt(i)
 		if i >= coming {
 			c.text(x, strip, toCome, faintInk)
@@ -475,6 +485,36 @@ func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) lin
 		}
 		c.line(x, strip, f.swatch(shade(days[i].Level), days[i].Level, days[i].Limit))
 	}
+}
+
+// stripRow is the row the days of the strip named on row y are on: y, or in
+// the narrow form, the row under it.
+func (l daysLayout) stripRow(y int) int {
+	if l.narrow {
+		return y + 1
+	}
+	return y
+}
+
+// removed says, along the days of the strip of an account removed, named on
+// row y, when it was removed, in text.faint, where its days are gone: from
+// the first week shown that begins after the day it was removed on, or, where
+// none does, from the day after it, cut short of the last week's end; nothing
+// where it was removed on the last day shown or after.
+func (l daysLayout) removed(c *canvas, y int, s views.DaysStrip) {
+	shown := l.first + 7*len(l.row.weeks)
+	if s.Gone >= shown {
+		return
+	}
+	x := l.dayAt(max(s.Gone, l.first))
+	for w, week := range l.row.weeks {
+		if l.first+7*w >= s.Gone {
+			x = week.At
+			break
+		}
+	}
+	last := l.row.weeks[len(l.row.weeks)-1]
+	c.line(x, l.stripRow(y), line{{s.Removed, faintInk}}.fit(last.At+last.Size-x))
 }
 
 // dayAt is the column the page's day with index i is drawn at, in its week's

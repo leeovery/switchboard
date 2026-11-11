@@ -27,6 +27,10 @@ var (
 	// ErrOnlyAccount is what removing an account fails with, wrapped, when
 	// it's the only one.
 	ErrOnlyAccount = errors.New("a config needs one at least")
+	// ErrChanged is what saving a draft fails with, wrapped, when the config
+	// file changed since it was read: the change can be made again to the
+	// file as it now stands.
+	ErrChanged = errors.New("changed while it was being edited")
 )
 
 // NotConfigured is the error of acting on the account with the given id,
@@ -290,6 +294,31 @@ func (d *Draft) SetLabel(id, given string) error {
 	return d.setAccountKey(id, "label", written(label), func(a *fileAccount) { a.Label = label })
 }
 
+// SetID gives the account with the given id the id newID, as setAccountKey
+// sets a key, keeping a comment beside it: the id switchboard makes for it,
+// which only switchboard writes. It fails, matching ErrNotConfigured, when no
+// account has the id; with a WrongID for an id no account can have; matching
+// ErrConfigured where another account has it; and where one has it in another
+// case, as the two would share a token file.
+func (d *Draft) SetID(id, newID string) error {
+	if d.index(id) < 0 {
+		return NotConfigured(id)
+	}
+	if err := checkID(accountNamed(newID), newID); err != nil {
+		return err
+	}
+	if newID == id {
+		return nil
+	}
+	if d.index(newID) >= 0 {
+		return configured(newID)
+	}
+	if i := slices.IndexFunc(d.file.Accounts, func(a fileAccount) bool { return a.ID != id && strings.EqualFold(a.ID, newID) }); i >= 0 {
+		return caseClash(d.file.Accounts[i].ID, newID)
+	}
+	return d.setAccountKey(id, "id", written(newID), func(a *fileAccount) { a.ID = newID })
+}
+
 // SetPlan sets the plan of the account with the given id, one of Plans, as
 // setAccountKey sets a key: "" takes it out, leaving the plan unknown. It
 // writes the plan by the name Plans give it, given an alias, and in place of
@@ -382,7 +411,8 @@ func (d *Draft) cantMake(change string) error {
 // Save writes the draft to the config file, whole or not at all: through a
 // link, to where it leads, rather than in its place, and making a file, and
 // its directory, that isn't there. The file keeps its permissions. It fails,
-// leaving the file as it is, when the file has changed since Edit read it.
+// leaving the file as it is, matching ErrChanged, when the file has changed
+// since Edit read it.
 func (d *Draft) Save() error {
 	target, err := atomicfile.Target(d.path)
 	if err != nil {
@@ -419,10 +449,11 @@ func (d *Draft) unchanged(target string) (fs.FileMode, error) {
 	return info.Mode().Perm(), d.expect(data)
 }
 
-// expect fails unless data is what the config file held when Edit read it.
+// expect fails, matching ErrChanged, unless data is what the config file held
+// when Edit read it.
 func (d *Draft) expect(data []byte) error {
 	if !bytes.Equal(data, d.read) {
-		return fmt.Errorf("%s changed while it was being edited, so it's left as it is: try again", d.path)
+		return fmt.Errorf("%s %w, so it's left as it is: try again", d.path, ErrChanged)
 	}
 	return nil
 }

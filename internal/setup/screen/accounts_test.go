@@ -312,7 +312,7 @@ func TestQWhileChecksRunLeavesOnceEveryCheckHasEnded(t *testing.T) {
 	}()
 	select {
 	case got := <-returned:
-		if got.err != nil || how(got.left) != (Left{Ending: Paused}) {
+		if got.err != nil || !sameLeft(how(got.left), Left{Ending: Paused}) {
 			t.Errorf("run() = %+v, %v; want setup paused, no error", got.left, got.err)
 		}
 	case <-time.After(time.Minute):
@@ -429,7 +429,7 @@ func TestAccountsThatCantBeReadStopSetupThere(t *testing.T) {
 	if got, want := h.rows()[firstUnderHeading], factRowOf("✗", setup.Said{Label: "Not read", Detail: errNoConfig.Error()}); got != want {
 		t.Errorf("the page's row reads\n%q\nwant\n%q", got, want)
 	}
-	if got := h.model.walk.left(); got != (Left{Ending: Failed, Err: errNoConfig}) {
+	if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Failed, Err: errNoConfig}) {
 		t.Errorf("setup would be left %+v, want failing at Accounts", got)
 	}
 	h.pressAndDeliver("enter")
@@ -457,16 +457,16 @@ func TestManyAccountsScrollTheChosenRowKeptInViewTheHeadsKept(t *testing.T) {
 	for i := range 12 {
 		h.pressAndDeliver("down")
 		rows := h.rows()
-		want := fmt.Sprintf("▌ %-2d  acct%02d", i+2, i+2)
+		want := fmt.Sprintf("▌   Label acct%02d", i+2)
 		if i == 11 {
-			want = "▌ +   add an account"
+			want = "▌ + add an account"
 		}
 		if !slices.ContainsFunc(rows[6:23], func(row string) bool { return strings.HasPrefix(row, want) }) {
 			t.Fatalf("with row %d chosen, at 95×25, the page reads\n%s\nwant the row chosen, %q, in view", i+2, strings.Join(rows, "\n"), want)
 		}
 	}
 	rows := h.rows()
-	if !strings.HasPrefix(rows[6], "      ACCOUNT") {
+	if !strings.HasPrefix(rows[6], "    ACCOUNT") {
 		t.Errorf("scrolled into the table's rows, the page's first row reads %q, want the table's heads, kept", rows[6])
 	}
 	out := rows[22]
@@ -476,7 +476,7 @@ func TestManyAccountsScrollTheChosenRowKeptInViewTheHeadsKept(t *testing.T) {
 	for range 13 {
 		h.pressAndDeliver("up")
 	}
-	if rows := h.rows(); h.model.scroll != 0 || !strings.HasPrefix(rows[6], "  Each token was checked") || !strings.HasPrefix(rows[10], "▌ 1   acct01") {
+	if rows := h.rows(); h.model.scroll != 0 || !strings.HasPrefix(rows[6], "  Each token was checked") || !strings.HasPrefix(rows[10], "▌   Label acct01") {
 		t.Errorf("back at the first row, scrolled %d, the page reads\n%s\nwant it scrolled to the top, what's over the table showing", h.model.scroll, strings.Join(rows[6:11], "\n"))
 	}
 }

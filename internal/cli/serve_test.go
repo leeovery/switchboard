@@ -260,7 +260,7 @@ func TestPrimingAsTheConfigSetsIt(t *testing.T) {
 	srv.writeConfig(t)
 	// Work and side have token files, so they're primed at 04:10 and 06:40,
 	// and personal has none.
-	schedule := "priming 08:00-23:00: work at 04:10 and side at 06:40\n"
+	schedule := "priming 08:00-23:00: Work at 04:10 and Side at 06:40\n"
 
 	probed := run(t, srv.deps, "status", "--pretty")
 	if want := schedule + "next reset: work · Work, Mon 18:10\n"; !strings.Contains(probed.stdout, want) {
@@ -1097,6 +1097,9 @@ func newServeSetup(t *testing.T, upstream string, env map[string]string) *serveS
 	s.deps = testDeps(vars, t.TempDir())
 	writeToken(t, s.deps, "work", "test-token-work")
 	writeToken(t, s.deps, "side", "test-token-side")
+	// The move onto the accounts' ids is done, as on an install that has
+	// moved, so a test of anything else serve does isn't one of the move.
+	markMoved(t, s.state)
 	return s
 }
 

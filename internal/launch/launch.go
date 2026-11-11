@@ -617,16 +617,15 @@ func (r Route) lookTwice(id string) (tokens.Token, error) {
 	return r.Token(id)
 }
 
-// usable lists the ids of the accounts with a usable token, in the config's
-// order.
-func (r Route) usable() []string {
-	var ids []string
+// usable lists the accounts with a usable token, in the config's order.
+func (r Route) usable() config.Accounts {
+	var usable config.Accounts
 	for _, a := range r.Config.Accounts {
 		if _, err := r.Token(a.ID); err == nil {
-			ids = append(ids, a.ID)
+			usable = append(usable, a)
 		}
 	}
-	return ids
+	return usable
 }
 
 // primary is the primary account, when its token is usable.

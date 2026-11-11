@@ -1,10 +1,13 @@
 package status_test
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -630,6 +633,78 @@ func TestPassedOverIsTheAccountUnderPressureAChoicePassedOver(t *testing.T) {
 		if got := status.PassedOver(tt.reason); got != tt.want {
 			t.Errorf("PassedOver(%q) = %q, want %q", tt.reason, got, tt.want)
 		}
+	}
+}
+
+func TestRenamedReasonRenamesEachAccountAReasonNames(t *testing.T) {
+	renamed := map[string]string{"work": "wk7q", "personal": "ab3k", "side": "sd9x"}
+	rename := func(id string) string {
+		if to, ok := renamed[id]; ok {
+			return to
+		}
+		return id
+	}
+	tests := []struct{ reason, want string }{
+		{reason: status.ReasonMovedOff + "work " + status.WhyLimit, want: "moved: wk7q hit its limit"},
+		{reason: status.ReasonPinYields + "side " + status.WhyReserve, want: "pin yields: sd9x is at its reserve"},
+		{reason: status.Compacted("side", 0.354), want: "compacted: sd9x would reset with 35% of its week left"},
+		{reason: status.PassingOver(status.ReasonNew, "personal"), want: "new, ab3k under pressure"},
+		{reason: status.PassingOver(status.ReasonMovedOff+"work "+status.WhyLimit, "personal"), want: "moved: wk7q hit its limit, ab3k under pressure"},
+		{reason: status.PassingOver(status.Rescored(15*time.Hour), "work"), want: "rescored after 15h idle, wk7q under pressure"},
+		{reason: status.ReasonMovedOff + "gone " + status.WhyLimit, want: "moved: gone hit its limit"},
+		{reason: status.ReasonSticky, want: "sticky"},
+		{reason: status.ReasonNoRoom, want: "no account has room"},
+		{reason: "moved: work", want: "moved: work"},
+	}
+	for _, tt := range tests {
+		if got := status.RenamedReason(tt.reason, rename); got != tt.want {
+			t.Errorf("RenamedReason(%q) = %q, want %q", tt.reason, got, tt.want)
+		}
+	}
+}
+
+func TestMovingSaysWhatHoldsTheMoveUp(t *testing.T) {
+	tests := []struct {
+		moving status.Moving
+		want   string
+	}{
+		{status.Moving{Stage: status.MoveRunning}, prose.HistoryMoving + ": the router is making it"},
+		{status.Moving{Stage: status.MoveAwaitingAPI}, prose.HistoryMoving + ": the API hasn't named the organizations of the accounts' tokens, which make their ids, so the router asks again a while later"},
+		{status.Moving{Stage: status.MoveAwaitingAPI, Account: "work", Why: "HTTP 404:\tno window read"}, prose.HistoryMoving + ": the API hasn't named the organization of work's token, which makes its id, so the router asks again a while later: HTTP 404: no window read"},
+		{status.Moving{Stage: status.MoveAwaitingRestart}, prose.HistoryMoving + ": " + prose.MoveWaitsRestart},
+		{status.Moving{Stage: status.MoveNoRouter}, prose.HistoryMoving + ": " + prose.MoveWaitsRouter},
+		{status.Moving{Stage: status.MoveUntold}, prose.HistoryMoving + ": " + prose.MoveWaitsUntold},
+		{status.Moving{Stage: status.MoveOlderRouter}, prose.HistoryMoving + ": " + prose.MoveWaitsUpgrade},
+		{status.Moving{Stage: status.MoveFailed, Why: "rename the\nconfig: denied"}, prose.HistoryMoving + ": the router couldn't make it, and tries again in a minute: rename the config: denied"},
+		{status.Moving{Stage: "a stage of a later version"}, prose.HistoryMoving},
+	}
+	for _, tt := range tests {
+		if got := tt.moving.Said(); got != tt.want {
+			t.Errorf("%+v.Said() = %q, want %q", tt.moving, got, tt.want)
+		}
+	}
+}
+
+func TestMovingAskedTellsWhyNoRouterMakesTheMove(t *testing.T) {
+	running := status.Moving{Stage: status.MoveAwaitingAPI, Account: "work", Why: "HTTP 404"}
+	tests := []struct {
+		name       string
+		moving     status.Moving
+		err        error
+		notRunning bool
+		want       status.Moving
+	}{
+		{"no router listening", status.Moving{}, errors.New("dial unix: connection refused"), true, status.Moving{Stage: status.MoveNoRouter}},
+		{"a router not saying in time", status.Moving{}, context.DeadlineExceeded, false, status.Moving{Stage: status.MoveUntold}},
+		{"a router owing no move", status.Moving{}, nil, false, status.Moving{Stage: status.MoveOlderRouter}},
+		{"a router making it", running, nil, false, running},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.MovingAsked(tt.moving, tt.err, tt.notRunning); got != tt.want {
+				t.Errorf("MovingAsked() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 

@@ -213,13 +213,12 @@ func (l detailLayout) wideWeeks(room int) detailLayout {
 }
 
 // listNames is the cells of the name column Detail's list fits its accounts'
-// names to: the widest, number, label and ◆, and a gap, within leastNames
-// and mostNames, each numbered as the frame's numbering numbers it.
+// names to: the widest, label and ◆, and a gap, within leastNames and
+// mostNames.
 func (f Frame) listNames() int {
-	accounts := f.numbering().Configured(f.Accounts.Accounts)
-	digits, widest := numberDigits(accounts, 0), 0
-	for _, a := range accounts {
-		n := listName(a, digits)
+	widest := 0
+	for _, a := range f.Accounts.Accounts {
+		n := accountName{label: labelled(a.Label, a.ID), primary: a.Primary, unrouted: true}
 		widest = max(widest, n.cells(ansi.StringWidth(n.label)))
 	}
 	return min(max(widest+nameGap, leastNames), mostNames)
@@ -473,12 +472,12 @@ func (d detailDrawn) standsAt() int {
 }
 
 // headName is the head's name, in the cells from the panel's column to the
-// frame's edge: the account's number, name and marks, or 0 all accounts.
+// frame's edge: the account's name and marks, or all accounts.
 func (d detailDrawn) headName() line {
 	if d.id == "" {
-		return allAccountsName(1)
+		return allAccountsNamed
 	}
-	return listName(d.account, 1).said(d.f.edge() - d.l.panel)
+	return listName(d.account).said(d.f.edge() - d.l.panel)
 }
 
 // versionLines are BY MODEL's versions with their shares, over the rows
@@ -666,22 +665,39 @@ func (d detailDrawn) lately(c *canvas, y, x, words int) {
 
 // accountLatelyLines are Detail's LATELY lines of the sentences given, at the
 // moment m: each led as latelyLeads has it; then its words in full,
-// stacked as wide, in text.muted, each account named as the dashboard names
+// stacked as wide, in text.muted, each account named as detailNamed names
 // it, cut to the cells given.
 func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
 	lines := latelyLeads(m, sentences)
 	for i, s := range sentences {
 		var told line
 		for _, p := range slices.Concat(s.Full.Subject, s.Full.Words, s.Full.Object, s.Full.Rest) {
-			text := p.Text
+			said := span{p.Text, mutedInk}
 			if p.Kind == status.PartAccount {
-				text = named(m, p.Text)
+				said = detailNamed(m, p.Text)
 			}
-			told = append(told, span{text, mutedInk})
+			told = append(told, said)
 		}
 		lines[i] = append(lines[i], told.fit(words)...)
 	}
 	return lines
+}
+
+// detailNamed is the account with the given id as Detail's words name it:
+// as named names it, in text.muted, or in text.faint, as Days draws one,
+// where it isn't configured, as status's AccountName says.
+func detailNamed(m status.Moment, id string) span {
+	return span{named(m, id), namedInk(m.Named(id))}
+}
+
+// namedInk is the ink an account named as given is drawn in where its name
+// stands among words: text.faint where it isn't configured, as status's
+// AccountName says, else text.muted.
+func namedInk(n status.AccountName) ink {
+	if n.Other {
+		return faintInk
+	}
+	return mutedInk
 }
 
 // sessions draws SESSIONS from row y: its heading, as panelHeading has it
@@ -784,22 +800,21 @@ func chosenRow(c *canvas, x, y, width int, focused bool) {
 }
 
 // list draws Detail's list from row top, rows tall, as listShown scrolls it:
-// 0 all accounts, then each configured account shown, listApart rows apart,
-// as the moment's Configured has it, its number, name and marks, as listName
+// all accounts, then each configured account shown, listApart rows apart,
+// as the moment's Configured has it, its name and marks, as listName
 // has them, in the name column, and after it its state's glyph, as
 // StateInAWord and stateMark have it, cued over the row's light while it's
 // newly changed, as cueState has it; the chosen row picked out, as listRow
 // has it; ↑↓ choose chooseUnder rows under the last; and the │ beside them,
 // to the panel's foot.
 func (d detailDrawn) list(c *canvas, top, rows int) {
-	digits := numberDigits(d.accounts, 0)
-	d.listRow(c, top, allAccountsName(digits), d.id == "")
+	d.listRow(c, top, allAccountsNamed, d.id == "")
 	first, shown := d.listShown()
 	y := top
 	for _, a := range d.accounts[first : first+shown] {
 		y += listApart
 		c.line(d.l.dotAt(), y, line{stateMark(d.m.StateInAWord(a.ID))})
-		d.listRow(c, y, listName(a, digits).fitted(d.l.names), a.ID == d.id)
+		d.listRow(c, y, listName(a).fitted(d.l.names), a.ID == d.id)
 		d.f.cueState(c, a.ID, d.l.dotAt(), y, 1)
 	}
 	c.line(listAt, y+chooseUnder, line{{"↑↓", keyInk}, {" choose", dimInk}})
@@ -811,7 +826,7 @@ func (d detailDrawn) list(c *canvas, top, rows int) {
 // listRow draws a row of the list along row y, named as given, picked out
 // where it's the one chosen, over what's drawn of it already, as chosenRow
 // picks it out while the list holds the focus or not; and while it doesn't,
-// ▸ in bold accent.key before it, in the cell before its number, as SESSIONS
+// ▸ in bold accent.key before it, in the cell before its name, as SESSIONS
 // marks its chosen row, as bold alone barely shows on a bold name.
 func (d detailDrawn) listRow(c *canvas, y int, name line, chosen bool) {
 	c.line(listAt, y, name)
@@ -862,19 +877,15 @@ func (f Frame) DetailListScroll(id string) int {
 	return listScrolling(len(configured), f.viewRows()).revealing(f.Accounts.ListScroll, i)
 }
 
-// listName is account a's name as Detail's list and head name it: its
-// number, right-aligned in the digits given, its label and ◆ on the primary,
-// unrouted, as Accounts shows no routing.
-func listName(a status.AccountNow, digits int) accountName {
-	return accountName{number: fmt.Sprintf("%*d", digits, a.Place), label: name(a), primary: a.Primary, unrouted: true}
+// listName is account a's name as Detail's list and head name it: its label
+// and ◆ on the primary, unrouted, as Accounts shows no routing.
+func listName(a status.AccountNow) accountName {
+	return accountName{label: name(a), primary: a.Primary, unrouted: true}
 }
 
-// allAccountsName is all accounts as Detail's list and head name it: 0,
-// right-aligned in the digits given, in text.subtle, and all accounts, bold
-// text.secondary.
-func allAccountsName(digits int) line {
-	return line{{fmt.Sprintf("%*d", digits, 0), dimInk}, {" all accounts", strongInk}}
-}
+// allAccountsNamed is all accounts as Accounts' list and heads name it, in
+// bold text.secondary.
+var allAccountsNamed = line{{"all accounts", strongInk}}
 
 // targets are the zones of Detail a click acts on: the list's, and
 // SESSIONS'.

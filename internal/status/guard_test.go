@@ -52,6 +52,10 @@ var callsAllowed = []string{
 	// The watch's read loop, which asks for the next read by the document
 	// as it was read, when it was read, rather than at a moment.
 	"status.Document.IncompleteAsRead", "status.Document.NextFetchAsRead", "status.Document.RereadAfterResetAsRead",
+	// The accounts removed, which the watch knows from the accounts record
+	// and the document doesn't, handed to the document as it's read, for its
+	// moments to name them.
+	"status.Document.WithRemoved",
 }
 
 // momentsMade are the functions and methods of viewPackages that work out a
@@ -73,7 +77,7 @@ var momentsMade = []string{
 	"dashboard/watch.Model.Update", "dashboard/watch.Model.fetched", "dashboard/watch.fetchFrom",
 	"dashboard/watch.Model.moment", "dashboard/watch.takenTo",
 	// The commands', each of the one document it reads.
-	"cli.app.pinning", "cli.app.printUsage", "cli.newStatusCommand",
+	"cli.app.foreignTokens", "cli.app.pinning", "cli.app.printUsage", "cli.newStatusCommand",
 }
 
 // worksOut are what work out a document's moment.

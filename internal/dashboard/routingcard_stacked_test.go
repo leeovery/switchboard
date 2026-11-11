@@ -53,7 +53,7 @@ func TestAStackedNameColumnIsNeverWiderThanItsNames(t *testing.T) {
 	for name, names := range configs {
 		for mode, base := range map[string]RoutingCard{"new sessions'": widestEnds(), "a session's": sessionCard(nil)} {
 			r := namedCard(base, names...)
-			least := choiceNameAt + min(labelLeast, r.widestName()) + narrowGap + stateCells() + narrowGap + endLeast()
+			least := choiceName + min(labelLeast, r.widestName()) + narrowGap + stateCells() + narrowGap + endLeast()
 			for width := 40; width <= 82; width++ {
 				content := r.card(frameOf(width, 80)).width - 2*cardInset
 				at := r.columns(content)
@@ -83,7 +83,7 @@ func TestAStackedNameColumnIsNeverWiderThanItsNames(t *testing.T) {
 func TestAStackedRowsGapsAreTwoWhereTheyFit(t *testing.T) {
 	r := sessionCard(nil)
 	body := strings.Join(plains(r.card(frameOf(70, 60)).body), "\n")
-	for _, want := range []string{"0 auto      the router chooses: side for now", "2 personal  open"} {
+	for _, want := range []string{"auto      the router chooses: side for now", "personal  open"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("at 70 columns, the card reads\n%s\nwant %q", body, want)
 		}
@@ -133,16 +133,16 @@ func TestAsTheStackedCardWidensNoNameNorEndSaysLess(t *testing.T) {
 }
 
 // Where gaps of 1 leave it the room, a stacked row keeps its name and its
-// end whole: engineering's at 59 columns, as the base's column of 11 draws
+// end whole: engineering's at 57 columns, as the base's column of 11 draws
 // it.
 func TestAStackedRowsGapsNarrowBeforeItsName(t *testing.T) {
 	r := routedCard(func(r *RoutingCard) {
 		r.Rows[1].Name = "engineering"
 		r.Rows[1].Open, r.Rows[1].Reason = false, widestHeld()
 	})
-	body := strings.Join(plains(r.card(frameOf(59, 60)).body), "\n")
-	if want := "1 engineering closed  " + widestHeld(); !strings.Contains(body, want) {
-		t.Errorf("at 59 columns, the card reads\n%s\nwant %q", body, want)
+	body := strings.Join(plains(r.card(frameOf(57, 60)).body), "\n")
+	if want := "engineering closed  " + widestHeld(); !strings.Contains(body, want) {
+		t.Errorf("at 57 columns, the card reads\n%s\nwant %q", body, want)
 	}
 }
 

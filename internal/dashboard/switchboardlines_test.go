@@ -40,7 +40,7 @@ func TestEveryWidthDrawsTheSwitchboardsPartsWhereItsColumnsPutThem(t *testing.T)
 			{"where it came from", textFrom(c, k.from, k.from+len([]rune(from)), 10), from},
 			{"its plug", c.at(k.plug, 10).glyph, plugGlyph},
 			{"41e0's jack", c.at(k.jacks, personal).glyph, pluggedJack},
-			{"work's name", textFrom(c, k.lines, k.lines+6, 6), "1 work"},
+			{"work's name", textFrom(c, k.lines, k.lines+4, 6), "work"},
 			{"its week's label", textFrom(c, k.lines+1, k.lines+7, 7), "Week  "},
 			{"its percentage", textFrom(c, bar+k.bar+1, bar+k.bar+1+percentCells, 7), " 34%"},
 			{"its words", strings.TrimRight(textFrom(c, bar+k.bar+afterBar, width, 7), " "), words},
@@ -69,20 +69,20 @@ func TestTheLinesCompactAsRowsRunShort(t *testing.T) {
 		rows   map[int]string
 	}{
 		{name: "step 1", height: 37, step: 1, rows: map[int]string{
-			6: "1 work          ● at its cap · back 17:10 · new sessions go elsewhere", 7: " Week", 9: " 5-hour", 11: " Fable wk",
-			15: "2 personal ◆    ● open", 24: "3 side ▲        ● open · new sessions come here",
+			6: "work          ● at its cap · back 17:10 · new sessions go elsewhere", 7: " Week", 9: " 5-hour", 11: " Fable wk",
+			15: "personal ◆    ● open", 24: "side ▲        ● open · new sessions come here",
 		}},
 		{name: "step 1, the lines 2 apart", height: 33, step: 1, rows: map[int]string{
-			6: "1 work ", 14: "2 personal ◆", 22: "3 side ▲",
+			6: "work ", 14: "personal ◆", 22: "side ▲",
 		}},
 		{name: "step 2", height: 29, step: 2, rows: map[int]string{
-			6: "1 work ", 7: " Week", 8: " 5-hour", 9: " Fable wk", 13: "2 personal ◆", 20: "3 side ▲",
+			6: "work ", 7: " Week", 8: " 5-hour", 9: " Fable wk", 13: "personal ◆", 20: "side ▲",
 		}},
 		{name: "step 3", height: 24, step: 3, rows: map[int]string{
-			6: "1 work ", 7: " Week", 10: "2 personal ◆", 11: " Week", 14: "3 side ▲", 15: " Week",
+			6: "work ", 7: " Week", 10: "personal ◆", 11: " Week", 14: "side ▲", 15: " Week",
 		}},
 		{name: "step 4", height: 18, step: 4, rows: map[int]string{
-			6: "1 work      ", 7: "2 personal ◆", 9: "3 side ▲    ",
+			6: "work      ", 7: "personal ◆", 9: "side ▲    ",
 		}},
 	}
 	for _, tt := range tests {
@@ -119,8 +119,8 @@ func TestTheCompactLinesSitSideBySideThenOnOneRow(t *testing.T) {
 	}{
 		{name: "step 3, 74 columns", width: 160, height: 24, row: 7, want: map[int]string{87: "Week ", 120: " 34%", 127: "5-hour", 156: " 95%"}},
 		{name: "step 3, 59 columns", width: 142, height: 24, row: 7, want: map[int]string{84: "Week ", 109: " 34%", 116: "5-hour", 137: " 95%"}},
-		{name: "step 4, 74 columns", width: 160, height: 18, row: 6, want: map[int]string{86: "1 work", 117: " 34%", 123: "● at its cap · back 17:10 "}},
-		{name: "step 4, 59 columns, short", width: 142, height: 18, row: 6, want: map[int]string{83: "1 work", 114: " 34%", 120: "● at its cap · 17:10"}},
+		{name: "step 4, 74 columns", width: 160, height: 18, row: 6, want: map[int]string{86: "work", 115: " 34%", 121: "● at its cap · back 17:10 "}},
+		{name: "step 4, 59 columns, short", width: 142, height: 18, row: 6, want: map[int]string{83: "work", 112: " 34%", 118: "● at its cap · 17:10"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -299,31 +299,33 @@ func scrolledToLine(f Frame, doc status.Document, laid boardLayout, i int, byRow
 // and on its lanes alike: where ● pinned ends its name row, its words say
 // nothing of the pin; where the mark hasn't the room, it isn't drawn, and its
 // words are whole, saying the pin themselves where they fit, as on the
-// Switchboard's one-row lines at 138 columns, and not where they don't, as
-// on the lanes at 36.
+// Switchboard's one-row lines at 140 columns, work labelled in 12 cells, and
+// not where they don't, as on the lanes at 34.
 func TestThePinIsSaidOnceOnTheSwitchboardAndItsLanes(t *testing.T) {
 	doc := usageWorld(usagePinned("work"))
+	labelled := usageWorld(usagePinned("work"), account("work", func(a *status.Account) { a.Label = "work-clients" }))
 	board := func(width, height int) Frame {
 		return boardFrame(width, height, Look{}, boardOf(boardLook{calls: phoneScene()}), Traffic{})
 	}
 	for _, tt := range []struct {
 		name   string
 		frame  Frame
+		doc    status.Document
 		marked bool
 		said   int
 	}{
-		{name: "the Switchboard", frame: board(130, 30), marked: true, said: 1},
-		{name: "the Switchboard, two rows a line", frame: board(130, 20), marked: true, said: 1},
-		{name: "the Switchboard, a row a line, short of room for the mark", frame: board(138, 15), said: 1},
-		{name: "its lanes", frame: lanesFrame(52, 33, Look{}, phoneScene()), marked: true, said: 1},
-		{name: "its lanes, short of room for the mark", frame: lanesFrame(36, 33, Look{}, phoneScene())},
+		{name: "the Switchboard", frame: board(130, 30), doc: doc, marked: true, said: 1},
+		{name: "the Switchboard, two rows a line", frame: board(130, 20), doc: doc, marked: true, said: 1},
+		{name: "the Switchboard, a row a line, short of room for the mark", frame: board(140, 15), doc: labelled, said: 1},
+		{name: "its lanes", frame: lanesFrame(52, 33, Look{}, phoneScene()), doc: doc, marked: true, said: 1},
+		{name: "its lanes, short of room for the mark", frame: lanesFrame(34, 33, Look{}, phoneScene()), doc: doc},
 	} {
-		rows := textOf(tt.frame.Draw(doc, routedAt))
-		i := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "1 work") })
+		rows := textOf(tt.frame.Draw(tt.doc, routedAt))
+		i := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "work") && strings.Contains(r, "● at its cap") })
 		if i < 0 {
 			t.Fatalf("%s: no row names work; drew\n%s", tt.name, strings.Join(rows, "\n"))
 		}
-		row := strings.TrimRight(rows[i][strings.Index(rows[i], "1 work"):], " ")
+		row := strings.TrimRight(rows[i][strings.Index(rows[i], "work"):], " ")
 		if !strings.Contains(row, "● at its cap") || strings.HasSuffix(row, pinnedSpan.text) != tt.marked || strings.Count(row, "pinned") != tt.said {
 			t.Errorf("%s: work's row reads %q, want ● at its cap, its mark drawn %v, and the pin said %d times", tt.name, row, tt.marked, tt.said)
 		}
@@ -435,9 +437,8 @@ func TestAtStep5TheLinesScrollAnAccountAtATimeWithTheirCalls(t *testing.T) {
 			}
 			ln := laid.lines[shown]
 			first := top + min(shown, 1)
-			name := fmt.Sprintf("%2d %s", shown+1, ln.account)
-			if got := rows[first+ln.top-ln.first]; !strings.Contains(got, name) {
-				t.Errorf("row %d reads %q, want the first account shown, %q", first+ln.top-ln.first+1, got, name)
+			if got := []rune(rows[first+ln.top-ln.first] + " "); len(got) <= laid.columns.lines || !strings.HasPrefix(string(got[laid.columns.lines:]), ln.account+" ") {
+				t.Errorf("row %d reads %q, want the first account shown, %s, from the lines' column", first+ln.top-ln.first+1, string(got), ln.account)
 			}
 			for _, call := range laid.calls {
 				if call.account != ln.account {

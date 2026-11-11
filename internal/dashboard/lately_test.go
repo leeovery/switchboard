@@ -44,6 +44,7 @@ func TestLATELYsMarksAreOneAKindInTheirColours(t *testing.T) {
 		{kind: status.EventCap, glyph: "╎", token: theme.AccentAttention},
 		{kind: status.EventLimit, glyph: "■", token: theme.StateDestructive},
 		{kind: status.EventRefused, glyph: "■", token: theme.StateDestructive},
+		{kind: status.EventForeign, glyph: "■", token: theme.StateDestructive},
 		{kind: status.EventPrimed, glyph: "◇", token: theme.TextSubtle},
 		{kind: status.EventRoom, glyph: "✓", token: theme.StatePositive},
 		{kind: status.EventPin, glyph: "●", token: theme.AccentKey},
@@ -64,7 +65,7 @@ func TestLATELYsMarksAreOneAKindInTheirColours(t *testing.T) {
 // Log's panel list them: each kind once, named by the word views gives it,
 // as the Log's event column and its panel name it, and meaning what the
 // panel says it is (~3013–3018), word for word; a mark a kind, but for ■,
-// which a limit and a refusal share.
+// which a limit, a refusal and a token another subscription's share.
 func TestTheKindsOfEventAreOneTableOfMarksWordsAndMeanings(t *testing.T) {
 	want := []struct{ word, means string }{
 		{"started", "a session first seen"},
@@ -73,6 +74,7 @@ func TestTheKindsOfEventAreOneTableOfMarksWordsAndMeanings(t *testing.T) {
 		{"cap", "an account at its cap"},
 		{"limit", "an account at its limit"},
 		{"refused", "an account's token refused"},
+		{"foreign", "an account's token not its own"},
 		{"primed", "a window started early"},
 		{"open", "an account with room again"},
 		{"pin", "routing set by hand"},
@@ -90,24 +92,24 @@ func TestTheKindsOfEventAreOneTableOfMarksWordsAndMeanings(t *testing.T) {
 		}
 		drawnBy[k.mark] = append(drawnBy[k.mark], k.kind)
 	}
-	closing := []string{status.EventLimit, status.EventRefused}
+	closing := []string{status.EventLimit, status.EventRefused, status.EventForeign}
 	for mark, kinds := range drawnBy {
 		if shared := len(kinds) > 1; shared && (mark.text != "■" || !slices.Equal(kinds, closing)) {
-			t.Errorf("%q is drawn by %v, want a mark a kind, but for ■, a limit's and a refusal's", mark.text, kinds)
+			t.Errorf("%q is drawn by %v, want a mark a kind, but for ■, a limit's, a refusal's and a token another subscription's", mark.text, kinds)
 		}
 	}
 }
 
 // Help gives each of LATELY's marks once, in the kinds' order, meaning what
-// each kind drawing it is, as the Log's panel says it: ■ a limit's and a
-// refusal's, joined.
+// each kind drawing it is, as the Log's panel says it: ■ a limit's, a
+// refusal's and a token another subscription's, joined.
 func TestHelpGivesEachMarkOnceMeaningWhatEachKindDrawingItIs(t *testing.T) {
 	want := []glyph{
 		{drawn: line{{"▲", accentInk}}, means: "a session first seen"},
 		{drawn: line{{"▸", keyMarkInk}}, means: "a session moved to another account"},
 		{drawn: line{{"◔", warningInk}}, means: "an account under pressure"},
 		{drawn: line{{"╎", warningInk}}, means: "an account at its cap"},
-		{drawn: line{{"■", errorInk}}, means: "an account at its limit, or an account's token refused"},
+		{drawn: line{{"■", errorInk}}, means: "an account at its limit, or an account's token refused, or an account's token not its own"},
 		{drawn: line{{"◇", dimInk}}, means: "a window started early"},
 		{drawn: line{{"✓", positiveInk}}, means: "an account with room again"},
 		{drawn: line{{"●", keyMarkInk}}, means: "routing set by hand"},

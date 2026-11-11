@@ -80,6 +80,7 @@ func testExports(dir string, exportInto func(dir string) (export.Result, error))
 		exportInto: exportInto,
 		tend:       tended,
 		restarting: noRestart,
+		moving:     noMove,
 		supervised: true,
 		running:    make(map[string]time.Time),
 		underWay:   newInFlight(),
@@ -93,6 +94,9 @@ func tended(context.Context) error { return nil }
 
 // noRestart is a router that isn't to restart.
 func noRestart() bool { return false }
+
+// noMove is a router whose history waits on no move.
+func noMove() bool { return false }
 
 // exportNow makes a round as round does, but on the caller's goroutine,
 // returning once its export has ended.
@@ -231,7 +235,7 @@ func TestMacOSRefusingTheRouterSaysWhatToAllow(t *testing.T) {
 			logstest.Capture(t)
 			cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 			cfg.Export, cfg.Supervised = config.Export{Dir: dir}, tt.supervised
-			x := newExports(cfg, tended, noRestart)
+			x := newExports(cfg, tended, noRestart, noMove)
 			x.exportInto = func(string) (export.Result, error) { return export.Result{}, refused }
 
 			x.exportNow(t.Context())
@@ -287,7 +291,7 @@ func TestAFolderTheExportCantHaveIsSaidPlainly(t *testing.T) {
 			dir := tt.folder(t, t.TempDir())
 			cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 			cfg.StateDir, cfg.Export = state, config.Export{Dir: dir}
-			x := newExports(cfg, tended, noRestart)
+			x := newExports(cfg, tended, noRestart, noMove)
 
 			x.exportNow(t.Context())
 
@@ -318,7 +322,7 @@ func TestAnExportIntoAFolderNotThereWritesNothing(t *testing.T) {
 	parent := filepath.Join(root, "Volumes", "Backup")
 	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 	cfg.StateDir, cfg.Export = state, config.Export{Dir: filepath.Join(parent, "Switchboard")}
-	x := newExports(cfg, tended, noRestart)
+	x := newExports(cfg, tended, noRestart, noMove)
 
 	x.exportNow(t.Context())
 
@@ -702,6 +706,24 @@ func TestARouterAboutToRestartStartsNoExport(t *testing.T) {
 				t.Errorf("report() = %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestNoExportStartsWhileTheHistoryWaitsOnItsMove(t *testing.T) {
+	logstest.Capture(t)
+	fake := &exportAs{}
+	x := testExports("/Volumes/Backup/Switchboard", fake.into)
+	moving := true
+	x.moving = func() bool { return moving }
+
+	x.exportNow(t.Context())
+	if got := fake.folders(); len(got) != 0 {
+		t.Errorf("while the history waited on its move, exported into %q, want none", got)
+	}
+	moving = false
+	x.exportNow(t.Context())
+	if got, want := fake.folders(), []string{"/Volumes/Backup/Switchboard"}; !slices.Equal(got, want) {
+		t.Errorf("once the history was moved, exported into %q, want %q", got, want)
 	}
 }
 

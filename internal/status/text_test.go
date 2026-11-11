@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -262,7 +263,7 @@ side · Side
   Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%
   5-hour   0%  not started · next prime Mon 14:17
 
-priming 08:00-23:00: work at 04:10 and side at 06:40
+priming 08:00-23:00: Work at 04:10 and Side at 06:40
 next reset: work · Work, Mon 17:10  ·  next prime: side · Side, Mon 14:17
 best next: work · Work
 from the router: healthy  ·  no sessions  ·  routing automatically
@@ -317,6 +318,25 @@ restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): sw
 best next: personal · Personal
 from the router: healthy  ·  no sessions  ·  routing automatically
 restart due since Mon 13:12 (upgraded), held: invalid config
+`,
+		},
+		{
+			name: "the router's, moving the history onto the accounts' ids, with a restart due",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Restart:     status.Restart{Reason: "config changed", Since: now.Add(-time.Hour), ByHand: true},
+				Moving:      status.Moving{Stage: status.MoveAwaitingRestart},
+				Accounts:    []status.Account{personal},
+			},
+			want: `personal · Personal
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
+
+best next: personal · Personal
+from the router: healthy  ·  no sessions  ·  routing automatically
+restart due since Mon 13:12 (config changed): run switchboard serve again to take it up
+the history waits on its move onto the accounts' new ids: the router makes the rest once it restarts onto the new ids its config holds
 `,
 		},
 		{
@@ -892,8 +912,8 @@ side · Side
   1 session
 
 sessions
-  18bb978f  sonnet on work  ·  seen just now
-  0b5c6f2e  opus on side, haiku on work  ·  pinned to side  ·  seen 2m ago
+  18bb978f  sonnet on Work  ·  seen just now
+  0b5c6f2e  opus on Side, haiku on Work  ·  pinned to Side  ·  seen 2m ago
 
 best next: work · Work
 from the router: healthy  ·  2 sessions  ·  routing automatically
@@ -954,10 +974,27 @@ func TestSessionLine(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.session.Line(now); got != tt.want {
+			if got := tt.session.Line(now, status.Names{}); got != tt.want {
 				t.Errorf("Line() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// A session's line names each account, and its pin's, as the names given name
+// it: one configured by its label, one removed by the label it showed last,
+// saying when it was removed.
+func TestASessionsLineNamesItsAccountsByTheirLabels(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
+	removed := status.RemovedAccounts{{ID: "h7c2", Label: "team", Removed: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)}}
+	names := status.NamesOf(config.Accounts{{ID: "b6s7", Label: "Work"}}, removed)
+	s := status.Session{ID: "0b5c6f2e", Pin: "b6s7", Assignments: []status.Assignment{
+		{Model: "claude-opus-5-5", Family: "opus", Account: "h7c2", LastSeen: now},
+		{Model: "claude-haiku-4-5", Family: "haiku", Account: "b6s7", LastSeen: now.Add(-time.Minute)},
+	}}
+	want := "0b5c6f2e  opus on team (" + removed[0].Said() + "), haiku on Work  ·  pinned to Work  ·  seen just now"
+	if got := s.Line(now, names); got != want {
+		t.Errorf("Line() = %q, want %q", got, want)
 	}
 }
 
@@ -1088,7 +1125,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	}.At(now, policy).Text(running)
 	shown := map[string]string{
 		"the router's document, and its sessions": routers,
-		"a session, as its line reads":            running.Line(now),
+		"a session, as its line reads":            running.Line(now, status.Names{}),
 		"a document probed, as something else answered for the router": status.Document{
 			Source:   status.SourceProbe,
 			Fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: "answered " + clear},
@@ -1108,7 +1145,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	if !strings.HasPrefix(routers, want) {
 		t.Errorf("Text() =\n%s\nwant it to start\n%s", routers, want)
 	}
-	if got, want := running.Line(now), "0b5c [2J  next [2J on work [2J  ·  pinned to side [2J  ·  seen just now"; got != want {
+	if got, want := running.Line(now, status.Names{}), "0b5c [2J  next [2J on work [2J  ·  pinned to side [2J  ·  seen just now"; got != want {
 		t.Errorf("Line() = %q, want %q", got, want)
 	}
 }

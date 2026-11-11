@@ -7,17 +7,18 @@ import (
 )
 
 // laneHead is the label heading a row of Runway's lanes: its number, then
-// its name and marks, each a space on, up to the lane's first glyph.
-var laneHead = regexp.MustCompile(`^ ?[0-9]+( [^ █▒─│]+)*`)
+// its name and marks, a space apart, up to the lane's first glyph.
+var laneHead = regexp.MustCompile(`^[^ █▒─│]+( [^ █▒─│]+)*`)
 
 // Runway's labels read whole beside its lanes at every one of the owner's
 // sizes, as the sweep can't see a cut beside lanes that fill the row: the
 // label column as wide as the widest, ▲'s cells kept, each label whole up to
-// 24 cells, its number and marks beside it, so the long names' 17 and 22
-// read whole; and collapsed, each lane's number and marks. Every lane row
-// drawn is headed by one of the labels, and each label heads one.
+// 24 cells, its marks beside it, no number before it, so the long names' 17
+// and 22 read whole; and collapsed, each lane's marks, none on an account
+// without them. Every lane row drawn
+// is headed by one of the labels, and each label heads one.
 func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
-	frames := []string{"1 work", "2 personal ◆", "3 side ▲"}
+	frames := []string{"work", "personal ◆", "side ▲"}
 	tests := []struct {
 		name  string
 		heads []string
@@ -28,11 +29,11 @@ func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 		{
 			name: "runway-ten-accounts-160",
 			heads: []string{
-				" 1 work", " 2 personal ◆", " 3 side ▲", " 4 client", " 5 spare", " 6 lab", " 7 team", " 8 extra", " 9 ops", "10 studio",
+				"work", "personal ◆", "side ▲", "client", "spare", "lab", "team", "extra", "ops", "studio",
 			},
 		},
-		{name: "long-names-runway", heads: []string{"1 work-team-plan", "2 personal-research ◆", "3 side-hustle-consulting ▲"}},
-		{name: "runway-collapsed-160", heads: []string{"1", "2 ◆", "3 ▲"}},
+		{name: "long-names-runway", heads: []string{"work-team-plan", "personal-research ◆", "side-hustle-consulting ▲"}},
+		{name: "runway-collapsed-160", heads: []string{"", "◆", "▲"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

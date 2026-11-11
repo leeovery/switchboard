@@ -211,14 +211,14 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"schema":1,"generated_at":"` + at(ledgerNow) + `","prices_as_of":"2026-10-11","sessions":[` +
-		`{"session":"` + asking + `","dir":"~/Code/api","account":"work","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 13, 10, 0)) + `",` +
-		`"models":[{"model":"claude-opus-5-5","account":"work","reason":"sticky"}],"state":"asking","move_cost":0.80808,` +
+		`{"session":"` + asking + `","dir":"~/Code/api","account":"work","label":"work","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 13, 10, 0)) + `",` +
+		`"models":[{"model":"claude-opus-5-5","account":"work","label":"work","reason":"sticky"}],"state":"asking","move_cost":0.80808,` +
 		`"started":"` + at(october(6, 22, 0, 0)) + `","requests":1,"worth":0.03804},` +
-		`{"session":"` + moving + `","dir":"~/Code/cli","account":"side","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 12, 50, 0)) + `",` +
-		`"models":[{"model":"claude-opus-5-5","account":"side","reason":"moved: work is at its reserve"}],` +
+		`{"session":"` + moving + `","dir":"~/Code/cli","account":"side","label":"side","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 12, 50, 0)) + `",` +
+		`"models":[{"model":"claude-opus-5-5","account":"side","label":"side","reason":"moved: work is at its reserve"}],` +
 		`"started":"` + at(october(7, 10, 15, 0)) + `","requests":2,"worth":0.07608,` +
-		`"moved":{"at":"` + at(october(7, 11, 0, 0)) + `","from":"work","reason":"moved: work is at its reserve","cost":0.008}},` +
-		`{"session":"` + ended + `","dir":"~/Code/web","account":"work","model":"claude-opus-9","ended":"` + at(october(7, 8, 30, 0)) + `",` +
+		`"moved":{"at":"` + at(october(7, 11, 0, 0)) + `","from":"work","from_label":"work","reason":"moved: work is at its reserve","cost":0.008}},` +
+		`{"session":"` + ended + `","dir":"~/Code/web","account":"work","label":"work","model":"claude-opus-9","ended":"` + at(october(7, 8, 30, 0)) + `",` +
 		`"started":"` + at(october(7, 8, 0, 0)) + `","requests":2,"worth":0.03804,"unpriced":["claude-opus-9"]}],` +
 		`"today":{"sessions":3,"requests":5,"worth":0.15216,"unpriced":["claude-opus-9"]}}`
 	for _, form := range jsonForms() {

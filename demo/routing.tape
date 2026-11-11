@@ -39,8 +39,9 @@ Sleep 9s
 # The routing card.
 Type "p"
 Sleep 1500ms
-# side picked.
-Type "3"
+# side picked, three rows under auto.
+Down 3
+Space
 Sleep 1500ms
 # New and running sessions: the card counts 41e0 and 9c2e to move, at a cost.
 Type "m"

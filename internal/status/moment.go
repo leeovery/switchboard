@@ -26,13 +26,15 @@ type Moment struct {
 	// Routed is set on the router's document, as read, and Probed on one
 	// built by probing: neither before any document is.
 	Routed, Probed bool
-	// Fallback, Health, Restart, Pin, Events and Sessions are the document's
-	// records, as read: why it was probed rather than the router's, the
-	// router's health, a restart it has due, its global pin, what has
+	// Fallback, Health, Restart, Moving, Pin, Events and Sessions are the
+	// document's records, as read: why it was probed rather than the
+	// router's, the router's health, a restart it has due, how its move of
+	// the history onto the accounts' ids stands, its global pin, what has
 	// happened lately, and how many sessions it routed in the last hour.
 	Fallback Fallback
 	Health   Health
 	Restart  Restart
+	Moving   Moving
 	Pin      Pin
 	Events   []Event
 	Sessions int
@@ -67,9 +69,8 @@ type Moment struct {
 
 // AccountNow is an account of a document as it stands at a moment.
 type AccountNow struct {
-	// ID and Label are as configured, Place is its number, its place in the
-	// document, from 1, as Numbering numbers it, and Primary is set on the
-	// primary.
+	// ID and Label are as configured, Place is its place in the document,
+	// from 1, and Primary is set on the primary.
 	ID, Label string
 	Place     int
 	Primary   bool
@@ -87,16 +88,17 @@ type AccountNow struct {
 	// and OutOfPool where the pool leaves it out, as the global pin names
 	// others, each as read.
 	Pinned, Next, Elsewhere, InPool, OutOfPool bool
-	// TokenSet is set where its token is usable, Read where its usage was
-	// read, whatever windows it reported, and ReadAt is when: zero where it
-	// never was. Error says why its last read failed, cleaned, Failures are
-	// the windows its last probe expected but couldn't read, and Sessions how
-	// many sessions the router sent it in the last hour, each as read.
-	TokenSet, Read bool
-	ReadAt         time.Time
-	Error          string
-	Failures       []quota.Failure
-	Sessions       int
+	// TokenSet is set where its token is usable, TokenForeign where it isn't
+	// as the token it holds is another subscription's, Read where its usage
+	// was read, whatever windows it reported, and ReadAt is when: zero where
+	// it never was. Error says why its last read failed, cleaned, Failures
+	// are the windows its last probe expected but couldn't read, and Sessions
+	// how many sessions the router sent it in the last hour, each as read.
+	TokenSet, TokenForeign, Read bool
+	ReadAt                       time.Time
+	Error                        string
+	Failures                     []quota.Failure
+	Sessions                     int
 	// TokenYear is its token's year, as read. TokenWarned and TokenEnding
 	// judge it at Now.
 	TokenYear TokenYear
@@ -208,6 +210,10 @@ type WindowNow struct {
 	// it.
 	Kind, Unheld WindowKind
 	At           time.Time
+	// TokenForeign is set where its Kind is WindowTokenless as the token its
+	// account holds is another subscription's, as the account's TokenForeign
+	// says.
+	TokenForeign bool
 	// Used is how much of it is used as it stands at Now, as WindowAt has it:
 	// none once it has reset since it was read, or of one not started. Pace
 	// is its even pace, and Allowance what can be spent of it and still last
@@ -294,7 +300,7 @@ func (d Document) At(now time.Time, policy score.Policy) Moment {
 	judged := d.judgeAll(now, policy)
 	m := Moment{
 		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter, Probed: d.Source == SourceProbe,
-		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
+		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Moving: d.Moving, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
 		ComingUp: comingAfter(d.ComingUp, now), Next: d.next(), Learning: d.Demand != nil && d.Demand.Learning,
 		doc: d, policy: policy, judged: judged,
 		pool: sync.OnceValue(func() Pool { return d.pool(judged) }),
@@ -325,13 +331,12 @@ func (m Moment) At(now time.Time) Moment {
 // HeldMoment is a document's moment, worked out the first time it's asked
 // for, and known by the document it's of, by when that was built, the time
 // it's at, and the policy it's judged by: for every look at the one document
-// at the one time, by the one policy, to share. It numbers the document's
-// accounts, and knows the windows every model shares each of them lacks,
-// without working the moment out, for a look to lay out by.
+// at the one time, by the one policy, to share. It knows the windows every
+// model shares each of the document's accounts lacks, without working the
+// moment out, for a look to lay out by.
 type HeldMoment struct {
 	generated, now time.Time
 	policy         score.Policy
-	numbering      Numbering
 	// lacks are the keys of the windows every model shares that each of the
 	// document's accounts lacks, by its id, as lacking has them.
 	lacks  map[string][]string
@@ -342,7 +347,7 @@ type HeldMoment struct {
 // it.
 func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 	return &HeldMoment{
-		generated: d.GeneratedAt, now: now, policy: policy, numbering: d.numbering(), lacks: d.lacking(policy),
+		generated: d.GeneratedAt, now: now, policy: policy, lacks: d.lacking(policy),
 		moment: sync.OnceValue(func() Moment { return d.At(now, policy) }),
 	}
 }
@@ -351,7 +356,7 @@ func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 // look at its document at its Now, by its policy, to share.
 func (m Moment) Held() *HeldMoment {
 	return &HeldMoment{
-		generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, numbering: m.numbering(), lacks: m.lacking(),
+		generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, lacks: m.lacking(),
 		moment: func() Moment { return m },
 	}
 }
@@ -489,7 +494,7 @@ func (a AccountNow) Title() string {
 // one it hasn't reported: one every model shares that it lacks, as lacking
 // has them, which stands as WindowNone, named as NameOfKey names it; else one
 // that stands unread, or without a usable token, its key and kind alone
-// given.
+// given, and whether the token its account holds is another subscription's.
 func (a AccountNow) Window(key string) (WindowNow, bool) {
 	i := slices.IndexFunc(a.Windows, func(w WindowNow) bool { return w.Key == key })
 	switch {
@@ -498,7 +503,7 @@ func (a AccountNow) Window(key string) (WindowNow, bool) {
 	case a.lacksWindow(key):
 		return WindowNow{Key: key, Label: key, Name: NameOfKey(key), Kind: WindowNone}, false
 	}
-	return WindowNow{Key: key, Kind: a.unreported}, false
+	return WindowNow{Key: key, Kind: a.unreported, TokenForeign: a.unreported == WindowTokenless && a.TokenForeign}, false
 }
 
 // lacksWindow reports whether the account lacks the window every model
@@ -612,7 +617,7 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
 		Reserve: a.Reserve, Cap: 1 - a.Reserve, Floor: d.floor(a), ReserveHolds: d.reserveHolds(a),
 		Pinned: d.Pin.Has(a.ID), Next: a.ID == m.Next, Elsewhere: d.elsewhere(a.ID), InPool: d.pooled() && d.inPool(a.ID), OutOfPool: d.pooled() && !d.inPool(a.ID),
-		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, TokenYear: a.TokenYear(), Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
+		TokenSet: a.TokenSet, TokenForeign: a.TokenForeign, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, TokenYear: a.TokenYear(), Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions,
 		Extra: a.Extra, Hold: s.stood.held, Held: s.stood.limited, LimitHolds: a.Limit.holds(m.Now), LimitMoved: limit.Count,
 		ReachedReserve: s.reached, CapHolds: s.stood.capped, CapSince: m.ranOn(a.ID, WasCapped, s.capSince(capped, capTold)), CapBack: s.capBack,
 		RefusedSince: refused.At, TokenRefused: s.stood.refused,
@@ -711,6 +716,7 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	}
 	wn.Unheld, _ = s.unheldOf(w)
 	if wn.Kind, wn.At = s.kindOf(w); wn.Kind == WindowTokenless || wn.Kind == WindowUnread {
+		wn.TokenForeign = wn.Kind == WindowTokenless && a.TokenForeign
 		return wn
 	}
 	wn.Used, wn.Pace, wn.Allowance, wn.Next, wn.Room = w.stands.Utilization, w.pace, w.allowance, w.stands.ResetsAt, w.room

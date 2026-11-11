@@ -814,8 +814,8 @@ func TestExampleIsValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load(Example) error = %v", err)
 	}
-	if primary := cfg.Accounts.Primary(); primary.ID != "work" {
-		t.Errorf("Load(Example) primary = %+v, want work", primary)
+	if primary := cfg.Accounts.Primary(); primary.ID != "b6s7" {
+		t.Errorf("Load(Example) primary = %+v, want b6s7", primary)
 	}
 	if !strings.Contains(config.Example, "\n# reserve = 0.1 ") || slices.ContainsFunc(cfg.Accounts, func(a config.Account) bool { return a.Reserve != 0 }) {
 		t.Errorf("Example reads\n%s\nwant a reserve shown, and left off", config.Example)

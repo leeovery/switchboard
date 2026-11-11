@@ -84,7 +84,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, asJSON bool) 
 		Ledger:   readers.ledger,
 		Prices:   pricing(cfg),
 		Now:      now,
-	})
+	}).Named(status.NamesOf(cfg.Accounts, readers.removed))
 	if asJSON {
 		return writeJSON(out, list)
 	}
@@ -138,7 +138,8 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 // sessionRow is a session's row: its mark; its id cut short and its
 // directory; the account it's on, and its model; what it's doing, at now;
 // when it started; its requests today, and their worth; and how it came to
-// its account, as the Log's routing says it, "from work, at its cap  $1.82".
+// its account, as the Log's routing says it, "from work, at its cap  $1.82",
+// each account named as the List's Named names it.
 func sessionRow(s views.ListedSession, now time.Time) []string {
 	session := status.ShortID(prose.Clean(s.Session))
 	if s.Dir != "" {
@@ -148,6 +149,6 @@ func sessionRow(s views.ListedSession, now time.Time) []string {
 	if !s.Started.IsZero() {
 		started = prose.Past(now, s.Started)
 	}
-	return []string{s.Mark.String(), session, orNone(prose.Clean(s.Account)), orNone(ledger.ShortModelID(s.Model)),
+	return []string{s.Mark.String(), session, orNone(s.Said()), orNone(ledger.ShortModelID(s.Model)),
 		s.Activity.State(now), started, prose.Grouped(s.Requests), s.Cents(), s.Routing.Said().String()}
 }

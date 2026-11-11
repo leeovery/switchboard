@@ -93,12 +93,13 @@ func shownIDs(f Fixture) []string {
 	return ids
 }
 
-// accountNumbered is an account's number on a line or a lane, then what
-// follows it, its name first.
-var accountNumbered = regexp.MustCompile(`(?:^|\s)[0-9]+ `)
+// accountNamed is where an account's name starts on a line or a lane: after
+// its line's jack, or at a lane's first column, what follows it its name
+// first.
+var accountNamed = regexp.MustCompile(`(?:^|[○◉] )`)
 
 // boardSaidIn is how many of the accounts named and the sessions by the ids
-// given the rows show, an account where its number leads its name, a
+// given the rows show, an account where its line or lane names it, a
 // session where its id is a word of a row; and how many of the rows aren't
 // blank, but for those saying what's out of view.
 func boardSaidIn(rows, names, ids []string) boardSaid {
@@ -109,7 +110,7 @@ func boardSaidIn(rows, names, ids []string) boardSaid {
 		}
 	}
 	for _, name := range names {
-		if slices.ContainsFunc(rows, func(row string) bool { return numbersName(row, name) }) {
+		if slices.ContainsFunc(rows, func(row string) bool { return namesAccount(row, name) }) {
 			said.accounts++
 		}
 	}
@@ -121,10 +122,10 @@ func boardSaidIn(rows, names, ids []string) boardSaid {
 	return said
 }
 
-// numbersName reports whether the row leads a name with an account's number,
-// and that name is the one given, whole or cut.
-func numbersName(row, name string) bool {
-	for _, at := range accountNumbered.FindAllStringIndex(row, -1) {
+// namesAccount reports whether the row names an account as its line or lane
+// does, and that name is the one given, whole or cut.
+func namesAccount(row, name string) bool {
+	for _, at := range accountNamed.FindAllStringIndex(row, -1) {
 		if leadsWith(row[at[1]:], name) {
 			return true
 		}

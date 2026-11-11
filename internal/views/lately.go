@@ -158,6 +158,7 @@ var latelyTellers = map[string]func(t latelyTeller, e status.Event, f eventFact)
 	status.EventCap:      latelyTeller.held,
 	status.EventLimit:    latelyTeller.held,
 	status.EventRefused:  latelyTeller.held,
+	status.EventForeign:  latelyTeller.disowned,
 	status.EventPrimed:   latelyTeller.befallen,
 	status.EventRoom:     latelyTeller.befallen,
 	status.EventPin:      latelyTeller.pinned,
@@ -229,6 +230,14 @@ func (t latelyTeller) pressured(e status.Event, f eventFact) (Said, Said) {
 func (latelyTeller) held(e status.Event, f eventFact) (Said, Said) {
 	full, short := befell(e, f)
 	return heldBack(account(e.Account), e, f, " "+full, false), heldBack(account(e.Account), e, f, " "+short, true)
+}
+
+// disowned tells of an account's token found to be another subscription's, as
+// prose says it: "work's token is another subscription's", or short, "work:
+// wrong token".
+func (latelyTeller) disowned(e status.Event, _ eventFact) (Said, Said) {
+	who := account(e.Account)
+	return Said{Subject: who, Words: clause(prose.ForeignTokenAfterName)}, Said{Subject: who, Words: clause(": " + prose.ForeignTokenShort)}
 }
 
 // befallen tells of a prime or room again befalling an account, its name

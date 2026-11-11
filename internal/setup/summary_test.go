@@ -161,7 +161,8 @@ func TestTheAccountsLine(t *testing.T) {
 		{name: "unchecked beside every other kind, each named: a warning", review: setup.Review{Accounts: []setup.Reviewed{
 			{ID: "work", Primary: true, Token: working}, {ID: "personal", Token: unchecked}, {ID: "side", Token: refused},
 			{ID: "team", Token: setup.TokenStanding{State: setup.TokenUnreadable}}, {ID: "spare"}, {ID: "extra", Token: unchecked},
-		}}, mark: setup.Warning, want: "6: 1 working, 2 unchecked, 1 refused, 1 unreadable, 1 without a token · primary: work"},
+			{ID: "other", Token: setup.TokenStanding{State: setup.TokenForeign}},
+		}}, mark: setup.Warning, want: "7: 1 working, 2 unchecked, 1 refused, 1 with the wrong token, 1 unreadable, 1 without a token · primary: work"},
 		{name: "unchecked while one is still to be checked: checking", review: setup.Review{Accounts: []setup.Reviewed{
 			{ID: "work", Primary: true, Token: setup.TokenStanding{State: setup.TokenRead}}, {ID: "personal", Token: unchecked},
 		}}, want: "2, checking… · primary: work"},

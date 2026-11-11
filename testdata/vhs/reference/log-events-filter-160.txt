@@ -16,18 +16,18 @@ LOG    Requests  Events  [ ]  ────────────────�
 ▲ 07:58:30  2b6d a│  ■ cap             1  an account at its cap                 □ c61b  mobile        side          1 event   started 14:41  │
 ▲ 08:31:02  a8f1 w│  ■ limit           0  an account at its limit               □ d28c  switchboard   side          2 events  asking         │
 ◇ 08:47:00        │  ■ refused         0  an account's token refused            □ 7f3a  api           side          2 events                 │
-▲ 09:12:40  e0c4 i│  ■ primed          5  a window started early                □ db8a  infra         side          2 events  idle 1m        │
-▲ 09:40:05  3d7a d│  ■ open            0  an account with room again            □ 9c2e  website       personal      1 event   idle 9m        │
-▲ 10:02:18  5b19 m│  ■ pin             0  routing set by hand                   ▼ 5 more today   / finds one from another day                │
-◇ 11:30:02        │  ■ auto            0  routing given back to the router                                                                   │
-▲ 11:55:31  9c2e w│  ■ restart         0  a restart of the router falling due                                                                │
-▲ 12:02:10  d28c s│  ■ health          0  the router unhealthy, or well again                                                                │
-◇ 12:10:00        │                                                                                                                          │
-▲ 12:47:12  41e0 d│  It shows all 20 of today's events.                                                                                      │
-▸ 13:22:40  db8a i│                                                                                                                          │
-◇ 13:50:00        │                                                               ←→ side   ↑↓ move   space tick   enter apply   esc cancel  │
-▲ 14:12:30  7f3a a╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╎ 14:31:03                     cap       work             95% of its 5-hour window: its 3 sessions move to side as their next requests come
+▲ 09:12:40  e0c4 i│  ■ foreign         0  an account's token not its own        □ db8a  infra         side          2 events  idle 1m        │
+▲ 09:40:05  3d7a d│  ■ primed          5  a window started early                □ 9c2e  website       personal      1 event   idle 9m        │
+▲ 10:02:18  5b19 m│  ■ open            0  an account with room again            ▼ 5 more today   / finds one from another day                │
+◇ 11:30:02        │  ■ pin             0  routing set by hand                                                                                │
+▲ 11:55:31  9c2e w│  ■ auto            0  routing given back to the router                                                                   │
+▲ 12:02:10  d28c s│  ■ restart         0  a restart of the router falling due                                                                │
+◇ 12:10:00        │  ■ health          0  the router unhealthy, or well again                                                                │
+▲ 12:47:12  41e0 d│                                                                                                                          │
+▸ 13:22:40  db8a i│  It shows all 20 of today's events.                                                                                      │
+◇ 13:50:00        │                                                                                                                          │
+▲ 14:12:30  7f3a a│                                                               ←→ side   ↑↓ move   space tick   enter apply   esc cancel  │
+╎ 14:31:03        ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ▸ 14:31:13  d28c switchboard   moved     work → side      work reached its cap   182k cached again, $1.82
 ▸ 14:31:20  7f3a api           moved     work → side      work reached its cap   98k cached again, $0.98
 ▸ 14:31:40  db8a infra         moved     work → side      work reached its cap   66k cached again, $0.66

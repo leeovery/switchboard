@@ -4,7 +4,7 @@
 
 ACCOUNTS    Compare  Detail  [ ]   accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put ───────────────────────────────────────────  < this week >
 
-                          1 work             2 personal ◆       3 side             4 client           5 spare            6 lab              0 all accounts
+                          work               personal ◆         side               client             spare              lab                all accounts
                           ● at cap           ● open             ● open             ● open             ● open             ● pressure         8 of 10 open
 
 WEEK USED                    ▍ ┃      34%          ┃     66%         ┃ ▊    78%        ▊┃      47%    ▌  ┃         5%         ┃      58%        ▌┃      45%

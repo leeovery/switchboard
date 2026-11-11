@@ -14,6 +14,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // recordsOfLines are the records of lines, each decoded once, in order.
@@ -145,7 +146,7 @@ func shownOfLines(lines []ledger.Line, prices ledger.Table, now time.Time) []any
 		held[i] = ledger.Held{Line: lines[i]}
 		byDay[Today(lines[i].At).Date] = append(byDay[Today(lines[i].At).Date], held[i])
 	}
-	for row := range RequestLines(slices.Values(held)) {
+	for row := range RequestLines(slices.Values(held), status.Names{}) {
 		shown = append(shown, row)
 	}
 	for _, date := range slices.Sorted(maps.Keys(byDay)) {

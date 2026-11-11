@@ -353,7 +353,7 @@ func printedRow(stdout, heading, label string) string {
 		return ""
 	}
 	for _, row := range rows[at+1:] {
-		if fields := strings.Fields(row); len(fields) > 1 && fields[1] == label {
+		if fields := strings.Fields(row); len(fields) > 1 && fields[0] == label {
 			return strings.TrimRight(row, " ")
 		}
 	}

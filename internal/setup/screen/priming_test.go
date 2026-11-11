@@ -238,7 +238,7 @@ func TestQQuitsWhileTheDayIsSet(t *testing.T) {
 	if got := h.typedDay(); got != "07:00-22:00" {
 		t.Errorf("q while the day's set leaves the field holding %q, want 07:00-22:00", got)
 	}
-	if got := h.model.walk.left(); got != (Left{Ending: Paused}) {
+	if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Paused}) {
 		t.Errorf("setup stands to leave %+v, want paused", got)
 	}
 }
@@ -315,7 +315,7 @@ func TestAPrimingStepThatFailsStopsSetupThere(t *testing.T) {
 			tt.edit(h)
 			h.pressAndDeliver("enter")
 
-			if got := h.model.walk.left(); got != (Left{Ending: Failed, Err: tt.want}) {
+			if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Failed, Err: tt.want}) {
 				t.Errorf("setup stands to leave %+v, want failing with %v", got, tt.want)
 			}
 			if got, want := h.rows()[fieldRow], factRowOf("✗", notSet(tt.want)); got != want {

@@ -323,13 +323,19 @@ type fakeSteps struct {
 	pasteEnds      *setup.Tokened
 	pasteErr       error
 	pasteUntilGone chan<- struct{}
-	standings      int
-	reviews        int
-	primings       int
-	services       int
-	skills         int
-	links          int
-	hooks          int
+	// answers are the answers Answer is given, each with the token asked,
+	// each adding the account answerFor says, where it's set, ending as
+	// answerEnds has it, saved where it's nil.
+	answers    []fakeAnswer
+	answerFor  setup.TokenFor
+	answerEnds *setup.Tokened
+	standings  int
+	reviews    int
+	primings   int
+	services   int
+	skills     int
+	links      int
+	hooks      int
 }
 
 // fakeMaking is how fakeSteps makes a token: it reports each of steps in
@@ -409,8 +415,10 @@ func (s *fakeSteps) MakeToken(ctx context.Context, f setup.TokenFor, report func
 }
 
 // ended is the making for f ended as tokened says: where it's saved, the
-// account added, marked the primary only where f asks it to be, as config
-// adds it, its token working, a year from start, or its token replaced so.
+// account added, under its label in lower case, as the organization would
+// decide its id, marked the primary only where f asks it to be, as config
+// adds it, its token working, a year from start, or its token replaced so,
+// the id saved to given.
 func (s *fakeSteps) ended(f setup.TokenFor, tokened setup.Tokened) setup.Tokened {
 	if tokened.Result != setup.TokenSaved {
 		return tokened
@@ -420,11 +428,15 @@ func (s *fakeSteps) ended(f setup.TokenFor, tokened setup.Tokened) setup.Tokened
 	year := switchstatus.TokenYearFrom(start)
 	token := setup.TokenStanding{State: setup.TokenRead, Year: year}
 	s.review.Accounts = slices.Clone(s.review.Accounts)
-	if i := slices.IndexFunc(s.review.Accounts, func(a setup.Reviewed) bool { return a.ID == f.Account.ID }); i >= 0 {
+	id := f.Account.ID
+	if f.Add {
+		id = strings.ToLower(f.Account.Label)
+	}
+	if i := slices.IndexFunc(s.review.Accounts, func(a setup.Reviewed) bool { return a.ID == id }); i >= 0 {
 		if s.replaced == nil {
 			s.replaced = map[string]int{}
 		}
-		s.replaced[f.Account.ID]++
+		s.replaced[id]++
 		s.review.Accounts[i].Token = token
 	} else {
 		a := f.Account
@@ -433,14 +445,35 @@ func (s *fakeSteps) ended(f setup.TokenFor, tokened setup.Tokened) setup.Tokened
 				s.review.Accounts[i].Primary = false
 			}
 		}
-		s.review.Accounts = append(s.review.Accounts, setup.Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Primary: a.Primary, Token: token})
+		s.review.Accounts = append(s.review.Accounts, setup.Reviewed{ID: id, Label: a.Label, Plan: a.Plan, Primary: a.Primary, Token: token})
 	}
 	s.checked = maps.Clone(s.checked)
 	if s.checked == nil {
 		s.checked = map[string]setup.TokenStanding{}
 	}
-	s.checked[f.Account.ID] = setup.TokenStanding{State: setup.TokenWorking, Year: year}
+	s.checked[id] = setup.TokenStanding{State: setup.TokenWorking, Year: year}
+	tokened.ID = id
 	return tokened
+}
+
+// fakeAnswer is an answer Answer was given: the token asked, and the
+// answer.
+type fakeAnswer struct {
+	asked  *setup.Asked
+	answer accounts.Answer
+}
+
+// Answer keeps the answer, and ends as answerEnds has it, the account
+// answerFor says added where it's nil, as ended has a token saved.
+func (s *fakeSteps) Answer(_ context.Context, asked *setup.Asked, answer accounts.Answer) (setup.Tokened, error) {
+	s.mu.Lock()
+	s.answers = append(s.answers, fakeAnswer{asked: asked, answer: answer})
+	ends, f := saved, s.answerFor
+	if s.answerEnds != nil {
+		ends = *s.answerEnds
+	}
+	s.mu.Unlock()
+	return s.ended(f, ends), nil
 }
 
 // nextMake is whose token MakeToken is next asked to make, once it's asked,
@@ -657,7 +690,7 @@ func (s *fakeSteps) CheckAdding(adding setup.Adding) (config.NewAccount, error) 
 		return config.NewAccount{}, s.addErr
 	}
 	plan, err := config.ParsePlan(adding.Plan)
-	return config.NewAccount{ID: adding.ID, Label: adding.Label, Plan: plan}, err
+	return config.NewAccount{Label: adding.Label, Plan: plan}, err
 }
 
 // fakeEdit is an edit EditAccount was given, of the account id.

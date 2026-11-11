@@ -143,7 +143,7 @@ func (m Model) asking() (Model, int) {
 func (m Model) readYear(year int, now time.Time) (Model, tea.Cmd) {
 	from := views.YearFrom(views.YearAsk{Year: year}, now, m.cfg.WeekStarts)
 	in := views.HistoryInput{
-		From: from, Now: now, Began: m.past.began, Prices: m.cfg.Prices, Accounts: m.cfg.Accounts,
+		From: from, Now: now, Began: m.past.began, Prices: m.cfg.Prices, Accounts: m.cfg.Accounts, Removed: m.cfg.Removed,
 		WeekStarts: m.cfg.WeekStarts, WeekWindow: m.cfg.WeekWindow, Family: m.cfg.Family,
 	}
 	l := m.cfg.Ledger

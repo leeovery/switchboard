@@ -20,9 +20,9 @@ func newExportCommand(a *app) *cobra.Command {
 		Short: "Copy this Mac's history into a folder of its own in <dir>",
 		Long: `Copy this Mac's history into a folder of its own in <dir>, mac-<id>,
 named by this install's id, which the first export makes: the request
-ledger's lines, the days' summaries, the readings history and the router's
-events, each day's lines in one compressed file, and export.json, saying
-whose folder it is and when it was exported. Kept in a folder Dropbox or
+ledger's lines, the days' summaries, the readings history, the router's
+events and the accounts record, each day's lines in one compressed file, and
+export.json, saying whose folder it is and when it was exported. Kept in a folder Dropbox or
 iCloud Drive syncs, the history outlasts the Mac.
 
 A day exported before, and unchanged since, is left as it is, and nothing in
@@ -63,6 +63,19 @@ func oneFolder(purpose, never string) cobra.PositionalArgs {
 // it couldn't read, once it has exported the rest and said which.
 var errUnexported = errors.New("some days couldn't be exported")
 
+// configuredAccounts are the accounts the config configures, an export's
+// record labelled as they're labelled: none, warning, where the config can't
+// be loaded, so the history exports all the same, the record's labels as it
+// keeps them.
+func (a *app) configuredAccounts() config.Accounts {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		logger.Warn("can't load the config, so the accounts record is exported with the labels it keeps", "error", err)
+		return nil
+	}
+	return cfg.Accounts
+}
+
 // export exports the history in the state directory into the Mac's folder in
 // dir, taken from the working directory where it's relative, and says what
 // it did, then, on errOut, each day's file it couldn't read, failing with
@@ -77,7 +90,10 @@ func (a *app) export(out, errOut io.Writer, dir string) error {
 	if err != nil {
 		return err
 	}
-	r, err := export.Exporter{StateDir: state, Now: a.Now, Logger: logger}.Export(dir)
+	if err := historyMoved(state); err != nil {
+		return err
+	}
+	r, err := export.Exporter{StateDir: state, Now: a.Now, Logger: logger, Accounts: a.configuredAccounts()}.Export(dir)
 	if err != nil {
 		return err
 	}

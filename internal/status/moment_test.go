@@ -1146,6 +1146,42 @@ func TestAnAccountIsOutOfQuotaWhereALimitOrItsCapHoldsItBackFromEveryRequest(t *
 	}
 }
 
+// An account whose token the router found another subscription's takes no
+// requests: it stands as one without a usable token, saying its token is
+// another's and what puts it right, its windows saying so too, and new
+// sessions go elsewhere. One without a token says nothing of another's.
+func TestAnAccountWhoseTokenIsAnotherSubscriptionsTakesNoRequests(t *testing.T) {
+	foreign := status.Account{ID: "work", Label: "work", TokenForeign: true, Error: "its token is another subscription's"}
+	tokenless := status.Account{ID: "personal", Label: "personal", Error: "no token"}
+	side := readAt("side", windowIn("5h", 0.6, 3*time.Hour), windowIn("7d", 0.5, 2*day))
+	m := statustest.Router(policy, nil, statustest.Routed{Account: foreign}, statustest.Routed{Account: tokenless}, statustest.Routed{Account: side}).WorkedOut(policy).At(built.Add(time.Minute), policy)
+	work, personal := m.Accounts[0], m.Accounts[1]
+	if work.TokenSet || !work.TokenForeign || work.CanRise || work.Next {
+		t.Errorf("work has TokenSet = %v, TokenForeign = %v, CanRise = %v, Next = %v; want only TokenForeign: it takes no requests", work.TokenSet, work.TokenForeign, work.CanRise, work.Next)
+	}
+	if personal.TokenForeign {
+		t.Error("personal, without a token, has TokenForeign, want it only of a token another subscription's")
+	}
+	for _, key := range []string{"5h", "7d"} {
+		if w, _ := work.Window(key); w.Kind != status.WindowTokenless || !w.TokenForeign {
+			t.Errorf("work's %s window has Kind %v, TokenForeign = %v; want tokenless, its token another subscription's", key, w.Kind, w.TokenForeign)
+		}
+		if w, _ := personal.Window(key); w.Kind != status.WindowTokenless || w.TokenForeign {
+			t.Errorf("personal's %s window has Kind %v, TokenForeign = %v; want tokenless alone", key, w.Kind, w.TokenForeign)
+		}
+	}
+	want := status.Routing{
+		Kind: status.RoutingTokenless, Says: "its token is another subscription's",
+		Clauses: []string{"switchboard accounts token work", "or add that subscription as an account of its own"}, Short: []string{"wrong token"},
+	}
+	if !reflect.DeepEqual(work.Routing, want) {
+		t.Errorf("work's routing is %+v, want %+v", work.Routing, want)
+	}
+	if m.Next != "side" {
+		t.Errorf("new sessions go to %q, want side", m.Next)
+	}
+}
+
 func TestAMomentAtAnotherNowIsItsDocumentAtThatNow(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {

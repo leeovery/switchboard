@@ -9,12 +9,11 @@ type ReserveAsk struct {
 	Elsewhere string
 }
 
-// AskingReserve is what the reserve card of the primary with the given id
-// says.
-func AskingReserve(id string) ReserveAsk {
+// AskingReserve is what the reserve card of the primary named name says.
+func AskingReserve(name string) ReserveAsk {
 	return ReserveAsk{
 		Says: []string{
-			id + " is the primary, the account the Claude apps are signed in to.",
+			name + " is the primary, the account the Claude apps are signed in to.",
 			"Its reserve is the share of each of its windows kept back for them.",
 		},
 		Takes:     "a percentage, or " + reserveNone,

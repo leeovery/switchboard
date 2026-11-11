@@ -82,6 +82,7 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 	limited.AsItResets = true
 	refused := stretchOf(tl, views.CellRefused, routedClock(1, 14, 12), routedClock(1, 15, 0), 3, 7)
 	refusing := status.AccountNow{ID: "work", Read: true, TokenRefused: true, Refusal: status.Refusal{Until: routedClock(1, 15, 0), Status: 401}}
+	foreign := status.AccountNow{ID: "work", TokenForeign: true}
 	weekOut := stretchOf(week.Timeline, views.CellLimited, routedClock(3, 6, 0), routedClock(4, 2, 0), 51, 66)
 	weekOut.Projected, weekOut.AsItResets = true, true
 	weekSoon := stretchOf(week.Timeline, views.CellLimited, routedClock(2, 6, 0), routedClock(4, 2, 0), 31, 66)
@@ -141,6 +142,10 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 		{
 			name: "without a token", shown: five, stretch: stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135),
 			want: "no token", inks: []ink{exhaustedInk},
+		},
+		{
+			name: "its token another subscription's", shown: five, stretch: stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135), account: &foreign,
+			want: "wrong token", inks: []ink{exhaustedInk},
 		},
 		{
 			name: "the week's run-out more than a day ahead, by its day alone", shown: week, stretch: weekOut,

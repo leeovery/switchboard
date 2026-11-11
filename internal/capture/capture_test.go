@@ -184,7 +184,7 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 		"● healthy",
 		// side's 5-hour window at its reading, its bar eased all the way
 		// there, after its week.
-		"78%  out ~Fri                      ▍ ┃                                   13%  21%/h till 18:50",
+		"78%  out ~Fri                      ▌ ┃                                    13%  21%/h till 18:50",
 		// What the router tells of lately, none picked out as new, the first
 		// look having seen them all.
 		"14:41  ▲ c61b started on side",
@@ -290,7 +290,7 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		wantNoneOf []string
 	}{
 		{name: "page-routing", want: []string{
-			"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "│  ■ 2 personal  open", "│  ■ 3 side      open", "│  ■ m  also move the sessions running",
+			"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "│  ■ personal  open", "│  ■ side      open", "│  ■ m  also move the sessions running",
 			"New sessions go to personal or side. When both are full, the router", "│  chooses.",
 		}},
 		{name: "page-routing-phone", want: []string{"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "The 4 sessions running elsewhere move there", "Rebuilding their caches costs ≈ $"}},
@@ -299,28 +299,28 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{name: "page-session-loading", want: []string{"SESSION   d28c   switchboard  ~/Code/switchboard   loading… ─", "esc back    ? help  q quit"},
 			wantNoneOf: []string{"STORY", "TURNS", "↑↓ turn"}},
 		{name: "page-sessions-chosen", want: []string{"d28c switchboard              ↑ asking     ▸ from work      ●"}},
-		{name: "page-sessions-short", want: []string{"▲ 1 more above", "3 side ▲", "db8a infra"}, wantNoneOf: []string{"1 work", "▼"}},
+		{name: "page-sessions-short", want: []string{"▲ 1 more above", "side ▲", "db8a infra"}, wantNoneOf: []string{"○ work", "◉ work", "▼"}},
 		{name: "page-sessions-not-answering", want: []string{"■ the router isn't answering", "c61b mobile                   ↓ answering"}},
 		{name: "page-year-160x24", want: []string{"limits hit   week ×3 · 5-hour ×412", "▲ 3 more above   ·   ▼ 17 more below   ·   j/k to scroll"}},
-		{name: "page-routing-160x16", want: []string{"╭─ ROUTING · NEW SESSIONS ─", "■ 0 auto", "enter apply   esc cancel  │", "╰────"}},
+		{name: "page-routing-160x16", want: []string{"╭─ ROUTING · NEW SESSIONS ─", "■ auto", "enter apply   esc cancel  │", "╰────"}},
 		{name: "page-detail-list-focus", want: []string{"SESSIONS  now", "▸ ● c61b", "enter opens c61b's page", "↑↓ account  enter its page"}},
-		{name: "page-detail-sessions-focus", want: []string{"▸3 side", "SESSIONS  now", "▸ ● d28c", "enter opens d28c's page", "↑↓ session  ← accounts  enter its page"}},
+		{name: "page-detail-sessions-focus", want: []string{"▸side", "SESSIONS  now", "▸ ● d28c", "enter opens d28c's page", "↑↓ session  ← accounts  enter its page"}},
 		{
 			name: "graphs-108x44",
 			want: []string{
-				"1 work      66% left  ·  capped 14:31  ·  back 17:10    2 personal ◆                   34% left  ·  out ~Sat",
-				"3 side ▲  22% left  ·  out ~Fri  ·  resets Mon 10:00",
+				"work        66% left  ·  capped 14:31  ·  back 17:10    personal ◆                     34% left  ·  out ~Sat",
+				"side ▲    22% left  ·  out ~Fri  ·  resets Mon 10:00",
 			},
 		},
 		{
 			name: "graphs-73x61",
 			want: []string{
-				"1 work             66% left  ·  capped 14:31  ·  back 17:10  ·  caps ~Sat", "2 personal ◆                   34% left  ·  out ~Sat  ·  resets Sun 02:00",
-				"1 work                          5% left  ·  capped 14:31  ·  resets 17:10",
+				"work               66% left  ·  capped 14:31  ·  back 17:10  ·  caps ~Sat", "personal ◆                     34% left  ·  out ~Sat  ·  resets Sun 02:00",
+				"work                            5% left  ·  capped 14:31  ·  resets 17:10",
 			},
 		},
 		{
-			name: "graphs-phone-52", want: []string{"1 work      66% left  ·  capped 14:31  ·  back 17:10", "2 personal ◆                   34% left  ·  out ~Sat"},
+			name: "graphs-phone-52", want: []string{"work        66% left  ·  capped 14:31  ·  back 17:10", "personal ◆                     34% left  ·  out ~Sat"},
 		},
 	}
 	for _, tt := range tests {

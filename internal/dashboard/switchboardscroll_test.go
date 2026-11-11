@@ -144,8 +144,7 @@ func accountsCounted(t *testing.T, f Frame, doc status.Document, laid boardLayou
 	t.Helper()
 	var shown []int
 	for i, ln := range laid.lines {
-		name := fmt.Sprintf("%d %s", i+1, ln.account)
-		if !slices.ContainsFunc(rows[f.top():f.Height-underView], func(row string) bool { return strings.Contains(row, name) }) {
+		if !namedWhole(rows[f.top():f.Height-underView], laid.columns.lines, ln.account) {
 			continue
 		}
 		shown = append(shown, i)

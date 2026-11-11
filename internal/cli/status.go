@@ -75,7 +75,7 @@ switchboard service install (or switchboard serve).
 			if a.printsJSON(form, out) {
 				err = writeJSON(out, doc)
 			} else {
-				m := doc.At(a.Now(), claude.Policy())
+				m := a.withRemoved(doc).At(a.Now(), claude.Policy())
 				_, err = io.WriteString(out, a.unrouted()+m.Text(a.running(cmd.Context(), m)...))
 			}
 			return cmp.Or(err, unread)
@@ -144,6 +144,18 @@ func (a *app) session(ctx context.Context, client *router.Client, given string) 
 		return status.Session{}, err
 	}
 	return client.Session(ctx, id)
+}
+
+// withRemoved is doc, its moments naming the accounts removed that the
+// accounts record keeps, as removedHere gives them, so its text names a
+// session on one by the label it showed last: doc as it is where the config
+// can't be loaded, as where the router's document is printed in its place.
+func (a *app) withRemoved(doc status.Document) status.Document {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return doc
+	}
+	return doc.WithRemoved(a.removedHere(cfg))
 }
 
 // sessionError is err, from asking the router after a session, marked

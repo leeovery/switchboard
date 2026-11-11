@@ -58,7 +58,7 @@ func (s accountSide) side() side {
 // moved a session onto it, or pinned it.
 func (s accountSide) tells(e status.Event) bool {
 	switch e.Kind {
-	case status.EventStarted, status.EventPressure, status.EventPrimed, status.EventRoom:
+	case status.EventStarted, status.EventPressure, status.EventForeign, status.EventPrimed, status.EventRoom:
 		return e.Account == s.id
 	case status.EventCap, status.EventLimit, status.EventRefused:
 		return e.Account == s.id || s.cameFrom(e)
@@ -109,6 +109,8 @@ func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, 
 		return e.Kind, heldBack(nil, e, f, full, false)
 	case status.EventPin:
 		return e.Kind, s.pinnedHere(e)
+	case status.EventForeign:
+		return e.Kind, Said{Words: clause(prose.ForeignToken)}
 	}
 	full, _ := befell(e, f)
 	return e.Kind, Said{Words: clause(full)}

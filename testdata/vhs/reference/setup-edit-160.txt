@@ -6,22 +6,22 @@ ACCOUNTS  ───────────────────────�
 
   Each token was checked with the API just now.
 
-     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN
+    ACCOUNT         PLAN       RESERVE    TOKEN
 
-  1  work ◆          Work          Ultra      5%         ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌  working · expiry date unknown
+    Work ◆          Ultra      5%         ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌  working · expiry date unknown
                                         ╭─ EDIT PERSONAL ──────────────────────────────────────────────────────────────╮
-▌ 2  personal        Personal      not s│                                                                              │
+▌   Personal        not set    none     │                                                                              │
                                         │  Label     Personal                                                          │
-  3  side            Side          Pro  │                                                                              │
+    Side            Pro        none     │                                                                              │
                                         │  Plan      □ Pro    ■ Max    □ Ultra    □ not set                            │
-  +  add an account                     │            used by History to value usage                                    │
+  + add an account                      │            used by History to value usage                                    │
                                         │                                                                              │
                                         │  Primary   ■ no    □ yes                                                     │
-  side has no working token, so no reque│            the account the Claude apps are signed in to                      │
+  Side has no working token, so no reque│            the account the Claude apps are signed in to                      │
   Press t to create a new one, approving│                                                                              │
                                         │  Reserve   none                      usage kept back for the Claude apps     │
-  personal has a token that expires 17 N│                                                                              │signed in to Personal.
-  personal has no plan set, so History c│                              tab next   ←→ select   enter save   esc cancel  │
+  Personal has a token that expires 17 N│                                                                              │signed in to Personal.
+  Personal has no plan set, so History c│                              tab next   ←→ select   enter save   esc cancel  │
                                         ╰──────────────────────────────────────────────────────────────────────────────╯
 
 

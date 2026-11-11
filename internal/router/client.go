@@ -108,6 +108,14 @@ func (c *Client) Status(ctx context.Context) (status.Document, error) {
 	return doc, err
 }
 
+// Moving asks how the router's move of the accounts and their history onto
+// the ids switchboard makes stands, as its status document says: zero where
+// it owes none.
+func (c *Client) Moving(ctx context.Context) (status.Moving, error) {
+	doc, err := c.Status(ctx)
+	return doc.Moving, err
+}
+
 // Sessions asks which sessions the router has routed in the last hour, the
 // one seen last first, and where their requests go.
 func (c *Client) Sessions(ctx context.Context) ([]status.Session, error) {

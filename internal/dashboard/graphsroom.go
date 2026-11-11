@@ -5,7 +5,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -28,7 +27,7 @@ const (
 // come, changing only on a key, a resize, the config, the router's accounts,
 // or an account's 5-hour window going or coming back: the frame's width and
 // its view's rows; the sections shown, those offered alone; the configured
-// accounts, in the config's order, how they're numbered, and those that
+// accounts, in the config's order, and those that
 // have, or may have, the 5-hour, as fiveHourCharted has them; whether Graphs
 // offers the 5-hour, as GraphsOffers has it of 5-HOUR; and the look, which
 // words POOL's key.
@@ -36,7 +35,6 @@ type graphsGiven struct {
 	width, rows    int
 	shown          GraphsSections
 	accounts       config.Accounts
-	numbering      status.Numbering
 	fiveHour       config.Accounts
 	offersFiveHour bool
 	look           Look
@@ -143,7 +141,7 @@ func (g graphsGiven) shape() graphsShape {
 		}
 	}
 	s.across = cardsAcross(len(g.accounts), g.width)
-	s.glance, s.when = layGlance(g.numbering, g.accounts, g.glanceWindows(), s.columns(GraphsGlance).Size), whenRows(s.columns(GraphsWhen).Size, g.look)
+	s.glance, s.when = layGlance(g.accounts, g.glanceWindows(), s.columns(GraphsGlance).Size), whenRows(s.columns(GraphsWhen).Size, g.look)
 	if last >= 0 {
 		s.legend = burnLegend(g.width, g.reserved())
 		s.legend = s.legend[:min(len(s.legend), max(g.rows-1, 0))]
@@ -161,20 +159,20 @@ func (g graphsGiven) paired() []flex.Span {
 	if !g.shown.Has(GraphsGlance) || !g.shown.Has(GraphsWhen) {
 		return nil
 	}
-	if spans, ok := glanceBesideWhen(g.numbering, g.accounts, g.glanceWindows(), g.width); ok {
+	if spans, ok := glanceBesideWhen(g.accounts, g.glanceWindows(), g.width); ok {
 		return spans
 	}
 	return nil
 }
 
-// glanceBesideWhen lays GLANCE and WHEN YOU WORK side by side width cells
-// wide, of the configured accounts given, numbered as n numbers them, GLANCE
-// drawing the windows given, reporting whether both fit at their naturals
-// with glanceWhenGap between: GLANCE from column 0 at its natural, as
-// glancePart has it; WHEN YOU WORK after it, from its natural, as hoursPart
-// has it, to the width's end, as every section takes the width.
-func glanceBesideWhen(n status.Numbering, accounts config.Accounts, windows []views.RunwayWindow, width int) ([]flex.Span, bool) {
-	glance, when := atNatural(glancePart(n, accounts, windows)), atNatural(hoursPart())
+// glanceBesideWhen lays GLANCE and WHEN YOU WORK side by side width cells wide,
+// of the configured accounts given, GLANCE drawing the windows given, reporting
+// whether both fit at their naturals with glanceWhenGap between: GLANCE from
+// column 0 at its natural, as glancePart has it; WHEN YOU WORK after it, from
+// its natural, as hoursPart has it, to the width's end, as every section takes
+// the width.
+func glanceBesideWhen(accounts config.Accounts, windows []views.RunwayWindow, width int) ([]flex.Span, bool) {
+	glance, when := atNatural(glancePart(accounts, windows)), atNatural(hoursPart())
 	when.Most, when.Gap = 0, glanceWhenGap
 	return flex.Lay(width, glance, when)
 }
@@ -386,7 +384,7 @@ func layGraphs(g graphsGiven) graphsLaid {
 // moment the frame holds.
 func (f Frame) graphsLaid() graphsLaid {
 	return layGraphs(graphsGiven{
-		width: f.Width, rows: f.viewRows(), shown: f.graphsOffered(), accounts: f.Graphs.Accounts, numbering: f.numbering(),
+		width: f.Width, rows: f.viewRows(), shown: f.graphsOffered(), accounts: f.Graphs.Accounts,
 		fiveHour: fiveHourCharted(f.Graphs.Accounts, f.held, f.Policy), offersFiveHour: f.graphsOffers(GraphsFiveHour), look: f.Look,
 	})
 }

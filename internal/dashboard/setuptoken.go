@@ -11,13 +11,13 @@ import (
 )
 
 // SetupTokenCard is the token card, open over the Accounts page, making an
-// account's token, as it stands: the account's id; where the making has got;
+// account's token, as it stands: the account's name; where the making has got;
 // and, waiting, how long it's waited, how the sign-in address opened, as
 // setup words it, whether in a private window, and whether it didn't open,
 // when Address is it, as it's given, to paste; or, ended, how it ended,
 // nothing saved, as setup words it.
 type SetupTokenCard struct {
-	ID       string
+	Name     string
 	Stage    TokenStage
 	Waited   time.Duration
 	Opening  string
@@ -66,11 +66,11 @@ var (
 )
 
 // card is the token card at now, width cells wide: NEW TOKEN and the
-// account's id in its top edge; then where the making has got, from
+// account's name in its top edge; then where the making has got, from
 // tokenSaysAt, its mark before it, as body has it; and its keys.
 func (t SetupTokenCard) card(width int, now time.Time) *setupCard {
 	content := width - 2*cardInset
-	return &setupCard{card: Card{title: "NEW TOKEN · " + strings.ToUpper(t.ID), width: width, body: t.body(now, content), keys: t.keys()}}
+	return &setupCard{card: Card{title: "NEW TOKEN · " + strings.ToUpper(t.Name), width: width, body: t.body(now, content), keys: t.keys()}}
 }
 
 // body is what the card says at now, content cells wide, as its stage has

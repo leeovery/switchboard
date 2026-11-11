@@ -6,22 +6,22 @@ ACCOUNTS  ───────────────────────�
 
   Each token was checked with the API just now.
 
-     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN
+    ACCOUNT         PLAN       RESERVE    TOKEN
 
-  1  work ◆          Work          Ultra      5%         ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌  working · expiry date unknown
+    Work ◆          Ultra      5%         ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌  working · expiry date unknown
 
-  2  personal        Personal      not set    none                                 expires 17 Nov 2026  ·  21 days left
+    Personal        not set    none                                 expires 17 Nov 2026  ·  21 days left
 
-▌ 3  side            Side          Pro        none       ✗ rejected: revoked or expired
+▌   Side            Pro        none       ✗ rejected: revoked or expired
 
-  +  add an account
+  + add an account
 
 
-  side has no working token, so no requests are routed to it.
+  Side has no working token, so no requests are routed to it.
   Press t to create a new one, approving it in the browser signed in to Side.
 
-  personal has a token that expires 17 Nov 2026: 21 days left. Press t to create a new one, approving it in the browser signed in to Personal.
-  personal has no plan set, so History can't value its usage. Press e to set one.
+  Personal has a token that expires 17 Nov 2026: 21 days left. Press t to create a new one, approving it in the browser signed in to Personal.
+  Personal has no plan set, so History can't value its usage. Press e to set one.
 
 
 

@@ -264,10 +264,11 @@ func (pr priced) price(plan ledger.Plan) ledger.Picodollars {
 // account's, All, the price, cost and worth are of the accounts whose plans
 // are known, and only of theirs, as its Plans counts them.
 type PlanCost struct {
-	Account string              `json:"account,omitempty"`
-	All     bool                `json:"all,omitempty"`
-	Plan    string              `json:"plan,omitempty"`
-	Price   *ledger.Picodollars `json:"price,omitempty"`
+	Account string `json:"account,omitempty"`
+	status.AccountName
+	All   bool                `json:"all,omitempty"`
+	Plan  string              `json:"plan,omitempty"`
+	Price *ledger.Picodollars `json:"price,omitempty"`
 	Against
 	Worth
 }
@@ -295,7 +296,7 @@ func PlansAtMost(accounts config.Accounts, table ledger.Table) []PlanCost {
 	prices, known := plans{accounts: accounts, table: table}.monthly(ledger.Plan.Most)
 	costs := make([]PlanCost, 0, len(accounts)+1)
 	for i, a := range accounts {
-		cost := PlanCost{Account: a.ID}
+		cost := PlanCost{Account: a.ID, AccountName: status.ConfiguredName(a)}
 		if prices[i] != nil {
 			cost.Plan, cost.Price = a.Plan, prices[i]
 		}
@@ -313,7 +314,7 @@ func plansOf(days []Day, p plans, pr priced) []PlanCost {
 	prices, _ := p.monthly(pr.price)
 	all := PlanCost{All: true, Price: pricesSummed(prices), Against: p.against(worths, pr)}
 	for i, a := range p.accounts {
-		cost := PlanCost{Account: a.ID, Worth: worths[a.ID]}
+		cost := PlanCost{Account: a.ID, AccountName: status.ConfiguredName(a), Worth: worths[a.ID]}
 		if monthly := prices[i]; monthly != nil {
 			cost.Plan, cost.Price = a.Plan, monthly
 			if !pr.none {

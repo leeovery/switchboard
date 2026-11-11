@@ -18,7 +18,7 @@ var cellsMean = map[views.Cell]string{
 	views.CellCapped:    " at its cap",
 	views.CellLimited:   " at its limit",
 	views.CellRefused:   " token refused",
-	views.CellTokenless: " no token",
+	views.CellTokenless: " " + prose.Tokenless(false),
 }
 
 // poolLimitMeans is what the legend says the pool's lane at its limit means,

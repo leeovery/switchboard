@@ -147,12 +147,12 @@ func TestTheMatrixLaysEachWindowOutAsAGroupFromTheNameColumn(t *testing.T) {
 		row, col int
 		want     string
 	}{
-		{2, 16, "WEEK"}, {2, 64, "5-HOUR"}, {2, 112, "FABLE WEEK"},
-		{4, 0, "1 work "}, {4, 34, "34%"}, {4, 39, "19%/day till Sun 21:00"},
-		{6, 0, "2 personal ◆ "}, {8, 0, "3 side ▲ "},
+		{2, 14, "WEEK"}, {2, 63, "5-HOUR"}, {2, 112, "FABLE WEEK"},
+		{4, 0, "work "}, {4, 33, "34%"}, {4, 38, "19%/day till Sun 21:00"},
+		{6, 0, "personal ◆ "}, {8, 0, "side ▲ "},
 		{9, 0, strings.Repeat("─", 160)},
 		{10, 0, "Σ pool "},
-		{12, 16, "┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%"},
+		{12, 14, "┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%"},
 	}
 	for _, c := range checks {
 		if got := colAt(rows[c.row], c.col, len([]rune(c.want))); got != c.want {
@@ -296,10 +296,10 @@ func TestStackedWindowsBarsLeaveTheirWordsTheRowsEnd(t *testing.T) {
 		width, percentAt, wordsAt int
 		words                     string
 	}{
-		{width: 120, percentAt: 16 + 74 + 2, wordsAt: 97, words: "at cap · back 17:10"},
-		{width: 80, percentAt: 16 + 34 + 2, wordsAt: 57, words: "at cap · back 17:10"},
-		{width: 60, percentAt: 16 + 14 + 2, wordsAt: 37, words: "at cap · back 17:10"},
-		{width: 52, percentAt: 16 + 12 + 2, wordsAt: 35, words: "back 17:10"},
+		{width: 118, percentAt: 14 + 74 + 2, wordsAt: 95, words: "at cap · back 17:10"},
+		{width: 80, percentAt: 14 + 36 + 2, wordsAt: 57, words: "at cap · back 17:10"},
+		{width: 60, percentAt: 14 + 16 + 2, wordsAt: 37, words: "at cap · back 17:10"},
+		{width: 52, percentAt: 14 + 12 + 2, wordsAt: 33, words: "back 17:10"},
 	}
 	for _, tt := range tests {
 		rows := printed(trio(), tt.width, ByWindow)
@@ -308,8 +308,8 @@ func TestStackedWindowsBarsLeaveTheirWordsTheRowsEnd(t *testing.T) {
 			t.Fatalf("at %d columns, no section is headed 5-HOUR:\n%s", tt.width, strings.Join(rows, "\n"))
 		}
 		work := rows[first+2]
-		if got := colAt(work, 1, 6); got != "1 work" {
-			t.Errorf("at %d columns, work's row starts %q a cell in, want %q", tt.width, got, "1 work")
+		if got := colAt(work, 1, 4); got != "work" {
+			t.Errorf("at %d columns, work's row starts %q a cell in, want %q", tt.width, got, "work")
 		}
 		if got := colAt(work, tt.percentAt, 3); got != "95%" {
 			t.Errorf("at %d columns, work's row reads %q from column %d, want its percentage", tt.width, got, tt.percentAt)
@@ -329,17 +329,17 @@ func TestByAccountEachAccountIsABlockOfItsWindows(t *testing.T) {
 		row, col int
 		want     string
 	}{
-		{name: "wide, a blank line under the header", rows: wide, row: 2, col: 0, want: "1 work          Week"},
+		{name: "wide, a blank line under the header", rows: wide, row: 2, col: 0, want: "work          Week"},
 		{name: "wide, its bar 104 cells", rows: wide, row: 2, col: 26 + 104 + 2, want: "34%  19%/day till Sun 21:00"},
-		{name: "wide, its 5-hour", rows: wide, row: 4, col: 16, want: "5-hour"},
-		{name: "wide, Fable's week", rows: wide, row: 6, col: 16, want: "Fable wk"},
-		{name: "wide, a blank line between blocks", rows: wide, row: 8, col: 0, want: "2 personal ◆    Week"},
+		{name: "wide, its 5-hour", rows: wide, row: 4, col: 14, want: "5-hour"},
+		{name: "wide, Fable's week", rows: wide, row: 6, col: 14, want: "Fable wk"},
+		{name: "wide, a blank line between blocks", rows: wide, row: 8, col: 0, want: "personal ◆    Week"},
 		{name: "wide, the pool's rule in the blank line", rows: wide, row: 19, col: 0, want: strings.Repeat("─", 160)},
-		{name: "wide, the pool last", rows: wide, row: 20, col: 0, want: "Σ pool          Week"},
-		{name: "narrow, its name on a line of its own", rows: narrow, row: 4, col: 0, want: "1 work"},
+		{name: "wide, the pool last", rows: wide, row: 20, col: 0, want: "Σ pool        Week"},
+		{name: "narrow, its name on a line of its own", rows: narrow, row: 4, col: 0, want: "work"},
 		{name: "narrow, the label a cell in, its bar at its least, 12 cells", rows: narrow, row: 5, col: 0, want: " Week"},
 		{name: "narrow, its percentage, its words in 20 cells", rows: narrow, row: 5, col: 12 + 12 + 2, want: "34%  19%/day · Sun"},
-		{name: "narrow, the next block", rows: narrow, row: 11, col: 0, want: "2 personal ◆"},
+		{name: "narrow, the next block", rows: narrow, row: 11, col: 0, want: "personal ◆"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -363,11 +363,11 @@ func TestByAccountTheNameIsBesideItsFirstWindowWhereTheRowsPartsFit(t *testing.T
 		width int
 		want  string
 	}{
-		{width: 60, want: "1 work          Week"},
-		{width: 59, want: "1 work"},
+		{width: 60, want: "work          Week"},
+		{width: 59, want: "work"},
 	} {
 		rows := printed(trio(), tt.width, ByAccount)
-		i := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "1 work") })
+		i := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "work") })
 		if got := strings.TrimRight(colAt(rows[max(i, 0)], 0, len(tt.want)+2), " "); got != tt.want {
 			t.Errorf("at %d columns, work's first row reads %q, want %q", tt.width, got, tt.want)
 		}
@@ -384,7 +384,7 @@ func startsWindow(row string) bool {
 // account's name, or the pool's, at column 0.
 func startsAccount(row string) bool {
 	first, _ := utf8.DecodeRuneInString(row)
-	return unicode.IsDigit(first) || first == 'Σ'
+	return unicode.IsLetter(first)
 }
 
 // gapsOver are the blank rows over each row of rows that starts a block of
@@ -429,10 +429,10 @@ func TestTheBlocksAreABlankLineApartAsTheKeyLineIsFromTheLastAndTheFirstFromTheH
 		blocks int
 	}{
 		{name: "the matrix", doc: trio(), width: 160, by: ByWindow, blocks: 1},
-		{name: "the matrix where its leasts just fit", doc: trio(), width: 122, by: ByWindow, blocks: 1},
-		{name: "stacked a cell short of it", doc: trio(), width: 121, by: ByWindow, blocks: 3},
+		{name: "the matrix where its leasts just fit", doc: trio(), width: 120, by: ByWindow, blocks: 1},
+		{name: "stacked a cell short of it", doc: trio(), width: 119, by: ByWindow, blocks: 3},
 		{name: "four windows stacked at 150", doc: four, width: 150, by: ByWindow, blocks: 4},
-		{name: "stacked at 120", doc: trio(), width: 120, by: ByWindow, blocks: 3},
+		{name: "stacked at 118", doc: trio(), width: 118, by: ByWindow, blocks: 3},
 		{name: "stacked at 80", doc: trio(), width: 80, by: ByWindow, blocks: 3},
 		{name: "stacked on a phone", doc: trio(), width: 52, by: ByWindow, blocks: 3},
 		{name: "by account, wide", doc: trio(), width: 160, by: ByAccount, blocks: 4},
@@ -463,14 +463,14 @@ func TestTheNameColumnFitsTheNames(t *testing.T) {
 		width int
 		want  int
 	}{
-		{name: "a short name, its own cells", names: []accountName{{number: "1", label: "work"}}, width: 160, want: 10},
-		{name: "a short name on a phone, the same", names: []accountName{{number: "1", label: "work"}}, width: 52, want: 10},
-		{name: "the primary's mark and ▲'s room", names: []accountName{{number: "1", label: "work"}, {number: "2", label: "personal", primary: true}}, width: 160, want: 16},
-		{name: "▲ counted once, kept or drawn", names: []accountName{{number: "2", label: "personal", primary: true, best: true}}, width: 160, want: 16},
-		{name: "a label of 22, whole", names: []accountName{{number: "3", label: "side-hustle-consulting"}}, width: 73, want: 28},
-		{name: "a long label at its most, 24", names: []accountName{{number: "2", label: long, primary: true}}, width: 80, want: 32},
-		{name: "a long label where the bar is at its least and the words short", names: []accountName{{number: "2", label: long, primary: true}}, width: 52, want: 52 - leastUsageBar - afterBar - shortCells - afterWords},
-		{name: "a long label at its least", names: []accountName{{number: "2", label: long, primary: true}}, width: 40, want: 16},
+		{name: "a short name, its own cells", names: []accountName{{label: "work"}}, width: 160, want: 8},
+		{name: "a short name on a phone, the same", names: []accountName{{label: "work"}}, width: 52, want: 8},
+		{name: "the primary's mark and ▲'s room", names: []accountName{{label: "work"}, {label: "personal", primary: true}}, width: 160, want: 14},
+		{name: "▲ counted once, kept or drawn", names: []accountName{{label: "personal", primary: true, best: true}}, width: 160, want: 14},
+		{name: "a label of 22, whole", names: []accountName{{label: "side-hustle-consulting"}}, width: 73, want: 26},
+		{name: "a long label at its most, 24", names: []accountName{{label: long, primary: true}}, width: 80, want: 30},
+		{name: "a long label where the bar is at its least and the words short", names: []accountName{{label: long, primary: true}}, width: 52, want: 52 - leastUsageBar - afterBar - shortCells - afterWords},
+		{name: "a long label at its least", names: []accountName{{label: long, primary: true}}, width: 40, want: 14},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -481,12 +481,12 @@ func TestTheNameColumnFitsTheNames(t *testing.T) {
 	}
 }
 
-func TestALongLabelIsCutKeepingItsNumberItsMarksAndRoomForTheBestsMark(t *testing.T) {
-	n := accountName{number: "2", label: "someone.else@example.com", primary: true}
+func TestALongLabelIsCutKeepingItsMarksAndRoomForTheBestsMark(t *testing.T) {
+	n := accountName{label: "someone.else@example.com", primary: true}
 	elsewhere := n.line(24).plain()
 	n.best = true
 	here := n.line(24).plain()
-	if want := "2 someone.else@ex… ◆"; elsewhere != want {
+	if want := "someone.else@exam… ◆"; elsewhere != want {
 		t.Errorf("the name reads %q in a 24-cell column, want %q", elsewhere, want)
 	}
 	if want := elsewhere + " ▲"; here != want {
@@ -511,7 +511,7 @@ func TestALoneAccountCarriesTheBestsMarkAndTheHeaderNamesItWhateverItsRoom(t *te
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rows := printed(trio(func(d *status.Document) { d.Accounts = d.Accounts[:1] }, tt.change), 160, ByWindow)
-			if got, want := colAt(rows[4], 0, 9), "1 work ▲ "; got != want {
+			if got, want := colAt(rows[4], 0, 7), "work ▲ "; got != want {
 				t.Errorf("the lone account's row starts %q, want %q", got, want)
 			}
 			if want := "new sessions → ▲ work"; !strings.HasSuffix(rows[0], want) {
@@ -521,20 +521,16 @@ func TestALoneAccountCarriesTheBestsMarkAndTheHeaderNamesItWhateverItsRoom(t *te
 	}
 }
 
-func TestEveryAccountIsNumberedRightAlignedOnceThereAreTen(t *testing.T) {
+func TestPastNineAccountsEveryNameAndSigmaStartTheirRow(t *testing.T) {
 	ten := trio(func(d *status.Document) {
 		for i := len(d.Accounts); i < 10; i++ {
 			d.Accounts = append(d.Accounts, printAccount(fmt.Sprintf("extra%d", i+1), 0.1, 0.2, 0))
 		}
 	})
 	rows := printed(ten, 160, ByWindow)
-	starts := map[string]bool{}
-	for _, r := range rows {
-		starts[colAt(r, 0, 4)] = true
-	}
-	for _, want := range []string{" 1 w", " 9 e", "10 e", " Σ p"} {
-		if !starts[want] {
-			t.Errorf("no row starts %q, the numbers and Σ right-aligned in two cells", want)
+	for _, want := range []string{"work ", "extra9 ", "extra10 ", "Σ pool "} {
+		if !slices.ContainsFunc(rows, func(r string) bool { return strings.HasPrefix(r, want) }) {
+			t.Errorf("no row starts %q, as with three accounts:\n%s", want, strings.Join(rows, "\n"))
 		}
 	}
 }
@@ -574,26 +570,27 @@ func TestAnAccountWithNothingReadOfAWindowHasItsBarEmptyAndNoMarks(t *testing.T)
 		words  string
 	}{
 		{name: "no usable token", change: func(a *status.Account) { a.TokenSet = false }, group: 0, words: "no token"},
+		{name: "its token another subscription's", change: func(a *status.Account) { a.TokenSet, a.TokenForeign = false, true }, group: 0, words: "wrong token"},
 		{name: "nothing read yet", change: func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }, group: 0, words: "not read yet"},
 		{name: "a window it hasn't reported", change: func(a *status.Account) { a.Windows = a.Windows[:2] }, group: 2, words: "not read yet"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			row := printed(trio(account("work", tt.change)), 160, ByWindow)[4]
-			at := 16 + tt.group*48
-			if got := colAt(row, at, 16); strings.TrimSpace(got) != "" {
+			at := 14 + tt.group*49
+			if got := colAt(row, at, 17); strings.TrimSpace(got) != "" {
 				t.Errorf("work's bar reads %q, want it empty, with no marks", got)
 			}
-			if got := colAt(row, at+17, 4); got != "   —" {
+			if got := colAt(row, at+18, 4); got != "   —" {
 				t.Errorf("work's percentage reads %q, want —", got)
 			}
-			if got := colAt(row, at+23, len([]rune(tt.words))); got != tt.words {
+			if got := colAt(row, at+24, len([]rune(tt.words))); got != tt.words {
 				t.Errorf("work's words read %q, want %q", got, tt.words)
 			}
 		})
 	}
 	c := blockOn(t, trio(account("work", func(a *status.Account) { a.TokenSet = false })), 160, "nord")
-	if got := c.at(36, 2).ink; got != faintInk {
+	if got := c.at(35, 2).ink; got != faintInk {
 		t.Errorf("an account without a token has its percentage in %+v, want text.faint", got)
 	}
 }
@@ -602,14 +599,14 @@ func TestAStaleReadingShowsAsItWasLastReadFaded(t *testing.T) {
 	stale := trio(account("work", func(a *status.Account) {
 		a.Error, a.FetchedAt = "HTTP 529 · Overloaded", on(1, 14, 20).UTC()
 	}))
-	if got := colAt(printed(stale, 160, ByWindow)[4], 34, 25); got != "34%  not read since 14:20" {
+	if got := colAt(printed(stale, 160, ByWindow)[4], 33, 25); got != "34%  not read since 14:20" {
 		t.Errorf("a stale account's window reads %q, want its last reading, not read since then", got)
 	}
 	c := blockOn(t, stale, 160, "nord")
-	for x := 16; x < 32; x++ {
+	for x := 14; x < 31; x++ {
 		k := c.at(x, 2).ink
 		if k.bold || k.fade != staleFade || (k.on != (hue{}) && k.on.fade != staleFade) {
-			t.Errorf("cell %d of its bar is drawn in %+v, want it faded to 35%% of its colour, its surface too, nothing bold", x-16, k)
+			t.Errorf("cell %d of its bar is drawn in %+v, want it faded to 35%% of its colour, its surface too, nothing bold", x-14, k)
 		}
 	}
 	for _, x := range []int{34, 39} {
@@ -650,18 +647,22 @@ func TestOnTheTickAWeekResetsUSAGEWordsItsAllowanceFromEmpty(t *testing.T) {
 func TestThePoolIsLastAndCountsTheAccountsNewSessionsCanGoTo(t *testing.T) {
 	pinned := trio(pinnedTo("personal", "side"))
 	rows := printed(pinned, 160, ByWindow)
-	if got := colAt(rows[10], 39, 22); !strings.HasSuffix(got, " of 2 left · pinned") {
+	if got := colAt(rows[10], 38, 22); !strings.HasSuffix(got, " of 2 left · pinned") {
 		t.Errorf("the pool's first window's words read %q, want its room of 2, pinned", got)
 	}
-	if got := colAt(rows[10], 87, 22); strings.Contains(got, "pinned") || !strings.Contains(got, " of 2 left") {
+	if got := colAt(rows[10], 86, 22); strings.Contains(got, "pinned") || !strings.Contains(got, " of 2 left") {
 		t.Errorf("the pool's second window's words read %q, want its room of 2, not saying pinned again", got)
 	}
 	c := blockOn(t, pinned, 160, "nord")
-	if got := c.at(0, 2).ink; got != faintInk {
-		t.Errorf("work, out of the pool, is numbered in %+v, want text.faint", got)
+	for x := range len("work") {
+		if got := c.at(x, 2).ink.token; got != theme.TextFaint {
+			t.Errorf("work, out of the pool, has cell %d of its label in %s, want text.faint", x, got)
+		}
 	}
-	if got := c.at(0, 4).ink; got != dimInk {
-		t.Errorf("personal, in the pool, is numbered in %+v, want text.subtle", got)
+	for x := range len("personal") {
+		if got := c.at(x, 4).ink.token; got != theme.TextPrimary {
+			t.Errorf("personal, in the pool, has cell %d of its label in %s, want text.primary", x, got)
+		}
 	}
 	if got := printed(trio(func(d *status.Document) { d.Accounts = d.Accounts[:1] }), 160, ByWindow); slices.ContainsFunc(got, func(r string) bool {
 		return strings.Contains(r, "Σ") || strings.Contains(r, "─")
@@ -683,7 +684,7 @@ func noSession(a *status.Account) {
 func TestAWindowAnAccountLacksSaysSoWhereItsBarWouldStart(t *testing.T) {
 	doc := trio(account("work", noSession), account("personal", noSession))
 	rows, every := printed(doc, 160, ByWindow), printed(trio(), 160, ByWindow)
-	if got := colAt(rows[2], 64, 6); got != "5-HOUR" {
+	if got := colAt(rows[2], 63, 6); got != "5-HOUR" {
 		t.Fatalf("the second group's heading reads %q, want 5-HOUR", got)
 	}
 	tests := []struct {
@@ -697,7 +698,7 @@ func TestAWindowAnAccountLacksSaysSoWhereItsBarWouldStart(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := colAt(rows[tt.row], 64, 48); strings.TrimRight(got, " ") != tt.want {
+			if got := colAt(rows[tt.row], 63, 49); strings.TrimRight(got, " ") != tt.want {
 				t.Errorf("the 5-hour cell reads %q, want %q and nothing else", got, tt.want)
 			}
 			if got, want := colAt(rows[tt.row], 112, 48), colAt(every[tt.row], 112, 48); got != want {
@@ -705,11 +706,11 @@ func TestAWindowAnAccountLacksSaysSoWhereItsBarWouldStart(t *testing.T) {
 			}
 		})
 	}
-	if got := colAt(rows[8], 64, 48); !strings.Contains(got, "13%") {
+	if got := colAt(rows[8], 63, 49); !strings.Contains(got, "13%") {
 		t.Errorf("side's 5-hour cell reads %q, want its bar and 13%%", got)
 	}
 	c := blockOn(t, doc, 160, "nord")
-	if got := c.at(64, 4).ink; got != dimInk {
+	if got := c.at(63, 4).ink; got != dimInk {
 		t.Errorf("work's no 5-hour limit is in %+v, want text.subtle", got)
 	}
 }
@@ -728,8 +729,8 @@ func TestByAccountAWindowAnAccountLacksKeepsItsRow(t *testing.T) {
 		row  int
 		want string
 	}{
-		{name: "work's", row: 4, want: "                5-hour    no limit"},
-		{name: "personal's", row: 10, want: "                5-hour    no limit"},
+		{name: "work's", row: 4, want: "              5-hour    no limit"},
+		{name: "personal's", row: 10, want: "              5-hour    no limit"},
 		{name: "the pool's", row: 22},
 		{name: "the pool's week", row: 20, want: strings.TrimRight(every[20], " ")},
 		{name: "the pool's Fable week", row: 24, want: strings.TrimRight(every[24], " ")},
@@ -810,8 +811,7 @@ func sectionRows(t *testing.T, doc status.Document, width int, big bool) map[str
 }
 
 // stackedSections are the sections as sectionRows has them, a row as the
-// number and label it's named by, "rule" for the pool's rule and "" for a
-// blank row.
+// label it's named by, "rule" for the pool's rule and "" for a blank row.
 func stackedSections(t *testing.T, doc status.Document, width int, big bool) map[string][]string {
 	t.Helper()
 	sections := sectionRows(t, doc, width, big)
@@ -823,8 +823,10 @@ func stackedSections(t *testing.T, doc status.Document, width int, big bool) map
 			case len(fields) == 0:
 			case strings.HasPrefix(row, "─"):
 				named[i] = "rule"
+			case fields[0] == "Σ":
+				named[i] = "Σ " + fields[1]
 			default:
-				named[i] = fields[0] + " " + fields[1]
+				named[i] = fields[0]
 			}
 		}
 		sections[h] = named
@@ -850,7 +852,7 @@ var stackedLayouts = []struct {
 func TestAStackedSectionListsOnlyTheAccountsWithItsWindow(t *testing.T) {
 	unread := func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil }
 	tokenless := func(a *status.Account) { a.TokenSet = false }
-	every := []string{"", "1 work", "", "2 personal", "", "3 side", "rule", "Σ pool"}
+	every := []string{"", "work", "", "personal", "", "side", "rule", "Σ pool"}
 	tests := []struct {
 		name string
 		doc  status.Document
@@ -859,10 +861,10 @@ func TestAStackedSectionListsOnlyTheAccountsWithItsWindow(t *testing.T) {
 		pool []string
 	}{
 		{name: "every account with it", doc: trio(), want: every},
-		{name: "work without it", doc: trio(account("work", noSession)), want: []string{"", "2 personal", "", "3 side", "rule", "Σ pool"}},
-		{name: "side alone with it", doc: trio(account("work", noSession), account("personal", noSession)), want: []string{"", "3 side"}},
-		{name: "personal unread", doc: trio(account("work", noSession), account("personal", unread)), want: []string{"", "2 personal", "", "3 side", "rule", "Σ pool"}},
-		{name: "personal tokenless", doc: trio(account("work", noSession), account("personal", tokenless)), want: []string{"", "2 personal", "", "3 side", "rule", "Σ pool"}},
+		{name: "work without it", doc: trio(account("work", noSession)), want: []string{"", "personal", "", "side", "rule", "Σ pool"}},
+		{name: "side alone with it", doc: trio(account("work", noSession), account("personal", noSession)), want: []string{"", "side"}},
+		{name: "personal unread", doc: trio(account("work", noSession), account("personal", unread)), want: []string{"", "personal", "", "side", "rule", "Σ pool"}},
+		{name: "personal tokenless", doc: trio(account("work", noSession), account("personal", tokenless)), want: []string{"", "personal", "", "side", "rule", "Σ pool"}},
 		{name: "nothing read", doc: trio(account("work", unread), account("personal", unread), account("side", unread)), want: every, pool: []string{"—"}},
 	}
 	for _, layout := range stackedLayouts {
@@ -1040,7 +1042,7 @@ func TestABarOfNoCellsDrawsNoMarkOutsideIt(t *testing.T) {
 		by    By
 		width int
 	}{
-		{name: "stacked, the bar just gone", by: ByWindow, width: 38},
+		{name: "stacked, the bar just gone", by: ByWindow, width: 36},
 		{name: "stacked, narrower still", by: ByWindow, width: 30},
 		{name: "by account, the bar just gone", by: ByAccount, width: 34},
 		{name: "by account, narrower still", by: ByAccount, width: 30},
@@ -1068,26 +1070,26 @@ func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 		by    By
 		want  []string
 	}{
-		{name: "one line from the name column, where it fits beside it", doc: trio(), width: 160, want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 95%"}},
-		{name: "one line where it just fits, its parts three cells apart where four would not fit", doc: trio(), width: 85, want: []string{strings.Repeat(" ", 16) + pace + "   ╎ cap: work at 95%"}},
-		{name: "a cell short of that, two lines from column 0", doc: trio(), width: 84, want: []string{pace, "╎ cap: work at 95%"}},
-		{name: "no account with a cap", doc: trio(capped("work", 0)), width: 120, want: []string{strings.Repeat(" ", 16) + pace}},
-		{name: "several caps, in the config's order", doc: trio(capped("side", 0.1)), width: 120, want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 95%, side at 90%"}},
-		{name: "several caps, on the second line where they don't fit the first", doc: trio(capped("side", 0.1)), width: 97, want: []string{pace, "╎ cap: work at 95%, side at 90%"}},
+		{name: "one line from the name column, where it fits beside it", doc: trio(), width: 160, want: []string{strings.Repeat(" ", 14) + pace + "    ╎ cap: work at 95%"}},
+		{name: "one line where it just fits, its parts three cells apart where four would not fit", doc: trio(), width: 83, want: []string{strings.Repeat(" ", 14) + pace + "   ╎ cap: work at 95%"}},
+		{name: "a cell short of that, two lines from column 0", doc: trio(), width: 82, want: []string{pace, "╎ cap: work at 95%"}},
+		{name: "no account with a cap", doc: trio(capped("work", 0)), width: 120, want: []string{strings.Repeat(" ", 14) + pace}},
+		{name: "several caps, in the config's order", doc: trio(capped("side", 0.1)), width: 120, want: []string{strings.Repeat(" ", 14) + pace + "    ╎ cap: work at 95%, side at 90%"}},
+		{name: "several caps, on the second line where they don't fit the first", doc: trio(capped("side", 0.1)), width: 95, want: []string{pace, "╎ cap: work at 95%, side at 90%"}},
 		{
 			name: "a cap whose mark is off the bars, unnamed", doc: trio(capped("work", 0.004)), width: 160,
-			want: []string{strings.Repeat(" ", 16) + pace},
+			want: []string{strings.Repeat(" ", 14) + pace},
 		},
 		{
 			name: "the same cap, named where the bars are long enough to draw its mark", doc: trio(capped("work", 0.004)), width: 300, by: ByAccount,
-			want: []string{strings.Repeat(" ", 16) + pace + "    ╎ cap: work at 100%"},
+			want: []string{strings.Repeat(" ", 14) + pace + "    ╎ cap: work at 100%"},
 		},
 		{
-			name: "a cap of an account nothing is read of, its bars empty, unnamed", width: 120, want: []string{strings.Repeat(" ", 16) + pace},
+			name: "a cap of an account nothing is read of, its bars empty, unnamed", width: 120, want: []string{strings.Repeat(" ", 14) + pace},
 			doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })),
 		},
 		{
-			name: "unnamed, its key two lines all the same where its cap wouldn't fit beside even pace", width: 84, want: []string{pace},
+			name: "unnamed, its key two lines all the same where its cap wouldn't fit beside even pace", width: 82, want: []string{pace},
 			doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })),
 		},
 	}
@@ -1242,7 +1244,7 @@ func TestEveryAccountKeepsItsRowsBeforeAnyWindowIsRead(t *testing.T) {
 		for _, width := range []int{160, 80} {
 			t.Run(fmt.Sprintf("by %d at %d columns", by, width), func(t *testing.T) {
 				text := strings.Join(printed(doc, width, by), "\n")
-				for _, want := range append([]string{"1 work", "2 personal ◆"}, names[by]...) {
+				for _, want := range append([]string{"work", "personal ◆"}, names[by]...) {
 					if !strings.Contains(text, want) {
 						t.Errorf("the printout has no %q:\n%s", want, text)
 					}
@@ -1343,10 +1345,10 @@ func TestWordsACellTooLongInFullAreShortLeavingTheCellsAfterThemBlank(t *testing
 		blankFrom int
 		blank     int
 	}{
-		{name: "the matrix, the 3 cells before the next group", width: 160, by: ByWindow, row: 4, wordsAt: 39, blankFrom: 39 + 22, blank: 3},
-		{name: "stacked, the last column", width: 120, by: ByWindow, row: 4, wordsAt: 97, blankFrom: 119, blank: 1},
+		{name: "the matrix, the 3 cells before the next group", width: 160, by: ByWindow, row: 4, wordsAt: 38, blankFrom: 38 + 22, blank: 3},
+		{name: "stacked, the last column", width: 118, by: ByWindow, row: 4, wordsAt: 95, blankFrom: 117, blank: 1},
 		{name: "by account, wide, the last column", width: 160, by: ByAccount, row: 2, wordsAt: 137, blankFrom: 159, blank: 1},
-		{name: "by account, its name above, the last column", width: 59, by: ByAccount, row: 5, wordsAt: 36, blankFrom: 58, blank: 1},
+		{name: "by account, its name above, the last column", width: 57, by: ByAccount, row: 5, wordsAt: 34, blankFrom: 56, blank: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1370,7 +1372,7 @@ func TestAProbedPrintoutMarksNoneOfSeveralAccountsAsWhereNewSessionsGo(t *testin
 		t.Errorf("a probed printout of three accounts marks one ▲:\n%s", strings.Join(rows, "\n"))
 	}
 	lone := trio(probed, func(d *status.Document) { d.Accounts = d.Accounts[:1] })
-	if got, want := colAt(printed(lone, 160, ByWindow)[4], 0, 9), "1 work ▲ "; got != want {
+	if got, want := colAt(printed(lone, 160, ByWindow)[4], 0, 7), "work ▲ "; got != want {
 		t.Errorf("a probed printout's lone account's row starts %q, want %q, as there's nowhere else new sessions go", got, want)
 	}
 }
