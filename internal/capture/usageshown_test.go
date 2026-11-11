@@ -89,11 +89,11 @@ func usageRows(rows []string) []string {
 }
 
 // usageShown is how many of the accounts named USAGE's rows show: those
-// leading a numbered row.
+// leading a row.
 func usageShown(rows, names []string) int {
 	var shown []string
 	for _, row := range rows {
-		m := numbered.FindStringSubmatch(row)
+		m := named.FindStringSubmatch(row)
 		if m == nil {
 			continue
 		}

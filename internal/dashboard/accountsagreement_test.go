@@ -97,7 +97,7 @@ func (d drawn) routingSays(a status.AccountNow) string {
 // account's back, which it never does.
 func headSays(d detailDrawn) string {
 	head := strings.TrimSpace(textOf(d.panel().rows(Look{}))[0])
-	words := strings.TrimSpace(strings.TrimPrefix(head, listName(d.account, 1).fitted(d.f.edge()).plain()))
+	words := strings.TrimSpace(strings.TrimPrefix(head, listName(d.account).fitted(d.f.edge()).plain()))
 	if strings.Contains(words, "back ") {
 		return head
 	}

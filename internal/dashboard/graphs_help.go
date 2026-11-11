@@ -44,7 +44,7 @@ func (f Frame) burnDownsHelp() helpPart {
 				"them, not where another card's do. The room left is filled to now, each column to the room its middle had, " +
 				"as the readings history tells it. 5-HOUR has a card only for each account that has a 5-hour window, or may " +
 				"yet, as one not read yet may: a verified Ultra account has none."),
-			said("Over the card, the account's number, name and marks, and its words: the room it has left, as 66% left, its " +
+			said("Over the card, the account's name and marks, and its words: the room it has left, as 66% left, its " +
 				"figure coloured as switchboard usage colours a use, then what Runway says under its lane in that window's " +
 				"view, as capped 14:31  ·  back 17:10 or out ~Sat, inked as Runway inks them, " +
 				"whole parts going from the end where they don't fit. They're read from Runway's live view as Runway would " +
@@ -59,9 +59,8 @@ func (f Frame) burnDownsHelp() helpPart {
 			said("Where the account's reserve holds, so not while a pin spends it, a faint dotted line marks the room its cap " +
 				"leaves. The window's ink is its state's, as Runway's lanes colour one, each window by its own: a week that " +
 				"lasts is drawn so, though its 5-hour's cap holds the account now."),
-			said("An account not read yet, or whose first read failed, has Runway's words for it and its chart empty but for " +
-				"now's │; one the router doesn't hold yet, its label alone, numbered after the router's last, as Runway will " +
-				"number it. One without a usable token has no room all along; a stale one is faded, and one out of the pool " +
+			said("An account not read yet, whose first read failed, or the router doesn't hold yet, has Runway's words for it " +
+				"and its chart empty but for now's │. One without a usable token has no room all along; a stale one is faded, and one out of the pool " +
 				"faint."),
 			said("Under the cards, Σ pool: the pool's room in each window, the week's then the 5-hour's, as Runway's pool lane " +
 				"words it, as week 1.2 of 3 left, of the accounts that have the window, whichever sections show, and pinned " +

@@ -17,10 +17,6 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// numbered is how many accounts have a number that picks them on the routing
-// card: the first nine.
-const numbered = 9
-
 // routingSpare is how many of the frame's rows the routing card leaves
 // spare, at its tallest, its rows scrolling within it past that. It lays out
 // at least the row the cursor is on, so on a terminal too short for that and
@@ -38,16 +34,13 @@ const (
 )
 
 // The parts of a row of the routing card, from its content's start: the
-// mark and the number, from choiceName, choiceKey cells with the space
-// after it, before the name; the name, a column of names, as labelColumn
+// mark, then from choiceName the name, a column of names, as labelColumn
 // lays it; nameGap on, the state, or auto's description, as wide as
 // stateCells has it; stateGap on, the windows, the second choiceUsesApart
 // from the first, as widestUses has them; and endGap on, at the content's
 // end, the reason or the sessions running, as endLeast has it.
 const (
 	choiceName      = 2
-	choiceKey       = 2
-	choiceNameAt    = choiceName + choiceKey
 	stateGap        = 4
 	choiceUsesApart = 11
 	endGap          = 2
@@ -120,16 +113,16 @@ type choiceColumns struct {
 	stacked                      bool
 }
 
-// rowParts are a row's parts on one line, as flex lays them: the mark and
-// number; the name, a column of names as labelColumn lays it, the one part
-// that narrows, on one line to no fewer than oneLineNameKept of its
-// natural; the state; the windows; and the end.
+// rowParts are a row's parts on one line, as flex lays them: the mark; the
+// name, a column of names as labelColumn lays it, the one part that
+// narrows, on one line to no fewer than oneLineNameKept of its natural; the
+// state; the windows; and the end.
 func (r RoutingCard) rowParts() []flex.Part {
 	use := r.widestUses()
 	name := labelColumn(r.widestName())
 	name.Least = max(name.Least, min(name.Natural, oneLineNameKept))
 	return []flex.Part{
-		{Least: choiceNameAt, Natural: choiceNameAt},
+		{Least: choiceName, Natural: choiceName},
 		name,
 		{Least: stateCells(), Natural: stateCells(), Gap: nameGap},
 		{Least: use, Natural: use, Gap: stateGap},
@@ -174,8 +167,8 @@ func (r RoutingCard) columns(width int) choiceColumns {
 	return choiceColumns{name: s[1].Size, state: s[2].At, windows: w[1].At, endGap: gap, stacked: true}
 }
 
-// stackedNames are where a stacked row's mark and number, name and what
-// follows it lie in width cells, and the gap before its end, whitespace
+// stackedNames are where a stacked row's mark, name and what follows it
+// lie in width cells, and the gap before its end, whitespace
 // giving way before words: the name whole with gaps of nameGap and endGap;
 // where that doesn't fit, the gaps at narrowGap, once, and the name whole
 // where that fits, then narrowing toward its least, as labelColumn has it;
@@ -211,7 +204,7 @@ type RoutingCard struct {
 	// routes: zero on new sessions'.
 	Mode    RoutingMode
 	Session RoutingSession
-	// Rows are 0 auto's row, then an account's each, in the config's
+	// Rows are auto's row, then an account's each, in the config's
 	// order, as RoutingRows builds them.
 	Rows []RoutingRow
 	// Picked are the ids of the accounts picked, in the config's order: none
@@ -265,9 +258,6 @@ type RoutingSession struct {
 type RoutingRow struct {
 	// Account is the account's id: "" on auto's row.
 	Account string
-	// Key is the number key that picks the row, "0" on auto's, an account's
-	// number: "" for an account numbered past 9.
-	Key string
 	// Name is the account's name.
 	Name string
 	// Open is set where the account takes new sessions now; else Reason says
@@ -306,12 +296,11 @@ type RoutingWindow struct {
 
 // RoutingRows are the routing card's rows of the moment m, with the sessions
 // the router listed, as the request stream s has moved and seen them since:
-// 0 auto's, then an account's each, in the document's order, keyed by its
-// number, as status.Numbering numbers it, each with its state, as closedBy
-// says, its windows' use, and its sessions running, as
+// auto's, then an account's each, in the document's order, each with its
+// state, as closedBy says, its windows' use, and its sessions running, as
 // views.RunningCountsOf counts SESSIONS' rows for ROUTING too.
 func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []RoutingRow {
-	rows := []RoutingRow{{Key: "0", Name: "auto", Open: true, Pickable: true}}
+	rows := []RoutingRow{{Name: "auto", Open: true, Pickable: true}}
 	running := views.RunningCountsOf(m, sessions, s)
 	shared := m.SharedWindows()
 	for _, a := range m.Accounts {
@@ -322,9 +311,6 @@ func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []R
 		}
 		row.Reason, row.Capped = closedBy(a, m.Now)
 		row.Open = row.Reason == ""
-		if a.Place <= numbered {
-			row.Key = strconv.Itoa(a.Place)
-		}
 		rows = append(rows, row)
 	}
 	return rows
@@ -567,12 +553,12 @@ func fitting(heights []int, room int) int {
 }
 
 // choice is the row as the card lays it out, width cells wide, its parts in
-// the columns given: its mark, its number and name, then auto's
-// description, or an account's state, its windows' use and at the end its
+// the columns given: its mark and name, then auto's description, or an
+// account's state, its windows' use and at the end its
 // reason or sessions running. Stacked, an account's windows take a row of
 // their own under it.
 func (r RoutingCard) choice(row RoutingRow, at choiceColumns, width int) []line {
-	head := line{r.mark(row), spaces(choiceName - 1), {padded(row.Key, choiceKey), dimInk}, {labelledIn(row.Name, at.name), titleInk}}
+	head := line{r.mark(row), spaces(choiceName - 1), {labelledIn(row.Name, at.name), titleInk}}
 	if row.Account == "" {
 		return []line{padTo(head, at.state, r.autoChooses(width-at.state))}
 	}
@@ -927,13 +913,12 @@ func (r RoutingCard) names(ids []string) []string {
 }
 
 // keys are the card's keys row, as many of them as fit width cells: ↑↓ move
-// the first to go, then m move running, as m's row names its key, then the
-// numbers, which nothing else says pick; enter apply and esc cancel always
-// kept. The numbers name the accounts there are, up to the ninth, and tick
-// on new sessions' card, or pick on a session's, which has no m.
+// the first to go, then m move running, as m's row names its key, then
+// space, tick on new sessions' card, or pick on a session's, which has no
+// m; enter apply and esc cancel always kept.
 func (r RoutingCard) keys(width int) []Key {
 	move := Key{Key: "↑↓", Does: "move"}
-	tick := Key{Key: "space 0-" + strconv.Itoa(min(max(len(r.Rows)-1, 0), numbered)), Does: "tick"}
+	tick := Key{Key: "space", Does: "tick"}
 	running := []Key{{Key: "m", Does: "move running"}}
 	if r.Mode == ThisSession {
 		tick.Does, running = "pick", nil

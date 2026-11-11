@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -82,8 +83,8 @@ func laneLaid(l views.Lane, a status.AccountNow, name accountName) laidLane {
 // runwayLanes draws the lanes, as laid out, each on its row: its account's
 // name in the label column before it, cut to fit as line has it, and its
 // use of the view's window from runwayUseFrom on the row under, as useLine
-// has it; or with the account column collapsed, its number and marks, and
-// its use under them, as collapsedUse has it; then the lane itself, as
+// has it; or with the account column collapsed, its marks, and its use under
+// them, as collapsedUse has it; then the lane itself, as
 // drawLane draws it.
 func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 	window := runwayNames[f.Runway.Window]
@@ -100,20 +101,24 @@ func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 }
 
 // head is the name as Runway's collapsed account column heads its lane, as
-// in "2 ◆": its number and the marks it carries.
+// in "◆ ▲": the marks it carries, from the column's first cell.
 func (n accountName) head() line {
-	return append(line{n.numbered()}, n.marks()...)
+	marks := n.marks()
+	if len(marks) > 0 {
+		marks[0].text = strings.TrimPrefix(marks[0].text, " ")
+	}
+	return marks
 }
 
 // runwayLabelsOf are the labels of lanes named as names has them, ▲'s
-// cells kept on every account, as headCells keeps them, so the lanes hold
+// cells kept on every account, as marksCells keeps them, so the lanes hold
 // still as ▲ moves: expanded, their name column, nameGap after it, as
-// accountsColumn has it, as "2 personal ◆"; collapsed, the cells of the
-// widest number and marks, as head has them.
+// accountsColumn has it, as "personal ◆"; collapsed, the cells of the
+// widest marks, as marksCells counts them.
 func runwayLabelsOf(names []accountName) runwayLabels {
 	labels := runwayLabels{expanded: accountsColumn(nameGap, names)}
 	for _, n := range names {
-		labels.collapsed = max(labels.collapsed, n.headCells())
+		labels.collapsed = max(labels.collapsed, n.marksCells())
 	}
 	return labels
 }

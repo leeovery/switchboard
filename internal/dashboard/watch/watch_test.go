@@ -21,7 +21,7 @@ func TestStartsByReading(t *testing.T) {
 	if got, want := h.keyLine(), unreadKeys; got != want {
 		t.Errorf("before the first read, the key line reads %q, want %q", got, want)
 	}
-	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "1 Work") {
+	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "Work") {
 		t.Errorf("before the first read, the screen is\n%s\nwant the title row, and no account", view)
 	}
 	read := h.init()
@@ -32,7 +32,7 @@ func TestStartsByReading(t *testing.T) {
 	if got, want := h.keyLine(), oneKeys; got != want {
 		t.Errorf("after the first read, the key line reads %q, want %q", got, want)
 	}
-	if !strings.Contains(h.view(), "1 Work") {
+	if !strings.Contains(h.view(), "Work") {
 		t.Errorf("after the first read, the screen is\n%s\nwant the account", h.view())
 	}
 }
@@ -281,7 +281,7 @@ func TestAFailedReadKeepsWhatWasReadOnScreen(t *testing.T) {
 	h.clock.now = at(13, 20, 0)
 	h.read(calm())
 
-	if !strings.Contains(h.view(), "1 Work") {
+	if !strings.Contains(h.view(), "Work") {
 		t.Errorf("screen is\n%s\nwant the account still", h.view())
 	}
 	if got, want := h.nextRead(), "13:22"; got != want {
@@ -300,7 +300,7 @@ func TestFirstReadFails(t *testing.T) {
 	if got, want := h.keyLine(), unreadKeys; got != want {
 		t.Errorf("the key line reads %q, want %q", got, want)
 	}
-	if strings.Contains(h.view(), "1 Work") {
+	if strings.Contains(h.view(), "Work") {
 		t.Errorf("screen is\n%s\nwant no account, nothing having been read", h.view())
 	}
 	h.source.err = nil
@@ -612,7 +612,7 @@ func TestTheOverviewIsLaidOutAfreshAsTheAccountsWindowsAreFirstRead(t *testing.T
 	h.startRouter(routerDocument(three()...))
 	h.tickUntilAsked()
 	usage := strings.Join(h.usageRows(), "\n")
-	for _, name := range []string{"1 Work", "2 Personal", "3 Side"} {
+	for _, name := range []string{"Work", "Personal", "Side"} {
 		if !strings.Contains(usage, name) {
 			t.Errorf("the accounts' windows read, with no key pressed, USAGE is\n%s\nwant %s among the accounts shown, laid out afresh, as there's room for every one", usage, name)
 		}

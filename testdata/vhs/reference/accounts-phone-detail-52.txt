@@ -7,7 +7,7 @@
 ACCOUNTS   Compare  Detail
                                        < this week >
 
-◂ 1 work ▸                     ↑↓ an account, or all
+◂ work ▸                       ↑↓ an account, or all
 ● at its cap
 
 USAGE

@@ -6,11 +6,11 @@ ACCOUNTS  ───────────────────────�
 
   Add each Claude subscription you want switchboard to route across.
 
-     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN
+    ACCOUNT         PLAN       RESERVE    TOKEN
 
-  1  work ◆          Work          Ultra      none                                 expires 27 Oct 2027  ·  365 days left
+    Work ◆          Ultra      none                                 expires 27 Oct 2027  ·  365 days left
 
-▌ +  add an account                     ╭─ NEW TOKEN · PERSONAL ───────────────────────────────────────────────────────╮
+▌ + add an account                      ╭─ NEW TOKEN · PERSONAL ───────────────────────────────────────────────────────╮
                                         │                                                                              │
                                         │  ●∙∙  Waiting for you to approve it in the browser                     0:21  │
                                         │                                                                              │

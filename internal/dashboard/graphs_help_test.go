@@ -158,7 +158,7 @@ func TestGraphsHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the reserve", "Where the account's reserve holds, so not while a pin spends it"},
 		{"the window's ink", "The window's ink is its state's, as Runway's lanes colour one, each window by its own"},
 		{"an account not read", "has Runway's words for it and its chart empty but for now's │"},
-		{"an account the router lacks", "its label alone, numbered after the router's last"},
+		{"an account the router lacks", "whose first read failed, or the router doesn't hold yet, has Runway's words for it"},
 		{"faded and faint", "a stale one is faded, and one out of the pool faint"},
 		{"the pool's line", "the pool's room in each window, the week's then the 5-hour's"},
 		{"the pool's line with one account", "With one account there's no pool, and no line"},

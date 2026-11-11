@@ -34,9 +34,9 @@ const compareWidthsFrom, compareWidthsTo = 40, 220
 // their leasts, and turned narrower, switching once as the width grows: the
 // labels' column, 24, and its gap, 2, then the first two accounts' columns
 // and all accounts', which never give way, each at least 19 cells, or the
-// widest head and a cell: from 83 with short names, from 107 with names of
-// 24 cells, 110 with ten of them, as "10 " is a cell more. The rest of the
-// accounts' columns give way, so how many there are past two moves nothing.
+// widest head and a cell: from 83 with short names, from 101 with names of
+// 24 cells, however many there are, as no number heads a name. The rest of
+// the accounts' columns give way, so how many there are past two moves nothing.
 // With fewer than two there's nothing to compare, and it's never wide.
 func TestCompareIsWideFromWhereItsLeastsFit(t *testing.T) {
 	never := compareWidthsTo + 1
@@ -53,9 +53,9 @@ func TestCompareIsWideFromWhereItsLeastsFit(t *testing.T) {
 		{name: "three, as the frames configure them", accounts: threeFramed, from: 83},
 		{name: "ten, as the frames configure them", accounts: tenFramed, from: 83},
 		{name: "ten, short", accounts: comparedAccounts(10, false), from: 83},
-		{name: "two, long", accounts: comparedAccounts(2, true), from: 107},
-		{name: "nine, long", accounts: comparedAccounts(9, true), from: 107},
-		{name: "ten, long", accounts: comparedAccounts(10, true), from: 110},
+		{name: "two, long", accounts: comparedAccounts(2, true), from: 101},
+		{name: "nine, long", accounts: comparedAccounts(9, true), from: 101},
+		{name: "ten, long", accounts: comparedAccounts(10, true), from: 101},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -118,8 +118,9 @@ func TestComparesDrawingHelpAndHeadingAgreeWithItsForm(t *testing.T) {
 		doc := usageWorld(extraOff)
 		for f.Width = compareWidthsFrom; f.Width <= compareWidthsTo; f.Width++ {
 			wide := f.CompareWide()
-			drawn := strings.Join(accountsDrawn(f, doc), "\n")
-			if got := strings.Contains(drawn, "0 all accounts"); got != wide {
+			rows := accountsDrawn(f, doc)
+			drawn := strings.Join(rows, "\n")
+			if got := slices.ContainsFunc(rows, func(row string) bool { return strings.HasSuffix(strings.TrimRight(row, " "), "all accounts") }); got != wide {
 				t.Errorf("%d accounts at %d columns: wide %v, but its heads drawn %v, in\n%s", len(configured), f.Width, wide, got, drawn)
 			}
 			if got := strings.Contains(strings.Join(plainLines(f.compareHelp().says), " "), focus); got != wide {

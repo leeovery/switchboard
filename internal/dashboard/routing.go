@@ -118,8 +118,8 @@ var pinnedSpan = span{"● pinned", ink{token: theme.AccentKey}}
 // routingCaption says what the traces draw, under the last of them.
 const routingCaption = "requests a minute, last 30 minutes"
 
-// accountRouting is an account as ROUTING draws it: its id; its number, name
-// and marks, as USAGE draws them; how it stands with the router; whether the
+// accountRouting is an account as ROUTING draws it: its id; its name and
+// marks, as USAGE draws them; how it stands with the router; whether the
 // global pin names it; how many sessions are on it; its trace; and whether
 // it's out of the pool, which fades its trace and its rate.
 type accountRouting struct {
@@ -302,8 +302,8 @@ func routingSized(a int, body bounds) bool {
 }
 
 // wideRouting draws account r's row of ROUTING from row y, on a row an
-// account, its trace rows tall, as t's columns lay it: its number, name and
-// marks; its state from the name column, and ● pinned pinnedApart before its
+// account, its trace rows tall, as t's columns lay it: its name and marks;
+// its state from the name column, and ● pinned pinnedApart before its
 // sessions, where it shows, as rowState has them in its words' cells; its
 // sessions; and its trace, its rate right-aligned on its last row at the
 // edge rateEdge gives it.
@@ -322,7 +322,7 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows 
 }
 
 // narrowRouting draws account r's two rows of ROUTING from row y, as t's
-// columns lay them: on the first, its number, name and marks from column 1,
+// columns lay them: on the first, its name and marks from column 1,
 // its short state from the name column, cut by whole clauses, and ● pinned
 // right-aligned, where it shows, the state then as saidBeside has it; on the
 // second, its trace from the name column to narrowTail cells short of the

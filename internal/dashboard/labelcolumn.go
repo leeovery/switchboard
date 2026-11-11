@@ -14,7 +14,7 @@ import (
 // A column of accounts' names, as every view lays one out: its natural the
 // widest name of the accounts configured, each label counting labelMost
 // cells at the most, cut with an ellipsis past it; its least labelLeast
-// cells, or its natural where that's fewer; a name's number and marks, and
+// cells, or its natural where that's fewer; a name's marks, and
 // the column's gap, beside its label, never among it. Each view takes its
 // column here, from labelColumn, namesColumn, accountsColumn,
 // recordedNames or recordedAccounts, its least alone from labelsLeast, or
@@ -40,7 +40,7 @@ func labelColumn(widest int) flex.Part {
 }
 
 // columnName is a name as a column of names holds it: its label's cells,
-// and the cells kept beside it, its number and marks.
+// and the cells kept beside it, its marks.
 type columnName struct {
 	label, beside int
 }
@@ -60,7 +60,7 @@ func namesColumn(gap int, names ...columnName) flex.Part {
 }
 
 // accountsColumn is the name column of the accounts' names given, gap cells
-// after it, as namesColumn lays it out, each name's number and marks beside
+// after it, as namesColumn lays it out, each name's marks beside
 // its label, as accountName's cells counts them.
 func accountsColumn(gap int, names []accountName) flex.Part {
 	column := make([]columnName, len(names))

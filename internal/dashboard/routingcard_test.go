@@ -81,26 +81,26 @@ func dollars(cents int64) *ledger.Picodollars {
 	return &p
 }
 
-func TestTheRoutingCardsRowsAreAutoThenEachAccountNumbered(t *testing.T) {
+// The routing card's rows are auto's, then an account's each, in the
+// document's order, named by its label: the tenth as the first, as no key
+// numbers any.
+func TestTheRoutingCardsRowsAreAutoThenEachAccountByItsLabel(t *testing.T) {
 	accounts := make([]status.Account, 10)
 	for i := range accounts {
 		accounts[i] = readAccount("a"+strconv.Itoa(i+1), sessionOf(0.1, time.Hour))
+		accounts[i].Label = "label " + strconv.Itoa(i+1)
 	}
 	rows := RoutingRows(routerDoc("a1", 0, accounts...).At(now, claudeLike), nil, views.Stream{})
 
 	if len(rows) != 11 {
 		t.Fatalf("%d rows, want 11: auto's, then the ten accounts'", len(rows))
 	}
-	if got, want := rows[0], (RoutingRow{Key: "0", Name: "auto", Open: true, Pickable: true}); got != want {
+	if got, want := rows[0], (RoutingRow{Name: "auto", Open: true, Pickable: true}); got != want {
 		t.Errorf("the first row is %+v, want auto's, %+v", got, want)
 	}
 	for i, row := range rows[1:] {
-		want := strconv.Itoa(i + 1)
-		if i == 9 {
-			want = ""
-		}
-		if row.Account != accounts[i].ID || row.Key != want {
-			t.Errorf("row %d is %s's, numbered %q, want %s's, numbered %q: the first nine alone have a number", i+2, row.Account, row.Key, accounts[i].ID, want)
+		if row.Account != accounts[i].ID || row.Name != accounts[i].Label {
+			t.Errorf("row %d is %s's, named %q, want %s's, named %q", i+2, row.Account, row.Name, accounts[i].ID, accounts[i].Label)
 		}
 	}
 }
@@ -218,7 +218,7 @@ func TestAnAccountNotReadYetIsOpenItsFiguresFaint(t *testing.T) {
 	unread.FetchedAt = time.Time{}
 	r := RoutingCard{Rows: RoutingRows(routerDoc("", 0, unread).At(now, claudeLike), nil, views.Stream{})}
 	row := r.choice(r.Rows[1], r.columns(76), 76)[0]
-	if got, want := strings.TrimRight(row.plain(), " "), "□ 1 unread  open      week —     5-hour —"; got != want {
+	if got, want := strings.TrimRight(row.plain(), " "), "□ unread  open      week —     5-hour —"; got != want {
 		t.Errorf("its row reads %q, want %q", got, want)
 	}
 	for _, s := range row {
@@ -245,8 +245,8 @@ func TestAnAccountWithNoFiveHourLimitSaysSoInPlaceOfItsFigure(t *testing.T) {
 		row  line
 		want string
 	}{
-		{name: "work", row: work, want: "□ 1 work  open      week 34%   no 5-hour limit"},
-		{name: "side", row: side, want: "□ 2 side  open      week 78%   5-hour 13%"},
+		{name: "work", row: work, want: "□ work  open      week 34%   no 5-hour limit"},
+		{name: "side", row: side, want: "□ side  open      week 78%   5-hour 13%"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -284,8 +284,8 @@ func TestWithNoAccountsFiveHourTheCardShowsTheWeekAlone(t *testing.T) {
 		row  RoutingRow
 		want string
 	}{
-		{name: "work", row: r.Rows[1], want: "□ 1 work  open      week 34%"},
-		{name: "side", row: r.Rows[2], want: "□ 2 side  open      week 78%"},
+		{name: "work", row: r.Rows[1], want: "□ work  open      week 34%"},
+		{name: "side", row: r.Rows[2], want: "□ side  open      week 78%"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -537,10 +537,10 @@ func TestARowsMarkSaysWhetherItsPicked(t *testing.T) {
 		row  RoutingRow
 		want span
 	}{
-		{name: "auto, an account picked", row: RoutingRow{Key: "0", Name: "auto", Open: true, Pickable: true}, want: span{"□", dimInk}},
-		{name: "an account not picked", row: RoutingRow{Account: "side", Key: "3", Name: "side", Open: true, Pickable: true}, want: span{"□", dimInk}},
-		{name: "one that can't be picked, no box", row: RoutingRow{Account: "limited", Key: "2", Name: "limited", Reason: "at its limit"}, want: spaces(1)},
-		{name: "one that can't be picked, but is, as a pin set elsewhere picks it", row: RoutingRow{Account: "pinned-at-limit", Key: "1", Name: "pinned-at-limit", Reason: "at its limit"}, want: span{"■", keyInk}},
+		{name: "auto, an account picked", row: RoutingRow{Name: "auto", Open: true, Pickable: true}, want: span{"□", dimInk}},
+		{name: "an account not picked", row: RoutingRow{Account: "side", Name: "side", Open: true, Pickable: true}, want: span{"□", dimInk}},
+		{name: "one that can't be picked, no box", row: RoutingRow{Account: "limited", Name: "limited", Reason: "at its limit"}, want: spaces(1)},
+		{name: "one that can't be picked, but is, as a pin set elsewhere picks it", row: RoutingRow{Account: "pinned-at-limit", Name: "pinned-at-limit", Reason: "at its limit"}, want: span{"■", keyInk}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -549,28 +549,31 @@ func TestARowsMarkSaysWhetherItsPicked(t *testing.T) {
 			}
 		})
 	}
-	if got := (RoutingCard{}).choice(RoutingRow{Key: "0", Name: "auto", Open: true, Pickable: true}, RoutingCard{}.columns(76), 76)[0][0]; got != (span{"■", keyInk}) {
+	if got := (RoutingCard{}).choice(RoutingRow{Name: "auto", Open: true, Pickable: true}, RoutingCard{}.columns(76), 76)[0][0]; got != (span{"■", keyInk}) {
 		t.Errorf("auto's mark, nothing picked, is %+v, want it picked", got)
 	}
 }
 
-func TestTheKeysRowNamesTheNumbersAndKeepsEnterAndEscWhereItsShort(t *testing.T) {
+// The keys row picks with space alone, however many accounts there are: no
+// key numbers one. ↑↓ goes first where it's short, then m, then space;
+// enter and esc are always kept.
+func TestTheKeysRowPicksWithSpaceAndKeepsEnterAndEscWhereItsShort(t *testing.T) {
 	tests := []struct {
 		name     string
 		accounts int
 		width    int
 		want     string
 	}{
-		{name: "three accounts", accounts: 3, width: 160, want: "↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel"},
-		{name: "one account", accounts: 1, width: 160, want: "↑↓ move   space 0-1 tick   m move running   enter apply   esc cancel"},
-		{name: "past nine accounts", accounts: 12, width: 160, want: "↑↓ move   space 0-9 tick   m move running   enter apply   esc cancel"},
-		{name: "a phone with room for every key", accounts: 3, width: 76, want: "↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel"},
-		{name: "a phone a cell short, ↑↓ first to go", accounts: 3, width: 75, want: "space 0-3 tick   m move running   enter apply   esc cancel"},
-		{name: "a phone with room for the numbers and m", accounts: 3, width: 66, want: "space 0-3 tick   m move running   enter apply   esc cancel"},
-		{name: "a phone a cell short, m next, its row naming it", accounts: 3, width: 65, want: "space 0-3 tick   enter apply   esc cancel"},
-		{name: "a phone of 52 columns", accounts: 3, width: 52, want: "space 0-3 tick   enter apply   esc cancel"},
-		{name: "a phone with room for the numbers alone", accounts: 3, width: 49, want: "space 0-3 tick   enter apply   esc cancel"},
-		{name: "a phone a cell short, the numbers last to go", accounts: 3, width: 48, want: "enter apply   esc cancel"},
+		{name: "three accounts", accounts: 3, width: 160, want: "↑↓ move   space tick   m move running   enter apply   esc cancel"},
+		{name: "one account", accounts: 1, width: 160, want: "↑↓ move   space tick   m move running   enter apply   esc cancel"},
+		{name: "past nine accounts", accounts: 12, width: 160, want: "↑↓ move   space tick   m move running   enter apply   esc cancel"},
+		{name: "a phone with room for every key", accounts: 3, width: 72, want: "↑↓ move   space tick   m move running   enter apply   esc cancel"},
+		{name: "a phone a cell short, ↑↓ first to go", accounts: 3, width: 71, want: "space tick   m move running   enter apply   esc cancel"},
+		{name: "a phone with room for space and m", accounts: 3, width: 62, want: "space tick   m move running   enter apply   esc cancel"},
+		{name: "a phone a cell short, m next, its row naming it", accounts: 3, width: 61, want: "space tick   enter apply   esc cancel"},
+		{name: "a phone of 52 columns", accounts: 3, width: 52, want: "space tick   enter apply   esc cancel"},
+		{name: "a phone with room for space alone", accounts: 3, width: 45, want: "space tick   enter apply   esc cancel"},
+		{name: "a phone a cell short, space last to go", accounts: 3, width: 44, want: "enter apply   esc cancel"},
 		{name: "a narrow phone, enter and esc kept", accounts: 3, width: 30, want: "enter apply   esc cancel"},
 	}
 	for _, tt := range tests {
@@ -655,7 +658,7 @@ func TestTheRoutingCardKeepsItsKeysOnATerminalShorterThanIt(t *testing.T) {
 			if foot := strings.TrimSpace(rows[top+h-1]); !strings.HasPrefix(foot, "╰") || !strings.HasSuffix(foot, "╯") {
 				t.Errorf("its last row reads %q, want its foot", foot)
 			}
-			if rowWith(rows, "1 work") < 0 {
+			if rowWith(rows, "□ work ") < 0 {
 				t.Errorf("the card reads\n%s\nwant the cursor's row, work's, among those it shows", strings.Join(rows, "\n"))
 			}
 		})
@@ -702,7 +705,7 @@ func choiceNamed(l string) string {
 	if strings.HasPrefix(l, "▲") || strings.HasPrefix(l, "▼") {
 		return l
 	}
-	return strings.Fields(string([]rune(l)[choiceName+2:]))[0]
+	return strings.Fields(string([]rune(l)[choiceName:]))[0]
 }
 
 func TestTheRowTheCursorsOnIsLitAndNoOther(t *testing.T) {
@@ -738,7 +741,7 @@ func TestTheRowTheCursorsOnIsLitAndNoOther(t *testing.T) {
 				lit, unlit := drawnLit(f, r)
 				left, _, width, _ := r.card(f).box(f.Width, f.Height)
 				row := r.Rows[cursor]
-				first := rowSaying(lit, left+cardInset+choiceName, padded(row.Key, 2)+row.Name+" ")
+				first := rowSaying(lit, left+cardInset+choiceName, row.Name+" ")
 				if first < 0 {
 					t.Fatalf("no row of the card names %s", row.Name)
 				}
@@ -768,9 +771,9 @@ func TestTheCursorsRowIsLitAsTheLookDrawsBgSelection(t *testing.T) {
 	r := routedCard(func(r *RoutingCard) { r.Cursor = 2 })
 	f := Frame{Width: 160, Height: 37}
 	lit, unlit := drawnLit(f, r)
-	y := rowSaying(lit, 39+cardInset+choiceName, "2 personal ")
+	y := rowSaying(lit, 40+cardInset+choiceName, "personal ")
 	nord, terminal := Screen(builtin(t, "nord")), Screen(builtin(t, theme.Terminal))
-	for x := 41; x <= 117; x++ {
+	for x := 42; x <= 116; x++ {
 		k := lit.at(x, y).ink
 		if got, want := shadeOf(nord.surface(k)), shadeOf(nord.theme.Colour(theme.BgSelection)); got != want {
 			t.Errorf("in nord, cell %d is on %s, want bg.selection, %s", x+1, got, want)
@@ -826,12 +829,12 @@ func TestTheRoutingCardsNamesAreALabelsColumn(t *testing.T) {
 		natural int
 		row     string
 	}{
-		{name: "the frames' names, 8 cells", card: routedCard(nil), natural: 81, row: "□ 2 personal  open      week 66%   5-hour 39%"},
-		{name: "names all under 8, the column the widest's", card: named("sides"), natural: 78, row: "□ 2 sides  open      week 66%   5-hour 39%"},
-		{name: "a name of 24, whole", card: named("a-very-long-account-name"), natural: 97,
-			row: "□ 2 a-very-long-account-name  open      week 66%   5-hour 39%"},
-		{name: "a name past 24, cut there", card: named("a-very-long-account-name-and-more"), natural: 97,
-			row: "□ 2 a-very-long-account-nam…  open      week 66%   5-hour 39%"},
+		{name: "the frames' names, 8 cells", card: routedCard(nil), natural: 79, row: "□ personal  open      week 66%   5-hour 39%"},
+		{name: "names all under 8, the column the widest's", card: named("sides"), natural: 76, row: "□ sides  open      week 66%   5-hour 39%"},
+		{name: "a name of 24, whole", card: named("a-very-long-account-name"), natural: 95,
+			row: "□ a-very-long-account-name  open      week 66%   5-hour 39%"},
+		{name: "a name past 24, cut there", card: named("a-very-long-account-name-and-more"), natural: 95,
+			row: "□ a-very-long-account-nam…  open      week 66%   5-hour 39%"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -857,13 +860,13 @@ func TestWhereAnAccountsRowDoesntFitOneLineItsWindowsTakeARowOfTheirOwn(t *testi
 		"Pick the accounts new sessions go to.",
 		"",
 		"",
-		"■ 0 auto     the router chooses",
-		"□ 1 work     closed    at its cap till 17:10",
-		"             week 34%   5-hour 95%",
-		"□ 2 personal open                  2 running",
-		"             week 66%   5-hour 39%",
-		"□ 3 side     open                  4 running",
-		"             week 78%   5-hour 13%",
+		"■ auto     the router chooses",
+		"□ work     closed      at its cap till 17:10",
+		"           week 34%   5-hour 95%",
+		"□ personal open                    2 running",
+		"           week 66%   5-hour 39%",
+		"□ side     open                    4 running",
+		"           week 78%   5-hour 13%",
 	}
 	if got := body[:10]; !slices.Equal(got, want) {
 		t.Errorf("the rows read\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

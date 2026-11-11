@@ -4,13 +4,13 @@
 
 ACCOUNTS    Compare  Detail  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
 
- 0 all accounts     │   1 work   ● at its cap · new sessions go elsewhere
-                    │              token expires 22 Oct 2026 · 21 days left — switchboard setup makes a new one
- 1 work        ●    │
+ all accounts       │   work   ● at its cap · new sessions go elsewhere
+                    │            token expires 22 Oct 2026 · 21 days left — switchboard setup makes a new one
+ work          ●    │
                     │   USAGE                                                                                        THIS WEEK
- 2 personal ◆  ●    │   Week                  ▋       ┃                ╎   34%  out ~Sat                             requests  1,204
+ personal ◆    ●    │   Week                  ▋       ┃                ╎   34%  out ~Sat                             requests  1,204
                     │                                                                                                limits    5-hour ×2
- 3 side        ●    │   5-hour                       ┃                 ╎   95%  at cap · back 17:10                  plan      Ultra
+ side          ●    │   5-hour                       ┃                 ╎   95%  at cap · back 17:10                  plan      Ultra
                     │                                                                                                worth     $184  4.0×
                     │                                                                                                extra use off
  ↑↓ choose          │

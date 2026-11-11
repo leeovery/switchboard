@@ -350,7 +350,7 @@ func TestUSAGEsHeadingGivesWayItsBlankRowWithItsWindowsHeadings(t *testing.T) {
 
 // threeAccountsRow matches the row of one of threeRouted's accounts in USAGE's
 // block.
-var threeAccountsRow = regexp.MustCompile(`^\s?[1-3] (work|personal|side)`)
+var threeAccountsRow = regexp.MustCompile(`^\s?(work|personal|side)\b`)
 
 // Each step USAGE's block gives way takes its own part, and keeps the rest:
 // as it is, its accounts two rows apart, a blank row under its windows'
@@ -510,7 +510,7 @@ func TestAt15RowsUSAGEShowsItsAccounts(t *testing.T) {
 	if got, want := strings.Fields(rows[at+1]), []string{"WEEK", "5-HOUR"}; !slices.Equal(got, want) {
 		t.Errorf("at 138x15, the row under USAGE's heading reads %q, want its windows' headings %q:\n%s", rows[at+1], want, strings.Join(rows, "\n"))
 	}
-	for i, want := range []string{"1 work", "2 personal", "3 side"} {
+	for i, want := range []string{"work", "personal", "side"} {
 		if !strings.HasPrefix(rows[at+2+i], want) {
 			t.Errorf("at 138x15, row %d under USAGE's heading reads %q, want it to start %q:\n%s", i+2, rows[at+2+i], want, strings.Join(rows, "\n"))
 		}

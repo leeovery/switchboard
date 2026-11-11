@@ -48,8 +48,8 @@ type cardHead struct {
 }
 
 // cardHeadOf is the head of the card of the lane ln, in the view v of its
-// window, width cells wide, at now: its label, the account's number, name and
-// marks, as Runway's lanes label them; and its words, as cardWords has them.
+// window, width cells wide, at now: its label, the account's name and marks,
+// as Runway's lanes label them; and its words, as cardWords has them.
 // Beside, its words are on the label's row, ending at the card's last
 // column, the label in a column of its own, as alone has it, drawn as
 // fitted cuts it, its gap clear of the label at the least, the parts laid out by
@@ -87,17 +87,17 @@ func (ln laidLane) reaching() laidLane {
 }
 
 // alone is the column the name takes beside a card's words, nameGap after
-// it, as namesColumn lays it out: its number and its own marks beside its
-// label, as besideCells counts them, keeping no cells for a ▲ it hasn't, as
-// a card stands alone, where Runway's column keeps them so its lanes hold
-// still as ▲ moves.
+// it, as namesColumn lays it out: its own marks beside its label, as
+// besideCells counts them, keeping no cells for a ▲ it hasn't, as a card
+// stands alone, where Runway's column keeps them so its lanes hold still as
+// ▲ moves.
 func (n accountName) alone() flex.Part {
 	return namesColumn(nameGap, columnName{label: ansi.StringWidth(n.label), beside: n.besideCells()})
 }
 
 // within is the name in the cells given, its label cut short to keep its
-// number and its marks, as labelIn cuts it, no cells kept beside it, as on a
-// row of its own.
+// marks, as labelIn cuts it, no cells kept beside it, as on a row of its
+// own.
 func (n accountName) within(cells int) line {
 	return n.labelIn(cells - n.besideCells())
 }

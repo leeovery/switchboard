@@ -3,10 +3,10 @@
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
 USAGE  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
-                WEEK                                                          5-HOUR
-1 work                    ▎     ┃           ╎   34%  out ~Sat                                ┃            ╎   95%  at cap · back 17:10
-2 personal ◆                       ┃            66%  out ~Sat                            ▊       ┃            39%  34%/h till 16:30
-3 side ▲                      ┃        ▍        78%  out ~Fri                    ▉ ┃                          13%  21%/h till 18:50
+              WEEK                                                           5-HOUR
+work                    ▌      ┃           ╎   34%  out ~Sat                                 ┃            ╎   95%  at cap · back 17:10
+personal ◆                        ┃            66%  out ~Sat                             ▏       ┃            39%  34%/h till 16:30
+side ▲                      ┃         ▏        78%  out ~Fri                      ┃                           13%  21%/h till 18:50
 ▼ 2 more below
 
 ROUTING   auto   no room at 15 rows ──────────────────────────────────────────────────────────────────────────────────────────────────── r

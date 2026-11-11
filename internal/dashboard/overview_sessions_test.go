@@ -131,9 +131,9 @@ func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
 		rows  int
 		want  []string
 	}{
-		{name: "a row a session", width: 160, rows: 3, want: []string{"3 side ▲        c61b", "                d28c", "                +4 more"}},
-		{name: "two rows a session, where its row's parts don't fit a row", width: 82, rows: 6, want: []string{" 3 side ▲       c61b", "                started", "                d28c", "                moved", "                +4 more", ""}},
-		{name: "every one where they fit", width: 160, rows: 6, want: []string{"3 side ▲        c61b", "                d28c", "                7f3a", "                db8a", "2 personal ◆    41e0", "                9c2e"}},
+		{name: "a row a session", width: 160, rows: 3, want: []string{"side ▲        c61b", "              d28c", "              +4 more"}},
+		{name: "two rows a session, where its row's parts don't fit a row", width: 80, rows: 6, want: []string{" side ▲       c61b", "              started", "              d28c", "              moved", "              +4 more", ""}},
+		{name: "every one where they fit", width: 160, rows: 6, want: []string{"side ▲        c61b", "              d28c", "              7f3a", "              db8a", "personal ◆    41e0", "              9c2e"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -149,7 +149,7 @@ func TestSESSIONSShowsAsManyAsFitTheLastRowSayingHowManyMore(t *testing.T) {
 	c := newCanvas(160, 3)
 	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions, Stream: stream}
 	f.sessionsSection(doc, routedAt).draw(c, bounds{width: 160, rows: 3})
-	if got := c.cells[2][16].ink; got != dimInk {
+	if got := c.cells[2][14].ink; got != dimInk {
 		t.Errorf("+4 more drawn in %+v, want text.subtle", got)
 	}
 }
@@ -170,7 +170,7 @@ func TestEachRowOfASessionInSESSIONSOpensItsPage(t *testing.T) {
 		want     []string
 	}{
 		{name: "a row a session, the last saying how many more", width: 160, sessions: sessions, rows: 3, want: []string{idC61B, idD28C, ""}},
-		{name: "two rows a session, where its row's parts don't fit a row", width: 82, sessions: sessions, rows: 5, want: []string{idC61B, idC61B, idD28C, idD28C, ""}},
+		{name: "two rows a session, where its row's parts don't fit a row", width: 80, sessions: sessions, rows: 5, want: []string{idC61B, idC61B, idD28C, idD28C, ""}},
 		{
 			name: "a session on two accounts, on each", width: 160, sessions: two, rows: 7,
 			want: []string{idC61B, idD28C, id7F3A, idDB8A, idC61B, id41E0, id9C2E},
@@ -196,7 +196,7 @@ func TestEachRowOfASessionInSESSIONSOpensItsPage(t *testing.T) {
 
 func TestWhereItsRowsPartsDontFitASessionTakesTwoRows(t *testing.T) {
 	doc, sessions, stream := overviewWorld()
-	for _, width := range []int{82, 52} {
+	for _, width := range []int{80, 52} {
 		f := Frame{Width: width, Height: 40, View: Overview, Sessions: sessions[:2], Stream: stream}
 		if got := f.sessionsSection(doc, routedAt); got.least != 5 || got.most != 6 {
 			t.Errorf("at %d columns: least %d, most %d; want a session's two rows and how many more, to two rows a session, and the heading's two", width, got.least, got.most)
@@ -205,10 +205,10 @@ func TestWhereItsRowsPartsDontFitASessionTakesTwoRows(t *testing.T) {
 			return left + strings.Repeat(" ", width-len([]rune(left))-len([]rune(right))) + right
 		}
 		want := []string{
-			pad(" 2 personal ◆   41e0", "↓ ~860"),
-			"                started here 12:47",
-			pad(" 3 side ▲       c61b", "↓ ~1.2k"),
-			"                started here 14:41, the best",
+			pad(" personal ◆   41e0", "↓ ~860"),
+			"              started here 12:47",
+			pad(" side ▲       c61b", "↓ ~1.2k"),
+			"              started here 14:41, the best",
 		}
 		if got := sessionsDrawn(f, doc, 4); !slices.Equal(got, want) {
 			t.Errorf("at %d columns, drew\n  %q\nwant\n  %q", width, got, want)
@@ -227,14 +227,14 @@ func TestASessionsWhyIsCutToEndBeforeItsTrace(t *testing.T) {
 		return strings.TrimRight(string([]rune(sessionsDrawn(f, doc, 1)[0])[:trace]), " "), trace
 	}
 	for width, want := range map[int]string{
-		173: "3 side ▲        d28c  opus    now   idle     its pin to personal yields: personal has no…",
-		108: "3 side ▲        d28c  opus    now   idle     its pin to person…",
+		173: "side ▲        d28c  opus    now   idle     its pin to personal yields: personal has no…",
+		108: "side ▲        d28c  opus    now   idle     its pin to persona…",
 	} {
 		if got, trace := before(width); got != want {
 			t.Errorf("at %d columns, drew\n  %q\nwant\n  %q, its why cut short two cells or more before the trace at column %d", width, got, want, trace)
 		}
 	}
-	for width := 83; width <= 220; width++ {
+	for width := 81; width <= 220; width++ {
 		if got, trace := before(width); !strings.HasSuffix(got, "…") || ansi.StringWidth(got) > trace-beforeTraceAt {
 			t.Errorf("at %d columns, drew %q, want its why cut to end %d cells or more before the trace at column %d", width, got, beforeTraceAt, trace)
 		}
@@ -336,9 +336,9 @@ func TestAFamilyTheVersionTableDoesntNameIsCutToItsColumn(t *testing.T) {
 	// family's 6 and a blank, the seen's 4, 3 blanks and the doing's 9.
 	whyAt := func(row string) bool {
 		r := []rune(row)
-		return r[16+28] == ' ' && r[16+29] == 's'
+		return r[14+28] == ' ' && r[14+29] == 's'
 	}
-	for _, width := range []int{83, 90, 108, 120, 173} {
+	for _, width := range []int{81, 90, 108, 120, 173} {
 		f := Frame{Width: width, Height: 40, View: Overview, Sessions: sessions, Stream: stream}
 		with := f
 		with.Sessions = append(slices.Clone(sessions), mystery)
@@ -346,8 +346,8 @@ func TestAFamilyTheVersionTableDoesntNameIsCutToItsColumn(t *testing.T) {
 		if !slices.Equal(drawn[:6], known[:6]) {
 			t.Errorf("at %d columns, with 1f9a running, the other sessions drew\n  %q\nwant them as without it\n  %q", width, drawn[:6], known[:6])
 		}
-		if last := drawn[6]; !strings.HasPrefix(last, "1 work          1f9a  claud…  now   idle     s") || !whyAt(last) || !whyAt(known[0]) {
-			t.Errorf("at %d columns, 1f9a drew %q, and c61b %q; want its family cut to its column, and why it's there from column 45 in each", width, last, known[0])
+		if last := drawn[6]; !strings.HasPrefix(last, "work          1f9a  claud…  now   idle     s") || !whyAt(last) || !whyAt(known[0]) {
+			t.Errorf("at %d columns, 1f9a drew %q, and c61b %q; want its family cut to its column, and why it's there from column 43 in each", width, last, known[0])
 		}
 	}
 }
@@ -470,7 +470,7 @@ func TestSESSIONSKeepsWhatItShowsInTheOrderTakenTillTheNextLayout(t *testing.T) 
 		Width: 160, Height: 13, View: Overview, Sections: SectionsNamed([]string{"sessions"}), Sessions: sessions, Stream: stream,
 		Traces: busyNow(busyAt{account: "personal", session: id9C2E, rate: 5}, busyAt{account: "side", session: idD28C, rate: 1}),
 	}
-	taken := []string{"2 personal ◆    9c2e", "                41e0", "3 side ▲        d28c", "                c61b", "                +2 more"}
+	taken := []string{"personal ◆    9c2e", "              41e0", "side ▲        d28c", "              c61b", "              +2 more"}
 	if got := sessionsOnPage(f, doc); !rowsStart(got, taken) {
 		t.Fatalf("laid out afresh, SESSIONS shows\n  %q\nwant\n  %q: personal, 5 a minute, before side's 1, though side runs more, and its idle 41e0 before side's d28c", got, taken)
 	}
@@ -492,9 +492,9 @@ func TestSESSIONSKeepsWhatItShowsInTheOrderTakenTillTheNextLayout(t *testing.T) 
 		want []string
 	}{
 		{name: "rates changing: nothing reorders", f: busier, want: taken},
-		{name: "a session coming, the busiest: into how many more", f: came, want: []string{"2 personal ◆    9c2e", "                41e0", "3 side ▲        d28c", "                c61b", "                +3 more"}},
-		{name: "a session ending: its row left blank", f: ended, want: []string{"2 personal ◆    9c2e", "", "3 side ▲        d28c", "                c61b", "                +2 more"}},
-		{name: "an account's first ending: its row left blank, its name on its next", f: endedFirst, want: []string{"", "2 personal ◆    41e0", "3 side ▲        d28c", "                c61b", "                +2 more"}},
+		{name: "a session coming, the busiest: into how many more", f: came, want: []string{"personal ◆    9c2e", "              41e0", "side ▲        d28c", "              c61b", "              +3 more"}},
+		{name: "a session ending: its row left blank", f: ended, want: []string{"personal ◆    9c2e", "", "side ▲        d28c", "              c61b", "              +2 more"}},
+		{name: "an account's first ending: its row left blank, its name on its next", f: endedFirst, want: []string{"", "personal ◆    41e0", "side ▲        d28c", "              c61b", "              +2 more"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -516,12 +516,12 @@ func TestSESSIONSKeepsWhatItShowsInTheOrderTakenTillTheNextLayout(t *testing.T) 
 	full := f
 	full.Height++
 	full.Layout = full.LayoutOf(doc, routedAt)
-	every := []string{"2 personal ◆    9c2e", "                41e0", "3 side ▲        d28c", "                c61b", "                7f3a", "                db8a"}
+	every := []string{"personal ◆    9c2e", "              41e0", "side ▲        d28c", "              c61b", "              7f3a", "              db8a"}
 	if got := sessionsOnPage(full, doc); !rowsStart(got, every) {
 		t.Fatalf("a row more, SESSIONS shows\n  %q\nwant every session\n  %q", got, every)
 	}
 	full.Sessions, full.Traces = came.Sessions, came.Traces
-	want := []string{"2 personal ◆    9c2e", "                41e0", "3 side ▲        d28c", "                c61b", "                7f3a", "                +2 more"}
+	want := []string{"personal ◆    9c2e", "              41e0", "side ▲        d28c", "              c61b", "              7f3a", "              +2 more"}
 	if got := sessionsOnPage(full, doc); !rowsStart(got, want) {
 		t.Errorf("a session coming with every row taken, the busiest, SESSIONS shows\n  %q\nwant the last shown giving way to how many more\n  %q", got, want)
 	}
@@ -540,7 +540,7 @@ func TestSESSIONSKeepsWhatItShowsInTheOrderTakenTillTheNextLayout(t *testing.T) 
 
 	resized := busier
 	resized.Height++
-	afresh := []string{"3 side ▲        c61b", "                d28c", "                7f3a", "                db8a", "2 personal ◆    9c2e", "                41e0"}
+	afresh := []string{"side ▲        c61b", "              d28c", "              7f3a", "              db8a", "personal ◆    9c2e", "              41e0"}
 	if got := sessionsOnPage(resized, doc); !rowsStart(got, afresh) {
 		t.Errorf("resized, SESSIONS shows\n  %q\nwant it laid out afresh, side's c61b, 20 a minute, first\n  %q", got, afresh)
 	}
@@ -560,9 +560,9 @@ func TestUnderALayoutMadeWithNoneRunningSessionsStartingShowWhereTheyFitWhole(t 
 		started []status.Session
 		want    string
 	}{
-		{name: "one, a row a session: on the row", width: 160, started: sessions[:1], want: "3 side ▲        c61b"},
-		{name: "one, two rows a session: counted", width: 80, started: sessions[:1], want: "                +1 more"},
-		{name: "two, a row a session: counted", width: 160, started: sessions[:2], want: "                +2 more"},
+		{name: "one, a row a session: on the row", width: 160, started: sessions[:1], want: "side ▲        c61b"},
+		{name: "one, two rows a session: counted", width: 80, started: sessions[:1], want: "              +1 more"},
+		{name: "two, a row a session: counted", width: 160, started: sessions[:2], want: "              +2 more"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -256,7 +256,7 @@ func (cp compared) turnedWhole() stack {
 }
 
 // turnedNamed is the column's name as turned Compare's row heads it: an account's
-// label and marks, but ▲, as Accounts shows no routing; or all, unnumbered.
+// label and marks, but ▲, as Accounts shows no routing; or all.
 func turnedNamed(col compareColumn) accountName {
 	if col.all {
 		return accountName{label: "all"}
@@ -542,9 +542,9 @@ func (s stacked) picker(c *canvas, y int) {
 // named is the account shown in the cells given, as Detail's head names it.
 func (s stacked) named(cells int) line {
 	if s.id == "" {
-		return allAccountsName(1).fit(cells)
+		return allAccountsNamed.fit(cells)
 	}
-	return listName(s.account, 1).said(cells)
+	return listName(s.account).said(cells)
 }
 
 // usage draws USAGE from row y, and returns the row its last window is on:

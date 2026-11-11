@@ -556,9 +556,9 @@ func TestASessionsCardKeepsItsOwnPinWhileTheRouterDoesntAnswer(t *testing.T) {
 		t.Fatalf("the router gone, the card is open %t, picking %q, auto naming %q; want it open, picking side, auto naming none",
 			h.model.open == routingOpen, card.Picked, card.Session.Auto)
 	}
-	h.keyed("0 enter")
+	h.keyed("@0 enter")
 	if len(h.source.orders) > 0 || h.model.open != routingOpen || h.card().Refused != status.ErrNoRouter.Error() {
-		t.Errorf("0 enter sent %q, the card open %t, saying %q; want nothing sent, the card open, saying %q",
+		t.Errorf("auto and enter sent %q, the card open %t, saying %q; want nothing sent, the card open, saying %q",
 			h.source.orders, h.model.open == routingOpen, h.card().Refused, status.ErrNoRouter)
 	}
 }

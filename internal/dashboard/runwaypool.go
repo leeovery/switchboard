@@ -21,10 +21,9 @@ func (f Frame) runwayPool(c *canvas, laid runwayLaid) {
 		return
 	}
 	f.poolColumns(c, laid, f.Runway.Lanes.Pool)
-	names := namesOf(laid.m)
-	label := poolNamed(names)
+	label := poolNamed
 	if f.Runway.Collapsed {
-		label = line{poolSigma(names)}
+		label = line{poolSigma}
 	}
 	c.line(0, fit.pool, label)
 	if x, room := f.roomSaid(laid); room != nil {

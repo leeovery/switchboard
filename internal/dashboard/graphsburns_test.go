@@ -74,7 +74,7 @@ func labelOf(c *canvas, card cardLaid) string {
 var burnKeys = map[GraphsSection]string{GraphsWeek: "7d", GraphsFiveHour: "5h"}
 
 // Each configured account has a card in WEEK and in 5-HOUR, in the config's
-// order, where the page lays it out: its label, its number and name, from its
+// order, where the page lays it out: its label, its name and marks, from its
 // first column, and its chart and axis as the card of its window draws them,
 // its ✕ where Runway's lane says its hold began; across as many as the width
 // takes.
@@ -105,7 +105,7 @@ func TestGraphsDrawsEveryAccountsCardWhereThePageLaysItOut(t *testing.T) {
 				}
 				var columns []int
 				for i, card := range cards {
-					if label, want := labelOf(c, card), fmt.Sprintf("%d %s", i+1, tt.ids[i]); !strings.HasPrefix(label, want) {
+					if label, want := labelOf(c, card), tt.ids[i]; !labelledAs(label, want) {
 						t.Errorf("%s's card %d is labelled %q, want it to start %q", section.heading(), i+1, label, want)
 					}
 					a, _ := m.Account(tt.ids[i])
@@ -132,7 +132,7 @@ func TestGraphsDrawsEveryAccountsCardWhereThePageLaysItOut(t *testing.T) {
 }
 
 // 5-HOUR has a card only for each account that has, or may have, the
-// 5-hour, in the config's order, numbered as every view numbers it, from the
+// 5-hour, in the config's order, named as every view names it, from the
 // first of the columns WEEK's lie in, its rows of cards as many as that
 // takes; WEEK has every account's all along.
 func TestGraphsFiveHourHasACardOnlyForEachAccountWithTheFiveHour(t *testing.T) {
@@ -143,11 +143,11 @@ func TestGraphsFiveHourHasACardOnlyForEachAccountWithTheFiveHour(t *testing.T) {
 		want    []string
 		down    int
 	}{
-		{name: "every account with one", width: 160, want: []string{"1 work", "2 personal", "3 side"}, down: 1},
-		{name: "side alone with one", lacking: []string{"work", "personal"}, width: 160, want: []string{"3 side"}, down: 1},
-		{name: "personal and side with one", lacking: []string{"work"}, width: 160, want: []string{"2 personal", "3 side"}, down: 1},
-		{name: "two across, every account with one", width: 108, want: []string{"1 work", "2 personal", "3 side"}, down: 2},
-		{name: "two across, personal and side with one", lacking: []string{"work"}, width: 108, want: []string{"2 personal", "3 side"}, down: 1},
+		{name: "every account with one", width: 160, want: []string{"work", "personal", "side"}, down: 1},
+		{name: "side alone with one", lacking: []string{"work", "personal"}, width: 160, want: []string{"side"}, down: 1},
+		{name: "personal and side with one", lacking: []string{"work"}, width: 160, want: []string{"personal", "side"}, down: 1},
+		{name: "two across, every account with one", width: 108, want: []string{"work", "personal", "side"}, down: 2},
+		{name: "two across, personal and side with one", lacking: []string{"work"}, width: 108, want: []string{"personal", "side"}, down: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -161,7 +161,7 @@ func TestGraphsFiveHourHasACardOnlyForEachAccountWithTheFiveHour(t *testing.T) {
 			var labels []string
 			rows := map[int]bool{}
 			for i, card := range cards {
-				labels = append(labels, strings.Join(strings.Fields(labelOf(c, card))[:2], " "))
+				labels = append(labels, strings.Fields(labelOf(c, card))[0])
 				rows[card.label] = true
 				if want := across[i%len(across)].At; card.chart.x != want {
 					t.Errorf("5-HOUR's card %d is at column %d, want %d, as WEEK's columns lie", i+1, card.chart.x, want)
@@ -194,12 +194,12 @@ func TestGraphsCardsHeadsTakeTheFormTheStepGives(t *testing.T) {
 			label := labelOf(c, work)
 			words := regionOf(c, bounds{x: work.chart.x, y: work.words, width: work.chart.width, rows: 1})[0]
 			if tt.apart {
-				if label != "1 work" || work.words != work.label+1 || !strings.HasPrefix(words, "66% left  ·  ") {
+				if label != "work" || work.words != work.label+1 || !strings.HasPrefix(words, "66% left  ·  ") {
 					t.Errorf("work's head is %q over %q, want its label alone over its words", label, words)
 				}
 				return
 			}
-			if work.words != work.label || !strings.HasPrefix(label, "1 work  ") || !strings.Contains(label, "  66% left") || len([]rune(label)) != work.chart.width {
+			if work.words != work.label || !strings.HasPrefix(label, "work  ") || !strings.Contains(label, "  66% left") || len([]rune(label)) != work.chart.width {
 				t.Errorf("work's head is %q, want its label then its words, ending at its last column, %d", label, work.chart.width)
 			}
 		})
@@ -260,33 +260,33 @@ func TestGraphsCardWithNothingToDrawIsEmptyButForNowsLine(t *testing.T) {
 	}
 }
 
-// numbering is a config over a router's document, as Graphs numbers its
+// disagreement is a config over a router's document, as Graphs names its
 // accounts: the document; the ids configured, in the config's order; and
-// the label each account the document lacks takes, by its id.
-type numbering struct {
+// the ids of the accounts the document lacks.
+type disagreement struct {
 	name   string
 	doc    status.Document
 	ids    []string
-	lacked map[string]string
+	lacked []string
 }
 
-// numberings are configs over documents that tell numbering by the moment's
-// places from numbering by the config's: an account added, last and among
-// the rest; one removed and one added; two added; one removed, still the
-// router's; and ten the router holds, configured in another order.
-func numberings() []numbering {
-	return []numbering{
-		{name: "an account added, not yet the router's", doc: trio(), ids: []string{"work", "personal", "side", "client"}, lacked: map[string]string{"client": "4 client"}},
-		{name: "an account added among the rest", doc: trio(), ids: []string{"work", "client", "personal", "side"}, lacked: map[string]string{"client": "4 client"}},
-		{name: "one removed and one added", doc: trio(), ids: []string{"work", "side", "client"}, lacked: map[string]string{"client": "4 client"}},
-		{name: "two added", doc: trio(), ids: []string{"work", "client", "personal", "spare", "side"}, lacked: map[string]string{"client": "4 client", "spare": "5 spare"}},
+// disagreements are configs over documents that disagree with them: an
+// account added, last and among the rest; one removed and one added; two
+// added; one removed, still the router's; and ten the router holds,
+// configured in another order.
+func disagreements() []disagreement {
+	return []disagreement{
+		{name: "an account added, not yet the router's", doc: trio(), ids: []string{"work", "personal", "side", "client"}, lacked: []string{"client"}},
+		{name: "an account added among the rest", doc: trio(), ids: []string{"work", "client", "personal", "side"}, lacked: []string{"client"}},
+		{name: "one removed and one added", doc: trio(), ids: []string{"work", "side", "client"}, lacked: []string{"client"}},
+		{name: "two added", doc: trio(), ids: []string{"work", "client", "personal", "spare", "side"}, lacked: []string{"client", "spare"}},
 		{name: "an account removed, still the router's", doc: trio(), ids: []string{"work", "side"}},
 		{name: "ten the router's, in another order", doc: tenHeld(), ids: slices.Concat(tenIDs[5:], tenIDs[:5])},
 	}
 }
 
-// config is the numbering's config, as the document marks its primary.
-func (n numbering) config() config.Accounts {
+// config is the disagreement's config, as the document marks its primary.
+func (n disagreement) config() config.Accounts {
 	accounts := configured(n.ids...)
 	for i := range accounts {
 		accounts[i].Primary = slices.ContainsFunc(n.doc.Accounts, func(a status.Account) bool { return a.ID == accounts[i].ID && a.Primary })
@@ -307,17 +307,16 @@ func tenHeld() status.Document {
 	return doc
 }
 
-// want is the label the account with the given id takes, as n numbers it:
-// as Runway's lanes label it, byte for byte, where the document holds it;
-// else its number after the document's last.
-func (n numbering) want(id string) (label string, lacked bool) {
-	if label, ok := n.lacked[id]; ok {
-		return label, true
+// want is the label the account with the given id takes: as Runway's lanes
+// label it, byte for byte, where the document holds it; else its id, as the
+// config labels it.
+func (n disagreement) want(id string) (label string, lacked bool) {
+	if slices.Contains(n.lacked, id) {
+		return id, true
 	}
 	m := n.doc.At(printNow, printPolicy)
 	i := slices.IndexFunc(m.Accounts, func(a status.AccountNow) bool { return a.ID == id })
-	named := namesOf(m)[i]
-	return named.number + " " + named.label, false
+	return namesOf(m)[i].label, false
 }
 
 // labelledAs reports whether a label drawn is the one wanted: whole, or
@@ -327,15 +326,13 @@ func labelledAs(drawn, want string) bool {
 	return ok && (rest == "" || strings.HasPrefix(rest, " "))
 }
 
-// A card is numbered as Runway's lane numbers its account, by the moment,
+// A card is labelled as Runway's lane labels its account, unnumbered,
 // whatever the config's order, as while the router keeps a config the
-// dashboard's no longer has: so with personal removed, side is still 3. A
-// configured account the moment doesn't hold yet, as just after it's added
-// at the config's end, has its card in the config's order, numbered after
-// the moment's last place, its label alone over its chart, empty but for
-// now's line.
-func TestGraphsCardsAreNumberedAsRunwayNumbersTheirAccounts(t *testing.T) {
-	for _, tt := range numberings() {
+// dashboard's no longer has. A configured account the moment doesn't hold
+// yet, as just after it's added at the config's end, has its card in the
+// config's order, its label alone over its chart, empty but for now's line.
+func TestGraphsCardsAreLabelledAsRunwayLabelsTheirAccounts(t *testing.T) {
+	for _, tt := range disagreements() {
 		t.Run(tt.name, func(t *testing.T) {
 			f := cardsPage(tt.doc, printNow, 160, 37, tt.ids...)
 			c, sections := pageCards(f, tt.doc, printNow)
@@ -356,41 +353,15 @@ func TestGraphsCardsAreNumberedAsRunwayNumbersTheirAccounts(t *testing.T) {
 }
 
 // The router holding ten accounts, one of them removed from the config,
-// Graphs numbers the nine the config keeps as Runway numbers them, aligned
-// to the router's ten.
-func TestGraphsNumbersAreAlignedAsRunwaysOfAllTheRoutersAccounts(t *testing.T) {
+// Graphs names the nine the config keeps as Runway names them, marks and
+// all.
+func TestGraphsNamesTheAccountsAsRunwayDoes(t *testing.T) {
 	m := tenHeld().At(printNow, printPolicy)
 	_, names := graphsNamed(m, configured(tenIDs[:9]...))
 	runway := namesOf(m)
 	for i, n := range names {
-		if n.number != runway[i].number || n.label != runway[i].label {
-			t.Errorf("%s is numbered %q, want %q, as Runway numbers it", tenIDs[i], n.number, runway[i].number)
-		}
-	}
-}
-
-// Numbers are right-aligned to the widest of the places given and the
-// moment's count, as Runway aligns them: a card numbered after the moment's
-// ninth adds a digit, and so does the moment's tenth, though no card is
-// numbered past 9.
-func TestCardNumbersAreAlignedToTheWidestPlaceOrTheMomentsCount(t *testing.T) {
-	tests := []struct {
-		places []int
-		of     int
-		want   []string
-	}{
-		{places: []int{1, 10}, of: 9, want: []string{" 1", "10"}},
-		{places: []int{1, 2}, of: 10, want: []string{" 1", " 2"}},
-		{places: []int{1, 2}, of: 3, want: []string{"1", "2"}},
-	}
-	for _, tt := range tests {
-		accounts := []status.AccountNow{{ID: "work", Place: tt.places[0]}, {ID: "client", Place: tt.places[1]}}
-		var numbers []string
-		for _, n := range namesAt(accounts, tt.of) {
-			numbers = append(numbers, n.number)
-		}
-		if !slices.Equal(numbers, tt.want) {
-			t.Errorf("places %v of %d are numbered %q, want %q", tt.places, tt.of, numbers, tt.want)
+		if n != runway[i] {
+			t.Errorf("%s is named %+v, want %+v, as Runway names it", tenIDs[i], n, runway[i])
 		}
 	}
 }
@@ -498,7 +469,7 @@ func TestGraphsCardBeforeItsLanesAreBuiltIsLabelledAlone(t *testing.T) {
 	c, sections := pageCards(f, trio(), printNow)
 	work := sections[GraphsWeek][0]
 	words := regionOf(c, bounds{x: work.chart.x, y: work.words, width: work.chart.width, rows: 1})[0]
-	if label := labelOf(c, work); label != "1 work" || words != "" {
+	if label := labelOf(c, work); label != "work" || words != "" {
 		t.Errorf("work's head is %q over %q, want its label alone", label, words)
 	}
 	if rows := chartOnly(c, work); !slices.ContainsFunc(rows, func(r string) bool { return strings.Contains(r, nowLine) }) {
@@ -588,7 +559,7 @@ func TestGraphsCardsCueARunOutPastRunwaysView(t *testing.T) {
 			side, _ := doc.At(printNow, printPolicy).Account("side")
 			lanes := f.Graphs.Lanes[views.RunwayWeek]
 			l, _ := lanes.lane("side")
-			ln := laneLaid(l, side, accountName{number: "3", label: "side"})
+			ln := laneLaid(l, side, accountName{label: "side"})
 			h := f.cardHeadOf(lanes.view(), ln, 50, false, printNow)
 			c := newCanvas(50, 2)
 			h.draw(c, Look{coloured: true}, 0, 0)

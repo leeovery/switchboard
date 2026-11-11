@@ -543,8 +543,7 @@ func (d sessionDrawn) endedModelsKept(kept string) line {
 }
 
 // nameOf is the account with the given id's name as the Overview names it,
-// numbered as status.Numbering numbers it, with its marks: its id,
-// unnumbered, where the moment lacks it.
+// with its marks: its id, where the moment lacks it.
 func (d sessionDrawn) nameOf(id string) accountName {
 	if i := slices.IndexFunc(d.m.Accounts, func(a status.AccountNow) bool { return a.ID == id }); i >= 0 {
 		return d.names[i]
@@ -689,8 +688,8 @@ func shortOfWorth(width int, columns []stayColumn) []stayColumn {
 
 // stayNameCells are the least and the natural of the names of accounts'
 // rows, of the names given, as recordedAccounts has them, as a session may
-// have run on an account no longer configured: each its number, its marks,
-// ▲'s cells kept, as headCells counts them, and its label.
+// have run on an account no longer configured: each its marks, ▲'s cells
+// kept, as marksCells counts them, and its label.
 func stayNameCells(names []accountName) partCells {
 	column := recordedAccounts(0, names)
 	return partCells{least: column.Least, natural: column.Natural}

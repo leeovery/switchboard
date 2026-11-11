@@ -231,7 +231,7 @@ var widerForms = []struct {
 		return !slices.ContainsFunc(plains(routedCard(nil).card(frameOf(width, 40)).body), func(row string) bool {
 			return strings.HasPrefix(strings.TrimSpace(row), "week ")
 		})
-	}, from: 83},
+	}, from: 81},
 	{name: "the Log's card in its columns", wider: func(width int) bool {
 		return logFrameOf(LogPage{}, width, 37).logCardForm().wide
 	}, from: 130},
@@ -325,7 +325,7 @@ func TestTheRoutingCardsRowsAreStackedAlikeWhateverTheySay(t *testing.T) {
 func TestALongNameNarrowsBeforeARowsEndIsCut(t *testing.T) {
 	r := widestEnds()
 	r.Rows[3].Name = "a-very-long-account-name"
-	least := choiceNameAt + labelLeast + narrowGap + stateCells() + narrowGap + endLeast()
+	least := choiceName + labelLeast + narrowGap + stateCells() + narrowGap + endLeast()
 	for width := 40; width <= 220; width++ {
 		k := r.card(frameOf(width, 60))
 		if k.width-2*cardInset < least {
@@ -400,11 +400,11 @@ func TestOneLineNeverCutsANameItsOldColumnHeld(t *testing.T) {
 		oneLine := stackedRows(r, frameOf(width, 60)) == 0
 		if oneLine != was {
 			switches, was = switches+1, oneLine
-			if width != 86 {
-				t.Errorf("the rows go onto one line at %d columns, want 86, where the name's 11 fit", width)
+			if width != 84 {
+				t.Errorf("the rows go onto one line at %d columns, want 84, where the name's 11 fit", width)
 			}
 		}
-		if body := strings.Join(plains(k.body), "\n"); (oneLine || width == 82) && !strings.Contains(body, "1 engineering ") {
+		if body := strings.Join(plains(k.body), "\n"); (oneLine || width == 80) && !strings.Contains(body, "engineering ") {
 			t.Errorf("at %d columns, the card reads\n%s\nwant engineering whole", width, body)
 		}
 	}

@@ -222,8 +222,8 @@ func TestThePoolsFullCellsAreBlocksWhereTheLookBlendsNothing(t *testing.T) {
 }
 
 // Σ pool heads the pool's lane on its first row, as an account's name heads
-// its lane, Σ in text.subtle in the accounts' numbers' column, the ones', and
-// pool in text.secondary; and no rule runs over it, the row before it the
+// its lane, Σ in text.subtle at the label column's start, and pool in
+// text.secondary; and no rule runs over it, the row before it the
 // last lane's blank row, with three rows an account, or its words, with two.
 func TestSigmaPoolHeadsThePoolsLaneWithNoRuleOverIt(t *testing.T) {
 	tests := []struct {
@@ -234,7 +234,7 @@ func TestSigmaPoolHeadsThePoolsLaneWithNoRuleOverIt(t *testing.T) {
 		sigma    string
 	}{
 		{name: "three, after the last lane's blank row", accounts: 3, pool: 19, sigma: "Σ pool"},
-		{name: "ten, after the last lane's words, numbered from ten", accounts: 10, pool: 30, over: "  5-hour", sigma: " Σ pool"},
+		{name: "ten, after the last lane's words", accounts: 10, pool: 30, over: "  5-hour", sigma: "Σ pool"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

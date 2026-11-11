@@ -1,9 +1,7 @@
 package dashboard
 
 import (
-	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -185,7 +183,7 @@ func drawsEmpty(kind status.WindowKind) bool {
 }
 
 // poolRow is pool's row under the rows of accounts named as names has them,
-// of the windows shown, its Σ in their number column, reporting false where
+// of the windows shown, its Σ in their label column, reporting false where
 // there's no pool, as with one account: each window's bar filled to its
 // accounts' mean use, with their even pace and no cap's mark, empty where no
 // account's use is counted, and its words its room of how many of its
@@ -198,7 +196,7 @@ func poolRow(m status.Moment, names []accountName, windows []shownWindow) (usage
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
-	row := usageRow{name: poolNamed(names), pool: true}
+	row := usageRow{name: poolNamed, pool: true}
 	pinned := pool.Pinned
 	for _, w := range windows {
 		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindowNow) bool { return p.Key == w.key })
@@ -218,18 +216,12 @@ func poolRow(m status.Moment, names []accountName, windows []shownWindow) (usage
 	return row, true
 }
 
-// poolNamed is the pool's name as its row heads it under the rows of
-// accounts named as names has them: Σ in their numbers' column, in
-// text.subtle, then pool, in text.secondary.
-func poolNamed(names []accountName) line {
-	return line{poolSigma(names), {" pool", noteInk}}
-}
+// poolSigma is the pool's Σ, at the accounts' label column, in text.subtle.
+var poolSigma = span{"Σ", dimInk}
 
-// poolSigma is the pool's Σ, under the rows of accounts named as names has
-// them: in their numbers' column, right-aligned, in text.subtle.
-func poolSigma(names []accountName) span {
-	return span{strings.Repeat(" ", len(names[0].number)-1) + "Σ", dimInk}
-}
+// poolNamed is the pool's name as its row heads it under the rows of
+// accounts: poolSigma, then pool, in text.secondary.
+var poolNamed = line{poolSigma, {" pool", noteInk}}
 
 // caps is the key line's cap part: ╎ and the cap of each account whose bars,
 // bar cells long, draw its mark, in the config's order, as in "cap: work at
@@ -262,13 +254,12 @@ func (b usageBlock) capsOf(drawn func(usageRow) bool) line {
 }
 
 // accountName is an account's name as a row of the block heads it: its
-// number, as status.Numbering numbers it, right-aligned, faint where it's out
-// of the pool; its label; and its marks, ◆ on the primary and ▲ on the account new
-// sessions go to. A faint one, as the Overview names an account out of the
-// pool, has its label and marks faint too. An unrouted one is named where
-// nothing is routed, as on Accounts, so it never carries ▲.
+// label, and its marks, ◆ on the primary and ▲ on the account new sessions go
+// to. Out marks it out of the pool. A faint one, as the Overview names an
+// account out of the pool, has its label and marks faint.
+// An unrouted one is named where nothing is routed, as on Accounts, so it
+// never carries ▲.
 type accountName struct {
-	number   string
 	label    string
 	primary  bool
 	best     bool
@@ -277,49 +268,32 @@ type accountName struct {
 	unrouted bool
 }
 
-// namesOf are the names of m's accounts, in the document's order, numbered
-// right-aligned once there are ten, ▲ on the one new sessions go to, and
-// each out of the pool where it is.
+// namesOf are the names of m's accounts, in the document's order, as namesAt
+// has them.
 func namesOf(m status.Moment) []accountName {
-	return namesAt(m.Accounts, len(m.Accounts))
+	return namesAt(m.Accounts)
 }
 
-// namesAt are the names of the accounts given, each numbered by its Place,
-// as status.Numbering numbers it, right-aligned to the widest of those places
-// and of, ▲ on the one new sessions go to, and each out of the pool where it
-// is. So names given of the moment's accounts' count are aligned as namesOf
-// aligns the moment's, whichever of them are given.
-func namesAt(accounts []status.AccountNow, of int) []accountName {
-	digits := numberDigits(accounts, of)
+// namesAt are the names of the accounts given, ▲ on the one new sessions go
+// to, and each out of the pool where it is.
+func namesAt(accounts []status.AccountNow) []accountName {
 	names := make([]accountName, len(accounts))
 	for i, a := range accounts {
-		names[i] = accountName{
-			number: fmt.Sprintf("%*d", digits, a.Place), label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool,
-		}
+		names[i] = accountName{label: name(a), primary: a.Primary, best: a.Next, out: a.OutOfPool}
 	}
 	return names
 }
 
-// numberDigits are the digits the numbers of the accounts given are
-// right-aligned in: the widest of their places' and of's.
-func numberDigits(accounts []status.AccountNow, of int) int {
-	widest := of
-	for _, a := range accounts {
-		widest = max(widest, a.Place)
-	}
-	return len(strconv.Itoa(widest))
-}
-
 // cells are the cells the name takes in the name column, its label whole:
-// its number, its label and its marks, as headCells counts them.
+// its label and its marks, as marksCells counts them.
 func (n accountName) cells(label int) int {
-	return n.headCells() + 1 + label
+	return n.marksCells() + label
 }
 
-// headCells are the cells the name's number and marks take, ▲'s kept on an
-// account without it, but where the name is unrouted.
-func (n accountName) headCells() int {
-	cells := len(n.number)
+// marksCells are the cells the name's marks take, ▲'s kept on an account
+// without it, but where the name is unrouted.
+func (n accountName) marksCells() int {
+	cells := 0
 	if !n.unrouted {
 		cells += markCells
 	}
@@ -330,14 +304,14 @@ func (n accountName) headCells() int {
 }
 
 // line is the name, in a name column column cells wide, its label cut short
-// to keep its number, its marks and ▲'s cells.
+// to keep its marks and ▲'s cells.
 func (n accountName) line(column int) line {
 	return n.labelIn(column - nameGap - n.cells(0))
 }
 
 // fitted is the name in the cells given, nameGap of them kept after it, its
-// label cut short to keep its number and its marks, as labelIn cuts it, and
-// no cells kept for a ▲ it hasn't.
+// label cut short to keep its marks, as labelIn cuts it, and no cells kept
+// for a ▲ it hasn't.
 func (n accountName) fitted(cells int) line {
 	return n.labelIn(n.labelRoom(cells))
 }
@@ -356,10 +330,9 @@ func (n accountName) labelRoom(cells int) int {
 }
 
 // besideCells are the cells the name takes beside its label, as labelled
-// draws it: its number and the space after it, where it has one, and its
-// marks.
+// draws it: its marks.
 func (n accountName) besideCells() int {
-	return n.labelled("").width()
+	return n.marks().width()
 }
 
 // labelIn is the name, its label cut to the cells given as labelledIn cuts
@@ -368,24 +341,9 @@ func (n accountName) labelIn(cells int) line {
 	return n.labelled(labelledIn(n.label, cells))
 }
 
-// labelled is the name, its label as given: its label alone, unnumbered,
-// where it has no number, as an account the config no longer has.
+// labelled is the name, its label as given, then its marks.
 func (n accountName) labelled(text string) line {
-	label := span{text, n.inked(titleInk)}
-	if n.number == "" {
-		return append(line{label}, n.marks()...)
-	}
-	label.text = " " + label.text
-	return append(line{n.numbered(), label}, n.marks()...)
-}
-
-// numbered is the name's number, in text.subtle, or text.faint where it's
-// out of the pool.
-func (n accountName) numbered() span {
-	if n.out {
-		return span{n.number, faintInk}
-	}
-	return span{n.number, dimInk}
+	return append(line{{text, n.inked(titleInk)}}, n.marks()...)
 }
 
 // marks are the marks after the name's label, each after a space: ◆ on the
@@ -416,9 +374,9 @@ func (n accountName) inked(k ink) ink {
 }
 
 // namesPart is the name column of the names given as flex lays it, a column
-// of names, each with its number, its marks and nameGap, as accountsColumn
-// has it. It counts what's configured, never what's shown, as cells keeps
-// ▲'s cells on every account.
+// of names, each with its marks and nameGap, as accountsColumn has it. It
+// counts what's configured, never what's shown, as cells keeps ▲'s cells on
+// every account.
 func namesPart(names []accountName) flex.Part {
 	return accountsColumn(nameGap, names)
 }

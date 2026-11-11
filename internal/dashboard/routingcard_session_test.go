@@ -43,9 +43,9 @@ func TestASessionsCardIsTitledAndOpensForItsSession(t *testing.T) {
 	want := []string{
 		"Pick the account this session goes to.",
 		"",
-		"9c2e  website  ~/Code/website                              runs on personal",
+		"9c2e  website  ~/Code/website                            runs on personal",
 		"",
-		"● 0 auto      the router chooses: side for now",
+		"● auto      the router chooses: side for now",
 	}
 	if title != "ROUTING · THIS SESSION" || !slices.Equal(body[:5], want) {
 		t.Errorf("titled %q, opening\n%s\nwant ROUTING · THIS SESSION, opening\n%s", title, strings.Join(body[:5], "\n"), strings.Join(want, "\n"))
@@ -216,9 +216,9 @@ func TestASessionsKeysRowPicksAndHasNoM(t *testing.T) {
 		width    int
 		want     string
 	}{
-		{name: "three accounts", accounts: 3, width: 160, want: "↑↓ move   space 0-3 pick   enter apply   esc cancel"},
-		{name: "past nine accounts", accounts: 12, width: 160, want: "↑↓ move   space 0-9 pick   enter apply   esc cancel"},
-		{name: "a phone of 52 columns, ↑↓ first to go", accounts: 3, width: 52, want: "space 0-3 pick   enter apply   esc cancel"},
+		{name: "three accounts", accounts: 3, width: 160, want: "↑↓ move   space pick   enter apply   esc cancel"},
+		{name: "past nine accounts, alike", accounts: 12, width: 160, want: "↑↓ move   space pick   enter apply   esc cancel"},
+		{name: "a phone of 52 columns, ↑↓ first to go", accounts: 3, width: 52, want: "space pick   enter apply   esc cancel"},
 		{name: "a narrow phone, enter and esc kept", accounts: 3, width: 30, want: "enter apply   esc cancel"},
 	}
 	for _, tt := range tests {
@@ -239,13 +239,13 @@ func TestANarrowSessionsCardKeepsItsRowsToTheScreen(t *testing.T) {
 		"",
 		"9c2e  website               runs on personal",
 		"",
-		"○ 0 auto     the router chooses: side",
-		"○ 1 work     closed    at its cap till 17:10",
-		"             week 34%   5-hour 95%",
-		"○ 2 personal open                  2 running",
-		"             week 66%   5-hour 39%",
-		"● 3 side     open                  4 running",
-		"             week 78%   5-hour 13%",
+		"○ auto     the router chooses: side for now",
+		"○ work     closed      at its cap till 17:10",
+		"           week 34%   5-hour 95%",
+		"○ personal open                    2 running",
+		"           week 66%   5-hour 39%",
+		"● side     open                    4 running",
+		"           week 78%   5-hour 13%",
 		"",
 		"This session moves to side on its next",
 		"request.",

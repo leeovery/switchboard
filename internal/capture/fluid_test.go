@@ -168,18 +168,10 @@ var knownBreaks = []known{
 	},
 	// Detail's list, which gives way first, its names cut to what the panel
 	// leaves them, down to 14 cells, before its weeks narrow (the owner's call,
-	// 15 October 2026); and its names at their most, 24 cells.
+	// 15 October 2026).
 	{
-		byDesign: "Detail's list giving way at 138", cuts: []string{"work-team-p…"}, rule: cutWithRoom,
-		sizes: []string{"138x30", "138x15"}, fixtures: []string{"long-names-accounts-detail"},
-	},
-	{
-		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…"}, rule: cutWithRoom,
-		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
-	},
-	{
-		byDesign: "Detail's list's names at their most", cuts: []string{"side-hustle-consult…"}, rule: cutWithRoom,
-		sizes: []string{"173x53"}, fixtures: []string{"long-names-accounts-detail"},
+		byDesign: "Detail's list giving way at 109", cuts: []string{"personal-rese…"}, rule: cutWithRoom,
+		sizes: []string{"109x53"}, fixtures: []string{"long-names-accounts-detail"},
 	},
 	// The List's directories at their most, where the session's column is
 	// whole and the rows end blank.
@@ -549,12 +541,14 @@ func (d fluidFrame) outOfView() string {
 }
 
 var (
-	// laneShown is a row of Runway's lanes: an account's number, and its bar.
-	laneShown = regexp.MustCompile(`^ ?[0-9]+ .*[█─]`)
+	// laneShown is a row of Runway's lanes: an account's name, or with the
+	// labels collapsed its marks or none, then its lane to the row's end.
+	laneShown = regexp.MustCompile(`^[^█▒─│]*[█▒─│ ]*[█▒][█▒─│ ]*$`)
 	// turnShown is a row of a session's turns: its number and when it started.
 	turnShown = regexp.MustCompile(`^ *[0-9]+ +[0-9]{1,2}:[0-9]{2} `)
-	// numbered is a row leading with an account's number, then its name.
-	numbered = regexp.MustCompile(`^ *[0-9]+ (.*)$`)
+	// named is a row and what it leads with, as an account's name leads its
+	// row.
+	named = regexp.MustCompile(`^ *(\S.*)$`)
 )
 
 // drawsWhatItsFor reports whether the view named draws what it's for, of the
@@ -568,7 +562,7 @@ func (d fluidFrame) drawsWhatItsFor(view string, names []string) bool {
 		return slices.ContainsFunc(d.body(), turnShown.MatchString)
 	case "Overview", "Graphs":
 		return slices.ContainsFunc(d.body(), func(row string) bool {
-			m := numbered.FindStringSubmatch(row)
+			m := named.FindStringSubmatch(row)
 			return m != nil && slices.ContainsFunc(names, func(name string) bool { return leadsWith(m[1], name) })
 		})
 	}
@@ -724,7 +718,7 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 			rows: []string{"LOG", across, "▼ 5 more below · j/k", "", "", ""}, want: []fluidRule{foldWithRowsSpare},
 		},
 		{name: "a week still running over blank rows", view: "Log Requests", rows: []string{"LOG", across, "WEEKS       74%   73%   59%…", "", "", ""}},
-		{name: "Runway with a lane", view: "Runway", rows: []string{"RUNWAY", "", "1 work        ─███" + across[18:]}},
+		{name: "Runway with a lane", view: "Runway", rows: []string{"RUNWAY", "", "work          ─" + strings.Repeat("█", 105)}},
 		{name: "Runway without a lane", view: "Runway", rows: []string{"RUNWAY", "", across, "", "", ""}, want: []fluidRule{nothingDrawn}},
 		{name: "Runway without a lane in five rows of view", view: "Runway", rows: []string{"RUNWAY", "", across, "", ""}},
 		{name: "a session's page with a turn", view: sessionPage, rows: []string{"SESSION  d28c", across, "13 14:40   3m…   6 req"}},
@@ -733,8 +727,8 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 			name: "a session's page loading", view: sessionPage,
 			rows: []string{"SESSION  d28c  switchboard  loading…", "", "", "", "", ""},
 		},
-		{name: "the Overview with an account", view: "Overview", rows: []string{"USAGE", across, " 2 personal ◆   ┃   66%"}},
-		{name: "the Overview with an account cut", view: "Overview", rows: []string{"USAGE", " 1 work-team-…" + strings.Repeat(" ", 103) + "34%"}},
+		{name: "the Overview with an account", view: "Overview", rows: []string{"USAGE", across, " personal ◆   ┃   66%"}},
+		{name: "the Overview with an account cut", view: "Overview", rows: []string{"USAGE", " work-team-…" + strings.Repeat(" ", 105) + "34%"}},
 		{name: "the Overview without an account", view: "Overview", rows: []string{"USAGE", across, "WEEK", "", "", ""}, want: []fluidRule{nothingDrawn}},
 		{
 			name: "content short of two thirds, but for a rule and its key", view: "Log Requests",
