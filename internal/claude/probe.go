@@ -214,6 +214,12 @@ func (e *probeError) Refused() bool {
 	return e.status == http.StatusUnauthorized || e.status == http.StatusForbidden
 }
 
+// Status is the status the API answered the probe with: 0 where it didn't
+// answer, as where the request timed out.
+func (e *probeError) Status() int {
+	return e.status
+}
+
 type messagesRequest struct {
 	Model     string    `json:"model"`
 	MaxTokens int       `json:"max_tokens"`

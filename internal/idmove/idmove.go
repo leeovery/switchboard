@@ -51,8 +51,14 @@ const (
 	mostRetry  = 10 * time.Minute
 	// lookAgain is how long the move waits to look again at a token file it
 	// can't read, as a writer that empties a file before it writes the token
-	// leaves it for a moment, and to ask again for a token the API refused.
+	// leaves it for a moment, and to ask again for a token whose answer named
+	// no organization; and mostLooks how many looks it takes at most, for
+	// two that agree.
 	lookAgain = 3 * time.Second
+	mostLooks = 3
+	// lastsFor is how long the API's answers for a token have to name no
+	// organization before that counts, as Mover.lasting has it.
+	lastsFor = 10 * time.Minute
 	// configTries is how many times the move edits the config afresh where
 	// it changed as it was edited.
 	configTries = 5
@@ -83,8 +89,9 @@ func AskAgain(wait time.Duration) time.Duration {
 
 // Organizations tells which organization a token is of, as the API's answer
 // to a request made with it names it: "" where it names none. A failure
-// whose Refused method reports true is the API refusing the token, an answer
-// that names none; any other is the API not answering, which is asked again.
+// whose Refused method reports true is the API refusing the token, and one
+// whose Status method reports a status but 429 or a 5xx another answer, each
+// naming none; any other is the API not answering, which is asked again.
 type Organizations interface {
 	Organization(ctx context.Context, token tokens.Token) (string, error)
 }
@@ -123,8 +130,10 @@ type Mover struct {
 	// Retry is how long Run first waits to ask the API again where it didn't
 	// answer: zero is AskAgain's first wait. Again is how long the move waits
 	// to look again at a token file it can't read, or to ask again for a
-	// token the API refused: zero is 3 seconds.
-	Retry, Again time.Duration
+	// token whose answer named no organization: zero is 3 seconds. Lasts is
+	// how long the API's answers for a token have to name no organization,
+	// as a refusal names none, before that counts: zero is 10 minutes.
+	Retry, Again, Lasts time.Duration
 
 	// stop, where it's set, is called with each step's name once it's done:
 	// a failure stops the move there, as a test of one stopped there has it.
@@ -133,8 +142,11 @@ type Mover struct {
 	stop         func(step string) error
 	lookingAgain func(id string)
 	// seen is the accounts the history holds, as the first attempt of the
-	// mover found them, kept for those after it.
-	seen map[string]seenDays
+	// mover found them, kept for those after it; and nameless when the API's
+	// answers for each account's token, by the account's id, began to name
+	// no organization, as lasting reads it, kept alike.
+	seen     map[string]seenDays
+	nameless map[string]time.Time
 }
 
 // Moved reports whether the move is done in the state directory given, as
@@ -212,6 +224,12 @@ func pause(ctx context.Context, wait time.Duration) error {
 // again for a token, as Again says.
 func (m *Mover) again() time.Duration {
 	return cmp.Or(m.Again, lookAgain)
+}
+
+// lasts is how long the API's answers for a token have to name no
+// organization before that counts, as Lasts says.
+func (m *Mover) lasts() time.Duration {
+	return cmp.Or(m.Lasts, lastsFor)
 }
 
 // step is a step of the move, by its name.
@@ -384,7 +402,9 @@ func (m *Mover) configure() (bool, error) {
 
 // renameConfig gives each account draft configures that the record has moved
 // its new id, and, where draft writes it no label, its old id as its label,
-// as labelFor makes it one of its own, reporting whether it gave any.
+// as labelFor makes it one of its own, reporting whether it gave any. One
+// whose new id the config names already, as a merge of two of its versions
+// leaves it, is left as it is, which is warned of.
 func renameConfig(draft *config.Draft, record identity.Record) (bool, error) {
 	if draft.Config() == nil {
 		return false, nil
@@ -393,6 +413,10 @@ func renameConfig(draft *config.Draft, record identity.Record) (bool, error) {
 	for _, a := range draft.Config().Accounts {
 		e, ok := record.ByWas(a.ID)
 		if !ok || !e.Removed.IsZero() {
+			continue
+		}
+		if configures(draft, e.ID) {
+			logger.Warn("the config names an account by the id it had before and by its new id too, so the one by its old id is left as it is", "was", a.ID, "id", e.ID)
 			continue
 		}
 		labelled := draft.Labelled(a.ID)

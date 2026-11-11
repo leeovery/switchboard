@@ -112,8 +112,8 @@ func (m *moving) run(ctx context.Context, history func() idmove.History) {
 		case errors.Is(err, idmove.ErrUnanswered):
 			asked = m.askAgain(asked)
 			wait = asked
-			m.standing(status.Moving{Stage: status.MoveAwaitingAPI})
-			logger.Info("the move onto the accounts' ids waits to ask the API again for the organizations of their tokens", "in", wait)
+			m.standing(awaitingAPI(err))
+			logger.Info("the move onto the accounts' ids waits to ask the API again for the organizations of their tokens", "in", wait, "why", err)
 		default:
 			m.standing(status.Moving{Stage: status.MoveFailed, Why: redact.Text(err.Error())})
 			logger.Warn("couldn't move the accounts and their history onto their ids, so it's run again", "error", err, "in", wait)
@@ -126,6 +126,17 @@ func (m *moving) run(ctx context.Context, history func() idmove.History) {
 		case <-timer.C:
 		}
 	}
+}
+
+// awaitingAPI is the move waiting on the API, as err, the move's failure,
+// says: the account whose token's organization it waits on, and why, where
+// err says.
+func awaitingAPI(err error) status.Moving {
+	waiting := status.Moving{Stage: status.MoveAwaitingAPI}
+	if u, ok := errors.AsType[*idmove.Unanswered](err); ok {
+		waiting.Account, waiting.Why = u.Account, redact.Text(u.Why)
+	}
+	return waiting
 }
 
 // askAgain is how long to wait to ask the API again having waited last: the

@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -67,6 +69,36 @@ func TestTheVerbsThatReadTheHistoryWaitOnItsMove(t *testing.T) {
 				t.Errorf("switchboard %s, the history waiting on its move, = %+v, want it refused: %q", strings.Join(args, " "), got, want)
 			}
 		})
+	}
+}
+
+// A router that's there but doesn't say how the move stands, as one busy or
+// restarting, is told apart from none.
+func TestAVerbWaitingOnTheMoveSaysWhereTheRouterDidntSayHowItStands(t *testing.T) {
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, "[[account]]\nid = \"work\"\n"), "XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	dir := stateDir(t, deps)
+	if err := os.MkdirAll(ledger.Dir(dir), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("unix", router.SocketPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	got := run(t, deps, "events")
+	untold := status.Moving{Stage: status.MoveUntold}
+	if want := "Error: " + untold.Said() + "; try again once it's done\n"; got.code != 1 || got.stderr != want {
+		t.Errorf("switchboard events, the router not saying, = %+v, want it refused: %q", got, want)
 	}
 }
 

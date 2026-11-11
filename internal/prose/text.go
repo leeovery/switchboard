@@ -20,18 +20,29 @@ const Separator = "  ·  "
 // MoveFailed say it.
 const HistoryMoving = "the history waits on its move onto the accounts' new ids"
 
-// What holds the move onto the accounts' ids up, said after HistoryMoving:
-// the router making it; the API not answering for the accounts' tokens,
-// whose organizations make their ids; the router to restart onto the new
-// ids its config holds; no router answering; and the router running being of
-// a version from before ids were made.
+// What holds the move onto the accounts' ids up, said after HistoryMoving,
+// but for the API, as MoveWaitsAPI says, and a failure, as MoveFailed says:
+// the router making it; the router to restart onto the new ids its config
+// holds; no router answering; the router not saying how it stands; and the
+// router running being of a version from before ids were made.
 const (
 	MoveRunning      = "the router is making it"
-	MoveWaitsAPI     = "the API isn't answering for the accounts' tokens, whose organizations make their ids, so the router asks again a while later"
 	MoveWaitsRestart = "the router makes the rest once it restarts onto the new ids its config holds"
 	MoveWaitsRouter  = "no router answers to make it: start it with switchboard service install (or switchboard serve)"
+	MoveWaitsUntold  = "the router didn't say how it stands in time, as when it's busy or restarting"
 	MoveWaitsUpgrade = "the router running is of a version from before the ids, and makes it once it restarts on this one"
 )
+
+// MoveWaitsAPI says the move onto the accounts' ids waits for the API to name
+// the organization of the token of the account given, by the id it had,
+// which makes its id, why saying why it hasn't: of the accounts' tokens
+// alike, where none's given.
+func MoveWaitsAPI(account, why string) string {
+	if account == "" {
+		return "the API hasn't named the organizations of the accounts' tokens, which make their ids, so the router asks again a while later"
+	}
+	return "the API hasn't named the organization of " + Clean(account) + "'s token, which makes its id, so the router asks again a while later: " + Clean(why)
+}
 
 // MoveFailed says the move onto the accounts' ids failed, why says why, and
 // the router tries it again.

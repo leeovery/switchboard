@@ -611,7 +611,7 @@ func (f *Files) open(file dayFile) (src *os.File, lines io.ReadCloser, err error
 	}
 	members, err := gzip.NewReader(src)
 	if err != nil {
-		return nil, nil, errors.Join(damage{err}, src.Close())
+		return nil, nil, errors.Join(damaged(err), src.Close())
 	}
 	return src, readCloser{Reader: members, Closer: src}, nil
 }

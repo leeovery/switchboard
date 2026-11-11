@@ -3,8 +3,10 @@ package idmove
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -25,11 +27,15 @@ const takenSuffix = ".taken"
 // decide decides the id of each account the record doesn't know yet, as
 // deciding does, and writes it to the record: each configured account's, its
 // token's organization asked first, and each the history holds that the
-// config doesn't. Where the API doesn't answer for a configured account's
-// token, it fails with ErrUnanswered, writing nothing. Only where a
-// configured account has no token it can use are the token files of
-// accounts neither configured nor known asked about, as join says, those the
-// API doesn't answer for passed over. With nothing to decide, it writes
+// config doesn't. Where the API doesn't name the organization of a
+// configured account's token, as answerFor has it, it fails with an
+// *Unanswered, writing nothing. Only where a configured account has no token
+// it can use are the token files of accounts neither configured nor known
+// asked about, as join says: where the API doesn't name the organization of
+// one of them, and a configured account without a token has an id an
+// organization could spell, as one another Mac moved has, it fails alike, so
+// a Mac that starts before its network is up joins the accounts another
+// moved; otherwise those are passed over. With nothing to decide, it writes
 // nothing.
 func (m *Mover) decide(ctx context.Context) error {
 	draft, record, err := m.standing()
@@ -49,22 +55,25 @@ func (m *Mover) decide(ctx context.Context) error {
 	if !d.undecided() {
 		return nil
 	}
-	answers, err := m.ask(ctx, d.withTokens())
+	withTokens := d.withTokens()
+	answers, err := m.ask(ctx, withTokens)
 	if err != nil {
 		return err
 	}
-	for _, a := range answers {
-		if a.unanswered {
-			return ErrUnanswered
-		}
+	if u := unansweredOf(withTokens, answers); u != nil {
+		return u
 	}
 	d.answers = answers
 	if d.anyTokenless() {
-		strays, err := m.ask(ctx, d.strays())
+		strays := d.strays()
+		asked, err := m.ask(ctx, strays)
 		if err != nil {
 			return err
 		}
-		maps.Copy(answers, strays)
+		maps.Copy(answers, asked)
+		if u := unansweredOf(strays, asked); u != nil && d.anySpellable() {
+			return u
+		}
 	}
 	return m.record().Update(func(r *identity.Record) error {
 		d.record, d.answers = r, answers
@@ -80,27 +89,78 @@ func configuredIn(draft *config.Draft) []string {
 	return draft.Config().Accounts.IDs()
 }
 
-// answer is what the API answered for a token: the organization it named, ""
-// for none, as where it refused the token; or that it didn't answer, or the
-// token's file couldn't be read.
+// answerKind is what an answer for a token tells of its organization.
+type answerKind int
+
+const (
+	// naming is an answer naming the token's organization.
+	naming answerKind = iota
+	// nameless is an answer the API gave naming none, as namesNone says:
+	// counted only once it's lasted, as lasting says.
+	nameless
+	// unanswered is no answer, or one saying to ask again, as a 429 or a 5xx
+	// says, or one that's yet to count.
+	unanswered
+	// unusable is a token file that can't be read.
+	unusable
+)
+
+// answer is what the API answered for a token, as its kind says: the
+// organization it named, where it named one, and otherwise why not, as the
+// API's answer or the token file says, any token in it hidden.
 type answer struct {
+	kind         answerKind
 	organization string
-	unanswered   bool
-	unusable     bool
-	refused      bool
+	why          string
 }
 
 // doubtful reports whether the answer is one to look at again before it
-// counts: a token file that can't be read, as one being written is for a
-// moment, or a token the API refused, as it may for a moment.
+// counts, as answerFor does: a token file that can't be read, as one being
+// written is for a moment, or an answer naming no organization, as the API
+// may give for a moment.
 func (a answer) doubtful() bool {
-	return a.unusable || a.refused
+	return a.kind == unusable || a.kind == nameless
 }
 
 // refusal is a failure that says whether the API refused a token.
 type refusal interface {
 	error
 	Refused() bool
+}
+
+// answered is a failure that says what status the API answered with: 0
+// where it didn't answer.
+type answered interface {
+	error
+	Status() int
+}
+
+// Unanswered is what an attempt at the move fails with, matching
+// ErrUnanswered, where the API didn't name the organization of a token that
+// decides an account's id: Account names the account, by the id it had, and
+// Why says why it didn't, as its answer or its failure says it, any token in
+// it hidden.
+type Unanswered struct {
+	Account, Why string
+}
+
+func (u *Unanswered) Error() string {
+	return fmt.Sprintf("%s: %s: %s", ErrUnanswered, u.Account, u.Why)
+}
+
+func (u *Unanswered) Is(target error) bool {
+	return target == ErrUnanswered
+}
+
+// unansweredOf is the failure of the first of the accounts with the given
+// ids whose answer, as answers has it, is unanswered: nil where none's is.
+func unansweredOf(ids []string, answers map[string]answer) *Unanswered {
+	for _, id := range ids {
+		if a := answers[id]; a.kind == unanswered {
+			return &Unanswered{Account: id, Why: a.why}
+		}
+	}
+	return nil
 }
 
 // ask asks the organization of the token of each account with the given ids,
@@ -118,54 +178,118 @@ func (m *Mover) ask(ctx context.Context, ids []string) (map[string]answer, error
 }
 
 // answerFor asks the organization of the token of the account with the given
-// id, failing once ctx has ended. A token file that can't be read, or a
-// token the API refuses, is looked at again a while later, as Again says, as
-// the router looks again at a token file: and only where it's still so does
-// it count, the file unusable, as no token at all, or the token refused, an
-// answer naming no organization.
+// id, failing once ctx has ended. A token file that can't be read, or an
+// answer naming no organization, is looked at again a while later, as Again
+// says, as the router looks again at a token file, and again where that look
+// is of another kind, mostLooks times at most: only two looks that agree
+// count, the file unusable, as no token at all, or the answer naming none,
+// as lasting has it; three that never do are unanswered.
 func (m *Mover) answerFor(ctx context.Context, id string) (answer, error) {
 	a, err := m.look(ctx, id)
-	if err != nil || !a.doubtful() {
-		return a, err
-	}
-	if err := pause(ctx, m.again()); err != nil {
+	if err != nil {
 		return answer{}, err
 	}
-	if m.lookingAgain != nil {
-		m.lookingAgain(id)
+	for looks := 1; a.doubtful(); looks++ {
+		if looks == mostLooks {
+			return answer{kind: unanswered, why: a.why}, nil
+		}
+		if err := pause(ctx, m.again()); err != nil {
+			return answer{}, err
+		}
+		if m.lookingAgain != nil {
+			m.lookingAgain(id)
+		}
+		next, err := m.look(ctx, id)
+		if err != nil {
+			return answer{}, err
+		}
+		agreed := next.kind == a.kind
+		a = next
+		if agreed {
+			break
+		}
 	}
-	if a, err = m.look(ctx, id); err != nil {
-		return answer{}, err
+	if a.kind == unusable {
+		logger.Warn("can't read an account's token file, looked at twice, so the move takes it as no token", "account", id, "error", a.why)
 	}
-	switch {
-	case a.unusable:
-		logger.Warn("can't read an account's token file, looked at twice, so the move takes it as no token", "account", id)
-	case a.refused:
-		logger.Warn("the API refused an account's token, asked twice, so it names no organization to move the account by", "account", id)
-	}
-	return a, nil
+	return m.lasting(id, a), nil
 }
 
 // look reads the token of the account with the given id and asks the API its
-// organization, once, failing once ctx has ended.
+// organization, once, failing once ctx has ended. An answer naming none
+// starts the clock lasting reads, where it hasn't started.
 func (m *Mover) look(ctx context.Context, id string) (answer, error) {
 	token, err := m.Tokens.Read(id)
 	if err != nil {
 		logger.Info("can't read an account's token file to move the account onto its id", "account", id, "error", err)
-		return answer{unusable: true}, nil
+		return answer{kind: unusable, why: err.Error()}, nil
 	}
 	organization, err := m.Organizations.Organization(ctx, token)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return answer{}, ctxErr
 	}
+	if organization != "" {
+		return answer{kind: naming, organization: organization}, nil
+	}
+	why := "the API's answer named no organization"
+	if err != nil {
+		why = redact.Text(err.Error(), token.Reveal())
+	}
+	if !namesNone(err) {
+		logger.Info("the API didn't answer for an account's token, which the id it moves onto waits on", "account", id, "error", why)
+		return answer{kind: unanswered, why: why}, nil
+	}
+	if _, started := m.nameless[id]; !started {
+		if m.nameless == nil {
+			m.nameless = make(map[string]time.Time)
+		}
+		m.nameless[id] = time.Now()
+	}
+	return answer{kind: nameless, why: why}, nil
+}
+
+// namesNone reports whether err, the failure, if any, of a request for a
+// token's organization that named none, is the API answering so: nil, an
+// answer of success naming none; a refusal, as Refused reports one; or an
+// answer of any other status, as Status reports it, but 429 or a 5xx, which
+// say to ask again. A request the API didn't answer, as one timed out, has
+// no status.
+func namesNone(err error) bool {
 	if err == nil {
-		return answer{organization: organization}, nil
+		return true
 	}
-	if refused, ok := errors.AsType[refusal](err); ok && refused.Refused() {
-		return answer{refused: true}, nil
+	if r, ok := errors.AsType[refusal](err); ok && r.Refused() {
+		return true
 	}
-	logger.Info("the API didn't answer for an account's token, which the id it moves onto waits on", "account", id, "error", redact.Text(err.Error(), token.Reveal()))
-	return answer{unanswered: true}, nil
+	a, ok := errors.AsType[answered](err)
+	if !ok {
+		return false
+	}
+	status := a.Status()
+	return status != 0 && status != http.StatusTooManyRequests && status < http.StatusInternalServerError
+}
+
+// lasting is a, the answer for the token of the account with the given id,
+// but one naming no organization counted only once the API has answered so
+// for Lasts, since look first heard it, as the mover's attempts go, and
+// unanswered till then: so a refusal or an answer naming none for a passing
+// reason, as an incident at the API or a captive portal gives, never decides
+// an account's id for good, nor two Macs sharing a config different ones.
+// An answer naming the organization, or a token file that can't be read,
+// lets go of the clock.
+func (m *Mover) lasting(id string, a answer) answer {
+	switch a.kind {
+	case naming, unusable:
+		delete(m.nameless, id)
+		return a
+	case unanswered:
+		return a
+	}
+	if time.Since(m.nameless[id]) < m.lasts() {
+		return answer{kind: unanswered, why: a.why}
+	}
+	logger.Warn("the API's answers for an account's token have named no organization for a while, so it moves as one without", "account", id, "why", a.why)
+	return a
 }
 
 // tokenFiles are the ids, in lower case, named by the token files in the
@@ -325,11 +449,24 @@ func (d *deciding) withTokens() []string {
 	return slices.DeleteFunc(slices.Clone(d.configured), func(id string) bool { return d.known(id) || !d.hasToken(id) })
 }
 
-// anyTokenless reports whether a configured account to decide has no token
-// it can use, as usable says, which a token file of an account neither
-// configured nor known may be, as join says.
+// tokenless are the ids of the configured accounts to decide that have no
+// token they can use, as usable says, which a token file of an account
+// neither configured nor known may be, as join says.
+func (d *deciding) tokenless() []string {
+	return slices.DeleteFunc(slices.Clone(d.configured), func(id string) bool { return d.known(id) || d.usable(id) })
+}
+
+// anyTokenless reports whether any configured account to decide has no token
+// it can use, as tokenless says.
 func (d *deciding) anyTokenless() bool {
-	return slices.ContainsFunc(d.configured, func(id string) bool { return !d.known(id) && !d.usable(id) })
+	return len(d.tokenless()) > 0
+}
+
+// anySpellable reports whether a configured account to decide that has no
+// token it can use has an id switchboard makes, which an organization could
+// spell, as one another Mac moved has.
+func (d *deciding) anySpellable() bool {
+	return slices.ContainsFunc(d.tokenless(), identity.WellFormed)
 }
 
 // strays are the names of the token files of accounts that are neither
@@ -562,7 +699,8 @@ func (d *deciding) hasToken(id string) bool {
 // that could be read, as far as the answers tell: before any's asked, every
 // token file is.
 func (d *deciding) usable(id string) bool {
-	return d.hasToken(id) && !d.answers[id].unusable
+	a, asked := d.answers[id]
+	return d.hasToken(id) && (!asked || a.kind != unusable)
 }
 
 // findFold returns the one of ids that's id, in any case, reporting false

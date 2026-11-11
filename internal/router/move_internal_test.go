@@ -66,6 +66,8 @@ func TestTheMoveSaysWhatHoldsItUpWhileItWaitsToRunAgain(t *testing.T) {
 		want status.Moving
 	}{
 		{name: "the API not answering", err: fmt.Errorf("decide: %w", idmove.ErrUnanswered), want: status.Moving{Stage: status.MoveAwaitingAPI}},
+		{name: "the API not naming an account's token's organization", err: &idmove.Unanswered{Account: "work", Why: "HTTP 404 for sk-ant-oat01-abc"},
+			want: status.Moving{Stage: status.MoveAwaitingAPI, Account: "work", Why: "HTTP 404 for " + redact.Placeholder}},
 		{name: "failing", err: errors.New("read sk-ant-oat01-abc: denied"), want: status.Moving{Stage: status.MoveFailed, Why: "read " + redact.Placeholder + ": denied"}},
 	}
 	for _, tt := range tests {

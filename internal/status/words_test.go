@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -668,9 +669,11 @@ func TestMovingSaysWhatHoldsTheMoveUp(t *testing.T) {
 		want   string
 	}{
 		{status.Moving{Stage: status.MoveRunning}, prose.HistoryMoving + ": the router is making it"},
-		{status.Moving{Stage: status.MoveAwaitingAPI}, prose.HistoryMoving + ": " + prose.MoveWaitsAPI},
+		{status.Moving{Stage: status.MoveAwaitingAPI}, prose.HistoryMoving + ": the API hasn't named the organizations of the accounts' tokens, which make their ids, so the router asks again a while later"},
+		{status.Moving{Stage: status.MoveAwaitingAPI, Account: "work", Why: "HTTP 404:\tno window read"}, prose.HistoryMoving + ": the API hasn't named the organization of work's token, which makes its id, so the router asks again a while later: HTTP 404: no window read"},
 		{status.Moving{Stage: status.MoveAwaitingRestart}, prose.HistoryMoving + ": " + prose.MoveWaitsRestart},
 		{status.Moving{Stage: status.MoveNoRouter}, prose.HistoryMoving + ": " + prose.MoveWaitsRouter},
+		{status.Moving{Stage: status.MoveUntold}, prose.HistoryMoving + ": " + prose.MoveWaitsUntold},
 		{status.Moving{Stage: status.MoveOlderRouter}, prose.HistoryMoving + ": " + prose.MoveWaitsUpgrade},
 		{status.Moving{Stage: status.MoveFailed, Why: "rename the\nconfig: denied"}, prose.HistoryMoving + ": the router couldn't make it, and tries again in a minute: rename the config: denied"},
 		{status.Moving{Stage: "a stage of a later version"}, prose.HistoryMoving},
@@ -683,20 +686,22 @@ func TestMovingSaysWhatHoldsTheMoveUp(t *testing.T) {
 }
 
 func TestMovingAskedTellsWhyNoRouterMakesTheMove(t *testing.T) {
-	running := status.Moving{Stage: status.MoveAwaitingAPI}
+	running := status.Moving{Stage: status.MoveAwaitingAPI, Account: "work", Why: "HTTP 404"}
 	tests := []struct {
-		name   string
-		moving status.Moving
-		err    error
-		want   status.Moving
+		name       string
+		moving     status.Moving
+		err        error
+		notRunning bool
+		want       status.Moving
 	}{
-		{"no router answering", status.Moving{}, errors.New("dial unix: connection refused"), status.Moving{Stage: status.MoveNoRouter}},
-		{"a router owing no move", status.Moving{}, nil, status.Moving{Stage: status.MoveOlderRouter}},
-		{"a router making it", running, nil, running},
+		{"no router listening", status.Moving{}, errors.New("dial unix: connection refused"), true, status.Moving{Stage: status.MoveNoRouter}},
+		{"a router not saying in time", status.Moving{}, context.DeadlineExceeded, false, status.Moving{Stage: status.MoveUntold}},
+		{"a router owing no move", status.Moving{}, nil, false, status.Moving{Stage: status.MoveOlderRouter}},
+		{"a router making it", running, nil, false, running},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := status.MovingAsked(tt.moving, tt.err); got != tt.want {
+			if got := status.MovingAsked(tt.moving, tt.err, tt.notRunning); got != tt.want {
 				t.Errorf("MovingAsked() = %+v, want %+v", got, tt.want)
 			}
 		})

@@ -774,17 +774,18 @@ func (a *fakeAPI) asked() []string {
 	return slices.Sorted(slices.Values(a.models))
 }
 
-func TestProbeSaysWhetherTheAPIRefusedIt(t *testing.T) {
+func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 	tests := []struct {
 		name        string
 		reply       reply
 		wantRefused bool
+		wantStatus  int
 	}{
-		{name: "401, the token refused", reply: apiError(http.StatusUnauthorized, "Invalid bearer token"), wantRefused: true},
-		{name: "403, the request refused", reply: apiError(http.StatusForbidden, "Not allowed"), wantRefused: true},
-		{name: "400", reply: apiError(http.StatusBadRequest, "Invalid request")},
-		{name: "429 without usage", reply: apiError(http.StatusTooManyRequests, "Rate limited")},
-		{name: "529", reply: apiError(529, "Overloaded")},
+		{name: "401, the token refused", reply: apiError(http.StatusUnauthorized, "Invalid bearer token"), wantRefused: true, wantStatus: http.StatusUnauthorized},
+		{name: "403, the request refused", reply: apiError(http.StatusForbidden, "Not allowed"), wantRefused: true, wantStatus: http.StatusForbidden},
+		{name: "400", reply: apiError(http.StatusBadRequest, "Invalid request"), wantStatus: http.StatusBadRequest},
+		{name: "429 without usage", reply: apiError(http.StatusTooManyRequests, "Rate limited"), wantStatus: http.StatusTooManyRequests},
+		{name: "529", reply: apiError(529, "Overloaded"), wantStatus: 529},
 		{name: "no answer in time", reply: reply{hang: true}},
 	}
 	for _, tt := range tests {
@@ -799,6 +800,9 @@ func TestProbeSaysWhetherTheAPIRefusedIt(t *testing.T) {
 			if got := refused(err); got != tt.wantRefused {
 				t.Errorf("Probe() error %q says the API refused it: %v, want %v", err, got, tt.wantRefused)
 			}
+			if got := statusOf(err); got != tt.wantStatus {
+				t.Errorf("Probe() error %q says the API answered %d, want %d", err, got, tt.wantStatus)
+			}
 		})
 	}
 
@@ -810,6 +814,19 @@ func TestProbeSaysWhetherTheAPIRefusedIt(t *testing.T) {
 			t.Errorf("Probe() error = %v, want one that doesn't say the API refused it", err)
 		}
 	})
+}
+
+// statusOf is the status a probe's error says the API answered with: 0 for
+// none.
+func statusOf(err error) int {
+	s, ok := errors.AsType[interface {
+		error
+		Status() int
+	}](err)
+	if !ok {
+		return 0
+	}
+	return s.Status()
 }
 
 // refused reports whether a probe's error says the API refused the probe.

@@ -488,8 +488,10 @@ func differences(want, got map[string]string) string {
 // as "kind|date|account": each day's lines of the readings history, the
 // request ledger and the router's events, by each field that names an
 // account, as "requests.from" and "events.accounts[]"; the readings' use, in
-// thousandths, by account; and each day's requests upstream, by account, as
-// its summary has them.
+// thousandths, by account; and each day's requests upstream, input tokens,
+// and each window's highest use and rise, in thousandths, by account, as its
+// summary has them. A day whose compressed file isn't gzip at all holds no
+// lines to count.
 func (f fixture) tallies(t *testing.T) map[string]int {
 	t.Helper()
 	counts := make(map[string]int)
@@ -518,7 +520,7 @@ func (f fixture) tallies(t *testing.T) map[string]int {
 					counts["readings.use|"+date+"|"+r.Account] += int(math.Round(r.Utilization * 1000))
 				}
 				return true
-			}); err != nil {
+			}); err != nil && !errors.Is(err, dayfile.ErrDamaged) {
 				t.Fatal(err)
 			}
 		}
@@ -536,6 +538,21 @@ func (f fixture) tallies(t *testing.T) map[string]int {
 		for _, a := range s.Accounts {
 			for _, m := range a.Models {
 				counts["summary|"+date+"|"+a.Account] += m.Upstream + m.Unsent
+				var usage struct {
+					Input int `json:"input_tokens"`
+				}
+				if len(m.Usage) > 0 {
+					if err := json.Unmarshal(m.Usage, &usage); err != nil {
+						t.Fatal(err)
+					}
+				}
+				counts["summary.input|"+date+"|"+a.Account] += usage.Input
+			}
+			for window, use := range a.Highest {
+				counts["summary.highest."+window+"|"+date+"|"+a.Account] += int(math.Round(use * 1000))
+			}
+			for window, rise := range a.Rise {
+				counts["summary.rise."+window+"|"+date+"|"+a.Account] += int(math.Round(rise * 1000))
 			}
 		}
 	}

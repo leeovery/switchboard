@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -72,7 +73,8 @@ func historyMoved(stateDir string) error {
 func moveSaid(ctx context.Context, stateDir string) string {
 	ctx, cancel := context.WithTimeout(ctx, moveAskFor)
 	defer cancel()
-	return status.MovingAsked(router.NewClient(router.SocketPath(stateDir)).Moving(ctx)).Said()
+	moving, err := router.NewClient(router.SocketPath(stateDir)).Moving(ctx)
+	return status.MovingAsked(moving, err, errors.Is(err, router.ErrNotRunning)).Said()
 }
 
 // awaitMove waits while the history in the state directory given waits on its

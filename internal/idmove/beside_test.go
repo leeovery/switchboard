@@ -1,11 +1,14 @@
 package idmove_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -18,7 +21,6 @@ import (
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
-	"github.com/leeovery/switchboard/internal/readings"
 )
 
 // errStopped is a move stopped, as by a power cut or a crash.
@@ -27,7 +29,7 @@ var errStopped = errors.New("stopped")
 // historyOf is the fixture's history's files, as a router opens them.
 func (f fixture) historyOf() idmove.History {
 	return idmove.History{
-		Ledger:   ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), ledger.Caps{}, logs.For("test")),
+		Ledger:   ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test")),
 		Readings: readingsFiles(f.state),
 		Events:   events.Files(ledger.Dir(f.state), logs.For("test")),
 	}
@@ -97,6 +99,9 @@ func TestAMoveBesideRoutersStoppedAnywhereCarriesOnToTheSameEnd(t *testing.T) {
 				}
 				return nil
 			})
+			if !stopped {
+				t.Errorf("the move never reached %s, to stop there", at)
+			}
 			if got := f.snapshot(t); !maps.Equal(got, want) {
 				t.Errorf("stopped after %s and run on, the install differs from one never stopped:\n%s", at, differences(want, got))
 			}
@@ -104,31 +109,47 @@ func TestAMoveBesideRoutersStoppedAnywhereCarriesOnToTheSameEnd(t *testing.T) {
 	}
 }
 
+// A round summarises the days that have ended once their readings are moved
+// and before their lines are, so each summary it writes holds an account's
+// requests under its old id and its windows under its new: renamed, the two
+// merge into one, every total kept.
 func TestASummarisingRoundBesideTheMoveKeepsEveryTotal(t *testing.T) {
 	f := newFixture(t)
 	before := f.tallies(t)
 	h := f.historyOf()
-	done := make(chan struct{})
-	var rounds sync.WaitGroup
-	rounds.Go(func() {
-		for {
-			select {
-			case <-done:
-				return
-			default:
-				h.Ledger.SummariseEnded(now)
-			}
-		}
-	})
 	m := f.mover(answering())
 	m.History = &h
-	err := m.Run(t.Context())
-	close(done)
-	rounds.Wait()
-	if err != nil {
+	summarised := false
+	m.StopAfter(func(step string) error {
+		if step != h.Readings.Name+" "+today || summarised {
+			return nil
+		}
+		summarised = true
+		for _, date := range []string{longAgo, yesterday} {
+			if err := os.Remove(ledger.SummaryFile(ledger.Dir(f.state), date)); err != nil {
+				return err
+			}
+		}
+		h.Ledger.SummariseEnded(now)
+		var s ledger.Summary
+		if err := json.Unmarshal([]byte(readFile(t, ledger.SummaryFile(ledger.Dir(f.state), yesterday))), &s); err != nil {
+			return err
+		}
+		var accounts []string
+		for _, a := range s.Accounts {
+			accounts = append(accounts, a.Account)
+		}
+		if !slices.Contains(accounts, work) || !slices.Contains(accounts, workID) {
+			t.Errorf("summarised as the move ran, yesterday's summary holds %q, want work under both its ids, to merge", accounts)
+		}
+		return nil
+	})
+	if err := m.Run(t.Context()); err != nil {
 		t.Fatalf("Run() = %v", err)
 	}
-	h.Ledger.SummariseEnded(now)
+	if !summarised {
+		t.Fatal("no round summarised as the move ran")
+	}
 
 	rename := f.renamer(t)
 	want := make(map[string]int, len(before))
@@ -218,23 +239,63 @@ func TestHealingWritesTheNewIDsBackInAConfigPutBackToTheOld(t *testing.T) {
 	}
 }
 
-func TestADamagedCompressedDayIsLeftAsItWasAndTheRestMoved(t *testing.T) {
+// A config that names an account by its old id and its new, as a merge of
+// two of its versions leaves it, heals the rest.
+func TestHealingPassesOverAnAccountWhoseNewIDIsConfiguredToo(t *testing.T) {
 	f := newFixture(t)
-	damaged := map[string][]byte{
-		readingsFiles(f.state).CompressedPath("2026-11-01"):                              []byte("not gzip, nor ever was\n"),
-		ledger.Files(ledger.Dir(f.state), logs.For("test")).CompressedPath("2026-11-01"): nil,
+	f.moved(t, answering())
+	clashing := fixtureConfig + "\n[[account]]\nid = \"" + workID + "\"\nlabel = \"Work again\"\n"
+	writeFile(t, f.config, clashing)
+
+	healed, err := idmove.Heal(f.config, f.state)
+	if err != nil || !healed {
+		t.Fatalf("Heal() = %t, %v, want the rest healed", healed, err)
 	}
-	for path, data := range damaged {
-		writeFile(t, path, string(data))
+	got := readFile(t, f.config)
+	if !strings.Contains(got, `id      = "work"`) || !strings.Contains(got, `id = "`+personalID+`"`) || strings.Contains(got, `id = "personal"`) {
+		t.Errorf("healed, the config reads\n%s\nwant work by its old id left beside its new, and personal healed", got)
 	}
+}
+
+// A compressed day damaged since it was summarised: its lines before the
+// damage are moved with the rest, the file itself kept aside, so a round
+// that summarises the day again counts each request once, under its new id.
+func TestADamagedCompressedDayIsMovedUpToItsDamageItsTotalsCountedOnce(t *testing.T) {
+	f := newFixture(t)
+	lines := ledger.Files(ledger.Dir(f.state), logs.For("test")).CompressedPath(longAgo)
+	whole, err := os.ReadFile(lines)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cut := whole[:len(whole)-6]
+	writeFile(t, lines, string(cut))
+	notGzip := readingsFiles(f.state).CompressedPath("2026-11-01")
+	writeFile(t, notGzip, "not gzip, nor ever was\n")
+	before := f.tallies(t)
 	f.runBounded(t, answering())
 
-	for path, data := range damaged {
-		if got, err := os.ReadFile(path); err != nil || string(got) != string(data) {
-			t.Errorf("%s holds %q, %v, want it left as it was, %q", filepath.Base(path), got, err, data)
+	for path, data := range map[string][]byte{lines: cut, notGzip: []byte("not gzip, nor ever was\n")} {
+		if got, err := os.ReadFile(path + ".damaged"); err != nil || !bytes.Equal(got, data) {
+			t.Errorf("%s set aside holds %q, %v, want it as it was", filepath.Base(path), got, err)
 		}
 	}
-	if got := readFile(t, filepath.Join(readings.Dir(f.state), "readings-"+today+".jsonl")); !strings.Contains(got, `"`+workID+`"`) {
-		t.Errorf("today's readings weren't moved:\n%s", got)
+	if got := readFile(t, lines); strings.Contains(got, `"`+work+`"`) || !strings.Contains(got, `"`+workID+`"`) {
+		t.Errorf("the damaged day's lines read\n%s\nwant them moved onto the new ids", got)
+	}
+	rename := f.renamer(t)
+	want := make(map[string]int, len(before))
+	for key, n := range before {
+		kind, date, account := splitKey(key)
+		want[kind+"|"+date+"|"+rename(account)] += n
+	}
+	if got := f.tallies(t); !maps.Equal(got, want) {
+		t.Errorf("moved, the days' totals by account are\n%v\nwant\n%v", got, want)
+	}
+	if err := os.Remove(ledger.SummaryFile(ledger.Dir(f.state), longAgo)); err != nil {
+		t.Fatal(err)
+	}
+	f.historyOf().Ledger.SummariseEnded(now)
+	if got := f.tallies(t); !maps.Equal(got, want) {
+		t.Errorf("summarised again, the days' totals by account are\n%v\nwant\n%v", got, want)
 	}
 }

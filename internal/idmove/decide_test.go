@@ -2,6 +2,9 @@ package idmove_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"testing"
@@ -9,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/idmove"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 )
 
 // spareToken is the token of a token file of an account neither configured
@@ -174,5 +178,147 @@ label = "personal 2"
 `
 	if got := readFile(t, f.config); got != want {
 		t.Errorf("the config reads\n%s\nwant\n%s", got, want)
+	}
+}
+
+// A second Mac upgrading with the config the first moved, its token files
+// still by the old ids, and starting before its network's up, waits to
+// join them, rather than take its own accounts for removed ones.
+func TestASecondMacStartingBeforeItsNetworkWaitsToJoinTheAccountsAnotherMoved(t *testing.T) {
+	f := newFixture(t)
+	writeFile(t, f.config, movedConfig)
+	before := f.snapshot(t)
+	silent := answering()
+	silent.silent = map[string]bool{workToken: true, personalToken: true}
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	if err := f.mover(silent).Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Run() = %v, want it waiting for the API till its context ended", err)
+	}
+	if got := f.snapshot(t); !maps.Equal(got, before) {
+		t.Errorf("waiting on the API, the install changed:\n%s", differences(before, got))
+	}
+	err := f.mover(silent).RunBeside(t.Context(), f.historyOf())
+	if u, ok := errors.AsType[*idmove.Unanswered](err); !ok || u.Account != personal || !strings.Contains(u.Why, "timed out") {
+		t.Errorf("RunBeside() = %v, want it unanswered, naming the token file it waits on and why", err)
+	}
+
+	f.runBounded(t, answering())
+	for was, id := range map[string]string{work: workID, personal: personalID} {
+		if e, ok := f.record(t).ByWas(was); !ok || e.ID != id || !e.Removed.IsZero() {
+			t.Errorf("once the API answered, %s moved onto %+v, want %s, joined", was, e, id)
+		}
+	}
+}
+
+func TestARefusalCountsOnlyOnceItHasLasted(t *testing.T) {
+	f := newFixture(t)
+	o := answering()
+	o.refused = map[string]int{personalToken: always}
+	m := f.mover(o)
+	m.Lasts = 300 * time.Millisecond
+	began := time.Now()
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	if err := m.Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Run() = %v, want it waiting while the refusal hasn't lasted", err)
+	}
+	if _, ok := f.record(t).ByWas(personal); ok {
+		t.Fatal("personal moved on a refusal that hadn't lasted")
+	}
+	if err := m.Run(t.Context()); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+	if e, ok := f.record(t).ByWas(personal); !ok || e.Organization != "" || e.ID == personalID || time.Since(began) < m.Lasts {
+		t.Errorf("personal moved onto %+v after %v, want a random id once the refusal had lasted %v", e, time.Since(began), m.Lasts)
+	}
+}
+
+func TestLooksOfKindsThatDisagreeCountOnlyOnceTwoAgree(t *testing.T) {
+	const unusable, refused = "unusable", "refused"
+	for _, tc := range []struct {
+		looks     []string
+		wantAsked int
+		wantLog   string
+	}{
+		{looks: []string{unusable, refused, unusable}, wantAsked: 1},
+		{looks: []string{unusable, refused, refused}, wantAsked: 2, wantLog: "have named no organization for a while"},
+		{looks: []string{refused, unusable, unusable}, wantAsked: 1, wantLog: "looked at twice, so the move takes it as no token"},
+	} {
+		t.Run(strings.Join(tc.looks, ", "), func(t *testing.T) {
+			log := logstest.Capture(t)
+			f := newFixture(t)
+			o := answering()
+			o.refused = map[string]int{personalToken: always}
+			put := func(state string) {
+				content := personalToken + "\n"
+				if state == unusable {
+					content = ""
+				}
+				writeFile(t, f.tokens.Path(personal), content)
+			}
+			put(tc.looks[0])
+			m := f.mover(o)
+			looked := 0
+			m.OnLookingAgain(func(id string) {
+				if id == personal {
+					looked++
+					put(tc.looks[looked])
+				}
+			})
+
+			err := m.RunBeside(t.Context(), f.historyOf())
+			if got := o.askedFor[personalToken]; got != tc.wantAsked {
+				t.Errorf("the API was asked about personal's token %d times, want %d", got, tc.wantAsked)
+			}
+			if tc.wantLog == "" {
+				if u, ok := errors.AsType[*idmove.Unanswered](err); !ok || u.Account != personal {
+					t.Errorf("RunBeside() = %v, want personal unanswered, no two looks agreeing", err)
+				}
+				return
+			}
+			if err != nil || !log.Has(tc.wantLog, "account="+personal) {
+				t.Errorf("RunBeside() = %v, log reads\n%s\nwant the move done, personal counted as %q says", err, log, tc.wantLog)
+			}
+		})
+	}
+}
+
+func TestAnAnswerNamingNoOrganizationCountsAsARefusalDoesButAnAskToAskAgainNever(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		counts bool
+	}{
+		{status: 400, counts: true},
+		{status: 404, counts: true},
+		{status: 200, counts: true},
+		{status: 429},
+		{status: 500},
+		{status: 529},
+		{status: 0},
+	} {
+		t.Run(fmt.Sprint(tc.status), func(t *testing.T) {
+			f := newFixture(t)
+			o := answering()
+			o.failing = map[string]error{personalToken: answeredError{status: tc.status}}
+
+			waiting := f.mover(o)
+			waiting.Lasts = time.Hour
+			err := waiting.RunBeside(t.Context(), f.historyOf())
+			if u, ok := errors.AsType[*idmove.Unanswered](err); !ok || u.Account != personal || !strings.Contains(u.Why, fmt.Sprintf("HTTP %d", tc.status)) {
+				t.Fatalf("RunBeside() = %v, want personal unanswered, saying why", err)
+			}
+
+			ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+			defer cancel()
+			err = f.mover(o).Run(ctx)
+			e, moved := f.record(t).ByWas(personal)
+			switch {
+			case tc.counts && (err != nil || !moved || e.Organization != "" || e.ID == personalID):
+				t.Errorf("Run() = %v, personal moved onto %+v, want a random id, the answer counted once it lasted", err, e)
+			case !tc.counts && (!errors.Is(err, context.DeadlineExceeded) || moved):
+				t.Errorf("Run() = %v, personal moved onto %+v, want it waiting on the API, never counting its failure", err, e)
+			}
+		})
 	}
 }

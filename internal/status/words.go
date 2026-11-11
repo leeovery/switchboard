@@ -537,15 +537,14 @@ func cutAccount(reason, start string) (account, why string, ok bool) {
 func (m Moving) Said() string {
 	held := map[string]string{
 		MoveRunning:         prose.MoveRunning,
-		MoveAwaitingAPI:     prose.MoveWaitsAPI,
+		MoveAwaitingAPI:     prose.MoveWaitsAPI(m.Account, m.Why),
 		MoveAwaitingRestart: prose.MoveWaitsRestart,
 		MoveNoRouter:        prose.MoveWaitsRouter,
+		MoveUntold:          prose.MoveWaitsUntold,
 		MoveOlderRouter:     prose.MoveWaitsUpgrade,
+		MoveFailed:          prose.MoveFailed(m.Why),
 	}[m.Stage]
-	switch {
-	case m.Stage == MoveFailed:
-		held = prose.MoveFailed(m.Why)
-	case held == "":
+	if held == "" {
 		return prose.HistoryMoving
 	}
 	return prose.HistoryMoving + ": " + held

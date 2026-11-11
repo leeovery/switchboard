@@ -53,8 +53,11 @@ const (
 	// MoveFailed is the move failing, the router to make it again.
 	MoveFailed = "failed"
 	// MoveNoRouter is no router answering to make the move, as a command
-	// that finds the history waiting on it tells it.
+	// that finds the history waiting on it tells it, and MoveUntold the
+	// router not saying how it stands in time, as when it's busy or
+	// restarting.
 	MoveNoRouter = "no router"
+	MoveUntold   = "untold"
 	// MoveOlderRouter is the router running owing no move, as one of a
 	// version from before ids were made, as a command that finds the history
 	// waiting on it tells it.
@@ -66,19 +69,28 @@ const (
 type Moving struct {
 	// Stage says what the move does or waits on, such as MoveRunning.
 	Stage string `json:"stage"`
-	// Why says why the move failed, where Stage is MoveFailed.
+	// Account is the account, by the id it had, whose token the API hasn't
+	// named the organization of, where Stage is MoveAwaitingAPI: "" where
+	// that isn't known.
+	Account string `json:"account,omitempty"`
+	// Why says why the move failed, where Stage is MoveFailed, and why the
+	// API hasn't named Account's token's organization, where it's
+	// MoveAwaitingAPI.
 	Why string `json:"why,omitempty"`
 }
 
 // MovingAsked is how the move stands, as a command that finds the history
 // waiting on it tells it, having asked the router how it stands, which told
-// moving, or failed with err: no router to make it, where none answered; one
-// of a version from before ids were made, where the one that answered owes
-// none; else as the router tells it.
-func MovingAsked(moving Moving, err error) Moving {
+// moving, or failed with err, notRunning where no router listens: no router
+// to make it, then; the router not saying, where it failed otherwise, as by
+// taking too long; one of a version from before ids were made, where the
+// one that answered owes none; else as the router tells it.
+func MovingAsked(moving Moving, err error, notRunning bool) Moving {
 	switch {
-	case err != nil:
+	case err != nil && notRunning:
 		return Moving{Stage: MoveNoRouter}
+	case err != nil:
+		return Moving{Stage: MoveUntold}
 	case moving == Moving{}:
 		return Moving{Stage: MoveOlderRouter}
 	}

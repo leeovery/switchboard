@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"maps"
 	"slices"
-	"time"
 )
 
 // mergedWritten merges two days of one account as a summary writes them,
@@ -26,10 +25,11 @@ func mergedWritten(a, b json.RawMessage) (json.RawMessage, error) {
 // names them, a's account its: each model's requests and usage summed, as
 // mergedModels has them; each session counted once, as mergedSessions says;
 // the moves summed; each window's highest use the higher of the two, and its
-// rises summed; the resets and limits of both, in the order they came; the
-// minutes summed; and the windows read before of both. A window's rises,
-// resets and minutes that one of them never read, as its readings were under
-// the other's id, are the other's.
+// rises summed; the resets and limits of both, in the order they came, each
+// once, as limitsKnowing and resetsKnowing have them; the minutes summed;
+// and the windows read before of both. A window's rises, resets and minutes
+// that one of them never read, as its readings were under the other's id,
+// are the other's.
 func mergedDays(a, b AccountDay) AccountDay {
 	sessions, ids := mergedSessions(a.Sessions, a.SessionIDs, b.Sessions, b.SessionIDs)
 	return AccountDay{
@@ -41,8 +41,8 @@ func mergedDays(a, b AccountDay) AccountDay {
 		MovedOff:       a.MovedOff + b.MovedOff,
 		Highest:        mergedMaps(a.Highest, b.Highest, func(x, y float64) float64 { return max(x, y) }),
 		Rise:           mergedMaps(a.Rise, b.Rise, func(x, y float64) float64 { return x + y }),
-		Resets:         inOrderOf(a.Resets, b.Resets, func(r Reset) time.Time { return r.At }),
-		Limits:         inOrderOf(a.Limits, b.Limits, func(l Limit) time.Time { return l.At }),
+		Resets:         resetsKnowing(a.Resets, b.Resets),
+		Limits:         limitsKnowing(slices.Clone(a.Limits), b.Limits),
 		MinutesAtCap:   summedMinutes(a.MinutesAtCap, b.MinutesAtCap),
 		MinutesAtLimit: summedMinutes(a.MinutesAtLimit, b.MinutesAtLimit),
 		ReadBefore:     unionOf(a.ReadBefore, b.ReadBefore),
@@ -129,14 +129,6 @@ func mergedMaps(a, b map[string]float64, merge func(x, y float64) float64) map[s
 		merged[key] = v
 	}
 	return merged
-}
-
-// inOrderOf returns a's and b's together, in the order of their times, as
-// at gives them: nil where neither holds any.
-func inOrderOf[T any](a, b []T, at func(T) time.Time) []T {
-	both := slices.Concat(a, b)
-	slices.SortStableFunc(both, func(x, y T) int { return at(x).Compare(at(y)) })
-	return both
 }
 
 // summedMinutes sums two counts of minutes: the one there is where one of

@@ -2,9 +2,16 @@ package dayfile
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"errors"
+	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -68,59 +75,98 @@ func TestRewritingADayWhoseLinesDontChangeLeavesItsFilesAsTheyAre(t *testing.T) 
 	}
 }
 
-func TestADamagedCompressedFileIsLeftAsItIs(t *testing.T) {
-	whole := gzipOf(t, linesOf(`{"a":"old"}`, `{"a":"old","b":"old"}`))
+// gzipCutShort is a compressed file of the lines given, its last bytes lost, as
+// a write cut short loses them: its lines read whole, then it fails.
+func gzipCutShort(t *testing.T, lines string) []byte {
+	whole := gzipOf(t, lines)
+	return whole[:len(whole)-6]
+}
+
+func TestADamagedCompressedFileIsRewrittenUpToItsDamageAndSetAside(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		data []byte
+		want string
 	}{
-		{"cut short", whole[:len(whole)-6]},
-		{"not gzip at all", []byte("not gzip, nor ever was\n")},
-		{"empty", nil},
+		{"cut short", gzipCutShort(t, linesOf(`{"a":"old"}`, `{"a":"old","b":"old"}`)+`{"a":"old","cut`), linesOf(`{"a":"new"}`, `{"a":"new","b":"new"}`)},
+		{"not gzip at all", []byte("not gzip, nor ever was\n"), ""},
+		{"empty", nil, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := requestLedger(t.TempDir())
 			put(t, f.path(compressedFile(rewriteDate)), tc.data)
-			was := statOf(t, f.path(compressedFile(rewriteDate)))
 
-			r, err := f.Rewrite(rewriteDate, toNew)
-			if err != nil || r != (Rewritten{Damaged: true}) {
-				t.Errorf("Rewrite() = %+v, %v, want it left as damaged, and no failure", r, err)
+			if _, err := f.Rewrite(rewriteDate, toNew); err != nil {
+				t.Fatalf("Rewrite() = %v", err)
 			}
-			if now := statOf(t, f.path(compressedFile(rewriteDate))); !os.SameFile(was, now) || now.Size() != was.Size() {
-				t.Error("the damaged file was written again, want it left as it was")
+			if got := heldIn(t, f, compressedFile(rewriteDate)); got != tc.want {
+				t.Errorf("the compressed file gives %q, want the whole lines before the damage, rewritten, %q", got, tc.want)
 			}
-			if leftovers(t, f) != 0 {
-				t.Error("a file written beside it was left behind")
+			aside, err := os.ReadFile(f.path(compressedFile(rewriteDate)) + ".damaged")
+			if err != nil || !bytes.Equal(aside, tc.data) {
+				t.Errorf("the damaged file set aside holds %q, %v, want it as it was, %q", aside, err, tc.data)
+			}
+			if dates, err := f.All(); err != nil || !slices.Equal(dates, []string{rewriteDate}) {
+				t.Errorf("the files list the days %q, %v, want the one day, the damaged file set aside unlisted", dates, err)
 			}
 		})
 	}
 }
 
-func TestADamagedCompressedFilesPlainFileIsRewrittenAlone(t *testing.T) {
+func TestADamagedCompressedFileBesideAPlainOneIsRewrittenWithItWhole(t *testing.T) {
+	f := requestLedger(t.TempDir())
+	damaged := gzipCutShort(t, linesOf(`{"a":"old"}`))
+	put(t, f.path(compressedFile(rewriteDate)), damaged)
+	put(t, f.path(plainFile(rewriteDate)), []byte(linesOf(`{"a":"old","late":1}`)))
+
+	r, err := f.Rewrite(rewriteDate, toNew)
+	if err != nil || !r.Changed {
+		t.Fatalf("Rewrite() = %+v, %v, want the day rewritten", r, err)
+	}
+	if got, want := heldIn(t, f, compressedFile(rewriteDate)), linesOf(`{"a":"new"}`, `{"a":"new","late":1}`); got != want {
+		t.Errorf("the compressed file gives %q, want %q", got, want)
+	}
+	if _, err := os.Stat(f.path(plainFile(rewriteDate))); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the plain file: %v, want it compressed with the rest", err)
+	}
+	if aside, err := os.ReadFile(f.path(compressedFile(rewriteDate)) + ".damaged"); err != nil || !bytes.Equal(aside, damaged) {
+		t.Errorf("the damaged file set aside holds %q, %v, want it as it was", aside, err)
+	}
+}
+
+func TestADamagedFileSetAsideKeepsOneSetAsideBefore(t *testing.T) {
+	f := requestLedger(t.TempDir())
+	path := f.path(compressedFile(rewriteDate))
+	put(t, path+".damaged", []byte("set aside before"))
+	put(t, path, []byte("not gzip, nor ever was\n"))
+
+	if _, err := f.Rewrite(rewriteDate, toNew); err != nil {
+		t.Fatalf("Rewrite() = %v", err)
+	}
+	for aside, want := range map[string]string{path + ".damaged": "set aside before", path + ".damaged-2": "not gzip, nor ever was\n"} {
+		if got, err := os.ReadFile(aside); err != nil || string(got) != want {
+			t.Errorf("%s holds %q, %v, want %q", filepath.Base(aside), got, err, want)
+		}
+	}
+}
+
+func TestOnlyACompressedFilesOwnDamageCountsAsDamage(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		data []byte
+		err  error
+		want bool
 	}{
-		{"cut short", func() []byte { whole := gzipOf(t, linesOf(`{"a":"old"}`)); return whole[:len(whole)-6] }()},
-		{"not gzip at all", []byte("not gzip, nor ever was\n")},
+		{"not gzip", gzip.ErrHeader, true},
+		{"failing its checksum", gzip.ErrChecksum, true},
+		{"not inflating", flate.CorruptInputError(12), true},
+		{"cut short", io.ErrUnexpectedEOF, true},
+		{"empty", io.EOF, true},
+		{"the disk failing", &fs.PathError{Op: "read", Path: "requests-2026-11-02.jsonl.gz", Err: syscall.EIO}, false},
+		{"anything else", errors.New("bad file descriptor"), false},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := requestLedger(t.TempDir())
-			put(t, f.path(compressedFile(rewriteDate)), tc.data)
-			put(t, f.path(plainFile(rewriteDate)), []byte(linesOf(`{"a":"old","late":1}`)))
-
-			r, err := f.Rewrite(rewriteDate, toNew)
-			if err != nil || !r.Changed {
-				t.Fatalf("Rewrite() = %+v, %v, want the plain file rewritten", r, err)
-			}
-			if got, want := heldIn(t, f, plainFile(rewriteDate)), linesOf(`{"a":"new","late":1}`); got != want {
-				t.Errorf("the plain file holds %q, want %q", got, want)
-			}
-			if got := written(t, f, compressedFile(rewriteDate)); !bytes.Equal(got, tc.data) {
-				t.Errorf("the damaged file holds %q, want it left as it was, %q", got, tc.data)
-			}
-		})
+		if got := errors.Is(damaged(tc.err), ErrDamaged); got != tc.want {
+			t.Errorf("%s: damaged = %t, want %t", tc.name, got, tc.want)
+		}
 	}
 }
 

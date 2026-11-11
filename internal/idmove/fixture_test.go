@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"math/rand/v2"
@@ -54,6 +55,10 @@ const (
 	yesterday = "2026-11-07"
 	today     = "2026-11-08"
 )
+
+// fixtureCaps are the windows the fixture's request ledger summarises as
+// every model's.
+var fixtureCaps = ledger.Caps{Shared: []string{"five_hour"}}
 
 // now is when the fixture's move is made, by the local clock.
 var now = time.Date(2026, 11, 8, 12, 0, 0, 0, time.Local)
@@ -131,7 +136,7 @@ func (f fixture) history(t *testing.T) {
 		line(today, "r6", work, status.Compacted(work, 0.35), personal, nil),
 		line(today, "r7", "", status.ReasonNoRoom, "", nil),
 	)
-	ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(read), ledger.Caps{Shared: []string{"five_hour"}}, logs.For("test")).SummariseEnded(now)
+	ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(read), fixtureCaps, logs.For("test")).SummariseEnded(now)
 	writeFile(t, filepath.Join(ledger.Dir(f.state), "digest-"+longAgo+".json.gz"), "built of the old ids")
 
 	evts := events.Files(ledger.Dir(f.state), logs.For("test"))
@@ -171,14 +176,14 @@ func reading(date, account string, use float64) string {
 }
 
 // line is a line of the request ledger of a request answered on the day with
-// the given date.
+// the given date: one an account answered, of its usage.
 func line(date, request, account, reason, from string, tried []ledger.Tried) string {
-	status := 200
+	status, usage := 200, json.RawMessage(`{"input_tokens":10,"output_tokens":20}`)
 	if account == "" {
-		status = 529
+		status, usage = 529, nil
 	}
 	return jsonOf(ledger.Line{At: at(date), Request: request, Kind: ledger.KindMessage, Session: "s-" + request, Model: "claude-opus-5-5",
-		Account: account, Reason: reason, From: from, Tried: tried, Status: status, Attempts: 1})
+		Account: account, Reason: reason, From: from, Tried: tried, Status: status, Attempts: 1, Usage: usage})
 }
 
 // event is a line of the router's events, told on the day with the given
@@ -237,14 +242,16 @@ func writeFile(t *testing.T, path, content string) {
 // told otherwise: it fails as though the API didn't answer as many times as
 // unanswered says, whatever the token, and always for a token silent holds;
 // for one it's to refuse, it fails as the API refusing it does, as many
-// times as refused says; and one it has no organization of, it answers
-// naming none. It counts the times it's asked, by token too.
+// times as refused says; for one failing holds, it fails so; and one it has
+// no organization of, it answers naming none. It counts the times it's
+// asked, by token too.
 type organizations struct {
 	mu         sync.Mutex
 	of         map[string]string
 	unanswered int
 	silent     map[string]bool
 	refused    map[string]int
+	failing    map[string]error
 	asked      int
 	askedFor   map[string]int
 }
@@ -274,6 +281,8 @@ func (o *organizations) Organization(ctx context.Context, token tokens.Token) (s
 	case o.refused[token.Reveal()] > 0:
 		o.refused[token.Reveal()]--
 		return "", refusedError{}
+	case o.failing[token.Reveal()] != nil:
+		return "", o.failing[token.Reveal()]
 	}
 	return o.of[token.Reveal()], nil
 }
@@ -284,13 +293,23 @@ type refusedError struct{}
 func (refusedError) Error() string { return "401: invalid token" }
 func (refusedError) Refused() bool { return true }
 
+// answeredError is the API answering a token with a status, naming no
+// organization, as a probe's failure says: 0 for no answer.
+type answeredError struct {
+	status int
+}
+
+func (e answeredError) Error() string { return fmt.Sprintf("HTTP %d: no window read", e.status) }
+func (e answeredError) Status() int   { return e.status }
+
 // mover is the move of the fixture's install, asking o for its tokens'
 // organizations, by the fixture's clock, drawing random ids from a source
 // that draws the same each time, and asking again, and looking again at a
-// token, at once.
+// token, at once; an answer naming no organization counting once two looks
+// agree.
 func (f fixture) mover(o idmove.Organizations) *idmove.Mover {
 	return &idmove.Mover{ConfigPath: f.config, StateDir: f.state, Tokens: f.tokens, Organizations: o,
-		Now: clock, Random: rand.NewChaCha8([32]byte{7}), Retry: time.Millisecond, Again: time.Millisecond}
+		Now: clock, Random: rand.NewChaCha8([32]byte{7}), Retry: time.Millisecond, Again: time.Millisecond, Lasts: time.Nanosecond}
 }
 
 // moved runs the move of the fixture's install to its end, failing the test

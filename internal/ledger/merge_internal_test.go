@@ -25,8 +25,8 @@ func TestMergedDaysKeepEveryTotalOfBoth(t *testing.T) {
 		Sessions: 2, SessionIDs: []string{"s1"}, MovedOn: 1, MovedOff: 2,
 		Highest:      map[string]float64{"5h": 0.4, "7d": 0.6},
 		Rise:         map[string]float64{"5h": 0.1},
-		Resets:       []Reset{{Window: "5h", At: at(14), Before: 0.4}},
-		Limits:       []Limit{{Window: "5h", At: at(12)}},
+		Resets:       []Reset{{Window: "5h", At: at(14), Before: 0.4}, {Window: "7d", At: at(8), Before: 0.8}},
+		Limits:       []Limit{{Window: "5h", At: at(12)}, {Window: "7d", At: at(16)}},
 		MinutesAtCap: minutes(5), MinutesAtLimit: minutes(3),
 		ReadBefore: []string{"5h"},
 	}
