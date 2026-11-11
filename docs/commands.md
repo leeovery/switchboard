@@ -1354,7 +1354,8 @@ switchboard events [--since <when>] [-f] [--json | --pretty]
 The events cover:
 
 - sessions started and moved;
-- accounts under pressure, at their caps and limits, refused, primed, and open again;
+- accounts under pressure, at their caps and limits, refused, primed, and open again, and those
+  whose tokens are found to be another subscription's;
 - pins set and cleared;
 - restarts falling due, or held; and
 - the router's health.

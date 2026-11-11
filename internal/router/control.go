@@ -344,10 +344,13 @@ func historyAsked(req *http.Request) (historyAsk, error) {
 	return historyAsk{window: window, step: step, asked: asked}, nil
 }
 
-// refresh probes the accounts nothing has been read of for longer than age,
-// and those that can take no request anyway, as refreshing says, sharing any
-// probe of them already under way, and waits for those probes: for
-// refreshWait at most, or until ctx ends, after which they go on without it.
+// refresh probes the accounts it can send on that nothing has been read of
+// for longer than age, and those that can take no request anyway, as
+// refreshing says, sharing any probe of them already under way, and waits for
+// those probes: for refreshWait at most, or until ctx ends, after which they
+// go on without it. One holding the token a probe found another
+// subscription's isn't probed again till it takes up another, as on its
+// rounds.
 func (r *Router) refresh(ctx context.Context, age time.Duration) {
 	underway := r.probes.start(r.accounts.sendable(), r.state.refreshing(age))
 	if len(underway) == 0 {

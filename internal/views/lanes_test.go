@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -240,5 +241,29 @@ func TestAHeldWindowWasHeldSinceItsLanesStretchSaysElseItsEvent(t *testing.T) {
 				t.Errorf("it was held since %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// A lane's use says why it's not read where its account has no usable token,
+// and, where that's as the token it holds is another subscription's, says so,
+// as the moment has the account's window, in either view.
+func TestALanesUseSaysWhereItsTokenIsAnotherSubscriptions(t *testing.T) {
+	foreign := status.Account{ID: "work", Label: "work", TokenForeign: true, Error: "its token is another subscription's"}
+	tokenless := status.Account{ID: "personal", Label: "personal", Error: "no token"}
+	side := status.Account{ID: "side", Label: "side", TokenSet: true, FetchedAt: beyondNow, Windows: []quota.Window{week("5h", 0.1, 2), week("7d", 0.2, 100)}}
+	m := status.Document{GeneratedAt: beyondNow, Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{foreign, tokenless, side}}.
+		WorkedOut(claude.Policy()).At(beyondNow, claude.Policy())
+	for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
+		lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: views.LiveTimeline(w, beyondNow, 136), Window: w})
+		want := map[string][2]bool{"work": {true, true}, "personal": {true, false}, "side": {false, false}}
+		if len(lanes.Accounts) != len(want) {
+			t.Fatalf("view %v: %d lanes, want one an account", w, len(lanes.Accounts))
+		}
+		for _, lane := range lanes.Accounts {
+			got := [2]bool{lane.Use.Tokenless, lane.Use.TokenForeign}
+			if got != want[lane.ID] {
+				t.Errorf("view %v: %s's use is tokenless %v, its token another subscription's %v; want %v", w, lane.ID, got[0], got[1], want[lane.ID])
+			}
+		}
 	}
 }

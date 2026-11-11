@@ -209,6 +209,8 @@ func (d detailing) headline() status.Words {
 			return slices.Concat(who, clause("'s "+prose.Clean(e.Family)+" requests refused"))
 		}
 		return slices.Concat(who, clause("'s token refused"))
+	case status.EventForeign:
+		return slices.Concat(who, clause(prose.ForeignTokenAfterName))
 	case status.EventPrimed:
 		return slices.Concat(who, clause(" primed"))
 	case status.EventRoom:

@@ -97,6 +97,8 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 			full: "work refused (403, opus)", subject: "work"},
 		{name: "a refusal giving no answer", event: status.Event{Kind: status.EventRefused, Account: "work"},
 			full: "work refused", subject: "work"},
+		{name: "a token another subscription's", event: status.Event{Kind: status.EventForeign, Account: "work"},
+			full: "work's token is another subscription's", short: "work: wrong token", subject: "work"},
 		{name: "a prime", event: status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: at(18, 50)},
 			full: "side primed: its 5-hour window started", short: "side primed", subject: "side"},
 		{name: "room again as a window resets", event: status.Event{Kind: status.EventRoom, Account: "work", Windows: []string{"5h"}},

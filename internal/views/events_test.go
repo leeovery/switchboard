@@ -69,6 +69,8 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 			kind: "refused", account: "work", what: "its token refused (401), till 14:00: its 2 sessions move to side"},
 		{name: "a request refused alone", event: status.Event{Kind: status.EventRefused, Account: "work", Status: 403, Family: "opus", Until: at(14, 0)},
 			kind: "refused", account: "work", what: "its opus requests refused (403), till 14:00"},
+		{name: "a token another subscription's", event: status.Event{Kind: status.EventForeign, Account: "work"},
+			kind: "foreign", account: "work", what: "its token is another subscription's"},
 		{name: "a prime", event: status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: at(12, 5)},
 			kind: "primed", account: "side", what: "its 5-hour window started, resets at 12:05"},
 		{name: "room again, told as open", event: status.Event{Kind: status.EventRoom, Account: "work", Windows: []string{"5h"}},

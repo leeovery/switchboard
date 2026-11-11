@@ -50,6 +50,52 @@ func MoveFailed(why string) string {
 	return "the router couldn't make it, and tries again in a minute: " + Clean(why)
 }
 
+// An account's token said to be another subscription's, as the router finds
+// it probing the account, which takes no requests while it holds that token:
+// ForeignToken in full, "its token is another subscription's";
+// ForeignTokenAfterName after the account's name, as in "work's token is
+// another subscription's"; and ForeignTokenShort where a few cells hold it,
+// "wrong token", no wider than the 11 cells Runway's label column keeps for
+// a short word at its narrowest, which never widens for one.
+const (
+	ForeignToken          = "its " + foreignToken
+	ForeignTokenAfterName = "'s " + foreignToken
+	ForeignTokenShort     = "wrong token"
+)
+
+// foreignToken is what ForeignToken and ForeignTokenAfterName say after whose
+// token it is.
+const foreignToken = "token is another subscription's"
+
+// Tokenless says, short, why an account takes no requests for want of a token
+// of its own: "no token", or, where the token it holds is another
+// subscription's, as foreign says, ForeignTokenShort's "wrong token".
+func Tokenless(foreign bool) string {
+	if foreign {
+		return ForeignTokenShort
+	}
+	return "no token"
+}
+
+// AddAsOwn is the other way to put right an account whose token is another
+// subscription's, said after giving it its own: that subscription added as
+// an account of its own.
+const AddAsOwn = "or add that subscription as an account of its own"
+
+// AccountsToken is the command that gives the account with the given id its
+// token, as in "switchboard accounts token work".
+func AccountsToken(id string) string {
+	return "switchboard accounts token " + Clean(id)
+}
+
+// ForeignTokenFix says the token of the account with the given id is another
+// subscription's, as ForeignToken says, and what puts it right: "its token is
+// another subscription's: give it its own with switchboard accounts token
+// work, or add that subscription as an account of its own".
+func ForeignTokenFix(id string) string {
+	return ForeignToken + ": give it its own with " + AccountsToken(id) + ", " + AddAsOwn
+}
+
 // Version words a release's version as it's shown, such as v0.2.10: a
 // version that isn't a release's number, such as a build's "dev", as it is.
 func Version(version string) string {

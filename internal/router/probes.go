@@ -2,12 +2,14 @@ package router
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 )
@@ -35,9 +37,16 @@ type probes struct {
 	// transport is the router's, which the probes go upstream on.
 	transport http.RoundTripper
 	state     *state
-	now       func() time.Time
-	// emit hears of each prime that starts its window, and each limit a
-	// probe's reading lifts early.
+	// organizations hold the organization each probe's answer names to its
+	// account's, and kept hears that what the state file keeps of the
+	// accounts' tokens has changed, as where a probe finds one another
+	// subscription's.
+	organizations organizations
+	kept          func()
+	now           func() time.Time
+	// emit hears of each prime that starts its window, each limit a probe's
+	// reading lifts early, and each account's token a probe finds another
+	// subscription's.
 	emit func(Event)
 	// ctx ends when the router stops, cutting short the probes under way.
 	ctx    context.Context
@@ -50,10 +59,10 @@ type probes struct {
 	stopped bool
 }
 
-func newProbes(prober Prober, transport http.RoundTripper, state *state, now func() time.Time, emit func(Event)) *probes {
+func newProbes(prober Prober, transport http.RoundTripper, state *state, organizations organizations, kept func(), now func() time.Time, emit func(Event)) *probes {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &probes{
-		prober: prober, transport: transport, state: state, now: now, emit: emit,
+		prober: prober, transport: transport, state: state, organizations: organizations, kept: kept, now: now, emit: emit,
 		ctx: ctx, cancel: cancel, running: make(map[string]*run),
 	}
 }
@@ -236,23 +245,61 @@ func (p *probes) stop() {
 }
 
 // probe reads an account's usage, as r, and notes how that went, telling of
-// each of the account's limits lifting early where its reading shows it.
+// each of the account's limits lifting early where its reading shows it. The
+// organization its answer names is held to the account's, as organizations
+// hold it: a probe on another subscription's token read nothing of the
+// account's, and failed, as far as the account goes.
 func (p *probes) probe(a account, r *run) {
 	// sent is marked before the token is read, so a token the account takes up
 	// after the read is marked after sent, and recordProbe judges this probe
 	// one on the token before.
 	started, at, sent := time.Now(), p.now(), p.state.mark()
-	probed, err := p.prober.Probe(p.ctx, a.token().Reveal(), p.transport)
+	token := a.token()
+	probed, err := p.prober.Probe(p.ctx, token.Reveal(), p.transport)
 	took := time.Since(started).Round(time.Millisecond)
 	if p.ctx.Err() != nil {
 		// Stopped mid-probe: its failure says nothing of the account.
 		return
 	}
+	organization := probed.Organization
+	held := p.organizations.hold(a.ID, organization)
+	if held == heldForeign {
+		probed, err = quota.Probe{}, errors.New(prose.ForeignTokenFix(a.ID))
+	}
 	taken := p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
 	for _, lifted := range taken.lifted {
 		p.emit(lifted)
 	}
+	if !taken.tokenGone {
+		p.owning(a, hash(token.Reveal()), held, organization)
+	}
 	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenGone: taken.tokenGone, warn: taken.warn})
+}
+
+// owning notes whether the token whose hash is sum, which a probe of the
+// account went out on, is its own, the organization the probe's answer named
+// held as organizations held it, recording one held new as the account's,
+// where the account holds that token still, as disown says: another
+// subscription's has the account take no requests while it holds that
+// token, and tells of it, once a finding. One held to nothing changes
+// nothing.
+func (p *probes) owning(a account, sum string, held ownership, organization string) {
+	if held == heldNew {
+		held = p.organizations.take(a.ID, organization)
+	}
+	if held == unheld {
+		return
+	}
+	if !a.secret.disown(sum, held == heldForeign) {
+		return
+	}
+	p.kept()
+	if held == heldForeign {
+		logger.Warn("token is another subscription's; nothing will go out on the account till it has its own", "account", a.ID)
+		p.emit(ForeignToken{Account: a.ID})
+		return
+	}
+	logger.Info("token is the account's own again", "account", a.ID)
 }
 
 // logProbe logs how a probe of an account went: one that failed on a token

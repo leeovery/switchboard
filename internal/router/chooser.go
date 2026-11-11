@@ -125,7 +125,8 @@ type Choice struct {
 	Reason  string
 	// NoRoom is set when no account has room for the request: Account is only
 	// where it falls back to, for the upstream to answer, or none, when
-	// Reserved is set, or the request has been tried already.
+	// Reserved is set, the request has been tried already, or no account the
+	// router can send on will take it.
 	NoRoom bool
 	// Reserved is set when the request goes out on no account, as every one
 	// it could fall back to is held back by its reserve alone. Back is when

@@ -44,16 +44,16 @@ func (b usageBlock) widestWords() int {
 // fullWidest are the most cells a window's words take in full: the widest of
 // every kind wordsOf words, each with its time at its widest, on another day
 // within the week, as Dated shows it with its weekday, both within a day, as
-// a run-out's has it, and two days on; and an allowance at its most, the
-// whole window in a day. A reading over a week back, said by
-// its date, is wider: where its words don't fit, they're short, which says
-// the date still.
+// a run-out's has it, and two days on; a tokenless one's as its token is
+// another subscription's, the wider; and an allowance at its most, the whole
+// window in a day. A reading over a week back, said by its date, is wider:
+// where its words don't fit, they're short, which says the date still.
 var fullWidest = sync.OnceValue(func() int {
 	now := time.Date(2026, time.September, 28, 12, 0, 0, 0, time.UTC)
 	widest := 0
 	for kind := status.WindowTokenless; kind <= status.WindowOpen; kind++ {
 		for _, at := range []time.Time{now.Add(21 * time.Hour), now.AddDate(0, 0, 2).Add(9 * time.Hour), now.AddDate(0, 0, -6)} {
-			w := status.WindowNow{Kind: kind, At: at, Allowance: quota.Allowance{Share: 1, Per: quota.PerDay}}
+			w := status.WindowNow{Kind: kind, At: at, TokenForeign: true, Allowance: quota.Allowance{Share: 1, Per: quota.PerDay}}
 			widest = max(widest, wordsOf(w, now).full.width())
 		}
 	}
@@ -67,7 +67,8 @@ func alike(words string, k ink) usageWords {
 }
 
 // wordsOf are the words of the window w as it stands at now, as its Kind and
-// At say them: what holds it back, and until when; when it runs out; that it
+// At say them: that its account has no token of its own, as prose.Tokenless
+// says it; what holds it back, and until when; when it runs out; that it
 // isn't started; that its account has no such limit; or its allowance, to its
 // reset. A time reads as Dated has it in full, and short, its time today and
 // only its weekday for another day; but a reading's, as lastRead has it; a
@@ -78,7 +79,7 @@ func alike(words string, k ink) usageWords {
 func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	switch w.Kind {
 	case status.WindowTokenless:
-		return alike("no token", errorInk)
+		return alike(prose.Tokenless(w.TokenForeign), errorInk)
 	case status.WindowUnread:
 		return usageWords{full: line{{"not read yet", dimInk}}, short: line{{"not read", dimInk}}}
 	case status.WindowNone:

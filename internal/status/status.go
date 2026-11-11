@@ -194,6 +194,9 @@ const (
 	// EventRefused is the upstream refusing requests on an account, with the
 	// sessions the refusal moved.
 	EventRefused = "refused"
+	// EventForeign is an account's token found to be another subscription's,
+	// so the account takes no requests till it has one of its own.
+	EventForeign = "foreign"
 	// EventPrimed is a prime starting an account's window.
 	EventPrimed = "primed"
 	// EventRoom is an account that could take no request, at its limit or its
@@ -221,9 +224,10 @@ type Event struct {
 	// Kind says what happened, such as EventLimit.
 	Kind string `json:"kind"`
 	// Account is the account it befell: the one a session started on, or that
-	// came under pressure, reached its cap or its limit, was refused, was
-	// primed or has room again. Of a pin, the first of the global pin's Accounts, or the one
-	// a session's own pin names; of an auto, the one a session's own named.
+	// came under pressure, reached its cap or its limit, was refused, had its
+	// token found another subscription's, was primed or has room again. Of a
+	// pin, the first of the global pin's Accounts, or the one a session's own
+	// pin names; of an auto, the one a session's own named.
 	Account string `json:"account,omitempty"`
 	// Accounts are the accounts the global pin names, in the order
 	// configured, as it's set or cleared.
@@ -436,8 +440,15 @@ type Account struct {
 	// Plan is the plan the account's subscription is on, as configured, one
 	// of config.Plans: "" where that isn't known.
 	Plan string `json:"plan,omitempty"`
-	// TokenSet is whether the account's token file is there, and usable.
+	// TokenSet is whether the account's token file is there, and usable: not
+	// where it holds another subscription's token, as TokenForeign says.
 	TokenSet bool `json:"token_set"`
+	// TokenForeign is set where the router found the token the account's
+	// file holds another subscription's, as a probe on it named another
+	// organization than the account's: nothing goes out on the account till
+	// it has a token of its own, and Error says what puts it right. It's
+	// false in a document that isn't the router's.
+	TokenForeign bool `json:"token_foreign,omitempty"`
 	// TokenTaken is when switchboard took the account's token, as it
 	// recorded it, and TokenGoodUntil when the token's year is up, a setup
 	// token's lifetime later: each zero where it isn't known, as of a token

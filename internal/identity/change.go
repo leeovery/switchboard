@@ -1,8 +1,11 @@
 package identity
 
 import (
+	"cmp"
 	"strings"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/config"
 )
 
 // Add adds an account to the record, configured: its id, its organization,
@@ -76,6 +79,51 @@ func (r *Record) Remove(id, label string, at time.Time) bool {
 	}
 	e.Label, e.Removed = label, at
 	return true
+}
+
+// Kept is what KeepUp changed of the record, by the accounts' ids: those
+// added, marked removed and configured again, and those configured it left
+// out, as their ids clash.
+type Kept struct {
+	Added, Removed, Returned, Clashed []string
+}
+
+// KeepUp keeps the record in step with the accounts configured, as the config
+// stands at the time given, as accounts add and remove keep it, so an account
+// added or removed on another Mac sharing this one's config is one this Mac
+// has had too:
+//   - one configured that the record lacks is added, its organization not
+//     known, but one whose id clashes, as clashes says, ignoring case, which
+//     is left out;
+//   - one configured that's removed, or kept as only another Mac configures
+//     it, its label the record's, is configured again, as Return has it;
+//   - one this Mac configured, live and unlabelled, that has left the config
+//     is marked removed, at the time given, as Remove has it, labelled as
+//     labelOf gives the label it last had in the config, else by its id.
+//
+// It returns what it changed.
+func (r *Record) KeepUp(configured config.Accounts, labelOf func(id string) string, at time.Time) Kept {
+	var kept Kept
+	ids := configured.IDs()
+	for _, id := range ids {
+		switch e := r.entry(id); {
+		case e == nil && r.clashes(id, nil):
+			kept.Clashed = append(kept.Clashed, id)
+		case e == nil:
+			r.Add(id, "", at)
+			kept.Added = append(kept.Added, id)
+		case !e.Removed.IsZero() || e.Label != "":
+			kept.Returned = append(kept.Returned, e.ID)
+			r.Return(id, "")
+		}
+	}
+	for _, e := range r.Accounts {
+		if e.Removed.IsZero() && e.Label == "" && !containsFold(ids, e.ID) {
+			r.Remove(e.ID, cmp.Or(labelOf(e.ID), e.ID), at)
+			kept.Removed = append(kept.Removed, e.ID)
+		}
+	}
+	return kept
 }
 
 // entry is the record's account with the given id, in any case, to change:

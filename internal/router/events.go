@@ -9,9 +9,9 @@ import (
 
 // Event is news from the router that something outside it may want to act
 // on, such as by notifying the user: SessionStarted, LimitReached,
-// LimitLifted, Moved, Refused, RefusalLifted, HealthChanged, Primed,
-// RestartDue, RestartHeld, Pinned or Unpinned. Config.Events hears each as it
-// happens.
+// LimitLifted, Moved, Refused, RefusalLifted, ForeignToken, HealthChanged,
+// Primed, RestartDue, RestartHeld, Pinned or Unpinned. Config.Events hears
+// each as it happens.
 type Event interface {
 	event()
 }
@@ -110,6 +110,14 @@ type RefusalLifted struct {
 	Request string
 }
 
+// ForeignToken is the token of Account found to be another subscription's,
+// as a probe on it named another organization than the account's: nothing
+// goes out on the account till a probe on a token it holds finds its own. It
+// tells of each finding once, not of every probe that finds it so again.
+type ForeignToken struct {
+	Account string
+}
+
 // HealthChanged is the router turning unhealthy, saying why, or healthy
 // again.
 type HealthChanged struct {
@@ -170,6 +178,7 @@ func (LimitLifted) event()    {}
 func (Moved) event()          {}
 func (Refused) event()        {}
 func (RefusalLifted) event()  {}
+func (ForeignToken) event()   {}
 func (HealthChanged) event()  {}
 func (Primed) event()         {}
 func (RestartDue) event()     {}

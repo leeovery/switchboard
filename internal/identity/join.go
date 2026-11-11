@@ -40,7 +40,10 @@ type JoinAs struct {
 //     router's probe telling one configured; and its label where the other
 //     Mac configures it, as Configured says, and this one neither
 //     configures it nor removed it, labels taken, as as says, so a label
-//     changed there arrives;
+//     changed there arrives; or, where this one removed it named by its id
+//     alone, as the router names one that left the config while no router
+//     ran, any other label the other record gives it, configured there or
+//     not;
 //   - matching none, of an id configured here that r doesn't hold, it's that
 //     account, added to r with its organization and time added alone, as an
 //     account added on another Mac sharing this one's config;
@@ -122,7 +125,8 @@ func (j *joining) configuredUnheld(e Entry) bool {
 // the same account as another record keeps it: its organization, where it
 // has none, isn't configured here, and no other account has it; and its
 // label, where labelled says it's to be taken and the account is neither
-// configured here nor removed. It returns the account's id.
+// configured here nor removed, or where it's removed named by its id alone
+// and e names it otherwise. It returns the account's id.
 func (j *joining) take(i int, e Entry, labelled bool) string {
 	own := &j.record.Accounts[i]
 	if containsFold(j.configured, own.ID) {
@@ -131,10 +135,17 @@ func (j *joining) take(i int, e Entry, labelled bool) string {
 	if _, held := j.record.ByOrganization(e.Organization); !held {
 		own.organize(e.Organization)
 	}
-	if labelled && e.Label != "" && own.Removed.IsZero() {
+	live := own.Removed.IsZero()
+	if e.Label != "" && (live && labelled || !live && own.namedByID() && !e.namedByID()) {
 		own.Label = e.Label
 	}
 	return own.ID
+}
+
+// namedByID reports whether e's label is its id, as an account that left
+// the config while no router ran is named, the router knowing no other.
+func (e Entry) namedByID() bool {
+	return strings.EqualFold(e.Label, e.ID)
 }
 
 // matching is the place of the account e is, as Join matches it: -1 where

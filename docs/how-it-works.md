@@ -256,6 +256,7 @@ The router keeps these in `state.json`, so a restart doesn't scatter sessions or
 - Each session's account.
 - The pins.
 - Each account's last readings.
+- Each token found to be another subscription's, so its account still takes no requests on it.
 - How long use stays on its account, which the [weeks' forecast](#where-a-week-runs-out) goes by.
 
 ### A readings history
@@ -312,7 +313,8 @@ Beside the ledger's lines, the router files its events, so they outlast a restar
 line for each version of an event. These are the events it files:
 
 - A session started or moved.
-- An account under pressure, at its cap, at its limit, refused, primed, or with room again.
+- An account under pressure, at its cap, at its limit, refused, primed, or with room again, or its
+  token found to be another subscription's.
 - Routing set by hand.
 - A restart falling due.
 - The router's own health turning.

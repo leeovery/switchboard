@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/handover"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -161,7 +162,9 @@ type Config struct {
 	// in, as ~/. Nil knows of none.
 	HomeDir func() (string, error)
 	// Listen is the proxy's address, and StateDir the directory its control
-	// socket and state file go in: only Run uses them.
+	// socket and state file go in, which only Run uses, and its accounts
+	// record, which each probe's organization is held to, and recorded in
+	// where the account's isn't known.
 	Listen   string
 	StateDir string
 	// ConfigFile is the config file the router was started from, as Watch
@@ -338,7 +341,9 @@ func New(cfg Config) (*Router, error) {
 	}
 	emit := hearing(listeners...)
 	transport := newPool()
-	probes := newProbes(cfg.Prober, transport, state, cfg.Now, emit)
+	moving := newMoving(cfg.Move)
+	organizations := organizations{record: identity.NewFile(cfg.StateDir), owed: moving.owed}
+	probes := newProbes(cfg.Prober, transport, state, organizations, changes.note, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
 	recent.judge = health.look
 	scheduler := &scheduler{
@@ -369,7 +374,7 @@ func New(cfg Config) (*Router, error) {
 		history:   history,
 		ledger:    requests,
 		imports:   newImports(),
-		moving:    newMoving(cfg.Move),
+		moving:    moving,
 		probes:    probes,
 		health:    health,
 		proxy: &proxy{
@@ -398,7 +403,7 @@ func New(cfg Config) (*Router, error) {
 		started:       cfg.Now().UTC(),
 	}
 	r.exports = newExports(cfg, r.tendHistory, r.restartComing, r.moving.owed)
-	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, emit)
+	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, newAccountsRecord(cfg, accounts, moving.owed), emit)
 	return r, nil
 }
 

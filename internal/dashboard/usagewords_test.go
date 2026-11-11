@@ -21,6 +21,7 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 		ink         ink
 	}{
 		{name: "no token", state: state(status.WindowTokenless, time.Time{}), full: "no token", short: "no token", ink: errorInk},
+		{name: "its token another subscription's", state: status.WindowNow{Kind: status.WindowTokenless, TokenForeign: true}, full: "wrong token", short: "wrong token", ink: errorInk},
 		{name: "nothing read", state: state(status.WindowUnread, time.Time{}), full: "not read yet", short: "not read", ink: dimInk},
 		{name: "stale since today", state: state(status.WindowStale, on(1, 14, 20)), full: "not read since 14:20", short: "read 14:20", ink: dimInk},
 		{name: "stale since another day", state: state(status.WindowStale, on(30, 22, 10).AddDate(0, -1, 0)), full: "not read since Wed 22:10", short: "read Wed", ink: dimInk},
