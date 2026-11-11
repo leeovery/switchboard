@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-11
+
+Accounts are now identified by ids switchboard makes from each subscription, with a label every screen shows.
+
+💥 Breaking
+- `switchboard accounts add` now takes the account's label, not an id (`accounts add <label>`), and `--label` is gone — give the label as the argument; the id is made from the token's subscription.
+- Commands that take an account (`pin`, `run --account`, `requests --account`, `accounts edit`, `accounts token`, `accounts remove`) take its id, not its label, and refuse a label — use the id shown by `switchboard accounts`.
+- Every account must have its own label, unique ignoring case, so `accounts edit --label ""` (which showed the account by its id) is no longer allowed.
+- Routing-card number keys (0–9) no longer pick accounts — move with ↑↓ and pick with space.
+- Exports now carry a newer folder version, so a switchboard from before account ids refuses to import a folder exported by this one — upgrade that Mac.
+
+✨ Added
+- Accounts get ids made from their subscription's organization, so the same subscription keeps the same id on every Mac, and a removed account re-added with a token from its subscription returns under its old id with its history.
+- Existing accounts and their history move onto the new ids once, by themselves, when the router first starts — history commands and the dashboard wait until it's done and say what holds it up.
+- When a token doesn't settle which account it is, `accounts add` and setup ask whether it's new or one this Mac had (`--new` or `--returning <id>` answer it).
+- A token for a different subscription than its account's is detected: the account takes no requests, shows "wrong token" and the fix, and a notification event is recorded.
+- Removed accounts keep the label they last showed and appear under it in history, requests, sessions, events and the Days page.
+- Exports and imports carry an accounts record, joining accounts across Macs.
+- Export history now includes the accounts record.
+- Damaged compressed day files are repaired automatically, keeping the lines before the damage and setting the original aside.
+
+🔧 Changed
+- Dashboard screens, setup tables and cards name accounts by label, with the numbering column removed.
+- Setup's add-account card asks for a label and plan only; the id is no longer typed.
+- Adding an account no longer keeps an existing token file; it takes a token and checks it first, and nothing is saved if the API doesn't answer.
+- `switchboard accounts token` refuses a token from another subscription and points to adding it as its own account.
+- A request that no sendable account can take now gets a 503 instead of going out on an unusable token.
+- Setup shows every unsaved token on exit, each labelled with its account.
+- Import tells you which folders it passed over and why, and fails if none can be taken in.
+- `pin` errors list accounts by id and label.
+
+🐛 Fixed
+- Config edits that collide with a concurrent change report a clear "changed while being edited" error.
+
 ## [0.6.0] - 2026-11-11
 
 💥 Breaking
