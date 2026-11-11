@@ -10652,3 +10652,4 @@ was dropped binds a later choice, the design proper says so.
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
+| Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
