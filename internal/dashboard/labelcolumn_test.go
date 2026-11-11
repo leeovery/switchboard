@@ -188,10 +188,27 @@ func TestEventsCutALoneNameAtALabelsMost(t *testing.T) {
 // ellipsis.
 func TestTheLogPanelsSessionsNameAnAccountNoLongerConfigured(t *testing.T) {
 	p := framesPanel(LogRequests, 0)
-	p.Accounts = []status.AccountNow{{ID: "ab"}, {ID: "ops"}}
+	p.Moment.Accounts = []status.AccountNow{{ID: "ab"}, {ID: "ops"}}
 	p.Sessions[5].Account = "old-account"
 	at := p.sessionColumns(78)
 	if got, want := p.sessionWords(p.Sessions[5], at.account).plain(), "old-acc… "; !strings.Contains(got, " "+want) {
 		t.Errorf("the row reads %q, want it naming %q", got, want)
+	}
+}
+
+// The Log panel names the account each session is on as its moment names it:
+// one configured by its label, and one removed by the label the accounts
+// record kept, never by an id.
+func TestTheLogPanelsSessionsNameTheirAccountsAsTheMomentDoes(t *testing.T) {
+	removed := status.RemovedAccounts{{ID: "h7c2", Label: "team", Removed: panelNow.AddDate(0, 0, -3)}}
+	p := framesPanel(LogRequests, 0)
+	p.Moment = status.Document{GeneratedAt: panelNow, Accounts: []status.Account{{ID: "c4rf", Label: "work"}}}.WithRemoved(removed).At(panelNow, claudeLike)
+	for id, want := range map[string]string{"c4rf": "work", "h7c2": "team"} {
+		s := p.Sessions[5]
+		s.Account = id
+		got := p.sessionWords(s, p.sessionColumns(120).account).plain()
+		if !strings.Contains(got, " "+want+" ") || strings.Contains(got, id) {
+			t.Errorf("the row of a session on %s reads %q, want it naming %s", id, got, want)
+		}
 	}
 }

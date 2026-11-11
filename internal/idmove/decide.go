@@ -1,6 +1,7 @@
 package idmove
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -30,19 +31,20 @@ const takenSuffix = ".taken"
 // config doesn't. Where the API doesn't name the organization of a
 // configured account's token, as answerFor has it, it fails with an
 // *Unanswered, writing nothing. Only where a configured account has no token
-// it can use are the token files of accounts neither configured nor known
-// asked about, as join says: where the API doesn't name the organization of
-// one of them, and a configured account without a token has an id an
-// organization could spell, as one another Mac moved has, it fails alike, so
-// a Mac that starts before its network is up joins the accounts another
-// moved; otherwise those are passed over. With nothing to decide, it writes
-// nothing.
+// it can use, as join says, or may take one as its former id, as
+// mayTakeAStray says, are the token files of accounts neither configured nor
+// known asked about: where the API doesn't name the organization of one of
+// them, and a configured account without a token has an id an organization
+// could spell, as one another Mac moved has, or one may take it, it fails
+// alike, so a Mac that starts before its network is up joins the accounts
+// another moved; otherwise those are passed over. With nothing to decide, it
+// writes nothing.
 func (m *Mover) decide(ctx context.Context) error {
 	draft, record, err := m.standing()
 	if err != nil {
 		return err
 	}
-	seen, err := m.historyAccounts()
+	told, err := m.historyAccounts()
 	if err != nil {
 		return err
 	}
@@ -50,7 +52,7 @@ func (m *Mover) decide(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	d := deciding{configured: configuredIn(draft), seen: seen, tokened: held, now: m.now(), random: m.random()}
+	d := deciding{configured: configuredIn(draft), labels: labelsIn(draft), seen: told.seen, used: told.used, tokened: held, now: m.now(), random: m.random()}
 	d.record = &record
 	if !d.undecided() {
 		return nil
@@ -64,14 +66,14 @@ func (m *Mover) decide(ctx context.Context) error {
 		return u
 	}
 	d.answers = answers
-	if d.anyTokenless() {
+	if takes := d.mayTakeAStray(); takes || d.anyTokenless() {
 		strays := d.strays()
 		asked, err := m.ask(ctx, strays)
 		if err != nil {
 			return err
 		}
 		maps.Copy(answers, asked)
-		if u := unansweredOf(strays, asked); u != nil && d.mayJoinAStray() {
+		if u := unansweredOf(strays, asked); u != nil && (takes || d.mayJoinAStray()) {
 			return u
 		}
 	}
@@ -87,6 +89,19 @@ func configuredIn(draft *config.Draft) []string {
 		return nil
 	}
 	return draft.Config().Accounts.IDs()
+}
+
+// labelsIn are the labels of the accounts draft configures, by id in lower
+// case.
+func labelsIn(draft *config.Draft) map[string]string {
+	labels := make(map[string]string)
+	if draft.Config() == nil {
+		return labels
+	}
+	for _, a := range draft.Config().Accounts {
+		labels[strings.ToLower(a.ID)] = a.Label
+	}
+	return labels
 }
 
 // answerKind is what an answer for a token tells of its organization.
@@ -330,11 +345,14 @@ func (m *Mover) tokenFiles() (map[string]string, error) {
 	return held, nil
 }
 
-// seenDays are the dates of the first and last days the history tells of an
-// account on, as its files' names give them: "" where none does, as the
-// router's state file alone names it.
+// seenDays is what the history tells of an account it names: its id, as the
+// history first spells it in the order it's read, the readings history, the
+// router's events, the request ledger's lines and its summaries, then the
+// router's state file; and the dates of the first and last days it tells of
+// it on, as its files' names give them: "" where none does, as the router's
+// state file alone names it.
 type seenDays struct {
-	first, last string
+	id, first, last string
 }
 
 // on is s, the account seen on the day with the given date too: none for
@@ -350,53 +368,81 @@ func (s seenDays) on(date string) seenDays {
 	return s
 }
 
-// historyAccounts are the accounts the history names, by their ids, and the
-// days it tells of each on: the readings history's lines, the router's
-// events', the request ledger's and its summaries, and the router's state
-// file. They're read once, the first time the mover asks, and kept for the
-// attempts after it.
-func (m *Mover) historyAccounts() (map[string]seenDays, error) {
-	if m.seen != nil {
-		return m.seen, nil
+// accountsTold is what the history tells of the accounts, each by its id in
+// lower case: seen, each it names, and the days it tells of each on; and
+// used, each this Mac used, as names' uses have it: the accounts the request
+// ledger's lines went out on, and its summaries' accounts, which are its
+// lines' and the readings history's, and those the readings history read the
+// windows of. What only follows the config, as the router's state file and
+// events, which name the accounts it holds, whether they've a token file
+// here or not, is no use of an account.
+type accountsTold struct {
+	seen map[string]seenDays
+	used map[string]bool
+}
+
+// noting returns what notes each account a file of the day with the given
+// date names, "" for a file of no day, as names' visit hands it: seen on the
+// day, spelled as the first file read that names it spells it, and used
+// where it's a use of it there.
+func (t *accountsTold) noting(date string) func(id string, use bool) {
+	return func(id string, use bool) {
+		key := strings.ToLower(id)
+		s := t.seen[key].on(date)
+		s.id = cmp.Or(s.id, id)
+		t.seen[key] = s
+		t.used[key] = t.used[key] || use
+	}
+}
+
+// historyAccounts is what the history tells of the accounts, as accountsTold
+// says: the readings history's lines, the router's events', the request
+// ledger's and its summaries, and the router's state file. It's read once,
+// the first time the mover asks, and kept for the attempts after it.
+func (m *Mover) historyAccounts() (*accountsTold, error) {
+	if m.told != nil {
+		return m.told, nil
 	}
 	h := m.history()
-	seen := make(map[string]seenDays)
-	note := func(date string) func(string) {
-		return func(id string) { seen[id] = seen[id].on(date) }
-	}
+	t := &accountsTold{seen: make(map[string]seenDays), used: make(map[string]bool)}
 	for _, kind := range []struct {
 		files *dayfile.Files
 		names names
-	}{{h.Readings, readingNames}, {h.Events, eventNames}, {h.Ledger.Files(), lineNames}} {
-		if err := visitAll(kind.files, kind.names, note); err != nil {
+	}{
+		{h.Readings, readingNames},
+		{h.Events, eventNames},
+		{h.Ledger.Files(), lineNames},
+	} {
+		if err := visitAll(kind.files, kind.names, t.noting); err != nil {
 			return nil, err
 		}
 	}
-	if err := visitSummaries(h.Ledger.Files().Dir, note); err != nil {
+	if err := visitSummaries(h.Ledger.Files().Dir, t.noting); err != nil {
 		return nil, err
 	}
 	state, err := os.ReadFile(filepath.Join(m.StateDir, stateName))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	stateNames.visit(state, note(""))
-	m.seen = seen
-	return seen, nil
+	stateNames.visit(state, t.noting(""))
+	m.told = t
+	return t, nil
 }
 
-// visitAll hands note, by each day's date, each account each day's files
-// name, as n says where. A day's compressed file that's damaged is read up to
-// its damage: the rewrite repairs it, keeping the lines before, which are all
-// it names, as dayfile's Rewrite does, warning of it then.
-func visitAll(files *dayfile.Files, n names, note func(date string) func(string)) error {
+// visitAll hands each line of each day's files to n's visit, with what
+// noting gives for the day's date, as each account it names. A day's
+// compressed file that's damaged is read up to its damage: the rewrite
+// repairs it, keeping the lines before, which are all it names, as dayfile's
+// Rewrite does, warning of it then.
+func visitAll(files *dayfile.Files, n names, noting func(date string) func(id string, use bool)) error {
 	dates, err := files.All()
 	if err != nil {
 		return err
 	}
 	for _, date := range dates {
-		seen := note(date)
+		note := noting(date)
 		_, _, err := dayfile.ReadDay(files, date, func(line []byte) (struct{}, bool) {
-			n.visit(line, seen)
+			n.visit(line, note)
 			return struct{}{}, true
 		}, func(struct{}) bool { return true })
 		switch {
@@ -409,9 +455,10 @@ func visitAll(files *dayfile.Files, n names, note func(date string) func(string)
 	return nil
 }
 
-// visitSummaries hands note, by each day's date, each account the request
-// ledger's summary of the day in dir names.
-func visitSummaries(dir string, note func(date string) func(string)) error {
+// visitSummaries hands each account the request ledger's summary of a day
+// in dir names to what noting gives for the day's date, as summaryNames'
+// visit does.
+func visitSummaries(dir string, noting func(date string) func(id string, use bool)) error {
 	dates, err := ledger.SummaryDates(dir)
 	if err != nil {
 		return err
@@ -421,7 +468,7 @@ func visitSummaries(dir string, note func(date string) func(string)) error {
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		summaryNames.visit(data, note(date))
+		summaryNames.visit(data, noting(date))
 	}
 	return nil
 }
@@ -434,19 +481,24 @@ func visitSummaries(dir string, note func(date string) func(string)) error {
 // takes the id of a token file of no configured account whose organization
 // spells its id, as of an account another Mac moved, whose config this one
 // shares, as join has it, else keeps its id where switchboard makes one like
-// it and the history names none of it, as one never used, else a random id.
-// Each the history names alone is an account removed before ids were made,
-// under a random id. No id decided is held already, as an old id, a
+// it and this Mac never used it, as madeElsewhere has it, else a random id.
+// A token file of no configured account whose organization a configured
+// account holds is that account's former id, as formers has it. Each the
+// history names alone is an account removed before ids were made, under a
+// random id. No id decided is held already, as an old id, a
 // configured one, a token file's, or one decided before it.
 type deciding struct {
 	record *identity.Record
 	// configured are the ids of the accounts configured, in the config's
-	// order.
+	// order, and labels their labels, by id in lower case.
 	configured []string
+	labels     map[string]string
 	// answers are the organizations of the tokens asked, by account id.
 	answers map[string]answer
-	// seen are the accounts the history names, by id.
+	// seen are the accounts the history names, by id, and used those this
+	// Mac used, as accountsTold has them.
 	seen map[string]seenDays
+	used map[string]bool
 	// tokened are the ids the token files are named by, in lower case.
 	tokened map[string]string
 	now     time.Time
@@ -481,46 +533,79 @@ func (d *deciding) anyTokenless() bool {
 
 // mayJoinAStray reports whether a configured account to decide that has no
 // token it can use may be one another Mac moved, as madeElsewhere says, that
-// neither a configured account's token takes, as taken has it, nor a token
-// file the API named the organization of joins, as joins has it: so a token
-// file the API didn't answer for may.
+// neither a configured account's token takes nor a token file the API named
+// the organization of joins, as decide has them, the one before the other,
+// as claims has each: so a token file the API didn't answer for may.
 func (d *deciding) mayJoinAStray() bool {
 	tokenless := d.tokenless()
-	taken, joins := d.taken(tokenless), d.joins(tokenless)
-	return slices.ContainsFunc(tokenless, func(id string) bool {
+	taken, held := d.claims(d.withTokens(), tokenless, nil)
+	free := slices.DeleteFunc(tokenless, func(id string) bool {
+		_, ok := taken[id]
+		return ok
+	})
+	joins, _ := d.claims(d.preferred(d.strays(), d.spelling(free)), free, held)
+	return slices.ContainsFunc(free, func(id string) bool {
 		_, joined := joins[id]
-		return d.madeElsewhere(id) && !taken[id] && !joined
+		return d.madeElsewhere(id) && !joined
 	})
 }
 
-// taken are those of the configured accounts given, which have no token they
-// can use, that the tokens of the configured accounts to decide take, as idOf
-// has them do, in the config's order: each token whose organization neither
-// the record nor a token before it holds takes the one spelledBy gives of
-// those not taken yet.
-func (d *deciding) taken(tokenless []string) map[string]bool {
-	taken := make(map[string]bool)
-	organizations := make(map[string]bool)
-	for _, was := range d.withTokens() {
-		organization := d.answers[was].organization
-		if _, held := d.record.ByOrganization(organization); organization == "" || held || organizations[organization] {
+// mayTakeAStray reports whether a configured account may take a token file
+// of an account neither configured nor known as its former id, as formers
+// has one take it: one the record holds, of an organization known, that has
+// no former id; or one to decide whose token's organization, as answered,
+// spells its id, as ownSpelled says, which it may keep, as idOf has it.
+func (d *deciding) mayTakeAStray() bool {
+	return slices.ContainsFunc(d.configured, func(id string) bool {
+		if e, held := d.record.ByID(id); held {
+			return e.Organization != "" && e.Was == ""
+		}
+		return ownSpelled(d.answers[id].organization, id)
+	})
+}
+
+// ownSpelled reports whether id is one switchboard makes that the given
+// organization spells, as Spells has it: an account's own, which it keeps,
+// as idOf has it.
+func ownSpelled(organization, id string) bool {
+	return organization != "" && identity.WellFormed(id) && identity.Spells(organization, id)
+}
+
+// claims are those of the configured accounts given, tokenless, which have no
+// token they can use, that the tokens of the accounts given, claimants, take,
+// each by the account whose token takes it, as decide has them take one, in
+// the order given: each token whose organization neither the record, nor
+// held, nor a token before it holds takes the one spelledBy gives of those
+// not taken yet. It returns the organizations held by then too.
+func (d *deciding) claims(claimants, tokenless []string, held map[string]bool) (map[string]string, map[string]bool) {
+	claimed := make(map[string]string)
+	held = maps.Clone(held)
+	if held == nil {
+		held = make(map[string]bool)
+	}
+	for _, claimant := range claimants {
+		organization := d.answers[claimant].organization
+		if _, known := d.record.ByOrganization(organization); organization == "" || known || held[organization] {
 			continue
 		}
-		organizations[organization] = true
-		free := slices.DeleteFunc(slices.Clone(tokenless), func(id string) bool { return taken[id] })
+		held[organization] = true
+		free := slices.DeleteFunc(slices.Clone(tokenless), func(id string) bool {
+			_, ok := claimed[id]
+			return ok
+		})
 		if id, ok := d.spelledBy(organization, free); ok {
-			taken[id] = true
+			claimed[id] = claimant
 		}
 	}
-	return taken
+	return claimed, held
 }
 
 // madeElsewhere reports whether the configured account with the given id may
-// be one another Mac moved: its id is one switchboard makes, and the history
-// here names none of it, as it names every account it had before the move.
+// be one another Mac moved: its id is one switchboard makes, and this Mac
+// never used it, as accountsTold has its use, as it used every account it had
+// before the move, or couldn't have routed by it.
 func (d *deciding) madeElsewhere(id string) bool {
-	_, named := d.seen[id]
-	return identity.WellFormed(id) && !named
+	return identity.WellFormed(id) && !d.used[strings.ToLower(id)]
 }
 
 // strays are the names of the token files of accounts that are neither
@@ -537,9 +622,10 @@ func (d *deciding) strays() []string {
 }
 
 // decide decides each account the record doesn't know, as deciding says, in
-// the record: configured ones in the config's order, then those the history
-// names alone, in the order of their ids. It fails with ErrUnanswered where
-// an answer it needs is missing.
+// the record: configured ones in the config's order, then the token files
+// formers gives configured accounts, then those the history names alone, in
+// the order of their ids. It fails with ErrUnanswered where an answer it
+// needs is missing.
 func (d *deciding) decide() error {
 	d.decided = make(map[string]bool)
 	var tokenless []string
@@ -564,6 +650,7 @@ func (d *deciding) decide() error {
 			}
 		}
 	}
+	d.formers()
 	for _, was := range d.removedBefore() {
 		if err := d.removed(was); err != nil {
 			return err
@@ -573,7 +660,10 @@ func (d *deciding) decide() error {
 }
 
 // byToken decides the id of the configured account with the given id by its
-// token's organization, as idOf does.
+// token's organization, as idOf does. One keeping its id goes in as added,
+// with no id before: had its id before, it would be moved, and the move
+// would wait for the router to stop routing by its old id, which it never
+// does.
 func (d *deciding) byToken(was string) error {
 	a, ok := d.answers[was]
 	if !ok {
@@ -583,10 +673,13 @@ func (d *deciding) byToken(was string) error {
 	if err != nil {
 		return err
 	}
-	if returning {
+	switch {
+	case returning:
 		d.record.Return(id, organization)
 		d.record.Former(id, was)
-	} else {
+	case strings.EqualFold(id, was):
+		d.record.Add(id, organization, d.now)
+	default:
 		d.record.Move(id, organization, was, d.now)
 	}
 	d.decide1(id)
@@ -598,10 +691,13 @@ func (d *deciding) byToken(was string) error {
 // token's organization is organization, "" for none: the record's account
 // of it, which comes back, where it has one that's neither configured nor
 // decided, nor had another id before; else, where neither has it, the id
-// another Mac moved it onto, as spelledBy finds it, else the id it derives.
-// Where the answer named none, or another account configured or decided has
-// it, as two accounts of one subscription have, it's a random id, its
-// organization unknown.
+// another Mac moved it onto, as spelledBy finds it; else its own, where the
+// organization spells it, as Spells has it: one another Mac moved, given a
+// token here before this Mac moved, which Derive would pass over, held as
+// configured, spelling a longer; else the id it derives. Where the
+// answer named none, or another account configured or decided has it, as two
+// accounts of one subscription have, it's a random id, its organization
+// unknown.
 func (d *deciding) idOf(organization, was string) (id, known string, returning bool, err error) {
 	if organization == "" {
 		id, err := d.randomID()
@@ -612,6 +708,9 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 	case !ok:
 		if id, spelled := d.spelledBy(organization, d.tokenless()); spelled {
 			return id, organization, false, nil
+		}
+		if ownSpelled(organization, was) {
+			return was, organization, false, nil
 		}
 		return d.record.Derive(organization, d.held()), organization, false, nil
 	case !d.isConfigured(e.ID) && !d.decided[strings.ToLower(e.ID)] && (e.Was == "" || strings.EqualFold(e.Was, was)):
@@ -625,11 +724,14 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 // spelledBy returns the one of the configured accounts given, which have no
 // token they can use, that may be one another Mac moved, as madeElsewhere
 // says, whose id the given organization spells, as Spells has it, the
-// longest: the account of the organization here, which a config merged with
-// the other Mac's names by both its ids, so it takes the other Mac's, and the
-// two Macs agree. The longest, as the ids an organization spells nest, each
-// the start of a longer, and Derive spells a longer only where the shorter is
-// held, as by another organization's.
+// longest: the account of the organization another Mac moved, which a token
+// here of the organization takes, a configured account's or a token file's
+// by an old id, so the two Macs agree. The longest, as the ids an
+// organization spells nest, each the start of a longer, and Derive spells a
+// longer only where the shorter is held, as by another organization's. Two
+// organizations whose hashes spell alike past the shorter's length too, about
+// one pair in 44 million, can't be told apart so: the config's order settles
+// them.
 func (d *deciding) spelledBy(organization string, tokenless []string) (string, bool) {
 	var spelled string
 	for _, id := range tokenless {
@@ -642,10 +744,14 @@ func (d *deciding) spelledBy(organization string, tokenless []string) (string, b
 
 // join decides the ids of those of the configured accounts given, which have
 // no token they can use, that a token file of an account neither configured
-// nor known is of, as joins has it: the token file's account moves onto the
-// configured account's id. It reports which it joined, by id.
+// nor known is of, as claims has the token files of strays take them, in the
+// order preferred gives: the token file's account moves onto the configured
+// account's id. One the history names none of joins too, as it gives the
+// account its token. A token file the API named no organization for, didn't
+// answer for, or that can't be read, is passed over. It reports which it
+// joined, by id.
 func (d *deciding) join(tokenless []string) map[string]bool {
-	joins := d.joins(tokenless)
+	joins, _ := d.claims(d.preferred(d.strays(), d.spelling(tokenless)), tokenless, nil)
 	joined := make(map[string]bool, len(joins))
 	for _, id := range tokenless {
 		stray, ok := joins[id]
@@ -660,30 +766,72 @@ func (d *deciding) join(tokenless []string) map[string]bool {
 	return joined
 }
 
-// joins are the token files of accounts neither configured nor known, by the
-// ids of those of the configured accounts given, which have no token they can
-// use, they're of: each one whose organization spells the configured
-// account's id, as Derive spells one, and that the record has no account of,
-// nor another token file joined. A token file the API named no organization
-// for, didn't answer for, or that can't be read, is passed over.
-func (d *deciding) joins(tokenless []string) map[string]string {
-	joins := make(map[string]string)
-	organizations := make(map[string]bool)
-	for _, stray := range d.strays() {
-		organization := d.answers[stray].organization
-		if _, held := d.record.ByOrganization(organization); organization == "" || held || organizations[organization] {
-			continue
-		}
-		i := slices.IndexFunc(tokenless, func(id string) bool {
-			_, joined := joins[id]
-			return !joined && identity.Spells(organization, id)
-		})
-		if i >= 0 {
-			joins[tokenless[i]] = stray
-			organizations[organization] = true
+// formers records the id of each token file of an account neither configured
+// nor known, that the history names, whose organization a configured account
+// holds, in the record, as holderOf has it, as that account's former id, as
+// the Mac that moved it recorded its own: one subscription keeps one history
+// on every Mac, the token file's account's lines moving under the account's
+// id, its token file going as a moved account's does, left, with a warning,
+// where the account has a token file of its own. One the history names none
+// of has nothing to move, so it's passed over. An account with a former id
+// already takes none, as the record keeps one an account, so the token files
+// are taken in the order preferred gives. A token file the API named no
+// organization for, didn't answer for, or that can't be read, is passed over.
+func (d *deciding) formers() {
+	told := slices.DeleteFunc(d.strays(), func(stray string) bool {
+		_, seen := d.seen[strings.ToLower(stray)]
+		return !seen
+	})
+	for _, stray := range d.preferred(told, d.holderOf) {
+		if id, ok := d.holderOf(d.answers[stray].organization); ok && d.record.Former(id, stray) {
+			logger.Info("a token file of a configured account's organization is the account's, by its former id", "was", stray, "id", id)
 		}
 	}
-	return joins
+}
+
+// holderOf returns the id of the configured account the record holds the
+// given organization under, reporting false where none is.
+func (d *deciding) holderOf(organization string) (string, bool) {
+	e, ok := d.record.ByOrganization(organization)
+	return e.ID, ok && d.isConfigured(e.ID)
+}
+
+// spelling returns what gives the one of the configured accounts given,
+// which have no token they can use, the given organization spells, as
+// spelledBy has it.
+func (d *deciding) spelling(tokenless []string) func(organization string) (string, bool) {
+	return func(organization string) (string, bool) {
+		return d.spelledBy(organization, tokenless)
+	}
+}
+
+// preferred returns strays, token files of accounts neither configured nor
+// known, in the order the account of their organization takes one of them,
+// as accountOf gives the id of the account an organization's would go to:
+// first one named as that account is labelled, in any case, as the Mac that
+// moved the account labels it by the id it had where it had none; then the
+// one the history tells of latest; then in the order of their names.
+func (d *deciding) preferred(strays []string, accountOf func(organization string) (string, bool)) []string {
+	type ranked struct {
+		name, last string
+		labelled   int
+	}
+	ranks := make([]ranked, len(strays))
+	for i, stray := range strays {
+		ranks[i] = ranked{name: stray, last: d.seen[strings.ToLower(stray)].last}
+		organization := d.answers[stray].organization
+		if id, ok := accountOf(organization); organization != "" && ok && strings.EqualFold(d.labels[strings.ToLower(id)], stray) {
+			ranks[i].labelled = 1
+		}
+	}
+	slices.SortFunc(ranks, func(a, b ranked) int {
+		return cmp.Or(cmp.Compare(b.labelled, a.labelled), cmp.Compare(b.last, a.last), cmp.Compare(a.name, b.name))
+	})
+	ordered := make([]string, len(ranks))
+	for i, r := range ranks {
+		ordered[i] = r.name
+	}
+	return ordered
 }
 
 // withoutToken decides the id of the configured account with the given id,
@@ -706,13 +854,13 @@ func (d *deciding) withoutToken(was string) error {
 }
 
 // removedBefore are the ids the history names that are neither configured
-// nor known, nor ids no account can have, in order: accounts removed before
-// ids were made.
+// nor known, nor ids no account can have, in order, each as the history first
+// spells it: accounts removed before ids were made.
 func (d *deciding) removedBefore() []string {
 	var removed []string
-	for id := range d.seen {
-		if config.CheckID(id) == nil && !d.isConfigured(id) && !d.known(id) {
-			removed = append(removed, id)
+	for _, s := range d.seen {
+		if config.CheckID(s.id) == nil && !d.isConfigured(s.id) && !d.known(s.id) {
+			removed = append(removed, s.id)
 		}
 	}
 	slices.Sort(removed)
@@ -729,7 +877,7 @@ func (d *deciding) removed(was string) error {
 		return err
 	}
 	added, removed := d.now, d.now
-	seen := d.seen[was]
+	seen := d.seen[strings.ToLower(was)]
 	if start, _, ok := dayfile.Day(seen.first); ok {
 		added = start
 	}

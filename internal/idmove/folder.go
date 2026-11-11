@@ -93,20 +93,21 @@ type told struct {
 
 // classify tells how the accounts of the Mac's folder at dir, as export
 // writes one, are told, by its export.json and the accounts record it holds,
-// if any. It fails, with an error matching ErrStagedRecord, ErrUnsynced or
-// ErrBeforeIDs, where they can't be, as those say; and where its export.json
-// doesn't read, or this Mac's install id is needed and can't be had.
+// if any, a link to none holding none. It fails, with an error matching
+// ErrStagedRecord, ErrUnsynced or ErrBeforeIDs, where they can't be, as
+// those say; and where its export.json doesn't read, or this Mac's install
+// id is needed and can't be had.
 func classify(dir string, here Here) (told, error) {
 	m, err := export.ReadManifest(dir)
 	if err != nil {
 		return told{}, fmt.Errorf("read the export.json of a folder to import: %w", err)
 	}
 	f := told{manifest: m}
-	_, err = os.Lstat(identity.NewFile(dir).Path())
+	data, err := os.ReadFile(identity.NewFile(dir).Path())
 	switch {
 	case err == nil:
 		f.kind = carriesRecord
-		if f.record, err = identity.NewFile(dir).Read(); err != nil {
+		if f.record, err = identity.Decode(data); err != nil {
 			return f, fmt.Errorf("%w: %w", ErrStagedRecord, err)
 		}
 		return f, nil
@@ -321,7 +322,7 @@ func scanStaged(path string, most int, n names, rename Renames) (stagedScan, err
 	var scan stagedScan
 	scan.short = eachStaged(file, most, func(line []byte) {
 		scan.read = true
-		n.visit(line, func(id string) { scan.renamed = scan.renamed || rename.Of(id) != id })
+		n.visit(line, func(id string, _ bool) { scan.renamed = scan.renamed || rename.Of(id) != id })
 	})
 	return scan, nil
 }
@@ -338,7 +339,7 @@ func summaryRenamed(dir, date string, rename Renames) (bool, error) {
 		return false, err
 	}
 	renamed := false
-	summaryNames.visit(data, func(id string) { renamed = renamed || rename.Of(id) != id })
+	summaryNames.visit(data, func(id string, _ bool) { renamed = renamed || rename.Of(id) != id })
 	return renamed, nil
 }
 

@@ -2,7 +2,9 @@ package export
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -11,8 +13,12 @@ import (
 )
 
 const (
-	// Version is the version of export.json this switchboard writes.
-	Version = 1
+	// Version is the version of export.json this switchboard writes: 2 since
+	// account ids were made, so a switchboard from before them, which reads
+	// version 1, refuses a folder this one exports, whose days name accounts
+	// by ids it has no token files for. A folder of version 1, from before
+	// them or after, is read as its export.json's IDs says.
+	Version = 2
 	// folderPrefix begins the name of a Mac's folder, before its install's
 	// id.
 	folderPrefix = "mac-"
@@ -63,6 +69,24 @@ func ReadManifest(folder string) (Manifest, error) {
 		return Manifest{}, fmt.Errorf("read %s: %q isn't an install's id", path, m.Install)
 	}
 	return m, nil
+}
+
+// removeOlder removes the export.json of the Mac's folder at folder where
+// it's of an older version than this switchboard writes, before an export
+// writes anything else in it, as the days it writes name accounts by ids a
+// switchboard of that version has no token files for: so an export cut
+// short, or a sync that carries the days first, never leaves them beside an
+// export.json that version would import. The export writes its own once
+// every file has been. One that doesn't read is left, as every switchboard
+// passes it over.
+func removeOlder(folder string) error {
+	if m, err := ReadManifest(folder); err != nil || m.Version >= Version {
+		return nil
+	}
+	if err := os.Remove(filepath.Join(folder, manifestFile)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("remove the export.json of an older version: %w", err)
+	}
+	return nil
 }
 
 // writeManifest writes the export.json of the Mac's folder at folder, of the

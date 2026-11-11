@@ -95,16 +95,17 @@ type Leftover struct {
 
 // Export exports the history into the Mac's folder in dir, making each as
 // it's needed, the user's alone, as NoParents says, and removing first what
-// writes cut short left in it, as removeLeftovers says: the accounts record,
-// as exporting.record writes it, first, so the days a sync carries are never
+// writes cut short left in it, as removeLeftovers says, and an export.json of
+// an older version, as removeOlder says: the accounts record, as
+// exporting.record writes it, first, so the days a sync carries are never
 // ahead of the record that names their accounts; each day's file of lines,
 // as dayLines.export says; each day's summary, copied as copyFile says; then
-// export.json, saying when, and whether it wrote the record. A day's file that can't be read is
-// passed over, and named in the result, as is a file writes cut short left
-// that can't be removed. It fails where dir is a file, or
-// anything in it can't be made or written, and where the state directory's
-// files can't be listed; with NoParents, where dir can't be made, before it
-// writes anything.
+// export.json, saying when, and whether it wrote the record. A day's file
+// that can't be read is passed over, and named in the result, as is a file
+// writes cut short left that can't be removed. It fails where dir is a file,
+// or anything in it can't be made or written, and where the state
+// directory's files can't be listed; with NoParents, where dir can't be
+// made, before it writes anything.
 func (e Exporter) Export(dir string) (Result, error) {
 	if info, err := os.Stat(dir); err == nil && !info.IsDir() {
 		return Result{}, fmt.Errorf("can't export into %s: it's a file, not a folder", dir)
@@ -124,6 +125,9 @@ func (e Exporter) Export(dir string) (Result, error) {
 		// The Mac's folder is a level in dir, so the folder not there is dir.
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, ErrNoFolder)
 	case err != nil:
+		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
+	}
+	if err := removeOlder(folder); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	x := exporting{written: make(map[string]bool), mkdir: e.making(folder), unremoved: e.removeLeftovers(folder)}

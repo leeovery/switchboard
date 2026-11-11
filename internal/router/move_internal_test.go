@@ -20,6 +20,7 @@ import (
 type answeringMover struct {
 	answers []error
 	runs    int
+	ranAt   []time.Time
 	wait    time.Duration
 	waited  []time.Duration
 }
@@ -30,6 +31,7 @@ func (m *answeringMover) Settle() error {
 
 func (m *answeringMover) RunBeside(context.Context, idmove.History) error {
 	m.runs++
+	m.ranAt = append(m.ranAt, time.Now())
 	if m.runs > len(m.answers) {
 		return nil
 	}
@@ -108,14 +110,18 @@ func TestTheMoveSaysWhatHoldsItUpWhileItWaitsToRunAgain(t *testing.T) {
 
 // The move waits as its mover says where the API didn't answer, and the
 // retry's wait where it failed otherwise: a run waiting the other's wait, an
-// hour, wouldn't run again before the test's deadline.
+// hour, wouldn't run again before the test's deadline, nor one waiting the
+// retry's in place of its mover's longer one as long as that.
 func TestTheMoveWaitsAsItsMoverSaysOnlyWhereTheAPIDidntAnswer(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		err         error
 		retry, wait time.Duration
+		// waits is the wait between the two runs at the least.
+		waits time.Duration
 	}{
 		{name: "the API not answering", err: idmove.ErrUnanswered, retry: time.Hour, wait: time.Millisecond},
+		{name: "the API not answering, its mover's wait the longer", err: idmove.ErrUnanswered, retry: time.Millisecond, wait: 100 * time.Millisecond, waits: 100 * time.Millisecond},
 		{name: "failing", err: errors.New("the disk is full"), retry: time.Millisecond, wait: time.Hour},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -125,8 +131,15 @@ func TestTheMoveWaitsAsItsMoverSaysOnlyWhereTheAPIDidntAnswer(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			m.run(ctx, func() idmove.History { return idmove.History{} })
+			want := tc.retry
+			if errors.Is(tc.err, idmove.ErrUnanswered) {
+				want = tc.wait
+			}
 			if mover.runs != 2 || m.owed() {
-				t.Errorf("the move ran %d times, still owed %t, want it run again after the %v wait, and done", mover.runs, m.owed(), min(tc.retry, tc.wait))
+				t.Fatalf("the move ran %d times, still owed %t, want it run again after the %v wait, and done", mover.runs, m.owed(), want)
+			}
+			if waited := mover.ranAt[1].Sub(mover.ranAt[0]); waited < tc.waits {
+				t.Errorf("the move ran again %v after it ran, want %v at the least, its mover's wait", waited, tc.waits)
 			}
 		})
 	}

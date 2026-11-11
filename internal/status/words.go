@@ -49,6 +49,18 @@ func (w Words) String() string {
 	return b.String()
 }
 
+// Named are the words with each account they name by its id named as n
+// names it, as AccountName's Said says it, as the verbs' text says them.
+func (w Words) Named(n Namer) Words {
+	named := slices.Clone(w)
+	for i, p := range named {
+		if p.Kind == PartAccount {
+			named[i].Text = n.Named(p.Text).Said()
+		}
+	}
+	return named
+}
+
 // Facts are what a reason's words take beyond the reason itself, from the
 // line, assignment or event that gives it. Words never name an account the
 // facts don't give: the clause that would is left out.

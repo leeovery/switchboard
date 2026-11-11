@@ -6,6 +6,7 @@ import (
 	"iter"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -42,7 +43,7 @@ the ledger's files, so it needs no router.
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d. --session keeps a session's own requests, named by its id or
 as much of it as is unique among the sessions read, and --account an
-account's.
+account's, by its id: a label is refused.
 
 On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints each as the ledger holds it, with "schema": 1
@@ -127,6 +128,12 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	if err != nil {
 		return err
 	}
+	names := sync.OnceValue(func() status.Names { return namesIn(dir, cfg) })
+	if opts.account != "" {
+		if err := notALabel(names(), opts.account); err != nil {
+			return err
+		}
+	}
 	lines := reader.Lines(from)
 	if opts.session != "" {
 		named, held := views.NamedLines(lines, opts.session)
@@ -139,7 +146,23 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	if a.printsJSON(opts.form, out) {
 		return writeLines(out, lines)
 	}
-	return writeRequests(out, views.RequestLines(lines), from, now)
+	return writeRequests(out, views.RequestLines(lines, names()), from, now)
+}
+
+// notALabel fails where the account given, as --account gives one, is no
+// account's id but some account's label, ignoring case, as names know them,
+// naming the id of each account labelled so, as a label removed may have
+// been given again. Any other is taken as an id, as one names can't know,
+// where the accounts record can't be read.
+func notALabel(names status.Names, given string) error {
+	ids := names.Labelled(given)
+	if len(ids) == 0 || names.Knows(given) {
+		return nil
+	}
+	for i, id := range ids {
+		ids[i] = prose.Clean(id)
+	}
+	return fmt.Errorf("%s is a label: give its id, %s", prose.Clean(redact.Text(given)), prose.ListOr(ids))
 }
 
 // writeLines writes each of lines as the ledger holds it, its schema first, a
@@ -164,11 +187,11 @@ func writeRequests(out io.Writer, rows iter.Seq[views.RequestLine], from, now ti
 
 // requestRow is the row of the request r, at now: when it arrived, to the
 // second in now's time zone, its session's id cut short, the model it asked
-// for, the account that answered it, its status, its tokens in and out, and
-// how long it took.
+// for, the account that answered it, as its Said names it, its status, its
+// tokens in and out, and how long it took.
 func requestRow(r views.RequestLine, now time.Time) []string {
 	return []string{prose.ToTheSecond(now, r.At), orNone(status.ShortID(prose.Clean(r.Session))), orNone(prose.Clean(r.Model)),
-		orNone(prose.Clean(r.Account)), answered(r.RequestRow), tokensInOut(r), took(r.Took)}
+		orNone(r.Said()), answered(r.RequestRow), tokensInOut(r), took(r.Took)}
 }
 
 // answered says how a request was answered: its status, and whether its

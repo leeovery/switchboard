@@ -47,8 +47,10 @@ const (
 	// stateName is the router's state file's name in the state directory.
 	stateName = "state.json"
 	// firstRetry is how long the move first waits to ask the API again
-	// where it didn't answer for a token, as Mover.AskAgain has it.
+	// where it didn't answer for a token, as Mover.AskAgain has it, and
+	// leastRetry how long it waits at the least.
 	firstRetry = 30 * time.Second
+	leastRetry = time.Millisecond
 	// lookAgain is how long the move waits to look again at a token file it
 	// can't read, as a writer that empties a file before it writes the token
 	// leaves it for a moment, and to ask again for a token whose answer named
@@ -135,11 +137,11 @@ type Mover struct {
 	stop         func(step string) error
 	lookingAgain func(id string)
 	clock        func() time.Time
-	// seen is the accounts the history holds, as the first attempt of the
-	// mover found them, kept for those after it; and nameless the streak of
-	// the API's answers for each account's token naming no organization, by
-	// the account's id, as lasting reads it, kept alike.
-	seen     map[string]seenDays
+	// told is what the history tells of the accounts, as the first attempt
+	// of the mover found it, kept for those after it; and nameless the streak
+	// of the API's answers for each account's token naming no organization,
+	// by the account's id, as lasting reads it, kept alike.
+	told     *accountsTold
 	nameless map[string]streak
 }
 
@@ -197,13 +199,15 @@ func (m *Mover) Run(ctx context.Context) error {
 // answer, having waited wait the time before: Retry the first time, for
 // zero, then twice as long each time; half Lasts at the most, the first time
 // too, so a refusal that lasts is heard again before lasting takes the time
-// between for a gap it may have stopped in.
+// between for a gap it may have stopped in; and leastRetry at the least,
+// however low Retry and Lasts are set.
 func (m *Mover) AskAgain(wait time.Duration) time.Duration {
 	most := m.lasts() / 2
+	next := min(wait*2, most)
 	if wait <= 0 {
-		return min(cmp.Or(m.Retry, firstRetry), most)
+		next = min(cmp.Or(m.Retry, firstRetry), most)
 	}
-	return min(wait*2, most)
+	return max(next, leastRetry)
 }
 
 // RunBeside runs the move once, as Run does, beside a router that keeps the
