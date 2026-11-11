@@ -31,14 +31,16 @@ type JoinAs struct {
 // a Mac's, into r, and returns the ids of those it took in under other ids,
 // in lower case, each with its id in r. The ids each had before switchboard
 // made ids are the Mac's own names, so none is taken, nor matched on. Each
-// is matched to r's account of the same organization, else of the same id,
-// as same says:
+// is matched to r's account of the same id, in this Mac's own record, as as
+// says, its ids this Mac's; else of the same organization; else of the same
+// id, as sameByID says:
 //   - matched, it's that account, which keeps its id, times and removal, and
-//     takes its organization where it has none and isn't configured here,
-//     as only a join can tell it, a token or the router's probe telling one
-//     configured; and its label where the other Mac configures it, as
-//     Configured says, and this one neither configures it nor removed it,
-//     labels taken, as as says, so a label changed there arrives;
+//     takes its organization where it has none, isn't configured here, and
+//     no other account has it, as only a join can tell it, a token or the
+//     router's probe telling one configured; and its label where the other
+//     Mac configures it, as Configured says, and this one neither
+//     configures it nor removed it, labels taken, as as says, so a label
+//     changed there arrives;
 //   - matching none, of an id configured here that r doesn't hold, it's that
 //     account, added to r with its organization and time added alone, as an
 //     account added on another Mac sharing this one's config;
@@ -118,28 +120,29 @@ func (j *joining) configuredUnheld(e Entry) bool {
 
 // take has the record's account at place i take what it doesn't know of e,
 // the same account as another record keeps it: its organization, where it
-// has none and isn't configured here; and its label, where labelled says
-// it's to be taken and the account is neither configured here nor removed.
-// It returns the account's id.
+// has none, isn't configured here, and no other account has it; and its
+// label, where labelled says it's to be taken and the account is neither
+// configured here nor removed. It returns the account's id.
 func (j *joining) take(i int, e Entry, labelled bool) string {
 	own := &j.record.Accounts[i]
 	if containsFold(j.configured, own.ID) {
 		return own.ID
 	}
-	own.organize(e.Organization)
+	if _, held := j.record.ByOrganization(e.Organization); !held {
+		own.organize(e.Organization)
+	}
 	if labelled && e.Label != "" && own.Removed.IsZero() {
 		own.Label = e.Label
 	}
 	return own.ID
 }
 
-// matching is the place of the account e is, by its organization, else by
-// its id where same says it's the same, the id first in this Mac's own
-// record, as its ids are this Mac's: -1 where it's none.
+// matching is the place of the account e is, as Join matches it: -1 where
+// it's none.
 func (j *joining) matching(e Entry) int {
-	byID := func(own Entry) bool { return strings.EqualFold(own.ID, e.ID) && j.same(own, e) }
+	sameID := func(own Entry) bool { return strings.EqualFold(own.ID, e.ID) }
 	if j.as.Own {
-		if i := slices.IndexFunc(j.record.Accounts, byID); i >= 0 {
+		if i := slices.IndexFunc(j.record.Accounts, sameID); i >= 0 {
 			return i
 		}
 	}
@@ -148,14 +151,7 @@ func (j *joining) matching(e Entry) int {
 			return i
 		}
 	}
-	return slices.IndexFunc(j.record.Accounts, byID)
-}
-
-// same reports whether e, of own's id, is own: always, in this Mac's own
-// record, as its ids are this Mac's whatever either knows of the account's
-// organization; else as sameByID says.
-func (j *joining) same(own, e Entry) bool {
-	return j.as.Own || sameByID(own, e)
+	return slices.IndexFunc(j.record.Accounts, func(own Entry) bool { return sameID(own) && sameByID(own, e) })
 }
 
 // sameByID reports whether e, of own's id, is own: always, but where both

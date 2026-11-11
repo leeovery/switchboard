@@ -129,15 +129,12 @@ func TestJoiningThisMacsOwnRecordTakesNoLabel(t *testing.T) {
 	}
 }
 
-// spareID is the id test-org-spare spells, as Derive spells one.
-var spareID = identity.Record{}.Derive("test-org-spare", nil)
-
 // Two accounts of one id are one but where both organizations are known and
-// differ, whatever else either is: its id spelled from an organization or
-// not, removed or used, configured here or not. Matched, an account this
-// Mac doesn't configure takes the other's organization where it knows none;
-// one it configures takes none, as its token tells it. Two of known
-// organizations that differ are two, the other taken in under another id.
+// differ, whatever else either is: removed or used, configured here or not.
+// Matched, an account this Mac doesn't configure takes the other's
+// organization where it knows none; one it configures takes none, as its
+// token tells it. Two of known organizations that differ are two, the other
+// taken in under another id.
 func TestJoiningMatchesByIDOnlyWhereTheAccountsAreOne(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -154,7 +151,6 @@ func TestJoiningMatchesByIDOnlyWhereTheAccountsAreOne(t *testing.T) {
 		{name: "the other's unknown, used", own: identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: added}, other: identity.Entry{ID: "k3f9", Added: added}, same: true, organization: "test-org-spare"},
 		{name: "this one's unknown, configured here", own: identity.Entry{ID: "k3f9", Added: added}, other: identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: added}, configured: true, same: true},
 		{name: "the other's unknown, configured here", own: identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: added}, other: identity.Entry{ID: "k3f9", Added: added}, configured: true, same: true, organization: "test-org-spare"},
-		{name: "this one's unknown, the other's spelling the id", own: identity.Entry{ID: spareID, Added: added}, other: identity.Entry{ID: spareID, Organization: "test-org-spare", Added: added}, same: true, organization: "test-org-spare"},
 		{name: "both known, the same", own: identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: added}, other: identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: added}, same: true, organization: "test-org-spare"},
 		{name: "both known, differing", own: identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: added}, other: identity.Entry{ID: "k3f9", Organization: "test-org-other", Added: added}},
 		{name: "both known, differing, configured here", own: identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: added}, other: identity.Entry{ID: "k3f9", Organization: "test-org-other", Added: added}, configured: true},
@@ -327,31 +323,38 @@ func TestJoiningAnAccountBothMacsConfigureOfARandomIDKeepsIt(t *testing.T) {
 // In this Mac's own record, an account of an id this Mac holds is that
 // account, even where both know its organization and they differ; in
 // another Mac's, it's another then, taken in under another id. Either way,
-// where only one knows the organization, it's that account. Configured
-// here, the account takes no organization from the record joined.
+// where only one knows the organization, it's that account, which takes the
+// organization the record joined gives it where it's neither configured
+// here nor knows one.
 func TestJoiningThisMacsOwnRecordMatchesEveryAccountByItsID(t *testing.T) {
-	own := identity.Record{Accounts: []identity.Entry{{ID: "k3f9", Added: added}}}
 	for _, tt := range []struct {
-		name         string
-		own          bool
+		name        string
+		own         bool
+		configured  bool
+		here, there string
+		same        bool
+		// organization is the account's, matched.
 		organization string
-		same         bool
 	}{
-		{name: "this Mac's, of an organization this Mac doesn't know", own: true, organization: "test-org-spare", same: true},
-		{name: "another Mac's, of an organization this Mac doesn't know", own: false, organization: "test-org-spare", same: true},
-		{name: "this Mac's, of another organization", own: true, organization: "test-org-other", same: true},
-		{name: "another Mac's, of another organization", own: false, organization: "test-org-other", same: false},
+		{name: "this Mac's, configured, of an organization this Mac doesn't know", own: true, configured: true, there: "test-org-spare", same: true},
+		{name: "this Mac's, unconfigured, of an organization this Mac doesn't know", own: true, there: "test-org-spare", same: true, organization: "test-org-spare"},
+		{name: "this Mac's, of an organization the folder doesn't know", own: true, configured: true, here: "test-org-spare", same: true, organization: "test-org-spare"},
+		{name: "another Mac's, of an organization this Mac doesn't know", configured: true, there: "test-org-spare", same: true},
+		{name: "this Mac's, of another organization", own: true, configured: true, here: "test-org-spare", there: "test-org-other", same: true, organization: "test-org-spare"},
+		{name: "another Mac's, of another organization", configured: true, here: "test-org-spare", there: "test-org-other"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			here := own
-			if tt.organization == "test-org-other" {
-				here = identity.Record{Accounts: []identity.Entry{{ID: "k3f9", Organization: "test-org-spare", Added: added}}}
+			here := identity.Record{Accounts: []identity.Entry{{ID: "k3f9", Organization: tt.here, Added: added}}}
+			as := identity.JoinAs{From: otherMac, Own: tt.own}
+			if tt.configured {
+				as.Configured = config.Accounts{{ID: "k3f9"}}
 			}
-			exported := identity.Entry{ID: "k3f9", Organization: tt.organization, Added: added}
-			as := identity.JoinAs{Configured: config.Accounts{{ID: "k3f9"}}, From: otherMac, Own: tt.own}
-			record, mapped := joined(t, here, as, exported)
-			if got := slices.Equal(record.Accounts, here.Accounts) && len(mapped) == 0; got != tt.same {
-				t.Errorf("joined, the record is %+v, mapped %v; want it as it was, the two one account: %t", record.Accounts, mapped, tt.same)
+			record, mapped := joined(t, here, as, identity.Entry{ID: "k3f9", Organization: tt.there, Added: added})
+			if got := len(record.Accounts) == 1 && len(mapped) == 0; got != tt.same {
+				t.Fatalf("joined, the record is %+v, mapped %v; want the two one account: %t", record.Accounts, mapped, tt.same)
+			}
+			if got := record.Accounts[0].Organization; tt.same && got != tt.organization {
+				t.Errorf("joined, the account's organization is %q, want %q", got, tt.organization)
 			}
 		})
 	}
@@ -359,27 +362,57 @@ func TestJoiningThisMacsOwnRecordMatchesEveryAccountByItsID(t *testing.T) {
 
 // In this Mac's own record, an account is matched by its id before its
 // organization, so an identical id is always that account, though the
-// organization the record joined gives it is another account's here; in
-// another Mac's, the organization is matched first.
+// organization the record joined gives it is another account's here, which
+// it never takes; in another Mac's, the organization is matched first.
 func TestJoiningThisMacsOwnRecordMatchesByIDBeforeOrganization(t *testing.T) {
-	own := identity.Record{Accounts: []identity.Entry{
-		{ID: "k3f9", Organization: "test-org-spare", Added: added},
-		{ID: "m5t2", Organization: "test-org-other", Added: added},
-	}}
+	other := identity.Entry{ID: "m5t2", Organization: "test-org-other", Added: added}
 	exported := identity.Entry{ID: "k3f9", Organization: "test-org-other", Added: added}
 	for _, tt := range []struct {
 		name string
 		own  bool
-		want string
+		// organization is k3f9's here.
+		organization string
+		want         string
 	}{
-		{name: "this Mac's", own: true, want: "k3f9"},
-		{name: "another Mac's", own: false, want: "m5t2"},
+		{name: "this Mac's", own: true, organization: "test-org-spare", want: "k3f9"},
+		{name: "this Mac's, k3f9's organization unknown here", own: true, want: "k3f9"},
+		{name: "another Mac's", organization: "test-org-spare", want: "m5t2"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			own := identity.Record{Accounts: []identity.Entry{{ID: "k3f9", Organization: tt.organization, Added: added}, other}}
 			record, mapped := joined(t, own, identity.JoinAs{From: otherMac, Own: tt.own}, exported)
 			if got := cmp.Or(mapped["k3f9"], "k3f9"); got != tt.want || !slices.Equal(record.Accounts, own.Accounts) {
 				t.Errorf("joined, k3f9 is %s, the record %+v; want %s, the record as it was", got, record.Accounts, tt.want)
 			}
 		})
+	}
+}
+
+// An account of an id configured here that the record doesn't hold, whose
+// organization another account here has, is that account, as matched by
+// its organization before it's taken for the one configured.
+func TestJoiningAnAccountConfiguredHereUnheldMatchesByOrganizationFirst(t *testing.T) {
+	as := identity.JoinAs{Configured: append(slices.Clone(configuredHere), config.Account{ID: "r8tw"}), From: otherMac}
+	record, mapped := joined(t, thisMacs(), as, identity.Entry{ID: "r8tw", Organization: "test-org-home", Added: removed})
+	if want := map[string]string{"r8tw": "p4m2"}; !slices.Equal(record.Accounts, thisMacs().Accounts) || !maps.Equal(mapped, want) {
+		t.Errorf("joined, the record is %+v, mapped %v; want it as it was, mapped %v", record.Accounts, mapped, want)
+	}
+}
+
+// Where the id spelled for an account whose id is held is held by an
+// account whose organization isn't known, that's the account, as one id is
+// one account, which takes its organization, as it isn't configured here.
+func TestTheIDSpelledForAnAccountWhoseIDIsHeldMayBeItsAlready(t *testing.T) {
+	other := identity.Entry{ID: "qgr2", Organization: "test-org-other", Label: "other", Added: added}
+	_, mapped := joined(t, thisMacs(), joinAs, other)
+	spelled := mapped["qgr2"]
+	own := identity.Record{Accounts: append(thisMacs().Accounts, identity.Entry{ID: spelled, Added: added})}
+
+	record, mapped := joined(t, own, joinAs, other)
+	if id := mapped["qgr2"]; id != spelled || len(record.Accounts) != len(own.Accounts) {
+		t.Fatalf("joined, qgr2 is mapped to %q, the record %+v; want it %s, the account held", id, record.Accounts, spelled)
+	}
+	if e, _ := record.ByID(spelled); e.Organization != other.Organization {
+		t.Errorf("joined, %s's organization is %q, want %q", spelled, e.Organization, other.Organization)
 	}
 }
