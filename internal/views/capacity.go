@@ -7,6 +7,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Weeks' headlines, by whether there are as many accounts as the use needs:
@@ -55,21 +56,23 @@ const (
 // finds, dropping the one whose loss makes the fewest short, left out with
 // one account; and WithOneMore, how many a replay with one more does. An
 // account hits its limit where its week's peak reaches its cap, as capOf has
-// it. Verdict
-// is the headline, as Weeks words it. Where it's one more than you need, Drop
-// is that account, and WithTwoFewer, with three accounts or more, how many a
-// replay without it and the one of the rest dropped as it was finds.
+// it. Verdict is the headline, as Weeks words it. Where it's one more than
+// you need, Drop is that account, DropName names it and DropLabel is its
+// label; and WithTwoFewer, with three accounts or more, is how many a replay
+// without it and the one of the rest dropped as it was finds.
 // Accounts are each configured account's verdict, in the config's order,
 // then every account's together.
 type Capacity struct {
-	Weeks        int              `json:"weeks"`
-	Short        int              `json:"short"`
-	WithOneFewer *int             `json:"with_one_fewer,omitempty"`
-	WithTwoFewer *int             `json:"with_two_fewer,omitempty"`
-	WithOneMore  int              `json:"with_one_more"`
-	Drop         string           `json:"drop,omitempty"`
-	Verdict      string           `json:"verdict,omitempty"`
-	Accounts     []AccountVerdict `json:"accounts"`
+	Weeks        int                `json:"weeks"`
+	Short        int                `json:"short"`
+	WithOneFewer *int               `json:"with_one_fewer,omitempty"`
+	WithTwoFewer *int               `json:"with_two_fewer,omitempty"`
+	WithOneMore  int                `json:"with_one_more"`
+	Drop         string             `json:"drop,omitempty"`
+	DropLabel    string             `json:"drop_label,omitempty"`
+	Verdict      string             `json:"verdict,omitempty"`
+	Accounts     []AccountVerdict   `json:"accounts"`
+	DropName     status.AccountName `json:"-"`
 }
 
 // AccountVerdict is Weeks' verdict on an account, over the whole weeks its
@@ -81,7 +84,8 @@ type Capacity struct {
 // judges: its limits the weeks some account hit its limit in, and its share
 // left every account's weeks', on average.
 type AccountVerdict struct {
-	Account     string   `json:"account,omitempty"`
+	Account string `json:"account,omitempty"`
+	status.AccountName
 	All         bool     `json:"all,omitempty"`
 	Verdict     string   `json:"verdict,omitempty"`
 	Weeks       int      `json:"weeks"`
@@ -129,7 +133,7 @@ func (j judging) capacity() Capacity {
 	several := len(accounts) > 1
 	for x, a := range accounts {
 		v := j.records[x].verdict(c.Verdict == OneMoreThanYouNeed && without[x] <= c.Short)
-		v.Account = a.ID
+		v.Account, v.AccountName = a.ID, status.ConfiguredName(a)
 		if several {
 			v.WithoutIt = &without[x]
 		}
@@ -157,7 +161,8 @@ func (c *Capacity) judge(r replay, accounts config.Accounts, without []int) {
 	if c.Verdict = c.headline(); c.Verdict != OneMoreThanYouNeed {
 		return
 	}
-	c.Drop = accounts[dropped].ID
+	c.Drop, c.DropName = accounts[dropped].ID, status.ConfiguredName(accounts[dropped])
+	c.DropLabel = c.DropName.Label
 	if len(accounts) > 2 {
 		c.WithTwoFewer = r.withTwoFewer(dropped)
 	}

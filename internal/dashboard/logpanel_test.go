@@ -50,7 +50,7 @@ func framesSessions(more int) []views.LogSession {
 func framesPanel(of LogView, more int) LogPanel {
 	return LogPanel{
 		Of: of, Filter: views.LogOpening(), Now: panelNow,
-		Accounts: []status.AccountNow{{ID: "work"}, {ID: "personal"}, {ID: "side"}},
+		Moment: status.Moment{Accounts: []status.AccountNow{{ID: "work"}, {ID: "personal"}, {ID: "side"}}},
 		Lines: views.LogCount{
 			Requests: 1240, Checks: 31, Counts: 4, Failed: 3, Shown: 1240,
 			Models: map[string]int{"claude-opus-5-5": 1236, "claude-haiku-4-5": 39},
@@ -136,11 +136,11 @@ func TestSpaceTicksTheTickTheCursorsOn(t *testing.T) {
 			check: func(p LogPanel) any { return len(p.Filter.Sessions) }, want: 0,
 		},
 		{
-			name: "a kind of event", of: LogEvents, keys: func(p LogPanel) LogPanel { return p.Moved(7).Ticked() },
+			name: "a kind of event", of: LogEvents, keys: func(p LogPanel) LogPanel { return p.Moved(8).Ticked() },
 			check: func(p LogPanel) any {
 				return fmt.Sprint(len(p.Shows.Kinds), slices.Contains(p.Shows.Kinds, status.EventRoom))
 			},
-			want: "11 false",
+			want: "12 false",
 		},
 		{
 			name: "an account's events", of: LogEvents, keys: func(p LogPanel) LogPanel { return p.Sided(1).Moved(2).Ticked() },
@@ -167,7 +167,7 @@ func TestSpaceTicksTheTickTheCursorsOn(t *testing.T) {
 func TestTheCursorMovesThroughTheTicksInReadingOrder(t *testing.T) {
 	p := framesPanel(LogRequests, 0)
 	for i := range 10 {
-		p.Accounts = append(p.Accounts, status.AccountNow{ID: fmt.Sprintf("account-%d", i)})
+		p.Moment.Accounts = append(p.Moment.Accounts, status.AccountNow{ID: fmt.Sprintf("account-%d", i)})
 	}
 	f := frameOf(160, 37)
 	var read []string
@@ -208,7 +208,7 @@ func TestTheCursorMovesThroughTheTicksInReadingOrder(t *testing.T) {
 func TestARowTooLongWrapsUnderItsLabel(t *testing.T) {
 	p := framesPanel(LogRequests, 0)
 	for i := range 10 {
-		p.Accounts = append(p.Accounts, status.AccountNow{ID: fmt.Sprintf("account-%d", i)})
+		p.Moment.Accounts = append(p.Moment.Accounts, status.AccountNow{ID: fmt.Sprintf("account-%d", i)})
 	}
 	rows := bodyText(p, frameOf(160, 37))
 	want := []string{
@@ -421,7 +421,7 @@ func TestWhatTheFilterTicksThatTodayCountsNoneOfHasATick(t *testing.T) {
 		page := LogPage{Shown: of, Filter: views.LogFilter{Sessions: []string{gone}, Models: []string{old}}, Shows: views.EventFilter{Sessions: []string{gone}}}
 		p := page.Panel()
 		frames := framesPanel(of, 0)
-		p.Accounts, p.Lines, p.Events, p.Now = frames.Accounts, frames.Lines, frames.Events, frames.Now
+		p.Moment, p.Lines, p.Events, p.Now = frames.Moment, frames.Lines, frames.Events, frames.Now
 		p = built(p)
 
 		session, ok := tickOf(p, tickOn{sessionTick, gone})
@@ -450,7 +450,7 @@ func TestWhatTheFilterTicksThatTodayCountsNoneOfHasATick(t *testing.T) {
 // as given.
 func labelledPanel(of LogView, label string) LogPanel {
 	p := framesPanel(of, 0)
-	p.Accounts[1].Label = label
+	p.Moment.Accounts[1].Label = label
 	return p
 }
 
@@ -510,11 +510,11 @@ func TestASessionsCountIsWholeAndClearOfItsAccount(t *testing.T) {
 		for _, labels := range [][]string{{"ab", "cd", "ef"}, {"abcdefgh", "cd", "ef"}} {
 			p := framesPanel(of, 0)
 			for i, label := range labels {
-				p.Accounts[i].Label = label
+				p.Moment.Accounts[i].Label = label
 			}
 			for _, n := range []int{999, 1277, 12345, sessionCountMost, 100_000, 1_000_000} {
 				s := p.Sessions[5]
-				s.Lines, s.Events, s.Account = n, n, p.Accounts[0].ID
+				s.Lines, s.Events, s.Account = n, n, p.Moment.Accounts[0].ID
 				counted, doing := p.sessionCount(n).plain(), sessionDoing(s, p.Now).text
 				for width := 40; width <= 140; width++ {
 					at := p.sessionColumns(width)
@@ -580,7 +580,7 @@ func TestASessionsAccountColumnKeepsALabelsLeast(t *testing.T) {
 	for _, of := range []LogView{LogRequests, LogEvents} {
 		p := framesPanel(of, 0)
 		for i, label := range []string{"ab", "cdef", "gh"} {
-			p.Accounts[i].Label = label
+			p.Moment.Accounts[i].Label = label
 		}
 		for _, width := range []int{60, 78, 100} {
 			if got := p.sessionColumns(width).account; got != 8 {

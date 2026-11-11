@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
@@ -34,6 +35,10 @@ const (
 	TokenNotTaken
 	// TokenUnchecked is a token the API didn't answer for, which is kept.
 	TokenUnchecked
+	// TokenForeign is a token the API takes, of another subscription than the
+	// account's, as the accounts record holds its organization to the
+	// account's, as the record's Hold does: nothing goes out on it.
+	TokenForeign
 )
 
 // TokenStanding is an account's token, as the review found it.
@@ -61,10 +66,10 @@ func (t TokenStanding) Of(token tokens.Token) TokenStanding {
 	return t
 }
 
-// answered reports whether the API answered for the token: it took it, or
-// refused it.
+// answered reports whether the API answered for the token: it took it, as
+// the account's or another subscription's, or refused it.
 func (t TokenStanding) answered() bool {
-	return t.State == TokenWorking || t.State == TokenNotTaken
+	return t.State == TokenWorking || t.State == TokenNotTaken || t.State == TokenForeign
 }
 
 // Working reports whether the account has a token read that the API hasn't
@@ -81,7 +86,8 @@ const (
 	ToldByYear TokenTold = iota
 	// ToldUndated is a working token whose year isn't known.
 	ToldUndated
-	// ToldRefused is a token the API refuses.
+	// ToldRefused is a token the API refuses, or one of another subscription
+	// than the account's: neither can be gone out on.
 	ToldRefused
 	// ToldInWords is a token told by its words alone: one being checked,
 	// unchecked, missing or unreadable.
@@ -103,6 +109,8 @@ func (t TokenStanding) Told() (TokenTold, string) {
 		return ToldUndated, "working · expiry date unknown"
 	case TokenNotTaken:
 		return ToldRefused, "rejected: revoked or expired"
+	case TokenForeign:
+		return ToldRefused, prose.ForeignTokenShort
 	case TokenRead:
 		return ToldInWords, checking
 	case TokenUnchecked:
@@ -203,8 +211,9 @@ func marked(draft *config.Draft, cfg *config.Config) Review {
 }
 
 // ReviewOf is the row of the account with the given id, its token checked
-// with the API: working, refused or unchecked, each kept as it is. It writes
-// nothing, and is safe to call for several accounts at once. It fails,
+// with the API: working, another subscription's, as foreign says, refused or
+// unchecked, each kept as it is. It writes nothing, and is safe to call for
+// several accounts at once. It fails,
 // matching config.ErrNotConfigured, when no account has the id, and with
 // ctx's error once ctx is done.
 func (s *Setup) ReviewOf(ctx context.Context, id string) (Reviewed, error) {
@@ -232,10 +241,25 @@ func (s *Setup) ReviewOf(ctx context.Context, id string) (Reviewed, error) {
 		return Reviewed{}, err
 	case checked.Unchecked:
 		row.Token.State, row.Token.Why = TokenUnchecked, checked.Why
+	case s.foreign(id, checked.Organization):
+		row.Token.State, row.Token.Organization = TokenForeign, checked.Organization
 	default:
 		row.Token.State, row.Token.Organization = TokenWorking, checked.Organization
 	}
 	return row, nil
+}
+
+// foreign reports whether organization, as the API named it of the token of
+// the account with the given id, is another subscription's, as the accounts
+// record holds it to the account's, as its Hold does: never where the record
+// can't be read.
+func (s *Setup) foreign(id, organization string) bool {
+	record, err := s.Accounts.Record.Read()
+	if err != nil {
+		return false
+	}
+	held, _ := record.Hold(id, organization)
+	return held == identity.HeldForeign
 }
 
 // Checked is the review with what ReviewOf answered of the account id, asked
@@ -384,6 +408,9 @@ func (r Review) notesOf(a Reviewed) []Note {
 		// No full stop: the why ends in its own advice, often a command to
 		// copy, such as chmod 600 and the file's path.
 		newToken.Says, newToken.Press = "has a token setup can't read: "+a.Token.Why, "Put that right, or press t to "+approving
+		notes = append(notes, newToken)
+	case a.Token.State == TokenForeign:
+		newToken.Says = "has another subscription's token, so no requests are routed to it."
 		notes = append(notes, newToken)
 	case !a.Token.Working():
 		newToken.Says = "has no working token, so no requests are routed to it."

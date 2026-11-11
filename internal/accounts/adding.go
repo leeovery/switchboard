@@ -317,8 +317,8 @@ func (r Registry) random() io.Reader {
 // whose id is id, in any case, named by its label.
 func configuredError(configured config.Accounts, id string) *ConfiguredError {
 	label := id
-	if i := slices.IndexFunc(configured, func(a config.Account) bool { return strings.EqualFold(a.ID, id) }); i >= 0 {
-		id, label = configured[i].ID, configured[i].Label
+	if a, ok := configured.ByID(id); ok {
+		id, label = a.ID, a.Label
 	}
 	return &ConfiguredError{ID: id, Label: label}
 }

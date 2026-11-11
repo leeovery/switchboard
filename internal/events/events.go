@@ -131,6 +131,12 @@ func (w *Writer) Note(line Line) {
 	w.writer.Note(line)
 }
 
+// Files are the files the writer writes to, as its dayfile.Writer's Files
+// are.
+func (w *Writer) Files() *dayfile.Files {
+	return w.writer.Files()
+}
+
 // Run writes the lines noted, and keeps the files, as its writer's Run does,
 // until ctx ends, when it writes what's still queued.
 func (w *Writer) Run(ctx context.Context) {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
@@ -154,6 +155,103 @@ func TestEachAccountARequestMovesToThrottlesItAfresh(t *testing.T) {
 			t.Errorf("the request went out on %q, want %q", got, want)
 		}
 	})
+}
+
+// sideRenewed is a token side takes up in place of its own.
+const sideRenewed = "test-token-side-renewed"
+
+func TestARequestToGoOutAgainOnItsAccountGoesElsewhereOnceTheRouterCanNoLongerSendOnIt(t *testing.T) {
+	// reset is the session as a reset by hand leaves it.
+	reset := session
+	reset.Utilization = 0.02
+	tests := []struct {
+		name string
+		// first returns side's answer to the request, which sends it again on
+		// side, given the router, what has side's file hold a token and what
+		// has a probe find the token side holds then another subscription's.
+		first func(r *Router, holds func(token string), found func()) answer
+		// workBarred has work refuse the request's model lately.
+		workBarred bool
+		wantStatus int
+		wantSent   []string
+	}{
+		{
+			name: "after a throttle, the token found another's in the wait, on another that takes it",
+			first: func(_ *Router, _ func(string), found func()) answer {
+				return func(req *http.Request) *http.Response {
+					time.AfterFunc(throttleWait/2, found)
+					return throttled("")(req)
+				}
+			},
+			wantStatus: http.StatusOK, wantSent: []string{"side", "work"},
+		},
+		{
+			name: "after a throttle, the token found another's in the wait, answered unsent where none other takes it",
+			first: func(_ *Router, _ func(string), found func()) answer {
+				return func(req *http.Request) *http.Response {
+					time.AfterFunc(throttleWait/2, found)
+					return throttled("")(req)
+				}
+			},
+			workBarred: true, wantStatus: http.StatusServiceUnavailable, wantSent: []string{"side"},
+		},
+		{
+			name: "for a new token, found another's once taken up as the request was out",
+			first: func(r *Router, holds func(string), found func()) answer {
+				return refusedAs(func() { holds(sideRenewed) }, r.upkeep.tokens.look, found)
+			},
+			wantStatus: http.StatusOK, wantSent: []string{"side", "work"},
+		},
+		{
+			name: "after a reset by hand, the token found another's meanwhile",
+			first: func(r *Router, _ func(string), found func()) answer {
+				return func(req *http.Request) *http.Response {
+					r.state.record("side", []quota.Window{reset, soonWeek}, r.state.mark())
+					found()
+					return sessionRejected(req)
+				}
+			},
+			wantStatus: http.StatusOK, wantSent: []string{"side", "work"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				files := &changingFiles{files: testTokens}
+				r := newTestRouterReading(t, at(start), &stubProber{}, files.read)
+				r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+				r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "side", reason: reasonNew}, start)
+				if tt.workBarred {
+					r.state.forbid("work", r.state.family(opus), http.StatusForbidden, someRequest)
+				}
+				side, _ := r.accounts.byID("side")
+				holds := func(token string) { files.set(tokenstest.Files{"work": workToken, "side": token}) }
+				found := func() { side.secret.disown(hash(side.token().Reveal()), true) }
+				upstream := &scriptedUpstream{answers: map[string][]answer{sideToken: {tt.first(r, holds, found), served}, sideRenewed: {served}, workToken: {served}}}
+				r.proxy.transport = upstream
+
+				rec := route(t.Context(), r, "one")
+				if rec.Code != tt.wantStatus {
+					t.Errorf("answered %d, want %d", rec.Code, tt.wantStatus)
+				}
+				if got := upstream.sent(); !slices.Equal(got, tt.wantSent) {
+					t.Errorf("the request went out on %q, want %q: never again on side's token, found another subscription's", got, tt.wantSent)
+				}
+				want := []string{"level=INFO", "msg=replaying", "from=side", "to=work", `why="has no usable token"`}
+				if tt.workBarred {
+					want = []string{"level=WARN", `msg="no account can take the request; answering 503"`, "account=side"}
+					if fix := "account side: " + prose.ForeignTokenFix("side"); !strings.Contains(rec.Body.String(), fix) {
+						t.Errorf("answered %s, want it to say %q", rec.Body, fix)
+					}
+				}
+				if !log.Has(want...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+				}
+			})
+		})
+	}
 }
 
 func TestA429WithoutUsageHeadersIsTheClientsAtOnce(t *testing.T) {

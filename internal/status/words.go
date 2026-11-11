@@ -49,6 +49,18 @@ func (w Words) String() string {
 	return b.String()
 }
 
+// Named are the words with each account they name by its id named as n
+// names it, as AccountName's Said says it, as the verbs' text says them.
+func (w Words) Named(n Namer) Words {
+	named := slices.Clone(w)
+	for i, p := range named {
+		if p.Kind == PartAccount {
+			named[i].Text = n.Named(p.Text).Said()
+		}
+	}
+	return named
+}
+
 // Facts are what a reason's words take beyond the reason itself, from the
 // line, assignment or event that gives it. Words never name an account the
 // facts don't give: the clause that would is left out.
@@ -300,6 +312,34 @@ func PassedOver(reason string) string {
 	return account
 }
 
+// reasonsNaming are the starts of the reasons an account's id follows, then a
+// space and why.
+var reasonsNaming = []string{ReasonMovedOff, ReasonPinYields, ReasonCompacted}
+
+// RenamedReason is reason with each account it names renamed as rename gives
+// the account's id: the one after its start, as in "moved: work hit its
+// limit", "pin yields: side has no room" and "compacted: side would reset
+// with 35% of its week left", and the one before its end, as in "new,
+// personal under pressure". Every other word is as it was, and a reason that
+// names none is returned as it is.
+func RenamedReason(reason string, rename func(id string) string) string {
+	base, passed, pressed := passedOver(reason)
+	if !pressed {
+		base = reason
+	}
+	for _, start := range reasonsNaming {
+		rest, started := strings.CutPrefix(base, start)
+		if id, why, cut := strings.Cut(rest, " "); started && cut {
+			base = start + rename(id) + " " + why
+			break
+		}
+	}
+	if pressed {
+		return PassingOver(base, rename(passed))
+	}
+	return base
+}
+
 // passedOver cuts the ending ", personal under pressure" from a reason,
 // giving why the choice was made and the account it passed over, and reports
 // false for a reason without it.
@@ -500,4 +540,24 @@ func cutAccount(reason, start string) (account, why string, ok bool) {
 	rest, started := strings.CutPrefix(reason, start)
 	account, why, cut := strings.Cut(rest, " ")
 	return account, why, started && cut
+}
+
+// Said says how the move of the accounts and their history onto the ids
+// switchboard makes stands, as the status, the dashboard and the commands
+// that read the history say it: that the history waits on it, then what holds
+// it up.
+func (m Moving) Said() string {
+	held := map[string]string{
+		MoveRunning:         prose.MoveRunning,
+		MoveAwaitingAPI:     prose.MoveWaitsAPI(m.Account, m.Why),
+		MoveAwaitingRestart: prose.MoveWaitsRestart,
+		MoveNoRouter:        prose.MoveWaitsRouter,
+		MoveUntold:          prose.MoveWaitsUntold,
+		MoveOlderRouter:     prose.MoveWaitsUpgrade,
+		MoveFailed:          prose.MoveFailed(m.Why),
+	}[m.Stage]
+	if held == "" {
+		return prose.HistoryMoving
+	}
+	return prose.HistoryMoving + ": " + held
 }

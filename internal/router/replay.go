@@ -39,6 +39,7 @@ const (
 	whyThrottled = "was throttled"
 	whyNewToken  = status.WhyNewToken
 	whyReset     = "was reset by hand"
+	whyTokenless = "has no usable token"
 )
 
 // reasonBack is why a session goes back to the account it was on before a
@@ -52,10 +53,11 @@ const reasonBack = status.ReasonBack
 // pause when the account is throttled, when it refuses a token the account
 // has replaced since, as after the token is rotated, or when the limit it
 // answers with was reset by hand since the request was sent, and on another
-// when its limit is reached or it refuses the request. It reads the usage off
-// every answer. What the client gets is the answer to the last attempt,
-// unless that refused the request: then it's the answer of the first account
-// whose limit the request reached, if one did, and a refusal if not.
+// when its limit is reached or it refuses the request, or, where it was to go
+// out again on the same, that account can no longer be sent on. It reads the
+// usage off every answer. What the client gets is the answer to the last
+// attempt, unless that refused the request: then it's the answer of the first
+// account whose limit the request reached, if one did, and a refusal if not.
 type replay struct {
 	p  *proxy
 	ex *exchange
@@ -181,9 +183,9 @@ func (rp *replay) tell(kind string, status int) {
 // refused says. A token the account has replaced since, as after it's
 // rotated, is no refusal: its token file holds another, as renewed says, or
 // the router took another up while the request was out, as barToken says.
-// Then the request goes out again on the account, once an account, and after
-// that on another, as elsewhere says, the account not barred, nor anything
-// told of a refusal.
+// Then the request goes out again on the account, as again says, once an
+// account, and after that on another, as elsewhere says, the account not
+// barred, nor anything told of a refusal.
 func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.Response, bool, error) {
 	renewed := !rp.newToken && rp.renewed()
 	if !renewed {
@@ -196,7 +198,19 @@ func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.
 	}
 	rp.newToken = true
 	discard(resp)
-	rp.replaying(rp.ex.account.ID, whyNewToken)
+	return rp.again(ctx, whyNewToken)
+}
+
+// again has the request go out again on its account, for the reason why,
+// where the router can still send on that: else, as a probe has found its
+// token another subscription's, or its file gone, since the request went out,
+// on another, as elsewhere says, the request answered as unsendable says
+// where none takes it.
+func (rp *replay) again(ctx context.Context, why string) (*http.Response, bool, error) {
+	if !rp.ex.account.hasToken() {
+		return rp.elsewhere(ctx, whyTokenless, errUnsendable)
+	}
+	rp.replaying(rp.ex.account.ID, why)
 	return nil, true, nil
 }
 
@@ -266,15 +280,14 @@ func (rp *replay) renewed() bool {
 // when another account can take the request, holding the answer back. When
 // none can, the answer is the client's. A limit reached only in windows reset
 // by hand since the request was sent, as the state's limit says, is no limit:
-// the request goes out again on the account, after the reset, where the
-// answer is the account's as it now stands.
+// the request goes out again on the account, after the reset, as again says,
+// where the answer is the account's as it now stands.
 func (rp *replay) limitReached(ctx context.Context, resp *http.Response, rejected []string, until time.Time) (*http.Response, bool, error) {
 	reached, ok := rp.p.state.limit(rp.ex.account.ID, rejected, until, rp.when)
 	if !ok {
 		logger.Info("limit from before a reset passed over", "id", rp.ex.id, "account", reached.Account, "windows", strings.Join(reached.Windows, ","))
 		discard(resp)
-		rp.replaying(reached.Account, whyReset)
-		return nil, true, nil
+		return rp.again(ctx, whyReset)
 	}
 	rp.tell(StreamLimited, resp.StatusCode)
 	news := "limit reached"
@@ -305,11 +318,12 @@ func (rp *replay) holdBack(limited pick, resp *http.Response) {
 	}
 }
 
-// throttle waits, and has the request sent again on its account, telling the
-// request stream of the throttling, while it has been throttled there no more
-// than throttleRetries times; after that, the answer is the client's, which
-// the stream tells of as the request ends. The wait is the one the upstream
-// asks for, within reason, and ends early, failing, should the client go.
+// throttle waits, and has the request sent again on its account, as again
+// says, telling the request stream of the throttling, while it has been
+// throttled there no more than throttleRetries times; after that, the answer
+// is the client's, which the stream tells of as the request ends. The wait is
+// the one the upstream asks for, within reason, and ends early, failing,
+// should the client go.
 func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter time.Duration) (*http.Response, bool, error) {
 	id := rp.ex.account.ID
 	if rp.throttled >= throttleRetries {
@@ -324,8 +338,7 @@ func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter 
 	if err := sleep(ctx, wait); err != nil {
 		return nil, false, err
 	}
-	rp.replaying(id, whyThrottled)
-	return nil, true, nil
+	return rp.again(ctx, whyThrottled)
 }
 
 // refused tells the request stream of the upstream's refusal of the request
@@ -352,7 +365,7 @@ func (rp *replay) refusalOf(resp *http.Response) refusedError {
 // went out on couldn't serve it, for the reason why. When none can take it,
 // the client has the answer of the first account whose limit the request
 // reached, as that's why no account was left, else answer.
-func (rp *replay) elsewhere(ctx context.Context, why string, answer refusedError) (*http.Response, bool, error) {
+func (rp *replay) elsewhere(ctx context.Context, why string, answer error) (*http.Response, bool, error) {
 	switch {
 	case rp.moveOn(ctx, why):
 		return nil, true, nil
@@ -371,7 +384,8 @@ func (rp *replay) elsewhere(ctx context.Context, why string, answer refusedError
 // accounts: the moves of its session, which goes back where it was, as the
 // request stream is told, and the bars it placed on its model family, each
 // told of as it lifts. An account the request left for a new token judged
-// nothing, as its 401 was to a token it no longer held. A bar on an
+// nothing, as its 401 was to a token it no longer held, nor one it left as it
+// could no longer be sent on, as that was the token's doing. A bar on an
 // account's token stands, as it says something of the account, and so does a
 // bar another request placed; and so do the session's moves, the request's
 // own among them, once another request of the session has been routed since.
@@ -393,9 +407,10 @@ func (rp *replay) takeBack() {
 
 // refusedEverywhere reports whether every account the request went out on
 // that judged it refused it, as takeBack takes it: one did, at least, and
-// none did otherwise. An account it left for a new token judged nothing.
+// none did otherwise. An account it left for a new token, or as it could no
+// longer be sent on, judged nothing.
 func (r Request) refusedEverywhere() bool {
-	judged := slices.DeleteFunc(slices.Clone(r.Tried), func(a Attempt) bool { return a.Why == whyNewToken })
+	judged := slices.DeleteFunc(slices.Clone(r.Tried), func(a Attempt) bool { return a.Why == whyNewToken || a.Why == whyTokenless })
 	return len(judged) > 0 && !slices.ContainsFunc(judged, func(a Attempt) bool { return a.Why != whyRefused })
 }
 

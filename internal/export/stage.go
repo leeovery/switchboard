@@ -6,20 +6,35 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
+)
+
+// Why a folder holding what an export writes isn't taken as a Mac's folder,
+// as Folders tells it.
+var (
+	// ErrUnread is a folder whose export.json doesn't read, as a damaged
+	// one doesn't.
+	ErrUnread = errors.New("its export.json doesn't read")
+	// ErrNoManifest is a folder holding an accounts record or days without
+	// an export.json, as an export cut short leaves one, or a sync that
+	// hasn't carried it whole.
+	ErrNoManifest = errors.New("it holds an export without its export.json, as an export cut short or a sync not done leaves one: import it again once it's exported whole")
 )
 
 // Folders returns the Macs' folders to import from dir: dir itself, where
 // it's one, else each folder in it that's one, by name, a Mac's folder being
 // one holding an export.json that reads, as ReadManifest reads it, this
-// Mac's own among them. A folder holding an export.json that doesn't read is
-// passed over, and given to unread, so a damaged one never loses a Mac's
-// history unsaid. It fails where one was exported by a newer switchboard
-// than this, where there's none, and where dir can't be read.
-func Folders(dir string, unread func(folder string)) ([]string, error) {
-	switch is, err := macsFolder(dir, unread); {
+// Mac's own among them. A folder holding an export.json that doesn't read,
+// or what an export writes without one, is passed over, and given to passed
+// with why, ErrUnread or ErrNoManifest, so neither loses a Mac's history
+// unsaid. It fails where one was exported by a newer switchboard than this,
+// where there's none, and where dir can't be read.
+func Folders(dir string, passed func(folder string, why error)) ([]string, error) {
+	switch is, err := macsFolder(dir, passed); {
 	case err != nil:
 		return nil, err
 	case is:
@@ -32,7 +47,7 @@ func Folders(dir string, unread func(folder string)) ([]string, error) {
 	var folders []string
 	for _, e := range entries {
 		folder := filepath.Join(dir, e.Name())
-		is, err := macsFolder(folder, unread)
+		is, err := macsFolder(folder, passed)
 		if err != nil {
 			return nil, err
 		}
@@ -47,21 +62,47 @@ func Folders(dir string, unread func(folder string)) ([]string, error) {
 }
 
 // macsFolder reports whether folder is a Mac's folder, holding an
-// export.json that reads, giving it to unread where it holds one that
-// doesn't, and failing where it was exported by a newer switchboard, whose
-// files this one may not read.
-func macsFolder(folder string, unread func(folder string)) (bool, error) {
+// export.json that reads, giving it to passed where it holds one that
+// doesn't, or none beside what an export writes, as holdsExport says, and
+// failing where it was exported by a newer switchboard, whose files this
+// one may not read.
+func macsFolder(folder string, passed func(folder string, why error)) (bool, error) {
 	m, err := ReadManifest(folder)
 	switch {
 	case err != nil:
-		if _, there := os.Stat(filepath.Join(folder, manifestFile)); there == nil {
-			unread(folder)
+		if why := whyPassed(folder); why != nil {
+			passed(folder, why)
 		}
 		return false, nil
 	case m.Version > Version:
 		return false, fmt.Errorf("can't import from %s: a newer switchboard exported it, its export.json of version %d, and this one reads version %d: upgrade switchboard to import it", folder, m.Version, Version)
 	}
 	return true, nil
+}
+
+// whyPassed is why folder, holding no export.json that reads, is passed
+// over, where that's to be said: ErrUnread where it holds one, ErrNoManifest
+// where it holds what an export writes, as holdsExport says; nil otherwise,
+// as for a file, or a folder of anything else.
+func whyPassed(folder string) error {
+	if _, err := os.Stat(filepath.Join(folder, manifestFile)); err == nil {
+		return ErrUnread
+	}
+	if holdsExport(folder) {
+		return ErrNoManifest
+	}
+	return nil
+}
+
+// holdsExport reports whether folder holds what an export writes but
+// export.json, as stagedFiles finds it: the accounts record, or a day's
+// file. One whose files can't be listed holds none.
+func holdsExport(folder string) bool {
+	paths, err := stagedFiles(folder)
+	return err == nil && slices.ContainsFunc(paths, func(path string) bool {
+		_, err := os.Lstat(path)
+		return err == nil && filepath.Base(path) != manifestFile
+	})
 }
 
 // Stage stages the Macs' folders given in importDir, for the router to take
@@ -112,8 +153,11 @@ func stageFolder(folder, dst string) error {
 
 // stagedFiles returns where the files to stage of the Mac's folder at folder
 // are: each day's compressed file of each kind of line, as Files' Compressed
-// finds them, and each day's summary, as ledger.SummaryDates finds them,
-// passing over anything else, as a temporary file an export cut short left.
+// finds them, each day's summary, as ledger.SummaryDates finds them, the
+// accounts record, which copyFile passes over where there's none, and
+// export.json, for the router to tell whose folder it is and how it was
+// exported; passing over anything else, as a temporary file an export cut
+// short left.
 func stagedFiles(folder string) ([]string, error) {
 	var paths []string
 	for _, files := range linesIn(folder, slog.New(slog.DiscardHandler)) {
@@ -133,5 +177,5 @@ func stagedFiles(folder string) ([]string, error) {
 	for _, date := range dates {
 		paths = append(paths, ledger.SummaryFile(dir, date))
 	}
-	return paths, nil
+	return append(paths, identity.NewFile(folder).Path(), filepath.Join(folder, manifestFile)), nil
 }

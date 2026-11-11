@@ -2,10 +2,8 @@ package accounts
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // What giving an account a label fails with, where the label is none, or
@@ -47,17 +45,8 @@ func checkNew(cfg *config.Config, account config.NewAccount) (string, error) {
 }
 
 // labelTaken reports whether an account cfg configures, but the one with the
-// given id, shows label, as each shows, ignoring case: an account the config
-// writes no label for has its id as its label, as config loads it.
+// given id, shows label, as config.Accounts' LabelTaken says: none where cfg
+// is nil.
 func labelTaken(cfg *config.Config, id, label string) bool {
-	if cfg == nil {
-		return false
-	}
-	shown := prose.Clean(label)
-	for _, a := range cfg.Accounts {
-		if a.ID != id && strings.EqualFold(prose.Clean(a.Label), shown) {
-			return true
-		}
-	}
-	return false
+	return cfg != nil && cfg.Accounts.LabelTaken(id, label)
 }

@@ -128,14 +128,15 @@ func (a *app) history(out io.Writer, given string, asJSON bool) error {
 	}
 	prices := pricing(asked.cfg)
 	reader := ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now })
+	removed := removedIn(asked.stateDir, asked.cfg)
 	history := views.NewHistory(views.HistoryInput{
-		Ledger: reader, From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.cfg.Accounts,
+		Ledger: reader, From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.cfg.Accounts, Removed: removed,
 		WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
 	})
 	if asJSON {
 		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})
 	}
-	return writeHistory(out, history, prices, asked.from, asked.now)
+	return writeHistory(out, history, status.NamesOf(asked.cfg.Accounts, removed), prices, asked.from, asked.now)
 }
 
 // historyWindows prints each account's windows' readings over the days from
@@ -145,7 +146,8 @@ func (a *app) historyWindows(out io.Writer, given string, asJSON bool) error {
 	if err != nil {
 		return err
 	}
-	windows := views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.cfg.Accounts, asked.from, asked.now)
+	names := namesIn(asked.stateDir, asked.cfg)
+	windows := views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.cfg.Accounts, asked.from, asked.now).Named(names)
 	if asJSON {
 		return writeJSON(out, windows)
 	}
@@ -156,10 +158,10 @@ func (a *app) historyWindows(out io.Writer, given string, asJSON bool) error {
 // requests or notes, then the blocks over them, then which prices they're
 // worth at; but where none of its days has requests, that there were none
 // since from, then the tables of those with notes alone, as the blocks and
-// prices tell of nothing. Given a day whose date isn't one, it fails,
-// writing nothing.
-func writeHistory(out io.Writer, history views.History, prices ledger.Table, from, now time.Time) error {
-	tables, err := historyTables(views.DayAccountsOf(history.Days), now)
+// prices tell of nothing, each account its days name named as names name
+// it. Given a day whose date isn't one, it fails, writing nothing.
+func writeHistory(out io.Writer, history views.History, names status.Namer, prices ledger.Table, from, now time.Time) error {
+	tables, err := historyTables(views.DayAccountsOf(history.Days, names), now)
 	if err != nil {
 		return err
 	}
@@ -247,7 +249,7 @@ func modelRows(a views.DayAccount) [][]string {
 	for i, m := range a.Models {
 		account := ""
 		if i == 0 {
-			account = accountName(a.Account)
+			account = accountName(a)
 		}
 		rows[i] = []string{account, modelName(m), prose.Counted(m.Requests, "request"), prose.Tokens(m.Tokens) + " tokens",
 			prose.SessionCount(m.Sessions), worthText(m.Worth)}
@@ -255,13 +257,13 @@ func modelRows(a views.DayAccount) [][]string {
 	return rows
 }
 
-// accountName names the account with the given id, cleaned: views.NoAccount
+// accountName names the account of a day as its Said says it: views.NoAccount
 // for the requests none answered.
-func accountName(id string) string {
-	if id == "" {
+func accountName(a views.DayAccount) string {
+	if a.Account == "" {
 		return views.NoAccount
 	}
-	return prose.Clean(id)
+	return a.Said()
 }
 
 // modelName names the model a model's day is of, and the inference geo its
@@ -287,7 +289,7 @@ func accountNote(a views.DayAccount, now time.Time) string {
 			parts = append(parts, part)
 		}
 	}
-	return prose.Clean(a.Account) + ": " + strings.Join(parts, prose.Separator)
+	return a.Said() + ": " + strings.Join(parts, prose.Separator)
 }
 
 // windowInProse names the window with the given key as a sentence of the

@@ -90,6 +90,12 @@ func NewWriter[T any](files *Files, linesOf func(T) Lines, opts WriterOptions) *
 		spare: opts.Spare, queue: make(chan T, opts.Queue), work: make(chan func()), again: make(chan struct{}, 1), stopped: make(chan struct{})}
 }
 
+// Files are the files the Writer writes to, holding them as Files says: one
+// who rewrites them as it runs holds them alike.
+func (w *Writer[T]) Files() *Files {
+	return w.files
+}
+
 // Note queues v for Run to write. It never waits: with the queue full, v is
 // dropped.
 func (w *Writer[T]) Note(v T) {

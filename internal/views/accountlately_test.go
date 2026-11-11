@@ -107,6 +107,9 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 		{name: "a session starting, passing over an account under pressure", doc: started("side", "new, personal under pressure"), id: "side", best: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started here: personal came under pressure"}}},
 		{name: "a session starting on another account", doc: started("work", status.ReasonNew), id: "side", best: "work"},
+		{name: "a token another subscription's", doc: latelyOf(status.Event{Kind: status.EventForeign, Account: "side"}), id: "side", want: []toldLine{
+			{kind: status.EventForeign, full: "its token is another subscription's"}}},
+		{name: "another account's token another subscription's", doc: latelyOf(status.Event{Kind: status.EventForeign, Account: "work"}), id: "side"},
 		{name: "a prime", doc: latelyOf(status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}}), id: "side", want: []toldLine{
 			{kind: status.EventPrimed, full: "primed: its 5-hour window started"}}},
 		{name: "room again", doc: latelyOf(status.Event{Kind: status.EventRoom, Account: "work", Windows: []string{"5h"}}), id: "work", want: []toldLine{

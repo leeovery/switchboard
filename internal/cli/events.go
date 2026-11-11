@@ -73,6 +73,9 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 	if err != nil {
 		return err
 	}
+	if err := historyMoved(dir); err != nil {
+		return err
+	}
 	now := a.Now()
 	from, err := sinceOr(opts.since, now, startOfDay(now, 0))
 	if err != nil {
@@ -103,12 +106,13 @@ type eventsPrinter interface {
 	follow(h events.Held) error
 }
 
-// eventsPrinter returns the printer of the form f chooses, printing to out.
+// eventsPrinter returns the printer of the form f chooses, printing to out,
+// its text naming accounts as accountNames names them.
 func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey)}
+	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey), names: a.accountNames()}
 }
 
 // eventsJSON prints each event as the router files it, its schema first, a
@@ -146,6 +150,8 @@ type eventsText struct {
 	out     io.Writer
 	now     func() time.Time
 	telling *views.Telling
+	// names name the accounts the events name, as each row is told.
+	names status.Names
 	// day is the day of the last heading printed: zero before one is. widths
 	// are the columns every row printed is aligned to: its time's as wide as
 	// prose.DatedWidth, and each as wide as the widest cell of the rows listed
@@ -165,7 +171,7 @@ func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error
 	var rows []views.EventRow
 	p.widths = []int{len(indent) + prose.DatedWidth()}
 	for h := range held {
-		r := p.telling.Row(h, now)
+		r := p.telling.Row(h, now).Named(p.names)
 		if r.At.Before(from) {
 			continue
 		}
@@ -184,7 +190,7 @@ func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error
 // changed event of an earlier day, brings.
 func (p *eventsText) follow(h events.Held) error {
 	now := p.now()
-	told := p.telling.Row(h, now)
+	told := p.telling.Row(h, now).Named(p.names)
 	row := indented(eventRow(told, now))
 	if p.day.IsZero() || !prose.SameDay(now, p.day, told.At) {
 		p.day = dayOf(now, told.At)
@@ -196,9 +202,9 @@ func (p *eventsText) follow(h events.Held) error {
 	return writeRow(p.out, row, p.widths)
 }
 
-// eventRow is the row of the event r, at now: when it happened, as
-// prose.Dated says every time of an event, its session's id cut short, its
-// kind, its account and what happened, as views.Telling tells them.
+// row is the row of the event r, at now: when it happened, as prose.Dated
+// says every time of an event, its session's id cut short, its kind, its
+// account and what happened, as views.Telling tells them.
 func eventRow(r views.EventRow, now time.Time) []string {
 	return []string{prose.Dated(now, r.At), status.ShortID(prose.Clean(r.Session)), r.Kind, r.Account.String(), r.What.String()}
 }

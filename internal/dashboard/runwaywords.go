@@ -185,10 +185,11 @@ func (v laneView) stretchParts(s views.LaneStretch, a status.AccountNow, against
 // bold in accent.attention, and each ending as the window resets, as each
 // ends then. At its limit, as "out 13:58", the ~ and the ink telling it from
 // a run-out; its token refused, as "token refused (401) 14:12", the status
-// the refusal holding it gave, as refusedWith has it; or without a token,
-// "no token"; each bold in state.destructive, and none ending as the window
-// resets, as each lifts whenever it does. A start no one told leaves its time
-// unsaid.
+// the refusal holding it gave, as refusedWith has it; or without a token of
+// its own, as prose.Tokenless says it, "no token", or "wrong token" where
+// the account holds another subscription's; each bold in state.destructive,
+// and none ending as the window resets, as each lifts whenever it does. A
+// start no one told leaves its time unsaid.
 func headOf(s views.LaneStretch, a status.AccountNow, tl views.Timeline, against time.Time) (string, ink, bool) {
 	when := ""
 	if !s.Start.IsZero() {
@@ -209,7 +210,7 @@ func headOf(s views.LaneStretch, a status.AccountNow, tl views.Timeline, against
 	case s.Cell == views.CellRefused:
 		return "token refused" + refusedWith(s, a, tl.NowColumn()) + when, exhaustedInk, false
 	}
-	return "no token", exhaustedInk, false
+	return prose.Tokenless(a.TokenForeign), exhaustedInk, false
 }
 
 // refusedWith is the status the upstream refused the account a's token with,

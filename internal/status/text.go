@@ -38,8 +38,10 @@ const notStarted = "not started"
 // then the sessions given, as the router lists those it has routed in the
 // last hour, a line each; then the priming schedule, and what comes next of
 // it; then the account new sessions go to, as Next has it, which the
-// dashboard marks ▲; then where the usage came from, and last a restart the
-// router has due. Each is said as the moment has it, worked out once.
+// dashboard marks ▲; then where the usage came from, a restart the router
+// has due, and last that the history waits on its move onto the accounts'
+// ids, and what holds it up, as Moving's Said says, while the router owes
+// it. Each is said as the moment has it, worked out once.
 // Countdowns run from Now, and times show in Now's time zone. Every text it
 // shows that came from elsewhere, such as the config's labels or the
 // upstream's errors, it shows cleaned.
@@ -56,7 +58,7 @@ func (m Moment) Text(sessions ...Session) string {
 	if len(sessions) > 0 {
 		b.WriteString("sessions\n")
 		for _, s := range sessions {
-			fmt.Fprintf(&b, "  %s\n", s.Line(now))
+			fmt.Fprintf(&b, "  %s\n", s.Line(now, m))
 		}
 		b.WriteString("\n")
 	}
@@ -68,11 +70,15 @@ func (m Moment) Text(sessions ...Session) string {
 	if d.Restart.Due() {
 		fmt.Fprintf(&b, "%s\n", d.Restart.Text(now))
 	}
+	if m.Moving != (Moving{}) {
+		fmt.Fprintf(&b, "%s\n", m.Moving.Said())
+	}
 	return b.String()
 }
 
 // writePriming writes the priming schedule, when priming is on, such as
-// "priming 08:00-23:00: work at 04:10 and side at 06:40", and under it what
+// "priming 08:00-23:00: work at 04:10 and side at 06:40", each account named
+// as the moment names it, and under it what
 // comes next of it at the moment, as its Coming has it.
 func (m Moment) writePriming(b *strings.Builder) {
 	prime := m.doc.Prime
@@ -81,7 +87,7 @@ func (m Moment) writePriming(b *strings.Builder) {
 	}
 	slots := make([]string, len(prime.Slots))
 	for i, s := range prime.Slots {
-		slots[i] = prose.Clean(s.Account) + " at " + prose.Clean(s.At)
+		slots[i] = m.Named(s.Account).Said() + " at " + prose.Clean(s.At)
 	}
 	fmt.Fprintf(b, "priming %s: %s\n", prose.Clean(prime.Day), prose.List(slots))
 	if len(m.Coming) > 0 {

@@ -255,8 +255,8 @@ func TestPinSessionThatIsntOneAlone(t *testing.T) {
 	srv.route(t, sessionOne, "claude-haiku-4-5-20251001")
 	srv.routePinned(t, sessionTwo, "claude-haiku-4-5-20251001", "work")
 	ambiguous := `Error: session 0b5c could be any of these, so give more of its id:
-  0b5c6f2e  haiku on work  ·  seen just now
-  0b5c9a01  haiku on work  ·  pinned to work  ·  seen just now
+  0b5c6f2e  haiku on Work  ·  seen just now
+  0b5c9a01  haiku on Work  ·  pinned to Work  ·  seen just now
 `
 	tests := []struct {
 		args []string

@@ -66,7 +66,7 @@ func TestStatusReadsTheRouterWhileItRuns(t *testing.T) {
 	got := run(t, srv.deps, "status", "--pretty")
 	want := result{stdout: workRouted + "  1 session\n\n" + othersAtStatus(t, srv.deps) + `
 sessions
-  0b5c6f2e  haiku on work  ·  seen just now
+  0b5c6f2e  haiku on Work  ·  seen just now
 
 best next: side · Side
 from the router: healthy  ·  1 session  ·  pinned to side · Side

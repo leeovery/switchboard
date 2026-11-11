@@ -17,6 +17,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
@@ -227,7 +229,7 @@ func (r *Router) Control() http.Handler {
 	mux.HandleFunc("POST /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin sessionPinRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, maxControlBody)).Decode(&pin); err != nil {
-			writeProblem(w, http.StatusBadRequest, `give the account to pin the session to as JSON, such as {"account": "work"}`)
+			writeProblem(w, http.StatusBadRequest, `give the account to pin the session to as JSON, such as {"account": "b6s7"}`)
 			return
 		}
 		id := req.PathValue("id")
@@ -344,10 +346,13 @@ func historyAsked(req *http.Request) (historyAsk, error) {
 	return historyAsk{window: window, step: step, asked: asked}, nil
 }
 
-// refresh probes the accounts nothing has been read of for longer than age,
-// and those that can take no request anyway, as refreshing says, sharing any
-// probe of them already under way, and waits for those probes: for
-// refreshWait at most, or until ctx ends, after which they go on without it.
+// refresh probes the accounts it can send on that nothing has been read of
+// for longer than age, and those that can take no request anyway, as
+// refreshing says, sharing any probe of them already under way, and waits for
+// those probes: for refreshWait at most, or until ctx ends, after which they
+// go on without it. One holding the token a probe found another
+// subscription's isn't probed again till it takes up another, as on its
+// rounds.
 func (r *Router) refresh(ctx context.Context, age time.Duration) {
 	underway := r.probes.start(r.accounts.sendable(), r.state.refreshing(age))
 	if len(underway) == 0 {
@@ -591,9 +596,9 @@ func (r *Router) pinnable(id string) error {
 	a, ok := r.accounts.byID(id)
 	switch {
 	case id == "":
-		return errors.New(`give the account to pin, such as {"account": "work"}`)
+		return errors.New(`give the account to pin, such as {"account": "b6s7"}`)
 	case !ok:
-		return UnknownAccount(id, r.accounts.sendable().configured().IDs())
+		return UnknownAccount(id, r.accounts.sendable().configured())
 	case !a.hasToken():
 		return fmt.Errorf("account %s has no usable token, so nothing can go out on it: %s", id, a.problem())
 	}
@@ -602,14 +607,22 @@ func (r *Router) pinnable(id string) error {
 
 // UnknownAccount says there's no account with the given id to pin, naming
 // the accounts that can be pinned instead, pinnable, those with a usable
-// token, or saying there are none: pin and run --account say it alike. It
-// hides anything in the id that looks like a token, as a token pasted where
-// an id goes would be.
-func UnknownAccount(id string, pinnable []string) error {
+// token, each by its id and its label, as "pin b6s7 (Work) or q4tx (Side)",
+// one labelled by its id named once, or saying there are none: pin and run --account say it alike. It hides
+// anything in the id that looks like a token, as a token pasted where an id
+// goes would be.
+func UnknownAccount(id string, pinnable config.Accounts) error {
 	if len(pinnable) == 0 {
 		return fmt.Errorf("there's no account %q, and no account has a usable token to pin", redact.Text(id))
 	}
-	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), strings.Join(pinnable, " or "))
+	named := make([]string, len(pinnable))
+	for i, a := range pinnable {
+		named[i] = prose.Clean(a.ID)
+		if label := status.ConfiguredName(a).Said(); !strings.EqualFold(label, named[i]) {
+			named[i] += " (" + label + ")"
+		}
+	}
+	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), prose.ListOr(named))
 }
 
 // writeJSON answers with v as JSON, or, where v can't be given as JSON,

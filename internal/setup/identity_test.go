@@ -268,8 +268,8 @@ func TestAnAnswerThatCantBeSaved(t *testing.T) {
 		if err != nil || got.Result != setup.TokenNotSaved || !slices.Equal(got.Shown, []string{madeToken}) || !strings.Contains(got.Why, accounts.ErrLabelTaken.Error()) {
 			t.Errorf("Answer() = %+v, %v; want the token given back, not saved, saying why", got, err)
 		}
-		if !log.Has("level=WARN", `msg="claude setup-token made a token switchboard couldn't save"`, "label=Personal") || strings.Contains(log.String(), "account=") {
-			t.Errorf("the log reads\n%s\nwant the token not saved, logged by the label of the account it was to add", log)
+		if !log.Has("level=WARN", `msg="claude setup-token made a token switchboard couldn't save"`, "adding=true") || strings.Contains(log.String(), "account=") || strings.Contains(log.String(), "Personal") {
+			t.Errorf("the log reads\n%s\nwant the token not saved, logged as for an account being added, never by its label", log)
 		}
 		w.checkUnchanged(t, before)
 	})

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -21,6 +22,7 @@ func TestATokenIsToldAsTheReviewsTokenColumnHasIt(t *testing.T) {
 		{"working, its year known: by its year", setup.TokenStanding{State: setup.TokenWorking, Year: known}, setup.ToldByYear, ""},
 		{"working, its year unknown", setup.TokenStanding{State: setup.TokenWorking}, setup.ToldUndated, "working · expiry date unknown"},
 		{"refused", setup.TokenStanding{State: setup.TokenNotTaken, Year: known}, setup.ToldRefused, "rejected: revoked or expired"},
+		{"another subscription's", setup.TokenStanding{State: setup.TokenForeign, Year: known}, setup.ToldRefused, "wrong token"},
 		{"read, its check running", setup.TokenStanding{State: setup.TokenRead, Year: known}, setup.ToldInWords, "checking…"},
 		{"the API didn't answer", setup.TokenStanding{State: setup.TokenUnchecked, Year: known, Why: "HTTP 529"}, setup.ToldInWords, "unchecked"},
 		{"no token", setup.TokenStanding{}, setup.ToldInWords, "no token"},
@@ -44,6 +46,28 @@ func checkedAll(t *testing.T, s *setup.Setup, review setup.Review) setup.Review 
 		review = review.Checked(a.ID, row, err)
 	}
 	return review
+}
+
+func TestATokenTheAPINamesAnotherSubscriptionInIsTheWrongToken(t *testing.T) {
+	w := frame3(t)
+	// The record holds personal to another organization than its token's.
+	w.writeRecord(t, identity.Entry{ID: "work", Organization: "org-work", Added: recordedBefore},
+		identity.Entry{ID: "personal", Organization: "org-elsewhere", Added: recordedBefore})
+	s := w.reviewing(t, &checkingAPI{})
+	read, err := s.Review()
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := checkedAll(t, s, read)
+
+	if got := checked.Accounts[1].Token; got.State != setup.TokenForeign || got.Organization != "org-personal" {
+		t.Errorf("personal's token stands %d, of %q; want another subscription's, of org-personal", got.State, got.Organization)
+	}
+	if got := checked.Accounts[0].Token.State; got != setup.TokenWorking {
+		t.Errorf("work's token stands %d, want working: its organization is its own", got)
+	}
+	checkLine(t, setup.RouterStanding{State: setup.RouterHealthy}, checked,
+		setup.Part{Standing: setup.PartUp, Words: "router up, healthy"}, setup.Part{Standing: setup.PartTold, Words: "3 accounts, 1 working"})
 }
 
 func TestCheckedFoldsEachAnswerIntoTheReview(t *testing.T) {

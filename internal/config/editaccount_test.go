@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"cmp"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -780,6 +781,25 @@ func TestInAnotherCase(t *testing.T) {
 	}
 }
 
+func TestLabelTakenComparesLabelsAsShownIgnoringCase(t *testing.T) {
+	accounts := config.Accounts{{ID: "b6s7", Label: "Work"}, {ID: "qgr2", Label: "qgr2"}}
+	tests := []struct {
+		id, label string
+		want      bool
+	}{
+		{id: "", label: "work", want: true},
+		{id: "", label: "  WORK\t", want: true},
+		{id: "", label: "QGR2", want: true},
+		{id: "b6s7", label: "work"},
+		{id: "", label: "personal"},
+	}
+	for _, tt := range tests {
+		if got := accounts.LabelTaken(tt.id, tt.label); got != tt.want {
+			t.Errorf("LabelTaken(%q, %q) = %t, want %t", tt.id, tt.label, got, tt.want)
+		}
+	}
+}
+
 func TestAddAccountTrimsTheLabelsSurroundingWhitespace(t *testing.T) {
 	const work = "[[account]]\nid = \"work\"\n"
 	path := writeConfig(t, work)
@@ -947,4 +967,41 @@ func checkSaved(t *testing.T, path string, draft *config.Draft, id, want string)
 	}
 	t.Fatalf("no account %q loads", id)
 	return config.Account{}
+}
+
+func TestSetID(t *testing.T) {
+	path := writeConfig(t, commented)
+	draft := edit(t, path)
+
+	if err := draft.SetID("work", "wk7q"); err != nil {
+		t.Fatalf("SetID() error = %v", err)
+	}
+	got := checkSaved(t, path, draft, "wk7q", replaced(t, commented, `id      = "work"  # for good`, `id      = "wk7q"  # for good`))
+	if got.Label != "Work" || !got.Primary || got.Reserve != 0.1 {
+		t.Errorf("the account loads as %+v, want all but its id as it was", got)
+	}
+}
+
+func TestSetIDRefusesAnIDItCantGive(t *testing.T) {
+	tests := []struct {
+		name, id, newID string
+		is              error
+	}{
+		{name: "an account that isn't configured", id: "side", newID: "sd7q", is: config.ErrNotConfigured},
+		{name: "another account's", id: "work", newID: "personal", is: config.ErrConfigured},
+		{name: "another account's in another case", id: "work", newID: "Personal"},
+		{name: "one no account can have", id: "work", newID: "a b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, commented)
+			err := edit(t, path).SetID(tt.id, tt.newID)
+			if err == nil || tt.is != nil && !errors.Is(err, tt.is) {
+				t.Errorf("SetID(%q, %q) error = %v, want one matching %v", tt.id, tt.newID, err, tt.is)
+			}
+			if got := readFile(t, path); got != commented {
+				t.Errorf("the config reads\n%s\nwant it as it was", got)
+			}
+		})
+	}
 }

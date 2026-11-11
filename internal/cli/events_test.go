@@ -74,6 +74,7 @@ func eventsDeps(t *testing.T) cli.Deps {
 	t.Helper()
 	deps := testDeps(nil, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }
+	markMoved(t, stateDir(t, deps))
 	for _, f := range fixtureEvents {
 		fileEvent(t, deps, f.date, f.line)
 	}
@@ -90,10 +91,14 @@ func fileEvent(t *testing.T, deps cli.Deps, date string, line events.Line) {
 }
 
 // fileLines appends lines, each with its line ending, to the router's events'
-// file of the local day with the given date, as fileEvent does.
+// file of the local day with the given date, as fileEvent does: as a router
+// files them that has moved the history onto the accounts' ids, as it does
+// as it first starts, so it's marked done.
 func fileLines(t *testing.T, deps cli.Deps, date, lines string) {
 	t.Helper()
-	dir := ledger.Dir(stateDir(t, deps))
+	state := stateDir(t, deps)
+	markMoved(t, state)
+	dir := ledger.Dir(state)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}

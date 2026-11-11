@@ -130,7 +130,7 @@ func tracedClock(hour, minute, second int) time.Time {
 	return time.Date(2026, 10, 1, hour, minute, second, 0, time.UTC)
 }
 
-// tracedCells are the eighths of a trace 60 cells wide, as at 159 columns,
+// tracedCells are the eighths of a trace 60 cells wide, as at 157 columns,
 // filled in the cells given and no others: the cell of the 30 seconds from
 // hh:mm:00 or hh:mm:30 is 59 − (14:42:00 − that) ÷ 30 s, routedAt's the last.
 func tracedCells(filled map[int]int) []int {
@@ -203,7 +203,7 @@ func TestAFramesTracesDrawItsRequestsAMinuteToItsScale(t *testing.T) {
 	}
 	rates := map[string]span{"work": {"0/min", dimInk}, "personal": {"2/min", strongInk}, "side": {"16/min", strongInk}}
 	for _, tt := range tests {
-		f := frameOf(159, 40)
+		f := frameOf(157, 40)
 		f.Look, f.Sections, f.Sessions, f.Traces, f.TraceScale = Screen(builtin(t, "nord")), SectionsNamed([]string{"routing"}), listed, traces, tt.scale
 		c := newCanvas(f.Width, f.Height)
 		f.view(c, doc, routedAt)
@@ -243,7 +243,7 @@ func TestATraceUnderASlideOverKeepsNowsEndAndItsRate(t *testing.T) {
 		scale float64
 	}{
 		{name: "ROUTING, two rows an account", width: 160, shown: SectionsNamed([]string{"routing"}), scale: 16},
-		{name: "ROUTING two rows an account", width: 82, shown: SectionsNamed([]string{"routing"}), scale: 16},
+		{name: "ROUTING two rows an account", width: 80, shown: SectionsNamed([]string{"routing"}), scale: 16},
 		{name: "beside USAGE's blocks", width: 160, shown: SectionsNamed([]string{"usage", "routing"}), by: ByAccount, scale: 18},
 		{name: "SESSIONS", width: 160, shown: SectionsNamed([]string{"sessions"}), scale: 16},
 	}
@@ -355,7 +355,7 @@ func TestEveryTraceOnScreenSharesTheBusiestColumnAsItsScale(t *testing.T) {
 		{name: "ROUTING's accounts', side's newest", width: 160, height: 60, shown: SectionsNamed([]string{"routing"}), want: 16},
 		{name: "and the running sessions', side-1's, on two accounts at once, never gone's", width: 160, height: 60, shown: routingAndSessions, want: 24},
 		{name: "the sessions' alone, ROUTING hidden", width: 160, height: 60, shown: SectionsNamed([]string{"sessions"}), want: 24},
-		{name: "two rows a session, where SESSIONS draws no trace: ROUTING's alone", width: 82, height: 60, shown: routingAndSessions, want: 16},
+		{name: "two rows a session, where SESSIONS draws no trace: ROUTING's alone", width: 80, height: 60, shown: routingAndSessions, want: 16},
 		{name: "beside USAGE's blocks, the pool's, its accounts' summed", width: 160, height: 60, by: ByAccount, want: 30},
 		{name: "SESSIONS folded, its rows run short: ROUTING's alone", width: 160, height: 16, shown: routingAndSessions, want: 16},
 		{name: "ROUTING folded too: none, the least", width: 160, height: 11, shown: routingAndSessions, want: leastScale},

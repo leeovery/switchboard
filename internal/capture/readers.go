@@ -33,12 +33,14 @@ type records struct {
 }
 
 // recordsOf are the world's records: the year's days of its accounts,
-// summarised from its readings history, that history, and its accounts'
-// caps; and, where today's traffic of the three is the world's, every line
-// the sessions' world holds, or the world's own lines in their place, and
-// the router's events, or, where its records hold its own, those.
+// summarised from its readings history, with those of its accounts removed,
+// that history, and its accounts' caps; and, where today's traffic of the
+// three is the world's, every line the sessions' world holds, or the world's
+// own lines in their place, and the router's events, or, where its records
+// hold its own, those.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
-	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
+	days := withGone(a.year.summaries(w.history, w.accounts), w.gone)
+	r := &records{days: days, readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
 	if w.traffic {
 		r.lines, r.events = a.traffic()
 	}

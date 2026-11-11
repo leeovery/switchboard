@@ -23,7 +23,7 @@ func TestTheRecordsLookups(t *testing.T) {
 		{ID: "b6s7", Organization: "test-org-work", Added: added},
 		{ID: "qgr2", Organization: "test-org-personal", Label: "personal", Added: added, Removed: removed, Was: "personal"},
 		{ID: "m2x7", Label: "side", Added: added, Removed: removed, Was: "side"},
-		{ID: "k3f9", Added: added},
+		{ID: "k3f9", Added: added, Was: "work"},
 	}}
 	tests := []struct {
 		name   string
@@ -44,12 +44,49 @@ func TestTheRecordsLookups(t *testing.T) {
 		{name: "by an id before none had", lookup: func() (identity.Entry, bool) { return record.ByWas("other") }},
 		{name: "by no id before", lookup: func() (identity.Entry, bool) { return record.ByWas("") }},
 		{name: "by an id made, as one before", lookup: func() (identity.Entry, bool) { return record.ByWas("b6s7") }},
+		{name: "moved from the id before", lookup: func() (identity.Entry, bool) { return record.MovedFrom("WORK") }, want: "k3f9"},
+		{name: "moved from the id before of one removed", lookup: func() (identity.Entry, bool) { return record.MovedFrom("side") }},
+		{name: "moved from no id before", lookup: func() (identity.Entry, bool) { return record.MovedFrom("") }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, ok := tt.lookup()
 			if got.ID != tt.want || ok != (tt.want != "") {
 				t.Errorf("found %q, %v; want %q", got.ID, ok, tt.want)
+			}
+		})
+	}
+}
+
+// An organization the API names of an account's token is held to the
+// account's: its own; another subscription's, other than the account's, or,
+// the account's not known, another account's, which is given; new, where
+// none has it; and held to nothing where none is named, or the record hasn't
+// the account.
+func TestHoldHoldsAnOrganizationToItsAccounts(t *testing.T) {
+	record := identity.Record{Accounts: []identity.Entry{
+		{ID: "b6s7", Organization: "test-org-work", Added: added},
+		{ID: "qgr2", Organization: "test-org-personal", Label: "personal", Added: added, Removed: removed},
+		{ID: "k3f9", Added: added},
+	}}
+	tests := []struct {
+		name, id, organization string
+		want                   identity.Holding
+		// other is the id of the other account it's the organization of.
+		other string
+	}{
+		{name: "the account's own", id: "B6S7", organization: "test-org-work", want: identity.HeldOwn},
+		{name: "other than the account's", id: "b6s7", organization: "test-org-other", want: identity.HeldForeign},
+		{name: "another's, the account's not known", id: "k3f9", organization: "test-org-work", want: identity.HeldForeign, other: "b6s7"},
+		{name: "a removed account's, the account's not known", id: "k3f9", organization: "test-org-personal", want: identity.HeldForeign, other: "qgr2"},
+		{name: "none's, the account's not known", id: "k3f9", organization: "test-org-new", want: identity.HeldNew},
+		{name: "none named", id: "b6s7", want: identity.Unheld},
+		{name: "of an account the record hasn't", id: "zzzz", organization: "test-org-work", want: identity.Unheld},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if held, other := record.Hold(tt.id, tt.organization); held != tt.want || other.ID != tt.other {
+				t.Errorf("Hold() = %d, %q; want %d, %q", held, other.ID, tt.want, tt.other)
 			}
 		})
 	}

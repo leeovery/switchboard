@@ -792,19 +792,19 @@ func marked(summary Summary, stat dayfile.DayStat) bool {
 // the coarsest clock a file system keeps, so the time changes as the file
 // does.
 func unchanged(date string, stat dayfile.DayStat, stamp time.Time) bool {
-	return stat.PlainSize == 0 && stampOf(date, stat).Equal(stamp)
+	return stat.PlainSize == 0 && stampOf(date, stat, summaryVersion).Equal(stamp)
 }
 
-// stampOf returns the stamp of a summary of the version the ledger writes of
-// the local day with the given date, its files as stat looks at them: when
-// its compressed file was last modified, or, where it has neither file, as
-// one of no requests, when the day started; a second later for each version
-// past the first, so the stamp holds the summary's version too, and a look
-// tells one of an older version, which is summarised again, as on a file
-// system that keeps whole seconds, as HFS+ does. A day with a plain file
-// alone gives none. A summary of version 1 was stamped at the time itself,
-// and one of version 2 of a day with neither file, not at all.
-func stampOf(date string, stat dayfile.DayStat) time.Time {
+// stampOf returns the stamp of a summary of the given version of the local
+// day with the given date, its files as stat looks at them: when its
+// compressed file was last modified, or, where it has neither file, as one
+// of no requests, when the day started; a second later for each version past
+// the first, so the stamp holds the summary's version too, and a look tells
+// one of an older version than the ledger writes, which is summarised again,
+// as on a file system that keeps whole seconds, as HFS+ does. A day with a
+// plain file alone gives none. A summary of version 1 was stamped at the
+// time itself, and one of version 2 of a day with neither file, not at all.
+func stampOf(date string, stat dayfile.DayStat, version int) time.Time {
 	var at time.Time
 	switch {
 	case !stat.CompressedModified.IsZero():
@@ -814,7 +814,7 @@ func stampOf(date string, stat dayfile.DayStat) time.Time {
 	default:
 		return time.Time{}
 	}
-	return at.Add((summaryVersion - 1) * time.Second)
+	return at.Add(time.Duration(version-1) * time.Second)
 }
 
 // mark writes summary, whole, the user's alone, over any there, marked with
@@ -840,7 +840,7 @@ func (d days) mark(summary Summary, stat dayfile.DayStat) error {
 // next round.
 func (d days) remark(held stamped, stat dayfile.DayStat) {
 	if marked(held.Summary, stat) {
-		d.stamp(held.Day, stat)
+		d.stamp(held.Day, stat, summaryVersion)
 		return
 	}
 	data, err := rebytes(held.written, bytesOf(stat))
@@ -859,7 +859,7 @@ func (d days) write(date string, data []byte, stat dayfile.DayStat) error {
 	if err := atomicfile.Write(SummaryFile(d.files.Dir, date), append(data, '\n'), 0o600); err != nil {
 		return err
 	}
-	d.stamp(date, stat)
+	d.stamp(date, stat, summaryVersion)
 	return nil
 }
 
@@ -933,13 +933,13 @@ func objectOf(fields []field) []byte {
 	return append(object, '}')
 }
 
-// stamp sets the modification time of the summary of the local day with the
-// given date to its stamp, as stampOf gives it, the day's files as stat
-// looked at them as it was marked: leaving it as it is where the day has a
-// plain file alone. A summary that can't be stamped is warned of, and read
-// again at the next round.
-func (d days) stamp(date string, stat dayfile.DayStat) {
-	if err := os.Chtimes(SummaryFile(d.files.Dir, date), time.Time{}, stampOf(date, stat)); err != nil {
+// stamp sets the modification time of the summary of the given version of
+// the local day with the given date to its stamp, as stampOf gives it, the
+// day's files as stat looked at them as it was marked: leaving it as it is
+// where the day has a plain file alone. A summary that can't be stamped is
+// warned of, and read again at the next round.
+func (d days) stamp(date string, stat dayfile.DayStat, version int) {
+	if err := os.Chtimes(SummaryFile(d.files.Dir, date), time.Time{}, stampOf(date, stat, version)); err != nil {
 		d.logger.Warn("can't stamp the request ledger's summary of a day; it's read again at the next round", "day", date, "error", err)
 	}
 }

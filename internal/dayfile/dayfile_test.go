@@ -735,6 +735,38 @@ func TestPruningLeavesAnythingButItsOwnFilesAlone(t *testing.T) {
 	}
 }
 
+func TestADamagedFileSetAsideGoesWithItsDayPastKeeping(t *testing.T) {
+	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.Local)
+	f := requestLedger(t.TempDir())
+	old, spared, kept := DateOf(now.AddDate(0, 0, -30)), DateOf(now.AddDate(0, 0, -31)), DateOf(now.AddDate(0, 0, -3))
+	aside := func(file dayFile, suffix string) string { return file.name(f.Prefix) + suffix }
+	gone := []string{aside(compressedFile(old), ".damaged"), aside(compressedFile(old), ".damaged-2")}
+	stay := []string{
+		aside(compressedFile(spared), ".damaged"),
+		aside(compressedFile(kept), ".damaged"),
+		// Names no damaged file set aside has.
+		aside(plainFile(old), ".damaged"),
+		aside(compressedFile(old), ".damaged-"),
+		aside(compressedFile(old), ".damaged-two"),
+		aside(compressedFile(old), ".damaged.txt"),
+	}
+	for _, name := range slices.Concat(gone, stay) {
+		put(t, filepath.Join(f.Dir, name), nil)
+	}
+
+	f.prune(now, twoWeeks, func(date string) bool { return date == spared })
+	for _, name := range gone {
+		if _, err := os.Lstat(filepath.Join(f.Dir, name)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s: %v, want it gone with its day", name, err)
+		}
+	}
+	for _, name := range stay {
+		if _, err := os.Lstat(filepath.Join(f.Dir, name)); err != nil {
+			t.Errorf("%s went (%v), want it left", name, err)
+		}
+	}
+}
+
 func TestADaysFileIsCompressedOnceItEndedTwoDaysAgo(t *testing.T) {
 	const date = "2026-09-25"
 	day, _, _ := Day(date)

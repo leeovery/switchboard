@@ -727,6 +727,42 @@ func TestRemoveLeavesWhereATokenFilesLinkLeads(t *testing.T) {
 	}
 }
 
+// The move onto the ids gives an account's new id a token file that's a link
+// to the one by its old id, until it drops the old name: removing the
+// account then removes both, leaving no copy of its token. A link to a file
+// by another name is left leading there, as any is.
+func TestRemoveTakesTheTokenFileByTheIDAnAccountHadWhereItsOwnLedThere(t *testing.T) {
+	config := twoAccounts + "\n[[account]]\nid = \"" + sideID + "\"\nlabel = \"Side\"\n"
+	t.Run("led to the old id's", func(t *testing.T) {
+		w := newWorld(t, config)
+		w.writeRecord(t, identity.Entry{ID: sideID, Organization: organization, Added: now, Was: "side"})
+		w.writeToken(t, "side", sideToken, 0o600)
+		if err := w.tokens().Give("side", sideID); err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := w.registry(&user{}, &fakeAPI{}).Remove(sideID); err != nil {
+			t.Fatalf("Remove() error = %v", err)
+		}
+		w.checkNoToken(t, sideID)
+		w.checkNoToken(t, "side")
+	})
+	t.Run("led elsewhere", func(t *testing.T) {
+		w := newWorld(t, config)
+		w.writeRecord(t, identity.Entry{ID: sideID, Organization: organization, Added: now, Was: "side"})
+		w.writeToken(t, "spare", sideToken, 0o600)
+		if err := w.tokens().Give("spare", sideID); err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := w.registry(&user{}, &fakeAPI{}).Remove(sideID); err != nil {
+			t.Fatalf("Remove() error = %v", err)
+		}
+		w.checkNoToken(t, sideID)
+		w.checkToken(t, "spare", sideToken)
+	})
+}
+
 func TestRemoveRefuses(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -237,8 +237,9 @@ func readFiled[T any](f *Files, dates []string, decode func(date string, line []
 // reports false, and returns how many lines the files hold, as far as it
 // read, and how many of those were unread, as Read says. Where one of the
 // files can't be opened, it fails, saying why, without warning of it, once it
-// has read those that could be; and with fs.ErrNotExist where the day has
-// none, its lines pruned, or never written. A file damaged is read up to the
+// has read those that could be, matching ErrDamaged where a compressed file
+// isn't gzip at all; and with fs.ErrNotExist where the day has none, its
+// lines pruned, or never written. A file damaged is read up to the
 // damage, warned of as Read says, and the files are read as openDay opens
 // them.
 func ReadDay[T any](f *Files, date string, decode func(line []byte) (T, bool), take func(T) bool) (lines, unread int, err error) {
@@ -282,25 +283,7 @@ type DayStat struct {
 func (f *Files) Stat(date string) (DayStat, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	plain, err := f.stat(plainFile(date))
-	if err != nil {
-		return DayStat{}, err
-	}
-	compressed, err := f.stat(compressedFile(date))
-	switch {
-	case err != nil:
-		return DayStat{}, err
-	case plain == nil && compressed == nil:
-		return DayStat{}, f.noLines(date)
-	}
-	var s DayStat
-	if plain != nil {
-		s.PlainSize, s.PlainModified = plain.Size(), plain.ModTime()
-	}
-	if compressed != nil {
-		s.CompressedSize, s.CompressedModified = compressed.Size(), compressed.ModTime()
-	}
-	return s, nil
+	return f.statHeld(date)
 }
 
 // stat returns a look at file: nil where it isn't there.
@@ -628,7 +611,7 @@ func (f *Files) open(file dayFile) (src *os.File, lines io.ReadCloser, err error
 	}
 	members, err := gzip.NewReader(src)
 	if err != nil {
-		return nil, nil, errors.Join(err, src.Close())
+		return nil, nil, errors.Join(damaged(err), src.Close())
 	}
 	return src, readCloser{Reader: members, Closer: src}, nil
 }

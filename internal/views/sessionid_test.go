@@ -47,11 +47,11 @@ func TestASessionTheRouterListsIsNamedAmongThemListedAsStatusListsThem(t *testin
 		{ID: startsNone, Assignments: []status.Assignment{{Model: "claude-opus-5-5", Account: "side", LastSeen: now}}},
 		{ID: startsSecond, Pin: "side", Assignments: []status.Assignment{{Model: "claude-haiku-4-5", Account: "side", LastSeen: now.Add(-time.Hour)}}},
 	}
-	if got := views.NamedRouted("18", sessions, now); !reflect.DeepEqual(got, views.SessionNamed{ID: startsNone}) {
+	if got := views.NamedRouted("18", sessions, now, status.Names{}); !reflect.DeepEqual(got, views.SessionNamed{ID: startsNone}) {
 		t.Errorf("NamedRouted(18) = %+v, want %s alone", got, startsNone)
 	}
-	want := views.SessionNamed{Several: []string{sessions[0].Line(now), sessions[2].Line(now)}}
-	if got := views.NamedRouted("5b0e", sessions, now); !reflect.DeepEqual(got, want) {
+	want := views.SessionNamed{Several: []string{sessions[0].Line(now, status.Names{}), sessions[2].Line(now, status.Names{})}}
+	if got := views.NamedRouted("5b0e", sessions, now, status.Names{}); !reflect.DeepEqual(got, want) {
 		t.Errorf("NamedRouted(5b0e) = %+v, want those it starts listed as status's text lists them, %+v", got, want)
 	}
 	if got := views.Routed(sessions, startsSecond); got == nil || got.ID != startsSecond {

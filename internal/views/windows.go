@@ -24,7 +24,8 @@ type Windows struct {
 // WindowReadings are an account's window's readings, in the order they were
 // read: one each time the window's use, its reset or its status changed.
 type WindowReadings struct {
-	Account  string          `json:"account"`
+	Account string `json:"account"`
+	status.AccountName
 	Window   string          `json:"window"`
 	Readings []WindowReading `json:"readings"`
 }
@@ -62,6 +63,15 @@ func NewWindows(history Readings, accounts config.Accounts, from, now time.Time)
 	return windows
 }
 
+// Named are the windows' readings, each account named as n names it.
+func (w Windows) Named(n status.Namer) Windows {
+	named := Windows{Windows: slices.Clone(w.Windows)}
+	for i, r := range named.Windows {
+		named.Windows[i].AccountName = n.Named(r.Account)
+	}
+	return named
+}
+
 // Listed are the windows' readings as the verbs' text lists them: each
 // account's together, the accounts in their order, each one's windows in the
 // order of care, as status.CompareWindows has it by Claude's policy.
@@ -82,7 +92,7 @@ func (w Windows) Listed() []WindowReadings {
 // doesn't configure after, by id.
 func byConfig(accounts config.Accounts) func(a, b string) int {
 	place := func(id string) int {
-		if i := slices.IndexFunc(accounts, func(a config.Account) bool { return a.ID == id }); i >= 0 {
+		if i := accounts.Index(id); i >= 0 {
 			return i
 		}
 		return len(accounts)

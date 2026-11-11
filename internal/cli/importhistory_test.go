@@ -14,6 +14,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/export"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 )
@@ -27,6 +28,7 @@ const importRefused = "Error: an import is running already\n"
 func importDeps(t *testing.T) (cli.Deps, string) {
 	t.Helper()
 	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	markMoved(t, stateDir(t, deps))
 	return deps, stateDir(t, deps)
 }
 
@@ -34,7 +36,7 @@ func importDeps(t *testing.T) (cli.Deps, string) {
 // and the request ledger's lines of a day, and returns it.
 func importFolder(t *testing.T, folder string) string {
 	t.Helper()
-	writeStateFile(t, folder, "export.json", []byte(`{"version":1,"install":"0123456789abcdef","exported_at":"2026-10-09T14:42:07Z"}`+"\n"))
+	writeStateFile(t, folder, "export.json", []byte(`{"version":2,"install":"0123456789abcdef","exported_at":"2026-10-09T14:42:07Z","ids":true}`+"\n"))
 	writeStateFile(t, ledger.Dir(folder), "requests-2026-10-02.jsonl.gz", []byte("the 2nd's lines\n"))
 	return folder
 }
@@ -220,7 +222,7 @@ func TestImportStagesTheFoldersBeforeTheRouterIsAskedToTakeThemIn(t *testing.T) 
 	if got, want := run(t, deps, "import", dir), (result{stdout: "imported 2 folders: 1 day added\n"}); got != want {
 		t.Errorf("switchboard import = %+v, want %+v", got, want)
 	}
-	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"), filepath.Join("2", "ledger", "requests-2026-10-02.jsonl.gz"))
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"), filepath.Join("2", "export.json"), filepath.Join("2", "ledger", "requests-2026-10-02.jsonl.gz"))
 }
 
 func TestImportTakesARelativeFolderFromTheWorkingDirectory(t *testing.T) {
@@ -236,7 +238,7 @@ func TestImportTakesARelativeFolderFromTheWorkingDirectory(t *testing.T) {
 	if got, want := run(t, deps, "import", "backups"), (result{stdout: "imported 1 folder: nothing new\n"}); got != want {
 		t.Errorf("switchboard import backups = %+v, want %+v", got, want)
 	}
-	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
 }
 
 func TestImportWithoutTheRouterStagesNothing(t *testing.T) {
@@ -377,7 +379,7 @@ func TestImportRemovesWhatAnImportCutShortLeftThenStages(t *testing.T) {
 	if got := run(t, deps, "import", importFolder(t, t.TempDir())); got.code != 0 {
 		t.Fatalf("switchboard import = %+v, want it to import", got)
 	}
-	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
 }
 
 func TestImportFromAFolderOfNoMacsFolderFails(t *testing.T) {
@@ -408,7 +410,92 @@ func TestImportSaysWhichFolderItPassedOverAsItsExportJSONDoesntReadThenCarriesOn
 	if got := run(t, deps, "import", dir); got != want {
 		t.Errorf("switchboard import = %+v, want %+v", got, want)
 	}
-	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+}
+
+// Another Mac's folder holding its days without its export.json, as its
+// export cut short leaves it, is passed over, said by its path and why.
+func TestImportSaysWhichFolderItPassedOverAsItHoldsAnExportWithoutItsExportJSONThenCarriesOn(t *testing.T) {
+	deps, state := importDeps(t)
+	dir := t.TempDir()
+	importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
+	cut := filepath.Join(dir, "mac-fedcba9876543210")
+	writeStateFile(t, ledger.Dir(cut), "requests-2026-10-03.jsonl.gz", []byte("the 3rd's lines\n"))
+	post, _ := answeringAsStaged(t, state, router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}})
+	(&imports{post: post}).serve(t, state)
+
+	want := result{stdout: "imported 1 folder: 1 day added\n",
+		stderr: "switchboard: passed over " + cut + ": it holds an export without its export.json, as an export cut short or a sync not done leaves one: import it again once it's exported whole\n"}
+	if got := run(t, deps, "import", dir); got != want {
+		t.Errorf("switchboard import = %+v, want %+v", got, want)
+	}
+}
+
+// A folder the router would refuse is passed over, said by its path and
+// why, and the rest imported: another Mac's exported before switchboard
+// made account ids, and one whose accounts record hasn't synced.
+func TestImportPassesOverAFolderTheRouterWouldRefuseThenCarriesOn(t *testing.T) {
+	deps, state := importDeps(t)
+	dir := t.TempDir()
+	importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
+	before := filepath.Join(dir, "mac-fedcba9876543210")
+	writeStateFile(t, before, "export.json", []byte(`{"version":1,"install":"fedcba9876543210","exported_at":"2026-10-09T14:42:07Z"}`+"\n"))
+	unsynced := filepath.Join(dir, "mac-1111111111111111")
+	writeStateFile(t, unsynced, "export.json", []byte(`{"version":2,"install":"1111111111111111","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`+"\n"))
+	post, asStaged := answeringAsStaged(t, state, router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}})
+	(&imports{post: post}).serve(t, state)
+
+	want := result{
+		stdout: "imported 1 folder: 1 day added\n",
+		stderr: "switchboard: passed over " + unsynced + ": its accounts record hasn't synced yet: import it again once it has\n" +
+			"switchboard: passed over " + before + ": another Mac exported it before switchboard made account ids, so its accounts can't be told: export it again from that Mac once it runs this version of switchboard, or leave it out\n",
+	}
+	if got := run(t, deps, "import", dir); got != want {
+		t.Errorf("switchboard import = %+v, want %+v", got, want)
+	}
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+}
+
+// This Mac's own folder exported before switchboard made account ids, as
+// its install id tells, is imported, and another Mac's whose accounts record
+// doesn't read is passed over, said by its path and why.
+func TestImportTakesThisMacsFolderFromBeforeIDsAndPassesOverOneWhoseRecordDoesntRead(t *testing.T) {
+	deps, state := importDeps(t)
+	writeStateFile(t, state, "install-id", []byte("0123456789abcdef\n"))
+	dir := t.TempDir()
+	own := importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
+	writeStateFile(t, own, "export.json", []byte(`{"version":1,"install":"0123456789abcdef","exported_at":"2026-10-09T14:42:07Z"}`+"\n"))
+	damaged := filepath.Join(dir, "mac-fedcba9876543210")
+	writeStateFile(t, damaged, "export.json", []byte(`{"version":2,"install":"fedcba9876543210","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`+"\n"))
+	writeStateFile(t, damaged, filepath.Base(identity.NewFile(damaged).Path()), []byte("not a record\n"))
+	post, asStaged := answeringAsStaged(t, state, router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}})
+	(&imports{post: post}).serve(t, state)
+
+	got := run(t, deps, "import", dir)
+	if got.code != 0 || got.stdout != "imported 1 folder: 1 day added\n" || !strings.HasPrefix(got.stderr, "switchboard: passed over "+damaged+": its accounts record doesn't read: ") {
+		t.Errorf("switchboard import = %+v, want this Mac's folder imported, the other passed over as its record doesn't read", got)
+	}
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+}
+
+// An import every folder of which would be refused says why of each, then
+// fails, staging nothing.
+func TestImportOfNothingButFoldersTheRouterWouldRefuseSaysSoThenFails(t *testing.T) {
+	deps, state := importDeps(t)
+	i := &imports{post: answering(router.Imported{Folders: 1})}
+	i.serve(t, state)
+	dir := t.TempDir()
+	before := filepath.Join(dir, "mac-fedcba9876543210")
+	writeStateFile(t, before, "export.json", []byte(`{"version":1,"install":"fedcba9876543210","exported_at":"2026-10-09T14:42:07Z"}`+"\n"))
+
+	got := run(t, deps, "import", dir)
+	if got.code != 1 || !strings.HasPrefix(got.stderr, "switchboard: passed over "+before+": another Mac exported it") ||
+		!strings.HasSuffix(got.stderr, "Error: there's nothing to import in "+dir+": each Mac's folder in it was passed over\n") {
+		t.Errorf("switchboard import = %+v, want the folder passed over, then nothing imported", got)
+	}
+	if _, err := os.Stat(router.ImportDir(state)); err == nil {
+		t.Errorf("an import of nothing staged %s, want nothing staged", router.ImportDir(state))
+	}
 }
 
 func TestImportOfNothingButFoldersWhoseExportJSONDoesntReadSaysSoThenFails(t *testing.T) {

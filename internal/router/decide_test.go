@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"math"
 	"slices"
 	"testing"
@@ -1050,6 +1051,8 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 		name string
 		// current is the session's account, or "" for a new session.
 		current string
+		// client is the client's account, work where it's "".
+		client string
 		// refused are the accounts that refused the request lately.
 		refused []string
 		want    string
@@ -1063,11 +1066,13 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 		{name: "another, when the client's refused it too", current: "side", refused: []string{"side", "work"}, want: "spare", held: HeldByRefusal},
 		{name: "another, for a new session whose client's refused it", refused: []string{"work"}, want: "side"},
 		{name: "the client's, when every one refused it", current: "side", refused: []string{"work", "side", "spare"}, want: "work", held: HeldByRefusal},
+		{name: "none, when every one refused it and the client's can't be sent on", current: "side", client: "lost", refused: []string{"work", "side", "spare"}, held: HeldByRefusal},
+		{name: "none, for a new session, when every one refused it and the client's can't be sent on", client: "lost", refused: []string{"work", "side", "spare"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := situation{
-				req: Request{Session: "0b5c6f2e", Model: opus, Client: "work"},
+				req: Request{Session: "0b5c6f2e", Model: opus, Client: cmp.Or(tt.client, "work")},
 				now: start,
 				accounts: view{
 					policy:     testPolicy,

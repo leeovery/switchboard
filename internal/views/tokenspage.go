@@ -72,7 +72,7 @@ func (p Past) tokens(ask TokensAsk) TokensPage {
 	span := yearSpanOf(0, dayfile.CivilOf(p.in.Now), p.in.WeekStarts)
 	from := p.counted(max(span.first, dayfile.DateOf(p.in.From)))
 	known := plans{accounts: p.in.Accounts, table: p.in.Prices}
-	all := tokenPeriodsOf(between(p.days, from, span.last), known, versions{table: p.in.Prices, family: p.in.Family}, from, by)
+	all := tokenPeriodsOf(between(p.days, from, span.last), known, p.in.Removed, versions{table: p.in.Prices, family: p.in.Family}, from, by)
 	var periods []TokenPeriod
 	for _, t := range slices.Backward(all) {
 		if len(t.ByAccount) > 0 {

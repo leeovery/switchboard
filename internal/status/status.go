@@ -39,6 +39,64 @@ const (
 	RouterUnhealthy = "unhealthy"
 )
 
+// What the move of the accounts and their history onto the ids switchboard
+// makes does, or waits on, as a Moving's Stage says.
+const (
+	// MoveRunning is the router making the move.
+	MoveRunning = "running"
+	// MoveAwaitingAPI is the move waiting for the API to answer for the
+	// accounts' tokens, whose organizations make their ids.
+	MoveAwaitingAPI = "awaiting api"
+	// MoveAwaitingRestart is the rest of the move waiting for the router to
+	// restart onto the accounts' new ids, which its config holds.
+	MoveAwaitingRestart = "awaiting restart"
+	// MoveFailed is the move failing, the router to make it again.
+	MoveFailed = "failed"
+	// MoveNoRouter is no router answering to make the move, as a command
+	// that finds the history waiting on it tells it, and MoveUntold the
+	// router not saying how it stands in time, as when it's busy or
+	// restarting.
+	MoveNoRouter = "no router"
+	MoveUntold   = "untold"
+	// MoveOlderRouter is the router running owing no move, as one of a
+	// version from before ids were made, as a command that finds the history
+	// waiting on it tells it.
+	MoveOlderRouter = "older router"
+)
+
+// Moving is how the move of the accounts and their history onto the ids
+// switchboard makes stands: zero where none is owed.
+type Moving struct {
+	// Stage says what the move does or waits on, such as MoveRunning.
+	Stage string `json:"stage"`
+	// Account is the account, by the id it had, whose token the API hasn't
+	// named the organization of, where Stage is MoveAwaitingAPI: "" where
+	// that isn't known.
+	Account string `json:"account,omitempty"`
+	// Why says why the move failed, where Stage is MoveFailed, and why the
+	// API hasn't named Account's token's organization, where it's
+	// MoveAwaitingAPI.
+	Why string `json:"why,omitempty"`
+}
+
+// MovingAsked is how the move stands, as a command that finds the history
+// waiting on it tells it, having asked the router how it stands, which told
+// moving, or failed with err, notRunning where no router listens: no router
+// to make it, then; the router not saying, where it failed otherwise, as by
+// taking too long; one of a version from before ids were made, where the
+// one that answered owes none; else as the router tells it.
+func MovingAsked(moving Moving, err error, notRunning bool) Moving {
+	switch {
+	case err != nil && notRunning:
+		return Moving{Stage: MoveNoRouter}
+	case err != nil:
+		return Moving{Stage: MoveUntold}
+	case moving == Moving{}:
+		return Moving{Stage: MoveOlderRouter}
+	}
+	return moving
+}
+
 // Document is the status of every configured account, as `status --json`
 // prints it. Fields may be added to it, never renamed.
 type Document struct {
@@ -68,6 +126,12 @@ type Document struct {
 	// Restart is the restart the router has due: zero when none is, and in a
 	// document that isn't the router's.
 	Restart Restart `json:"restart,omitzero"`
+	// Moving is how the router's move of the accounts and their history onto
+	// the ids switchboard makes stands, which it makes once, as it first
+	// starts on a version that makes them: the history waits on it
+	// meanwhile. Zero where none is owed, and in a document that isn't the
+	// router's.
+	Moving Moving `json:"moving,omitzero"`
 	// Export is how the router's export of the history on a schedule stands:
 	// zero where the config names no folder, and in a document that isn't
 	// the router's.
@@ -97,6 +161,17 @@ type Document struct {
 	// moment of it to read, as the document stood then; nil where it has
 	// nothing to play, or it isn't played yet.
 	weeks *weeksAhead
+	// removed are the accounts the accounts record keeps that the document
+	// doesn't hold, as WithRemoved gives them, for its moments to name.
+	removed RemovedAccounts
+}
+
+// WithRemoved is the document whose moments name the accounts of removed, as
+// RemovedOf gives them, as Moment's Named does: the reader of a document
+// knows them, from the accounts record, where the document doesn't.
+func (d Document) WithRemoved(removed RemovedAccounts) Document {
+	d.removed = removed
+	return d
 }
 
 // The kinds of event the router tells of, as an Event's Kind says.
@@ -119,6 +194,9 @@ const (
 	// EventRefused is the upstream refusing requests on an account, with the
 	// sessions the refusal moved.
 	EventRefused = "refused"
+	// EventForeign is an account's token found to be another subscription's,
+	// so the account takes no requests till it has one of its own.
+	EventForeign = "foreign"
 	// EventPrimed is a prime starting an account's window.
 	EventPrimed = "primed"
 	// EventRoom is an account that could take no request, at its limit or its
@@ -146,9 +224,10 @@ type Event struct {
 	// Kind says what happened, such as EventLimit.
 	Kind string `json:"kind"`
 	// Account is the account it befell: the one a session started on, or that
-	// came under pressure, reached its cap or its limit, was refused, was
-	// primed or has room again. Of a pin, the first of the global pin's Accounts, or the one
-	// a session's own pin names; of an auto, the one a session's own named.
+	// came under pressure, reached its cap or its limit, was refused, had its
+	// token found another subscription's, was primed or has room again. Of a
+	// pin, the first of the global pin's Accounts, or the one a session's own
+	// pin names; of an auto, the one a session's own named.
 	Account string `json:"account,omitempty"`
 	// Accounts are the accounts the global pin names, in the order
 	// configured, as it's set or cleared.
@@ -361,8 +440,15 @@ type Account struct {
 	// Plan is the plan the account's subscription is on, as configured, one
 	// of config.Plans: "" where that isn't known.
 	Plan string `json:"plan,omitempty"`
-	// TokenSet is whether the account's token file is there, and usable.
+	// TokenSet is whether the account's token file is there, and usable: not
+	// where it holds another subscription's token, as TokenForeign says.
 	TokenSet bool `json:"token_set"`
+	// TokenForeign is set where the router found the token the account's
+	// file holds another subscription's, as a probe on it named another
+	// organization than the account's: nothing goes out on the account till
+	// it has a token of its own, and Error says what puts it right. It's
+	// false in a document that isn't the router's.
+	TokenForeign bool `json:"token_foreign,omitempty"`
 	// TokenTaken is when switchboard took the account's token, as it
 	// recorded it, and TokenGoodUntil when the token's year is up, a setup
 	// token's lifetime later: each zero where it isn't known, as of a token

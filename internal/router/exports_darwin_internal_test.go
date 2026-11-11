@@ -50,7 +50,7 @@ func TestAFileOrFolderLockedInTheFinderIsSaidToBeLocked(t *testing.T) {
 			}
 			cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 			cfg.StateDir, cfg.Export = state, config.Export{Dir: dir}
-			x := newExports(cfg, tended, noRestart)
+			x := newExports(cfg, tended, noRestart, noMove)
 			locked := tt.locks(t, x, dir, export.Folder(dir, id))
 			lock(t, locked)
 

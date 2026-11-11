@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -126,7 +127,7 @@ func TestHistoryOfTodayAloneGivesThisWeeksPeakSoFar(t *testing.T) {
 	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
 		t.Fatalf("switchboard history --json = %+v (%v), want the blocks", got, err)
 	}
-	want := `[{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.41},"open":["7d"]},{"account":"side","open":["7d"]},` +
+	want := `[{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.41},"open":["7d"]},{"account":"side","label":"side","open":["7d"]},` +
 		`{"all":true,"peaks":{"7d":0.41},"open":["7d"]}]}]`
 	var compact bytes.Buffer
 	if err := json.Compact(&compact, doc.Weeks); err != nil || compact.String() != want {
@@ -151,14 +152,14 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 		got, want json.RawMessage
 	}{
 		{block: "weeks", got: doc.Weeks, want: json.RawMessage(`[` +
-			`{"week":"2026-09-14","accounts":[{"account":"work","peaks":{"7d":1}},{"account":"side","peaks":{"7d":0.2}},{"all":true,"peaks":{"7d":0.6}}]},` +
-			`{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":0.6}},{"account":"side","peaks":{"7d":0.3}},{"all":true,"peaks":{"7d":0.45}}]},` +
-			`{"week":"2026-09-28","accounts":[{"account":"work","peaks":{"7d":0.5}},{"account":"side","peaks":{"7d":0.1}},{"all":true,"peaks":{"7d":0.3}}]},` +
-			`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.41},"open":["7d"],"limits":{"5h":1}},{"account":"side","open":["7d"]},{"all":true,"peaks":{"7d":0.41},"open":["7d"]}]}]`)},
-		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_one_more":0,"drop":"work",` +
+			`{"week":"2026-09-14","accounts":[{"account":"work","label":"work","peaks":{"7d":1}},{"account":"side","label":"side","peaks":{"7d":0.2}},{"all":true,"peaks":{"7d":0.6}}]},` +
+			`{"week":"2026-09-21","accounts":[{"account":"work","label":"work","peaks":{"7d":0.6}},{"account":"side","label":"side","peaks":{"7d":0.3}},{"all":true,"peaks":{"7d":0.45}}]},` +
+			`{"week":"2026-09-28","accounts":[{"account":"work","label":"work","peaks":{"7d":0.5}},{"account":"side","label":"side","peaks":{"7d":0.1}},{"all":true,"peaks":{"7d":0.3}}]},` +
+			`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.41},"open":["7d"],"limits":{"5h":1}},{"account":"side","label":"side","open":["7d"]},{"all":true,"peaks":{"7d":0.41},"open":["7d"]}]}]`)},
+		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_one_more":0,"drop":"work","drop_label":"work",` +
 			`"verdict":"one more than you need","accounts":[` +
-			`{"account":"work","verdict":"ends most weeks with room","weeks":3,"limits":1,"left_at_reset":0.3,"without_it":1},` +
-			`{"account":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":2},` +
+			`{"account":"work","label":"work","verdict":"ends most weeks with room","weeks":3,"limits":1,"left_at_reset":0.3,"without_it":1},` +
+			`{"account":"side","label":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":2},` +
 			`{"all":true,"verdict":"room to spare together","weeks":3,"limits":1,"left_at_reset":0.55}]}`)},
 	}
 	for _, tt := range tests {
@@ -166,6 +167,35 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 		if err := json.Compact(&compact, tt.got); err != nil || compact.String() != string(tt.want) {
 			t.Errorf("switchboard history --json gives the %s\n%s (%v)\nwant\n%s", tt.block, compact.String(), err, tt.want)
 		}
+	}
+}
+
+// History's JSON gives each account removed that its days name by its id,
+// the label it showed last and when it was removed, as the accounts record
+// keeps them.
+func TestHistoryJSONGivesTheAccountsRemovedItsDaysName(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	state := stateDir(t, deps)
+	day, err := json.Marshal(ledger.Summary{Version: 2, Day: "2026-09-21", Accounts: []ledger.AccountDay{{Account: "h7c2", SessionIDs: []string{}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, ledger.Dir(state), "day-2026-09-21.json", append(day, '\n'))
+	writeStateFile(t, state, "accounts.json", []byte(`{"version":1,"accounts":[`+
+		`{"id":"h7c2","label":"team","added":"2026-08-01T09:00:00Z","removed":"2026-09-25T16:00:00Z"},`+
+		`{"id":"k3f9","label":"spare","added":"2026-08-01T09:00:00Z","removed":"2026-08-02T16:00:00Z"}]}`+"\n"))
+
+	got := run(t, deps, "history", "--json", "--since", "2026-09-14")
+	var doc struct {
+		Removed json.RawMessage `json:"removed"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
+		t.Fatalf("switchboard history --json = %+v (%v), want the blocks", got, err)
+	}
+	want := `[{"id":"h7c2","label":"team","removed":"2026-09-25T16:00:00Z"}]`
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, doc.Removed); err != nil || compact.String() != want {
+		t.Errorf("switchboard history --json gives the accounts removed\n%s (%v)\nwant\n%s", compact.String(), err, want)
 	}
 }
 
@@ -226,10 +256,10 @@ func TestHistoryWindowsJSONGivesEachReadingAsTheReadingsHistoryHoldsIt(t *testin
 			`","status":"` + status + `","source":"answer"}`
 	}
 	want := `{"schema":1,"windows":[` +
-		`{"account":"work","window":"5h","readings":[` + reading(october(6, 21, 0, 0), "0.9", october(6, 23, 10, 0), "allowed") + `,` +
+		`{"account":"work","label":"work","window":"5h","readings":[` + reading(october(6, 21, 0, 0), "0.9", october(6, 23, 10, 0), "allowed") + `,` +
 		reading(october(6, 22, 14, 0), "1", october(6, 23, 10, 0), "rejected") + `,` + reading(october(7, 9, 0, 0), "0.3", october(7, 14, 0, 0), "allowed") + `]},` +
-		`{"account":"work","window":"7d","readings":[` + reading(october(7, 9, 0, 0), "0.41", october(12, 10, 0, 0), "allowed") + `]},` +
-		`{"account":"side","window":"5h","readings":[` + reading(october(6, 22, 15, 0), "0.1", october(7, 3, 15, 0), "allowed") + `,` +
+		`{"account":"work","label":"work","window":"7d","readings":[` + reading(october(7, 9, 0, 0), "0.41", october(12, 10, 0, 0), "allowed") + `]},` +
+		`{"account":"side","label":"side","window":"5h","readings":[` + reading(october(6, 22, 15, 0), "0.1", october(7, 3, 15, 0), "allowed") + `,` +
 		reading(october(7, 10, 0, 0), "0.05", october(7, 15, 0, 0), "allowed") + `]}]}`
 	for _, form := range jsonForms() {
 		t.Run(form.name, func(t *testing.T) {
@@ -400,7 +430,7 @@ func TestHistorysTextOfBlocksNotBuiltAsHistoryBuildsThemWritesWhatTheyGive(t *te
 		t.Run(tt.name, func(t *testing.T) {
 			tt.history.Days = aDayOfARequest
 			var out bytes.Buffer
-			if err := cli.WriteHistory(&out, tt.history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), "Wed 7 Oct 2026") {
+			if err := cli.WriteHistory(&out, tt.history, status.Names{}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), "Wed 7 Oct 2026") {
 				t.Errorf("history of %s printed\n%s(%v)\nwant the day, and what the blocks give", tt.name, out.String(), err)
 			}
 		})
@@ -419,7 +449,7 @@ func TestHistorysTextCountsOneAsOne(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
+	if err := cli.WriteHistory(&out, history, status.Names{}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"$200/mo · 1 plan\n", "1 day ", "Weeks: one is about right", "short on none of 1 week  ·", "limit hit 1 of 1 week  ·"} {
@@ -435,7 +465,7 @@ func TestHistorysTotalsSetTheirThousandsApart(t *testing.T) {
 	}}}
 
 	var out bytes.Buffer
-	if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
+	if err := cli.WriteHistory(&out, history, status.Names{}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"12,345  12,345\n", "1,240   1,240\n"} {
@@ -475,7 +505,7 @@ func TestHistorysTotalsSayTheirFiguresAsTheDashboardDoes(t *testing.T) {
 			history := views.History{Days: aDayOfARequest, Totals: views.Totals{Accounts: []views.AccountTotals{tt.totals}}, Plans: []views.PlanCost{tt.plan}}
 
 			var out bytes.Buffer
-			if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), tt.want) {
+			if err := cli.WriteHistory(&out, history, status.Names{}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), tt.want) {
 				t.Errorf("history printed\n%s(%v)\nwant it to say\n%s", out.String(), err, tt.want)
 			}
 		})
@@ -503,7 +533,7 @@ func TestHistorysTotalsOfEveryAccountSayHowManyPlansAreKnown(t *testing.T) {
 				Plans: []views.PlanCost{{Account: "work"}, all}}
 
 			var out bytes.Buffer
-			if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
+			if err := cli.WriteHistory(&out, history, status.Names{}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
 				t.Fatal(err)
 			}
 			for _, want := range tt.want {
@@ -521,7 +551,7 @@ func TestHistorysTotalsOfEveryAccountCountTheirLimitsAndMovesWithTheirThousandsA
 	history := views.History{Days: aDayOfARequest, Totals: views.Totals{Accounts: []views.AccountTotals{work, all}}}
 
 	var out bytes.Buffer
-	if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
+	if err := cli.WriteHistory(&out, history, status.Names{}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"  sessions moved          1,240 in · 1,100 out  1,240 moves\n", "  limits hit              none                  1,234\n"} {
@@ -540,7 +570,7 @@ func TestHistorysDayOfAModelThatSpentNothingSaysNoWorthAsTheTotalsDo(t *testing.
 
 	var out bytes.Buffer
 	const want = "  work  claude-opus-9  1 request  0 tokens  1 session  -\n"
-	if err := cli.WriteHistory(&out, views.History{Days: day}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), want) {
+	if err := cli.WriteHistory(&out, views.History{Days: day}, status.Names{}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), want) {
 		t.Errorf("history printed\n%s(%v)\nwant it to say\n%s", out.String(), err, want)
 	}
 }
@@ -553,7 +583,7 @@ func TestHistorysDayCountsABillionTokensInBillions(t *testing.T) {
 
 	var out bytes.Buffer
 	const want = "  work  claude-opus-9  1 request  1.5B tokens  1 session"
-	if err := cli.WriteHistory(&out, views.History{Days: day}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), want) {
+	if err := cli.WriteHistory(&out, views.History{Days: day}, status.Names{}, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), want) {
 		t.Errorf("history printed\n%s(%v)\nwant it to say\n%s", out.String(), err, want)
 	}
 }
@@ -567,7 +597,7 @@ func behindLocal() *time.Location {
 
 func TestHistoryNamesEachDayByItsLocalDateWhateverZoneNowIsIn(t *testing.T) {
 	var out bytes.Buffer
-	if err := cli.WriteHistory(&out, views.History{Days: aDayOfARequest}, ledger.Pricing, october(5, 0, 0, 0), ledgerNow.In(behindLocal())); err != nil ||
+	if err := cli.WriteHistory(&out, views.History{Days: aDayOfARequest}, status.Names{}, ledger.Pricing, october(5, 0, 0, 0), ledgerNow.In(behindLocal())); err != nil ||
 		!strings.HasPrefix(out.String(), "Wed 7 Oct 2026, so far\n") {
 		t.Errorf("history at %v printed\n%s(%v)\nwant today's table headed Wed 7 Oct 2026, so far", ledgerNow.In(behindLocal()), out.String(), err)
 	}
@@ -576,7 +606,7 @@ func TestHistoryNamesEachDayByItsLocalDateWhateverZoneNowIsIn(t *testing.T) {
 func TestHistorySaysItHasNoRequestsSinceTheLocalDayItStartsWhateverZoneNowIsIn(t *testing.T) {
 	var out bytes.Buffer
 	const want = "no requests since Mon 5 Oct 2026\n"
-	if err := cli.WriteHistory(&out, views.History{}, ledger.Pricing, october(5, 0, 0, 0), ledgerNow.In(behindLocal())); err != nil || out.String() != want {
+	if err := cli.WriteHistory(&out, views.History{}, status.Names{}, ledger.Pricing, october(5, 0, 0, 0), ledgerNow.In(behindLocal())); err != nil || out.String() != want {
 		t.Errorf("history at %v printed\n%s(%v)\nwant\n%s", ledgerNow.In(behindLocal()), out.String(), err, want)
 	}
 }
@@ -596,7 +626,7 @@ func TestHistoryPassesOverADayOfNoAccountsUnread(t *testing.T) {
 	days := append([]views.Day{{Version: 2, Day: "2026-13-45"}}, aDayOfARequest...)
 
 	var out bytes.Buffer
-	if err := cli.WriteHistory(&out, views.History{Days: days}, ledger.Pricing, october(6, 0, 0, 0), ledgerNow); err != nil || !strings.HasPrefix(out.String(), "Wed 7 Oct 2026") {
+	if err := cli.WriteHistory(&out, views.History{Days: days}, status.Names{}, ledger.Pricing, october(6, 0, 0, 0), ledgerNow); err != nil || !strings.HasPrefix(out.String(), "Wed 7 Oct 2026") {
 		t.Errorf("history printed\n%s(%v)\nwant today's table, the empty day passed over", out.String(), err)
 	}
 }

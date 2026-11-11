@@ -94,6 +94,14 @@ func (o *pinOptions) check(cmd *cobra.Command, args []string) error {
 // pin pins the accounts given as the command line asks, and says what that
 // does.
 func (a *app) pin(ctx context.Context, out io.Writer, accounts []string, opts pinOptions) error {
+	if !isAuto(accounts[0]) {
+		names := a.accountNames()
+		for _, given := range accounts {
+			if err := notALabel(names, given); err != nil {
+				return err
+			}
+		}
+	}
 	client, err := a.routerClient()
 	if err != nil {
 		return err

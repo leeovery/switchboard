@@ -35,9 +35,16 @@ func (r Record) Derive(organization string, configured []string) string {
 	if e, ok := r.ByOrganization(organization); ok {
 		return e.ID
 	}
-	sum := sha256.Sum256([]byte(organization))
+	return spelledFrom(organization, func(id string) bool { return !r.clashes(id, configured) })
+}
+
+// spelledFrom returns the first id spelled from seed's SHA-256, idLength
+// characters long, then a character longer each time, spelled on from the
+// same hash, that free reports may be given.
+func spelledFrom(seed string, free func(id string) bool) string {
+	sum := sha256.Sum256([]byte(seed))
 	for length := idLength; ; length++ {
-		if id := spell(sum[:], length); !r.clashes(id, configured) {
+		if id := spell(sum[:], length); free(id) {
 			return id
 		}
 	}
@@ -59,6 +66,19 @@ func (r Record) Random(rand io.Reader, configured []string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("draw a random id: each of %d drawn is held already", mostDraws)
+}
+
+// Spells reports whether id is the one the given organization spells at its
+// length, in any case, as Derive spells one from its SHA-256: an id derived
+// from it, the record holding those shorter, as far as can be told.
+func Spells(organization, id string) bool {
+	sum := sha256.Sum256([]byte(organization))
+	return len(id) >= idLength && strings.EqualFold(id, spell(sum[:], len(id)))
+}
+
+// WellFormed reports whether id is one switchboard makes, as wellFormed says.
+func WellFormed(id string) bool {
+	return wellFormed(id)
 }
 
 // clashes reports whether id can't be given to an account: the record holds

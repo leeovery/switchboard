@@ -174,6 +174,8 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 			headline: "work's opus requests refused", happened: []string{"answer: 403", "family: opus", "till: 14:00"}},
 		{name: "a refusal of no answer given", event: status.Event{Kind: status.EventRefused, Account: "work", Until: october(7, 14, 0)},
 			headline: "work's token refused", happened: []string{"till: 14:00"}},
+		{name: "a token another subscription's", event: status.Event{Kind: status.EventForeign, Account: "work"},
+			headline: "work's token is another subscription's"},
 		{name: "a prime", event: status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: october(7, 18, 0)},
 			headline: "side primed", happened: []string{"window: its 5-hour window"}},
 		{name: "room again", event: status.Event{Kind: status.EventRoom, Account: "work", Windows: []string{"5h"}},

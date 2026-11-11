@@ -131,8 +131,12 @@ type Config struct {
 	WindowName func(key string) string
 	// Accounts are the configured accounts, whose plans History prices its
 	// worth against, and WeekStarts the day its calendar weeks start on.
+	// Removed are the accounts removed, as status.RemovedOf gives them, which
+	// every document read names, as status's Moment Named does, and History
+	// by the label each showed last.
 	Accounts   config.Accounts
 	WeekStarts time.Weekday
+	Removed    status.RemovedAccounts
 	// WeekWindow is the key of the window a week long every model shares,
 	// the accounts' own weeks, which History's Weeks counts; and Family reads
 	// a model's family from its id, for one the version table doesn't name.
@@ -1028,6 +1032,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 		m = m.lose(now)
 	default:
+		msg.doc = msg.doc.WithRemoved(m.cfg.Removed)
 		look := msg.doc.At(now, m.cfg.Policy)
 		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)
 		m, shown = m.show(msg, look)

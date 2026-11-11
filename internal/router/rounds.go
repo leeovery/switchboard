@@ -39,11 +39,13 @@ const (
 
 // rounds are the router's own probes of the accounts it can send on, around
 // the clock, whatever else reads them: of each one nothing has read lately,
-// but one whose 5-hour window has lapsed and that can take a request only
-// where the window a probe starts would reset before its next prime; and of
-// each one whose week is about to reset unread, whatever the priming
-// schedule, as state's onRounds says. A probe of an account under way, as a
-// choice's or a prime's, serves its rounds too.
+// or whose token none has probed since it took it up, but one whose 5-hour
+// window has lapsed and that can take a request only where the window a
+// probe starts would reset before its next prime; and of each one whose week
+// is about to reset unread, whatever the priming schedule, as state's
+// onRounds says. One holding the token a probe found another subscription's
+// isn't among them: it's probed again once it takes up another. A probe of
+// an account under way, as a choice's or a prime's, serves its rounds too.
 type rounds struct {
 	accounts accounts
 	state    *state
@@ -76,9 +78,9 @@ func (r *rounds) run(ctx context.Context) {
 	}
 }
 
-// look probes each account with a usable token that its rounds find due, as
-// rounding says, and waits for those probes, roundWait at most, or until ctx
-// ends.
+// look probes each account with a usable token of its own that its rounds find
+// due, as rounding says, and waits for those probes, roundWait at most, or
+// until ctx ends.
 func (r *rounds) look(ctx context.Context) {
 	r.probes.await(ctx, r.accounts.sendable(), r.state.rounding(r.clears), roundWait, onItsRounds)
 }

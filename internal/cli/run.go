@@ -132,6 +132,11 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 	if err != nil {
 		return a.runUnread(ctx, l, opts, args, err)
 	}
+	if opts.account != "" {
+		if err := notALabel(a.namesOf(cfg), opts.account); err != nil {
+			return err
+		}
+	}
 	client, err := a.routerClient()
 	if err != nil {
 		return l.RouterUnfound(cfg.WhenRouterDown, args, err)

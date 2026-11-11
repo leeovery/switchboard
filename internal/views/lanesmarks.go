@@ -18,12 +18,12 @@ func (from LanesFrom) useOf(a status.AccountNow) Use {
 	}
 	w, ok := a.Window(key)
 	if !ok {
-		return Use{Tokenless: !a.TokenSet, Unread: a.TokenSet && !a.Read}
+		return Use{Tokenless: !a.TokenSet, TokenForeign: a.TokenForeign, Unread: a.TokenSet && !a.Read}
 	}
 	use := Use{Key: key}
 	switch w.Kind {
 	case status.WindowTokenless:
-		use.Tokenless = true
+		use.Tokenless, use.TokenForeign = true, w.TokenForeign
 	case status.WindowUnread:
 		use.Unread = true
 	default:

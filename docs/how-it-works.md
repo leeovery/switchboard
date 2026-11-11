@@ -1,8 +1,8 @@
 # How it works
 
 This page explains how switchboard routes each request, what it records, and how it keeps itself
-running. It also covers the primary account, reserves, priming, what bypasses the router, and how
-Claude uses switchboard.
+running. It also covers accounts and their ids, the primary account, reserves, priming, what
+bypasses the router, and how Claude uses switchboard.
 
 ```
 Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropic.com
@@ -20,6 +20,7 @@ records each reading, request and event, so the dashboard and the commands can r
 - [Routing](#routing)
 - [What it records](#what-it-records)
 - [Looking after itself](#looking-after-itself)
+- [Accounts and their ids](#accounts-and-their-ids)
 - [The primary](#the-primary)
 - [Reserves](#reserves)
 - [Priming](#priming)
@@ -256,6 +257,7 @@ The router keeps these in `state.json`, so a restart doesn't scatter sessions or
 - Each session's account.
 - The pins.
 - Each account's last readings.
+- Each token found to be another subscription's, so its account still takes no requests on it.
 - How long use stays on its account, which the [weeks' forecast](#where-a-week-runs-out) goes by.
 
 ### A readings history
@@ -312,7 +314,8 @@ Beside the ledger's lines, the router files its events, so they outlast a restar
 line for each version of an event. These are the events it files:
 
 - A session started or moved.
-- An account under pressure, at its cap, at its limit, refused, primed, or with room again.
+- An account under pressure, at its cap, at its limit, refused, primed, or with room again, or its
+  token found to be another subscription's.
 - Routing set by hand.
 - A restart falling due.
 - The router's own health turning.
@@ -410,6 +413,139 @@ With many long sessions, a moment with no request in flight, and no export runni
 coming. While a restart is due, `switchboard status` and the dashboard say so, `status` naming the
 export it waits for where one runs. To restart now, run `switchboard service restart`, which
 refuses while an export runs. See [`serve`](commands.md#serve).
+
+## Accounts and their ids
+
+Each account is one Claude subscription, known by two names:
+
+- **Its label,** such as `Work`, is what every screen shows. You give it as you add the account,
+  and change it whenever you like, with `accounts edit <id> --label` or setup's `e`: it changes
+  nothing but what shows. Every account has one, and no two accounts show the same, ignoring case.
+- **Its id,** such as `b6s7`, is what switchboard makes for it: 4 lowercase letters and digits, a
+  letter first, taken from its subscription. Commands take it, `pin`, `run --account`,
+  `requests --account` and `accounts edit`, `token` and `remove`, and every record keys the
+  account by it. It never changes. `switchboard accounts` lists each account's id beside its
+  label, and Claude finds it in `switchboard status`.
+
+Nothing numbers the accounts: they keep the config's order on every tab, and the routing card
+picks them with `↑`, `↓` and `space`.
+
+**The subscription decides the id.** Every answer from Anthropic's API names the organization the
+token is for, and a subscription's limits are counted against it, so switchboard ties each account
+to it. The id is spelled from it, so a subscription has the same id on every Mac, and after a lost
+state directory; and, in the rare case two organizations spell the same 4 characters, the second
+takes a character more. So:
+
+- **Adding** an account, with [`accounts add <label>`](commands.md#accounts) or setup's
+  `+ add an account`, always makes and checks its token first. A subscription this Mac has never
+  had gets a new id; one an account has already is refused. Where the API doesn't answer, nothing
+  is added, as the id can't be known: try again.
+- **Replacing a token,** with `accounts token <id>` or setup's `t`, takes only a token for the
+  account's own subscription. One for another subscription is refused: add it as an account of its
+  own.
+- **Removing** an account, with `accounts remove <id>` or setup's `r`, takes it out of the config
+  and deletes its token, but keeps its history, and the accounts record keeps the account, marked
+  removed, with its label. History, Accounts and the verbs name its days by that label and the day
+  it went, as `Team (removed 4 Sep)`.
+- **Coming back:** add a removed account's subscription again and it comes back under its old id,
+  with the label you give it now, its history carrying on after the gap. Where the API names no
+  organization for the token, or it may be an account removed before switchboard made ids, setup
+  and `accounts add` ask whether it's a new account or one this Mac had, naming each by its label
+  and when it was last seen.
+
+The accounts record is `accounts.json` in the state directory: see
+[The accounts record](reference.md#the-accounts-record).
+
+### A token that's another subscription's
+
+The router holds each account's token to its subscription too. Every probe's answer names the
+organization the token is for; where that's another subscription than the account's, as where a
+token file was replaced by hand with another account's token, the account shows `wrong token`:
+
+- It takes no requests: it's found at a probe, and from then none is sent on that token. A request
+  Claude Code makes on it, to the Messages API, goes out on another account instead, and where
+  none can take it, switchboard answers 503, saying why and what puts it right, sending nothing.
+  What Claude Code sends to any other path, as an upload, passes through on its own token as
+  before.
+- USAGE, Runway and the routing card say `wrong token`, ROUTING and `status` say
+  `its token is another subscription's` and how to put it right, LATELY and the Log tell of it as
+  it's found, a `foreign` event, and the status document marks the account `token_foreign`.
+- **To put it right,** give the account its own token, with `switchboard accounts token <id>` or
+  setup's `t`; or, where the token is the one you meant to use, add that subscription as an
+  account of its own, with `switchboard accounts add <label>`.
+
+The finding outlasts a restart, kept in `state.json`, and goes as soon as the account takes up
+another token. Where the account's subscription isn't known yet, as for one added on another Mac,
+the first probe's organization is recorded as its own, unless another account has it. See
+[A `wrong token` account](troubleshooting.md#a-wrong-token-account).
+
+### Upgrading to account ids
+
+Before switchboard made ids, you chose each account's id yourself, and every tab numbered the
+accounts. The first time the router starts on a version that makes ids, it moves your accounts and
+their history onto them, once, by itself:
+
+1. It asks the API which subscription each account's token is for, and gives each account the id
+   its subscription spells. An account with no label is given its old id as its label, so it
+   shows as it did.
+2. It writes the new ids into the config, and gives each token file its new name beside its old.
+   The service's router then restarts to read the config, as it does on any change of it; a router
+   you started by hand with `serve` logs that a restart is due, and the move waits for you to
+   restart it.
+3. It rewrites every file that names an account, the request ledger, the readings history, the
+   router's events, the days' summaries and its state, under the new ids, a day at a time, and
+   builds what it builds from them again. An account the history names that the config no longer
+   has, one you removed before, goes into the accounts record as removed, labelled by its old id.
+
+It routes throughout. A stop part way loses nothing: the move carries on where it stopped the next
+time the router starts. Until it's done, the dashboard says what it's waiting on and opens once
+it's done, and `requests`, `history`, `sessions`, `events`, `export` and `import` refuse, saying
+the same: try again once it's done. `switchboard status` says how it stands, on its last lines.
+Your old ids are kept only as `was` in the accounts record, so a config or a pin that still names
+one, as one put back from a dotfiles repository, is put right as the router starts.
+
+**What holds it up.** The move needs the API to name each token's subscription:
+
+- Where the API doesn't answer, as on a first start before the network's up, behind a proxy that
+  answers in its place, or while it answers 429 or 5xx, the move waits and asks again, changing
+  nothing: 30 seconds the first time, then twice as long each time, 5 minutes at the most. Only an
+  answer carrying Anthropic's own request id counts.
+- Where the API answers but names no subscription, as when it refuses a token, the move asks again
+  for 10 minutes before it takes that as the answer, and gives that account a random id, so a
+  passing outage never decides one for good. An account with no token it can use is given a
+  random id at once, unless another Mac may have moved it (see Several Macs, below).
+- A router that waits on a restart says so: restart it, as below.
+
+`switchboard status` names the account it waits on and why, as `the history waits on its move onto
+the accounts' new ids: the API hasn't named the organization of work's token, which makes its id,
+so the router asks again a while later: …`. See
+[A move onto the ids that waits](troubleshooting.md#a-move-onto-the-ids-that-waits).
+
+### Several Macs
+
+Where Macs share a config, as a dotfiles repository keeps it, upgrade them together: a Mac still
+on an earlier version finds the config naming ids it has no token files for.
+
+The first Mac to upgrade moves its accounts onto ids and writes them into the config. Each Mac
+after it finds the config naming those ids, its own token files and history still under the old.
+It asks the API which subscription each token file is for, and joins each to the account of that
+subscription, so its history lands on the same id the first Mac made. Where the API doesn't
+answer for one that may be joined, as before the network's up, its move waits, so it never gives
+an account another id than the first Mac did.
+
+**Each Mac's record follows the shared config.** Once its move is done, the router keeps its
+accounts record in step with the config as it starts and whenever the config changes: an account
+added on the other Mac joins this Mac's record, its subscription taken from its first probe here,
+so its token is held to it as any account's is; one removed there is marked removed here, with
+the label it had, so its days are named by it; and one added back is live again. An account that
+left the config while no router ran is marked removed under its id alone, and the next import
+whose record names it gives it its label.
+
+**Importing across the upgrade.** A Mac's export folder from after the upgrade carries its accounts
+record, so `import` joins its accounts to this Mac's by subscription, and its days land on this
+Mac's ids. This Mac's own folder from before the upgrade is taken in under the ids its accounts
+have now. Another Mac's folder from before is passed over, as its accounts can't be told: export
+it again from that Mac once it's upgraded. See [`import`](commands.md#import).
 
 ## The primary
 

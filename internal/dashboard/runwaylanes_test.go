@@ -188,6 +188,10 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 		{name: "not read yet, short", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "work", use: "not read", useInks: []ink{dimInk}},
 		{name: "without a token", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, head: "work", use: "no token", useInks: []ink{errorInk}},
 		{
+			name: "its token another subscription's", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true, TokenForeign: true}}},
+			head: "work", use: "wrong token", useInks: []ink{errorInk},
+		},
+		{
 			name: "out of the pool, faint", window: views.RunwayFiveHour, lane: laidLane{
 				name: accountName{label: "personal", primary: true, out: true}, account: status.AccountNow{OutOfPool: true},
 				Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 0.39, Read: true}},

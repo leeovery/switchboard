@@ -79,7 +79,9 @@ switchboard usage       # every account's limits, as they stand
 switchboard dashboard   # the live dashboard
 ```
 
-`setup` takes you through adding your accounts and installing the rest, full screen, a page a step, making each account's token with `claude setup-token` as it goes. At the end, `enter` opens the dashboard. See [`setup`](docs/commands.md#setup) for what each step does.
+`setup` takes you through adding your accounts and installing the rest, full screen, a page a step, making each account's token with `claude setup-token` as it goes. You give each account a label, which every screen shows; switchboard gives it an id, made from its subscription, which commands such as `pin` take and `switchboard accounts` lists. At the end, `enter` opens the dashboard. See [`setup`](docs/commands.md#setup) for what each step does.
+
+**Upgrading from a version before account ids?** The first time the router starts on one that makes them, it moves your accounts and their history onto the ids it makes, once, by itself, routing throughout. See [Upgrading to account ids](docs/how-it-works.md#upgrading-to-account-ids).
 
 ## How it works
 
@@ -136,12 +138,12 @@ Switchboard reads `~/.config/switchboard/config.toml`. `setup` and `switchboard 
 
 ```toml
 [[account]]
-id      = "work"
-label   = "Work"
+id      = "b6s7"        # written by switchboard, from the account's subscription
+label   = "Work"        # what every screen shows
 primary = true          # the account your browser and the Claude apps are signed in to
 
 [[account]]
-id    = "personal"
+id    = "k2m9"
 label = "Personal"
 
 [prime]
@@ -153,7 +155,7 @@ Every key is in [Configuration](docs/configuration.md).
 ## Documentation
 
 - [Dashboard](docs/dashboard.md): every page, its keys, and themes
-- [How it works](docs/how-it-works.md): routing, what's recorded, the primary, reserves and priming
+- [How it works](docs/how-it-works.md): routing, what's recorded, accounts and their ids, the primary, reserves and priming
 - [Commands](docs/commands.md): every command and flag
 - [Configuration](docs/configuration.md): every config key, tokens and notifications
 - [Reference](docs/reference.md): where switchboard keeps its files, their formats, and the JSON its commands print

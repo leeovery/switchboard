@@ -448,7 +448,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   characters, with anything shaped like a token hidden.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
-  token they no longer held, the refusals of the request itself it met, the 403s, are taken back, as a refusal every
+  token they no longer held, nor those it left as they could no longer be sent on, the refusals of
+  the request itself it met, the 403s, are taken back, as a refusal every
   account that judged the request gives says more of the request, such as a beta it carries, than
   of the accounts. Otherwise one such request would hold its model's family back on every account
   for 10 minutes, and every session of the family would fall back to the client's account, the
@@ -458,6 +459,20 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   request, as the moves its replays made came to nothing, unless another request of the session
   has been routed since, whose account stands; the moves stand told, in the log and any
   notification of them. The client still gets the 502.
+- **A token another subscription's is never sent on:** a routed request, to `/v1/messages` or its
+  `count_tokens`, carrying the token of an account the router found holding another
+  subscription's, or one it had before, is routed as that account's, never passed through on it,
+  and goes out on another account. So is one carrying the token found so after the account's file
+  has lost it, while the finding stands. An account whose own token it is takes the request as its
+  client's first, as where one account's file was given another's token. Where none can take it,
+  as every other is without a token
+  or refused it lately, switchboard answers 503, shaped as the API shapes its errors and marked
+  `X-Should-Retry: false`, saying why the account can't take it and what puts it right; nothing
+  goes out, and the request's session stays where it was, moved nowhere (see Account identity). A
+  request that was to go out again on its account, after a throttle, for a new token or after a
+  reset by hand, goes elsewhere instead once that account can no longer be sent on, and where none
+  takes it, it's answered the same. Requests to any other path pass through on the client's token
+  as before, as the rule above says: they carry no usage.
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
   be read 400, whoever is left to read it, as a client that closed its side of the connection
@@ -775,8 +790,8 @@ nor by its place in the config (the owner's design, 10 November 2026). Until now
 each account's id, which named it for good, and nothing stopped one being given again: an id given
 to another subscription joined that subscription's history to the one before it. And every tab
 numbered the accounts by their place in the config, which read as their ids where the ids were
-digits, and changed when one before them was removed. To be built before v1, whose freeze then
-holds the formats below; the screens as signed off in Paper (see The screens, below).
+digits, and changed when one before them was removed. Built before v1, whose freeze holds the
+formats below; the screens as signed off in Paper (see The screens, below).
 
 - **The id:** derived from the account's organization (below) as it's added: 4 characters,
   lowercase letters and digits, a letter first, so none reads as a number, taken from the SHA-256
@@ -797,7 +812,9 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   changed whenever with `accounts edit --label` or setup's edit card, changing nothing but what
   shows. A label never names an account to a command or in a record. Every account has one, and
   no two configured accounts have the same, compared as shown, ignoring case; a label no
-  configured account has can be given, whoever had it before.
+  configured account has can be given, whoever had it before. A config edited by hand that breaks
+  this still loads, an account without a label shown by its id, but nothing switchboard writes
+  breaks it.
 - **No numbers:** the accounts keep the config's order, but nothing numbers them. The number before
   each account's name goes from every tab, `usage`'s printout and setup's table, its cells given to
   the rows; the routing card's `0 auto` is `auto`, and it picks with `↑`, `↓` and `space` alone,
@@ -813,9 +830,12 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
 - **The accounts record:** `<state dir>/accounts.json`, this Mac's record of every account it has
   had: its id, its organization where known, its label once it's removed (while it's configured,
   the config's is the one), when it was added and when removed, and the id it had before ids were
-  made, as `was`, read only to import a folder exported before the move (below). Kept for good, as
-  the days' summaries are, a few hundred bytes an account, and written whole, 0600, as `state.json`
-  is. `export` copies it and `import` reads it.
+  made, as `was`, read to import a folder exported before the move (below), and to put back an old
+  id a config or a pin still names. Kept for good, as the days' summaries are, a few hundred bytes
+  an account, and written whole, 0600, as `state.json` is, under a lock of its own,
+  `accounts.lock`; the config's lock, where a change holds both, is taken first. One that doesn't
+  read is left as it is, never written over: what changes it fails, naming it, and the history's
+  readers name a removed account by its id meanwhile. `export` copies it and `import` reads it.
 - **Adding:** `accounts add <label>` takes the label, and setup's add card the label and the plan,
   as before; neither takes an id. The token is checked first, and the organization its answer
   names decides the id:
@@ -825,51 +845,159 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   - a configured account's: refused, as the duplicate check refuses it today.
 
   An account isn't added until its organization is known: where the API doesn't answer, nothing is
-  written, and `accounts add` and setup say so, to try again. Where an answer names none, as none
-  has been seen to, setup and `accounts add` ask whether it's a new account or one of the removed
-  ones, each by its label and when it was last seen.
+  written, and `accounts add` and setup say so, to try again. Where the organization doesn't settle
+  it, setup's "new, or one of these?" card and `accounts add` ask whether it's a new account or one
+  this Mac had, each by its label and when it was last seen: where an answer names none, as none
+  has been seen to, any account this Mac had and doesn't configure; and where a new organization's
+  token may be an account removed before ids were made, whose organization isn't known, those.
+  Away from a terminal, `accounts add` lists the choices, and `--new` or `--returning <id>`
+  answers. A configured account whose organization isn't known, and whose id the token's
+  organization spells, is taken to be its account, so refused, failing safe.
 - **A token replaced,** with `accounts token` or setup's `t`, must be for the account's
   organization: another's is refused, saying it's another subscription's and to add it as an
-  account of its own. Where the account's organization isn't known yet, the token's is taken.
+  account of its own. Where the account's organization isn't known yet, the token's is taken,
+  unless the record has another account of it, which the refusal names. Where the API names none,
+  or the record hasn't the account, there's nothing to hold it to, and nothing is recorded.
 - **The router:** each probe's organization is held to the account's. Where they differ, as where a
   token file is replaced by hand, the account takes no requests, its rows and `status` saying its
   token is another subscription's, and an event is filed, till it has a token of its own. Where the
   account's isn't known yet, the probe's is recorded.
+- **The record kept in step with the config:** a config another Mac shares can add or remove an
+  account this Mac's record never heard of, and an account configured here is one it has had. Once
+  the move onto the ids is done, never before, the router keeps the record in step as it starts
+  and whenever the config changes: an account configured that the record lacks is added, its
+  organization taken from its next probe; one that has left the config is marked removed, as
+  `accounts remove` marks it, with the label it last had there as the router knew it, else its id,
+  its token file left as the router leaves one today; one configured again is live again, as
+  `accounts add` makes it. An id that clashes with another account's, or one an account had before
+  ids were made, ignoring case, is left out and logged; an account only another Mac configures, as
+  an import keeps it, is left as it is. It reads the config under the record's lock, as `accounts
+  add` and `remove` save the config with the record under it, so it never acts on the config as it
+  stood a moment before either; an import judges which accounts are configured here by the same
+  config. An account marked removed under its id alone, as one that left the config while no router
+  ran, takes its label from the next import whose record names it otherwise. While the config
+  names a live account by the id it had before ids were made, as one put back from before the move
+  does, the record is left as it is, logged once: the router, restarting onto that config, writes
+  the new ids back in it first (`Heal`), and keeps the record in step from then.
 - **Removing:** `accounts remove <id>` takes the account out of the config and deletes its token, as
   today, and the accounts record keeps it, marked removed, with its label. History, Accounts and
   the verbs name it by that label, marked removed, as the Paper frames draw it, so it's told apart
   from a configured account given the same label since.
-- **Moving to ids made, once:** the history is rewritten under the new ids (the owner's choice,
-  10 November 2026: one form on disk, no reader ever knowing an id that's gone). The router does it
-  as it first starts on a build with this, under the config's lock, before anything reads an
-  account's history; it routes throughout, and the dashboard and the verbs wait on the history till
-  it's done, saying so.
-  - Each configured account gets its id, derived from the organization its token's answer names,
-    or random where none can be read; a label, its old id, where it had none; and its token file
-    and the token's record take the new id, renamed under the tokens directory's lock, a link or a
+- **Moving to ids made, once** (`internal/idmove`): the history is rewritten under the new ids
+  (the owner's choice, 10 November 2026: one form on disk, no reader ever knowing an id that's
+  gone). The router does it as it first starts on a build with this, beside its routing, a step at
+  a time, what's decided written to the accounts record, under the record's lock, before anything
+  else changes, so a stop anywhere carries on to the same end the next time; `accounts.moved` in
+  the state directory marks it done. It routes throughout. The dashboard says what holds the move
+  up, and opens once it's done; the verbs that read the history, `requests`, `history`,
+  `sessions`, `events`, `export` and `import`, refuse meanwhile, saying the same, to try again
+  once it's done. `status` and the status document's `moving` say how it stands: the router making
+  it, waiting on the API (naming the account, by the id it had, and why), waiting for the router
+  to restart, or failed and tried again a minute later.
+  - **Deciding:** each configured account takes the id its token's organization derives, or the
+    record's where the record has the organization, as one this Mac had and removed comes back.
+    One whose id is already one its organization spells, as where another Mac sharing the config
+    moved it and this Mac then gave it a token, keeps it. One whose token's answer names no
+    organization, or whose organization another account configured or decided has, as two
+    accounts of one subscription have, takes a random id, its organization unknown. Each gets a
+    label, its old id, where it had none.
+  - **The waits:** an answer counts only where it's the API's own, carrying Anthropic's
+    `Request-Id` for it. A request the API didn't answer, one a proxy between answered in its
+    place, and one answered 408, 425, 429 or a 5xx are no answer: the move waits and asks again
+    from the start, changing nothing meanwhile, 30 seconds the first time, then twice as long each
+    time, 5 minutes at the most. An answer of the API's own that names no organization, as a
+    refusal, counts only once such answers have lasted 10 minutes, each heard within 10 minutes of
+    the one before, so a passing incident or a captive portal never decides an id for good, nor
+    gives two Macs sharing a config different ones. A token file that can't be read, as a writer
+    that empties it first leaves it for a moment, is looked at again 3 seconds later, three looks
+    at most.
+  - **The strays,** token files of accounts neither configured nor known to the record, are asked
+    about only where their answers may change what's decided, and only then does the move wait on
+    one unanswered:
+    - A configured account with no token it can use, whose id is one switchboard makes and this
+      Mac never used (`madeElsewhere`: this Mac used every account it had before the move, so
+      such an id is another Mac's), may be one another Mac moved. A stray whose organization
+      spells its id, the longest such where several do, joins it: the stray's account moves onto
+      that id, its history with it. Then every stray is asked about, and the move waits on any
+      unanswered, as which outranks which can't be told without their answers, so a Mac that
+      starts before its network is up still joins the accounts another moved. Strays are taken
+      in order: one named as the account is labelled, as the Mac that moved it labelled it by its
+      old id; then the one the history tells of latest; then by name.
+    - A configured account whose organization is known, and that has no former id, takes a stray
+      of its organization that the history names as that id, as the Mac that moved it recorded
+      its own, so one subscription keeps one history on every Mac. Then the strays the history
+      names are asked about, and waited on, as only those may be one. A stray the history names
+      none of has nothing to move, and is passed over.
+    - A configured account with no token that no stray joins keeps its id where it may be another
+      Mac's, as `madeElsewhere` says, else takes a random one.
+  - **The history's own:** each id the history names that's neither configured nor known, an
+    account removed before ids were made, goes into the record as removed, under a random id, its
+    label its old id, its organization unknown, added at the start of the first day the history
+    tells of it and removed at the last second of its last, so it's said removed on that day, never
+    after the move.
+  - **The token files:** each moved account's token file is given its new id's name beside its
+    old, as a link, so a router on either id finds its token; once the config configures the new
+    id, it and its record move onto the new names, under the tokens directory's lock, a link or a
     second name handled as writing a token handles one.
-  - Each id the history holds that the config doesn't, an account removed before, goes into the
-    accounts record as removed, with a random id, its label its old id, its organization unknown.
-  - Then every file that names an account, the request ledger's lines, the readings history, the
-    router's events, the days' summaries and `state.json`, is written anew beside the old under its
-    new ids and swapped in, a file at a time, so a stop part way loses nothing, and the move runs
-    again from where it stopped: a new id is never an old one, so a file moved reads the same moved
-    again. The files the router builds from these, the days' digests, parts, heads and rows, are
-    built again. It doesn't hold the ledger's writer while it works.
+  - **The config** takes the new ids and labels in one edit, under the record's lock, made afresh
+    where the config changed as it was edited, five times at most. A router routing under the old
+    ids then owes a restart, the rest of the move waiting for it: the service's restarts to read
+    the config, as on any change of it, and one started by hand with `serve` logs that a restart is
+    due. As the router starts on the new ids, before it reads them, it moves `state.json` and the
+    readings history's newest two days, which it takes the recent rates up from, onto them
+    (`Settle`). Once the move's done, a config that names an account by its old id again, as one
+    put back by hand or by a repository it's kept in, is written back to the new ids as the router
+    starts (`Heal`), and a session pinned by an old id is pinned to its account.
+  - **The files:** every file that names an account, the request ledger's lines, the readings
+    history, the router's events, the days' summaries and `state.json`, is written anew under the
+    new ids and swapped in, a day's files at a time, holding off their writers as they hold one
+    another off, so a stop part way loses nothing, and the move runs again from where it stopped:
+    a new id is never an old one, so a file moved reads the same moved again. A day's compressed
+    file that's damaged is read up to its damage, its whole lines kept in its place, and the file
+    itself set aside beside it as `<name>.damaged`, then `.damaged-2` and on, till its day's past
+    keeping. The files the router builds from these, the days' digests, parts, heads and rows, are
+    built again.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals by account the same before and after, and
     the dashboard and the verbs reading it whole.
 
-  A folder exported before the move still names the old ids: `import` moves its files over by the
-  accounts record's `was` as it takes them in. One exported after names the new. Where several
-  Macs share a config, as a dotfiles repository keeps it, each derives the ids from its own tokens'
-  organizations and moves its own history; a Mac still on an earlier build reads ids it has no
-  token files for, so the Macs sharing a config upgrade together.
+  Where several Macs share a config, as a dotfiles repository keeps it, the first to upgrade moves
+  its accounts onto ids and writes them to the config. Each after it finds the config naming ids
+  it has no token files for, its token files and history under the old, and joins them by
+  organization, as the strays above say, so every Mac keys a subscription alike. A Mac still on an
+  earlier build reads ids it has no token files for, so the Macs sharing a config upgrade together.
+- **Import across the move:** an export carries the accounts record, each account the exporting
+  Mac configures marked `configured` and labelled as its config labels it. `export.json` is
+  version 2, so a switchboard from before, which reads version 1, refuses a folder whose days name
+  ids it has no token files for; it says `ids`, a switchboard that makes ids exported it, and
+  `accounts`, that export wrote the record. A folder that says so but holds none hasn't synced
+  whole, and is passed over, saying so, to import again once it has. An export first takes away an
+  older version's `export.json`, so a sync that carries the days first never leaves them beside one
+  an older switchboard would import. Taking a folder in, its record joins this Mac's, each account
+  matched in turn:
+  - by id, in this Mac's own folder, whose ids are this Mac's;
+  - else by organization;
+  - else by id, an identical id being the same account unless both organizations are known and
+    differ: ids are made, never typed, so two subscriptions share one only by chance.
+
+  Matched, it's this Mac's account, keeping its id. It takes the organization where it has none
+  and isn't configured here; and its label where the other Mac configures it and this one neither
+  configures nor removed it, so a label changed there arrives. Unmatched, it's added: an id this
+  Mac configures that its record lacks, as an account another Mac sharing its config added, with
+  its organization; else as the other Mac keeps it, its label and removal with it, under an id
+  spelled from the other Mac's install and its id where its own is held here, so it's the same
+  however often it's joined. The folder's files then take this Mac's ids. A folder exported before
+  the move holds no record: this Mac's own is taken in by the record's `was`, the ids its accounts
+  had; another Mac's is passed over, saying to export it again from that Mac once it runs this
+  version, as its accounts can't be told. A folder whose record doesn't read is passed over too.
+  While the move is owed, imports wait: `import` refuses, as the history's verbs do, and
+  `POST /import` answers 503.
 - **What changes in the formats:** an account in every record is still a string, now the id made.
-  New: `accounts.json`, the config's `id` written by switchboard, and
-  `accounts add` taking a label. The verbs' JSON gives the id and the label wherever it gives an
-  account, as today, and no number, as it gives none today.
-- **The screens:** drawn in Paper from a spike of the build, for the owner's sign-off before the
+  New: `accounts.json`, `accounts.moved`, the config's `id` written by switchboard, `accounts add`
+  taking a label, and `export.json`'s version 2. The verbs' JSON gives the label beside each id, as
+  `label`, `from_label`, `to_label` and the like, and no number; the verbs' text names accounts by
+  label, one removed with the day, as `team (removed 4 Sep)`.
+- **The screens:** drawn in Paper from a spike of the build, signed off by the owner before the
   build (Switchboard · Identity, round 1): Runway, the Overview on the phone and wide, the routing
   card, Accounts' Detail, History's Days with a removed account, and setup's table and add card,
   each without a number or an id.
@@ -981,7 +1109,12 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   the router held last, which it compares with the file's as it starts. It keeps the hashes of every
   configured account, with a usable token or not: of an account without one as the router starts,
   the hash of the token held last is compared with the token the account later gains, and a
-  different one counts as replaced.
+  different one counts as replaced. Where a probe found the token an account holds another
+  subscription's, `state.json` keeps that token's hash too, so the account takes none of the
+  requests after a restart while it holds it, without a probe; nor is that token probed again.
+  The account takes requests again as it takes up another, which its rounds probe, and the finding
+  goes: a token taken up is the account's own till a probe finds otherwise, the one found so
+  among them, should it be put back by hand (see Account identity).
 - An account removed from the config leaves its tokens, the one the router held last and those it
   had before, to the primary, as former tokens of the primary's: a session started with one, as
   every session holds the primary's, carries on sending it, and stays routed, its client account
@@ -1000,7 +1133,8 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
   npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
   which holds the system's directories alone.
-- `accounts add <id>` registers an account. It takes a `--label` as it shows, and saves it so,
+- `accounts add <label>` registers an account, shown as the label, under the id its token's
+  organization decides (see Account identity). It takes the label as it shows, and saves it so,
   by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
   default ignorables, the format characters and the variation selectors, but for whitespace and
   the prepended concatenation marks, such as the Arabic number signs, which draw) kept only
@@ -1012,22 +1146,22 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   after it, and the character after one is the first seen), and dropped everywhere else; a
   joiner's pictographs are symbols beyond ASCII, so one between `+` and `=` goes. Direction marks
   are kept within it. Then each run of whitespace within it is one space, and the whitespace and
-  direction marks at its edges trimmed. One that's the id is no label. It refuses an id, or a
-  `--label`, holding anything shaped like a token, or a `--label` over 100 characters as it
-  shows, holding a control character, such as a newline or a tab, a bidirectional embedding,
-  override or isolate, or a prepended concatenation mark, which joins the character after it, so
-  that character can draw as nothing, drawing as nothing (spaces, characters drawn as nothing,
-  marks on their own or blank braille alone; a private-use glyph shows) or that isn't UTF-8,
-  before it asks for the token, saving nothing, and shows the id as
-  `[redacted]`. A label written in the config by hand is read as it is. When the account's token
-  file holds no usable token, it asks for the token, hidden, pointing to `claude setup-token` run
-  while signed in to that subscription, or reads it from stdin when stdin isn't a terminal, and
-  writes it in place of whatever the file held. An interrupt while it waits puts the terminal
-  back as it was, showing what's typed again, and the command exits 130, as a shell expects of an
-  interrupt, saving nothing. It probes the token before saving it, and doesn't save one the API
-  refuses (401 or 403); when the probe fails otherwise, as when it can't reach the API, it saves
-  it with a warning. `--label` sets the label, and `--primary` makes the account the primary.
-- `accounts edit <id>` changes an account's label (`--label`, under `add`'s rules, `""` for none),
+  direction marks at its edges trimmed. It refuses a label that's none as it shows, one another
+  configured account shows, ignoring case, one holding anything shaped like a token, or one over
+  100 characters as it shows, holding a control character, such as a newline or a tab, a
+  bidirectional embedding, override or isolate, or a prepended concatenation mark, which joins
+  the character after it, so that character can draw as nothing, drawing as nothing (spaces,
+  characters drawn as nothing, marks on their own or blank braille alone; a private-use glyph
+  shows) or that isn't UTF-8, before it asks for the token, saving nothing. A label written in
+  the config by hand is read as it is. It always takes a token, asking for it, hidden, pointing to
+  `claude setup-token` run while signed in to that subscription, or reading it from stdin when
+  stdin isn't a terminal. An interrupt while it waits puts the terminal back as it was, showing
+  what's typed again, and the command exits 130, as a shell expects of an interrupt, saving
+  nothing. It probes the token before saving anything, and saves nothing where the API refuses it
+  (401 or 403) or doesn't answer for it, as the organization its answer names decides the id.
+  `--primary` makes the account the primary; `--new` and `--returning <id>` answer, away from a
+  terminal, which account a token is where its organization doesn't settle it.
+- `accounts edit <id>` changes an account's label (`--label`, under `add`'s rules, never none),
   plan (`--plan`, one of the plans or `none`), primary (`--primary`, taking it off the account that
   had it) or reserve (`--reserve`), given one or more, and leaves the rest as they are. A reserve
   is written as a percentage to two decimal places at most, `5%`, so what's shown is what's saved,
@@ -1165,10 +1299,10 @@ show.
 
 1. **Accounts:** every account as a table, ACCOUNTS heading it, and the accounts counted at its
    right, `1 account`, `3 accounts`, or nothing with none.
-   - **The table:** its heads on row 8, ACCOUNT, LABEL, PLAN, RESERVE and TOKEN in `text.subtle`,
-     then from row 10 a row an account, two rows apart, in the config's order: its number in
-     `text.subtle`; its id, bold `text.primary`, and `◆` in `text.muted` after the primary's; its
-     label in `text.muted`; its plan in `text.secondary`, or `not set` in `text.faint`; its reserve,
+   - **The table:** its heads on row 8, ACCOUNT, PLAN, RESERVE and TOKEN in `text.subtle`, then
+     from row 10 a row an account, two rows apart, in the config's order, with no number or id: its
+     label, bold `text.primary`, and `◆` in `text.muted` after the primary's; its plan in
+     `text.secondary`, or `not set` in `text.faint`; its reserve,
      `5%`, or `none` in `text.faint`; and its token (below). Then `+ add an account`, `+` bold
      `accent.key`, and `add an account` in `text.muted`, or `text.primary` while it's chosen. The
      chosen row is `bg.selection` across the width, `▌` in `accent.key` at column 0; `↑` and `↓`
@@ -1183,9 +1317,9 @@ show.
      expired`. While its check runs, it says `checking…`; a token the API didn't answer for,
      `unchecked`, kept; and an account with none, `no token`, each in `text.muted`.
    - **Notes,** two blank rows under `+ add an account`, a blank row apart: each account missing
-     something, its id bold `text.primary`, what it's missing and the key that sees to it: `side has
-     no working token, so no requests are routed to it.`, then `Press t to create a new one,
-     approving it in the browser signed in to Side.`; `personal has no plan set, so History can't
+     something, its label bold `text.primary`, what it's missing and the key that sees to it: `Side
+     has no working token, so no requests are routed to it.`, then `Press t to create a new one,
+     approving it in the browser signed in to Side.`; `Personal has no plan set, so History can't
      value its usage. Press e to set one.`; a token's year within 30 days, with `t`. With two
      accounts or more, and none the primary, a note says one must be, and `p` marks it: `enter`
      waits for one.
@@ -1194,14 +1328,19 @@ show.
      up without an account, so `enter` waits for one. Once there's one, the line is `Add each Claude
      subscription you want switchboard to route across.` (frame 2).
    - **Adding** (`+ add an account`, then `enter`), the card `ADD AN ACCOUNT`: `Each account is one
-     Claude subscription: a Pro, Max or Ultra plan.`; then ID, under it `letters, numbers, - and _
-     · can't be changed later`; Label, `shown in the dashboard`; and Plan, `Pro`, `Max`, `Ultra` or
-     `not set`; then `Setup then creates a token with claude setup-token. You approve it in the
-     browser while signed in to this subscription. Tokens last a year.` Its keys: `tab next`, `enter
-     create token`, `esc cancel`. The id and label are held to `accounts add`'s rules, a wrong one
-     said under its field. `enter` makes its token in the token card (see The token card, below),
-     and the account is added with its token once that's checked and saved; cancelled, nothing is
-     added.
+     Claude subscription: a Pro, Max or Ultra plan.`; then Label, `what every screen calls it`, and
+     Plan, `Pro`, `Max`, `Ultra` or `not set`, with no id, which the token's organization decides
+     (see Account identity); then `Setup then creates a token with claude setup-token. You approve
+     it in the browser while signed in to this subscription. Tokens last a year.` Its keys: `tab
+     next`, `enter create token`, `esc cancel`. The label is held to `accounts add`'s rules, a wrong
+     one said under its field. `enter` makes its token in the token card (see The token card,
+     below), and the account is added with its token once that's checked and saved; cancelled,
+     nothing is added. Where the token's organization doesn't settle which account it is, the card
+     `WHICH ACCOUNT · <label>` asks, as `accounts add` does: `This subscription's organization
+     matches no account this Mac has had.` and `Is it a new account, or one removed before
+     switchboard made ids?`, or, where the API named none, `The API didn't name this
+     subscription's organization.` and `Is it a new account, or one this Mac had?`; then `new
+     account`, and each account it may be by its label and `last seen <day>`.
    - **Run again** (frame 3), as on a Mac restored with its config and tokens in place, setup
      reviews each account: `Each token was checked with the API just now.` Each token is checked as
      it's reviewed, so one refused shows here rather than at the first request, and one the API
@@ -1582,17 +1721,16 @@ not the owner's decisions:
   edit card's `enter` saves only what's changed from what the card opened on, and where nothing
   has, closes it, writing nothing. A reserve typed `none`, or cleared, is none.
 - **A refusal and a failure:** a value config refuses is said under its field, why alone, the
-  card staying open, and unsaid once the value changes. The add card's `enter` checks its id and
-  label as `accounts add` would, before any token is made, writing nothing, and says one refusal
-  at a time: the id's form, then the label, then an id an account has already, in its case or
-  another; a check that fails otherwise, as a config setup can't read, fails the step, its row
-  `✗ Not checked` and why. Removing the only account is refused, as a config needs one, and the
-  remove card says so. Any other failure of a change, as a config changed since setup read it,
-  fails the step, its row `✗ Not saved` and why. A removal that takes the account out of the
+  card staying open, and unsaid once the value changes. The add card's `enter` checks its label
+  as `accounts add` would, before any token is made, writing nothing: none, another account's,
+  ignoring case, or one config refuses; a check that fails otherwise, as a config setup can't
+  read, fails the step, its row `✗ Not checked` and why. Removing the only account is refused, as
+  a config needs one, and the remove card says so. Any other failure of a change, as a config
+  changed since setup read it, fails the step, its row `✗ Not saved` and why. A removal that takes the account out of the
   config but can't delete its token file fails the step too, its row `✗ Not deleted`, saying so,
   the token file's path and why, and the accounts are read again, without it.
-- **The remove card's words:** `side is taken out of the config, and its token file deleted, so
-  no requests are routed to it.`, the id bold `text.primary` and the rest `text.secondary`, then
+- **The remove card's words:** `Side is taken out of the config, and its token file deleted, so
+  no requests are routed to it.`, the label bold `text.primary` and the rest `text.secondary`, then
   `Its Claude subscription is left as it is.`, muted.
 - **After a change,** the accounts are read again, and the chosen row stays on its account, or
   the one after a removed one, else the last, so `+ add an account` is chosen only where it was,
@@ -1841,15 +1979,15 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | Command | Job |
 |---|---|
 | `accounts` | List the accounts: id, label, whether its token is present and usable, and why not, and which is the primary |
-| `accounts add <id> [--label <label>] [--primary]` | Register an account, asking for its token or reading it from stdin: see Accounts and tokens |
+| `accounts add <label> [--primary] [--new \| --returning <id>]` | Register an account, asking for its token or reading it from stdin, its id decided by the token's organization: see Accounts and tokens, and Account identity |
 | `accounts edit <id> [--label <label>] [--plan <plan>] [--primary] [--reserve <percent>]` | Change an account's label, plan, primary or reserve: see Accounts and tokens |
 | `accounts token <id> [--paste]` | Replace an account's token, making it with `claude setup-token` at a terminal, or taking one pasted or on stdin: see Accounts and tokens |
-| `accounts remove <id>` | Remove an account, and its token file |
+| `accounts remove <id>` | Remove an account, and its token file, the accounts record keeping it, removed, with its label |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
 | `status [--session <id>] [--json \| --pretty] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
-| `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
+| `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own, by its id in any case, refusing a label, the refusal naming the id of each account it labels, configured or removed; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
 | `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"schema": 1, "prices_as_of": "2026-10-07", "days": [{"version": 6, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
@@ -2102,12 +2240,12 @@ Every view speaks as `usage` does:
   own limits, and for a token refused; a cap is movable, so it's `accent.attention`.
 - **Percentages are coloured by level,** along the theme's ramp: its first stop below 70%, its
   second from 70%, its last from 90%.
-- **Every account is numbered** by its place in the router's document, wherever its name heads a
-  row, but on History and turned Compare, which number nothing: the number that picks it in the
-  routing card. That's the config's order once the router has taken the config up; an account the
-  router doesn't hold yet, as one just added, comes after its last, in the config's order among
-  those it lacks. So an account has the one number on every tab while the two disagree, as after
-  `switchboard accounts remove` while the router waits to restart (`status.Numbering`).
+- **No account is numbered** (see Account identity): wherever its name heads a row, it's its label
+  and marks alone, in the router's document's order. That's the config's order once the router
+  has taken the config up; an account the router doesn't hold yet, as one just added, comes after
+  its last, in the config's order among those it lacks. So the accounts keep one order on every tab
+  while the two disagree, as after `switchboard accounts remove` while the router waits to restart
+  (`status.Numbering`, the one owner of the order, numbering nothing).
   `◆` marks the primary, and `▲` the account new sessions go to now.
 - **The pool** is the accounts new sessions can go to now: every account on auto, only those the
   global pin names when pinned. `Σ pool` totals them on the Overview, in `usage` and on Runway;
@@ -2153,8 +2291,8 @@ order the view's section gives.
   either chrome. Within a phone's chrome, the tabs take as many rows as their names need, whole,
   as the title row below says: two under 60 columns, three under 31.
 - **A column of accounts' names** takes the widest name configured as its natural; at least 8 cells,
-  or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of its number
-  and marks, and the column's gap, kept beside it. So where every name is shorter than 8 cells, the
+  or its natural where that's fewer; at most 24, a longer name cut with `…`, the cells of its marks,
+  and the column's gap, kept beside it. So where every name is shorter than 8 cells, the
   column is as wide as its names at every width. A column of names a record may hold, the Log's
   `on`, Events' `account`, the Log panel's sessions, a turn's `on`, the request table of a turn
   opened and a session's stays, may name an account no longer configured, so each label counts 8 at
@@ -2485,7 +2623,7 @@ a matrix of one.
   model's name in capitals and ` WEEK`, as `FABLE WEEK`; each over its group's first column, with a
   blank line under them.
 - **A row an account,** in the config's order, with a blank line under each, then the pool, last,
-  under its rule. The account's number and name are at column 0.
+  under its rule. The account's name is at column 0.
 - **Each window is a group** at column `n + i·g`, where `n` is the name column and `g` is the
   bar's width, the words' and 10. In a group: the bar; a cell; the percentage, in 4 cells; two
   cells; the words; then 3 cells before the next group. The last group's words end a cell before
@@ -2502,7 +2640,7 @@ a matrix of one.
 - **Each window is a section:** its heading at column 0, in `text.subtle`; a blank line; then a row
   an account with a blank line under each, and the pool last, under its rule. A blank line
   separates each section from the next, as it does the key line from the last.
-- **A row:** the account's number and name at column 1, a cell in from the heading; the bar from the
+- **A row:** the account's name at column 1, a cell in from the heading; the bar from the
   name column, `w − n − 8 − d` cells wide for words `d` cells wide, as a row's parts lay them: 74
   at 120 columns, 34 at 80, and at 52 its least, 12, the words in the 16 cells left, the name column
   at 16. Then a cell, the percentage in 4 cells, two cells, and the words, which end a cell before
@@ -2515,10 +2653,10 @@ a matrix of one.
   from the next by window: one rule for every gap in the printout (the owner's call, 17 October
   2026). A blank line separates a block's rows too.
 - **Wide,** wherever the row's parts fit at their leasts beside the name column, from 60 columns
-  with the sample's: the account's number and name at column 0, on its first window's row; the
+  with the sample's: the account's name at column 0, on its first window's row; the
   window's label at the name column, 10 cells; the bar 10 cells on, `w − n − 10 − 8 − d` wide: 104
   at 160.
-- **Narrow:** the number and name on a line of their own at column 0, directly above the first
+- **Narrow:** the name on a line of its own at column 0, directly above the first
   window's row; the labels at column 1, 11 cells; the bars from column 12, `w − 1 − 11 − 8 − d`
   wide: at 52 their least, 12, the words in 20.
 - **After each bar,** as in the other layouts: a cell, the percentage, two cells and the words.
@@ -2554,8 +2692,7 @@ last token's line where it has any, with no blank line after it, as a shell's pr
 
 **A row:**
 
-- **The name:** the account's number, as every account is numbered, in `text.subtle` with a space
-  after it; its label, its id unless the config gives another, in bold `text.primary`; then its
+- **The name:** its label, in bold `text.primary`, with no number before it; then its
   marks, each after a space: `◆` in `text.tertiary` on the primary, and `▲` in `accent.mode` on the
   account new sessions go to. With one account, that account carries `▲`, and the header names it.
 - **The bar:**
@@ -2584,6 +2721,7 @@ last token's line where it has any, with no blank line after it, as a shell's pr
 
   | When | Full | Short | Colour |
   |---|---|---|---|
+  | The token the account holds is another subscription's (see Account identity) | `wrong token` | `wrong token` | `state.destructive` |
   | The account has no usable token (settled in the plan) | `no token` | `no token` | `state.destructive` |
   | Nothing has been read of the account (settled in the plan) | `not read yet` | `not read` | `text.subtle` |
   | Its token is refused, or its last read failed: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
@@ -2724,19 +2862,16 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   `--5h`, and `--by account`, its block last.
 - **One unbroken rule,** `─` in `border` across the whole row above it, label and all, in the blank
   line that would sit there anyway, so no layout changes size.
-- **Its name is `Σ pool`:** `Σ` in `text.subtle`, in the numbers' column, and `pool` in
+- **Its name is `Σ pool`:** `Σ` in `text.subtle`, at the label column, and `pool` in
   `text.secondary`, not bold.
-- **Every account is numbered,** wherever its name heads a row: its place in the router's
-  document, the config's order once the router has taken it up, which is its key in the routing
-  card, as every view numbers it (see Dashboard). The number is in `text.subtle`, `text.faint`
-  where the account is out of the pool, right-aligned once there are ten, from ` 1` to `10`, `Σ` in
-  the same column. With one account it's still `1`, so no layout changes with the number of
-  accounts.
-- **The name column fits the names,** a column of names: the widest number, label and marks, plus
+- **No account is numbered** (see Account identity): its label and marks head its row, in the
+  router's document's order, the config's once the router has taken it up (see Dashboard). Out of
+  the pool, its label and `◆` are `text.faint`.
+- **The name column fits the names,** a column of names: the widest label and marks, plus
   two cells kept for `▲` on any account without it, as `▲` moves between accounts as routing does
   and no label may move with it, plus a gap of two cells, each label counted to 24 cells at the
   most; at its least, a label of 8 cells, or the widest label's own where that's fewer, each name's
-  cut to it, its number and marks kept. The routing card's names keep a least of 8, or their names'
+  cut to it, its marks kept. The routing card's names keep a least of 8, or their names'
   widest where that's fewer, so their column is never wider than its names; the Log panel's
   accounts, which a session today may name though the config no longer has it, keep 8 at the least;
   the other columns follow. It counts what's configured, never what's shown, so it never moves as
@@ -2744,7 +2879,7 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   toward its least, a cell at a time, only once the bars are at their least and the words short; so
   ROUTING, which takes it, never goes from one row an account back to two as the frame widens. One
   column serves every section that names accounts.
-- **A longer label is cut** with `…` to fit, its number and marks kept, and the cells for `▲` kept
+- **A longer label is cut** with `…` to fit, its marks kept, and the cells for `▲` kept
   too, so a label never changes when `▲` moves: a label past 24 cells, or any where the frame
   narrows the column. Labels are free text, and an email address is the common long one.
 
@@ -2823,8 +2958,8 @@ Then, as only the Overview has them:
   served GRAPHS, which charted the focused account, its name column lit on `bg.selection` while it
   did; the owner removed GRAPHS, and the focus went with it (26 October 2026; see below).
 - **An account out of the pool,** where the global pin names others, is faint wherever the page
-  names it, rather than struck through, as not every terminal draws strikethrough: its number, name
-  and marks in `text.faint`; in USAGE, its bars faded as a stale reading's are, keeping 35% of their
+  names it, rather than struck through, as not every terminal draws strikethrough: its name and
+  marks in `text.faint`; in USAGE, its bars faded as a stale reading's are, keeping 35% of their
   colour, which is 65% toward the canvas, and its percentages and words in `text.faint`; in ROUTING,
   its trace faded the same way and its rate in `text.faint`, its state's words as they are, being
   the account's own. A stale account out of the pool has the two fades compound, 35% of 35%, so it
@@ -2906,7 +3041,7 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
   columns, the sessions at 79, and 35 cells from 65 at 108.
 - **A row an account,** in the config's order, wherever those parts' leasts fit (from 83 columns
   with a name column of 16):
-  - its number, name and marks at column 0, as in USAGE;
+  - its name and marks at column 0, as in USAGE;
   - its state at the name column, its glyph coloured as its words (below), in its words' cells,
     ending two cells before `● pinned`, or before the sessions where no pin shows: the widest
     that fits whole of its words cut to their leading clauses, from all of them to their lead
@@ -2950,6 +3085,7 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
   | State | Words | Colour | Short |
   |---|---|---|---|
   | No usable token (settled in the plan) | `✕ no token · switchboard accounts token work` | `state.destructive` | `no token` |
+  | Its token another subscription's (see Account identity) | `✕ its token is another subscription's · switchboard accounts token work · or add that subscription as an account of its own` | `state.destructive` | `wrong token` |
   | A limit holds it back from every request | `■ limit reached · back 15:54` | `state.destructive` | `limit reached · 15:54` |
   | A limit holds back some models alone (settled in the plan) | `■ Fable wk limit · back Mon 21:00 · other models still come here` | `accent.attention` | `Fable wk limit` |
   | Its token refused | `■ refused (401) · its token needs renewing` | `state.destructive` | `refused (401)` |
@@ -2995,7 +3131,7 @@ whose models go to two accounts on each:
   each account's sessions together, by requests a minute, then the one seen last first. So an idle
   session of a busy account comes before a busier one of a quieter account: the grouping wins (the
   owner's call, 21 October 2026).
-- **The account's number, name and marks** at column 0, on the first of its sessions shown alone.
+- **The account's name and marks** at column 0, on the first of its sessions shown alone.
 - **The session's id,** its first 4 characters, at the name column: bold `text.primary` while busy,
   with a request in flight or seen in the last minute, else `text.muted`. Then two spaces, its
   model's family in `text.muted`, and a cell on, when it was last seen, right-aligned in 4 in
@@ -3035,7 +3171,7 @@ whose models go to two accounts on each:
 - **A click on a row opens its session's page** (see A session's page): `↑` and `↓` scroll
   USAGE, so no key here opens one.
 - **Where ROUTING takes two rows an account,** as on a phone, a session takes two rows: the
-  account's number and name at column 1 on its first, its id at the name column and what it's doing
+  account's name at column 1 on its first, its id at the name column and what it's doing
   right-aligned; under them, why it's there, from the name column. No trace (settled in the plan).
 
 **COMING UP and LATELY** sit side by side: COMING UP from column 0, `round(w × 0.45)` wide, and
@@ -3090,6 +3226,7 @@ at every width.
   | `╎` in `accent.attention` | `cap` | `work reached its cap: 3 sessions moved to side` |
   | `■` in `state.destructive` | `limit` | `personal reached its 5-hour limit: 2 sessions moved to side` |
   | `■` in `state.destructive` | `refused` | `work refused (401): 2 sessions moved to side` |
+  | `■` in `state.destructive` | `foreign` | `work's token is another subscription's`; short, `work: wrong token` |
   | `◇` in `text.subtle` | `primed` | `side primed: its 5-hour window started` |
   | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset` |
   | `●` in `accent.key` | `pin` | `pin set by hand: new sessions go to personal` |
@@ -3097,9 +3234,10 @@ at every width.
   | `!` in `accent.attention` | `restart` | `restart due: the config changed`; held, `restart held: <why the binary refuses>` |
   | `⊕` in `state.destructive`, or `state.positive` well again | `health` | `the router turned unhealthy: <why>`; `the router is healthy again` |
 
-  A mark is one a kind, but for `■`, which a limit and a refusal share, their words telling them
-  apart; the Log's Events mark each kind the same (see The Log). The sessions a limit, a cap or a
-  refusal moved fold into its line, counted, as its event's `count` and `to` give them; a move shows
+  A mark is one a kind, but for `■`, which a limit, a refusal and a token another subscription's
+  share, each closing its account, their words telling them apart; the Log's Events mark each kind
+  the same (see The Log). The sessions a limit, a cap or a refusal moved fold into its line,
+  counted, as its event's `count` and `to` give them; a move shows
   alone only where the line it's folded into isn't among those shown. Each sentence takes the
   fullest of its two forms that fits whole in LATELY's room, its column or, folded, what its heading
   holds (`latelyTold`), and is cut only where even the short one doesn't fit, so its names and
@@ -3275,12 +3413,9 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   is priced as the API prices it, and as of when, or that a verdict is an estimate; or state.
 - **Labels:** a group's heading is uppercase in `text.subtle` (`ACTIVITY`, `BY MODEL`), its items
   lowercase in `text.secondary`, two cells in (`requests`).
-- **Numbers:** wherever the accounts are numbered, as in Compare's heads and Detail's list and
-  panel, each account's number, as every view numbers it (see Dashboard), is before its name in
-  `text.subtle`, and `0` before `all accounts`: the numbers are the routing picker's keys, and `0`
-  is auto, which routes to every account (see Routing by hand). So while the config and the router
-  disagree, the numbers may skip one the config no longer has, and an account the router doesn't
-  hold yet comes after its last. History and turned Compare number nothing.
+- **No numbers:** Compare's heads and Detail's list and panel name each account by its label and
+  marks alone, and `all accounts` by its words, with no number before either (see Account
+  identity).
 - **`all accounts`,** never a count, is every configured account, always, whatever is pinned, at its
   limit or refused. Its totals count them all; a window's use is the mean of theirs and its pace the
   mean of their paces; and its room, `1.2 of 3 left`, is the sum of what each has left of it, to its
@@ -3360,18 +3495,16 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
   `accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
-  It names a range only where every account's number is its place in the config, as where the
-  config and the router agree; otherwise it's a count, `6 of 9 accounts`, however far it's
-  scrolled, as the numbers then don't each stand at their own place.
+  The range is of the accounts' places in the config's order.
 - **The heads,** on the view's first two rows, wherever the heading's rows end, held however far
-  the rest scrolls: an account's number, then its name and marks, bold, as `usage` draws a name
+  the rest scrolls: an account's name and marks, bold, as `usage` draws a name
   (see `usage`, the printout); under them, its state in a word, as the Overview colours its
   state: `● open`, the dot `state.positive` and the word `text.secondary`; `● pressure` and
   `● at cap`, in `accent.attention`; `■ limit` and `■ refused`, in `state.destructive`;
-  `○ not read`, in `text.subtle`. `all accounts`' head is `0`, in `text.subtle`, and `all accounts`,
-  bold in `text.secondary`, with its accounts' states counted under it. A name is at most 24 cells
+  `○ not read`, in `text.subtle`. `all accounts`' head is `all accounts`, bold in
+  `text.secondary`, with its accounts' states counted under it. A name is at most 24 cells
   with its marks, however wide its column: one past it, or past the column less a cell, is cut
-  with `…`, keeping its number and marks, as `usage` cuts a name
+  with `…`, keeping its marks, as `usage` cuts a name
   (settled in the plan). No column is focused until `←` or `→`; then the focused column's heads are
   `bg.selection` across its width, less a cell, and `enter` opens that account, or `all accounts`,
   in Detail (settled in the plan).
@@ -3430,7 +3563,7 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   or the period changes; its focus, help and the key line follow the form drawn, so where it's
   turned they have no focus. The phone's chrome takes no part in it.
 - **Turned,** Compare is a group at a time, an account a row, its name from column 1, and
-  `all` last, unnumbered. More accounts than its height holds scroll with `j/k`, the last row saying
+  `all` last. More accounts than its height holds scroll with `j/k`, the last row saying
   `▼ 2 more below · j/k` (settled in the plan).
   - Its parts, laid by flex across the width: the names at their widest whole, at least 8 and at
     most 24 cells, its marks among them; 2 cells on, the bars, at 20, at most 40, giving way to a
@@ -3481,8 +3614,8 @@ below are the frames' at 160 columns; its parts across the width are laid by fle
 where it fits** says, and where they don't fit, it's stacked, as **Stacked** says.
 
 - **The list,** columns 0 to 19 with the sample's names, a chooser and nothing else: from row 6, 2
-  rows apart and from column 1, `0 all accounts`, `0` in `text.subtle` and the name bold
-  `text.secondary`, then each account's number, name and marks, and at column 15 its state's dot or
+  rows apart and from column 1, `all accounts`, bold `text.secondary`, then each account's name
+  and marks, and at column 15 its state's dot or
   square, in its state's colour. The chosen row is `bg.selection` across columns 0 to 16 while the
   focus is on the list, and bold, unlit, while it's on SESSIONS, `▸` in bold `accent.key` at
   column 0 before it, as SESSIONS marks its chosen row, bold alone barely showing on a bold name
@@ -3500,11 +3633,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   Cells the weeks leave at their edge, as the 2 at 138 columns, go to the names before they're
   cut. As the panel is laid with the names at 24, whatever the labels, its layout follows the
   width alone.
-- **The panel's head,** row 6: the account's number, name and marks, three spaces, then its state in
+- **The panel's head,** row 6: the account's name and marks, three spaces, then its state in
   ROUTING's words without its `back …` time, saying where new sessions go (see The Overview): `● at
   its cap · new sessions go elsewhere`, `■ limit reached · new sessions go elsewhere`, `■ refused
   (401) · its token needs renewing`, `● under pressure · new sessions still come here`, `● open ·
-  new sessions come here`. For `all accounts`, `0 all accounts`, three spaces, and its accounts'
+  new sessions come here`. For `all accounts`, `all accounts`, three spaces, and its accounts'
   states counted. A model's own window at its limit, as Fable's week, heads it `■ Fable wk limit ·
   other models still come here`, in `accent.attention`, its USAGE row as `usage` draws a limit,
   while Compare's word stays the account's own (settled in the plan).
@@ -4198,10 +4331,10 @@ where the parts lay it, as Narrower and wider says.
   retried. Claude Code's quota check is never drawn.
 - **The lines:** each account's line is `usage --by account`'s narrow block, 74 columns from column
   86 (see `usage`, the printout):
-  - its name row: the number, name and marks; from the name column, its state in the Overview's
+  - its name row: the name and marks; from the name column, its state in the Overview's
     ROUTING words. The name column is a column of names: its labels at least 8 cells, or the
     widest's own where that's fewer, at their natural the widest name configured, 24 at the most,
-    with their numbers, their marks and two cells after them, laid by `flex` across the lines'
+    with their marks and two cells after them, laid by `flex` across the lines'
     width, before the state words. The words take at least 16 cells, the widest short lead,
     `● under pressure`, so a name is whole wherever it fits beside them, and narrows toward its
     least before any lead is cut, and the column holds still as states change (16 cells, column
@@ -4298,7 +4431,7 @@ group at the foot, `↑ asking  ▸ from personal`, its cord to a jack there, as
 **Pinned.** On each account the global pin names, `● pinned` in `accent.key` ends its name row at
 the last column. On each it leaves out, `✕ out of the pool` in `text.faint`, cross and words, sits
 in the same place, and its line is faded as the Overview fades an account out of the pool: its
-number, name and marks in `text.faint`, its bars keeping 35% of their colour, which is 65% toward
+name and marks in `text.faint`, its bars keeping 35% of their colour, which is 65% toward
 the canvas, and its percentages and words in `text.faint`. Its state words stay unfaded, in their
 own colours, as they're the account's own, cut by whole clauses from the end where
 `✕ out of the pool` needs the room: `● at its cap · back 17:10`. An account closed by a cap or a
@@ -4322,7 +4455,7 @@ line and the key:
    `Week` at 87, its bar from 98, 21 cells, a cell and its percentage; three cells on, `5-hour` at
    127, its bar from 134, 21 cells, a cell and its percentage, ending at the last column. The
    even-pace mark stays; the words and the model windows go, as `usage` and the Overview show them.
-4. One row a line: the number, name and marks, the name column laid as on the name row, the
+4. One row a line: the name and marks, the name column laid as on the name row, the
    bar between it and the words; from it, the week's bar, 14 cells, a cell and its percentage; and
    21 cells after it, the state words (settled in the plan). Where the lines are too narrow for the
    names at their least, the bar and the words' 16, the words are cut: with a call moved, from
@@ -4415,9 +4548,9 @@ lanes' lines are the board's lines, drawn by the same code (the owner's call on 
 October 2026).
 
 - **Each account:**
-  - its name row, as the board's lines draw it: the number, name and marks in a name column laid
-    as the lines lay theirs, its natural the widest heading configured and two cells, at least a
-    label of 8, so `3 side-hustle-consulting ▲` and its gap make 28 and every label shows whole
+  - its name row, as the board's lines draw it: the name and marks in a name column laid as the
+    lines lay theirs, its natural the widest heading configured and two cells, at least a label of
+    8, so `side-hustle-consulting ▲` and its gap make 26 and every label shows whole
     wherever the width leaves its state words their least, 16; a label is cut, to its least of 8,
     only where the width leaves no more. From it, the Overview's short state words,
     `● at its cap · 17:10`, `● open · next`, `■ limit reached · 15:54`; and ending at the last
@@ -4596,7 +4729,7 @@ order, each at least its least and at most its natural:
 - **An account not read yet,** or whose token is refused: its line's state says `○ not read yet` in
   `text.subtle`, or `■ refused (401) · its token needs renewing` in `state.destructive`
   (settled in the plan).
-- **Long names** are cut with `…` to the name column, the number and marks kept, as `usage` cuts
+- **Long names** are cut with `…` to the name column, the marks kept, as `usage` cuts
   them (settled in the plan).
 
 **What it reads.**
@@ -4688,19 +4821,19 @@ kept for good (settled in the plan; see The request ledger).
   which take the rest to the edge, at every width, a phone's too.
 - **The label column** takes its natural width at every width a frame has (the owner's call, 21
   October 2026), as The page has a column of names: the widest name whole, its label up to 24 cells,
-  and the two cells after it, its number and marks beside the label, `▲`'s cells kept on every
+  and the two cells after it, its marks beside the label, `▲`'s cells kept on every
   account, as `usage` keeps them, so the lanes hold still as `▲` moves; or the widest use under a
   name in either window, `5-hour 100%` from column 2 and a cell, 14, so they hold still as `<` and
   `>` step, as the figures change and as an account goes stale. Only on a frame narrower than its
-  natural does it narrow, to a label's 8 at the least. Of the frames' accounts it's 16 at every
-  width, the lanes 144 at 160 and 36 at 52; ten accounts, ` 2 personal ◆`, 17.
-- **The labels:** on a lane's row, the account's number, name and marks, cut with `…` only where the
-  column is at its most, the number and marks kept (see `usage`, the printout); on the row under
+  natural does it narrow, to a label's 8 at the least. Of the frames' accounts it's 14 at every
+  width, the lanes 146 at 160 and 38 at 52.
+- **The labels:** on a lane's row, the account's name and marks, cut with `…` only where the
+  column is at its most, the marks kept (see `usage`, the printout); on the row under
   it, from column 2, `5-hour ` or `week ` in `text.subtle`, and the account's use of that window,
   `95%`, bold in its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else
   green. Where there's no use, the words are always `usage`'s short forms, as the column is never
   widened for the full: `read 14:20` where its last read failed, `not read` before its first, and
-  `no token`.
+  `no token`, or `wrong token` where the token it holds is another subscription's.
 - **The axis:** on row 6, `now`, bold `text.primary`, starting a cell left of now's column; on row
   7, the labels; on row 8, the ticks, on a rule of `─` in `border`.
   - **5-hour:** hours ticked `┬` in `border`, on the first of 1, 2, 3, 6, 12 and 24 hours that puts
@@ -4742,28 +4875,27 @@ kept for good (settled in the plan; see The request ledger).
   token is refused has the windows' use under its name faded as stale (the owner's call, 13 October
   2026).
 
-**The account column collapsed.** `a` collapses the labels to each account's number, marks and use,
+**The account column collapsed.** `a` collapses the labels to each account's marks and use,
 to give the lanes more room, at every width, and `a` again expands them; expanded is the default,
 and the preferences file keeps it (the owner's call, 17 October 2026).
 
-- **The label column** is the widest of its labels beside a lane, a number and its marks, `▲`'s
-  cells kept on every account, or a use of `100%`, and a cell, whatever the width, with no least
-  (the owner's call, 21 October 2026). The lanes take the rest, and hold still as `▲` moves. Of the
-  frames' accounts, `2 ◆` and `▲`'s cells, it's 6, the lanes 154 at 160, 102 at an iPad's 108 and
-  46 at 52; with no primary, `100%` the widest, 5; ten accounts with a primary, 7.
+- **The label column** is the widest of its labels beside a lane, its marks, `▲`'s cells kept on
+  every account, or a use of `100%`, and a cell, whatever the width, with no least (the owner's
+  call, 21 October 2026). The lanes take the rest, and hold still as `▲` moves. Of the frames'
+  accounts, `100%` the widest, it's 5.
 - **The labels,** stacked (the owner's call, 21 October 2026): on the lane's row, the account's
-  number in `text.subtle` and its marks, `◆` and `▲`, as the expanded label carries them, as `2 ◆`;
+  marks, `◆` and `▲`, as the expanded label carries them, and nothing for an account with none;
   on the row under it, from column 0, its use of the view's window, the figure the expanded label
   gives, in its colour, as `66%`. The window's name goes: the heading's `< week >` names it. Where
   the expanded label words why there's no use, stale, not read yet or without a token, the figure
   is `—` in `text.faint`; out of the pool, the whole label is faint. The words under the lane are as
   expanded.
-- **The pool's lane,** `Σ` in its numbers' column on its first row, and on the row of its own under
+- **The pool's lane,** `Σ` at the label column on its first row, and on the row of its own under
   the lane, from column 0, its room short: the room bold `text.secondary` and `/3`, of how many
   accounts the pool is, in `text.muted`, as `1.2/3`, where the expanded lane says `Σ pool` and
   `week 1.2 of 3 left`; it may run past the column, as nothing else is on its row. ` · pinned` is
   left off. Where it has no room to say, as on a day stepped back to, `Σ` alone.
-- **COMING UP** is as expanded, every line or cut: each line names its account, unnumbered, as in
+- **COMING UP** is as expanded, every line or cut: each line names its account, as in
   `16:30  personal's 5-hour resets` (the owner's call, 19 October 2026).
 
 **The words under a lane** say where each stretch without room starts, from its column, the lanes'
@@ -4816,8 +4948,8 @@ blank row; with two, on the row after its words.
   call, 21 October 2026). The accounts' lanes keep `─`. So `▂` on the floor means the limit alone,
   a column where any has room fills three eighths at the least, `▃`, however small its share, as
   one of ten. A column where no account's state is known is blank.
-- **`Σ pool`** on its first row, as an account's name heads its lane: `Σ` in `text.subtle` in the
-  numbers' column, and `pool` in `text.secondary`.
+- **`Σ pool`** on its first row, as an account's name heads its lane: `Σ` in `text.subtle` at the
+  label column, and `pool` in `text.secondary`.
 - **Its room,** on a row of its own under the lane, from column 2, at every width, as the label
   column isn't widened for it (the owner's call, 21 October 2026): the pool's room in the view's
   window, in `usage`'s words for the pool: `5-hour ` or `week ` in `text.subtle`, `1.5` bold
@@ -5084,7 +5216,7 @@ so one look compares every account (the owner's call, 24 October 2026):
   accounts at 160, four of 37 (left to the design by the owner, 25 October 2026).
 - **5-HOUR's cards** are only those of the accounts that have a 5-hour window or may have one, as
   the held moment's `Has` says, in the config's order, each as wide as WEEK's.
-- **A card's rows:** its label, the account's number, name and marks, as Runway's lanes label them;
+- **A card's rows:** its label, the account's name and marks, as Runway's lanes label them;
   under it, its words; a blank row; its chart; its axis. Where the rows run short (see Room, below),
   the words move onto the label's row, ending at the card's last column, two cells clear of the label
   at the least, and the blank row goes.
@@ -5140,8 +5272,8 @@ so one look compares every account (the owner's call, 24 October 2026):
   room all along; a stale one is faded, as a stale reading is everywhere (see What moves); one out of
   the pool is faint, as the Overview draws it.
 - **An account the router's document doesn't hold yet,** as one just added to the config, has its
-  label alone and its chart empty but for now's `│`, numbered after the document's last, in the
-  config's order among those it lacks, as Runway will number it once the router has it.
+  label alone and its chart empty but for now's `│`, after the document's last, in the config's
+  order among those it lacks, as Runway will place it once the router has it.
 
 **The pool's line** follows the last burn-down section shown, after its blank row: `Σ ` in
 `text.subtle`, `pool` in `text.secondary`, three spaces, then each window's room as Runway's pool
@@ -5202,8 +5334,8 @@ burn-down a row high:
 
 - **Its head row:** each window's name, `WEEK`, then `5-HOUR`, in `text.subtle`, over its sparkline,
   then a blank row.
-- **A row an account,** in the config's order, a blank row between: its number, name and marks in
-  the name column (see The page); then each window, the week's and then the 5-hour's: a sparkline of
+- **A row an account,** in the config's order, a blank row between: its name and marks in the
+  name column (see The page); then each window, the week's and then the 5-hour's: a sparkline of
   16 cells, one row of eighths, the window's room from its start to its reset, a column a cell,
   before now in the window's ink as the cards have it, from now at its projection, in that ink mixed
   with the canvas so 50% of it shows, and `✕` in bold `state.destructive` where it runs out; a
@@ -5553,18 +5685,19 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
 - **Events:**
   - row 9: `Pick which events it shows.`;
   - row 11: `EVENTS` at `x`, `today` at `x+14` and `ONLY` at `x+58`, in `text.subtle`;
-  - rows 12 to 23, a kind each, in this order: its tick and name; today's count right-aligned in 5
+  - rows 12 to 24, a kind each, in this order: its tick and name; today's count right-aligned in 5
     from `x+14`, in `text.secondary`, `text.faint` at 0; and at `x+21` what it is, in `text.muted`:
     `started` a session first seen; `moved` a session moved to another account; `pressure` an
     account under pressure; `cap` an account at its cap; `limit` an account at its limit; `refused`
-    an account's token refused; `primed` a window started early; `open` an account with room
-    again; `pin` routing set by hand; `auto` routing given back to the router; `restart` a restart
-    of the router falling due; `health` the router unhealthy, or well again;
+    an account's token refused; `foreign` an account's token not its own; `primed` a window
+    started early; `open` an account with room again; `pin` routing set by hand; `auto` routing
+    given back to the router; `restart` a restart of the router falling due; `health` the router
+    unhealthy, or well again;
   - **ONLY:** `accounts` and their ticks (row 12); `sessions` and `every one, unless some are
     ticked` (13); today's sessions from `x+59`, rows 14 to 19, as Requests' list, counting their
     events today (`2 events`, `1 event`); then the `▼ 5 more today   / finds one from another day`
     line (20). No models and no `failed`, which an event has neither of;
-  - row 25: `It shows all ` `20` ` of today's events.`
+  - row 26: `It shows all ` `20` ` of today's events.`
 - **Its keys,** on row 27, right-aligned two cells in from the edge, three spaces apart:
 
   `←→ side   ↑↓ move   space tick   enter apply   esc cancel`
@@ -5607,6 +5740,7 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 | `╎` `accent.attention` | `cap` | the account | `95% of its 5-hour window: its 3 sessions move to side as their next requests come` |
 | `■` `state.destructive` | `limit` | the account | `its 5-hour window, till 23:58: its session moves to side` |
 | `■` `state.destructive` | `refused` | the account | `its token refused (401), till 14:00: its 2 sessions move to side`, or a request refused alone, `its opus requests refused (403), till 14:00` (settled in the plan) |
+| `■` `state.destructive` | `foreign` | the account | `its token is another subscription's`, its card headed `work's token is another subscription's` (see Account identity) |
 | `◇` `text.subtle` | `primed` | the account | `its 5-hour window started, resets at 12:05` |
 | `✓` `state.positive` | `open` | the account | `its 5-hour window reset` |
 | `●` `accent.key` | `pin` | the accounts it names | `new sessions go there, set from the command line`; with `--move`, `new and running sessions go there, …`; a session's own pin, `this session goes there, set from the dashboard` (settled in the plan) |
@@ -5617,8 +5751,8 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 - **The windows a limit or a cap began with:** its `what happened` names those alone, as LATELY's
   line does, a window that joined it later listed in its card (the owner's call, 15 October 2026).
 - **A mark a kind:** the marks are LATELY's (see The Overview) and the Log's own, each a cell wide
-  in JetBrains Mono, regular and bold, one a kind but for `■`: a limit and a token refused both
-  close their account, as ROUTING marks them, and their words tell them apart. `✕` is a single
+  in JetBrains Mono, regular and bold, one a kind but for `■`: a limit, a token refused and a token
+  another subscription's each close their account, and their words tell them apart. `✕` is a single
   request's refusal, on a cord or a row (`✕ 429`), never an event's. `○` is never one: it says not
   read, or not live. `◔`, `!` and `⊕`, which no frame draws, are JetBrains Mono's, regular and bold,
   and `refused` keeps the `■` the Overview's frame 3 draws (settled in the plan).
@@ -6022,13 +6156,11 @@ name carries.
 **The accounts it ran on** (row 19 on), under the story with no heading, a row each, in the order it
 first ran on them. A row's parts, two cells apart, as flex lays them at every width:
 
-- **its name:** the account's number in config order, as the Overview numbers it, in `text.subtle`,
-  and a space; then its name bold `text.primary`, cut at a label's most as every row of the page
-  cuts it, and its marks. It's a label's column: its least
-  the number, the marks, `▲`'s cells kept on every account so the row holds still as `▲` moves, and
-  8 cells of the label, or its own where that's fewer; its natural the same with the widest label
-  configured, at most 24, never
-  the accounts the session ran on;
+- **its name:** bold `text.primary`, cut at a label's most as every row of the page cuts it, and
+  its marks. It's a label's column: its least the marks, `▲`'s cells kept on every account so the
+  row holds still as `▲` moves, and 8 cells of the label, or its own where that's fewer; its
+  natural the same with the widest label configured, at most 24, never the accounts the session
+  ran on;
 - **its time there,** from its first request on it to its last, in `text.secondary`, in the
   cells of the widest a stay is said, 30, `28 Sep 13:20 – yesterday 01:20`, so it's never cut:
   `12:02 – 14:31`, `14:31 – now`; with its day where the session spans more than one, or began
@@ -6262,7 +6394,7 @@ each form taken where its parts fit, as the wide page's rules give way:
   `j` and `k` scroll wherever something does.
 - **`p`** opens this session's routing picker, `ROUTING · THIS SESSION`: one account, or auto, which
   leaves it to the router (see Routing by hand). A session is pinned from its own page alone, and
-  here the number keys and `m` do nothing. An ended session's page has no `p`, nor does any page
+  here `m` does nothing. An ended session's page has no `p`, nor does any page
   with one account, unless a pin set from the command line stands (see Keys).
 - **`?`** opens help for this page, `HELP · SESSION`, listing every key first, `t`, `R` and `j`/`k`
   among them, then explaining the story's scale, what a turn is, the ≈ points, worth at API prices
@@ -6377,7 +6509,7 @@ On the Overview, `r` hides ROUTING, which touches no routing.
    gives with a time, as `at its limit till Sun 15:54`; a token refused is the token's alone,
    never a family's, as `token refused (401)`, and fits within it. With the sample's names: the
    state at 14, the week at 24 and the 5-hour at 35.
-   - **`0 auto` first,** `0` in `text.subtle` and `auto` in bold `text.primary`, its description in
+   - **`auto` first,** in bold `text.primary`, its description in
      `text.muted`: `the router chooses`; on a session's card, `the router chooses: side for now`,
      the account auto would send it to, bold `text.primary`, cut with `…` past 24 cells, as a
      column of names counts it: where the router's own rule for a
@@ -6385,8 +6517,8 @@ On the Overview, `r` hides ROUTING, which touches no routing.
      that account has room and its cache is worth keeping, named by the router in its listing of
      the sessions (the owner's call, 13 October 2026). Picking `auto` clears the accounts;
      picking an account clears `auto`; nothing picked is auto.
-   - **Then each account,** numbered as every view numbers it (see Dashboard), `1 ` in
-     `text.subtle`, its name in bold `text.primary`.
+   - **Then each account,** its name in bold `text.primary`, with no number: the card picks with
+     `↑`, `↓` and `space` alone (see Account identity).
    - **The mark:** new sessions' card ticks boxes, `■` in bold `accent.key` picked and `□` in
      `text.subtle` not; a session's card picks one, `●` and `○` the same. A row's mark is its one
      mark: an account's state has no dot.
@@ -6421,17 +6553,16 @@ On the Overview, `r` hides ROUTING, which touches no routing.
 6. **Its keys,** right-aligned two cells in from its edge on its last row but one, each key in bold
    `accent.key` and its word in `text.muted`, three spaces apart, a blank row above them:
 
-   `↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel`
+   `↑↓ move   space tick   m move running   enter apply   esc cancel`
 
-   On a session's card, `pick` for `tick`, and no `m`; the numbers named are the accounts there are,
-   `0-3` for three, and `0-9` past nine.
+   On a session's card, `pick` for `tick`, and no `m`. Where they don't all fit, `m move running`
+   goes first, then `↑↓ move`, so `↑↓` never shows without `space`; `enter` and `esc` always stay.
 
 **Its keys,** while it's open, alone: `↑` and `↓` move between its rows, the row the cursor's on
 lit on `bg.selection` always, as the Log's `f` panel lights its row; `space` picks the row it's
-on; a number picks its row directly, `0` auto; `m` ticks or clears moving the sessions running, on
-new sessions' card; `enter` applies and closes it; `esc` closes it and changes nothing. A number
-past the accounts there are does nothing. Past nine accounts, an account is picked with `↑↓` and
-`space` alone: the key row reads `0-9`, and the accounts from 10 on have no number.
+on; `m` ticks or clears moving the sessions running, on new sessions' card; `enter` applies and
+closes it; `esc` closes it and changes nothing. No key picks a row directly: the accounts have no
+numbers (see Account identity).
 
 **Closed, and why:**
 
@@ -6440,9 +6571,10 @@ past the accounts there are does nothing. Past nine accounts, an account is pick
   (see Pinning), so an account at its cap can be picked, and takes new sessions up to its limit.
 - **Red where Anthropic closed it:** a limit holding back its every request, `at its limit till
   15:54`; or its token refused, `token refused (401)`; and red too an account with no usable token,
-  `no token`, which the router refuses a pin to (settled in the plan).
+  `no token`, which the router refuses a pin to (settled in the plan), or `wrong token` where its
+  token is another subscription's (see Account identity).
 - **An account that can't take a session can't be picked,** in either card: its row stays, with its
-  reason and when it's back, in red, but no box or button, and its number does nothing. A session
+  reason and when it's back, in red, but no box or button, and `space` on it does nothing. A session
   pinned to one would only yield. `switchboard pin` can still set such a pin, ahead of a reset, as a
   script might; the card then shows that account picked, its reason in red, until it reopens.
 - **An account not read yet** can be picked: `open`, its figures `—` in `text.faint`. One refused a
@@ -6476,7 +6608,7 @@ while the dashboard runs, else from the ledger's line, which splits the writes e
 **With one account,** there's nothing to pin to: `p` does nothing, and no key line shows `p pin`,
 unless a pin set from the command line stands, as `switchboard pin` still allows: then the
 Overview's ROUTING heading says `p back to auto`, and `p` opens the card, its one account and
-`0 auto`, to clear it.
+`auto`, to clear it.
 
 **Narrower,** as on a phone, an account's row is stacked wherever its parts, as "The choices" says
 them, don't fit one line of the content at their leasts: with the sample's names, 8 cells at the
@@ -6531,7 +6663,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `↑` `↓` | Accounts' Detail | Choose an account in the list, all accounts first; or, in its SESSIONS, a session |
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
 | `←` `→` | Runway | Step back a day, or a week in the week view; step forward, to the live view |
-| `a` | Runway | Collapse the account column to each account's number, marks and use, or expand it (the owner's call, 17 October 2026) |
+| `a` | Runway | Collapse the account column to each account's marks and use, or expand it (the owner's call, 17 October 2026) |
 | `w` `f` `o` `g` `h` | Graphs | Show or hide WEEK, 5-HOUR, POOL, GLANCE, WHEN YOU WORK; `f` only while an account has a 5-hour window |
 | `↑` `↓` | Sessions | Choose a session, a call on the Switchboard or a row on the List |
 | `↑` `↓` | The Log | Choose a line; from following, `↑` chooses the newest and pauses; with its details open, the line before or after |
@@ -6542,12 +6674,12 @@ that work there (see The page); `?` lists every one, with what it does.
 | `/` | The Log | Find a session by its id's start or its directory's name, today's first, then back a day at a time; `↑↓` and `enter` pick one, filtering both tables to it |
 | `↑` `↓` | A session's page | Choose a turn; with one open, a request of it |
 | `enter` | Accounts, Sessions, the Log, a session's page | Open what's chosen: from Compare, the account in Detail; a session's row, its page; a line of the Log, its details; a turn, its requests, in place |
-| `↑` `↓`, `space`, `0`–`9`, `m`, `enter`, `esc` | The routing card | Move, pick, pick by number (`0` auto; past nine accounts, those from 10 on by `↑↓` and `space` alone), move the sessions running too, apply, cancel (see Routing by hand) |
+| `↑` `↓`, `space`, `m`, `enter`, `esc` | The routing card | Move, pick, move the sessions running too, apply, cancel (see Routing by hand) |
 | `←` `→`, `↑` `↓`, `space`, `enter`, `esc` | The Log's panel | A side, a row, tick, apply, cancel (see The Log) |
 | `↑` `↓`, `enter`, `d`, `l`, `y` `n`, `esc` | The theme picker | Preview, set one theme, set the dark or light half, answer, put back (see Themes) |
 
-**Routing takes these keys alone.** Outside the routing card, the number keys and `m` do nothing, so
-a stray key moves no session; inside it, they act on its rows and nothing else. With one account
+**Routing takes these keys alone.** Outside the routing card, `m` does nothing, so a stray key
+moves no session; inside it, the card's keys act on its rows and nothing else. With one account
 there's nothing to pin to, so `p` does nothing and no key line shows `p pin`, unless a pin set from
 the command line stands, when `p` opens the card to clear it. While the router doesn't answer,
 `p pin` is drawn faint and `p` says so instead (see The page).
@@ -8113,11 +8245,14 @@ sync lag, duplicates and sessions claimed twice.
   never a machine name. A Mac whose state directory is restored from another's, as Migration
   Assistant restores one, carries the other's id and exports to its folder: removing the file
   gives it a new id, and a folder of its own, at its next export.
-- **What a Mac's folder holds:** `export.json`, `{"version": 1, "install": "<id>", "exported_at":
-  "<RFC 3339 time, UTC>"}`, rewritten at each export; `ledger/`, `requests-<local
-  date>.jsonl.gz`, `events-<local date>.jsonl.gz` and `day-<local date>.json`; and `history/`,
-  `readings-<local date>.jsonl.gz`: the state directory's own names, each day's lines in one
-  compressed file. `<dir>` and the folders are made as they're needed, 0700, the files 0600.
+- **What a Mac's folder holds:** `export.json`, `{"version": 2, "install": "<id>", "exported_at":
+  "<RFC 3339 time, UTC>", "ids": true, "accounts": true}`, rewritten at each export, `ids` and
+  `accounts` as Account identity says; `accounts.json`, the accounts record, written first, so the
+  days a sync carries are never ahead of the record that names their accounts; `ledger/`,
+  `requests-<local date>.jsonl.gz`, `events-<local date>.jsonl.gz` and `day-<local date>.json`;
+  and `history/`, `readings-<local date>.jsonl.gz`: the state directory's own names, each day's
+  lines in one compressed file. `<dir>` and the folders are made as they're needed, 0700, the
+  files 0600.
 
 ### Export
 
@@ -8167,9 +8302,12 @@ where there was one. A `<dir>` that can't be made or written, or that's a file, 
 
 `import <dir>` brings in the history of each Mac's folder in `<dir>`, or of the one folder `<dir>`
 is: a folder holding an `export.json` that reads, of this Mac's own install too, as a folder may
-be brought back to the Mac it came from. A folder without one is passed over, and an
+be brought back to the Mac it came from. A folder without one is passed over, saying so where it
+holds what an export writes, as an export cut short or a sync not done leaves one, and an
 `export.json` of a version newer than this switchboard's is refused, saying a newer switchboard
-made it. A `<dir>` holding no Mac's folder fails, saying so.
+made it. A folder whose accounts can't be told, as Account identity says, is passed over, saying
+why, and the import carries on with the rest. A `<dir>` holding no Mac's folder fails, saying so,
+and so does one whose every folder was passed over.
 
 - **Through the router:** the router is the history's one writer, so `import` needs it, failing
   without it as Commands says. The command copies the folders' files into `<state dir>/import/`,
@@ -9168,14 +9306,14 @@ week_starts      = "monday"                     # optional: the day the dashboar
 when_router_down = "stop"                       # optional: stop or direct, without the router
 
 [[account]]
-id      = "work"       # permanent name: letters, digits, '-' and '_'; its token is tokens/work
-label   = "Work"       # optional; defaults to the id
+id      = "b6s7"       # written by switchboard, from the subscription's organization; its token is tokens/b6s7
+label   = "Work"       # required: what every screen shows, no other account's, ignoring case
 primary = true         # optional: the account the browser and the Claude apps use; else the first
 reserve = 0.1          # optional, on any account: the share of every window the router leaves; else 0
 plan    = "ultra"      # optional, on any account: its plan, pro, max or ultra; else unknown
 
 [[account]]
-id    = "side"
+id    = "q4tx"
 label = "Side"
 plan  = "max"
 
@@ -9338,7 +9476,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all |
 | `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below |
-| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `0 auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
+| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
@@ -9373,7 +9511,7 @@ probing.
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, exporting, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, `exporting` the folder of the export of the history under way then, which the restart waits for, the folder configured still or not, left out while none is (see On a schedule), and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again; and `held` why its binary refuses to start, as it said, which holds the restart until the config file or the binary changes, left out while it isn't held. Left out while none is due (see The router looking after itself) |
 | `export` | *router* How the export on a schedule stands, since the router started: `{dir, at, error, running}`, `dir` the folder `[export] dir` names, resolved, `at` when an export into it last succeeded, `error` why the last failed, in plain words, and `running` when the export under way began, as one waiting on macOS's prompt waits; `at` left out before one has succeeded, `error` once one succeeds, and `running` while none is under way. Left out where `[export] dir` isn't set (see On a schedule) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
-| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
+| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `foreign`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
 | `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve, or where the global pin names it, as a pin spends the reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold, learning}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on; `learning` `true` while the curve is the default, with less than a day of answers in it, and left out once it's measured. Left out when the router has read no account |
@@ -9387,7 +9525,8 @@ Each account:
 | `primary` | `true` on the primary; left out otherwise |
 | `reserve` | Its reserve; left out at 0 |
 | `plan` | Its plan, as configured: `pro`, `max` or `ultra`; left out when it isn't known |
-| `token_set` | Whether its token file is present and usable |
+| `token_set` | Whether its token file is present and usable: `false` where it holds another subscription's token |
+| `token_foreign` | *router* `true` where the router found its token another subscription's, a probe on it naming another organization than the account's (see Account identity): it takes no requests till it has a token of its own, and `error` says what puts it right. Left out otherwise |
 | `token_taken` | When switchboard took its token, as the record it wrote beside the token says (see Accounts and tokens); left out when that isn't known, as of a token written by anything else |
 | `token_good_until` | When its token's year is up: `token_taken` and 365 days, a setup token's lifetime; left out with `token_taken` |
 | `fetched_at` | When its usage was last read; left out when it never was |
@@ -10490,7 +10629,7 @@ was dropped binds a later choice, the design proper says so.
 
 | Idea | Status | File |
 |---|---|---|
-| The Graphs build's loose ends: one owner of an account's number, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the number's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
+| The Graphs build's loose ends: one owner of the accounts' order, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the order's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after OAuth and setup: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |

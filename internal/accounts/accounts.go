@@ -14,6 +14,7 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"os"
 	"slices"
 	"time"
 
@@ -275,21 +276,17 @@ func (r Registry) replace(ctx context.Context, id string, token tokens.Token, ch
 }
 
 // owned fails, as replace says, where organization, a token's, is another
-// subscription's than the account's with the given id, as record has it,
-// recording it in record as the account's where it doesn't know the
-// account's.
+// subscription's than the account's with the given id, as record holds it,
+// as its Hold does, recording it in record as the account's where it's new.
 func (r Registry) owned(record *identity.Record, id, organization string) error {
-	e, ok := record.ByID(id)
-	switch {
-	case organization == "" || !ok || e.Organization == organization:
-		return nil
-	case e.Organization != "":
-		return &OtherSubscriptionError{}
-	}
-	if other, held := record.ByOrganization(organization); held {
+	switch held, other := record.Hold(id, organization); {
+	case held == identity.HeldForeign && other.ID != "":
 		return &OtherSubscriptionError{OtherID: other.ID, OtherLabel: r.labelOf(other)}
+	case held == identity.HeldForeign:
+		return &OtherSubscriptionError{}
+	case held == identity.HeldNew:
+		record.Organize(id, organization)
 	}
-	record.Organize(id, organization)
 	return nil
 }
 
@@ -368,7 +365,9 @@ func (r Registry) Remove(id string) (Removed, error) {
 		if err := saved(commit, draft.Save); err != nil {
 			return err
 		}
-		file, left = r.Tokens.Remove(id)
+		if file, left = r.Tokens.Remove(id); left == nil {
+			left = r.removeFormer(*record, id, file)
+		}
 		return nil
 	})
 	if err != nil {
@@ -383,6 +382,28 @@ func (r Registry) Remove(id string) (Removed, error) {
 	}
 	logger.Info("removed an account", "account", id, "token_file", file.File, "linked_to", file.LinkedTo, "linked_to_gone", file.LinkedToGone, "primary_now", removed.Primary)
 	return removed, nil
+}
+
+// removeFormer removes the token file by the id the account with the given
+// id had before switchboard made ids, where its own token file, removed as
+// file says, was a link to it, as the move onto the ids leaves the two until
+// it drops the old name: so removing the account leaves no copy of its
+// token. A token file by another name it led to is left, as any is.
+func (r Registry) removeFormer(record identity.Record, id string, file tokens.Removed) error {
+	e, ok := record.ByID(id)
+	if !ok || e.Was == "" || file.LinkedTo == "" || !sameFile(file.LinkedTo, r.Tokens.Path(e.Was)) {
+		return nil
+	}
+	_, err := r.Tokens.Remove(e.Was)
+	return err
+}
+
+// sameFile reports whether the paths given lead to one file, followed where
+// they're links.
+func sameFile(a, b string) bool {
+	infoA, errA := os.Stat(a)
+	infoB, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(infoA, infoB)
 }
 
 // take has the user give the account's token, and saves it to the account's

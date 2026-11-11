@@ -466,19 +466,31 @@ func TestProbe(t *testing.T) {
 			wantAsked: []string{haiku, fable},
 		},
 		{
-			name: "no organization from an answer that read no window",
+			name: "the organization from an answer that read no window, the family's model tried after it naming none",
 			replies: map[string]reply{
 				haiku:      withUsage(http.StatusOK, session, week),
 				fable:      apiError(http.StatusNotFound, "model: claude-fable-5-1").withOrganization(organization),
 				fableOlder: apiError(http.StatusNotFound, "model: claude-fable-5"),
 			},
-			want: probed(
+			want: probedIn(
+				organization,
 				quota.Usage{
 					Windows:  []quota.Window{session, week},
 					Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 404 · model: claude-fable-5"}},
 				},
 				map[string][]string{"5h": {haiku}, "7d": {haiku}},
 			),
+			wantAsked: []string{haiku, fable, fableOlder},
+		},
+		{
+			name: "every family reading no window, an answer of success naming the organization",
+			replies: map[string]reply{
+				haiku:      withUsage(http.StatusOK).withOrganization(organization),
+				fable:      withUsage(http.StatusOK).withOrganization(organization),
+				fableOlder: withUsage(http.StatusOK).withOrganization(organization),
+			},
+			want:      quota.Probe{Organization: organization},
+			wantErr:   "HTTP 200",
 			wantAsked: []string{haiku, fable, fableOlder},
 		},
 		{
@@ -671,9 +683,10 @@ func (r reply) withOrganization(id string) reply {
 }
 
 // apiError returns a reply without usage headers, whose body is the API's
-// error carrying message.
+// error carrying message, with Anthropic's id for it, as the API's own
+// answers carry.
 func apiError(status int, message string) reply {
-	return reply{status: status, body: fmt.Sprintf(`{"type":"error","error":{"type":"api_error","message":%q}}`, message)}
+	return reply{status: status, header: http.Header{"Request-Id": {"req_test"}}, body: fmt.Sprintf(`{"type":"error","error":{"type":"api_error","message":%q}}`, message)}
 }
 
 // fakeAPI is a messages API that answers each model with its reply.
@@ -762,17 +775,19 @@ func (a *fakeAPI) asked() []string {
 	return slices.Sorted(slices.Values(a.models))
 }
 
-func TestProbeSaysWhetherTheAPIRefusedIt(t *testing.T) {
+func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 	tests := []struct {
 		name        string
 		reply       reply
 		wantRefused bool
+		wantStatus  int
 	}{
-		{name: "401, the token refused", reply: apiError(http.StatusUnauthorized, "Invalid bearer token"), wantRefused: true},
-		{name: "403, the request refused", reply: apiError(http.StatusForbidden, "Not allowed"), wantRefused: true},
-		{name: "400", reply: apiError(http.StatusBadRequest, "Invalid request")},
-		{name: "429 without usage", reply: apiError(http.StatusTooManyRequests, "Rate limited")},
-		{name: "529", reply: apiError(529, "Overloaded")},
+		{name: "401, the token refused", reply: apiError(http.StatusUnauthorized, "Invalid bearer token"), wantRefused: true, wantStatus: http.StatusUnauthorized},
+		{name: "403, the request refused", reply: apiError(http.StatusForbidden, "Not allowed"), wantRefused: true, wantStatus: http.StatusForbidden},
+		{name: "400", reply: apiError(http.StatusBadRequest, "Invalid request"), wantStatus: http.StatusBadRequest},
+		{name: "429 without usage", reply: apiError(http.StatusTooManyRequests, "Rate limited"), wantStatus: http.StatusTooManyRequests},
+		{name: "529", reply: apiError(529, "Overloaded"), wantStatus: 529},
+		{name: "403 from a proxy between, without Anthropic's id for it", reply: reply{status: http.StatusForbidden, body: "Blocked by policy"}, wantRefused: true},
 		{name: "no answer in time", reply: reply{hang: true}},
 	}
 	for _, tt := range tests {
@@ -787,6 +802,9 @@ func TestProbeSaysWhetherTheAPIRefusedIt(t *testing.T) {
 			if got := refused(err); got != tt.wantRefused {
 				t.Errorf("Probe() error %q says the API refused it: %v, want %v", err, got, tt.wantRefused)
 			}
+			if got := statusOf(err); got != tt.wantStatus {
+				t.Errorf("Probe() error %q says the API answered %d, want %d", err, got, tt.wantStatus)
+			}
 		})
 	}
 
@@ -798,6 +816,19 @@ func TestProbeSaysWhetherTheAPIRefusedIt(t *testing.T) {
 			t.Errorf("Probe() error = %v, want one that doesn't say the API refused it", err)
 		}
 	})
+}
+
+// statusOf is the status a probe's error says the API answered with: 0 for
+// none.
+func statusOf(err error) int {
+	s, ok := errors.AsType[interface {
+		error
+		APIStatus() int
+	}](err)
+	if !ok {
+		return 0
+	}
+	return s.APIStatus()
 }
 
 // refused reports whether a probe's error says the API refused the probe.

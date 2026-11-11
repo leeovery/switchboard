@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
@@ -424,10 +423,14 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 	return rows
 }
 
-// ofAccount is the row, as split, of an account: its name, its versions'
-// count, its counts and its worth.
+// ofAccount is the row, as split, of an account: its name, in text.faint of
+// one not configured, its versions' count, its counts and its worth.
 func (r tokensRow) ofAccount(a views.AccountTokens) tokensRow {
-	r.name = []part{wordsPart(line{{tokensBranch, faintInk}, {tokensAccount(a), secondaryInk}})}
+	named := secondaryInk
+	if a.Other {
+		named = faintInk
+	}
+	r.name = []part{wordsPart(line{{tokensBranch, faintInk}, {tokensAccount(a), named}})}
 	r.of, r.ofIs = countedParts(len(a.ByModel), "model", dimInk), "models"
 	r.tokens, r.worth, r.account = a.Tokens, a.Worth, a.Account
 	return r
@@ -442,15 +445,21 @@ func (r tokensRow) ofModel(m views.ModelTokens, branch string) tokensRow {
 }
 
 // on is the row naming the accounts given, by their ids, those its version
-// ran on, at the split's column, each as named names it, else by its id, as
-// asLabelled cuts it.
-func (r tokensRow) on(accounts []string, named map[string]string) tokensRow {
-	names := make([]string, len(accounts))
+// ran on, at the split's column, a space apart, each as named names it, else
+// by its id, as asLabelled cuts it.
+func (r tokensRow) on(accounts []string, named map[string]span) tokensRow {
+	var names line
 	for i, id := range accounts {
-		name := cmp.Or(named[id], tokensAccount(views.AccountTokens{Account: id}))
-		names[i] = asLabelled(name)
+		name, ok := named[id]
+		if !ok {
+			name = span{tokensAccount(views.AccountTokens{Account: id}), dimInk}
+		}
+		if i > 0 {
+			names = append(names, span{" ", dimInk})
+		}
+		names = append(names, span{asLabelled(name.text), name.ink})
 	}
-	r.of, r.ofIs = []part{wordsPart(line{{strings.Join(names, " "), dimInk}})}, "on"
+	r.of, r.ofIs = []part{wordsPart(names)}, "on"
 	return r
 }
 
@@ -463,11 +472,16 @@ func tokensAccount(a views.AccountTokens) string {
 	return labelled(a.Label, a.Account)
 }
 
-// tokensAccounts are the accounts' names, as Tokens shows them, by their ids.
-func tokensAccounts(accounts []views.AccountTokens) map[string]string {
-	named := make(map[string]string, len(accounts))
+// tokensAccounts are the accounts' names, as Tokens shows them, by their
+// ids, each in text.subtle, or in text.faint of one not configured.
+func tokensAccounts(accounts []views.AccountTokens) map[string]span {
+	named := make(map[string]span, len(accounts))
 	for _, a := range accounts {
-		named[a.Account] = tokensAccount(a)
+		k := dimInk
+		if a.Other {
+			k = faintInk
+		}
+		named[a.Account] = span{tokensAccount(a), k}
 	}
 	return named
 }

@@ -74,7 +74,9 @@ type reading struct {
 // whether any of its requests was answered with success. A family that owns a
 // window and reads nothing is reported as a failure, unless another family
 // read that window anyway. Probe fails only when no family reads anything,
-// with the base family's error, as ProbeModel gives it.
+// with the base family's error, as ProbeModel gives it, the probe it gives
+// then naming the organization alone. Its organization is the one the first
+// answer to name one names, whether that answer read a window or not.
 func (p *Prober) Probe(ctx context.Context, token string) (quota.Probe, error) {
 	readings := make([]reading, len(families))
 	var wg sync.WaitGroup
@@ -85,14 +87,19 @@ func (p *Prober) Probe(ctx context.Context, token string) (quota.Probe, error) {
 	return combine(readings)
 }
 
-// probeFamily tries the family's models in order until one reports usage.
+// probeFamily tries the family's models in order until one reports usage,
+// keeping the organization the first answer to name one names.
 func (p *Prober) probeFamily(ctx context.Context, token string, f family) reading {
 	var r reading
+	organization := ""
 	for _, model := range f.models {
-		if r = p.read(ctx, token, model); r.err == nil {
+		r = p.read(ctx, token, model)
+		organization = cmp.Or(organization, r.organization)
+		if r.err == nil {
 			break
 		}
 	}
+	r.organization = organization
 	return r
 }
 
@@ -112,7 +119,7 @@ func combine(readings []reading) (quota.Probe, error) {
 		}
 	}
 	if len(probe.Windows) == 0 {
-		return quota.Probe{}, readings[0].err
+		return quota.Probe{Organization: probe.Organization}, readings[0].err
 	}
 	for i, f := range families {
 		if r := readings[i]; r.err != nil && f.window != "" && !hasWindow(probe.Windows, f.window) {
@@ -130,7 +137,8 @@ func hasWindow(windows []quota.Window, key string) bool {
 // usage windows off the response. Any response that carries them counts: the
 // API sends them on a 429 as well as a 200. Its errors never contain the
 // token, and have a Refused method, which reports whether the API refused the
-// probe: its token, answering 401, or the request, answering 403.
+// probe: its token, answering 401, or the request, answering 403; and an
+// APIStatus method, the status the API itself answered with, if it did.
 func (p *Prober) ProbeModel(ctx context.Context, token, model string) ([]quota.Window, error) {
 	r := p.read(ctx, token, model)
 	return r.usage.Windows, r.err
@@ -143,21 +151,24 @@ func (p *Prober) read(ctx context.Context, token, model string) reading {
 	if err != nil {
 		// Not wrapped: the cause's own text can carry the token, as a transport
 		// error quotes the URL.
-		return reading{model: model, err: &probeError{text: redact.Text(err.Error(), token), status: got.status}}
+		return reading{model: model, organization: got.organization, err: &probeError{text: redact.Text(err.Error(), token), status: got.status, own: got.own}}
 	}
 	return reading{model: model, usage: got.usage, admitted: got.status >= 200 && got.status < 300, organization: got.organization}
 }
 
 // answer is what the response to a probe gave: the usage it reports, the
-// organization it names, and its status, which is 0 when there's no response.
+// organization it names, its status, which is 0 when there's no response, and
+// whether it's the API's own, carrying Anthropic's id for it, rather than one
+// given in the API's place, as by a proxy between.
 type answer struct {
 	usage        quota.Usage
 	organization string
 	status       int
+	own          bool
 }
 
 // probeModel returns what the response to the probe gave, or, failing, the
-// status of a response that reports no window.
+// status of a response that reports no window, and the organization it names.
 func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, error) {
 	timeout := cmp.Or(p.Timeout, defaultTimeout)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -174,10 +185,11 @@ func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, e
 		return answer{}, err
 	}
 	defer drainAndClose(resp.Body)
-	if usage := ParseUsage(resp.Header); len(usage.Windows) > 0 {
-		return answer{usage: usage, organization: organizationOf(resp.Header), status: resp.StatusCode}, nil
+	got := answer{organization: organizationOf(resp.Header), status: resp.StatusCode, own: resp.Header.Get(requestIDHeader) != ""}
+	if got.usage = ParseUsage(resp.Header); len(got.usage.Windows) > 0 {
+		return got, nil
 	}
-	return answer{status: resp.StatusCode}, errors.New(noUsageReason(resp, token))
+	return got, errors.New(noUsageReason(resp, token))
 }
 
 // client sends probes over p's transport, following no redirect: a client
@@ -193,8 +205,10 @@ func (p *Prober) client() *http.Client {
 // probeError is why a probe read no usage, never holding the token.
 type probeError struct {
 	text string
-	// status is the status the API answered with, or 0 when it didn't answer.
+	// status is the status the probe was answered with, or 0 when it wasn't,
+	// and own whether the answer was the API's own, as answer has it.
 	status int
+	own    bool
 }
 
 func (e *probeError) Error() string {
@@ -205,6 +219,17 @@ func (e *probeError) Error() string {
 // 401, or the request, answering 403, as for a model the plan lacks.
 func (e *probeError) Refused() bool {
 	return e.status == http.StatusUnauthorized || e.status == http.StatusForbidden
+}
+
+// APIStatus is the status the API answered the probe with: 0 where it didn't
+// answer, as where the request timed out, or where its answer wasn't the
+// API's own, carrying no id of Anthropic's for it, as a proxy between that
+// refuses the request gives.
+func (e *probeError) APIStatus() int {
+	if !e.own {
+		return 0
+	}
+	return e.status
 }
 
 type messagesRequest struct {
