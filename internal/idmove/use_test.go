@@ -115,9 +115,18 @@ func TestTheMoveWaitsForATokenFileThatMayJoinAnAccountAnotherMacMoved(t *testing
 				o.silent = map[string]bool{workToken: true}
 				return o
 			}},
-		{name: "the primary alone, the state file naming its new id", configure: "[[account]]\nid = \"" + workID + "\"\nlabel = \"Work\"\nprimary = true\n", state: adopted,
+		{name: "the primary alone, the state file naming its new id", configure: primaryAlone, state: adopted,
 			orgs: func() *organizations {
 				o := answering()
+				o.silent = map[string]bool{workToken: true}
+				return o
+			}},
+		// Work's token file may be the former id of the account kept.
+		{name: "the primary alone, its token given here, the API silent for work's", configure: primaryAlone,
+			tokens: map[string]string{workID: "test-token-given"},
+			orgs: func() *organizations {
+				o := answering()
+				o.of["test-token-given"] = workOrganization
 				o.silent = map[string]bool{workToken: true}
 				return o
 			}},
@@ -233,29 +242,45 @@ func TestATokenFileJoinsNoAccountThisMacUsed(t *testing.T) {
 	}
 }
 
+// primaryAlone is the config another Mac moved, of its primary alone.
+const primaryAlone = "[[account]]\nid = \"" + workID + "\"\nlabel = \"Work\"\nprimary = true\n"
+
 // A second Mac whose user gave an account another Mac moved a token before
 // this one moved, as the shared config shows it with none, keeps its id, as
 // its token's organization spells it, however this Mac used it since: the
-// config isn't rewritten to an id the other Mac doesn't have. Of the token
-// files by the old ids, personal's joins the account another Mac moved it
-// onto, and work's, its organization held by the account kept, joins none:
-// the history names it, so it's an account removed before ids were made,
-// under a random id, its token file left.
-func TestAnAccountAnotherMacMovedGivenATokenHereKeepsItsID(t *testing.T) {
+// config isn't rewritten to an id the other Mac doesn't have. The token file
+// by its old id, of the same organization, is its former id, as on the other
+// Mac, so its history moves under the account's id, its token file left
+// beside the account's own. Personal's joins the account another Mac moved
+// it onto, where it's configured; where it isn't, no configured account
+// holds its organization, so it's an account removed before ids were made.
+func TestAnAccountAnotherMacMovedGivenATokenHereKeepsItsIDAndItsHistory(t *testing.T) {
 	const given = "test-token-given"
 	for _, tc := range []struct {
-		name string
-		use  func(t *testing.T, f fixture)
+		name      string
+		configure string
+		// record are the accounts the record holds already.
+		record []identity.Entry
+		use    func(t *testing.T, f fixture)
+		// personalJoins is set where personal's token file joins the
+		// account another Mac moved it onto.
+		personalJoins bool
 	}{
-		{name: "unused here"},
-		{name: "used here", use: func(t *testing.T, f fixture) {
+		{name: "both accounts configured, unused here", configure: movedConfig, personalJoins: true},
+		{name: "both accounts configured, used here", configure: movedConfig, personalJoins: true, use: func(t *testing.T, f fixture) {
 			appendDay(t, f.requestLines(), today, line(today, "r8", workID, status.ReasonSticky, "", nil))
 			appendDay(t, readingsFiles(f.state), today, reading(today, workID, 0.1))
 		}},
+		{name: "the primary alone", configure: primaryAlone},
+		{name: "the primary alone, the record holding it already", configure: primaryAlone,
+			record: []identity.Entry{{ID: workID, Organization: workOrganization, Added: now}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
-			writeFile(t, f.config, movedConfig)
+			writeFile(t, f.config, tc.configure)
+			if tc.record != nil {
+				putRecord(t, f.state, tc.record)
+			}
 			f.token(t, workID, given)
 			if tc.use != nil {
 				tc.use(t, f)
@@ -263,37 +288,39 @@ func TestAnAccountAnotherMacMovedGivenATokenHereKeepsItsID(t *testing.T) {
 			o := answering()
 			o.of[given] = workOrganization
 			m := f.mover(o)
-			m.Routing = []string{workID, personalID}
+			m.Routing = f.configuredIDs(t)
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			if err := m.Run(ctx); err != nil {
 				t.Fatalf("Run() beside a router on the config's ids = %v, want the move done", err)
 			}
 
-			if got := readFile(t, f.config); got != movedConfig {
-				t.Errorf("the config reads\n%s\nwant it as the other Mac moved it\n%s", got, movedConfig)
+			if got := readFile(t, f.config); got != tc.configure {
+				t.Errorf("the config reads\n%s\nwant it as the other Mac moved it\n%s", got, tc.configure)
 			}
 			record := f.record(t)
-			if e, ok := record.ByID(workID); !ok || e.Organization != workOrganization || e.Was != "" || !e.Removed.IsZero() {
-				t.Errorf("%s is %+v in the record, want it kept, of its organization, having had no other id", workID, e)
-			}
-			if e, ok := record.ByWas(personal); !ok || e.ID != personalID || e.Organization != personalOrganization || !e.Removed.IsZero() {
-				t.Errorf("personal's token file joined %+v, want %s, as the other Mac moved it", e, personalID)
-			}
-			stray, ok := record.ByWas(work)
-			if !ok || stray.ID == workID || !identity.WellFormed(stray.ID) || stray.Organization != "" || stray.Removed.IsZero() {
-				t.Errorf("work's token file went into the record as %+v, want work removed, under a random id, its organization unknown", stray)
+			if e, ok := record.ByWas(work); !ok || e.ID != workID || e.Organization != workOrganization || !e.Removed.IsZero() {
+				t.Errorf("work's token file went into the record as %+v, want %s's former id, as the other Mac has it", e, workID)
 			}
 			for _, e := range record.Accounts {
-				if e.Removed.IsZero() && e.ID != workID && e.ID != personalID {
-					t.Errorf("the record holds %+v, want the accounts the other Mac moved alone", e)
+				if e.ID != workID && strings.EqualFold(e.Was, work) {
+					t.Errorf("the record holds %+v, want work as %s alone", e, workID)
 				}
 			}
-			if got := readFile(t, filepath.Join(f.requestLines().Dir, "requests-"+today+".jsonl")); !strings.Contains(got, `"`+stray.ID+`"`) {
-				t.Errorf("today's request lines read\n%s\nwant work's under %s", got, stray.ID)
+			wantTokens := []string{workID, workID + ".taken", personal, personal + ".taken", work, work + ".taken"}
+			if e, ok := record.ByWas(personal); tc.personalJoins {
+				wantTokens = []string{workID, workID + ".taken", personalID, personalID + ".taken", work, work + ".taken"}
+				if !ok || e.ID != personalID || e.Organization != personalOrganization || !e.Removed.IsZero() {
+					t.Errorf("personal's token file joined %+v, want %s, as the other Mac moved it", e, personalID)
+				}
+			} else if !ok || !identity.WellFormed(e.ID) || e.Organization != "" || e.Removed.IsZero() {
+				t.Errorf("personal's token file went into the record as %+v, want personal removed, under a random id, its organization unknown", e)
 			}
-			if got, want := tokenNames(t, f), []string{workID, workID + ".taken", personalID, personalID + ".taken", work, work + ".taken"}; !slices.Equal(got, want) {
-				t.Errorf("the tokens directory holds %q, want %q", got, want)
+			if got := readFile(t, filepath.Join(f.requestLines().Dir, "requests-"+today+".jsonl")); strings.Contains(got, `"`+work+`"`) || !strings.Contains(got, `"`+workID+`"`) {
+				t.Errorf("today's request lines read\n%s\nwant work's under %s", got, workID)
+			}
+			if got := tokenNames(t, f); !slices.Equal(got, wantTokens) {
+				t.Errorf("the tokens directory holds %q, want %q", got, wantTokens)
 			}
 		})
 	}
@@ -319,5 +346,41 @@ func TestAnAccountTheHistorySpellsInTwoCasesIsRemovedOnce(t *testing.T) {
 	added, _, _ := dayfile.Day(earlier)
 	if len(removed) != 1 || removed[0].Label != spelled || !removed[0].Added.Equal(added) || removed[0].Removed.IsZero() {
 		t.Errorf("the record holds %+v of %s, want one account, removed, labelled %q, added at %s", removed, gone, spelled, added)
+	}
+}
+
+// A Mac's own move, of its configured accounts' tokens alone, asks of each of
+// them once, and of nothing else.
+func TestAMoveOfAMacsOwnAccountsAsksOfTheirTokensAlone(t *testing.T) {
+	f := newFixture(t)
+	o := answering()
+	f.runBounded(t, o)
+
+	if o.asked != 2 || o.askedFor[workToken] != 1 || o.askedFor[personalToken] != 1 {
+		t.Errorf("the API was asked %d times, %v, want once for each configured account's token", o.asked, o.askedFor)
+	}
+}
+
+// A token file whose organization a removed account alone holds is no
+// account's former id, as only a configured account takes one: the history
+// naming it, it's an account removed before ids were made, apart.
+func TestATokenFileOfARemovedAccountsOrganizationIsNoFormerID(t *testing.T) {
+	const given, side, sideToken, sideOrganization, removedID = "test-token-given", "side", "test-token-side", "test-org-side", "k3f9"
+	f := newFixture(t)
+	writeFile(t, f.config, primaryAlone)
+	putRecord(t, f.state, []identity.Entry{{ID: removedID, Organization: sideOrganization, Label: side, Added: now.Add(-48 * time.Hour), Removed: now.Add(-24 * time.Hour)}})
+	f.token(t, workID, given)
+	f.token(t, side, sideToken)
+	appendDay(t, f.requestLines(), today, line(today, "r8", side, status.ReasonSticky, "", nil))
+	o := answering()
+	o.of[given], o.of[sideToken] = workOrganization, sideOrganization
+	f.runBounded(t, o)
+
+	record := f.record(t)
+	if e, ok := record.ByID(removedID); !ok || e.Was != "" {
+		t.Errorf("the removed account is %+v, want it with no former id", e)
+	}
+	if e, ok := record.ByWas(side); !ok || e.ID == removedID || e.Organization != "" || e.Removed.IsZero() {
+		t.Errorf("side's token file went into the record as %+v, want side removed, under a random id, apart", e)
 	}
 }
