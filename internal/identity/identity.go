@@ -33,6 +33,10 @@ type Entry struct {
 	// Was is the id it had before switchboard made ids, read to import a
 	// folder exported before then: "" where it had none.
 	Was string `json:"was,omitempty"`
+	// Configured is set in the copy of a record an export writes alone, on an
+	// account the exporting Mac configures, whose Label is its config's, for
+	// a Mac importing it to take: never in a Mac's own record.
+	Configured bool `json:"configured,omitzero"`
 }
 
 // ByID returns the account with the given id, in any case, reporting false

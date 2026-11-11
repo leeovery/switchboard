@@ -251,13 +251,17 @@ func (x *exporting) record(state, folder string, configured config.Accounts) (bo
 	return true, nil
 }
 
-// labelled is record with each account configured labelled as configured
-// labels it.
+// labelled is record with each account configured marked so, as Entry's
+// Configured says, and labelled as configured labels it, where it does.
 func labelled(record identity.Record, configured config.Accounts) identity.Record {
 	out := identity.Record{Accounts: slices.Clone(record.Accounts)}
 	for i, e := range out.Accounts {
 		at := slices.IndexFunc(configured, func(a config.Account) bool { return strings.EqualFold(a.ID, e.ID) })
-		if at >= 0 && configured[at].Label != "" {
+		if at < 0 {
+			continue
+		}
+		out.Accounts[i].Configured = true
+		if configured[at].Label != "" {
 			out.Accounts[i].Label = configured[at].Label
 		}
 	}

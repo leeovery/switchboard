@@ -39,6 +39,16 @@ func (l *Ledger) RenameDay(date string, line func([]byte) []byte, id func(string
 	return l.days.renameSummary(date, id, rewritten)
 }
 
+// RenameSummary renames the accounts of the summary of the local day with
+// the given date alone, as RenameDay renames them, its day's files left as
+// they are, as of a day whose files read none of their lines. It holds
+// summarising throughout, as RenameDay does.
+func (l *Ledger) RenameSummary(date string, id func(string) string) error {
+	l.summarising.Lock()
+	defer l.summarising.Unlock()
+	return l.days.renameSummary(date, id, dayfile.Rewritten{})
+}
+
 // Rebuild deletes what the ledger built of its days' lines, their digests,
 // parts files, heads and rows files, so each is built afresh from the lines
 // as they stand, as once they're rewritten: they'd stand on lines whose count

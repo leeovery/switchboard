@@ -142,6 +142,26 @@ func TestRenamingADayOfASummaryAloneRenamesItsSummary(t *testing.T) {
 	}
 }
 
+// A day's summary renamed alone has its accounts renamed, its day's files as
+// they were.
+func TestRenamingADaysSummaryAloneLeavesItsFiles(t *testing.T) {
+	dir := summarisedDay(t)
+	path := dayFile(dir, on(0, 10, 0))
+	was, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := openedIn(dir, on(3, 10, 0)).RenameSummary(date, renamedID); err != nil {
+		t.Fatalf("RenameSummary() = %v", err)
+	}
+	if got := summaryIn(t, dir); !bytes.Contains(got, []byte(`"account":"wk7q"`)) || bytes.Contains(got, []byte(`"work"`)) {
+		t.Errorf("the summary renamed alone is %s, want its accounts renamed", got)
+	}
+	if got, err := os.ReadFile(path); err != nil || !bytes.Equal(got, was) {
+		t.Errorf("the day's file, its summary renamed alone, is %q (%v), want it as it was", got, err)
+	}
+}
+
 func TestASummaryThatRenamedNamesAnAccountTwiceIsLeftForARoundToMakeAfresh(t *testing.T) {
 	dir := t.TempDir()
 	writeAt(t, dir, on(0, 12, 0), noReadings,

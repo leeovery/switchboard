@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -87,10 +88,11 @@ func wantHeld(t *testing.T, cfg router.Config, date string, want []string) {
 }
 
 // stageOthers marks the first folder staged in cfg's state directory another
-// Mac's export, holding its accounts record where accounts says so.
+// Mac's export: of this build, holding its accounts record, where accounts
+// says so, else from before switchboard made ids.
 func stageOthers(t *testing.T, cfg router.Config, accounts bool) {
 	t.Helper()
-	stageManifest(t, folder(cfg, 1), export.Manifest{Install: otherInstall, Accounts: accounts})
+	stageManifest(t, folder(cfg, 1), export.Manifest{Install: otherInstall, IDs: accounts, Accounts: accounts})
 }
 
 // A folder this Mac exported before the move names the accounts by their old
@@ -166,7 +168,7 @@ func TestAnotherMacsFolderFromBeforeTheMoveIsRefusedUntilExportedAgain(t *testin
 	stageOthers(t, cfg, false)
 	stageLines(t, folder(cfg, 1), requestLines, date, lines...)
 	_, err := client.Import(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as a folder was exported from another Mac before switchboard made account ids: export it again from that Mac") {
+	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as the folder mac-"+otherInstall+" can't be taken in: another Mac exported it before switchboard made account ids") {
 		t.Errorf("Import() of another Mac's folder from before the move = %v, want it refused, saying to export it again", err)
 	}
 	wantHeld(t, cfg, date, nil)
@@ -225,7 +227,7 @@ func TestAFolderWhoseRecordHasntSyncedIsRefusedUntilItHas(t *testing.T) {
 	stageOthers(t, cfg, true)
 	stageLines(t, folder(cfg, 1), requestLines, date, asMoved(requestLines.linesOf(date, 1))...)
 	_, err := client.Import(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as a folder's accounts record hasn't synced yet") {
+	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as the folder mac-"+otherInstall+" can't be taken in: its accounts record hasn't synced yet") {
 		t.Errorf("Import() of a folder whose record hasn't synced = %v, want it refused, saying so", err)
 	}
 	wantHeld(t, cfg, date, nil)
@@ -236,6 +238,21 @@ func TestAFolderWhoseRecordHasntSyncedIsRefusedUntilItHas(t *testing.T) {
 	if _, err := client.Import(t.Context()); err != nil {
 		t.Fatalf("Import() once the record synced: %v", err)
 	}
+	wantHeld(t, cfg, date, asMoved(requestLines.linesOf(date, 1)))
+}
+
+// This Mac's install id is read only where a folder needs it, so one that
+// doesn't read fails no import of a folder carrying its record.
+func TestAnInstallIDThatDoesntReadFailsNoImportThatDoesntNeedIt(t *testing.T) {
+	cfg := importConfig(t)
+	putRecord(t, cfg.StateDir, movedWork)
+	put(t, filepath.Join(cfg.StateDir, "install-id"), []byte("not an id\n"), stagedOn)
+	date := dateOf(10)
+	stageOthers(t, cfg, true)
+	putRecord(t, folder(cfg, 1), movedWork)
+	stageLines(t, folder(cfg, 1), requestLines, date, asMoved(requestLines.linesOf(date, 1))...)
+
+	importNow(t, cfg)
 	wantHeld(t, cfg, date, asMoved(requestLines.linesOf(date, 1)))
 }
 
@@ -290,7 +307,7 @@ func TestAFolderWhoseAccountsRecordDoesntReadIsRefused(t *testing.T) {
 	runRouter(t, cfg)
 
 	_, err := router.NewClient(router.SocketPath(cfg.StateDir)).Import(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as the accounts record of a folder staged to import doesn't read") {
+	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as the folder mac-"+otherInstall+" can't be taken in: its accounts record doesn't read") {
 		t.Errorf("Import() error = %v, want it refused, saying the folder's accounts record doesn't read", err)
 	}
 	wantHeld(t, cfg, date, nil)

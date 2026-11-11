@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"sync"
 	"sync/atomic"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -228,17 +229,13 @@ func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 // directory's accounts record, in the order staged, as idmove's JoinFolder
 // joins them, writing the record where that changed it, and returns how each
 // folder is renamed onto its ids, in the same order, this Mac being the
-// router's install, as export's InstallID names it, and its accounts. It
-// fails, writing nothing, where the install's id can't be had, and as
-// JoinFolder does, as importStatus tells.
+// router's install, as export's InstallID names it, read only where a folder
+// needs it, and its accounts. It fails, writing nothing, as JoinFolder does,
+// as importStatus tells.
 func (r *Router) joinStaged(folders []string) ([]idmove.Renames, error) {
-	install, err := export.InstallID(r.cfg.StateDir)
-	if err != nil {
-		return nil, fmt.Errorf("read this Mac's install id: %w", err)
-	}
-	here := idmove.Here{Install: install, Accounts: r.cfg.Accounts}
+	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(r.cfg.StateDir) }), Accounts: r.cfg.Accounts}
 	renames := make([]idmove.Renames, len(folders))
-	err = identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
+	err := identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
 		for i, folder := range folders {
 			rename, err := idmove.JoinFolder(folder, record, here)
 			if err != nil {

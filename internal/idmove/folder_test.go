@@ -45,13 +45,20 @@ func thisMac() identity.Record {
 }
 
 // here is this Mac, as a folder is joined to it.
-var here = idmove.Here{Install: thisInstall}
+var here = idmove.Here{Install: func() (string, error) { return thisInstall, nil }}
+
+// The export.json of the folders of the tests: this Mac's from before ids,
+// another's then, and another's from this build, holding its record.
+var (
+	thisBefore  = export.Manifest{Install: thisInstall}
+	otherBefore = export.Manifest{Install: otherInstall}
+	otherWithID = export.Manifest{Install: otherInstall, IDs: true, Accounts: true}
+)
 
 // newFolder is the fixture's install, its state directory laid out as a
-// folder staged to import, exported by the install given, its export.json
-// saying it holds the accounts record where accounts says so: every day's
-// files compressed, as export writes them.
-func newFolder(t *testing.T, install string, accounts bool) fixture {
+// folder staged to import, its export.json as m says: every day's files
+// compressed, as export writes them.
+func newFolder(t *testing.T, m export.Manifest) fixture {
 	t.Helper()
 	f := newFixture(t)
 	kinds := []*dayfile.Files{readingsFiles(f.state), ledgerFiles(f.state), events.Files(ledger.Dir(f.state), logs.For("test"))}
@@ -71,7 +78,8 @@ func newFolder(t *testing.T, install string, accounts bool) fixture {
 			}
 		}
 	}
-	data, err := json.Marshal(export.Manifest{Version: export.Version, Install: install, ExportedAt: now, Accounts: accounts})
+	m.Version, m.ExportedAt = export.Version, now
+	data, err := json.Marshal(m)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +124,7 @@ func (f fixture) wantTallies(t *testing.T, before map[string]int, rename map[str
 // Mac's record knows: it's renamed by them, the record as it was. Joined
 // again, the folder reads as it is.
 func TestThisMacsFolderFromBeforeIDsIsRenamedByItsRecord(t *testing.T) {
-	f := newFolder(t, thisInstall, false)
+	f := newFolder(t, thisBefore)
 	before := f.tallies(t)
 	record := thisMac()
 	f.joined(t, &record)
@@ -132,32 +140,68 @@ func TestThisMacsFolderFromBeforeIDsIsRenamedByItsRecord(t *testing.T) {
 	}
 }
 
-// A folder that can't be renamed exactly is refused, the record as it was:
-// one another Mac exported before switchboard made ids, whose ids are that
-// Mac's own names, and one whose export.json says it holds an accounts
-// record it doesn't, as one a sync hasn't carried whole.
+// A folder this build exported from a Mac with no accounts record joins
+// nothing and has nothing renamed.
+func TestAFolderExportedWithIDsWithoutARecordJoinsNothing(t *testing.T) {
+	f := newFolder(t, export.Manifest{Install: otherInstall, IDs: true})
+	before := f.snapshotOf(t, "ledger", "history")
+	record := thisMac()
+	f.joined(t, &record)
+
+	if !slices.Equal(record.Accounts, thisMac().Accounts) {
+		t.Errorf("joined, the record is %+v, want it as it was", record.Accounts)
+	}
+	if got := f.snapshotOf(t, "ledger", "history"); !maps.Equal(got, before) {
+		t.Errorf("joined, the folder changed:\n%s", differences(before, got))
+	}
+}
+
+// A folder that can't be renamed exactly is refused, saying which folder,
+// the record as it was, as Refusal says it is: one another Mac exported
+// before switchboard made ids, whose ids are that Mac's own names, and one
+// whose export.json says it holds an accounts record it doesn't, as one a
+// sync hasn't carried whole.
 func TestAFolderThatCantBeRenamedExactlyIsRefused(t *testing.T) {
 	tests := []struct {
-		name     string
-		install  string
-		accounts bool
-		want     error
+		name string
+		m    export.Manifest
+		want error
 	}{
-		{name: "another Mac's from before ids", install: otherInstall, want: idmove.ErrBeforeIDs},
-		{name: "one whose record hasn't synced", install: otherInstall, accounts: true, want: idmove.ErrUnsynced},
-		{name: "this Mac's whose record hasn't synced", install: thisInstall, accounts: true, want: idmove.ErrUnsynced},
+		{name: "another Mac's from before ids", m: otherBefore, want: idmove.ErrBeforeIDs},
+		{name: "one whose record hasn't synced", m: otherWithID, want: idmove.ErrUnsynced},
+		{name: "this Mac's whose record hasn't synced", m: export.Manifest{Install: thisInstall, IDs: true, Accounts: true}, want: idmove.ErrUnsynced},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newFolder(t, tt.install, tt.accounts)
+			f := newFolder(t, tt.m)
+			if err := idmove.Refusal(f.state, here); !errors.Is(err, tt.want) {
+				t.Errorf("Refusal = %v, want %v", err, tt.want)
+			}
 			record := thisMac()
-			if _, err := idmove.JoinFolder(f.state, &record, here); !errors.Is(err, tt.want) {
-				t.Errorf("JoinFolder = %v, want %v", err, tt.want)
+			_, err := idmove.JoinFolder(f.state, &record, here)
+			if !errors.Is(err, tt.want) || !strings.Contains(err.Error(), "the folder mac-"+tt.m.Install+" can't be taken in") {
+				t.Errorf("JoinFolder = %v, want %v, saying which folder", err, tt.want)
 			}
 			if !slices.Equal(record.Accounts, thisMac().Accounts) {
 				t.Errorf("refused, the record is %+v, want it as it was", record.Accounts)
 			}
 		})
+	}
+}
+
+// This Mac's install is asked for only where a folder needs it, so one that
+// can't be had refuses only this Mac's folder from before ids, and another
+// Mac's is joined all the same, taking no label.
+func TestThisMacsInstallIsAskedForOnlyWhereAFolderNeedsIt(t *testing.T) {
+	broken := idmove.Here{Install: func() (string, error) { return "", fs.ErrPermission }}
+	f := newFolder(t, otherWithID)
+	putRecord(t, f.state, []identity.Entry{{ID: workID, Organization: workOrganization, Added: now, Was: work}})
+	record := thisMac()
+	if _, err := idmove.JoinFolder(f.state, &record, broken); err != nil {
+		t.Errorf("JoinFolder of another Mac's folder with its record, this Mac's install not to be had = %v, want it joined", err)
+	}
+	if _, err := idmove.JoinFolder(newFolder(t, thisBefore).state, &record, broken); !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("JoinFolder of this Mac's folder from before ids, its install not to be had = %v, want why", err)
 	}
 }
 
@@ -168,7 +212,7 @@ func TestAFolderThatCantBeRenamedExactlyIsRefused(t *testing.T) {
 // and the account removed there before ids were made, its organization
 // unknown, taken in under its id there, apart from the one removed here.
 func TestAFolderIsMovedOntoThisMacsIDsByTheRecordItCarries(t *testing.T) {
-	f := newFolder(t, otherInstall, true)
+	f := newFolder(t, otherWithID)
 	before := f.tallies(t)
 	putRecord(t, f.state, []identity.Entry{
 		{ID: workID, Organization: workOrganization, Added: now, Was: work},
@@ -188,9 +232,33 @@ func TestAFolderIsMovedOntoThisMacsIDsByTheRecordItCarries(t *testing.T) {
 	}
 }
 
+// An account only another Mac configures takes the label that Mac's folder
+// gives it, but never one this Mac's own folder gives, which may be older.
+func TestALabelIsTakenFromAnotherMacsFolderAlone(t *testing.T) {
+	home := identity.Entry{ID: "p4m2", Organization: "test-org-home", Label: "home", Added: now}
+	for _, tt := range []struct {
+		name    string
+		install string
+		want    string
+	}{
+		{name: "another Mac's", install: otherInstall, want: "family"},
+		{name: "this Mac's", install: thisInstall, want: "home"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFolder(t, export.Manifest{Install: tt.install, IDs: true, Accounts: true})
+			putRecord(t, f.state, []identity.Entry{{ID: "p4m2", Organization: "test-org-home", Label: "family", Added: now, Configured: true}})
+			record := identity.Record{Accounts: append(thisMac().Accounts, home)}
+			f.joined(t, &record)
+			if e, _ := record.ByID("p4m2"); e.Label != tt.want {
+				t.Errorf("joined, home is labelled %q, want %q", e.Label, tt.want)
+			}
+		})
+	}
+}
+
 // A folder whose record doesn't read is refused, the record as it was.
 func TestAFolderWhoseRecordDoesntReadIsRefused(t *testing.T) {
-	f := newFolder(t, otherInstall, true)
+	f := newFolder(t, otherWithID)
 	writeFile(t, identity.NewFile(f.state).Path(), "not a record\n")
 	record := thisMac()
 	if _, err := idmove.JoinFolder(f.state, &record, here); !errors.Is(err, idmove.ErrStagedRecord) {
@@ -203,7 +271,7 @@ func TestAFolderWhoseRecordDoesntReadIsRefused(t *testing.T) {
 
 // A day none of whose files names an account renamed is left as it is.
 func TestADayNamingNoAccountRenamedIsLeftAsItIs(t *testing.T) {
-	f := newFolder(t, thisInstall, false)
+	f := newFolder(t, thisBefore)
 	date := "2026-11-01"
 	putDay(t, readingsFiles(f.state), date, true, reading(date, workID, 0.1))
 	path := readingsFiles(f.state).CompressedPath(date)
@@ -239,7 +307,7 @@ func gzipOf(t *testing.T, lines ...string) []byte {
 // line that reads before the damage, and none after it, the rest of the
 // folder moved, rather than failing the import.
 func TestADayCutShortIsRenamedUpToTheDamage(t *testing.T) {
-	f := newFolder(t, thisInstall, false)
+	f := newFolder(t, thisBefore)
 	date := "2026-11-01"
 	kept := []string{line(date, "r1", work, "new", "", nil), line(date, "r2", personal, "new", "", nil)}
 	after := gzipOf(t, line(date, "r3", work, "new", "", nil))
@@ -262,10 +330,11 @@ func TestADayCutShortIsRenamedUpToTheDamage(t *testing.T) {
 }
 
 // A request ledger's day whose file reads none of its lines, its start
-// damaged, is left as it is, its summary too, though the summary names an
-// account renamed, so the import passes it over as any it can't read.
-func TestADayThatReadsNoLineIsLeftAsItIs(t *testing.T) {
-	f := newFolder(t, thisInstall, false)
+// damaged, is left as it is, for the import to pass over as any it can't
+// read; but its summary, which names an account renamed, is renamed alone,
+// so what the import copies in of it counts the account under its new id.
+func TestADayThatReadsNoLineHasItsSummaryRenamedAlone(t *testing.T) {
+	f := newFolder(t, thisBefore)
 	date := "2026-11-01"
 	path := ledgerFiles(f.state).CompressedPath(date)
 	writeFile(t, path, "not gzip at all")
@@ -277,8 +346,8 @@ func TestADayThatReadsNoLineIsLeftAsItIs(t *testing.T) {
 	if got := readFile(t, path); got != "not gzip at all" {
 		t.Errorf("the day that reads no line holds %q, want it as it was", got)
 	}
-	if got := readFile(t, summary); !strings.Contains(got, `"account":"work"`) {
-		t.Errorf("the day's summary reads %s, want it as it was", got)
+	if got := readFile(t, summary); strings.Contains(got, `"account":"work"`) || !strings.Contains(got, `"account":"`+workID+`"`) {
+		t.Errorf("the day's summary reads %s, want its account renamed", got)
 	}
 }
 

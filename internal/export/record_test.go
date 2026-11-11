@@ -50,8 +50,9 @@ var (
 )
 
 // The accounts record is exported with the days, with its time, counting for
-// no day, each account configured labelled as it's configured, so a Mac that
-// doesn't configure it names it, and each removed as the record labels it;
+// no day, each account configured marked so and labelled as it's
+// configured, so a Mac that doesn't configure it names it, and each removed
+// as the record labels it;
 // passed over while it's as it was, and written again once it changes.
 func TestTheAccountsRecordIsExportedLabelledCountingForNoDay(t *testing.T) {
 	state, dir := t.TempDir(), t.TempDir()
@@ -64,7 +65,7 @@ func TestTheAccountsRecordIsExportedLabelledCountingForNoDay(t *testing.T) {
 		t.Fatal(err)
 	}
 	labelledWork := work
-	labelledWork.Label = "Work"
+	labelledWork.Label, labelledWork.Configured = "Work", true
 	if got := exportedRecord(t, state, dir); !slices.Equal(got, []identity.Entry{labelledWork, side}) {
 		t.Errorf("the folder's accounts record is %+v, want the state directory's, work labelled as configured", got)
 	}
@@ -87,7 +88,7 @@ func TestTheAccountsRecordIsExportedLabelledCountingForNoDay(t *testing.T) {
 	if _, err := x.Export(dir); err != nil {
 		t.Fatal(err)
 	}
-	changed.Label = "Work"
+	changed.Label, changed.Configured = "Work", true
 	if got := exportedRecord(t, state, dir); !slices.Equal(got, []identity.Entry{changed}) {
 		t.Errorf("once the record changed, the folder's is %+v, want it as the state directory's now is", got)
 	}
@@ -113,14 +114,15 @@ func TestTheAccountsRecordIsWrittenBeforeTheDaysAndSaidHeld(t *testing.T) {
 	if _, err := x.Export(dir); err != nil || looked != 1 {
 		t.Fatalf("Export() = %v, looking at %d days, want the day exported", err, looked)
 	}
-	if m, err := export.ReadManifest(folder); err != nil || !m.Accounts {
-		t.Errorf("the folder's export.json reads %+v (%v), want it to say the folder holds the accounts record", m, err)
+	if m, err := export.ReadManifest(folder); err != nil || !m.Accounts || !m.IDs {
+		t.Errorf("the folder's export.json reads %+v (%v), want it to say ids were made, and the folder holds the accounts record", m, err)
 	}
 }
 
 // A state directory without an accounts record exports none, and removes the
-// one exported before, so the folder reads as exported before switchboard
-// made ids, as its days then are.
+// one exported before; export.json says a switchboard that makes ids
+// exported the folder, holding no record, so it's imported as of no account
+// to join.
 func TestNoAccountsRecordExportsNone(t *testing.T) {
 	state, dir := t.TempDir(), t.TempDir()
 	writeFile(t, summary(state, day1), []byte("{}\n"), summarisedAt)
@@ -134,8 +136,8 @@ func TestNoAccountsRecordExportsNone(t *testing.T) {
 	if _, err := os.Lstat(accountsRecord(folderOf(t, state, dir))); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("the folder holds an accounts record (%v), want none", err)
 	}
-	if m, err := export.ReadManifest(folderOf(t, state, dir)); err != nil || m.Accounts {
-		t.Errorf("the folder's export.json reads %+v (%v), want it not to say the folder holds the accounts record", m, err)
+	if m, err := export.ReadManifest(folderOf(t, state, dir)); err != nil || m.Accounts || !m.IDs {
+		t.Errorf("the folder's export.json reads %+v (%v), want it to say ids were made, and not that the folder holds the accounts record", m, err)
 	}
 }
 
