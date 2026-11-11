@@ -163,7 +163,7 @@ func (m Model) pasteSaved(msg pastedMsg) (Model, tea.Cmd) {
 // they're read; or failing, the step failed, not saved, as changed has it.
 func (m Model) tokenSaved(id string, err error) (Model, tea.Cmd) {
 	if err == nil {
-		m.madeFor = id
+		m.madeFor, m.held = id, nil
 	}
 	return m.changed(err)
 }

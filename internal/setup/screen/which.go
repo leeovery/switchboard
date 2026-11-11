@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/setup"
 )
 
@@ -47,7 +48,8 @@ func (c whichCard) savedOnceGone() bool {
 	select {
 	case ended := <-c.kept:
 		if ended.err != nil {
-			logger.Error("saving a token as the user answered failed once setup's screen had gone", c.f.Logged("error", ended.err)...)
+			why := redact.Text(ended.err.Error(), c.ended.Shown...)
+			logger.Error("saving a token as the user answered failed once setup's screen had gone", c.f.Logged("error", why)...)
 		}
 		return ended.err == nil && ended.tokened.Result == setup.TokenSaved
 	default:
@@ -81,7 +83,7 @@ func (m Model) whichPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "esc":
 		m.which, m.token = nil, card.from
-		if card.from != nil && len(card.ended.Shown) > 0 {
+		if card.made() {
 			m.token = card.from.showing(card.ended)
 		}
 		return m, nil
@@ -121,7 +123,9 @@ func answer(steps Steps, asked *setup.Asked, choice int, kept chan<- answeredMsg
 // the card closed; asked again, as the accounts it may be have changed since,
 // the card asking afresh; cancelled, the card closed; else, saving nothing,
 // the token card in its place, saying why, as setup words it, made safe to
-// show, to try again.
+// show, to try again: for a token made, the making's own card, and, where
+// the answer's ending shows the token, held as how it's left, as heldToken
+// has it, else left as the making ended, which shows it.
 func (m Model) answered(msg answeredMsg) (Model, tea.Cmd) {
 	if m.which == nil {
 		return m, nil
@@ -133,9 +137,23 @@ func (m Model) answered(msg answeredMsg) (Model, tea.Cmd) {
 		return m.tokenSaved(msg.tokened.ID, msg.err)
 	case r == setup.TokenAsked:
 		m.which = whichAsked(card.f, msg.tokened, card.from)
-	case r != setup.TokenCancelled:
+	case r == setup.TokenCancelled:
+	case card.made() && m.held != nil:
+		if len(msg.tokened.Shown) > 0 {
+			held := *m.held
+			held.later = &msg.tokened
+			m.held = &held
+		}
+		m.token = card.from.showing(msg.tokened)
+	default:
 		unsaved := msg.tokened.Unsaved().Clean()
 		m.token = &tokenCard{f: card.f, unsaved: &unsaved}
 	}
 	return m, nil
+}
+
+// made reports whether the card's token was made, not pasted: shown as it
+// was asked, its making's card there to show it again.
+func (c whichCard) made() bool {
+	return c.from != nil && len(c.ended.Shown) > 0
 }

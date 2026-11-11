@@ -271,3 +271,43 @@ func pastingTeamAsked(t *testing.T) *harness {
 	h.pressAndDeliver("enter")
 	return h
 }
+
+// A made token an answer didn't save stays held, however the cards come and
+// go: setup left gives it back, as the answer ended where that shows it,
+// with the save's failure's words, else as the making ended, which shows it;
+// and so after p, then esc back to its card.
+func TestAMadeTokenAnAnswerDidntSaveIsGivenBack(t *testing.T) {
+	notSaved := setup.Tokened{Result: setup.TokenNotSaved, Why: "the config changed while it was being edited", Shown: []string{madeTeam}}
+	tests := []struct {
+		name string
+		ends setup.Tokened
+		// want is what setup left gives back: the making's ending, asked,
+		// where it's zero.
+		want setup.Tokened
+	}{
+		{name: "not saved", ends: notSaved, want: notSaved},
+		{name: "configured already", ends: setup.Tokened{Result: setup.TokenSameAccount, SameAs: "Side"}},
+	}
+	for _, tt := range tests {
+		for _, keys := range [][]string{nil, {"p", "esc"}} {
+			t.Run(tt.name+" "+strings.Join(keys, " then "), func(t *testing.T) {
+				h := askingTeam(t, teamAsked())
+				h.steps.answerEnds = &tt.ends
+				h.pressAndDeliver("enter")
+				for _, key := range keys {
+					h.pressAndDeliver(key)
+				}
+				if title, _ := h.card(); title != "NEW TOKEN · TEAM" {
+					t.Errorf("the card open is %q, want team's token card", title)
+				}
+				want := tt.want
+				if want.Result == 0 {
+					want = setup.Tokened{Result: setup.TokenAsked}
+				}
+				if unsaved, _ := h.model.tokenLeft(); unsaved == nil || unsaved.Result != want.Result || unsaved.Why != want.Why || !slices.Equal(unsaved.Shown, []string{madeTeam}) {
+					t.Errorf("tokenLeft() = %+v, want %+v, the token given back", unsaved, want)
+				}
+			})
+		}
+	}
+}

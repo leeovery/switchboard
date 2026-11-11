@@ -273,6 +273,27 @@ func TestAnAnswerThatCantBeSaved(t *testing.T) {
 		}
 		w.checkUnchanged(t, before)
 	})
+	t.Run("made, a configured account's since it was asked", func(t *testing.T) {
+		w := newWorld(t)
+		w.done(t)
+		w.writeRecord(t, spareRemoved)
+		w.api.organizations = map[string]string{madeToken: "org-personal"}
+		r := w.tokenRig(t, &fakeMaker{})
+		asked, err := r.s.MakeToken(t.Context(), adding, nil)
+		if err != nil || asked.Asked == nil {
+			t.Fatalf("MakeToken() = %+v, %v; want it asked", asked, err)
+		}
+		w.writeConfig(t, w.readConfig(t)+"\n[[account]]\nid    = \"k3f9\"\nlabel = \"Team\"\n")
+		w.writeRecord(t, spareRemoved, identity.Entry{ID: "k3f9", Organization: "org-personal", Added: recordedBefore})
+		before := w.snapshot(t)
+
+		got, err := r.s.Answer(t.Context(), asked.Asked, accounts.Answer{New: true})
+
+		if err != nil || got.Result != setup.TokenNotSaved || !slices.Equal(got.Shown, []string{madeToken}) || !strings.Contains(got.Why, `the token is for "Team" (k3f9), configured already`) {
+			t.Errorf("Answer() = %+v, %v; want the token given back, not saved, as Team's", got, err)
+		}
+		w.checkUnchanged(t, before)
+	})
 	t.Run("pasted", func(t *testing.T) {
 		w := newWorld(t)
 		w.done(t)

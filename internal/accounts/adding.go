@@ -170,10 +170,11 @@ func (r Registry) known(ctx context.Context, checked Checked) (Organizations, er
 // token: nothing ties the two.
 //
 // The token is written first, then the record, then the config, all under
-// the record's lock, so a failure part way leaves the record ahead of the
-// config, which a later add or remove puts right: an account the record has
-// and the config hasn't comes back when it's added again. A token written
-// for an account the config didn't take is removed.
+// the record's lock. Where the record or the config can't be written, the
+// token written is removed, and the record put back as it was, as
+// identity.File's Change puts it back; should that fail, the record's left
+// ahead of the config, which a later add or remove puts right, as an account
+// the record has and the config hasn't comes back when it's added again.
 func (r Registry) AddChecked(ctx context.Context, account config.NewAccount, token tokens.Token, checked Checked, known Organizations, answer Answer) (Added, error) {
 	if checked.Unchecked {
 		return Added{}, &UnansweredError{Why: checked.Why}
@@ -188,41 +189,48 @@ func (r Registry) AddChecked(ctx context.Context, account config.NewAccount, tok
 		return Added{}, err
 	}
 	var added Added
-	wrote := false
-	err = r.Record.UpdateThen(func(record *identity.Record) (func() error, error) {
+	err = r.Record.Change(func(record *identity.Record, commit func() error) error {
 		draft, d, err := r.decided(*record, account, known, checked.Organization, answer)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if d.random {
 			if d.ID, err = record.Random(r.random(), configuredIn(draft.Config()).IDs()); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		account.ID = d.ID
 		if err := draft.AddAccount(account); err != nil {
-			return nil, err
+			return err
 		}
 		if err := r.write(ctx, account.ID, token, checked); err != nil {
-			return nil, err
+			return err
 		}
-		wrote = true
 		if d.Returning {
 			record.Return(account.ID, checked.Organization)
 		} else {
 			record.Add(account.ID, checked.Organization, r.now())
 		}
+		if err := saved(commit, draft.Save); err != nil {
+			return errors.Join(err, r.unwrite(account.ID))
+		}
 		added = d.Added
-		return draft.Save, nil
+		return nil
 	})
-	if err != nil && wrote {
-		err = errors.Join(err, r.unwrite(account.ID))
-	}
 	if err != nil {
 		return Added{}, err
 	}
 	logger.Info("added an account", "account", account.ID, "primary", account.Primary, "returning", added.Returning)
 	return added, nil
+}
+
+// saved writes the record, with commit, then the config, with save, which
+// isn't saved where the record isn't written.
+func saved(commit, save func() error) error {
+	if err := commit(); err != nil {
+		return err
+	}
+	return save()
 }
 
 // unwrite removes the token file written for the account with the given id,

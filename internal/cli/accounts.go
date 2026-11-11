@@ -262,8 +262,8 @@ func oneLabel(_ *cobra.Command, args []string) error {
 // addAccount registers the account, taking its token, answering, where the
 // token's organization doesn't settle which account it is, as given says,
 // else as the user does, asked, as asking has it; and says what it did, and,
-// where given says and the organization settled it, that the answer went
-// unused.
+// where given says otherwise than the organization settled it, that the
+// answer went unused.
 func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given accounts.Answer) error {
 	registry, err := a.registry(cmd)
 	if err != nil {
@@ -278,7 +278,7 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	if err != nil {
 		return addRefused(err, a.Now())
 	}
-	if given != (accounts.Answer{}) && !asked {
+	if !asked && contrary(given, added) {
 		launch.Notice(cmd.ErrOrStderr(), unusedAnswer(given, added))
 	}
 	said := "added " + prose.Quoted(account.Label) + " as " + added.ID
@@ -290,6 +290,19 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	}
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
+}
+
+// contrary reports whether given answers otherwise than the account was
+// added, as added says: --new for one this Mac had, or --returning for a new
+// account or another this Mac had. None given answers nothing.
+func contrary(given accounts.Answer, added accounts.Added) bool {
+	switch {
+	case given.New:
+		return added.Returning
+	case given.ID != "":
+		return !added.Returning || !strings.EqualFold(given.ID, added.ID)
+	}
+	return false
 }
 
 // unusedAnswer says the answer given went unused, as the token's

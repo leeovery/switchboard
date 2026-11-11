@@ -468,13 +468,18 @@ type Asked struct {
 // is, saving it as add does: so asked again, where what the accounts record
 // holds has changed since it was asked. A save begun is a save, however ctx
 // ends, as a made token's is. A token made, which lasts a year on the
-// account, that can't be saved is given back to copy, as notSaved has it.
+// account, that isn't saved, as where it's a configured account's, or can't
+// be saved, is given back to copy, as notSaved has it.
 func (s *Setup) Answer(ctx context.Context, asked *Asked, answer accounts.Answer) (Tokened, error) {
-	tokened, err := s.add(context.WithoutCancel(ctx), asked, answer)
-	if err != nil && !asked.pasted {
+	ctx = context.WithoutCancel(ctx)
+	if asked.pasted {
+		return s.add(ctx, asked, answer)
+	}
+	tokened, err := s.adding(ctx, asked, answer)
+	if err != nil {
 		return notSaved(asked.f, err, asked.token), nil
 	}
-	return tokened, err
+	return tokened, nil
 }
 
 // add adds the account with the token a holds, which the API answered for as
@@ -488,15 +493,22 @@ func (s *Setup) Answer(ctx context.Context, asked *Asked, answer accounts.Answer
 // where the API didn't answer for the token, as an account isn't added until
 // its organization is known.
 func (s *Setup) add(ctx context.Context, a *Asked, answer accounts.Answer) (Tokened, error) {
+	tokened, err := s.adding(ctx, a, answer)
+	if configured, ok := errors.AsType[*accounts.ConfiguredError](err); ok {
+		return Tokened{Result: TokenSameAccount, SameAs: configured.Label}, nil
+	}
+	return tokened, err
+}
+
+// adding is add, but failing with a ConfiguredError where the token's a
+// configured account's.
+func (s *Setup) adding(ctx context.Context, a *Asked, answer accounts.Answer) (Tokened, error) {
 	added, err := s.Accounts.AddChecked(ctx, a.f.Account, a.token, a.checked, a.f.Organizations, answer)
 	if question, ok := errors.AsType[*accounts.QuestionError](err); ok {
 		return a.asking(question.Question), nil
 	}
 	if notAChoice, ok := errors.AsType[*accounts.NotAChoiceError](err); ok {
 		return a.asking(notAChoice.Question), nil
-	}
-	if configured, ok := errors.AsType[*accounts.ConfiguredError](err); ok {
-		return Tokened{Result: TokenSameAccount, SameAs: configured.Label}, nil
 	}
 	return s.saved(ctx, err, Tokened{Result: TokenSaved, Checked: a.checked, ID: added.ID})
 }

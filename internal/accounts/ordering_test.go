@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,95 +52,89 @@ func (w *world) stateReadOnly(t *testing.T) {
 }
 
 // Adding writes the token, then the record, then the config, all under the
-// record's lock: where the config can't be saved, the record is left ahead,
-// holding the account, and the token written for it is removed; adding it
-// again then brings it back under its id, the record put right. Where the
-// record can't be written, nothing is: the token's removed, the config left
-// as it was.
+// record's lock: where the record or the config can't be written, the token
+// written is removed, the config left as it was, and the record put back as
+// it was, a removed account keeping the label it kept.
 func TestAddingWritesTheRecordBeforeTheConfig(t *testing.T) {
-	add := func(t *testing.T, w *world) (accounts.Added, error) {
-		t.Helper()
-		return w.unasked(t, &user{}).AddChecked(t.Context(), config.NewAccount{Label: "Side"}, tokenOf(t, sideToken),
-			accounts.Checked{Organization: organization}, nil, accounts.Answer{})
+	removed := identity.Entry{ID: sideID, Organization: organization, Label: "Old side", Added: before, Removed: before}
+	tests := []struct {
+		name   string
+		record []identity.Entry
+		// fail makes the world one the record, or the config, can't be
+		// written in.
+		fail func(t *testing.T, w *world)
+		// wantErr is part of what the add fails with.
+		wantErr string
+	}{
+		{name: "the config not saved, a new account", fail: func(t *testing.T, w *world) { readOnly(t, w.configApart(t)) }, wantErr: "write config"},
+		{name: "the config not saved, an account this Mac had", record: []identity.Entry{removed}, fail: func(t *testing.T, w *world) { readOnly(t, w.configApart(t)) }, wantErr: "write config"},
+		{name: "the record not written", fail: func(t *testing.T, w *world) { w.stateReadOnly(t) }, wantErr: "write the accounts record"},
 	}
-	t.Run("the config not saved", func(t *testing.T) {
-		w := newWorld(t, twoAccounts)
-		readOnly(t, w.configApart(t))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, twoAccounts)
+			w.writeRecord(t, tt.record...)
+			tt.fail(t, w)
 
-		if _, err := add(t, w); err == nil {
-			t.Fatal("AddChecked() with the config unsaved succeeded, want an error")
-		}
-		w.checkConfig(t, twoAccounts)
-		w.checkNoToken(t, sideID)
-		w.checkRecord(t, identity.Entry{ID: sideID, Organization: organization, Added: now})
+			_, err := w.unasked(t, &user{}).AddChecked(t.Context(), config.NewAccount{Label: "Side"}, tokenOf(t, sideToken),
+				accounts.Checked{Organization: organization}, nil, accounts.Answer{})
 
-		if err := os.Chmod(filepath.Dir(w.config), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if got, err := add(t, w); err != nil || got != (accounts.Added{ID: sideID, Returning: true}) {
-			t.Fatalf("AddChecked() again = %+v, %v; want the account back under its id", got, err)
-		}
-		w.checkConfig(t, twoAccounts+"\n[[account]]\nid    = \""+sideID+"\"\nlabel = \"Side\"\n")
-		w.checkToken(t, sideID, sideToken)
-		w.checkRecord(t, identity.Entry{ID: sideID, Organization: organization, Added: now})
-	})
-	t.Run("the record not written", func(t *testing.T) {
-		w := newWorld(t, twoAccounts)
-		w.stateReadOnly(t)
-
-		if _, err := add(t, w); err == nil {
-			t.Fatal("AddChecked() with the record unwritten succeeded, want an error")
-		}
-		w.checkConfig(t, twoAccounts)
-		w.checkNoToken(t, sideID)
-		w.checkRecord(t)
-	})
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("AddChecked() = %v, want an error saying %q", err, tt.wantErr)
+			}
+			w.checkConfig(t, twoAccounts)
+			w.checkNoToken(t, sideID)
+			w.checkRecord(t, tt.record...)
+		})
+	}
 }
 
-// Removing marks the account removed in the record, then saves the config,
-// both under the record's lock, then removes its token file: where the
-// config can't be saved, the account's left configured, its token kept,
-// marked removed, and removing it again removes it. Where the record can't
-// be written, nothing is.
+// Removing marks the account removed in the record, saves the config, then
+// removes its token file, all under the record's lock: where the record or
+// the config can't be written, nothing is, the record put back as it was.
 func TestRemovingWritesTheRecordBeforeTheConfig(t *testing.T) {
 	side := identity.Entry{ID: "side", Organization: organization, Added: before}
-	removed := identity.Entry{ID: "side", Organization: organization, Label: "Side", Added: before, Removed: now}
-	t.Run("the config not saved", func(t *testing.T) {
-		w := newWorld(t, withSide)
-		w.writeRecord(t, side)
-		w.writeToken(t, "side", sideToken, 0o600)
-		readOnly(t, w.configApart(t))
+	tests := []struct {
+		name    string
+		fail    func(t *testing.T, w *world)
+		wantErr string
+	}{
+		{name: "the config not saved", fail: func(t *testing.T, w *world) { readOnly(t, w.configApart(t)) }, wantErr: "write config"},
+		{name: "the record not written", fail: func(t *testing.T, w *world) { w.stateReadOnly(t) }, wantErr: "write the accounts record"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, withSide)
+			w.writeRecord(t, side)
+			w.writeToken(t, "side", sideToken, 0o600)
+			tt.fail(t, w)
 
-		if _, err := w.registry(&user{}, nil).Remove("side"); err == nil {
-			t.Fatal("Remove() with the config unsaved succeeded, want an error")
-		}
-		w.checkConfig(t, withSide)
-		w.checkToken(t, "side", sideToken)
-		w.checkRecord(t, removed)
+			if _, err := w.registry(&user{}, nil).Remove("side"); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Remove() = %v, want an error saying %q", err, tt.wantErr)
+			}
+			w.checkConfig(t, withSide)
+			w.checkToken(t, "side", sideToken)
+			w.checkRecord(t, side)
+		})
+	}
+}
 
-		if err := os.Chmod(filepath.Dir(w.config), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := w.registry(&user{}, nil).Remove("side"); err != nil {
-			t.Fatalf("Remove() again = %v, want side removed", err)
-		}
-		w.checkConfig(t, twoAccounts)
-		w.checkNoToken(t, "side")
-		w.checkRecord(t, removed)
-	})
-	t.Run("the record not written", func(t *testing.T) {
-		w := newWorld(t, withSide)
-		w.writeRecord(t, side)
-		w.writeToken(t, "side", sideToken, 0o600)
-		w.stateReadOnly(t)
+// A replaced token whose organization the record can't be written to keep
+// is saved all the same, written first, and that's said.
+func TestAReplacedTokenWhoseOrganizationIsntRecordedSaysSo(t *testing.T) {
+	sideAt := twoAccounts + "\n[[account]]\nid    = \"k3f9\"\nlabel = \"Side\"\n"
+	w := newWorld(t, sideAt)
+	w.writeRecord(t, identity.Entry{ID: "k3f9", Added: now})
+	w.writeToken(t, "k3f9", "test-token-stale", 0o600)
+	readOnly(t, w.state)
 
-		if _, err := w.registry(&user{}, nil).Remove("side"); err == nil {
-			t.Fatal("Remove() with the record unwritten succeeded, want an error")
-		}
-		w.checkConfig(t, withSide)
-		w.checkToken(t, "side", sideToken)
-		w.checkRecord(t, side)
-	})
+	err := w.unasked(t, &user{}).SetTokenChecked(t.Context(), "k3f9", tokenOf(t, sideToken), accounts.Checked{Organization: organization})
+
+	if err == nil || !strings.Contains(err.Error(), "k3f9's token is saved, but its organization isn't recorded") {
+		t.Errorf("SetTokenChecked() = %v, want it saying the token's saved and the record isn't", err)
+	}
+	w.checkToken(t, "k3f9", sideToken)
+	w.checkRecord(t, identity.Entry{ID: "k3f9", Added: now})
 }
 
 // A replaced token is held to the account's organization as the record has

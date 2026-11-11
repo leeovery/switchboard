@@ -41,7 +41,7 @@ func adding(t *testing.T, entries ...identity.Entry) (cli.Deps, string, *organiz
 // had is added under the id it gives, the record holding it, added now; one
 // it had, removed since, comes back under its id, the label it kept cleared,
 // as the config's is the one. An answer given where the organization settles
-// it goes unused, which is said.
+// it goes unused, which is said where it answers otherwise.
 func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 	returned := identity.Entry{ID: "k3f9", Organization: "org-work", Label: "Old work", Added: testNow.AddDate(-1, 0, 0), Removed: testNow.AddDate(0, -1, 0)}
 	tests := []struct {
@@ -84,6 +84,21 @@ func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 			wantSaid: "switchboard: --new went unused: the token's organization says it's k3f9, an account this Mac had\n",
 			table:    "[[account]]\nid    = \"k3f9\"\nlabel = \"Work\"\n",
 			entry:    identity.Entry{ID: "k3f9", Organization: "org-work", Added: returned.Added},
+		},
+		{
+			name:    "a new account answered where the organization says so",
+			args:    []string{"accounts", "add", "Work", "--new"},
+			wantOut: `added "Work" as ` + workID + "\n",
+			table:   "[[account]]\nid    = \"" + workID + "\"\nlabel = \"Work\"\n",
+			entry:   identity.Entry{ID: workID, Organization: "org-work", Added: testNow},
+		},
+		{
+			name:    "an account this Mac had answered where the organization says it's that one, in another case",
+			args:    []string{"accounts", "add", "Work", "--returning", "K3F9"},
+			record:  []identity.Entry{returned},
+			wantOut: `added "Work" as k3f9, an account this Mac had, so its history carries on` + "\n",
+			table:   "[[account]]\nid    = \"k3f9\"\nlabel = \"Work\"\n",
+			entry:   identity.Entry{ID: "k3f9", Organization: "org-work", Added: returned.Added},
 		},
 		{
 			name:     "an account this Mac had answered where the organization says it's new",

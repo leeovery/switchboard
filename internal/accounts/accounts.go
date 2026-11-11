@@ -254,16 +254,23 @@ func (e *OtherSubscriptionError) Error() string {
 // know the account's, and has another of the token's. Where the API named
 // none, or the record hasn't the account, as one from before switchboard
 // made ids, there's nothing to hold it to, and nothing is recorded. It's
-// checked, and the token written, under the record's lock, so what the
-// record has can't change in between; the record is written only where
-// there's something to record, so a refusal, or a token of the account's
-// own, leaves it as it is.
+// checked, and the token written, then the record, under the record's lock,
+// so what the record has can't change in between; the record is written
+// only where there's something to record, so a refusal, or a token of the
+// account's own, leaves it as it is. Where the record can't be written once
+// the token is, it fails saying the token's saved and the record isn't.
 func (r Registry) replace(ctx context.Context, id string, token tokens.Token, checked Checked) error {
-	return r.Record.UpdateThen(func(record *identity.Record) (func() error, error) {
+	return r.Record.Change(func(record *identity.Record, commit func() error) error {
 		if err := r.owned(record, id, checked.Organization); err != nil {
-			return nil, err
+			return err
 		}
-		return nil, r.write(ctx, id, token, checked)
+		if err := r.write(ctx, id, token, checked); err != nil {
+			return err
+		}
+		if err := commit(); err != nil {
+			return fmt.Errorf("%s's token is saved, but its organization isn't recorded: %w", id, err)
+		}
+		return nil
 	})
 }
 
@@ -334,35 +341,41 @@ func (e *TokenFileLeft) Unwrap() error {
 
 // Remove removes the account with the given id: marking it removed in the
 // accounts record, with the label it showed, where the record has it, then
-// its [[account]] table from the config file, both under the record's lock,
-// then its token file, saying what it removed of that, and which account is
+// its [[account]] table from the config file, then its token file, all under
+// the record's lock, saying what it removed of that, and which account is
 // the primary now, when it removed the primary. It fails with a
 // TokenFileLeft where it removed the table but not the token file. The
-// record is written only where it has the account, and ahead of the config,
-// so a failure between them leaves the account marked removed but still
+// record is written only where it has the account, and is put back as it
+// was where the config can't be saved, as identity.File's Change puts it
+// back; should that fail, the account's left marked removed but still
 // configured, which removing it again puts right.
 func (r Registry) Remove(id string) (Removed, error) {
 	var before, after *config.Config
-	err := r.Record.UpdateThen(func(record *identity.Record) (func() error, error) {
+	var file tokens.Removed
+	var left error
+	err := r.Record.Change(func(record *identity.Record, commit func() error) error {
 		draft, err := config.Edit(r.ConfigPath)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		before = draft.Config()
 		if err := draft.RemoveAccount(id); err != nil {
-			return nil, err
+			return err
 		}
 		was, _ := configured(before, id)
 		record.Remove(id, was.Label, r.now())
 		after = draft.Config()
-		return draft.Save, nil
+		if err := saved(commit, draft.Save); err != nil {
+			return err
+		}
+		file, left = r.Tokens.Remove(id)
+		return nil
 	})
 	if err != nil {
 		return Removed{}, err
 	}
-	file, err := r.Tokens.Remove(id)
-	if err != nil {
-		return Removed{}, &TokenFileLeft{ID: id, err: err}
+	if left != nil {
+		return Removed{}, &TokenFileLeft{ID: id, err: left}
 	}
 	removed := Removed{Removed: file}
 	if before.Accounts.Primary().ID == id {

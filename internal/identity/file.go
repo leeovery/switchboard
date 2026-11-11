@@ -81,23 +81,33 @@ func (f File) Read() (Record, error) {
 // itself: a second lock in one process waits on the first for good. Where the
 // config's lock is held too, it's taken first.
 func (f File) Update(change func(*Record) error) error {
-	return f.update(func(r *Record) (func() error, error) { return nil, change(r) }, true)
+	unlock, err := f.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	r, err := f.Read()
+	if err != nil {
+		return err
+	}
+	if err := change(&r); err != nil {
+		return err
+	}
+	return f.write(r)
 }
 
-// UpdateThen changes the accounts record as Update does, but writes it only
-// where change changed it; then, once it's written, or found unchanged, runs
-// what change returned, where it returned anything, while the record's lock
-// is still held, its error returned as it is. It's for a change that has to
-// follow the record's own, as the config's does: a failure between the two
-// leaves the record ahead, which whatever changes them next puts right. Where
-// the record can't be written, what change returned doesn't run.
-func (f File) UpdateThen(change func(*Record) (then func() error, err error)) error {
-	return f.update(change, false)
-}
-
-// update is Update, writing the record where always is set, else only where
-// change changed it, then running what change returned, as UpdateThen says.
-func (f File) update(change func(*Record) (then func() error, err error), always bool) error {
+// Change changes the accounts record as Update does, for a change of other
+// files that has to go with the record's, as the config's does. change makes
+// its change to the record it's given, then calls commit, at the point its
+// own steps say, to write it, where it changed; commit is called for it
+// where change returns without, and once it's written, changes made after
+// aren't. The lock's held throughout. Where change fails once commit has
+// written the record, the record is put back as it was, under the same
+// lock, any error of that joined to change's: should that fail too, the
+// record is left ahead, which whatever changes it next puts right. Nothing's
+// written where change fails before commit, nor where the record's
+// unchanged.
+func (f File) Change(change func(r *Record, commit func() error) error) error {
 	unlock, err := f.lock()
 	if err != nil {
 		return err
@@ -108,19 +118,26 @@ func (f File) update(change func(*Record) (then func() error, err error), always
 		return err
 	}
 	was := slices.Clone(r.Accounts)
-	then, err := change(&r)
-	if err != nil {
-		return err
-	}
-	if always || !slices.Equal(was, r.Accounts) {
+	written := false
+	commit := func() error {
+		if written || slices.Equal(was, r.Accounts) {
+			return nil
+		}
 		if err := f.write(r); err != nil {
 			return err
 		}
-	}
-	if then == nil {
+		written = true
 		return nil
 	}
-	return then()
+	if err := change(&r, commit); err != nil {
+		if written {
+			if restored := f.write(Record{Accounts: was}); restored != nil {
+				err = errors.Join(err, fmt.Errorf("put the accounts record back: %w", restored))
+			}
+		}
+		return err
+	}
+	return commit()
 }
 
 // write writes the record whole, in place of the file, that only its owner
