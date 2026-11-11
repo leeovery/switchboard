@@ -41,8 +41,58 @@ func stage(t *testing.T, importDir string, folders ...string) {
 // foldersIn returns the Macs' folders Folders finds in dir, and the folders
 // it passed over as their export.json doesn't read.
 func foldersIn(dir string) (folders, unread []string, err error) {
-	folders, err = export.Folders(dir, func(folder string) { unread = append(unread, folder) })
+	folders, err = export.Folders(dir, func(folder string, why error) {
+		if errors.Is(why, export.ErrUnread) {
+			unread = append(unread, folder)
+		}
+	})
 	return folders, unread, err
+}
+
+// A folder holding what an export writes without its export.json, as an
+// export cut short leaves one, or a sync not done, is passed over, said so,
+// so another Mac's history never drops out of an import unsaid; one holding
+// nothing an export writes is passed over unsaid.
+func TestFoldersPassesOverAFolderOfAnExportWithoutItsExportJSONSayingSo(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// put writes the folder's files, besides export.json, where it's set.
+		put  func(t *testing.T, folder string)
+		want bool
+	}{
+		{name: "its accounts record", put: func(t *testing.T, folder string) {
+			writeFile(t, filepath.Join(folder, "accounts.json"), []byte(`{"accounts":[]}`+"\n"), exportNow)
+		}, want: true},
+		{name: "a day's lines", put: func(t *testing.T, folder string) {
+			writeFile(t, requests.compressed(folder, day1), gzipOf(t, linesOf(`{"n":1}`)), exportNow)
+		}, want: true},
+		{name: "a day's summary", put: func(t *testing.T, folder string) {
+			writeFile(t, summary(folder, day1), []byte(`{"version":6}`+"\n"), exportNow)
+		}, want: true},
+		{name: "nothing an export writes", put: func(t *testing.T, folder string) {
+			writeFile(t, filepath.Join(folder, "notes.txt"), []byte("no export here\n"), exportNow)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			macsFolder(t, filepath.Join(dir, "mac-"+installOne), installOne, export.Version)
+			cut := filepath.Join(dir, "mac-"+installTwo)
+			tc.put(t, cut)
+			var passed []string
+			got, err := export.Folders(dir, func(folder string, why error) {
+				if errors.Is(why, export.ErrNoManifest) {
+					passed = append(passed, folder)
+				}
+			})
+
+			if want := []string{filepath.Join(dir, "mac-"+installOne)}; err != nil || !slices.Equal(got, want) {
+				t.Errorf("Folders() = %q, %v; want %q", got, err, want)
+			}
+			if said := slices.Equal(passed, []string{cut}); said != tc.want {
+				t.Errorf("Folders() said it passed over %q as an export without its export.json, want it said %v", passed, tc.want)
+			}
+		})
+	}
 }
 
 // filesUnder returns the paths of the files under root, from root, oldest

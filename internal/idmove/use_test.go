@@ -70,6 +70,13 @@ func TestWhatOnlyFollowsTheConfigIsNoUseOfAnIDAnotherMacMoved(t *testing.T) {
 		{name: "and a request line moved from a new id, going out on none", put: func(t *testing.T, f fixture) {
 			appendDay(t, f.requestLines(), today, line(today, "r8", "", status.ReasonNoRoom, workID, nil))
 		}},
+		// Its day's summary names the new id as one a session moved off
+		// alone, which is no use either.
+		{name: "and a request line moved from a new id, going out on none, its day summarised", put: func(t *testing.T, f fixture) {
+			const ended = "2026-11-01"
+			appendDay(t, f.requestLines(), ended, line(ended, "r8", "", status.ReasonNoRoom, workID, nil))
+			summariseNaming(t, f, ended, workID)
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
@@ -218,14 +225,16 @@ func TestATokenFileJoinsNoAccountThisMacUsed(t *testing.T) {
 				}
 			}
 		}},
-		// A line's move from it is no use, as the move from a new id in
-		// TestWhatOnlyFollowsTheConfigIsNoUseOfAnIDAnotherMacMoved has it,
-		// but its day's summary, naming the account a session moved from, is:
-		// the session was on it before, so it was used.
-		{name: "a request moved from it, its day summarised", use: func(t *testing.T, f fixture) {
-			const ended = "2026-11-01"
-			appendDay(t, f.requestLines(), ended, line(ended, "r8", "", status.ReasonNoRoom, workID, nil))
-			summariseNaming(t, f, ended, workID)
+		// The day's request went out on another, so its summary shows the
+		// reading alone of b6s7's.
+		{name: "a day's summary of a reading alone, its readings gone", use: func(t *testing.T, f fixture) {
+			const pruned = "2026-11-01"
+			appendDay(t, f.requestLines(), pruned, line(pruned, "r8", personal, status.ReasonSticky, "", nil))
+			putDay(t, readingsFiles(f.state), pruned, true, reading(pruned, workID, 0.1))
+			summariseNaming(t, f, pruned, workID)
+			if err := os.Remove(readingsFiles(f.state).CompressedPath(pruned)); err != nil {
+				t.Fatal(err)
+			}
 		}},
 		{name: "a request going out on it, in another case", use: func(t *testing.T, f fixture) {
 			appendDay(t, f.requestLines(), today, line(today, "r8", strings.ToUpper(workID), status.ReasonSticky, "", nil))
@@ -250,6 +259,40 @@ func TestATokenFileJoinsNoAccountThisMacUsed(t *testing.T) {
 
 // primaryAlone is the config another Mac moved, of its primary alone.
 const primaryAlone = "[[account]]\nid = \"" + workID + "\"\nlabel = \"Work\"\nprimary = true\n"
+
+// Where a token file the history names may join an account another Mac
+// moved, the move waits on the API for it, though a copy of it the history
+// names none of answered: the copy would join in its place, and its history
+// go under an account removed. Once it answers, it joins.
+func TestTheMoveWaitsForTheTokenFileTheHistoryNamesThoughACopyAnswered(t *testing.T) {
+	const backup = "test-token-backup"
+	f := newFixture(t)
+	writeFile(t, f.config, movedConfig)
+	f.token(t, "backup", backup)
+	before := f.snapshot(t)
+	o := answering()
+	o.of[backup] = workOrganization
+	o.silent = map[string]bool{workToken: true}
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	if err := f.mover(o).Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Run() = %v, want it waiting for the API till its context ended", err)
+	}
+	if got := f.snapshot(t); !maps.Equal(got, before) {
+		t.Errorf("waiting on the API, the install changed:\n%s", differences(before, got))
+	}
+
+	o = answering()
+	o.of[backup] = workOrganization
+	f.runBounded(t, o)
+	record := f.record(t)
+	if e, ok := record.ByWas(work); !ok || e.ID != workID {
+		t.Errorf("work's token file went into the record as %+v, want it joining %s", e, workID)
+	}
+	if e, ok := record.ByWas("backup"); ok {
+		t.Errorf("the copy went into the record as %+v, want it passed over", e)
+	}
+}
 
 // summariseNaming summarises the fixture's ended days, failing t where the
 // summary of the day with the given date doesn't name the account given.
@@ -430,8 +473,9 @@ func TestTheTokenFileAnAccountTakesIsTheOneItsLabelOrHistoryNames(t *testing.T) 
 		// given is set where the account's token is given here, so it keeps
 		// its id.
 		given bool
-		// copies are the token files of copies of work's token, by name, and
-		// workGone is set where work's token file isn't there.
+		// copies are the token files of tokens of work's organization, each
+		// test-token-<name>, by name, and workGone is set where work's token
+		// file isn't there.
 		copies   []string
 		workGone bool
 		history  func(t *testing.T, f fixture)
@@ -458,6 +502,18 @@ func TestTheTokenFileAnAccountTakesIsTheOneItsLabelOrHistoryNames(t *testing.T) 
 			wantFormer: backup, wantRemoved: []string{work}},
 		{name: "joined, job told of before work, the label naming job", configure: strings.Replace(movedConfig, `"Work"`, `"Job"`, 1), copies: []string{job},
 			history: namedOn(yesterday, job), wantFormer: job, wantRemoved: []string{work}},
+		{name: "joined, job told of before work, the label naming neither", configure: strings.Replace(movedConfig, `"Work"`, `"Main"`, 1), copies: []string{job},
+			history: namedOn(yesterday, job), wantFormer: work, wantRemoved: []string{job}},
+		// Job is another account's label, which counts for none of work's.
+		{name: "kept, job told of before work, another account labelled job", configure: labelledAs("Main") + "\n[[account]]\nid = \"" + personalID + "\"\nlabel = \"Job\"\n",
+			given: true, copies: []string{job}, history: namedOn(yesterday, job), wantFormer: work, wantRemoved: []string{job}},
+		// Copy is named by the router's state file alone, which outranks a
+		// token file nothing names.
+		{name: "joined, a copy the state file names and one nothing names", configure: movedConfig, copies: []string{backup, "copy"}, workGone: true,
+			history: func(t *testing.T, f fixture) {
+				writeFile(t, filepath.Join(f.state, "state.json"), `{"version": 1, "sessions": [], "readings": {"copy": {"read_at": "2026-11-08T11:00:00Z"}}}`)
+			},
+			wantFormer: "copy", wantRemoved: []string{work}, wantPassed: []string{backup}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
@@ -468,7 +524,8 @@ func TestTheTokenFileAnAccountTakesIsTheOneItsLabelOrHistoryNames(t *testing.T) 
 				o.of[given] = workOrganization
 			}
 			for _, name := range tc.copies {
-				f.token(t, name, workToken)
+				f.token(t, name, "test-token-"+name)
+				o.of["test-token-"+name] = workOrganization
 			}
 			if tc.workGone {
 				if err := os.Remove(f.tokens.Path(work)); err != nil {
@@ -493,6 +550,17 @@ func TestTheTokenFileAnAccountTakesIsTheOneItsLabelOrHistoryNames(t *testing.T) 
 				if e, ok := record.ByWas(name); ok {
 					t.Errorf("%s went into the record as %+v, want it passed over", name, e)
 				}
+			}
+			wantToken := given
+			switch {
+			case tc.given:
+			case tc.wantFormer == work:
+				wantToken = workToken
+			default:
+				wantToken = "test-token-" + tc.wantFormer
+			}
+			if token, err := f.tokens.Read(workID); err != nil || token.Reveal() != wantToken {
+				t.Errorf("%s's token file holds %v, want the token of the file it took", workID, err)
 			}
 		})
 	}

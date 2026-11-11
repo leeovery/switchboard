@@ -137,12 +137,12 @@ func fromImport(err error) error {
 // foldersIn returns the Macs' folders to import from dir into the Mac whose
 // state directory is state, as export.Folders finds them, saying on errOut,
 // a line each, which it passed over, the import carrying on without them:
-// those whose export.json doesn't read, and those the router would refuse,
-// as idmove's Refusal says, and why. It fails where it passed over every
+// those export.Folders passes over, and those the router would refuse, as
+// idmove's Refusal says, and why. It fails where it passed over every
 // folder there was.
 func foldersIn(errOut io.Writer, state, dir string) ([]string, error) {
 	var passed []string
-	found, err := export.Folders(dir, func(folder string) { passed = append(passed, folder+": its export.json doesn't read") })
+	found, err := export.Folders(dir, func(folder string, why error) { passed = append(passed, folder+": "+why.Error()) })
 	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(state) })}
 	var folders []string
 	for _, folder := range found {

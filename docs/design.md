@@ -8170,7 +8170,8 @@ where there was one. A `<dir>` that can't be made or written, or that's a file, 
 
 `import <dir>` brings in the history of each Mac's folder in `<dir>`, or of the one folder `<dir>`
 is: a folder holding an `export.json` that reads, of this Mac's own install too, as a folder may
-be brought back to the Mac it came from. A folder without one is passed over, and an
+be brought back to the Mac it came from. A folder without one is passed over, saying so where it
+holds what an export writes, as an export cut short or a sync not done leaves one, and an
 `export.json` of a version newer than this switchboard's is refused, saying a newer switchboard
 made it. A `<dir>` holding no Mac's folder fails, saying so.
 

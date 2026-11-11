@@ -413,6 +413,24 @@ func TestImportSaysWhichFolderItPassedOverAsItsExportJSONDoesntReadThenCarriesOn
 	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
 }
 
+// Another Mac's folder holding its days without its export.json, as its
+// export cut short leaves it, is passed over, said by its path and why.
+func TestImportSaysWhichFolderItPassedOverAsItHoldsAnExportWithoutItsExportJSONThenCarriesOn(t *testing.T) {
+	deps, state := importDeps(t)
+	dir := t.TempDir()
+	importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
+	cut := filepath.Join(dir, "mac-fedcba9876543210")
+	writeStateFile(t, ledger.Dir(cut), "requests-2026-10-03.jsonl.gz", []byte("the 3rd's lines\n"))
+	post, _ := answeringAsStaged(t, state, router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}})
+	(&imports{post: post}).serve(t, state)
+
+	want := result{stdout: "imported 1 folder: 1 day added\n",
+		stderr: "switchboard: passed over " + cut + ": it holds an export without its export.json, as an export cut short or a sync not done leaves one: import it again once it's exported whole\n"}
+	if got := run(t, deps, "import", dir); got != want {
+		t.Errorf("switchboard import = %+v, want %+v", got, want)
+	}
+}
+
 // A folder the router would refuse is passed over, said by its path and
 // why, and the rest imported: another Mac's exported before switchboard
 // made account ids, and one whose accounts record hasn't synced.

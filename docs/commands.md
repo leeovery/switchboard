@@ -1468,8 +1468,9 @@ switchboard import <dir>
 
 A relative `<dir>` is taken from the working directory. A Mac's folder is one holding an
 `export.json` that reads. This Mac's own is taken in like any other, and a folder without one is
-passed over. A folder whose `export.json` doesn't read, as one damaged, is passed over too, and
-`import` says so, and carries on with the rest:
+passed over. A folder whose `export.json` doesn't read, as one damaged, is passed over too, and so
+is one holding an export without its `export.json`, as an export cut short or a sync not done
+leaves one; for each, `import` says so, and carries on with the rest:
 
 ```
 switchboard: passed over /Users/you/Dropbox/switchboard/mac-0123456789abcdef: its export.json doesn't read

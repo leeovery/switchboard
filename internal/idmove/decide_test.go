@@ -44,8 +44,12 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 		configure string
 		orgs      func() *organizations
 		// spoil, where it's set, is the token file spoilt, emptied.
-		spoil     string
-		wantAsked int
+		spoil string
+		// given is set where b6s7 has a token of work's organization given
+		// here, so it keeps its id; and personalStray where personal isn't
+		// configured, so its token file is a stray the history names.
+		given, personalStray bool
+		wantAsked            int
 		// wantTaken are the ids the tokens of accounts take, by the
 		// accounts' old ids, as their organizations spell them.
 		wantTaken map[string]string
@@ -61,6 +65,10 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 		// organization spells it.
 		{name: "an account configured by the id another Mac moved it onto too, its token here answered for, the API silent for the stray", configure: fixtureConfig + "\n[[account]]\nid = \"" + workID + "\"\n", orgs: silentForTheStray, wantAsked: 1,
 			wantTaken: map[string]string{work: workID}},
+		// B6s7 may take a former id, but only a token file the history
+		// names may be one.
+		{name: "the primary another Mac moved alone, its token given here, the API silent for the stray", configure: primaryAlone, orgs: silentForTheStray,
+			given: true, personalStray: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
@@ -70,6 +78,10 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 				writeFile(t, f.tokens.Path(tc.spoil), "")
 			}
 			o := tc.orgs()
+			if tc.given {
+				f.token(t, workID, "test-token-given")
+				o.of["test-token-given"] = workOrganization
+			}
 			f.runBounded(t, o)
 
 			if got := o.askedFor[spareToken]; got != tc.wantAsked {
@@ -81,8 +93,8 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 			if _, err := os.Lstat(f.tokens.Path("spare")); err != nil {
 				t.Errorf("the stray token file = %v, want it left as it was", err)
 			}
-			if e, ok := f.record(t).ByWas(personal); !ok || e.ID != personalID {
-				t.Errorf("personal moved onto %+v, want %s", e, personalID)
+			if e, ok := f.record(t).ByWas(personal); !ok || e.ID != personalID && !tc.personalStray || tc.personalStray && e.Removed.IsZero() {
+				t.Errorf("personal moved onto %+v, want %s, or removed where it isn't configured", e, personalID)
 			}
 			for was, id := range tc.wantTaken {
 				if e, ok := f.record(t).ByWas(was); !ok || e.ID != id || e.Organization == "" {

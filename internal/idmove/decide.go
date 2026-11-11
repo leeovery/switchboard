@@ -3,6 +3,7 @@ package idmove
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,14 +32,14 @@ const takenSuffix = ".taken"
 // config doesn't. Where the API doesn't name the organization of a
 // configured account's token, as answerFor has it, it fails with an
 // *Unanswered, writing nothing. Only where a configured account has no token
-// it can use, as join says, or may take one as its former id, as
-// mayTakeAStray says, are the token files of accounts neither configured nor
-// known asked about: where the API doesn't name the organization of one of
-// them, and a configured account without a token has an id an organization
-// could spell, as one another Mac moved has, or one may take it, it fails
-// alike, so a Mac that starts before its network is up joins the accounts
-// another moved; otherwise those are passed over. With nothing to decide, it
-// writes nothing.
+// it can use, as join says, are the token files of accounts neither
+// configured nor known asked about, every one, as one may give it its token;
+// and where one may take one as its former id, as mayTakeAStray says, those
+// the history names, which alone may be one. Where the API doesn't name the
+// organization of one whose answer may change what's decided, as holding
+// says, it fails alike, so a Mac that starts before its network is up joins
+// the accounts another moved; otherwise those are passed over. With nothing
+// to decide, it writes nothing.
 func (m *Mover) decide(ctx context.Context) error {
 	draft, record, err := m.standing()
 	if err != nil {
@@ -66,14 +67,17 @@ func (m *Mover) decide(ctx context.Context) error {
 		return u
 	}
 	d.answers = answers
-	if takes := d.mayTakeAStray(); takes || d.anyTokenless() {
+	if takes, tokenless := d.mayTakeAStray(), d.anyTokenless(); takes || tokenless {
 		strays := d.strays()
+		if !tokenless {
+			strays = d.inHistory(strays)
+		}
 		asked, err := m.ask(ctx, strays)
 		if err != nil {
 			return err
 		}
 		maps.Copy(answers, asked)
-		if u := unansweredOf(strays, asked); u != nil && (takes || d.mayJoinAStray()) {
+		if u := d.holding(strays, asked, takes); u != nil {
 			return u
 		}
 	}
@@ -371,11 +375,11 @@ func (s seenDays) on(date string) seenDays {
 // accountsTold is what the history tells of the accounts, each by its id in
 // lower case: seen, each it names, and the days it tells of each on; and
 // used, each this Mac used, as names' uses have it: the accounts the request
-// ledger's lines went out on, and its summaries' accounts, which are its
-// lines' and the readings history's, and those the readings history read the
-// windows of. What only follows the config, as the router's state file and
-// events, which name the accounts it holds, whether they've a token file
-// here or not, is no use of an account.
+// ledger's lines went out on, those its summaries tell of a use of, as
+// usedIn has them, and those the readings history read the windows of. What
+// only follows the config, as the router's state file and events, which name
+// the accounts it holds, whether they've a token file here or not, is no use
+// of an account.
 type accountsTold struct {
 	seen map[string]seenDays
 	used map[string]bool
@@ -457,7 +461,7 @@ func visitAll(files *dayfile.Files, n names, noting func(date string) func(id st
 
 // visitSummaries hands each account the request ledger's summary of a day
 // in dir names to what noting gives for the day's date, as summaryNames'
-// visit does.
+// visit does, and each it tells of a use of as used, as usedIn has them.
 func visitSummaries(dir string, noting func(date string) func(id string, use bool)) error {
 	dates, err := ledger.SummaryDates(dir)
 	if err != nil {
@@ -468,9 +472,39 @@ func visitSummaries(dir string, noting func(date string) func(id string, use boo
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		summaryNames.visit(data, noting(date))
+		note := noting(date)
+		summaryNames.visit(data, note)
+		for _, id := range usedIn(data) {
+			note(id, true)
+		}
 	}
 	return nil
+}
+
+// usedIn are the accounts a summary of a day of the request ledger's, data,
+// tells of a use of: those it shows requests of, by model or session, or
+// readings of, as their windows' highest use. One it shows sessions moved
+// off alone is none, as a line's move off an account is none. Data that
+// doesn't read as a summary tells of none.
+func usedIn(data []byte) []string {
+	var summary struct {
+		Accounts []struct {
+			Account  string                     `json:"account"`
+			Models   []json.RawMessage          `json:"models"`
+			Sessions int                        `json:"sessions"`
+			Highest  map[string]json.RawMessage `json:"highest"`
+		} `json:"accounts"`
+	}
+	if json.Unmarshal(data, &summary) != nil {
+		return nil
+	}
+	var used []string
+	for _, a := range summary.Accounts {
+		if len(a.Models) > 0 || a.Sessions > 0 || len(a.Highest) > 0 {
+			used = append(used, a.Account)
+		}
+	}
+	return used
 }
 
 // deciding decides the id of each account the record doesn't know: a
@@ -537,16 +571,59 @@ func (d *deciding) anyTokenless() bool {
 // the organization of joins, as decide has them, the one before the other,
 // as claims has each: so a token file the API didn't answer for may.
 func (d *deciding) mayJoinAStray() bool {
-	tokenless := d.tokenless()
-	taken, held := d.claims(d.withTokens(), tokenless, nil)
-	free := slices.DeleteFunc(tokenless, func(id string) bool {
-		_, ok := taken[id]
-		return ok
-	})
+	free, held := d.unclaimed()
 	joins, _ := d.claims(d.preferred(d.strays(), d.spelling(free)), free, held)
 	return slices.ContainsFunc(free, func(id string) bool {
 		_, joined := joins[id]
 		return d.madeElsewhere(id) && !joined
+	})
+}
+
+// unclaimed are the configured accounts to decide that have no token they
+// can use that no configured account's token takes, as claims has the
+// tokens take them, and the organizations those tokens hold.
+func (d *deciding) unclaimed() ([]string, map[string]bool) {
+	tokenless := d.tokenless()
+	taken, held := d.claims(d.withTokens(), tokenless, nil)
+	return slices.DeleteFunc(tokenless, func(id string) bool {
+		_, ok := taken[id]
+		return ok
+	}), held
+}
+
+// holding is the failure of the first of the strays asked whose answer, as
+// asked has it, is unanswered and may change what's decided, so the move
+// waits on it: nil where none's may. One the history names may become an
+// account's former id, where one may take it, as takes says, or join an
+// account another Mac moved that no configured account's token takes,
+// outranking a token file the API answered for that joins it, as preferred
+// ranks them; any may join one no token file the API answered for joins, as
+// mayJoinAStray says.
+func (d *deciding) holding(strays []string, asked map[string]answer, takes bool) *Unanswered {
+	if u := unansweredOf(d.inHistory(strays), asked); u != nil && (takes || d.mayOutrank()) {
+		return u
+	}
+	if u := unansweredOf(strays, asked); u != nil && d.mayJoinAStray() {
+		return u
+	}
+	return nil
+}
+
+// mayOutrank reports whether a configured account to decide that has no
+// token it can use, and that no configured account's token takes, may be
+// one another Mac moved, as madeElsewhere says: one a token file may join,
+// whichever token file the API answered for joins it.
+func (d *deciding) mayOutrank() bool {
+	free, _ := d.unclaimed()
+	return slices.ContainsFunc(free, d.madeElsewhere)
+}
+
+// inHistory are those of strays, token files of accounts neither configured
+// nor known, that the history names, in order.
+func (d *deciding) inHistory(strays []string) []string {
+	return slices.DeleteFunc(slices.Clone(strays), func(stray string) bool {
+		_, seen := d.seen[strings.ToLower(stray)]
+		return !seen
 	})
 }
 
@@ -778,11 +855,7 @@ func (d *deciding) join(tokenless []string) map[string]bool {
 // are taken in the order preferred gives. A token file the API named no
 // organization for, didn't answer for, or that can't be read, is passed over.
 func (d *deciding) formers() {
-	told := slices.DeleteFunc(d.strays(), func(stray string) bool {
-		_, seen := d.seen[strings.ToLower(stray)]
-		return !seen
-	})
-	for _, stray := range d.preferred(told, d.holderOf) {
+	for _, stray := range d.preferred(d.inHistory(d.strays()), d.holderOf) {
 		if id, ok := d.holderOf(d.answers[stray].organization); ok && d.record.Former(id, stray) {
 			logger.Info("a token file of a configured account's organization is the account's, by its former id", "was", stray, "id", id)
 		}
@@ -810,22 +883,28 @@ func (d *deciding) spelling(tokenless []string) func(organization string) (strin
 // as accountOf gives the id of the account an organization's would go to:
 // first one named as that account is labelled, in any case, as the Mac that
 // moved the account labels it by the id it had where it had none; then the
-// one the history tells of latest; then in the order of their names.
+// one the history tells of latest, one the router's state file alone names
+// after every day's and before one nothing names; then in the order of their
+// names.
 func (d *deciding) preferred(strays []string, accountOf func(organization string) (string, bool)) []string {
 	type ranked struct {
-		name, last string
-		labelled   int
+		name, last      string
+		labelled, named int
 	}
 	ranks := make([]ranked, len(strays))
 	for i, stray := range strays {
-		ranks[i] = ranked{name: stray, last: d.seen[strings.ToLower(stray)].last}
+		seen, named := d.seen[strings.ToLower(stray)]
+		ranks[i] = ranked{name: stray, last: seen.last}
+		if named {
+			ranks[i].named = 1
+		}
 		organization := d.answers[stray].organization
 		if id, ok := accountOf(organization); organization != "" && ok && strings.EqualFold(d.labels[strings.ToLower(id)], stray) {
 			ranks[i].labelled = 1
 		}
 	}
 	slices.SortFunc(ranks, func(a, b ranked) int {
-		return cmp.Or(cmp.Compare(b.labelled, a.labelled), cmp.Compare(b.last, a.last), cmp.Compare(a.name, b.name))
+		return cmp.Or(cmp.Compare(b.labelled, a.labelled), cmp.Compare(b.last, a.last), cmp.Compare(b.named, a.named), cmp.Compare(a.name, b.name))
 	})
 	ordered := make([]string, len(ranks))
 	for i, r := range ranks {
