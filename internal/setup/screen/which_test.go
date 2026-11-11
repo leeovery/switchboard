@@ -1,6 +1,7 @@
 package screen
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -188,7 +189,7 @@ func TestEscClosesTheCardAskingWhich(t *testing.T) {
 		if title != "NEW TOKEN · TEAM" || !slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, madeTeam) }) {
 			t.Errorf("esc left the card %q reading\n%s\nwant team's token card, showing the token", title, strings.Join(rows, "\n"))
 		}
-		if unsaved, _ := h.model.tokenLeft(); unsaved == nil || !slices.Equal(unsaved.Shown, []string{madeTeam}) {
+		if unsaved, _ := h.model.tokenLeft(); len(unsaved) != 1 || !slices.Equal(unsaved[0].Shown, []string{madeTeam}) {
 			t.Errorf("tokenLeft() = %+v, want the token given back", unsaved)
 		}
 		checkNothingAnswered(t, h)
@@ -217,24 +218,24 @@ func checkNothingAnswered(t *testing.T, h *harness) {
 
 // What a made token's answer saved once the screen had gone is how setup's
 // left: nothing to give back where it saved the token; the token, where it
-// couldn't.
+// couldn't, with the save's own words.
 func TestAnAnswerSavedOnceTheScreenWentIsHowSetupsLeft(t *testing.T) {
+	notSaved := setup.Tokened{Result: setup.TokenNotSaved, Why: "the config changed while it was being edited", Shown: []string{madeTeam}}
 	tests := []struct {
 		name string
 		ends setup.Tokened
-		want []string
+		want []setup.Tokened
 	}{
 		{name: "saved", ends: saved},
-		{name: "not saved", ends: setup.Tokened{Result: setup.TokenNotSaved, Why: "the config changed while it was being edited", Shown: []string{madeTeam}}, want: []string{madeTeam}},
+		{name: "not saved", ends: notSaved, want: []setup.Tokened{notSaved}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := askingTeam(t, teamAsked())
 			h.steps.answerEnds = &tt.ends
 			h.press("enter")
-			unsaved, _ := h.model.tokenLeft()
-			if tt.want == nil && unsaved != nil || tt.want != nil && (unsaved == nil || !slices.Equal(unsaved.Shown, tt.want)) {
-				t.Errorf("tokenLeft() = %+v, want the token given back: %v", unsaved, tt.want != nil)
+			if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(unsaved, tt.want) {
+				t.Errorf("tokenLeft() = %+v, want %+v", unsaved, tt.want)
 			}
 		})
 	}
@@ -278,15 +279,13 @@ func pastingTeamAsked(t *testing.T) *harness {
 // and so after p, then esc back to its card.
 func TestAMadeTokenAnAnswerDidntSaveIsGivenBack(t *testing.T) {
 	notSaved := setup.Tokened{Result: setup.TokenNotSaved, Why: "the config changed while it was being edited", Shown: []string{madeTeam}}
+	configuredSince := setup.Tokened{Result: setup.TokenNotSaved, Why: `the token is for "Side" (side), configured already, so nothing is saved`, Shown: []string{madeTeam}}
 	tests := []struct {
 		name string
 		ends setup.Tokened
-		// want is what setup left gives back: the making's ending, asked,
-		// where it's zero.
-		want setup.Tokened
 	}{
-		{name: "not saved", ends: notSaved, want: notSaved},
-		{name: "configured already", ends: setup.Tokened{Result: setup.TokenSameAccount, SameAs: "Side"}},
+		{name: "not saved", ends: notSaved},
+		{name: "configured already", ends: configuredSince},
 	}
 	for _, tt := range tests {
 		for _, keys := range [][]string{nil, {"p", "esc"}} {
@@ -300,12 +299,8 @@ func TestAMadeTokenAnAnswerDidntSaveIsGivenBack(t *testing.T) {
 				if title, _ := h.card(); title != "NEW TOKEN · TEAM" {
 					t.Errorf("the card open is %q, want team's token card", title)
 				}
-				want := tt.want
-				if want.Result == 0 {
-					want = setup.Tokened{Result: setup.TokenAsked}
-				}
-				if unsaved, _ := h.model.tokenLeft(); unsaved == nil || unsaved.Result != want.Result || unsaved.Why != want.Why || !slices.Equal(unsaved.Shown, []string{madeTeam}) {
-					t.Errorf("tokenLeft() = %+v, want %+v, the token given back", unsaved, want)
+				if unsaved, _ := h.model.tokenLeft(); !reflect.DeepEqual(unsaved, []setup.Tokened{tt.ends}) {
+					t.Errorf("tokenLeft() = %+v, want %+v, the token given back", unsaved, tt.ends)
 				}
 			})
 		}

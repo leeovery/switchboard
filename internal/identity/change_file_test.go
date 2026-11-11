@@ -140,3 +140,20 @@ func TestARecordOfNoStateDirectoryIsAnError(t *testing.T) {
 		}
 	}
 }
+
+// A change that fails once it's committed the first record there's been
+// takes its file away again, leaving none, as there was.
+func TestAChangeThatFailsLeavesNoRecordWhereThereWasNone(t *testing.T) {
+	f := identity.NewFile(t.TempDir())
+	failed := errors.New("the config's save failed")
+	err := f.Change(func(r *identity.Record, commit func() error) error {
+		r.Accounts = append(r.Accounts, identity.Entry{ID: "qgr2", Added: added})
+		return errors.Join(commit(), failed)
+	})
+	if !errors.Is(err, failed) {
+		t.Errorf("Change() = %v, want the change's error", err)
+	}
+	if _, err := os.Stat(f.Path()); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the record's file: %v, want none", err)
+	}
+}

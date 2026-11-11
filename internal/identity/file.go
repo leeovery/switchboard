@@ -103,21 +103,22 @@ func (f File) Update(change func(*Record) error) error {
 // where change returns without, and once it's written, changes made after
 // aren't. The lock's held throughout. Where change fails once commit has
 // written the record, the record is put back as it was, under the same
-// lock, any error of that joined to change's: should that fail too, the
-// record is left ahead, which whatever changes it next puts right. Nothing's
-// written where change fails before commit, nor where the record's
-// unchanged.
+// lock, its file taken away where there was none, any error of that joined
+// to change's: should that fail too, the record is left ahead, which
+// whatever changes it next puts right. Nothing's written where change fails
+// before commit, nor where the record's unchanged.
 func (f File) Change(change func(r *Record, commit func() error) error) error {
 	unlock, err := f.lock()
 	if err != nil {
 		return err
 	}
 	defer unlock()
+	_, statErr := os.Lstat(f.Path())
 	r, err := f.Read()
 	if err != nil {
 		return err
 	}
-	was := slices.Clone(r.Accounts)
+	was, existed := slices.Clone(r.Accounts), statErr == nil
 	written := false
 	commit := func() error {
 		if written || slices.Equal(was, r.Accounts) {
@@ -131,13 +132,26 @@ func (f File) Change(change func(r *Record, commit func() error) error) error {
 	}
 	if err := change(&r, commit); err != nil {
 		if written {
-			if restored := f.write(Record{Accounts: was}); restored != nil {
-				err = errors.Join(err, fmt.Errorf("put the accounts record back: %w", restored))
-			}
+			err = errors.Join(err, f.restore(was, existed))
 		}
 		return err
 	}
 	return commit()
+}
+
+// restore puts the record back as it was, holding accounts, where its file
+// existed, else takes away the file written in its place.
+func (f File) restore(accounts []Entry, existed bool) error {
+	var err error
+	if existed {
+		err = f.write(Record{Accounts: accounts})
+	} else {
+		err = os.Remove(f.Path())
+	}
+	if err != nil {
+		return fmt.Errorf("put the accounts record back: %w", err)
+	}
+	return nil
 }
 
 // write writes the record whole, in place of the file, that only its owner

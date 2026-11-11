@@ -300,7 +300,7 @@ func TestAPasteThatFailsFailsTheStep(t *testing.T) {
 	if h.model.paste != nil {
 		t.Errorf("failed, the paste card is %s, want it closed", pasteSaid(h.model.paste))
 	}
-	if got := h.model.walk.left(); got != (Left{Ending: Failed, Err: errNotSaved}) {
+	if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Failed, Err: errNotSaved}) {
 		t.Errorf("setup would be left %+v, want failing at Accounts", got)
 	}
 }

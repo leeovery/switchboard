@@ -79,13 +79,15 @@ func (a *app) setup(cmd *cobra.Command) error {
 		return setup.ErrNoTerminal
 	}
 	var caught bool
-	if left.Unsaved == nil {
+	if len(left.Unsaved) == 0 {
 		caught = kept.Let()
 	}
 	printLines(out, dashboard.SetupPrinted(left.Summary, a.terminalWidth(out)))
 	switch {
-	case left.Unsaved != nil:
-		printLines(out, left.Unsaved.Printed())
+	case len(left.Unsaved) > 0:
+		for _, unsaved := range left.Unsaved {
+			printLines(out, unsaved.Printed())
+		}
 		caught = kept.Let()
 	case left.Interrupted:
 		launch.Notice(cmd.ErrOrStderr(), savedFirst)

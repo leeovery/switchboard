@@ -8,7 +8,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/setup"
 )
 
@@ -36,25 +35,6 @@ type whichCard struct {
 // where there's one.
 func whichAsked(f setup.TokenFor, ended setup.Tokened, from *tokenCard) *whichCard {
 	return &whichCard{f: f, ended: ended, asked: ended.Asked, from: from}
-}
-
-// savedOnceGone reports whether the answer being saved as the screen went
-// saved the token, as it ended once it had gone: a failure is logged, as
-// nothing else can show it.
-func (c whichCard) savedOnceGone() bool {
-	if !c.saving {
-		return false
-	}
-	select {
-	case ended := <-c.kept:
-		if ended.err != nil {
-			why := redact.Text(ended.err.Error(), c.ended.Shown...)
-			logger.Error("saving a token as the user answered failed once setup's screen had gone", c.f.Logged("error", why)...)
-		}
-		return ended.err == nil && ended.tokened.Result == setup.TokenSaved
-	default:
-		return false
-	}
 }
 
 // drawn is the card as dashboard.Setup draws it at now, what setup says made
@@ -134,15 +114,13 @@ func (m Model) answered(msg answeredMsg) (Model, tea.Cmd) {
 	m.which = nil
 	switch r := msg.tokened.Result; {
 	case msg.err != nil || r == setup.TokenSaved:
-		return m.tokenSaved(msg.tokened.ID, msg.err)
+		return m.tokenSaved(card.f, msg.tokened.ID, msg.err)
 	case r == setup.TokenAsked:
 		m.which = whichAsked(card.f, msg.tokened, card.from)
 	case r == setup.TokenCancelled:
-	case card.made() && m.held != nil:
+	case card.made():
 		if len(msg.tokened.Shown) > 0 {
-			held := *m.held
-			held.later = &msg.tokened
-			m.held = &held
+			m.held = m.held.unsavedAs(card.from.told.making, msg.tokened)
 		}
 		m.token = card.from.showing(msg.tokened)
 	default:

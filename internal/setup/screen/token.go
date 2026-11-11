@@ -166,7 +166,7 @@ func (m Model) making(f setup.TokenFor) (Model, tea.Cmd) {
 	told := makingTold{making: m.makings, steps: make(chan setup.Making, int(setup.CheckingToken)), ended: make(chan tea.Msg, 1), kept: make(chan tokenedMsg, 1)}
 	ctx, stop := context.WithCancel(m.jobs.ctx)
 	m.token = &tokenCard{f: f, told: told, stop: stop}
-	m.held = &heldToken{f: f, kept: told.kept}
+	m.held = m.held.with(heldToken{making: told.making, f: f, kept: told.kept})
 	begin := m.jobs.begin(makeToken(m.jobs, m.steps, ctx, stop, f, told), told.ended)
 	return m, tea.Batch(begin, m.listen(), m.armSpin())
 }
@@ -194,65 +194,6 @@ func makeToken(js *jobs, steps Steps, ctx context.Context, stop context.CancelFu
 	}
 }
 
-// heldToken is the last making's, held from when it begins till a save of
-// the account's token is known done, whatever card is open, so no card's
-// coming or going loses a token made, which lasts a year on the account:
-// whose token it makes, and how the making ended, kept, as the screen can
-// go before it hears; and later, how a later save of the token made ended,
-// unsaved, as an answer to the card asking which account it's for, where
-// there's one.
-type heldToken struct {
-	f     setup.TokenFor
-	kept  chan tokenedMsg
-	later *setup.Tokened
-}
-
-// tokenLeft is how the held making left setup, once it has ended: unsaved,
-// where it saved nothing, nor was stopped, how a later save of the token
-// made ended, where one didn't save it, else how the making ended, as the
-// card showed it, or as it ended once the screen had gone, to copy: a token
-// made, unread, not saved, or asked which account it's for, however the
-// cards have come and gone since, and any other ending only where its card,
-// or one opened from it, is open; nil otherwise, as where a paste or an
-// answer the screen was saving as it went saved the account's token. And
-// interrupted, whether an interrupt was held as a token made was saved, as
-// the screen heard it, or as it ended once the screen had gone. A failure,
-// which the screen would have closed the card at, came once it had gone, so
-// it's logged, as nothing else can show it.
-func (m Model) tokenLeft() (unsaved *setup.Tokened, interrupted bool) {
-	held := m.held
-	if held == nil || m.paste != nil && m.paste.savedOnceGone() || m.which != nil && m.which.savedOnceGone() {
-		return nil, m.interrupted
-	}
-	var ended tokenedMsg
-	select {
-	case ended = <-held.kept:
-	default:
-		return nil, m.interrupted
-	}
-	interrupted = m.interrupted || ended.tokened.InterruptHeld
-	if ended.err != nil {
-		logger.Error("making a token failed once setup's screen had gone", held.f.Logged("error", ended.err)...)
-		return nil, interrupted
-	}
-	switch r := ended.tokened.Result; {
-	case r == setup.TokenSaved || r == setup.TokenCancelled || r == setup.TokenInterrupted:
-		return nil, interrupted
-	case held.later != nil:
-		later := *held.later
-		return &later, interrupted
-	case !madeToken(r) && m.makingCard() == nil:
-		return nil, interrupted
-	}
-	return &ended.tokened, interrupted
-}
-
-// madeToken reports whether a making that ended as r made a token it didn't
-// save: unread, not saved, or held while setup asks which account it's for.
-func madeToken(r setup.TokenResult) bool {
-	return r == setup.TokenUnread || r == setup.TokenNotSaved || r == setup.TokenAsked
-}
-
 // makingCard is the token card whose making the screen has in hand: the
 // card open, or the one the paste card or the card asking which account a
 // token is for was opened from; nil with none.
@@ -270,7 +211,7 @@ func (m Model) makingCard() *tokenCard {
 // hand, its card or one opened from it open, or holds one, which tokenLeft
 // may give back once the screen has gone.
 func (m Model) holding(holding func()) {
-	if holding != nil && (m.makingCard() != nil || m.held != nil) {
+	if holding != nil && (m.makingCard() != nil || len(m.held) > 0) {
 		holding()
 	}
 }
@@ -315,17 +256,20 @@ func (m Model) tokened(msg tokenedMsg) (Model, tea.Cmd) {
 }
 
 // ended takes in how card's making ended: saved, or failing, as tokenSaved
-// has it, the card closed; stopped, the card closed, nothing saved, the
-// paste card opening in its place where p stopped it; asked which account
-// it's for, the card asking which in its place; else, saving nothing, the
-// card says why, as setup words it, made safe to show, the accounts read
-// again where the token made wasn't saved, as its save may have changed
-// them.
+// has it, the card closed, a failure, which the screen shows, no longer
+// held; stopped, the card closed, nothing saved, the paste card opening in
+// its place where p stopped it; asked which account it's for, the card
+// asking which in its place; else, saving nothing, the card says why, as
+// setup words it, made safe to show, the accounts read again where the
+// token made wasn't saved, as its save may have changed them.
 func (m Model) ended(card tokenCard, msg tokenedMsg) (Model, tea.Cmd) {
 	switch r := msg.tokened.Result; {
-	case msg.err != nil || r == setup.TokenSaved:
+	case msg.err != nil:
+		m.token, m.held = nil, m.held.without(card.told.making)
+		return m.tokenSaved(card.f, "", msg.err)
+	case r == setup.TokenSaved:
 		m.token = nil
-		return m.tokenSaved(msg.tokened.ID, msg.err)
+		return m.tokenSaved(card.f, msg.tokened.ID, nil)
 	case r == setup.TokenAsked:
 		m.token = nil
 		m.which = whichAsked(card.f, msg.tokened, &card)

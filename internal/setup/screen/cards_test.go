@@ -252,7 +252,7 @@ func TestAFailureSavingTheEditCardFailsTheStep(t *testing.T) {
 	if got, want := h.rows()[firstUnderHeading], factRowOf("✗", setup.Said{Label: "Not saved", Detail: errNoConfig.Error()}); got != want {
 		t.Errorf("the page's row reads\n%q\nwant\n%q", got, want)
 	}
-	if got := h.model.walk.left(); got != (Left{Ending: Failed, Err: errNoConfig}) {
+	if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Failed, Err: errNoConfig}) {
 		t.Errorf("setup leaves %+v, want it failed as saving did", got)
 	}
 }

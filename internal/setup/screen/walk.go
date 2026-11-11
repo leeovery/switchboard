@@ -32,17 +32,16 @@ const (
 // Left is how setup's screen was left, and for Failed, why the step failed.
 // Summary is how setup stands as it's left, once every job of the screen's
 // has ended, as Done says it a line a step, for the caller to print once the
-// screen has gone. Unsaved is how the token card's making ended, where the
-// card was open as the screen went, and it saved nothing, nor was stopped,
-// as Model.tokenLeft has it: above all a token made but unread, or not
-// saved, which lasts a year on the account, for the caller to show, as the
-// screen can't. Interrupted says an interrupt was held as a token made was
+// screen has gone. Unsaved is how each of the tokens' makings that saved
+// nothing, nor was stopped, left setup, as Model.tokenLeft has it: above all
+// every token made that isn't known saved, which lasts a year on the
+// account, for the caller to show, as the screen can't. Interrupted says an interrupt was held as a token made was
 // saved, for the caller to end as an interrupt has it.
 type Left struct {
 	Ending      Ending
 	Err         error
 	Summary     setup.Summary
-	Unsaved     *setup.Tokened
+	Unsaved     []setup.Tokened
 	Interrupted bool
 }
 

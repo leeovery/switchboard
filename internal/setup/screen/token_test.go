@@ -627,7 +627,7 @@ func TestAMakingThatFailsFailsTheStep(t *testing.T) {
 	if h.model.token != nil {
 		t.Errorf("failed, the token card is %+v, want it closed", h.model.token)
 	}
-	if got := h.model.walk.left(); got != (Left{Ending: Failed, Err: errNotSaved}) {
+	if got := h.model.walk.left(); !sameLeft(got, Left{Ending: Failed, Err: errNotSaved}) {
 		t.Errorf("setup would be left %+v, want failing at Accounts", got)
 	}
 	if got, want := h.rows()[firstUnderHeading], factRowOf("✗", setup.Said{Label: "Not saved", Detail: errNotSaved.Error()}); got != want {
@@ -753,7 +753,7 @@ func TestRunReturnsOnceATokensMakingHasEndedItsTokenKept(t *testing.T) {
 			if got.left.Ending != Paused || got.left.Err != nil || (tt.ctrlC && got.err != nil) || (!tt.ctrlC && !errors.Is(got.err, context.Canceled)) {
 				t.Errorf("run() = %+v, %v; want setup paused, by ctrl+c or the context's ending", got.left, got.err)
 			}
-			if !reflect.DeepEqual(got.left.Unsaved, tt.unsaved) || got.left.Interrupted != tt.interrupted {
+			if !reflect.DeepEqual(got.left.Unsaved, givenBack(tt.unsaved)) || got.left.Interrupted != tt.interrupted {
 				t.Errorf("run() gives back the making as %+v, interrupted: %t; want %+v, interrupted: %t", got.left.Unsaved, got.left.Interrupted, tt.unsaved, tt.interrupted)
 			}
 			if got := steps.replacedOf("work"); got != tt.saved {
@@ -792,7 +792,7 @@ func TestTheScreenLeavesOnceATokenHeldThroughAnInterruptIsSaved(t *testing.T) {
 	case <-time.After(time.Minute):
 		t.Fatal("a minute on, the screen was up still, want it left once the token held through an interrupt was saved")
 	}
-	if got.err != nil || how(got.left) != (Left{Ending: Paused, Interrupted: true}) {
+	if got.err != nil || !sameLeft(how(got.left), Left{Ending: Paused, Interrupted: true}) {
 		t.Errorf("run() = %+v, %v; want setup paused, an interrupt held", got.left, got.err)
 	}
 	if got := steps.replacedOf("work"); got != 1 {
@@ -833,7 +833,7 @@ func TestKeysAfterAnInterruptHeldLeaveTheCardToGiveBack(t *testing.T) {
 
 			h.pressAndDeliver(tt.key)
 			unsaved, interrupted := h.model.tokenLeft()
-			if !interrupted || !reflect.DeepEqual(unsaved, &tt.ends) {
+			if !interrupted || !reflect.DeepEqual(unsaved, []setup.Tokened{tt.ends}) {
 				t.Errorf("tokenLeft() = %+v, %t; want %+v, an interrupt held", unsaved, interrupted, tt.ends)
 			}
 			if h.model.makings != making || h.model.paste != nil {
@@ -968,7 +968,7 @@ func TestCtrlCOnceATokensMadeLeavesItReadOn(t *testing.T) {
 			case <-time.After(time.Minute):
 				t.Fatal("a minute on, run() hadn't returned")
 			}
-			if got.err != nil || got.left.Ending != Paused || !reflect.DeepEqual(got.left.Unsaved, tt.unsaved) {
+			if got.err != nil || got.left.Ending != Paused || !reflect.DeepEqual(got.left.Unsaved, givenBack(tt.unsaved)) {
 				t.Errorf("run() = %+v, %v; want setup paused, the making given back as %+v", got.left, got.err, tt.unsaved)
 			}
 			token, err := s.Accounts.Tokens.Read("work")

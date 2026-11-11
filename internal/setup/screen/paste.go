@@ -33,24 +33,6 @@ func (m Model) pasting(f setup.TokenFor, from *tokenCard) Model {
 	return m
 }
 
-// savedOnceGone reports whether the paste being checked as the screen went
-// saved its token, as it ended once it had gone: a failure is logged, as
-// nothing else can show it.
-func (c pasteCard) savedOnceGone() bool {
-	if !c.checking {
-		return false
-	}
-	select {
-	case ended := <-c.kept:
-		if ended.err != nil {
-			logger.Error("pasting a token failed once setup's screen had gone", c.f.Logged("error", ended.err)...)
-		}
-		return ended.err == nil && ended.tokened.Result == setup.TokenSaved
-	default:
-		return false
-	}
-}
-
 // drawn is the card as dashboard.Setup draws it.
 func (c pasteCard) drawn() *dashboard.SetupPasteCard {
 	return &dashboard.SetupPasteCard{ID: c.f.Name(), Token: c.token.field(!c.checking), Checking: c.checking, Why: c.why}
@@ -140,10 +122,10 @@ func (m Model) pasteSaved(msg pastedMsg) (Model, tea.Cmd) {
 		return m.askAgain()
 	case msg.err != nil:
 		m.paste = nil
-		return m.tokenSaved("", msg.err)
+		return m.tokenSaved(card.f, "", msg.err)
 	case r == setup.TokenSaved:
 		m.paste = nil
-		return m.tokenSaved(msg.tokened.ID, nil)
+		return m.tokenSaved(card.f, msg.tokened.ID, nil)
 	case r == setup.TokenCancelled:
 		m.paste = nil
 		return m, nil
@@ -158,12 +140,13 @@ func (m Model) pasteSaved(msg pastedMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// tokenSaved is m once a token for the account id is saved, as err says:
-// the accounts read again, the row chosen moving to the account once
-// they're read; or failing, the step failed, not saved, as changed has it.
-func (m Model) tokenSaved(id string, err error) (Model, tea.Cmd) {
+// tokenSaved is m once a token for f's account, id once saved, is saved, as
+// err says: the makings of tokens for it held no longer, the accounts read
+// again, the row chosen moving to the account once they're read; or
+// failing, the step failed, not saved, as changed has it.
+func (m Model) tokenSaved(f setup.TokenFor, id string, err error) (Model, tea.Cmd) {
 	if err == nil {
-		m.madeFor, m.held = id, nil
+		m.madeFor, m.held = id, m.held.savedFor(f)
 	}
 	return m.changed(err)
 }

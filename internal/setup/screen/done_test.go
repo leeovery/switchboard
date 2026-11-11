@@ -169,7 +169,7 @@ func TestEnterAndQAtDone(t *testing.T) {
 			if !quits(h.press(tt.key)) {
 				t.Fatalf("%s at Done didn't quit", tt.key)
 			}
-			if got := h.model.walk.left(); got != tt.want {
+			if got := h.model.walk.left(); !sameLeft(got, tt.want) {
 				t.Errorf("%s at Done left setup %+v, want %+v", tt.key, got, tt.want)
 			}
 		})

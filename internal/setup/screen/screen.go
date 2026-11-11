@@ -183,11 +183,12 @@ type Model struct {
 	reserve      *reserveCard
 	reserveAsked bool
 	// makings numbers the tokens' makings begun, each the token card's;
-	// held is the last one's, as heldToken has it, whatever card is open;
-	// and interrupted is set once one ends with an interrupt held as its
-	// token was saved, which the screen leaves at.
+	// held is every one whose token isn't known saved, as heldTokens has
+	// them, whatever card is open; and interrupted is set once one ends
+	// with an interrupt held as its token was saved, which the screen
+	// leaves at.
 	makings     int
-	held        *heldToken
+	held        heldTokens
 	interrupted bool
 	// marking counts the accounts p is making the primary, not yet answered;
 	// and rereading is set once a change to the accounts is made, till
