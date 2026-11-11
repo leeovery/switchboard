@@ -1399,7 +1399,7 @@ The Mac's folder holds what switchboard can't build again, in the state director
 
 | File | Holds |
 |---|---|
-| `export.json` | `{"version": 1, "install": "<id>", "exported_at": "<time, UTC>"}`: whose folder it is, and when it was last exported to. |
+| `export.json` | `{"version": 2, "install": "<id>", "exported_at": "<time, UTC>"}`: whose folder it is, and when it was last exported to. |
 | `ledger/requests-<date>.jsonl.gz` | The [request ledger](reference.md#the-request-ledger)'s lines, one file for each day. |
 | `ledger/events-<date>.jsonl.gz` | The [router's events](reference.md#the-routers-events), one file for each day. |
 | `ledger/day-<date>.json` | Each [day's summary](reference.md#the-days-summary). |

@@ -322,7 +322,7 @@ func scanStaged(path string, most int, n names, rename Renames) (stagedScan, err
 	var scan stagedScan
 	scan.short = eachStaged(file, most, func(line []byte) {
 		scan.read = true
-		n.visit(line, func(id string) { scan.renamed = scan.renamed || rename.Of(id) != id })
+		n.visit(line, func(id string, _ bool) { scan.renamed = scan.renamed || rename.Of(id) != id })
 	})
 	return scan, nil
 }
@@ -339,7 +339,7 @@ func summaryRenamed(dir, date string, rename Renames) (bool, error) {
 		return false, err
 	}
 	renamed := false
-	summaryNames.visit(data, func(id string) { renamed = renamed || rename.Of(id) != id })
+	summaryNames.visit(data, func(id string, _ bool) { renamed = renamed || rename.Of(id) != id })
 	return renamed, nil
 }
 

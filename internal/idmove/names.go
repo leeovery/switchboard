@@ -12,11 +12,12 @@ import (
 )
 
 // names say where a kind of JSON names accounts, each by a pattern: values,
-// the strings that are an account's id; texts, the reasons that name them, as
-// status.RenamedReason reads them; and keys, the objects whose names are
-// accounts' ids.
+// the strings that are an account's id; uses, those of the values that name
+// an account this Mac used, as a request going out on it or a reading of its
+// windows does; texts, the reasons that name them, as status.RenamedReason
+// reads them; and keys, the objects whose names are accounts' ids.
 type names struct {
-	values, texts, keys []pattern
+	values, uses, texts, keys []pattern
 }
 
 // pattern is a JSON pointer's tokens, each a name or an index, "*" matching
@@ -34,17 +35,21 @@ func patterns(pointers ...string) []pattern {
 
 // Where each kind of file names accounts.
 var (
-	// readingNames are a line of the readings history's.
-	readingNames = names{values: patterns("/account")}
-	// lineNames are a line of the request ledger's.
-	lineNames = names{values: patterns("/account", "/from", "/tried/*/account"), texts: patterns("/reason")}
-	// lineUses are the accounts a line of the request ledger's went out on,
-	// as it names them: its others it moved from, or passed over.
-	lineUses = names{values: patterns("/account", "/tried/*/account")}
-	// eventNames are a line of the router's events'.
+	// readingNames are a line of the readings history's, each a use.
+	readingNames = names{values: patterns("/account"), uses: patterns("/account")}
+	// lineNames are a line of the request ledger's: the accounts it went out
+	// on, each a use; the account it moved from, and its reason's, none.
+	lineNames = names{
+		values: patterns("/account", "/from", "/tried/*/account"),
+		uses:   patterns("/account", "/tried/*/account"),
+		texts:  patterns("/reason"),
+	}
+	// eventNames are a line of the router's events', none a use, as the
+	// events follow the config.
 	eventNames = names{values: patterns("/account", "/accounts/*", "/from", "/to"), texts: patterns("/reason")}
-	// summaryNames are a summary of a day of the request ledger's.
-	summaryNames = names{values: patterns("/accounts/*/account")}
+	// summaryNames are a summary of a day of the request ledger's, each a
+	// use, as a summary's accounts are its day's lines' and readings'.
+	summaryNames = names{values: patterns("/accounts/*/account"), uses: patterns("/accounts/*/account")}
 	// stateNames are the router's state file's: its global pin, as each
 	// form of it gives its accounts, its sessions' assignments and their own
 	// pins, what it keeps by account of the tokens, readings and tokens'
@@ -61,6 +66,22 @@ var (
 // whether any was renamed. Data that doesn't read as one JSON value is
 // returned as it is, as a reader passes it over.
 func (n names) renamed(data []byte, rename func(id string) string) ([]byte, bool) {
+	return n.walk(data, func(id string, _ bool) string { return rename(id) })
+}
+
+// visit hands seen each account n says data, a JSON value, names, by its
+// id, saying whether it's a use of it there, as uses has it: none where data
+// doesn't read as one JSON value.
+func (n names) visit(data []byte, seen func(id string, use bool)) {
+	n.walk(data, func(id string, use bool) string {
+		seen(id, use)
+		return id
+	})
+}
+
+// walk is renamed, rename told too whether the account it's given is used
+// where it's named, as uses has it.
+func (n names) walk(data []byte, rename func(id string, use bool) string) ([]byte, bool) {
 	dec := jsontext.NewDecoder(bytes.NewReader(data), jsontext.AllowDuplicateNames(true), jsontext.AllowInvalidUTF8(true))
 	var out []byte
 	copied := int64(0)
@@ -94,32 +115,23 @@ func (n names) renamed(data []byte, rename func(id string) string) ([]byte, bool
 	return append(out, data[copied:]...), true
 }
 
-// visit hands seen each account n says data, a JSON value, names, by its
-// id: none where data doesn't read as one JSON value.
-func (n names) visit(data []byte, seen func(id string)) {
-	n.renamed(data, func(id string) string {
-		seen(id)
-		return id
-	})
-}
-
 // rename returns the string just read from dec, was, renamed as rename
-// gives an account's id, where n says it names one there: itself where it
-// doesn't.
-func (n names) rename(dec *jsontext.Decoder, was string, rename func(string) string) string {
+// gives an account's id, told whether it's a use of it there, where n says
+// it names one there: itself where it doesn't.
+func (n names) rename(dec *jsontext.Decoder, was string, rename func(id string, use bool) string) string {
 	at := pointerTokens(dec.StackPointer())
 	kind, length := dec.StackIndex(dec.StackDepth())
 	if kind == '{' && length%2 == 1 {
 		if matchesAny(n.keys, at) {
-			return rename(was)
+			return rename(was, false)
 		}
 		return was
 	}
 	switch {
 	case matchesAny(n.values, at):
-		return rename(was)
+		return rename(was, matchesAny(n.uses, at))
 	case matchesAny(n.texts, at):
-		return status.RenamedReason(was, rename)
+		return status.RenamedReason(was, func(id string) string { return rename(id, false) })
 	}
 	return was
 }

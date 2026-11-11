@@ -1,6 +1,7 @@
 package idmove
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -330,11 +331,12 @@ func (m *Mover) tokenFiles() (map[string]string, error) {
 	return held, nil
 }
 
-// seenDays are the dates of the first and last days the history tells of an
-// account on, as its files' names give them: "" where none does, as the
+// seenDays is what the history tells of an account it names: its id, as the
+// history first spells it, and the dates of the first and last days it tells
+// of it on, as its files' names give them: "" where none does, as the
 // router's state file alone names it.
 type seenDays struct {
-	first, last string
+	id, first, last string
 }
 
 // on is s, the account seen on the day with the given date too: none for
@@ -350,16 +352,30 @@ func (s seenDays) on(date string) seenDays {
 	return s
 }
 
-// accountsTold is what the history tells of the accounts: seen, each it
-// names, by id, and the days it tells of each on; and used, each this Mac
-// used, as the request ledger's lines name the accounts its requests went out
-// on, and the readings history's those it read the windows of. What only
-// follows the config, as the router's state file and events, which name the
-// accounts it holds, whether they've a token file here or not, is no use of
-// an account.
+// accountsTold is what the history tells of the accounts, each by its id in
+// lower case: seen, each it names, and the days it tells of each on; and
+// used, each this Mac used, as names' uses have it: the accounts the request
+// ledger's lines went out on, and its summaries' accounts, which are its
+// lines' and the readings history's, and those the readings history read the
+// windows of. What only follows the config, as the router's state file and
+// events, which name the accounts it holds, whether they've a token file
+// here or not, is no use of an account.
 type accountsTold struct {
 	seen map[string]seenDays
 	used map[string]bool
+}
+
+// noting returns what notes each account a file of the day with the given
+// date names, "" for a file of no day, as names' visit hands it: seen on the
+// day, and used where it's a use of it there.
+func (t *accountsTold) noting(date string) func(id string, use bool) {
+	return func(id string, use bool) {
+		key := strings.ToLower(id)
+		s := t.seen[key].on(date)
+		s.id = cmp.Or(s.id, id)
+		t.seen[key] = s
+		t.used[key] = t.used[key] || use
+	}
 }
 
 // historyAccounts is what the history tells of the accounts, as accountsTold
@@ -372,52 +388,44 @@ func (m *Mover) historyAccounts() (*accountsTold, error) {
 	}
 	h := m.history()
 	t := &accountsTold{seen: make(map[string]seenDays), used: make(map[string]bool)}
-	note := func(date string) func(string) {
-		return func(id string) { t.seen[id] = t.seen[id].on(date) }
-	}
-	use := func(id string) { t.used[id] = true }
 	for _, kind := range []struct {
 		files *dayfile.Files
-		visit func(date string, line []byte)
+		names names
 	}{
-		{h.Readings, func(date string, line []byte) {
-			readingNames.visit(line, note(date))
-			readingNames.visit(line, use)
-		}},
-		{h.Events, func(date string, line []byte) { eventNames.visit(line, note(date)) }},
-		{h.Ledger.Files(), func(date string, line []byte) {
-			lineNames.visit(line, note(date))
-			lineUses.visit(line, use)
-		}},
+		{h.Readings, readingNames},
+		{h.Events, eventNames},
+		{h.Ledger.Files(), lineNames},
 	} {
-		if err := visitAll(kind.files, kind.visit); err != nil {
+		if err := visitAll(kind.files, kind.names, t.noting); err != nil {
 			return nil, err
 		}
 	}
-	if err := visitSummaries(h.Ledger.Files().Dir, note); err != nil {
+	if err := visitSummaries(h.Ledger.Files().Dir, t.noting); err != nil {
 		return nil, err
 	}
 	state, err := os.ReadFile(filepath.Join(m.StateDir, stateName))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	stateNames.visit(state, note(""))
+	stateNames.visit(state, t.noting(""))
 	m.told = t
 	return t, nil
 }
 
-// visitAll hands visit each line of each day's files, with the day's date. A
-// day's compressed file that's damaged is read up to its damage: the rewrite
+// visitAll hands each line of each day's files to n's visit, with what
+// noting gives for the day's date, as each account it names. A day's
+// compressed file that's damaged is read up to its damage: the rewrite
 // repairs it, keeping the lines before, which are all it names, as dayfile's
 // Rewrite does, warning of it then.
-func visitAll(files *dayfile.Files, visit func(date string, line []byte)) error {
+func visitAll(files *dayfile.Files, n names, noting func(date string) func(id string, use bool)) error {
 	dates, err := files.All()
 	if err != nil {
 		return err
 	}
 	for _, date := range dates {
+		note := noting(date)
 		_, _, err := dayfile.ReadDay(files, date, func(line []byte) (struct{}, bool) {
-			visit(date, line)
+			n.visit(line, note)
 			return struct{}{}, true
 		}, func(struct{}) bool { return true })
 		switch {
@@ -430,9 +438,10 @@ func visitAll(files *dayfile.Files, visit func(date string, line []byte)) error 
 	return nil
 }
 
-// visitSummaries hands note, by each day's date, each account the request
-// ledger's summary of the day in dir names.
-func visitSummaries(dir string, note func(date string) func(string)) error {
+// visitSummaries hands each account the request ledger's summary of a day
+// in dir names to what noting gives for the day's date, as summaryNames'
+// visit does.
+func visitSummaries(dir string, noting func(date string) func(id string, use bool)) error {
 	dates, err := ledger.SummaryDates(dir)
 	if err != nil {
 		return err
@@ -442,7 +451,7 @@ func visitSummaries(dir string, note func(date string) func(string)) error {
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		summaryNames.visit(data, note(date))
+		summaryNames.visit(data, noting(date))
 	}
 	return nil
 }
@@ -455,7 +464,7 @@ func visitSummaries(dir string, note func(date string) func(string)) error {
 // takes the id of a token file of no configured account whose organization
 // spells its id, as of an account another Mac moved, whose config this one
 // shares, as join has it, else keeps its id where switchboard makes one like
-// it and the history names none of it, as one never used, else a random id.
+// it and this Mac never used it, as madeElsewhere has it, else a random id.
 // Each the history names alone is an account removed before ids were made,
 // under a random id. No id decided is held already, as an old id, a
 // configured one, a token file's, or one decided before it.
@@ -555,7 +564,7 @@ func (d *deciding) claims(claimants, tokenless []string, held map[string]bool) (
 // never used it, as accountsTold has its use, as it used every account it had
 // before the move, or couldn't have routed by it.
 func (d *deciding) madeElsewhere(id string) bool {
-	return identity.WellFormed(id) && !d.used[id]
+	return identity.WellFormed(id) && !d.used[strings.ToLower(id)]
 }
 
 // strays are the names of the token files of accounts that are neither
@@ -608,7 +617,10 @@ func (d *deciding) decide() error {
 }
 
 // byToken decides the id of the configured account with the given id by its
-// token's organization, as idOf does.
+// token's organization, as idOf does. One keeping its id goes in as added,
+// with no id before: had its id before, it would be moved, and the move
+// would wait for the router to stop routing by its old id, which it never
+// does.
 func (d *deciding) byToken(was string) error {
 	a, ok := d.answers[was]
 	if !ok {
@@ -618,10 +630,13 @@ func (d *deciding) byToken(was string) error {
 	if err != nil {
 		return err
 	}
-	if returning {
+	switch {
+	case returning:
 		d.record.Return(id, organization)
 		d.record.Former(id, was)
-	} else {
+	case strings.EqualFold(id, was):
+		d.record.Add(id, organization, d.now)
+	default:
 		d.record.Move(id, organization, was, d.now)
 	}
 	d.decide1(id)
@@ -633,10 +648,13 @@ func (d *deciding) byToken(was string) error {
 // token's organization is organization, "" for none: the record's account
 // of it, which comes back, where it has one that's neither configured nor
 // decided, nor had another id before; else, where neither has it, the id
-// another Mac moved it onto, as spelledBy finds it, else the id it derives.
-// Where the answer named none, or another account configured or decided has
-// it, as two accounts of one subscription have, it's a random id, its
-// organization unknown.
+// another Mac moved it onto, as spelledBy finds it; else its own, where the
+// organization spells it, as Spells has it: one another Mac moved, given a
+// token here before this Mac moved, which Derive would pass over, held as
+// configured, spelling a longer; else the id it derives. Where the
+// answer named none, or another account configured or decided has it, as two
+// accounts of one subscription have, it's a random id, its organization
+// unknown.
 func (d *deciding) idOf(organization, was string) (id, known string, returning bool, err error) {
 	if organization == "" {
 		id, err := d.randomID()
@@ -647,6 +665,9 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 	case !ok:
 		if id, spelled := d.spelledBy(organization, d.tokenless()); spelled {
 			return id, organization, false, nil
+		}
+		if identity.WellFormed(was) && identity.Spells(organization, was) {
+			return was, organization, false, nil
 		}
 		return d.record.Derive(organization, d.held()), organization, false, nil
 	case !d.isConfigured(e.ID) && !d.decided[strings.ToLower(e.ID)] && (e.Was == "" || strings.EqualFold(e.Was, was)):
@@ -720,13 +741,13 @@ func (d *deciding) withoutToken(was string) error {
 }
 
 // removedBefore are the ids the history names that are neither configured
-// nor known, nor ids no account can have, in order: accounts removed before
-// ids were made.
+// nor known, nor ids no account can have, in order, each as the history first
+// spells it: accounts removed before ids were made.
 func (d *deciding) removedBefore() []string {
 	var removed []string
-	for id := range d.seen {
-		if config.CheckID(id) == nil && !d.isConfigured(id) && !d.known(id) {
-			removed = append(removed, id)
+	for _, s := range d.seen {
+		if config.CheckID(s.id) == nil && !d.isConfigured(s.id) && !d.known(s.id) {
+			removed = append(removed, s.id)
 		}
 	}
 	slices.Sort(removed)
@@ -743,7 +764,7 @@ func (d *deciding) removed(was string) error {
 		return err
 	}
 	added, removed := d.now, d.now
-	seen := d.seen[was]
+	seen := d.seen[strings.ToLower(was)]
 	if start, _, ok := dayfile.Day(seen.first); ok {
 		added = start
 	}

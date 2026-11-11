@@ -8116,7 +8116,7 @@ sync lag, duplicates and sessions claimed twice.
   never a machine name. A Mac whose state directory is restored from another's, as Migration
   Assistant restores one, carries the other's id and exports to its folder: removing the file
   gives it a new id, and a folder of its own, at its next export.
-- **What a Mac's folder holds:** `export.json`, `{"version": 1, "install": "<id>", "exported_at":
+- **What a Mac's folder holds:** `export.json`, `{"version": 2, "install": "<id>", "exported_at":
   "<RFC 3339 time, UTC>"}`, rewritten at each export; `ledger/`, `requests-<local
   date>.jsonl.gz`, `events-<local date>.jsonl.gz` and `day-<local date>.json`; and `history/`,
   `readings-<local date>.jsonl.gz`: the state directory's own names, each day's lines in one

@@ -36,7 +36,7 @@ func importDeps(t *testing.T) (cli.Deps, string) {
 // and the request ledger's lines of a day, and returns it.
 func importFolder(t *testing.T, folder string) string {
 	t.Helper()
-	writeStateFile(t, folder, "export.json", []byte(`{"version":1,"install":"0123456789abcdef","exported_at":"2026-10-09T14:42:07Z","ids":true}`+"\n"))
+	writeStateFile(t, folder, "export.json", []byte(`{"version":2,"install":"0123456789abcdef","exported_at":"2026-10-09T14:42:07Z","ids":true}`+"\n"))
 	writeStateFile(t, ledger.Dir(folder), "requests-2026-10-02.jsonl.gz", []byte("the 2nd's lines\n"))
 	return folder
 }
@@ -423,7 +423,7 @@ func TestImportPassesOverAFolderTheRouterWouldRefuseThenCarriesOn(t *testing.T) 
 	before := filepath.Join(dir, "mac-fedcba9876543210")
 	writeStateFile(t, before, "export.json", []byte(`{"version":1,"install":"fedcba9876543210","exported_at":"2026-10-09T14:42:07Z"}`+"\n"))
 	unsynced := filepath.Join(dir, "mac-1111111111111111")
-	writeStateFile(t, unsynced, "export.json", []byte(`{"version":1,"install":"1111111111111111","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`+"\n"))
+	writeStateFile(t, unsynced, "export.json", []byte(`{"version":2,"install":"1111111111111111","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`+"\n"))
 	post, asStaged := answeringAsStaged(t, state, router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}})
 	(&imports{post: post}).serve(t, state)
 
@@ -448,7 +448,7 @@ func TestImportTakesThisMacsFolderFromBeforeIDsAndPassesOverOneWhoseRecordDoesnt
 	own := importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
 	writeStateFile(t, own, "export.json", []byte(`{"version":1,"install":"0123456789abcdef","exported_at":"2026-10-09T14:42:07Z"}`+"\n"))
 	damaged := filepath.Join(dir, "mac-fedcba9876543210")
-	writeStateFile(t, damaged, "export.json", []byte(`{"version":1,"install":"fedcba9876543210","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`+"\n"))
+	writeStateFile(t, damaged, "export.json", []byte(`{"version":2,"install":"fedcba9876543210","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`+"\n"))
 	writeStateFile(t, damaged, filepath.Base(identity.NewFile(damaged).Path()), []byte("not a record\n"))
 	post, asStaged := answeringAsStaged(t, state, router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}})
 	(&imports{post: post}).serve(t, state)
