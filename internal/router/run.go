@@ -99,6 +99,9 @@ func (r *Router) run(ctx context.Context) error {
 	// another starting alongside would have failed by here.
 	r.moving.settle()
 	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
+	// Before the first probes, so each can hold its organization to its
+	// account's.
+	r.upkeep.keepRecord()
 	r.upkeep.tidy()
 	r.openHistory()
 	r.openLedger(ledger.Dir(r.cfg.StateDir))

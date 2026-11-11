@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/export"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -34,6 +35,16 @@ func putRecord(t *testing.T, root string, accounts ...identity.Entry) {
 		t.Fatal(err)
 	}
 	put(t, identity.NewFile(root).Path(), data, stagedOn)
+}
+
+// configuring has cfg configure the accounts with the ids given, each
+// labelled by its id, as a Mac does whose accounts record holds them live:
+// the router keeps its record in step with its config as it starts.
+func configuring(cfg *router.Config, ids ...string) {
+	cfg.Accounts = make([]config.Account, len(ids))
+	for i, id := range ids {
+		cfg.Accounts[i] = config.Account{ID: id, Label: id}
+	}
 }
 
 // readRecord is the accounts record in root, failing the test where it can't
@@ -102,6 +113,7 @@ func stageOthers(t *testing.T, cfg router.Config, accounts bool) {
 func TestThisMacsFolderExportedBeforeTheMoveIsTakenInUnderTheNewIDs(t *testing.T) {
 	cfg := importConfig(t)
 	putRecord(t, cfg.StateDir, movedWork)
+	configuring(&cfg, workID)
 	date, pastKeep := dateOf(10), dateOf(60)
 	for _, kind := range lineKinds {
 		put(t, kind.files(cfg.StateDir).CompressedPath(date), gzipOf(t, asMoved(kind.linesOf(date, 1))...), now)
@@ -138,6 +150,7 @@ func TestThisMacsFolderExportedBeforeTheMoveIsTakenInUnderTheNewIDs(t *testing.T
 func TestAFolderExportedAfterTheMoveIsTakenInByTheRecordItCarries(t *testing.T) {
 	cfg := importConfig(t)
 	putRecord(t, cfg.StateDir)
+	configuring(&cfg)
 	before, after := dateOf(20), dateOf(10)
 	stageOthers(t, cfg, true)
 	putRecord(t, folder(cfg, 1), movedWork)
@@ -160,6 +173,7 @@ func TestAFolderExportedAfterTheMoveIsTakenInByTheRecordItCarries(t *testing.T) 
 func TestAnotherMacsFolderFromBeforeTheMoveIsRefusedUntilExportedAgain(t *testing.T) {
 	cfg := importConfig(t)
 	putRecord(t, cfg.StateDir, movedWork)
+	configuring(&cfg, workID)
 	date := dateOf(10)
 	lines := named(requestLines.linesOf(date, 1, 2), "team")
 	runRouter(t, cfg)
@@ -191,6 +205,7 @@ func TestThisMacsFolderBeforeAndAfterTheMoveCountsADayOnce(t *testing.T) {
 	cfg := importConfig(t)
 	team := identity.Entry{ID: "h7c2", Label: "team", Added: stagedOn, Removed: stagedOn, Was: "team"}
 	putRecord(t, cfg.StateDir, movedWork, team)
+	configuring(&cfg, workID)
 	date := dateOf(10)
 	worked, teamed := requestLines.linesOf(date, 1), requestLines.linesOf(date, 2)
 	runRouter(t, cfg)
@@ -262,6 +277,7 @@ func TestAnAccountUnderAnotherIDThereIsTakenInUnderThisMacsByItsOrganization(t *
 	cfg := importConfig(t)
 	personal := identity.Entry{ID: "qgr2", Organization: "test-org-personal", Added: stagedOn, Was: "personal"}
 	putRecord(t, cfg.StateDir, personal)
+	configuring(&cfg, personal.ID)
 	before, after := dateOf(20), dateOf(10)
 	put(t, requestLines.files(cfg.StateDir).CompressedPath(after), gzipOf(t, named(requestLines.linesOf(after, 1), "qgr2")...), now)
 	stageOthers(t, cfg, true)

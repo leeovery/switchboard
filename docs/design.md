@@ -841,6 +841,16 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   token file is replaced by hand, the account takes no requests, its rows and `status` saying its
   token is another subscription's, and an event is filed, till it has a token of its own. Where the
   account's isn't known yet, the probe's is recorded.
+- **The record kept in step with the config:** a config another Mac shares can add or remove an
+  account this Mac's record never heard of, and an account configured here is one it has had. Once
+  the move onto the ids is done, never before, the router keeps the record in step as it starts
+  and whenever the config changes: an account configured that the record lacks is added, its
+  organization taken from its next probe; one that has left the config is marked removed, as
+  `accounts remove` marks it, with the label it last had there as the router knew it, else its id,
+  its token file left as the router leaves one today; one configured again is live again, as
+  `accounts add` makes it. An id that clashes with another account's, or one an account had before
+  ids were made, ignoring case, is left out and logged; an account only another Mac configures, as
+  an import keeps it, is left as it is.
 - **Removing:** `accounts remove <id>` takes the account out of the config and deletes its token, as
   today, and the accounts record keeps it, marked removed, with its label. History, Accounts and
   the verbs name it by that label, marked removed, as the Paper frames draw it, so it's told apart

@@ -403,7 +403,7 @@ func New(cfg Config) (*Router, error) {
 		started:       cfg.Now().UTC(),
 	}
 	r.exports = newExports(cfg, r.tendHistory, r.restartComing, r.moving.owed)
-	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, emit)
+	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, newAccountsRecord(cfg, accounts, moving.owed), emit)
 	return r, nil
 }
 
