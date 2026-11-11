@@ -845,7 +845,10 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   account's history; it routes throughout, and the dashboard and the verbs wait on the history till
   it's done, saying so.
   - Each configured account gets its id, derived from the organization its token's answer names,
-    or random where none can be read; a label, its old id, where it had none; and its token file
+    or random where an answer names none. Where the API doesn't answer, as on a first start before
+    the network's up, the move waits and asks again, routing under the old ids meanwhile, so a
+    passing outage never gives an account a random id, nor two Macs sharing a config different
+    ones. Each gets a label too, its old id, where it had none; and its token file
     and the token's record take the new id, renamed under the tokens directory's lock, a link or a
     second name handled as writing a token handles one.
   - Each id the history holds that the config doesn't, an account removed before, goes into the
