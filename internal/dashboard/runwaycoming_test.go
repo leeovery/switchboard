@@ -104,7 +104,7 @@ func TestRunwaysComingUpNamesTheFiveHourWindowRunningOut(t *testing.T) {
 		})
 	}
 	m := framesDoc().At(routedAt, claudeLike)
-	overview := comingTeller{moment: m, names: overviewNames(m), window: func(string) string { return "5-hour" }}
+	overview := comingTeller{moment: m, names: namesOf(m), window: func(string) string { return "5-hour" }}
 	if got := overview.happenings([]status.Upcoming{out})[0].what; got != " runs out at its pace" {
 		t.Errorf("the Overview's COMING UP says personal%q, want it unnamed", got)
 	}

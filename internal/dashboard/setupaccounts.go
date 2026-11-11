@@ -297,10 +297,10 @@ func (t reviewTable) heads(c *canvas, y int, cols []flex.Span) {
 // reviewChosenOn is the surface the row chosen is drawn on.
 var reviewChosenOn = hue{token: theme.BgSelection}
 
-// row draws the account a, i-th of the table's, along row y, width cells
-// wide, at the columns cols: its label, bold text.primary, and ◆ after the
-// primary's; its plan and its reserve; and its token, as token has it. The row chosen is on
-// bg.selection across the width, ▌ in accent.key at its first cell.
+// row draws the account a, i-th of the table's, along row y, width cells wide,
+// at the columns cols: its label, bold text.primary, and ◆ after the primary's;
+// its plan and its reserve; and its token, as token has it. The row chosen is
+// on bg.selection across the width, ▌ in accent.key at its first cell.
 func (t reviewTable) row(c *canvas, y, width int, cols []flex.Span, i int, a setup.Reviewed) {
 	c.line(cols[reviewAccount].At, y, accountShown(a, cols[reviewAccount].Size))
 	c.line(cols[reviewPlan].At, y, planShown(a))
@@ -509,7 +509,7 @@ func (t reviewTable) notes(c *canvas, y, width int) int {
 func noteLines(n setup.Note) []line {
 	var lead line
 	if n.Account != "" {
-		lead = line{{n.Account, titleInk}, {" ", mutedInk}}
+		lead = line{{labelled(n.Label, n.Account), titleInk}, {" ", mutedInk}}
 	}
 	if n.Need == setup.NeedToken || n.Need == setup.NeedPrimary {
 		return []line{append(lead, span{n.Says, secondaryInk}), {{n.Press, mutedInk}}}

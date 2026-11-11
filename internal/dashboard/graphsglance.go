@@ -285,7 +285,6 @@ func (g glance) lines(l glanceLaid) ([]glanceLine, *glanceLine) {
 	accounts, names := graphsNamed(g.m, l.accounts)
 	lines := make([]glanceLine, len(accounts))
 	for i, a := range accounts {
-		names[i].faint = names[i].out
 		lines[i].name = names[i].line(l.column)
 		_, known := g.m.Account(a.ID)
 		for _, w := range l.windows {

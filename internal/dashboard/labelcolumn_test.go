@@ -147,9 +147,9 @@ func TestASessionsPageNamesAnAccountNoLongerConfigured(t *testing.T) {
 	}
 }
 
-// The stays' name column keeps each name's marks beside its label: at the least, a label's 8 cells, as a stay may name an account no
-// longer configured; at the natural, the widest label, 8 at the least and
-// 24 at the most.
+// The stays' name column keeps each name's marks beside its label: at the
+// least, a label's 8 cells, as a stay may name an account no longer configured;
+// at the natural, the widest label, 8 at the least and 24 at the most.
 func TestTheStaysNameColumnKeepsALabelsLeast(t *testing.T) {
 	tests := []struct {
 		name  string

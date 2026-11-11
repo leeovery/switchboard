@@ -148,9 +148,9 @@ func (m Model) picks(mo status.Moment) []string {
 
 // routingKey acts on a key while the routing card is open, which takes
 // every key but ctrl+c: ↑ and ↓ move between its rows; space picks the row
-// the cursor is on; m ticks or clears moving the sessions running, on new sessions' card;
-// enter applies the picks; and esc closes the card, changing nothing. The
-// rest do nothing.
+// the cursor is on; m ticks or clears moving the sessions running, on new
+// sessions' card; enter applies the picks; and esc closes the card,
+// changing nothing. The rest do nothing.
 func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
 	now := m.now()
 	mo := m.moment(now)

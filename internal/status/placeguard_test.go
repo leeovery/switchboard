@@ -13,7 +13,7 @@ import (
 
 // These tests read the module's source, so no package but status can place
 // an account in the accounts' order, setting the Place of an AccountNow,
-// rather than read the place status.Order gives it, without failing here. A
+// rather than read the place the moment gives it, without failing here. A
 // view ordering accounts by a loop's index, never setting a Place, is beyond
 // what the source can tell from any other count, so the tests of the order
 // drawn hold that. An unkeyed AccountNow literal, which would set a Place by
@@ -32,7 +32,7 @@ const (
 const placeOwner = "internal/status"
 
 // placeFix is the fix a breach gives.
-const placeFix = "read the place status gives it, as Moment.Configured or Order.Configured has it"
+const placeFix = "read the place the moment gives it, as Moment.Account or Moment.Configured has it"
 
 func TestOnlyStatusPlacesAnAccount(t *testing.T) {
 	root := sourcecheck.ModuleRoot(t)

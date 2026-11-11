@@ -873,21 +873,19 @@ func TestAcrossAResetBetweenReadsUSAGEAndROUTINGCountTheSamePool(t *testing.T) {
 	}
 }
 
-func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAlone(t *testing.T) {
+// An account out of the pool is named faint, its label bold text.faint and
+// its marks text.faint, on the Overview and in the printout alike; one in
+// the pool keeps its inks.
+func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAndInThePrintout(t *testing.T) {
 	doc := trio(pinnedTo("side"))
 	faintLabel := ink{token: theme.TextFaint, bold: true}
-	tests := []struct {
-		name         string
-		row          usageRow
-		label, marks ink
-	}{
-		{name: "on the Overview", row: frameOf(160, 60).overviewBlock(doc, printNow).rows[1], label: faintLabel, marks: faintInk},
-		{name: "in the printout, never faint", row: printBlock(doc, 160, Look{}).rows[1], label: titleInk, marks: primaryInk},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.row.name; len(got) != 2 || got[0].ink != tt.label || got[1].ink != tt.marks {
-				t.Errorf("personal, out of the pool, is named %+v, want its label in %+v and ◆ in %+v", got, tt.label, tt.marks)
+	for name, block := range map[string]usageBlock{"on the Overview": frameOf(160, 60).overviewBlock(doc, printNow), "in the printout": printBlock(doc, 160, Look{})} {
+		t.Run(name, func(t *testing.T) {
+			if got := block.rows[1].name; len(got) != 2 || got[0].ink != faintLabel || got[1].ink != faintInk {
+				t.Errorf("personal, out of the pool, is named %+v, want its label in %+v and ◆ in %+v", got, faintLabel, faintInk)
+			}
+			if got := block.rows[2].name; len(got) != 2 || got[0].ink != titleInk || got[1].ink != accentInk {
+				t.Errorf("side, in the pool, is named %+v, want its label in %+v and ▲ in %+v", got, titleInk, accentInk)
 			}
 		})
 	}

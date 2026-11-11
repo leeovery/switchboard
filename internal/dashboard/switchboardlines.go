@@ -86,7 +86,7 @@ type linesDrawn struct {
 
 // linesDrawn are the Switchboard's lines of m, laid out as laid lays them.
 func (f Frame) linesDrawn(m status.Moment, laid boardLayout) linesDrawn {
-	d := linesDrawn{f: f, m: m, laid: laid, names: overviewNames(m), windows: f.listedWindows(m), beside: f.besideWindows(m)}
+	d := linesDrawn{f: f, m: m, laid: laid, names: namesOf(m), windows: f.listedWindows(m), beside: f.besideWindows(m)}
 	d.column = d.nameColumn()
 	return d
 }
@@ -99,7 +99,7 @@ func (d linesDrawn) nameColumn() int {
 }
 
 // nameParts are the parts of a line's row its name heads, as flex lays them:
-// the name column, its names with their numbers, their marks and nameGap, as
+// the name column, its names with their marks and nameGap, as
 // accountsColumn has it; from oneRowStep, where the line takes one row, its
 // week's bar, oneRowBar cells, and afterBar on to its words; and its words,
 // at least leastStanding, which take the rest. So a name is whole wherever

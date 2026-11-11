@@ -554,9 +554,9 @@ func TestARowsMarkSaysWhetherItsPicked(t *testing.T) {
 	}
 }
 
-// The keys row picks with space alone, however many accounts there are: no
-// key numbers one. ↑↓ goes first where it's short, then m, then space;
-// enter and esc are always kept.
+// The keys row picks with ↑↓ and space alone, however many accounts there
+// are: no key numbers one. Where it's short, m goes first, then ↑↓ and space
+// together; enter and esc are kept however short the row.
 func TestTheKeysRowPicksWithSpaceAndKeepsEnterAndEscWhereItsShort(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -568,12 +568,9 @@ func TestTheKeysRowPicksWithSpaceAndKeepsEnterAndEscWhereItsShort(t *testing.T) 
 		{name: "one account", accounts: 1, width: 160, want: "↑↓ move   space tick   m move running   enter apply   esc cancel"},
 		{name: "past nine accounts", accounts: 12, width: 160, want: "↑↓ move   space tick   m move running   enter apply   esc cancel"},
 		{name: "a phone with room for every key", accounts: 3, width: 72, want: "↑↓ move   space tick   m move running   enter apply   esc cancel"},
-		{name: "a phone a cell short, ↑↓ first to go", accounts: 3, width: 71, want: "space tick   m move running   enter apply   esc cancel"},
-		{name: "a phone with room for space and m", accounts: 3, width: 62, want: "space tick   m move running   enter apply   esc cancel"},
-		{name: "a phone a cell short, m next, its row naming it", accounts: 3, width: 61, want: "space tick   enter apply   esc cancel"},
-		{name: "a phone of 52 columns", accounts: 3, width: 52, want: "space tick   enter apply   esc cancel"},
-		{name: "a phone with room for space alone", accounts: 3, width: 45, want: "space tick   enter apply   esc cancel"},
-		{name: "a phone a cell short, space last to go", accounts: 3, width: 44, want: "enter apply   esc cancel"},
+		{name: "a phone a cell short, m first to go, its row naming it", accounts: 3, width: 71, want: "↑↓ move   space tick   enter apply   esc cancel"},
+		{name: "a phone with room for ↑↓ and space", accounts: 3, width: 55, want: "↑↓ move   space tick   enter apply   esc cancel"},
+		{name: "a phone a cell short, ↑↓ and space going together", accounts: 3, width: 54, want: "enter apply   esc cancel"},
 		{name: "a narrow phone, enter and esc kept", accounts: 3, width: 30, want: "enter apply   esc cancel"},
 	}
 	for _, tt := range tests {

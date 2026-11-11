@@ -73,10 +73,8 @@ func laneOf(l views.Lane, m status.Moment, names []accountName) (laidLane, bool)
 	return laneLaid(l, m.Accounts[i], names[i]), true
 }
 
-// laneLaid is the lane l of the account a as laidLane has it, named as given,
-// faint where the pool leaves it out.
+// laneLaid is the lane l of the account a as laidLane has it, named as given.
 func laneLaid(l views.Lane, a status.AccountNow, name accountName) laidLane {
-	name.faint = name.out
 	return laidLane{Lane: l, account: a, name: name}
 }
 

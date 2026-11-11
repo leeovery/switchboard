@@ -59,8 +59,8 @@ func (f Frame) burnDownsHelp() helpPart {
 			said("Where the account's reserve holds, so not while a pin spends it, a faint dotted line marks the room its cap " +
 				"leaves. The window's ink is its state's, as Runway's lanes colour one, each window by its own: a week that " +
 				"lasts is drawn so, though its 5-hour's cap holds the account now."),
-			said("An account not read yet, whose first read failed, or the router doesn't hold yet, has Runway's words for it " +
-				"and its chart empty but for now's │. One without a usable token has no room all along; a stale one is faded, and one out of the pool " +
+			said("An account not read yet, or whose first read failed, has Runway's words for it and its chart empty but for " +
+				"now's │; one the router doesn't hold yet has its label alone, no words, its chart empty but for now's │. One without a usable token has no room all along; a stale one is faded, and one out of the pool " +
 				"faint."),
 			said("Under the cards, Σ pool: the pool's room in each window, the week's then the 5-hour's, as Runway's pool lane " +
 				"words it, as week 1.2 of 3 left, of the accounts that have the window, whichever sections show, and pinned " +

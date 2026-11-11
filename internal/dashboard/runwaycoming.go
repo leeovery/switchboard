@@ -31,7 +31,7 @@ func (f Frame) runwayComing(c *canvas, laid runwayLaid) {
 		return
 	}
 	m := laid.m
-	teller := comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m), namesStarted: true}
+	teller := comingTeller{moment: m, names: namesOf(m), window: f.windowNamer(m), namesStarted: true}
 	things := teller.happenings(f.Runway.Coming)
 	columns, top := f.comingColumns(), fit.coming+1
 	places := fit.lines * len(columns)

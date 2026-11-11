@@ -336,9 +336,9 @@ const (
 // sees to it.
 type Note struct {
 	Need Need
-	// Account is the label of the account it's of, which leads it: "" for
-	// one of no account alone.
-	Account string
+	// Account is the id of the account it's of: "" for one of no account
+	// alone. Label is its label, which leads it, as the config gives it.
+	Account, Label string
 	// Says is what's missing, after the account's label; Press, how to see
 	// to it, and Key the key that does.
 	Says, Press, Key string
@@ -371,7 +371,7 @@ func (r Review) Notes() []Note {
 // notesOf are the account's notes, its token's first.
 func (r Review) notesOf(a Reviewed) []Note {
 	approving := "create a new one, approving it in the browser signed in to " + a.Label + "."
-	newToken := Note{Need: NeedToken, Account: a.Label, Press: "Press t to " + approving, Key: "t"}
+	newToken := Note{Need: NeedToken, Account: a.ID, Label: a.Label, Press: "Press t to " + approving, Key: "t"}
 	var notes []Note
 	switch year := a.Token.Year; {
 	case a.Token.State == TokenUnreadable:
@@ -387,7 +387,7 @@ func (r Review) notesOf(a Reviewed) []Note {
 		notes = append(notes, newToken)
 	}
 	if a.Plan == "" {
-		notes = append(notes, Note{Need: NeedPlan, Account: a.Label, Says: "has no plan set, so History can't value its usage.", Press: "Press e to set one.", Key: "e"})
+		notes = append(notes, Note{Need: NeedPlan, Account: a.ID, Label: a.Label, Says: "has no plan set, so History can't value its usage.", Press: "Press e to set one.", Key: "e"})
 	}
 	return notes
 }

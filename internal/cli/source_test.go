@@ -477,7 +477,8 @@ func TestASessionsPageOpenedByAClickPinsItAlone(t *testing.T) {
 		t.Fatalf("the screen is\n%s\nwant SESSIONS showing %s", ansi.Strip(m.View().Content), sessionOne[:4])
 	}
 	m = delivered(m, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
-	// The card opens on auto, the session pinned to none: side is three rows under it.
+	// The card opens on auto, the session pinned to none: side is three rows
+	// under it.
 	pressed(m, "p", "down", "down", "down", "space", "enter")
 
 	if got := srv.session(t, sessionOne).Pin; got != "side" {

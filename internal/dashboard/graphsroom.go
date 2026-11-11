@@ -165,11 +165,12 @@ func (g graphsGiven) paired() []flex.Span {
 	return nil
 }
 
-// glanceBesideWhen lays GLANCE and WHEN YOU WORK side by side width cells
-// wide, of the configured accounts given, GLANCE drawing the windows given, reporting whether both fit at their naturals
-// with glanceWhenGap between: GLANCE from column 0 at its natural, as
-// glancePart has it; WHEN YOU WORK after it, from its natural, as hoursPart
-// has it, to the width's end, as every section takes the width.
+// glanceBesideWhen lays GLANCE and WHEN YOU WORK side by side width cells wide,
+// of the configured accounts given, GLANCE drawing the windows given, reporting
+// whether both fit at their naturals with glanceWhenGap between: GLANCE from
+// column 0 at its natural, as glancePart has it; WHEN YOU WORK after it, from
+// its natural, as hoursPart has it, to the width's end, as every section takes
+// the width.
 func glanceBesideWhen(accounts config.Accounts, windows []views.RunwayWindow, width int) ([]flex.Span, bool) {
 	glance, when := atNatural(glancePart(accounts, windows)), atNatural(hoursPart())
 	when.Most, when.Gap = 0, glanceWhenGap

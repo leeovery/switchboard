@@ -879,14 +879,15 @@ func namedOf(cells int) func(*status.Document) {
 	}
 }
 
-// The lines' names are a column of names, at least 8 cells of label, at
-// their natural the widest, beside the state words, at least leastStanding,
-// as the sweep can't see a cut beside the cords: each name is whole wherever
-// the lines' row holds it, what follows it, and the words' least, else
-// narrowed toward its least, the name column's 14 with personal's marks; and each account's lead, ● at its cap, ■ limit reached and
-// ● open, is whole wherever the names' least leaves it room. A line of one
-// row has its week's bar, 21 cells to its words, between. Of names of 8, 14
-// and 22 cells, at every width from 100 to 220, at each step.
+// The lines' names are a column of names, at least 8 cells of label, at their
+// natural the widest, beside the state words, at least leastStanding, as the
+// sweep can't see a cut beside the cords: each name is whole wherever the
+// lines' row holds it, what follows it, and the words' least, else narrowed
+// toward its least, the name column's 14 with personal's marks; and each
+// account's lead, ● at its cap, ■ limit reached and ● open, is whole wherever
+// the names' least leaves it room. A line of one row has its week's bar, 21
+// cells to its words, between. Of names of 8, 14 and 22 cells, at every width
+// from 100 to 220, at each step.
 func TestTheLinesNamesAndStateLeadsAreWholeWhereTheyFit(t *testing.T) {
 	t.Parallel()
 	const namesLeast = 14

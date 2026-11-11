@@ -68,7 +68,7 @@ type Moment struct {
 // AccountNow is an account of a document as it stands at a moment.
 type AccountNow struct {
 	// ID and Label are as configured, Place is its place in the document,
-	// from 1, as Order places it, and Primary is set on the primary.
+	// from 1, and Primary is set on the primary.
 	ID, Label string
 	Place     int
 	Primary   bool

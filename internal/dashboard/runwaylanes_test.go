@@ -189,7 +189,7 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 		{name: "without a token", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, head: "work", use: "no token", useInks: []ink{errorInk}},
 		{
 			name: "out of the pool, faint", window: views.RunwayFiveHour, lane: laidLane{
-				name: accountName{label: "personal", primary: true, out: true, faint: true}, account: status.AccountNow{OutOfPool: true},
+				name: accountName{label: "personal", primary: true, out: true}, account: status.AccountNow{OutOfPool: true},
 				Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 0.39, Read: true}},
 			},
 			head: "personal ◆", use: "5-hour 39%", useInks: []ink{faintInk, faintInk},
@@ -278,7 +278,7 @@ func TestACollapsedLaneIsHeadedByItsMarksAndItsUseUnderThem(t *testing.T) {
 		{name: "without a token", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, use: "—", figure: faintInk, from: 5},
 		{
 			name: "out of the pool, faint", lane: laidLane{
-				name: accountName{label: "personal", primary: true, out: true, faint: true}, account: status.AccountNow{OutOfPool: true}, Lane: views.Lane{ID: "personal", Use: read(0.84)},
+				name: accountName{label: "personal", primary: true, out: true}, account: status.AccountNow{OutOfPool: true}, Lane: views.Lane{ID: "personal", Use: read(0.84)},
 			},
 			head: "◆", use: "84%", figure: faintInk, marks: faintInk, from: 5,
 		},
@@ -427,7 +427,7 @@ func TestRunwaysLanesAreThoseTheFitShowsOnItsRows(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
 			for _, ln := range f.laidLanes(m, tt.fit) {
-				got = append(got, fmt.Sprintf("%s %s %s faint %t row %d", ln.ID, ln.account.ID, ln.name.line(framesLanesFrom).plain(), ln.name.faint, ln.row))
+				got = append(got, fmt.Sprintf("%s %s %s faint %t row %d", ln.ID, ln.account.ID, ln.name.line(framesLanesFrom).plain(), ln.name.out, ln.row))
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("Runway's lanes are\n%q, want\n%q", got, tt.want)

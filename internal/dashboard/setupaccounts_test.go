@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -185,6 +186,42 @@ func TestATokensWordsWhereItsNotToldByItsYear(t *testing.T) {
 	}
 }
 
+// A note leads with its account's label, cleaned, or its id where it has
+// none; and two accounts' notes, neither labelled, are a blank row apart.
+func TestANoteLeadsWithItsAccountsLabelElseItsID(t *testing.T) {
+	plan := func(id, label string) setup.Note {
+		return setup.Note{Need: setup.NeedPlan, Account: id, Label: label, Says: "has no plan set.", Press: "Press e to set one."}
+	}
+	for _, tt := range []struct {
+		name string
+		note setup.Note
+		want string
+	}{
+		{name: "labelled", note: plan("work", "Work"), want: "Work has no plan set. Press e to set one."},
+		{name: "without a label", note: plan("work", ""), want: "work has no plan set. Press e to set one."},
+		{name: "a label with an escape, cleaned", note: plan("work", "Wo\x1b[2Jrk"), want: prose.Clean("Wo\x1b[2Jrk") + " has no plan set. Press e to set one."},
+	} {
+		if got := noteLines(tt.note)[0].plain(); got != tt.want {
+			t.Errorf("%s, the note reads %q, want %q", tt.name, got, tt.want)
+		}
+	}
+	review := setup.Review{At: now, Accounts: []setup.Reviewed{
+		{ID: "work", Plan: "pro", Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking}},
+		{ID: "side", Token: setup.TokenStanding{State: setup.TokenWorking}},
+		{ID: "spare", Token: setup.TokenStanding{State: setup.TokenWorking}},
+	}}
+	c := setupDrawn(accountsScreen(review, 0), 160, 37)
+	var notes []string
+	for y := range 37 {
+		if row := rowOf(c, y); strings.Contains(row, "has no plan set") || (len(notes) > 0 && len(notes) < 3) {
+			notes = append(notes, strings.TrimSpace(row))
+		}
+	}
+	if len(notes) < 3 || !strings.HasPrefix(notes[0], "side ") || notes[1] != "" || !strings.HasPrefix(notes[2], "spare ") {
+		t.Errorf("the notes read %q, want side's, a blank row, then spare's", notes)
+	}
+}
+
 func TestTheReviewsNotes(t *testing.T) {
 	c := setupDrawn(accountsScreen(frame3Review(), 2), 160, 37)
 	want := []string{
@@ -209,7 +246,7 @@ func TestTheReviewsNotes(t *testing.T) {
 		x, y int
 		want ink
 	}{
-		{"an id, bold text.primary", 2, accountsNotesRow, titleInk},
+		{"a label, bold text.primary", 2, accountsNotesRow, titleInk},
 		{"what stops its requests, text.secondary", 7, accountsNotesRow, secondaryInk},
 		{"how to see to it, muted", 2, accountsNotesRow + 1, mutedInk},
 		{"what's missing besides, muted", 11, accountsNotesRow + 4, mutedInk},

@@ -912,19 +912,19 @@ func (r RoutingCard) names(ids []string) []string {
 	return names
 }
 
-// keys are the card's keys row, as many of them as fit width cells: ↑↓ move
-// the first to go, then m move running, as m's row names its key, then
-// space, tick on new sessions' card, or pick on a session's, which has no
-// m; enter apply and esc cancel always kept.
+// keys are the card's keys row, as many of them as fit width cells: m move
+// running the first to go, as m's row names its key; then ↑↓ move and
+// space, tick on new sessions' card or pick on a session's, which has no m,
+// together, as nothing else picks a row; enter apply and esc cancel always
+// kept.
 func (r RoutingCard) keys(width int) []Key {
-	move := Key{Key: "↑↓", Does: "move"}
-	tick := Key{Key: "space", Does: "tick"}
+	picking := []Key{{Key: "↑↓", Does: "move"}, {Key: "space", Does: "tick"}}
 	running := []Key{{Key: "m", Does: "move running"}}
 	if r.Mode == ThisSession {
-		tick.Does, running = "pick", nil
+		picking[1].Does, running = "pick", nil
 	}
 	kept := []Key{{Key: "enter", Does: "apply"}, {Key: "esc", Does: "cancel"}}
-	for _, keys := range [][]Key{slices.Concat([]Key{move, tick}, running, kept), slices.Concat([]Key{tick}, running, kept), slices.Concat([]Key{tick}, kept)} {
+	for _, keys := range [][]Key{slices.Concat(picking, running, kept), slices.Concat(picking, kept)} {
 		if keyRow(keys).width() <= width {
 			return keys
 		}

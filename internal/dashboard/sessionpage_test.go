@@ -753,6 +753,24 @@ func TestASessionsPageNamesItsAccountsByTheirLabels(t *testing.T) {
 	}
 }
 
+// A session's page names an account the pool leaves out faint on its row,
+// as the Overview does, and one in the pool in its own inks.
+func TestASessionsPageNamesAnAccountOutOfThePoolFaint(t *testing.T) {
+	doc := pageDocChanged(func(d *status.Document) {
+		d.Pin = status.Pin{Accounts: []string{"side"}, Since: sessionNow.Add(-time.Hour).UTC()}
+	})
+	shown := moved()
+	at := pageFrame(t, shown, 160, 37).At(doc, sessionNow)
+	c, d := at.page(doc, sessionNow), at.sessionDrawn(doc, sessionNow)
+	for i, s := range shown.Page.Stays(sessionNow) {
+		for x := range len(s.Account) {
+			if got := c.at(x, d.l.accountsAt+i).ink.token; (got == theme.TextFaint) != (s.Account != "side") {
+				t.Errorf("%s's row has cell %d of its label in %s, want text.faint: %t, as the pool leaves it out", s.Account, x, got, s.Account != "side")
+			}
+		}
+	}
+}
+
 // A session's page's heading names it by its directory: one with none by
 // its id alone; a long one cut from its start with …, its name kept whole.
 // A phone names it by its id and its directory's name. Each holds here with

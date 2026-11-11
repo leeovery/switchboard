@@ -89,7 +89,7 @@ type routingColumns struct {
 // frame, of the moment m, as routingColumnsOf lays them, the name column as
 // USAGE's rows have it.
 func (f Frame) routingColumns(m status.Moment) routingColumns {
-	return routingColumnsOf(f.Width, nameColumn(overviewNames(m), f.Width))
+	return routingColumnsOf(f.Width, nameColumn(namesOf(m), f.Width))
 }
 
 // routingColumnsOf are where the rows of ROUTING and SESSIONS lie across
@@ -150,7 +150,7 @@ type routingTable struct {
 // counted, as status.CountStates counts them, at now.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	m := f.Moment(doc, now)
-	names := overviewNames(m)
+	names := namesOf(m)
 	t := routingTable{columns: f.routingColumns(m), now: now}
 	var running map[string]int
 	if f.Sessions != nil {

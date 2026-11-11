@@ -652,6 +652,17 @@ func TestThePoolIsLastAndCountsTheAccountsNewSessionsCanGoTo(t *testing.T) {
 	if got := colAt(rows[10], 86, 22); strings.Contains(got, "pinned") || !strings.Contains(got, " of 2 left") {
 		t.Errorf("the pool's second window's words read %q, want its room of 2, not saying pinned again", got)
 	}
+	c := blockOn(t, pinned, 160, "nord")
+	for x := range len("work") {
+		if got := c.at(x, 2).ink.token; got != theme.TextFaint {
+			t.Errorf("work, out of the pool, has cell %d of its label in %s, want text.faint", x, got)
+		}
+	}
+	for x := range len("personal") {
+		if got := c.at(x, 4).ink.token; got != theme.TextPrimary {
+			t.Errorf("personal, in the pool, has cell %d of its label in %s, want text.primary", x, got)
+		}
+	}
 	if got := printed(trio(func(d *status.Document) { d.Accounts = d.Accounts[:1] }), 160, ByWindow); slices.ContainsFunc(got, func(r string) bool {
 		return strings.Contains(r, "Σ") || strings.Contains(r, "─")
 	}) {
