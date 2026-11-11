@@ -665,22 +665,39 @@ func (d detailDrawn) lately(c *canvas, y, x, words int) {
 
 // accountLatelyLines are Detail's LATELY lines of the sentences given, at the
 // moment m: each led as latelyLeads has it; then its words in full,
-// stacked as wide, in text.muted, each account named as the dashboard names
+// stacked as wide, in text.muted, each account named as detailNamed names
 // it, cut to the cells given.
 func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
 	lines := latelyLeads(m, sentences)
 	for i, s := range sentences {
 		var told line
 		for _, p := range slices.Concat(s.Full.Subject, s.Full.Words, s.Full.Object, s.Full.Rest) {
-			text := p.Text
+			said := span{p.Text, mutedInk}
 			if p.Kind == status.PartAccount {
-				text = named(m, p.Text)
+				said = detailNamed(m, p.Text)
 			}
-			told = append(told, span{text, mutedInk})
+			told = append(told, said)
 		}
 		lines[i] = append(lines[i], told.fit(words)...)
 	}
 	return lines
+}
+
+// detailNamed is the account with the given id as Detail's words name it:
+// as named names it, in text.muted, or in text.faint, as Days draws one,
+// where it isn't configured, as status's AccountName says.
+func detailNamed(m status.Moment, id string) span {
+	return span{named(m, id), namedInk(m.Named(id))}
+}
+
+// namedInk is the ink an account named as given is drawn in where its name
+// stands among words: text.faint where it isn't configured, as status's
+// AccountName says, else text.muted.
+func namedInk(n status.AccountName) ink {
+	if n.Other {
+		return faintInk
+	}
+	return mutedInk
 }
 
 // sessions draws SESSIONS from row y: its heading, as panelHeading has it

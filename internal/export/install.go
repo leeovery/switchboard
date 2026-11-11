@@ -45,7 +45,7 @@ func readID(path string) (string, error) {
 	}
 	id, ended := strings.CutSuffix(string(data), "\n")
 	if !ended || !isID(id) {
-		return "", fmt.Errorf("%s doesn't hold an install id, 16 lowercase hex characters: removing it gives this Mac a new id, and a folder of its own", path)
+		return "", fmt.Errorf("%s doesn't hold an install id, 16 lowercase hex characters: removing it gives this Mac a new id, and a folder of its own, though then this Mac's exports from before switchboard made account ids are refused an import, as another Mac's", path)
 	}
 	return id, nil
 }

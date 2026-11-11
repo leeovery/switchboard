@@ -35,9 +35,16 @@ func (r Record) Derive(organization string, configured []string) string {
 	if e, ok := r.ByOrganization(organization); ok {
 		return e.ID
 	}
-	sum := sha256.Sum256([]byte(organization))
+	return spelledFrom(organization, func(id string) bool { return !r.clashes(id, configured) })
+}
+
+// spelledFrom returns the first id spelled from seed's SHA-256, idLength
+// characters long, then a character longer each time, spelled on from the
+// same hash, that free reports may be given.
+func spelledFrom(seed string, free func(id string) bool) string {
+	sum := sha256.Sum256([]byte(seed))
 	for length := idLength; ; length++ {
-		if id := spell(sum[:], length); !r.clashes(id, configured) {
+		if id := spell(sum[:], length); free(id) {
 			return id
 		}
 	}

@@ -73,10 +73,12 @@ type Fixture struct {
 	// saying it's loading, as underWay has them.
 	loading bool
 	// records are what its world's readers serve the watch, and accounts
-	// its world's, as configured, whose plans History prices against: a
-	// printout has neither, and a watch drawn of it reads none.
+	// its world's, as configured, whose plans History prices against, and
+	// removed those its accounts record keeps removed: a printout has none,
+	// and a watch drawn of it reads none.
 	records  *records
 	accounts config.Accounts
+	removed  status.RemovedAccounts
 	// setup is set for a fixture of setup's screen, drawn by its own model
 	// rather than the watch.
 	setup *setupShown
@@ -318,7 +320,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts, view: p.view, log: p.log, scale: p.scale, loading: p.loading,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
 	}
 }
 
@@ -337,8 +339,9 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // and personal have no 5-hour limit. History's frames, each reached from
 // the Overview with tab twice, then the keys to its view: the Year, and
 // filtered to Opus 5.5; Weeks, its table and its columns, and of ten
-// accounts; Days, and of ten; Tokens by account, and by model; and the Year
-// on a phone; and where no frame draws it, to judge by eye, the Year at
+// accounts; Days, of ten, and with an account removed; Tokens by account,
+// and by model; and the Year on a phone; and where no frame draws it, to
+// judge by eye, the Year at
 // 160×24, scrolled down three rows with j. Then the page as stage 6 builds
 // it, over the auto world, where no frame draws it, to judge by eye: the
 // routing card over the Overview, two accounts picked and m ticked, at
@@ -438,6 +441,7 @@ var pages = []page{
 	{name: "history-weeks-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]")},
 	{name: "history-days-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]")},
 	{name: "history-days-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]", "]")},
+	{name: "history-days-removed-160", size: wide(37), world: accountWorlds.removedTeam, keys: toHistory("]", "]")},
 	{name: "history-tokens-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]")},
 	{name: "history-tokens-models-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]", "v")},
 	{name: "history-tokens-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toHistory("]", "]", "]")},

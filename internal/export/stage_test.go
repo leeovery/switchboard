@@ -187,6 +187,7 @@ func TestStageLaysOutEachFolderNumberedInOrderAsTheRouterReadsIt(t *testing.T) {
 		kinds[2].compressed(one, day2): {gzipOf(t, linesOf(`{"n":3}`)), compressedAt},
 		requests.compressed(two, day2): {gzipOf(t, linesOf(`{"n":4}`)), appendedAt},
 		summary(two, "2025-10-02"):     {[]byte("{\"version\":5}\n"), summarisedAt},
+		accountsRecord(one):            {[]byte("{\"version\":1,\"accounts\":[]}\n"), summarisedAt},
 	}
 	for path, f := range files {
 		writeFile(t, path, f.data, f.modified)
@@ -209,6 +210,7 @@ func TestStageLaysOutEachFolderNumberedInOrderAsTheRouterReadsIt(t *testing.T) {
 		want = append(want, filepath.Join(filepath.Base(staged[folder]), rel))
 		wantCopy(t, filepath.Join(staged[folder], rel), f.data, f.modified)
 	}
+	want = append(want, filepath.Join("1", "export.json"), filepath.Join("2", "export.json"))
 	slices.Sort(want)
 	if got := filesUnder(t, importDir); !slices.Equal(got, want) {
 		t.Errorf("%s holds %q, want %q", importDir, got, want)
@@ -220,7 +222,7 @@ func TestStageLaysOutEachFolderNumberedInOrderAsTheRouterReadsIt(t *testing.T) {
 	}
 }
 
-func TestStageStagesAFolderOfNothingButItsExportJSONAsAFolderOfNothing(t *testing.T) {
+func TestStageStagesAFolderOfNothingButItsExportJSONAsAFolderOfThatAlone(t *testing.T) {
 	one := macsFolder(t, t.TempDir(), installOne, export.Version)
 	importDir := filepath.Join(t.TempDir(), "import")
 
@@ -229,8 +231,8 @@ func TestStageStagesAFolderOfNothingButItsExportJSONAsAFolderOfNothing(t *testin
 	if info := look(t, filepath.Join(importDir, "1")); !info.IsDir() {
 		t.Errorf("%s/1 is %v, want a folder", importDir, info.Mode())
 	}
-	if got := filesUnder(t, importDir); len(got) != 0 {
-		t.Errorf("%s holds %q, want nothing", importDir, got)
+	if got := filesUnder(t, importDir); !slices.Equal(got, []string{filepath.Join("1", "export.json")}) {
+		t.Errorf("%s holds %q, want the folder's export.json alone", importDir, got)
 	}
 }
 
@@ -256,7 +258,7 @@ func TestStagePassesOverWhatTheStateDirectoryDoesntName(t *testing.T) {
 
 	stage(t, importDir, one)
 
-	if got, want := filesUnder(t, importDir), []string{filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}; !slices.Equal(got, want) {
+	if got, want := filesUnder(t, importDir), []string{filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}; !slices.Equal(got, want) {
 		t.Errorf("%s holds %q, want %q alone", importDir, got, want)
 	}
 }
@@ -277,7 +279,7 @@ func TestStagePassesOverALinkOrAFolderByADaysFilesName(t *testing.T) {
 
 	stage(t, importDir, one)
 
-	want := []string{filepath.Join("1", "ledger", "day-"+day1+".json"), filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}
+	want := []string{filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "day-"+day1+".json"), filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}
 	if got := filesUnder(t, importDir); !slices.Equal(got, want) {
 		t.Errorf("%s holds %q, want %q alone: no link followed out of the folder, nor a folder by a summary's name taken", importDir, got, want)
 	}
@@ -297,7 +299,7 @@ func TestStageRemovesWhatAnImportCutShortLeftFirst(t *testing.T) {
 
 	stage(t, importDir, one)
 
-	if got, want := filesUnder(t, importDir), []string{filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}; !slices.Equal(got, want) {
+	if got, want := filesUnder(t, importDir), []string{filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-"+day1+".jsonl.gz")}; !slices.Equal(got, want) {
 		t.Errorf("%s holds %q, want %q alone", importDir, got, want)
 	}
 }
@@ -336,9 +338,9 @@ func TestAnExportStagedIsByteAndTimeTheExportsOwn(t *testing.T) {
 	stage(t, importDir, folders...)
 
 	folder := folderOf(t, state, dir)
-	exported := slices.DeleteFunc(filesUnder(t, folder), func(path string) bool { return path == "export.json" })
-	if got := filesUnder(t, filepath.Join(importDir, "1")); len(exported) != 7 || !slices.Equal(got, exported) {
-		t.Fatalf("staged %q, want the export's %q, seven files", got, exported)
+	exported := filesUnder(t, folder)
+	if got := filesUnder(t, filepath.Join(importDir, "1")); len(exported) != 8 || !slices.Equal(got, exported) {
+		t.Fatalf("staged %q, want the export's %q, eight files, export.json among them", got, exported)
 	}
 	for _, rel := range exported {
 		src, dst := filepath.Join(folder, rel), filepath.Join(importDir, "1", rel)

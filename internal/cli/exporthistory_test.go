@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/export"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 )
@@ -50,6 +52,27 @@ func TestExportSaysHowManyDaysItWroteAndLeftAsTheyWere(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(folder, "ledger", "requests-2026-10-02.jsonl.gz")); err != nil {
 		t.Errorf("the folder's copy of the 2nd's lines: %v, want it there", err)
+	}
+}
+
+// The accounts record is exported with each account the config configures
+// labelled as it's configured, so a Mac that doesn't configure it names it.
+func TestExportLabelsTheAccountsConfigured(t *testing.T) {
+	deps := exportDeps(t)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte("[[account]]\nid = \"b6s7\"\nlabel = \"Work\"\n"))
+	writeStateFile(t, stateDir(t, deps), "accounts.json", []byte(`{"version":1,"accounts":[{"id":"b6s7","organization":"test-org-work","added":"2026-08-01T09:00:00Z"}]}`+"\n"))
+	dir := t.TempDir()
+
+	if got := run(t, deps, "export", dir); got.code != 0 {
+		t.Fatalf("switchboard export = %+v, want it done", got)
+	}
+	record, err := identity.NewFile(macsFolder(t, deps, dir)).Read()
+	if err != nil || len(record.Accounts) != 1 || record.Accounts[0].Label != "Work" {
+		t.Errorf("the folder's accounts record is %+v (%v), want b6s7 labelled Work, as configured", record, err)
 	}
 }
 

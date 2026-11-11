@@ -213,6 +213,12 @@ func decode(data []byte) (Record, error) {
 	return r, nil
 }
 
+// Encode returns the accounts record as its file holds it, as encode does,
+// for a copy of it written elsewhere, as export writes one.
+func (r Record) Encode() ([]byte, error) {
+	return encode(r)
+}
+
 // encode returns the accounts record as its file holds it, its times in UTC
 // to the second, failing, saying why, where decode would.
 func encode(r Record) ([]byte, error) {

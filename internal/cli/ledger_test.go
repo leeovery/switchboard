@@ -650,7 +650,8 @@ func TestHistoryNotesADayOfNoRequestsOnlyWhereALimitWasReachedOrAWeekReset(t *te
 // requests; work's check is of claude-haiku-4-5, which, of that alone, wasn't
 // used, so neither its family nor its version is listed. The
 // readings history read no week's reset, so no week's peak is known, and
-// work's limit of the 6th is in the calendar week it was reached in.
+// work's limit of the 6th is in the calendar week it was reached in. No
+// account is removed, so the list of those is empty.
 const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","requests":1,"level":3},{"day":"2026-10-05","requests":0,"level":0},` +
 	`{"day":"2026-10-06","requests":1,"level":3},{"day":"2026-10-07","requests":4,"level":4}]},` +
 	`"months":[{"month":"2026-10","requests":6,"worth":0.171772,"unpriced":["claude-opus-9","no_usage"],"plans":{"known":0,"of":2},"limits":{"5h":1},` +
@@ -688,7 +689,7 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	`"busiest_day":"2026-10-07","longest_run":2}]},` +
 	`"plans":[{"account":"work","worth":0.156752,"unpriced":["claude-opus-9"]},{"account":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true,"plans":{"known":0,"of":2}}],` +
 	`"capacity":{"weeks":0,"short":0,"with_one_fewer":0,"with_one_more":0,"accounts":[` +
-	`{"account":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]}`
+	`{"account":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]},"removed":[]`
 
 func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	deps, _ := ledgerDeps(t)

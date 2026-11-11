@@ -40,13 +40,10 @@ func modelNamed(id string) string {
 	return ledger.ShortModelID(id)
 }
 
-// named is what the dashboard calls the account of m with the given id: its
-// name, or, where m lacks it, its id, cleaned.
+// named is what the dashboard calls the account of m with the given id: as
+// m's Named labels it, cleaned.
 func named(m status.Moment, id string) string {
-	if a, ok := m.Account(id); ok {
-		return name(a)
-	}
-	return prose.Clean(id)
+	return prose.Clean(m.Named(id).Label)
 }
 
 // names names the accounts of m with the given ids as a list, as in "work and

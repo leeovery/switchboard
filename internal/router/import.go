@@ -12,11 +12,14 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"sync"
 	"sync/atomic"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/export"
+	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 )
@@ -141,13 +144,18 @@ func (r *Router) serveImportRunning(w http.ResponseWriter, _ *http.Request) {
 }
 
 // importStatus is the status POST /import answers err with: 409 while another
-// import runs, 400 with nothing staged, 503 while the router can't import,
-// as it stops or while the history waits on its move onto the accounts' ids,
-// and 500 where a day couldn't be taken in.
+// import runs, where an accounts record staged disagrees with the Mac's, and
+// where a folder's hasn't synced yet; 422 where one doesn't read, and where a
+// folder another Mac exported before switchboard made ids has none; 400 with
+// nothing staged, 503 while the router can't import, as it stops or while
+// the history waits on its move onto the accounts' ids, and 500 where a day
+// couldn't be taken in.
 func importStatus(err error) int {
 	switch {
-	case errors.Is(err, export.ErrImportRunning):
+	case errors.Is(err, export.ErrImportRunning), errors.Is(err, identity.ErrConflict), errors.Is(err, idmove.ErrUnsynced):
 		return http.StatusConflict
+	case errors.Is(err, idmove.ErrStagedRecord), errors.Is(err, idmove.ErrBeforeIDs):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, errNothingStaged):
 		return http.StatusBadRequest
 	case errors.Is(err, errImportStopped), errors.Is(err, errHistoryUnkept), errors.Is(err, errHistoryMoving):
@@ -183,7 +191,11 @@ func (r *Router) importStaged(ctx context.Context) (Imported, error) {
 }
 
 // takeStaged takes in the folders staged in dir, in the order staged, as
-// importFolder takes each in; then has the ledger make its round at once, so
+// importFolder takes each in: once their accounts records are joined to the
+// state directory's, as joinStaged joins them, each moved onto the ids the
+// record then names, as idmove.RenameFolder renames it, before it's taken in, so
+// a line staged under an account's old id is the line the Mac holds under its
+// new; then has the ledger make its round at once, so
 // the days taken in are summarised: each first summary, and eight of those
 // summarised again, as days whose lines merged or of an older version, before
 // it returns, the rest in the rounds the ledger makes at once after, and the
@@ -197,8 +209,15 @@ func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 	case len(folders) == 0:
 		return Imported{}, fmt.Errorf("%w: %s holds no folder to take in", errNothingStaged, dir)
 	}
+	renames, err := r.joinStaged(folders)
+	if err != nil {
+		return Imported{}, err
+	}
 	took := importing{days: make(map[string]dayfile.Taken)}
-	for _, folder := range folders {
+	for i, folder := range folders {
+		if err := idmove.RenameFolder(ctx, folder, renames[i]); err != nil {
+			return Imported{}, fmt.Errorf("move what's staged to import onto the accounts' ids: %w", err)
+		}
 		if err := r.importFolder(ctx, folder, &took); err != nil {
 			return Imported{}, err
 		}
@@ -210,6 +229,29 @@ func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 	logger.Info("imported", "folders", imported.Folders, "added", imported.Days.Added, "merged", imported.Days.Merged,
 		"past_keep", imported.Days.PastKeep, "lines", imported.Lines, "summaries", imported.Summaries)
 	return imported, nil
+}
+
+// joinStaged joins the accounts each of folders names to the state
+// directory's accounts record, in the order staged, as idmove's JoinFolder
+// joins them, writing the record where that changed it, and returns how each
+// folder is renamed onto its ids, in the same order, this Mac being the
+// router's install, as export's InstallID names it, read only where a folder
+// needs it, and its accounts. It fails, writing nothing, as JoinFolder does,
+// as importStatus tells.
+func (r *Router) joinStaged(folders []string) ([]idmove.Renames, error) {
+	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(r.cfg.StateDir) }), Accounts: r.cfg.Accounts}
+	renames := make([]idmove.Renames, len(folders))
+	err := identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
+		for i, folder := range folders {
+			rename, err := idmove.JoinFolder(folder, record, here)
+			if err != nil {
+				return fmt.Errorf("nothing was imported, as %w", err)
+			}
+			renames[i] = rename
+		}
+		return nil
+	})
+	return renames, err
 }
 
 // importFolder takes in the folder staged at folder, adding what it took in

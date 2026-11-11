@@ -129,7 +129,7 @@ func (a *app) history(out io.Writer, given string, asJSON bool) error {
 	prices := pricing(asked.cfg)
 	reader := ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now })
 	history := views.NewHistory(views.HistoryInput{
-		Ledger: reader, From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.cfg.Accounts,
+		Ledger: reader, From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.cfg.Accounts, Removed: removedIn(asked.stateDir, asked.cfg),
 		WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
 	})
 	if asJSON {

@@ -169,6 +169,35 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 	}
 }
 
+// History's JSON gives each account removed that its days name by its id,
+// the label it showed last and when it was removed, as the accounts record
+// keeps them.
+func TestHistoryJSONGivesTheAccountsRemovedItsDaysName(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	state := stateDir(t, deps)
+	day, err := json.Marshal(ledger.Summary{Version: 2, Day: "2026-09-21", Accounts: []ledger.AccountDay{{Account: "h7c2", SessionIDs: []string{}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, ledger.Dir(state), "day-2026-09-21.json", append(day, '\n'))
+	writeStateFile(t, state, "accounts.json", []byte(`{"version":1,"accounts":[`+
+		`{"id":"h7c2","label":"team","added":"2026-08-01T09:00:00Z","removed":"2026-09-25T16:00:00Z"},`+
+		`{"id":"k3f9","label":"spare","added":"2026-08-01T09:00:00Z","removed":"2026-08-02T16:00:00Z"}]}`+"\n"))
+
+	got := run(t, deps, "history", "--json", "--since", "2026-09-14")
+	var doc struct {
+		Removed json.RawMessage `json:"removed"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
+		t.Fatalf("switchboard history --json = %+v (%v), want the blocks", got, err)
+	}
+	want := `[{"id":"h7c2","label":"team","removed":"2026-09-25T16:00:00Z"}]`
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, doc.Removed); err != nil || compact.String() != want {
+		t.Errorf("switchboard history --json gives the accounts removed\n%s (%v)\nwant\n%s", compact.String(), err, want)
+	}
+}
+
 // windowsFromThe6th are the readings history --windows gives from the 6th:
 // work's week, then its 5-hour window reaching its limit, in the order of
 // care, then side's 5-hour window, each a reading at a time, the configured

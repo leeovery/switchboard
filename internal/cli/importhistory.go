@@ -1,16 +1,19 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/export"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 )
@@ -32,6 +35,15 @@ is copied in where the Mac holds no line of the day, and no summary of it,
 or one that counts no line where the folder's counts some. A day's lines
 past keeping, as [ledger] keep and [history] keep say, are left out, and its
 summary taken in as that says.
+
+A folder's accounts record joins this Mac's: an account this Mac knows,
+matched by its id or its organization, is taken in under this Mac's id, and
+one it doesn't know is added, named by its label. A folder exported before
+switchboard made ids holds no record: this Mac's own is taken in under the
+ids its accounts have now, and another Mac's is passed over, saying so, until
+it's exported again from that Mac once it runs this version. A folder whose
+record hasn't synced yet is passed over too, to import again once it has, and
+one whose record doesn't read.
 
 It copies the folders into the state directory, then has the router take
 them in, waiting however long that takes, so it needs the router running:
@@ -95,7 +107,7 @@ func importThrough(ctx context.Context, client *router.Client, errOut io.Writer,
 	case running:
 		return router.Imported{}, export.ErrImportRunning
 	}
-	folders, err := foldersIn(errOut, dir)
+	folders, err := foldersIn(errOut, state, dir)
 	if err != nil {
 		return router.Imported{}, err
 	}
@@ -122,18 +134,39 @@ func fromImport(err error) error {
 	return fromRouter(err)
 }
 
-// foldersIn returns the Macs' folders to import from dir, as export.Folders
-// finds them, saying on errOut, a line each, which it passed over as their
-// export.json doesn't read, the import carrying on without them.
-func foldersIn(errOut io.Writer, dir string) ([]string, error) {
-	var unread []string
-	folders, err := export.Folders(dir, func(folder string) { unread = append(unread, folder) })
-	for _, folder := range unread {
-		if _, err := fmt.Fprintln(errOut, "switchboard: passed over "+folder+": its export.json doesn't read"); err != nil {
+// foldersIn returns the Macs' folders to import from dir into the Mac whose
+// state directory is state, as export.Folders finds them, saying on errOut,
+// a line each, which it passed over, the import carrying on without them:
+// those whose export.json doesn't read, and those the router would refuse,
+// as idmove's Refusal says, and why. It fails where it passed over every
+// folder there was.
+func foldersIn(errOut io.Writer, state, dir string) ([]string, error) {
+	var passed []string
+	found, err := export.Folders(dir, func(folder string) { passed = append(passed, folder+": its export.json doesn't read") })
+	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(state) })}
+	var folders []string
+	for _, folder := range found {
+		switch refused := idmove.Refusal(folder, here); {
+		case idmove.Refused(refused):
+			passed = append(passed, folder+": "+refused.Error())
+		case refused != nil:
+			err = cmp.Or(err, refused)
+		default:
+			folders = append(folders, folder)
+		}
+	}
+	for _, said := range passed {
+		if _, err := fmt.Fprintln(errOut, "switchboard: passed over "+said); err != nil {
 			return nil, err
 		}
 	}
-	return folders, err
+	switch {
+	case err != nil:
+		return nil, err
+	case len(folders) == 0:
+		return nil, fmt.Errorf("there's nothing to import in %s: each Mac's folder in it was passed over", dir)
+	}
+	return folders, nil
 }
 
 // importedSaid says what an import took in, as imported counts it: "imported

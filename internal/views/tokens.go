@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Tokens are tokens by kind, as ccusage counts them: CacheWrite is the
@@ -51,12 +52,13 @@ const NoAccount = "no account"
 
 // AccountTokens are an account's tokens in a week, and their worth, then by
 // model version. The account is left out of those the router answered with
-// none. Label is its label, as the config gives it, none where the config
-// doesn't configure it: the JSON names an account by its id alone, as
-// everywhere.
+// none. Label names it, and Other is set on one that isn't configured, as
+// status's AccountName has them: the JSON names an account by its id alone,
+// as everywhere.
 type AccountTokens struct {
 	Account string `json:"account,omitempty"`
 	Label   string `json:"-"`
+	Other   bool   `json:"-"`
 	Tokens
 	Worth
 	ByModel []ModelTokens `json:"by_model,omitempty"`
@@ -76,8 +78,8 @@ type ModelTokens struct {
 // tokensOf are Tokens' rows over days, counted from the day with the date
 // from, a calendar week each, weeks starting on the day given, as
 // tokenPeriodsOf gives them.
-func tokensOf(days []Day, p plans, v versions, from string, weekStarts time.Weekday) []TokenWeek {
-	periods := tokenPeriodsOf(days, p, v, from, TokensByWeek.shape(weekStarts))
+func tokensOf(days []Day, p plans, removed status.RemovedAccounts, v versions, from string, weekStarts time.Weekday) []TokenWeek {
+	periods := tokenPeriodsOf(days, p, removed, v, from, TokensByWeek.shape(weekStarts))
 	weeks := make([]TokenWeek, len(periods))
 	for i, t := range periods {
 		weeks[i] = TokenWeek{Week: t.First, Tokens: t.Tokens, Worth: t.Worth, Against: t.Against, ByAccount: t.ByAccount, ByModel: t.ByModel}
@@ -89,11 +91,12 @@ func tokensOf(days []Day, p plans, v versions, from string, weekStarts time.Week
 // date from, a period each, as the shape given makes them, oldest first,
 // each costing its plans its share of a month as of its first day, the
 // period so far whole, but for the one the days counted begin part-way
-// through, as the one a young ledger began in, as pricedOver prices it.
-func tokenPeriodsOf(days []Day, p plans, v versions, from string, by periodShape) []TokenPeriod {
+// through, as the one a young ledger began in, as pricedOver prices it. Its
+// accounts removed are named as tokenPeriodOf names them.
+func tokenPeriodsOf(days []Day, p plans, removed status.RemovedAccounts, v versions, from string, by periodShape) []TokenPeriod {
 	periods := []TokenPeriod{}
 	for _, s := range spansOf(days, by.key) {
-		period := tokenPeriodOf(s, p, v)
+		period := tokenPeriodOf(s, p, removed, v)
 		first, last := by.dates(s.key)
 		period.Against = p.against(accountWorths(s.days), pricedOver(first, last, from, by.share))
 		periods = append(periods, period)
@@ -102,11 +105,12 @@ func tokenPeriodsOf(days []Day, p plans, v versions, from string, by periodShape
 }
 
 // tokenPeriodOf is the period the span's days make: their tokens and worth,
-// by account, in the config's order, those it doesn't configure after, and
-// by model version, and how many versions they were of. An account whose
-// days hold no model used, as used says, as one whose windows were read but
-// that wasn't used, or that sent quota checks alone, has none.
-func tokenPeriodOf(s span, p plans, v versions) TokenPeriod {
+// by account, in the config's order, those it doesn't configure after, as
+// list names them, and by model version, and how many versions they were
+// of. An account whose days hold no model used, as used says, as one whose
+// windows were read but that wasn't used, or that sent quota checks alone,
+// has none.
+func tokenPeriodOf(s span, p plans, removed status.RemovedAccounts, v versions) TokenPeriod {
 	period := TokenPeriod{First: s.key}
 	models, accounts := modelTally{}, accountTally{}
 	for _, d := range s.days {
@@ -126,7 +130,7 @@ func tokenPeriodOf(s span, p plans, v versions) TokenPeriod {
 			}
 		}
 	}
-	period.ByAccount, period.ByModel = accounts.list(p.accounts), models.list()
+	period.ByAccount, period.ByModel = accounts.list(p.accounts, removed), models.list()
 	period.Versions = len(period.ByModel)
 	return period
 }
@@ -152,24 +156,18 @@ func (t accountTally) of(id string) *talliedAccount {
 }
 
 // list lists the accounts in the config's order, those it doesn't configure
-// after, by id, each with its label and its model versions.
-func (t accountTally) list(configured config.Accounts) []AccountTokens {
+// after, by id, each named as removed's Named names it, and with its model
+// versions.
+func (t accountTally) list(configured config.Accounts, removed status.RemovedAccounts) []AccountTokens {
 	listed := make([]AccountTokens, 0, len(t))
 	for _, id := range slices.SortedFunc(maps.Keys(t), byConfig(configured)) {
 		account := t[id].AccountTokens
-		account.Label, account.ByModel = labelOf(configured, id), t[id].models.list()
+		n := removed.Named(configured, id)
+		account.Label, account.Other = n.Label, n.Other
+		account.ByModel = t[id].models.list()
 		listed = append(listed, account)
 	}
 	return listed
-}
-
-// labelOf is the config's label for the account with the given id: none
-// where it doesn't configure it.
-func labelOf(configured config.Accounts, id string) string {
-	if i := slices.IndexFunc(configured, func(a config.Account) bool { return a.ID == id }); i >= 0 {
-		return configured[i].Label
-	}
-	return ""
 }
 
 // weekKey is a key giving the first day of the week a day falls in, weeks

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -112,8 +113,11 @@ func stageFolder(folder, dst string) error {
 
 // stagedFiles returns where the files to stage of the Mac's folder at folder
 // are: each day's compressed file of each kind of line, as Files' Compressed
-// finds them, and each day's summary, as ledger.SummaryDates finds them,
-// passing over anything else, as a temporary file an export cut short left.
+// finds them, each day's summary, as ledger.SummaryDates finds them, the
+// accounts record, which copyFile passes over where there's none, and
+// export.json, for the router to tell whose folder it is and how it was
+// exported; passing over anything else, as a temporary file an export cut
+// short left.
 func stagedFiles(folder string) ([]string, error) {
 	var paths []string
 	for _, files := range linesIn(folder, slog.New(slog.DiscardHandler)) {
@@ -133,5 +137,5 @@ func stagedFiles(folder string) ([]string, error) {
 	for _, date := range dates {
 		paths = append(paths, ledger.SummaryFile(dir, date))
 	}
-	return paths, nil
+	return append(paths, identity.NewFile(folder).Path(), filepath.Join(folder, manifestFile)), nil
 }

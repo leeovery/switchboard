@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -82,7 +83,7 @@ func (w Windows) Listed() []WindowReadings {
 // doesn't configure after, by id.
 func byConfig(accounts config.Accounts) func(a, b string) int {
 	place := func(id string) int {
-		if i := slices.IndexFunc(accounts, func(a config.Account) bool { return a.ID == id }); i >= 0 {
+		if i := slices.IndexFunc(accounts, func(a config.Account) bool { return strings.EqualFold(a.ID, id) }); i >= 0 {
 			return i
 		}
 		return len(accounts)
