@@ -177,8 +177,8 @@ func TestTokensListsTheAccountsInTheConfigsOrder(t *testing.T) {
 	}
 }
 
-// Each of Tokens' accounts carries the config's label for it: none for one it
-// doesn't configure, and none for the requests none answered.
+// Each of Tokens' accounts carries its label, as status's AccountName has it:
+// the config's, else its id, and none for the requests none answered.
 func TestTokensLabelsEachAccountAsTheConfigDoes(t *testing.T) {
 	days := daysFrom("2026-10-07", day("2026-10-07",
 		account("", sent("claude-opus-5-5", 1, "")),
@@ -192,7 +192,7 @@ func TestTokensLabelsEachAccountAsTheConfigDoes(t *testing.T) {
 	for _, a := range views.NewPast(in, days).Tokens(views.TokensAsk{}).Periods[0].ByAccount {
 		labels = append(labels, a.Label)
 	}
-	if want := []string{"Work laptop", "", "", ""}; !slices.Equal(labels, want) {
+	if want := []string{"Work laptop", "side", "", "extra"}; !slices.Equal(labels, want) {
 		t.Errorf("today's accounts are labelled %q, want %q", labels, want)
 	}
 }

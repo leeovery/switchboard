@@ -430,12 +430,7 @@ func (m *Mover) moveHistory(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return m.renameHistory(ctx, m.history(), rename)
-}
-
-// renameHistory writes h anew, each account it names renamed as rename has
-// it, as moveHistory says.
-func (m *Mover) renameHistory(ctx context.Context, h History, rename renames) error {
+	h := m.history()
 	for _, kind := range []struct {
 		files *dayfile.Files
 		names names

@@ -144,12 +144,14 @@ func (r *Router) serveImportRunning(w http.ResponseWriter, _ *http.Request) {
 
 // importStatus is the status POST /import answers err with: 409 while another
 // import runs, and where an accounts record staged disagrees with the Mac's,
-// 400 with nothing staged, 503 while the router can't import, as it stops,
-// and 500 where a day couldn't be taken in.
+// 422 where one doesn't read, 400 with nothing staged, 503 while the router
+// can't import, as it stops, and 500 where a day couldn't be taken in.
 func importStatus(err error) int {
 	switch {
 	case errors.Is(err, export.ErrImportRunning), errors.Is(err, identity.ErrConflict):
 		return http.StatusConflict
+	case errors.Is(err, idmove.ErrStagedRecord):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, errNothingStaged):
 		return http.StatusBadRequest
 	case errors.Is(err, errImportStopped), errors.Is(err, errHistoryUnkept):
@@ -182,7 +184,7 @@ func (r *Router) importStaged(ctx context.Context) (Imported, error) {
 // takeStaged takes in the folders staged in dir, in the order staged, as
 // importFolder takes each in: once their accounts records are joined to the
 // state directory's, as joinStaged joins them, each moved onto the ids the
-// record then names, as idmove.MoveFolder moves it, before it's taken in, so
+// record then names, as idmove.RenameFolder renames it, before it's taken in, so
 // a line staged under an account's old id is the line the Mac holds under its
 // new; then has the ledger make its round at once, so
 // the days taken in are summarised: each first summary, and eight of those
@@ -198,13 +200,13 @@ func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 	case len(folders) == 0:
 		return Imported{}, fmt.Errorf("%w: %s holds no folder to take in", errNothingStaged, dir)
 	}
-	record, err := r.joinStaged(folders)
+	renames, err := r.joinStaged(folders)
 	if err != nil {
 		return Imported{}, err
 	}
 	took := importing{days: make(map[string]dayfile.Taken)}
-	for _, folder := range folders {
-		if err := idmove.MoveFolder(ctx, folder, record); err != nil {
+	for i, folder := range folders {
+		if err := idmove.RenameFolder(ctx, folder, renames[i]); err != nil {
 			return Imported{}, fmt.Errorf("move what's staged to import onto the accounts' ids: %w", err)
 		}
 		if err := r.importFolder(ctx, folder, &took); err != nil {
@@ -220,28 +222,26 @@ func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 	return imported, nil
 }
 
-// joinStaged joins the accounts record staged in each of folders, where
-// there's one, to the state directory's, in the order staged, as identity's
-// Join joins one, and returns the state directory's as it then stands,
-// written where that changed it. It fails, writing nothing, where one can't
-// be read, and where one disagrees with it, with identity.ErrConflict
-// wrapped.
-func (r *Router) joinStaged(folders []string) (identity.Record, error) {
-	var joined identity.Record
+// joinStaged joins the accounts each of folders names to the state
+// directory's accounts record, in the order staged, as idmove's JoinFolder
+// joins them, writing the record where that changed it, and returns how each
+// folder is renamed onto its ids, in the same order. It fails, writing
+// nothing, as JoinFolder does: with idmove.ErrStagedRecord wrapped where a
+// folder's record can't be read, and identity.ErrConflict where one
+// contradicts the state directory's.
+func (r *Router) joinStaged(folders []string) ([]idmove.Renames, error) {
+	renames := make([]idmove.Renames, len(folders))
 	err := identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
-		for _, folder := range folders {
-			staged, err := identity.NewFile(folder).Read()
+		for i, folder := range folders {
+			rename, err := idmove.JoinFolder(folder, record, nil, r.cfg.Now())
 			if err != nil {
-				return fmt.Errorf("read the accounts record staged to import: %w", err)
-			}
-			if err := record.Join(staged); err != nil {
 				return fmt.Errorf("nothing was imported, as %w", err)
 			}
+			renames[i] = rename
 		}
-		joined = *record
 		return nil
 	})
-	return joined, err
+	return renames, err
 }
 
 // importFolder takes in the folder staged at folder, adding what it took in

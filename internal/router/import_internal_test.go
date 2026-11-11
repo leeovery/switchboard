@@ -18,6 +18,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -343,6 +344,12 @@ func TestAnImportRetriedAfterOneCutShortTakesTheSummaryStagedOverARoundsBetween(
 func TestAnAccountsRecordStagedThatDisagreesIsAConflict(t *testing.T) {
 	if got := importStatus(fmt.Errorf("nothing was imported, as %w", identity.ErrConflict)); got != http.StatusConflict {
 		t.Errorf("importStatus() of an accounts record that disagrees = %d, want 409", got)
+	}
+}
+
+func TestAnAccountsRecordStagedThatDoesntReadIsTheFolders(t *testing.T) {
+	if got := importStatus(fmt.Errorf("nothing was imported, as %w", idmove.ErrStagedRecord)); got != http.StatusUnprocessableEntity {
+		t.Errorf("importStatus() of an accounts record staged that doesn't read = %d, want 422", got)
 	}
 }
 

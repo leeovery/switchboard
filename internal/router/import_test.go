@@ -24,6 +24,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -99,11 +100,15 @@ func dateOf(days int) string {
 	return now.Local().AddDate(0, 0, -days).Format(time.DateOnly)
 }
 
-// importConfig is runConfig, keeping its history as long as keptFor says.
+// importConfig is runConfig, keeping its history as long as keptFor says, its
+// accounts record holding the account the tests' lines name, under the id
+// they name it by, so a folder staged without a record, as exported before
+// switchboard made ids, is taken in as it is.
 func importConfig(t *testing.T) router.Config {
 	t.Helper()
 	cfg := runConfig(t, "http://127.0.0.1:1")
 	cfg.Ledger.Keep, cfg.History.Keep = keptFor, keptFor
+	putRecord(t, cfg.StateDir, identity.Entry{ID: "work", Organization: "test-org-work", Added: stagedOn})
 	return cfg
 }
 
@@ -501,6 +506,9 @@ func TestTheDaysImportedAreSummarisedBeforeTheImportIsAnswered(t *testing.T) {
 func TestAFailedImportRemovesWhatWasStagedAndKeepsWhatItTookInBefore(t *testing.T) {
 	cfg := importConfig(t)
 	taken, unread := dateOf(9), dateOf(10)
+	// The folder carries its record, so it's taken in without first being read
+	// through for the accounts it names, which the day unread would fail.
+	putRecord(t, folder(cfg, 1), identity.Entry{ID: "work", Organization: "test-org-work", Added: stagedOn})
 	stageLines(t, folder(cfg, 1), readingLines, taken, readingLines.linesOf(taken, 1)...)
 	stageLines(t, folder(cfg, 1), requestLines, unread, requestLines.linesOf(unread, 1, 2)...)
 	// The day's staged file can't be opened, so it can't be taken in.

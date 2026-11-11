@@ -13,7 +13,7 @@ import (
 // September, labelled team: every day at level 2, so a day drawn after the
 // one it was removed on shows, and two 5-hour limits.
 func teamRemoved(gone int) views.DaysStrip {
-	return views.DaysStrip{Of: "h7c2", Label: "team", Removed: "removed 4 Sep", Gone: gone, Limits: 2, Days: stripOf(strings.Repeat("2", 53), 15, 22)}
+	return views.DaysStrip{Of: "h7c2", Label: "team", Other: true, Removed: "removed 4 Sep", Gone: gone, Limits: 2, Days: stripOf(strings.Repeat("2", 53), 15, 22)}
 }
 
 // workAsTeam is work's strip, configured under the label the account removed
@@ -87,7 +87,7 @@ func TestDaysSaysWhenAnAccountWasRemovedWhereItsDaysAreGone(t *testing.T) {
 // Tokens names an account removed by the label it showed last in
 // text.faint, on its row and among the accounts a version ran on.
 func TestTokensNamesAnAccountRemovedInTextFaint(t *testing.T) {
-	removed := views.AccountTokens{Account: "h7c2", Label: "team", Removed: true}
+	removed := views.AccountTokens{Account: "h7c2", Label: "team", Other: true}
 	row := tokensRow{}.ofAccount(removed)
 	if got := row.name[0].said; len(got) != 2 || got[1].text != "team" || got[1].ink != faintInk {
 		t.Errorf("the removed team's row is named %+v, want team in text.faint", got)
@@ -102,14 +102,48 @@ func TestTokensNamesAnAccountRemovedInTextFaint(t *testing.T) {
 	}
 }
 
-// Detail's LATELY names an account removed by the label it showed last, in
-// text.faint, and one neither the moment nor the record knows by its id.
-func TestDetailNamesAnAccountRemovedByItsLastLabel(t *testing.T) {
-	removed := status.RemovedAccounts{{ID: "h7c2", Label: "team"}}
-	if got := detailNamed(status.Moment{}, removed, "h7c2"); got != (span{"team", faintInk}) {
-		t.Errorf("detailNamed(h7c2) = %+v, want team in text.faint", got)
+// Days draws an account only another Mac configures as one removed, by its
+// label in text.faint, but over every day, saying nothing of a removal.
+func TestDaysDrawsAnAccountConfiguredElsewhereByItsLabel(t *testing.T) {
+	home := views.DaysStrip{Of: "p4m2", Label: "home", Other: true, Gone: 56, Days: stripOf(strings.Repeat("2", 53))}
+	f := daysFrame(t, daysWorld(workAsTeam, home), 160, 37)
+	f.Look = NoColour()
+	c := historyDrawn(f)
+	rows := textOf(c.rows(Look{}))
+	l := f.layOutDays(*f.History.Days, f.top())
+	y := l.accountRow(1)
+	if !strings.HasPrefix(rows[y], "home ") || c.at(0, y).ink != faintInk {
+		t.Errorf("home's row reads %q, its name in %+v, want home in text.faint", rows[y], c.at(0, y).ink)
 	}
-	if got := detailNamed(status.Moment{}, removed, "zzzz"); got != (span{"zzzz", mutedInk}) {
-		t.Errorf("detailNamed(zzzz) = %+v, want its id in text.muted", got)
+	if strings.Contains(rows[y], "removed") || string([]rune(rows[y])[l.dayAt(52)]) != "▒" {
+		t.Errorf("home's row reads %q, want its every day drawn, nothing said removed", rows[y])
+	}
+}
+
+// The dashboard names an account wherever it names one by its id, as the
+// Log's rows and heading and Detail's LATELY do, as the moment names it: an
+// account removed by the label it showed last, and in Detail's words in
+// text.faint, as one only another Mac configures; a configured account by its
+// label, in text.muted; and one neither the moment nor the record knows by
+// its id.
+func TestTheDashboardNamesAnAccountRemovedByItsLastLabel(t *testing.T) {
+	removed := status.RemovedAccounts{{ID: "h7c2", Label: "team", Removed: routedAt}, {ID: "p4m2", Label: "home"}}
+	m := status.Document{GeneratedAt: routedAt, Accounts: []status.Account{{ID: "work", Label: "Work"}}}.WithRemoved(removed).At(routedAt, claudeLike)
+	tests := []struct {
+		id   string
+		want span
+	}{
+		{id: "work", want: span{"Work", mutedInk}},
+		{id: "h7c2", want: span{"team", faintInk}},
+		{id: "p4m2", want: span{"home", faintInk}},
+		{id: "zzzz", want: span{"zzzz", mutedInk}},
+	}
+	for _, tt := range tests {
+		if got := named(m, tt.id); got != tt.want.text {
+			t.Errorf("named(%s) = %q, want %q", tt.id, got, tt.want.text)
+		}
+		if got := detailNamed(m, tt.id); got != tt.want {
+			t.Errorf("detailNamed(%s) = %+v, want %+v", tt.id, got, tt.want)
+		}
 	}
 }

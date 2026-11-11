@@ -26,7 +26,7 @@ type History struct {
 	Totals   Totals                 `json:"totals"`
 	Plans    []PlanCost             `json:"plans"`
 	Capacity Capacity               `json:"capacity"`
-	Removed  status.RemovedAccounts `json:"removed,omitempty"`
+	Removed  status.RemovedAccounts `json:"removed"`
 }
 
 // HistoryInput is what a History is built from.
@@ -94,9 +94,9 @@ func NewHistory(in HistoryInput) History {
 }
 
 // removedNamed are the accounts of removed that days name, in removed's
-// order: none where they name none.
+// order: empty, never nil, where they name none, so the JSON lists none.
 func removedNamed(removed status.RemovedAccounts, days []Day) status.RemovedAccounts {
-	var named status.RemovedAccounts
+	named := status.RemovedAccounts{}
 	for _, a := range removed {
 		if slices.ContainsFunc(days, func(d Day) bool { return d.names(a.ID) }) {
 			named = append(named, a)

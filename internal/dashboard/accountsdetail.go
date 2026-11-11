@@ -657,7 +657,7 @@ func (d detailDrawn) lately(c *canvas, y, x, words int) {
 		d.f.quietly(c, d.m, x, y, d.f.edge())
 		return
 	}
-	for i, l := range accountLatelyLines(d.m, d.f.Accounts.Removed, sentences, words) {
+	for i, l := range accountLatelyLines(d.m, sentences, words) {
 		end := c.line(x, y+i, l.fit(d.f.edge()-x))
 		d.f.freshen(c, sentences[i].ID, x, y+i, end)
 	}
@@ -667,14 +667,14 @@ func (d detailDrawn) lately(c *canvas, y, x, words int) {
 // moment m: each led as latelyLeads has it; then its words in full,
 // stacked as wide, in text.muted, each account named as detailNamed names
 // it, cut to the cells given.
-func accountLatelyLines(m status.Moment, removed status.RemovedAccounts, sentences []views.Sentence, words int) []line {
+func accountLatelyLines(m status.Moment, sentences []views.Sentence, words int) []line {
 	lines := latelyLeads(m, sentences)
 	for i, s := range sentences {
 		var told line
 		for _, p := range slices.Concat(s.Full.Subject, s.Full.Words, s.Full.Object, s.Full.Rest) {
 			said := span{p.Text, mutedInk}
 			if p.Kind == status.PartAccount {
-				said = detailNamed(m, removed, p.Text)
+				said = detailNamed(m, p.Text)
 			}
 			told = append(told, said)
 		}
@@ -684,15 +684,20 @@ func accountLatelyLines(m status.Moment, removed status.RemovedAccounts, sentenc
 }
 
 // detailNamed is the account with the given id as Detail's words name it:
-// as named names it, in text.muted; but one m lacks that's removed, by the
-// label it showed last, cleaned, in text.faint, as Days draws one.
-func detailNamed(m status.Moment, removed status.RemovedAccounts, id string) span {
-	if _, ok := m.Account(id); !ok {
-		if gone, ok := removed.Of(id); ok {
-			return span{labelled(gone.Label, id), faintInk}
-		}
+// as named names it, in text.muted, or in text.faint, as Days draws one,
+// where it isn't configured, as status's AccountName says.
+func detailNamed(m status.Moment, id string) span {
+	return span{named(m, id), namedInk(m.Named(id))}
+}
+
+// namedInk is the ink an account named as given is drawn in where its name
+// stands among words: text.faint where it isn't configured, as status's
+// AccountName says, else text.muted.
+func namedInk(n status.AccountName) ink {
+	if n.Other {
+		return faintInk
 	}
-	return span{named(m, id), mutedInk}
+	return mutedInk
 }
 
 // sessions draws SESSIONS from row y: its heading, as panelHeading has it

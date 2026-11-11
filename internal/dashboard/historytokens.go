@@ -424,10 +424,10 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 }
 
 // ofAccount is the row, as split, of an account: its name, in text.faint of
-// one removed, its versions' count, its counts and its worth.
+// one not configured, its versions' count, its counts and its worth.
 func (r tokensRow) ofAccount(a views.AccountTokens) tokensRow {
 	named := secondaryInk
-	if a.Removed {
+	if a.Other {
 		named = faintInk
 	}
 	r.name = []part{wordsPart(line{{tokensBranch, faintInk}, {tokensAccount(a), named}})}
@@ -473,12 +473,12 @@ func tokensAccount(a views.AccountTokens) string {
 }
 
 // tokensAccounts are the accounts' names, as Tokens shows them, by their
-// ids, each in text.subtle, or in text.faint of one removed.
+// ids, each in text.subtle, or in text.faint of one not configured.
 func tokensAccounts(accounts []views.AccountTokens) map[string]span {
 	named := make(map[string]span, len(accounts))
 	for _, a := range accounts {
 		k := dimInk
-		if a.Removed {
+		if a.Other {
 			k = faintInk
 		}
 		named[a.Account] = span{tokensAccount(a), k}

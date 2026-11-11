@@ -5,10 +5,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 )
 
@@ -18,40 +20,91 @@ func accountsRecord(root string) string {
 	return filepath.Join(root, "accounts.json")
 }
 
-// The accounts record is exported with the days, byte for byte with its time,
-// counting for no day; passed over while it's as it was, and copied again
-// once it changes.
-func TestTheAccountsRecordIsCopiedCountingForNoDay(t *testing.T) {
-	state, dir := t.TempDir(), t.TempDir()
-	data := []byte(`{"version":1,"accounts":[{"id":"b6s7","added":"2026-09-01T12:00:00Z"}]}` + "\n")
-	writeFile(t, accountsRecord(state), data, summarisedAt)
-	writeFile(t, summary(state, day1), []byte("{}\n"), summarisedAt)
+// putRecord writes, in the state directory state, an accounts record of the
+// accounts given, last modified at modified.
+func putRecord(t *testing.T, state string, modified time.Time, accounts ...identity.Entry) {
+	t.Helper()
+	data, err := identity.Record{Accounts: accounts}.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, accountsRecord(state), data, modified)
+}
 
-	wantResult(t, exportInto(t, state, dir), state, dir, 1, 0)
+// exportedRecord is the accounts record in the folder of state's install in
+// dir, failing t where it can't be read.
+func exportedRecord(t *testing.T, state, dir string) []identity.Entry {
+	t.Helper()
+	record, err := identity.NewFile(folderOf(t, state, dir)).Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return record.Accounts
+}
+
+var (
+	recordAdded = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+	work        = identity.Entry{ID: "b6s7", Organization: "test-org-work", Added: recordAdded, Was: "work"}
+	side        = identity.Entry{ID: "m2x7", Label: "side", Added: recordAdded, Removed: recordAdded, Was: "side"}
+)
+
+// The accounts record is exported with the days, with its time, counting for
+// no day, each account configured labelled as it's configured, so a Mac that
+// doesn't configure it names it, and each removed as the record labels it;
+// passed over while it's as it was, and written again once it changes.
+func TestTheAccountsRecordIsExportedLabelledCountingForNoDay(t *testing.T) {
+	state, dir := t.TempDir(), t.TempDir()
+	putRecord(t, state, summarisedAt, work, side)
+	writeFile(t, summary(state, day1), []byte("{}\n"), summarisedAt)
+	x := exporter(state)
+	x.Accounts = config.Accounts{{ID: "B6S7", Label: "Work"}}
+
+	if _, err := x.Export(dir); err != nil {
+		t.Fatal(err)
+	}
+	labelledWork := work
+	labelledWork.Label = "Work"
+	if got := exportedRecord(t, state, dir); !slices.Equal(got, []identity.Entry{labelledWork, side}) {
+		t.Errorf("the folder's accounts record is %+v, want the state directory's, work labelled as configured", got)
+	}
 	copied := accountsRecord(folderOf(t, state, dir))
-	wantCopy(t, copied, data, summarisedAt)
+	if info := look(t, copied); !info.ModTime().Equal(summarisedAt) || info.Mode().Perm() != 0o600 {
+		t.Errorf("the folder's accounts record is modified at %v, %v; want %v, 0600", info.ModTime(), info.Mode().Perm(), summarisedAt)
+	}
 	was := look(t, copied)
 
-	wantResult(t, exportInto(t, state, dir), state, dir, 0, 1)
+	r, err := x.Export(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantResult(t, r, state, dir, 0, 1)
 	wantUnwritten(t, copied, was)
 
-	changed := []byte(`{"version":1,"accounts":[{"id":"b6s7","organization":"test-org-work","added":"2026-09-01T12:00:00Z"}]}` + "\n")
-	writeFile(t, accountsRecord(state), changed, summarisedAt.Add(time.Hour))
-	wantResult(t, exportInto(t, state, dir), state, dir, 0, 1)
-	wantCopy(t, copied, changed, summarisedAt.Add(time.Hour))
-
-	record, err := identity.NewFile(folderOf(t, state, dir)).Read()
-	if err != nil || len(record.Accounts) != 1 || record.Accounts[0].Organization != "test-org-work" {
-		t.Errorf("the folder's accounts record reads %+v (%v), want the state directory's", record, err)
+	changed := work
+	changed.Organization = "test-org-other"
+	putRecord(t, state, summarisedAt.Add(time.Hour), changed)
+	if _, err := x.Export(dir); err != nil {
+		t.Fatal(err)
+	}
+	changed.Label = "Work"
+	if got := exportedRecord(t, state, dir); !slices.Equal(got, []identity.Entry{changed}) {
+		t.Errorf("once the record changed, the folder's is %+v, want it as the state directory's now is", got)
 	}
 }
 
-// A state directory without an accounts record exports none.
+// A state directory without an accounts record exports none, and removes the
+// one exported before, so the folder reads as exported before switchboard
+// made ids, as its days then are.
 func TestNoAccountsRecordExportsNone(t *testing.T) {
 	state, dir := t.TempDir(), t.TempDir()
 	writeFile(t, summary(state, day1), []byte("{}\n"), summarisedAt)
+	putRecord(t, state, summarisedAt, work)
+	exportInto(t, state, dir)
+	if err := os.Remove(accountsRecord(state)); err != nil {
+		t.Fatal(err)
+	}
 
-	wantResult(t, exportInto(t, state, dir), state, dir, 1, 0)
+	wantResult(t, exportInto(t, state, dir), state, dir, 0, 1)
 	if _, err := os.Lstat(accountsRecord(folderOf(t, state, dir))); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("the folder holds an accounts record (%v), want none", err)
 	}

@@ -52,13 +52,13 @@ const NoAccount = "no account"
 
 // AccountTokens are an account's tokens in a week, and their worth, then by
 // model version. The account is left out of those the router answered with
-// none. Label is its label, as the config gives it, or of an account
-// removed, the one it showed last, as Removed says it is; none of any other
-// account: the JSON names an account by its id alone, as everywhere.
+// none. Label names it, and Other is set on one that isn't configured, as
+// status's AccountName has them: the JSON names an account by its id alone,
+// as everywhere.
 type AccountTokens struct {
 	Account string `json:"account,omitempty"`
 	Label   string `json:"-"`
-	Removed bool   `json:"-"`
+	Other   bool   `json:"-"`
 	Tokens
 	Worth
 	ByModel []ModelTokens `json:"by_model,omitempty"`
@@ -156,28 +156,18 @@ func (t accountTally) of(id string) *talliedAccount {
 }
 
 // list lists the accounts in the config's order, those it doesn't configure
-// after, by id, each with its label, as labelOf gives it, and its model
+// after, by id, each named as removed's Named names it, and with its model
 // versions.
 func (t accountTally) list(configured config.Accounts, removed status.RemovedAccounts) []AccountTokens {
 	listed := make([]AccountTokens, 0, len(t))
 	for _, id := range slices.SortedFunc(maps.Keys(t), byConfig(configured)) {
 		account := t[id].AccountTokens
-		account.Label, account.Removed = labelOf(configured, removed, id)
+		n := removed.Named(configured, id)
+		account.Label, account.Other = n.Label, n.Other
 		account.ByModel = t[id].models.list()
 		listed = append(listed, account)
 	}
 	return listed
-}
-
-// labelOf is the label of the account with the given id: the config's, where
-// it configures it; else, reporting it removed, the one it showed last, of
-// an account removed; none of any other.
-func labelOf(configured config.Accounts, removed status.RemovedAccounts, id string) (string, bool) {
-	if i := slices.IndexFunc(configured, func(a config.Account) bool { return a.ID == id }); i >= 0 {
-		return configured[i].Label, false
-	}
-	gone, ok := removed.Of(id)
-	return gone.Label, ok
 }
 
 // weekKey is a key giving the first day of the week a day falls in, weeks

@@ -11,13 +11,18 @@
 package export
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/identity"
@@ -26,11 +31,14 @@ import (
 )
 
 // Exporter exports the history in the state directory StateDir, by the clock
-// Now, what can't be done with the files it reads logged to Logger.
+// Now, what can't be done with the files it reads logged to Logger, the
+// accounts record's accounts labelled as Accounts, those configured, labels
+// them.
 type Exporter struct {
 	StateDir string
 	Now      func() time.Time
 	Logger   *slog.Logger
+	Accounts config.Accounts
 	// NoParents, where it's set, makes the folder exported into only while
 	// the folder it goes in is there, and only where it can be made in it, so
 	// one on a disk that isn't mounted, as /Volumes/<disk>/…, fails with
@@ -88,8 +96,9 @@ type Leftover struct {
 // Export exports the history into the Mac's folder in dir, making each as
 // it's needed, the user's alone, as NoParents says, and removing first what
 // writes cut short left in it, as removeLeftovers says: each day's file of
-// lines, as dayLines.export says, and each day's summary and the accounts
-// record, copied as copyFile says; then export.json, saying when. A day's file that can't be read is
+// lines, as dayLines.export says, each day's summary, copied as copyFile
+// says, and the accounts record, as exporting.record writes it; then
+// export.json, saying when. A day's file that can't be read is
 // passed over, and named in the result, as is a file writes cut short left
 // that can't be removed. It fails where dir is a file, or
 // anything in it can't be made or written, and where the state directory's
@@ -125,7 +134,7 @@ func (e Exporter) Export(dir string) (Result, error) {
 	if err := x.summaries(ledger.Dir(e.StateDir), ledger.Dir(folder)); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
-	if err := x.record(e.StateDir, folder); err != nil {
+	if err := x.record(e.StateDir, folder, e.Accounts); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	if err := writeManifest(folder, id, e.Now()); err != nil {
@@ -198,16 +207,59 @@ func (x *exporting) summaries(src, dst string) error {
 	return nil
 }
 
-// record copies the accounts record in the state directory at state into
-// the Mac's folder at folder, as copyFile copies it, making the folder as
-// x.mkdir does: none where there's none. It counts for no day, and fails
-// where the record can't be read, as an import of the folder needs it to
-// take in the accounts its days name.
-func (x *exporting) record(state, folder string) error {
-	if _, err := copyFile(identity.NewFile(state).Path(), identity.NewFile(folder).Path(), x.mkdir); err != nil {
+// record writes the accounts record in the state directory at state into the
+// Mac's folder at folder, each account configured labelled as configured
+// says, so a Mac that doesn't configure it names it all the same, making the
+// folder as x.mkdir does: where it differs from the one there, and with the
+// state record's modification time. Where the state directory has none, it
+// removes the folder's, so the folder reads as exported before switchboard
+// made ids, as its days then are. It counts for no day, and fails where the
+// record can't be read, as an import of the folder needs it to take in the
+// accounts its days name.
+func (x *exporting) record(state, folder string, configured config.Accounts) error {
+	src, dst := identity.NewFile(state), identity.NewFile(folder).Path()
+	info, err := os.Stat(src.Path())
+	if errors.Is(err, fs.ErrNotExist) {
+		if err := os.Remove(dst); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("remove the accounts record exported before: %w", err)
+		}
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("export the accounts record: %w", err)
+	}
+	record, err := src.Read()
+	if err != nil {
+		return fmt.Errorf("export the accounts record: %w", err)
+	}
+	data, err := labelled(record, configured).Encode()
+	if err != nil {
+		return fmt.Errorf("export the accounts record: %w", err)
+	}
+	if was, err := os.ReadFile(dst); err == nil && bytes.Equal(was, data) {
+		return nil
+	}
+	err = writeFile(dst, info.ModTime(), x.mkdir, func(w io.Writer) error {
+		_, err := w.Write(data)
+		return err
+	})
+	if err != nil {
 		return fmt.Errorf("export the accounts record: %w", err)
 	}
 	return nil
+}
+
+// labelled is record with each account configured labelled as configured
+// labels it.
+func labelled(record identity.Record, configured config.Accounts) identity.Record {
+	out := identity.Record{Accounts: slices.Clone(record.Accounts)}
+	for i, e := range out.Accounts {
+		at := slices.IndexFunc(configured, func(a config.Account) bool { return strings.EqualFold(a.ID, e.ID) })
+		if at >= 0 && configured[at].Label != "" {
+			out.Accounts[i].Label = configured[at].Label
+		}
+	}
+	return out
 }
 
 // note notes how exporting what's given, of the day with the given date,

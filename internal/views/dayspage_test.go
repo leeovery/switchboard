@@ -119,9 +119,9 @@ func TestDaysByAccountIsAStripAnAccountOnOneScaleOfItsWeek(t *testing.T) {
 	in := input(days)
 	in.Accounts = config.Accounts{{ID: "work", Label: "Work", Primary: true}, {ID: "side"}, {ID: "spare", Label: "Spare"}}
 	want := []views.DaysStrip{
-		{Of: "work", Label: "Work", Primary: true, Days: stripDays(map[int]int{0: 2, 50: 4}, 50), Limits: 2},
-		{Of: "side", Days: stripDays(map[int]int{51: 3}, 51), Limits: 1},
-		{Of: "spare", Label: "Spare", Days: stripDays(nil)},
+		{Of: "work", Label: "Work", Primary: true, Days: stripDays(map[int]int{0: 2, 50: 4}, 50), Limits: 2, Gone: 56},
+		{Of: "side", Label: "side", Days: stripDays(map[int]int{51: 3}, 51), Limits: 1, Gone: 56},
+		{Of: "spare", Label: "Spare", Days: stripDays(nil), Gone: 56},
 	}
 	if got := views.NewPast(in, days).Days().ByAccount; !reflect.DeepEqual(got, want) {
 		t.Errorf("BY ACCOUNT is\n%+v\nwant\n%+v", got, want)
@@ -129,39 +129,55 @@ func TestDaysByAccountIsAStripAnAccountOnOneScaleOfItsWeek(t *testing.T) {
 }
 
 // BY ACCOUNT strips an account removed after the configured, where the eight
-// weeks record anything of it, by the label it showed last, said removed,
-// told apart from a configured account given that label since; its days
-// after the one it was removed on its own none. One removed that the eight
-// weeks record nothing of has no strip.
+// weeks record anything of it, by the label it showed last, said removed by
+// the local day it was removed on, told apart from a configured account
+// given that label since; its days after that day its own none. One only
+// another Mac configures is stripped alike, by its label, never removed. One
+// not configured that the eight weeks record nothing of has no strip.
 func TestDaysByAccountStripsAnAccountRemovedByItsLastLabel(t *testing.T) {
+	zone := time.FixedZone("UTC-10", -10*60*60)
+	inZone(t, zone)
 	days := daysFrom("2026-08-10",
 		day("2026-08-20", rose("h7c2", map[string]float64{"7d": 0.2})),
 		day("2026-09-03", rose("h7c2", map[string]float64{"7d": 0.4}, limit("5h", "2026-09-03", "10:00"))),
-		day("2026-10-06", rose("work", map[string]float64{"7d": 0.5})),
+		day("2026-10-06", rose("work", map[string]float64{"7d": 0.5}), rose("p4m2", map[string]float64{"7d": 0.1})),
 	)
 	in := input(days)
 	in.Accounts = config.Accounts{{ID: "work", Label: "team"}}
 	in.Removed = status.RemovedAccounts{
-		{ID: "h7c2", Label: "team", Removed: onAt("2026-09-04", "16:00").UTC()},
+		// Late on the 4th here, the 5th in UTC.
+		{ID: "h7c2", Label: "team", Removed: time.Date(2026, 9, 4, 23, 30, 0, 0, zone).UTC()},
+		{ID: "p4m2", Label: "home"},
 		{ID: "k3f9", Label: "spare", Removed: onAt("2026-09-10", "09:00").UTC()},
 	}
 
 	got := views.NewPast(in, days).Days().ByAccount
-	if len(got) != 2 {
-		t.Fatalf("BY ACCOUNT is %+v, want work's strip, then the removed team's alone", got)
+	if len(got) != 3 {
+		t.Fatalf("BY ACCOUNT is %+v, want work's strip, then the removed team's, then home's", got)
 	}
-	if work := got[0]; work.Of != "work" || work.Label != "team" || work.Removed != "" || work.Days[50].Level == 0 {
-		t.Errorf("BY ACCOUNT's first strip is %+v, want work's, labelled team, not removed", work)
+	if work := got[0]; work.Of != "work" || work.Label != "team" || work.Other || work.Removed != "" || work.Gone != 56 || work.Days[50].Level == 0 {
+		t.Errorf("BY ACCOUNT's first strip is %+v, want work's, labelled team, configured", work)
 	}
 	team := got[1]
 	// The eight weeks start on 17 Aug: 20 Aug is their 4th day, 3 Sep their
 	// 18th, and 5 Sep, the day after the one team was removed on, their 20th.
-	if team.Of != "h7c2" || team.Label != "team" || team.Removed != "removed 4 Sep" || team.Gone != 19 || team.Limits != 1 {
+	if team.Of != "h7c2" || team.Label != "team" || !team.Other || team.Removed != "removed 4 Sep" || team.Gone != 19 || team.Limits != 1 {
 		t.Errorf("the removed team's strip is %+v, want it labelled team, removed 4 Sep, gone from the 20th day, with 1 5-hour limit", team)
 	}
 	if team.Days[3].Level == 0 || team.Days[17].Level == 0 || !team.Days[17].Limit {
 		t.Errorf("the removed team's days are %+v, want its week's rises on the 4th and 18th, its limit on the 18th", team.Days)
 	}
+	if home := got[2]; home.Of != "p4m2" || home.Label != "home" || !home.Other || home.Removed != "" || home.Gone != 56 || home.Days[50].Level == 0 {
+		t.Errorf("BY ACCOUNT's last strip is %+v, want home's, labelled home, not configured, never removed", home)
+	}
+}
+
+// inZone has the test's local time zone the one given until it ends. A test
+// that calls it mustn't run in parallel.
+func inZone(t *testing.T, zone *time.Location) {
+	was := time.Local
+	time.Local = zone
+	t.Cleanup(func() { time.Local = was })
 }
 
 func TestDaysSaysWhetherAnythingIsRecordedInItsWeeks(t *testing.T) {

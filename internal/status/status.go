@@ -102,6 +102,17 @@ type Document struct {
 	// moment of it to read, as the document stood then; nil where it has
 	// nothing to play, or it isn't played yet.
 	weeks *weeksAhead
+	// removed are the accounts the accounts record keeps that the document
+	// doesn't hold, as WithRemoved gives them, for its moments to name.
+	removed RemovedAccounts
+}
+
+// WithRemoved is the document whose moments name the accounts of removed, as
+// RemovedOf gives them, as Moment's Named does: the reader of a document
+// knows them, from the accounts record, where the document doesn't.
+func (d Document) WithRemoved(removed RemovedAccounts) Document {
+	d.removed = removed
+	return d
 }
 
 // The kinds of event the router tells of, as an Event's Kind says.

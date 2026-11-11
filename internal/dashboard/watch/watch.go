@@ -132,7 +132,8 @@ type Config struct {
 	// Accounts are the configured accounts, whose plans History prices its
 	// worth against, and WeekStarts the day its calendar weeks start on.
 	// Removed are the accounts removed, as status.RemovedOf gives them, which
-	// History and Accounts' Detail name by the label each showed last.
+	// every document read names, as status's Moment Named does, and History
+	// by the label each showed last.
 	Accounts   config.Accounts
 	WeekStarts time.Weekday
 	Removed    status.RemovedAccounts
@@ -478,7 +479,6 @@ func New(ctx context.Context, cfg Config) Model {
 		keeping:     keeping{gate: new(prefsGate)},
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
-	m.accounts.shown.Removed = cfg.Removed
 	if m.after == nil {
 		m.after = after
 	}
@@ -1032,6 +1032,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 		m = m.lose(now)
 	default:
+		msg.doc = msg.doc.WithRemoved(m.cfg.Removed)
 		look := msg.doc.At(now, m.cfg.Policy)
 		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)
 		m, shown = m.show(msg, look)
