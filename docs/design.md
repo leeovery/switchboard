@@ -512,6 +512,263 @@ routed, as the new primary's, while it has a usable token (see Accounts and toke
   the first account's with a usable token: see Launching.
 - `accounts`, `status` and the dashboard mark the primary.
 
+## Pools
+
+**Designed, not yet built** (the owner's calls, 10 and 11 November 2026). Until it's built, the
+other sections describe switchboard with a single pool, as it runs today.
+
+A pool is a set of accounts fenced to one or more directories. A session started inside those
+directories is routed across that pool's accounts and no others. Accounts that aren't in a pool make
+up the **default pool**, which serves every session started anywhere else and is never fenced.
+Nothing crosses between pools in either direction: a pool's accounts never serve a session from
+outside it, and a session inside it never goes out on an account outside it. When all of a pool's
+accounts are out, work inside it stops until a window resets, while the other pools carry on. That
+is how the default pool already behaves when every account is out. The case it was designed for: a
+client who provides Claude accounts for their own work, which have to serve that work alone.
+
+A pool is its own structure, not a kind of pin. Every rule of Choosing an account, Pinning,
+Reserves, Forecasting run-outs and Priming applies inside a pool exactly as it does today, with that
+pool's accounts as the whole set. Without a second pool, switchboard works as it does now: no new
+flags are needed and no new words appear on screen.
+
+### What a pool is
+
+```toml
+[[account]]
+id      = "acme-1"
+label   = "Acme 1"
+pool    = "acme"           # no pool: the default pool
+primary = true             # the pool's primary
+plan    = "ultra"
+
+[[pool]]
+id   = "acme"              # for good, as an account's id is: the request ledger records it
+dirs = ["~/Code/acme"]     # one or more, written absolute or from ~
+```
+
+- **An account is in one pool at a time:** the one its `pool` names, or the default pool when it
+  names none. Keeping membership on the account makes it impossible to put an account in two pools.
+- **A pool has one or more directories,** each one covering everything beneath it. Two pools'
+  directories can't overlap: no directory may be the same as, inside or around another pool's. So
+  any start directory belongs to exactly one pool, or to the default pool. Directories are compared
+  one whole folder name at a time, so `~/Code/acme` doesn't cover `~/Code/acme-api`, and without
+  regard to case, as macOS compares them.
+- **A pool can have no accounts.** Its directories stay fenced: a session started in them refuses to
+  launch, saying that the pool has no accounts. So when a client's last account goes, the client's
+  directories close rather than falling into the default pool. Handing them back to the default pool
+  is a separate step: removing the pool.
+- **Removing a pool that still has accounts is refused.** Its accounts are moved to another pool or
+  removed first, so one edit can never put a client's accounts into the default pool.
+- **Ids:** a pool's id takes an account id's characters, is never `default`, which names the default
+  pool wherever a pool is named, and is kept for good, as the request ledger records it. An account
+  naming a pool that isn't configured is an invalid config, saying which.
+
+### The primary, a pool each
+
+Each pool has a primary, kept as The primary account says of today's one: `primary = true` marks it,
+at most one in a pool, and without it, the first of the pool's accounts in the config's order is the
+primary. The default pool's primary is today's primary.
+
+A pool's primary plays three parts, all of which follow from Claude Code holding one token for the
+whole life of its process:
+
+- **The starting token.** A session started in the pool starts on its primary's token, so what
+  Claude Code sends that isn't the conversation goes out inside the pool: artifacts and uploads, and
+  the traffic that never reaches the router, such as fast mode and web fetches.
+- **The artifacts' home.** A pool's artifacts open in a browser signed into its primary, as the
+  default pool's open in one signed into today's primary. A client's pool keeps its artifacts on the
+  client's account, opened in a browser profile signed into it.
+- **The account a session goes direct on,** when the router is down and `when_router_down` says
+  `direct`.
+
+Moving a pool's primary to another pool, or removing it, makes the pool's next account its primary,
+in the config's order. Setup offers to choose a different one. The pool's running sessions still
+hold the old primary's token, and Routing within a pool says what happens to them.
+
+### Which pool a session is in
+
+`run` decides, as it starts, from the directory Claude Code starts in, and the session keeps that
+pool for its whole life:
+
+- `run` resolves symlinks in the start directory and in each pool's directories, then finds the pool
+  whose directories cover it. If none do, the session is in the default pool.
+- **The start directory decides.** A session started in `~/Code` that later works in `~/Code/acme`
+  stays in the default pool, as Claude Code itself files a session by the directory it started in. A
+  resumed session is started afresh, so it gets the pool its directory is in now: the default pool,
+  if its pool has since been removed.
+- A git worktree made outside a pool's directories is outside the pool. Claude Code's own worktrees,
+  under the project's `.claude/worktrees`, stay inside it.
+
+### Launching in a pool
+
+- **Routed:** Claude Code starts on the pool's primary's token. If that isn't usable, it starts on
+  the token of the pool's first account with a usable token. If no account in the pool has one, the
+  launch refuses, saying so: `switchboard: pool acme has no account with a usable token — not
+  starting claude`. Every launch names its pool to the router in a header, `X-Switchboard-Pool`,
+  even the default pool's, alongside the pin and directory headers (see Launching). It also sets
+  `SWITCHBOARD_POOL` in the session's environment, for the skill. The header is cleared on every
+  path where the pin header is.
+- **`--account`** must name an account in the start directory's pool. One in another pool is
+  refused, saying which pool each is in, for example: `account acme-1 is in pool acme; this
+  directory is in the default pool`.
+- **A router that doesn't know the pools counts as down.** The router reports in its health answer
+  the pools it routes for, with their accounts and primaries. Until those match the config's, `run`
+  waits for the router to take them up, 5 seconds at most. If they still don't match, it treats the
+  router as down for this launch: it stops, or goes direct, as `when_router_down` says. This closes
+  the gap where an older router, one that strips switchboard's headers or still runs on a config
+  without pools, would spread a session across every account. Without a second pool, nothing is
+  compared.
+- **Direct,** as `when_router_down` or `SWITCHBOARD_WHEN_ROUTER_DOWN` say, goes out on `--account`'s
+  token, else the pool's primary's, else the token of the pool's first account with a usable token.
+  It never uses an account outside the pool.
+- **Never on Claude Code's own login inside a pool.** A start directory inside a pool's directories
+  refuses rather than start unaided, and so does `--direct`, as both would go out on whatever
+  account Claude Code is signed into. Where the config can't be read, `run` takes the pools from the
+  router while it answers, as it takes the accounts now (see Launching). Where the router doesn't
+  answer either, `run` reads the pools from the config file leniently, as the export folder is read
+  from a config that's otherwise invalid. A config file that can't be read even that far is the one
+  gap: there `run` starts unaided, as it does now.
+
+### Routing within a pool
+
+- **Each request is routed within its pool.** The router reads the pool from the request's header. A
+  request without one, from a session started before pools, is in the default pool. The pool's
+  accounts are the only candidates, narrowed where the router builds its view of the accounts, the
+  one place every choice is made from. So the session's own pin, the pool's pin, stickiness,
+  pressure, compaction moves, replays after a limit or a refusal, and the 429 switchboard answers
+  itself all stay inside the pool. Its probes before a choice read only the pool's accounts.
+- **No fallback leaves the pool.** When no account has room, a request goes where step 5 of Choosing
+  an account says, among the pool's accounts alone. Where that leaves none, switchboard answers 429
+  itself, as it does for an account held back by its reserve alone. The session's own token, which
+  the fallback uses today, is used only when its account is in the pool. A scheduler that names an
+  account it can't send on refuses the request rather than send it on the client's token.
+- **A session whose token has left its pool is refused.** A routed request whose token belongs to an
+  account no longer in the request's pool is answered by switchboard itself, with a message telling
+  the session to exit and resume, as the token Claude Code started on can't be changed while it
+  runs. The same goes for a request naming a pool the config no longer has. This happens only when a
+  pool's primary moves or the pool goes, and it's rare by design, so the router blocks rather than
+  build anything gentler (the owner's call, 11 November 2026). Resumed, the session starts on its
+  pool's primary as it stands, or in the default pool. The answer is shaped as the API shapes its
+  errors, with a status Claude Code neither retries nor takes for a login to renew; which one is
+  tested on Claude Code itself when it's built.
+- **A removed account's token** counts, for the week Accounts and tokens gives it, as the primary's
+  of the pool the account was in, rather than today's primary's. So a session that started on it
+  stays routed inside its pool.
+- **An account that moves to another pool** takes its sessions off at once. A session on it whose
+  pool it has left moves on its next request, its cache's warmth disregarded. A session on a model
+  whose thinking is bound to its account loses that thinking, the cost of a rare move (the owner's
+  call, 10 November 2026). The routed line gives `moved: <id> left the pool`.
+- **The router takes changes to the pools up at once,** on the look it takes at the config file
+  every 3 seconds, rather than at its next restart, which can be hours away: which pool each account
+  is in, each pool's primary, and the pools themselves. Every request reads that membership, so it's
+  held so that a request never reads it half-changed. Adding a new account still waits for the
+  restart, as it does today.
+- **Priming** staggers each pool's 5-hour resets through the day on its own, as Priming spreads them
+  today.
+
+### Pinning in a pool
+
+- **Each pool has its own pin,** set and cleared as today's single pin is. Pinning accounts pins
+  them in the pool they're in, so `pin acme-1 acme-2` needs no flag. Accounts given from two pools
+  are refused, saying which pool each is in. `pin auto` clears the default pool's pin, and `pin auto
+  --pool acme` clears acme's.
+- **`--move` and `--force`** act inside the pin's pool alone. `--force` clears the own pins of that
+  pool's sessions only.
+- **A session's own pin**, from `pin --session` or `run --account`, must name an account in the
+  session's pool. One naming another pool's account is refused.
+- **Words:** what this document calls the global pin becomes the pool's pin, and the routed reason
+  `pinned (global)` becomes `pinned (pool)`. Lines recorded with the old reason still read as it.
+
+### Forecasting in a pool
+
+Each pool's run-outs are forecast from its own demand: the day rate and each account's recent rate,
+which the router keeps today for every account together, are kept per pool. The curve of how long
+sessions stay on an account stays shared, because it describes how sessions behave, not how much
+they use. An account that moves pools has its recent rates forgotten, so it brings none of its old
+pool's demand with it, and the day rate learns its new pool's within a day.
+
+### What's recorded
+
+- **Request lines record their pool:** `pool`, written for any pool but the default and left out for
+  the default pool, so every line from before pools reads as the default pool's. It's recorded at
+  the time of the request, because an account's pool can change and the config keeps no history of
+  it.
+- **Day summaries** split each account's day by pool as well as by model, as an account can move
+  partway through a day. That's a new summary version, so the days whose lines are still kept are
+  summarised again, once.
+- **Readings** stay per account: an account's windows are its own, whatever pool it's in.
+- **Events:** pin events name their pool.
+- **Export and import** copy the files as they are, so they need nothing new.
+
+Moving an account rewrites nothing. Views that show accounts go by which pool each account is in
+now: windows, Runway, the day strips, Graphs. Views that show work go by the pool recorded at the
+time: the requests and the Log, sessions, what work was worth, and History's totals.
+
+### Reading a pool
+
+- **The router answers for one pool at a time:** its status document, history, sessions and request
+  stream each take `?pool=<id>`, and without it answer for the default pool. Each pool's document
+  has its own accounts, best next account, primary, pin, room, sessions and demand. The router's
+  health, restarts, export and events that aren't a pool's are shared by every pool's. Everything
+  that reads a document reads it as it does today.
+- **Verbs** that read or act on a pool take `--pool <id>`: `status`, `usage`, `sessions`,
+  `requests`, `history`, `events`, `dashboard` and `pin auto`. Without the flag they act on the
+  default pool. A verb that names accounts takes their pool from them. No verb ever decides its pool
+  from the directory it's run in, because that could act on a pool its user didn't know they were in
+  (the owner's call, 10 November 2026).
+- **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
+  add <id> <dir>...` makes one, `pool dirs <id> <dir>...` replaces its directories, and `pool remove
+  <id>` removes one that has no accounts. `accounts add` and `accounts edit` take `--pool <id>`,
+  `default` included, and `--primary` makes an account its pool's primary. `accounts` adds a pool
+  column once a second pool exists.
+- **The skill** tells Claude, in a session where `SWITCHBOARD_POOL` is set, to pass `--pool
+  "$SWITCHBOARD_POOL"` to the verbs, so that a session reads its own pool, named explicitly. It also
+  says that artifacts live on the session's pool's primary.
+
+### The dashboard in a pool
+
+- **A dashboard shows one pool,** the default pool unless `--pool` names another. No page adds pools
+  together: a pool's room can never serve another pool's sessions, so a merged view has nothing to
+  add up. A page across pools waits until one is needed (the owner's call, 11 November 2026).
+- **`P` cycles the pools,** everywhere, once a second pool exists. Changing pool starts the
+  dashboard's view afresh, as a router change does, so nothing it remembered of one pool carries
+  into the next.
+- **The title row names the pool shown,** once a second pool exists. Accounts are numbered within
+  the pool, in the config's order.
+- **A pool with no accounts** draws a page that says so, with how to add one.
+- **Notifications** name the pool once a second pool exists. Paper settles how each of these looks.
+
+### Setup with pools
+
+- **Adding an account** asks for its pool as a fourth field, after its id, label and plan: the
+  default pool, an existing pool, or a new one. A new pool opens a card for its id and directories,
+  and the first account in a pool becomes its primary.
+- **Editing an account** moves it to another pool and makes it its pool's primary.
+- Pools with no accounts are removed with `pool remove`.
+
+### What pools can't hold
+
+- **A session started without switchboard's `claude`,** as an editor's extension may start one,
+  isn't routed at all, whatever its directory. The session hook can only tell it so (see The session
+  hook).
+- **A running session's own token** goes out until the session exits. The router refuses its routed
+  requests once its token has left its pool, but what never reaches the router, such as fast mode,
+  carries on until then.
+- **A config file that can't be read,** with the router not answering, starts `claude` unaided, as
+  Launching in a pool says.
+
+### Building it
+
+In two phases, after v1:
+
+1. **Safety,** which a pool's work needs from its first day: the config and the `pool` verbs;
+   `run`'s pool, its starting token, its header and its checks; the router's pools, taken up at
+   once, with routing, pins, fallbacks, demand and its answers per pool; the records; and the verbs'
+   `--pool`, and the skill. The dashboard shows the default pool as now; `status --pool` shows the
+   others.
+2. **Sight:** the dashboard's `--pool` and `P`, the title row, the empty pool, notifications, and
+   setup's cards, each drawn in Paper first.
+
 ## Reserves
 
 Any account can keep a reserve, which `reserve` in its table sets (see Config).
@@ -10396,6 +10653,16 @@ into having the graphs page for graphs, at least for now." What only it used wen
 Overview keeps its five other sections and By account with ROUTING beside, and a preferences file
 that kept GRAPHS reads without it. The focus, which only GRAPHS showed, went with it: `↑` and `↓`
 scroll USAGE where it scrolls, and do nothing where it shows every account (#171).
+
+**Pools — designed, 11 November 2026.** After v0.6.0 the owner took up pools, for a client who
+provides Claude accounts for their own work. A pool is a set of accounts fenced to directories,
+with nothing crossing between pools in either direction, and each pool has its own primary, pin,
+demand and dashboard (see Pools). A survey of the code before it was written found no blocker, and
+three things the fence rests on: a session starting on its own pool's token, as what never reaches
+the router goes out on that; the router taking up changes to the pools at once, not at its next
+restart; and the fallbacks for a request no account has room for never leaving the pool. Paper
+draws the dashboard's and setup's parts next, for the owner's review, and it's built after v1, in
+the two phases Pools gives.
 
 The release, through mint, a Homebrew tap and a build on the owner's Mac (see Signing), follows
 milestone 3.
