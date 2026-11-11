@@ -28,14 +28,16 @@ type WriterOptions struct {
 	// Round, where it's given, is called with the clock's now on each of the
 	// Writer's rounds, on Run's goroutine, before the files are pruned: what
 	// else is kept of the files' days is kept on it, while their lines are
-	// still there.
+	// still there. Where it leaves some of that for the next round, it has
+	// the Writer make one at once, as RoundAgain says.
 	Round func(now time.Time)
-	// Pruning, where it's given, is called with the clock's now just before
-	// each prune of the files, once a day, on Run's goroutine: what's kept of
-	// other days that needs the files' lines, as the request ledger's
-	// summaries need the readings history's, is kept on it, while they're
-	// still there, and needn't be on every round.
-	Pruning func(now time.Time)
+	// Pruning, where it's given, is called with the clock's now, and the keep
+	// the prune goes by, just before each prune of the files, once a day, on
+	// Run's goroutine: what's kept of other days that needs the files' lines,
+	// as the request ledger's summaries need the readings history's, is kept
+	// on it, while they're still there, and needn't be on every round, by the
+	// keep that tells which go.
+	Pruning func(now time.Time, keep time.Duration)
 	// Spare, where it's given, reports whether the files of the local day
 	// with the given date, past keeping, are kept all the same, until a later
 	// prune: what's kept of the day needs its lines still, as a request
@@ -60,11 +62,13 @@ type Writer[T any] struct {
 	now       func() time.Time
 	items     string
 	onRound   func(now time.Time)
-	onPruning func(now time.Time)
+	onPruning func(now time.Time, keep time.Duration)
 	spare     func(date string) bool
 	queue     chan T
 	// work takes what Do hands Run's goroutine to do, as Run takes it up.
 	work chan func()
+	// again holds the round RoundAgain asks for, one at most.
+	again chan struct{}
 	// stopped is closed as Run returns, and made afresh as a Run after it
 	// starts, as one Writer can be run again; runs guards it.
 	stopped chan struct{}
@@ -83,7 +87,7 @@ type Writer[T any] struct {
 // the lines linesOf returns of it, as opts say.
 func NewWriter[T any](files *Files, linesOf func(T) Lines, opts WriterOptions) *Writer[T] {
 	return &Writer[T]{files: files, linesOf: linesOf, keep: opts.Keep, now: opts.Now, items: opts.Items, onRound: opts.Round, onPruning: opts.Pruning,
-		spare: opts.Spare, queue: make(chan T, opts.Queue), work: make(chan func()), stopped: make(chan struct{})}
+		spare: opts.Spare, queue: make(chan T, opts.Queue), work: make(chan func()), again: make(chan struct{}, 1), stopped: make(chan struct{})}
 }
 
 // Note queues v for Run to write. It never waits: with the queue full, v is
@@ -98,10 +102,11 @@ func (w *Writer[T]) Note(v T) {
 	}
 }
 
-// Run writes what's noted, making its round as it starts and every pruneLook
-// after, and does what Do hands it, until ctx ends, when it writes what's
-// still queued. It makes the files' directory private as it starts. A
-// Writer runs one Run at a time.
+// Run writes what's noted, making its round as it starts, every pruneLook
+// after, and once more at once where RoundAgain asks for one, having written
+// what's queued first, and does what Do hands it, until ctx ends, when it
+// writes what's still queued. It makes the files' directory private as it
+// starts. A Writer runs one Run at a time.
 func (w *Writer[T]) Run(ctx context.Context) {
 	defer close(w.starting())
 	w.files.makePrivate()
@@ -115,6 +120,9 @@ func (w *Writer[T]) Run(ctx context.Context) {
 		case work := <-w.work:
 			work()
 		case <-look.C:
+			w.round()
+		case <-w.again:
+			w.drain()
 			w.round()
 		case <-ctx.Done():
 			w.drain()
@@ -189,6 +197,18 @@ func doneBy(ctx context.Context, done <-chan struct{}) error {
 	}
 }
 
+// RoundAgain has Run make another round at once, once it's done with what
+// it's doing and has written what's queued, so what's noted waits on one
+// round at most, never on the rounds after it: for a Round that keeps what it
+// keeps a part at a time. It never waits, and asks for one round however
+// often it's called before Run makes it.
+func (w *Writer[T]) RoundAgain() {
+	select {
+	case w.again <- struct{}{}:
+	default:
+	}
+}
+
 // RoundNow makes the Writer's round at once, as it makes one every pruneLook,
 // on Run's goroutine, and returns as Do does.
 func (w *Writer[T]) RoundNow(ctx context.Context) error {
@@ -221,7 +241,7 @@ func (w *Writer[T]) round() {
 		return
 	}
 	if w.onPruning != nil {
-		w.onPruning(now)
+		w.onPruning(now, w.keep)
 	}
 	w.pruned = DateOf(now)
 	w.files.prune(now, w.keep, w.spared(now))

@@ -300,14 +300,42 @@ func someSteps(rng *rand.Rand) []step {
 	return steps
 }
 
-// playedOut plays steps out on a day's files, its stopped compresses
-// stopping where stopping is set, and doing nothing where it isn't, then
+func TestADayAStoppedCompressLeftReadsAsItDoesOnceCompressed(t *testing.T) {
+	// sequences is as many as run in a few seconds under the race detector.
+	const sequences = 300
+	rng := rand.New(rand.NewPCG(10, 26))
+	for i := range sequences {
+		steps := someSteps(rng)
+		f, plain := played(t, steps, true)
+		got, unread := readJSON(f, earlierDate)
+		if plain {
+			compressingDay(t, f)
+		}
+		if want, most := readJSON(f, earlierDate); !slices.Equal(got, want) || unread != most {
+			t.Fatalf("sequence %d, %v: the day reads %q, %d unread; want %q, %d unread, as it reads once compressed",
+				i, steps, got, unread, want, most)
+		}
+	}
+}
+
+// playedOut plays steps out on a day's files, as played does, then
 // compresses the day, and returns the lines a read of it gives, and how many
 // it couldn't read.
 func playedOut(t *testing.T, steps []step, stopping bool) (read []string, unread int) {
 	t.Helper()
-	f := requestLedger(t.TempDir())
-	plain := false
+	f, plain := played(t, steps, stopping)
+	if plain {
+		compressingDay(t, f)
+	}
+	return readJSON(f, earlierDate)
+}
+
+// played plays steps out on a day's files, its stopped compresses stopping
+// where stopping is set, and doing nothing where it isn't, and returns the
+// files, and whether the day has a plain file.
+func played(t *testing.T, steps []step, stopping bool) (f *Files, plain bool) {
+	t.Helper()
+	f = requestLedger(t.TempDir())
 	for _, s := range steps {
 		switch {
 		case s.kind == "append":
@@ -320,10 +348,7 @@ func playedOut(t *testing.T, steps []step, stopping bool) (read []string, unread
 			plain = false
 		}
 	}
-	if plain {
-		compressingDay(t, f)
-	}
-	return readJSON(f, earlierDate)
+	return f, plain
 }
 
 // compressingDay compresses the day of earlierDate.

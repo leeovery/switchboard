@@ -272,7 +272,7 @@ type History interface {
 // each takes no lock of the history's files, as a listing of them does: a
 // prune waiting on the read would hold the listing back, and the listing the
 // read. The router's readings history prunes only once it has had the ledger
-// summarise, which waits for any summarising under way, as SummariseEnded's
+// summarise, which waits for any summarising under way, as SummariseSome's
 // lock has it. listed reports whether a listing of the history before the
 // read gave a day's date, as one listing, shared by every run, gives them,
 // so each run's faults note those whose files have gone since, as
@@ -373,6 +373,14 @@ type readingsHeld []string
 func (h readingsHeld) holds(date string) bool {
 	_, found := slices.BinarySearch(h, date)
 	return found
+}
+
+// readsBefore reports whether a summary of the local day with the given date
+// reads readings the history holds of a day before the one with the date
+// kept, as a prune that keeps that day's on takes them, by the dates
+// readingDates gives their files: never where kept is "".
+func (h readingsHeld) readsBefore(date, kept string) bool {
+	return slices.ContainsFunc(readingDates(date), func(d string) bool { return d < kept && h.holds(d) })
 }
 
 // reach returns how far the history holds the readings a summary of the

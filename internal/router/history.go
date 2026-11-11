@@ -28,10 +28,10 @@ type history struct {
 	// keep is how long a day's file is kept, from the end of its day.
 	keep time.Duration
 	// pruning, where it's given, is called just before each prune of the
-	// history's files, once a day: the request ledger summarises on it the
-	// days that have ended, while the readings their summaries need are
-	// still there.
-	pruning func(now time.Time)
+	// history's files, once a day, with the keep the prune goes by: the
+	// request ledger summarises on it the days that have ended, while the
+	// readings their summaries need are still there.
+	pruning func(now time.Time, keep time.Duration)
 	// files are the history's files, and writer what writes the readings
 	// noted to them: both are made as the history is opened, once the router
 	// has its state directory, before run starts.
